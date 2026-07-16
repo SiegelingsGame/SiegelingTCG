@@ -227,6 +227,30 @@ class GameJavaScriptRegressionTest {
         );
     }
 
+    @Test
+    void holographicFullCardArtStaysBinderOnlyAndSupportsComparison() throws IOException {
+        String homeScript = readHomeScript();
+        String dashboardScript = Files.readString(CARD_DASHBOARD_JS);
+        String binderScript = Files.readString(Path.of("src/main/resources/static/js/card-binder-visual.js"));
+
+        assertTrue(
+                binderScript.contains("options.useHolographicFullCardArt")
+                        && binderScript.contains("card?.holographicCardArtUrl"),
+                "The full-card holographic asset must require an explicit binder-view option."
+        );
+        assertTrue(
+                homeScript.contains("data-card-art-stack")
+                        && homeScript.contains("data-card-art-toggle=\"HOLOGRAPHIC\"")
+                        && homeScript.contains("detailArtSwipeStartX"),
+                "Card detail must expose stacked Standard/Holographic views and swipe switching."
+        );
+        assertTrue(
+                dashboardScript.contains("selected.holographicCardArtUrl = hostedUrl")
+                        && dashboardScript.contains("formData.append(\"artVariant\", artVariant)"),
+                "Dashboard holographic uploads must save to their own catalog field and upload variant."
+        );
+    }
+
     private static String readGameScript() throws IOException {
         return Files.readString(GAME_JS);
     }

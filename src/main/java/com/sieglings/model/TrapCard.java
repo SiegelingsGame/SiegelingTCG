@@ -25,6 +25,7 @@ public class TrapCard extends Card {
         TrapCard copy = new TrapCard(getId(), getName(), getElement(), getRarity(),
                 getCostElement(), getCostAmount(), getAbility());
         copy.setCardArtUrl(getCardArtUrl());
+        copy.setHolographicCardArtUrl(getHolographicCardArtUrl());
         copy.setCardArtMode(getCardArtMode());
         copy.setCardArtOffsetX(getCardArtOffsetX());
         copy.setCardArtOffsetY(getCardArtOffsetY());

@@ -40,6 +40,8 @@ export interface SieglingCardModel {
     moveIds: string[];
     /** Custom art URL or data URI for the cards menu binder. */
     cardArtUrl?: string;
+    /** Complete-card artwork used only when the card's holographic finish is active in binder views. */
+    holographicCardArtUrl?: string;
     /** REPLACE swaps the element icon; OVERLAY draws art above the default frame; FULL_CARD skips templating and renders the image as the whole card. */
     cardArtMode?: "REPLACE" | "OVERLAY" | "FULL_CARD" | "";
     /** Offset in pixels within the binder art frame. */

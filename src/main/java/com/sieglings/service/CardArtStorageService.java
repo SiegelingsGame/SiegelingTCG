@@ -17,6 +17,10 @@ public class CardArtStorageService {
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of("png", "jpg", "jpeg", "webp", "gif", "svg");
 
     public String saveCardArt(String cardId, MultipartFile file) throws IOException {
+        return saveCardArt(cardId, file, null);
+    }
+
+    public String saveCardArt(String cardId, MultipartFile file, String artVariant) throws IOException {
         String normalizedCardId = normalizeCardId(cardId);
         if (normalizedCardId == null) {
             throw new IllegalArgumentException("Card art upload requires a valid card id.");
@@ -31,13 +35,23 @@ public class CardArtStorageService {
         String extension = resolveExtension(file);
         Path absoluteDir = CARD_ART_DIR.toAbsolutePath().normalize();
         Files.createDirectories(absoluteDir);
-        Path target = absoluteDir.resolve(normalizedCardId + "." + extension).normalize();
+        String fileName = buildFileName(normalizedCardId, extension, artVariant);
+        Path target = absoluteDir.resolve(fileName).normalize();
         if (!target.startsWith(absoluteDir)) {
             throw new IllegalArgumentException("Invalid card art destination.");
         }
 
         file.transferTo(target);
-        return "/assets/cards/" + normalizedCardId + "." + extension;
+        return "/assets/cards/" + fileName;
+    }
+
+    static String buildFileName(String normalizedCardId, String extension, String artVariant) {
+        String suffix = isHolographicVariant(artVariant) ? "-holographic" : "";
+        return normalizedCardId + suffix + "." + extension;
+    }
+
+    private static boolean isHolographicVariant(String artVariant) {
+        return "HOLOGRAPHIC".equalsIgnoreCase(String.valueOf(artVariant).trim());
     }
 
     private static String normalizeCardId(String cardId) {

@@ -312,6 +312,10 @@
         creatureDescriptions: {},
         rooms: [],
         selectedCardId: null,
+        detailArtCardId: '',
+        detailArtVariant: 'STANDARD',
+        detailArtSwipeStartX: null,
+        detailArtSwipeSuppressUntil: 0,
         search: '',
         elementFilter: 'ALL',
         typeFilter: 'ALL',
@@ -1181,11 +1185,37 @@
         // by delegation rather than per render.
         document.addEventListener('click', (event) => {
             if (event.target.closest('[data-tray-close]')) closeTrays();
-            if (event.target.closest('[data-card-fullscreen]')) openCardFullscreen();
+            const artToggle = event.target.closest('[data-card-art-toggle]');
+            if (artToggle) {
+                event.preventDefault();
+                event.stopPropagation();
+                state.detailArtVariant = artToggle.dataset.cardArtToggle === 'HOLOGRAPHIC' ? 'HOLOGRAPHIC' : 'STANDARD';
+                renderDetail();
+                return;
+            }
+            if (event.target.closest('[data-card-fullscreen]') && Date.now() >= state.detailArtSwipeSuppressUntil) openCardFullscreen();
+        });
+        document.addEventListener('pointerdown', (event) => {
+            if (!event.target.closest('[data-card-art-stack]')) return;
+            state.detailArtSwipeStartX = event.clientX;
+        });
+        document.addEventListener('pointerup', (event) => {
+            if (!event.target.closest('[data-card-art-stack]') || !Number.isFinite(state.detailArtSwipeStartX)) return;
+            const deltaX = event.clientX - state.detailArtSwipeStartX;
+            state.detailArtSwipeStartX = null;
+            if (Math.abs(deltaX) < 36) return;
+            state.detailArtVariant = deltaX < 0 ? 'HOLOGRAPHIC' : 'STANDARD';
+            state.detailArtSwipeSuppressUntil = Date.now() + 400;
+            renderDetail();
+        });
+        document.addEventListener('pointercancel', () => {
+            state.detailArtSwipeStartX = null;
         });
         // Keyboard activation for the (non-button) card preview trigger.
         document.addEventListener('keydown', (event) => {
-            if ((event.key === 'Enter' || event.key === ' ') && event.target.closest('[data-card-fullscreen]')) {
+            if ((event.key === 'Enter' || event.key === ' ')
+                && !event.target.closest('[data-card-art-toggle]')
+                && event.target.closest('[data-card-fullscreen]')) {
                 event.preventDefault();
                 openCardFullscreen();
             }
@@ -1959,7 +1989,7 @@
                 ${newBadge}${renderKnightBinderCard(card, { compact: true })}
             </button>`;
         }
-        if (binderVisual?.usesFullCardArt?.(card)) {
+        if (binderVisual?.usesFullCardArt?.(card, holoOptions)) {
             return `<button class="card-tile binder-card framed-binder-tile${selected}${newClass}${knightClass}" type="button" data-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
                 ${newBadge}${binderVisual.renderBinderCardTile(card, { ...holoOptions, descriptionText: shopCardDescriptionFor(card) })}
             </button>`;
@@ -1977,19 +2007,53 @@
 
     // Shared card art markup for the Card View tray and its full-screen
     // takeover so both surfaces render an identical card.
-    function renderDetailCardPreviewMarkup(card, extraPreviewClass = '') {
+    function hasHolographicFullCardArt(card) {
+        return Boolean(String(card?.holographicCardArtUrl || '').trim() && card?.holographic === true);
+    }
+
+    function selectedDetailArtVariant(card) {
+        if (state.detailArtCardId !== String(card?.id || '')) {
+            state.detailArtCardId = String(card?.id || '');
+            state.detailArtVariant = hasHolographicFullCardArt(card) ? 'HOLOGRAPHIC' : 'STANDARD';
+        }
+        if (!hasHolographicFullCardArt(card)) return 'STANDARD';
+        return state.detailArtVariant === 'HOLOGRAPHIC' ? 'HOLOGRAPHIC' : 'STANDARD';
+    }
+
+    function renderDetailCardPreviewMarkup(card, extraPreviewClass = '', forcedVariant = '') {
         const previewClass = `detail-card-preview${extraPreviewClass ? ` ${extraPreviewClass}` : ''}`;
         if (card.type === 'SIEGEKNIGHT') {
             return `<div class="knight-detail-preview">${renderKnightBinderCard(card)}</div>`;
         }
+        const variant = forcedVariant || selectedDetailArtVariant(card);
+        const renderCard = variant === 'STANDARD' ? { ...card, holographic: false } : card;
+        const holographicOptions = variant === 'STANDARD'
+            ? { playerHolographicIds: new Set(), useHolographicFullCardArt: false }
+            : binderHolographicOptions();
         return window.SieglingsCardBinderVisual?.renderBinderCardPreview
-            ? window.SieglingsCardBinderVisual.renderBinderCardPreview(card, {
+            ? window.SieglingsCardBinderVisual.renderBinderCardPreview(renderCard, {
                 ownedOverride: ownedCount(card.id),
                 previewClass,
                 descriptionText: shopCardDescriptionFor(card),
-                ...binderHolographicOptions()
+                ...holographicOptions
             })
             : `<div class="binder-card ${previewClass}" style="--el:${elementColor(card.element)}">${renderBinderCardShell(card)}</div>`;
+    }
+
+    function renderDetailCardArtStack(card) {
+        if (!hasHolographicFullCardArt(card) || card.type === 'SIEGEKNIGHT') {
+            return renderDetailCardPreviewMarkup(card);
+        }
+        const variant = selectedDetailArtVariant(card);
+        return `<div class="detail-card-art-stack is-${variant.toLowerCase()}" data-card-art-stack aria-label="Swipe left or right to compare standard and holographic card art">
+            <div class="detail-card-art-layer detail-card-art-standard${variant === 'STANDARD' ? ' active' : ''}">${renderDetailCardPreviewMarkup(card, '', 'STANDARD')}</div>
+            <div class="detail-card-art-layer detail-card-art-holographic${variant === 'HOLOGRAPHIC' ? ' active' : ''}">${renderDetailCardPreviewMarkup(card, '', 'HOLOGRAPHIC')}</div>
+        </div>
+        <div class="detail-card-art-toggle" role="group" aria-label="Card art version">
+            <button type="button" data-card-art-toggle="STANDARD" class="${variant === 'STANDARD' ? 'active' : ''}" aria-pressed="${variant === 'STANDARD'}">Standard</button>
+            <button type="button" data-card-art-toggle="HOLOGRAPHIC" class="${variant === 'HOLOGRAPHIC' ? 'active' : ''}" aria-pressed="${variant === 'HOLOGRAPHIC'}">Holographic</button>
+        </div>
+        <span class="detail-card-art-swipe-hint">Swipe card left or right</span>`;
     }
 
     // Full-screen card takeover: tapping the card in the Card View tray blows
@@ -2088,7 +2152,7 @@
             ? findCard(card.evolvesFromId)
             : null;
         const evolvesToCards = card.type === 'SIEGLING' ? evolutionTargets(card) : [];
-        const cardPreview = renderDetailCardPreviewMarkup(card);
+        const cardPreview = renderDetailCardArtStack(card);
         panel.innerHTML = `
             <button class="tray-close-btn" type="button" data-tray-close aria-label="Close">&times;</button>
             <div class="detail-card-preview-wrap" data-card-fullscreen role="button" tabindex="0" aria-label="View card full screen" title="Tap to view full screen">${cardPreview}</div>
@@ -5154,7 +5218,10 @@
     }
 
     function binderHolographicOptions() {
-        return { playerHolographicIds: playerHolographicCardIds() };
+        return {
+            playerHolographicIds: playerHolographicCardIds(),
+            useHolographicFullCardArt: true
+        };
     }
 
     function collectionSummary() {

@@ -281,6 +281,9 @@ final class ManualSieglingCatalog {
         if (definition.cardArtUrl() != null) {
             card.setCardArtUrl(normalizeBlank(definition.cardArtUrl()));
         }
+        if (definition.holographicCardArtUrl() != null) {
+            card.setHolographicCardArtUrl(normalizeBlank(definition.holographicCardArtUrl()));
+        }
         if (definition.cardArtMode() != null) {
             card.setCardArtMode(normalizeBlank(definition.cardArtMode()));
         }
@@ -592,19 +595,23 @@ final class ManualSieglingCatalog {
     }
 
     static void validateCardArtForStorage(ManualSieglingDefinition definition) {
-        String cardArtUrl = definition.cardArtUrl();
+        validateCardArtUrlForStorage(definition.id(), "cardArtUrl", definition.cardArtUrl());
+        validateCardArtUrlForStorage(definition.id(), "holographicCardArtUrl", definition.holographicCardArtUrl());
+    }
+
+    private static void validateCardArtUrlForStorage(String definitionId, String fieldName, String cardArtUrl) {
         if (cardArtUrl == null || cardArtUrl.isBlank()) {
             return;
         }
         String trimmed = cardArtUrl.trim();
-        String cardId = normalizeId(definition.id());
+        String cardId = normalizeId(definitionId);
         if (trimmed.regionMatches(true, 0, "data:", 0, 5)) {
             throw new IllegalArgumentException("Card '" + cardId + "' uses an embedded image upload (data URL). "
-                    + "Use Upload Image in the dashboard or set cardArtUrl to a path like /assets/cards/" + cardId + ".png. "
+                    + "Use Upload Image in the dashboard or set " + fieldName + " to a hosted image URL. "
                     + "Firestore cannot store large embedded images in the live card catalog.");
         }
         if (trimmed.length() > 2048) {
-            throw new IllegalArgumentException("Card '" + cardId + "' cardArtUrl is too long for Firestore ("
+            throw new IllegalArgumentException("Card '" + cardId + "' " + fieldName + " is too long for Firestore ("
                     + trimmed.length() + " characters). Host the image under /assets/cards/ and store only the path.");
         }
     }
@@ -690,7 +697,8 @@ final class ManualSieglingCatalog {
                     card.getCardArtRotation(),
                     card.isHolographic(),
                     siegling.getExpeditionStarter(),
-                    card.getDescription()
+                    card.getDescription(),
+                    card.getHolographicCardArtUrl()
             );
         }
         if (card instanceof SpellCard spell) {
@@ -726,7 +734,8 @@ final class ManualSieglingCatalog {
                     spell.getCardArtRotation(),
                     spell.isHolographic(),
                     null,
-                    spell.getDescription()
+                    spell.getDescription(),
+                    spell.getHolographicCardArtUrl()
             );
         }
         if (card instanceof TrapCard trap) {
@@ -762,7 +771,8 @@ final class ManualSieglingCatalog {
                     trap.getCardArtRotation(),
                     trap.isHolographic(),
                     null,
-                    trap.getDescription()
+                    trap.getDescription(),
+                    trap.getHolographicCardArtUrl()
             );
         }
         throw new IllegalStateException("Unsupported card type for override export: " + card.getClass().getSimpleName());
@@ -850,8 +860,27 @@ final class ManualSieglingCatalog {
             Double cardArtRotation,
             Boolean holographic,
             Boolean expeditionStarter,
-            String description
-    ) {}
+            String description,
+            String holographicCardArtUrl
+    ) {
+        ManualSieglingDefinition(
+                CardType type, String id, String name, Element element, Rarity rarity,
+                Integer health, Integer speed, List<ManualNotchDefinition> notches, Row preferredRow,
+                String evolvesFromId, String evolvesFromName, Element costElement, Integer costAmount,
+                ManualAbilityDefinition ability, Element trapBucketElement, Integer trapBucketAmount,
+                Reaction requiredReaction, Integer requiredComboSize, String requiredComboSignature,
+                List<String> moveIds, List<ManualAbilityDefinition> abilities, String cardArtUrl,
+                String cardArtMode, Double cardArtOffsetX, Double cardArtOffsetY,
+                Double cardArtOffsetXPct, Double cardArtOffsetYPct, Double cardArtScale,
+                Double cardArtRotation, Boolean holographic, Boolean expeditionStarter, String description) {
+            this(type, id, name, element, rarity, health, speed, notches, preferredRow,
+                    evolvesFromId, evolvesFromName, costElement, costAmount, ability,
+                    trapBucketElement, trapBucketAmount, requiredReaction, requiredComboSize,
+                    requiredComboSignature, moveIds, abilities, cardArtUrl, cardArtMode,
+                    cardArtOffsetX, cardArtOffsetY, cardArtOffsetXPct, cardArtOffsetYPct,
+                    cardArtScale, cardArtRotation, holographic, expeditionStarter, description, null);
+        }
+    }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record ManualNotchDefinition(NotchDirection direction, Element element) {}

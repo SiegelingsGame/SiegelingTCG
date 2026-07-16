@@ -139,13 +139,24 @@
         return `<img class="${className}" src="${escapeAttr(preferred)}" alt=""${style ? ` style="${style}"` : ''}${fallbackAttrs}>`;
     }
 
-    function fullCardArtUrl(card) {
+    function holographicFullCardArtUrl(card, options = {}) {
+        if (!options.useHolographicFullCardArt || !isHolographic(card, options)) {
+            return '';
+        }
+        return String(card?.holographicCardArtUrl || '').trim();
+    }
+
+    function fullCardArtUrl(card, options = {}) {
+        const holographicUrl = holographicFullCardArtUrl(card, options);
+        if (holographicUrl) {
+            return holographicUrl;
+        }
         const artUrl = String(card?.cardArtUrl || '').trim();
         return artUrl && normalizeArtMode(card?.cardArtMode) === 'FULL_CARD' ? artUrl : '';
     }
 
-    function usesFullCardArt(card) {
-        return Boolean(fullCardArtUrl(card));
+    function usesFullCardArt(card, options = {}) {
+        return Boolean(fullCardArtUrl(card, options));
     }
 
     // Overlay art for SiegeKnights: the upload is the character illustration
@@ -199,7 +210,7 @@
     }
 
     function renderFullCardArt(card, options = {}) {
-        const artUrl = fullCardArtUrl(card);
+        const artUrl = fullCardArtUrl(card, options);
         if (!artUrl) return '';
         const extraClass = options.previewClass ? ` ${options.previewClass}` : '';
         return `<div class="binder-full-card-art${extraClass}${holographicClass(card, options)}" role="img" aria-label="${escapeAttr(card?.name || 'Full art card')}">
@@ -382,7 +393,7 @@
     }
 
     function renderBinderCardTile(card, options = {}) {
-        if (usesFullCardArt(card)) {
+        if (usesFullCardArt(card, options)) {
             return renderFullCardArt(card, options);
         }
         const framed = renderFramedShowcaseCard(card, {
@@ -399,7 +410,7 @@
     }
 
     function renderBinderCardPreview(card, options = {}) {
-        if (usesFullCardArt(card)) {
+        if (usesFullCardArt(card, options)) {
             return renderFullCardArt(card, options);
         }
         const element = card?.element || 'FIRE';
@@ -517,6 +528,7 @@
         elementColor,
         usesFramedCardTemplate,
         usesFullCardArt,
+        holographicFullCardArtUrl,
         usesKnightOverlayArt,
         knightOverlayArtUrl,
         renderKnightOverlayArtWindow,

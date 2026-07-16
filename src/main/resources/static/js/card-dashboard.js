@@ -102,7 +102,9 @@
         updatedAt: "",
         auth: { ...DEFAULT_AUTH },
         status: { ...DEFAULT_STATUS },
-        ephemeralCardArtPreview: null
+        ephemeralCardArtPreview: null,
+        ephemeralHolographicCardArtPreview: null,
+        cardArtPreviewVariant: "STANDARD"
     };
 
     const refs = {};
@@ -350,6 +352,9 @@
             "cardArtControls",
             "cardArtFileInput",
             "cardArtUrlInput",
+            "holographicCardArtFileInput",
+            "holographicCardArtUrlInput",
+            "clearHolographicCardArtBtn",
             "clearCardArtBtn",
             "cardArtTransformControls",
             "cardArtTransformHelp",
@@ -517,13 +522,21 @@
             const nextCardId = row.dataset.cardId;
             if (nextCardId !== state.selectedCardId) {
                 clearEphemeralCardArtPreview();
+                clearEphemeralHolographicCardArtPreview();
             }
             state.selectedCardId = nextCardId;
+            state.cardArtPreviewVariant = "STANDARD";
             state.selectedAbilityIndex = 0;
             renderAll();
         });
 
         refs.cardArtControls?.addEventListener("change", (event) => {
+            const previewVariantInput = event.target.closest('input[name="cardArtPreviewVariant"]');
+            if (previewVariantInput) {
+                state.cardArtPreviewVariant = previewVariantInput.value === "HOLOGRAPHIC" ? "HOLOGRAPHIC" : "STANDARD";
+                renderCardVisual();
+                return;
+            }
             const modeInput = event.target.closest('input[name="cardArtMode"]');
             if (!modeInput) {
                 return;
@@ -546,6 +559,13 @@
                 if (!card.cardArtUrl) {
                     card.cardArtMode = "";
                 }
+            });
+        });
+
+        refs.holographicCardArtUrlInput?.addEventListener("input", (event) => {
+            mutateSelectedCard((card) => {
+                card.holographicCardArtUrl = String(event.target.value || "").trim();
+                state.cardArtPreviewVariant = card.holographicCardArtUrl ? "HOLOGRAPHIC" : "STANDARD";
             });
         });
 
@@ -629,6 +649,50 @@
             }
         });
 
+        refs.holographicCardArtFileInput?.addEventListener("change", async (event) => {
+            const file = event.target.files?.[0];
+            if (!file) return;
+            const card = getSelectedCard();
+            const cardId = String(card?.id || "").trim();
+            if (!cardId) {
+                setStatus("Set a card id before uploading holographic art.", "error");
+                event.target.value = "";
+                return;
+            }
+            if (state.liveEditingEnabled && !state.auth?.canEdit) {
+                setStatus("Sign in under Live Publishing before uploading holographic card art.", "error");
+                event.target.value = "";
+                renderStatus();
+                return;
+            }
+            const localPreviewUrl = URL.createObjectURL(file);
+            setEphemeralHolographicCardArtPreview(cardId, localPreviewUrl);
+            state.cardArtPreviewVariant = "HOLOGRAPHIC";
+            setStatus("Uploading holographic full-card art...", "warning");
+            renderStatus();
+            renderCardVisual();
+            try {
+                const payload = await uploadCardArtFile(cardId, file, "HOLOGRAPHIC");
+                const hostedUrl = String(payload?.url || "").trim();
+                if (!hostedUrl) throw new Error("Upload finished but the server did not return an image URL.");
+                clearEphemeralHolographicCardArtPreview();
+                mutateCardById(cardId, (selected) => {
+                    selected.holographicCardArtUrl = hostedUrl;
+                }, { render: false });
+                setStatus(
+                    state.liveEditingEnabled
+                        ? `Uploaded holographic card art for ${cardId}. Click Publish Live Changes when ready.`
+                        : `Uploaded holographic card art for ${cardId}. Click Save To Project File when ready.`,
+                    "success"
+                );
+            } catch (error) {
+                setStatus(`${error?.message || "Unable to upload holographic card art."} Your local preview remains visible.`, "error");
+            } finally {
+                event.target.value = "";
+                renderAll();
+            }
+        });
+
         refs.clearCardArtBtn?.addEventListener("click", () => {
             clearEphemeralCardArtPreview();
             mutateSelectedCard((card) => {
@@ -639,6 +703,15 @@
             if (refs.cardArtFileInput) {
                 refs.cardArtFileInput.value = "";
             }
+        });
+
+        refs.clearHolographicCardArtBtn?.addEventListener("click", () => {
+            clearEphemeralHolographicCardArtPreview();
+            state.cardArtPreviewVariant = "STANDARD";
+            mutateSelectedCard((card) => {
+                card.holographicCardArtUrl = "";
+            });
+            if (refs.holographicCardArtFileInput) refs.holographicCardArtFileInput.value = "";
         });
 
         refs.cardArtScaleInput?.addEventListener("input", (event) => {
@@ -1477,6 +1550,13 @@
         state.ephemeralCardArtPreview = null;
     }
 
+    function clearEphemeralHolographicCardArtPreview() {
+        if (state.ephemeralHolographicCardArtPreview?.url) {
+            URL.revokeObjectURL(state.ephemeralHolographicCardArtPreview.url);
+        }
+        state.ephemeralHolographicCardArtPreview = null;
+    }
+
     function setEphemeralCardArtPreview(cardId, url) {
         clearEphemeralCardArtPreview();
         state.ephemeralCardArtPreview = {
@@ -1491,6 +1571,22 @@
             return "";
         }
         if (preview.cardId !== String(cardId || "").trim()) {
+            return "";
+        }
+        return preview.url;
+    }
+
+    function setEphemeralHolographicCardArtPreview(cardId, url) {
+        clearEphemeralHolographicCardArtPreview();
+        state.ephemeralHolographicCardArtPreview = {
+            cardId: String(cardId || "").trim(),
+            url
+        };
+    }
+
+    function getEphemeralHolographicCardArtPreviewUrl(cardId) {
+        const preview = state.ephemeralHolographicCardArtPreview;
+        if (!preview?.url || preview.cardId !== String(cardId || "").trim()) {
             return "";
         }
         return preview.url;
@@ -1576,6 +1672,7 @@
     function applyDataSet(data, dirty) {
         if (!dirty) {
             clearEphemeralCardArtPreview();
+            clearEphemeralHolographicCardArtPreview();
         }
         const preparedData = prepareImportedDataSet(data);
         const resolvedData = preparedData.data;
@@ -1987,6 +2084,7 @@
         }
         return {
             cardArtUrl,
+            holographicCardArtUrl: String(card?.holographicCardArtUrl || "").trim(),
             cardArtMode,
             holographic: card?.holographic === true,
             ...normalizeCardArtTransformFields(card)
@@ -2022,6 +2120,10 @@
             if (rotation !== 0) {
                 exported.cardArtRotation = rotation;
             }
+        }
+        const holographicCardArtUrl = String(card?.holographicCardArtUrl || "").trim();
+        if (holographicCardArtUrl) {
+            exported.holographicCardArtUrl = holographicCardArtUrl;
         }
         if (card?.holographic === true) {
             exported.holographic = true;
@@ -2983,6 +3085,7 @@
 
     function toBinderPreviewCard(card) {
         const ephemeralArtUrl = getEphemeralCardArtPreviewUrl(card.id);
+        const ephemeralHolographicArtUrl = getEphemeralHolographicCardArtPreviewUrl(card.id);
         const preview = {
             ...card,
             type: card.cardType,
@@ -2991,6 +3094,14 @@
         if (ephemeralArtUrl) {
             preview.cardArtUrl = ephemeralArtUrl;
             preview.cardArtMode = preview.cardArtMode || "REPLACE";
+        }
+        if (state.cardArtPreviewVariant === "HOLOGRAPHIC") {
+            const holographicUrl = ephemeralHolographicArtUrl || String(card.holographicCardArtUrl || "").trim();
+            if (holographicUrl) {
+                preview.cardArtUrl = holographicUrl;
+                preview.cardArtMode = "FULL_CARD";
+                preview.holographic = true;
+            }
         }
         if (card.cardType !== "SIEGLING" && preview.abilities[0]) {
             preview.ability = preview.abilities[0];
@@ -3043,6 +3154,13 @@
         refs.cardArtControls?.querySelectorAll('input[name="cardArtMode"]').forEach((input) => {
             input.checked = input.value === mode;
         });
+        refs.cardArtControls?.querySelectorAll('input[name="cardArtPreviewVariant"]').forEach((input) => {
+            input.checked = input.value === state.cardArtPreviewVariant;
+            if (input.value === "HOLOGRAPHIC") {
+                input.disabled = !String(card.holographicCardArtUrl || "").trim()
+                    && !getEphemeralHolographicCardArtPreviewUrl(card.id);
+            }
+        });
         if (refs.cardArtUrlInput && document.activeElement !== refs.cardArtUrlInput) {
             setInputValue(refs.cardArtUrlInput, card.cardArtUrl || "");
             refs.cardArtUrlInput.placeholder = defaultCardArtPath(card.id) || "/assets/cards/example.png";
@@ -3050,13 +3168,17 @@
         if (refs.cardHolographicCheckbox) {
             refs.cardHolographicCheckbox.checked = Boolean(card.holographic);
         }
+        if (refs.holographicCardArtUrlInput && document.activeElement !== refs.holographicCardArtUrlInput) {
+            setInputValue(refs.holographicCardArtUrlInput, card.holographicCardArtUrl || "");
+            refs.holographicCardArtUrlInput.placeholder = `/assets/cards/${String(card.id || "example").trim().toLowerCase()}-holographic.png`;
+        }
         syncCardArtTransformControls(card);
         setupCardArtDragInteraction(card);
         attachCardArtPreviewErrorHandler(card);
     }
 
     function attachCardArtPreviewErrorHandler(card) {
-        if (getEphemeralCardArtPreviewUrl(card.id)) {
+        if (getEphemeralCardArtPreviewUrl(card.id) || getEphemeralHolographicCardArtPreviewUrl(card.id)) {
             return;
         }
         const artImg = refs.cardVisualStage?.querySelector(".binder-card-custom-art, .binder-card-overlay-art-card, .binder-full-card-art img, .card-art img");
@@ -3064,12 +3186,14 @@
             return;
         }
         artImg.addEventListener("error", () => {
-            const artUrl = String(card.cardArtUrl || "").trim();
+            const artUrl = state.cardArtPreviewVariant === "HOLOGRAPHIC"
+                ? String(card.holographicCardArtUrl || "").trim()
+                : String(card.cardArtUrl || "").trim();
             if (!artUrl) {
                 return;
             }
             setStatus(
-                `Card art did not load (${artUrl}). Use Upload Image to host the file, or fix the Art URL path (expected ${defaultCardArtPath(card.id) || "/assets/cards/<card-id>.png"}).`,
+                `Card art did not load (${artUrl}). Use the matching Upload button to host the file, or fix its URL.`,
                 "error"
             );
             renderStatus();
@@ -4268,6 +4392,16 @@
                     `${trimmedId || card.name || "A card"} art path "${cardArtUrl}" does not include the card id "${trimmedId}". Use Upload Image or ${defaultCardArtPath(trimmedId) || "/assets/cards/<card-id>.png"}.`
                 ));
             }
+            const holographicCardArtUrl = String(card.holographicCardArtUrl || "").trim();
+            if (holographicCardArtUrl.startsWith("data:")) {
+                issues.push(issue("error", `${trimmedId || card.name || "A card"} still uses an embedded holographic image. Use Upload Holo Card again before publishing.`));
+            } else if (holographicCardArtUrl.length > 2048) {
+                issues.push(issue("error", `${trimmedId || card.name || "A card"} holographicCardArtUrl is too long for Firestore.`));
+            } else if (state.liveEditingEnabled && isProjectRelativeCardArtPath(holographicCardArtUrl)) {
+                issues.push(issue("error", `${trimmedId || card.name || "A card"} uses ${holographicCardArtUrl}, which is not hosted for the live game. Use Upload Holo Card, then publish again.`));
+            } else if (holographicCardArtUrl && !cardArtPathMatchesCardId(trimmedId, holographicCardArtUrl)) {
+                issues.push(issue("warn", `${trimmedId || card.name || "A card"} holographic art path does not include the card id "${trimmedId}".`));
+            }
             if (card.cardType === "SIEGLING") {
                 if (card.health <= 0) {
                     issues.push(issue("error", `${trimmedId || card.name || "A card"} must have health above 0.`));
@@ -4938,9 +5072,10 @@
         return data;
     }
 
-    async function uploadCardArtFile(cardId, file) {
+    async function uploadCardArtFile(cardId, file, artVariant = "STANDARD") {
         const formData = new FormData();
         formData.append("cardId", cardId);
+        formData.append("artVariant", artVariant);
         formData.append("file", file);
         const response = await fetch(apiUrl("/api/cards/editor/art"), buildRequestOptions({
             method: "POST",

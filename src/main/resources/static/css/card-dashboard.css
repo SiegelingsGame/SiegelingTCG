@@ -2101,6 +2101,81 @@ body.move-picker-open {
     padding-top: 16px;
 }
 
+.card-art-section-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.card-art-section-heading > div:first-child {
+    display: grid;
+    gap: 3px;
+}
+
+.card-art-section-heading strong {
+    color: var(--text-main);
+    font-size: 0.92rem;
+}
+
+.card-art-section-heading span {
+    color: var(--text-soft);
+    font-size: 0.78rem;
+    line-height: 1.4;
+}
+
+.art-preview-toggle {
+    display: inline-flex;
+    flex: 0 0 auto;
+    padding: 3px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--field-bg);
+}
+
+.art-preview-toggle label {
+    cursor: pointer;
+}
+
+.art-preview-toggle input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.art-preview-toggle span {
+    display: block;
+    padding: 6px 9px;
+    border-radius: 999px;
+    color: var(--text-soft);
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+.art-preview-toggle input:checked + span {
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+    color: var(--text-main);
+}
+
+.art-preview-toggle input:disabled + span {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.holographic-card-art-controls {
+    display: grid;
+    gap: 12px;
+    margin-top: 4px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+}
+
+@media (max-width: 520px) {
+    .card-art-section-heading {
+        flex-direction: column;
+    }
+}
+
 .art-mode-toggle {
     display: flex;
     flex-direction: column;

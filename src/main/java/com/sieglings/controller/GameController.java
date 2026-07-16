@@ -1282,6 +1282,9 @@ public class GameController {
                 m.put("cardArtRotation", card.getCardArtRotation());
             }
         }
+        if (card.getHolographicCardArtUrl() != null && !card.getHolographicCardArtUrl().isBlank()) {
+            m.put("holographicCardArtUrl", card.getHolographicCardArtUrl());
+        }
         if (card.isHolographic()) {
             m.put("holographic", true);
         }
@@ -1357,30 +1360,32 @@ public class GameController {
     }
 
     private void appendCardArt(Map<String, Object> m, Card card) {
-        if (card.getCardArtUrl() == null || card.getCardArtUrl().isBlank()) {
-            return;
+        if (card.getCardArtUrl() != null && !card.getCardArtUrl().isBlank()) {
+            m.put("cardArtUrl", card.getCardArtUrl());
+            if (card.getCardArtMode() != null && !card.getCardArtMode().isBlank()) {
+                m.put("cardArtMode", card.getCardArtMode());
+            }
+            if (card.getCardArtOffsetX() != null) {
+                m.put("cardArtOffsetX", card.getCardArtOffsetX());
+            }
+            if (card.getCardArtOffsetY() != null) {
+                m.put("cardArtOffsetY", card.getCardArtOffsetY());
+            }
+            if (card.getCardArtOffsetXPct() != null) {
+                m.put("cardArtOffsetXPct", card.getCardArtOffsetXPct());
+            }
+            if (card.getCardArtOffsetYPct() != null) {
+                m.put("cardArtOffsetYPct", card.getCardArtOffsetYPct());
+            }
+            if (card.getCardArtScale() != null) {
+                m.put("cardArtScale", card.getCardArtScale());
+            }
+            if (card.getCardArtRotation() != null) {
+                m.put("cardArtRotation", card.getCardArtRotation());
+            }
         }
-        m.put("cardArtUrl", card.getCardArtUrl());
-        if (card.getCardArtMode() != null && !card.getCardArtMode().isBlank()) {
-            m.put("cardArtMode", card.getCardArtMode());
-        }
-        if (card.getCardArtOffsetX() != null) {
-            m.put("cardArtOffsetX", card.getCardArtOffsetX());
-        }
-        if (card.getCardArtOffsetY() != null) {
-            m.put("cardArtOffsetY", card.getCardArtOffsetY());
-        }
-        if (card.getCardArtOffsetXPct() != null) {
-            m.put("cardArtOffsetXPct", card.getCardArtOffsetXPct());
-        }
-        if (card.getCardArtOffsetYPct() != null) {
-            m.put("cardArtOffsetYPct", card.getCardArtOffsetYPct());
-        }
-        if (card.getCardArtScale() != null) {
-            m.put("cardArtScale", card.getCardArtScale());
-        }
-        if (card.getCardArtRotation() != null) {
-            m.put("cardArtRotation", card.getCardArtRotation());
+        if (card.getHolographicCardArtUrl() != null && !card.getHolographicCardArtUrl().isBlank()) {
+            m.put("holographicCardArtUrl", card.getHolographicCardArtUrl());
         }
         if (card.isHolographic()) {
             m.put("holographic", true);
