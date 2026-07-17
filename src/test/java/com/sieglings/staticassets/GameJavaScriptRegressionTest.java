@@ -296,6 +296,25 @@ class GameJavaScriptRegressionTest {
         );
     }
 
+    @Test
+    void selectedLoadoutCommanderUsesUploadedCardArt() throws IOException {
+        String gameScript = readGameScript();
+        String commanderArt = extractFunction(gameScript, "function renderLoadoutCommanderArt(trainer)");
+        String loadoutPreview = extractFunction(gameScript, "function renderSelectedLoadoutPreview()");
+
+        assertTrue(
+                commanderArt.contains("knightUploadedCardArtUrl(trainer)")
+                        && commanderArt.contains("artMode === 'FULL_CARD'")
+                        && commanderArt.contains("knightHudOverlayCardInnerHtml(trainer, artUrl)")
+                        && commanderArt.contains("has-knight-back"),
+                "Commander summaries must show uploaded full-card or overlay art and reserve the card back for the no-art fallback."
+        );
+        assertTrue(
+                loadoutPreview.contains("renderLoadoutCommanderArt(trainer)"),
+                "The selected loadout Commander section must use the real-art renderer."
+        );
+    }
+
     private static String readGameScript() throws IOException {
         return Files.readString(GAME_JS);
     }
