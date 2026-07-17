@@ -270,6 +270,9 @@ class GameJavaScriptRegressionTest {
         );
         assertTrue(
                 homeCss.contains(".holographic-card-art-canvas > .card-holographic-overlay")
+                        && homeCss.contains(".holographic-card-art-canvas > .binder-full-card-art-image")
+                        && homeCss.contains("object-fit: contain")
+                        && homeCss.contains("object-position: center")
                         && homeCss.contains("top: 10.6%")
                         && homeCss.contains("top: 69.8%")
                         && homeCss.contains("top: 74%")
@@ -279,7 +282,7 @@ class GameJavaScriptRegressionTest {
                         && homeCss.contains(".holographic-card-notch-bottom-right")
                         && homeCss.contains("padding: 1px 3px")
                         && homeCss.contains("font-size: clamp(7px, 4.9cqi, 12px)"),
-                "Custom holographic labels must stay in the template's name, stat, and description zones."
+                "Custom holographic art must preserve its complete frame while labels stay in the template's name, stat, and description zones."
         );
     }
 
