@@ -420,6 +420,10 @@
     // height shifts with the route (different action buttons) and when the HUD
     // is minimized, so this re-runs on those changes plus resize/orientation.
     function measureBottomHud() {
+        if (document.body.classList.contains('hud-minimized')) {
+            document.documentElement.style.setProperty('--bottom-hud-height', '0px');
+            return;
+        }
         const nav = document.querySelector('.home-nav');
         if (!nav) return;
         const height = Math.round(nav.getBoundingClientRect().height);
