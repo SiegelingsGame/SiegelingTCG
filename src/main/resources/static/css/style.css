@@ -1795,21 +1795,21 @@ body:has(.welcome-overlay.visible) .safe-hp-strip {
 }
 
 /* Hide verbose info in hand tray — show only name + element label */
-.hand-tray .card-ability-area { display: none; }
-.hand-tray .card-info-panel { padding: 2px 3px; }
-.hand-tray .card-info-panel .card-stat-row { font-size: 0.6em; }
-.hand-tray .hand-card-body { display: none; }
-.hand-tray .card-stat-pills {
+:is(.hand-tray, .card-drag-ghost) .card-ability-area { display: none; }
+:is(.hand-tray, .card-drag-ghost) .card-info-panel { padding: 2px 3px; }
+:is(.hand-tray, .card-drag-ghost) .card-info-panel .card-stat-row { font-size: 0.6em; }
+:is(.hand-tray, .card-drag-ghost) .hand-card-body { display: none; }
+:is(.hand-tray, .card-drag-ghost) .card-stat-pills {
     display: flex;
     margin-top: 2px;
 }
-.hand-tray .card-stat-pill {
+:is(.hand-tray, .card-drag-ghost) .card-stat-pill {
     font-size: 0.52em;
     padding: 2px 4px;
 }
-.hand-tray .card-label { font-size: 0.62em; }
-.hand-tray .card-title { font-size: 0.82em; line-height: 1.12; }
-.hand-tray .card-art-hand { min-height: 104px; padding: 4px; border-radius: 10px; }
+:is(.hand-tray, .card-drag-ghost) .card-label { font-size: 0.62em; }
+:is(.hand-tray, .card-drag-ghost) .card-title { font-size: 0.82em; line-height: 1.12; }
+:is(.hand-tray, .card-drag-ghost) .card-art-hand { min-height: 104px; padding: 4px; border-radius: 10px; }
 
 .hand-card.is-lift-source {
     opacity: 0.06;
@@ -1839,7 +1839,9 @@ body:has(.welcome-overlay.visible) .safe-hp-strip {
     left: 0;
     top: 0;
     pointer-events: none;
-    transform: translate(-50%, -58%) scale(1.06);
+    /* JS supplies the source card's live scale separately from its logical
+       dimensions, keeping the clone's inner layout pixel-identical. */
+    transform: translate(-50%, -58%) scale(var(--card-drag-source-scale, 1));
     transition: none !important;
     z-index: 620;
     filter: drop-shadow(0 28px 36px rgba(0, 0, 0, 0.42));

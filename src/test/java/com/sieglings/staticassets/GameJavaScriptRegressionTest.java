@@ -15,6 +15,7 @@ class GameJavaScriptRegressionTest {
     private static final Path HOME_JS = Path.of("src/main/resources/static/js/home.js");
     private static final Path HOME_HTML = Path.of("src/main/resources/static/home.html");
     private static final Path CARD_DASHBOARD_JS = Path.of("src/main/resources/static/js/card-dashboard.js");
+    private static final Path STYLE_CSS = Path.of("src/main/resources/static/css/style.css");
 
     @Test
     void onlineStartDoesNotFallBackToSoloBattle() throws IOException {
@@ -312,6 +313,28 @@ class GameJavaScriptRegressionTest {
         assertTrue(
                 loadoutPreview.contains("renderLoadoutCommanderArt(trainer)"),
                 "The selected loadout Commander section must use the real-art renderer."
+        );
+    }
+
+    @Test
+    void cardDragGhostKeepsTheCompactHandCardLayout() throws IOException {
+        String style = Files.readString(STYLE_CSS);
+        String dragSession = extractFunction(readGameScript(), "function activateCardDragSession()");
+
+        assertTrue(
+                style.contains(":is(.hand-tray, .card-drag-ghost) .hand-card-body { display: none; }")
+                        && style.contains(":is(.hand-tray, .card-drag-ghost) .card-stat-pill"),
+                "The detached drag clone must retain the hand card's compact text and stat layout."
+        );
+        assertTrue(
+                style.contains("scale(var(--card-drag-source-scale, 1))")
+                        && dragSession.contains("sourceEl.offsetWidth")
+                        && dragSession.contains("sourceRect.width / sourceLayoutWidth")
+                        && dragSession.contains("--card-drag-source-scale")
+                        && dragSession.indexOf("syncDesktopHandSelectorCardScale();")
+                            < dragSession.indexOf("const sourceEl = getHandCardSourceElement(handIndex);")
+                        && !style.contains("translate(-50%, -58%) scale(1.06)"),
+                "The drag clone must preserve the source layout dimensions and live scale instead of applying a fixed enlargement."
         );
     }
 

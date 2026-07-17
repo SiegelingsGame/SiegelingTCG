@@ -13582,6 +13582,14 @@ function activateCardDragSession() {
         closeDrawer(true);
     }
     ensureHandCardSelectedForDrag(handIndex);
+    // Selection re-renders the hand and normally defers its responsive sizing
+    // to the next animation frame. Resolve that sizing before measuring the
+    // ghost so a quick drag cannot capture stale pre-layout dimensions.
+    if (handSelectorScaleFrame != null) {
+        window.cancelAnimationFrame(handSelectorScaleFrame);
+        handSelectorScaleFrame = null;
+    }
+    syncDesktopHandSelectorCardScale();
 
     const sourceEl = getHandCardSourceElement(handIndex);
     if (!sourceEl) {
@@ -13608,8 +13616,22 @@ function activateCardDragSession() {
         }
     });
     ghost.classList.add('card-drag-ghost');
-    ghost.style.width = `${sourceRect.width}px`;
-    ghost.style.height = `${sourceRect.height}px`;
+    // Keep layout at the source card's untransformed dimensions, then carry
+    // its live selected/hover scale onto the outer ghost transform. Using the
+    // rendered bounds as the clone's layout size made its text wrap and move,
+    // and the old fixed 1.06 scale enlarged it a second time.
+    const sourceLayoutWidth = sourceEl.offsetWidth || sourceRect.width;
+    const sourceLayoutHeight = sourceEl.offsetHeight || sourceRect.height;
+    const sourceScale = sourceLayoutWidth > 0
+        ? Math.max(0.5, Math.min(2, sourceRect.width / sourceLayoutWidth))
+        : 1;
+    ghost.style.width = `${sourceLayoutWidth}px`;
+    ghost.style.minWidth = `${sourceLayoutWidth}px`;
+    ghost.style.maxWidth = `${sourceLayoutWidth}px`;
+    ghost.style.height = `${sourceLayoutHeight}px`;
+    ghost.style.minHeight = `${sourceLayoutHeight}px`;
+    ghost.style.maxHeight = `${sourceLayoutHeight}px`;
+    ghost.style.setProperty('--card-drag-source-scale', String(sourceScale));
     positionCardDragGhost(cardDragSession.startX, cardDragSession.startY);
 
     const layer = document.getElementById('handLiftLayer');
