@@ -9945,6 +9945,26 @@ function getRarityClass(rarity) {
     return String(rarity || 'common').toLowerCase();
 }
 
+function renderLoadoutCommanderArt(trainer) {
+    const artUrl = knightUploadedCardArtUrl(trainer);
+    const artMode = knightCardArtMode(trainer);
+    const elementStyle = `--knight-color:${getElementHex(trainer?.element)};${siegeknightCardBackStyle()}`;
+
+    if (artUrl && artMode === 'FULL_CARD') {
+        return `<div class="preview-knight-icon has-knight-art has-knight-fullart">
+            <img class="preview-knight-art-img" ${webpImgAttrs(artUrl)} alt="${escapeHtmlAttribute(trainer?.name || 'SiegeKnight card')}" loading="lazy"${knightArtStyleAttr(trainer)}>
+        </div>`;
+    }
+    if (artUrl && artMode === 'OVERLAY') {
+        return `<div class="preview-knight-icon has-knight-art has-knight-overlay-art" style="${escapeHtmlAttribute(elementStyle)}">
+            ${knightHudOverlayCardInnerHtml(trainer, artUrl)}
+        </div>`;
+    }
+    return `<div class="preview-knight-icon has-knight-back" style="color:${getElementHex(trainer?.element)};${siegeknightCardBackStyle()}">
+        <span class="preview-knight-element-badge">${getElementSigil(trainer?.element)}</span>
+    </div>`;
+}
+
 function renderSelectedLoadoutPreview() {
     const previewEl = document.getElementById('selectedLoadoutPreview');
     const panel = document.getElementById('selectedLoadoutPanel');
@@ -10023,9 +10043,7 @@ function renderSelectedLoadoutPreview() {
 
     const trainerSummary = trainer
         ? `<div class="preview-knight-card">
-                <div class="preview-knight-icon has-knight-back" style="color:${getElementHex(trainer.element)};${siegeknightCardBackStyle()}">
-                    <span class="preview-knight-element-badge">${getElementSigil(trainer.element)}</span>
-                </div>
+                ${renderLoadoutCommanderArt(trainer)}
                 <div>
                     <div class="preview-knight-name">${escapeHtml(trainer.name)}</div>
                     <div class="preview-knight-meta">${escapeHtml(formatElementLabel(trainer.element))} | ${escapeHtml(formatTrainerTier(trainer.tier))} | ${escapeHtml(trainer.rarity || 'Common')}</div>
