@@ -232,6 +232,8 @@ class GameJavaScriptRegressionTest {
         String homeScript = readHomeScript();
         String dashboardScript = Files.readString(CARD_DASHBOARD_JS);
         String binderScript = Files.readString(Path.of("src/main/resources/static/js/card-binder-visual.js"));
+        String homeCss = Files.readString(Path.of("src/main/resources/static/css/home.css"));
+        String fullCardRenderer = extractFunction(binderScript, "function renderFullCardArt(");
 
         assertTrue(
                 binderScript.contains("options.useHolographicFullCardArt")
@@ -255,6 +257,19 @@ class GameJavaScriptRegressionTest {
                         && dashboardScript.contains("holographicCardArtScale")
                         && dashboardScript.contains("formData.append(\"artVariant\", artVariant)"),
                 "Dashboard holographic uploads must save to their own catalog field and upload variant."
+        );
+        assertTrue(
+                fullCardRenderer.indexOf("renderHolographicOverlay()")
+                        < fullCardRenderer.indexOf("renderHolographicCardData(card, options)")
+                        && fullCardRenderer.contains("isHolographic(card, options) && !usesHolographicArtwork"),
+                "Custom holographic data must render above its foil, without a second outer foil layer."
+        );
+        assertTrue(
+                homeCss.contains(".holographic-card-art-canvas > .card-holographic-overlay")
+                        && homeCss.contains("top: 4.6%")
+                        && homeCss.contains("top: 69.6%")
+                        && homeCss.contains("top: 73.6%"),
+                "Custom holographic labels must stay in the template's name, stat, and description zones."
         );
     }
 
