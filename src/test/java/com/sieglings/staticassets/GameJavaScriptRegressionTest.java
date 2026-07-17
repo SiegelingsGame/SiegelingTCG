@@ -266,9 +266,10 @@ class GameJavaScriptRegressionTest {
         );
         assertTrue(
                 homeCss.contains(".holographic-card-art-canvas > .card-holographic-overlay")
-                        && homeCss.contains("top: 4.6%")
-                        && homeCss.contains("top: 69.6%")
-                        && homeCss.contains("top: 73.6%"),
+                        && homeCss.contains("top: 10.6%")
+                        && homeCss.contains("top: 69.8%")
+                        && homeCss.contains("top: 74%")
+                        && homeCss.contains("font-size: clamp(7px, 4.9cqi, 12px)"),
                 "Custom holographic labels must stay in the template's name, stat, and description zones."
         );
     }
