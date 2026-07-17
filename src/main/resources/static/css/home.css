@@ -8228,8 +8228,8 @@ body.gacha-active {
         -webkit-overflow-scrolling: touch;
     }
     body.hud-minimized .home-main {
-        padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
-        scroll-padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+        padding-bottom: var(--device-safe-bottom);
+        scroll-padding-bottom: var(--device-safe-bottom);
     }
     .filter-panel,
     .detail-panel {

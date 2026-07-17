@@ -282,6 +282,20 @@ class GameJavaScriptRegressionTest {
         );
     }
 
+    @Test
+    void minimizedMobileHudReturnsTheFullViewportToContent() throws IOException {
+        String homeScript = readHomeScript();
+        String homeCss = Files.readString(Path.of("src/main/resources/static/css/home.css"));
+
+        assertTrue(
+                homeScript.contains("style.setProperty('--bottom-hud-height', '0px')")
+                        && homeCss.contains("body.hud-minimized .home-main")
+                        && homeCss.contains("padding-bottom: var(--device-safe-bottom)")
+                        && homeCss.contains("scroll-padding-bottom: var(--device-safe-bottom)"),
+                "Minimizing the phone HUD must remove its reserved content and tray space."
+        );
+    }
+
     private static String readGameScript() throws IOException {
         return Files.readString(GAME_JS);
     }
