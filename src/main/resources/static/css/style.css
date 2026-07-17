@@ -17999,7 +17999,9 @@ body.sgl-opponent-turn .battle-cta-row {
 
 /* Portrait mulligan is a single-screen decision, not a document. Keep the
    instructions, all five opening cards, and both actions inside the live
-   viewport so iOS never restores this overlay at a confusing scroll offset. */
+   viewport so iOS never restores this overlay at a confusing scroll offset.
+   The hand grid owns the remaining height, so its 2-2-1 rows can grow to the
+   largest 5:7 cards that fit instead of relying on a guessed viewport reserve. */
 @media (max-width: 767px) and (orientation: portrait) {
     body.gameplay-active .mulligan-overlay {
         inset: 0;
@@ -18014,11 +18016,6 @@ body.sgl-opponent-turn .battle-cta-row {
     }
 
     body.gameplay-active .mulligan-box {
-        --mulligan-portrait-card-width: min(
-            112px,
-            calc((100% - 12px) / 3),
-            calc((100dvh - var(--device-safe-top) - var(--device-safe-bottom) - 220px) * 5 / 14)
-        );
         display: flex;
         flex-direction: column;
         width: min(100%, 520px);
@@ -18052,12 +18049,11 @@ body.sgl-opponent-turn .battle-cta-row {
     }
 
     .mulligan-hand-preview {
-        display: flex;
+        display: grid;
         flex: 1 1 auto;
-        flex-wrap: wrap;
-        align-content: center;
-        align-items: flex-start;
-        justify-content: center;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-rows: repeat(3, minmax(0, 1fr));
+        place-items: center;
         min-height: 0;
         margin: 6px 0;
         gap: 6px;
@@ -18065,11 +18061,16 @@ body.sgl-opponent-turn .battle-cta-row {
     }
 
     .mulligan-card-slot {
-        flex: 0 0 var(--mulligan-portrait-card-width);
-        width: var(--mulligan-portrait-card-width);
-        max-width: none;
+        width: auto;
+        height: 100%;
+        max-width: 100%;
+        max-height: 100%;
         padding: 2px;
         border-radius: 9px;
+    }
+
+    .mulligan-card-slot:nth-child(5) {
+        grid-column: 1 / -1;
     }
 
     .mulligan-card-slot .hand-card.mulligan-showcase {

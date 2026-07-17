@@ -341,6 +341,24 @@ class GameJavaScriptRegressionTest {
         );
     }
 
+    @Test
+    void portraitMulliganUsesAHeightFillingTwoTwoOneGrid() throws IOException {
+        String style = Files.readString(STYLE_CSS).replace("\r\n", "\n");
+
+        assertTrue(
+                style.contains("grid-template-columns: repeat(2, minmax(0, 1fr));")
+                        && style.contains("grid-template-rows: repeat(3, minmax(0, 1fr));")
+                        && style.contains(".mulligan-card-slot:nth-child(5)")
+                        && style.contains("grid-column: 1 / -1;"),
+                "Portrait Mulligan must keep five cards in a centered 2-2-1 grid."
+        );
+        assertTrue(
+                style.contains(".mulligan-card-slot {\n        width: auto;\n        height: 100%;")
+                        && !style.contains("--mulligan-portrait-card-width"),
+                "Portrait Mulligan cards must size from the hand area's live row height instead of a fixed card-width cap."
+        );
+    }
+
     private static String readGameScript() throws IOException {
         return Files.readString(GAME_JS);
     }
