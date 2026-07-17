@@ -2384,6 +2384,29 @@ select.search-input { color-scheme: dark; }
     font-weight: 950;
 }
 
+.holographic-card-notches {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    pointer-events: none;
+}
+
+.holographic-card-notches .holographic-card-notch {
+    width: 10.4%;
+    height: auto;
+    aspect-ratio: 1 / 1;
+    border-width: 1px;
+}
+
+.holographic-card-notch-top-left { left: 7.8%; top: 5.7%; }
+.holographic-card-notch-top { left: 50%; top: 5.6%; }
+.holographic-card-notch-top-right { left: 91.8%; top: 5.7%; }
+.holographic-card-notch-left { left: 7.7%; top: 50%; }
+.holographic-card-notch-right { left: 91.9%; top: 50%; }
+.holographic-card-notch-bottom-left { left: 7.6%; top: 94.1%; }
+.holographic-card-notch-bottom { left: 49.5%; top: 94.3%; }
+.holographic-card-notch-bottom-right { left: 91.7%; top: 94.2%; }
+
 .binder-card-shell {
     position: relative;
     z-index: 1;
