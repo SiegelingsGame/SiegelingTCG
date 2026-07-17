@@ -260,12 +260,13 @@
         const content = usesHolographicArtwork
             ? `<div class="holographic-card-art-canvas" style="--holographic-card-art-scale:${holographicCardArtScale(card)}">
                 <img class="binder-full-card-art-image" src="${escapeAttr(artUrl)}" alt="" loading="lazy">
+                ${isHolographic(card, options) ? renderHolographicOverlay() : ''}
                 ${renderHolographicCardData(card, options)}
             </div>`
             : `<img class="binder-full-card-art-image" src="${escapeAttr(artUrl)}" alt="" loading="lazy">`;
         return `<div class="binder-full-card-art${extraClass}${holographicClassName}${holographicClass(card, options)}" role="img" aria-label="${escapeAttr(card?.name || 'Full art card')}">
             ${content}
-            ${isHolographic(card, options) ? renderHolographicOverlay() : ''}
+            ${isHolographic(card, options) && !usesHolographicArtwork ? renderHolographicOverlay() : ''}
         </div>`;
     }
 

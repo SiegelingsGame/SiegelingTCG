@@ -2260,6 +2260,13 @@ select.search-input { color-scheme: dark; }
 .holographic-card-art-canvas > .binder-full-card-art-image {
     position: absolute;
     inset: 0;
+    z-index: 0;
+}
+
+/* Custom holo cards bake the elemental frame into the artwork. Keep the foil
+   above that art, but below every live data label so the copy stays readable. */
+.holographic-card-art-canvas > .card-holographic-overlay {
+    z-index: 1;
 }
 
 .holographic-card-data {
@@ -2279,7 +2286,7 @@ select.search-input { color-scheme: dark; }
 
 .holographic-card-name {
     position: absolute;
-    top: 11.5%;
+    top: 4.6%;
     left: 13%;
     right: 13%;
     max-height: 2.05em;
@@ -2294,7 +2301,7 @@ select.search-input { color-scheme: dark; }
 
 .holographic-card-stats {
     position: absolute;
-    top: 67.6%;
+    top: 69.6%;
     left: 15.5%;
     right: 15.5%;
     display: flex;
@@ -2313,7 +2320,7 @@ select.search-input { color-scheme: dark; }
 
 .holographic-card-copy {
     position: absolute;
-    top: 71.5%;
+    top: 73.6%;
     right: 15.5%;
     bottom: 9.5%;
     left: 15.5%;
