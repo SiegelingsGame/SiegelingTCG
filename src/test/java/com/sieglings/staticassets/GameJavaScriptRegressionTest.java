@@ -228,7 +228,7 @@ class GameJavaScriptRegressionTest {
     }
 
     @Test
-    void holographicFullCardArtStaysBinderOnlyAndSupportsComparison() throws IOException {
+    void holographicFullCardArtStaysOutOfBattleAndSupportsPublicComparison() throws IOException {
         String homeScript = readHomeScript();
         String dashboardScript = Files.readString(CARD_DASHBOARD_JS);
         String binderScript = Files.readString(Path.of("src/main/resources/static/js/card-binder-visual.js"));
@@ -244,8 +244,11 @@ class GameJavaScriptRegressionTest {
         assertTrue(
                 homeScript.contains("data-card-art-stack")
                         && homeScript.contains("data-card-art-toggle=\"HOLOGRAPHIC\"")
-                        && homeScript.contains("detailArtSwipeStartX"),
-                "Card detail must expose stacked Standard/Holographic views and swipe switching."
+                        && homeScript.contains("detailArtSwipeStartX")
+                        && homeScript.contains("return Boolean(String(card?.holographicCardArtUrl || '').trim());")
+                        && homeScript.contains("LOCKED — Upgrade this card's holographic finish")
+                        && homeScript.contains("holographic: variant === 'HOLOGRAPHIC'"),
+                "Card detail must expose every available art variant while marking unowned holographic previews as locked."
         );
         assertTrue(
                 dashboardScript.contains("selected.holographicCardArtUrl = hostedUrl")
