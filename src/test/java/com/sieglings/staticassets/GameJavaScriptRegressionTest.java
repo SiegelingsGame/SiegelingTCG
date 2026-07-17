@@ -240,6 +240,8 @@ class GameJavaScriptRegressionTest {
                         && binderScript.contains("card?.holographicCardArtUrl")
                         && binderScript.contains("holographic-card-name")
                         && binderScript.contains("holographic-card-stats")
+                        && binderScript.contains("holographic-card-stat-hp")
+                        && binderScript.contains("holographic-card-stat-spd")
                         && binderScript.contains("holographicCardArtScale"),
                 "The full-card holographic asset must require an explicit binder-view option."
         );
@@ -269,6 +271,9 @@ class GameJavaScriptRegressionTest {
                         && homeCss.contains("top: 10.6%")
                         && homeCss.contains("top: 69.8%")
                         && homeCss.contains("top: 74%")
+                        && homeCss.contains(".holographic-card-stat-hp")
+                        && homeCss.contains(".holographic-card-stat-spd")
+                        && homeCss.contains("padding: 1px 3px")
                         && homeCss.contains("font-size: clamp(7px, 4.9cqi, 12px)"),
                 "Custom holographic labels must stay in the template's name, stat, and description zones."
         );

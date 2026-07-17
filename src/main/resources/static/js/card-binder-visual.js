@@ -242,7 +242,7 @@
         const health = card?.health ?? card?.hp;
         const speed = card?.speed;
         const stats = type === 'SIEGLING'
-            ? `<div class="holographic-card-stats"><span>HP: ${escapeHtml(health ?? '—')}</span><span>SPD: ${escapeHtml(speed ?? '—')}</span></div>`
+            ? `<div class="holographic-card-stats"><span class="holographic-card-stat holographic-card-stat-hp">HP: ${escapeHtml(health ?? '—')}</span><span class="holographic-card-stat holographic-card-stat-spd">SPD: ${escapeHtml(speed ?? '—')}</span></div>`
             : `<div class="holographic-card-stats holographic-card-type"><span>${escapeHtml(format(type || 'Card'))}</span><span>${escapeHtml(format(card?.element || 'Neutral'))}</span></div>`;
         return `<div class="holographic-card-data">
             <div class="holographic-card-name">${escapeHtml(card?.name || 'Unnamed Card')}</div>
