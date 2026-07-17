@@ -2008,7 +2008,7 @@
     // Shared card art markup for the Card View tray and its full-screen
     // takeover so both surfaces render an identical card.
     function hasHolographicFullCardArt(card) {
-        return Boolean(String(card?.holographicCardArtUrl || '').trim() && card?.holographic === true);
+        return Boolean(String(card?.holographicCardArtUrl || '').trim());
     }
 
     function selectedDetailArtVariant(card) {
@@ -2026,10 +2026,13 @@
             return `<div class="knight-detail-preview">${renderKnightBinderCard(card)}</div>`;
         }
         const variant = forcedVariant || selectedDetailArtVariant(card);
-        const renderCard = variant === 'STANDARD' ? { ...card, holographic: false } : card;
+        const renderCard = { ...card, holographic: variant === 'HOLOGRAPHIC' };
+        const lockedHolographicDescription = variant === 'HOLOGRAPHIC' && !cardShowsPlayerHolographic(card)
+            ? { holographicDescriptionText: "LOCKED — Upgrade this card's holographic finish to use it in your binder and matches." }
+            : {};
         const holographicOptions = variant === 'STANDARD'
             ? { playerHolographicIds: new Set(), useHolographicFullCardArt: false }
-            : binderHolographicOptions();
+            : { ...binderHolographicOptions(), ...lockedHolographicDescription };
         return window.SieglingsCardBinderVisual?.renderBinderCardPreview
             ? window.SieglingsCardBinderVisual.renderBinderCardPreview(renderCard, {
                 ownedOverride: ownedCount(card.id),
