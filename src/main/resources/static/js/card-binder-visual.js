@@ -251,6 +251,18 @@
         </div>`;
     }
 
+    function renderHolographicNotches(notches = []) {
+        const activeNotches = (Array.isArray(notches) ? notches : []).filter((notch) => (
+            NOTCH_DIRECTIONS.includes(String(notch?.direction || '').toUpperCase())
+        ));
+        if (!activeNotches.length) return '';
+        return `<div class="holographic-card-notches" aria-hidden="true">${activeNotches.map((notch) => {
+            const direction = String(notch.direction || '').toUpperCase().replace(/_/g, '-').toLowerCase();
+            const elementClass = String(notch.element || 'NEUTRAL').toLowerCase().replace(/[^a-z0-9_-]/g, '');
+            return `<span class="notch-dot holographic-card-notch holographic-card-notch-${direction} ${elementClass}" style="${notchIconStyle(notch.element)}"></span>`;
+        }).join('')}</div>`;
+    }
+
     function renderFullCardArt(card, options = {}) {
         const artUrl = fullCardArtUrl(card, options);
         if (!artUrl) return '';
@@ -262,6 +274,7 @@
                 <img class="binder-full-card-art-image" src="${escapeAttr(artUrl)}" alt="" loading="lazy">
                 ${isHolographic(card, options) ? renderHolographicOverlay() : ''}
                 ${renderHolographicCardData(card, options)}
+                ${renderHolographicNotches(card?.notches)}
             </div>`
             : `<img class="binder-full-card-art-image" src="${escapeAttr(artUrl)}" alt="" loading="lazy">`;
         return `<div class="binder-full-card-art${extraClass}${holographicClassName}${holographicClass(card, options)}" role="img" aria-label="${escapeAttr(card?.name || 'Full art card')}">
