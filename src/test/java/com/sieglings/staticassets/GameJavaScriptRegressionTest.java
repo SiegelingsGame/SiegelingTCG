@@ -243,9 +243,13 @@ class GameJavaScriptRegressionTest {
                         && binderScript.contains("holographic-card-stats")
                         && binderScript.contains("holographic-card-stat-hp")
                         && binderScript.contains("holographic-card-stat-spd")
-                        && binderScript.contains("renderHolographicNotches(card?.notches)")
-                        && binderScript.contains("holographicCardArtScale"),
+                        && binderScript.contains("renderHolographicNotches(card?.notches)"),
                 "The full-card holographic asset must require an explicit binder-view option."
+        );
+        assertFalse(
+                binderScript.contains("holographicCardArtScale")
+                        || homeCss.contains("--holographic-card-art-scale"),
+                "Holographic source artwork must never scale the live name, stats, copy, foil, or notch layers."
         );
         assertTrue(
                 homeScript.contains("data-card-art-stack")
@@ -258,9 +262,18 @@ class GameJavaScriptRegressionTest {
         );
         assertTrue(
                 dashboardScript.contains("selected.holographicCardArtUrl = hostedUrl")
-                        && dashboardScript.contains("holographicCardArtScale")
+                        && dashboardScript.contains("normalizeHolographicCardArtFile(file, cardId)")
+                        && dashboardScript.contains("HOLOGRAPHIC_CARD_TEMPLATE_WIDTH = 638")
+                        && dashboardScript.contains("HOLOGRAPHIC_CARD_TEMPLATE_HEIGHT = 919")
+                        && dashboardScript.contains("clearConnectedHolographicBackground")
+                        && dashboardScript.contains("delete selected.holographicCardArtScale")
                         && dashboardScript.contains("formData.append(\"artVariant\", artVariant)"),
-                "Dashboard holographic uploads must save to their own catalog field and upload variant."
+                "Dashboard holographic uploads must normalize only the source image to the shared template before saving its own catalog variant."
+        );
+        assertFalse(
+                dashboardScript.contains("holographicCardArtScaleInput")
+                        || dashboardScript.contains("syncHolographicCardArtScaleControls"),
+                "The dashboard must not expose per-card holo scaling now that uploads normalize automatically."
         );
         assertTrue(
                 fullCardRenderer.indexOf("renderHolographicOverlay()")
