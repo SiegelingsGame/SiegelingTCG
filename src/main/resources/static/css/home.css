@@ -2253,8 +2253,6 @@ select.search-input { color-scheme: dark; }
     position: absolute;
     inset: 0;
     overflow: hidden;
-    transform: scale(var(--holographic-card-art-scale, 1));
-    transform-origin: center;
 }
 
 .holographic-card-art-canvas > .binder-full-card-art-image {

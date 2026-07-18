@@ -209,11 +209,6 @@
         return '<div class="card-holographic-overlay" aria-hidden="true"></div>';
     }
 
-    function holographicCardArtScale(card) {
-        const scale = Number(card?.holographicCardArtScale);
-        return Number.isFinite(scale) ? clampNumber(scale, 0.25, 3) : 1;
-    }
-
     function holographicCardCopy(card, options = {}) {
         const hasDedicatedDescription = Object.prototype.hasOwnProperty.call(options, 'holographicDescriptionText');
         const description = String(
@@ -270,7 +265,7 @@
         const usesHolographicArtwork = Boolean(holographicFullCardArtUrl(card, options));
         const holographicClassName = usesHolographicArtwork ? ' is-holographic-full-art' : '';
         const content = usesHolographicArtwork
-            ? `<div class="holographic-card-art-canvas" style="--holographic-card-art-scale:${holographicCardArtScale(card)}">
+            ? `<div class="holographic-card-art-canvas">
                 <img class="binder-full-card-art-image" src="${escapeAttr(artUrl)}" alt="" loading="lazy">
                 ${isHolographic(card, options) ? renderHolographicOverlay() : ''}
                 ${renderHolographicCardData(card, options)}

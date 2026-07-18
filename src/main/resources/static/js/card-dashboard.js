@@ -19,6 +19,9 @@
     // the fit message lets on.
     const TRAINER_CARD_ASPECT = 639 / 919;
     const TRAINER_OVERLAY_WINDOW_ASPECT = ((100 - 8.8 - 8.6) / (100 - 5.7 - 7.1)) * TRAINER_CARD_ASPECT;
+    const HOLOGRAPHIC_CARD_TEMPLATE_WIDTH = 638;
+    const HOLOGRAPHIC_CARD_TEMPLATE_HEIGHT = 919;
+    const HOLOGRAPHIC_BACKGROUND_TOLERANCE = 28;
 
     function defaultLiveElements() {
         return DEFAULT_LIVE_ELEMENT_ORDER.map((element) => ({ element, active: true }));
@@ -354,10 +357,6 @@
             "cardArtUrlInput",
             "holographicCardArtFileInput",
             "holographicCardArtUrlInput",
-            "holographicArtTransformControls",
-            "holographicCardArtScaleInput",
-            "holographicCardArtScaleNumber",
-            "resetHolographicCardArtScaleBtn",
             "clearHolographicCardArtBtn",
             "clearCardArtBtn",
             "cardArtTransformControls",
@@ -669,24 +668,26 @@
                 renderStatus();
                 return;
             }
-            const localPreviewUrl = URL.createObjectURL(file);
-            setEphemeralHolographicCardArtPreview(cardId, localPreviewUrl);
-            state.cardArtPreviewVariant = "HOLOGRAPHIC";
-            setStatus("Uploading holographic full-card art...", "warning");
-            renderStatus();
-            renderCardVisual();
             try {
-                const payload = await uploadCardArtFile(cardId, file, "HOLOGRAPHIC");
+                setStatus("Aligning holographic art to the 638 x 919 card template...", "warning");
+                renderStatus();
+                const normalizedFile = await normalizeHolographicCardArtFile(file, cardId);
+                const localPreviewUrl = URL.createObjectURL(normalizedFile);
+                setEphemeralHolographicCardArtPreview(cardId, localPreviewUrl);
+                state.cardArtPreviewVariant = "HOLOGRAPHIC";
+                renderCardVisual();
+                const payload = await uploadCardArtFile(cardId, normalizedFile, "HOLOGRAPHIC");
                 const hostedUrl = String(payload?.url || "").trim();
                 if (!hostedUrl) throw new Error("Upload finished but the server did not return an image URL.");
                 clearEphemeralHolographicCardArtPreview();
                 mutateCardById(cardId, (selected) => {
                     selected.holographicCardArtUrl = hostedUrl;
+                    delete selected.holographicCardArtScale;
                 }, { render: false });
                 setStatus(
                     state.liveEditingEnabled
-                        ? `Uploaded holographic card art for ${cardId}. Click Publish Live Changes when ready.`
-                        : `Uploaded holographic card art for ${cardId}. Click Save To Project File when ready.`,
+                        ? `Uploaded ${cardId} holographic art at the shared 638 x 919 template size. Click Publish Live Changes when ready.`
+                        : `Uploaded ${cardId} holographic art at the shared 638 x 919 template size. Click Save To Project File when ready.`,
                     "success"
                 );
             } catch (error) {
@@ -714,27 +715,9 @@
             state.cardArtPreviewVariant = "STANDARD";
             mutateSelectedCard((card) => {
                 card.holographicCardArtUrl = "";
-                card.holographicCardArtScale = 1;
+                delete card.holographicCardArtScale;
             });
             if (refs.holographicCardArtFileInput) refs.holographicCardArtFileInput.value = "";
-        });
-
-        const updateHolographicScale = (value) => {
-            mutateSelectedCard((card) => {
-                card.holographicCardArtScale = clampCardArtScale(value);
-            });
-        };
-        refs.holographicCardArtScaleInput?.addEventListener("input", (event) => {
-            updateHolographicScale(event.target.value);
-        });
-        refs.holographicCardArtScaleNumber?.addEventListener("input", (event) => {
-            updateHolographicScale(event.target.value);
-        });
-        refs.holographicCardArtScaleNumber?.addEventListener("change", (event) => {
-            event.target.value = formatCardArtScaleValue(event.target.value);
-        });
-        refs.resetHolographicCardArtScaleBtn?.addEventListener("click", () => {
-            updateHolographicScale(1);
         });
 
         refs.cardArtScaleInput?.addEventListener("input", (event) => {
@@ -1615,6 +1598,202 @@
         return preview.url;
     }
 
+    function loadImageFile(file) {
+        return new Promise((resolve, reject) => {
+            const url = URL.createObjectURL(file);
+            const image = new Image();
+            image.onload = () => {
+                URL.revokeObjectURL(url);
+                resolve(image);
+            };
+            image.onerror = () => {
+                URL.revokeObjectURL(url);
+                reject(new Error("The holographic image could not be decoded."));
+            };
+            image.src = url;
+        });
+    }
+
+    function holographicBackgroundSpec(imageData) {
+        const { data, width, height } = imageData;
+        const offsets = [
+            0,
+            (width - 1) * 4,
+            (height - 1) * width * 4,
+            ((height - 1) * width + width - 1) * 4
+        ];
+        const samples = offsets.map((offset) => ({
+            red: data[offset],
+            green: data[offset + 1],
+            blue: data[offset + 2],
+            alpha: data[offset + 3]
+        }));
+        if (samples.every((sample) => sample.alpha <= 32)) {
+            return { mode: "TRANSPARENT" };
+        }
+        const average = (channel) => Math.round(samples.reduce((sum, sample) => sum + sample[channel], 0) / samples.length);
+        const red = average("red");
+        const green = average("green");
+        const blue = average("blue");
+        const spread = Math.max(...samples.flatMap((sample) => [
+            Math.abs(sample.red - red),
+            Math.abs(sample.green - green),
+            Math.abs(sample.blue - blue)
+        ]));
+        if (samples.every((sample) => sample.alpha >= 224)
+            && (red + green + blue) / 3 >= 210
+            && spread <= HOLOGRAPHIC_BACKGROUND_TOLERANCE) {
+            return { mode: "SOLID", red, green, blue };
+        }
+        return { mode: "NONE" };
+    }
+
+    function isHolographicBackgroundPixel(data, offset, background) {
+        if (background.mode === "TRANSPARENT") {
+            return data[offset + 3] <= 32;
+        }
+        if (background.mode !== "SOLID") {
+            return false;
+        }
+        return data[offset + 3] <= 32
+            || Math.max(
+                Math.abs(data[offset] - background.red),
+                Math.abs(data[offset + 1] - background.green),
+                Math.abs(data[offset + 2] - background.blue)
+            ) <= HOLOGRAPHIC_BACKGROUND_TOLERANCE;
+    }
+
+    function holographicCardBounds(imageData, background) {
+        const { data, width, height } = imageData;
+        if (background.mode === "NONE") {
+            return { left: 0, top: 0, right: width, bottom: height };
+        }
+        const rowCounts = new Uint32Array(height);
+        const rowThreshold = Math.max(8, Math.floor(width * 0.12));
+        for (let y = 0; y < height; y += 1) {
+            let count = 0;
+            for (let x = 0; x < width; x += 1) {
+                if (!isHolographicBackgroundPixel(data, (y * width + x) * 4, background)) {
+                    count += 1;
+                }
+            }
+            rowCounts[y] = count;
+        }
+        let top = 0;
+        while (top < height && rowCounts[top] < rowThreshold) top += 1;
+        let bottom = height - 1;
+        while (bottom >= top && rowCounts[bottom] < rowThreshold) bottom -= 1;
+        if (bottom < top) {
+            throw new Error("The holographic card frame could not be found in that image.");
+        }
+
+        const columnCounts = new Uint32Array(width);
+        const columnThreshold = Math.max(8, Math.floor((bottom - top + 1) * 0.4));
+        for (let x = 0; x < width; x += 1) {
+            let count = 0;
+            for (let y = top; y <= bottom; y += 1) {
+                if (!isHolographicBackgroundPixel(data, (y * width + x) * 4, background)) {
+                    count += 1;
+                }
+            }
+            columnCounts[x] = count;
+        }
+        let left = 0;
+        while (left < width && columnCounts[left] < columnThreshold) left += 1;
+        let right = width - 1;
+        while (right >= left && columnCounts[right] < columnThreshold) right -= 1;
+        if (right < left) {
+            throw new Error("The holographic card side rails could not be found in that image.");
+        }
+        return { left, top, right: right + 1, bottom: bottom + 1 };
+    }
+
+    function clearConnectedHolographicBackground(imageData, background) {
+        if (background.mode === "NONE") return;
+        const { data, width, height } = imageData;
+        const pixelCount = width * height;
+        const outside = new Uint8Array(pixelCount);
+        const queue = new Int32Array(pixelCount);
+        let head = 0;
+        let tail = 0;
+        const enqueue = (index) => {
+            if (outside[index] || !isHolographicBackgroundPixel(data, index * 4, background)) return;
+            outside[index] = 1;
+            queue[tail] = index;
+            tail += 1;
+        };
+        for (let x = 0; x < width; x += 1) {
+            enqueue(x);
+            enqueue((height - 1) * width + x);
+        }
+        for (let y = 0; y < height; y += 1) {
+            enqueue(y * width);
+            enqueue(y * width + width - 1);
+        }
+        while (head < tail) {
+            const index = queue[head];
+            head += 1;
+            const x = index % width;
+            const y = Math.floor(index / width);
+            if (x > 0) enqueue(index - 1);
+            if (x + 1 < width) enqueue(index + 1);
+            if (y > 0) enqueue(index - width);
+            if (y + 1 < height) enqueue(index + width);
+        }
+        for (let index = 0; index < pixelCount; index += 1) {
+            if (outside[index]) data[index * 4 + 3] = 0;
+        }
+    }
+
+    function canvasToPngFile(canvas, fileName) {
+        return new Promise((resolve, reject) => {
+            canvas.toBlob((blob) => {
+                if (!blob) {
+                    reject(new Error("The aligned holographic image could not be encoded."));
+                    return;
+                }
+                resolve(new File([blob], fileName, { type: "image/png", lastModified: Date.now() }));
+            }, "image/png");
+        });
+    }
+
+    async function normalizeHolographicCardArtFile(file, cardId) {
+        const image = await loadImageFile(file);
+        const sourceCanvas = document.createElement("canvas");
+        sourceCanvas.width = image.naturalWidth || image.width;
+        sourceCanvas.height = image.naturalHeight || image.height;
+        const sourceContext = sourceCanvas.getContext("2d", { willReadFrequently: true });
+        sourceContext.drawImage(image, 0, 0);
+        const sourceData = sourceContext.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
+        const background = holographicBackgroundSpec(sourceData);
+        const bounds = holographicCardBounds(sourceData, background);
+        const cropWidth = bounds.right - bounds.left;
+        const cropHeight = bounds.bottom - bounds.top;
+        const cropRatio = cropWidth / cropHeight;
+        const templateRatio = HOLOGRAPHIC_CARD_TEMPLATE_WIDTH / HOLOGRAPHIC_CARD_TEMPLATE_HEIGHT;
+        if (Math.abs(cropRatio - templateRatio) / templateRatio > 0.08) {
+            throw new Error("The painted card frame is not close enough to the 638 x 919 template. Upload the complete elemental card with all edge notches visible.");
+        }
+
+        const cropCanvas = document.createElement("canvas");
+        cropCanvas.width = cropWidth;
+        cropCanvas.height = cropHeight;
+        const cropContext = cropCanvas.getContext("2d", { willReadFrequently: true });
+        const cropData = sourceContext.getImageData(bounds.left, bounds.top, cropWidth, cropHeight);
+        clearConnectedHolographicBackground(cropData, background);
+        cropContext.putImageData(cropData, 0, 0);
+
+        const templateCanvas = document.createElement("canvas");
+        templateCanvas.width = HOLOGRAPHIC_CARD_TEMPLATE_WIDTH;
+        templateCanvas.height = HOLOGRAPHIC_CARD_TEMPLATE_HEIGHT;
+        const templateContext = templateCanvas.getContext("2d");
+        templateContext.imageSmoothingEnabled = true;
+        templateContext.imageSmoothingQuality = "high";
+        templateContext.drawImage(cropCanvas, 0, 0, templateCanvas.width, templateCanvas.height);
+        const safeId = String(cardId || "card").trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "") || "card";
+        return canvasToPngFile(templateCanvas, `${safeId}-holographic.png`);
+    }
+
     function mutateSelectedAbility(mutator) {
         const ability = getSelectedAbility();
         if (!ability) {
@@ -2099,24 +2278,6 @@
         }
     }
 
-    function syncHolographicCardArtScaleControls(card) {
-        const hasHolographicArt = Boolean(
-            String(card?.holographicCardArtUrl || "").trim()
-            || getEphemeralHolographicCardArtPreviewUrl(card?.id)
-        );
-        refs.holographicArtTransformControls?.classList.toggle("hidden", !hasHolographicArt);
-        if (!hasHolographicArt) {
-            return;
-        }
-        const scale = clampCardArtScale(card?.holographicCardArtScale ?? 1);
-        if (refs.holographicCardArtScaleInput && document.activeElement !== refs.holographicCardArtScaleInput) {
-            refs.holographicCardArtScaleInput.value = String(scale);
-        }
-        if (refs.holographicCardArtScaleNumber && document.activeElement !== refs.holographicCardArtScaleNumber) {
-            refs.holographicCardArtScaleNumber.value = formatCardArtScaleValue(scale);
-        }
-    }
-
     function normalizeCardArtFields(card) {
         const cardArtUrl = String(card?.cardArtUrl || "").trim();
         let cardArtMode = normalizeCardArtMode(card?.cardArtMode);
@@ -2126,7 +2287,6 @@
         return {
             cardArtUrl,
             holographicCardArtUrl: String(card?.holographicCardArtUrl || "").trim(),
-            holographicCardArtScale: clampCardArtScale(card?.holographicCardArtScale ?? 1),
             cardArtMode,
             holographic: card?.holographic === true,
             ...normalizeCardArtTransformFields(card)
@@ -2166,10 +2326,6 @@
         const holographicCardArtUrl = String(card?.holographicCardArtUrl || "").trim();
         if (holographicCardArtUrl) {
             exported.holographicCardArtUrl = holographicCardArtUrl;
-            const holographicScale = clampCardArtScale(card?.holographicCardArtScale ?? 1);
-            if (holographicScale !== 1) {
-                exported.holographicCardArtScale = holographicScale;
-            }
         }
         if (card?.holographic === true) {
             exported.holographic = true;
@@ -3219,7 +3375,6 @@
             setInputValue(refs.holographicCardArtUrlInput, card.holographicCardArtUrl || "");
             refs.holographicCardArtUrlInput.placeholder = `/assets/cards/${String(card.id || "example").trim().toLowerCase()}-holographic.png`;
         }
-        syncHolographicCardArtScaleControls(card);
         syncCardArtTransformControls(card);
         setupCardArtDragInteraction(card);
         attachCardArtPreviewErrorHandler(card);
