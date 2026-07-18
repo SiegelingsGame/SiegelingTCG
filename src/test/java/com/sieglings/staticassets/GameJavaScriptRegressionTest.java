@@ -291,6 +291,8 @@ class GameJavaScriptRegressionTest {
                         && homeCss.contains("top: 74%")
                         && homeCss.contains(".holographic-card-stat-hp")
                         && homeCss.contains(".holographic-card-stat-spd")
+                        && homeCss.contains(".card-tile .holographic-card-stats .holographic-card-stat")
+                        && homeCss.contains("font-size: inherit")
                         && homeCss.contains(".holographic-card-notch-bottom-left")
                         && homeCss.contains(".holographic-card-notch-bottom-right")
                         && homeCss.contains("padding: 1px 3px")

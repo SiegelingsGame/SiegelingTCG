@@ -2808,6 +2808,23 @@ select.search-input { color-scheme: dark; }
     line-height: 1.45;
 }
 
+/* Full-card holo tiles bring template-relative typography. The generic tile
+   span rule above must not inflate HP/SPD pills inside the smaller grid card. */
+.card-tile .holographic-card-stats .holographic-card-stat {
+    display: block;
+    font-size: inherit;
+    font-weight: inherit;
+    line-height: 1;
+}
+
+.card-tile .holographic-card-stats .holographic-card-stat-hp {
+    color: var(--accent, #ffd700);
+}
+
+.card-tile .holographic-card-stats .holographic-card-stat-spd {
+    color: #d8ecff;
+}
+
 .hub-deck-card {
     position: relative;
     min-height: 0;
