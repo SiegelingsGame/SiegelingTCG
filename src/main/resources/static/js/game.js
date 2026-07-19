@@ -8661,6 +8661,15 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
         if (endpoint === 'new') {
             showLoadoutLoadingError(String(data.error));
             syncEntryOverlays();
+        } else if (!multiplayerSession && soloSessionToken
+                && String(data.error).startsWith('No active game')) {
+            // The solo game only lives in the server's memory; a redeploy or the
+            // session TTL can drop it while the client still holds the token,
+            // which otherwise makes every action re-toast against a dead session.
+            // Drop the stale token and return to the entry screen so the player
+            // can start fresh instead of being stuck mid-match.
+            setSoloSessionToken(null);
+            syncEntryOverlays();
         }
         return null;
     }
