@@ -27,10 +27,21 @@ jobs:
 
       - name: Deploy Backend To Cloud Run
         run: |
+          # Match state (solo games in GameService.soloGames, multiplayer rooms
+          # in MultiplayerService.rooms) lives only in one JVM's memory. Default
+          # Cloud Run autoscaling load-balances requests across many instances
+          # that also scale to zero between calls, so a game started on one
+          # instance vanishes when the next action lands on another — surfacing
+          # as "No active game. Start a new game first." mid-match. Pin the
+          # service to a single always-warm instance so every request hits the
+          # same in-memory store. min-instances=1 also removes the 10-30s cold
+          # start on /api/game/new.
           gcloud run deploy sieglings-tcg-api \
             --source . \
             --region us-central1 \
             --project siegelingstcgtesting \
+            --min-instances 1 \
+            --max-instances 1 \
             --quiet
 
   deploy-firebase:
