@@ -1,4 +1,4 @@
-@import url("/css/holographic.css?v=2");
+@import url("/css/holographic.css?v=3");
 
 :root {
     --card-aspect-ratio: 5 / 7;
@@ -12950,6 +12950,42 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 
 .mulligan-card-slot.is-selected .hand-card {
     filter: grayscale(0.25) brightness(0.85);
+}
+
+/* Holographic full-art faces (the binder's painted card, frame baked into the
+   image) render as a bare .binder-full-card-art rather than a framed showcase.
+   Fill the fixed-proportion slot the same way the showcase does, and keep the
+   selected-to-redraw dim treatment working. */
+.mulligan-card-slot > .binder-full-card-art {
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    aspect-ratio: auto;
+    border-radius: 12px;
+}
+
+.mulligan-card-slot.is-selected > .binder-full-card-art {
+    filter: grayscale(0.25) brightness(0.85);
+}
+
+/* Hand-tray card whose face is a holographic full-art image: drop the standard
+   frame/padding/backing so the painted card fills the interactive wrapper. */
+.hand-card.has-holo-full-art {
+    padding: 0;
+    border: 0;
+    background: none;
+}
+
+.hand-card.has-holo-full-art::before {
+    display: none;
+}
+
+.hand-card.has-holo-full-art > .binder-full-card-art {
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    aspect-ratio: auto;
+    border-radius: 12px;
 }
 
 .mulligan-card-slot .hand-card.mulligan-showcase {
