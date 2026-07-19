@@ -3425,6 +3425,32 @@ function holographicCardOverlay(card) {
     return cardShowsPlayerHolographic(card) ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
 }
 
+function holographicFullArtOptions() {
+    return {
+        useHolographicFullCardArt: true,
+        playerHolographicIds: playerHolographicCardIds()
+    };
+}
+
+// A holographic card that ships (or has been upgraded to) dedicated full-card
+// artwork renders as the complete painted card — the same face the binder shows
+// — instead of the standard frame plus foil overlay. Returns '' when the card
+// has no holographic full art, so callers keep their standard showcase/hand
+// markup. The binder full-art path bakes the elemental frame into the image and
+// overlays the live name/stats/description/notches itself.
+function renderHolographicFullArtFace(card, extraOptions = {}) {
+    const bv = window.SieglingsCardBinderVisual;
+    if (!bv || typeof bv.renderBinderCardTile !== 'function'
+        || typeof bv.holographicFullCardArtUrl !== 'function') {
+        return '';
+    }
+    const options = { ...holographicFullArtOptions(), ...extraOptions };
+    if (!bv.holographicFullCardArtUrl(card, options)) {
+        return '';
+    }
+    return bv.renderBinderCardTile(card, options);
+}
+
 function renderShowcaseCard(card, options = {}) {
     if (!card) {
         return '';
@@ -6117,6 +6143,7 @@ function renderDesktopDeckTemplateCard(card) {
         && (binderVisual.usesFullCardArt?.(card) || binderVisual.usesFramedCardTemplate?.(card));
     if (canUseBinderCard) {
         return binderVisual.renderBinderCardTile(card, {
+            ...holographicFullArtOptions(),
             cardClass: 'mulligan-showcase desktop-deck-showcase',
             compactAbilityLimit: 2,
             summaryMode: 'description',
@@ -13263,7 +13290,20 @@ function renderHand() {
             ? formatElementLabel(card.element)
             : `${formatElementLabel(card.element)} ${card.type}`.trim();
         const handFrameClass = cardFrameClass(card);
-        html += `<div class="hand-card ${elemClass} ${cardTypeClass(card)}${interactionClass}${handFrameClass}${holographicCardClass(card)}" data-card-id="${escapeHtml(card.id)}" data-hand-index="${handIndex}" ${onclick} ${pointerEvents} ${hoverEvents} ${touchEvents}>`;
+        // Holographic full-card art replaces the framed hand face with the
+        // complete painted card (frame + notches + stats baked/overlaid by the
+        // binder renderer). Keep the .hand-card wrapper so the drag/click
+        // handlers, lock states, and sizing all stay intact.
+        const holoFace = renderHolographicFullArtFace(card, {
+            descriptionText: card.description || card.ability?.description || ''
+        });
+        const holoFaceClass = holoFace ? ' has-holo-full-art' : '';
+        html += `<div class="hand-card ${elemClass} ${cardTypeClass(card)}${interactionClass}${handFrameClass}${holographicCardClass(card)}${holoFaceClass}" data-card-id="${escapeHtml(card.id)}" data-hand-index="${handIndex}" ${onclick} ${pointerEvents} ${hoverEvents} ${touchEvents}>`;
+        if (holoFace) {
+            html += holoFace;
+            html += `</div>`; /* card */
+            continue;
+        }
         if (card.type === 'SIEGLING') {
             html += renderHandNotches(card.notches);
         }
@@ -13924,9 +13964,13 @@ function renderMulliganOverlay() {
         ].filter(Boolean).join(' ');
         const role = interactive ? ' role="button" tabindex="0" aria-pressed="' + (isSelected ? 'true' : 'false') + '"' : '';
         const click = interactive ? ` onclick="toggleMulliganCard(${index})"` : '';
-        // Two ability rows max — mulligan cards are too small for three
-        // wrapped prose lines; the "+N moves" row signals the rest.
-        const showcase = renderShowcaseCard(card, { artVariant: 'preview', cardClass: 'mulligan-showcase', compactAbilityLimit: 2 });
+        // Holographic cards with full-card art show the complete painted face
+        // (as in the binder); everything else uses the framed showcase. Two
+        // ability rows max — mulligan cards are too small for three wrapped
+        // prose lines; the "+N moves" row signals the rest.
+        const showcase = renderHolographicFullArtFace(card, {
+            descriptionText: card.description || card.ability?.description || ''
+        }) || renderShowcaseCard(card, { artVariant: 'preview', cardClass: 'mulligan-showcase', compactAbilityLimit: 2 });
         const badge = isSelected
             ? `<div class="mulligan-redraw-badge" aria-hidden="true">Redraw</div>`
             : '';

@@ -229,11 +229,13 @@ class GameJavaScriptRegressionTest {
     }
 
     @Test
-    void holographicFullCardArtStaysOutOfBattleAndSupportsPublicComparison() throws IOException {
+    void holographicFullCardArtRendersInBattleAndSupportsPublicComparison() throws IOException {
         String homeScript = readHomeScript();
+        String gameScript = readGameScript();
         String dashboardScript = Files.readString(CARD_DASHBOARD_JS);
         String binderScript = Files.readString(Path.of("src/main/resources/static/js/card-binder-visual.js"));
         String homeCss = Files.readString(Path.of("src/main/resources/static/css/home.css"));
+        String holographicCss = Files.readString(Path.of("src/main/resources/static/css/holographic.css"));
         String fullCardRenderer = extractFunction(binderScript, "function renderFullCardArt(");
 
         assertTrue(
@@ -281,23 +283,43 @@ class GameJavaScriptRegressionTest {
                         && fullCardRenderer.contains("isHolographic(card, options) && !usesHolographicArtwork"),
                 "Custom holographic data must render above its foil, without a second outer foil layer."
         );
+        // The full-art holo component now lives in the shared holographic.css so
+        // both the binder (home.css) and the Battle Table (style.css) import it.
         assertTrue(
-                homeCss.contains(".holographic-card-art-canvas > .card-holographic-overlay")
-                        && homeCss.contains(".holographic-card-art-canvas > .binder-full-card-art-image")
-                        && homeCss.contains("object-fit: contain")
-                        && homeCss.contains("object-position: center")
-                        && homeCss.contains("top: 10.6%")
-                        && homeCss.contains("top: 69.8%")
-                        && homeCss.contains("top: 74%")
-                        && homeCss.contains(".holographic-card-stat-hp")
-                        && homeCss.contains(".holographic-card-stat-spd")
-                        && homeCss.contains(".card-tile .holographic-card-stats .holographic-card-stat")
-                        && homeCss.contains("font-size: inherit")
-                        && homeCss.contains(".holographic-card-notch-bottom-left")
-                        && homeCss.contains(".holographic-card-notch-bottom-right")
-                        && homeCss.contains("padding: 1px 3px")
-                        && homeCss.contains("font-size: clamp(7px, 4.9cqi, 12px)"),
+                holographicCss.contains(".holographic-card-art-canvas > .card-holographic-overlay")
+                        && holographicCss.contains(".holographic-card-art-canvas > .binder-full-card-art-image")
+                        && holographicCss.contains("object-fit: contain")
+                        && holographicCss.contains("object-position: center")
+                        && holographicCss.contains("top: 10.6%")
+                        && holographicCss.contains("top: 69.8%")
+                        && holographicCss.contains("top: 74%")
+                        && holographicCss.contains(".holographic-card-stat-hp")
+                        && holographicCss.contains(".holographic-card-stat-spd")
+                        && holographicCss.contains(".holographic-card-notch-bottom-left")
+                        && holographicCss.contains(".holographic-card-notch-bottom-right")
+                        && holographicCss.contains("padding: 1px 3px")
+                        && holographicCss.contains("font-size: clamp(7px, 4.9cqi, 12px)"),
                 "Custom holographic art must preserve its complete frame while labels stay in the template's name, stat, and description zones."
+        );
+        // Battle Table binder view mirrors the binder: the card-tile stat override
+        // stays in home.css, and the shared holographic.css is @imported by style.css.
+        assertTrue(
+                homeCss.contains(".card-tile .holographic-card-stats .holographic-card-stat")
+                        && homeCss.contains("font-size: inherit"),
+                "The binder tile must still tame its holographic HP/SPD pills."
+        );
+        assertTrue(
+                Files.readString(STYLE_CSS).contains("holographic.css"),
+                "style.css must import the shared holographic component styles for the Battle Table."
+        );
+        // The mulligan and hand tray swap a holographic card's framed showcase for
+        // the complete painted face, gated on the same explicit binder-view option.
+        assertTrue(
+                gameScript.contains("function renderHolographicFullArtFace(")
+                        && gameScript.contains("useHolographicFullCardArt: true")
+                        && gameScript.contains("renderHolographicFullArtFace(card,")
+                        && gameScript.contains("has-holo-full-art"),
+                "Holographic cards with full-card art must render their painted face in the mulligan and hand."
         );
     }
 
