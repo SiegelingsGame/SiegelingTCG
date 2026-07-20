@@ -3970,6 +3970,16 @@ body.battle-phase-active .battlefield::after {
         align-items: flex-start;
     }
 
+    /* HP / Hand / Deck share one full-width row so all three read as equal
+       stat tiles regardless of orientation (portrait sheet + landscape flyout
+       both use this .stat-sheet-content grid). */
+    .m-count-row {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+    }
+
     .m-count-box {
         min-width: 0;
         padding: 6px 8px;
@@ -3998,6 +4008,10 @@ body.battle-phase-active .battlefield::after {
 
     .m-count-val.accent {
         color: var(--accent);
+    }
+
+    .m-count-val.hp {
+        color: var(--success);
     }
 
     .m-elem-list {
