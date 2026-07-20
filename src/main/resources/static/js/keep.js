@@ -371,13 +371,13 @@
                 : `<p class="panel-intro">A collapsed record hall lies beneath the eastern wall. Its stones protect letters from the Age Before Cards.</p>${projectsMarkup()}`;
         } else {
             setPanelHeading('Covenant Hall', 'The three promises');
-            body.innerHTML = `<p class="panel-intro">The sanctuary is founded on Stewardship, Consent, and Shelter.</p><section class="detail-card"><h3>The Keeper's Charter</h3><p>No Siegling will be compelled to labor or fight. The land will be repaired rather than consumed, and those hunted by Akhar may seek refuge here.</p><div class="button-row"><button class="panel-button" type="button" data-open-panel="chronicle">Read the charter</button></div></section>`;
+            body.innerHTML = `<p class="panel-intro">The sanctuary is founded on Stewardship, Consent, and Shelter.</p><section class="detail-card"><h3>The Keeper's Charter</h3><p>No Siegeling will be compelled to labor or fight. The land will be repaired rather than consumed, and those hunted by Akhar may seek refuge here.</p><div class="button-row"><button class="panel-button" type="button" data-open-panel="chronicle">Read the charter</button></div></section>`;
         }
     }
 
     function residentsMarkup() {
         const residents = state.snapshot.residents || [];
-        if (!residents.length) return '<div class="empty-state">Owned Siegling cards will introduce their evolution family to the sanctuary. Choose a starter pack to meet your first residents.</div>';
+        if (!residents.length) return '<div class="empty-state">Owned Siegeling cards will introduce their evolution family to the sanctuary. Choose a starter pack to meet your first residents.</div>';
         const current = state.snapshot.station?.residentId || '';
         return `<p class="panel-intro">Invitations never lock a card. Affinity reflects what a resident enjoys doing—not its rarity or power.</p>${residents.map((resident) => {
             const invited = current === resident.id;
