@@ -396,6 +396,27 @@ class GameJavaScriptRegressionTest {
         );
     }
 
+    @Test
+    void ownedHolographicCardsUseTheirDedicatedArtworkInBattle() throws IOException {
+        String gameScript = readGameScript();
+        String artResolver = extractFunction(gameScript, "function getDashboardCardArtMeta(card)");
+        String artRenderer = extractFunction(gameScript, "function renderCardArt(card, variant, fallbackLabel = '')");
+        String style = Files.readString(STYLE_CSS);
+
+        assertTrue(
+                artResolver.contains("cardShowsPlayerHolographic(card)")
+                        && artResolver.contains("card.holographicCardArtUrl")
+                        && artResolver.contains("mode: 'HOLOGRAPHIC_FULL_CARD'"),
+                "Battle art selection must use dedicated holo art only when that card instance displays the player's holographic finish."
+        );
+        assertTrue(
+                artRenderer.contains("game-holographic-full-card-art")
+                        && style.contains(".hand-card .card-art.game-holographic-full-card-art")
+                        && style.contains("object-fit: contain;"),
+                "Dedicated holo art must fill the shared card template behind live battle data without cropping."
+        );
+    }
+
     private static String readGameScript() throws IOException {
         return Files.readString(GAME_JS);
     }

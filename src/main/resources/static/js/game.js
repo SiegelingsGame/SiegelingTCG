@@ -1364,6 +1364,16 @@ function getDashboardCardArtMeta(card) {
     if (!card) {
         return null;
     }
+    const holographicUrl = cardShowsPlayerHolographic(card)
+        ? String(card.holographicCardArtUrl || '').trim()
+        : '';
+    if (holographicUrl) {
+        return {
+            url: holographicUrl,
+            mode: 'HOLOGRAPHIC_FULL_CARD',
+            transformStyle: ''
+        };
+    }
     const url = String(card.cardArtUrl || '').trim();
     const mode = String(card.cardArtMode || '').trim().toUpperCase();
     if (!url || (mode !== 'REPLACE' && mode !== 'OVERLAY')) {
@@ -1386,7 +1396,8 @@ function getCardArtMeta(card) {
         return {
             url: dashboardArt.url,
             crop: dashboardArt.mode === 'REPLACE' ? 'illustration' : 'default',
-            transformStyle: dashboardArt.transformStyle
+            transformStyle: dashboardArt.transformStyle,
+            fullCard: dashboardArt.mode === 'HOLOGRAPHIC_FULL_CARD'
         };
     }
 
@@ -1413,17 +1424,19 @@ function getCardArtMeta(card) {
 function renderCardArt(card, variant, fallbackLabel = '') {
     const artMeta = getCardArtMeta(card);
     if (artMeta?.url) {
+        const fullCardClass = artMeta.fullCard ? ' game-holographic-full-card-art' : '';
         const cropClass = artMeta.crop && artMeta.crop !== 'default'
             ? ` card-art-crop-${artMeta.crop}`
             : '';
         const styleAttr = artMeta.transformStyle ? ` style="${escapeHtmlAttribute(artMeta.transformStyle)}"` : '';
+        const artLabel = `${card?.name || 'Card'}${artMeta.fullCard ? ' holographic' : ''} art`;
         // Always load card art eagerly. Lazy-loading blanked the character
         // overlays in two ways: single-card previews starting below the fold
         // never loaded (deck-builder Card View on mobile), and battle
         // re-renders recreate every hand/board <img> via innerHTML, which
         // restarted the lazy deferral each interaction and made the art
         // blink out. All these images are on-screen cards, so eager is right.
-        return `<div class="card-art card-art-${variant}${cropClass}"><img ${webpImgAttrs(artMeta.url)} alt="${escapeHtmlAttribute(card?.name || 'Card')} art" decoding="async"${styleAttr}></div>`;
+        return `<div class="card-art card-art-${variant}${cropClass}${fullCardClass}"><img ${webpImgAttrs(artMeta.url)} alt="${escapeHtmlAttribute(artLabel)}" decoding="async"${styleAttr}></div>`;
     }
     if (!fallbackLabel) {
         return '';
