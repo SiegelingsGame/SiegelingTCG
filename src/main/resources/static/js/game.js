@@ -11509,6 +11509,7 @@ function updateMobileHud(state) {
         deckId: 'mobilePlayerDeckSize',
         energyId: 'mobilePlayerEnergyCount',
         dotsId: 'mobilePlayerElements',
+        statHealthId: 'mobilePlayerStatHealth',
         statHandId: 'mobilePlayerStatHandSize',
         statDeckId: 'mobilePlayerStatDeckSize',
         statElementsId: 'mobilePlayerStatElements',
@@ -11526,6 +11527,7 @@ function updateMobileHud(state) {
         deckId: 'mobileEnemyDeckSize',
         energyId: 'mobileEnemyEnergyCount',
         dotsId: 'mobileEnemyElements',
+        statHealthId: 'mobileEnemyStatHealth',
         statHandId: 'mobileEnemyStatHandSize',
         statDeckId: 'mobileEnemyStatDeckSize',
         statElementsId: 'mobileEnemyStatElements',
@@ -11554,6 +11556,7 @@ function updateMobileHudSide(label, playerData, ids) {
     setTextIfExists(ids.handId, handSize);
     setTextIfExists(ids.deckId, deckSize);
     setTextIfExists(ids.energyId, energyTotal);
+    setTextIfExists(ids.statHealthId, health);
     setTextIfExists(ids.statHandId, handSize);
     setTextIfExists(ids.statDeckId, deckSize);
     setTextIfExists(ids.knightNameId, trainer?.name || '-');
