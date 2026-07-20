@@ -40,6 +40,12 @@ public class PlayerProgressionEntity {
     private int siegeBossKills;
     private int siegeNodesCleared;
     private int siegeBestScore;
+    /** Lifetime My Keep sanctuary stats, powering keep achievements and titles. */
+    private boolean keepFounded;
+    private int keepTimberCollected;
+    private int keepProjectsCompleted;
+    private int keepLoreRead;
+    private int keepConversationsCompleted;
     private Instant updatedAt = Instant.now();
 
     public String getUserId() { return userId; }
@@ -121,6 +127,16 @@ public class PlayerProgressionEntity {
     public void setSiegeNodesCleared(int siegeNodesCleared) { this.siegeNodesCleared = Math.max(0, siegeNodesCleared); }
     public int getSiegeBestScore() { return siegeBestScore; }
     public void setSiegeBestScore(int siegeBestScore) { this.siegeBestScore = Math.max(0, siegeBestScore); }
+    public boolean isKeepFounded() { return keepFounded; }
+    public void setKeepFounded(boolean keepFounded) { this.keepFounded = keepFounded; }
+    public int getKeepTimberCollected() { return keepTimberCollected; }
+    public void setKeepTimberCollected(int keepTimberCollected) { this.keepTimberCollected = Math.max(0, keepTimberCollected); }
+    public int getKeepProjectsCompleted() { return keepProjectsCompleted; }
+    public void setKeepProjectsCompleted(int keepProjectsCompleted) { this.keepProjectsCompleted = Math.max(0, keepProjectsCompleted); }
+    public int getKeepLoreRead() { return keepLoreRead; }
+    public void setKeepLoreRead(int keepLoreRead) { this.keepLoreRead = Math.max(0, keepLoreRead); }
+    public int getKeepConversationsCompleted() { return keepConversationsCompleted; }
+    public void setKeepConversationsCompleted(int keepConversationsCompleted) { this.keepConversationsCompleted = Math.max(0, keepConversationsCompleted); }
     public Instant getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
 }

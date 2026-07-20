@@ -7,8 +7,10 @@ import com.sieglings.model.Card;
 import com.sieglings.model.SieglingCard;
 import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.PlayerProgressionEntity;
+import com.sieglings.persistence.firestore.PlayerProgressionStore;
 import com.sieglings.service.CardDefinitionService;
 import com.sieglings.service.PlayerProgressionService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
@@ -21,6 +23,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -40,6 +43,8 @@ public class KeepService {
     private final PlayerProgressionService progressionService;
     private final CardDefinitionService cardDefinitionService;
     private final KeepLoreCatalog loreCatalog;
+    @Autowired(required = false)
+    private PlayerProgressionStore progressionStore;
     private Clock clock = Clock.systemUTC();
 
     public KeepService(KeepStore store,
@@ -58,6 +63,7 @@ public class KeepService {
             if (materializeConstruction(context.state(), context.residents(), context.now())) {
                 bump(context.state(), context.now());
                 store.save(context.state());
+                recordKeepStats(context.progression(), p -> p.setKeepProjectsCompleted(p.getKeepProjectsCompleted() + 1));
             }
             return serialize(user, context.progression(), context.state(), context.residents(), context.now());
         }
@@ -80,6 +86,8 @@ public class KeepService {
             state.setWoodlotCollectCount(state.getWoodlotCollectCount() + 1);
             if (state.getWoodlotCollectCount() == 1) unlock(state, "letter_forester_maren");
             if (state.getWoodlotCollectCount() >= 3) unlock(state, "memorabilia_petrified_root");
+            final int granted = grant;
+            recordKeepStats(context.progression(), p -> p.setKeepTimberCollected(p.getKeepTimberCollected() + granted));
             Map<String, Object> extra = new LinkedHashMap<>();
             extra.put("collected", Map.of("resource", "TIMBER", "amount", grant));
             return extra;
@@ -139,7 +147,11 @@ public class KeepService {
             if (!state.getUnlockedLoreIds().contains(id) || loreCatalog.entry(id) == null) {
                 throw new IllegalArgumentException("That Chronicle entry has not been discovered.");
             }
+            boolean newlyRead = !state.getReadLoreIds().contains(id);
             addUnique(state.getReadLoreIds(), id);
+            if (newlyRead) {
+                recordKeepStats(context.progression(), p -> p.setKeepLoreRead(p.getKeepLoreRead() + 1));
+            }
             return Map.of("readLoreId", id);
         });
     }
@@ -159,6 +171,7 @@ public class KeepService {
             addUnique(state.getCompletedConversationIds(), conversation.id());
             if (choice.flag() != null && !choice.flag().isBlank()) addUnique(state.getChoiceFlags(), choice.flag());
             state.getNpcTrust().merge(conversation.npcId(), Math.max(0, choice.relationshipDelta()), Integer::sum);
+            recordKeepStats(context.progression(), p -> p.setKeepConversationsCompleted(p.getKeepConversationsCompleted() + 1));
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("npcId", conversation.npcId());
             result.put("npcName", conversation.npcName());
@@ -194,6 +207,9 @@ public class KeepService {
             String normalizedRequestId = normalizeRequestId(requestId);
             List<String> beforeUnlocks = new ArrayList<>(state.getUnlockedLoreIds());
             boolean completed = materializeConstruction(state, context.residents(), context.now());
+            if (completed) {
+                recordKeepStats(context.progression(), p -> p.setKeepProjectsCompleted(p.getKeepProjectsCompleted() + 1));
+            }
             if (state.getProcessedRequestIds().contains(normalizedRequestId)) {
                 if (completed) {
                     bump(state, context.now());
@@ -242,6 +258,9 @@ public class KeepService {
         List<Resident> residents = residents(progression);
         KeepState state = store.findByUserId(user.getId()).orElseGet(() -> store.save(newState(user.getId(), now)));
         repairDefaults(state, now);
+        if (!progression.isKeepFounded()) {
+            recordKeepStats(progression, p -> p.setKeepFounded(true));
+        }
         return new Context(progression, state, residents, now);
     }
 
@@ -519,6 +538,18 @@ public class KeepService {
             out.add(Map.of("npcId", entry.getKey(), "npcName", names.getOrDefault(entry.getKey(), entry.getKey()), "stage", stage));
         }
         return out;
+    }
+
+    /** Lifetime keep stats power keep achievements and titles; recording is best-effort and must never fail a keep action. */
+    private void recordKeepStats(PlayerProgressionEntity progression, Consumer<PlayerProgressionEntity> update) {
+        if (progression == null) return;
+        try {
+            update.accept(progression);
+            progression.setUpdatedAt(clock.instant());
+            if (progressionStore != null) progressionStore.save(progression);
+        } catch (Exception ignored) {
+            // the keep action stands either way
+        }
     }
 
     private void unlock(KeepState state, String loreId) {

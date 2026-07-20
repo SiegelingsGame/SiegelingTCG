@@ -988,5 +988,65 @@
     "titleId": "title_ach_siege_score_master",
     "label": "Expedition Score Master",
     "description": "Earned by unlocking the \"Score Master\" achievement."
+  },
+  {
+    "achievementId": "keep_founder",
+    "titleId": "title_ach_keep_founder",
+    "label": "Sanctuary Founder",
+    "description": "Earned by unlocking the \"Sanctuary Founder\" achievement."
+  },
+  {
+    "achievementId": "keep_first_timber",
+    "titleId": "title_ach_keep_first_timber",
+    "label": "First-Harvest Steward",
+    "description": "Earned by unlocking the \"First Harvest\" achievement."
+  },
+  {
+    "achievementId": "keep_timber_300",
+    "titleId": "title_ach_keep_timber_300",
+    "label": "Timber Steward",
+    "description": "Earned by unlocking the \"Timber Steward\" achievement."
+  },
+  {
+    "achievementId": "keep_timber_1000",
+    "titleId": "title_ach_keep_timber_1000",
+    "label": "Guardian of the Grove",
+    "description": "Earned by unlocking the \"Grove Guardian\" achievement."
+  },
+  {
+    "achievementId": "keep_restorer",
+    "titleId": "title_ach_keep_restorer",
+    "label": "Restorer of the Archive",
+    "description": "Earned by unlocking the \"Archive Restorer\" achievement."
+  },
+  {
+    "achievementId": "keep_builder",
+    "titleId": "title_ach_keep_builder",
+    "label": "Sanctuary Builder",
+    "description": "Earned by unlocking the \"Sanctuary Builder\" achievement."
+  },
+  {
+    "achievementId": "keep_chronicler",
+    "titleId": "title_ach_keep_chronicler",
+    "label": "Keeper of Letters",
+    "description": "Earned by unlocking the \"Chronicler\" achievement."
+  },
+  {
+    "achievementId": "keep_lorekeeper",
+    "titleId": "title_ach_keep_lorekeeper",
+    "label": "Lorekeeper of the Covenant",
+    "description": "Earned by unlocking the \"Lorekeeper\" achievement."
+  },
+  {
+    "achievementId": "keep_listener",
+    "titleId": "title_ach_keep_listener",
+    "label": "Patient Listener",
+    "description": "Earned by unlocking the \"Good Listener\" achievement."
+  },
+  {
+    "achievementId": "keep_confidant",
+    "titleId": "title_ach_keep_confidant",
+    "label": "Confidant of the Keep",
+    "description": "Earned by unlocking the \"Confidant\" achievement."
   }
 ]

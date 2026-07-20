@@ -215,6 +215,16 @@ public class AchievementEvaluationService {
             case "siege_trailblazer" -> ctx.siegeNodesCleared() >= 200;
             case "siege_high_score" -> ctx.siegeBestScore() >= 1000;
             case "siege_score_master" -> ctx.siegeBestScore() >= 5000;
+            case "keep_founder" -> ctx.keepFounded();
+            case "keep_first_timber" -> ctx.keepTimberCollected() >= 1;
+            case "keep_timber_300" -> ctx.keepTimberCollected() >= 300;
+            case "keep_timber_1000" -> ctx.keepTimberCollected() >= 1000;
+            case "keep_restorer" -> ctx.keepProjectsCompleted() >= 1;
+            case "keep_builder" -> ctx.keepProjectsCompleted() >= 2;
+            case "keep_chronicler" -> ctx.keepLoreRead() >= 3;
+            case "keep_lorekeeper" -> ctx.keepLoreRead() >= 6;
+            case "keep_listener" -> ctx.keepConversationsCompleted() >= 1;
+            case "keep_confidant" -> ctx.keepConversationsCompleted() >= 3;
             default -> false;
         };
     }
@@ -412,6 +422,11 @@ public class AchievementEvaluationService {
                 progression.getSiegeBossKills(),
                 progression.getSiegeNodesCleared(),
                 progression.getSiegeBestScore(),
+                progression.isKeepFounded(),
+                progression.getKeepTimberCollected(),
+                progression.getKeepProjectsCompleted(),
+                progression.getKeepLoreRead(),
+                progression.getKeepConversationsCompleted(),
                 elementUnique,
                 elementWins,
                 rarityUnique,
@@ -495,6 +510,11 @@ public class AchievementEvaluationService {
             int siegeBossKills,
             int siegeNodesCleared,
             int siegeBestScore,
+            boolean keepFounded,
+            int keepTimberCollected,
+            int keepProjectsCompleted,
+            int keepLoreRead,
+            int keepConversationsCompleted,
             Map<String, Integer> elementUnique,
             Map<String, Integer> elementWins,
             Map<String, Integer> rarityUnique,

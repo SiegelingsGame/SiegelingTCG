@@ -65,6 +65,11 @@ public class PlayerProgressionStore {
         payload.put("siegeBossKills", progression.getSiegeBossKills());
         payload.put("siegeNodesCleared", progression.getSiegeNodesCleared());
         payload.put("siegeBestScore", progression.getSiegeBestScore());
+        payload.put("keepFounded", progression.isKeepFounded());
+        payload.put("keepTimberCollected", progression.getKeepTimberCollected());
+        payload.put("keepProjectsCompleted", progression.getKeepProjectsCompleted());
+        payload.put("keepLoreRead", progression.getKeepLoreRead());
+        payload.put("keepConversationsCompleted", progression.getKeepConversationsCompleted());
         payload.put("packHistory", progression.getPackHistory());
         payload.put("soloWinStreak", progression.getSoloWinStreak());
         payload.put("onlineWinStreak", progression.getOnlineWinStreak());
@@ -123,6 +128,11 @@ public class PlayerProgressionStore {
         progression.setSiegeBossKills(intValue(snapshot.getLong("siegeBossKills")));
         progression.setSiegeNodesCleared(intValue(snapshot.getLong("siegeNodesCleared")));
         progression.setSiegeBestScore(intValue(snapshot.getLong("siegeBestScore")));
+        progression.setKeepFounded(Boolean.TRUE.equals(snapshot.getBoolean("keepFounded")));
+        progression.setKeepTimberCollected(intValue(snapshot.getLong("keepTimberCollected")));
+        progression.setKeepProjectsCompleted(intValue(snapshot.getLong("keepProjectsCompleted")));
+        progression.setKeepLoreRead(intValue(snapshot.getLong("keepLoreRead")));
+        progression.setKeepConversationsCompleted(intValue(snapshot.getLong("keepConversationsCompleted")));
         Long soloWinStreak = snapshot.getLong("soloWinStreak");
         Long onlineWinStreak = snapshot.getLong("onlineWinStreak");
         progression.setSoloWinStreak(soloWinStreak == null ? 0 : soloWinStreak.intValue());

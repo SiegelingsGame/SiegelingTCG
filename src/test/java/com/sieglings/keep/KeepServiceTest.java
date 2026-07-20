@@ -32,21 +32,23 @@ class KeepServiceTest {
     private InMemoryKeepStore store;
     private KeepService service;
     private AccountUser user;
+    private PlayerProgressionEntity progression;
 
     @BeforeEach
     void setUp() {
         clock = new MutableClock(start);
         store = new InMemoryKeepStore();
 
-        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression = new PlayerProgressionEntity();
         progression.setUserId("keeper@example.com");
         progression.setStarterPackId("pack_earth_starter");
         progression.setOwnedCards(Map.of("mossling", 1, "emberling", 2));
 
         SieglingCard mossling = card("mossling", "Mossling", Element.EARTH);
         SieglingCard emberling = card("emberling", "Emberling", Element.FIRE);
+        PlayerProgressionEntity shared = progression;
         PlayerProgressionService progressionService = new PlayerProgressionService() {
-            @Override public PlayerProgressionEntity getOrCreate(AccountUser ignored) { return progression; }
+            @Override public PlayerProgressionEntity getOrCreate(AccountUser ignored) { return shared; }
         };
         CardDefinitionService cards = new CardDefinitionService() {
             @Override public List<Card> getDeckBuilderCatalog() { return List.of(mossling, emberling); }
@@ -142,6 +144,32 @@ class KeepServiceTest {
         assertTrue(((List<?>) result.get("choiceFlags")).contains("charter_stewardship"));
         assertEquals("Acquainted", ((Map<?, ?>) ((List<?>) result.get("relationships")).get(0)).get("stage"));
         assertTrue(((List<?>) result.get("availableConversations")).isEmpty());
+    }
+
+    @Test
+    void keepActionsRecordLifetimeProgressionStats() {
+        service.getSnapshot(user);
+        assertTrue(progression.isKeepFounded(), "Loading the keep marks the sanctuary as founded.");
+
+        service.collect(user, "collect-1", 1);
+        assertEquals(15, progression.getKeepTimberCollected());
+        service.collect(user, "collect-1", 1);
+        assertEquals(15, progression.getKeepTimberCollected(),
+                "A replayed request id must not double-count collected timber.");
+
+        service.startBuild(user, "restore_archive", "build-1", 2);
+        clock.advance(Duration.ofSeconds(KeepService.ARCHIVE_RESTORE_SECONDS + 1));
+        service.getSnapshot(user);
+        assertEquals(1, progression.getKeepProjectsCompleted());
+
+        service.readLore(user, "charter_three_promises", "read-1", 4);
+        assertEquals(1, progression.getKeepLoreRead());
+        service.readLore(user, "charter_three_promises", "read-2", 5);
+        assertEquals(1, progression.getKeepLoreRead(),
+                "Re-reading an entry must not inflate the lifetime count.");
+
+        service.chooseDialogue(user, "steward_first_promise", "partners", "talk-1", 6);
+        assertEquals(1, progression.getKeepConversationsCompleted());
     }
 
     @Test

@@ -22,7 +22,8 @@
         { id: 'remnants', label: 'Remnants', eyebrow: 'Crafting', description: 'Earn, hoard, and spend Remnants from packs and victories.' },
         { id: 'decks', label: 'Deck Creation', eyebrow: 'Loadouts', description: 'Premade purchases, custom saves, and deck-builder unlocks.' },
         { id: 'loadouts', label: 'Using Decks', eyebrow: 'Arena', description: 'Win with premade, custom, solo, and PVP loadouts.' },
-        { id: 'siege', label: 'Siege Expedition', eyebrow: 'Adventure', description: 'Runs, wins, bosses, and score from the Siege / Adventure roguelike.' }
+        { id: 'siege', label: 'Siege Expedition', eyebrow: 'Adventure', description: 'Runs, wins, bosses, and score from the Siege / Adventure roguelike.' },
+        { id: 'keep', label: 'My Keep', eyebrow: 'Sanctuary', description: 'Found, restore, and chronicle your sanctuary in the My Keep idle mode.' }
     ];
 
     const PROFILE_FEATURED_IDS = [
@@ -226,7 +227,12 @@
             siegeWins: Number(progression.siegeWins) || 0,
             siegeBossKills: Number(progression.siegeBossKills) || 0,
             siegeNodesCleared: Number(progression.siegeNodesCleared) || 0,
-            siegeBestScore: Number(progression.siegeBestScore) || 0
+            siegeBestScore: Number(progression.siegeBestScore) || 0,
+            keepFounded: Boolean(progression.keepFounded),
+            keepTimberCollected: Number(progression.keepTimberCollected) || 0,
+            keepProjectsCompleted: Number(progression.keepProjectsCompleted) || 0,
+            keepLoreRead: Number(progression.keepLoreRead) || 0,
+            keepConversationsCompleted: Number(progression.keepConversationsCompleted) || 0
         };
     }
 
@@ -384,7 +390,19 @@
         tier('siege_pathfinder', 'siege', 'Pathfinder', 'Clear 50 Siege map nodes.', '⚑', 50, c => c.siegeNodesCleared),
         tier('siege_trailblazer', 'siege', 'Trailblazer', 'Clear 200 Siege map nodes.', '⚑', 200, c => c.siegeNodesCleared),
         tier('siege_high_score', 'siege', 'High Scorer', 'Reach a Siege score of 1,000.', '★', 1000, c => c.siegeBestScore),
-        tier('siege_score_master', 'siege', 'Score Master', 'Reach a Siege score of 5,000.', '★', 5000, c => c.siegeBestScore)
+        tier('siege_score_master', 'siege', 'Score Master', 'Reach a Siege score of 5,000.', '★', 5000, c => c.siegeBestScore),
+
+        // —— My Keep sanctuary ——
+        tier('keep_founder', 'keep', 'Sanctuary Founder', 'Found My Keep on the wounded ground.', '⌂', 1, c => c.keepFounded ? 1 : 0),
+        tier('keep_first_timber', 'keep', 'First Harvest', 'Collect timber from the Restorative Woodlot.', '▰', 1, c => c.keepTimberCollected),
+        tier('keep_timber_300', 'keep', 'Timber Steward', 'Collect 300 lifetime timber at My Keep.', '▰', 300, c => c.keepTimberCollected),
+        tier('keep_timber_1000', 'keep', 'Grove Guardian', 'Collect 1,000 lifetime timber at My Keep.', '▲', 1000, c => c.keepTimberCollected),
+        tier('keep_restorer', 'keep', 'Archive Restorer', 'Complete your first restoration project.', '⚒', 1, c => c.keepProjectsCompleted),
+        tier('keep_builder', 'keep', 'Sanctuary Builder', 'Complete 2 restoration projects.', '⚒', 2, c => c.keepProjectsCompleted),
+        tier('keep_chronicler', 'keep', 'Chronicler', 'Read 3 Chronicle discoveries at My Keep.', '▤', 3, c => c.keepLoreRead),
+        tier('keep_lorekeeper', 'keep', 'Lorekeeper', 'Read 6 Chronicle discoveries at My Keep.', '▤', 6, c => c.keepLoreRead),
+        tier('keep_listener', 'keep', 'Good Listener', 'Complete a conversation with a sanctuary voice.', '◌', 1, c => c.keepConversationsCompleted),
+        tier('keep_confidant', 'keep', 'Confidant', 'Complete 3 conversations with sanctuary voices.', '◌', 3, c => c.keepConversationsCompleted)
     ];
 
     const catalogDeduped = CATALOG;

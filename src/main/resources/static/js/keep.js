@@ -4,9 +4,31 @@
     const AUTH_TOKEN_KEY = 'sieglingsAuthToken';
     const COOKIE_SESSION_VALUE = 'cookie';
     const apiBase = String(window.SIEGLINGS_CONFIG?.apiBaseUrl || '').replace(/\/$/, '');
+    const TUTORIAL_KEY = 'sieglingsKeepTutorialSeen';
+    const TUTORIAL_STEPS = [
+        {
+            art: '⌂', kicker: 'Welcome, Keeper', title: 'The Wounded Ground',
+            body: 'This land was stripped bare by the war. Your Keep is a promise to give more than you take. Rebuild at your own pace — everything here keeps growing while you are away.'
+        },
+        {
+            art: '▰', kicker: 'Grow and gather', title: 'The Woodlot works for you',
+            body: 'The Restorative Woodlot produces timber over time — the READY counter at the top shows how much is waiting. Tap Collect to store it. Cultivation, never clear-cutting.'
+        },
+        {
+            art: '⚒', kicker: 'Restore the sanctuary', title: 'Spend timber on Projects',
+            body: 'Open Projects and spend timber to raise ruined buildings. Construction finishes on its own, even while you are offline, and every finished project changes the land itself.'
+        },
+        {
+            art: '▤', kicker: 'Step inside and listen', title: 'Buildings open up',
+            body: 'Tap any building to step inside it. Read recovered letters in the Chronicle, display memorabilia, and answer the Voices — your choices shape trust, never your production.'
+        }
+    ];
+
     const state = {
         snapshot: null,
         panel: '',
+        interior: '',
+        tutorialStep: -1,
         loreFilter: 'ALL',
         expandedLoreId: '',
         activeConversationId: '',
@@ -35,6 +57,7 @@
         } else {
             await loadSnapshot();
         }
+        maybeShowTutorial();
         window.setInterval(updateLiveState, 1000);
     }
 
@@ -49,13 +72,32 @@
         document.getElementById('collectButton')?.addEventListener('click', collectTimber);
         document.getElementById('fullscreenButton')?.addEventListener('click', toggleFullscreen);
         document.getElementById('discoveryOpen')?.addEventListener('click', openLatestDiscovery);
+        document.getElementById('interiorExit')?.addEventListener('click', closeInterior);
+        document.getElementById('helpButton')?.addEventListener('click', () => openTutorial(0));
+        document.getElementById('tutorialSkip')?.addEventListener('click', finishTutorial);
+        document.getElementById('tutorialNext')?.addEventListener('click', tutorialAdvance);
+        // iOS Safari can leave the document scrolled after a rotation even with
+        // overflow hidden, hiding the fixed header; snap back whenever it happens.
+        window.addEventListener('resize', resetViewportScroll);
+        window.addEventListener('orientationchange', () => {
+            resetViewportScroll();
+            window.setTimeout(resetViewportScroll, 250);
+            window.setTimeout(resetViewportScroll, 700);
+        });
+        window.addEventListener('scroll', resetViewportScroll, { passive: true });
         document.addEventListener('keydown', (event) => {
             if (event.key.toLowerCase() === 'f' && !isTyping(event.target)) toggleFullscreen();
             if (event.key === 'Escape') {
-                if (!document.getElementById('dialogueOverlay')?.classList.contains('hidden')) closeDialogue();
-                else closePanel();
+                if (!document.getElementById('keepTutorial')?.classList.contains('hidden')) finishTutorial();
+                else if (!document.getElementById('dialogueOverlay')?.classList.contains('hidden')) closeDialogue();
+                else if (state.panel) closePanel();
+                else closeInterior();
             }
         });
+    }
+
+    function resetViewportScroll() {
+        if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
     }
 
     function handleClick(event) {
@@ -66,7 +108,7 @@
         }
         const building = event.target.closest('[data-building]');
         if (building) {
-            openPanel(`building:${building.dataset.building}`);
+            openInterior(building.dataset.building);
             return;
         }
         const filter = event.target.closest('[data-lore-filter]');
@@ -270,6 +312,7 @@
         renderConstruction();
         updateLiveCounters();
         if (state.panel) renderPanel();
+        if (state.interior) renderInterior();
     }
 
     function updateLiveState() {
@@ -295,7 +338,7 @@
         if (collect) collect.disabled = available <= 0 || number(state.snapshot.resources?.timber) >= number(state.snapshot.resources?.timberCapacity) || state.busy;
         document.getElementById('productionReady')?.classList.toggle('hidden', available <= 0);
         renderConstruction();
-        if (state.panel.startsWith('building:woodlot') || state.panel === 'projects') updatePanelLiveValues();
+        if (state.panel.startsWith('building:woodlot') || state.panel === 'projects' || state.interior === 'woodlot') updatePanelLiveValues();
     }
 
     function renderConstruction() {
@@ -351,10 +394,27 @@
     }
 
     function renderBuildingPanel(id, body) {
+        const heading = buildingHeading(id);
+        setPanelHeading(heading.title, heading.kicker);
+        body.innerHTML = buildingMarkup(id);
+    }
+
+    function buildingHeading(id) {
         if (id === 'woodlot') {
             const station = state.snapshot.station || {};
-            setPanelHeading('Restorative Woodlot', `Level ${number(station.level) || 1}`);
-            body.innerHTML = `
+            return { title: 'Restorative Woodlot', kicker: `Level ${number(station.level) || 1}` };
+        }
+        if (id === 'archive') {
+            const restored = Boolean(state.snapshot.visualState?.archiveRestored);
+            return { title: restored ? 'Living Archive' : 'Ruined Archive', kicker: restored ? 'Recovered voices' : 'Buried history' };
+        }
+        return { title: 'Covenant Hall', kicker: 'The three promises' };
+    }
+
+    function buildingMarkup(id) {
+        if (id === 'woodlot') {
+            const station = state.snapshot.station || {};
+            return `
                 <p class="panel-intro">The grove is cultivated with resident Siegelings. Fallen limbs and willing growth replace clear-cutting.</p>
                 <section class="detail-card">
                     <h3>${escapeHtml(String(projectedAvailable()))} timber ready</h3>
@@ -363,16 +423,88 @@
                     <div class="button-row"><button class="panel-button" type="button" data-collect-inline ${projectedAvailable() <= 0 ? 'disabled' : ''}>Collect timber</button><button class="panel-button secondary" type="button" data-open-panel="residents">Invite resident</button></div>
                 </section>
                 ${station.resident ? `<section class="detail-card"><span class="eyebrow">Current partner</span><h3>${escapeHtml(station.resident.name)}</h3><p>${escapeHtml(station.resident.affinityLabel || '')}. Invited residents remain available in decks and expeditions.</p></section>` : `<div class="empty-state">No resident has been invited. The Woodlot still produces normally.</div>`}`;
-        } else if (id === 'archive') {
+        }
+        if (id === 'archive') {
             const restored = Boolean(state.snapshot.visualState?.archiveRestored);
-            setPanelHeading(restored ? 'Living Archive' : 'Ruined Archive', restored ? 'Recovered voices' : 'Buried history');
-            body.innerHTML = restored
+            return restored
                 ? `<p class="panel-intro">Letters, artifacts, and translated memories are preserved with their disagreements intact.</p><section class="detail-card"><h3>${number(state.snapshot.lore?.length)} discoveries</h3><p>${number(state.snapshot.unreadLoreCount)} entries remain unread. Memorabilia displayed here also appears in the sanctuary scene.</p><div class="button-row"><button class="panel-button" type="button" data-open-panel="chronicle">Open Chronicle</button><button class="panel-button secondary" type="button" data-open-panel="conversations">Speak with visitors</button></div></section>`
                 : `<p class="panel-intro">A collapsed record hall lies beneath the eastern wall. Its stones protect letters from the Age Before Cards.</p>${projectsMarkup()}`;
-        } else {
-            setPanelHeading('Covenant Hall', 'The three promises');
-            body.innerHTML = `<p class="panel-intro">The sanctuary is founded on Stewardship, Consent, and Shelter.</p><section class="detail-card"><h3>The Keeper's Charter</h3><p>No Siegeling will be compelled to labor or fight. The land will be repaired rather than consumed, and those hunted by Akhar may seek refuge here.</p><div class="button-row"><button class="panel-button" type="button" data-open-panel="chronicle">Read the charter</button></div></section>`;
         }
+        return `<p class="panel-intro">The sanctuary is founded on Stewardship, Consent, and Shelter.</p><section class="detail-card"><h3>The Keeper's Charter</h3><p>No Siegeling will be compelled to labor or fight. The land will be repaired rather than consumed, and those hunted by Akhar may seek refuge here.</p><div class="button-row"><button class="panel-button" type="button" data-open-panel="chronicle">Read the charter</button></div></section>`;
+    }
+
+    function openInterior(id) {
+        if (!state.snapshot || !id) return;
+        state.interior = id;
+        closePanel();
+        const interior = document.getElementById('keepInterior');
+        if (interior) {
+            interior.dataset.room = id;
+            interior.setAttribute('aria-hidden', 'false');
+        }
+        renderInterior();
+    }
+
+    function closeInterior() {
+        state.interior = '';
+        document.getElementById('keepInterior')?.setAttribute('aria-hidden', 'true');
+    }
+
+    function renderInterior() {
+        if (!state.snapshot || !state.interior) return;
+        const interior = document.getElementById('keepInterior');
+        if (!interior) return;
+        const heading = buildingHeading(state.interior);
+        text('interiorTitle', heading.title);
+        text('interiorKicker', heading.kicker);
+        interior.dataset.archiveRestored = String(Boolean(state.snapshot.visualState?.archiveRestored));
+        const resident = state.snapshot.station?.resident;
+        document.getElementById('interiorResident')?.classList.toggle('hidden', !resident);
+        const art = document.getElementById('interiorResidentArt');
+        if (art) art.innerHTML = resident ? residentAvatarContent(resident) : '';
+        text('interiorResidentName', resident ? resident.name : '');
+        const root = loreById('memorabilia_petrified_root');
+        document.getElementById('interiorPlinth')?.classList.toggle('hidden', !root?.displayed);
+        const actions = document.getElementById('interiorActions');
+        if (actions) actions.innerHTML = buildingMarkup(state.interior);
+    }
+
+    function maybeShowTutorial() {
+        if (!state.snapshot) return;
+        let seen = '';
+        try { seen = localStorage.getItem(TUTORIAL_KEY) || ''; } catch (error) { seen = ''; }
+        if (!seen) openTutorial(0);
+    }
+
+    function openTutorial(step) {
+        state.tutorialStep = clamp(number(step), 0, TUTORIAL_STEPS.length - 1);
+        renderTutorial();
+        document.getElementById('keepTutorial')?.classList.remove('hidden');
+    }
+
+    function renderTutorial() {
+        const stepDef = TUTORIAL_STEPS[state.tutorialStep];
+        if (!stepDef) return;
+        text('tutorialArt', stepDef.art);
+        text('tutorialKicker', stepDef.kicker);
+        text('tutorialTitle', stepDef.title);
+        text('tutorialBody', stepDef.body);
+        const dots = document.getElementById('tutorialDots');
+        if (dots) dots.innerHTML = TUTORIAL_STEPS.map((item, index) => `<i class="${index === state.tutorialStep ? 'active' : ''}"></i>`).join('');
+        const next = document.getElementById('tutorialNext');
+        if (next) next.textContent = state.tutorialStep >= TUTORIAL_STEPS.length - 1 ? 'Begin' : 'Next';
+        document.getElementById('tutorialSkip')?.classList.toggle('hidden', state.tutorialStep >= TUTORIAL_STEPS.length - 1);
+    }
+
+    function tutorialAdvance() {
+        if (state.tutorialStep >= TUTORIAL_STEPS.length - 1) finishTutorial();
+        else openTutorial(state.tutorialStep + 1);
+    }
+
+    function finishTutorial() {
+        state.tutorialStep = -1;
+        try { localStorage.setItem(TUTORIAL_KEY, '1'); } catch (error) { /* private browsing */ }
+        document.getElementById('keepTutorial')?.classList.add('hidden');
     }
 
     function residentsMarkup() {
@@ -437,12 +569,9 @@
     }
 
     function updatePanelLiveValues() {
-        const meter = document.querySelector('[data-live-woodlot-meter]');
-        if (meter) meter.style.width = `${woodlotFill()}%`;
-        const time = document.querySelector('[data-live-construction-time]');
-        if (time) time.textContent = formatDuration(constructionRemaining());
-        const constructionMeter = document.querySelector('[data-live-construction-meter]');
-        if (constructionMeter) constructionMeter.style.width = `${constructionPercent()}%`;
+        document.querySelectorAll('[data-live-woodlot-meter]').forEach((meter) => { meter.style.width = `${woodlotFill()}%`; });
+        document.querySelectorAll('[data-live-construction-time]').forEach((time) => { time.textContent = formatDuration(constructionRemaining()); });
+        document.querySelectorAll('[data-live-construction-meter]').forEach((meter) => { meter.style.width = `${constructionPercent()}%`; });
     }
 
     function setPanelHeading(title, kicker) {
@@ -710,6 +839,8 @@
             buildings: (snapshot.buildings || []).map((item) => ({ id: item.id, level: item.level, status: item.status })),
             construction: snapshot.activeConstruction ? { id: snapshot.activeConstruction.id, remainingSeconds: constructionRemaining(), progressPercent: constructionPercent() } : null,
             activePanel: state.panel || null,
+            interior: state.interior || null,
+            tutorialVisible: !document.getElementById('keepTutorial')?.classList.contains('hidden'),
             unreadLore: number(snapshot.unreadLoreCount),
             discoveries: (snapshot.lore || []).map((item) => ({ id: item.id, type: item.type, title: item.title, read: Boolean(item.read), displayed: Boolean(item.displayed) })),
             availableConversations: (snapshot.availableConversations || []).map((item) => ({ id: item.id, npc: item.npcName }))
