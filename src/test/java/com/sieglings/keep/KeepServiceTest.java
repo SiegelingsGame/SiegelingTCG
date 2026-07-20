@@ -24,6 +24,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class KeepServiceTest {
@@ -182,6 +183,91 @@ class KeepServiceTest {
         assertEquals(1, store.state.getWoodlotCollectCount());
     }
 
+    @Test
+    void storehouseExpandsInventoryAndEveryStationStorage() {
+        service.getSnapshot(user);
+        store.state.setStorehouseLevel(1);
+        store.state.getFacilityLevels().put("garden", 1);
+        store.state.getFacilityLastAccruedAt().put("garden", clock.instant());
+
+        Map<String, Object> snapshot = service.getSnapshot(user);
+        assertEquals(600, intAt(snapshot, "resources", "timberCapacity"));
+        assertEquals(200, intAt(snapshot, "resources", "materialCapacity"));
+        assertEquals(180, intAt(snapshot, "station", "storageCapacity"));
+        assertEquals(135, ((Number) station(snapshot, "garden").get("storageCapacity")).intValue());
+    }
+
+    @Test
+    void elementalFacilitiesProduceOfflineAndUseIndependentResidentSlots() {
+        service.getSnapshot(user);
+        store.state.getFacilityLevels().put("garden", 1);
+        store.state.getFacilityLevels().put("forge", 1);
+        store.state.getFacilityLastAccruedAt().put("garden", clock.instant());
+        store.state.getFacilityLastAccruedAt().put("forge", clock.instant());
+        clock.advance(Duration.ofMinutes(60));
+
+        Map<String, Object> returned = service.getSnapshot(user);
+        assertEquals(15, ((Number) station(returned, "garden").get("available")).intValue());
+        assertEquals(12, ((Number) station(returned, "forge").get("available")).intValue());
+        assertNotNull(returned.get("offlineReport"));
+
+        long version = ((Number) returned.get("stateVersion")).longValue();
+        Map<String, Object> assigned = service.inviteResident(user, "garden", "mossling", "garden-resident", version);
+        assertEquals("mossling", station(assigned, "garden").get("residentId"));
+        assertEquals(0.30, ((Number) station(assigned, "garden").get("ratePerMinute")).doubleValue(), 0.0001);
+        assertEquals("", station(assigned, "forge").get("residentId"));
+    }
+
+    @Test
+    void milestoneRewardsGrantCardGameCurrencyOnlyOnce() {
+        service.getSnapshot(user);
+        store.state.setEssenceCollectCount(1);
+
+        Map<String, Object> claimed = service.claimReward(user, "first_harvest", "reward-1", 1);
+        assertEquals(100, intAt(claimed, "resources", "gold"));
+        assertEquals(25, intAt(claimed, "resources", "remnants"));
+        assertTrue(progression.getKeepRewardClaimIds().contains("first_harvest"));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.claimReward(user, "first_harvest", "reward-2", 2));
+        assertEquals(100, progression.getGold());
+        assertEquals(25, progression.getRemnants());
+    }
+
+    @Test
+    void playersChooseWorkshopOrderThenCraftToolsAndPlaceDecorations() {
+        service.getSnapshot(user);
+        store.state.setArchiveLevel(1);
+        store.state.setWoodlotLevel(2);
+        store.state.setStorehouseLevel(1);
+        store.state.setTimber(1_000);
+
+        Map<String, Object> choices = service.getSnapshot(user);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> options = (List<Map<String, Object>>) choices.get("buildOptions");
+        assertTrue(options.stream().map(item -> String.valueOf(item.get("id"))).toList()
+                .containsAll(List.of("build_garden", "build_forge", "build_fridge", "build_generator")));
+
+        store.state.getFacilityLevels().put("garden", 1);
+        store.state.getFacilityLevels().put("forge", 1);
+        store.state.getFacilityLastAccruedAt().put("garden", clock.instant());
+        store.state.getFacilityLastAccruedAt().put("forge", clock.instant());
+        store.state.getMaterialInventory().put("verdant_fiber", 20);
+        store.state.getMaterialInventory().put("ember_ingot", 10);
+
+        Map<String, Object> decoration = service.craft(user, "living_trellis", "craft-decor", 1);
+        assertEquals(12, materialAmount(decoration, "verdant_fiber"));
+        Map<String, Object> placed = service.placeDecoration(user, "garden", "living_trellis", true,
+                "place-decor", 2);
+        assertEquals("living_trellis", valueAt(placed, "placedDecorations", "garden"));
+
+        Map<String, Object> tool = service.craft(user, "gardener_tools", "craft-tool", 3);
+        assertEquals(0.30, ((Number) station(tool, "garden").get("ratePerMinute")).doubleValue(), 0.0001);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> recipes = (List<Map<String, Object>>) tool.get("recipes");
+        assertTrue(recipes.stream().anyMatch(item -> "gardener_tools".equals(item.get("id"))
+                && Boolean.TRUE.equals(item.get("crafted"))));
+    }
+
     @SuppressWarnings("unchecked")
     private static Object valueAt(Map<String, Object> source, String mapKey, String valueKey) {
         return ((Map<String, Object>) source.get(mapKey)).get(valueKey);
@@ -189,6 +275,22 @@ class KeepServiceTest {
 
     private static int intAt(Map<String, Object> source, String mapKey, String valueKey) {
         return ((Number) valueAt(source, mapKey, valueKey)).intValue();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> station(Map<String, Object> snapshot, String id) {
+        return ((List<Map<String, Object>>) snapshot.get("stations")).stream()
+                .filter(item -> id.equals(item.get("id")))
+                .findFirst().orElseThrow();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static int materialAmount(Map<String, Object> snapshot, String id) {
+        Map<String, Object> resources = (Map<String, Object>) snapshot.get("resources");
+        return ((List<Map<String, Object>>) resources.get("materials")).stream()
+                .filter(item -> id.equals(item.get("id")))
+                .map(item -> ((Number) item.get("amount")).intValue())
+                .findFirst().orElseThrow();
     }
 
     @SuppressWarnings("unchecked")

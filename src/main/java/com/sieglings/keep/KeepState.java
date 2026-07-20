@@ -11,6 +11,8 @@ public class KeepState {
     private String userId;
     private long version;
     private int timber;
+    private int essence;
+    private int storehouseLevel;
     private int woodlotLevel = 1;
     private int archiveLevel;
     private int woodlotStored;
@@ -18,6 +20,16 @@ public class KeepState {
     private int woodlotCollectCount;
     private Instant woodlotLastAccruedAt;
     private String woodlotResidentId = "";
+    private Map<String, Integer> facilityLevels = new LinkedHashMap<>();
+    private Map<String, Integer> facilityStored = new LinkedHashMap<>();
+    private Map<String, Double> facilityProductionRemainders = new LinkedHashMap<>();
+    private Map<String, Instant> facilityLastAccruedAt = new LinkedHashMap<>();
+    private Map<String, String> facilityResidentIds = new LinkedHashMap<>();
+    private Map<String, Integer> materialInventory = new LinkedHashMap<>();
+    private Map<String, Integer> craftedItemCounts = new LinkedHashMap<>();
+    private Map<String, String> placedDecorations = new LinkedHashMap<>();
+    private int craftCount;
+    private int essenceCollectCount;
     private String activeConstructionId = "";
     private Instant constructionStartedAt;
     private Instant constructionCompletesAt;
@@ -28,6 +40,8 @@ public class KeepState {
     private Map<String, Integer> npcTrust = new LinkedHashMap<>();
     private List<String> displayedMemorabiliaIds = new ArrayList<>();
     private List<String> processedRequestIds = new ArrayList<>();
+    private Instant lastVisitedAt;
+    private Instant lastTributeClaimedAt;
     private Instant createdAt;
     private Instant updatedAt;
 
@@ -37,6 +51,10 @@ public class KeepState {
     public void setVersion(long version) { this.version = Math.max(0, version); }
     public int getTimber() { return timber; }
     public void setTimber(int timber) { this.timber = Math.max(0, timber); }
+    public int getEssence() { return essence; }
+    public void setEssence(int essence) { this.essence = Math.max(0, essence); }
+    public int getStorehouseLevel() { return storehouseLevel; }
+    public void setStorehouseLevel(int storehouseLevel) { this.storehouseLevel = Math.max(0, storehouseLevel); }
     public int getWoodlotLevel() { return woodlotLevel; }
     public void setWoodlotLevel(int woodlotLevel) { this.woodlotLevel = Math.max(1, woodlotLevel); }
     public int getArchiveLevel() { return archiveLevel; }
@@ -54,6 +72,38 @@ public class KeepState {
     public void setWoodlotLastAccruedAt(Instant woodlotLastAccruedAt) { this.woodlotLastAccruedAt = woodlotLastAccruedAt; }
     public String getWoodlotResidentId() { return woodlotResidentId; }
     public void setWoodlotResidentId(String woodlotResidentId) { this.woodlotResidentId = woodlotResidentId == null ? "" : woodlotResidentId; }
+    public Map<String, Integer> getFacilityLevels() { return facilityLevels; }
+    public void setFacilityLevels(Map<String, Integer> facilityLevels) { this.facilityLevels = intMap(facilityLevels); }
+    public Map<String, Integer> getFacilityStored() { return facilityStored; }
+    public void setFacilityStored(Map<String, Integer> facilityStored) { this.facilityStored = intMap(facilityStored); }
+    public Map<String, Double> getFacilityProductionRemainders() { return facilityProductionRemainders; }
+    public void setFacilityProductionRemainders(Map<String, Double> values) {
+        this.facilityProductionRemainders = new LinkedHashMap<>();
+        if (values != null) values.forEach((key, value) -> this.facilityProductionRemainders.put(key,
+                value == null || !Double.isFinite(value) ? 0 : Math.max(0, Math.min(.999999999, value))));
+    }
+    public Map<String, Instant> getFacilityLastAccruedAt() { return facilityLastAccruedAt; }
+    public void setFacilityLastAccruedAt(Map<String, Instant> values) {
+        this.facilityLastAccruedAt = values == null ? new LinkedHashMap<>() : new LinkedHashMap<>(values);
+    }
+    public Map<String, String> getFacilityResidentIds() { return facilityResidentIds; }
+    public void setFacilityResidentIds(Map<String, String> values) {
+        this.facilityResidentIds = new LinkedHashMap<>();
+        if (values != null) values.forEach((key, value) -> this.facilityResidentIds.put(key, value == null ? "" : value));
+    }
+    public Map<String, Integer> getMaterialInventory() { return materialInventory; }
+    public void setMaterialInventory(Map<String, Integer> values) { this.materialInventory = intMap(values); }
+    public Map<String, Integer> getCraftedItemCounts() { return craftedItemCounts; }
+    public void setCraftedItemCounts(Map<String, Integer> values) { this.craftedItemCounts = intMap(values); }
+    public Map<String, String> getPlacedDecorations() { return placedDecorations; }
+    public void setPlacedDecorations(Map<String, String> values) {
+        this.placedDecorations = new LinkedHashMap<>();
+        if (values != null) values.forEach((key, value) -> this.placedDecorations.put(key, value == null ? "" : value));
+    }
+    public int getCraftCount() { return craftCount; }
+    public void setCraftCount(int craftCount) { this.craftCount = Math.max(0, craftCount); }
+    public int getEssenceCollectCount() { return essenceCollectCount; }
+    public void setEssenceCollectCount(int essenceCollectCount) { this.essenceCollectCount = Math.max(0, essenceCollectCount); }
     public String getActiveConstructionId() { return activeConstructionId; }
     public void setActiveConstructionId(String activeConstructionId) { this.activeConstructionId = activeConstructionId == null ? "" : activeConstructionId; }
     public Instant getConstructionStartedAt() { return constructionStartedAt; }
@@ -76,6 +126,10 @@ public class KeepState {
     public void setDisplayedMemorabiliaIds(List<String> displayedMemorabiliaIds) { this.displayedMemorabiliaIds = copy(displayedMemorabiliaIds); }
     public List<String> getProcessedRequestIds() { return processedRequestIds; }
     public void setProcessedRequestIds(List<String> processedRequestIds) { this.processedRequestIds = copy(processedRequestIds); }
+    public Instant getLastVisitedAt() { return lastVisitedAt; }
+    public void setLastVisitedAt(Instant lastVisitedAt) { this.lastVisitedAt = lastVisitedAt; }
+    public Instant getLastTributeClaimedAt() { return lastTributeClaimedAt; }
+    public void setLastTributeClaimedAt(Instant lastTributeClaimedAt) { this.lastTributeClaimedAt = lastTributeClaimedAt; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
@@ -83,5 +137,11 @@ public class KeepState {
 
     private static List<String> copy(List<String> values) {
         return values == null ? new ArrayList<>() : new ArrayList<>(values);
+    }
+
+    private static Map<String, Integer> intMap(Map<String, Integer> values) {
+        Map<String, Integer> out = new LinkedHashMap<>();
+        if (values != null) values.forEach((key, value) -> out.put(key, Math.max(0, value == null ? 0 : value)));
+        return out;
     }
 }

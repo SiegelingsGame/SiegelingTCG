@@ -34,15 +34,16 @@ public class KeepController {
     public ResponseEntity<Map<String, Object>> collect(
             @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
             @RequestBody Map<String, Object> body) {
-        return respond(authorizationHeader, user -> keepService.collect(user, string(body, "requestId"), version(body)));
+        return respond(authorizationHeader, user -> keepService.collect(user, string(body, "stationId"),
+                string(body, "requestId"), version(body)));
     }
 
     @PostMapping("/api/keep/resident")
     public ResponseEntity<Map<String, Object>> resident(
             @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
             @RequestBody Map<String, Object> body) {
-        return respond(authorizationHeader, user -> keepService.inviteResident(user, string(body, "residentId"),
-                string(body, "requestId"), version(body)));
+        return respond(authorizationHeader, user -> keepService.inviteResident(user, string(body, "stationId"),
+                string(body, "residentId"), string(body, "requestId"), version(body)));
     }
 
     @PostMapping("/api/keep/build")
@@ -75,6 +76,30 @@ public class KeepController {
             @RequestBody Map<String, Object> body) {
         return respond(authorizationHeader, user -> keepService.placeMemorabilia(user, string(body, "loreId"),
                 bool(body, "displayed"), string(body, "requestId"), version(body)));
+    }
+
+    @PostMapping("/api/keep/reward")
+    public ResponseEntity<Map<String, Object>> reward(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody Map<String, Object> body) {
+        return respond(authorizationHeader, user -> keepService.claimReward(user, string(body, "rewardId"),
+                string(body, "requestId"), version(body)));
+    }
+
+    @PostMapping("/api/keep/craft")
+    public ResponseEntity<Map<String, Object>> craft(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody Map<String, Object> body) {
+        return respond(authorizationHeader, user -> keepService.craft(user, string(body, "recipeId"),
+                string(body, "requestId"), version(body)));
+    }
+
+    @PostMapping("/api/keep/decoration")
+    public ResponseEntity<Map<String, Object>> decoration(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody Map<String, Object> body) {
+        return respond(authorizationHeader, user -> keepService.placeDecoration(user, string(body, "roomId"),
+                string(body, "decorationId"), bool(body, "displayed"), string(body, "requestId"), version(body)));
     }
 
     private ResponseEntity<Map<String, Object>> respond(String authorizationHeader,

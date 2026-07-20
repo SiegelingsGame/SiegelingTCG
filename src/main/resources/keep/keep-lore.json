@@ -60,6 +60,57 @@
       "era": "The Great War",
       "summary": "The restored Woodlot produces more by taking less.",
       "body": "We stopped measuring the grove by what could be cut today. The resident Siegelings showed us which branches would regrow and where the soil still remembered water. Our yield rose. More importantly, nothing fled when our axes came out. That may be the first honest wall we have built."
+    },
+    {
+      "id": "ledger_quartermaster_sera",
+      "type": "LETTER",
+      "title": "The Quartermaster's Empty Shelves",
+      "source": "Quartermaster Sera Vale",
+      "perspective": "Storehouse ledger note",
+      "era": "The Great War",
+      "summary": "Storage is framed as restraint: gather only what the Keep can preserve and return.",
+      "body": "An empty shelf is not failure. It is room held in trust. Maestro's Covenant asked us to become stewards, not owners without limit. Mark every crate that enters, every ration that leaves, and every offering returned to the land. A Keep that cannot account for what it takes is only a raider camp with better walls."
+    },
+    {
+      "id": "fieldnote_covenant_garden",
+      "type": "CHRONICLE",
+      "title": "The Garden That Asked Permission",
+      "source": "Eleminion field translation",
+      "perspective": "Translated elemental impressions",
+      "era": "The Age of Shields",
+      "summary": "Early Valorous learned that cultivation could become a conversation with living elements.",
+      "body": "The Garden answered not in words, but in warmth beneath the soil, the taste of rain, and a memory of roots left unbroken. Through an Eleminion, the keepers understood the condition: harvest what is offered, shelter what is young, and leave enough for the ground to remember itself. The first essence formed only after they agreed."
+    },
+    {
+      "id": "letter_ember_forge",
+      "type": "LETTER",
+      "title": "Embers Under the First Covenant",
+      "source": "Smith Aven Rook to an unnamed Fire Siegeling",
+      "perspective": "Personal correspondence",
+      "era": "The Age of Shields",
+      "summary": "A smith records the difference between commanding elemental fire and working beside it.",
+      "body": "The old forge chained flame inside stone and called obedience a craft. You taught me to ask. When you refuse, the bellows wait. When you consent, metal bends without screaming and the waste cools clean. Let this hammer remember that the Covenant Card was never meant to be a cage."
+    },
+    {
+      "id": "inventory_frost_fridge",
+      "type": "MEMORABILIA",
+      "title": "The Frost-Keeper's Inventory",
+      "source": "Recovered icehouse slate",
+      "perspective": "Civilian record",
+      "era": "The Great War",
+      "summary": "A humble inventory shows Ice and Undead Siegelings preserving medicine for refugees.",
+      "body": "Seven bundles feverleaf. Twelve riverfish. Three vials restorative remnant. One place kept open for travelers from the eastern road. The frost bears no binding mark. The resident Siegelings come and go through the north window, and the slate records their names beside ours.",
+      "artKey": "frost-ledger"
+    },
+    {
+      "id": "schematic_elemental_generator",
+      "type": "CHRONICLE",
+      "title": "Maestro's Unfinished Circuit",
+      "source": "Generator foundation schematic",
+      "perspective": "Disputed technical record",
+      "era": "The First Covenant",
+      "summary": "A many-element circuit suggests power was meant to circulate through willing partners, never be extracted.",
+      "body": "No current is drawn from a single source. Fire warms water; water turns the wheel; wind carries the charge; earth grounds it; light reveals imbalance; shadow absorbs the excess. Later hands added every known element to the design. In the margin, a sentence attributed to Maestro remains: power shared returns as possibility; power seized returns as a wound."
     }
   ],
   "conversations": [
@@ -110,6 +161,31 @@
           "response": "A clear thesis. Some Houses will object—which may be evidence that it is needed.",
           "relationshipDelta": 1,
           "flag": "archive_centers_wounds"
+        }
+      ]
+    },
+    {
+      "id": "quartermaster_shared_current",
+      "npcId": "quartermaster_sera",
+      "npcName": "Quartermaster Sera Vale",
+      "npcRole": "Keeper of stores and sanctuary tribute",
+      "kicker": "Beside the humming Generator",
+      "prompt": "The Houses want our surplus measured in weapons. The residents measure it in repaired ground and people fed. What should the Keep's weekly tribute prove?",
+      "requiresLoreIds": ["schematic_elemental_generator", "ledger_quartermaster_sera"],
+      "choices": [
+        {
+          "id": "shared_prosperity",
+          "label": "That partnership can make everyone stronger without taking freedom.",
+          "response": "Then the tribute will carry both our seals and the marks of every willing resident. Let the Houses learn to count more than weapons.",
+          "relationshipDelta": 2,
+          "flag": "tribute_shared_prosperity"
+        },
+        {
+          "id": "sanctuary_first",
+          "label": "That surplus belongs first to those seeking sanctuary.",
+          "response": "Agreed. A full vault beside an empty refuge would make liars of us all.",
+          "relationshipDelta": 1,
+          "flag": "tribute_sanctuary_first"
         }
       ]
     }
