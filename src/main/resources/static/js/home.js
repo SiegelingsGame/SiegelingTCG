@@ -393,7 +393,10 @@
         dailyMissions: null,
         dailyMissionsError: '',
         showAllMissions: false,
-        missionResetTimer: null
+        missionResetTimer: null,
+        missionTab: 'daily',
+        featuredEditOpen: false,
+        featuredDraft: null
     };
 
     const LEADERBOARD_PERIODS = [
@@ -1427,7 +1430,7 @@
         state.missionResetTimer = setInterval(() => {
             const pill = document.querySelector('.daily-missions-panel .reset-pill');
             if (pill) {
-                pill.textContent = formatMissionResetCountdown(state.dailyMissions.resetAt);
+                pill.textContent = missionTabResetLabel(activeMissionTab());
             }
         }, 1000);
     }
@@ -2309,16 +2312,7 @@
             <section class="command-grid">
                 ${renderHomeLeaderboardsPanel()}
 
-                <article class="command-panel daily-missions-panel">
-                    <div class="command-panel-head">
-                        <div><span class="eyebrow">Daily Missions</span><h3>Today's objectives</h3></div>
-                        <span class="reset-pill">${escapeHtml(resetLabel)}</span>
-                    </div>
-                    <div class="mission-list">
-                        ${missions.length ? missions.map(renderMissionRow).join('') : '<div class="home-empty-emblem">Sign in to track daily missions.</div>'}
-                    </div>
-                    <button class="ghost-btn command-wide-btn" type="button" data-home-action="missions">${state.showAllMissions ? 'Show Featured Missions' : 'View All Missions'}</button>
-                </article>
+                ${renderMissionsPanel()}
 
                 <article class="command-panel open-lobbies-panel">
                     <div class="command-panel-head"><div><span class="eyebrow">Open Lobbies</span><h3>Active tables</h3></div></div>
@@ -2500,6 +2494,94 @@
         return [];
     }
 
+    const MISSION_TABS = [
+        ['daily', 'Daily'],
+        ['weekly', 'Weekly'],
+        ['lifetime', 'Lifetime']
+    ];
+
+    function activeMissionTab() {
+        return MISSION_TABS.some(([id]) => id === state.missionTab) ? state.missionTab : 'daily';
+    }
+
+    function decorateMissions(list) {
+        return (list || []).map(mission => ({
+            ...mission,
+            iconMarkup: mission.coinIcon,
+            icon: mission.coinIcon ? coinIconMarkup() : mission.icon
+        }));
+    }
+
+    // Missions for the active tab. Daily honours the featured/all toggle;
+    // weekly and lifetime always show their full (short) lists.
+    function missionsForTab(tab) {
+        const snapshot = state.dailyMissions;
+        if (tab === 'weekly') return decorateMissions(snapshot?.weekly || []);
+        if (tab === 'lifetime') return decorateMissions(snapshot?.lifetime || []);
+        return homeDailyMissions();
+    }
+
+    function missionTabResetLabel(tab) {
+        const snapshot = state.dailyMissions;
+        if (tab === 'lifetime') return 'Milestones — never reset';
+        if (tab === 'weekly') {
+            return snapshot?.weeklyResetAt
+                ? `Resets ${formatMissionResetCountdown(snapshot.weeklyResetAt)}`
+                : 'Resets weekly (Monday UTC)';
+        }
+        return snapshot?.resetAt
+            ? formatMissionResetCountdown(snapshot.resetAt)
+            : 'Resets at midnight UTC';
+    }
+
+    function renderLoginRewardTile() {
+        const login = state.dailyMissions?.login;
+        if (!login) return '';
+        const streak = Number(login.streak) || 0;
+        const claimed = Boolean(login.claimedToday);
+        const streakLabel = streak > 0 ? `Day ${streak} streak` : 'Log in daily to build a streak';
+        const action = claimed
+            ? '<span class="mission-claimed-label">Claimed today</span>'
+            : '<button class="mission-claim-btn" type="button" data-login-claim>Claim</button>';
+        return `<div class="mission-row login-reward-row${claimed ? ' is-claimed' : ' is-complete'}">
+            <span class="mission-icon">${coinIconMarkup()}</span>
+            <div class="mission-copy">
+                <strong>Daily Login Reward</strong>
+                <small class="mission-subline">${escapeHtml(streakLabel)}</small>
+            </div>
+            <span class="mission-reward">${renderCoinAmount(login.reward || 100, '')}</span>
+            ${action}
+        </div>`;
+    }
+
+    function renderMissionsPanel() {
+        const tab = activeMissionTab();
+        const missions = missionsForTab(tab);
+        const eyebrow = tab === 'weekly' ? 'Weekly Missions' : (tab === 'lifetime' ? 'Lifetime Rewards' : 'Daily Missions');
+        const heading = tab === 'weekly' ? "This week's objectives" : (tab === 'lifetime' ? 'Career milestones' : "Today's objectives");
+        const emptyLabel = state.profile?.authenticated
+            ? 'No objectives to show right now.'
+            : `Sign in to track ${tab} missions.`;
+        const loginTile = tab === 'daily' ? renderLoginRewardTile() : '';
+        const showAllBtn = tab === 'daily'
+            ? `<button class="ghost-btn command-wide-btn" type="button" data-home-action="missions">${state.showAllMissions ? 'Show Featured Missions' : 'View All Missions'}</button>`
+            : '';
+        return `<article class="command-panel daily-missions-panel">
+            <div class="command-panel-head">
+                <div><span class="eyebrow">${escapeHtml(eyebrow)}</span><h3>${escapeHtml(heading)}</h3></div>
+                <span class="reset-pill">${escapeHtml(missionTabResetLabel(tab))}</span>
+            </div>
+            <div class="mission-tabs" role="tablist" aria-label="Mission time range">
+                ${MISSION_TABS.map(([id, label]) => `<button class="mission-tab${tab === id ? ' active' : ''}" type="button" data-mission-tab="${escapeAttr(id)}" role="tab" aria-selected="${tab === id}">${escapeHtml(label)}</button>`).join('')}
+            </div>
+            <div class="mission-list">
+                ${loginTile}
+                ${missions.length ? missions.map(renderMissionRow).join('') : `<div class="home-empty-emblem">${escapeHtml(emptyLabel)}</div>`}
+            </div>
+            ${showAllBtn}
+        </article>`;
+    }
+
     function renderMissionRow(mission) {
         const pct = mission.target ? Math.min(100, Math.round((mission.current / mission.target) * 100)) : 0;
         const statusClass = mission.claimed ? ' is-claimed' : (mission.completed ? ' is-complete' : '');
@@ -2533,11 +2615,34 @@
         if (typeof data?.gold === 'number' && state.progression) {
             state.progression.gold = data.gold;
         }
-        const missions = state.dailyMissions?.missions || state.dailyMissions?.featured || [];
-        const claimed = missions.find(m => m.id === missionId);
-        pushNotification('mission', `Mission claimed: ${claimed?.title || 'Daily mission'}`, claimed?.reward ? `+${claimed.reward} Siegecoins added to your wallet.` : '');
+        const snapshot = state.dailyMissions || {};
+        const allMissions = [].concat(snapshot.daily || snapshot.missions || [], snapshot.weekly || [], snapshot.lifetime || []);
+        const claimed = allMissions.find(m => m.id === missionId);
+        pushNotification('mission', `Mission claimed: ${claimed?.title || 'Mission'}`, claimed?.reward ? `+${claimed.reward} Siegecoins added to your wallet.` : '');
         // Keep the diff snapshot current so the next sync doesn't re-report
         // this reward as separately earned gold.
+        if (notifSnapshot) notifSnapshot.gold = Number(state.progression?.gold) || notifSnapshot.gold;
+        safeRender(renderGold);
+        safeRender(renderHomeDashboard);
+    }
+
+    async function claimLoginReward() {
+        if (!state.token) return;
+        const data = await fetchJson('/api/missions/claim-login', { method: 'POST', body: JSON.stringify({}) });
+        if (data?.error) {
+            window.alert(data.error);
+            return;
+        }
+        if (data?.dailyMissions) {
+            state.dailyMissions = data.dailyMissions;
+        } else {
+            await loadDailyMissions();
+        }
+        if (typeof data?.gold === 'number' && state.progression) {
+            state.progression.gold = data.gold;
+        }
+        const streak = Number(data?.streak) || 0;
+        pushNotification('gold', `Daily login reward claimed`, `+${data?.reward || 100} Siegecoins${streak ? ` — Day ${streak} streak` : ''}.`);
         if (notifSnapshot) notifSnapshot.gold = Number(state.progression?.gold) || notifSnapshot.gold;
         safeRender(renderGold);
         safeRender(renderHomeDashboard);
@@ -2644,6 +2749,14 @@
         root.querySelectorAll('[data-mission-claim]').forEach(btn => btn.addEventListener('click', () => {
             void claimDailyMission(btn.dataset.missionClaim);
         }));
+        root.querySelectorAll('[data-mission-tab]').forEach(btn => btn.addEventListener('click', () => {
+            state.missionTab = btn.dataset.missionTab || 'daily';
+            renderHomeDashboard();
+            startMissionResetTimer();
+        }));
+        root.querySelector('[data-login-claim]')?.addEventListener('click', () => {
+            void claimLoginReward();
+        });
         root.querySelectorAll('[data-home-lb-period]').forEach(btn => btn.addEventListener('click', () => {
             state.leaderboardPeriod = btn.dataset.homeLbPeriod || 'daily';
             renderHomeDashboard();
@@ -4326,7 +4439,8 @@
             bio: starterProfileBio(favoriteElement),
             preferredCardBack: starterCardBackName(favoriteElement),
             favoriteSiegling: '',
-            favoriteSieglingId: starterFavoriteSieglingId(favoriteElement)
+            favoriteSieglingId: starterFavoriteSieglingId(favoriteElement),
+            featuredBadgeIds: []
         };
     }
 
@@ -4723,6 +4837,112 @@
         </section>`;
     }
 
+    // Profile badge-case customization: the player picks up to six unlocked
+    // badges to feature on their profile. Persisted via profile settings.
+    const FEATURED_BADGE_MAX = 6;
+
+    function renderFeaturedSelector(snapshot) {
+        const editing = state.featuredEditOpen;
+        const featured = snapshot.featured || [];
+        const savedIds = snapshot.customFeaturedIds || [];
+        if (!editing) {
+            return `<section class="profile-panel featured-selector">
+                <div class="profile-panel-head">
+                    <div><span class="eyebrow">Profile Showcase</span><h3>Featured badges</h3></div>
+                    <button class="ghost-btn compact-btn" type="button" data-featured-edit="open">Choose badges</button>
+                </div>
+                <div class="achievement-row achievement-row-featured">
+                    ${featured.map(item => renderAchievementBadgeTile(item)).join('')}
+                </div>
+                <p class="profile-muted achievement-panel-note">${savedIds.length
+                    ? 'These six badges show on your profile. Tap “Choose badges” to swap them.'
+                    : 'Pick up to six unlocked badges to feature on your profile. A default set shows until you choose.'}</p>
+            </section>`;
+        }
+        const draft = Array.isArray(state.featuredDraft) ? state.featuredDraft : savedIds.slice(0, FEATURED_BADGE_MAX);
+        const unlocked = (snapshot.all || []).filter(a => a.unlocked);
+        return `<section class="profile-panel featured-selector is-editing">
+            <div class="profile-panel-head">
+                <div><span class="eyebrow">Profile Showcase</span><h3>Choose featured badges</h3></div>
+                <span class="profile-soft-pill">${draft.length}/${FEATURED_BADGE_MAX} selected</span>
+            </div>
+            <p class="profile-muted achievement-panel-note">Select up to six unlocked badges. They appear in your profile badge case in the order you pick them.</p>
+            <div class="featured-pick-grid">
+                ${unlocked.length ? unlocked.map(item => {
+                    const idx = draft.indexOf(item.id);
+                    const picked = idx >= 0;
+                    return `<button type="button" class="featured-pick${picked ? ' is-picked' : ''}" data-featured-toggle="${escapeAttr(item.id)}" aria-pressed="${picked}">
+                        <span class="featured-pick-icon" aria-hidden="true">${escapeHtml(item.icon || '★')}</span>
+                        <span class="featured-pick-name">${escapeHtml(item.title)}</span>
+                        ${picked ? `<span class="featured-pick-order">${idx + 1}</span>` : ''}
+                    </button>`;
+                }).join('') : '<div class="home-empty-emblem">Unlock badges to feature them here.</div>'}
+            </div>
+            <div class="featured-selector-actions">
+                <button class="primary-btn" type="button" data-featured-save>Save showcase</button>
+                <button class="ghost-btn" type="button" data-featured-edit="cancel">Cancel</button>
+            </div>
+        </section>`;
+    }
+
+    function bindFeaturedSelector(root = document) {
+        root.querySelectorAll('[data-featured-edit]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const mode = btn.dataset.featuredEdit;
+                if (mode === 'open') {
+                    const snapshot = evaluateAchievements(profileViewModel());
+                    state.featuredDraft = (snapshot.customFeaturedIds || []).slice(0, FEATURED_BADGE_MAX);
+                    state.featuredEditOpen = true;
+                } else {
+                    state.featuredEditOpen = false;
+                    state.featuredDraft = null;
+                }
+                renderAchievements();
+            });
+        });
+        root.querySelectorAll('[data-featured-toggle]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = btn.dataset.featuredToggle;
+                const draft = Array.isArray(state.featuredDraft) ? state.featuredDraft.slice() : [];
+                const idx = draft.indexOf(id);
+                if (idx >= 0) {
+                    draft.splice(idx, 1);
+                } else if (draft.length < FEATURED_BADGE_MAX) {
+                    draft.push(id);
+                } else {
+                    return;
+                }
+                state.featuredDraft = draft;
+                renderAchievements();
+            });
+        });
+        root.querySelector('[data-featured-save]')?.addEventListener('click', saveFeaturedBadges);
+    }
+
+    async function saveFeaturedBadges() {
+        const ids = Array.isArray(state.featuredDraft) ? state.featuredDraft.slice(0, FEATURED_BADGE_MAX) : [];
+        const data = await fetchJson('/api/profile/settings', {
+            method: 'POST',
+            body: JSON.stringify({ featuredBadgeIds: ids })
+        });
+        if (!data || data.error) {
+            window.alert(data?.error || 'Could not save your featured badges.');
+            return;
+        }
+        const serverPrefs = applyProfileSettingsFromServer(data.profileSettings);
+        if (serverPrefs) {
+            state.profilePrefs = { ...(state.profilePrefs || {}), ...serverPrefs };
+            cacheProfilePrefs(state.profilePrefs);
+        } else {
+            state.profilePrefs = { ...(state.profilePrefs || {}), featuredBadgeIds: ids };
+        }
+        state.featuredEditOpen = false;
+        state.featuredDraft = null;
+        pushNotification('rank', 'Featured badges updated', 'Your profile badge case now shows your picks.');
+        renderAchievements();
+        safeRender(renderProfile);
+    }
+
     function achievementsPath(category = '') {
         const normalized = String(category || '').trim().toLowerCase();
         if (!normalized) return '/achievements';
@@ -4807,6 +5027,7 @@
                         <small>badges unlocked</small>
                     </div>
                 </div>
+                ${renderFeaturedSelector(snapshot)}
                 <div class="achievement-category-grid">
                     ${categories.map(cat => {
                         const rows = snapshot.byCategory[cat.id] || [];
@@ -4845,6 +5066,7 @@
         root.querySelectorAll('[data-achievement-route]').forEach(btn => {
             btn.addEventListener('click', () => navigateAchievementCategory(btn.dataset.achievementRoute || ''));
         });
+        bindFeaturedSelector(root);
         bindAchievementBadges(root);
     }
 
@@ -7552,7 +7774,8 @@
             preferredCardBack: settings.preferredCardBack || '',
             favoriteSiegling: settings.favoriteSiegling || '',
             favoriteSieglingId: settings.favoriteSieglingId || '',
-            favoriteSieglingCard: settings.favoriteSieglingCard || null
+            favoriteSieglingCard: settings.favoriteSieglingCard || null,
+            featuredBadgeIds: Array.isArray(settings.featuredBadgeIds) ? settings.featuredBadgeIds : []
         };
         const elementSource = settings.favoriteElementLabel || settings.favoriteElement;
         if (elementSource != null && String(elementSource).trim()) {

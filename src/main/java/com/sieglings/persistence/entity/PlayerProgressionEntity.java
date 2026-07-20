@@ -34,6 +34,12 @@ public class PlayerProgressionEntity {
     private List<String> holographicCardIds = new ArrayList<>();
     /** SiegeKnight ids unlocked for expedition warband selection (gold purchase). */
     private List<String> siegeUnlockedKnights = new ArrayList<>();
+    /** Lifetime Siege / Adventure expedition stats, powering siege achievements and titles. */
+    private int siegeRuns;
+    private int siegeWins;
+    private int siegeBossKills;
+    private int siegeNodesCleared;
+    private int siegeBestScore;
     private Instant updatedAt = Instant.now();
 
     public String getUserId() { return userId; }
@@ -105,6 +111,16 @@ public class PlayerProgressionEntity {
     public void setSiegeUnlockedKnights(List<String> siegeUnlockedKnights) {
         this.siegeUnlockedKnights = siegeUnlockedKnights == null ? new ArrayList<>() : new ArrayList<>(siegeUnlockedKnights);
     }
+    public int getSiegeRuns() { return siegeRuns; }
+    public void setSiegeRuns(int siegeRuns) { this.siegeRuns = Math.max(0, siegeRuns); }
+    public int getSiegeWins() { return siegeWins; }
+    public void setSiegeWins(int siegeWins) { this.siegeWins = Math.max(0, siegeWins); }
+    public int getSiegeBossKills() { return siegeBossKills; }
+    public void setSiegeBossKills(int siegeBossKills) { this.siegeBossKills = Math.max(0, siegeBossKills); }
+    public int getSiegeNodesCleared() { return siegeNodesCleared; }
+    public void setSiegeNodesCleared(int siegeNodesCleared) { this.siegeNodesCleared = Math.max(0, siegeNodesCleared); }
+    public int getSiegeBestScore() { return siegeBestScore; }
+    public void setSiegeBestScore(int siegeBestScore) { this.siegeBestScore = Math.max(0, siegeBestScore); }
     public Instant getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
 }

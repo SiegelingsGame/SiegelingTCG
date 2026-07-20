@@ -46,6 +46,13 @@ public class DailyMissionProgressStore {
         payload.put("dateKey", progress.getDateKey());
         payload.put("counters", progress.getCounters());
         payload.put("claimedMissionIds", progress.getClaimedMissionIds());
+        payload.put("weekKey", progress.getWeekKey());
+        payload.put("weeklyCounters", progress.getWeeklyCounters());
+        payload.put("claimedWeeklyIds", progress.getClaimedWeeklyIds());
+        payload.put("lifetimeCounters", progress.getLifetimeCounters());
+        payload.put("claimedLifetimeIds", progress.getClaimedLifetimeIds());
+        payload.put("lastLoginClaimKey", progress.getLastLoginClaimKey());
+        payload.put("loginStreak", progress.getLoginStreak());
         payload.put("updatedAt", toTimestamp(progress.getUpdatedAt()));
         try {
             doc(progress.getUserId()).set(payload).get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -79,6 +86,14 @@ public class DailyMissionProgressStore {
         progress.setDateKey(snapshot.getString("dateKey"));
         progress.setCounters(readIntMap(snapshot.get("counters")));
         progress.setClaimedMissionIds(readStringList(snapshot.get("claimedMissionIds")));
+        progress.setWeekKey(snapshot.getString("weekKey"));
+        progress.setWeeklyCounters(readIntMap(snapshot.get("weeklyCounters")));
+        progress.setClaimedWeeklyIds(readStringList(snapshot.get("claimedWeeklyIds")));
+        progress.setLifetimeCounters(readIntMap(snapshot.get("lifetimeCounters")));
+        progress.setClaimedLifetimeIds(readStringList(snapshot.get("claimedLifetimeIds")));
+        progress.setLastLoginClaimKey(snapshot.getString("lastLoginClaimKey"));
+        Long loginStreak = snapshot.getLong("loginStreak");
+        progress.setLoginStreak(loginStreak == null ? 0 : loginStreak.intValue());
         progress.setUpdatedAt(readInstant(snapshot, "updatedAt"));
         return progress;
     }

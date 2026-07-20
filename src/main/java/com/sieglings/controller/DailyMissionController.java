@@ -44,4 +44,16 @@ public class DailyMissionController {
             return error;
         }
     }
+
+    @PostMapping("/api/missions/claim-login")
+    public Map<String, Object> claimLogin(@RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+        try {
+            AccountUser user = accountService.requireUser(authorizationHeader);
+            return dailyMissionService.claimLoginReward(user);
+        } catch (IllegalArgumentException ex) {
+            Map<String, Object> error = new LinkedHashMap<>();
+            error.put("error", ex.getMessage());
+            return error;
+        }
+    }
 }

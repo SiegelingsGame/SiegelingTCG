@@ -203,6 +203,18 @@ public class AchievementEvaluationService {
             case "arena_grinder" -> ctx.wins() >= 20;
             case "arena_commander" -> ctx.wins() >= 75;
             case "arena_sovereign" -> ctx.wins() >= 150;
+            case "siege_initiate" -> ctx.siegeRuns() >= 1;
+            case "siege_explorer" -> ctx.siegeRuns() >= 10;
+            case "siege_conqueror" -> ctx.siegeWins() >= 1;
+            case "siege_champion" -> ctx.siegeWins() >= 10;
+            case "siege_warlord" -> ctx.siegeWins() >= 25;
+            case "siege_boss_slayer" -> ctx.siegeBossKills() >= 5;
+            case "siege_boss_hunter" -> ctx.siegeBossKills() >= 25;
+            case "siege_boss_legend" -> ctx.siegeBossKills() >= 50;
+            case "siege_pathfinder" -> ctx.siegeNodesCleared() >= 50;
+            case "siege_trailblazer" -> ctx.siegeNodesCleared() >= 200;
+            case "siege_high_score" -> ctx.siegeBestScore() >= 1000;
+            case "siege_score_master" -> ctx.siegeBestScore() >= 5000;
             default -> false;
         };
     }
@@ -395,6 +407,11 @@ public class AchievementEvaluationService {
                 hasFavoriteSiegling,
                 hasProfileTitle,
                 hasBio,
+                progression.getSiegeRuns(),
+                progression.getSiegeWins(),
+                progression.getSiegeBossKills(),
+                progression.getSiegeNodesCleared(),
+                progression.getSiegeBestScore(),
                 elementUnique,
                 elementWins,
                 rarityUnique,
@@ -473,6 +490,11 @@ public class AchievementEvaluationService {
             boolean hasFavoriteSiegling,
             boolean hasProfileTitle,
             boolean hasBio,
+            int siegeRuns,
+            int siegeWins,
+            int siegeBossKills,
+            int siegeNodesCleared,
+            int siegeBestScore,
             Map<String, Integer> elementUnique,
             Map<String, Integer> elementWins,
             Map<String, Integer> rarityUnique,

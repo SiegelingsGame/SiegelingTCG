@@ -103,6 +103,19 @@ public class ProfileSettingsService {
             }
             settings.setFavoriteSiegling(cardId);
         }
+        if (req.containsKey("featuredBadgeIds") && req.get("featuredBadgeIds") instanceof List<?> raw) {
+            List<String> featured = new java.util.ArrayList<>();
+            for (Object item : raw) {
+                if (item == null) {
+                    continue;
+                }
+                String id = String.valueOf(item).trim().toLowerCase(Locale.ROOT);
+                if (!id.isBlank() && !featured.contains(id) && featured.size() < 6) {
+                    featured.add(id);
+                }
+            }
+            settings.setFeaturedBadgeIds(featured);
+        }
         settings.setUpdatedAt(Instant.now());
         return settingsStore.save(settings);
     }
@@ -139,6 +152,7 @@ public class ProfileSettingsService {
         if (favoriteCard != null) {
             out.put("favoriteSieglingCard", serializeFavoriteCard(favoriteCard, progression));
         }
+        out.put("featuredBadgeIds", settings.getFeaturedBadgeIds() == null ? List.of() : settings.getFeaturedBadgeIds());
         out.put("updatedAt", settings.getUpdatedAt() == null ? null : settings.getUpdatedAt().toString());
         return out;
     }

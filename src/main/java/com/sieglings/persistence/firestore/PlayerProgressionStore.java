@@ -60,6 +60,11 @@ public class PlayerProgressionStore {
         payload.put("craftCount", progression.getCraftCount());
         payload.put("holographicCardIds", progression.getHolographicCardIds());
         payload.put("siegeUnlockedKnights", progression.getSiegeUnlockedKnights());
+        payload.put("siegeRuns", progression.getSiegeRuns());
+        payload.put("siegeWins", progression.getSiegeWins());
+        payload.put("siegeBossKills", progression.getSiegeBossKills());
+        payload.put("siegeNodesCleared", progression.getSiegeNodesCleared());
+        payload.put("siegeBestScore", progression.getSiegeBestScore());
         payload.put("packHistory", progression.getPackHistory());
         payload.put("soloWinStreak", progression.getSoloWinStreak());
         payload.put("onlineWinStreak", progression.getOnlineWinStreak());
@@ -113,6 +118,11 @@ public class PlayerProgressionStore {
         progression.setCraftCount(craftCount == null ? 0 : craftCount.intValue());
         progression.setHolographicCardIds(readStringList(snapshot.get("holographicCardIds")));
         progression.setSiegeUnlockedKnights(readStringList(snapshot.get("siegeUnlockedKnights")));
+        progression.setSiegeRuns(intValue(snapshot.getLong("siegeRuns")));
+        progression.setSiegeWins(intValue(snapshot.getLong("siegeWins")));
+        progression.setSiegeBossKills(intValue(snapshot.getLong("siegeBossKills")));
+        progression.setSiegeNodesCleared(intValue(snapshot.getLong("siegeNodesCleared")));
+        progression.setSiegeBestScore(intValue(snapshot.getLong("siegeBestScore")));
         Long soloWinStreak = snapshot.getLong("soloWinStreak");
         Long onlineWinStreak = snapshot.getLong("onlineWinStreak");
         progression.setSoloWinStreak(soloWinStreak == null ? 0 : soloWinStreak.intValue());
@@ -170,6 +180,10 @@ public class PlayerProgressionStore {
             return;
         }
         target.add(requestId);
+    }
+
+    private int intValue(Long value) {
+        return value == null ? 0 : value.intValue();
     }
 
     private Map<String, Integer> readIntMap(Object raw) {
