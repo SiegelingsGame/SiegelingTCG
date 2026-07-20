@@ -38,6 +38,7 @@
         discoveryQueue: [],
         discoveryTimer: null,
         completionRefreshPending: false,
+        constructionCollapsed: false,
         testMode: Boolean(window.__KEEP_TEST_SNAPSHOT__)
     };
 
@@ -101,6 +102,10 @@
     }
 
     function handleClick(event) {
+        if (event.target.closest('#constructionToggle')) {
+            toggleConstructionBanner();
+            return;
+        }
         const panelTrigger = event.target.closest('[data-open-panel]');
         if (panelTrigger) {
             openPanel(panelTrigger.dataset.openPanel);
@@ -356,6 +361,24 @@
         const progress = completes <= started ? 1 : clamp((nowMs() - started) / (completes - started), 0, 1);
         const bar = document.getElementById('constructionProgress');
         if (bar) bar.style.width = `${Math.round(progress * 100)}%`;
+        renderConstructionCollapseState();
+    }
+
+    function toggleConstructionBanner() {
+        state.constructionCollapsed = !state.constructionCollapsed;
+        renderConstructionCollapseState();
+    }
+
+    function renderConstructionCollapseState() {
+        const banner = document.getElementById('constructionBanner');
+        const toggle = document.getElementById('constructionToggle');
+        banner?.classList.toggle('is-collapsed', state.constructionCollapsed);
+        if (!toggle) return;
+        const expanded = !state.constructionCollapsed;
+        toggle.setAttribute('aria-expanded', String(expanded));
+        toggle.setAttribute('aria-label', expanded ? 'Collapse construction status' : 'Expand construction status');
+        const icon = toggle.querySelector('[aria-hidden="true"]');
+        if (icon) icon.textContent = expanded ? '−' : '+';
     }
 
     function openPanel(panel) {
@@ -837,7 +860,7 @@
                 invitedResident: snapshot.station?.resident?.name || null
             },
             buildings: (snapshot.buildings || []).map((item) => ({ id: item.id, level: item.level, status: item.status })),
-            construction: snapshot.activeConstruction ? { id: snapshot.activeConstruction.id, remainingSeconds: constructionRemaining(), progressPercent: constructionPercent() } : null,
+            construction: snapshot.activeConstruction ? { id: snapshot.activeConstruction.id, remainingSeconds: constructionRemaining(), progressPercent: constructionPercent(), collapsed: state.constructionCollapsed } : null,
             activePanel: state.panel || null,
             interior: state.interior || null,
             tutorialVisible: !document.getElementById('keepTutorial')?.classList.contains('hidden'),

@@ -473,7 +473,7 @@ a { text-decoration: none; }
     transform: translateX(-50%);
     min-width: min(340px, 70vw);
     display: grid;
-    grid-template-columns: auto 1fr;
+    grid-template-columns: auto 1fr auto;
     gap: 9px;
     padding: 8px 13px 11px;
     border: 1px solid rgba(244, 204, 98, .4);
@@ -486,6 +486,26 @@ a { text-decoration: none; }
 .construction-banner small { color: rgba(255, 247, 220, .65); font-size: 10px; }
 .construction-banner > i { grid-column: 1 / -1; height: 4px; border-radius: 99px; overflow: hidden; background: rgba(255, 255, 255, .11); }
 .construction-banner > i b { display: block; width: 0; height: 100%; background: linear-gradient(90deg, #ca884c, var(--gold)); transition: width .4s linear; }
+.construction-toggle {
+    align-self: center;
+    width: 27px;
+    height: 27px;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(244, 204, 98, .3);
+    border-radius: 8px;
+    color: var(--gold);
+    background: rgba(255, 255, 255, .06);
+    font-size: 17px;
+    line-height: 1;
+    cursor: pointer;
+}
+.construction-toggle:hover { background: rgba(244, 204, 98, .14); }
+.construction-toggle:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.construction-banner.is-collapsed { min-width: min(250px, calc(100vw - 16px)); padding-block: 6px; }
+.construction-banner.is-collapsed .hammer-icon { font-size: 17px; }
+.construction-banner.is-collapsed small,
+.construction-banner.is-collapsed > i { display: none; }
 
 .keep-dock {
     flex: 0 0 auto;
@@ -901,7 +921,7 @@ a { text-decoration: none; }
     .scene-caption { top: 48px; left: calc(8px + var(--safe-left)); width: min(270px, 72vw); padding: 9px 11px; }
     .scene-caption h1 { font-size: 19px; }
     .scene-caption p { font-size: 9px; }
-    .construction-banner { top: 48px; min-width: min(310px, calc(100vw - 16px)); padding-block: 6px 9px; }
+    .construction-banner { top: 140px; min-width: min(310px, calc(100vw - 16px)); padding-block: 6px 9px; }
     .hall-hotspot { top: 24%; width: 180px; height: 210px; }
     .woodlot-hotspot { left: 1%; bottom: 11%; width: 142px; height: 160px; }
     .archive-hotspot { right: 1%; bottom: 12%; width: 142px; height: 160px; }
@@ -956,6 +976,7 @@ a { text-decoration: none; }
 @media (max-width: 360px), (max-height: 590px) {
     .scene-caption p { display: none; }
     .scene-caption { width: auto; padding-block: 7px; }
+    .construction-banner { top: 108px; }
     .hall-hotspot { top: 20%; height: 180px; transform: translateX(-50%) scale(.86); }
     .woodlot-hotspot,
     .archive-hotspot { bottom: 7%; transform: scale(.84); transform-origin: bottom center; }
