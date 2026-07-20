@@ -9,7 +9,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#173f54">
-    <link rel="stylesheet" href="/css/keep.css?v=2">
+    <link rel="stylesheet" href="/css/keep.css?v=5">
 </head>
 <body>
 <div class="keep-app" id="keepApp">
@@ -20,6 +20,7 @@
         </a>
         <div class="keep-resource-bar" aria-label="Keep resources">
             <span class="resource-pill timber-pill"><span class="resource-icon" aria-hidden="true">▰</span><strong id="timberAmount">0</strong><small>Timber</small></span>
+            <span class="resource-pill essence-pill"><span class="resource-icon" aria-hidden="true">✦</span><strong id="materialAmount">0</strong><small>Materials</small></span>
             <span class="station-pill"><span class="pulse-dot" aria-hidden="true"></span><strong id="stationAvailable">0</strong><small>Ready</small></span>
         </div>
         <div class="keep-header-actions">
@@ -204,6 +205,18 @@
                     <span class="building-label"><strong id="archiveName">Ruined Archive</strong><small id="archiveLabel">Records buried beneath the stones</small></span>
                 </button>
 
+                <button class="building-hotspot quarter-hotspot" type="button" data-building="facilities" aria-label="Open the Elemental Quarter">
+                    <span class="quarter-illustration" aria-hidden="true">
+                        <i class="quarter-building quarter-storehouse"><b></b></i>
+                        <i class="quarter-building quarter-garden"><b></b></i>
+                        <i class="quarter-building quarter-forge"><b></b></i>
+                        <i class="quarter-building quarter-fridge"><b></b></i>
+                        <i class="quarter-building quarter-generator"><b></b></i>
+                        <span class="quarter-path"></span>
+                    </span>
+                    <span class="building-label"><strong>Elemental Quarter</strong><small id="quarterLabel">Foundations awaiting restoration</small></span>
+                </button>
+
                 <div class="memorabilia-plinth hidden" id="memorabiliaPlinth" aria-label="Displayed Petrified Root">
                     <i></i><span></span><small>Petrified Root</small>
                 </div>
@@ -217,6 +230,7 @@
                 <div class="construction-banner hidden" id="constructionBanner" role="status">
                     <span class="hammer-icon" aria-hidden="true">⚒</span>
                     <span><strong id="constructionName">Construction underway</strong><small id="constructionTimer">0:00</small></span>
+                    <button class="construction-toggle" id="constructionToggle" type="button" aria-expanded="true" aria-label="Collapse construction status"><span aria-hidden="true">−</span></button>
                     <i><b id="constructionProgress"></b></i>
                 </div>
             </div>
@@ -235,6 +249,7 @@
                     <i class="hall-banner-int banner-one"></i><i class="hall-banner-int banner-two"></i>
                     <i class="hall-hearth"><b></b></i>
                     <i class="hall-charter"></i>
+                    <i class="hall-crafted-tapestry crafted-decoration" data-decoration-art="covenant_tapestry"></i>
                     <i class="hall-table"></i>
                     <i class="hall-candle candle-one"></i><i class="hall-candle candle-two"></i>
                 </div>
@@ -262,6 +277,31 @@
                         <i class="arch-rubble"></i>
                         <i class="arch-buried-glow"></i>
                     </span>
+                </div>
+                <div class="interior-room room-garden">
+                    <i class="int-backwall"></i><i class="int-sidewall side-left"></i><i class="int-sidewall side-right"></i><i class="int-floor"></i>
+                    <i class="garden-window"></i><i class="garden-bed bed-one"></i><i class="garden-bed bed-two"></i>
+                    <i class="garden-water"></i><i class="garden-worktable"></i>
+                    <i class="living-trellis crafted-decoration" data-decoration-art="living_trellis"><b></b></i>
+                    <span class="facility-room-resident hidden" data-facility-resident><span data-facility-resident-art></span><small data-facility-resident-name></small></span>
+                </div>
+                <div class="interior-room room-forge">
+                    <i class="int-backwall"></i><i class="int-sidewall side-left"></i><i class="int-sidewall side-right"></i><i class="int-floor"></i>
+                    <i class="forge-hearth"><b></b></i><i class="forge-anvil"></i><i class="forge-rack"></i><i class="forge-bellows"></i>
+                    <i class="ember-lantern crafted-decoration" data-decoration-art="ember_lantern"></i>
+                    <span class="facility-room-resident hidden" data-facility-resident><span data-facility-resident-art></span><small data-facility-resident-name></small></span>
+                </div>
+                <div class="interior-room room-fridge">
+                    <i class="int-backwall"></i><i class="int-sidewall side-left"></i><i class="int-sidewall side-right"></i><i class="int-floor"></i>
+                    <i class="fridge-vault"></i><i class="fridge-shelf shelf-left"></i><i class="fridge-shelf shelf-right"></i><i class="fridge-crystal"></i>
+                    <i class="frostglass-mobile crafted-decoration" data-decoration-art="frostglass_mobile"><b></b></i>
+                    <span class="facility-room-resident hidden" data-facility-resident><span data-facility-resident-art></span><small data-facility-resident-name></small></span>
+                </div>
+                <div class="interior-room room-generator">
+                    <i class="int-backwall"></i><i class="int-sidewall side-left"></i><i class="int-sidewall side-right"></i><i class="int-floor"></i>
+                    <i class="generator-coil coil-left"></i><i class="generator-coil coil-right"></i><i class="generator-console"></i><i class="generator-conduit"></i>
+                    <i class="harmonic-orb crafted-decoration" data-decoration-art="harmonic_orb"></i>
+                    <span class="facility-room-resident hidden" data-facility-resident><span data-facility-resident-art></span><small data-facility-resident-name></small></span>
                 </div>
             </div>
             <div class="interior-actions" id="interiorActions"></div>
@@ -320,6 +360,17 @@
         </div>
     </div>
 
+    <div class="offline-overlay hidden" id="offlineOverlay" role="dialog" aria-modal="true" aria-labelledby="offlineTitle">
+        <div class="offline-card">
+            <span class="offline-sun" aria-hidden="true">☀</span>
+            <span class="eyebrow">The sanctuary kept working</span>
+            <h2 id="offlineTitle">While you were away</h2>
+            <p id="offlineDuration"></p>
+            <div class="offline-results" id="offlineResults"></div>
+            <button class="panel-button" id="offlineDismiss" type="button">Return to the Keep</button>
+        </div>
+    </div>
+
     <div class="keep-loading" id="keepLoading" aria-live="polite">
         <img src="/img/siegelings-icon.png" alt="">
         <strong>Listening to the land…</strong>
@@ -337,7 +388,7 @@
 </div>
 
 <script src="/js/config.js?v=1"></script>
-<script src="/js/keep.js?v=3"></script>
+    <script src="/js/keep.js?v=6"></script>
 <script src="/js/sw-register.js?v=1"></script>
 </body>
 </html>

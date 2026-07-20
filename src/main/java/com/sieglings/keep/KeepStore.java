@@ -44,6 +44,8 @@ public class KeepStore {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("version", state.getVersion());
         payload.put("timber", state.getTimber());
+        payload.put("essence", state.getEssence());
+        payload.put("storehouseLevel", state.getStorehouseLevel());
         payload.put("woodlotLevel", state.getWoodlotLevel());
         payload.put("archiveLevel", state.getArchiveLevel());
         payload.put("woodlotStored", state.getWoodlotStored());
@@ -51,6 +53,16 @@ public class KeepStore {
         payload.put("woodlotCollectCount", state.getWoodlotCollectCount());
         payload.put("woodlotLastAccruedAt", timestamp(state.getWoodlotLastAccruedAt()));
         payload.put("woodlotResidentId", state.getWoodlotResidentId());
+        payload.put("facilityLevels", state.getFacilityLevels());
+        payload.put("facilityStored", state.getFacilityStored());
+        payload.put("facilityProductionRemainders", state.getFacilityProductionRemainders());
+        payload.put("facilityLastAccruedAt", timestampMap(state.getFacilityLastAccruedAt()));
+        payload.put("facilityResidentIds", state.getFacilityResidentIds());
+        payload.put("materialInventory", state.getMaterialInventory());
+        payload.put("craftedItemCounts", state.getCraftedItemCounts());
+        payload.put("placedDecorations", state.getPlacedDecorations());
+        payload.put("craftCount", state.getCraftCount());
+        payload.put("essenceCollectCount", state.getEssenceCollectCount());
         payload.put("activeConstructionId", state.getActiveConstructionId());
         payload.put("constructionStartedAt", timestamp(state.getConstructionStartedAt()));
         payload.put("constructionCompletesAt", timestamp(state.getConstructionCompletesAt()));
@@ -61,6 +73,8 @@ public class KeepStore {
         payload.put("npcTrust", state.getNpcTrust());
         payload.put("displayedMemorabiliaIds", state.getDisplayedMemorabiliaIds());
         payload.put("processedRequestIds", state.getProcessedRequestIds());
+        payload.put("lastVisitedAt", timestamp(state.getLastVisitedAt()));
+        payload.put("lastTributeClaimedAt", timestamp(state.getLastTributeClaimedAt()));
         payload.put("createdAt", timestamp(state.getCreatedAt()));
         payload.put("updatedAt", timestamp(state.getUpdatedAt()));
         try {
@@ -89,6 +103,8 @@ public class KeepStore {
         state.setUserId(userId);
         state.setVersion(number(snapshot.get("version"), 0));
         state.setTimber((int) number(snapshot.get("timber"), 80));
+        state.setEssence((int) number(snapshot.get("essence"), 0));
+        state.setStorehouseLevel((int) number(snapshot.get("storehouseLevel"), 0));
         state.setWoodlotLevel((int) number(snapshot.get("woodlotLevel"), 1));
         state.setArchiveLevel((int) number(snapshot.get("archiveLevel"), 0));
         state.setWoodlotStored((int) number(snapshot.get("woodlotStored"), 0));
@@ -96,6 +112,16 @@ public class KeepStore {
         state.setWoodlotCollectCount((int) number(snapshot.get("woodlotCollectCount"), 0));
         state.setWoodlotLastAccruedAt(instant(snapshot.get("woodlotLastAccruedAt")));
         state.setWoodlotResidentId(string(snapshot.get("woodlotResidentId")));
+        state.setFacilityLevels(intMap(snapshot.get("facilityLevels")));
+        state.setFacilityStored(intMap(snapshot.get("facilityStored")));
+        state.setFacilityProductionRemainders(doubleMap(snapshot.get("facilityProductionRemainders")));
+        state.setFacilityLastAccruedAt(instantMap(snapshot.get("facilityLastAccruedAt")));
+        state.setFacilityResidentIds(stringMap(snapshot.get("facilityResidentIds")));
+        state.setMaterialInventory(intMap(snapshot.get("materialInventory")));
+        state.setCraftedItemCounts(intMap(snapshot.get("craftedItemCounts")));
+        state.setPlacedDecorations(stringMap(snapshot.get("placedDecorations")));
+        state.setCraftCount((int) number(snapshot.get("craftCount"), 0));
+        state.setEssenceCollectCount((int) number(snapshot.get("essenceCollectCount"), 0));
         state.setActiveConstructionId(string(snapshot.get("activeConstructionId")));
         state.setConstructionStartedAt(instant(snapshot.get("constructionStartedAt")));
         state.setConstructionCompletesAt(instant(snapshot.get("constructionCompletesAt")));
@@ -106,6 +132,8 @@ public class KeepStore {
         state.setNpcTrust(intMap(snapshot.get("npcTrust")));
         state.setDisplayedMemorabiliaIds(strings(snapshot.get("displayedMemorabiliaIds")));
         state.setProcessedRequestIds(strings(snapshot.get("processedRequestIds")));
+        state.setLastVisitedAt(instant(snapshot.get("lastVisitedAt")));
+        state.setLastTributeClaimedAt(instant(snapshot.get("lastTributeClaimedAt")));
         state.setCreatedAt(instant(snapshot.get("createdAt")));
         state.setUpdatedAt(instant(snapshot.get("updatedAt")));
         return state;
@@ -149,6 +177,43 @@ public class KeepStore {
                 out.put(String.valueOf(entry.getKey()), number.intValue());
             }
         }
+        return out;
+    }
+
+    private static Map<String, Double> doubleMap(Object value) {
+        Map<String, Double> out = new LinkedHashMap<>();
+        if (!(value instanceof Map<?, ?> map)) return out;
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            if (entry.getKey() != null && entry.getValue() instanceof Number number) {
+                out.put(String.valueOf(entry.getKey()), number.doubleValue());
+            }
+        }
+        return out;
+    }
+
+    private static Map<String, String> stringMap(Object value) {
+        Map<String, String> out = new LinkedHashMap<>();
+        if (!(value instanceof Map<?, ?> map)) return out;
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            if (entry.getKey() != null) out.put(String.valueOf(entry.getKey()), string(entry.getValue()));
+        }
+        return out;
+    }
+
+    private static Map<String, Instant> instantMap(Object value) {
+        Map<String, Instant> out = new LinkedHashMap<>();
+        if (!(value instanceof Map<?, ?> map)) return out;
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            if (entry.getKey() == null) continue;
+            Instant parsed = instant(entry.getValue());
+            if (parsed != null) out.put(String.valueOf(entry.getKey()), parsed);
+        }
+        return out;
+    }
+
+    private static Map<String, Object> timestampMap(Map<String, Instant> values) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        if (values != null) values.forEach((key, value) -> out.put(key, timestamp(value)));
         return out;
     }
 }

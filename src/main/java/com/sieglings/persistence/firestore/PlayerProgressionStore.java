@@ -70,6 +70,7 @@ public class PlayerProgressionStore {
         payload.put("keepProjectsCompleted", progression.getKeepProjectsCompleted());
         payload.put("keepLoreRead", progression.getKeepLoreRead());
         payload.put("keepConversationsCompleted", progression.getKeepConversationsCompleted());
+        payload.put("keepRewardClaimIds", progression.getKeepRewardClaimIds());
         payload.put("packHistory", progression.getPackHistory());
         payload.put("soloWinStreak", progression.getSoloWinStreak());
         payload.put("onlineWinStreak", progression.getOnlineWinStreak());
@@ -133,6 +134,7 @@ public class PlayerProgressionStore {
         progression.setKeepProjectsCompleted(intValue(snapshot.getLong("keepProjectsCompleted")));
         progression.setKeepLoreRead(intValue(snapshot.getLong("keepLoreRead")));
         progression.setKeepConversationsCompleted(intValue(snapshot.getLong("keepConversationsCompleted")));
+        progression.setKeepRewardClaimIds(readStringList(snapshot.get("keepRewardClaimIds")));
         Long soloWinStreak = snapshot.getLong("soloWinStreak");
         Long onlineWinStreak = snapshot.getLong("onlineWinStreak");
         progression.setSoloWinStreak(soloWinStreak == null ? 0 : soloWinStreak.intValue());

@@ -46,6 +46,8 @@ public class PlayerProgressionEntity {
     private int keepProjectsCompleted;
     private int keepLoreRead;
     private int keepConversationsCompleted;
+    /** Idempotency keys for one-time and weekly My Keep currency rewards. */
+    private List<String> keepRewardClaimIds = new ArrayList<>();
     private Instant updatedAt = Instant.now();
 
     public String getUserId() { return userId; }
@@ -137,6 +139,10 @@ public class PlayerProgressionEntity {
     public void setKeepLoreRead(int keepLoreRead) { this.keepLoreRead = Math.max(0, keepLoreRead); }
     public int getKeepConversationsCompleted() { return keepConversationsCompleted; }
     public void setKeepConversationsCompleted(int keepConversationsCompleted) { this.keepConversationsCompleted = Math.max(0, keepConversationsCompleted); }
+    public List<String> getKeepRewardClaimIds() { return keepRewardClaimIds; }
+    public void setKeepRewardClaimIds(List<String> keepRewardClaimIds) {
+        this.keepRewardClaimIds = keepRewardClaimIds == null ? new ArrayList<>() : new ArrayList<>(keepRewardClaimIds);
+    }
     public Instant getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
 }
