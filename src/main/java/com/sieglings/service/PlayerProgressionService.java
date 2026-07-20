@@ -545,6 +545,11 @@ public class PlayerProgressionService {
         }
         out.put("purchasedTitleIds", progression.getPurchasedTitleIds());
         out.put("siegeUnlockedKnights", progression.getSiegeUnlockedKnights());
+        out.put("siegeRuns", progression.getSiegeRuns());
+        out.put("siegeWins", progression.getSiegeWins());
+        out.put("siegeBossKills", progression.getSiegeBossKills());
+        out.put("siegeNodesCleared", progression.getSiegeNodesCleared());
+        out.put("siegeBestScore", progression.getSiegeBestScore());
         return out;
     }
 

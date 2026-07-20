@@ -1,6 +1,8 @@
 package com.sieglings.persistence.entity;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 public class ProfileSettingsEntity {
     private String userId;
@@ -18,6 +20,8 @@ public class ProfileSettingsEntity {
     private String bio = "";
     private String preferredCardBack = "";
     private String favoriteSiegling = "";
+    /** Achievement ids the player has chosen to feature on their profile badge case (max 6). */
+    private List<String> featuredBadgeIds = new ArrayList<>();
     private Instant updatedAt = Instant.now();
 
     public String getUserId() { return userId; }
@@ -44,6 +48,10 @@ public class ProfileSettingsEntity {
     public void setPreferredCardBack(String preferredCardBack) { this.preferredCardBack = preferredCardBack; }
     public String getFavoriteSiegling() { return favoriteSiegling; }
     public void setFavoriteSiegling(String favoriteSiegling) { this.favoriteSiegling = favoriteSiegling; }
+    public List<String> getFeaturedBadgeIds() { return featuredBadgeIds; }
+    public void setFeaturedBadgeIds(List<String> featuredBadgeIds) {
+        this.featuredBadgeIds = featuredBadgeIds == null ? new ArrayList<>() : new ArrayList<>(featuredBadgeIds);
+    }
     public Instant getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
 }

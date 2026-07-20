@@ -21,7 +21,8 @@
         { id: 'collection', label: 'Card Collection', eyebrow: 'Binder', description: 'Discover cards, rarities, and binder completion.' },
         { id: 'remnants', label: 'Remnants', eyebrow: 'Crafting', description: 'Earn, hoard, and spend Remnants from packs and victories.' },
         { id: 'decks', label: 'Deck Creation', eyebrow: 'Loadouts', description: 'Premade purchases, custom saves, and deck-builder unlocks.' },
-        { id: 'loadouts', label: 'Using Decks', eyebrow: 'Arena', description: 'Win with premade, custom, solo, and PVP loadouts.' }
+        { id: 'loadouts', label: 'Using Decks', eyebrow: 'Arena', description: 'Win with premade, custom, solo, and PVP loadouts.' },
+        { id: 'siege', label: 'Siege Expedition', eyebrow: 'Adventure', description: 'Runs, wins, bosses, and score from the Siege / Adventure roguelike.' }
     ];
 
     const PROFILE_FEATURED_IDS = [
@@ -220,7 +221,12 @@
             avatarElement: String(prefs.avatarMode || '').toUpperCase() === 'ELEMENT',
             hasAvatarUrl: Boolean(String(prefs.avatarUrl || '').trim()),
             hasFavoriteSiegling: Boolean(String(prefs.favoriteSieglingId || prefs.favoriteSiegling || '').trim()),
-            trainerDeckCount: customDecks.filter(d => d.trainerId).length
+            trainerDeckCount: customDecks.filter(d => d.trainerId).length,
+            siegeRuns: Number(progression.siegeRuns) || 0,
+            siegeWins: Number(progression.siegeWins) || 0,
+            siegeBossKills: Number(progression.siegeBossKills) || 0,
+            siegeNodesCleared: Number(progression.siegeNodesCleared) || 0,
+            siegeBestScore: Number(progression.siegeBestScore) || 0
         };
     }
 
@@ -364,13 +370,52 @@
         tier('custom_legend', 'loadouts', 'Custom Legend', 'Win 25 matches with custom decks.', '★', 25, c => c.customWins),
         tier('arena_grinder', 'loadouts', 'Arena Grinder', 'Win 20 matches of any type.', '◎', 20, c => c.wins),
         tier('arena_commander', 'loadouts', 'Arena Commander', 'Win 75 matches of any type.', '◎', 75, c => c.wins),
-        tier('arena_sovereign', 'loadouts', 'Arena Sovereign', 'Win 150 matches of any type.', '◎', 150, c => c.wins)
+        tier('arena_sovereign', 'loadouts', 'Arena Sovereign', 'Win 150 matches of any type.', '◎', 150, c => c.wins),
+
+        // —— Siege / Adventure Expedition ——
+        tier('siege_initiate', 'siege', 'Expedition Initiate', 'Complete your first Siege expedition run.', '⛺', 1, c => c.siegeRuns),
+        tier('siege_explorer', 'siege', 'Expedition Explorer', 'Complete 10 Siege expedition runs.', '🗺', 10, c => c.siegeRuns),
+        tier('siege_conqueror', 'siege', 'Expedition Conqueror', 'Win your first Siege expedition.', '🏳', 1, c => c.siegeWins),
+        tier('siege_champion', 'siege', 'Expedition Champion', 'Win 10 Siege expeditions.', '🏆', 10, c => c.siegeWins),
+        tier('siege_warlord', 'siege', 'Expedition Warlord', 'Win 25 Siege expeditions.', '👑', 25, c => c.siegeWins),
+        tier('siege_boss_slayer', 'siege', 'Boss Slayer', 'Defeat 5 Siege bosses.', '☠', 5, c => c.siegeBossKills),
+        tier('siege_boss_hunter', 'siege', 'Boss Hunter', 'Defeat 25 Siege bosses.', '☠', 25, c => c.siegeBossKills),
+        tier('siege_boss_legend', 'siege', 'Boss Legend', 'Defeat 50 Siege bosses.', '☠', 50, c => c.siegeBossKills),
+        tier('siege_pathfinder', 'siege', 'Pathfinder', 'Clear 50 Siege map nodes.', '⚑', 50, c => c.siegeNodesCleared),
+        tier('siege_trailblazer', 'siege', 'Trailblazer', 'Clear 200 Siege map nodes.', '⚑', 200, c => c.siegeNodesCleared),
+        tier('siege_high_score', 'siege', 'High Scorer', 'Reach a Siege score of 1,000.', '★', 1000, c => c.siegeBestScore),
+        tier('siege_score_master', 'siege', 'Score Master', 'Reach a Siege score of 5,000.', '★', 5000, c => c.siegeBestScore)
     ];
 
     const catalogDeduped = CATALOG;
 
-    function evaluateAll(state, view, helpers) {
+    // Resolve the six profile badge-case slots. Player-selected featured ids
+    // (from profile settings) come first, in order; any remaining slots fall back
+    // to the default showcase set so the case is never empty.
+    function resolveFeatured(evaluated, customIds) {
+        const byId = new Map(evaluated.map(a => [a.id, a]));
+        const picked = [];
+        const seen = new Set();
+        const take = id => {
+            if (seen.has(id)) return;
+            const found = byId.get(id);
+            if (found) {
+                picked.push(found);
+                seen.add(id);
+            }
+        };
+        (Array.isArray(customIds) ? customIds : []).forEach(take);
+        PROFILE_FEATURED_IDS.forEach(id => {
+            if (picked.length < 6) take(id);
+        });
+        return picked.slice(0, 6);
+    }
+
+    function evaluateAll(state, view, helpers, featuredIds) {
         const ctx = buildContext(state, view, helpers);
+        const customFeatured = Array.isArray(featuredIds)
+            ? featuredIds
+            : (state.profile?.settings?.featuredBadgeIds || view?.prefs?.featuredBadgeIds || []);
         const evaluated = catalogDeduped.map(def => {
             const snap = progressFor(def, ctx);
             return {
@@ -387,9 +432,7 @@
         CATEGORIES.forEach(cat => {
             byCategory[cat.id] = evaluated.filter(a => a.category === cat.id);
         });
-        const featured = PROFILE_FEATURED_IDS
-            .map(id => evaluated.find(a => a.id === id))
-            .filter(Boolean);
+        const featured = resolveFeatured(evaluated, customFeatured);
         return {
             ctx,
             all: evaluated,
@@ -397,6 +440,8 @@
             locked: evaluated.filter(a => !a.unlocked),
             byCategory,
             featured,
+            featuredIds: featured.map(a => a.id),
+            customFeaturedIds: (Array.isArray(customFeatured) ? customFeatured : []).slice(0, 6),
             total: evaluated.length,
             unlockedCount: unlocked.length
         };

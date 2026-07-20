@@ -1,6 +1,7 @@
 package com.sieglings.service;
 
 import com.sieglings.mission.DailyMissionType;
+import com.sieglings.mission.MissionPeriod;
 import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.DailyMissionProgressEntity;
 import com.sieglings.persistence.entity.MatchHistoryEntity;
@@ -76,6 +77,43 @@ class DailyMissionServiceTest {
     }
 
     @Test
+    void recordSiegeIncrementsAllScopes() {
+        service.recordSiege("player@example.com", true, 3, 12, 90);
+
+        DailyMissionProgressEntity saved = missionStore.saved;
+        assertEquals(1, saved.counter(MissionPeriod.DAILY, DailyMissionType.SIEGE_RUNS));
+        assertEquals(1, saved.counter(MissionPeriod.WEEKLY, DailyMissionType.SIEGE_WINS));
+        assertEquals(3, saved.counter(MissionPeriod.LIFETIME, DailyMissionType.SIEGE_BOSS_KILLS));
+        assertEquals(12, saved.counter(MissionPeriod.LIFETIME, DailyMissionType.SIEGE_NODES_CLEARED));
+        assertEquals(90, saved.counter(MissionPeriod.WEEKLY, DailyMissionType.SIEGECOINS_EARNED));
+    }
+
+    @Test
+    void claimLoginRewardGrantsOncePerDayAndTracksStreak() {
+        AccountUser user = user();
+        progressionStore.saved = progression(user.getId(), 200);
+        missionStore.saved = progressForToday(user.getId());
+
+        Map<String, Object> claim = service.claimLoginReward(user);
+        assertEquals(300, claim.get("gold"));
+        assertEquals(1, claim.get("streak"));
+        assertThrows(IllegalArgumentException.class, () -> service.claimLoginReward(user));
+    }
+
+    @Test
+    void claimWeeklyMissionGrantsGoldOnce() {
+        AccountUser user = user();
+        progressionStore.saved = progression(user.getId(), 100);
+        missionStore.saved = progressForToday(user.getId());
+        missionStore.saved.addCounter(MissionPeriod.WEEKLY, DailyMissionType.PVP_WINS, 10);
+
+        Map<String, Object> claim = service.claimMission(user, "weekly-pvp-10");
+        assertEquals(600, claim.get("gold"));
+        assertTrue(missionStore.saved.getClaimedWeeklyIds().contains("weekly-pvp-10"));
+        assertThrows(IllegalArgumentException.class, () -> service.claimMission(user, "weekly-pvp-10"));
+    }
+
+    @Test
     void dailySnapshotMarksFeaturedMissionsComplete() {
         AccountUser user = user();
         missionStore.saved = progressForToday(user.getId());
@@ -108,7 +146,11 @@ class DailyMissionServiceTest {
     private static DailyMissionProgressEntity progressForToday(String userId) {
         DailyMissionProgressEntity progress = new DailyMissionProgressEntity();
         progress.setUserId(userId);
-        progress.setDateKey(Instant.now().atZone(ZoneId.of("UTC")).toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE));
+        java.time.LocalDate today = Instant.now().atZone(ZoneId.of("UTC")).toLocalDate();
+        progress.setDateKey(today.format(DateTimeFormatter.ISO_LOCAL_DATE));
+        progress.setWeekKey(String.format(java.util.Locale.ROOT, "%d-W%02d",
+                today.get(java.time.temporal.IsoFields.WEEK_BASED_YEAR),
+                today.get(java.time.temporal.IsoFields.WEEK_OF_WEEK_BASED_YEAR)));
         progress.setCounters(new LinkedHashMap<>());
         progress.setClaimedMissionIds(new ArrayList<>());
         return progress;

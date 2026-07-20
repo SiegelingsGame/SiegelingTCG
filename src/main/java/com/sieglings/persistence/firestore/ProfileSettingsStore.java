@@ -48,6 +48,7 @@ public class ProfileSettingsStore {
         payload.put("bio", settings.getBio());
         payload.put("preferredCardBack", settings.getPreferredCardBack());
         payload.put("favoriteSiegling", settings.getFavoriteSiegling());
+        payload.put("featuredBadgeIds", settings.getFeaturedBadgeIds());
         payload.put("updatedAt", toTimestamp(settings.getUpdatedAt()));
         try {
             doc(settings.getUserId()).set(payload).get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -86,6 +87,16 @@ public class ProfileSettingsStore {
         settings.setBio(snapshot.getString("bio"));
         settings.setPreferredCardBack(snapshot.getString("preferredCardBack"));
         settings.setFavoriteSiegling(snapshot.getString("favoriteSiegling"));
+        Object featured = snapshot.get("featuredBadgeIds");
+        if (featured instanceof java.util.List<?> list) {
+            java.util.List<String> ids = new java.util.ArrayList<>();
+            for (Object item : list) {
+                if (item instanceof String s && !s.isBlank()) {
+                    ids.add(s);
+                }
+            }
+            settings.setFeaturedBadgeIds(ids);
+        }
         Object updatedAt = snapshot.get("updatedAt");
         if (updatedAt instanceof Timestamp ts) {
             settings.setUpdatedAt(Instant.ofEpochSecond(ts.getSeconds(), ts.getNanos()));

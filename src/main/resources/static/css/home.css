@@ -3719,6 +3719,47 @@ select.search-input { color-scheme: dark; }
     color: var(--text-dim);
 }
 
+/* Daily / Weekly / Lifetime mission tabs — mirrors the leaderboard tab pill row. */
+.mission-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-bottom: 12px;
+}
+
+.mission-tab {
+    min-height: 32px;
+    padding: 7px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    color: var(--text-dim);
+    background: rgba(255, 255, 255, 0.045);
+    font-size: 11px;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.mission-tab.active {
+    border-color: rgba(255, 215, 0, 0.42);
+    color: var(--accent);
+    background: rgba(255, 215, 0, 0.1);
+}
+
+/* Daily login reward tile sits at the top of the Daily mission list. */
+.login-reward-row {
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    border-color: rgba(255, 215, 0, 0.4);
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.12), rgba(255, 255, 255, 0.035));
+}
+
+.mission-subline {
+    display: block;
+    margin-top: 3px;
+    font-size: 10px;
+    font-weight: 800;
+    color: var(--text-dim);
+}
+
 .mission-icon,
 .shop-pack-row > span {
     width: 28px;
@@ -7156,6 +7197,78 @@ body.gacha-active {
 
 .achievement-panel-note {
     margin: 0;
+}
+
+/* Profile badge-case customization (choose up to six featured badges). */
+.featured-selector.is-editing {
+    border-color: rgba(255, 215, 0, 0.4);
+}
+
+.featured-pick-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 8px;
+    margin: 10px 0 14px;
+}
+
+.featured-pick {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 9px 11px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+}
+
+.featured-pick.is-picked {
+    border-color: rgba(255, 215, 0, 0.5);
+    background: rgba(255, 215, 0, 0.12);
+}
+
+.featured-pick-icon {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    flex: 0 0 auto;
+    border-radius: 8px;
+    background: rgba(90, 180, 255, 0.22);
+    font-size: 14px;
+}
+
+.featured-pick-name {
+    min-width: 0;
+    overflow: hidden;
+    font-size: 12px;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.featured-pick-order {
+    position: absolute;
+    top: 5px;
+    right: 6px;
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #101828;
+    font-size: 10px;
+    font-weight: 950;
+}
+
+.featured-selector-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
 .achievements-grid {

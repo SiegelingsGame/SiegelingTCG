@@ -916,5 +916,77 @@
     "titleId": "title_ach_psychic_victor",
     "label": "Psychic Victor",
     "description": "Earned by unlocking the \"Psychic Victor\" achievement."
+  },
+  {
+    "achievementId": "siege_initiate",
+    "titleId": "title_ach_siege_initiate",
+    "label": "Expedition Initiate",
+    "description": "Earned by unlocking the \"Expedition Initiate\" achievement."
+  },
+  {
+    "achievementId": "siege_explorer",
+    "titleId": "title_ach_siege_explorer",
+    "label": "Expedition Explorer",
+    "description": "Earned by unlocking the \"Expedition Explorer\" achievement."
+  },
+  {
+    "achievementId": "siege_conqueror",
+    "titleId": "title_ach_siege_conqueror",
+    "label": "Expedition Conqueror",
+    "description": "Earned by unlocking the \"Expedition Conqueror\" achievement."
+  },
+  {
+    "achievementId": "siege_champion",
+    "titleId": "title_ach_siege_champion",
+    "label": "Expedition Champion",
+    "description": "Earned by unlocking the \"Expedition Champion\" achievement."
+  },
+  {
+    "achievementId": "siege_warlord",
+    "titleId": "title_ach_siege_warlord",
+    "label": "Expedition Warlord",
+    "description": "Earned by unlocking the \"Expedition Warlord\" achievement."
+  },
+  {
+    "achievementId": "siege_boss_slayer",
+    "titleId": "title_ach_siege_boss_slayer",
+    "label": "Siege Boss Slayer",
+    "description": "Earned by unlocking the \"Boss Slayer\" achievement."
+  },
+  {
+    "achievementId": "siege_boss_hunter",
+    "titleId": "title_ach_siege_boss_hunter",
+    "label": "Siege Boss Hunter",
+    "description": "Earned by unlocking the \"Boss Hunter\" achievement."
+  },
+  {
+    "achievementId": "siege_boss_legend",
+    "titleId": "title_ach_siege_boss_legend",
+    "label": "Siege Boss Legend",
+    "description": "Earned by unlocking the \"Boss Legend\" achievement."
+  },
+  {
+    "achievementId": "siege_pathfinder",
+    "titleId": "title_ach_siege_pathfinder",
+    "label": "Expedition Pathfinder",
+    "description": "Earned by unlocking the \"Pathfinder\" achievement."
+  },
+  {
+    "achievementId": "siege_trailblazer",
+    "titleId": "title_ach_siege_trailblazer",
+    "label": "Expedition Trailblazer",
+    "description": "Earned by unlocking the \"Trailblazer\" achievement."
+  },
+  {
+    "achievementId": "siege_high_score",
+    "titleId": "title_ach_siege_high_score",
+    "label": "Expedition High Scorer",
+    "description": "Earned by unlocking the \"High Scorer\" achievement."
+  },
+  {
+    "achievementId": "siege_score_master",
+    "titleId": "title_ach_siege_score_master",
+    "label": "Expedition Score Master",
+    "description": "Earned by unlocking the \"Score Master\" achievement."
   }
 ]

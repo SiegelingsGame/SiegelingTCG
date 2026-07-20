@@ -9,6 +9,7 @@ import com.sieglings.persistence.entity.PlayerProgressionEntity;
 import com.sieglings.persistence.firestore.PlayerProgressionStore;
 import com.sieglings.service.AccountService;
 import com.sieglings.service.CardEditorAuthService;
+import com.sieglings.service.DailyMissionService;
 import com.sieglings.service.PlayerProgressionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -57,6 +58,9 @@ public class SiegeService {
 
     @Autowired(required = false)
     private PlayerProgressionStore progressionStore;
+
+    @Autowired(required = false)
+    private DailyMissionService dailyMissionService;
 
     @Autowired(required = false)
     private CardEditorAuthService editorAuth;
@@ -1892,6 +1896,14 @@ public class SiegeService {
                 if (cardPrize != null) {
                     progressionService.grantCardsWithCap(progression, List.of(cardPrize));
                 }
+                // Lifetime siege stats power siege-mode achievements, titles, and missions.
+                progression.setSiegeRuns(progression.getSiegeRuns() + 1);
+                if (won) {
+                    progression.setSiegeWins(progression.getSiegeWins() + 1);
+                }
+                progression.setSiegeBossKills(progression.getSiegeBossKills() + Math.max(0, run.getBossKills()));
+                progression.setSiegeNodesCleared(progression.getSiegeNodesCleared() + Math.max(0, run.getNodesCleared()));
+                progression.setSiegeBestScore(Math.max(progression.getSiegeBestScore(), (int) Math.max(0L, run.getScore())));
                 // Battlegrounds: award Warmarks (per boss + win bonus) and unlock the next tier on a first clear.
                 if (run.isBattlegrounds()) {
                     int tier = run.getBgTier();
@@ -1910,6 +1922,13 @@ public class SiegeService {
                 progression.setUpdatedAt(Instant.now());
                 progressionStore.save(progression);
                 claimed = true;
+                if (dailyMissionService != null) {
+                    try {
+                        dailyMissionService.recordSiege(user.getId(), won, run.getBossKills(), run.getNodesCleared(), coins);
+                    } catch (Exception ignored) {
+                        // mission counters are best-effort
+                    }
+                }
             } catch (Exception ignored) {
                 // payout is best-effort; the run outcome stands either way
             }
