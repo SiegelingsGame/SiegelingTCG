@@ -92,7 +92,7 @@ public class KeepService {
             KeepState state = context.state();
             String normalized = residentId == null ? "" : residentId.trim();
             if (!normalized.isBlank() && context.residents().stream().noneMatch(r -> r.id().equals(normalized))) {
-                throw new IllegalArgumentException("That Siegling has not joined your collection yet.");
+                throw new IllegalArgumentException("That Siegeling has not joined your collection yet.");
             }
             materializeProduction(state, context.residents(), context.now());
             state.setWoodlotResidentId(normalized);
@@ -439,7 +439,7 @@ public class KeepService {
                     state.getActiveConstructionId().isBlank() && state.getTimber() >= ARCHIVE_RESTORE_COST));
         } else if (state.getWoodlotLevel() < 2) {
             out.add(buildOption("woodlot_level_2", "Cultivate the Woodlot", WOODLOT_LEVEL_TWO_COST,
-                    WOODLOT_LEVEL_TWO_SECONDS, "Replace clear-cutting with a grove shaped by human and Siegling knowledge.",
+                    WOODLOT_LEVEL_TWO_SECONDS, "Replace clear-cutting with a grove shaped by human and Siegeling knowledge.",
                     state.getActiveConstructionId().isBlank() && state.getTimber() >= WOODLOT_LEVEL_TWO_COST));
         }
         return out;
