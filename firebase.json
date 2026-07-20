@@ -105,6 +105,10 @@
         "destination": "/adventure.html"
       },
       {
+        "source": "/keep",
+        "destination": "/keep.html"
+      },
+      {
         "source": "/api/cards/editor",
         "function": {
           "functionId": "api",

@@ -1,0 +1,117 @@
+{
+  "entries": [
+    {
+      "id": "charter_three_promises",
+      "type": "CHRONICLE",
+      "title": "The Sanctuary Charter",
+      "source": "Keeper's copy",
+      "perspective": "Verified record",
+      "era": "The Great War",
+      "summary": "Stewardship. Consent. Sanctuary.",
+      "body": "This keep will be raised as a promise, not a claim. The land will be repaired rather than consumed. No Siegeling will be compelled to serve. Shelter will be offered to those hunted by Raidlord Akhar, so long as they honor the same covenant."
+    },
+    {
+      "id": "letter_forester_maren",
+      "type": "LETTER",
+      "title": "Ashes at Riverbend",
+      "source": "Forester Maren, unsent letter",
+      "perspective": "Personal testimony",
+      "era": "Late Age Before Cards",
+      "summary": "A forester records the first living flame seen after a grove was cleared.",
+      "body": "We felled the old grove in nine days. On the tenth, sparks walked between the stumps like frightened animals. The soldiers called them monsters. I remember only that they circled the oldest root and would not leave it. If they hated us, perhaps we had taught them how."
+    },
+    {
+      "id": "memorabilia_petrified_root",
+      "type": "MEMORABILIA",
+      "title": "The Petrified Root",
+      "source": "Recovered beneath the Woodlot",
+      "perspective": "Material evidence",
+      "era": "Age Before Cards",
+      "summary": "A fire-blackened root containing a pulse of living elemental warmth.",
+      "body": "The root is stone on its surface, yet grows warm whenever a Fire or Earth Siegeling approaches. Archivist Pell believes it survived the clearing described by Forester Maren. The Siegelings respond with grief, caution, and something that feels like recognition.",
+      "artKey": "root"
+    },
+    {
+      "id": "chronicle_living_elements",
+      "type": "CHRONICLE",
+      "title": "The Living Elements",
+      "source": "Archive synthesis",
+      "perspective": "Verified record",
+      "era": "Age Before Cards",
+      "summary": "Siegelings arose where elemental power gathered in wounded or threatened places.",
+      "body": "As human settlements cut forests, redirected rivers, hollowed mountains, and captured fire, the elements resisted. Concentrated elemental energy took living form. Some Siegelings guarded threatened lands; others emerged confused or violent, carrying the pain of the place that created them."
+    },
+    {
+      "id": "letter_pre_covenant_watch",
+      "type": "LETTER",
+      "title": "Last Watch at the Eastern Wall",
+      "source": "Unknown watch captain",
+      "perspective": "Recovered military record",
+      "era": "Age Before Cards",
+      "summary": "A soldier questions whether the creatures outside the wall are attacking or warning the settlement.",
+      "body": "They strike the quarry road but never the homes. They break the dam gates but leave the fishing boats untouched. Command says beasts know no purpose. I have watched them for six nights, and I fear their purpose is clearer than ours."
+    },
+    {
+      "id": "letter_green_covenant",
+      "type": "LETTER",
+      "title": "A Woodlot That Answers Back",
+      "source": "Master Builder Orin Slate",
+      "perspective": "Keeper-era field note",
+      "era": "The Great War",
+      "summary": "The restored Woodlot produces more by taking less.",
+      "body": "We stopped measuring the grove by what could be cut today. The resident Siegelings showed us which branches would regrow and where the soil still remembered water. Our yield rose. More importantly, nothing fled when our axes came out. That may be the first honest wall we have built."
+    }
+  ],
+  "conversations": [
+    {
+      "id": "steward_first_promise",
+      "npcId": "steward_elara",
+      "npcName": "Steward Elara Venn",
+      "npcRole": "Valorous steward",
+      "kicker": "At the broken gate",
+      "prompt": "These stones remember the old keep. If we rebuild exactly what stood here, we will inherit its mistakes. What should the workers hear from you first?",
+      "requiresLoreIds": ["charter_three_promises"],
+      "choices": [
+        {
+          "id": "partners",
+          "label": "We build with the Siegelings, never over them.",
+          "response": "Then this place may deserve to outlast us. I will put those words above the yard.",
+          "relationshipDelta": 2,
+          "flag": "charter_stewardship"
+        },
+        {
+          "id": "shelter",
+          "label": "First, we make it safe for everyone who reaches us.",
+          "response": "Practical, and not without heart. A promise is strongest when people can shelter behind it.",
+          "relationshipDelta": 1,
+          "flag": "charter_sanctuary"
+        }
+      ]
+    },
+    {
+      "id": "archivist_living_elements",
+      "npcId": "archivist_pell",
+      "npcName": "Archivist Nara Pell",
+      "npcRole": "Historian of disputed covenants",
+      "kicker": "Inside the restored Archive",
+      "prompt": "The old histories call these Siegelings attackers. The records name the felled grove, poisoned stream, and quarry only in their margins. Which account belongs at the center of our Chronicle?",
+      "requiresLoreIds": ["chronicle_living_elements", "letter_pre_covenant_watch"],
+      "choices": [
+        {
+          "id": "both",
+          "label": "Keep both accounts together. Let the contradiction remain visible.",
+          "response": "Good. An archive should preserve discomfort, not polish it away.",
+          "relationshipDelta": 2,
+          "flag": "archive_keeps_conflict"
+        },
+        {
+          "id": "wounds",
+          "label": "Begin with the wounds. The attacks make no sense without them.",
+          "response": "A clear thesis. Some Houses will object—which may be evidence that it is needed.",
+          "relationshipDelta": 1,
+          "flag": "archive_centers_wounds"
+        }
+      ]
+    }
+  ]
+}

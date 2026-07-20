@@ -1,5 +1,6 @@
 package com.sieglings.service;
 
+import com.sieglings.keep.KeepStore;
 import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.AuthSession;
 import com.sieglings.persistence.firestore.AccountUserStore;
@@ -58,6 +59,9 @@ public class AccountService {
 
     @Autowired
     private DailyMissionProgressStore dailyMissionProgressStore;
+
+    @Autowired(required = false)
+    private KeepStore keepStore;
 
     @Autowired
     private FriendRequestStore friendRequestStore;
@@ -186,6 +190,7 @@ public class AccountService {
         savedDeckStore.deleteByUserId(userId);
         matchHistoryStore.deleteByUserId(userId);
         playerProgressionStore.deleteByUserId(userId);
+        if (keepStore != null) keepStore.deleteByUserId(userId);
         profileSettingsStore.deleteByUserId(userId);
         dailyMissionProgressStore.deleteByUserId(userId);
         userPresenceStore.deleteByUserId(userId);

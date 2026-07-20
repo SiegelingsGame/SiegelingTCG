@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>My Keep · Siegelings TCG</title>
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" href="/favicon-48x48.png" sizes="48x48">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <meta name="theme-color" content="#173f54">
+    <link rel="stylesheet" href="/css/keep.css?v=1">
+</head>
+<body>
+<div class="keep-app" id="keepApp">
+    <header class="keep-header">
+        <a class="keep-brand" href="/home" aria-label="Back to home">
+            <img src="/img/siegelings-icon.png" alt="">
+            <span><strong id="keepName">My Keep</strong><small id="chapterLabel">Chapter I · The Wounded Ground</small></span>
+        </a>
+        <div class="keep-resource-bar" aria-label="Keep resources">
+            <span class="resource-pill timber-pill"><span class="resource-icon" aria-hidden="true">▰</span><strong id="timberAmount">0</strong><small>Timber</small></span>
+            <span class="station-pill"><span class="pulse-dot" aria-hidden="true"></span><strong id="stationAvailable">0</strong><small>Ready</small></span>
+        </div>
+        <div class="keep-header-actions">
+            <a class="header-link" href="/play">Battle</a>
+            <a class="header-link" href="/siege">Siege</a>
+            <button class="icon-button" id="archiveHeaderButton" type="button" data-open-panel="chronicle" aria-label="Open Chronicle">
+                <span aria-hidden="true">▤</span><span class="unread-badge hidden" id="unreadBadge">0</span>
+            </button>
+            <button class="icon-button" id="fullscreenButton" type="button" aria-label="Toggle fullscreen" title="Fullscreen (F)">⛶</button>
+        </div>
+    </header>
+
+    <main class="keep-main">
+        <section class="keep-scene-viewport" id="sceneViewport" aria-label="A frontier sanctuary under restoration">
+            <div class="keep-scene" id="keepScene" data-healing-stage="0" data-archive-restored="false" data-woodlot-level="1">
+                <div class="sky-glow"></div>
+                <div class="cloud cloud-one"></div>
+                <div class="cloud cloud-two"></div>
+                <div class="mountain mountain-back"></div>
+                <div class="mountain mountain-front"></div>
+                <div class="distant-fire" aria-hidden="true"><i></i><span>Akhar's distant front</span></div>
+                <div class="ground-layer"></div>
+                <div class="wounded-earth"></div>
+                <div class="restored-meadow"></div>
+                <div class="river"></div>
+                <div class="road"></div>
+                <div class="ambient-motes" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+
+                <button class="building-hotspot hall-hotspot" type="button" data-building="great_hall" aria-label="Open Covenant Hall">
+                    <span class="building-illustration hall-illustration" aria-hidden="true">
+                        <i class="hall-shadow"></i><i class="hall-main"></i><i class="hall-roof"></i>
+                        <i class="hall-tower tower-left"></i><i class="hall-tower tower-right"></i>
+                        <i class="hall-banner"></i><i class="hall-door"></i><i class="hall-window window-one"></i><i class="hall-window window-two"></i>
+                    </span>
+                    <span class="building-label"><strong>Covenant Hall</strong><small>Sanctuary founded</small></span>
+                </button>
+
+                <button class="building-hotspot woodlot-hotspot" type="button" data-building="woodlot" aria-label="Open Restorative Woodlot">
+                    <span class="tree-cluster trees-back" aria-hidden="true"><i></i><i></i><i></i></span>
+                    <span class="building-illustration woodlot-illustration" aria-hidden="true">
+                        <i class="shed-body"></i><i class="shed-roof"></i><i class="log-pile"></i><i class="sapling"></i>
+                    </span>
+                    <span class="resident-worker hidden" id="residentWorker" aria-hidden="true"><span id="residentWorkerArt"></span><i class="worker-tool">⌁</i></span>
+                    <span class="production-ready hidden" id="productionReady">Collect</span>
+                    <span class="building-label"><strong>Restorative Woodlot</strong><small id="woodlotLabel">Level 1 · 1/min</small></span>
+                </button>
+
+                <button class="building-hotspot archive-hotspot" type="button" data-building="archive" aria-label="Open Ruined Archive">
+                    <span class="building-illustration archive-illustration" aria-hidden="true">
+                        <i class="archive-wall wall-left"></i><i class="archive-wall wall-right"></i><i class="archive-arch"></i>
+                        <i class="archive-roof"></i><i class="archive-window"></i><i class="archive-scroll-glow"></i>
+                        <span class="scaffold"><b></b><b></b><b></b></span>
+                    </span>
+                    <span class="building-alert hidden" id="archiveAlert">New records</span>
+                    <span class="building-label"><strong id="archiveName">Ruined Archive</strong><small id="archiveLabel">Records buried beneath the stones</small></span>
+                </button>
+
+                <div class="memorabilia-plinth hidden" id="memorabiliaPlinth" aria-label="Displayed Petrified Root">
+                    <i></i><span></span><small>Petrified Root</small>
+                </div>
+
+                <div class="scene-caption">
+                    <span class="eyebrow">Chapter I</span>
+                    <h1>The Wounded Ground</h1>
+                    <p>Build a sanctuary that takes nothing without giving something back.</p>
+                </div>
+
+                <div class="construction-banner hidden" id="constructionBanner" role="status">
+                    <span class="hammer-icon" aria-hidden="true">⚒</span>
+                    <span><strong id="constructionName">Construction underway</strong><small id="constructionTimer">0:00</small></span>
+                    <i><b id="constructionProgress"></b></i>
+                </div>
+            </div>
+        </section>
+
+        <aside class="keep-panel" id="keepPanel" aria-hidden="true" aria-label="Keep details">
+            <div class="panel-handle" aria-hidden="true"></div>
+            <header class="panel-header">
+                <div><span class="eyebrow" id="panelKicker">My Keep</span><h2 id="panelTitle">Details</h2></div>
+                <button class="icon-button panel-close" id="panelClose" type="button" aria-label="Close panel">×</button>
+            </header>
+            <div class="panel-body" id="panelBody"></div>
+        </aside>
+        <button class="panel-scrim" id="panelScrim" type="button" aria-label="Close details"></button>
+    </main>
+
+    <nav class="keep-dock" aria-label="Keep actions">
+        <button type="button" data-open-panel="residents"><span aria-hidden="true">♧</span><strong>Residents</strong></button>
+        <button type="button" data-open-panel="projects"><span aria-hidden="true">⚒</span><strong>Projects</strong></button>
+        <button class="collect-button" id="collectButton" type="button"><span aria-hidden="true">▰</span><strong>Collect</strong><small id="collectAmount">0 timber</small></button>
+        <button type="button" data-open-panel="chronicle"><span aria-hidden="true">▤</span><strong>Chronicle</strong></button>
+        <button type="button" data-open-panel="conversations"><span aria-hidden="true">◌</span><strong>Voices</strong><i class="dock-dot hidden" id="conversationDot"></i></button>
+    </nav>
+
+    <div class="dialogue-overlay hidden" id="dialogueOverlay" role="dialog" aria-modal="true" aria-labelledby="dialogueName">
+        <div class="dialogue-card">
+            <button class="dialogue-close" id="dialogueClose" type="button" aria-label="Close conversation">×</button>
+            <div class="npc-portrait" id="dialoguePortrait" aria-hidden="true"><span></span></div>
+            <div class="dialogue-copy">
+                <span class="eyebrow" id="dialogueRole">Visitor</span>
+                <h2 id="dialogueName">Conversation</h2>
+                <small id="dialogueKicker"></small>
+                <p id="dialoguePrompt"></p>
+                <div class="dialogue-choices" id="dialogueChoices"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="discovery-toast hidden" id="discoveryToast" role="status" aria-live="polite">
+        <span class="discovery-seal" aria-hidden="true">✦</span>
+        <span><small>Lore discovered</small><strong id="discoveryTitle">New Chronicle entry</strong></span>
+        <button type="button" id="discoveryOpen">Read</button>
+    </div>
+
+    <div class="keep-loading" id="keepLoading" aria-live="polite">
+        <img src="/img/siegelings-icon.png" alt="">
+        <strong>Listening to the land…</strong>
+    </div>
+
+    <div class="keep-gate hidden" id="keepGate">
+        <div class="gate-card">
+            <span class="gate-seal" aria-hidden="true">✦</span>
+            <span class="eyebrow">A covenant requires a keeper</span>
+            <h1>Found your sanctuary</h1>
+            <p id="gateMessage">Sign in and choose a starter pack to begin rebuilding My Keep.</p>
+            <div><a class="primary-action" href="/login">Sign in</a><a class="secondary-action" href="/home">Return home</a></div>
+        </div>
+    </div>
+</div>
+
+<script src="/js/config.js?v=1"></script>
+<script src="/js/keep.js?v=1"></script>
+<script src="/js/sw-register.js?v=1"></script>
+</body>
+</html>

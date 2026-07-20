@@ -957,6 +957,10 @@ body.card-fullscreen-open {
     box-shadow: 0 0 18px rgba(255, 215, 0, 0.24);
 }
 
+.nav-tabs .keep-label-short {
+    display: none;
+}
+
 .nav-actions {
     display: flex;
     align-items: center;
@@ -8101,7 +8105,7 @@ body.gacha-active {
     .nav-tabs {
         width: 100%;
         display: grid;
-        grid-template-columns: repeat(7, minmax(0, 1fr));
+        grid-template-columns: repeat(8, minmax(0, 1fr));
         overflow: visible;
         justify-content: stretch;
         order: 2;
@@ -8112,6 +8116,12 @@ body.gacha-active {
         text-align: center;
         font-size: 11px;
         white-space: nowrap;
+    }
+    .nav-tabs .keep-label-full {
+        display: none;
+    }
+    .nav-tabs .keep-label-short {
+        display: inline;
     }
     .nav-actions {
         order: 3;
@@ -8381,8 +8391,8 @@ body.gacha-active {
         padding: 4px;
     }
     .nav-tabs a {
-        padding: 7px 2px;
-        font-size: 10px;
+        padding: 7px 1px;
+        font-size: 9px;
     }
 }
 
