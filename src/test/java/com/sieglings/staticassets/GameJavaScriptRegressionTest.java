@@ -411,7 +411,7 @@ class GameJavaScriptRegressionTest {
         );
         assertTrue(
                 artRenderer.contains("game-holographic-full-card-art")
-                        && style.contains(".hand-card.element-frame .card-art.game-holographic-full-card-art")
+                        && style.contains(".hand-card .card-art.game-holographic-full-card-art")
                         && style.contains("object-fit: contain;"),
                 "Dedicated holo art must fill the shared card template behind live battle data without cropping."
         );

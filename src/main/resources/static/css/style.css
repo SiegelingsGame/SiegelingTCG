@@ -8693,7 +8693,7 @@ body.placement-active .board-cell.legal {
 /* A player-owned holographic finish uses its dedicated painted full-card asset
    as the battle card background. Live game data stays in the existing template
    layers above it, so HP, speed, buffs, targeting, and copy remain dynamic. */
-.hand-card.element-frame .card-art.game-holographic-full-card-art {
+.hand-card .card-art.game-holographic-full-card-art {
     position: absolute;
     inset: 0 !important;
     z-index: 0;
@@ -8712,7 +8712,7 @@ body.placement-active .board-cell.legal {
     pointer-events: none;
 }
 
-.hand-card.element-frame .card-art.game-holographic-full-card-art img {
+.hand-card .card-art.game-holographic-full-card-art img {
     width: 100%;
     height: 100%;
     max-width: none;
