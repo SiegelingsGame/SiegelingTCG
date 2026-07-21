@@ -747,14 +747,31 @@ button.resource-pill:focus-visible {
 .cost-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; color: rgba(255, 247, 220, .72); font-size: 11px; }
 .cost-row strong { color: #e2aa60; }
 
-.resident-card { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto auto; align-items: center; gap: 8px; }
+.resident-card { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; align-items: center; gap: 10px; }
 .resident-card.is-favorite { border-color: rgba(244, 204, 98, .5); }
-.favorite-toggle { width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 50%; color: #ffd76e; background: rgba(255, 255, 255, .05); font-size: 16px; line-height: 1; cursor: pointer; }
-.favorite-toggle:hover { border-color: rgba(244, 204, 98, .6); }
-.favorite-toggle.active { border-color: var(--gold); background: rgba(244, 204, 98, .16); box-shadow: 0 0 8px rgba(244, 204, 98, .5); }
 .favorite-card { border-color: rgba(244, 204, 98, .4); background: rgba(244, 204, 98, .06); }
-.resident-avatar { width: 52px; height: 52px; display: grid; place-items: center; overflow: hidden; border: 2px solid color-mix(in srgb, var(--resident-color, var(--neutral)) 70%, white); border-radius: 50%; color: #172333; background: var(--resident-color, var(--neutral)); font-weight: 900; }
+.resident-avatar { position: relative; width: 52px; height: 52px; display: grid; place-items: center; overflow: hidden; border: 2px solid color-mix(in srgb, var(--resident-color, var(--neutral)) 70%, white); border-radius: 50%; color: #172333; background: var(--resident-color, var(--neutral)); font-weight: 900; }
 .resident-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.resident-fav-mark { position: absolute; right: -2px; bottom: -2px; width: 18px; height: 18px; display: grid; place-items: center; border: 2px solid var(--panel); border-radius: 50%; background: var(--gold); color: #172333; font-size: 9px; font-style: normal; }
+
+/* Favorite chooser lives inside the Covenant Hall interior. */
+.favorite-current { display: flex; align-items: center; gap: 10px; margin: 8px 0 12px; }
+.favorite-current-avatar { width: 46px; height: 46px; display: grid; place-items: center; overflow: hidden; border: 2px solid var(--gold); border-radius: 50%; color: #172333; background: var(--resident-color, var(--neutral)); font-weight: 900; box-shadow: 0 0 10px rgba(244, 204, 98, .4); }
+.favorite-current-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.favorite-current span { min-width: 0; display: flex; flex-direction: column; }
+.favorite-current strong { color: #fff1b7; font: 700 14px Georgia, serif; }
+.favorite-current small { color: #ffe9a8; font-size: 10px; }
+.favorite-choices { display: grid; gap: 6px; }
+.favorite-choice { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 11px; color: var(--cream); background: rgba(255, 255, 255, .04); text-align: left; cursor: pointer; }
+.favorite-choice:hover { border-color: rgba(244, 204, 98, .5); background: rgba(244, 204, 98, .07); }
+.favorite-choice.active { border-color: var(--gold); background: rgba(244, 204, 98, .12); }
+.favorite-choice-avatar { width: 38px; height: 38px; display: grid; place-items: center; overflow: hidden; border: 2px solid color-mix(in srgb, var(--resident-color, var(--neutral)) 70%, white); border-radius: 50%; color: #172333; background: var(--resident-color, var(--neutral)); font-size: 13px; font-weight: 900; }
+.favorite-choice-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.favorite-choice-copy { min-width: 0; display: flex; flex-direction: column; }
+.favorite-choice-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #fff1b7; font: 700 13px Georgia, serif; }
+.favorite-choice-copy small { color: rgba(255, 247, 220, .58); font-size: 9px; }
+.favorite-choice-star { font-size: 17px; font-style: normal; color: #ffd76e; }
+.favorite-choice.active .favorite-choice-star { text-shadow: 0 0 8px rgba(244, 204, 98, .7); }
 .resident-copy { min-width: 0; }
 .resident-copy h3 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .resident-copy small { display: block; color: rgba(255, 247, 220, .58); font-size: 9px; }
@@ -1787,9 +1804,12 @@ button.resource-pill:focus-visible {
     .hall-hotspot { top: 24%; width: 180px; height: 210px; }
     .woodlot-hotspot { left: 1%; bottom: 11%; width: 142px; height: 160px; }
     .archive-hotspot { right: 1%; bottom: 12%; width: 142px; height: 160px; }
-    .quarter-hotspot { right: 14%; top: 45%; width: 142px; height: 128px; transform: scale(.88); }
-    .favorite-shrine { left: 4%; top: 40%; width: 68px; transform: scale(.85); transform-origin: top left; }
-    .favorite-shrine small { max-width: 78px; font-size: 7px; }
+    /* Portrait is narrow: the centered hall pushes into the right-mid zone, so the
+       Elemental Quarter drops to the open left band (below the shrine, above the
+       woodlot) where its label clears the Covenant Hall label. */
+    .quarter-hotspot { left: 1%; right: auto; top: 45%; width: 132px; height: 120px; transform: none; }
+    .favorite-shrine { left: 4%; top: 29%; width: 58px; transform: scale(.76); transform-origin: top left; }
+    .favorite-shrine small { max-width: 72px; font-size: 7px; }
     .building-label { max-width: 106%; padding: 5px 7px; }
     .building-label strong { font-size: 9px; }
     .building-label small { max-width: 132px; font-size: 6.5px; }
@@ -1854,7 +1874,8 @@ button.resource-pill:focus-visible {
     .archive-hotspot { bottom: 7%; transform: scale(.84); transform-origin: bottom center; }
     .woodlot-hotspot { left: -3%; }
     .archive-hotspot { right: -3%; }
-    .quarter-hotspot { right: 12%; top: 46%; transform: scale(.72); transform-origin: center; }
+    .quarter-hotspot { left: 0; right: auto; top: 44%; width: 118px; height: 104px; transform: none; }
+    .favorite-shrine { top: 26%; }
     .building-label small { display: none; }
 }
 
