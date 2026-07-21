@@ -24,6 +24,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class KeepServiceTest {
@@ -83,7 +84,7 @@ class KeepServiceTest {
         assertTrue(loreIds(collected).contains("letter_forester_maren"));
         assertEquals(List.of("letter_forester_maren"), collected.get("newLoreUnlocks"));
 
-        Map<String, Object> invited = service.inviteResident(user, "mossling", "resident-1", 2);
+        Map<String, Object> invited = service.inviteResident(user, "woodlot", "mossling", "resident-1", 2);
         assertEquals("mossling", valueAt(invited, "station", "residentId"));
         assertEquals(1.15, ((Number) valueAt(invited, "station", "ratePerMinute")).doubleValue(), 0.0001);
 
@@ -96,7 +97,7 @@ class KeepServiceTest {
     void subMinuteProductionCarriesAcrossAResidentChange() {
         service.collect(user, "collect-1", 1);
         clock.advance(Duration.ofSeconds(30));
-        service.inviteResident(user, "mossling", "resident-1", 2);
+        service.inviteResident(user, "woodlot", "mossling", "resident-1", 2);
 
         clock.advance(Duration.ofSeconds(30));
         Map<String, Object> snapshot = service.getSnapshot(user);
@@ -173,6 +174,66 @@ class KeepServiceTest {
     }
 
     @Test
+    void expansionStationsProduceCoinsAndRemnantsWithAwaySummary() {
+        service.collect(user, "c1", -1);
+        service.startBuild(user, "restore_archive", "b1", -1);
+        clock.advance(Duration.ofSeconds(KeepService.ARCHIVE_RESTORE_SECONDS + 1));
+        Map<String, Object> afterArchive = service.getSnapshot(user);
+        assertEquals(40, progression.getGold(), "Completing the Archive pays a one-time Siegecoin reward.");
+        assertEquals(5, progression.getRemnants());
+        assertTrue(((List<?>) afterArchive.get("buildOptions")).stream().map(Map.class::cast)
+                .anyMatch(option -> "build_garden".equals(option.get("id"))));
+
+        IllegalArgumentException gated = assertThrows(IllegalArgumentException.class,
+                () -> service.startBuild(user, "build_forge", "b2", -1));
+        assertTrue(gated.getMessage().contains("Garden"), "The Forge is gated behind the Garden.");
+
+        clock.advance(Duration.ofMinutes(60));
+        service.collect(user, "c2", -1);
+        service.startBuild(user, "build_garden", "b3", -1);
+        clock.advance(Duration.ofSeconds(301));
+        service.getSnapshot(user);
+        assertEquals(90, progression.getGold(), "Completing the Garden pays its project reward.");
+
+        clock.advance(Duration.ofMinutes(600));
+        Map<String, Object> away = service.getSnapshot(user);
+        Map<?, ?> awaySummary = (Map<?, ?>) away.get("awaySummary");
+        assertNotNull(awaySummary, "Long absences produce a while-you-were-away summary.");
+        List<Map> production = ((List<?>) awaySummary.get("production")).stream().map(Map.class::cast).toList();
+        assertTrue(production.stream().anyMatch(row -> "COINS".equals(row.get("resource"))
+                && ((Number) row.get("amount")).intValue() == 60), "Away production reports capped Garden coins.");
+
+        Map<String, Object> collected = service.collect(user, "c3", -1);
+        assertEquals(150, progression.getGold(), "Garden coins route to the player's Siegecoin balance.");
+        Map<?, ?> coinsRow = ((List<?>) collected.get("collected")).stream().map(Map.class::cast)
+                .filter(row -> "COINS".equals(row.get("resource"))).findFirst().orElseThrow();
+        assertEquals(60, ((Number) coinsRow.get("amount")).intValue());
+    }
+
+    @Test
+    void upgradesBoostCapacityAndRatesAndResidentsWorkOneStation() {
+        service.getSnapshot(user);
+        store.state.getStationLevels().put("warehouse", 1);
+        store.state.getStationLevels().put("garden", 1);
+        store.state.getStationLevels().put("cellar", 1);
+        store.state.getStationLevels().put("generator", 1);
+
+        Map<String, Object> snapshot = service.getSnapshot(user);
+        assertEquals(600, intAt(snapshot, "resources", "timberCapacity"), "The Warehouse doubles timber storage.");
+        Map<?, ?> garden = stationById(snapshot, "garden");
+        assertEquals(90, ((Number) garden.get("storageCapacity")).intValue(), "The Frost Cellar preserves +50% storage.");
+        assertEquals(0.11, ((Number) garden.get("ratePerMinute")).doubleValue(), 0.0001, "The Storm Generator quickens production.");
+
+        service.inviteResident(user, "woodlot", "mossling", "r1", -1);
+        Map<String, Object> moved = service.inviteResident(user, "garden", "mossling", "r2", -1);
+        assertEquals("", valueAt(moved, "station", "residentId"), "Inviting to the Garden moves the resident off the Woodlot.");
+        Map<?, ?> gardenAfter = stationById(moved, "garden");
+        assertEquals("mossling", gardenAfter.get("residentId"));
+        assertEquals(0.11 * 1.15, ((Number) gardenAfter.get("ratePerMinute")).doubleValue(), 0.0001,
+                "An Earth resident thrives in the Garden.");
+    }
+
+    @Test
     void repeatedRequestIsIdempotent() {
         Map<String, Object> first = service.collect(user, "same-request", 1);
         Map<String, Object> repeated = service.collect(user, "same-request", 1);
@@ -180,6 +241,11 @@ class KeepServiceTest {
         assertEquals(first.get("stateVersion"), repeated.get("stateVersion"));
         assertEquals(intAt(first, "resources", "timber"), intAt(repeated, "resources", "timber"));
         assertEquals(1, store.state.getWoodlotCollectCount());
+    }
+
+    private static Map<?, ?> stationById(Map<String, Object> snapshot, String id) {
+        return ((List<?>) snapshot.get("stations")).stream().map(Map.class::cast)
+                .filter(row -> id.equals(row.get("id"))).findFirst().orElseThrow();
     }
 
     @SuppressWarnings("unchecked")

@@ -61,6 +61,13 @@ public class KeepStore {
         payload.put("npcTrust", state.getNpcTrust());
         payload.put("displayedMemorabiliaIds", state.getDisplayedMemorabiliaIds());
         payload.put("processedRequestIds", state.getProcessedRequestIds());
+        payload.put("stationLevels", state.getStationLevels());
+        payload.put("stationStored", state.getStationStored());
+        payload.put("stationRemainders", state.getStationRemainders());
+        payload.put("stationResidents", state.getStationResidents());
+        payload.put("lifetimeCoinsEarned", state.getLifetimeCoinsEarned());
+        payload.put("lifetimeRemnantsEarned", state.getLifetimeRemnantsEarned());
+        payload.put("lastSeenAt", timestamp(state.getLastSeenAt()));
         payload.put("createdAt", timestamp(state.getCreatedAt()));
         payload.put("updatedAt", timestamp(state.getUpdatedAt()));
         try {
@@ -106,6 +113,13 @@ public class KeepStore {
         state.setNpcTrust(intMap(snapshot.get("npcTrust")));
         state.setDisplayedMemorabiliaIds(strings(snapshot.get("displayedMemorabiliaIds")));
         state.setProcessedRequestIds(strings(snapshot.get("processedRequestIds")));
+        state.setStationLevels(intMap(snapshot.get("stationLevels")));
+        state.setStationStored(intMap(snapshot.get("stationStored")));
+        state.setStationRemainders(decimalMap(snapshot.get("stationRemainders")));
+        state.setStationResidents(stringMap(snapshot.get("stationResidents")));
+        state.setLifetimeCoinsEarned((int) number(snapshot.get("lifetimeCoinsEarned"), 0));
+        state.setLifetimeRemnantsEarned((int) number(snapshot.get("lifetimeRemnantsEarned"), 0));
+        state.setLastSeenAt(instant(snapshot.get("lastSeenAt")));
         state.setCreatedAt(instant(snapshot.get("createdAt")));
         state.setUpdatedAt(instant(snapshot.get("updatedAt")));
         return state;
@@ -147,6 +161,28 @@ public class KeepStore {
         for (Map.Entry<?, ?> entry : map.entrySet()) {
             if (entry.getKey() != null && entry.getValue() instanceof Number number) {
                 out.put(String.valueOf(entry.getKey()), number.intValue());
+            }
+        }
+        return out;
+    }
+
+    private static Map<String, Double> decimalMap(Object value) {
+        Map<String, Double> out = new LinkedHashMap<>();
+        if (!(value instanceof Map<?, ?> map)) return out;
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            if (entry.getKey() != null && entry.getValue() instanceof Number number) {
+                out.put(String.valueOf(entry.getKey()), number.doubleValue());
+            }
+        }
+        return out;
+    }
+
+    private static Map<String, String> stringMap(Object value) {
+        Map<String, String> out = new LinkedHashMap<>();
+        if (!(value instanceof Map<?, ?> map)) return out;
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            if (entry.getKey() != null && entry.getValue() instanceof String text) {
+                out.put(String.valueOf(entry.getKey()), text);
             }
         }
         return out;

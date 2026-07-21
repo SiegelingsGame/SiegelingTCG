@@ -9,7 +9,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#173f54">
-    <link rel="stylesheet" href="/css/keep.css?v=2">
+    <link rel="stylesheet" href="/css/keep.css?v=3">
 </head>
 <body>
 <div class="keep-app" id="keepApp">
@@ -204,6 +204,129 @@
                     <span class="building-label"><strong id="archiveName">Ruined Archive</strong><small id="archiveLabel">Records buried beneath the stones</small></span>
                 </button>
 
+                <button class="building-hotspot garden-hotspot" type="button" data-building="garden" data-built="false" data-available="false" aria-label="Verdant Garden">
+                    <span class="site-view" aria-hidden="true"><i class="site-plot"></i><i class="site-sign">⚒</i></span>
+                    <span class="building-illustration built-view" aria-hidden="true">
+                        <svg viewBox="0 0 180 132" preserveAspectRatio="xMidYMax meet">
+                            <defs>
+                                <radialGradient id="gdLeaf" cx=".35" cy=".3" r=".85"><stop offset="0" stop-color="#a4d17c"/><stop offset="1" stop-color="#527e46"/></radialGradient>
+                                <linearGradient id="gdSoil" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6b4e2f"/><stop offset="1" stop-color="#4c3721"/></linearGradient>
+                            </defs>
+                            <ellipse cx="90" cy="122" rx="76" ry="8" fill="rgba(24,32,26,.28)"/>
+                            <g stroke="#7b5a38" stroke-width="3.4"><line x1="18" y1="50" x2="162" y2="50"/><line x1="18" y1="61" x2="162" y2="61"/></g>
+                            <g fill="#6a4c2e"><rect x="18" y="44" width="4" height="24"/><rect x="64" y="44" width="4" height="24"/><rect x="112" y="44" width="4" height="24"/><rect x="158" y="44" width="4" height="24"/></g>
+                            <polygon points="30,86 50,74 150,74 130,86" fill="url(#gdSoil)"/>
+                            <g><circle cx="62" cy="74" r="6" fill="url(#gdLeaf)"/><circle cx="86" cy="74" r="6" fill="url(#gdLeaf)"/><circle cx="110" cy="74" r="6" fill="url(#gdLeaf)"/><circle cx="134" cy="74" r="6" fill="url(#gdLeaf)"/></g>
+                            <polygon points="16,110 38,96 142,96 120,110" fill="url(#gdSoil)"/>
+                            <g><circle cx="52" cy="96" r="7" fill="url(#gdLeaf)"/><circle cx="78" cy="96" r="7" fill="url(#gdLeaf)"/><circle cx="104" cy="96" r="7" fill="url(#gdLeaf)"/><circle cx="128" cy="96" r="7" fill="url(#gdLeaf)"/></g>
+                            <path d="M20 112 Q 34 60 48 112" stroke="#8a6a44" stroke-width="4" fill="none"/>
+                            <circle cx="26" cy="92" r="5" fill="url(#gdLeaf)"/><circle cx="34" cy="76" r="5" fill="url(#gdLeaf)"/><circle cx="42" cy="92" r="5" fill="url(#gdLeaf)"/>
+                            <circle cx="151" cy="60" r="4" fill="#f0c94f"/><circle cx="160" cy="82" r="3.4" fill="#e88bb1"/>
+                        </svg>
+                    </span>
+                    <span class="production-ready hidden" id="gardenReady">Collect</span>
+                    <span class="building-label"><strong>Verdant Garden</strong><small id="gardenLabel">Unclaimed ground</small></span>
+                </button>
+
+                <button class="building-hotspot forge-hotspot" type="button" data-building="forge" data-built="false" data-available="false" aria-label="Ember Forge">
+                    <span class="site-view" aria-hidden="true"><i class="site-plot"></i><i class="site-sign">⚒</i></span>
+                    <span class="building-illustration built-view" aria-hidden="true">
+                        <svg viewBox="0 0 180 150" preserveAspectRatio="xMidYMax meet">
+                            <defs>
+                                <linearGradient id="fgStone" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8f867a"/><stop offset="1" stop-color="#6b6357"/></linearGradient>
+                                <linearGradient id="fgSide" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#5c554a"/><stop offset="1" stop-color="#48423a"/></linearGradient>
+                                <radialGradient id="fgFire" cx=".5" cy=".8" r=".8"><stop offset="0" stop-color="#ffd869"/><stop offset=".5" stop-color="#f08c3c"/><stop offset="1" stop-color="#a53c1e"/></radialGradient>
+                            </defs>
+                            <ellipse cx="90" cy="140" rx="76" ry="9" fill="rgba(24,32,26,.3)"/>
+                            <polygon points="128,72 154,64 154,132 128,140" fill="url(#fgSide)"/>
+                            <rect x="42" y="72" width="86" height="68" fill="url(#fgStone)"/>
+                            <g stroke="rgba(60,54,46,.4)" stroke-width="1.3"><line x1="42" y1="94" x2="128" y2="94"/><line x1="42" y1="116" x2="128" y2="116"/></g>
+                            <polygon points="34,74 130,74 158,64 62,64" fill="#3b342c"/>
+                            <rect x="118" y="30" width="16" height="40" fill="#575046"/>
+                            <circle class="fg-smoke" cx="126" cy="24" r="7" fill="rgba(200,200,200,.45)"/>
+                            <circle class="fg-smoke smoke-two" cx="133" cy="14" r="5" fill="rgba(200,200,200,.32)"/>
+                            <path d="M60 140 v-26 a17 17 0 0 1 34 0 v26 z" fill="#2c2620"/>
+                            <path class="fg-glow" d="M64 140 v-22 a13 13 0 0 1 26 0 v22 z" fill="url(#fgFire)"/>
+                            <rect x="104" y="122" width="20" height="7" fill="#3a342c"/>
+                            <polygon points="100,122 128,122 124,116 106,116" fill="#4a443c"/>
+                        </svg>
+                    </span>
+                    <span class="production-ready hidden" id="forgeReady">Collect</span>
+                    <span class="building-label"><strong>Ember Forge</strong><small id="forgeLabel">Cold hearth</small></span>
+                </button>
+
+                <button class="building-hotspot cellar-hotspot" type="button" data-building="cellar" data-built="false" data-available="false" aria-label="Frost Cellar">
+                    <span class="site-view" aria-hidden="true"><i class="site-plot"></i><i class="site-sign">⚒</i></span>
+                    <span class="building-illustration built-view" aria-hidden="true">
+                        <svg viewBox="0 0 160 110" preserveAspectRatio="xMidYMax meet">
+                            <defs>
+                                <linearGradient id="clMound" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7fa768"/><stop offset="1" stop-color="#597d4a"/></linearGradient>
+                                <linearGradient id="clDoor" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#bfeaf4"/><stop offset="1" stop-color="#79c4d8"/></linearGradient>
+                            </defs>
+                            <ellipse cx="80" cy="101" rx="66" ry="7" fill="rgba(24,32,26,.28)"/>
+                            <path d="M12 100 Q 80 22 148 100 z" fill="url(#clMound)"/>
+                            <path d="M56 100 v-26 a24 24 0 0 1 48 0 v26 z" fill="#7b7466"/>
+                            <path d="M62 100 v-22 a18 18 0 0 1 36 0 v22 z" fill="url(#clDoor)"/>
+                            <path d="M80 78 v22 M68 88 h24" stroke="#4c8ba0" stroke-width="2.4"/>
+                            <circle cx="42" cy="66" r="3" fill="#dff4fa"/><circle cx="116" cy="58" r="2.6" fill="#dff4fa"/><circle cx="102" cy="42" r="2.2" fill="#dff4fa"/>
+                        </svg>
+                    </span>
+                    <span class="building-label"><strong>Frost Cellar</strong><small id="cellarLabel">Unbroken ground</small></span>
+                </button>
+
+                <button class="building-hotspot generator-hotspot" type="button" data-building="generator" data-built="false" data-available="false" aria-label="Storm Generator">
+                    <span class="site-view" aria-hidden="true"><i class="site-plot"></i><i class="site-sign">⚒</i></span>
+                    <span class="building-illustration built-view" aria-hidden="true">
+                        <svg viewBox="0 0 150 160" preserveAspectRatio="xMidYMax meet">
+                            <defs>
+                                <linearGradient id="gnBody" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#4c525c"/><stop offset=".4" stop-color="#7a828e"/><stop offset="1" stop-color="#3f444d"/></linearGradient>
+                                <radialGradient id="gnOrb" cx=".4" cy=".35" r=".8"><stop offset="0" stop-color="#fffbd2"/><stop offset=".5" stop-color="#ffe63c"/><stop offset="1" stop-color="#b99a14"/></radialGradient>
+                            </defs>
+                            <ellipse cx="75" cy="151" rx="56" ry="7" fill="rgba(24,32,26,.3)"/>
+                            <polygon points="40,150 46,140 104,140 110,150" fill="#55483a"/>
+                            <polygon points="56,140 62,54 88,54 94,140" fill="url(#gnBody)"/>
+                            <g stroke="#c98a4b" stroke-width="4" fill="none">
+                                <ellipse cx="75" cy="70" rx="19" ry="6"/><ellipse cx="75" cy="84" rx="21" ry="6"/><ellipse cx="75" cy="98" rx="23" ry="6"/>
+                            </g>
+                            <ellipse class="gn-orb-halo" cx="75" cy="40" rx="20" ry="17" fill="rgba(255,230,60,.25)"/>
+                            <circle class="gn-orb" cx="75" cy="40" r="12" fill="url(#gnOrb)"/>
+                            <polygon points="73,32 80,40 76,40 79,49 70,40 74,40" fill="#fffdf0"/>
+                            <path d="M94 140 q22 -6 26 8" stroke="#3f444d" stroke-width="4" fill="none"/>
+                        </svg>
+                    </span>
+                    <span class="building-label"><strong>Storm Generator</strong><small id="generatorLabel">Still air</small></span>
+                </button>
+
+                <button class="building-hotspot warehouse-hotspot" type="button" data-building="warehouse" data-built="false" data-available="false" aria-label="Warehouse">
+                    <span class="site-view" aria-hidden="true"><i class="site-plot"></i><i class="site-sign">⚒</i></span>
+                    <span class="building-illustration built-view" aria-hidden="true">
+                        <svg viewBox="0 0 200 150" preserveAspectRatio="xMidYMax meet">
+                            <defs>
+                                <linearGradient id="whWood" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a9895e"/><stop offset="1" stop-color="#83683f"/></linearGradient>
+                                <linearGradient id="whSide" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6f5838"/><stop offset="1" stop-color="#57452c"/></linearGradient>
+                                <linearGradient id="whRoofF" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7a4a34"/><stop offset="1" stop-color="#57301f"/></linearGradient>
+                                <linearGradient id="whRoofS" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#4c2a1b"/><stop offset="1" stop-color="#361d12"/></linearGradient>
+                            </defs>
+                            <ellipse cx="100" cy="141" rx="84" ry="9" fill="rgba(24,32,26,.3)"/>
+                            <g class="wh-lvl2">
+                                <rect x="146" y="92" width="40" height="48" fill="url(#whWood)"/>
+                                <polygon points="140,94 166,72 192,94" fill="url(#whRoofF)"/>
+                            </g>
+                            <polygon points="128,74 160,64 160,130 128,140" fill="url(#whSide)"/>
+                            <rect x="40" y="74" width="88" height="66" fill="url(#whWood)"/>
+                            <g stroke="rgba(70,52,30,.35)" stroke-width="1.4"><line x1="40" y1="96" x2="128" y2="96"/><line x1="40" y1="118" x2="128" y2="118"/></g>
+                            <polygon points="130,70 166,60 116,24 84,32" fill="url(#whRoofS)"/>
+                            <polygon points="30,74 84,28 138,74" fill="url(#whRoofF)"/>
+                            <polygon points="30,74 138,74 135,79 33,79" fill="#2e1a10"/>
+                            <rect x="70" y="100" width="30" height="40" fill="#4a3521"/>
+                            <path d="M85 100 v40 M70 120 h30" stroke="#33241a" stroke-width="2.4"/>
+                            <rect x="16" y="118" width="20" height="20" fill="#8a6a3f" stroke="#5c4526" stroke-width="2"/>
+                            <rect x="22" y="100" width="16" height="16" fill="#997748" stroke="#5c4526" stroke-width="2"/>
+                        </svg>
+                    </span>
+                    <span class="building-label"><strong>Warehouse</strong><small id="warehouseLabel">No store raised</small></span>
+                </button>
+
                 <div class="memorabilia-plinth hidden" id="memorabiliaPlinth" aria-label="Displayed Petrified Root">
                     <i></i><span></span><small>Petrified Root</small>
                 </div>
@@ -246,6 +369,43 @@
                     <i class="lodge-bench"></i>
                     <i class="lodge-logs"></i>
                     <span class="lodge-resident hidden" id="interiorResident"><span id="interiorResidentArt"></span><small id="interiorResidentName"></small></span>
+                </div>
+                <div class="interior-room room-garden">
+                    <i class="int-backwall"></i><i class="int-sidewall side-left"></i><i class="int-sidewall side-right"></i><i class="int-floor"></i>
+                    <i class="garden-sun"></i>
+                    <i class="garden-bed bed-one"></i><i class="garden-bed bed-two"></i>
+                    <i class="garden-trellis"></i>
+                    <i class="garden-can"></i>
+                    <i class="garden-butterfly fly-one"></i><i class="garden-butterfly fly-two"></i>
+                </div>
+                <div class="interior-room room-forge">
+                    <i class="int-backwall"></i><i class="int-sidewall side-left"></i><i class="int-sidewall side-right"></i><i class="int-floor"></i>
+                    <i class="forge-furnace"><b></b></i>
+                    <i class="forge-anvil"></i>
+                    <i class="forge-rack"></i>
+                    <i class="forge-bucket"></i>
+                    <i class="forge-sparks"></i>
+                </div>
+                <div class="interior-room room-cellar">
+                    <i class="int-backwall"></i><i class="int-sidewall side-left"></i><i class="int-sidewall side-right"></i><i class="int-floor"></i>
+                    <i class="cellar-shelf shelf-one"></i><i class="cellar-shelf shelf-two"></i>
+                    <i class="cellar-icicle ice-one"></i><i class="cellar-icicle ice-two"></i><i class="cellar-icicle ice-three"></i>
+                    <i class="cellar-crate"></i>
+                    <i class="cellar-mist"></i>
+                </div>
+                <div class="interior-room room-generator">
+                    <i class="int-backwall"></i><i class="int-sidewall side-left"></i><i class="int-sidewall side-right"></i><i class="int-floor"></i>
+                    <i class="gen-core"><b></b></i>
+                    <i class="gen-coil coil-one"></i><i class="gen-coil coil-two"></i>
+                    <i class="gen-gauge gauge-one"></i><i class="gen-gauge gauge-two"></i>
+                    <i class="gen-cable"></i>
+                </div>
+                <div class="interior-room room-warehouse">
+                    <i class="int-backwall"></i><i class="int-sidewall side-left"></i><i class="int-sidewall side-right"></i><i class="int-floor"></i>
+                    <i class="wh-rack rack-one"></i><i class="wh-rack rack-two"></i>
+                    <i class="wh-crate crate-one"></i><i class="wh-crate crate-two"></i><i class="wh-crate crate-three"></i>
+                    <i class="wh-barrel"></i>
+                    <i class="wh-lantern"></i>
                 </div>
                 <div class="interior-room room-archive">
                     <i class="int-backwall"></i><i class="int-sidewall side-left"></i><i class="int-sidewall side-right"></i><i class="int-floor"></i>
@@ -306,6 +466,17 @@
         <button type="button" id="discoveryOpen">Read</button>
     </div>
 
+    <div class="keep-away hidden" id="awayOverlay" role="dialog" aria-modal="true" aria-labelledby="awayTitle">
+        <div class="away-card">
+            <span class="away-seal" aria-hidden="true">☾</span>
+            <span class="eyebrow">While you were away</span>
+            <h2 id="awayTitle">The sanctuary kept working</h2>
+            <p id="awayDuration"></p>
+            <div class="away-rows" id="awayRows"></div>
+            <button class="panel-button" id="awayDismiss" type="button">Gather the day</button>
+        </div>
+    </div>
+
     <div class="keep-tutorial hidden" id="keepTutorial" role="dialog" aria-modal="true" aria-labelledby="tutorialTitle">
         <div class="tutorial-card">
             <span class="tutorial-art" id="tutorialArt" aria-hidden="true">✦</span>
@@ -337,7 +508,7 @@
 </div>
 
 <script src="/js/config.js?v=1"></script>
-<script src="/js/keep.js?v=3"></script>
+<script src="/js/keep.js?v=4"></script>
 <script src="/js/sw-register.js?v=1"></script>
 </body>
 </html>

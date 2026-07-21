@@ -12,7 +12,7 @@
         },
         {
             art: '▰', kicker: 'Grow and gather', title: 'The Woodlot works for you',
-            body: 'The Restorative Woodlot produces timber over time — the READY counter at the top shows how much is waiting. Tap Collect to store it. Cultivation, never clear-cutting.'
+            body: 'The Restorative Woodlot produces timber over time — the READY counter at the top shows how much is waiting. Tap Collect to store it. Later, the Verdant Garden and Ember Forge earn Siegecoins and Remnants the same way.'
         },
         {
             art: '⚒', kicker: 'Restore the sanctuary', title: 'Spend timber on Projects',
@@ -24,10 +24,16 @@
         }
     ];
 
+    const EXPANSION_BUILD_IDS = {
+        garden: 'build_garden', forge: 'build_forge', cellar: 'build_cellar',
+        generator: 'build_generator', warehouse: 'build_warehouse'
+    };
+
     const state = {
         snapshot: null,
         panel: '',
         interior: '',
+        inviteTarget: 'woodlot',
         tutorialStep: -1,
         loreFilter: 'ALL',
         expandedLoreId: '',
@@ -53,6 +59,7 @@
         bindEvents();
         if (state.testMode) {
             applySnapshot(clone(window.__KEEP_TEST_SNAPSHOT__), false);
+            if (state.snapshot?.awaySummary) showAwaySummary(state.snapshot.awaySummary);
             hideLoading();
         } else {
             await loadSnapshot();
@@ -73,6 +80,7 @@
         document.getElementById('fullscreenButton')?.addEventListener('click', toggleFullscreen);
         document.getElementById('discoveryOpen')?.addEventListener('click', openLatestDiscovery);
         document.getElementById('interiorExit')?.addEventListener('click', closeInterior);
+        document.getElementById('awayDismiss')?.addEventListener('click', closeAwaySummary);
         document.getElementById('helpButton')?.addEventListener('click', () => openTutorial(0));
         document.getElementById('tutorialSkip')?.addEventListener('click', finishTutorial);
         document.getElementById('tutorialNext')?.addEventListener('click', tutorialAdvance);
@@ -89,6 +97,7 @@
             if (event.key.toLowerCase() === 'f' && !isTyping(event.target)) toggleFullscreen();
             if (event.key === 'Escape') {
                 if (!document.getElementById('keepTutorial')?.classList.contains('hidden')) finishTutorial();
+                else if (!document.getElementById('awayOverlay')?.classList.contains('hidden')) closeAwaySummary();
                 else if (!document.getElementById('dialogueOverlay')?.classList.contains('hidden')) closeDialogue();
                 else if (state.panel) closePanel();
                 else closeInterior();
@@ -103,12 +112,17 @@
     function handleClick(event) {
         const panelTrigger = event.target.closest('[data-open-panel]');
         if (panelTrigger) {
+            if (panelTrigger.dataset.openPanel === 'residents') {
+                state.inviteTarget = panelTrigger.dataset.inviteTarget || 'woodlot';
+            }
             openPanel(panelTrigger.dataset.openPanel);
             return;
         }
         const building = event.target.closest('[data-building]');
         if (building) {
-            openInterior(building.dataset.building);
+            const entry = stationById(building.dataset.building);
+            if (entry && !entry.built) openPanel('projects');
+            else openInterior(building.dataset.building);
             return;
         }
         const filter = event.target.closest('[data-lore-filter]');
@@ -160,7 +174,38 @@
             return;
         }
         applySnapshot(data, announceDiscoveries);
+        if (data.awaySummary) showAwaySummary(data.awaySummary);
         hideLoading();
+    }
+
+    function showAwaySummary(summary) {
+        const rows = document.getElementById('awayRows');
+        if (!rows || !summary) return;
+        const resourceMeta = { TIMBER: ['▰', 'timber'], COINS: ['◎', 'Siegecoins'], REMNANTS: ['◇', 'Remnants'] };
+        const parts = [];
+        for (const row of summary.production || []) {
+            const meta = resourceMeta[row.resource] || ['✦', String(row.resource || '').toLowerCase()];
+            parts.push(`<div class="away-row"><i>${meta[0]}</i><span><strong>${number(row.amount)} ${meta[1]}</strong> gathered at the ${escapeHtml(row.stationName || 'sanctuary')}</span></div>`);
+        }
+        const project = summary.completedProject;
+        if (project) {
+            const rewards = [];
+            if (number(project.rewardCoins) > 0) rewards.push(`${number(project.rewardCoins)} Siegecoins`);
+            if (number(project.rewardRemnants) > 0) rewards.push(`${number(project.rewardRemnants)} Remnants`);
+            parts.push(`<div class="away-row"><i>⚒</i><span><strong>${escapeHtml(project.name || 'A project')}</strong> finished${rewards.length ? ` — ${rewards.join(' and ')} awarded` : ''}</span></div>`);
+        }
+        const loreCount = (summary.newLoreIds || []).length;
+        if (loreCount) {
+            parts.push(`<div class="away-row"><i>▤</i><span><strong>${loreCount} new ${loreCount === 1 ? 'discovery' : 'discoveries'}</strong> ${loreCount === 1 ? 'awaits' : 'await'} in the Chronicle</span></div>`);
+        }
+        if (!parts.length) return;
+        rows.innerHTML = parts.join('');
+        text('awayDuration', `You were away ${formatDuration(summary.awaySeconds)}. The covenant held.`);
+        document.getElementById('awayOverlay')?.classList.remove('hidden');
+    }
+
+    function closeAwaySummary() {
+        document.getElementById('awayOverlay')?.classList.add('hidden');
     }
 
     async function perform(path, payload) {
@@ -193,13 +238,19 @@
     }
 
     async function collectTimber() {
-        if (projectedAvailable() <= 0) return;
-        await perform('/api/keep/collect', {});
+        if (collectTotals().total <= 0) return;
+        const data = await perform('/api/keep/collect', {});
+        if (data && Array.isArray(data.collected) && data.collected.length) {
+            const label = data.collected.map((row) => `${number(row.amount)} ${String(row.resource || '').toLowerCase()}`).join(' · ');
+            showNotice(`Collected ${label}.`, 'The sanctuary provides');
+        }
     }
 
     async function inviteResident(residentId) {
-        const current = state.snapshot?.station?.residentId || '';
-        await perform('/api/keep/resident', { residentId: current === residentId ? '' : residentId });
+        const target = state.inviteTarget || 'woodlot';
+        const entry = stationById(target);
+        const current = entry ? (entry.residentId || '') : (state.snapshot?.station?.residentId || '');
+        await perform('/api/keep/resident', { stationId: target, residentId: current === residentId ? '' : residentId });
     }
 
     async function startBuild(buildId) {
@@ -297,6 +348,8 @@
         const workerArt = document.getElementById('residentWorkerArt');
         if (workerArt) workerArt.innerHTML = resident ? residentAvatarContent(resident) : '';
 
+        syncExpansionHotspots(snapshot);
+
         const archiveRestored = Boolean(visual.archiveRestored);
         text('archiveName', archiveRestored ? 'Living Archive' : 'Ruined Archive');
         text('archiveLabel', archiveRestored ? 'Letters, relics, and remembered voices' : 'Records buried beneath the stones');
@@ -329,16 +382,55 @@
         }
     }
 
+    function syncExpansionHotspots(snapshot) {
+        const options = snapshot.buildOptions || [];
+        for (const id of Object.keys(EXPANSION_BUILD_IDS)) {
+            const hotspot = document.querySelector(`.${id}-hotspot`);
+            if (!hotspot) continue;
+            const entry = stationById(id) || { built: false, level: 0 };
+            const optionVisible = options.some((option) => option.id === EXPANSION_BUILD_IDS[id]);
+            const constructing = snapshot.activeConstruction?.id === EXPANSION_BUILD_IDS[id]
+                || (id === 'warehouse' && snapshot.activeConstruction?.id === 'warehouse_level_2');
+            hotspot.dataset.built = String(Boolean(entry.built));
+            hotspot.dataset.available = String(Boolean(entry.built || optionVisible || constructing));
+            hotspot.dataset.level = String(number(entry.level));
+            text(`${id}Label`, expansionLabel(id, entry, optionVisible, constructing));
+        }
+    }
+
+    function expansionLabel(id, entry, optionVisible, constructing) {
+        if (!entry.built && constructing) return 'Under construction';
+        if (!entry.built) return optionVisible ? 'Break ground in Projects' : '';
+        switch (id) {
+            case 'garden': return `${formatRate(entry.ratePerMinute)} coins/min`;
+            case 'forge': return `${formatRate(entry.ratePerMinute)} remnants/min`;
+            case 'warehouse': return entry.effect || `Level ${number(entry.level)}`;
+            default: return entry.effect || `Level ${number(entry.level)}`;
+        }
+    }
+
     function updateLiveCounters() {
         if (!state.snapshot) return;
-        const available = projectedAvailable();
-        text('stationAvailable', available);
-        text('collectAmount', `${available} timber`);
+        const totals = collectTotals();
+        text('stationAvailable', totals.total);
+        text('collectAmount', collectLabel(totals));
         const collect = document.getElementById('collectButton');
-        if (collect) collect.disabled = available <= 0 || number(state.snapshot.resources?.timber) >= number(state.snapshot.resources?.timberCapacity) || state.busy;
-        document.getElementById('productionReady')?.classList.toggle('hidden', available <= 0);
+        const resources = state.snapshot.resources || {};
+        const timberFull = number(resources.timber) >= number(resources.timberCapacity);
+        if (collect) collect.disabled = state.busy || totals.total <= 0 || (totals.coins + totals.remnants <= 0 && timberFull);
+        document.getElementById('productionReady')?.classList.toggle('hidden', totals.timber <= 0);
+        document.getElementById('gardenReady')?.classList.toggle('hidden', totals.coins <= 0);
+        document.getElementById('forgeReady')?.classList.toggle('hidden', totals.remnants <= 0);
         renderConstruction();
-        if (state.panel.startsWith('building:woodlot') || state.panel === 'projects' || state.interior === 'woodlot') updatePanelLiveValues();
+        if (state.panel.startsWith('building:') || state.panel === 'projects' || state.interior) updatePanelLiveValues();
+    }
+
+    function collectLabel(totals) {
+        const parts = [];
+        if (totals.timber > 0) parts.push(`${totals.timber} timber`);
+        if (totals.coins > 0) parts.push(`${totals.coins} coins`);
+        if (totals.remnants > 0) parts.push(`${totals.remnants} remn.`);
+        return parts.length ? parts.join(' · ') : '0 ready';
     }
 
     function renderConstruction() {
@@ -379,7 +471,8 @@
             const id = state.panel.split(':')[1];
             renderBuildingPanel(id, body);
         } else if (state.panel === 'residents') {
-            setPanelHeading('Covenant residents', 'Invite a partner');
+            const targetName = stationById(state.inviteTarget || 'woodlot')?.name || 'Restorative Woodlot';
+            setPanelHeading('Covenant residents', `Invite · ${targetName}`);
             body.innerHTML = residentsMarkup();
         } else if (state.panel === 'projects') {
             setPanelHeading('Restoration projects', 'Build the promise');
@@ -408,6 +501,12 @@
             const restored = Boolean(state.snapshot.visualState?.archiveRestored);
             return { title: restored ? 'Living Archive' : 'Ruined Archive', kicker: restored ? 'Recovered voices' : 'Buried history' };
         }
+        const entry = stationById(id);
+        if (id === 'garden') return { title: 'Verdant Garden', kicker: `Level ${number(entry?.level) || 1}` };
+        if (id === 'forge') return { title: 'Ember Forge', kicker: `Level ${number(entry?.level) || 1}` };
+        if (id === 'cellar') return { title: 'Frost Cellar', kicker: 'Cold storage' };
+        if (id === 'generator') return { title: 'Storm Generator', kicker: 'Captive storm-light' };
+        if (id === 'warehouse') return { title: 'Warehouse', kicker: `Level ${number(entry?.level) || 1}` };
         return { title: 'Covenant Hall', kicker: 'The three promises' };
     }
 
@@ -420,9 +519,53 @@
                     <h3>${escapeHtml(String(projectedAvailable()))} timber ready</h3>
                     <div class="meter"><i data-live-woodlot-meter style="width:${woodlotFill()}%"></i></div>
                     <div class="cost-row"><span>${escapeHtml(formatRate(station.ratePerMinute))} per minute</span><strong>${escapeHtml(String(station.storageCapacity || 0))} storage</strong></div>
-                    <div class="button-row"><button class="panel-button" type="button" data-collect-inline ${projectedAvailable() <= 0 ? 'disabled' : ''}>Collect timber</button><button class="panel-button secondary" type="button" data-open-panel="residents">Invite resident</button></div>
+                    <div class="button-row"><button class="panel-button" type="button" data-collect-inline ${projectedAvailable() <= 0 ? 'disabled' : ''}>Collect all</button><button class="panel-button secondary" type="button" data-open-panel="residents" data-invite-target="woodlot">Invite resident</button></div>
                 </section>
-                ${station.resident ? `<section class="detail-card"><span class="eyebrow">Current partner</span><h3>${escapeHtml(station.resident.name)}</h3><p>${escapeHtml(station.resident.affinityLabel || '')}. Invited residents remain available in decks and expeditions.</p></section>` : `<div class="empty-state">No resident has been invited. The Woodlot still produces normally.</div>`}`;
+                ${workerCard(station)}`;
+        }
+        if (id === 'garden' || id === 'forge') {
+            const entry = stationById(id) || {};
+            const resourceLabel = id === 'garden' ? 'Siegecoins' : 'Remnants';
+            const intro = id === 'garden'
+                ? 'Terraced beds tended by residents. The surplus harvest is traded to passing caravans as Siegecoins.'
+                : 'Battlefield scrap tempered back into Remnants for the crafting benches of your binder.';
+            return `
+                <p class="panel-intro">${intro}</p>
+                <section class="detail-card">
+                    <h3>${escapeHtml(String(projectedAvailableFor(id)))} ${resourceLabel} ready</h3>
+                    <div class="meter"><i data-live-station-meter="${id}" style="width:${stationFill(id)}%"></i></div>
+                    <div class="cost-row"><span>${escapeHtml(formatRate(entry.ratePerMinute))} per minute</span><strong>${escapeHtml(String(entry.storageCapacity || 0))} storage</strong></div>
+                    <div class="button-row"><button class="panel-button" type="button" data-collect-inline ${projectedAvailableFor(id) <= 0 ? 'disabled' : ''}>Collect all</button><button class="panel-button secondary" type="button" data-open-panel="residents" data-invite-target="${id}">Invite resident</button></div>
+                </section>
+                ${workerCard(entry)}`;
+        }
+        if (id === 'cellar' || id === 'generator') {
+            const entry = stationById(id) || {};
+            const intro = id === 'cellar'
+                ? 'Ice-cut vaults beneath the hill. Every station stores its harvest half again as long.'
+                : 'A captive storm that quickens every producing station in the sanctuary.';
+            const slotHint = id === 'cellar'
+                ? 'An Ice, Water, Undead, or Shadow keeper deepens the cold to +75% storage.'
+                : 'An Electric, Wind, or Psychic tender raises the boost to +15%.';
+            return `
+                <p class="panel-intro">${intro}</p>
+                <section class="detail-card">
+                    <h3>${escapeHtml(entry.effect || '')}</h3>
+                    <p>${slotHint}</p>
+                    <div class="button-row"><button class="panel-button secondary" type="button" data-open-panel="residents" data-invite-target="${id}">Invite resident</button></div>
+                </section>
+                ${workerCard(entry)}`;
+        }
+        if (id === 'warehouse') {
+            const resources = state.snapshot.resources || {};
+            const fill = Math.round(clamp(number(resources.timber) / Math.max(1, number(resources.timberCapacity)), 0, 1) * 100);
+            return `
+                <p class="panel-intro">Racks and cranes for the sanctuary's timber store. Upgrades raise how much you can hold.</p>
+                <section class="detail-card">
+                    <h3>${number(resources.timber)} / ${number(resources.timberCapacity)} timber stored</h3>
+                    <div class="meter"><i style="width:${fill}%"></i></div>
+                    <div class="button-row"><button class="panel-button" type="button" data-open-panel="projects">Upgrade in Projects</button></div>
+                </section>`;
         }
         if (id === 'archive') {
             const restored = Boolean(state.snapshot.visualState?.archiveRestored);
@@ -431,6 +574,12 @@
                 : `<p class="panel-intro">A collapsed record hall lies beneath the eastern wall. Its stones protect letters from the Age Before Cards.</p>${projectsMarkup()}`;
         }
         return `<p class="panel-intro">The sanctuary is founded on Stewardship, Consent, and Shelter.</p><section class="detail-card"><h3>The Keeper's Charter</h3><p>No Siegeling will be compelled to labor or fight. The land will be repaired rather than consumed, and those hunted by Akhar may seek refuge here.</p><div class="button-row"><button class="panel-button" type="button" data-open-panel="chronicle">Read the charter</button></div></section>`;
+    }
+
+    function workerCard(entry) {
+        return entry?.resident
+            ? `<section class="detail-card"><span class="eyebrow">Current partner</span><h3>${escapeHtml(entry.resident.name)}</h3><p>${escapeHtml(entry.resident.affinityLabel || '')}. Invited residents remain available in decks and expeditions.</p></section>`
+            : '<div class="empty-state">No resident works here yet. Production continues normally.</div>';
     }
 
     function openInterior(id) {
@@ -510,12 +659,19 @@
     function residentsMarkup() {
         const residents = state.snapshot.residents || [];
         if (!residents.length) return '<div class="empty-state">Owned Siegeling cards will introduce their evolution family to the sanctuary. Choose a starter pack to meet your first residents.</div>';
-        const current = state.snapshot.station?.residentId || '';
-        return `<p class="panel-intro">Invitations never lock a card. Affinity reflects what a resident enjoys doing—not its rarity or power.</p>${residents.map((resident) => {
+        const target = state.inviteTarget || 'woodlot';
+        const targetEntry = stationById(target);
+        const targetName = targetEntry?.name || 'Restorative Woodlot';
+        const current = targetEntry ? (targetEntry.residentId || '') : (state.snapshot.station?.residentId || '');
+        return `<p class="panel-intro">Inviting assigns a partner to the <strong>${escapeHtml(targetName)}</strong>. A Siegeling works one station at a time and is never locked out of decks or expeditions.</p>${residents.map((resident) => {
             const invited = current === resident.id;
+            const thrives = (resident.affinities || []).includes(target) || (target === 'woodlot' && resident.preferredAtWoodlot);
+            const elsewhere = resident.workingAt && resident.workingAt !== target
+                ? stationById(resident.workingAt)?.name || resident.workingAt : '';
+            const detail = `${resident.element} · ${thrives ? 'Thrives here · +15%' : 'Willing helper'}${elsewhere ? ` · Working: ${elsewhere}` : ''}`;
             return `<section class="resident-card ${invited ? 'is-invited' : ''}">
                 <span class="resident-avatar" style="--resident-color:${escapeAttr(elementColors[resident.element] || elementColors.NEUTRAL)}">${residentAvatarContent(resident)}</span>
-                <span class="resident-copy"><h3>${escapeHtml(resident.name)}</h3><small>${escapeHtml(resident.element)} · ${escapeHtml(resident.affinityLabel || '')}</small></span>
+                <span class="resident-copy"><h3>${escapeHtml(resident.name)}</h3><small>${escapeHtml(detail)}</small></span>
                 <button class="panel-button ${invited ? 'secondary' : ''}" type="button" data-invite-resident="${escapeAttr(resident.id)}">${invited ? 'Rest' : 'Invite'}</button>
             </section>`;
         }).join('')}`;
@@ -570,6 +726,7 @@
 
     function updatePanelLiveValues() {
         document.querySelectorAll('[data-live-woodlot-meter]').forEach((meter) => { meter.style.width = `${woodlotFill()}%`; });
+        document.querySelectorAll('[data-live-station-meter]').forEach((meter) => { meter.style.width = `${stationFill(meter.dataset.liveStationMeter)}%`; });
         document.querySelectorAll('[data-live-construction-time]').forEach((time) => { time.textContent = formatDuration(constructionRemaining()); });
         document.querySelectorAll('[data-live-construction-meter]').forEach((meter) => { meter.style.width = `${constructionPercent()}%`; });
     }
@@ -672,16 +829,35 @@
         snapshot.serverTime = new Date(nowMs()).toISOString();
         if (path.endsWith('/collect')) {
             const amount = projectedAvailable();
+            const coins = projectedAvailableFor('garden');
+            const remnants = projectedAvailableFor('forge');
             snapshot.resources.timber = Math.min(snapshot.resources.timberCapacity, snapshot.resources.timber + amount);
             snapshot.station.available = 0;
+            (snapshot.stations || []).forEach((entry) => { if (entry.available !== undefined) entry.available = 0; });
             snapshot.station.collectCount = number(snapshot.station.collectCount) + 1;
-            snapshot.collected = { resource: 'TIMBER', amount };
+            snapshot.collected = [];
+            if (amount > 0) snapshot.collected.push({ resource: 'TIMBER', amount });
+            if (coins > 0) snapshot.collected.push({ resource: 'COINS', amount: coins });
+            if (remnants > 0) snapshot.collected.push({ resource: 'REMNANTS', amount: remnants });
             if (snapshot.station.collectCount === 1) mockUnlock(snapshot, 'letter_forester_maren');
             if (snapshot.station.collectCount >= 3) mockUnlock(snapshot, 'memorabilia_petrified_root');
         } else if (path.endsWith('/resident')) {
-            snapshot.station.residentId = body.residentId || '';
-            snapshot.station.resident = (snapshot.residents || []).find((item) => item.id === body.residentId) || null;
-            snapshot.station.ratePerMinute = snapshot.station.resident?.preferredAtWoodlot ? 1.15 * snapshot.station.level : snapshot.station.level;
+            const target = body.stationId || 'woodlot';
+            const roster = snapshot.residents || [];
+            (snapshot.stations || []).forEach((entry) => {
+                if (entry.residentId === body.residentId && body.residentId) { entry.residentId = ''; entry.resident = null; }
+            });
+            const entry = (snapshot.stations || []).find((item) => item.id === target);
+            if (entry) {
+                entry.residentId = body.residentId || '';
+                entry.resident = roster.find((item) => item.id === body.residentId) || null;
+            }
+            if (target === 'woodlot') {
+                snapshot.station.residentId = body.residentId || '';
+                snapshot.station.resident = roster.find((item) => item.id === body.residentId) || null;
+                snapshot.station.ratePerMinute = snapshot.station.resident?.preferredAtWoodlot ? 1.15 * snapshot.station.level : snapshot.station.level;
+                if (entry) entry.ratePerMinute = snapshot.station.ratePerMinute;
+            }
         } else if (path.endsWith('/build')) {
             const option = (snapshot.buildOptions || []).find((item) => item.id === body.buildId);
             if (option) {
@@ -693,7 +869,7 @@
                     remainingSeconds: option.durationSeconds,
                     progress: 0
                 };
-                snapshot.buildOptions = [];
+                snapshot.buildOptions = (snapshot.buildOptions || []).filter((item) => item.id !== option.id);
             }
         } else if (path.endsWith('/lore/read')) {
             const entry = (snapshot.lore || []).find((item) => item.id === body.loreId);
@@ -739,6 +915,22 @@
             snapshot.station.level = 2;
             snapshot.station.ratePerMinute *= 2;
             mockUnlock(snapshot, 'letter_green_covenant');
+        } else {
+            const stationByBuild = {
+                build_garden: 'garden', build_forge: 'forge', build_cellar: 'cellar',
+                build_generator: 'generator', build_warehouse: 'warehouse', warehouse_level_2: 'warehouse'
+            };
+            const stationId = stationByBuild[construction.id];
+            if (stationId) {
+                const entry = (snapshot.stations || []).find((item) => item.id === stationId);
+                if (entry) { entry.built = true; entry.level = number(entry.level) + 1; }
+                if (stationId === 'warehouse') {
+                    snapshot.visualState.warehouseLevel = number(snapshot.visualState.warehouseLevel) + 1;
+                    snapshot.resources.timberCapacity = snapshot.visualState.warehouseLevel >= 2 ? 1000 : 600;
+                } else {
+                    snapshot.visualState[`${stationId}Built`] = true;
+                }
+            }
         }
         snapshot.activeConstruction = null;
         snapshot.stateVersion = number(snapshot.stateVersion) + 1;
@@ -746,10 +938,31 @@
     }
 
     function projectedAvailable() {
-        const station = state.snapshot?.station;
-        if (!station) return 0;
+        return projectedAvailableFor('woodlot');
+    }
+
+    function stationById(id) {
+        return (state.snapshot?.stations || []).find((item) => item.id === id);
+    }
+
+    function projectedAvailableFor(stationId) {
+        // Older snapshots (and the legacy mock shape) expose only the woodlot `station`.
+        const entry = stationById(stationId) || (stationId === 'woodlot' ? state.snapshot?.station : null);
+        if (!entry || entry.built === false) return 0;
         const elapsedMinutes = Math.max(0, (nowMs() - state.receivedAtMs) / 60000);
-        return Math.min(number(station.storageCapacity), number(station.available) + Math.floor(elapsedMinutes * number(station.ratePerMinute)));
+        return Math.min(number(entry.storageCapacity), number(entry.available) + Math.floor(elapsedMinutes * number(entry.ratePerMinute)));
+    }
+
+    function collectTotals() {
+        const timber = projectedAvailable();
+        const coins = projectedAvailableFor('garden');
+        const remnants = projectedAvailableFor('forge');
+        return { timber, coins, remnants, total: timber + coins + remnants };
+    }
+
+    function stationFill(id) {
+        const entry = stationById(id);
+        return Math.round(clamp(projectedAvailableFor(id) / Math.max(1, number(entry?.storageCapacity)), 0, 1) * 100);
     }
 
     function constructionRemaining() {
@@ -836,6 +1049,12 @@
                 capacity: number(snapshot.station?.storageCapacity), ratePerMinute: number(snapshot.station?.ratePerMinute),
                 invitedResident: snapshot.station?.resident?.name || null
             },
+            stations: (snapshot.stations || []).map((item) => ({
+                id: item.id, built: Boolean(item.built), level: number(item.level),
+                resource: item.resource || null, available: item.built && item.resource ? projectedAvailableFor(item.id) : 0,
+                effect: item.effect || null, resident: item.resident?.name || null
+            })),
+            keepEarnings: snapshot.keepEarnings || null,
             buildings: (snapshot.buildings || []).map((item) => ({ id: item.id, level: item.level, status: item.status })),
             construction: snapshot.activeConstruction ? { id: snapshot.activeConstruction.id, remainingSeconds: constructionRemaining(), progressPercent: constructionPercent() } : null,
             activePanel: state.panel || null,

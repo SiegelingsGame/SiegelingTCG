@@ -28,6 +28,19 @@ public class KeepState {
     private Map<String, Integer> npcTrust = new LinkedHashMap<>();
     private List<String> displayedMemorabiliaIds = new ArrayList<>();
     private List<String> processedRequestIds = new ArrayList<>();
+    /** Levels for the expansion buildings (garden/forge/cellar/generator/warehouse); 0 = not built. */
+    private Map<String, Integer> stationLevels = new LinkedHashMap<>();
+    /** Uncollected production per resource-producing expansion station (garden/forge). */
+    private Map<String, Integer> stationStored = new LinkedHashMap<>();
+    /** Sub-unit production carry per expansion station, mirroring the woodlot remainder. */
+    private Map<String, Double> stationRemainders = new LinkedHashMap<>();
+    /** Resident working each expansion station; the woodlot keeps its legacy field. */
+    private Map<String, String> stationResidents = new LinkedHashMap<>();
+    /** Lifetime Siegecoins / Remnants the sanctuary has produced (display + flavor). */
+    private int lifetimeCoinsEarned;
+    private int lifetimeRemnantsEarned;
+    /** Last time the player saw a snapshot; drives the while-you-were-away summary. */
+    private Instant lastSeenAt;
     private Instant createdAt;
     private Instant updatedAt;
 
@@ -76,6 +89,28 @@ public class KeepState {
     public void setDisplayedMemorabiliaIds(List<String> displayedMemorabiliaIds) { this.displayedMemorabiliaIds = copy(displayedMemorabiliaIds); }
     public List<String> getProcessedRequestIds() { return processedRequestIds; }
     public void setProcessedRequestIds(List<String> processedRequestIds) { this.processedRequestIds = copy(processedRequestIds); }
+    public Map<String, Integer> getStationLevels() { return stationLevels; }
+    public void setStationLevels(Map<String, Integer> stationLevels) {
+        this.stationLevels = stationLevels == null ? new LinkedHashMap<>() : new LinkedHashMap<>(stationLevels);
+    }
+    public Map<String, Integer> getStationStored() { return stationStored; }
+    public void setStationStored(Map<String, Integer> stationStored) {
+        this.stationStored = stationStored == null ? new LinkedHashMap<>() : new LinkedHashMap<>(stationStored);
+    }
+    public Map<String, Double> getStationRemainders() { return stationRemainders; }
+    public void setStationRemainders(Map<String, Double> stationRemainders) {
+        this.stationRemainders = stationRemainders == null ? new LinkedHashMap<>() : new LinkedHashMap<>(stationRemainders);
+    }
+    public Map<String, String> getStationResidents() { return stationResidents; }
+    public void setStationResidents(Map<String, String> stationResidents) {
+        this.stationResidents = stationResidents == null ? new LinkedHashMap<>() : new LinkedHashMap<>(stationResidents);
+    }
+    public int getLifetimeCoinsEarned() { return lifetimeCoinsEarned; }
+    public void setLifetimeCoinsEarned(int lifetimeCoinsEarned) { this.lifetimeCoinsEarned = Math.max(0, lifetimeCoinsEarned); }
+    public int getLifetimeRemnantsEarned() { return lifetimeRemnantsEarned; }
+    public void setLifetimeRemnantsEarned(int lifetimeRemnantsEarned) { this.lifetimeRemnantsEarned = Math.max(0, lifetimeRemnantsEarned); }
+    public Instant getLastSeenAt() { return lastSeenAt; }
+    public void setLastSeenAt(Instant lastSeenAt) { this.lastSeenAt = lastSeenAt; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
