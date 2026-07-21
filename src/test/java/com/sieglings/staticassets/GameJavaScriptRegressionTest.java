@@ -458,9 +458,10 @@ class GameJavaScriptRegressionTest {
         );
         assertTrue(
                 artRenderer.contains("game-holographic-full-card-art")
-                        && style.contains(".hand-card .card-art.game-holographic-full-card-art")
-                        && style.contains("object-fit: contain;"),
-                "Dedicated holo art must fill the shared card template behind live battle data without cropping."
+                        && style.contains(".hand-card .card-art.game-holographic-full-card-art img")
+                        && style.contains("object-fit: fill !important;"),
+                "Dedicated holo art must fill the shared card box the same way the painted element frame does "
+                        + "(background-size 100% 100%), so no letterbox exposes the standard frame behind it on the board or in previews."
         );
     }
 

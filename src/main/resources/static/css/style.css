@@ -8726,11 +8726,21 @@ body.placement-active .board-cell.legal {
 }
 
 .hand-card .card-art.game-holographic-full-card-art img {
-    width: 100%;
-    height: 100%;
-    max-width: none;
-    max-height: none;
-    object-fit: contain;
+    /* Stretch to the full card box, exactly like the painted element frame it
+       replaces (which fills via `background-size: 100% 100%`). The holo source
+       is ~639x919 (aspect 0.695) while the card shell is 5/7 (0.714); a
+       `contain` fit letterboxed the art and exposed the standard frame behind it
+       on the left/right edges. Filling the box the same way the frame does keeps
+       the baked artwork registered with the live name/HP/notch overlays, which
+       are positioned as percentages of that same stretched box. The element-frame
+       art-window rules (e.g. `.arena-board-card.element-frame .card-art-hand img`,
+       auto width + `contain`) are more specific, so — like the container rule
+       above — these overrides are forced. */
+    width: 100% !important;
+    height: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    object-fit: fill !important;
     object-position: center;
     transform: none;
     filter: none;
