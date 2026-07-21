@@ -635,10 +635,10 @@
         setResidentOverlayArt(document.getElementById('favoriteShrineArt'), resident);
         text('favoriteShrineLabel', resident
             ? `${resident.name} · +${number(favorite.bonusPercent)}%`
-            : 'Choose a favorite');
+            : 'Favorite');
         shrine.setAttribute('aria-label', resident
-            ? `Favorite Siegeling: ${resident.name}, +${number(favorite.bonusPercent)}% keep-wide`
-            : 'Choose a favorite Siegeling');
+            ? `Favorite Siegeling: ${resident.name}, +${number(favorite.bonusPercent)}% keep-wide. Change inside the Covenant Hall.`
+            : 'Choose a favorite Siegeling inside the Covenant Hall');
     }
 
     function constructionTarget(constructionId) {
@@ -796,7 +796,29 @@
                 : `<p class="panel-intro">A collapsed record hall lies beneath the eastern wall. Its stones protect letters from the Age Before Cards.</p>${projectsMarkup()}`;
         }
         if (stationById(id)) return facilityInteriorMarkup(id);
-        return `<p class="panel-intro">The sanctuary is founded on Stewardship, Consent, and Shelter.</p>${rankCardMarkup()}<section class="detail-card"><h3>The Keeper's Charter</h3><p>No Siegeling will be compelled to labor or fight. The land will be repaired rather than consumed, and those hunted by Akhar may seek refuge here.</p><div class="button-row"><button class="panel-button" type="button" data-open-panel="chronicle">Read the charter</button></div></section>${themePickerMarkup()}${craftingMarkup('great_hall')}`;
+        return `<p class="panel-intro">The sanctuary is founded on Stewardship, Consent, and Shelter.</p>${rankCardMarkup()}${favoriteChooserMarkup()}<section class="detail-card"><h3>The Keeper's Charter</h3><p>No Siegeling will be compelled to labor or fight. The land will be repaired rather than consumed, and those hunted by Akhar may seek refuge here.</p><div class="button-row"><button class="panel-button" type="button" data-open-panel="chronicle">Read the charter</button></div></section>${themePickerMarkup()}${craftingMarkup('great_hall')}`;
+    }
+
+    /** Choosing a favorite happens inside the Covenant Hall — a keep-wide honor,
+        not a per-station assignment, so it lives here rather than the residents dock. */
+    function favoriteChooserMarkup() {
+        const residents = state.snapshot.residents || [];
+        const favorite = state.snapshot.favorite || {};
+        if (!residents.length) {
+            return `<section class="detail-card favorite-card"><span class="eyebrow">Favorite Siegeling</span><h3>The Keeper's Favor</h3><p>Owned Siegelings will gather here. Honor one to inspire the whole keep.</p></section>`;
+        }
+        const current = favorite.resident
+            ? `<div class="favorite-current"><span class="favorite-current-avatar" style="--resident-color:${escapeAttr(elementColors[favorite.resident.element] || elementColors.NEUTRAL)}">${residentAvatarContent(favorite.resident)}</span><span><strong>${escapeHtml(favorite.resident.name)}</strong><small>${escapeHtml(favorite.label || '')}</small></span></div>`
+            : `<p>No favorite is honored yet. Choose one to inspire the whole keep — the bonus scales with their rarity and lifts every station's output, tribute, and orders.</p>`;
+        const choices = residents.map((resident) => {
+            const isFavorite = favorite.residentId === resident.id;
+            return `<button type="button" class="favorite-choice ${isFavorite ? 'active' : ''}" data-set-favorite="${escapeAttr(resident.id)}" style="--resident-color:${escapeAttr(elementColors[resident.element] || elementColors.NEUTRAL)}" aria-pressed="${isFavorite ? 'true' : 'false'}">
+                <span class="favorite-choice-avatar">${residentAvatarContent(resident)}</span>
+                <span class="favorite-choice-copy"><strong>${escapeHtml(resident.name)}</strong><small>${escapeHtml(titleCase(resident.element))} · ${escapeHtml(titleCase(resident.rarity || 'COMMON'))}</small></span>
+                <i class="favorite-choice-star" aria-hidden="true">${isFavorite ? '★' : '☆'}</i>
+            </button>`;
+        }).join('');
+        return `<section class="detail-card favorite-card"><span class="eyebrow">Favorite Siegeling</span><h3>The Keeper's Favor</h3>${current}<div class="favorite-choices">${choices}</div></section>`;
     }
 
     function rankCardMarkup() {
@@ -1036,10 +1058,11 @@
         const stationTabs = `<div class="station-tabs">${stations.map((item) => `<button class="${item.id === state.selectedStation ? 'active' : ''}" type="button" data-resident-station="${escapeAttr(item.id)}">${escapeHtml(item.name)}</button>`).join('')}</div>`;
         if (!residents.length) return `${stationTabs}<div class="empty-state">Owned Siegeling cards introduce their evolution family to the sanctuary. Choose a starter pack to meet your first residents.</div>`;
         const favorite = state.snapshot.favorite || {};
-        const favoriteIntro = favorite.resident
-            ? `<section class="detail-card favorite-card"><span class="eyebrow">Favorite Siegeling</span><h3>${escapeHtml(favorite.resident.name)}</h3><p>${escapeHtml(favorite.label || '')} — every station, tribute, and order earns more while they inspire the keep.</p></section>`
-            : `<section class="detail-card favorite-card"><span class="eyebrow">Favorite Siegeling</span><h3>The shrine stands empty</h3><p>Tap the ★ beside a resident to honor a favorite. The bonus scales with their rarity and boosts income and materials across the whole keep.</p></section>`;
-        return `${stationTabs}${favoriteIntro}<p class="panel-intro">Assigning a resident to ${escapeHtml(station.name || 'this station')} moves it from any previous work slot. Cards remain available in decks and expeditions.</p>${residents.map((resident) => {
+        // The favorite is honored inside the Covenant Hall; the residents panel is for work assignment.
+        const favoriteHint = favorite.resident
+            ? `<p class="panel-intro">${escapeHtml(favorite.resident.name)} is your favorite (${escapeHtml(favorite.label || '')}). Change it inside the Covenant Hall.</p>`
+            : '';
+        return `${stationTabs}${favoriteHint}<p class="panel-intro">Assigning a resident to ${escapeHtml(station.name || 'this station')} moves it from any previous work slot. Cards remain available in decks and expeditions.</p>${residents.map((resident) => {
             const assigned = assignmentFor(resident.id);
             const invited = station.residentId === resident.id;
             const isFavorite = favorite.residentId === resident.id;
@@ -1054,9 +1077,8 @@
                 action = `<button class="panel-button" type="button" data-station-id="${escapeAttr(station.id || 'woodlot')}" data-invite-resident="${escapeAttr(resident.id)}">Assign</button>`;
             }
             return `<section class="resident-card ${invited ? 'is-invited' : assigned ? 'is-assigned-elsewhere' : ''} ${isFavorite ? 'is-favorite' : ''}">
-                <span class="resident-avatar" style="--resident-color:${escapeAttr(elementColors[resident.element] || elementColors.NEUTRAL)}">${residentAvatarContent(resident)}</span>
+                <span class="resident-avatar" style="--resident-color:${escapeAttr(elementColors[resident.element] || elementColors.NEUTRAL)}">${residentAvatarContent(resident)}${isFavorite ? '<i class="resident-fav-mark" aria-hidden="true">★</i>' : ''}</span>
                 <span class="resident-copy"><h3>${escapeHtml(resident.name)}</h3><small>${escapeHtml(resident.element)} · ${escapeHtml(titleCase(resident.rarity || 'COMMON'))} · ${escapeHtml(affinity)}</small></span>
-                <button class="favorite-toggle ${isFavorite ? 'active' : ''}" type="button" data-set-favorite="${escapeAttr(resident.id)}" aria-label="${isFavorite ? 'Remove favorite' : `Make ${escapeAttr(resident.name)} your favorite`}" title="Favorite">${isFavorite ? '★' : '☆'}</button>
                 ${action}
             </section>`;
         }).join('')}`;
