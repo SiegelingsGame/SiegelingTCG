@@ -10,6 +10,21 @@ Original prompt: Purchasing upgrades and claiming materials should change the ba
 
 Original prompt: Merge and deploy
 
+- July 21, 2026 live deploy of Play HUD Keep + Keep inventory/Voices/assignment (PRs #478 + #479): squash-merged as `9cb09d45` then `fdab5315`. Concurrent Deploy Action runs raced on Firebase Hosting — #478’s Hosting job finished after #479 and briefly republished pre-inventory `keep.html` (`keep.css?v=8` / `keep.js?v=9`). Re-triggering Deploy from current `main` so Hosting serves `keep.css?v=9` / `keep.js?v=10` with inventory + spectrum + assignment labels alongside `style.css?v=212` Keep tab on `/play`.
+- Verification: Deploy Action run [29800304802](https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/29800304802) succeeded. Live `/keep` serves `keep.css?v=9` / `keep.js?v=10` with `inventory-trigger`, inventory/spectrum/assignment markers in assets; `/play` serves `style.css?v=212` with Keep tab; Hosting + Cloud Run `/api/cards/editor` report `source=FIRESTORE`, `liveEditingEnabled=true`, `firestoreAvailable=true`; `js/config.js` keeps `apiBaseUrl: ''`; `/api/game/options` returns 200 with 4 decks / 11 trainers; signed-out `/api/keep` returns 401.
+
+Original prompt: The materials counter is generic when you can earn different types and craft materials I need an option in keep to view inventory which shows raw and manufactured materials. I also want to expand on the voices system where you can select and view your relationship on a spectrum if they like or don’t like you. If a siegeking is assigned to a station it should not show the assign button in another stations menu it should display where they are assigned
+
+- July 21, 2026 Keep inventory, Voices spectrum, and assignment labels: Materials pill opens a Keep inventory panel (Raw/Manufactured/All) listing timber + the four workshop stocks and crafted tools/bonuses/decorations. Voices relationships now expose numeric `trust`/`trustMax` from the server and render a Distant→Bonded spectrum you can select for trust detail. Residents already working elsewhere show `At Woodlot` / `At Garden` (etc.) instead of Assign on other station tabs; tap jumps to that station. Mobile Materials pill re-enables pointer events over the floating resource bar. Cache bust: `keep.css?v=9`, `keep.js?v=10`.
+- Verification: `./mvnw -q -Dtest=KeepServiceTest test` green (trust/trustMax asserted); `node --check` on `keep.js`; headless Chromium with `__KEEP_TEST_SNAPSHOT__` at 390x844/1920x1080 passed inventory filters, spectrum select (Trust 4/7), and Garden-tab `At Woodlot` for Applehead; screenshots in `/opt/cursor/artifacts/keep-inventory-voices/`.
+
+Original prompt: Keep should be available from the play screen as well, check the HUD
+
+- July 21, 2026 Play HUD Keep link: the Battle Table welcome HUD (`play-hub-nav`) and in-match site-menu flyout were still on the pre-Keep 7-tab set (Home/Play/Cards/Decks/Social/Profile/Shop), so `/keep` was reachable from Home but missing on `/play`. Added a My Keep / Keep tab between Play and Cards in both places, matching Home’s short-label pattern, and widened the mobile dock grid from 7→8 columns. Cache bust: `style.css?v=212` (play/home/card-dashboard).
+- Verification: headless Chromium against static `play.html` asserted Keep between Play and Cards at 390x844 (`Keep` short label, 8-column dock), 320x568 (same), and 1920x1080 (`My Keep` full label); flyout markup includes `/keep`; screenshots inspected in `/opt/cursor/artifacts/play-hud-keep/`.
+
+Original prompt: Merge and deploy
+
 - July 21, 2026 live deploy of Keep RNG / Siegeling daily-life visitors (PR #475): squash-merged as `e9b1a116` after resolving `keep.html` cache-bust conflicts with main; Deploy Action run [29792329861](https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/29792329861) completed successfully. Live `/keep` serves `keep.css?v=8` and `keep.js?v=9` with Voices daily-life copy and `choiceCostHint`; Hosting + Cloud Run `/api/cards/editor` report `source=FIRESTORE`, `liveEditingEnabled=true`, `firestoreAvailable=true`; `js/config.js` keeps `apiBaseUrl: ''`; `/api/game/options` returns 200 with 4 decks; signed-out `/api/keep` correctly returns 401.
 
 Original prompt: Addd more rng visitors with random conversations siegeling related like daily life

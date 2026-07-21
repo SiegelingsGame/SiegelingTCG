@@ -150,7 +150,11 @@ class KeepServiceTest {
         assertEquals(timberBefore, intAt(result, "resources", "timber"));
         assertNotNull(result.get("dialogueResult"));
         assertTrue(((List<?>) result.get("choiceFlags")).contains("charter_stewardship"));
-        assertEquals("Acquainted", ((Map<?, ?>) ((List<?>) result.get("relationships")).get(0)).get("stage"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> bond = (Map<String, Object>) ((List<?>) result.get("relationships")).get(0);
+        assertEquals("Acquainted", bond.get("stage"));
+        assertEquals(2, ((Number) bond.get("trust")).intValue());
+        assertEquals(7, ((Number) bond.get("trustMax")).intValue());
         assertFalse(conversationIds(result).contains("steward_first_promise"));
     }
 

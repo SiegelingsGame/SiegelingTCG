@@ -1836,8 +1836,14 @@ public class KeepService {
         for (Map.Entry<String, Integer> entry : state.getNpcTrust().entrySet()) {
             int trust = Math.max(0, entry.getValue());
             String stage = trust >= 7 ? "Bonded" : trust >= 3 ? "Trusted" : trust >= 1 ? "Acquainted" : "Wary";
-            out.add(Map.of("npcId", entry.getKey(),
-                    "npcName", names.getOrDefault(entry.getKey(), entry.getKey()), "stage", stage));
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("npcId", entry.getKey());
+            row.put("npcName", names.getOrDefault(entry.getKey(), entry.getKey()));
+            row.put("stage", stage);
+            // trustMax matches the Bonded threshold so the Voices spectrum can render like↔dislike.
+            row.put("trust", trust);
+            row.put("trustMax", 7);
+            out.add(row);
         }
         return out;
     }
