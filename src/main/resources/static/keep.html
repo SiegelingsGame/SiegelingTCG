@@ -9,9 +9,45 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#173f54">
-    <link rel="stylesheet" href="/css/keep.css?v=12">
+    <link rel="stylesheet" href="/css/keep.css?v=14">
 </head>
 <body>
+<svg class="keep-svg-defs" width="0" height="0" aria-hidden="true" focusable="false">
+    <defs>
+        <!-- Resident art can be PNG, WebP, or SVG. Building the sticker edge from
+             SourceAlpha keeps the paper silhouette attached to any transparent art. -->
+        <filter id="paper-siegling-cutout" x="-35%" y="-30%" width="170%" height="175%" color-interpolation-filters="sRGB">
+            <feMorphology in="SourceAlpha" operator="dilate" radius="4.4" result="outerShape"/>
+            <feFlood flood-color="#251f19" result="outerInk"/>
+            <feComposite in="outerInk" in2="outerShape" operator="in" result="outerEdge"/>
+            <feMorphology in="SourceAlpha" operator="dilate" radius="3.45" result="paperShape"/>
+            <feFlood flood-color="#f2e2b8" result="paperColor"/>
+            <feComposite in="paperColor" in2="paperShape" operator="in" result="paperEdge"/>
+            <feMorphology in="SourceAlpha" operator="dilate" radius="1.55" result="innerShape"/>
+            <feFlood flood-color="#282019" result="innerInk"/>
+            <feComposite in="innerInk" in2="innerShape" operator="in" result="inkEdge"/>
+            <feTurbulence type="fractalNoise" baseFrequency="0.055" numOctaves="2" seed="17" result="paperNoise"/>
+            <feColorMatrix in="paperNoise" type="matrix" values="
+                0 0 0 0 0.55
+                0 0 0 0 0.39
+                0 0 0 0 0.20
+                0 0 0 .13 0" result="paperGrain"/>
+            <feComposite in="paperGrain" in2="SourceAlpha" operator="in" result="cutoutGrain"/>
+            <feBlend in="SourceGraphic" in2="cutoutGrain" mode="soft-light" result="printedArt"/>
+            <feGaussianBlur in="SourceAlpha" stdDeviation="2.6" result="shadowBlur"/>
+            <feOffset in="shadowBlur" dx="3.5" dy="6" result="shadowOffset"/>
+            <feFlood flood-color="#17130f" flood-opacity=".58" result="shadowColor"/>
+            <feComposite in="shadowColor" in2="shadowOffset" operator="in" result="groundShadow"/>
+            <feMerge>
+                <feMergeNode in="groundShadow"/>
+                <feMergeNode in="outerEdge"/>
+                <feMergeNode in="paperEdge"/>
+                <feMergeNode in="inkEdge"/>
+                <feMergeNode in="printedArt"/>
+            </feMerge>
+        </filter>
+    </defs>
+</svg>
 <div class="keep-app" id="keepApp">
     <header class="keep-header">
         <a class="keep-brand" href="/home" aria-label="Back to home">
@@ -495,7 +531,7 @@
 </div>
 
 <script src="/js/config.js?v=1"></script>
-<script src="/js/keep.js?v=13"></script>
+<script src="/js/keep.js?v=16"></script>
 <script src="/js/sw-register.js?v=1"></script>
 </body>
 </html>
