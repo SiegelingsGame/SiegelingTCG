@@ -1283,6 +1283,9 @@ function preloadArtUrl(url) {
 
 function preloadCardArtFor(card) {
     preloadArtUrl(getCardArtMeta(card)?.url);
+    if (cardShowsPlayerHolographic(card)) {
+        preloadArtUrl(String(card?.holographicCardArtUrl || '').trim());
+    }
 }
 
 function preloadBattleArt() {
@@ -3457,10 +3460,12 @@ function renderHolographicFullArtFace(card, extraOptions = {}) {
         || typeof bv.holographicFullCardArtUrl !== 'function') {
         return '';
     }
-    const options = { ...holographicFullArtOptions(), ...extraOptions };
-    if (!bv.holographicFullCardArtUrl(card, options)) {
+    const options = { ...holographicFullArtOptions(), imageLoading: 'eager', ...extraOptions };
+    const artUrl = bv.holographicFullCardArtUrl(card, options);
+    if (!artUrl) {
         return '';
     }
+    preloadArtUrl(artUrl);
     return bv.renderBinderCardTile(card, options);
 }
 
@@ -10800,7 +10805,42 @@ function toggleMulliganCard(index) {
     } else {
         mulliganSelectedIndices.add(index);
     }
-    renderMulliganOverlay();
+    // The hand has not changed, so keep its live card/image nodes in place.
+    // Rebuilding the overlay here aborts or restarts remote holo decoding and
+    // exposes the foil/data layers for a frame before the painted art returns.
+    updateMulliganSelectionUI();
+}
+
+function updateMulliganSelectionUI() {
+    const preview = document.getElementById('mulliganHandPreview');
+    if (preview) {
+        preview.querySelectorAll('.mulligan-card-slot').forEach((slot) => {
+            const index = Number(slot.dataset.index);
+            const isSelected = mulliganSelectedIndices.has(index);
+            slot.classList.toggle('is-selected', isSelected);
+            if (slot.getAttribute('role') === 'button') {
+                slot.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+            }
+            let badge = slot.querySelector('.mulligan-redraw-badge');
+            if (isSelected && !badge) {
+                badge = document.createElement('div');
+                badge.className = 'mulligan-redraw-badge';
+                badge.setAttribute('aria-hidden', 'true');
+                badge.textContent = 'Redraw';
+                slot.insertBefore(badge, slot.firstChild);
+            } else if (!isSelected && badge) {
+                badge.remove();
+            }
+        });
+    }
+    const redrawBtn = document.getElementById('btnMulliganRedraw');
+    if (redrawBtn && gameState?.mulligan?.youPending) {
+        const count = mulliganSelectedIndices.size;
+        redrawBtn.disabled = count === 0;
+        redrawBtn.textContent = count === 0
+            ? 'Redraw selected'
+            : `Redraw ${count} card${count === 1 ? '' : 's'}`;
+    }
 }
 
 function submitMulliganKeep() {

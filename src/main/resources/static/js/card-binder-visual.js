@@ -262,16 +262,17 @@
         const artUrl = fullCardArtUrl(card, options);
         if (!artUrl) return '';
         const extraClass = options.previewClass ? ` ${options.previewClass}` : '';
+        const imageLoading = options.imageLoading === 'eager' ? 'eager' : 'lazy';
         const usesHolographicArtwork = Boolean(holographicFullCardArtUrl(card, options));
         const holographicClassName = usesHolographicArtwork ? ' is-holographic-full-art' : '';
         const content = usesHolographicArtwork
             ? `<div class="holographic-card-art-canvas">
-                <img class="binder-full-card-art-image" src="${escapeAttr(artUrl)}" alt="" loading="lazy">
+                <img class="binder-full-card-art-image" src="${escapeAttr(artUrl)}" alt="" loading="${imageLoading}" decoding="async">
                 ${isHolographic(card, options) ? renderHolographicOverlay() : ''}
                 ${renderHolographicCardData(card, options)}
                 ${renderHolographicNotches(card?.notches)}
             </div>`
-            : `<img class="binder-full-card-art-image" src="${escapeAttr(artUrl)}" alt="" loading="lazy">`;
+            : `<img class="binder-full-card-art-image" src="${escapeAttr(artUrl)}" alt="" loading="${imageLoading}" decoding="async">`;
         return `<div class="binder-full-card-art${extraClass}${holographicClassName}${holographicClass(card, options)}" role="img" aria-label="${escapeAttr(card?.name || 'Full art card')}">
             ${content}
             ${isHolographic(card, options) && !usesHolographicArtwork ? renderHolographicOverlay() : ''}
