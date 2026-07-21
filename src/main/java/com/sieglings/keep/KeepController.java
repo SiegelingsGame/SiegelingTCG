@@ -118,6 +118,14 @@ public class KeepController {
                 string(body, "decorationId"), bool(body, "displayed"), string(body, "requestId"), version(body)));
     }
 
+    @PostMapping("/api/keep/enclave/resident")
+    public ResponseEntity<Map<String, Object>> enclaveResident(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody Map<String, Object> body) {
+        return respond(authorizationHeader, user -> keepService.setEnclaveResident(user, integer(body, "slot"),
+                string(body, "residentId"), string(body, "requestId"), version(body)));
+    }
+
     private ResponseEntity<Map<String, Object>> respond(String authorizationHeader,
                                                          Function<AccountUser, Map<String, Object>> operation) {
         try {
@@ -154,5 +162,12 @@ public class KeepController {
     private static boolean bool(Map<String, Object> body, String key) {
         Object value = body == null ? null : body.get(key);
         return value instanceof Boolean flag ? flag : Boolean.parseBoolean(String.valueOf(value));
+    }
+
+    private static int integer(Map<String, Object> body, String key) {
+        Object value = body == null ? null : body.get(key);
+        if (value instanceof Number number) return number.intValue();
+        try { return value == null ? -1 : Integer.parseInt(String.valueOf(value)); }
+        catch (NumberFormatException ignored) { return -1; }
     }
 }
