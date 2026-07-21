@@ -1,7 +1,7 @@
 Original prompt: Keep should be available from the play screen as well, check the HUD
 
 - July 21, 2026 Play HUD Keep link: the Battle Table welcome HUD (`play-hub-nav`) and in-match site-menu flyout were still on the pre-Keep 7-tab set (Home/Play/Cards/Decks/Social/Profile/Shop), so `/keep` was reachable from Home but missing on `/play`. Added a My Keep / Keep tab between Play and Cards in both places, matching Home’s short-label pattern, and widened the mobile dock grid from 7→8 columns. Cache bust: `style.css?v=212` (play/home/card-dashboard).
-- Verification: pending Playwright HUD checks at 390x844 and 1920x1080.
+- Verification: headless Chromium against static `play.html` asserted Keep between Play and Cards at 390x844 (`Keep` short label, 8-column dock), 320x568 (same), and 1920x1080 (`My Keep` full label); flyout markup includes `/keep`; screenshots inspected in `/opt/cursor/artifacts/play-hud-keep/`.
 
 Original prompt: Merge and deploy
 
