@@ -1,3 +1,8 @@
+Original prompt: Keep should be available from the play screen as well, check the HUD
+
+- July 21, 2026 Play HUD Keep link: the Battle Table welcome HUD (`play-hub-nav`) and in-match site-menu flyout were still on the pre-Keep 7-tab set (Home/Play/Cards/Decks/Social/Profile/Shop), so `/keep` was reachable from Home but missing on `/play`. Added a My Keep / Keep tab between Play and Cards in both places, matching Home’s short-label pattern, and widened the mobile dock grid from 7→8 columns. Cache bust: `style.css?v=212` (play/home/card-dashboard).
+- Verification: pending Playwright HUD checks at 390x844 and 1920x1080.
+
 Original prompt: Merge and deploy
 
 - July 21, 2026 live deploy of Keep RNG / Siegeling daily-life visitors (PR #475): squash-merged as `e9b1a116` after resolving `keep.html` cache-bust conflicts with main; Deploy Action run [29792329861](https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/29792329861) completed successfully. Live `/keep` serves `keep.css?v=8` and `keep.js?v=9` with Voices daily-life copy and `choiceCostHint`; Hosting + Cloud Run `/api/cards/editor` report `source=FIRESTORE`, `liveEditingEnabled=true`, `firestoreAvailable=true`; `js/config.js` keeps `apiBaseUrl: ''`; `/api/game/options` returns 200 with 4 decks; signed-out `/api/keep` correctly returns 401.
