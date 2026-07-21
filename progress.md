@@ -1,3 +1,7 @@
+Original prompt: Merge and deploy
+
+- July 21, 2026 live deploy of Keep RNG / Siegeling daily-life visitors (PR #475): squash-merged as `e9b1a116` after resolving `keep.html` cache-bust conflicts with main; Deploy Action run [29792329861](https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/29792329861) completed successfully. Live `/keep` serves `keep.css?v=8` and `keep.js?v=9` with Voices daily-life copy and `choiceCostHint`; Hosting + Cloud Run `/api/cards/editor` report `source=FIRESTORE`, `liveEditingEnabled=true`, `firestoreAvailable=true`; `js/config.js` keeps `apiBaseUrl: ''`; `/api/game/options` returns 200 with 4 decks; signed-out `/api/keep` correctly returns 401.
+
 Original prompt: Addd more rng visitors with random conversations siegeling related like daily life
 
 - July 21, 2026 My Keep Siegeling daily-life visitors: added thirteen more weighted RNG Voices encounters focused on ordinary sanctuary life with Siegelings—breakfast kettle negotiations, nest mending, notch-play hour, river bath day, nap watch, evening chorus, lost partner search, shedding/grooming week, manners class for young Siegelings, market errands with a companion, rainy indoor games, hatchday parties, and a Neutral Siegeling chore broker—plus Chronicle/Letter unlocks (`chronicle_shared_mornings`, `letter_evening_chorus`). Active visitor slots raised 2→3 so daily-life and road events can overlap. Voices copy mentions yard/daily life; cache bust `keep.css?v=7`, `keep.js?v=8`.
