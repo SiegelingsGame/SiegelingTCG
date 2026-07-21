@@ -221,6 +221,7 @@
         const panelTrigger = event.target.closest('[data-open-panel]');
         if (panelTrigger) {
             if (panelTrigger.dataset.selectStation) state.selectedStation = panelTrigger.dataset.selectStation;
+            if (panelTrigger.closest('#noticeTray')) closeNoticeTray();
             openPanel(panelTrigger.dataset.openPanel);
             return;
         }
@@ -592,6 +593,7 @@
         document.getElementById('unreadBadge')?.classList.toggle('hidden', unread <= 0);
         document.getElementById('conversationDot')?.classList.toggle('hidden', !(snapshot.availableConversations || []).length);
         renderConstruction();
+        renderNoticeCenter();
         updateLiveCounters();
         if (state.panel) renderPanel();
         if (state.interior) renderInterior();
@@ -624,8 +626,11 @@
         document.getElementById('productionReady')?.classList.toggle('hidden', available <= 0);
         updateStockpileVisuals();
         renderConstruction();
-        if (state.panel.startsWith('building:woodlot') || state.panel === 'projects' || state.panel === 'facilities'
-                || state.panel === 'residents' || state.interior === 'woodlot') updatePanelLiveValues();
+        // The Keep Activity tray also owns live construction clocks. Updating
+        // these lightweight data-bound values every second keeps both the tray
+        // and any open project/interior panel synchronized without rebuilding
+        // either surface and disturbing its scroll position.
+        updatePanelLiveValues();
     }
 
     /** Stockpiles in the scene grow with each station's uncollected stores:
@@ -837,7 +842,8 @@
                     <div class="cost-row"><span>${escapeHtml(formatRate(station.ratePerMinute))} per minute</span><strong>${escapeHtml(String(station.storageCapacity || 0))} storage</strong></div>
                     <div class="button-row"><button class="panel-button" type="button" data-collect-inline ${projectedAvailable() <= 0 ? 'disabled' : ''}>Collect timber</button><button class="panel-button secondary" type="button" data-open-panel="residents">Invite resident</button></div>
                 </section>
-                ${station.resident ? `<section class="detail-card"><span class="eyebrow">Current partner</span><h3>${escapeHtml(station.resident.name)}</h3><p>${escapeHtml(station.resident.affinityLabel || '')}. Invited residents remain available in decks and expeditions.</p></section>` : `<div class="empty-state">No resident has been invited. The Woodlot still produces normally.</div>`}`;
+                ${station.resident ? `<section class="detail-card"><span class="eyebrow">Current partner</span><h3>${escapeHtml(station.resident.name)}</h3><p>${escapeHtml(station.resident.affinityLabel || '')}. Invited residents remain available in decks and expeditions.</p></section>` : `<div class="empty-state">No resident has been invited. The Woodlot still produces normally.</div>`}
+                ${craftingMarkup('woodlot')}`;
         }
         if (id === 'archive') {
             const restored = Boolean(state.snapshot.visualState?.archiveRestored);
@@ -937,7 +943,8 @@
         </section>`).join('') : '<div class="empty-state">This room has no available blueprints yet.</div>';
         const placements = decorations.map((decoration) => `<section class="decoration-control"><span><small>Interior decoration ${number(decoration.tier) ? `${number(decoration.tier)}/5` : ''}</small><strong>${escapeHtml(decoration.name)}</strong></span><button class="panel-button secondary" type="button" data-place-decoration="${escapeAttr(decoration.id)}" data-room-id="${escapeAttr(roomId)}" data-displayed="${String(Boolean(decoration.displayed))}">${decoration.displayed ? 'Store decoration' : 'Place decoration'}</button></section>`).join('');
         const progress = tools.length || roomDecorations.length ? `<div class="room-upgrade-summary"><span><b>${tools.filter((item) => item.crafted).length}/5</b><small>Tools installed</small></span><span><b>${roomDecorations.filter((item) => item.crafted).length}/5</b><small>Decorations crafted</small></span></div>` : '';
-        return `<div class="crafting-section"><span class="eyebrow">Workshop blueprints</span>${progress}${cards}${placements}</div>`;
+        const blueprintLabel = roomId === 'woodlot' ? 'Woodlot blueprints' : 'Workshop blueprints';
+        return `<div class="crafting-section"><span class="eyebrow">${blueprintLabel}</span>${progress}${cards}${placements}</div>`;
     }
 
     function facilityInteriorDescription(id) {
@@ -1376,11 +1383,20 @@
 
     function renderNoticeCenter() {
         const list = document.getElementById('noticeList');
-        if (list) list.innerHTML = state.notices.length ? state.notices.map((notice) => {
+        const constructions = activeConstructionList();
+        const constructionMarkup = constructions.length ? `<section class="notice-construction-group">
+            <div class="notice-section-heading"><span>Active construction</span><strong>${constructions.length} crew${constructions.length === 1 ? '' : 's'}</strong></div>
+            ${constructions.map((construction, index) => `<button class="notice-construction-card" type="button" data-open-panel="projects" aria-label="Open Projects for ${escapeAttr(projectName(construction.id))}">
+                <span class="notice-construction-row"><i aria-hidden="true">⚒</i><span><small>Crew ${index + 1}</small><strong>${escapeHtml(projectName(construction.id))}</strong></span><time data-live-construction-time="${index}">${escapeHtml(formatDuration(constructionEntryRemaining(construction)))}</time></span>
+                <span class="notice-construction-meter"><i data-live-construction-meter="${index}" style="width:${constructionPercent(index)}%"></i></span>
+            </button>`).join('')}
+        </section>` : '';
+        const activityMarkup = state.notices.length ? state.notices.map((notice) => {
             const tag = notice.loreId ? 'button' : 'div';
             const action = notice.loreId ? ` type="button" data-notice-lore="${escapeAttr(notice.loreId)}"` : '';
             return `<${tag} class="notice-item"${action}><i aria-hidden="true">${notice.loreId ? '▤' : '✦'}</i><span><small>${escapeHtml(notice.heading)}</small><strong>${escapeHtml(notice.message)}</strong></span></${tag}>`;
-        }).join('') : '<div class="notice-empty">No new Keep activity. Construction timers remain in Projects.</div>';
+        }).join('') : `<div class="notice-empty">${constructions.length ? 'Construction is underway. New sanctuary updates will appear here.' : 'No new Keep activity. Start a project or continue restoring the sanctuary.'}</div>`;
+        if (list) list.innerHTML = constructionMarkup + activityMarkup;
         text('noticeBadge', state.noticeUnread);
         document.getElementById('noticeBadge')?.classList.toggle('hidden', state.noticeUnread <= 0);
     }
@@ -1797,10 +1813,13 @@
         return escapeHtml(initials(resident?.name || 'S'));
     }
 
-    /** Scene residents use Siege-style standing overlay cutouts when art is available. */
+    /** Placed residents share one paper-cutout treatment, independent of the source art format. */
     function setResidentOverlayArt(node, resident) {
         if (!node) return;
-        node.classList.toggle('has-overlay-art', Boolean(resident?.artUrl));
+        const hasArt = Boolean(resident?.artUrl);
+        node.classList.toggle('has-overlay-art', hasArt);
+        node.classList.toggle('is-paper-cutout', hasArt);
+        node.classList.toggle('is-paper-token', Boolean(resident) && !hasArt);
         node.innerHTML = resident ? residentAvatarContent(resident) : '';
     }
 
@@ -1891,7 +1910,17 @@
                     mission: slot.mission ? { id: slot.mission.id, progress: number(slot.mission.progress), goal: number(slot.mission.goal), complete: Boolean(slot.mission.complete), claimed: Boolean(slot.mission.claimed) } : null
                 }))
             } : null,
-            noticeCenter: { unread: state.noticeUnread, count: state.notices.length, open: !document.getElementById('noticeTray')?.classList.contains('hidden') },
+            noticeCenter: {
+                unread: state.noticeUnread,
+                count: state.notices.length,
+                open: !document.getElementById('noticeTray')?.classList.contains('hidden'),
+                constructionTimers: activeConstructionList().map((item, index) => ({
+                    id: item.id,
+                    name: projectName(item.id),
+                    remainingSeconds: constructionEntryRemaining(item),
+                    progressPercent: constructionPercent(index)
+                }))
+            },
             construction: snapshot.activeConstruction ? { id: snapshot.activeConstruction.id, remainingSeconds: constructionRemaining(), progressPercent: constructionPercent(), collapsed: state.constructionCollapsed } : null,
             activePanel: state.panel || null,
             interior: state.interior || null,

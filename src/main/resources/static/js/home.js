@@ -1678,22 +1678,39 @@
     }
 
     // Signed in but the owned-cards/decks snapshot hasn't arrived yet this session
-    // (and nothing was painted from cache). Show a loading screen rather than a
-    // misleading empty binder/deck list.
+    // (and nothing usable was painted from cache). Older/partial cached profiles can
+    // identify the player without containing progression, so the ownedCards map is
+    // the reliable signal that the binder data is actually ready.
     function ownedDataLoading() {
-        return Boolean(state.token) && !state.profileSynced && !state.profile;
+        const ownedCards = state.progression?.ownedCards;
+        const hasOwnedCardsSnapshot = Boolean(ownedCards)
+            && typeof ownedCards === 'object'
+            && !Array.isArray(ownedCards);
+        return Boolean(state.token) && !state.profileSynced && !hasOwnedCardsSnapshot;
+    }
+
+    function binderLoadingMarkup(label) {
+        return `<div class="binder-loading" role="status" aria-live="polite">
+            <span class="binder-loading-spinner" aria-hidden="true"></span>
+            <strong>${escapeHtml(label)}</strong>
+            <span class="binder-loading-bar" aria-hidden="true"><span></span></span>
+        </div>`;
     }
 
     function renderCards() {
         const grid = document.getElementById('allCardGrid');
         if (!grid) return;
+        const allCount = document.getElementById('allCardCount');
         // Catalog not loaded yet, or owned cards still loading for a signed-in
-        // player — show the spinner instead of a blank/empty panel.
+        // player — show explicit progress instead of a blank/empty panel.
         if (!state.options || ownedDataLoading()) {
-            grid.innerHTML = `<div class="binder-loading"><span class="binder-loading-spinner" aria-hidden="true"></span><strong>Loading your card binder…</strong></div>`;
+            grid.setAttribute('aria-busy', 'true');
+            grid.innerHTML = binderLoadingMarkup('Loading your card binder…');
+            if (allCount) allCount.textContent = 'Loading cards…';
             state._cardsRenderSig = '';
             return;
         }
+        grid.setAttribute('aria-busy', 'false');
         const cards = filteredCards();
         // Skip the expensive innerHTML teardown/rebuild (hundreds of tiles + their
         // images) when nothing that affects the grid changed. Navigating away and
@@ -1716,7 +1733,6 @@
         window.SieglingsCardBinderVisual?.scheduleDescriptionFit?.();
         window.SieglingsCardShowcase?.scheduleSiegeKnightCardFit?.();
         }
-        const allCount = document.getElementById('allCardCount');
         if (allCount) {
             const ownedVisible = cards.filter(card => ownedCount(card.id) > 0).length;
             allCount.textContent = state.showUnowned ? `${cards.length} cards / ${ownedVisible} owned` : `${cards.length} owned cards`;
@@ -2776,7 +2792,7 @@
         // Catalog or owned decks still loading — show a spinner instead of an
         // empty grid that would imply the player has no decks.
         if (!state.options || ownedDataLoading()) {
-            grid.innerHTML = `<div class="binder-loading"><span class="binder-loading-spinner" aria-hidden="true"></span><strong>Loading your decks…</strong></div>`;
+            grid.innerHTML = binderLoadingMarkup('Loading your decks…');
             renderSavedDecks();
             return;
         }
@@ -2824,7 +2840,7 @@
         // than "No saved custom decks yet", which would be misleading mid-load.
         if (ownedDataLoading()) {
             if (count) count.textContent = '';
-            grid.innerHTML = `<div class="binder-loading"><span class="binder-loading-spinner" aria-hidden="true"></span><strong>Loading your saved decks…</strong></div>`;
+            grid.innerHTML = binderLoadingMarkup('Loading your saved decks…');
             return;
         }
         const savedDecks = state.profile?.savedDecks || [];

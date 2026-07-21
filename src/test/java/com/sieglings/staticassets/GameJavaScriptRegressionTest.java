@@ -211,6 +211,26 @@ class GameJavaScriptRegressionTest {
     }
 
     @Test
+    void binderWaitsForOwnedCardSnapshotWhenCachedProfileIsPartial() throws IOException {
+        String homeScript = readHomeScript();
+        String ownedDataLoading = extractFunction(homeScript, "function ownedDataLoading()");
+        String renderCards = extractFunction(homeScript, "function renderCards()");
+
+        assertTrue(
+                ownedDataLoading.contains("state.progression?.ownedCards")
+                        && ownedDataLoading.contains("!state.profileSynced")
+                        && !ownedDataLoading.contains("!state.profile;"),
+                "A cached identity without progression must keep the binder loading until ownedCards arrives."
+        );
+        assertTrue(
+                renderCards.contains("binderLoadingMarkup('Loading your card binder…')")
+                        && renderCards.contains("grid.setAttribute('aria-busy', 'true')")
+                        && renderCards.contains("allCount.textContent = 'Loading cards…'"),
+                "The binder load race must show a visible and accessible loading status instead of zero owned cards."
+        );
+    }
+
+    @Test
     void guestBinderUsesFullTrainerCatalogFromOptions() throws IOException {
         String homeScript = readHomeScript();
 
