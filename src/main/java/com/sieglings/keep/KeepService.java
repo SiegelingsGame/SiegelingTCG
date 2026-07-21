@@ -59,6 +59,9 @@ public class KeepService {
     private static final Object[] LOCKS = createLocks();
     private static final Map<String, FacilityDefinition> FACILITIES = createFacilities();
     private static final Map<String, CraftRecipe> RECIPES = createRecipes();
+    /** The original four workshops; long-standing gates and milestones stay keyed
+        to these so adding the Quarry/Kitchen never retro-locks progress. */
+    private static final Set<String> ELEMENTAL_FACILITIES = Set.of("garden", "forge", "fridge", "generator");
     public static final int HALL_MAX_LEVEL = 8;
     /** Keep ranks by Covenant Hall level — the visible progression arc of the sanctuary. */
     private static final String[] HALL_RANKS = {
@@ -94,14 +97,14 @@ public class KeepService {
             List<String> beforeUnlocks = new ArrayList<>(state.getUnlockedLoreIds());
             int timberBefore = state.getWoodlotStored();
             Map<String, Integer> facilityBefore = new LinkedHashMap<>(state.getFacilityStored());
-            String completingProject = state.getActiveConstructionId();
-            boolean completed = materializeConstruction(state, context.residents(), context.now());
+            List<String> completedProjects = materializeConstructions(state, context.residents(), context.now());
+            boolean completed = !completedProjects.isEmpty();
             boolean returning = awaySince != null
                     && Duration.between(awaySince, context.now()).compareTo(OFFLINE_REPORT_THRESHOLD) >= 0;
             boolean produced = completed || (returning && materializeAllProduction(state, context.residents(), context.now()));
             boolean visitorsChanged = refreshVisitors(state, context.now());
             Map<String, Object> offlineReport = offlineReport(state, awaySince, context.now(), timberBefore,
-                    facilityBefore, completed ? completingProject : "", beforeUnlocks);
+                    facilityBefore, completedProjects, beforeUnlocks);
             state.setLastVisitedAt(context.now());
             if (completed || produced || visitorsChanged) {
                 bump(context.state(), context.now());
@@ -110,7 +113,8 @@ public class KeepService {
                 store.save(state);
             }
             if (completed) {
-                recordKeepStats(context.progression(), p -> p.setKeepProjectsCompleted(p.getKeepProjectsCompleted() + 1));
+                recordKeepStats(context.progression(),
+                        p -> p.setKeepProjectsCompleted(p.getKeepProjectsCompleted() + completedProjects.size()));
             }
             return serialize(user, context.progression(), state, context.residents(), context.now(), offlineReport);
         }
@@ -174,8 +178,13 @@ public class KeepService {
         return mutate(user, requestId, expectedVersion, context -> {
             KeepState state = context.state();
             String id = buildId == null ? "" : buildId.trim();
-            if (!state.getActiveConstructionId().isBlank()) {
-                throw new IllegalArgumentException("Finish the current construction project first.");
+            if (!hasFreeConstructionSlot(state)) {
+                throw new IllegalArgumentException(constructionSlots(state) > 1
+                        ? "Both construction crews are busy. Finish a current project first."
+                        : "Finish the current construction project first.");
+            }
+            if (id.equals(state.getActiveConstructionId()) || id.equals(state.getActiveConstructionId2())) {
+                throw new IllegalArgumentException("That project is already underway.");
             }
             BuildProject project = buildProject(id);
             if (project == null) throw new IllegalArgumentException("Unknown construction project.");
@@ -187,11 +196,31 @@ public class KeepService {
             materializeAllProduction(state, context.residents(), context.now());
             state.setTimber(state.getTimber() - project.timberCost());
             spendMaterials(state, project.materialCosts());
-            state.setActiveConstructionId(id);
-            state.setConstructionStartedAt(context.now());
-            state.setConstructionCompletesAt(context.now().plusSeconds(project.durationSeconds()));
+            if (state.getActiveConstructionId().isBlank()) {
+                state.setActiveConstructionId(id);
+                state.setConstructionStartedAt(context.now());
+                state.setConstructionCompletesAt(context.now().plusSeconds(project.durationSeconds()));
+            } else {
+                state.setActiveConstructionId2(id);
+                state.setConstructionStartedAt2(context.now());
+                state.setConstructionCompletesAt2(context.now().plusSeconds(project.durationSeconds()));
+            }
             return Map.of("constructionStarted", id);
         });
+    }
+
+    /** The Builder's Yard staffs a second construction crew. */
+    private int constructionSlots(KeepState state) {
+        return state.getBuildersYardLevel() >= 1 ? 2 : 1;
+    }
+
+    private boolean hasFreeConstructionSlot(KeepState state) {
+        if (state.getActiveConstructionId().isBlank()) return true;
+        return constructionSlots(state) >= 2 && state.getActiveConstructionId2().isBlank();
+    }
+
+    private boolean isConstructing(KeepState state, String projectId) {
+        return projectId.equals(state.getActiveConstructionId()) || projectId.equals(state.getActiveConstructionId2());
     }
 
     public Map<String, Object> readLore(AccountUser user, String loreId,
@@ -340,6 +369,48 @@ public class KeepService {
         });
     }
 
+    public Map<String, Object> setFavorite(AccountUser user, String residentId,
+                                           String requestId, long expectedVersion) {
+        return mutate(user, requestId, expectedVersion, context -> {
+            KeepState state = context.state();
+            String normalized = residentId == null ? "" : residentId.trim();
+            Resident resident = context.residents().stream()
+                    .filter(item -> item.id().equals(normalized)).findFirst().orElse(null);
+            if (!normalized.isBlank() && resident == null) {
+                throw new IllegalArgumentException("That Siegeling has not joined your collection yet.");
+            }
+            // The favorite changes every production rate, so settle accrual first.
+            materializeAllProduction(state, context.residents(), context.now());
+            state.setFavoriteResidentId(normalized);
+            Map<String, Object> extra = new LinkedHashMap<>();
+            extra.put("favoriteChanged", Map.of(
+                    "residentId", normalized,
+                    "name", resident == null ? "" : resident.name(),
+                    "bonusPercent", (int) Math.round(favoriteBoost(state, context.residents()) * 100)));
+            return extra;
+        });
+    }
+
+    /** The keep-wide favorite bonus scales with the chosen Siegeling's rarity and
+        applies to every station's output plus tribute and weekly-order income. */
+    private double favoriteBoost(KeepState state, List<Resident> residents) {
+        Resident favorite = favoriteResident(state, residents);
+        if (favorite == null) return 0;
+        return switch (favorite.rarity()) {
+            case "UNCOMMON" -> .08;
+            case "RARE" -> .12;
+            case "EPIC" -> .16;
+            case "LEGENDARY" -> .20;
+            default -> .05;
+        };
+    }
+
+    private Resident favoriteResident(KeepState state, List<Resident> residents) {
+        return residents.stream()
+                .filter(item -> item.id().equals(state.getFavoriteResidentId()))
+                .findFirst().orElse(null);
+    }
+
     public Map<String, Object> setHallTheme(AccountUser user, String themeId,
                                             String requestId, long expectedVersion) {
         return mutate(user, requestId, expectedVersion, context -> {
@@ -362,30 +433,52 @@ public class KeepService {
             int gold;
             int remnants;
             String claimKey = id;
+            Map<String, Integer> orderCosts = null;
             if ("first_harvest".equals(id)) {
                 if (state.getEssenceCollectCount() < 1) throw new IllegalArgumentException("Complete an elemental harvest first.");
                 gold = 100;
                 remnants = 25;
             } else if ("elemental_quarter".equals(id)) {
-                if (!allFacilitiesAtLeast(state, 1)) throw new IllegalArgumentException("Complete all four elemental facilities first.");
+                if (!elementalFacilitiesAtLeast(state, 1)) throw new IllegalArgumentException("Complete all four elemental facilities first.");
                 gold = 250;
                 remnants = 75;
             } else if ("masterwork_keep".equals(id)) {
-                if (state.getStorehouseLevel() < 2 || !allFacilitiesAtLeast(state, 2)) {
+                if (state.getStorehouseLevel() < 2 || !elementalFacilitiesAtLeast(state, 2)) {
                     throw new IllegalArgumentException("Raise every elemental facility and the Storehouse to level 2 first.");
                 }
                 gold = 500;
                 remnants = 150;
+            } else if ("provisioned_keep".equals(id)) {
+                if (facilityLevel(state, "quarry") < 1 || facilityLevel(state, "kitchen") < 1
+                        || state.getBuildersYardLevel() < 1) {
+                    throw new IllegalArgumentException("Open the Quarry and Kitchen, then raise the Builder's Yard first.");
+                }
+                gold = 300;
+                remnants = 90;
             } else if ("weekly_tribute".equals(id)) {
                 if (facilityLevel(state, "generator") < 1) throw new IllegalArgumentException("Build the Elemental Generator first.");
                 Instant next = nextTributeAt(state);
                 if (next != null && context.now().isBefore(next)) throw new IllegalArgumentException("The next sanctuary tribute is not ready yet.");
-                int totalLevels = state.getStorehouseLevel() + state.getWoodlotLevel()
-                        + FACILITIES.keySet().stream().mapToInt(key -> facilityLevel(state, key)).sum();
-                gold = 150 + totalLevels * 35;
-                remnants = 25 + totalLevels * 8;
+                double boost = 1 + favoriteBoost(state, context.residents());
+                int totalLevels = totalBuildLevels(state);
+                gold = (int) Math.round((150 + totalLevels * 35) * boost);
+                remnants = (int) Math.round((25 + totalLevels * 8) * boost);
                 claimKey = "weekly_tribute:" + weekKey(context.now());
                 state.setLastTributeClaimedAt(context.now());
+            } else if ("weekly_order".equals(id)) {
+                if (facilityLevel(state, "kitchen") < 1) {
+                    throw new IllegalArgumentException("Warm the Garden Kitchen before taking weekly orders.");
+                }
+                String week = weekKey(context.now());
+                claimKey = "weekly_order:" + week;
+                Map<String, Integer> requirements = weeklyOrderRequirements(state, week);
+                if (requirements.isEmpty()) throw new IllegalArgumentException("This week's order is not ready yet.");
+                requireMaterials(state, requirements, "order");
+                orderCosts = requirements;
+                double boost = 1 + favoriteBoost(state, context.residents());
+                int totalLevels = totalBuildLevels(state);
+                gold = (int) Math.round((90 + totalLevels * 20) * boost);
+                remnants = (int) Math.round((15 + totalLevels * 5) * boost);
             } else {
                 throw new IllegalArgumentException("Unknown sanctuary reward.");
             }
@@ -393,6 +486,7 @@ public class KeepService {
             if (progression.getKeepRewardClaimIds().contains(claimKey)) {
                 throw new IllegalArgumentException("That sanctuary reward has already been claimed.");
             }
+            if (orderCosts != null) spendMaterials(state, orderCosts);
             progression.setGold(progression.getGold() + gold);
             progression.setRemnants(progression.getRemnants() + remnants);
             progression.getKeepRewardClaimIds().add(claimKey);
@@ -415,11 +509,13 @@ public class KeepService {
             KeepState state = context.state();
             String normalizedRequestId = normalizeRequestId(requestId);
             List<String> beforeUnlocks = new ArrayList<>(state.getUnlockedLoreIds());
-            boolean completed = materializeConstruction(state, context.residents(), context.now());
+            List<String> completedProjects = materializeConstructions(state, context.residents(), context.now());
+            boolean completed = !completedProjects.isEmpty();
             boolean produced = materializeAllProduction(state, context.residents(), context.now());
             refreshVisitors(state, context.now());
             if (completed) {
-                recordKeepStats(context.progression(), p -> p.setKeepProjectsCompleted(p.getKeepProjectsCompleted() + 1));
+                recordKeepStats(context.progression(),
+                        p -> p.setKeepProjectsCompleted(p.getKeepProjectsCompleted() + completedProjects.size()));
             }
             if (state.getProcessedRequestIds().contains(normalizedRequestId)) {
                 if (completed || produced) {
@@ -503,11 +599,38 @@ public class KeepService {
         if (!state.getUnlockedLoreIds().contains("charter_three_promises")) unlock(state, "charter_three_promises");
     }
 
-    private boolean materializeConstruction(KeepState state, List<Resident> residents, Instant now) {
-        String id = state.getActiveConstructionId();
-        Instant completesAt = state.getConstructionCompletesAt();
-        if (id == null || id.isBlank() || completesAt == null || now.isBefore(completesAt)) return false;
-        materializeAllProduction(state, residents, completesAt);
+    /** Completes every due project across both crew slots, earliest first, and
+        returns the completed project ids. */
+    private List<String> materializeConstructions(KeepState state, List<Resident> residents, Instant now) {
+        List<String> completed = new ArrayList<>();
+        while (true) {
+            boolean slotOneDue = !state.getActiveConstructionId().isBlank()
+                    && state.getConstructionCompletesAt() != null && !now.isBefore(state.getConstructionCompletesAt());
+            boolean slotTwoDue = !state.getActiveConstructionId2().isBlank()
+                    && state.getConstructionCompletesAt2() != null && !now.isBefore(state.getConstructionCompletesAt2());
+            if (!slotOneDue && !slotTwoDue) break;
+            boolean takeSlotTwo = slotTwoDue && (!slotOneDue
+                    || state.getConstructionCompletesAt2().isBefore(state.getConstructionCompletesAt()));
+            String id = takeSlotTwo ? state.getActiveConstructionId2() : state.getActiveConstructionId();
+            Instant completesAt = takeSlotTwo ? state.getConstructionCompletesAt2() : state.getConstructionCompletesAt();
+            materializeAllProduction(state, residents, completesAt);
+            applyConstructionEffects(state, id, completesAt);
+            if (takeSlotTwo) {
+                state.setActiveConstructionId2("");
+                state.setConstructionStartedAt2(null);
+                state.setConstructionCompletesAt2(null);
+            } else {
+                state.setActiveConstructionId("");
+                state.setConstructionStartedAt(null);
+                state.setConstructionCompletesAt(null);
+            }
+            completed.add(id);
+        }
+        if (!completed.isEmpty()) materializeAllProduction(state, residents, now);
+        return completed;
+    }
+
+    private void applyConstructionEffects(KeepState state, String id, Instant completesAt) {
         if ("woodlot_level_2".equals(id)) {
             state.setWoodlotLevel(2);
             unlock(state, "letter_green_covenant");
@@ -532,6 +655,12 @@ public class KeepService {
         } else if ("build_generator".equals(id)) {
             completeFacilityLevel(state, "generator", 1, completesAt);
             unlock(state, "schematic_elemental_generator");
+        } else if ("build_quarry".equals(id)) {
+            completeFacilityLevel(state, "quarry", 1, completesAt);
+        } else if ("build_kitchen".equals(id)) {
+            completeFacilityLevel(state, "kitchen", 1, completesAt);
+        } else if ("build_builders_yard".equals(id)) {
+            state.setBuildersYardLevel(Math.max(1, state.getBuildersYardLevel()));
         } else if (id.startsWith("hall_level_")) {
             int level = parseHallLevel(id);
             if (level > 0) state.setHallLevel(Math.max(state.getHallLevel(), level));
@@ -539,11 +668,6 @@ public class KeepService {
             String facilityId = id.substring(0, id.length() - "_level_2".length());
             if (FACILITIES.containsKey(facilityId)) completeFacilityLevel(state, facilityId, 2, completesAt);
         }
-        materializeAllProduction(state, residents, now);
-        state.setActiveConstructionId("");
-        state.setConstructionStartedAt(null);
-        state.setConstructionCompletesAt(null);
-        return true;
     }
 
     private void materializeProduction(KeepState state, List<Resident> residents, Instant at) {
@@ -612,7 +736,8 @@ public class KeepService {
     private double woodlotRate(KeepState state, List<Resident> residents) {
         double base = state.getWoodlotLevel() >= 2 ? 2.0 : 1.0;
         Resident invited = residents.stream().filter(r -> r.id().equals(state.getWoodlotResidentId())).findFirst().orElse(null);
-        return invited != null && stationAffinity(invited, "woodlot") ? base * 1.15 : base;
+        double rate = invited != null && stationAffinity(invited, "woodlot") ? base * 1.15 : base;
+        return rate * (1 + favoriteBoost(state, residents));
     }
 
     private int woodlotStorageCapacity(KeepState state) {
@@ -657,7 +782,8 @@ public class KeepService {
         double affinity = resident == null ? 1.0 : stationAffinity(resident, id) ? 1.2 : "NEUTRAL".equals(resident.element()) ? 1.05 : 1.0;
         double toolBonus = craftedCount(state, definition.toolRecipeId()) > 0 ? 1.2 : 1.0;
         double networkBonus = craftedCount(state, "insulated_channels") > 0 ? 1.1 : 1.0;
-        return definition.baseRatePerMinute() * facilityLevel(state, id) * affinity * toolBonus * networkBonus;
+        return definition.baseRatePerMinute() * facilityLevel(state, id) * affinity * toolBonus * networkBonus
+                * (1 + favoriteBoost(state, residents));
     }
 
     private Map<String, Object> collectEssenceStation(KeepState state, Context context, String id) {
@@ -762,12 +888,12 @@ public class KeepService {
         state.getFacilityLastAccruedAt().put(id, at);
     }
 
-    private boolean allFacilitiesAtLeast(KeepState state, int level) {
-        return FACILITIES.keySet().stream().allMatch(id -> facilityLevel(state, id) >= level);
+    private boolean elementalFacilitiesAtLeast(KeepState state, int level) {
+        return ELEMENTAL_FACILITIES.stream().allMatch(id -> facilityLevel(state, id) >= level);
     }
 
     private String constructionStatus(KeepState state, String levelOneId, String levelTwoId, int level) {
-        if (levelOneId.equals(state.getActiveConstructionId()) || levelTwoId.equals(state.getActiveConstructionId())) {
+        if (isConstructing(state, levelOneId) || isConstructing(state, levelTwoId)) {
             return "CONSTRUCTING";
         }
         return level > 0 ? "COMPLETE" : "FOUNDATIONS";
@@ -799,7 +925,7 @@ public class KeepService {
 
     private Map<String, Object> offlineReport(KeepState state, Instant awaySince, Instant now,
                                                int timberBefore, Map<String, Integer> facilityBefore,
-                                               String completedProject, List<String> beforeUnlocks) {
+                                               List<String> completedProjects, List<String> beforeUnlocks) {
         if (awaySince == null || !now.isAfter(awaySince)
                 || Duration.between(awaySince, now).compareTo(OFFLINE_REPORT_THRESHOLD) < 0) return null;
         List<Map<String, Object>> produced = new ArrayList<>();
@@ -815,8 +941,10 @@ public class KeepService {
                     "resource", definition.resourceId(), "resourceName", definition.resourceName(), "amount", amount));
         }
         List<String> completed = new ArrayList<>();
-        BuildProject project = buildProject(completedProject);
-        if (project != null) completed.add(project.name());
+        for (String completedId : completedProjects == null ? List.<String>of() : completedProjects) {
+            BuildProject project = buildProject(completedId);
+            if (project != null) completed.add(project.name());
+        }
         List<String> loreFound = state.getUnlockedLoreIds().stream()
                 .filter(id -> !beforeUnlocks.contains(id))
                 .map(loreCatalog::entry)
@@ -901,10 +1029,14 @@ public class KeepService {
         out.add(milestone(progression, "first_harvest", "First Elemental Harvest",
                 "Collect a crafted material from any facility.", state.getEssenceCollectCount() >= 1, 100, 25));
         out.add(milestone(progression, "elemental_quarter", "A Quarter in Accord",
-                "Build the Garden, Forge, Fridge, and Generator.", allFacilitiesAtLeast(state, 1), 250, 75));
+                "Build the Garden, Forge, Fridge, and Generator.", elementalFacilitiesAtLeast(state, 1), 250, 75));
+        out.add(milestone(progression, "provisioned_keep", "A Keep Provisioned",
+                "Open the Quarry and Kitchen, then raise the Builder's Yard.",
+                facilityLevel(state, "quarry") >= 1 && facilityLevel(state, "kitchen") >= 1
+                        && state.getBuildersYardLevel() >= 1, 300, 90));
         out.add(milestone(progression, "masterwork_keep", "Masterwork Keep",
                 "Raise every elemental facility and the Storehouse to level 2.",
-                state.getStorehouseLevel() >= 2 && allFacilitiesAtLeast(state, 2), 500, 150));
+                state.getStorehouseLevel() >= 2 && elementalFacilitiesAtLeast(state, 2), 500, 150));
         return out;
     }
 
@@ -922,18 +1054,68 @@ public class KeepService {
         return out;
     }
 
-    private Map<String, Object> weeklyTribute(KeepState state, PlayerProgressionEntity progression, Instant now) {
+    private Map<String, Object> weeklyTribute(KeepState state, PlayerProgressionEntity progression,
+                                              List<Resident> residents, Instant now) {
         boolean unlocked = facilityLevel(state, "generator") >= 1;
         Instant next = nextTributeAt(state);
         boolean ready = unlocked && (next == null || !now.isBefore(next));
-        int totalLevels = state.getStorehouseLevel() + state.getWoodlotLevel()
-                + FACILITIES.keySet().stream().mapToInt(id -> facilityLevel(state, id)).sum();
+        double boost = 1 + favoriteBoost(state, residents);
+        int totalLevels = totalBuildLevels(state);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("id", "weekly_tribute");
         out.put("unlocked", unlocked);
         out.put("ready", ready);
         out.put("nextClaimAt", next == null ? null : next.toString());
-        out.put("reward", Map.of("gold", 150 + totalLevels * 35, "remnants", 25 + totalLevels * 8));
+        out.put("reward", Map.of("gold", (int) Math.round((150 + totalLevels * 35) * boost),
+                "remnants", (int) Math.round((25 + totalLevels * 8) * boost)));
+        return out;
+    }
+
+    private int totalBuildLevels(KeepState state) {
+        return state.getStorehouseLevel() + state.getWoodlotLevel() + state.getBuildersYardLevel()
+                + FACILITIES.keySet().stream().mapToInt(id -> facilityLevel(state, id)).sum();
+    }
+
+    /** A deterministic weekly crafting order rotates through the built workshops. */
+    private Map<String, Integer> weeklyOrderRequirements(KeepState state, String week) {
+        List<FacilityDefinition> built = FACILITIES.values().stream()
+                .filter(definition -> facilityLevel(state, definition.id()) >= 1).toList();
+        if (built.isEmpty()) return Map.of();
+        int seed = week.hashCode();
+        Map<String, Integer> out = new LinkedHashMap<>();
+        int picks = Math.min(3, built.size());
+        for (int i = 0; i < picks; i++) {
+            FacilityDefinition definition = built.get(Math.floorMod(seed + i * 7, built.size()));
+            int amount = 4 + Math.floorMod(seed >> (2 + i), 4) + facilityLevel(state, definition.id()) * 2;
+            out.merge(definition.resourceId(), amount, Integer::sum);
+        }
+        return out;
+    }
+
+    private Map<String, Object> weeklyOrder(KeepState state, PlayerProgressionEntity progression,
+                                            List<Resident> residents, Instant now) {
+        boolean unlocked = facilityLevel(state, "kitchen") >= 1;
+        String week = weekKey(now);
+        boolean claimed = progression.getKeepRewardClaimIds().contains("weekly_order:" + week);
+        Map<String, Integer> requirements = unlocked ? weeklyOrderRequirements(state, week) : Map.of();
+        double boost = 1 + favoriteBoost(state, residents);
+        int totalLevels = totalBuildLevels(state);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("id", "weekly_order");
+        out.put("unlocked", unlocked);
+        out.put("week", week);
+        out.put("claimed", claimed);
+        out.put("requirements", requirements.entrySet().stream().map(entry -> {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("id", entry.getKey());
+            item.put("name", materialName(entry.getKey()));
+            item.put("amount", entry.getValue());
+            item.put("have", state.getMaterialInventory().getOrDefault(entry.getKey(), 0));
+            return item;
+        }).toList());
+        out.put("canClaim", unlocked && !claimed && !requirements.isEmpty() && hasMaterials(state, requirements));
+        out.put("reward", Map.of("gold", (int) Math.round((90 + totalLevels * 20) * boost),
+                "remnants", (int) Math.round((15 + totalLevels * 5) * boost)));
         return out;
     }
 
@@ -956,14 +1138,17 @@ public class KeepService {
             case "build_forge" -> new BuildProject(id, "Kindle the Accord Forge", FORGE_LEVEL_ONE_COST, Map.of(), FORGE_LEVEL_ONE_SECONDS);
             case "build_fridge" -> new BuildProject(id, "Raise the Frost Fridge", FRIDGE_LEVEL_ONE_COST, Map.of(), FRIDGE_LEVEL_ONE_SECONDS);
             case "build_generator" -> new BuildProject(id, "Tune the Elemental Generator", GENERATOR_LEVEL_ONE_COST, Map.of(), GENERATOR_LEVEL_ONE_SECONDS);
+            case "build_quarry" -> new BuildProject(id, "Open the Covenant Quarry", 240, Map.of(), 7_200);
+            case "build_kitchen" -> new BuildProject(id, "Warm the Garden Kitchen", 210, Map.of(), 5_400);
+            case "build_builders_yard" -> new BuildProject(id, "Raise the Builder's Yard", 260, Map.of("stone", 18), 10_800);
             case "storehouse_level_2" -> new BuildProject(id, "Vault the Storehouse", 320,
                     Map.of("verdant_fiber", 18, "ember_ingot", 12, "frost_crystal", 12, "storm_cell", 8), 28_800);
             case "hall_level_2" -> new BuildProject(id, "Raise the Timber Outpost", 120, Map.of(), 900);
             case "hall_level_3" -> new BuildProject(id, "Settle the Courtyard", 220, Map.of(), 5_400);
             case "hall_level_4" -> new BuildProject(id, "Cut the Stonehold", 300,
-                    Map.of("verdant_fiber", 10, "ember_ingot", 10), 14_400);
+                    Map.of("stone", 16, "ember_ingot", 10), 14_400);
             case "hall_level_5" -> new BuildProject(id, "Raise the Keep Walls", 380,
-                    Map.of("verdant_fiber", 14, "ember_ingot", 14, "frost_crystal", 10), 28_800);
+                    Map.of("stone", 22, "verdant_fiber", 12, "ember_ingot", 12), 28_800);
             case "hall_level_6" -> new BuildProject(id, "Awaken the Elemental Stronghold", 460,
                     Map.of("verdant_fiber", 16, "ember_ingot", 16, "frost_crystal", 12, "storm_cell", 10), 43_200);
             case "hall_level_7" -> new BuildProject(id, "Crown the High Castle", 540,
@@ -991,7 +1176,11 @@ public class KeepService {
             case "build_forge" -> state.getStorehouseLevel() >= 1 && facilityLevel(state, "forge") < 1;
             case "build_fridge" -> state.getStorehouseLevel() >= 1 && facilityLevel(state, "fridge") < 1;
             case "build_generator" -> state.getStorehouseLevel() >= 1 && facilityLevel(state, "generator") < 1;
-            case "storehouse_level_2" -> allFacilitiesAtLeast(state, 1) && state.getStorehouseLevel() < 2;
+            case "build_quarry" -> state.getStorehouseLevel() >= 1 && facilityLevel(state, "quarry") < 1;
+            case "build_kitchen" -> state.getStorehouseLevel() >= 1 && facilityLevel(state, "kitchen") < 1;
+            case "build_builders_yard" -> facilityLevel(state, "quarry") >= 1 && state.getBuildersYardLevel() < 1;
+            case "storehouse_level_2" -> elementalFacilitiesAtLeast(state, 1) && state.getStorehouseLevel() < 2
+                    && state.getBuildersYardLevel() >= 1;
             case "hall_level_2", "hall_level_3", "hall_level_4", "hall_level_5",
                  "hall_level_6", "hall_level_7", "hall_level_8" -> {
                 int level = parseHallLevel(id);
@@ -1000,7 +1189,8 @@ public class KeepService {
             default -> {
                 String facilityId = id.endsWith("_level_2")
                         ? id.substring(0, id.length() - "_level_2".length()) : "";
-                yield FACILITIES.containsKey(facilityId) && facilityLevel(state, facilityId) == 1;
+                yield FACILITIES.containsKey(facilityId) && facilityLevel(state, facilityId) == 1
+                        && state.getBuildersYardLevel() >= 1;
             }
         };
         if (!valid) throw new IllegalArgumentException("That project is not available yet.");
@@ -1021,11 +1211,12 @@ public class KeepService {
         return switch (level) {
             case 2 -> state.getArchiveLevel() >= 1;
             case 3 -> state.getWoodlotLevel() >= 2 && state.getStorehouseLevel() >= 1;
-            case 4 -> FACILITIES.keySet().stream().filter(id -> facilityLevel(state, id) >= 1).count() >= 2;
-            case 5 -> allFacilitiesAtLeast(state, 1);
+            case 4 -> facilityLevel(state, "quarry") >= 1
+                    && ELEMENTAL_FACILITIES.stream().filter(id -> facilityLevel(state, id) >= 1).count() >= 2;
+            case 5 -> elementalFacilitiesAtLeast(state, 1);
             case 6 -> state.getStorehouseLevel() >= 2;
-            case 7 -> allFacilitiesAtLeast(state, 2);
-            case 8 -> allFacilitiesAtLeast(state, 2) && state.getStorehouseLevel() >= 2
+            case 7 -> elementalFacilitiesAtLeast(state, 2);
+            case 8 -> elementalFacilitiesAtLeast(state, 2) && state.getStorehouseLevel() >= 2
                     && FACILITIES.values().stream().allMatch(definition -> craftedCount(state, definition.toolRecipeId()) > 0);
             default -> false;
         };
@@ -1035,11 +1226,11 @@ public class KeepService {
         return switch (level) {
             case 2 -> "Restore the Living Archive to plan the outpost.";
             case 3 -> "Cultivate the Woodlot and raise the Storehouse first.";
-            case 4 -> "Complete two elemental facilities to cut stone footings.";
+            case 4 -> "Open the Covenant Quarry and two elemental workshops to cut stone footings.";
             case 5 -> "Complete all four elemental facilities to enclose the yard.";
             case 6 -> "Vault the Storehouse to channel the elements through the walls.";
             case 7 -> "Expand every elemental facility to level 2.";
-            case 8 -> "Craft all four workshop tools to consecrate the keep.";
+            case 8 -> "Craft every workshop tool to consecrate the keep.";
             default -> "";
         };
     }
@@ -1063,6 +1254,8 @@ public class KeepService {
             case "forge" -> Map.of("verdant_fiber", 24, "storm_cell", 10);
             case "fridge" -> Map.of("verdant_fiber", 20, "ember_ingot", 16);
             case "generator" -> Map.of("verdant_fiber", 12, "ember_ingot", 12, "frost_crystal", 12);
+            case "quarry" -> Map.of("ember_ingot", 14, "storm_cell", 8);
+            case "kitchen" -> Map.of("stone", 14, "frost_crystal", 10);
             default -> Map.of();
         };
     }
@@ -1086,6 +1279,12 @@ public class KeepService {
         out.put("generator", new FacilityDefinition("generator", "Elemental Generator", "Silent Generator",
                 "storm_cell", "Storm Cell", .40, 80, Set.of("ELECTRIC", "FIRE", "LIGHT", "SHADOW", "PSYCHIC"),
                 "tuning_key", "Choose the Generator first for charged cells used by advanced tools and production networks."));
+        out.put("quarry", new FacilityDefinition("quarry", "Covenant Quarry", "Collapsed Quarry",
+                "stone", "Cut Stone", .22, 110, Set.of("EARTH", "METAL", "FIRE", "UNDEAD"),
+                "mason_mauls", "Open the Quarry for cut stone that raises the Builder's Yard, keep ranks, and heavy construction."));
+        out.put("kitchen", new FacilityDefinition("kitchen", "Garden Kitchen", "Cold Kitchen",
+                "provisions", "Provisions", .30, 100, Set.of("WATER", "FIRE", "EARTH", "LIGHT", "NEUTRAL"),
+                "hearth_set", "Warm the Kitchen for provisions that fill weekly orders and feed visiting Siegelings."));
         return out;
     }
 
@@ -1124,6 +1323,18 @@ public class KeepService {
         out.put("covenant_tapestry", new CraftRecipe("covenant_tapestry", "Tapestry of Four Currents", "DECORATION", "great_hall", 1,
                 Map.of("verdant_fiber", 4, "ember_ingot", 4, "frost_crystal", 4, "storm_cell", 4), false,
                 "A hall tapestry woven from every material produced by the Keep.", "Covenant Hall decoration"));
+        out.put("mason_mauls", new CraftRecipe("mason_mauls", "Stonewise Mason Mauls", "TOOL", "quarry", 1,
+                Map.of("stone", 12, "ember_ingot", 6), false,
+                "Balanced mauls split stone along its willing grain instead of forcing it.", "Quarry output +20%"));
+        out.put("hearth_set", new CraftRecipe("hearth_set", "Shared-Table Hearth Set", "TOOL", "kitchen", 1,
+                Map.of("stone", 8, "ember_ingot", 8), false,
+                "Pots sized for residents and visitors alike keep the kitchen turning.", "Kitchen output +20%"));
+        out.put("stone_sentinel", new CraftRecipe("stone_sentinel", "Quarry Stone Sentinel", "DECORATION", "quarry", 1,
+                Map.of("stone", 8), false,
+                "A carved guardian watching over the cut faces of the quarry.", "Quarry interior decoration"));
+        out.put("hearth_garland", new CraftRecipe("hearth_garland", "Harvest Hearth Garland", "DECORATION", "kitchen", 1,
+                Map.of("provisions", 7), false,
+                "Dried blooms and braided grain hung over the kitchen hearth.", "Kitchen interior decoration"));
         return out;
     }
 
@@ -1222,7 +1433,10 @@ public class KeepService {
         out.put("residents", residentPayload);
         out.put("buildings", buildings(state));
         out.put("buildOptions", buildOptions(state));
-        out.put("activeConstruction", activeConstruction(state, now));
+        List<Map<String, Object>> constructions = activeConstructions(state, now);
+        out.put("activeConstruction", constructions.isEmpty() ? null : constructions.get(0));
+        out.put("activeConstructions", constructions);
+        out.put("constructionSlots", constructionSlots(state));
         Map<String, Object> visualState = new LinkedHashMap<>();
         visualState.put("archiveRestored", state.getArchiveLevel() > 0);
         visualState.put("woodlotLevel", state.getWoodlotLevel());
@@ -1230,8 +1444,20 @@ public class KeepService {
         visualState.put("healingStage", Math.min(3, state.getWoodlotCollectCount() + state.getArchiveLevel()));
         visualState.put("hallLevel", hallLevel(state));
         visualState.put("hallTheme", state.getHallThemeId().isBlank() ? "covenant" : state.getHallThemeId());
+        visualState.put("buildersYardLevel", state.getBuildersYardLevel());
+        visualState.put("favoriteSet", !state.getFavoriteResidentId().isBlank());
         FACILITIES.keySet().forEach(id -> visualState.put(id + "Level", facilityLevel(state, id)));
         out.put("visualState", visualState);
+
+        Resident favoriteRes = favoriteResident(state, residents);
+        int favoritePercent = (int) Math.round(favoriteBoost(state, residents) * 100);
+        Map<String, Object> favoriteOut = new LinkedHashMap<>();
+        favoriteOut.put("residentId", state.getFavoriteResidentId());
+        favoriteOut.put("resident", favoriteRes == null ? null : serializeResident(favoriteRes));
+        favoriteOut.put("bonusPercent", favoritePercent);
+        favoriteOut.put("label", favoriteRes == null ? "No favorite chosen"
+                : titleCase(favoriteRes.rarity()) + " favorite · +" + favoritePercent + "% keep-wide");
+        out.put("favorite", favoriteOut);
 
         HallTheme activeTheme = HALL_THEMES.getOrDefault(state.getHallThemeId(), HALL_THEMES.get("covenant"));
         Map<String, Object> keepRank = new LinkedHashMap<>();
@@ -1272,7 +1498,8 @@ public class KeepService {
         out.put("decorations", decorations(state));
         out.put("placedDecorations", state.getPlacedDecorations());
         out.put("milestones", milestones(state, progression, now));
-        out.put("weeklyTribute", weeklyTribute(state, progression, now));
+        out.put("weeklyTribute", weeklyTribute(state, progression, residents, now));
+        out.put("weeklyOrder", weeklyOrder(state, progression, residents, now));
         if (offlineReport != null && !offlineReport.isEmpty()) out.put("offlineReport", offlineReport);
         out.put("progressionReady", progression.getStarterPackId() != null);
         return out;
@@ -1281,16 +1508,20 @@ public class KeepService {
     private List<Map<String, Object>> buildings(KeepState state) {
         List<Map<String, Object>> out = new ArrayList<>();
         int hall = hallLevel(state);
-        out.add(building("great_hall", "Covenant Hall", hall,
-                state.getActiveConstructionId().startsWith("hall_level_") ? "CONSTRUCTING" : "COMPLETE"));
+        boolean hallConstructing = state.getActiveConstructionId().startsWith("hall_level_")
+                || state.getActiveConstructionId2().startsWith("hall_level_");
+        out.add(building("great_hall", "Covenant Hall", hall, hallConstructing ? "CONSTRUCTING" : "COMPLETE"));
+        out.add(building("builders_yard", state.getBuildersYardLevel() > 0 ? "Builder's Yard" : "Yard Foundations",
+                state.getBuildersYardLevel(), isConstructing(state, "build_builders_yard") ? "CONSTRUCTING"
+                        : state.getBuildersYardLevel() > 0 ? "COMPLETE" : "FOUNDATIONS"));
         out.add(building("walls", "Keep Walls", hall >= 5 ? 1 : 0, hall >= 5 ? "COMPLETE" : "FOUNDATIONS"));
         out.add(building("gate", "Covenant Gate", hall >= 5 ? 1 : 0, hall >= 5 ? "COMPLETE" : "FOUNDATIONS"));
         out.add(building("towers", "Elemental Towers", hall >= 6 ? 1 : 0, hall >= 6 ? "COMPLETE" : "FOUNDATIONS"));
         out.add(building("landmark", "Grand Landmark", hall >= 8 ? 1 : 0, hall >= 8 ? "COMPLETE" : "FOUNDATIONS"));
         out.add(building("woodlot", "Restorative Woodlot", state.getWoodlotLevel(),
-                "woodlot_level_2".equals(state.getActiveConstructionId()) ? "CONSTRUCTING" : "COMPLETE"));
+                isConstructing(state, "woodlot_level_2") ? "CONSTRUCTING" : "COMPLETE"));
         out.add(building("archive", state.getArchiveLevel() > 0 ? "Living Archive" : "Ruined Archive", state.getArchiveLevel(),
-                "restore_archive".equals(state.getActiveConstructionId()) ? "CONSTRUCTING"
+                isConstructing(state, "restore_archive") ? "CONSTRUCTING"
                         : state.getArchiveLevel() > 0 ? "COMPLETE" : "RUINED"));
         out.add(building("storehouse", state.getStorehouseLevel() > 0 ? "Covenant Storehouse" : "Storehouse Foundations",
                 state.getStorehouseLevel(), constructionStatus(state, "raise_storehouse", "storehouse_level_2", state.getStorehouseLevel())));
@@ -1334,17 +1565,25 @@ public class KeepService {
                         project.durationSeconds(), definition.buildDescription(), true));
             }
         }
-        for (FacilityDefinition definition : FACILITIES.values()) {
-            if (facilityLevel(state, definition.id()) == 1) {
-                BuildProject project = buildProject(definition.id() + "_level_2");
-                out.add(buildOption(state, project.id(), project.name(), project.timberCost(), project.materialCosts(),
-                        project.durationSeconds(), "Use materials from other workshops to improve production, storage, and the resident's contribution.", true));
-            }
-        }
-        if (allFacilitiesAtLeast(state, 1) && state.getStorehouseLevel() < 2) {
-            BuildProject project = buildProject("storehouse_level_2");
+        if (facilityLevel(state, "quarry") >= 1 && state.getBuildersYardLevel() < 1) {
+            BuildProject project = buildProject("build_builders_yard");
             out.add(buildOption(state, project.id(), project.name(), project.timberCost(), project.materialCosts(),
-                    project.durationSeconds(), "Combine all four elemental materials into a larger sanctuary vault.", true));
+                    project.durationSeconds(),
+                    "Advanced construction recipes and a second crew: level-2 expansions unlock and two projects can run at once.", true));
+        }
+        if (state.getBuildersYardLevel() >= 1) {
+            for (FacilityDefinition definition : FACILITIES.values()) {
+                if (facilityLevel(state, definition.id()) == 1) {
+                    BuildProject project = buildProject(definition.id() + "_level_2");
+                    out.add(buildOption(state, project.id(), project.name(), project.timberCost(), project.materialCosts(),
+                            project.durationSeconds(), "Use materials from other workshops to improve production, storage, and the resident's contribution.", true));
+                }
+            }
+            if (elementalFacilitiesAtLeast(state, 1) && state.getStorehouseLevel() < 2) {
+                BuildProject project = buildProject("storehouse_level_2");
+                out.add(buildOption(state, project.id(), project.name(), project.timberCost(), project.materialCosts(),
+                        project.durationSeconds(), "Combine all four elemental materials into a larger sanctuary vault.", true));
+            }
         }
         addHallUpgradeOption(state, out);
         return out;
@@ -1372,20 +1611,30 @@ public class KeepService {
         out.put("materialCosts", serializeMaterialCosts(materialCosts));
         out.put("durationSeconds", seconds);
         out.put("description", description);
-        out.put("canStart", unlocked && state.getActiveConstructionId().isBlank()
+        out.put("canStart", unlocked && hasFreeConstructionSlot(state)
                 && state.getTimber() >= timberCost && hasMaterials(state, materialCosts));
         return out;
     }
 
-    private Map<String, Object> activeConstruction(KeepState state, Instant now) {
-        if (state.getActiveConstructionId().isBlank() || state.getConstructionCompletesAt() == null) return null;
-        long total = state.getConstructionStartedAt() == null ? 1
-                : Math.max(1, Duration.between(state.getConstructionStartedAt(), state.getConstructionCompletesAt()).getSeconds());
-        long remaining = Math.max(0, Duration.between(now, state.getConstructionCompletesAt()).getSeconds());
+    private List<Map<String, Object>> activeConstructions(KeepState state, Instant now) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        Map<String, Object> first = constructionEntry(state.getActiveConstructionId(),
+                state.getConstructionStartedAt(), state.getConstructionCompletesAt(), now);
+        if (first != null) out.add(first);
+        Map<String, Object> second = constructionEntry(state.getActiveConstructionId2(),
+                state.getConstructionStartedAt2(), state.getConstructionCompletesAt2(), now);
+        if (second != null) out.add(second);
+        return out;
+    }
+
+    private Map<String, Object> constructionEntry(String id, Instant startedAt, Instant completesAt, Instant now) {
+        if (id == null || id.isBlank() || completesAt == null) return null;
+        long total = startedAt == null ? 1 : Math.max(1, Duration.between(startedAt, completesAt).getSeconds());
+        long remaining = Math.max(0, Duration.between(now, completesAt).getSeconds());
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("id", state.getActiveConstructionId());
-        out.put("startedAt", state.getConstructionStartedAt() == null ? null : state.getConstructionStartedAt().toString());
-        out.put("completesAt", state.getConstructionCompletesAt().toString());
+        out.put("id", id);
+        out.put("startedAt", startedAt == null ? null : startedAt.toString());
+        out.put("completesAt", completesAt.toString());
         out.put("remainingSeconds", remaining);
         out.put("progress", Math.max(0, Math.min(1, (total - remaining) / (double) total)));
         return out;

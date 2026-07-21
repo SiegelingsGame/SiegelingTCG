@@ -94,6 +94,14 @@ public class KeepController {
                 string(body, "requestId"), version(body)));
     }
 
+    @PostMapping("/api/keep/favorite")
+    public ResponseEntity<Map<String, Object>> favorite(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody Map<String, Object> body) {
+        return respond(authorizationHeader, user -> keepService.setFavorite(user, string(body, "residentId"),
+                string(body, "requestId"), version(body)));
+    }
+
     @PostMapping("/api/keep/theme")
     public ResponseEntity<Map<String, Object>> theme(
             @RequestHeader(value = "Authorization", required = false) String authorizationHeader,

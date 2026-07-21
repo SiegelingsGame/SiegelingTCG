@@ -9,7 +9,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#173f54">
-    <link rel="stylesheet" href="/css/keep.css?v=9">
+    <link rel="stylesheet" href="/css/keep.css?v=10">
 </head>
 <body>
 <div class="keep-app" id="keepApp">
@@ -253,10 +253,13 @@
                 <button class="building-hotspot quarter-hotspot" type="button" data-building="facilities" aria-label="Open the Elemental Quarter">
                     <span class="quarter-illustration" aria-hidden="true">
                         <i class="quarter-building quarter-storehouse"><b></b></i>
-                        <i class="quarter-building quarter-garden" data-stockpile="garden"><b></b><u></u></i>
-                        <i class="quarter-building quarter-forge" data-stockpile="forge"><b></b><u></u></i>
-                        <i class="quarter-building quarter-fridge" data-stockpile="fridge"><b></b><u></u></i>
                         <i class="quarter-building quarter-generator" data-stockpile="generator"><b></b><u></u></i>
+                        <i class="quarter-building quarter-yard"><b></b></i>
+                        <i class="quarter-building quarter-forge" data-stockpile="forge"><b></b><u></u></i>
+                        <i class="quarter-building quarter-quarry" data-stockpile="quarry"><b></b><u></u></i>
+                        <i class="quarter-building quarter-garden" data-stockpile="garden"><b></b><u></u></i>
+                        <i class="quarter-building quarter-kitchen" data-stockpile="kitchen"><b></b><u></u></i>
+                        <i class="quarter-building quarter-fridge" data-stockpile="fridge"><b></b><u></u></i>
                         <span class="quarter-path"></span>
                     </span>
                     <span class="building-label"><strong>Elemental Quarter</strong><small id="quarterLabel">Foundations awaiting restoration</small></span>
@@ -265,6 +268,13 @@
                 <div class="memorabilia-plinth hidden" id="memorabiliaPlinth" aria-label="Displayed Petrified Root">
                     <i></i><span></span><small>Petrified Root</small>
                 </div>
+
+                <button class="favorite-shrine" id="favoriteShrine" type="button" data-open-panel="residents" aria-label="Favorite Siegeling shrine">
+                    <i class="shrine-glow" aria-hidden="true"></i>
+                    <span class="shrine-art" id="favoriteShrineArt" aria-hidden="true"></span>
+                    <b class="shrine-plinth" aria-hidden="true"></b>
+                    <small id="favoriteShrineLabel">Choose a favorite</small>
+                </button>
 
             </div>
 
@@ -355,6 +365,18 @@
                     <i class="harmonic-orb crafted-decoration" data-decoration-art="harmonic_orb"></i>
                     <span class="facility-room-resident hidden" data-facility-resident><span data-facility-resident-art></span><small data-facility-resident-name></small></span>
                 </div>
+                <div class="interior-room room-quarry">
+                    <i class="int-backwall"></i><i class="int-sidewall side-left"></i><i class="int-sidewall side-right"></i><i class="int-floor"></i>
+                    <i class="quarry-face"></i><i class="quarry-blocks"></i><i class="quarry-cart"></i><i class="quarry-lantern"></i>
+                    <i class="stone-sentinel crafted-decoration" data-decoration-art="stone_sentinel"></i>
+                    <span class="facility-room-resident hidden" data-facility-resident><span data-facility-resident-art></span><small data-facility-resident-name></small></span>
+                </div>
+                <div class="interior-room room-kitchen">
+                    <i class="int-backwall"></i><i class="int-sidewall side-left"></i><i class="int-sidewall side-right"></i><i class="int-floor"></i>
+                    <i class="kitchen-hearth"><b></b></i><i class="kitchen-shelf"></i><i class="kitchen-table"></i><i class="kitchen-pot"></i>
+                    <i class="hearth-garland crafted-decoration" data-decoration-art="hearth_garland"></i>
+                    <span class="facility-room-resident hidden" data-facility-resident><span data-facility-resident-art></span><small data-facility-resident-name></small></span>
+                </div>
             </div>
             <div class="interior-actions" id="interiorActions"></div>
         </section>
@@ -441,7 +463,7 @@
 </div>
 
 <script src="/js/config.js?v=1"></script>
-<script src="/js/keep.js?v=10"></script>
+<script src="/js/keep.js?v=11"></script>
 <script src="/js/sw-register.js?v=1"></script>
 </body>
 </html>
