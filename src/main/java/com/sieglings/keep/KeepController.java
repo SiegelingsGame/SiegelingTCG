@@ -94,6 +94,14 @@ public class KeepController {
                 string(body, "requestId"), version(body)));
     }
 
+    @PostMapping("/api/keep/theme")
+    public ResponseEntity<Map<String, Object>> theme(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody Map<String, Object> body) {
+        return respond(authorizationHeader, user -> keepService.setHallTheme(user, string(body, "themeId"),
+                string(body, "requestId"), version(body)));
+    }
+
     @PostMapping("/api/keep/decoration")
     public ResponseEntity<Map<String, Object>> decoration(
             @RequestHeader(value = "Authorization", required = false) String authorizationHeader,

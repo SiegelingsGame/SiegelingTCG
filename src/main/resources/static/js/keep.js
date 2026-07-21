@@ -55,10 +55,18 @@
         PSYCHIC: '#d0a7ff', LIGHT: '#ffe9a8', POISON: '#84c55b', NEUTRAL: '#c8b997'
     };
 
+    const RANK_NAMES = ['Ruined Camp', 'Timber Outpost', 'Settled Courtyard', 'Stonehold',
+        'Walled Keep', 'Elemental Stronghold', 'High Castle', 'Grand Keep'];
+    const HALL_MAX_LEVEL = 8;
+
+    /** Scene pan/zoom is view-only state; the world layers transform, UI chrome stays fixed. */
+    const view = { zoom: 1, panX: 0, panY: 0 };
+
     document.addEventListener('DOMContentLoaded', init);
 
     async function init() {
         bindEvents();
+        initSceneView();
         if (state.testMode) {
             applySnapshot(clone(window.__KEEP_TEST_SNAPSHOT__), false);
             hideLoading();
@@ -110,6 +118,86 @@
         if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
         const main = document.querySelector('.keep-main');
         if (main?.scrollLeft || main?.scrollTop) main.scrollTo(0, 0);
+    }
+
+    /* —— Scene pan & zoom: buttons for accessibility, pointer drag when zoomed. —— */
+    function initSceneView() {
+        document.getElementById('zoomIn')?.addEventListener('click', () => setZoom(view.zoom + 0.3));
+        document.getElementById('zoomOut')?.addEventListener('click', () => setZoom(view.zoom - 0.3));
+        document.getElementById('zoomReset')?.addEventListener('click', () => setZoom(1));
+        const viewport = document.querySelector('.keep-scene-viewport');
+        if (!viewport) return;
+        let pointerId = null;
+        let startX = 0;
+        let startY = 0;
+        let baseX = 0;
+        let baseY = 0;
+        let dragged = false;
+        viewport.addEventListener('pointerdown', (event) => {
+            if (view.zoom <= 1 || event.button > 0 || event.target.closest('.scene-zoom')) return;
+            pointerId = event.pointerId;
+            startX = event.clientX;
+            startY = event.clientY;
+            baseX = view.panX;
+            baseY = view.panY;
+            dragged = false;
+        });
+        viewport.addEventListener('pointermove', (event) => {
+            if (pointerId === null || event.pointerId !== pointerId) return;
+            const dx = event.clientX - startX;
+            const dy = event.clientY - startY;
+            if (!dragged && Math.hypot(dx, dy) < 7) return;
+            dragged = true;
+            document.getElementById('keepScene')?.classList.add('is-dragging');
+            view.panX = baseX + dx;
+            view.panY = baseY + dy;
+            applySceneView();
+        });
+        const release = (event) => {
+            if (pointerId === null || event.pointerId !== pointerId) return;
+            pointerId = null;
+            document.getElementById('keepScene')?.classList.remove('is-dragging');
+            // A drag must not fire the hotspot tap underneath the finger.
+            if (dragged) suppressNextSceneClick();
+        };
+        viewport.addEventListener('pointerup', release);
+        viewport.addEventListener('pointercancel', release);
+        window.addEventListener('resize', applySceneView);
+    }
+
+    function setZoom(next) {
+        view.zoom = clamp(Math.round(number(next) * 100) / 100, 1, 2.2);
+        if (view.zoom <= 1) {
+            view.panX = 0;
+            view.panY = 0;
+        }
+        applySceneView();
+    }
+
+    function applySceneView() {
+        const scene = document.getElementById('keepScene');
+        const viewport = document.querySelector('.keep-scene-viewport');
+        if (!scene || !viewport) return;
+        const maxX = (view.zoom - 1) * viewport.clientWidth / 2;
+        const maxY = (view.zoom - 1) * viewport.clientHeight / 2;
+        view.panX = clamp(view.panX, -maxX, maxX);
+        view.panY = clamp(view.panY, -maxY, maxY);
+        scene.style.transform = view.zoom === 1
+            ? '' : `translate(${view.panX}px, ${view.panY}px) scale(${view.zoom})`;
+        viewport.classList.toggle('is-pannable', view.zoom > 1);
+        const zoomIn = document.getElementById('zoomIn');
+        const zoomOut = document.getElementById('zoomOut');
+        if (zoomIn) zoomIn.disabled = view.zoom >= 2.2;
+        if (zoomOut) zoomOut.disabled = view.zoom <= 1;
+    }
+
+    function suppressNextSceneClick() {
+        const stop = (event) => {
+            event.stopPropagation();
+            event.preventDefault();
+        };
+        document.addEventListener('click', stop, { capture: true, once: true });
+        window.setTimeout(() => document.removeEventListener('click', stop, { capture: true }), 150);
     }
 
     function handleClick(event) {
@@ -188,6 +276,11 @@
             void startBuild(build.dataset.startBuild);
             return;
         }
+        const theme = event.target.closest('[data-set-theme]');
+        if (theme) {
+            void setHallTheme(theme.dataset.setTheme);
+            return;
+        }
         const conversation = event.target.closest('[data-conversation-id]');
         if (conversation) {
             openConversation(conversation.dataset.conversationId);
@@ -250,7 +343,13 @@
     async function collectStation(stationId) {
         const station = stationById(stationId);
         if (!station || projectedStationAvailable(station) <= 0) return;
-        await perform('/api/keep/collect', { stationId });
+        const data = await perform('/api/keep/collect', { stationId });
+        if (data?.collected) playCollectBurst(stationId, number(data.collected.amount));
+    }
+
+    async function setHallTheme(themeId) {
+        const data = await perform('/api/keep/theme', { themeId });
+        if (data?.themeChanged) showNotice(`${data.themeChanged.name} colors raised over the hall.`, 'Hall theme');
     }
 
     async function inviteResident(residentId, stationId) {
@@ -378,6 +477,7 @@
 
         const scene = document.getElementById('keepScene');
         const visual = snapshot.visualState || {};
+        const hallLevel = Math.max(1, number(visual.hallLevel) || 1);
         if (scene) {
             scene.dataset.healingStage = String(number(visual.healingStage));
             scene.dataset.archiveRestored = String(Boolean(visual.archiveRestored));
@@ -387,9 +487,15 @@
             scene.dataset.forgeLevel = String(number(visual.forgeLevel));
             scene.dataset.fridgeLevel = String(number(visual.fridgeLevel));
             scene.dataset.generatorLevel = String(number(visual.generatorLevel));
-            scene.classList.toggle('is-building-archive', snapshot.activeConstruction?.id === 'restore_archive');
-            scene.classList.toggle('is-building-woodlot', snapshot.activeConstruction?.id === 'woodlot_level_2');
+            scene.dataset.hallLevel = String(hallLevel);
+            scene.dataset.hallTheme = visual.hallTheme || 'covenant';
+            for (let level = 2; level <= HALL_MAX_LEVEL; level++) scene.classList.toggle(`hall-l${level}`, hallLevel >= level);
+            scene.dataset.constructing = constructionTarget(snapshot.activeConstruction?.id);
         }
+        const rank = snapshot.keepRank || {};
+        text('hallRankLabel', rank.name
+            ? `${rank.name} · Rank ${number(rank.level) || 1}/${number(rank.maxLevel) || HALL_MAX_LEVEL}`
+            : 'Sanctuary founded');
         const builtFacilities = ['garden', 'forge', 'fridge', 'generator']
             .filter((id) => number(visual[`${id}Level`]) > 0).length;
         text('quarterLabel', builtFacilities ? `${builtFacilities}/4 facilities restored` : 'Foundations awaiting restoration');
@@ -444,9 +550,74 @@
         const collect = document.getElementById('collectButton');
         if (collect) collect.disabled = available <= 0 || number(state.snapshot.resources?.timber) >= number(state.snapshot.resources?.timberCapacity) || state.busy;
         document.getElementById('productionReady')?.classList.toggle('hidden', available <= 0);
+        updateStockpileVisuals();
         renderConstruction();
         if (state.panel.startsWith('building:woodlot') || state.panel === 'projects' || state.panel === 'facilities'
                 || state.panel === 'residents' || state.interior === 'woodlot') updatePanelLiveValues();
+    }
+
+    /** Stockpiles in the scene grow with each station's uncollected stores:
+        tier 0 empty → 4 full (overgrowth). Claiming clears them with a burst. */
+    function updateStockpileVisuals() {
+        const scene = document.getElementById('keepScene');
+        if (!scene) return;
+        for (const station of state.snapshot.stations || [state.snapshot.station]) {
+            if (!station?.id) continue;
+            const key = `fill${station.id.charAt(0).toUpperCase()}${station.id.slice(1)}`;
+            scene.dataset[key] = String(fillTier(station));
+        }
+        const interior = document.getElementById('keepInterior');
+        if (interior) {
+            const station = stationById(state.interior);
+            interior.dataset.fill = station ? String(fillTier(station)) : '';
+        }
+    }
+
+    function fillTier(station) {
+        if (!station) return 0;
+        const capacity = Math.max(1, number(station.storageCapacity));
+        const ratio = projectedStationAvailable(station) / capacity;
+        if (ratio >= 1) return 4;
+        if (ratio >= 0.66) return 3;
+        if (ratio >= 0.33) return 2;
+        return ratio > 0 ? 1 : 0;
+    }
+
+    function constructionTarget(constructionId) {
+        const id = String(constructionId || '');
+        if (!id) return '';
+        if (id.startsWith('hall_level_')) return 'hall';
+        if (id === 'restore_archive') return 'archive';
+        if (id === 'woodlot_level_2') return 'woodlot';
+        if (id === 'raise_storehouse' || id === 'storehouse_level_2') return 'storehouse';
+        if (id.startsWith('build_')) return id.slice('build_'.length);
+        if (id.endsWith('_level_2')) return id.slice(0, -'_level_2'.length);
+        return '';
+    }
+
+    function playCollectBurst(stationId, amount) {
+        const anchor = stationId === 'woodlot'
+            ? document.querySelector('.woodlot-hotspot')
+            : document.querySelector(`.quarter-building[data-stockpile="${stationId}"]`)
+                || document.querySelector('.quarter-hotspot');
+        if (!anchor) return;
+        anchor.classList.remove('is-clearing');
+        void anchor.offsetWidth; // restart the clearing animation on rapid re-collects
+        anchor.classList.add('is-clearing');
+        window.setTimeout(() => anchor.classList.remove('is-clearing'), 1100);
+        const scene = document.getElementById('keepScene');
+        if (!scene || !(amount > 0)) return;
+        const chip = document.createElement('span');
+        chip.className = 'collect-float';
+        chip.textContent = `+${amount}`;
+        const rect = anchor.getBoundingClientRect();
+        const sceneRect = scene.getBoundingClientRect();
+        if (sceneRect.width > 0 && sceneRect.height > 0) {
+            chip.style.left = `${((rect.left + rect.width / 2 - sceneRect.left) / sceneRect.width) * 100}%`;
+            chip.style.top = `${((rect.top - sceneRect.top) / sceneRect.height) * 100}%`;
+        }
+        scene.appendChild(chip);
+        window.setTimeout(() => chip.remove(), 1500);
     }
 
     function renderConstruction() {
@@ -538,7 +709,8 @@
         }
         const station = stationById(id);
         if (station) return { title: station.name, kicker: `Level ${number(station.level)} · ${station.resourceName || 'Elemental workshop'}` };
-        return { title: 'Covenant Hall', kicker: 'The three promises' };
+        const rank = state.snapshot.keepRank || {};
+        return { title: 'Covenant Hall', kicker: rank.name ? `${rank.name} · Rank ${number(rank.level) || 1}` : 'The three promises' };
     }
 
     function buildingMarkup(id) {
@@ -561,7 +733,34 @@
                 : `<p class="panel-intro">A collapsed record hall lies beneath the eastern wall. Its stones protect letters from the Age Before Cards.</p>${projectsMarkup()}`;
         }
         if (stationById(id)) return facilityInteriorMarkup(id);
-        return `<p class="panel-intro">The sanctuary is founded on Stewardship, Consent, and Shelter.</p><section class="detail-card"><h3>The Keeper's Charter</h3><p>No Siegeling will be compelled to labor or fight. The land will be repaired rather than consumed, and those hunted by Akhar may seek refuge here.</p><div class="button-row"><button class="panel-button" type="button" data-open-panel="chronicle">Read the charter</button></div></section>${craftingMarkup('great_hall')}`;
+        return `<p class="panel-intro">The sanctuary is founded on Stewardship, Consent, and Shelter.</p>${rankCardMarkup()}<section class="detail-card"><h3>The Keeper's Charter</h3><p>No Siegeling will be compelled to labor or fight. The land will be repaired rather than consumed, and those hunted by Akhar may seek refuge here.</p><div class="button-row"><button class="panel-button" type="button" data-open-panel="chronicle">Read the charter</button></div></section>${themePickerMarkup()}${craftingMarkup('great_hall')}`;
+    }
+
+    function rankCardMarkup() {
+        const rank = state.snapshot.keepRank || {};
+        const level = number(rank.level) || 1;
+        const max = number(rank.maxLevel) || HALL_MAX_LEVEL;
+        const dots = Array.from({ length: max }, (item, index) =>
+            `<i class="${index < level ? 'filled' : ''}"></i>`).join('');
+        const next = rank.nextName
+            ? `<p>Next rank: <strong>${escapeHtml(rank.nextName)}</strong>. ${escapeHtml(rank.nextHint || 'Upgrade the hall from Projects.')}</p>`
+            : '<p>The Grand Keep stands complete — every rank of the sanctuary has been raised.</p>';
+        return `<section class="detail-card rank-card"><span class="eyebrow">Keep rank ${level}/${max}</span>
+            <h3>${escapeHtml(rank.name || 'Ruined Camp')}</h3>
+            <div class="rank-dots" aria-hidden="true">${dots}</div>${next}
+            <div class="button-row"><button class="panel-button secondary" type="button" data-open-panel="projects">Open Projects</button></div></section>`;
+    }
+
+    function themePickerMarkup() {
+        const themes = state.snapshot.hallThemes || [];
+        if (!themes.length) return '';
+        return `<section class="detail-card theme-card"><span class="eyebrow">Hall colors</span><h3>Banners & light</h3>
+            <p>Recolor the hall's banners, lanterns, and tower light across the whole keep. Purely cosmetic — production never changes.</p>
+            <div class="theme-swatches">${themes.map((theme) => `
+                <button type="button" class="theme-swatch ${theme.active ? 'active' : ''}" data-set-theme="${escapeAttr(theme.id)}"
+                    style="--swatch:${escapeAttr(theme.accent)};--swatch-trim:${escapeAttr(theme.trim)}" title="${escapeAttr(theme.name)}">
+                    <i aria-hidden="true"></i><small>${escapeHtml(theme.name)}</small>
+                </button>`).join('')}</div></section>`;
     }
 
     function facilityInteriorMarkup(id) {
@@ -621,6 +820,9 @@
         text('interiorTitle', heading.title);
         text('interiorKicker', heading.kicker);
         interior.dataset.archiveRestored = String(Boolean(state.snapshot.visualState?.archiveRestored));
+        interior.dataset.hallTheme = state.snapshot.visualState?.hallTheme || 'covenant';
+        const interiorStation = stationById(state.interior);
+        interior.dataset.fill = interiorStation ? String(fillTier(interiorStation)) : '';
         const resident = state.interior === 'woodlot' ? state.snapshot.station?.resident : stationById(state.interior)?.resident;
         document.getElementById('interiorResident')?.classList.toggle('hidden', !resident);
         setResidentOverlayArt(document.getElementById('interiorResidentArt'), resident);
@@ -797,7 +999,7 @@
                 for (const cost of option.materialCosts || []) {
                     if (number(materialById(cost.id)?.amount) < number(cost.amount)) shortages.push(cost.name);
                 }
-                return `<section class="project-card"><span class="eyebrow">Visible restoration</span><h3>${escapeHtml(option.name)}</h3><p>${escapeHtml(option.description || '')}</p>
+                return `<section class="project-card ${option.rankName ? 'is-rank-project' : ''}"><span class="eyebrow">${option.rankName ? `Keep rank · ${escapeHtml(option.rankName)}` : 'Visible restoration'}</span><h3>${escapeHtml(option.name)}</h3><p>${escapeHtml(option.description || '')}</p>
                     <div class="cost-row"><span>${escapeHtml(formatDuration(option.durationSeconds))}</span><strong>${escapeHtml(costs.join(' · '))}</strong></div>
                     <div class="button-row"><button class="panel-button" type="button" data-start-build="${escapeAttr(option.id)}" ${option.canStart ? '' : 'disabled'}>${option.canStart ? 'Begin project' : `Need ${escapeHtml(shortages.join(' & ') || 'prior project')}`}</button></div></section>`;
             }).join('') : '<div class="empty-state">Every current restoration is complete. Weekly tribute and resident affinities keep the sanctuary useful while future chapters arrive.</div>';
@@ -1054,6 +1256,15 @@
             else if (snapshot.placedDecorations[body.roomId] === body.decorationId) delete snapshot.placedDecorations[body.roomId];
             const decoration = (snapshot.decorations || []).find((item) => item.id === body.decorationId);
             if (decoration) decoration.displayed = Boolean(body.displayed);
+        } else if (path.endsWith('/theme')) {
+            const themes = snapshot.hallThemes || [];
+            const picked = themes.find((item) => item.id === (body.themeId || 'covenant')) || themes[0];
+            for (const item of themes) item.active = Boolean(picked) && item.id === picked.id;
+            if (snapshot.visualState) snapshot.visualState.hallTheme = picked?.id || 'covenant';
+            if (picked) {
+                snapshot.hallTheme = { id: picked.id, name: picked.name, accent: picked.accent, trim: picked.trim };
+                snapshot.themeChanged = { id: picked.id, name: picked.name };
+            }
         }
         window.__KEEP_TEST_SNAPSHOT__ = clone(snapshot);
         return Promise.resolve(snapshot);
@@ -1084,6 +1295,16 @@
             snapshot.station.level = 2;
             snapshot.station.ratePerMinute *= 2;
             mockUnlock(snapshot, 'letter_green_covenant');
+        } else if (String(construction.id).startsWith('hall_level_')) {
+            const level = number(String(construction.id).slice('hall_level_'.length));
+            if (snapshot.visualState) snapshot.visualState.hallLevel = level;
+            if (snapshot.keepRank) {
+                snapshot.keepRank.level = level;
+                snapshot.keepRank.name = RANK_NAMES[level - 1] || snapshot.keepRank.name;
+                snapshot.keepRank.nextName = RANK_NAMES[level] || null;
+            }
+            const hall = (snapshot.buildings || []).find((item) => item.id === 'great_hall');
+            if (hall) { hall.level = level; hall.status = 'COMPLETE'; }
         }
         snapshot.activeConstruction = null;
         snapshot.stateVersion = number(snapshot.stateVersion) + 1;
@@ -1152,7 +1373,11 @@
             restore_archive: 'Restore the Living Archive', woodlot_level_2: 'Cultivate the Woodlot',
             raise_storehouse: 'Raise the Covenant Storehouse', build_garden: 'Plant the Covenant Garden',
             build_forge: 'Kindle the Accord Forge', build_fridge: 'Raise the Frost Fridge',
-            build_generator: 'Tune the Elemental Generator', storehouse_level_2: 'Vault the Storehouse'
+            build_generator: 'Tune the Elemental Generator', storehouse_level_2: 'Vault the Storehouse',
+            hall_level_2: 'Raise the Timber Outpost', hall_level_3: 'Settle the Courtyard',
+            hall_level_4: 'Cut the Stonehold', hall_level_5: 'Raise the Keep Walls',
+            hall_level_6: 'Awaken the Elemental Stronghold', hall_level_7: 'Crown the High Castle',
+            hall_level_8: 'Consecrate the Grand Keep'
         };
         if (names[id]) return names[id];
         if (String(id).endsWith('_level_2')) return `Expand the ${titleCase(String(id).replace('_level_2', '').replaceAll('_', ' '))}`;
@@ -1257,6 +1482,13 @@
                 capacity: number(station.storageCapacity), ratePerMinute: number(station.ratePerMinute),
                 resident: station.resident?.name || null, affinities: station.affinities || []
             })),
+            keepRank: snapshot.keepRank || null,
+            hallTheme: snapshot.visualState?.hallTheme || 'covenant',
+            sceneView: { zoom: view.zoom, panX: view.panX, panY: view.panY },
+            stockpileTiers: (snapshot.stations || [snapshot.station]).filter(Boolean).reduce((out, station) => {
+                out[station.id] = fillTier(station);
+                return out;
+            }, {}),
             milestones: (snapshot.milestones || []).map((item) => ({ id: item.id, complete: Boolean(item.complete), claimed: Boolean(item.claimed), canClaim: Boolean(item.canClaim) })),
             weeklyTribute: snapshot.weeklyTribute || null,
             recipes: (snapshot.recipes || []).map((item) => ({ id: item.id, roomId: item.roomId, type: item.type, crafted: Boolean(item.crafted), canCraft: Boolean(item.canCraft) })),

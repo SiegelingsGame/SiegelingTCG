@@ -352,6 +352,65 @@ class KeepServiceTest {
                 && Boolean.TRUE.equals(item.get("crafted"))));
     }
 
+    @Test
+    void hallUpgradesRaiseKeepRankExpandCapacityAndUnlockScenery() {
+        Map<String, Object> start = service.getSnapshot(user);
+        assertEquals(1, intAt(start, "keepRank", "level"));
+        assertEquals("Ruined Camp", valueAt(start, "keepRank", "name"));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.startBuild(user, "hall_level_2", "hall-fail", store.state.getVersion()),
+                "The Timber Outpost gate requires the restored archive.");
+
+        store.state.setArchiveLevel(1);
+        store.state.setTimber(500);
+        Map<String, Object> gated = service.getSnapshot(user);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> options = (List<Map<String, Object>>) gated.get("buildOptions");
+        assertTrue(options.stream().anyMatch(item -> "hall_level_2".equals(item.get("id"))),
+                "The next hall rank appears alongside the restoration chain once gated requirements are met.");
+
+        service.startBuild(user, "hall_level_2", "hall-1", store.state.getVersion());
+        clock.advance(Duration.ofSeconds(901));
+        Map<String, Object> upgraded = service.getSnapshot(user);
+        assertEquals(2, intAt(upgraded, "keepRank", "level"));
+        assertEquals("Timber Outpost", valueAt(upgraded, "keepRank", "name"));
+        assertEquals(2, intAt(upgraded, "visualState", "hallLevel"));
+        assertEquals(KeepService.TIMBER_INVENTORY_CAPACITY + 50, intAt(upgraded, "resources", "timberCapacity"),
+                "Each hall level adds timber capacity.");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> buildings = (List<Map<String, Object>>) upgraded.get("buildings");
+        Map<String, Object> walls = buildings.stream().filter(item -> "walls".equals(item.get("id"))).findFirst().orElseThrow();
+        assertEquals("FOUNDATIONS", walls.get("status"));
+
+        store.state.setHallLevel(5);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> walled = (List<Map<String, Object>>) service.getSnapshot(user).get("buildings");
+        assertEquals("COMPLETE", walled.stream().filter(item -> "walls".equals(item.get("id")))
+                .findFirst().orElseThrow().get("status"));
+        assertEquals("Walled Keep", valueAt(service.getSnapshot(user), "keepRank", "name"));
+    }
+
+    @Test
+    void hallThemesArePersistedValidatedAndSerialized() {
+        service.getSnapshot(user);
+        assertThrows(IllegalArgumentException.class,
+                () -> service.setHallTheme(user, "plaid", "theme-fail", store.state.getVersion()));
+
+        Map<String, Object> ember = service.setHallTheme(user, "ember", "theme-1", store.state.getVersion());
+        assertEquals("ember", valueAt(ember, "visualState", "hallTheme"));
+        assertEquals("Ember Accord", valueAt(ember, "hallTheme", "name"));
+        assertEquals("ember", store.state.getHallThemeId());
+
+        Map<String, Object> reset = service.setHallTheme(user, "", "theme-2", store.state.getVersion());
+        assertEquals("covenant", valueAt(reset, "visualState", "hallTheme"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> themes = (List<Map<String, Object>>) reset.get("hallThemes");
+        assertEquals(8, themes.size());
+        assertTrue(themes.stream().anyMatch(item -> "covenant".equals(item.get("id"))
+                && Boolean.TRUE.equals(item.get("active"))));
+    }
+
     @SuppressWarnings("unchecked")
     private static Object valueAt(Map<String, Object> source, String mapKey, String valueKey) {
         return ((Map<String, Object>) source.get(mapKey)).get(valueKey);

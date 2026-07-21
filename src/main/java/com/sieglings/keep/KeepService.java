@@ -59,6 +59,13 @@ public class KeepService {
     private static final Object[] LOCKS = createLocks();
     private static final Map<String, FacilityDefinition> FACILITIES = createFacilities();
     private static final Map<String, CraftRecipe> RECIPES = createRecipes();
+    public static final int HALL_MAX_LEVEL = 8;
+    /** Keep ranks by Covenant Hall level — the visible progression arc of the sanctuary. */
+    private static final String[] HALL_RANKS = {
+            "Ruined Camp", "Timber Outpost", "Settled Courtyard", "Stonehold",
+            "Walled Keep", "Elemental Stronghold", "High Castle", "Grand Keep"
+    };
+    private static final Map<String, HallTheme> HALL_THEMES = createHallThemes();
 
     private final KeepStore store;
     private final PlayerProgressionService progressionService;
@@ -333,6 +340,20 @@ public class KeepService {
         });
     }
 
+    public Map<String, Object> setHallTheme(AccountUser user, String themeId,
+                                            String requestId, long expectedVersion) {
+        return mutate(user, requestId, expectedVersion, context -> {
+            KeepState state = context.state();
+            String id = themeId == null ? "" : themeId.trim().toLowerCase(Locale.ROOT);
+            if (!id.isBlank() && !HALL_THEMES.containsKey(id)) {
+                throw new IllegalArgumentException("Unknown hall theme.");
+            }
+            state.setHallThemeId(id);
+            HallTheme theme = HALL_THEMES.getOrDefault(id, HALL_THEMES.get("covenant"));
+            return Map.of("themeChanged", Map.of("id", id.isBlank() ? "covenant" : id, "name", theme.name()));
+        });
+    }
+
     public Map<String, Object> claimReward(AccountUser user, String rewardId,
                                            String requestId, long expectedVersion) {
         return mutate(user, requestId, expectedVersion, context -> {
@@ -511,6 +532,9 @@ public class KeepService {
         } else if ("build_generator".equals(id)) {
             completeFacilityLevel(state, "generator", 1, completesAt);
             unlock(state, "schematic_elemental_generator");
+        } else if (id.startsWith("hall_level_")) {
+            int level = parseHallLevel(id);
+            if (level > 0) state.setHallLevel(Math.max(state.getHallLevel(), level));
         } else if (id.endsWith("_level_2")) {
             String facilityId = id.substring(0, id.length() - "_level_2".length());
             if (FACILITIES.containsKey(facilityId)) completeFacilityLevel(state, facilityId, 2, completesAt);
@@ -597,12 +621,22 @@ public class KeepService {
     }
 
     private int timberInventoryCapacity(KeepState state) {
-        return TIMBER_INVENTORY_CAPACITY + state.getStorehouseLevel() * 300;
+        return TIMBER_INVENTORY_CAPACITY + state.getStorehouseLevel() * 300
+                + (hallLevel(state) - 1) * 50;
     }
 
     private int materialInventoryCapacity(KeepState state) {
         return 75 + state.getStorehouseLevel() * 125
-                + (craftedCount(state, "covenant_crates") > 0 ? 75 : 0);
+                + (craftedCount(state, "covenant_crates") > 0 ? 75 : 0)
+                + (hallLevel(state) - 1) * 15;
+    }
+
+    private int hallLevel(KeepState state) {
+        return Math.min(HALL_MAX_LEVEL, Math.max(1, state.getHallLevel()));
+    }
+
+    private String rankName(int hallLevel) {
+        return HALL_RANKS[Math.min(HALL_RANKS.length - 1, Math.max(0, hallLevel - 1))];
     }
 
     private double storageMultiplier(KeepState state) {
@@ -924,6 +958,18 @@ public class KeepService {
             case "build_generator" -> new BuildProject(id, "Tune the Elemental Generator", GENERATOR_LEVEL_ONE_COST, Map.of(), GENERATOR_LEVEL_ONE_SECONDS);
             case "storehouse_level_2" -> new BuildProject(id, "Vault the Storehouse", 320,
                     Map.of("verdant_fiber", 18, "ember_ingot", 12, "frost_crystal", 12, "storm_cell", 8), 28_800);
+            case "hall_level_2" -> new BuildProject(id, "Raise the Timber Outpost", 120, Map.of(), 900);
+            case "hall_level_3" -> new BuildProject(id, "Settle the Courtyard", 220, Map.of(), 5_400);
+            case "hall_level_4" -> new BuildProject(id, "Cut the Stonehold", 300,
+                    Map.of("verdant_fiber", 10, "ember_ingot", 10), 14_400);
+            case "hall_level_5" -> new BuildProject(id, "Raise the Keep Walls", 380,
+                    Map.of("verdant_fiber", 14, "ember_ingot", 14, "frost_crystal", 10), 28_800);
+            case "hall_level_6" -> new BuildProject(id, "Awaken the Elemental Stronghold", 460,
+                    Map.of("verdant_fiber", 16, "ember_ingot", 16, "frost_crystal", 12, "storm_cell", 10), 43_200);
+            case "hall_level_7" -> new BuildProject(id, "Crown the High Castle", 540,
+                    Map.of("verdant_fiber", 22, "ember_ingot", 22, "frost_crystal", 18, "storm_cell", 14), 64_800);
+            case "hall_level_8" -> new BuildProject(id, "Consecrate the Grand Keep", 640,
+                    Map.of("verdant_fiber", 28, "ember_ingot", 28, "frost_crystal", 22, "storm_cell", 18), 86_400);
             default -> {
                 String suffix = "_level_2";
                 String facilityId = id.endsWith(suffix) ? id.substring(0, id.length() - suffix.length()) : "";
@@ -946,6 +992,11 @@ public class KeepService {
             case "build_fridge" -> state.getStorehouseLevel() >= 1 && facilityLevel(state, "fridge") < 1;
             case "build_generator" -> state.getStorehouseLevel() >= 1 && facilityLevel(state, "generator") < 1;
             case "storehouse_level_2" -> allFacilitiesAtLeast(state, 1) && state.getStorehouseLevel() < 2;
+            case "hall_level_2", "hall_level_3", "hall_level_4", "hall_level_5",
+                 "hall_level_6", "hall_level_7", "hall_level_8" -> {
+                int level = parseHallLevel(id);
+                yield hallLevel(state) == level - 1 && hallUpgradeGateMet(state, level);
+            }
             default -> {
                 String facilityId = id.endsWith("_level_2")
                         ? id.substring(0, id.length() - "_level_2".length()) : "";
@@ -953,6 +1004,57 @@ public class KeepService {
             }
         };
         if (!valid) throw new IllegalArgumentException("That project is not available yet.");
+    }
+
+    private int parseHallLevel(String projectId) {
+        if (projectId == null || !projectId.startsWith("hall_level_")) return 0;
+        try {
+            int level = Integer.parseInt(projectId.substring("hall_level_".length()));
+            return level >= 2 && level <= HALL_MAX_LEVEL ? level : 0;
+        } catch (NumberFormatException ignored) {
+            return 0;
+        }
+    }
+
+    /** Each keep rank requires the restoration chain that thematically precedes it. */
+    private boolean hallUpgradeGateMet(KeepState state, int level) {
+        return switch (level) {
+            case 2 -> state.getArchiveLevel() >= 1;
+            case 3 -> state.getWoodlotLevel() >= 2 && state.getStorehouseLevel() >= 1;
+            case 4 -> FACILITIES.keySet().stream().filter(id -> facilityLevel(state, id) >= 1).count() >= 2;
+            case 5 -> allFacilitiesAtLeast(state, 1);
+            case 6 -> state.getStorehouseLevel() >= 2;
+            case 7 -> allFacilitiesAtLeast(state, 2);
+            case 8 -> allFacilitiesAtLeast(state, 2) && state.getStorehouseLevel() >= 2
+                    && FACILITIES.values().stream().allMatch(definition -> craftedCount(state, definition.toolRecipeId()) > 0);
+            default -> false;
+        };
+    }
+
+    private String hallUpgradeGateHint(int level) {
+        return switch (level) {
+            case 2 -> "Restore the Living Archive to plan the outpost.";
+            case 3 -> "Cultivate the Woodlot and raise the Storehouse first.";
+            case 4 -> "Complete two elemental facilities to cut stone footings.";
+            case 5 -> "Complete all four elemental facilities to enclose the yard.";
+            case 6 -> "Vault the Storehouse to channel the elements through the walls.";
+            case 7 -> "Expand every elemental facility to level 2.";
+            case 8 -> "Craft all four workshop tools to consecrate the keep.";
+            default -> "";
+        };
+    }
+
+    private String hallUpgradeDescription(int level) {
+        return switch (level) {
+            case 2 -> "Timber palisade posts, a proper roof, and a second banner over the hall.";
+            case 3 -> "A settled courtyard: paths, planters, and lantern light around the hall.";
+            case 4 -> "Stone footings replace timber — the hall gains masonry and a taller silhouette.";
+            case 5 -> "Curtain walls and a gate enclose the sanctuary. The keep becomes a true stronghold.";
+            case 6 -> "The towers awaken with elemental light drawn from every workshop.";
+            case 7 -> "A high crown of banners and beacons visible from Akhar's distant front.";
+            case 8 -> "The central landmark is consecrated — the Grand Keep stands complete.";
+            default -> "";
+        };
     }
 
     private Map<String, Integer> levelTwoMaterialCosts(String facilityId) {
@@ -1022,6 +1124,19 @@ public class KeepService {
         out.put("covenant_tapestry", new CraftRecipe("covenant_tapestry", "Tapestry of Four Currents", "DECORATION", "great_hall", 1,
                 Map.of("verdant_fiber", 4, "ember_ingot", 4, "frost_crystal", 4, "storm_cell", 4), false,
                 "A hall tapestry woven from every material produced by the Keep.", "Covenant Hall decoration"));
+        return out;
+    }
+
+    private static Map<String, HallTheme> createHallThemes() {
+        Map<String, HallTheme> out = new LinkedHashMap<>();
+        out.put("covenant", new HallTheme("covenant", "Covenant Gold", "#f4cc62", "#b96b3e"));
+        out.put("ember", new HallTheme("ember", "Ember Accord", "#ff6a3d", "#8e3225"));
+        out.put("verdant", new HallTheme("verdant", "Verdant Bough", "#8fce6f", "#3f6b3a"));
+        out.put("tide", new HallTheme("tide", "Tidewoven", "#4da8ff", "#2a5b8e"));
+        out.put("frost", new HallTheme("frost", "Frostglass", "#a9e8f2", "#4a7f8b"));
+        out.put("storm", new HallTheme("storm", "Stormcall", "#ffe63c", "#6d5c15"));
+        out.put("shadow", new HallTheme("shadow", "Shadowveil", "#b087e0", "#4d3a70"));
+        out.put("light", new HallTheme("light", "Dawnlight", "#ffe9a8", "#c99b4a"));
         return out;
     }
 
@@ -1113,8 +1228,24 @@ public class KeepService {
         visualState.put("woodlotLevel", state.getWoodlotLevel());
         visualState.put("storehouseLevel", state.getStorehouseLevel());
         visualState.put("healingStage", Math.min(3, state.getWoodlotCollectCount() + state.getArchiveLevel()));
+        visualState.put("hallLevel", hallLevel(state));
+        visualState.put("hallTheme", state.getHallThemeId().isBlank() ? "covenant" : state.getHallThemeId());
         FACILITIES.keySet().forEach(id -> visualState.put(id + "Level", facilityLevel(state, id)));
         out.put("visualState", visualState);
+
+        HallTheme activeTheme = HALL_THEMES.getOrDefault(state.getHallThemeId(), HALL_THEMES.get("covenant"));
+        Map<String, Object> keepRank = new LinkedHashMap<>();
+        keepRank.put("level", hallLevel(state));
+        keepRank.put("maxLevel", HALL_MAX_LEVEL);
+        keepRank.put("name", rankName(hallLevel(state)));
+        keepRank.put("nextName", hallLevel(state) >= HALL_MAX_LEVEL ? null : rankName(hallLevel(state) + 1));
+        keepRank.put("nextHint", hallLevel(state) >= HALL_MAX_LEVEL ? null : hallUpgradeGateHint(hallLevel(state) + 1));
+        out.put("keepRank", keepRank);
+        out.put("hallTheme", Map.of("id", activeTheme.id(), "name", activeTheme.name(),
+                "accent", activeTheme.accent(), "trim", activeTheme.trim()));
+        out.put("hallThemes", HALL_THEMES.values().stream().map(theme -> Map.<String, Object>of(
+                "id", theme.id(), "name", theme.name(), "accent", theme.accent(), "trim", theme.trim(),
+                "active", theme.id().equals(activeTheme.id()))).toList());
 
         List<Map<String, Object>> lore = new ArrayList<>();
         for (LoreEntry entry : loreCatalog.entries(state.getUnlockedLoreIds())) {
@@ -1149,7 +1280,13 @@ public class KeepService {
 
     private List<Map<String, Object>> buildings(KeepState state) {
         List<Map<String, Object>> out = new ArrayList<>();
-        out.add(building("great_hall", "Covenant Hall", 1, "COMPLETE"));
+        int hall = hallLevel(state);
+        out.add(building("great_hall", "Covenant Hall", hall,
+                state.getActiveConstructionId().startsWith("hall_level_") ? "CONSTRUCTING" : "COMPLETE"));
+        out.add(building("walls", "Keep Walls", hall >= 5 ? 1 : 0, hall >= 5 ? "COMPLETE" : "FOUNDATIONS"));
+        out.add(building("gate", "Covenant Gate", hall >= 5 ? 1 : 0, hall >= 5 ? "COMPLETE" : "FOUNDATIONS"));
+        out.add(building("towers", "Elemental Towers", hall >= 6 ? 1 : 0, hall >= 6 ? "COMPLETE" : "FOUNDATIONS"));
+        out.add(building("landmark", "Grand Landmark", hall >= 8 ? 1 : 0, hall >= 8 ? "COMPLETE" : "FOUNDATIONS"));
         out.add(building("woodlot", "Restorative Woodlot", state.getWoodlotLevel(),
                 "woodlot_level_2".equals(state.getActiveConstructionId()) ? "CONSTRUCTING" : "COMPLETE"));
         out.add(building("archive", state.getArchiveLevel() > 0 ? "Living Archive" : "Ruined Archive", state.getArchiveLevel(),
@@ -1181,11 +1318,13 @@ public class KeepService {
             out.add(buildOption(state, "woodlot_level_2", "Cultivate the Woodlot", WOODLOT_LEVEL_TWO_COST, Map.of(),
                     WOODLOT_LEVEL_TWO_SECONDS, "Replace clear-cutting with a grove shaped by human and Siegeling knowledge.",
                     true));
+            addHallUpgradeOption(state, out);
             return out;
         }
         if (state.getStorehouseLevel() < 1) {
             out.add(buildOption(state, "raise_storehouse", "Raise the Covenant Storehouse", STOREHOUSE_LEVEL_ONE_COST, Map.of(),
                     STOREHOUSE_LEVEL_ONE_SECONDS, "Double timber room and expand every workstation's offline storage.", true));
+            addHallUpgradeOption(state, out);
             return out;
         }
         for (FacilityDefinition definition : FACILITIES.values()) {
@@ -1207,7 +1346,21 @@ public class KeepService {
             out.add(buildOption(state, project.id(), project.name(), project.timberCost(), project.materialCosts(),
                     project.durationSeconds(), "Combine all four elemental materials into a larger sanctuary vault.", true));
         }
+        addHallUpgradeOption(state, out);
         return out;
+    }
+
+    /** The next hall rank appears alongside other projects once its gate is met. */
+    private void addHallUpgradeOption(KeepState state, List<Map<String, Object>> out) {
+        int nextLevel = hallLevel(state) + 1;
+        if (nextLevel > HALL_MAX_LEVEL || !hallUpgradeGateMet(state, nextLevel)) return;
+        BuildProject project = buildProject("hall_level_" + nextLevel);
+        if (project == null) return;
+        Map<String, Object> option = buildOption(state, project.id(), project.name(), project.timberCost(),
+                project.materialCosts(), project.durationSeconds(),
+                hallUpgradeDescription(nextLevel) + " Raises the keep to " + rankName(nextLevel) + ".", true);
+        option.put("rankName", rankName(nextLevel));
+        out.add(option);
     }
 
     private Map<String, Object> buildOption(KeepState state, String id, String name, int timberCost, Map<String, Integer> materialCosts,
@@ -1511,6 +1664,7 @@ public class KeepService {
         private static final FacilityDefinition EMPTY = new FacilityDefinition("", "", "", "", "", 0, 0,
                 Set.of(), "", "");
     }
+    private record HallTheme(String id, String name, String accent, String trim) { }
     private record CraftRecipe(String id, String name, String type, String roomId, int requiredLevel,
                                Map<String, Integer> materialCosts, boolean repeatable,
                                String description, String bonusLabel) { }

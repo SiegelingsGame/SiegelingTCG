@@ -9,7 +9,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#173f54">
-    <link rel="stylesheet" href="/css/keep.css?v=8">
+    <link rel="stylesheet" href="/css/keep.css?v=9">
 </head>
 <body>
 <div class="keep-app" id="keepApp">
@@ -36,7 +36,7 @@
 
     <main class="keep-main">
         <section class="keep-scene-viewport" id="sceneViewport" aria-label="A frontier sanctuary under restoration">
-            <div class="keep-scene" id="keepScene" data-healing-stage="0" data-archive-restored="false" data-woodlot-level="1">
+            <div class="keep-scene" id="keepScene" data-healing-stage="0" data-archive-restored="false" data-woodlot-level="1" data-hall-level="1" data-hall-theme="covenant" data-constructing="">
                 <div class="sky-glow"></div>
                 <div class="cloud cloud-one"></div>
                 <div class="cloud cloud-two"></div>
@@ -48,6 +48,21 @@
                 <div class="restored-meadow"></div>
                 <div class="river"></div>
                 <div class="road"></div>
+                <div class="keep-landmark" aria-hidden="true"><i></i><b></b></div>
+                <div class="keep-walls" aria-hidden="true">
+                    <i class="wall-run wall-left"></i>
+                    <i class="wall-run wall-right"></i>
+                    <span class="keep-tower tower-left"><i></i></span>
+                    <span class="keep-tower tower-right"><i></i></span>
+                    <span class="keep-gate"><i></i></span>
+                </div>
+                <div class="courtyard-layer" aria-hidden="true">
+                    <i class="court-path"></i>
+                    <i class="court-planter planter-one"></i>
+                    <i class="court-planter planter-two"></i>
+                    <i class="court-lantern lantern-one"></i>
+                    <i class="court-lantern lantern-two"></i>
+                </div>
                 <div class="ambient-motes" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
 
                 <button class="building-hotspot hall-hotspot" type="button" data-building="great_hall" aria-label="Enter Covenant Hall">
@@ -93,9 +108,34 @@
                             <path d="M124 210 v-36 a14 14 0 0 1 28 0 v36 z" fill="#372923"/>
                             <path d="M127 210 v-33 a11 11 0 0 1 22 0 v33 z" fill="#4b382e"/>
                             <g class="kh-banner"><polygon points="129,52 147,52 147,88 138,97 129,88" fill="url(#khBanner)"/></g>
+                            <g class="kh-upgrade kh-lvl2">
+                                <rect x="18" y="176" width="7" height="34" fill="#7a5836"/><rect x="30" y="182" width="7" height="28" fill="#6b4b2c"/>
+                                <rect x="228" y="176" width="7" height="34" fill="#7a5836"/><rect x="240" y="182" width="7" height="28" fill="#6b4b2c"/>
+                                <g class="kh-banner"><polygon points="61,100 77,100 77,128 69,135 61,128" fill="url(#khBanner)"/></g>
+                            </g>
+                            <g class="kh-upgrade kh-lvl3">
+                                <rect x="196" y="52" width="10" height="18" fill="#5a4632"/>
+                                <g class="kh-smoke"><circle cx="201" cy="44" r="5" fill="rgba(236,240,238,.55)"/><circle cx="206" cy="32" r="7" fill="rgba(236,240,238,.42)"/><circle cx="212" cy="18" r="9" fill="rgba(236,240,238,.28)"/></g>
+                            </g>
+                            <g class="kh-upgrade kh-lvl4">
+                                <rect x="76" y="176" width="122" height="34" fill="rgba(148,152,150,.55)"/>
+                                <rect x="76" y="110" width="10" height="100" fill="rgba(148,152,150,.5)"/>
+                                <rect x="188" y="110" width="10" height="100" fill="rgba(148,152,150,.5)"/>
+                                <g fill="rgba(108,112,112,.6)"><rect x="50" y="92" width="40" height="9"/><rect x="182" y="92" width="40" height="9"/></g>
+                            </g>
+                            <g class="kh-upgrade kh-lvl6">
+                                <circle class="kh-tower-light" cx="70" cy="84" r="6"/>
+                                <circle class="kh-tower-light" cx="202" cy="84" r="6"/>
+                            </g>
+                            <g class="kh-upgrade kh-lvl7">
+                                <rect x="136" y="8" width="3" height="18" fill="#5a4632"/>
+                                <g class="kh-banner"><polygon points="139,10 162,15 139,21" fill="url(#khBanner)"/></g>
+                                <g class="kh-banner"><polygon points="66,96 80,99 66,104" fill="url(#khBanner)"/><polygon points="208,96 222,99 208,104" fill="url(#khBanner)"/></g>
+                            </g>
                         </svg>
+                        <span class="scaffold"><b></b><b></b><b></b></span>
                     </span>
-                    <span class="building-label"><strong>Covenant Hall</strong><small>Sanctuary founded</small></span>
+                    <span class="building-label"><strong>Covenant Hall</strong><small id="hallRankLabel">Sanctuary founded</small></span>
                 </button>
 
                 <button class="building-hotspot woodlot-hotspot" type="button" data-building="woodlot" aria-label="Enter Restorative Woodlot">
@@ -153,6 +193,11 @@
                     </span>
                     <span class="resident-worker hidden" id="residentWorker" aria-hidden="true"><span id="residentWorkerArt"></span><i class="worker-tool">⌁</i></span>
                     <span class="production-ready hidden" id="productionReady">Collect</span>
+                    <span class="stockpile woodlot-stockpile" data-stockpile="woodlot" aria-hidden="true">
+                        <i class="pile-log"></i><i class="pile-log"></i><i class="pile-log"></i>
+                        <i class="pile-log"></i><i class="pile-log"></i><i class="pile-log"></i>
+                        <b class="pile-overgrowth"></b>
+                    </span>
                     <span class="building-label"><strong>Restorative Woodlot</strong><small id="woodlotLabel">Level 1 · 1/min</small></span>
                 </button>
 
@@ -208,10 +253,10 @@
                 <button class="building-hotspot quarter-hotspot" type="button" data-building="facilities" aria-label="Open the Elemental Quarter">
                     <span class="quarter-illustration" aria-hidden="true">
                         <i class="quarter-building quarter-storehouse"><b></b></i>
-                        <i class="quarter-building quarter-garden"><b></b></i>
-                        <i class="quarter-building quarter-forge"><b></b></i>
-                        <i class="quarter-building quarter-fridge"><b></b></i>
-                        <i class="quarter-building quarter-generator"><b></b></i>
+                        <i class="quarter-building quarter-garden" data-stockpile="garden"><b></b><u></u></i>
+                        <i class="quarter-building quarter-forge" data-stockpile="forge"><b></b><u></u></i>
+                        <i class="quarter-building quarter-fridge" data-stockpile="fridge"><b></b><u></u></i>
+                        <i class="quarter-building quarter-generator" data-stockpile="generator"><b></b><u></u></i>
                         <span class="quarter-path"></span>
                     </span>
                     <span class="building-label"><strong>Elemental Quarter</strong><small id="quarterLabel">Foundations awaiting restoration</small></span>
@@ -221,18 +266,25 @@
                     <i></i><span></span><small>Petrified Root</small>
                 </div>
 
-                <div class="scene-caption">
-                    <span class="eyebrow">Chapter I</span>
-                    <h1>The Wounded Ground</h1>
-                    <p>Build a sanctuary that takes nothing without giving something back.</p>
-                </div>
+            </div>
 
-                <div class="construction-banner hidden" id="constructionBanner" role="status">
-                    <span class="hammer-icon" aria-hidden="true">⚒</span>
-                    <span><strong id="constructionName">Construction underway</strong><small id="constructionTimer">0:00</small></span>
-                    <button class="construction-toggle" id="constructionToggle" type="button" aria-expanded="true" aria-label="Collapse construction status"><span aria-hidden="true">−</span></button>
-                    <i><b id="constructionProgress"></b></i>
-                </div>
+            <div class="scene-caption">
+                <span class="eyebrow">Chapter I</span>
+                <h1>The Wounded Ground</h1>
+                <p>Build a sanctuary that takes nothing without giving something back.</p>
+            </div>
+
+            <div class="scene-zoom" role="group" aria-label="Scene view controls">
+                <button id="zoomIn" type="button" aria-label="Zoom in">+</button>
+                <button id="zoomOut" type="button" aria-label="Zoom out">−</button>
+                <button id="zoomReset" type="button" aria-label="Reset view">⌖</button>
+            </div>
+
+            <div class="construction-banner hidden" id="constructionBanner" role="status">
+                <span class="hammer-icon" aria-hidden="true">⚒</span>
+                <span><strong id="constructionName">Construction underway</strong><small id="constructionTimer">0:00</small></span>
+                <button class="construction-toggle" id="constructionToggle" type="button" aria-expanded="true" aria-label="Collapse construction status"><span aria-hidden="true">−</span></button>
+                <i><b id="constructionProgress"></b></i>
             </div>
         </section>
 
@@ -389,7 +441,7 @@
 </div>
 
 <script src="/js/config.js?v=1"></script>
-<script src="/js/keep.js?v=9"></script>
+<script src="/js/keep.js?v=10"></script>
 <script src="/js/sw-register.js?v=1"></script>
 </body>
 </html>
