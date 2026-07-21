@@ -9,7 +9,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#173f54">
-    <link rel="stylesheet" href="/css/keep.css?v=8">
+    <link rel="stylesheet" href="/css/keep.css?v=9">
 </head>
 <body>
 <div class="keep-app" id="keepApp">
@@ -20,7 +20,9 @@
         </a>
         <div class="keep-resource-bar" aria-label="Keep resources">
             <span class="resource-pill timber-pill"><span class="resource-icon" aria-hidden="true">▰</span><strong id="timberAmount">0</strong><small>Timber</small></span>
-            <span class="resource-pill essence-pill"><span class="resource-icon" aria-hidden="true">✦</span><strong id="materialAmount">0</strong><small>Materials</small></span>
+            <button class="resource-pill essence-pill inventory-trigger" type="button" data-open-panel="inventory" aria-label="Open keep inventory">
+                <span class="resource-icon" aria-hidden="true">✦</span><strong id="materialAmount">0</strong><small>Materials</small>
+            </button>
             <span class="station-pill"><span class="pulse-dot" aria-hidden="true"></span><strong id="stationAvailable">0</strong><small>Ready</small></span>
         </div>
         <div class="keep-header-actions">
@@ -389,7 +391,7 @@
 </div>
 
 <script src="/js/config.js?v=1"></script>
-<script src="/js/keep.js?v=9"></script>
+<script src="/js/keep.js?v=10"></script>
 <script src="/js/sw-register.js?v=1"></script>
 </body>
 </html>
