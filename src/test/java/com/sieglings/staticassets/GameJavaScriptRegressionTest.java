@@ -344,9 +344,29 @@ class GameJavaScriptRegressionTest {
         assertTrue(
                 gameScript.contains("function renderHolographicFullArtFace(")
                         && gameScript.contains("useHolographicFullCardArt: true")
+                        && gameScript.contains("imageLoading: 'eager'")
+                        && gameScript.contains("preloadArtUrl(artUrl)")
+                        && gameScript.contains("preloadArtUrl(String(card?.holographicCardArtUrl || '').trim())")
                         && gameScript.contains("renderHolographicFullArtFace(card,")
                         && gameScript.contains("has-holo-full-art"),
-                "Holographic cards with full-card art must render their painted face in the mulligan and hand."
+                "Holographic cards with full-card art must render and eagerly preload their painted face in the mulligan and hand."
+        );
+        assertTrue(
+                binderScript.contains("options.imageLoading === 'eager'")
+                        && fullCardRenderer.contains("loading=\"${imageLoading}\"")
+                        && fullCardRenderer.contains("decoding=\"async\""),
+                "Battle surfaces must be able to opt full-card art out of lazy loading."
+        );
+        String toggleMulligan = extractFunction(gameScript, "function toggleMulliganCard(");
+        String updateMulligan = extractFunction(gameScript, "function updateMulliganSelectionUI(");
+        assertTrue(
+                toggleMulligan.contains("updateMulliganSelectionUI()")
+                        && !toggleMulligan.contains("renderMulliganOverlay()")
+                        && updateMulligan.contains("slot.classList.toggle('is-selected', isSelected)")
+                        && updateMulligan.contains("slot.setAttribute('aria-pressed'")
+                        && updateMulligan.contains("mulligan-redraw-badge")
+                        && updateMulligan.contains("redrawBtn.textContent"),
+                "Mulligan selection must update in place so existing card image nodes are never replaced or flashed."
         );
     }
 
