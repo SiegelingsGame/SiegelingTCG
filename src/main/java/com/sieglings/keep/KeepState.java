@@ -38,6 +38,9 @@ public class KeepState {
     private List<String> completedConversationIds = new ArrayList<>();
     private List<String> choiceFlags = new ArrayList<>();
     private Map<String, Integer> npcTrust = new LinkedHashMap<>();
+    private List<String> activeVisitorIds = new ArrayList<>();
+    private Map<String, Instant> visitorAvailableAt = new LinkedHashMap<>();
+    private Instant lastVisitorRollAt;
     private List<String> displayedMemorabiliaIds = new ArrayList<>();
     private List<String> processedRequestIds = new ArrayList<>();
     private Instant lastVisitedAt;
@@ -122,6 +125,14 @@ public class KeepState {
     public void setNpcTrust(Map<String, Integer> npcTrust) {
         this.npcTrust = npcTrust == null ? new LinkedHashMap<>() : new LinkedHashMap<>(npcTrust);
     }
+    public List<String> getActiveVisitorIds() { return activeVisitorIds; }
+    public void setActiveVisitorIds(List<String> activeVisitorIds) { this.activeVisitorIds = copy(activeVisitorIds); }
+    public Map<String, Instant> getVisitorAvailableAt() { return visitorAvailableAt; }
+    public void setVisitorAvailableAt(Map<String, Instant> visitorAvailableAt) {
+        this.visitorAvailableAt = visitorAvailableAt == null ? new LinkedHashMap<>() : new LinkedHashMap<>(visitorAvailableAt);
+    }
+    public Instant getLastVisitorRollAt() { return lastVisitorRollAt; }
+    public void setLastVisitorRollAt(Instant lastVisitorRollAt) { this.lastVisitorRollAt = lastVisitorRollAt; }
     public List<String> getDisplayedMemorabiliaIds() { return displayedMemorabiliaIds; }
     public void setDisplayedMemorabiliaIds(List<String> displayedMemorabiliaIds) { this.displayedMemorabiliaIds = copy(displayedMemorabiliaIds); }
     public List<String> getProcessedRequestIds() { return processedRequestIds; }

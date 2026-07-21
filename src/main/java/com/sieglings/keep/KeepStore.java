@@ -71,6 +71,9 @@ public class KeepStore {
         payload.put("completedConversationIds", state.getCompletedConversationIds());
         payload.put("choiceFlags", state.getChoiceFlags());
         payload.put("npcTrust", state.getNpcTrust());
+        payload.put("activeVisitorIds", state.getActiveVisitorIds());
+        payload.put("visitorAvailableAt", timestampMap(state.getVisitorAvailableAt()));
+        payload.put("lastVisitorRollAt", timestamp(state.getLastVisitorRollAt()));
         payload.put("displayedMemorabiliaIds", state.getDisplayedMemorabiliaIds());
         payload.put("processedRequestIds", state.getProcessedRequestIds());
         payload.put("lastVisitedAt", timestamp(state.getLastVisitedAt()));
@@ -130,6 +133,9 @@ public class KeepStore {
         state.setCompletedConversationIds(strings(snapshot.get("completedConversationIds")));
         state.setChoiceFlags(strings(snapshot.get("choiceFlags")));
         state.setNpcTrust(intMap(snapshot.get("npcTrust")));
+        state.setActiveVisitorIds(strings(snapshot.get("activeVisitorIds")));
+        state.setVisitorAvailableAt(instantMap(snapshot.get("visitorAvailableAt")));
+        state.setLastVisitorRollAt(instant(snapshot.get("lastVisitorRollAt")));
         state.setDisplayedMemorabiliaIds(strings(snapshot.get("displayedMemorabiliaIds")));
         state.setProcessedRequestIds(strings(snapshot.get("processedRequestIds")));
         state.setLastVisitedAt(instant(snapshot.get("lastVisitedAt")));
