@@ -71,6 +71,9 @@
     const PENDING_PACK_OPEN_REQUEST_KEY = 'sieglingsPendingPackOpenRequest';
     const MAX_PENDING_PACK_OPEN_REQUESTS = 20;
     const PACK_OPEN_TIMEOUT_MS = 15000;
+    // Starter choice hits Firestore progression + profile defaults; cold starts
+    // can exceed the shop pack budget the same way /api/game/new does.
+    const STARTER_PACK_TIMEOUT_MS = 60000;
     const COIN_ICON_PATH = '/img/ui/home-stats/siegecoin.png';
     const SIEGEKNIGHT_CARD_BACK = '/img/knights/card-back-siegeknight.png';
     const PACK_CARD_BACK_VERSION = 2;
@@ -5783,6 +5786,20 @@
         writePendingPackOpenRequests(remaining);
     }
 
+    async function recoverStarterPackProgression() {
+        try {
+            const recovered = await fetchJson('/api/player/progression', {
+                timeoutMs: STARTER_PACK_TIMEOUT_MS
+            });
+            if (recovered && !recovered.error && recovered.progression?.starterChosen) {
+                return recovered;
+            }
+        } catch (error) {
+            console.error(error);
+        }
+        return null;
+    }
+
     async function choosePack(packId, count = 1) {
         if (!state.profile?.authenticated) {
             openAuth();
@@ -5797,7 +5814,7 @@
         // Starter pulls are always single; bulk only applies to normal shop buys.
         const packCount = starterMode ? 1 : Math.max(1, Math.min(Number(count) || 1, BULK_PACK_COUNT));
         const requestId = starterMode ? null : getOrCreatePackOpenRequestId(packId, packCount);
-        state.packOpeningPending = { packId, startedAt: Date.now(), element: pack?.elements?.[0] || 'FIRE', name: pack?.name || 'Pack', count: packCount };
+        state.packOpeningPending = { packId, startedAt: Date.now(), element: pack?.elements?.[0] || 'FIRE', name: pack?.name || 'Pack', count: packCount, starter: starterMode };
         state.packOpeningDismissedKey = '';
         navigateHub('shop', { shopView: 'cardpack' });
         renderPackOpeningPending();
@@ -5811,10 +5828,20 @@
             data = await fetchJson(endpoint, {
                 method: 'POST',
                 body: JSON.stringify({ packId, count: packCount, requestId }),
-                timeoutMs: PACK_OPEN_TIMEOUT_MS
+                timeoutMs: starterMode ? STARTER_PACK_TIMEOUT_MS : PACK_OPEN_TIMEOUT_MS
             });
         } catch (error) {
             data = { error: error?.message || 'Could not open that pack. Please try again.' };
+        }
+
+        // Starter grants persist before the HTTP body is built. A timeout or a
+        // follow-on profile-settings error used to leave the account chosen on
+        // the server while the client still showed "Drawing cards..." / an alert.
+        if ((!data || data.error) && starterMode) {
+            const recovered = await recoverStarterPackProgression();
+            if (recovered) {
+                data = recovered;
+            }
         }
 
         // The server may have charged and granted before the response was lost.
@@ -6519,9 +6546,18 @@
 
     function clearPackResult() {
         const latest = state.progression?.packHistory?.[0];
+        const starterReveal = String(latest?.source || '').toUpperCase() === 'STARTER'
+            || Boolean(state.packOpeningPending?.starter);
         if (latest) state.packOpeningDismissedKey = packSessionKey(latest);
         state.packReveal = null;
         hidePackResultDom();
+        // New players finish the starter gacha on Home (tour), not Shop browse.
+        if (starterReveal) {
+            navigateHub('home', { replace: true });
+            render();
+            maybeStartOnboardingTour();
+            return;
+        }
         navigateHub('shop', { shopView: 'browse', replace: true });
         renderShop();
     }
