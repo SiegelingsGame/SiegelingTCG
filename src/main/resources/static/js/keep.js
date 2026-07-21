@@ -57,10 +57,18 @@
         PSYCHIC: '#d0a7ff', LIGHT: '#ffe9a8', POISON: '#84c55b', NEUTRAL: '#c8b997'
     };
 
+    const RANK_NAMES = ['Ruined Camp', 'Timber Outpost', 'Settled Courtyard', 'Stonehold',
+        'Walled Keep', 'Elemental Stronghold', 'High Castle', 'Grand Keep'];
+    const HALL_MAX_LEVEL = 8;
+
+    /** Scene pan/zoom is view-only state; the world layers transform, UI chrome stays fixed. */
+    const view = { zoom: 1, panX: 0, panY: 0 };
+
     document.addEventListener('DOMContentLoaded', init);
 
     async function init() {
         bindEvents();
+        initSceneView();
         if (state.testMode) {
             applySnapshot(clone(window.__KEEP_TEST_SNAPSHOT__), false);
             hideLoading();
@@ -112,6 +120,86 @@
         if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
         const main = document.querySelector('.keep-main');
         if (main?.scrollLeft || main?.scrollTop) main.scrollTo(0, 0);
+    }
+
+    /* —— Scene pan & zoom: buttons for accessibility, pointer drag when zoomed. —— */
+    function initSceneView() {
+        document.getElementById('zoomIn')?.addEventListener('click', () => setZoom(view.zoom + 0.3));
+        document.getElementById('zoomOut')?.addEventListener('click', () => setZoom(view.zoom - 0.3));
+        document.getElementById('zoomReset')?.addEventListener('click', () => setZoom(1));
+        const viewport = document.querySelector('.keep-scene-viewport');
+        if (!viewport) return;
+        let pointerId = null;
+        let startX = 0;
+        let startY = 0;
+        let baseX = 0;
+        let baseY = 0;
+        let dragged = false;
+        viewport.addEventListener('pointerdown', (event) => {
+            if (view.zoom <= 1 || event.button > 0 || event.target.closest('.scene-zoom')) return;
+            pointerId = event.pointerId;
+            startX = event.clientX;
+            startY = event.clientY;
+            baseX = view.panX;
+            baseY = view.panY;
+            dragged = false;
+        });
+        viewport.addEventListener('pointermove', (event) => {
+            if (pointerId === null || event.pointerId !== pointerId) return;
+            const dx = event.clientX - startX;
+            const dy = event.clientY - startY;
+            if (!dragged && Math.hypot(dx, dy) < 7) return;
+            dragged = true;
+            document.getElementById('keepScene')?.classList.add('is-dragging');
+            view.panX = baseX + dx;
+            view.panY = baseY + dy;
+            applySceneView();
+        });
+        const release = (event) => {
+            if (pointerId === null || event.pointerId !== pointerId) return;
+            pointerId = null;
+            document.getElementById('keepScene')?.classList.remove('is-dragging');
+            // A drag must not fire the hotspot tap underneath the finger.
+            if (dragged) suppressNextSceneClick();
+        };
+        viewport.addEventListener('pointerup', release);
+        viewport.addEventListener('pointercancel', release);
+        window.addEventListener('resize', applySceneView);
+    }
+
+    function setZoom(next) {
+        view.zoom = clamp(Math.round(number(next) * 100) / 100, 1, 2.2);
+        if (view.zoom <= 1) {
+            view.panX = 0;
+            view.panY = 0;
+        }
+        applySceneView();
+    }
+
+    function applySceneView() {
+        const scene = document.getElementById('keepScene');
+        const viewport = document.querySelector('.keep-scene-viewport');
+        if (!scene || !viewport) return;
+        const maxX = (view.zoom - 1) * viewport.clientWidth / 2;
+        const maxY = (view.zoom - 1) * viewport.clientHeight / 2;
+        view.panX = clamp(view.panX, -maxX, maxX);
+        view.panY = clamp(view.panY, -maxY, maxY);
+        scene.style.transform = view.zoom === 1
+            ? '' : `translate(${view.panX}px, ${view.panY}px) scale(${view.zoom})`;
+        viewport.classList.toggle('is-pannable', view.zoom > 1);
+        const zoomIn = document.getElementById('zoomIn');
+        const zoomOut = document.getElementById('zoomOut');
+        if (zoomIn) zoomIn.disabled = view.zoom >= 2.2;
+        if (zoomOut) zoomOut.disabled = view.zoom <= 1;
+    }
+
+    function suppressNextSceneClick() {
+        const stop = (event) => {
+            event.stopPropagation();
+            event.preventDefault();
+        };
+        document.addEventListener('click', stop, { capture: true, once: true });
+        window.setTimeout(() => document.removeEventListener('click', stop, { capture: true }), 150);
     }
 
     function handleClick(event) {
@@ -203,6 +291,16 @@
             void startBuild(build.dataset.startBuild);
             return;
         }
+        const theme = event.target.closest('[data-set-theme]');
+        if (theme) {
+            void setHallTheme(theme.dataset.setTheme);
+            return;
+        }
+        const favorite = event.target.closest('[data-set-favorite]');
+        if (favorite) {
+            void setFavorite(favorite.dataset.setFavorite);
+            return;
+        }
         const conversation = event.target.closest('[data-conversation-id]');
         if (conversation) {
             openConversation(conversation.dataset.conversationId);
@@ -265,7 +363,24 @@
     async function collectStation(stationId) {
         const station = stationById(stationId);
         if (!station || projectedStationAvailable(station) <= 0) return;
-        await perform('/api/keep/collect', { stationId });
+        const data = await perform('/api/keep/collect', { stationId });
+        if (data?.collected) playCollectBurst(stationId, number(data.collected.amount));
+    }
+
+    async function setHallTheme(themeId) {
+        const data = await perform('/api/keep/theme', { themeId });
+        if (data?.themeChanged) showNotice(`${data.themeChanged.name} colors raised over the hall.`, 'Hall theme');
+    }
+
+    async function setFavorite(residentId) {
+        const current = state.snapshot?.favorite?.residentId || '';
+        const next = current === residentId ? '' : residentId;
+        const data = await perform('/api/keep/favorite', { residentId: next });
+        if (data?.favoriteChanged) {
+            showNotice(data.favoriteChanged.residentId
+                ? `${data.favoriteChanged.name} inspires the whole keep · +${number(data.favoriteChanged.bonusPercent)}% output.`
+                : 'The shrine stands ready for a new favorite.', 'Favorite Siegeling');
+        }
     }
 
     async function inviteResident(residentId, stationId) {
@@ -393,6 +508,7 @@
 
         const scene = document.getElementById('keepScene');
         const visual = snapshot.visualState || {};
+        const hallLevel = Math.max(1, number(visual.hallLevel) || 1);
         if (scene) {
             scene.dataset.healingStage = String(number(visual.healingStage));
             scene.dataset.archiveRestored = String(Boolean(visual.archiveRestored));
@@ -402,12 +518,24 @@
             scene.dataset.forgeLevel = String(number(visual.forgeLevel));
             scene.dataset.fridgeLevel = String(number(visual.fridgeLevel));
             scene.dataset.generatorLevel = String(number(visual.generatorLevel));
-            scene.classList.toggle('is-building-archive', snapshot.activeConstruction?.id === 'restore_archive');
-            scene.classList.toggle('is-building-woodlot', snapshot.activeConstruction?.id === 'woodlot_level_2');
+            scene.dataset.quarryLevel = String(number(visual.quarryLevel));
+            scene.dataset.kitchenLevel = String(number(visual.kitchenLevel));
+            scene.dataset.buildersYardLevel = String(number(visual.buildersYardLevel));
+            scene.dataset.hallLevel = String(hallLevel);
+            scene.dataset.hallTheme = visual.hallTheme || 'covenant';
+            for (let level = 2; level <= HALL_MAX_LEVEL; level++) scene.classList.toggle(`hall-l${level}`, hallLevel >= level);
+            // Space-separated targets let CSS [data-constructing~="x"] scaffold both crews' sites.
+            scene.dataset.constructing = activeConstructionList()
+                .map((item) => constructionTarget(item.id)).filter(Boolean).join(' ');
         }
-        const builtFacilities = ['garden', 'forge', 'fridge', 'generator']
-            .filter((id) => number(visual[`${id}Level`]) > 0).length;
-        text('quarterLabel', builtFacilities ? `${builtFacilities}/4 facilities restored` : 'Foundations awaiting restoration');
+        renderFavoriteShrine();
+        const rank = snapshot.keepRank || {};
+        text('hallRankLabel', rank.name
+            ? `${rank.name} · Rank ${number(rank.level) || 1}/${number(rank.maxLevel) || HALL_MAX_LEVEL}`
+            : 'Sanctuary founded');
+        const builtFacilities = ['garden', 'forge', 'fridge', 'generator', 'quarry', 'kitchen']
+            .filter((id) => number(visual[`${id}Level`]) > 0).length + (number(visual.buildersYardLevel) > 0 ? 1 : 0);
+        text('quarterLabel', builtFacilities ? `${builtFacilities}/7 facilities restored` : 'Foundations awaiting restoration');
 
         const station = snapshot.station || {};
         text('woodlotLabel', `Level ${number(station.level) || 1} · ${formatRate(station.ratePerMinute)}/min`);
@@ -439,7 +567,7 @@
         if (!state.snapshot) return;
         if (state.testMode) completeMockConstructionIfReady();
         updateLiveCounters();
-        const construction = state.snapshot.activeConstruction;
+        const construction = activeConstructionList().length > 0;
         if (construction && constructionRemaining() <= 0 && !state.testMode && !state.completionRefreshPending) {
             state.completionRefreshPending = true;
             window.setTimeout(async () => {
@@ -459,22 +587,110 @@
         const collect = document.getElementById('collectButton');
         if (collect) collect.disabled = available <= 0 || number(state.snapshot.resources?.timber) >= number(state.snapshot.resources?.timberCapacity) || state.busy;
         document.getElementById('productionReady')?.classList.toggle('hidden', available <= 0);
+        updateStockpileVisuals();
         renderConstruction();
         if (state.panel.startsWith('building:woodlot') || state.panel === 'projects' || state.panel === 'facilities'
                 || state.panel === 'residents' || state.interior === 'woodlot') updatePanelLiveValues();
     }
 
+    /** Stockpiles in the scene grow with each station's uncollected stores:
+        tier 0 empty → 4 full (overgrowth). Claiming clears them with a burst. */
+    function updateStockpileVisuals() {
+        const scene = document.getElementById('keepScene');
+        if (!scene) return;
+        for (const station of state.snapshot.stations || [state.snapshot.station]) {
+            if (!station?.id) continue;
+            const key = `fill${station.id.charAt(0).toUpperCase()}${station.id.slice(1)}`;
+            scene.dataset[key] = String(fillTier(station));
+        }
+        const interior = document.getElementById('keepInterior');
+        if (interior) {
+            const station = stationById(state.interior);
+            interior.dataset.fill = station ? String(fillTier(station)) : '';
+        }
+    }
+
+    function fillTier(station) {
+        if (!station) return 0;
+        const capacity = Math.max(1, number(station.storageCapacity));
+        const ratio = projectedStationAvailable(station) / capacity;
+        if (ratio >= 1) return 4;
+        if (ratio >= 0.66) return 3;
+        if (ratio >= 0.33) return 2;
+        return ratio > 0 ? 1 : 0;
+    }
+
+    function activeConstructionList() {
+        const snapshot = state.snapshot || {};
+        if (Array.isArray(snapshot.activeConstructions)) return snapshot.activeConstructions.filter(Boolean);
+        return snapshot.activeConstruction ? [snapshot.activeConstruction] : [];
+    }
+
+    function renderFavoriteShrine() {
+        const favorite = state.snapshot?.favorite || {};
+        const shrine = document.getElementById('favoriteShrine');
+        if (!shrine) return;
+        const resident = favorite.resident || null;
+        shrine.classList.toggle('has-favorite', Boolean(resident));
+        setResidentOverlayArt(document.getElementById('favoriteShrineArt'), resident);
+        text('favoriteShrineLabel', resident
+            ? `${resident.name} · +${number(favorite.bonusPercent)}%`
+            : 'Choose a favorite');
+        shrine.setAttribute('aria-label', resident
+            ? `Favorite Siegeling: ${resident.name}, +${number(favorite.bonusPercent)}% keep-wide`
+            : 'Choose a favorite Siegeling');
+    }
+
+    function constructionTarget(constructionId) {
+        const id = String(constructionId || '');
+        if (!id) return '';
+        if (id.startsWith('hall_level_')) return 'hall';
+        if (id === 'restore_archive') return 'archive';
+        if (id === 'woodlot_level_2') return 'woodlot';
+        if (id === 'raise_storehouse' || id === 'storehouse_level_2') return 'storehouse';
+        if (id.startsWith('build_')) return id.slice('build_'.length);
+        if (id.endsWith('_level_2')) return id.slice(0, -'_level_2'.length);
+        return '';
+    }
+
+    function playCollectBurst(stationId, amount) {
+        const anchor = stationId === 'woodlot'
+            ? document.querySelector('.woodlot-hotspot')
+            : document.querySelector(`.quarter-building[data-stockpile="${stationId}"]`)
+                || document.querySelector('.quarter-hotspot');
+        if (!anchor) return;
+        anchor.classList.remove('is-clearing');
+        void anchor.offsetWidth; // restart the clearing animation on rapid re-collects
+        anchor.classList.add('is-clearing');
+        window.setTimeout(() => anchor.classList.remove('is-clearing'), 1100);
+        const scene = document.getElementById('keepScene');
+        if (!scene || !(amount > 0)) return;
+        const chip = document.createElement('span');
+        chip.className = 'collect-float';
+        chip.textContent = `+${amount}`;
+        const rect = anchor.getBoundingClientRect();
+        const sceneRect = scene.getBoundingClientRect();
+        if (sceneRect.width > 0 && sceneRect.height > 0) {
+            chip.style.left = `${((rect.left + rect.width / 2 - sceneRect.left) / sceneRect.width) * 100}%`;
+            chip.style.top = `${((rect.top - sceneRect.top) / sceneRect.height) * 100}%`;
+        }
+        scene.appendChild(chip);
+        window.setTimeout(() => chip.remove(), 1500);
+    }
+
     function renderConstruction() {
-        const construction = state.snapshot?.activeConstruction;
+        const constructions = activeConstructionList();
         const banner = document.getElementById('constructionBanner');
-        banner?.classList.toggle('hidden', !construction);
-        if (!construction) return;
-        const option = (state.snapshot.buildOptions || []).find((item) => item.id === construction.id);
-        text('constructionName', option?.name || projectName(construction.id));
-        const remaining = constructionRemaining();
-        text('constructionTimer', formatDuration(remaining));
-        const started = Date.parse(construction.startedAt || '') || nowMs();
-        const completes = Date.parse(construction.completesAt || '') || nowMs();
+        banner?.classList.toggle('hidden', !constructions.length);
+        if (!constructions.length) return;
+        // The banner tracks whichever crew finishes soonest; a second crew is noted inline.
+        const soonest = constructions.reduce((best, item) =>
+            constructionEntryRemaining(item) < constructionEntryRemaining(best) ? item : best, constructions[0]);
+        text('constructionName', projectName(soonest.id)
+            + (constructions.length > 1 ? ` · +${constructions.length - 1} more` : ''));
+        text('constructionTimer', formatDuration(constructionEntryRemaining(soonest)));
+        const started = Date.parse(soonest.startedAt || '') || nowMs();
+        const completes = Date.parse(soonest.completesAt || '') || nowMs();
         const progress = completes <= started ? 1 : clamp((nowMs() - started) / (completes - started), 0, 1);
         const bar = document.getElementById('constructionProgress');
         if (bar) bar.style.width = `${Math.round(progress * 100)}%`;
@@ -556,7 +772,8 @@
         }
         const station = stationById(id);
         if (station) return { title: station.name, kicker: `Level ${number(station.level)} · ${station.resourceName || 'Elemental workshop'}` };
-        return { title: 'Covenant Hall', kicker: 'The three promises' };
+        const rank = state.snapshot.keepRank || {};
+        return { title: 'Covenant Hall', kicker: rank.name ? `${rank.name} · Rank ${number(rank.level) || 1}` : 'The three promises' };
     }
 
     function buildingMarkup(id) {
@@ -579,7 +796,34 @@
                 : `<p class="panel-intro">A collapsed record hall lies beneath the eastern wall. Its stones protect letters from the Age Before Cards.</p>${projectsMarkup()}`;
         }
         if (stationById(id)) return facilityInteriorMarkup(id);
-        return `<p class="panel-intro">The sanctuary is founded on Stewardship, Consent, and Shelter.</p><section class="detail-card"><h3>The Keeper's Charter</h3><p>No Siegeling will be compelled to labor or fight. The land will be repaired rather than consumed, and those hunted by Akhar may seek refuge here.</p><div class="button-row"><button class="panel-button" type="button" data-open-panel="chronicle">Read the charter</button></div></section>${craftingMarkup('great_hall')}`;
+        return `<p class="panel-intro">The sanctuary is founded on Stewardship, Consent, and Shelter.</p>${rankCardMarkup()}<section class="detail-card"><h3>The Keeper's Charter</h3><p>No Siegeling will be compelled to labor or fight. The land will be repaired rather than consumed, and those hunted by Akhar may seek refuge here.</p><div class="button-row"><button class="panel-button" type="button" data-open-panel="chronicle">Read the charter</button></div></section>${themePickerMarkup()}${craftingMarkup('great_hall')}`;
+    }
+
+    function rankCardMarkup() {
+        const rank = state.snapshot.keepRank || {};
+        const level = number(rank.level) || 1;
+        const max = number(rank.maxLevel) || HALL_MAX_LEVEL;
+        const dots = Array.from({ length: max }, (item, index) =>
+            `<i class="${index < level ? 'filled' : ''}"></i>`).join('');
+        const next = rank.nextName
+            ? `<p>Next rank: <strong>${escapeHtml(rank.nextName)}</strong>. ${escapeHtml(rank.nextHint || 'Upgrade the hall from Projects.')}</p>`
+            : '<p>The Grand Keep stands complete — every rank of the sanctuary has been raised.</p>';
+        return `<section class="detail-card rank-card"><span class="eyebrow">Keep rank ${level}/${max}</span>
+            <h3>${escapeHtml(rank.name || 'Ruined Camp')}</h3>
+            <div class="rank-dots" aria-hidden="true">${dots}</div>${next}
+            <div class="button-row"><button class="panel-button secondary" type="button" data-open-panel="projects">Open Projects</button></div></section>`;
+    }
+
+    function themePickerMarkup() {
+        const themes = state.snapshot.hallThemes || [];
+        if (!themes.length) return '';
+        return `<section class="detail-card theme-card"><span class="eyebrow">Hall colors</span><h3>Banners & light</h3>
+            <p>Recolor the hall's banners, lanterns, and tower light across the whole keep. Purely cosmetic — production never changes.</p>
+            <div class="theme-swatches">${themes.map((theme) => `
+                <button type="button" class="theme-swatch ${theme.active ? 'active' : ''}" data-set-theme="${escapeAttr(theme.id)}"
+                    style="--swatch:${escapeAttr(theme.accent)};--swatch-trim:${escapeAttr(theme.trim)}" title="${escapeAttr(theme.name)}">
+                    <i aria-hidden="true"></i><small>${escapeHtml(theme.name)}</small>
+                </button>`).join('')}</div></section>`;
     }
 
     function facilityInteriorMarkup(id) {
@@ -610,7 +854,9 @@
             garden: 'Living beds turn patient cultivation into Verdant Fiber for weaving, tools, and restorative construction.',
             forge: 'A consent-bound hearth shapes Ember Ingots without forcing a resident to remain at the bellows.',
             fridge: 'Frost-lined vaults preserve food and form Frost Crystals without draining the surrounding water.',
-            generator: 'Balanced elemental currents condense into Storm Cells that power advanced tools and shared upgrades.'
+            generator: 'Balanced elemental currents condense into Storm Cells that power advanced tools and shared upgrades.',
+            quarry: 'Cut faces yield stone along its willing grain — footings for the Builder’s Yard, walls, and keep ranks.',
+            kitchen: 'A warm hearth turns the garden’s bounty into Provisions for weekly orders and visiting Siegelings.'
         })[id] || 'A workshop built around partnership.';
     }
 
@@ -639,6 +885,9 @@
         text('interiorTitle', heading.title);
         text('interiorKicker', heading.kicker);
         interior.dataset.archiveRestored = String(Boolean(state.snapshot.visualState?.archiveRestored));
+        interior.dataset.hallTheme = state.snapshot.visualState?.hallTheme || 'covenant';
+        const interiorStation = stationById(state.interior);
+        interior.dataset.fill = interiorStation ? String(fillTier(interiorStation)) : '';
         const resident = state.interior === 'woodlot' ? state.snapshot.station?.resident : stationById(state.interior)?.resident;
         document.getElementById('interiorResident')?.classList.toggle('hidden', !resident);
         setResidentOverlayArt(document.getElementById('interiorResidentArt'), resident);
@@ -761,7 +1010,18 @@
             <button class="panel-button" type="button" data-claim-keep-reward="${escapeAttr(item.id)}" ${item.canClaim ? '' : 'disabled'}>${item.claimed ? 'Claimed' : item.complete ? 'Claim' : 'In progress'}</button>
         </section>`).join('');
         const tributeTime = tribute.ready ? 'Ready now' : tribute.nextClaimAt ? `Returns ${formatDateTime(tribute.nextClaimAt)}` : 'Build the Elemental Generator';
-        return `<div class="rewards-section"><span class="eyebrow">Keep rewards</span>${milestoneCards}<section class="reward-card tribute-card">
+        const order = state.snapshot.weeklyOrder || {};
+        const orderChips = (order.requirements || []).map((req) =>
+            `<span class="${number(req.have) >= number(req.amount) ? 'is-met' : ''}">${materialIcon(req.id)} ${number(req.have)}/${number(req.amount)} ${escapeHtml(req.name)}</span>`).join('');
+        const orderStatus = !order.unlocked ? 'Warm the Garden Kitchen to take orders'
+            : order.claimed ? 'Filled this week — a new manifest arrives Monday'
+                : 'Deliver this week’s materials for coin';
+        const orderCard = `<section class="reward-card order-card ${order.claimed ? 'is-claimed' : ''}">
+            <span><small>Weekly crafting order</small><strong>The Caravan Manifest</strong><p>${escapeHtml(orderStatus)}</p>${orderChips ? `<div class="order-reqs">${orderChips}</div>` : ''}</span>
+            <span class="reward-value">${number(order.reward?.gold)} Siegecoins<br>${number(order.reward?.remnants)} Remnants</span>
+            <button class="panel-button" type="button" data-claim-keep-reward="weekly_order" ${order.canClaim ? '' : 'disabled'}>${order.claimed ? 'Filled' : order.canClaim ? 'Fill order' : 'Gather materials'}</button>
+        </section>`;
+        return `<div class="rewards-section"><span class="eyebrow">Keep rewards</span>${milestoneCards}${orderCard}<section class="reward-card tribute-card">
             <span><small>Weekly sanctuary tribute</small><strong>A Gift Returned</strong><p>${escapeHtml(tributeTime)}</p></span>
             <span class="reward-value">${number(tribute.reward?.gold)} Siegecoins<br>${number(tribute.reward?.remnants)} Remnants</span>
             <button class="panel-button" type="button" data-claim-keep-reward="weekly_tribute" ${tribute.ready ? '' : 'disabled'}>${tribute.ready ? 'Claim tribute' : 'Not ready'}</button>
@@ -775,9 +1035,14 @@
         const station = stationById(state.selectedStation) || {};
         const stationTabs = `<div class="station-tabs">${stations.map((item) => `<button class="${item.id === state.selectedStation ? 'active' : ''}" type="button" data-resident-station="${escapeAttr(item.id)}">${escapeHtml(item.name)}</button>`).join('')}</div>`;
         if (!residents.length) return `${stationTabs}<div class="empty-state">Owned Siegeling cards introduce their evolution family to the sanctuary. Choose a starter pack to meet your first residents.</div>`;
-        return `${stationTabs}<p class="panel-intro">Assigning a resident to ${escapeHtml(station.name || 'this station')} moves it from any previous work slot. Cards remain available in decks and expeditions.</p>${residents.map((resident) => {
+        const favorite = state.snapshot.favorite || {};
+        const favoriteIntro = favorite.resident
+            ? `<section class="detail-card favorite-card"><span class="eyebrow">Favorite Siegeling</span><h3>${escapeHtml(favorite.resident.name)}</h3><p>${escapeHtml(favorite.label || '')} — every station, tribute, and order earns more while they inspire the keep.</p></section>`
+            : `<section class="detail-card favorite-card"><span class="eyebrow">Favorite Siegeling</span><h3>The shrine stands empty</h3><p>Tap the ★ beside a resident to honor a favorite. The bonus scales with their rarity and boosts income and materials across the whole keep.</p></section>`;
+        return `${stationTabs}${favoriteIntro}<p class="panel-intro">Assigning a resident to ${escapeHtml(station.name || 'this station')} moves it from any previous work slot. Cards remain available in decks and expeditions.</p>${residents.map((resident) => {
             const assigned = assignmentFor(resident.id);
             const invited = station.residentId === resident.id;
+            const isFavorite = favorite.residentId === resident.id;
             const affinity = residentAffinity(resident, station);
             let action;
             if (invited) {
@@ -788,9 +1053,10 @@
             } else {
                 action = `<button class="panel-button" type="button" data-station-id="${escapeAttr(station.id || 'woodlot')}" data-invite-resident="${escapeAttr(resident.id)}">Assign</button>`;
             }
-            return `<section class="resident-card ${invited ? 'is-invited' : assigned ? 'is-assigned-elsewhere' : ''}">
+            return `<section class="resident-card ${invited ? 'is-invited' : assigned ? 'is-assigned-elsewhere' : ''} ${isFavorite ? 'is-favorite' : ''}">
                 <span class="resident-avatar" style="--resident-color:${escapeAttr(elementColors[resident.element] || elementColors.NEUTRAL)}">${residentAvatarContent(resident)}</span>
-                <span class="resident-copy"><h3>${escapeHtml(resident.name)}</h3><small>${escapeHtml(resident.element)} · ${escapeHtml(affinity)}</small></span>
+                <span class="resident-copy"><h3>${escapeHtml(resident.name)}</h3><small>${escapeHtml(resident.element)} · ${escapeHtml(titleCase(resident.rarity || 'COMMON'))} · ${escapeHtml(affinity)}</small></span>
+                <button class="favorite-toggle ${isFavorite ? 'active' : ''}" type="button" data-set-favorite="${escapeAttr(resident.id)}" aria-label="${isFavorite ? 'Remove favorite' : `Make ${escapeAttr(resident.name)} your favorite`}" title="Favorite">${isFavorite ? '★' : '☆'}</button>
                 ${action}
             </section>`;
         }).join('')}`;
@@ -811,26 +1077,29 @@
     }
 
     function projectsMarkup() {
-        const construction = state.snapshot.activeConstruction;
-        let projects = '';
-        if (construction) {
-            projects = `<section class="project-card"><span class="eyebrow">In progress</span><h3>${escapeHtml(projectName(construction.id))}</h3><p>The site changes through foundations, scaffolding, and completion. No progress is lost while you are away.</p><div class="meter"><i data-live-construction-meter style="width:${constructionPercent()}%"></i></div><div class="cost-row"><span data-live-construction-time>${escapeHtml(formatDuration(constructionRemaining()))}</span><strong>Workers active</strong></div></section>`;
-        } else {
-            const options = state.snapshot.buildOptions || [];
-            projects = options.length ? options.map((option) => {
-                const costs = [`▰ ${number(option.timberCost)} timber`];
-                for (const cost of option.materialCosts || []) costs.push(`${materialIcon(cost.id)} ${number(cost.amount)} ${cost.name}`);
-                const shortages = [];
-                if (number(state.snapshot.resources?.timber) < number(option.timberCost)) shortages.push('timber');
-                for (const cost of option.materialCosts || []) {
-                    if (number(materialById(cost.id)?.amount) < number(cost.amount)) shortages.push(cost.name);
-                }
-                return `<section class="project-card"><span class="eyebrow">Visible restoration</span><h3>${escapeHtml(option.name)}</h3><p>${escapeHtml(option.description || '')}</p>
-                    <div class="cost-row"><span>${escapeHtml(formatDuration(option.durationSeconds))}</span><strong>${escapeHtml(costs.join(' · '))}</strong></div>
-                    <div class="button-row"><button class="panel-button" type="button" data-start-build="${escapeAttr(option.id)}" ${option.canStart ? '' : 'disabled'}>${option.canStart ? 'Begin project' : `Need ${escapeHtml(shortages.join(' & ') || 'prior project')}`}</button></div></section>`;
-            }).join('') : '<div class="empty-state">Every current restoration is complete. Weekly tribute and resident affinities keep the sanctuary useful while future chapters arrive.</div>';
-        }
-        return `${projects}${rewardsMarkup()}`;
+        const constructions = activeConstructionList();
+        const slots = Math.max(1, number(state.snapshot.constructionSlots) || 1);
+        const crewNote = slots > 1 || constructions.length
+            ? `<p class="panel-intro crew-note">Construction crews: ${constructions.length}/${slots} busy${slots > 1 ? ' · the Builder’s Yard staffs a second crew' : ''}.</p>`
+            : '';
+        const inProgress = constructions.map((item, index) => `<section class="project-card"><span class="eyebrow">In progress${slots > 1 ? ` · Crew ${index + 1}` : ''}</span><h3>${escapeHtml(projectName(item.id))}</h3><p>The site changes through foundations, scaffolding, and completion. No progress is lost while you are away.</p><div class="meter"><i data-live-construction-meter="${index}" style="width:${constructionPercent(index)}%"></i></div><div class="cost-row"><span data-live-construction-time="${index}">${escapeHtml(formatDuration(constructionEntryRemaining(item)))}</span><strong>Workers active</strong></div></section>`).join('');
+        const options = state.snapshot.buildOptions || [];
+        const optionCards = options.map((option) => {
+            const costs = [`▰ ${number(option.timberCost)} timber`];
+            for (const cost of option.materialCosts || []) costs.push(`${materialIcon(cost.id)} ${number(cost.amount)} ${cost.name}`);
+            const shortages = [];
+            if (number(state.snapshot.resources?.timber) < number(option.timberCost)) shortages.push('timber');
+            for (const cost of option.materialCosts || []) {
+                if (number(materialById(cost.id)?.amount) < number(cost.amount)) shortages.push(cost.name);
+            }
+            const blockedLabel = constructions.length >= slots ? 'Crews busy'
+                : `Need ${escapeHtml(shortages.join(' & ') || 'prior project')}`;
+            return `<section class="project-card ${option.rankName ? 'is-rank-project' : ''}"><span class="eyebrow">${option.rankName ? `Keep rank · ${escapeHtml(option.rankName)}` : 'Visible restoration'}</span><h3>${escapeHtml(option.name)}</h3><p>${escapeHtml(option.description || '')}</p>
+                <div class="cost-row"><span>${escapeHtml(formatDuration(option.durationSeconds))}</span><strong>${escapeHtml(costs.join(' · '))}</strong></div>
+                <div class="button-row"><button class="panel-button" type="button" data-start-build="${escapeAttr(option.id)}" ${option.canStart ? '' : 'disabled'}>${option.canStart ? 'Begin project' : blockedLabel}</button></div></section>`;
+        }).join('');
+        const projects = inProgress + optionCards;
+        return `${crewNote}${projects || '<div class="empty-state">Every current restoration is complete. Weekly tribute and resident affinities keep the sanctuary useful while future chapters arrive.</div>'}${rewardsMarkup()}`;
     }
 
     function projectsMarkupLegacy() {
@@ -951,8 +1220,13 @@
         document.querySelectorAll('[data-station-meter]').forEach((meter) => {
             meter.style.width = `${stationFill(stationById(meter.dataset.stationMeter))}%`;
         });
-        document.querySelectorAll('[data-live-construction-time]').forEach((time) => { time.textContent = formatDuration(constructionRemaining()); });
-        document.querySelectorAll('[data-live-construction-meter]').forEach((meter) => { meter.style.width = `${constructionPercent()}%`; });
+        document.querySelectorAll('[data-live-construction-time]').forEach((time) => {
+            const entry = activeConstructionList()[number(time.dataset.liveConstructionTime)];
+            time.textContent = formatDuration(entry ? constructionEntryRemaining(entry) : 0);
+        });
+        document.querySelectorAll('[data-live-construction-meter]').forEach((meter) => {
+            meter.style.width = `${constructionPercent(number(meter.dataset.liveConstructionMeter))}%`;
+        });
     }
 
     function setPanelHeading(title, kicker) {
@@ -1083,15 +1357,30 @@
                     const material = (snapshot.resources.materials || []).find((item) => item.id === cost.id);
                     if (material) material.amount = Math.max(0, number(material.amount) - number(cost.amount));
                 }
-                snapshot.activeConstruction = {
+                const entry = {
                     id: option.id,
                     startedAt: new Date(nowMs()).toISOString(),
                     completesAt: new Date(nowMs() + option.durationSeconds * 1000).toISOString(),
                     remainingSeconds: option.durationSeconds,
                     progress: 0
                 };
-                snapshot.buildOptions = [];
+                snapshot.activeConstructions = [...(snapshot.activeConstructions || []), entry];
+                snapshot.activeConstruction = snapshot.activeConstructions[0];
+                snapshot.buildOptions = (snapshot.buildOptions || []).filter((item) => item.id !== option.id);
             }
+        } else if (path.endsWith('/favorite')) {
+            const resident = (snapshot.residents || []).find((item) => item.id === body.residentId) || null;
+            const bonus = resident
+                ? ({ UNCOMMON: 8, RARE: 12, EPIC: 16, LEGENDARY: 20 })[resident.rarity] || 5
+                : 0;
+            snapshot.favorite = {
+                residentId: resident ? resident.id : '',
+                resident,
+                bonusPercent: bonus,
+                label: resident ? `${titleCase(resident.rarity || 'COMMON')} favorite · +${bonus}% keep-wide` : 'No favorite chosen'
+            };
+            if (snapshot.visualState) snapshot.visualState.favoriteSet = Boolean(resident);
+            snapshot.favoriteChanged = { residentId: snapshot.favorite.residentId, name: resident?.name || '', bonusPercent: bonus };
         } else if (path.endsWith('/lore/read')) {
             const entry = (snapshot.lore || []).find((item) => item.id === body.loreId);
             if (entry && !entry.read) {
@@ -1145,6 +1434,15 @@
             else if (snapshot.placedDecorations[body.roomId] === body.decorationId) delete snapshot.placedDecorations[body.roomId];
             const decoration = (snapshot.decorations || []).find((item) => item.id === body.decorationId);
             if (decoration) decoration.displayed = Boolean(body.displayed);
+        } else if (path.endsWith('/theme')) {
+            const themes = snapshot.hallThemes || [];
+            const picked = themes.find((item) => item.id === (body.themeId || 'covenant')) || themes[0];
+            for (const item of themes) item.active = Boolean(picked) && item.id === picked.id;
+            if (snapshot.visualState) snapshot.visualState.hallTheme = picked?.id || 'covenant';
+            if (picked) {
+                snapshot.hallTheme = { id: picked.id, name: picked.name, accent: picked.accent, trim: picked.trim };
+                snapshot.themeChanged = { id: picked.id, name: picked.name };
+            }
         }
         window.__KEEP_TEST_SNAPSHOT__ = clone(snapshot);
         return Promise.resolve(snapshot);
@@ -1162,8 +1460,18 @@
 
     function completeMockConstructionIfReady() {
         const snapshot = state.snapshot;
-        const construction = snapshot?.activeConstruction;
-        if (!construction || constructionRemaining() > 0) return;
+        if (!snapshot) return;
+        const pending = activeConstructionList();
+        const due = pending.filter((item) => constructionEntryRemaining(item) <= 0);
+        if (!due.length) return;
+        for (const item of due) applyMockConstruction(snapshot, item);
+        snapshot.activeConstructions = pending.filter((item) => constructionEntryRemaining(item) > 0);
+        snapshot.activeConstruction = snapshot.activeConstructions[0] || null;
+        snapshot.stateVersion = number(snapshot.stateVersion) + 1;
+        applySnapshot(snapshot, true);
+    }
+
+    function applyMockConstruction(snapshot, construction) {
         if (construction.id === 'restore_archive') {
             snapshot.visualState.archiveRestored = true;
             const archive = (snapshot.buildings || []).find((item) => item.id === 'archive');
@@ -1175,10 +1483,17 @@
             snapshot.station.level = 2;
             snapshot.station.ratePerMinute *= 2;
             mockUnlock(snapshot, 'letter_green_covenant');
+        } else if (String(construction.id).startsWith('hall_level_')) {
+            const level = number(String(construction.id).slice('hall_level_'.length));
+            if (snapshot.visualState) snapshot.visualState.hallLevel = level;
+            if (snapshot.keepRank) {
+                snapshot.keepRank.level = level;
+                snapshot.keepRank.name = RANK_NAMES[level - 1] || snapshot.keepRank.name;
+                snapshot.keepRank.nextName = RANK_NAMES[level] || null;
+            }
+            const hall = (snapshot.buildings || []).find((item) => item.id === 'great_hall');
+            if (hall) { hall.level = level; hall.status = 'COMPLETE'; }
         }
-        snapshot.activeConstruction = null;
-        snapshot.stateVersion = number(snapshot.stateVersion) + 1;
-        applySnapshot(snapshot, true);
     }
 
     function projectedAvailable() {
@@ -1235,7 +1550,7 @@
     }
 
     function materialIcon(id) {
-        return ({ verdant_fiber: '❧', ember_ingot: '◆', frost_crystal: '❄', storm_cell: '⚡' })[id] || '✦';
+        return ({ verdant_fiber: '❧', ember_ingot: '◆', frost_crystal: '❄', storm_cell: '⚡', stone: '◈', provisions: '❋' })[id] || '✦';
     }
 
     function stationFill(station) {
@@ -1243,7 +1558,7 @@
     }
 
     function facilityIcon(id) {
-        return ({ garden: '❧', forge: '♨', fridge: '❄', generator: '⚡', woodlot: '♧' })[id] || '✦';
+        return ({ garden: '❧', forge: '♨', fridge: '❄', generator: '⚡', woodlot: '♧', quarry: '◈', kitchen: '❋' })[id] || '✦';
     }
 
     function residentAffinity(resident, station) {
@@ -1253,13 +1568,19 @@
         return 'Normal rate';
     }
 
-    function constructionRemaining() {
-        const completes = Date.parse(state.snapshot?.activeConstruction?.completesAt || '');
+    function constructionEntryRemaining(entry) {
+        const completes = Date.parse(entry?.completesAt || '');
         return Number.isFinite(completes) ? Math.max(0, Math.ceil((completes - nowMs()) / 1000)) : 0;
     }
 
-    function constructionPercent() {
-        const construction = state.snapshot?.activeConstruction;
+    function constructionRemaining() {
+        const constructions = activeConstructionList();
+        if (!constructions.length) return 0;
+        return constructions.reduce((min, item) => Math.min(min, constructionEntryRemaining(item)), Infinity);
+    }
+
+    function constructionPercent(index = 0) {
+        const construction = activeConstructionList()[index];
         if (!construction) return 0;
         const started = Date.parse(construction.startedAt || '') || nowMs();
         const completes = Date.parse(construction.completesAt || '') || nowMs();
@@ -1278,7 +1599,13 @@
             restore_archive: 'Restore the Living Archive', woodlot_level_2: 'Cultivate the Woodlot',
             raise_storehouse: 'Raise the Covenant Storehouse', build_garden: 'Plant the Covenant Garden',
             build_forge: 'Kindle the Accord Forge', build_fridge: 'Raise the Frost Fridge',
-            build_generator: 'Tune the Elemental Generator', storehouse_level_2: 'Vault the Storehouse'
+            build_generator: 'Tune the Elemental Generator', storehouse_level_2: 'Vault the Storehouse',
+            build_quarry: 'Open the Covenant Quarry', build_kitchen: 'Warm the Garden Kitchen',
+            build_builders_yard: 'Raise the Builder’s Yard',
+            hall_level_2: 'Raise the Timber Outpost', hall_level_3: 'Settle the Courtyard',
+            hall_level_4: 'Cut the Stonehold', hall_level_5: 'Raise the Keep Walls',
+            hall_level_6: 'Awaken the Elemental Stronghold', hall_level_7: 'Crown the High Castle',
+            hall_level_8: 'Consecrate the Grand Keep'
         };
         if (names[id]) return names[id];
         if (String(id).endsWith('_level_2')) return `Expand the ${titleCase(String(id).replace('_level_2', '').replaceAll('_', ' '))}`;
@@ -1383,6 +1710,19 @@
                 capacity: number(station.storageCapacity), ratePerMinute: number(station.ratePerMinute),
                 resident: station.resident?.name || null, affinities: station.affinities || []
             })),
+            keepRank: snapshot.keepRank || null,
+            hallTheme: snapshot.visualState?.hallTheme || 'covenant',
+            favorite: snapshot.favorite || null,
+            weeklyOrder: snapshot.weeklyOrder || null,
+            constructionSlots: number(snapshot.constructionSlots) || 1,
+            activeConstructions: activeConstructionList().map((item) => ({
+                id: item.id, remainingSeconds: constructionEntryRemaining(item)
+            })),
+            sceneView: { zoom: view.zoom, panX: view.panX, panY: view.panY },
+            stockpileTiers: (snapshot.stations || [snapshot.station]).filter(Boolean).reduce((out, station) => {
+                out[station.id] = fillTier(station);
+                return out;
+            }, {}),
             milestones: (snapshot.milestones || []).map((item) => ({ id: item.id, complete: Boolean(item.complete), claimed: Boolean(item.claimed), canClaim: Boolean(item.canClaim) })),
             weeklyTribute: snapshot.weeklyTribute || null,
             recipes: (snapshot.recipes || []).map((item) => ({ id: item.id, roomId: item.roomId, type: item.type, crafted: Boolean(item.crafted), canCraft: Boolean(item.canCraft) })),

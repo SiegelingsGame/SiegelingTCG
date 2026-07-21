@@ -325,15 +325,26 @@ button.resource-pill:focus-visible {
     opacity: calc(.62 + (var(--heal) * .38));
 }
 
+/* The road runs from the bottom edge straight to the hall door, so it meets
+   the Covenant Gate exactly once curtain walls appear at Walled Keep rank. */
 .road {
     position: absolute;
-    left: 45%;
-    bottom: -18%;
-    width: 18%;
-    height: 70%;
-    transform: perspective(520px) rotateX(58deg) rotate(4deg);
-    background: linear-gradient(90deg, transparent, rgba(191, 167, 120, .72) 24% 76%, transparent);
-    clip-path: polygon(38% 0, 62% 0, 100% 100%, 0 100%);
+    left: 50%;
+    top: 46.5%;
+    bottom: -4%;
+    width: 36%;
+    translate: -50% 0;
+    background:
+        repeating-linear-gradient(174deg, transparent 0 34px, rgba(150, 126, 84, .3) 34px 37px),
+        linear-gradient(180deg, rgba(191, 167, 120, .55), rgba(191, 167, 120, .78));
+    clip-path: polygon(44.5% 0, 55.5% 0, 100% 100%, 0 100%);
+}
+.road::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, rgba(124, 102, 66, .5), transparent 12% 88%, rgba(124, 102, 66, .5));
+    clip-path: inherit;
 }
 
 .ambient-motes { position: absolute; inset: 0; pointer-events: none; opacity: calc(.15 + (var(--heal) * .75)); }
@@ -373,33 +384,50 @@ button.resource-pill:focus-visible {
 .hall-hotspot { left: 50%; top: 18%; transform: translateX(-50%); width: clamp(180px, 27vw, 360px); height: clamp(190px, 36vh, 350px); }
 .woodlot-hotspot { left: 8%; bottom: 9%; }
 .archive-hotspot { right: 8%; bottom: 10%; }
-.quarter-hotspot { right: 24%; top: 52%; width: clamp(126px, 17vw, 210px); height: clamp(105px, 18vh, 180px); }
+.quarter-hotspot { right: 22%; top: 48%; width: clamp(150px, 21vw, 260px); height: clamp(128px, 23vh, 215px); }
 .quarter-illustration { position: absolute; inset: 2px 4px 34px; display: block; filter: drop-shadow(0 7px 5px rgba(22, 29, 25, .28)); }
-.quarter-path { position: absolute; left: 20%; right: 8%; bottom: 4%; height: 20%; background: rgba(199, 173, 121, .58); clip-path: polygon(46% 0, 56% 0, 100% 100%, 0 100%); }
-.quarter-building { position: absolute; display: block; width: 36%; height: 42%; bottom: 13%; border: 1px solid rgba(32, 43, 39, .38); border-radius: 3px 3px 1px 1px; opacity: .34; filter: grayscale(.7); transition: opacity .5s, filter .5s, transform .5s; }
+.quarter-path { position: absolute; left: 20%; right: 8%; bottom: 2%; height: 18%; background: rgba(199, 173, 121, .58); clip-path: polygon(46% 0, 56% 0, 100% 100%, 0 100%); }
+.quarter-building { position: absolute; display: block; width: 26%; height: 30%; bottom: 13%; border: 1px solid rgba(32, 43, 39, .38); border-radius: 3px 3px 1px 1px; opacity: .34; filter: grayscale(.7); transition: opacity .5s, filter .5s, transform .5s; }
 .quarter-building::before { content: ""; position: absolute; left: -8%; right: -8%; top: -30%; height: 40%; background: #334a4d; clip-path: polygon(50% 0, 100% 100%, 0 100%); }
 .quarter-building b { position: absolute; left: 38%; bottom: 0; width: 24%; height: 52%; border-radius: 5px 5px 0 0; background: rgba(255, 232, 168, .6); }
-.quarter-garden { left: 2%; bottom: 9%; background: #739259; }
-.quarter-garden::before { background: #435e3e; }
-.quarter-storehouse { left: 5%; bottom: 55%; width: 30%; height: 34%; background: #a38a63; }
+/* Three terraced rows keep all eight sites readable in the small cluster. */
+.quarter-storehouse { left: 3%; bottom: 64%; width: 27%; height: 27%; background: #a38a63; }
 .quarter-storehouse::before { background: #46555a; }
 .quarter-storehouse b { width: 34%; left: 33%; background: #e4c37b; }
-.quarter-forge { left: 29%; bottom: 35%; background: #82584b; }
-.quarter-forge b { background: #ff8a4e; animation: facility-glow 1.7s ease-in-out infinite; }
-.quarter-fridge { right: 6%; bottom: 16%; background: #7199a2; }
-.quarter-fridge b { background: #c9f0ff; animation: facility-shimmer 2.3s ease-in-out infinite; }
-.quarter-generator { right: 15%; bottom: 55%; width: 29%; height: 35%; background: #655c87; }
+.quarter-yard { left: 37%; bottom: 64%; width: 26%; height: 27%; background: #8a6a45; }
+.quarter-yard::before { background: #4a5a5e; }
+.quarter-yard b { left: 70%; bottom: 0; width: 8%; height: 96%; border-radius: 0; background: #57422b; }
+.quarter-yard b::after { content: ""; position: absolute; right: 0; top: 0; width: 420%; height: 14%; background: #57422b; }
+.quarter-yard b::before { content: ""; position: absolute; right: 300%; top: 12%; width: 26%; height: 52%; background: #d8b25e; }
+.quarter-generator { right: 3%; bottom: 64%; width: 27%; height: 28%; background: #655c87; }
 .quarter-generator::after { content: ""; position: absolute; width: 10px; height: 10px; left: 50%; top: 34%; translate: -50% -50%; border-radius: 50%; background: #b4f5ff; box-shadow: 0 0 10px #9eefff; animation: generator-pulse 1.6s ease-in-out infinite; }
+.quarter-forge { left: 11%; bottom: 34%; width: 25%; height: 29%; background: #82584b; }
+.quarter-forge b { background: #ff8a4e; animation: facility-glow 1.7s ease-in-out infinite; }
+.quarter-quarry { right: 11%; bottom: 34%; width: 26%; height: 27%; background: #8f8a7c; }
+.quarter-quarry::before { background: #565244; }
+.quarter-quarry b { background: rgba(214, 208, 190, .75); }
+.quarter-garden { left: 1%; bottom: 3%; width: 26%; height: 29%; background: #739259; }
+.quarter-garden::before { background: #435e3e; }
+.quarter-kitchen { left: 37%; bottom: 3%; width: 26%; height: 28%; background: #b3805a; }
+.quarter-kitchen::before { background: #6e4a33; }
+.quarter-kitchen b { background: #ffcf8e; animation: facility-glow 2.1s ease-in-out infinite; }
+.quarter-fridge { right: 1%; bottom: 3%; width: 26%; height: 29%; background: #7199a2; }
+.quarter-fridge b { background: #c9f0ff; animation: facility-shimmer 2.3s ease-in-out infinite; }
 .keep-scene[data-storehouse-level]:not([data-storehouse-level="0"]) .quarter-storehouse,
 .keep-scene[data-garden-level]:not([data-garden-level="0"]) .quarter-garden,
 .keep-scene[data-forge-level]:not([data-forge-level="0"]) .quarter-forge,
 .keep-scene[data-fridge-level]:not([data-fridge-level="0"]) .quarter-fridge,
-.keep-scene[data-generator-level]:not([data-generator-level="0"]) .quarter-generator { opacity: 1; filter: none; transform: translateY(-2px); }
+.keep-scene[data-generator-level]:not([data-generator-level="0"]) .quarter-generator,
+.keep-scene[data-quarry-level]:not([data-quarry-level="0"]) .quarter-quarry,
+.keep-scene[data-kitchen-level]:not([data-kitchen-level="0"]) .quarter-kitchen,
+.keep-scene[data-builders-yard-level]:not([data-builders-yard-level="0"]) .quarter-yard { opacity: 1; filter: none; transform: translateY(-2px); }
 .keep-scene[data-storehouse-level="2"] .quarter-storehouse,
 .keep-scene[data-garden-level="2"] .quarter-garden,
 .keep-scene[data-forge-level="2"] .quarter-forge,
 .keep-scene[data-fridge-level="2"] .quarter-fridge,
-.keep-scene[data-generator-level="2"] .quarter-generator {
+.keep-scene[data-generator-level="2"] .quarter-generator,
+.keep-scene[data-quarry-level="2"] .quarter-quarry,
+.keep-scene[data-kitchen-level="2"] .quarter-kitchen {
     transform: translateY(-5px) scale(1.1);
     box-shadow: 0 0 0 2px rgba(244, 204, 98, .7), 0 0 14px rgba(244, 204, 98, .45);
 }
@@ -457,8 +485,9 @@ button.resource-pill:focus-visible {
 .scaffold b:nth-child(1) { top: 28%; }
 .scaffold b:nth-child(2) { top: 58%; }
 .scaffold b:nth-child(3) { top: 84%; }
-.keep-scene.is-building-archive .archive-hotspot .scaffold,
-.keep-scene.is-building-woodlot .woodlot-hotspot .scaffold { display: block; animation: scaffold-pulse 2s ease-in-out infinite; }
+.keep-scene[data-constructing~="archive"] .archive-hotspot .scaffold,
+.keep-scene[data-constructing~="woodlot"] .woodlot-hotspot .scaffold,
+.keep-scene[data-constructing~="hall"] .hall-hotspot .scaffold { display: block; animation: scaffold-pulse 2s ease-in-out infinite; }
 
 /* Scene residents stand as Siege-style overlay cutouts (transparent character
    art with a drop shadow), matching adventure battle sprites — not circular
@@ -718,7 +747,12 @@ button.resource-pill:focus-visible {
 .cost-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; color: rgba(255, 247, 220, .72); font-size: 11px; }
 .cost-row strong { color: #e2aa60; }
 
-.resident-card { display: grid; grid-template-columns: 52px 1fr auto; align-items: center; gap: 10px; }
+.resident-card { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto auto; align-items: center; gap: 8px; }
+.resident-card.is-favorite { border-color: rgba(244, 204, 98, .5); }
+.favorite-toggle { width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 50%; color: #ffd76e; background: rgba(255, 255, 255, .05); font-size: 16px; line-height: 1; cursor: pointer; }
+.favorite-toggle:hover { border-color: rgba(244, 204, 98, .6); }
+.favorite-toggle.active { border-color: var(--gold); background: rgba(244, 204, 98, .16); box-shadow: 0 0 8px rgba(244, 204, 98, .5); }
+.favorite-card { border-color: rgba(244, 204, 98, .4); background: rgba(244, 204, 98, .06); }
 .resident-avatar { width: 52px; height: 52px; display: grid; place-items: center; overflow: hidden; border: 2px solid color-mix(in srgb, var(--resident-color, var(--neutral)) 70%, white); border-radius: 50%; color: #172333; background: var(--resident-color, var(--neutral)); font-weight: 900; }
 .resident-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .resident-copy { min-width: 0; }
@@ -741,6 +775,8 @@ button.resource-pill:focus-visible {
 .facility-forge { background: #ef8a59; }
 .facility-fridge { background: #a9e8f2; }
 .facility-generator { background: #cfb4ff; }
+.facility-quarry { background: #c9c4b4; }
+.facility-kitchen { background: #eec08a; }
 .facility-resident { min-height: 48px; display: flex; align-items: center; gap: 9px; margin-top: 10px; padding: 8px; border-radius: 10px; background: rgba(0, 0, 0, .14); }
 .facility-resident > img { width: 36px; height: 36px; object-fit: cover; border: 1px solid rgba(244, 204, 98, .5); border-radius: 50%; }
 .facility-resident > span { min-width: 0; display: flex; flex-direction: column; }
@@ -998,7 +1034,9 @@ button.resource-pill:focus-visible {
 .keep-interior[data-room="garden"] .room-garden,
 .keep-interior[data-room="forge"] .room-forge,
 .keep-interior[data-room="fridge"] .room-fridge,
-.keep-interior[data-room="generator"] .room-generator { display: block; }
+.keep-interior[data-room="generator"] .room-generator,
+.keep-interior[data-room="quarry"] .room-quarry,
+.keep-interior[data-room="kitchen"] .room-kitchen { display: block; }
 
 /* Shared room shell: back wall + receding side walls + perspective floor. */
 .int-backwall { position: absolute; inset: 0 12% 30%; }
@@ -1163,6 +1201,39 @@ button.resource-pill:focus-visible {
 .generator-conduit { position: absolute; left: 28%; right: 28%; top: 45%; height: 5px; border-radius: 99px; background: #8895aa; box-shadow: 0 0 9px #8de6ff; }
 .harmonic-orb { position: absolute; left: 50%; top: 18%; width: 50px; height: 50px; translate: -50% 0; border: 3px solid rgba(191, 239, 255, .8); border-radius: 50%; background: conic-gradient(#ff8b55, #9eefff, #c3ef83, #d1a8ff, #ff8b55); box-shadow: 0 0 28px rgba(157, 234, 255, .75); animation: orb-float 2.8s ease-in-out infinite; }
 
+/* Quarry interior: cut stone face, block stacks, an ore cart. */
+.room-quarry .int-backwall { background: linear-gradient(180deg, #6d675a, #555044 60%, #423e34); box-shadow: inset 0 -14px 30px rgba(0, 0, 0, .4); }
+.room-quarry .int-sidewall { background: linear-gradient(90deg, #454136, #34312a); }
+.room-quarry .int-floor { background: repeating-linear-gradient(90deg, #6b665a 0 70px, #57534a 70px 76px); }
+.quarry-face { position: absolute; left: 12%; top: 12%; width: 28%; height: 46%; background: repeating-linear-gradient(9deg, #8f8a7a 0 14px, #7a7566 14px 26px); box-shadow: inset 0 0 0 5px #4a463b, 0 6px 14px rgba(0, 0, 0, .4); clip-path: polygon(0 12%, 22% 0, 55% 8%, 82% 2%, 100% 14%, 100% 100%, 0 100%); }
+.quarry-blocks { position: absolute; left: 16%; bottom: 15%; width: 22%; height: 18%; transform-origin: bottom left; background: repeating-linear-gradient(0deg, #b6b1a1 0 12px, #8f8a7a 12px 16px), repeating-linear-gradient(90deg, transparent 0 20px, rgba(60, 56, 46, .5) 20px 22px); box-shadow: 0 6px 8px rgba(0, 0, 0, .4); }
+.quarry-cart { position: absolute; right: 16%; bottom: 16%; width: 20%; height: 15%; background: linear-gradient(#6b5433, #4a3a22); clip-path: polygon(0 0, 100% 0, 86% 70%, 14% 70%); }
+.quarry-cart::before { content: ""; position: absolute; left: 12%; bottom: -26%; width: 22%; aspect-ratio: 1; border-radius: 50%; background: #33302a; box-shadow: inset 0 0 0 3px #57534a, 210% 0 0 0 #33302a, inset 0 0 0 3px #57534a; }
+.quarry-cart::after { content: ""; position: absolute; left: 10%; right: 10%; top: -30%; height: 40%; background: repeating-linear-gradient(0deg, #b6b1a1 0 5px, #8f8a7a 5px 8px); }
+.quarry-lantern { position: absolute; left: 52%; top: 30%; width: 13px; height: 18px; border-radius: 45%; background: radial-gradient(#fff2ae, #e0a94a); box-shadow: 0 0 26px 8px rgba(255, 226, 140, .35); animation: window-glow 3.1s ease-in-out infinite; }
+.stone-sentinel { position: absolute; right: 34%; bottom: 15%; width: 9%; height: 30%; background: linear-gradient(90deg, #8f8a7a, #b6b1a1 45%, #7a7566); clip-path: polygon(30% 12%, 50% 0, 70% 12%, 82% 34%, 74% 100%, 26% 100%, 18% 34%); box-shadow: 0 8px 10px rgba(0, 0, 0, .4); }
+.stone-sentinel::after { content: ""; position: absolute; left: 34%; top: 16%; width: 32%; height: 12%; border-radius: 50%; background: #d3ceba; box-shadow: 0 0 10px rgba(255, 233, 168, .4); }
+
+/* Kitchen interior: hearth, jar shelf, a simmering pot for provisions. */
+.room-kitchen .int-backwall { background: linear-gradient(180deg, #7a5a40, #5e4430 60%, #4a3526); box-shadow: inset 0 -14px 30px rgba(0, 0, 0, .38); }
+.room-kitchen .int-sidewall { background: linear-gradient(90deg, #4a3626, #38281b); }
+.room-kitchen .int-floor { background: repeating-linear-gradient(90deg, #8a6a45 0 74px, #74552f 74px 79px); }
+.kitchen-hearth { position: absolute; left: 39%; top: 18%; width: 22%; height: 42%; border-radius: 48% 48% 4px 4px; background: #241d17; box-shadow: inset 0 0 0 8px #5e4430, 0 0 28px rgba(255, 150, 70, .22); }
+.kitchen-hearth b { position: absolute; left: 24%; right: 24%; bottom: 9%; height: 42%; border-radius: 55% 55% 25% 25%; background: radial-gradient(ellipse at 50% 88%, #ffd869, #f08c3c 58%, rgba(240, 140, 60, 0)); animation: hearth-flicker 1.3s ease-in-out infinite; transform-origin: bottom; }
+.kitchen-shelf { position: absolute; left: 13%; top: 20%; width: 18%; height: 5%; background: #4a3521; box-shadow: 0 4px 8px rgba(0, 0, 0, .35); }
+.kitchen-shelf::before { content: ""; position: absolute; left: 6%; bottom: 100%; width: 16%; height: 220%; border-radius: 3px 3px 0 0; background: #c2a05c; box-shadow: 24px 0 #97b365, 48px 0 #d8a86b, 72px 0 #b3703f; }
+.kitchen-table { position: absolute; right: 14%; bottom: 15%; width: 24%; height: 15%; background: linear-gradient(180deg, #9a7448 30%, #7a5731 31%); clip-path: polygon(0 0, 100% 0, 100% 30%, 92% 31%, 92% 100%, 82% 100%, 82% 31%, 18% 31%, 18% 100%, 8% 100%, 8% 31%, 0 30%); filter: drop-shadow(0 7px 5px rgba(10, 8, 5, .4)); }
+.kitchen-table::after { content: ""; position: absolute; left: 18%; top: -22%; width: 20%; height: 24%; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #efd291, #d8a86b 70%); box-shadow: 30px 4px 0 -2px #e4c37b; }
+.kitchen-pot { position: absolute; left: 46%; bottom: 17%; width: 10%; height: 13%; border-radius: 12% 12% 45% 45%; background: linear-gradient(90deg, #3d4148, #7c848d 45%, #4a4f57); box-shadow: 0 6px 8px rgba(0, 0, 0, .45); }
+.kitchen-pot::before { content: ""; position: absolute; left: -8%; right: -8%; top: -6%; height: 18%; border-radius: 99px; background: #2f333a; }
+.kitchen-pot::after { content: ""; position: absolute; left: 30%; top: -70%; width: 12%; height: 60%; border-radius: 99px; background: linear-gradient(180deg, transparent, rgba(236, 240, 238, .5)); filter: blur(2px); animation: smoke-rise 2.6s ease-in-out infinite; }
+.hearth-garland { position: absolute; left: 36%; top: 9%; width: 28%; height: 10%; border-bottom: 4px solid #765435; border-radius: 0 0 50% 50%; }
+.hearth-garland::after { content: ""; position: absolute; left: 4%; right: 4%; bottom: -9px; height: 14px; background: radial-gradient(circle at 10% 50%, #d77b4e 0 4px, transparent 5px), radial-gradient(circle at 32% 80%, #e8dc73 0 4px, transparent 5px), radial-gradient(circle at 54% 55%, #97b365 0 4px, transparent 5px), radial-gradient(circle at 76% 82%, #f0a5bd 0 4px, transparent 5px), radial-gradient(circle at 94% 50%, #e4c37b 0 4px, transparent 5px); }
+.keep-interior[data-room="quarry"][data-fill="0"] .quarry-blocks { opacity: .25; transform: scale(.7); }
+.keep-interior[data-room="quarry"][data-fill="4"] .quarry-blocks { transform: scale(1.15); }
+.keep-interior[data-room="kitchen"][data-fill="0"] .kitchen-pot::after { opacity: .2; }
+.keep-interior[data-room="kitchen"][data-fill="4"] .kitchen-hearth { box-shadow: inset 0 0 0 8px #5e4430, 0 0 44px rgba(255, 150, 70, .4); }
+
 .crafted-decoration { display: none; }
 .crafted-decoration.is-placed { display: block; }
 .hall-crafted-tapestry { position: absolute; left: 8%; top: 13%; width: 9%; height: 35%; background: linear-gradient(90deg, #7fb472 0 25%, #d77b4e 25% 50%, #88d7e9 50% 75%, #b39ee3 75%); clip-path: polygon(0 0,100% 0,100% 86%,50% 100%,0 86%); box-shadow: inset 0 5px #f4cc62; }
@@ -1269,6 +1340,398 @@ button.resource-pill:focus-visible {
 .offline-result small { color: rgba(255, 247, 220, .62); font-size: 10px; }
 .offline-result.warning > i { background: #e7a16b; }
 
+/* —— Scene pan & zoom —— */
+.keep-scene { transition: transform .24s ease; will-change: transform; }
+.keep-scene.is-dragging { transition: none; }
+.keep-scene-viewport.is-pannable { touch-action: none; cursor: grab; }
+.keep-scene-viewport.is-pannable:active { cursor: grabbing; }
+.scene-zoom {
+    position: absolute;
+    z-index: 16;
+    right: calc(10px + var(--safe-right));
+    top: 50%;
+    transform: translateY(-50%);
+    display: grid;
+    gap: 6px;
+}
+.scene-zoom button {
+    width: 36px;
+    height: 36px;
+    border: 1px solid rgba(244, 204, 98, .4);
+    border-radius: 10px;
+    color: var(--cream);
+    background: rgba(20, 31, 43, .86);
+    box-shadow: 0 4px 12px rgba(4, 13, 19, .32);
+    font-size: 18px;
+    font-weight: 900;
+    line-height: 1;
+    cursor: pointer;
+}
+.scene-zoom button:hover:not(:disabled) { border-color: rgba(244, 204, 98, .8); background: rgba(244, 204, 98, .16); }
+.scene-zoom button:disabled { opacity: .38; cursor: default; }
+
+/* —— Hall themes: custom colors carried by CSS vars on scene + interiors —— */
+.keep-scene,
+.keep-interior { --hall-accent: #f4cc62; --hall-trim: #b96b3e; }
+.keep-scene[data-hall-theme="ember"], .keep-interior[data-hall-theme="ember"] { --hall-accent: #ff6a3d; --hall-trim: #8e3225; }
+.keep-scene[data-hall-theme="verdant"], .keep-interior[data-hall-theme="verdant"] { --hall-accent: #8fce6f; --hall-trim: #3f6b3a; }
+.keep-scene[data-hall-theme="tide"], .keep-interior[data-hall-theme="tide"] { --hall-accent: #4da8ff; --hall-trim: #2a5b8e; }
+.keep-scene[data-hall-theme="frost"], .keep-interior[data-hall-theme="frost"] { --hall-accent: #a9e8f2; --hall-trim: #4a7f8b; }
+.keep-scene[data-hall-theme="storm"], .keep-interior[data-hall-theme="storm"] { --hall-accent: #ffe63c; --hall-trim: #6d5c15; }
+.keep-scene[data-hall-theme="shadow"], .keep-interior[data-hall-theme="shadow"] { --hall-accent: #b087e0; --hall-trim: #4d3a70; }
+.keep-scene[data-hall-theme="light"], .keep-interior[data-hall-theme="light"] { --hall-accent: #ffe9a8; --hall-trim: #c99b4a; }
+/* Covenant keeps the painted gradient banners; every other theme recolors them. */
+.keep-scene:not([data-hall-theme="covenant"]) .kh-banner polygon { fill: var(--hall-accent); }
+.keep-interior:not([data-hall-theme="covenant"]) .hall-banner-int {
+    background: linear-gradient(var(--hall-accent) 72%, transparent 72%), linear-gradient(var(--hall-trim), var(--hall-accent));
+    box-shadow: inset 0 4px rgba(255, 255, 255, .55);
+}
+.keep-interior:not([data-hall-theme="covenant"]) .hall-window-int {
+    background: linear-gradient(180deg, var(--hall-accent), var(--hall-trim));
+    box-shadow: 0 0 26px color-mix(in srgb, var(--hall-accent) 55%, transparent), inset 0 0 0 4px #3c352c;
+}
+.keep-interior:not([data-hall-theme="covenant"]) .hall-crafted-tapestry { box-shadow: inset 0 5px var(--hall-accent); }
+
+/* —— Keep rank scenery: each hall level leaves a visible mark on the land —— */
+.kh-upgrade { display: none; }
+.keep-scene.hall-l2 .kh-lvl2,
+.keep-scene.hall-l3 .kh-lvl3,
+.keep-scene.hall-l4 .kh-lvl4,
+.keep-scene.hall-l6 .kh-lvl6,
+.keep-scene.hall-l7 .kh-lvl7 { display: block; }
+.kh-smoke circle { animation: smoke-rise 3.2s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.kh-smoke circle:nth-child(2) { animation-delay: -1.1s; }
+.kh-smoke circle:nth-child(3) { animation-delay: -2.2s; }
+.kh-tower-light { fill: var(--hall-accent); animation: window-glow 2.6s ease-in-out infinite; }
+
+.keep-walls,
+.keep-landmark,
+.courtyard-layer { position: absolute; inset: 0; display: none; pointer-events: none; }
+.keep-scene.hall-l3 .courtyard-layer { display: block; }
+.keep-scene.hall-l5 .keep-walls { display: block; }
+.keep-scene.hall-l8 .keep-landmark { display: block; }
+
+.court-path {
+    position: absolute;
+    left: 33%;
+    top: 55%;
+    width: 34%;
+    height: 13%;
+    border: 6px solid rgba(199, 173, 121, .5);
+    border-radius: 50%;
+    transform: rotateX(58deg);
+}
+.court-planter { position: absolute; width: 3.4%; min-width: 22px; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #91b965, #40663f 70%); box-shadow: 0 4px 0 rgba(74, 58, 38, .8), 0 6px 6px rgba(20, 28, 22, .35); }
+.court-planter.planter-one { left: 30.5%; top: 56%; }
+.court-planter.planter-two { right: 30.5%; top: 56%; }
+.court-lantern { position: absolute; width: 4px; height: 5.2%; background: #503c26; }
+.court-lantern::after { content: ""; position: absolute; left: 50%; top: -7px; width: 9px; height: 9px; translate: -50% 0; border-radius: 50%; background: var(--hall-accent); box-shadow: 0 0 12px var(--hall-accent); animation: window-glow 3s ease-in-out infinite; }
+.court-lantern.lantern-one { left: 36%; top: 62%; }
+.court-lantern.lantern-two { right: 36%; top: 62%; }
+
+.wall-run {
+    position: absolute;
+    top: 46.5%;
+    width: 33%;
+    height: 6.5%;
+    background: repeating-linear-gradient(90deg, #8d8877 0 26px, #7a7566 26px 30px), linear-gradient(180deg, #979283, #6f6a5b);
+    border-top: 3px solid #a7a18e;
+    box-shadow: 0 6px 8px rgba(24, 32, 26, .32);
+}
+.wall-run::after { content: ""; position: absolute; left: 0; right: 0; top: -10px; height: 8px; background: repeating-linear-gradient(90deg, #a7a18e 0 12px, transparent 12px 22px); }
+.wall-left { left: -2%; transform: skewY(3.5deg); }
+.wall-right { right: -2%; transform: skewY(-3.5deg); }
+.keep-tower { position: absolute; top: 37%; width: 4.6%; min-width: 34px; height: 17%; background: linear-gradient(90deg, #75634a, #d5bd90 38%, #b39b73 66%, #75634a); box-shadow: 0 8px 10px rgba(24, 32, 26, .35); }
+.keep-tower::before { content: ""; position: absolute; left: -12%; right: -12%; top: -9px; height: 9px; background: repeating-linear-gradient(90deg, #33505b 0 8px, transparent 8px 13px), #2c4650; }
+.keep-tower.tower-left { left: 27.5%; }
+.keep-tower.tower-right { right: 27.5%; }
+.keep-tower i { display: none; position: absolute; left: 50%; top: 26%; width: 11px; height: 11px; translate: -50% 0; border-radius: 50%; background: var(--hall-accent); box-shadow: 0 0 16px var(--hall-accent); }
+.keep-scene.hall-l6 .keep-tower i { display: block; animation: generator-pulse 2.2s ease-in-out infinite; }
+.keep-gate { position: absolute; left: 50%; top: 44.5%; width: 7.4%; min-width: 52px; height: 10%; translate: -50% 0; background: linear-gradient(180deg, #979283, #6f6a5b); border-top: 3px solid #a7a18e; box-shadow: 0 8px 10px rgba(24, 32, 26, .35); }
+.keep-gate::after { content: ""; position: absolute; left: 0; right: 0; top: -10px; height: 8px; background: repeating-linear-gradient(90deg, #a7a18e 0 10px, transparent 10px 18px); }
+.keep-gate i { position: absolute; left: 22%; right: 22%; bottom: 0; height: 74%; border-radius: 50% 50% 0 0; background: linear-gradient(#3a2c1d, #57422b); box-shadow: inset 0 0 0 3px var(--hall-trim); }
+
+.keep-landmark { z-index: 1; }
+.keep-landmark i {
+    position: absolute;
+    left: 50%;
+    top: 5%;
+    width: 5%;
+    min-width: 34px;
+    height: 24%;
+    translate: -50% 0;
+    background: linear-gradient(90deg, #8b8574 0 24%, #d9d3c0 42%, #b8b2a0 68%, #8b8574);
+    clip-path: polygon(50% 0, 78% 9%, 68% 100%, 32% 100%, 22% 9%);
+}
+.keep-landmark b {
+    position: absolute;
+    left: 50%;
+    top: -6%;
+    width: 3%;
+    min-width: 20px;
+    height: 30%;
+    translate: -50% 0;
+    background: linear-gradient(180deg, var(--hall-accent), transparent 82%);
+    filter: blur(4px);
+    opacity: .8;
+    animation: window-glow 3.4s ease-in-out infinite;
+}
+.keep-landmark::after { content: ""; position: absolute; left: 50%; top: 6.5%; width: 15px; height: 15px; translate: -50% 0; border-radius: 50%; background: var(--hall-accent); box-shadow: 0 0 22px 6px color-mix(in srgb, var(--hall-accent) 65%, transparent); animation: generator-pulse 2.6s ease-in-out infinite; }
+/* The land itself brightens as the keep rises through the ranks. */
+.keep-scene.hall-l4 { background: linear-gradient(180deg, #85c8d6 0%, #c9e7d1 44%, #8dae6a 44.2%, #5d774b 100%); }
+.keep-scene.hall-l6 { background: linear-gradient(180deg, #8fccdd 0%, #d3ecd9 44%, #8cb06a 44.2%, #5c784c 100%); }
+.keep-scene.hall-l8 { background: linear-gradient(180deg, #9ed3e2 0%, #ecf3d8 44%, #93b76f 44.2%, #607d4f 100%); }
+
+/* —— Four build states for the Elemental Quarter: blueprint ghost → (start) scaffolding → complete → gilded lvl 2 —— */
+.keep-scene[data-garden-level="0"] .quarter-garden,
+.keep-scene[data-forge-level="0"] .quarter-forge,
+.keep-scene[data-fridge-level="0"] .quarter-fridge,
+.keep-scene[data-generator-level="0"] .quarter-generator,
+.keep-scene[data-quarry-level="0"] .quarter-quarry,
+.keep-scene[data-kitchen-level="0"] .quarter-kitchen,
+.keep-scene[data-builders-yard-level="0"] .quarter-yard,
+.keep-scene[data-storehouse-level="0"] .quarter-storehouse {
+    opacity: .8;
+    filter: none;
+    background: rgba(116, 156, 190, .2);
+    border: 1.5px dashed rgba(159, 233, 255, .6);
+    box-shadow: inset 0 0 12px rgba(159, 233, 255, .12);
+}
+.keep-scene[data-garden-level="0"] .quarter-garden::before,
+.keep-scene[data-forge-level="0"] .quarter-forge::before,
+.keep-scene[data-fridge-level="0"] .quarter-fridge::before,
+.keep-scene[data-generator-level="0"] .quarter-generator::before,
+.keep-scene[data-quarry-level="0"] .quarter-quarry::before,
+.keep-scene[data-kitchen-level="0"] .quarter-kitchen::before,
+.keep-scene[data-builders-yard-level="0"] .quarter-yard::before,
+.keep-scene[data-storehouse-level="0"] .quarter-storehouse::before { background: rgba(116, 156, 190, .3); }
+.keep-scene[data-garden-level="0"] .quarter-garden b,
+.keep-scene[data-forge-level="0"] .quarter-forge b,
+.keep-scene[data-fridge-level="0"] .quarter-fridge b,
+.keep-scene[data-generator-level="0"] .quarter-generator b,
+.keep-scene[data-quarry-level="0"] .quarter-quarry b,
+.keep-scene[data-kitchen-level="0"] .quarter-kitchen b,
+.keep-scene[data-builders-yard-level="0"] .quarter-yard b,
+.keep-scene[data-storehouse-level="0"] .quarter-storehouse b { background: rgba(159, 233, 255, .25); animation: none; }
+.keep-scene[data-builders-yard-level="0"] .quarter-yard b::before,
+.keep-scene[data-builders-yard-level="0"] .quarter-yard b::after { background: rgba(159, 233, 255, .3); }
+.keep-scene[data-generator-level="0"] .quarter-generator::after { opacity: .25; animation: none; }
+.keep-scene[data-constructing~="garden"] .quarter-garden,
+.keep-scene[data-constructing~="forge"] .quarter-forge,
+.keep-scene[data-constructing~="fridge"] .quarter-fridge,
+.keep-scene[data-constructing~="generator"] .quarter-generator,
+.keep-scene[data-constructing~="quarry"] .quarter-quarry,
+.keep-scene[data-constructing~="kitchen"] .quarter-kitchen,
+.keep-scene[data-constructing~="builders_yard"] .quarter-yard,
+.keep-scene[data-constructing~="storehouse"] .quarter-storehouse {
+    opacity: 1;
+    border: 1.5px solid #98704a;
+    background-image: repeating-linear-gradient(0deg, transparent 0 7px, rgba(152, 112, 74, .85) 7px 9px),
+        repeating-linear-gradient(90deg, transparent 0 12px, rgba(152, 112, 74, .6) 12px 14px);
+    animation: scaffold-pulse 2s ease-in-out infinite;
+}
+.keep-scene[data-constructing~="garden"] .quarter-illustration::after,
+.keep-scene[data-constructing~="forge"] .quarter-illustration::after,
+.keep-scene[data-constructing~="fridge"] .quarter-illustration::after,
+.keep-scene[data-constructing~="generator"] .quarter-illustration::after,
+.keep-scene[data-constructing~="quarry"] .quarter-illustration::after,
+.keep-scene[data-constructing~="kitchen"] .quarter-illustration::after,
+.keep-scene[data-constructing~="builders_yard"] .quarter-illustration::after,
+.keep-scene[data-constructing~="storehouse"] .quarter-illustration::after {
+    content: "⚒";
+    position: absolute;
+    left: 50%;
+    top: 26%;
+    translate: -50% 0;
+    color: #ffd36c;
+    font-size: 22px;
+    text-shadow: 0 2px 2px #513b2b;
+    animation: tool-swing 1.2s ease-in-out infinite;
+    transform-origin: bottom left;
+}
+
+/* —— Stockpiles: uncollected stores grow in the scenery, overgrow when full,
+      and clear with a burst when claimed. —— */
+.stockpile { position: absolute; pointer-events: none; }
+.woodlot-stockpile { left: 55%; right: 2%; bottom: 21%; height: 24%; }
+.pile-log {
+    display: none;
+    position: absolute;
+    width: 30%;
+    height: 34%;
+    border-radius: 99px;
+    background: linear-gradient(180deg, #a37a52 0 22%, #8a6142 22% 78%, #674829 78%);
+    box-shadow: inset -2px 0 3px rgba(40, 24, 12, .4);
+}
+.pile-log::after { content: ""; position: absolute; right: -6%; top: 14%; width: 34%; height: 72%; border-radius: 50%; background: radial-gradient(circle at 40% 40%, #e2b276, #c08a55 55%, #7c5330); }
+.pile-log:nth-child(1) { left: 0; bottom: 0; }
+.pile-log:nth-child(2) { left: 32%; bottom: 0; }
+.pile-log:nth-child(3) { left: 64%; bottom: 0; }
+.pile-log:nth-child(4) { left: 16%; bottom: 30%; }
+.pile-log:nth-child(5) { left: 48%; bottom: 30%; }
+.pile-log:nth-child(6) { left: 32%; bottom: 60%; }
+.keep-scene[data-fill-woodlot="1"] .pile-log:nth-child(-n+2),
+.keep-scene[data-fill-woodlot="2"] .pile-log:nth-child(-n+4),
+.keep-scene[data-fill-woodlot="3"] .pile-log:nth-child(-n+5),
+.keep-scene[data-fill-woodlot="4"] .pile-log { display: block; }
+.pile-overgrowth {
+    display: none;
+    position: absolute;
+    left: -6%;
+    right: -6%;
+    top: -34%;
+    height: 90%;
+    background:
+        radial-gradient(circle at 16% 78%, #6f9c4e 0 9%, transparent 10%),
+        radial-gradient(circle at 38% 52%, #86b25c 0 11%, transparent 12%),
+        radial-gradient(circle at 62% 66%, #5d8a44 0 10%, transparent 11%),
+        radial-gradient(circle at 84% 80%, #79a854 0 9%, transparent 10%),
+        radial-gradient(circle at 50% 86%, #4e7a3c 0 12%, transparent 13%);
+    filter: drop-shadow(0 3px 2px rgba(28, 40, 24, .4));
+    animation: trellis-sway 3.4s ease-in-out infinite;
+}
+.keep-scene[data-fill-woodlot="4"] .pile-overgrowth { display: block; }
+.keep-scene[data-fill-woodlot="4"] .woodlot-hotspot .production-ready { background: #b06f3a; box-shadow: 0 3px 10px rgba(0, 0, 0, .25), 0 0 14px rgba(231, 161, 107, .55); }
+
+/* Facility yards: each workshop shows its own uncollected stock at its base. */
+.quarter-building u { display: none; position: absolute; left: 8%; right: 8%; bottom: 4%; height: 20%; }
+.keep-scene[data-fill-garden="1"] .quarter-garden u,
+.keep-scene[data-fill-forge="1"] .quarter-forge u,
+.keep-scene[data-fill-fridge="1"] .quarter-fridge u,
+.keep-scene[data-fill-quarry="1"] .quarter-quarry u,
+.keep-scene[data-fill-kitchen="1"] .quarter-kitchen u,
+.keep-scene[data-fill-generator="1"] .quarter-generator u { display: block; height: 18%; opacity: .75; }
+.keep-scene[data-fill-garden="2"] .quarter-garden u,
+.keep-scene[data-fill-forge="2"] .quarter-forge u,
+.keep-scene[data-fill-fridge="2"] .quarter-fridge u,
+.keep-scene[data-fill-quarry="2"] .quarter-quarry u,
+.keep-scene[data-fill-kitchen="2"] .quarter-kitchen u,
+.keep-scene[data-fill-generator="2"] .quarter-generator u { display: block; height: 30%; }
+.keep-scene[data-fill-garden="3"] .quarter-garden u,
+.keep-scene[data-fill-forge="3"] .quarter-forge u,
+.keep-scene[data-fill-fridge="3"] .quarter-fridge u,
+.keep-scene[data-fill-quarry="3"] .quarter-quarry u,
+.keep-scene[data-fill-kitchen="3"] .quarter-kitchen u,
+.keep-scene[data-fill-generator="3"] .quarter-generator u { display: block; height: 42%; }
+.keep-scene[data-fill-garden="4"] .quarter-garden u,
+.keep-scene[data-fill-forge="4"] .quarter-forge u,
+.keep-scene[data-fill-fridge="4"] .quarter-fridge u,
+.keep-scene[data-fill-quarry="4"] .quarter-quarry u,
+.keep-scene[data-fill-kitchen="4"] .quarter-kitchen u,
+.keep-scene[data-fill-generator="4"] .quarter-generator u { display: block; height: 54%; animation: stock-glow 2.2s ease-in-out infinite; }
+/* Verdant growth fills the garden bed and is cleared when claimed. */
+.quarter-garden u { background: radial-gradient(circle at 20% 70%, #9adf6f 0 3px, transparent 3.5px), radial-gradient(circle at 52% 46%, #7fc55b 0 3px, transparent 3.5px), radial-gradient(circle at 80% 68%, #b3e97f 0 3px, transparent 3.5px); background-size: 14px 12px, 17px 13px, 15px 14px; border-radius: 4px 4px 0 0; }
+.keep-scene[data-fill-garden="4"] .quarter-garden u::before { content: ""; position: absolute; left: -10%; right: -10%; top: -46%; height: 60%; background: radial-gradient(circle at 24% 70%, #6f9c4e 0 6px, transparent 7px), radial-gradient(circle at 56% 48%, #86b25c 0 7px, transparent 8px), radial-gradient(circle at 82% 66%, #5d8a44 0 6px, transparent 7px); animation: trellis-sway 3s ease-in-out infinite; }
+.quarter-forge u { background: repeating-linear-gradient(0deg, #ff9a5e 0 4px, #b95c2c 4px 6px); border-radius: 2px; box-shadow: 0 0 8px rgba(255, 138, 78, .45); }
+.quarter-fridge u { background: linear-gradient(135deg, #efffff, #70cfe6); clip-path: polygon(18% 100%, 8% 30%, 30% 55%, 44% 0, 60% 52%, 78% 22%, 92% 100%); box-shadow: 0 0 9px rgba(157, 234, 255, .5); }
+.quarter-generator u { background: radial-gradient(circle at 25% 55%, #fff29c 0 4px, transparent 5px), radial-gradient(circle at 55% 45%, #ffe63c 0 4px, transparent 5px), radial-gradient(circle at 82% 60%, #fff29c 0 4px, transparent 5px); filter: drop-shadow(0 0 4px #ffe63c); }
+.quarter-quarry u { background: repeating-linear-gradient(0deg, #b6b1a1 0 5px, #8f8a7a 5px 7px), repeating-linear-gradient(90deg, transparent 0 8px, rgba(60, 56, 46, .45) 8px 9px); border-radius: 2px 2px 0 0; box-shadow: 0 0 6px rgba(30, 28, 22, .4); }
+.quarter-kitchen u { background: radial-gradient(circle at 22% 68%, #e4c37b 0 4px, transparent 5px), radial-gradient(circle at 52% 52%, #d8a86b 0 4px, transparent 5px), radial-gradient(circle at 80% 66%, #efd291 0 4px, transparent 5px); filter: drop-shadow(0 1px 2px rgba(74, 53, 38, .5)); }
+
+/* Claiming clears the pile with a burst plus a floating gain chip. */
+.is-clearing .pile-log,
+.quarter-building.is-clearing u { animation: pile-clear .85s ease forwards; }
+.is-clearing .pile-overgrowth { animation: pile-clear .7s ease forwards; }
+.woodlot-hotspot.is-clearing .woodlot-stockpile::after,
+.quarter-building.is-clearing::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 20%;
+    width: 46px;
+    height: 46px;
+    translate: -50% 0;
+    border: 3px solid rgba(255, 232, 151, .85);
+    border-radius: 50%;
+    animation: clear-burst .7s ease-out forwards;
+    pointer-events: none;
+}
+.quarter-building.is-clearing { filter: brightness(1.3); }
+.collect-float {
+    position: absolute;
+    z-index: 18;
+    translate: -50% 0;
+    color: #ffe897;
+    font-size: 15px;
+    font-weight: 900;
+    text-shadow: 0 2px 4px rgba(20, 20, 10, .7);
+    pointer-events: none;
+    animation: collect-float 1.4s ease-out forwards;
+}
+
+/* —— Interiors mirror the stock level: beds green over, piles shrink when claimed. —— */
+.keep-interior[data-room="garden"][data-fill="0"] .garden-bed { background: #4e3828; border-color: #8a6844; }
+.keep-interior[data-room="garden"][data-fill="1"] .garden-bed { background: repeating-radial-gradient(circle at 24% 55%, #90bd62 0 3px, transparent 4px 34px), #4e3828; }
+.keep-interior[data-room="garden"][data-fill="3"] .garden-bed,
+.keep-interior[data-room="garden"][data-fill="4"] .garden-bed { background: repeating-radial-gradient(circle at 20% 50%, #a5d876 0 6px, transparent 7px 18px), repeating-radial-gradient(circle at 62% 60%, #f0a5bd 0 3px, transparent 4px 26px), #47331f; }
+.keep-interior[data-room="garden"][data-fill="4"] .garden-bed { box-shadow: 0 -8px 14px rgba(144, 189, 98, .35); border-color: #6f9c4e; }
+.keep-interior[data-room="woodlot"][data-fill="0"] .lodge-logs { opacity: .25; transform: scale(.7); transform-origin: bottom left; }
+.keep-interior[data-room="woodlot"][data-fill="1"] .lodge-logs { opacity: .6; transform: scale(.85); transform-origin: bottom left; }
+.keep-interior[data-room="woodlot"][data-fill="4"] .lodge-logs { transform: scale(1.14); transform-origin: bottom left; filter: drop-shadow(0 6px 4px rgba(10, 8, 5, .35)) drop-shadow(0 0 6px rgba(144, 189, 98, .5)); }
+.keep-interior[data-room="fridge"][data-fill="0"] .fridge-crystal { opacity: .3; transform: scale(.6); transform-origin: bottom center; }
+.keep-interior[data-room="fridge"][data-fill="4"] .fridge-crystal { transform: scale(1.2); transform-origin: bottom center; }
+.keep-interior[data-room="forge"][data-fill="0"] .forge-hearth b { opacity: .4; }
+.keep-interior[data-room="forge"][data-fill="4"] .forge-hearth { box-shadow: inset 0 0 0 10px #655043, 0 0 44px rgba(255, 113, 54, .38); }
+.keep-interior[data-room="generator"][data-fill="4"] .generator-console::after { box-shadow: 0 0 24px #9deaff, 0 0 44px rgba(157, 234, 255, .5); }
+
+/* —— Hall panel: rank ladder + theme swatches —— */
+/* —— Favorite Siegeling shrine: a courtyard pedestal whose chosen resident
+      boosts the entire keep, scaled by rarity. —— */
+.favorite-shrine {
+    position: absolute;
+    z-index: 7;
+    left: 26.5%;
+    top: 46%;
+    width: 84px;
+    padding: 0;
+    display: grid;
+    justify-items: center;
+    gap: 2px;
+    color: var(--cream);
+    background: transparent;
+    cursor: pointer;
+    touch-action: manipulation;
+    filter: drop-shadow(0 8px 8px rgba(20, 28, 22, .35));
+}
+.shrine-glow { position: absolute; left: 50%; bottom: 24px; width: 62px; height: 62px; translate: -50% 0; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--hall-accent) 42%, transparent), transparent 70%); opacity: 0; }
+.favorite-shrine.has-favorite .shrine-glow { opacity: 1; animation: window-glow 2.8s ease-in-out infinite; }
+.shrine-art { position: relative; z-index: 2; min-height: 40px; display: flex; align-items: flex-end; justify-content: center; }
+.shrine-art:not(.has-overlay-art):not(:empty) { width: 42px; height: 42px; border: 2px solid #f5d87c; border-radius: 50%; align-items: center; color: #172333; background: #b9d9a8; font-size: 15px; font-weight: 900; }
+.shrine-art.has-overlay-art { width: 58px; height: 68px; }
+.shrine-art img { width: auto; height: 100%; max-width: 100%; object-fit: contain; object-position: bottom center; pointer-events: none; }
+.favorite-shrine:not(.has-favorite) .shrine-art::after { content: "☆"; font-size: 26px; color: rgba(255, 247, 220, .85); text-shadow: 0 2px 4px rgba(10, 16, 12, .6); }
+.shrine-plinth { position: relative; z-index: 1; width: 48px; height: 18px; background: linear-gradient(#a7a18e, #68685e); clip-path: polygon(12% 0, 88% 0, 100% 100%, 0 100%); }
+.favorite-shrine small { z-index: 2; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 2px 7px; border: 1px solid rgba(244, 204, 98, .35); border-radius: 8px; background: rgba(20, 31, 43, .85); font-size: 8px; font-weight: 800; color: #ffe9a8; }
+.favorite-shrine:hover small { border-color: var(--gold); }
+
+.order-card { border-color: rgba(159, 233, 255, .35); background: rgba(159, 233, 255, .05); }
+.order-reqs { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.order-reqs span { padding: 3px 6px; border-radius: 99px; background: rgba(255, 255, 255, .07); color: rgba(255, 247, 220, .72); font-size: 8px; }
+.order-reqs span.is-met { background: rgba(111, 207, 139, .18); color: #b5eec6; }
+
+.rank-card { border-color: rgba(244, 204, 98, .38); background: rgba(244, 204, 98, .05); }
+.rank-dots { display: flex; gap: 5px; margin: 9px 0 4px; }
+.rank-dots i { width: 16px; height: 6px; border-radius: 99px; background: rgba(255, 255, 255, .14); }
+.rank-dots i.filled { background: var(--gold); box-shadow: 0 0 6px rgba(244, 204, 98, .55); }
+.theme-swatches { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; margin-top: 10px; }
+.theme-swatch {
+    display: grid;
+    justify-items: center;
+    gap: 5px;
+    padding: 9px 4px 7px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    color: rgba(255, 247, 220, .72);
+    background: rgba(255, 255, 255, .04);
+    cursor: pointer;
+}
+.theme-swatch i { width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(145deg, var(--swatch), var(--swatch-trim)); box-shadow: 0 0 0 2px rgba(255, 255, 255, .16); }
+.theme-swatch small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 7.5px; font-weight: 800; }
+.theme-swatch:hover { border-color: rgba(244, 204, 98, .5); }
+.theme-swatch.active { border-color: var(--gold); background: rgba(244, 204, 98, .1); }
+.theme-swatch.active i { box-shadow: 0 0 0 2px var(--gold), 0 0 12px var(--swatch); }
+.project-card.is-rank-project { border-color: rgba(244, 204, 98, .45); background: rgba(244, 204, 98, .06); }
+
 @keyframes cloud-drift { 0% { translate: -18vw 0; } 100% { translate: 105vw 0; } }
 @keyframes fire-flicker { to { transform: scale(.74) rotate(8deg); opacity: .72; } }
 @keyframes mote-rise { 0%, 100% { transform: translateY(8px); opacity: .15; } 48% { transform: translateY(-20px); opacity: 1; } }
@@ -1287,6 +1750,11 @@ button.resource-pill:focus-visible {
 @keyframes trellis-sway { 50% { transform: rotate(1.5deg) scale(1.03); } }
 @keyframes mobile-turn { 50% { transform: rotateY(45deg) rotate(3deg); } }
 @keyframes orb-float { 50% { transform: translateY(-9px) rotate(12deg); } }
+@keyframes smoke-rise { 0% { transform: translateY(4px) scale(.8); opacity: .1; } 45% { opacity: .8; } 100% { transform: translateY(-16px) scale(1.25); opacity: 0; } }
+@keyframes stock-glow { 50% { filter: brightness(1.3); } }
+@keyframes pile-clear { to { transform: translateY(-12px) scale(.1); opacity: 0; } }
+@keyframes clear-burst { from { opacity: .95; transform: scale(.35); } to { opacity: 0; transform: scale(1.7); } }
+@keyframes collect-float { from { opacity: 0; transform: translateY(6px); } 18% { opacity: 1; } to { opacity: 0; transform: translateY(-44px); } }
 
 @media (max-width: 767px) {
     .keep-header {
@@ -1319,7 +1787,9 @@ button.resource-pill:focus-visible {
     .hall-hotspot { top: 24%; width: 180px; height: 210px; }
     .woodlot-hotspot { left: 1%; bottom: 11%; width: 142px; height: 160px; }
     .archive-hotspot { right: 1%; bottom: 12%; width: 142px; height: 160px; }
-    .quarter-hotspot { right: 16%; top: 48%; width: 118px; height: 105px; transform: scale(.88); }
+    .quarter-hotspot { right: 14%; top: 45%; width: 142px; height: 128px; transform: scale(.88); }
+    .favorite-shrine { left: 4%; top: 40%; width: 68px; transform: scale(.85); transform-origin: top left; }
+    .favorite-shrine small { max-width: 78px; font-size: 7px; }
     .building-label { max-width: 106%; padding: 5px 7px; }
     .building-label strong { font-size: 9px; }
     .building-label small { max-width: 132px; font-size: 6.5px; }
@@ -1327,6 +1797,10 @@ button.resource-pill:focus-visible {
     .resident-worker > span { width: 35px; height: 35px; }
     .resident-worker > span.has-overlay-art { width: 46px; height: 58px; }
     .memorabilia-plinth { left: 62%; top: 60%; transform: scale(.78); }
+    .scene-zoom { right: calc(6px + var(--safe-right)); top: 42%; }
+    .scene-zoom button { width: 32px; height: 32px; font-size: 16px; }
+    .keep-tower { min-width: 26px; }
+    .theme-swatches { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
     .distant-fire span { display: none; }
     .keep-dock { min-height: calc(65px + var(--safe-bottom)); padding-inline: calc(3px + var(--safe-left)) calc(3px + var(--safe-right)); gap: 0; }
     .keep-dock button { width: 18.8vw; min-width: 0; padding: 2px; }

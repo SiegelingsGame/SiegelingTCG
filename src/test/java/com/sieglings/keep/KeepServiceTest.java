@@ -45,16 +45,17 @@ class KeepServiceTest {
         progression = new PlayerProgressionEntity();
         progression.setUserId("keeper@example.com");
         progression.setStarterPackId("pack_earth_starter");
-        progression.setOwnedCards(Map.of("mossling", 1, "emberling", 2));
+        progression.setOwnedCards(Map.of("mossling", 1, "emberling", 2, "aurorix", 1));
 
         SieglingCard mossling = card("mossling", "Mossling", Element.EARTH);
         SieglingCard emberling = card("emberling", "Emberling", Element.FIRE);
+        SieglingCard aurorix = card("aurorix", "Aurorix", Element.LIGHT, Rarity.LEGENDARY);
         PlayerProgressionEntity shared = progression;
         PlayerProgressionService progressionService = new PlayerProgressionService() {
             @Override public PlayerProgressionEntity getOrCreate(AccountUser ignored) { return shared; }
         };
         CardDefinitionService cards = new CardDefinitionService() {
-            @Override public List<Card> getDeckBuilderCatalog() { return List.of(mossling, emberling); }
+            @Override public List<Card> getDeckBuilderCatalog() { return List.of(mossling, emberling, aurorix); }
         };
         KeepLoreCatalog lore = new KeepLoreCatalog(new ObjectMapper());
         lore.load();
@@ -75,7 +76,7 @@ class KeepServiceTest {
         assertTrue(((Number) snapshot.get("stateVersion")).longValue() >= 1L);
         assertEquals(KeepService.INITIAL_TIMBER, intAt(snapshot, "resources", "timber"));
         assertEquals(15, intAt(snapshot, "station", "available"));
-        assertEquals(2, ((List<?>) snapshot.get("residents")).size());
+        assertEquals(3, ((List<?>) snapshot.get("residents")).size());
         assertEquals(1, ((List<?>) snapshot.get("lore")).size());
         assertTrue(conversationIds(snapshot).contains("steward_first_promise"));
         assertTrue(conversationIds(snapshot).stream().anyMatch(id -> id.startsWith("visitor_")),
@@ -356,6 +357,180 @@ class KeepServiceTest {
                 && Boolean.TRUE.equals(item.get("crafted"))));
     }
 
+    @Test
+    void hallUpgradesRaiseKeepRankExpandCapacityAndUnlockScenery() {
+        Map<String, Object> start = service.getSnapshot(user);
+        assertEquals(1, intAt(start, "keepRank", "level"));
+        assertEquals("Ruined Camp", valueAt(start, "keepRank", "name"));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.startBuild(user, "hall_level_2", "hall-fail", store.state.getVersion()),
+                "The Timber Outpost gate requires the restored archive.");
+
+        store.state.setArchiveLevel(1);
+        store.state.setTimber(500);
+        Map<String, Object> gated = service.getSnapshot(user);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> options = (List<Map<String, Object>>) gated.get("buildOptions");
+        assertTrue(options.stream().anyMatch(item -> "hall_level_2".equals(item.get("id"))),
+                "The next hall rank appears alongside the restoration chain once gated requirements are met.");
+
+        service.startBuild(user, "hall_level_2", "hall-1", store.state.getVersion());
+        clock.advance(Duration.ofSeconds(901));
+        Map<String, Object> upgraded = service.getSnapshot(user);
+        assertEquals(2, intAt(upgraded, "keepRank", "level"));
+        assertEquals("Timber Outpost", valueAt(upgraded, "keepRank", "name"));
+        assertEquals(2, intAt(upgraded, "visualState", "hallLevel"));
+        assertEquals(KeepService.TIMBER_INVENTORY_CAPACITY + 50, intAt(upgraded, "resources", "timberCapacity"),
+                "Each hall level adds timber capacity.");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> buildings = (List<Map<String, Object>>) upgraded.get("buildings");
+        Map<String, Object> walls = buildings.stream().filter(item -> "walls".equals(item.get("id"))).findFirst().orElseThrow();
+        assertEquals("FOUNDATIONS", walls.get("status"));
+
+        store.state.setHallLevel(5);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> walled = (List<Map<String, Object>>) service.getSnapshot(user).get("buildings");
+        assertEquals("COMPLETE", walled.stream().filter(item -> "walls".equals(item.get("id")))
+                .findFirst().orElseThrow().get("status"));
+        assertEquals("Walled Keep", valueAt(service.getSnapshot(user), "keepRank", "name"));
+    }
+
+    @Test
+    void hallThemesArePersistedValidatedAndSerialized() {
+        service.getSnapshot(user);
+        assertThrows(IllegalArgumentException.class,
+                () -> service.setHallTheme(user, "plaid", "theme-fail", store.state.getVersion()));
+
+        Map<String, Object> ember = service.setHallTheme(user, "ember", "theme-1", store.state.getVersion());
+        assertEquals("ember", valueAt(ember, "visualState", "hallTheme"));
+        assertEquals("Ember Accord", valueAt(ember, "hallTheme", "name"));
+        assertEquals("ember", store.state.getHallThemeId());
+
+        Map<String, Object> reset = service.setHallTheme(user, "", "theme-2", store.state.getVersion());
+        assertEquals("covenant", valueAt(reset, "visualState", "hallTheme"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> themes = (List<Map<String, Object>>) reset.get("hallThemes");
+        assertEquals(8, themes.size());
+        assertTrue(themes.stream().anyMatch(item -> "covenant".equals(item.get("id"))
+                && Boolean.TRUE.equals(item.get("active"))));
+    }
+
+    @Test
+    void favoriteSieglingGrantsRarityScaledKeepWideBoost() {
+        service.getSnapshot(user);
+        assertThrows(IllegalArgumentException.class,
+                () -> service.setFavorite(user, "unknown_card", "fav-fail", store.state.getVersion()));
+
+        Map<String, Object> common = service.setFavorite(user, "mossling", "fav-1", store.state.getVersion());
+        assertEquals(1.05, ((Number) valueAt(common, "station", "ratePerMinute")).doubleValue(), 0.0001);
+        assertEquals(5, intAt(common, "favorite", "bonusPercent"));
+
+        Map<String, Object> legendary = service.setFavorite(user, "aurorix", "fav-2", store.state.getVersion());
+        assertEquals(1.20, ((Number) valueAt(legendary, "station", "ratePerMinute")).doubleValue(), 0.0001);
+        assertEquals(20, intAt(legendary, "favorite", "bonusPercent"));
+        assertEquals("aurorix", store.state.getFavoriteResidentId());
+
+        store.state.getFacilityLevels().put("garden", 1);
+        store.state.getFacilityLastAccruedAt().put("garden", clock.instant());
+        Map<String, Object> withGarden = service.getSnapshot(user);
+        assertEquals(0.30, ((Number) station(withGarden, "garden").get("ratePerMinute")).doubleValue(), 0.0001,
+                "The favorite boost applies to every facility, not just the woodlot.");
+
+        Map<String, Object> cleared = service.setFavorite(user, "", "fav-3", store.state.getVersion());
+        assertEquals(0, intAt(cleared, "favorite", "bonusPercent"));
+    }
+
+    @Test
+    void buildersYardUnlocksSecondCrewAndAdvancedRecipes() {
+        service.getSnapshot(user);
+        store.state.setArchiveLevel(1);
+        store.state.setWoodlotLevel(2);
+        store.state.setStorehouseLevel(1);
+        store.state.getFacilityLevels().put("garden", 1);
+        store.state.getFacilityLastAccruedAt().put("garden", clock.instant());
+        store.state.setTimber(2_000);
+        store.state.getMaterialInventory().put("verdant_fiber", 40);
+        store.state.getMaterialInventory().put("ember_ingot", 40);
+        store.state.getMaterialInventory().put("frost_crystal", 40);
+        store.state.getMaterialInventory().put("stone", 40);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.startBuild(user, "garden_level_2", "adv-fail", store.state.getVersion()),
+                "Level-2 expansions require the Builder's Yard.");
+
+        service.startBuild(user, "build_forge", "build-1", store.state.getVersion());
+        assertThrows(IllegalArgumentException.class,
+                () -> service.startBuild(user, "build_fridge", "build-2", store.state.getVersion()),
+                "Without the yard only one crew works at a time.");
+
+        store.state.setBuildersYardLevel(1);
+        Map<String, Object> second = service.startBuild(user, "build_fridge", "build-3", store.state.getVersion());
+        assertEquals(2, ((List<?>) second.get("activeConstructions")).size());
+        assertEquals(2, ((Number) second.get("constructionSlots")).intValue());
+
+        clock.advance(Duration.ofSeconds(KeepService.FRIDGE_LEVEL_ONE_SECONDS + 1));
+        Map<String, Object> completed = service.getSnapshot(user);
+        assertEquals(1, ((Number) station(completed, "forge").get("level")).intValue());
+        assertEquals(1, ((Number) station(completed, "fridge").get("level")).intValue());
+        assertEquals(2, progression.getKeepProjectsCompleted());
+
+        Map<String, Object> advanced = service.startBuild(user, "garden_level_2", "adv-ok", store.state.getVersion());
+        assertNotNull(advanced.get("activeConstruction"));
+    }
+
+    @Test
+    void quarryAndKitchenProduceStoneAndProvisions() {
+        service.getSnapshot(user);
+        store.state.setStorehouseLevel(1);
+        store.state.getFacilityLevels().put("quarry", 1);
+        store.state.getFacilityLevels().put("kitchen", 1);
+        store.state.getFacilityLastAccruedAt().put("quarry", clock.instant());
+        store.state.getFacilityLastAccruedAt().put("kitchen", clock.instant());
+        clock.advance(Duration.ofMinutes(100));
+
+        Map<String, Object> snapshot = service.getSnapshot(user);
+        assertEquals(22, ((Number) station(snapshot, "quarry").get("available")).intValue());
+        assertEquals(30, ((Number) station(snapshot, "kitchen").get("available")).intValue());
+
+        Map<String, Object> collected = service.collect(user, "quarry", "collect-stone", store.state.getVersion());
+        assertEquals(22, materialAmount(collected, "stone"));
+    }
+
+    @Test
+    void weeklyOrderSpendsMaterialsOncePerWeekForBoostedIncome() {
+        service.getSnapshot(user);
+        assertThrows(IllegalArgumentException.class,
+                () -> service.claimReward(user, "weekly_order", "order-locked", store.state.getVersion()),
+                "Weekly orders unlock with the Garden Kitchen.");
+
+        store.state.getFacilityLevels().put("kitchen", 1);
+        store.state.getFacilityLastAccruedAt().put("kitchen", clock.instant());
+        for (String materialId : List.of("verdant_fiber", "ember_ingot", "frost_crystal", "storm_cell", "stone", "provisions")) {
+            store.state.getMaterialInventory().put(materialId, 60);
+        }
+        Map<String, Object> snapshot = service.getSnapshot(user);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> order = (Map<String, Object>) snapshot.get("weeklyOrder");
+        assertEquals(Boolean.TRUE, order.get("unlocked"));
+        assertEquals(Boolean.TRUE, order.get("canClaim"));
+        assertFalse(((List<?>) order.get("requirements")).isEmpty());
+
+        int goldBefore = progression.getGold();
+        Map<String, Object> claimed = service.claimReward(user, "weekly_order", "order-1", store.state.getVersion());
+        assertTrue(progression.getGold() > goldBefore);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> orderAfter = (Map<String, Object>) claimed.get("weeklyOrder");
+        assertEquals(Boolean.TRUE, orderAfter.get("claimed"));
+        assertTrue(((List<Map<String, Object>>) orderAfter.get("requirements")).stream()
+                .allMatch(item -> ((Number) item.get("have")).intValue() < 60),
+                "Claiming the order spends the required materials.");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.claimReward(user, "weekly_order", "order-2", store.state.getVersion()),
+                "The order can only be filled once per week.");
+    }
+
     @SuppressWarnings("unchecked")
     private static Object valueAt(Map<String, Object> source, String mapKey, String valueKey) {
         return ((Map<String, Object>) source.get(mapKey)).get(valueKey);
@@ -393,7 +568,11 @@ class KeepServiceTest {
     }
 
     private static SieglingCard card(String id, String name, Element element) {
-        return new SieglingCard(id, name, element, Rarity.COMMON, 8, 3, List.of(), Row.BACK);
+        return card(id, name, element, Rarity.COMMON);
+    }
+
+    private static SieglingCard card(String id, String name, Element element, Rarity rarity) {
+        return new SieglingCard(id, name, element, rarity, 8, 3, List.of(), Row.BACK);
     }
 
     private static class InMemoryKeepStore extends KeepStore {

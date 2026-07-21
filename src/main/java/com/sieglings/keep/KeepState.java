@@ -15,6 +15,13 @@ public class KeepState {
     private int storehouseLevel;
     private int woodlotLevel = 1;
     private int archiveLevel;
+    private int hallLevel = 1;
+    private String hallThemeId = "";
+    private int buildersYardLevel;
+    private String favoriteResidentId = "";
+    private String activeConstructionId2 = "";
+    private Instant constructionStartedAt2;
+    private Instant constructionCompletesAt2;
     private int woodlotStored;
     private double woodlotProductionRemainder;
     private int woodlotCollectCount;
@@ -62,6 +69,20 @@ public class KeepState {
     public void setWoodlotLevel(int woodlotLevel) { this.woodlotLevel = Math.max(1, woodlotLevel); }
     public int getArchiveLevel() { return archiveLevel; }
     public void setArchiveLevel(int archiveLevel) { this.archiveLevel = Math.max(0, archiveLevel); }
+    public int getHallLevel() { return hallLevel; }
+    public void setHallLevel(int hallLevel) { this.hallLevel = Math.max(1, hallLevel); }
+    public String getHallThemeId() { return hallThemeId; }
+    public void setHallThemeId(String hallThemeId) { this.hallThemeId = hallThemeId == null ? "" : hallThemeId; }
+    public int getBuildersYardLevel() { return buildersYardLevel; }
+    public void setBuildersYardLevel(int buildersYardLevel) { this.buildersYardLevel = Math.max(0, buildersYardLevel); }
+    public String getFavoriteResidentId() { return favoriteResidentId; }
+    public void setFavoriteResidentId(String favoriteResidentId) { this.favoriteResidentId = favoriteResidentId == null ? "" : favoriteResidentId; }
+    public String getActiveConstructionId2() { return activeConstructionId2; }
+    public void setActiveConstructionId2(String activeConstructionId2) { this.activeConstructionId2 = activeConstructionId2 == null ? "" : activeConstructionId2; }
+    public Instant getConstructionStartedAt2() { return constructionStartedAt2; }
+    public void setConstructionStartedAt2(Instant constructionStartedAt2) { this.constructionStartedAt2 = constructionStartedAt2; }
+    public Instant getConstructionCompletesAt2() { return constructionCompletesAt2; }
+    public void setConstructionCompletesAt2(Instant constructionCompletesAt2) { this.constructionCompletesAt2 = constructionCompletesAt2; }
     public int getWoodlotStored() { return woodlotStored; }
     public void setWoodlotStored(int woodlotStored) { this.woodlotStored = Math.max(0, woodlotStored); }
     public double getWoodlotProductionRemainder() { return woodlotProductionRemainder; }

@@ -48,6 +48,13 @@ public class KeepStore {
         payload.put("storehouseLevel", state.getStorehouseLevel());
         payload.put("woodlotLevel", state.getWoodlotLevel());
         payload.put("archiveLevel", state.getArchiveLevel());
+        payload.put("hallLevel", state.getHallLevel());
+        payload.put("hallThemeId", state.getHallThemeId());
+        payload.put("buildersYardLevel", state.getBuildersYardLevel());
+        payload.put("favoriteResidentId", state.getFavoriteResidentId());
+        payload.put("activeConstructionId2", state.getActiveConstructionId2());
+        payload.put("constructionStartedAt2", timestamp(state.getConstructionStartedAt2()));
+        payload.put("constructionCompletesAt2", timestamp(state.getConstructionCompletesAt2()));
         payload.put("woodlotStored", state.getWoodlotStored());
         payload.put("woodlotProductionRemainder", state.getWoodlotProductionRemainder());
         payload.put("woodlotCollectCount", state.getWoodlotCollectCount());
@@ -110,6 +117,13 @@ public class KeepStore {
         state.setStorehouseLevel((int) number(snapshot.get("storehouseLevel"), 0));
         state.setWoodlotLevel((int) number(snapshot.get("woodlotLevel"), 1));
         state.setArchiveLevel((int) number(snapshot.get("archiveLevel"), 0));
+        state.setHallLevel((int) number(snapshot.get("hallLevel"), 1));
+        state.setHallThemeId(string(snapshot.get("hallThemeId")));
+        state.setBuildersYardLevel((int) number(snapshot.get("buildersYardLevel"), 0));
+        state.setFavoriteResidentId(string(snapshot.get("favoriteResidentId")));
+        state.setActiveConstructionId2(string(snapshot.get("activeConstructionId2")));
+        state.setConstructionStartedAt2(instant(snapshot.get("constructionStartedAt2")));
+        state.setConstructionCompletesAt2(instant(snapshot.get("constructionCompletesAt2")));
         state.setWoodlotStored((int) number(snapshot.get("woodlotStored"), 0));
         state.setWoodlotProductionRemainder(decimal(snapshot.get("woodlotProductionRemainder"), 0));
         state.setWoodlotCollectCount((int) number(snapshot.get("woodlotCollectCount"), 0));
