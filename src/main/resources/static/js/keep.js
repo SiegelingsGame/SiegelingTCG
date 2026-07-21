@@ -854,7 +854,7 @@
         const bonds = relationships.length
             ? `<span class="eyebrow">Relationships</span>${relationships.map((item) => `<div class="relationship-card"><strong>${escapeHtml(item.npcName)}</strong><span>${escapeHtml(item.stage)}</span></div>`).join('')}`
             : '';
-        return `<p class="panel-intro">Story voices shape the Chronicle. Road visitors bring RNG events—timber and materials can be gained, traded, or lost—always tied to the sanctuary's lore.</p>${available}${bonds}`;
+        return `<p class="panel-intro">Story voices shape the Chronicle. Road and yard visitors bring RNG slices of Siegeling daily life—breakfast, nests, play, chores—where timber and materials can be gained, traded, or lost.</p>${available}${bonds}`;
     }
 
     function updatePanelLiveValues() {

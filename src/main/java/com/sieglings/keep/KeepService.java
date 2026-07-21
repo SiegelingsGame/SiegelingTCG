@@ -54,7 +54,7 @@ public class KeepService {
     private static final Duration OFFLINE_REPORT_THRESHOLD = Duration.ofMinutes(5);
     private static final Duration TRIBUTE_COOLDOWN = Duration.ofDays(7);
     private static final Duration VISITOR_ROLL_COOLDOWN = Duration.ofHours(2);
-    private static final int MAX_ACTIVE_VISITORS = 2;
+    private static final int MAX_ACTIVE_VISITORS = 3;
     private static final int REQUEST_HISTORY_LIMIT = 120;
     private static final Object[] LOCKS = createLocks();
     private static final Map<String, FacilityDefinition> FACILITIES = createFacilities();

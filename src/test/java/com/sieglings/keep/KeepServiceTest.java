@@ -180,6 +180,28 @@ class KeepServiceTest {
     }
 
     @Test
+    void siegelingDailyLifeVisitorsRollRandomConversationOutcomes() {
+        service.getSnapshot(user);
+        store.state.getActiveVisitorIds().clear();
+        store.state.getActiveVisitorIds().add("visitor_breakfast_kettle");
+        store.state.setLastVisitorRollAt(clock.instant());
+        store.state.setTimber(100);
+        service.setRandom(new Random(3));
+
+        Map<String, Object> result = service.chooseDialogue(user, "visitor_breakfast_kettle", "shared_table",
+                "breakfast-1", store.state.getVersion());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> dialogue = (Map<String, Object>) result.get("dialogueResult");
+        assertEquals("VISITOR", dialogue.get("kind"));
+        assertEquals(10, ((Number) dialogue.get("timberSpent")).intValue());
+        assertTrue(String.valueOf(dialogue.get("outcomeId")).length() > 0);
+        assertTrue(loreIds(result).contains("chronicle_shared_mornings")
+                || intAt(result, "resources", "timber") < 100
+                || materialAmount(result, "ember_ingot") > 0
+                || materialAmount(result, "verdant_fiber") > 0);
+    }
+
+    @Test
     void visitorTradeRejectsUnaffordableChoicesAndFixedTradesMoveMaterials() {
         service.getSnapshot(user);
         store.state.getUnlockedLoreIds().add("ledger_quartermaster_sera");
