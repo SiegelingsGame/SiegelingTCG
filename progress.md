@@ -1,7 +1,7 @@
 Original prompt: Merge and deploy
 
 - July 21, 2026 live deploy of Play HUD Keep + Keep inventory/Voices/assignment (PRs #478 + #479): squash-merged as `9cb09d45` then `fdab5315`. Concurrent Deploy Action runs raced on Firebase Hosting — #478’s Hosting job finished after #479 and briefly republished pre-inventory `keep.html` (`keep.css?v=8` / `keep.js?v=9`). Re-triggering Deploy from current `main` so Hosting serves `keep.css?v=9` / `keep.js?v=10` with inventory + spectrum + assignment labels alongside `style.css?v=212` Keep tab on `/play`.
-- Verification: pending Hosting re-publish + post-deploy checklist.
+- Verification: Deploy Action run [29800304802](https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/29800304802) succeeded. Live `/keep` serves `keep.css?v=9` / `keep.js?v=10` with `inventory-trigger`, inventory/spectrum/assignment markers in assets; `/play` serves `style.css?v=212` with Keep tab; Hosting + Cloud Run `/api/cards/editor` report `source=FIRESTORE`, `liveEditingEnabled=true`, `firestoreAvailable=true`; `js/config.js` keeps `apiBaseUrl: ''`; `/api/game/options` returns 200 with 4 decks / 11 trainers; signed-out `/api/keep` returns 401.
 
 Original prompt: The materials counter is generic when you can earn different types and craft materials I need an option in keep to view inventory which shows raw and manufactured materials. I also want to expand on the voices system where you can select and view your relationship on a spectrum if they like or don’t like you. If a siegeking is assigned to a station it should not show the assign button in another stations menu it should display where they are assigned
 
