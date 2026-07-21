@@ -358,6 +358,78 @@ class KeepServiceTest {
     }
 
     @Test
+    void everyProductionRoomOffersFiveVisualToolsAndDecorationsInSequence() {
+        service.getSnapshot(user);
+        store.state.setWoodlotLevel(2);
+        for (String id : List.of("garden", "forge", "fridge", "generator", "quarry", "kitchen")) {
+            store.state.getFacilityLevels().put(id, 2);
+            store.state.getFacilityLastAccruedAt().put(id, clock.instant());
+        }
+        for (String id : List.of("verdant_fiber", "ember_ingot", "frost_crystal", "storm_cell", "stone", "provisions")) {
+            store.state.getMaterialInventory().put(id, 200);
+        }
+
+        Map<String, Object> snapshot = service.getSnapshot(user);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> recipes = (List<Map<String, Object>>) snapshot.get("recipes");
+        for (String room : List.of("woodlot", "garden", "forge", "fridge", "generator", "quarry", "kitchen")) {
+            assertEquals(5, recipes.stream().filter(item -> room.equals(item.get("roomId")) && "TOOL".equals(item.get("type"))).count());
+            assertEquals(5, recipes.stream().filter(item -> room.equals(item.get("roomId")) && "DECORATION".equals(item.get("type"))).count());
+        }
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.craft(user, "dewline_irrigator", "tool-out-of-order", store.state.getVersion()));
+        service.craft(user, "gardener_tools", "tool-1", store.state.getVersion());
+        Map<String, Object> twoTools = service.craft(user, "dewline_irrigator", "tool-2", store.state.getVersion());
+        assertEquals(.70, ((Number) station(twoTools, "garden").get("ratePerMinute")).doubleValue(), .0001);
+
+        service.craft(user, "living_trellis", "decor-1", store.state.getVersion());
+        service.craft(user, "seed_banners", "decor-2", store.state.getVersion());
+        service.placeDecoration(user, "garden", "living_trellis", true, "place-1", store.state.getVersion());
+        Map<String, Object> placed = service.placeDecoration(user, "garden", "seed_banners", true,
+                "place-2", store.state.getVersion());
+        String placedIds = String.valueOf(valueAt(placed, "placedDecorations", "garden"));
+        assertTrue(placedIds.contains("living_trellis"));
+        assertTrue(placedIds.contains("seed_banners"));
+    }
+
+    @Test
+    void enclaveBuildsOutsideQuarterHostsFiveResidentsAndIssuesMissions() {
+        service.getSnapshot(user);
+        store.state.setArchiveLevel(1);
+        store.state.setTimber(500);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> options = (List<Map<String, Object>>) service.getSnapshot(user).get("buildOptions");
+        assertTrue(options.stream().anyMatch(item -> "build_enclave".equals(item.get("id"))));
+
+        service.startBuild(user, "build_enclave", "enclave-build", store.state.getVersion());
+        clock.advance(Duration.ofSeconds(KeepService.ENCLAVE_BUILD_SECONDS + 1));
+        Map<String, Object> built = service.getSnapshot(user);
+        assertEquals(Boolean.TRUE, valueAt(built, "enclave", "built"));
+        assertEquals(5, intAt(built, "enclave", "capacity"));
+
+        store.state.setTimber(0);
+        service.setEnclaveResident(user, 0, "mossling", "enclave-resident", store.state.getVersion());
+        for (int index = 0; index < 3; index++) {
+            clock.advance(Duration.ofMinutes(2));
+            service.collect(user, "woodlot", "enclave-collect-" + index, store.state.getVersion());
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> enclave = (Map<String, Object>) service.getSnapshot(user).get("enclave");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> slot = (Map<String, Object>) ((List<?>) enclave.get("slots")).get(0);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> mission = (Map<String, Object>) slot.get("mission");
+        assertEquals(Boolean.TRUE, mission.get("complete"));
+        assertEquals(3, ((Number) mission.get("progress")).intValue());
+
+        Map<String, Object> claimed = service.claimReward(user, String.valueOf(mission.get("id")),
+                "enclave-reward", store.state.getVersion());
+        assertEquals(90, ((Number) valueAt(claimed, "rewardClaimed", "gold")).intValue());
+        assertEquals(20, ((Number) valueAt(claimed, "rewardClaimed", "remnants")).intValue());
+    }
+
+    @Test
     void hallUpgradesRaiseKeepRankExpandCapacityAndUnlockScenery() {
         Map<String, Object> start = service.getSnapshot(user);
         assertEquals(1, intAt(start, "keepRank", "level"));

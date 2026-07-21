@@ -385,6 +385,31 @@ button.resource-pill:focus-visible {
 .woodlot-hotspot { left: 8%; bottom: 9%; }
 .archive-hotspot { right: 8%; bottom: 10%; }
 .quarter-hotspot { right: 22%; top: 48%; width: clamp(150px, 21vw, 260px); height: clamp(128px, 23vh, 215px); }
+.enclave-hotspot { left: 23%; top: 47%; width: clamp(142px, 19vw, 245px); height: clamp(126px, 22vh, 210px); }
+.enclave-illustration { position: absolute; inset: 2px 3px 34px; display: block; transition: filter .35s, opacity .35s; }
+.enclave-hut { position: absolute; bottom: 16%; width: 35%; height: 42%; border: 2px solid #5b4631; border-radius: 5px 5px 2px 2px; background: repeating-linear-gradient(90deg, #8d6b45 0 9px, #755635 9px 11px); box-shadow: 0 7px 8px rgba(25, 30, 24, .3); }
+.enclave-hut::before { content: ""; position: absolute; left: -9%; right: -9%; top: -35%; height: 42%; background: #3e5a49; clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+.enclave-hut::after { content: ""; position: absolute; left: 39%; bottom: 0; width: 23%; height: 55%; border-radius: 8px 8px 0 0; background: #3d2d24; }
+.enclave-hut.hut-one { left: 7%; }
+.enclave-hut.hut-two { right: 5%; bottom: 22%; transform: scale(.82); }
+.enclave-hearth { position: absolute; left: 48%; bottom: 13%; width: 22%; height: 12%; border-radius: 50%; background: radial-gradient(circle, #ffe27d 0 18%, #ff7a43 20% 40%, #6f4d3b 42% 64%, transparent 66%); filter: drop-shadow(0 0 7px rgba(255, 151, 76, .65)); animation: hearth-flicker 1.7s ease-in-out infinite; }
+.enclave-fence { position: absolute; left: 2%; right: 2%; bottom: 5%; height: 16%; border-bottom: 4px solid #765635; background: repeating-linear-gradient(90deg, #765635 0 4px, transparent 4px 20px); opacity: .82; }
+.keep-scene[data-enclave-level="0"] .enclave-illustration { opacity: .55; filter: grayscale(.8); }
+.keep-scene[data-enclave-level="0"] .enclave-hut { border: 2px dashed rgba(255, 247, 220, .62); background: rgba(255, 255, 255, .04); box-shadow: none; }
+.keep-scene[data-enclave-level="0"] .enclave-hut::before { background: rgba(255, 255, 255, .1); }
+.keep-scene[data-enclave-level="0"] .enclave-hearth,
+.keep-scene[data-enclave-level="0"] .enclave-fence,
+.keep-scene[data-enclave-level="0"] .exterior-enclave-residents { display: none; }
+.enclave-residents b { position: absolute; z-index: 4; display: none; align-items: flex-end; justify-content: center; background: transparent; filter: drop-shadow(0 5px 5px rgba(0, 0, 0, .42)); animation: enclave-wander 3s ease-in-out infinite; }
+.enclave-residents b.has-resident { display: flex; }
+.enclave-residents b img,
+.enclave-interior-residents b img { width: auto; height: 100%; max-width: 100%; object-fit: contain; object-position: bottom center; }
+.exterior-enclave-residents b { width: 30px; height: 38px; bottom: 10%; }
+.exterior-enclave-residents b:nth-child(1) { left: 7%; }
+.exterior-enclave-residents b:nth-child(2) { left: 27%; bottom: 5%; animation-delay: -.6s; }
+.exterior-enclave-residents b:nth-child(3) { left: 47%; animation-delay: -1.2s; }
+.exterior-enclave-residents b:nth-child(4) { left: 67%; bottom: 6%; animation-delay: -1.8s; }
+.exterior-enclave-residents b:nth-child(5) { left: 84%; animation-delay: -2.4s; }
 .quarter-illustration { position: absolute; inset: 2px 4px 34px; display: block; filter: drop-shadow(0 7px 5px rgba(22, 29, 25, .28)); }
 .quarter-path { position: absolute; left: 20%; right: 8%; bottom: 2%; height: 18%; background: rgba(199, 173, 121, .58); clip-path: polygon(46% 0, 56% 0, 100% 100%, 0 100%); }
 .quarter-building { position: absolute; display: block; width: 26%; height: 30%; bottom: 13%; border: 1px solid rgba(32, 43, 39, .38); border-radius: 3px 3px 1px 1px; opacity: .34; filter: grayscale(.7); transition: opacity .5s, filter .5s, transform .5s; }
@@ -488,6 +513,7 @@ button.resource-pill:focus-visible {
 .keep-scene[data-constructing~="archive"] .archive-hotspot .scaffold,
 .keep-scene[data-constructing~="woodlot"] .woodlot-hotspot .scaffold,
 .keep-scene[data-constructing~="hall"] .hall-hotspot .scaffold { display: block; animation: scaffold-pulse 2s ease-in-out infinite; }
+.keep-scene[data-constructing~="enclave"] .enclave-hotspot .scaffold { display: block; animation: scaffold-pulse 2s ease-in-out infinite; }
 
 /* Scene residents stand as Siege-style overlay cutouts (transparent character
    art with a drop shadow), matching adventure battle sprites — not circular
@@ -823,6 +849,31 @@ button.resource-pill:focus-visible {
 .decoration-control > span { min-width: 0; display: flex; flex-direction: column; }
 .decoration-control small { color: var(--gold); font-size: 8px; text-transform: uppercase; }
 .decoration-control strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #fff1b7; font: 700 12px Georgia, serif; }
+.room-upgrade-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.room-upgrade-summary > span { display: flex; flex-direction: column; padding: 9px; border: 1px solid rgba(159,233,255,.24); border-radius: 10px; background: rgba(159,233,255,.05); }
+.room-upgrade-summary b { color: #9fe9ff; font: 700 16px Georgia, serif; }
+.room-upgrade-summary small { color: rgba(255,247,220,.58); font-size: 8px; text-transform: uppercase; }
+.enclave-slot-list { display: grid; gap: 10px; }
+.enclave-slot-card { margin-bottom: 0; }
+.enclave-current { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; align-items: center; gap: 9px; margin-top: 8px; }
+.enclave-current > span { width: 52px; height: 58px; display: flex; align-items: flex-end; justify-content: center; overflow: hidden; border: 2px solid var(--resident-color, var(--gold)); border-radius: 12px; background: color-mix(in srgb, var(--resident-color, var(--neutral)) 35%, #172333); }
+.enclave-current > span img { width: auto; height: 100%; max-width: 100%; object-fit: contain; object-position: bottom center; }
+.enclave-current h3 { margin: 0; }
+.enclave-current small { color: rgba(255,247,220,.58); font-size: 9px; }
+.enclave-current > button { padding: 6px 8px; border-radius: 8px; color: rgba(255,247,220,.72); background: rgba(255,255,255,.07); font-size: 9px; cursor: pointer; }
+.enclave-slot-card details { margin-top: 10px; }
+.enclave-slot-card summary { color: #9fe9ff; font-size: 10px; cursor: pointer; }
+.enclave-resident-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+.enclave-resident-choice { min-width: 0; display: grid; justify-items: center; gap: 3px; padding: 6px 3px; border: 1px solid var(--line); border-radius: 9px; color: var(--cream); background: rgba(255,255,255,.04); cursor: pointer; }
+.enclave-resident-choice.active { border-color: var(--gold); background: rgba(244,204,98,.1); }
+.enclave-resident-choice span { width: 36px; height: 40px; display: flex; align-items: flex-end; justify-content: center; overflow: hidden; border-radius: 8px; background: color-mix(in srgb, var(--resident-color, var(--neutral)) 35%, #172333); }
+.enclave-resident-choice img { width: auto; height: 100%; max-width: 100%; object-fit: contain; object-position: bottom center; }
+.enclave-resident-choice small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 8px; }
+.enclave-mission { margin-top: 10px; padding: 10px; border: 1px solid rgba(159,233,255,.25); border-radius: 10px; background: rgba(159,233,255,.05); }
+.enclave-mission.is-complete { border-color: rgba(111,207,139,.5); background: rgba(111,207,139,.07); }
+.enclave-mission h4 { margin: 3px 0; color: #fff1b7; font: 700 13px Georgia, serif; }
+.enclave-mission p { margin: 0; color: rgba(255,247,220,.66); font-size: 9px; line-height: 1.4; }
+.enclave-mission .panel-button { width: 100%; margin-top: 8px; }
 
 .lore-tabs { position: sticky; top: -14px; z-index: 2; display: flex; gap: 5px; margin: -14px -14px 12px; padding: 10px 14px; background: rgba(20, 31, 43, .96); border-bottom: 1px solid var(--line); }
 .lore-tabs button { flex: 1; min-height: 32px; border-radius: 9px; color: rgba(255, 247, 220, .66); background: rgba(255, 255, 255, .045); font-size: 9px; font-weight: 800; cursor: pointer; }
@@ -994,6 +1045,33 @@ button.resource-pill:focus-visible {
 .discovery-toast small { color: var(--gold); font-size: 8px; letter-spacing: .12em; text-transform: uppercase; }
 .discovery-toast strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 13px Georgia, serif; }
 .discovery-toast button { padding: 7px 9px; border-radius: 8px; color: #172333; background: var(--gold); font-size: 9px; font-weight: 900; cursor: pointer; }
+.notice-tray {
+    position: fixed;
+    z-index: 82;
+    top: calc(70px + var(--safe-top));
+    right: calc(12px + var(--safe-right));
+    width: min(340px, calc(100vw - 24px));
+    max-height: min(520px, calc(100dvh - 150px));
+    overflow: hidden;
+    border: 1px solid rgba(244, 204, 98, .42);
+    border-radius: 15px;
+    background: rgba(19, 31, 41, .985);
+    box-shadow: 0 18px 46px rgba(0, 0, 0, .42);
+}
+.notice-tray > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 12px; border-bottom: 1px solid var(--line); }
+.notice-tray > header span { display: flex; flex-direction: column; }
+.notice-tray > header small { color: var(--gold); font-size: 8px; letter-spacing: .12em; text-transform: uppercase; }
+.notice-tray > header strong { font: 700 15px Georgia, serif; color: #fff1b7; }
+.notice-tray > header button { width: 30px; height: 30px; border-radius: 8px; color: var(--cream); background: rgba(255,255,255,.07); cursor: pointer; }
+#noticeList { max-height: min(445px, calc(100dvh - 220px)); overflow-y: auto; padding: 8px; }
+.notice-item { width: 100%; display: grid; grid-template-columns: 30px minmax(0, 1fr); align-items: center; gap: 9px; padding: 9px; border: 0; border-radius: 10px; color: var(--cream); background: transparent; text-align: left; }
+button.notice-item { cursor: pointer; }
+button.notice-item:hover { background: rgba(244, 204, 98, .08); }
+.notice-item > i { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; color: #172333; background: var(--gold); font-style: normal; }
+.notice-item > span { min-width: 0; display: flex; flex-direction: column; }
+.notice-item small { color: var(--gold); font-size: 8px; letter-spacing: .08em; text-transform: uppercase; }
+.notice-item strong { overflow: hidden; text-overflow: ellipsis; color: #fff1b7; font: 700 12px/1.3 Georgia, serif; }
+.notice-empty { padding: 20px 12px; color: rgba(255, 247, 220, .62); font-size: 11px; text-align: center; }
 
 /* —— Building interiors —— */
 .keep-interior {
@@ -1053,7 +1131,8 @@ button.resource-pill:focus-visible {
 .keep-interior[data-room="fridge"] .room-fridge,
 .keep-interior[data-room="generator"] .room-generator,
 .keep-interior[data-room="quarry"] .room-quarry,
-.keep-interior[data-room="kitchen"] .room-kitchen { display: block; }
+.keep-interior[data-room="kitchen"] .room-kitchen,
+.keep-interior[data-room="enclave"] .room-enclave { display: block; }
 
 /* Shared room shell: back wall + receding side walls + perspective floor. */
 .int-backwall { position: absolute; inset: 0 12% 30%; }
@@ -1254,6 +1333,51 @@ button.resource-pill:focus-visible {
 .crafted-decoration { display: none; }
 .crafted-decoration.is-placed { display: block; }
 .hall-crafted-tapestry { position: absolute; left: 8%; top: 13%; width: 9%; height: 35%; background: linear-gradient(90deg, #7fb472 0 25%, #d77b4e 25% 50%, #88d7e9 50% 75%, #b39ee3 75%); clip-path: polygon(0 0,100% 0,100% 86%,50% 100%,0 86%); box-shadow: inset 0 5px #f4cc62; }
+
+/* Every production room has five cumulative tool silhouettes and five
+   independently placeable furnishings. The room hue keeps the shared shapes
+   readable while still making each workshop feel materially different. */
+.room-woodlot { --room-accent: #9bcf73; --room-accent-2: #d7b477; }
+.room-garden { --room-accent: #a7df7a; --room-accent-2: #f0a5bd; }
+.room-forge { --room-accent: #ff8a4e; --room-accent-2: #ffd178; }
+.room-fridge { --room-accent: #9deaff; --room-accent-2: #e8fbff; }
+.room-generator { --room-accent: #ffe95d; --room-accent-2: #9deaff; }
+.room-quarry { --room-accent: #c9c3ad; --room-accent-2: #ffe5a0; }
+.room-kitchen { --room-accent: #f0b46c; --room-accent-2: #a9d478; }
+.room-tool-set { position: absolute; left: 12%; top: 14%; z-index: 3; width: 92px; height: 82px; border: 4px solid rgba(45, 37, 28, .58); border-bottom-width: 7px; border-radius: 5px; background: rgba(12, 18, 20, .12); }
+.room-tool-set i { position: absolute; bottom: 8px; width: 7px; height: 48px; display: none; border-radius: 5px 5px 2px 2px; background: linear-gradient(90deg, #66513d, var(--room-accent), #66513d); transform-origin: bottom center; filter: drop-shadow(0 3px 2px rgba(0, 0, 0, .38)); }
+.room-tool-set i::before { content: ""; position: absolute; left: 50%; top: -7px; width: 18px; height: 11px; translate: -50% 0; border-radius: 45% 45% 3px 3px; background: var(--room-accent-2); box-shadow: inset 0 -3px rgba(30, 35, 35, .3); }
+.room-tool-set i.is-crafted { display: block; animation: tool-arrive .35s ease both; }
+.room-tool-set i:nth-child(1) { left: 9px; transform: rotate(-12deg); }
+.room-tool-set i:nth-child(2) { left: 26px; height: 42px; transform: rotate(7deg); }
+.room-tool-set i:nth-child(3) { left: 43px; height: 54px; transform: rotate(-4deg); }
+.room-tool-set i:nth-child(4) { left: 60px; height: 45px; transform: rotate(10deg); }
+.room-tool-set i:nth-child(5) { left: 76px; height: 57px; transform: rotate(-8deg); }
+.room-decoration-set i { position: absolute; z-index: 2; display: none; color: var(--room-accent); filter: drop-shadow(0 4px 4px rgba(0, 0, 0, .34)); animation: decor-arrive .4s ease both; }
+.room-decoration-set i.is-placed { display: block; }
+.room-decoration-set [data-decor-slot="1"] { left: 30%; bottom: 14%; width: 12%; height: 28%; border: 5px solid #765435; border-top-color: var(--room-accent); background: repeating-linear-gradient(45deg, transparent 0 9px, color-mix(in srgb, var(--room-accent) 65%, transparent) 10px 12px); }
+.room-decoration-set [data-decor-slot="2"] { right: 13%; top: 15%; width: 8%; height: 31%; background: linear-gradient(var(--room-accent), color-mix(in srgb, var(--room-accent) 45%, #27313a)); clip-path: polygon(0 0, 100% 0, 100% 82%, 50% 100%, 0 82%); box-shadow: inset 0 5px var(--room-accent-2); }
+.room-decoration-set [data-decor-slot="3"] { left: 47%; bottom: 12%; width: 72px; height: 30px; border: 6px solid #6a523b; border-radius: 50% 50% 22% 22%; background: radial-gradient(ellipse, var(--room-accent-2), var(--room-accent)); }
+.room-decoration-set [data-decor-slot="4"] { right: 28%; top: 10%; width: 18%; height: 48%; border: 6px solid var(--room-accent); border-bottom: 0; border-radius: 60px 60px 0 0; box-shadow: inset 0 0 16px color-mix(in srgb, var(--room-accent) 35%, transparent); }
+.room-decoration-set [data-decor-slot="5"] { left: 66%; top: 18%; width: 34px; height: 34px; border: 3px solid var(--room-accent-2); border-radius: 50%; background: conic-gradient(var(--room-accent), transparent, var(--room-accent-2), transparent, var(--room-accent)); box-shadow: 0 0 18px color-mix(in srgb, var(--room-accent) 55%, transparent); animation: orb-float 3.2s ease-in-out infinite; }
+
+.room-enclave .int-backwall { background: linear-gradient(180deg, #725d47, #514536 64%, #40372d); }
+.room-enclave .int-sidewall { background: linear-gradient(90deg, #45392e, #30281f); }
+.room-enclave .int-floor { background: repeating-linear-gradient(90deg, #806748 0 70px, #6a5238 70px 76px); }
+.enclave-window { position: absolute; left: 43%; top: 10%; width: 14%; height: 30%; border: 6px solid #3f352a; border-radius: 50% 50% 3px 3px; background: linear-gradient(#bde0d4 0 55%, #6d9d6d 56%); box-shadow: 0 0 24px rgba(181, 230, 193, .28); }
+.enclave-banner { position: absolute; left: 17%; top: 12%; width: 9%; height: 34%; background: linear-gradient(#6d9b73, #3f664b); clip-path: polygon(0 0,100% 0,100% 84%,50% 100%,0 84%); box-shadow: inset 0 5px #f4cc62; }
+.enclave-fire { position: absolute; left: 45%; bottom: 12%; width: 10%; height: 18%; border-radius: 50% 50% 20% 20%; background: radial-gradient(ellipse at 50% 80%, #fff0a1, #ff8b48 45%, transparent 68%); filter: drop-shadow(0 0 14px rgba(255, 151, 76, .65)); animation: hearth-flicker 1.4s ease-in-out infinite; }
+.enclave-fire b { position: absolute; left: -28%; right: -28%; bottom: -10%; height: 22%; border-radius: 50%; background: #594331; box-shadow: 18px 0 #73533a, -18px 0 #73533a; }
+.enclave-nest { position: absolute; bottom: 12%; width: 20%; height: 14%; border-radius: 50%; background: repeating-linear-gradient(12deg, #9a774c 0 4px, #6d5135 4px 7px); }
+.enclave-nest.nest-one { left: 12%; }
+.enclave-nest.nest-two { right: 12%; }
+.enclave-interior-residents b { position: absolute; z-index: 5; bottom: 11%; width: 72px; height: 92px; display: none; align-items: flex-end; justify-content: center; filter: drop-shadow(0 8px 7px rgba(0, 0, 0, .45)); animation: enclave-wander 3.4s ease-in-out infinite; }
+.enclave-interior-residents b.has-resident { display: flex; }
+.enclave-interior-residents b:nth-child(1) { left: 8%; bottom: 18%; }
+.enclave-interior-residents b:nth-child(2) { left: 25%; animation-delay: -.7s; }
+.enclave-interior-residents b:nth-child(3) { left: 45%; bottom: 22%; animation-delay: -1.4s; }
+.enclave-interior-residents b:nth-child(4) { right: 25%; animation-delay: -2.1s; }
+.enclave-interior-residents b:nth-child(5) { right: 8%; bottom: 18%; animation-delay: -2.8s; }
 .facility-room-resident { position: absolute; right: 8%; bottom: 10%; display: grid; justify-items: center; gap: 4px; filter: drop-shadow(0 8px 10px rgba(0, 0, 0, .45)); }
 .facility-room-resident > span {
     width: 54px;
@@ -1759,6 +1883,9 @@ button.resource-pill:focus-visible {
 @keyframes scaffold-pulse { 50% { filter: brightness(1.16); } }
 @keyframes worker-bob { 50% { transform: translateY(-5px) rotate(2deg); } }
 @keyframes tool-swing { 50% { transform: rotate(-28deg); } }
+@keyframes tool-arrive { from { opacity: 0; translate: 0 -9px; } }
+@keyframes decor-arrive { from { opacity: 0; transform: scale(.72); } }
+@keyframes enclave-wander { 0%, 100% { translate: 0 0; } 45% { translate: 4px -4px; } 70% { translate: -3px 0; } }
 @keyframes discovery-in { from { opacity: 0; transform: translate(-50%, 18px) scale(.96); } }
 @keyframes loading-breathe { 50% { transform: translateY(-6px) scale(1.04); } }
 @keyframes facility-glow { 50% { box-shadow: 0 0 13px #ff8151; filter: brightness(1.25); } }
@@ -1801,6 +1928,22 @@ button.resource-pill:focus-visible {
     .scene-caption h1 { font-size: 19px; }
     .scene-caption p { font-size: 9px; }
     .construction-banner { top: 140px; min-width: min(310px, calc(100vw - 16px)); padding-block: 6px 9px; }
+    .construction-banner.is-collapsed {
+        left: auto;
+        right: calc(7px + var(--safe-right));
+        top: 112px;
+        width: 42px;
+        height: 42px;
+        min-width: 0;
+        padding: 0;
+        display: grid;
+        place-items: center;
+        transform: none;
+        border-radius: 12px;
+    }
+    .construction-banner.is-collapsed > span:not(.hammer-icon) { display: none; }
+    .construction-banner.is-collapsed .hammer-icon { font-size: 19px; }
+    .construction-banner.is-collapsed .construction-toggle { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; }
     .hall-hotspot { top: 24%; width: 180px; height: 210px; }
     .woodlot-hotspot { left: 1%; bottom: 11%; width: 142px; height: 160px; }
     .archive-hotspot { right: 1%; bottom: 12%; width: 142px; height: 160px; }
@@ -1808,15 +1951,13 @@ button.resource-pill:focus-visible {
        Elemental Quarter drops to the open left band (below the shrine, above the
        woodlot) where its label clears the Covenant Hall label. */
     .quarter-hotspot { left: 1%; right: auto; top: 45%; width: 132px; height: 120px; transform: none; }
-    .favorite-shrine { left: 4%; top: 29%; width: 58px; transform: scale(.76); transform-origin: top left; }
-    .favorite-shrine small { max-width: 72px; font-size: 7px; }
+    .enclave-hotspot { right: 1%; left: auto; top: 43%; width: 126px; height: 116px; }
     .building-label { max-width: 106%; padding: 5px 7px; }
     .building-label strong { font-size: 9px; }
     .building-label small { max-width: 132px; font-size: 6.5px; }
     .resident-worker { right: 8%; width: 46px; height: 60px; }
     .resident-worker > span { width: 35px; height: 35px; }
     .resident-worker > span.has-overlay-art { width: 46px; height: 58px; }
-    .memorabilia-plinth { left: 62%; top: 60%; transform: scale(.78); }
     .scene-zoom { right: calc(6px + var(--safe-right)); top: 42%; }
     .scene-zoom button { width: 32px; height: 32px; font-size: 16px; }
     .keep-tower { min-width: 26px; }
@@ -1862,20 +2003,25 @@ button.resource-pill:focus-visible {
     .dialogue-copy h2 { font-size: 21px; }
     .dialogue-copy > p { margin: 14px 0; font-size: 13px; line-height: 1.5; }
     .dialogue-choices { grid-column: 1 / -1; }
-    .discovery-toast { bottom: calc(77px + var(--safe-bottom)); }
+    .notice-tray { top: calc(61px + var(--safe-top)); right: calc(7px + var(--safe-right)); }
+    .room-tool-set { left: 7%; top: 11%; transform: scale(.78); transform-origin: top left; }
+    .room-decoration-set [data-decor-slot="4"] { right: 20%; }
+    .enclave-interior-residents b { width: 50px; height: 66px; }
 }
 
 @media (max-width: 360px), (max-height: 590px) {
     .scene-caption p { display: none; }
     .scene-caption { width: auto; padding-block: 7px; }
-    .construction-banner { top: 108px; }
+    .construction-banner:not(.is-collapsed) { top: 108px; }
+    .construction-banner.is-collapsed { top: 98px; }
     .hall-hotspot { top: 20%; height: 180px; transform: translateX(-50%) scale(.86); }
     .woodlot-hotspot,
     .archive-hotspot { bottom: 7%; transform: scale(.84); transform-origin: bottom center; }
     .woodlot-hotspot { left: -3%; }
     .archive-hotspot { right: -3%; }
     .quarter-hotspot { left: 0; right: auto; top: 44%; width: 118px; height: 104px; transform: none; }
-    .favorite-shrine { top: 26%; }
+    .enclave-hotspot { right: 0; left: auto; top: 42%; width: 112px; height: 102px; }
+    .production-ready { display: none !important; }
     .building-label small { display: none; }
 }
 
@@ -1895,6 +2041,7 @@ button.resource-pill:focus-visible {
     .woodlot-hotspot,
     .archive-hotspot { bottom: 2%; transform: scale(.72); transform-origin: bottom center; }
     .quarter-hotspot { right: 24%; top: 41%; transform: scale(.66); transform-origin: center; }
+    .enclave-hotspot { left: 24%; right: auto; top: 39%; transform: scale(.66); transform-origin: center; }
     .keep-dock { min-height: calc(48px + var(--safe-bottom)); padding-block: 3px calc(3px + var(--safe-bottom)); }
     .keep-dock button > span { font-size: 15px; }
     .keep-dock .collect-button { margin-top: -10px; }

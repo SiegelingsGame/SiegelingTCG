@@ -51,6 +51,9 @@ public class KeepStore {
         payload.put("hallLevel", state.getHallLevel());
         payload.put("hallThemeId", state.getHallThemeId());
         payload.put("buildersYardLevel", state.getBuildersYardLevel());
+        payload.put("enclaveLevel", state.getEnclaveLevel());
+        payload.put("enclaveResidentIds", state.getEnclaveResidentIds());
+        payload.put("enclaveMissionProgress", state.getEnclaveMissionProgress());
         payload.put("favoriteResidentId", state.getFavoriteResidentId());
         payload.put("activeConstructionId2", state.getActiveConstructionId2());
         payload.put("constructionStartedAt2", timestamp(state.getConstructionStartedAt2()));
@@ -120,6 +123,9 @@ public class KeepStore {
         state.setHallLevel((int) number(snapshot.get("hallLevel"), 1));
         state.setHallThemeId(string(snapshot.get("hallThemeId")));
         state.setBuildersYardLevel((int) number(snapshot.get("buildersYardLevel"), 0));
+        state.setEnclaveLevel((int) number(snapshot.get("enclaveLevel"), 0));
+        state.setEnclaveResidentIds(strings(snapshot.get("enclaveResidentIds")));
+        state.setEnclaveMissionProgress(intMap(snapshot.get("enclaveMissionProgress")));
         state.setFavoriteResidentId(string(snapshot.get("favoriteResidentId")));
         state.setActiveConstructionId2(string(snapshot.get("activeConstructionId2")));
         state.setConstructionStartedAt2(instant(snapshot.get("constructionStartedAt2")));

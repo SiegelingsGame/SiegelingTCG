@@ -9,7 +9,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#173f54">
-    <link rel="stylesheet" href="/css/keep.css?v=11">
+    <link rel="stylesheet" href="/css/keep.css?v=12">
 </head>
 <body>
 <div class="keep-app" id="keepApp">
@@ -30,6 +30,9 @@
             <a class="header-link" href="/siege">Siege</a>
             <button class="icon-button" id="archiveHeaderButton" type="button" data-open-panel="chronicle" aria-label="Open Chronicle">
                 <span aria-hidden="true">▤</span><span class="unread-badge hidden" id="unreadBadge">0</span>
+            </button>
+            <button class="icon-button" id="noticeButton" type="button" aria-label="Open Keep updates" aria-expanded="false">
+                <span aria-hidden="true">✦</span><span class="unread-badge hidden" id="noticeBadge">0</span>
             </button>
             <button class="icon-button" id="helpButton" type="button" aria-label="How My Keep works" title="How My Keep works">?</button>
             <button class="icon-button" id="fullscreenButton" type="button" aria-label="Toggle fullscreen" title="Fullscreen (F)">⛶</button>
@@ -267,15 +270,16 @@
                     <span class="building-label"><strong>Elemental Quarter</strong><small id="quarterLabel">Foundations awaiting restoration</small></span>
                 </button>
 
-                <div class="memorabilia-plinth hidden" id="memorabiliaPlinth" aria-label="Displayed Petrified Root">
-                    <i></i><span></span><small>Petrified Root</small>
-                </div>
-
-                <button class="favorite-shrine" id="favoriteShrine" type="button" data-building="great_hall" aria-label="Favorite Siegeling shrine">
-                    <i class="shrine-glow" aria-hidden="true"></i>
-                    <span class="shrine-art" id="favoriteShrineArt" aria-hidden="true"></span>
-                    <b class="shrine-plinth" aria-hidden="true"></b>
-                    <small id="favoriteShrineLabel">Choose a favorite</small>
+                <button class="building-hotspot enclave-hotspot" type="button" data-building="enclave" aria-label="Enter the Siegeling Enclave">
+                    <span class="enclave-illustration" aria-hidden="true">
+                        <i class="enclave-hut hut-one"></i><i class="enclave-hut hut-two"></i><i class="enclave-hearth"></i><i class="enclave-fence"></i>
+                        <span class="enclave-residents exterior-enclave-residents">
+                            <b data-enclave-resident-slot="0"></b><b data-enclave-resident-slot="1"></b><b data-enclave-resident-slot="2"></b><b data-enclave-resident-slot="3"></b><b data-enclave-resident-slot="4"></b>
+                        </span>
+                        <span class="scaffold"><b></b><b></b><b></b></span>
+                    </span>
+                    <span class="building-alert hidden" id="enclaveMissionAlert">Missions ready</span>
+                    <span class="building-label"><strong>Siegeling Enclave</strong><small id="enclaveLabel">A clearing for future residents</small></span>
                 </button>
 
             </div>
@@ -324,6 +328,8 @@
                     <i class="lodge-herb herb-one"></i><i class="lodge-herb herb-two"></i>
                     <i class="lodge-bench"></i>
                     <i class="lodge-logs"></i>
+                    <span class="room-tool-set" aria-hidden="true"><i data-tool-tier="1"></i><i data-tool-tier="2"></i><i data-tool-tier="3"></i><i data-tool-tier="4"></i><i data-tool-tier="5"></i></span>
+                    <span class="room-decoration-set" aria-hidden="true"><i data-decoration-art="carved_waypost" data-decor-slot="1"></i><i data-decoration-art="seedling_rack" data-decor-slot="2"></i><i data-decoration-art="sunwoven_blind" data-decor-slot="3"></i><i data-decoration-art="moss_lanterns" data-decor-slot="4"></i><i data-decoration-art="covenant_chimes" data-decor-slot="5"></i></span>
                     <span class="lodge-resident hidden" id="interiorResident"><span id="interiorResidentArt"></span><small id="interiorResidentName"></small></span>
                 </div>
                 <div class="interior-room room-archive">
@@ -347,37 +353,56 @@
                     <i class="garden-window"></i><i class="garden-bed bed-one"></i><i class="garden-bed bed-two"></i>
                     <i class="garden-water"></i><i class="garden-worktable"></i>
                     <i class="living-trellis crafted-decoration" data-decoration-art="living_trellis"><b></b></i>
+                    <span class="room-tool-set" aria-hidden="true"><i data-tool-tier="1"></i><i data-tool-tier="2"></i><i data-tool-tier="3"></i><i data-tool-tier="4"></i><i data-tool-tier="5"></i></span>
+                    <span class="room-decoration-set" aria-hidden="true"><i data-decoration-art="seed_banners" data-decor-slot="2"></i><i data-decoration-art="rain_basin" data-decor-slot="3"></i><i data-decoration-art="blossom_arch" data-decor-slot="4"></i><i data-decoration-art="covenant_topiary" data-decor-slot="5"></i></span>
                     <span class="facility-room-resident hidden" data-facility-resident><span data-facility-resident-art></span><small data-facility-resident-name></small></span>
                 </div>
                 <div class="interior-room room-forge">
                     <i class="int-backwall"></i><i class="int-sidewall side-left"></i><i class="int-sidewall side-right"></i><i class="int-floor"></i>
                     <i class="forge-hearth"><b></b></i><i class="forge-anvil"></i><i class="forge-rack"></i><i class="forge-bellows"></i>
                     <i class="ember-lantern crafted-decoration" data-decoration-art="ember_lantern"></i>
+                    <span class="room-tool-set" aria-hidden="true"><i data-tool-tier="1"></i><i data-tool-tier="2"></i><i data-tool-tier="3"></i><i data-tool-tier="4"></i><i data-tool-tier="5"></i></span>
+                    <span class="room-decoration-set" aria-hidden="true"><i data-decoration-art="oathwork_shield" data-decor-slot="2"></i><i data-decoration-art="spark_banner" data-decor-slot="3"></i><i data-decoration-art="ingot_mosaic" data-decor-slot="4"></i><i data-decoration-art="forge_chimes" data-decor-slot="5"></i></span>
                     <span class="facility-room-resident hidden" data-facility-resident><span data-facility-resident-art></span><small data-facility-resident-name></small></span>
                 </div>
                 <div class="interior-room room-fridge">
                     <i class="int-backwall"></i><i class="int-sidewall side-left"></i><i class="int-sidewall side-right"></i><i class="int-floor"></i>
                     <i class="fridge-vault"></i><i class="fridge-shelf shelf-left"></i><i class="fridge-shelf shelf-right"></i><i class="fridge-crystal"></i>
                     <i class="frostglass-mobile crafted-decoration" data-decoration-art="frostglass_mobile"><b></b></i>
+                    <span class="room-tool-set" aria-hidden="true"><i data-tool-tier="1"></i><i data-tool-tier="2"></i><i data-tool-tier="3"></i><i data-tool-tier="4"></i><i data-tool-tier="5"></i></span>
+                    <span class="room-decoration-set" aria-hidden="true"><i data-decoration-art="snowflake_screen" data-decor-slot="2"></i><i data-decoration-art="memory_crystals" data-decor-slot="3"></i><i data-decoration-art="aurora_lamp" data-decor-slot="4"></i><i data-decoration-art="ice_sculpture" data-decor-slot="5"></i></span>
                     <span class="facility-room-resident hidden" data-facility-resident><span data-facility-resident-art></span><small data-facility-resident-name></small></span>
                 </div>
                 <div class="interior-room room-generator">
                     <i class="int-backwall"></i><i class="int-sidewall side-left"></i><i class="int-sidewall side-right"></i><i class="int-floor"></i>
                     <i class="generator-coil coil-left"></i><i class="generator-coil coil-right"></i><i class="generator-console"></i><i class="generator-conduit"></i>
                     <i class="harmonic-orb crafted-decoration" data-decoration-art="harmonic_orb"></i>
+                    <span class="room-tool-set" aria-hidden="true"><i data-tool-tier="1"></i><i data-tool-tier="2"></i><i data-tool-tier="3"></i><i data-tool-tier="4"></i><i data-tool-tier="5"></i></span>
+                    <span class="room-decoration-set" aria-hidden="true"><i data-decoration-art="prism_banners" data-decor-slot="2"></i><i data-decoration-art="conduit_globe" data-decor-slot="3"></i><i data-decoration-art="thunder_chimes" data-decor-slot="4"></i><i data-decoration-art="covenant_orrery" data-decor-slot="5"></i></span>
                     <span class="facility-room-resident hidden" data-facility-resident><span data-facility-resident-art></span><small data-facility-resident-name></small></span>
                 </div>
                 <div class="interior-room room-quarry">
                     <i class="int-backwall"></i><i class="int-sidewall side-left"></i><i class="int-sidewall side-right"></i><i class="int-floor"></i>
                     <i class="quarry-face"></i><i class="quarry-blocks"></i><i class="quarry-cart"></i><i class="quarry-lantern"></i>
                     <i class="stone-sentinel crafted-decoration" data-decoration-art="stone_sentinel"></i>
+                    <span class="room-tool-set" aria-hidden="true"><i data-tool-tier="1"></i><i data-tool-tier="2"></i><i data-tool-tier="3"></i><i data-tool-tier="4"></i><i data-tool-tier="5"></i></span>
+                    <span class="room-decoration-set" aria-hidden="true"><i data-decoration-art="rune_mosaic" data-decor-slot="2"></i><i data-decoration-art="crystal_sconce" data-decor-slot="3"></i><i data-decoration-art="mason_banner" data-decor-slot="4"></i><i data-decoration-art="echo_fountain" data-decor-slot="5"></i></span>
                     <span class="facility-room-resident hidden" data-facility-resident><span data-facility-resident-art></span><small data-facility-resident-name></small></span>
                 </div>
                 <div class="interior-room room-kitchen">
                     <i class="int-backwall"></i><i class="int-sidewall side-left"></i><i class="int-sidewall side-right"></i><i class="int-floor"></i>
                     <i class="kitchen-hearth"><b></b></i><i class="kitchen-shelf"></i><i class="kitchen-table"></i><i class="kitchen-pot"></i>
                     <i class="hearth-garland crafted-decoration" data-decoration-art="hearth_garland"></i>
+                    <span class="room-tool-set" aria-hidden="true"><i data-tool-tier="1"></i><i data-tool-tier="2"></i><i data-tool-tier="3"></i><i data-tool-tier="4"></i><i data-tool-tier="5"></i></span>
+                    <span class="room-decoration-set" aria-hidden="true"><i data-decoration-art="painted_crocks" data-decor-slot="2"></i><i data-decoration-art="recipe_tapestry" data-decor-slot="3"></i><i data-decoration-art="communal_bench" data-decor-slot="4"></i><i data-decoration-art="lantern_wreath" data-decor-slot="5"></i></span>
                     <span class="facility-room-resident hidden" data-facility-resident><span data-facility-resident-art></span><small data-facility-resident-name></small></span>
+                </div>
+                <div class="interior-room room-enclave">
+                    <i class="int-backwall"></i><i class="int-sidewall side-left"></i><i class="int-sidewall side-right"></i><i class="int-floor"></i>
+                    <i class="enclave-window"></i><i class="enclave-banner"></i><i class="enclave-fire"><b></b></i><i class="enclave-nest nest-one"></i><i class="enclave-nest nest-two"></i>
+                    <span class="enclave-interior-residents" aria-hidden="true">
+                        <b data-enclave-resident-slot="0"></b><b data-enclave-resident-slot="1"></b><b data-enclave-resident-slot="2"></b><b data-enclave-resident-slot="3"></b><b data-enclave-resident-slot="4"></b>
+                    </span>
                 </div>
             </div>
             <div class="interior-actions" id="interiorActions"></div>
@@ -423,6 +448,11 @@
         <button type="button" id="discoveryOpen">Read</button>
     </div>
 
+    <aside class="notice-tray hidden" id="noticeTray" aria-label="Keep updates">
+        <header><span><small>Non-blocking updates</small><strong>Keep activity</strong></span><button type="button" id="noticeClose" aria-label="Close Keep updates">×</button></header>
+        <div id="noticeList"></div>
+    </aside>
+
     <div class="keep-tutorial hidden" id="keepTutorial" role="dialog" aria-modal="true" aria-labelledby="tutorialTitle">
         <div class="tutorial-card">
             <span class="tutorial-art" id="tutorialArt" aria-hidden="true">✦</span>
@@ -465,7 +495,7 @@
 </div>
 
 <script src="/js/config.js?v=1"></script>
-<script src="/js/keep.js?v=12"></script>
+<script src="/js/keep.js?v=13"></script>
 <script src="/js/sw-register.js?v=1"></script>
 </body>
 </html>

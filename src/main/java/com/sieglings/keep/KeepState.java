@@ -18,6 +18,9 @@ public class KeepState {
     private int hallLevel = 1;
     private String hallThemeId = "";
     private int buildersYardLevel;
+    private int enclaveLevel;
+    private List<String> enclaveResidentIds = new ArrayList<>();
+    private Map<String, Integer> enclaveMissionProgress = new LinkedHashMap<>();
     private String favoriteResidentId = "";
     private String activeConstructionId2 = "";
     private Instant constructionStartedAt2;
@@ -75,6 +78,12 @@ public class KeepState {
     public void setHallThemeId(String hallThemeId) { this.hallThemeId = hallThemeId == null ? "" : hallThemeId; }
     public int getBuildersYardLevel() { return buildersYardLevel; }
     public void setBuildersYardLevel(int buildersYardLevel) { this.buildersYardLevel = Math.max(0, buildersYardLevel); }
+    public int getEnclaveLevel() { return enclaveLevel; }
+    public void setEnclaveLevel(int enclaveLevel) { this.enclaveLevel = Math.max(0, enclaveLevel); }
+    public List<String> getEnclaveResidentIds() { return enclaveResidentIds; }
+    public void setEnclaveResidentIds(List<String> enclaveResidentIds) { this.enclaveResidentIds = copy(enclaveResidentIds); }
+    public Map<String, Integer> getEnclaveMissionProgress() { return enclaveMissionProgress; }
+    public void setEnclaveMissionProgress(Map<String, Integer> enclaveMissionProgress) { this.enclaveMissionProgress = intMap(enclaveMissionProgress); }
     public String getFavoriteResidentId() { return favoriteResidentId; }
     public void setFavoriteResidentId(String favoriteResidentId) { this.favoriteResidentId = favoriteResidentId == null ? "" : favoriteResidentId; }
     public String getActiveConstructionId2() { return activeConstructionId2; }

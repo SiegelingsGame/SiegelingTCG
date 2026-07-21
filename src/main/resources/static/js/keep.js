@@ -42,12 +42,15 @@
         discoveryQueue: [],
         discoveryTimer: null,
         completionRefreshPending: false,
-        constructionCollapsed: false,
+        constructionCollapsed: window.matchMedia('(max-width: 767px)').matches,
         selectedStation: 'woodlot',
         selectedRelationshipId: '',
         inventoryFilter: 'ALL',
         pendingOfflineReport: null,
         offlineVisible: false,
+        notices: [],
+        noticeUnread: 0,
+        mobileLayout: window.matchMedia('(max-width: 767px)').matches,
         testMode: Boolean(window.__KEEP_TEST_SNAPSHOT__)
     };
 
@@ -91,6 +94,8 @@
         document.getElementById('collectButton')?.addEventListener('click', collectTimber);
         document.getElementById('fullscreenButton')?.addEventListener('click', toggleFullscreen);
         document.getElementById('discoveryOpen')?.addEventListener('click', openLatestDiscovery);
+        document.getElementById('noticeButton')?.addEventListener('click', toggleNoticeTray);
+        document.getElementById('noticeClose')?.addEventListener('click', closeNoticeTray);
         document.getElementById('interiorExit')?.addEventListener('click', closeInterior);
         document.getElementById('helpButton')?.addEventListener('click', () => openTutorial(0));
         document.getElementById('tutorialSkip')?.addEventListener('click', finishTutorial);
@@ -120,6 +125,12 @@
         if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
         const main = document.querySelector('.keep-main');
         if (main?.scrollLeft || main?.scrollTop) main.scrollTo(0, 0);
+        const mobile = window.matchMedia('(max-width: 767px)').matches;
+        if (mobile && !state.mobileLayout) {
+            state.constructionCollapsed = true;
+            renderConstructionCollapseState();
+        }
+        state.mobileLayout = mobile;
     }
 
     /* —— Scene pan & zoom: buttons for accessibility, pointer drag when zoomed. —— */
@@ -216,7 +227,21 @@
         const building = event.target.closest('[data-building]');
         if (building) {
             if (building.dataset.building === 'facilities') openPanel('facilities');
+            else if (building.dataset.building === 'enclave' && !state.snapshot?.enclave?.built) openPanel('projects');
             else openInterior(building.dataset.building);
+            return;
+        }
+        const enclaveResident = event.target.closest('[data-enclave-resident]');
+        if (enclaveResident) {
+            void setEnclaveResident(number(enclaveResident.dataset.enclaveSlot), enclaveResident.dataset.enclaveResident);
+            return;
+        }
+        const noticeLore = event.target.closest('[data-notice-lore]');
+        if (noticeLore) {
+            closeNoticeTray();
+            state.loreFilter = 'ALL';
+            openPanel('chronicle');
+            void openLore(noticeLore.dataset.noticeLore);
             return;
         }
         const enterFacility = event.target.closest('[data-enter-facility]');
@@ -389,6 +414,11 @@
         await perform('/api/keep/resident', { stationId, residentId: current === residentId ? '' : residentId });
     }
 
+    async function setEnclaveResident(slot, residentId) {
+        const current = state.snapshot?.enclave?.slots?.[slot]?.residentId || '';
+        await perform('/api/keep/enclave/resident', { slot, residentId: current === residentId ? '' : residentId });
+    }
+
     async function claimReward(rewardId) {
         const data = await perform('/api/keep/reward', { rewardId });
         if (data?.rewardClaimed) {
@@ -521,6 +551,7 @@
             scene.dataset.quarryLevel = String(number(visual.quarryLevel));
             scene.dataset.kitchenLevel = String(number(visual.kitchenLevel));
             scene.dataset.buildersYardLevel = String(number(visual.buildersYardLevel));
+            scene.dataset.enclaveLevel = String(number(visual.enclaveLevel));
             scene.dataset.hallLevel = String(hallLevel);
             scene.dataset.hallTheme = visual.hallTheme || 'covenant';
             for (let level = 2; level <= HALL_MAX_LEVEL; level++) scene.classList.toggle(`hall-l${level}`, hallLevel >= level);
@@ -536,6 +567,13 @@
         const builtFacilities = ['garden', 'forge', 'fridge', 'generator', 'quarry', 'kitchen']
             .filter((id) => number(visual[`${id}Level`]) > 0).length + (number(visual.buildersYardLevel) > 0 ? 1 : 0);
         text('quarterLabel', builtFacilities ? `${builtFacilities}/7 facilities restored` : 'Foundations awaiting restoration');
+        const enclave = snapshot.enclave || {};
+        text('enclaveLabel', enclave.built
+            ? `${number(enclave.residentCount)}/${number(enclave.capacity) || 5} residents · missions`
+            : 'Build separately from the work quarter');
+        const readyMissions = (enclave.slots || []).filter((slot) => slot.mission?.complete && !slot.mission?.claimed).length;
+        document.getElementById('enclaveMissionAlert')?.classList.toggle('hidden', readyMissions <= 0);
+        renderEnclaveResidents();
 
         const station = snapshot.station || {};
         text('woodlotLabel', `Level ${number(station.level) || 1} · ${formatRate(station.ratePerMinute)}/min`);
@@ -549,9 +587,6 @@
         text('archiveLabel', archiveRestored ? 'Letters, relics, and remembered voices' : 'Records buried beneath the stones');
         const archiveUnread = (snapshot.lore || []).some((item) => !item.read && item.id !== 'charter_three_promises');
         document.getElementById('archiveAlert')?.classList.toggle('hidden', !archiveRestored || !archiveUnread);
-        const root = loreById('memorabilia_petrified_root');
-        document.getElementById('memorabiliaPlinth')?.classList.toggle('hidden', !root?.displayed);
-
         const unread = number(snapshot.unreadLoreCount);
         text('unreadBadge', unread);
         document.getElementById('unreadBadge')?.classList.toggle('hidden', unread <= 0);
@@ -641,11 +676,22 @@
             : 'Choose a favorite Siegeling inside the Covenant Hall');
     }
 
+    function renderEnclaveResidents() {
+        const slots = state.snapshot?.enclave?.slots || [];
+        document.querySelectorAll('[data-enclave-resident-slot]').forEach((node) => {
+            const slot = slots[number(node.dataset.enclaveResidentSlot)] || {};
+            node.classList.toggle('has-resident', Boolean(slot.resident));
+            setResidentOverlayArt(node, slot.resident || null);
+            node.title = slot.resident?.name || '';
+        });
+    }
+
     function constructionTarget(constructionId) {
         const id = String(constructionId || '');
         if (!id) return '';
         if (id.startsWith('hall_level_')) return 'hall';
         if (id === 'restore_archive') return 'archive';
+        if (id === 'build_enclave') return 'enclave';
         if (id === 'woodlot_level_2') return 'woodlot';
         if (id === 'raise_storehouse' || id === 'storehouse_level_2') return 'storehouse';
         if (id.startsWith('build_')) return id.slice('build_'.length);
@@ -770,6 +816,10 @@
             const restored = Boolean(state.snapshot.visualState?.archiveRestored);
             return { title: restored ? 'Living Archive' : 'Ruined Archive', kicker: restored ? 'Recovered voices' : 'Buried history' };
         }
+        if (id === 'enclave') {
+            const enclave = state.snapshot.enclave || {};
+            return { title: 'Siegeling Enclave', kicker: enclave.built ? `${number(enclave.residentCount)}/${number(enclave.capacity) || 5} residents` : 'A sanctuary within the sanctuary' };
+        }
         const station = stationById(id);
         if (station) return { title: station.name, kicker: `Level ${number(station.level)} · ${station.resourceName || 'Elemental workshop'}` };
         const rank = state.snapshot.keepRank || {};
@@ -795,8 +845,24 @@
                 ? `<p class="panel-intro">Letters, artifacts, and translated memories are preserved with their disagreements intact.</p><section class="detail-card"><h3>${number(state.snapshot.lore?.length)} discoveries</h3><p>${number(state.snapshot.unreadLoreCount)} entries remain unread. Memorabilia displayed here also appears in the sanctuary scene.</p><div class="button-row"><button class="panel-button" type="button" data-open-panel="chronicle">Open Chronicle</button><button class="panel-button secondary" type="button" data-open-panel="conversations">Speak with visitors</button></div></section>`
                 : `<p class="panel-intro">A collapsed record hall lies beneath the eastern wall. Its stones protect letters from the Age Before Cards.</p>${projectsMarkup()}`;
         }
+        if (id === 'enclave') return enclaveMarkup();
         if (stationById(id)) return facilityInteriorMarkup(id);
         return `<p class="panel-intro">The sanctuary is founded on Stewardship, Consent, and Shelter.</p>${rankCardMarkup()}${favoriteChooserMarkup()}<section class="detail-card"><h3>The Keeper's Charter</h3><p>No Siegeling will be compelled to labor or fight. The land will be repaired rather than consumed, and those hunted by Akhar may seek refuge here.</p><div class="button-row"><button class="panel-button" type="button" data-open-panel="chronicle">Read the charter</button></div></section>${themePickerMarkup()}${craftingMarkup('great_hall')}`;
+    }
+
+    function enclaveMarkup() {
+        const enclave = state.snapshot.enclave || {};
+        if (!enclave.built) return `<p class="panel-intro">The Enclave is a home apart from the Elemental Quarter. Residents gather here by choice, socialize, and offer personal missions.</p>${projectsMarkup()}`;
+        const residents = state.snapshot.residents || [];
+        const slots = enclave.slots || [];
+        return `<p class="panel-intro">Invite up to five owned Siegelings. They remain available everywhere else, appear together in this room, and each brings one sanctuary mission.</p>
+            <div class="enclave-slot-list">${slots.map((slot, index) => {
+                const resident = slot.resident;
+                const mission = slot.mission;
+                const missionMarkup = mission ? `<div class="enclave-mission ${mission.complete ? 'is-complete' : ''}"><span class="eyebrow">${mission.claimed ? 'Mission complete' : 'Resident mission'}</span><h4>${escapeHtml(mission.name)}</h4><p>${escapeHtml(mission.description)}</p><div class="meter"><i style="width:${clamp(number(mission.progress) / Math.max(1, number(mission.goal)) * 100, 0, 100)}%"></i></div><div class="cost-row"><span>${number(mission.progress)}/${number(mission.goal)}</span><strong>${number(mission.gold)} Siegecoins · ${number(mission.remnants)} Remnants</strong></div>${mission.claimed ? '<small>Reward claimed</small>' : `<button class="panel-button" type="button" data-claim-keep-reward="${escapeAttr(mission.id)}" ${mission.complete ? '' : 'disabled'}>${mission.complete ? 'Claim mission reward' : 'Mission in progress'}</button>`}</div>` : '';
+                const choices = residents.map((choice) => `<button type="button" class="enclave-resident-choice ${choice.id === slot.residentId ? 'active' : ''}" data-enclave-resident="${escapeAttr(choice.id)}" data-enclave-slot="${index}" style="--resident-color:${escapeAttr(elementColors[choice.element] || elementColors.NEUTRAL)}"><span>${residentAvatarContent(choice)}</span><small>${escapeHtml(choice.name)}</small></button>`).join('');
+                return `<section class="detail-card enclave-slot-card"><span class="eyebrow">Enclave space ${index + 1}</span>${resident ? `<div class="enclave-current"><span style="--resident-color:${escapeAttr(elementColors[resident.element] || elementColors.NEUTRAL)}">${residentAvatarContent(resident)}</span><div><h3>${escapeHtml(resident.name)}</h3><small>${escapeHtml(titleCase(resident.element))} · ${escapeHtml(titleCase(resident.rarity))}</small></div><button type="button" data-enclave-resident="${escapeAttr(resident.id)}" data-enclave-slot="${index}">Clear</button></div>` : '<p>This space is open.</p>'}${missionMarkup}<details><summary>${resident ? 'Change resident' : 'Invite a resident'}</summary><div class="enclave-resident-choices">${choices}</div></details></section>`;
+            }).join('')}</div>`;
     }
 
     /** Choosing a favorite happens inside the Covenant Hall — a keep-wide honor,
@@ -861,14 +927,17 @@
 
     function craftingMarkup(roomId) {
         const recipes = (state.snapshot.recipes || []).filter((item) => item.roomId === roomId && item.available);
-        const decoration = (state.snapshot.decorations || []).find((item) => item.roomId === roomId && item.crafted);
+        const decorations = (state.snapshot.decorations || []).filter((item) => item.roomId === roomId && item.crafted);
+        const tools = recipes.filter((item) => item.type === 'TOOL');
+        const roomDecorations = recipes.filter((item) => item.type === 'DECORATION');
         const cards = recipes.length ? recipes.map((recipe) => `<section class="craft-card ${recipe.crafted ? 'is-crafted' : ''}">
-            <span class="craft-type">${escapeHtml(recipe.type)}</span><h3>${escapeHtml(recipe.name)}</h3><p>${escapeHtml(recipe.description || '')}</p>
+            <span class="craft-type">${escapeHtml(recipe.type)}${number(recipe.tier) ? ` · ${number(recipe.tier)}/5` : ''}</span><h3>${escapeHtml(recipe.name)}</h3><p>${escapeHtml(recipe.description || '')}</p>
             <small>${escapeHtml(recipe.bonus || '')}</small><div class="craft-costs">${(recipe.costs || []).map((cost) => `<span>${materialIcon(cost.id)} ${number(cost.amount)} ${escapeHtml(cost.name)}</span>`).join('')}</div>
-            <button class="panel-button" type="button" data-craft-recipe="${escapeAttr(recipe.id)}" ${recipe.canCraft ? '' : 'disabled'}>${recipe.crafted ? 'Crafted' : recipe.canCraft ? 'Craft item' : 'Gather materials'}</button>
+            <button class="panel-button" type="button" data-craft-recipe="${escapeAttr(recipe.id)}" ${recipe.canCraft ? '' : 'disabled'}>${recipe.crafted ? 'Crafted' : recipe.levelMet === false ? 'Upgrade room to level 2' : recipe.prerequisiteMet === false ? 'Craft previous tool' : recipe.canCraft ? 'Craft item' : 'Gather materials'}</button>
         </section>`).join('') : '<div class="empty-state">This room has no available blueprints yet.</div>';
-        const placement = decoration ? `<section class="decoration-control"><span><small>Interior decoration</small><strong>${escapeHtml(decoration.name)}</strong></span><button class="panel-button secondary" type="button" data-place-decoration="${escapeAttr(decoration.id)}" data-room-id="${escapeAttr(roomId)}" data-displayed="${String(Boolean(decoration.displayed))}">${decoration.displayed ? 'Store decoration' : 'Place decoration'}</button></section>` : '';
-        return `<div class="crafting-section"><span class="eyebrow">Workshop blueprints</span>${cards}${placement}</div>`;
+        const placements = decorations.map((decoration) => `<section class="decoration-control"><span><small>Interior decoration ${number(decoration.tier) ? `${number(decoration.tier)}/5` : ''}</small><strong>${escapeHtml(decoration.name)}</strong></span><button class="panel-button secondary" type="button" data-place-decoration="${escapeAttr(decoration.id)}" data-room-id="${escapeAttr(roomId)}" data-displayed="${String(Boolean(decoration.displayed))}">${decoration.displayed ? 'Store decoration' : 'Place decoration'}</button></section>`).join('');
+        const progress = tools.length || roomDecorations.length ? `<div class="room-upgrade-summary"><span><b>${tools.filter((item) => item.crafted).length}/5</b><small>Tools installed</small></span><span><b>${roomDecorations.filter((item) => item.crafted).length}/5</b><small>Decorations crafted</small></span></div>` : '';
+        return `<div class="crafting-section"><span class="eyebrow">Workshop blueprints</span>${progress}${cards}${placements}</div>`;
     }
 
     function facilityInteriorDescription(id) {
@@ -884,6 +953,10 @@
 
     function openInterior(id) {
         if (!state.snapshot || !id) return;
+        if (id === 'enclave' && !state.snapshot.enclave?.built) {
+            openPanel('projects');
+            return;
+        }
         state.interior = id;
         closePanel();
         const interior = document.getElementById('keepInterior');
@@ -918,9 +991,17 @@
         interior.querySelectorAll('[data-facility-resident-art]').forEach((node) => setResidentOverlayArt(node, resident));
         interior.querySelectorAll('[data-facility-resident-name]').forEach((node) => { node.textContent = resident?.name || ''; });
         const placed = state.snapshot.placedDecorations || {};
+        const placedIds = new Set(String(placed[state.interior] || '').split(',').map((id) => id.trim()).filter(Boolean));
         interior.querySelectorAll('[data-decoration-art]').forEach((node) => {
-            node.classList.toggle('is-placed', placed[state.interior] === node.dataset.decorationArt);
+            node.classList.toggle('is-placed', placedIds.has(node.dataset.decorationArt));
         });
+        const toolTier = (state.snapshot.recipes || []).filter((recipe) => recipe.roomId === state.interior
+            && recipe.type === 'TOOL' && recipe.crafted).length;
+        interior.dataset.toolTier = String(toolTier);
+        interior.querySelectorAll('[data-tool-tier]').forEach((node) => {
+            node.classList.toggle('is-crafted', number(node.dataset.toolTier) <= toolTier);
+        });
+        renderEnclaveResidents();
         const root = loreById('memorabilia_petrified_root');
         document.getElementById('interiorPlinth')?.classList.toggle('hidden', !root?.displayed);
         const actions = document.getElementById('interiorActions');
@@ -1259,49 +1340,66 @@
     function enqueueDiscoveries(ids) {
         for (const id of ids || []) {
             const item = loreById(id);
-            if (item && !state.discoveryQueue.some((queued) => queued.id === id)) state.discoveryQueue.push(item);
+            if (item && !state.discoveryQueue.some((queued) => queued.id === id)) {
+                state.discoveryQueue.push(item);
+                addNotice(item.title, 'Lore discovered', item.id);
+            }
         }
-        showNextDiscovery();
     }
 
     function showNextDiscovery() {
-        const toast = document.getElementById('discoveryToast');
-        if (!toast || !state.discoveryQueue.length || !toast.classList.contains('hidden')) return;
-        const item = state.discoveryQueue[0];
-        toast.dataset.loreId = item.id;
-        text('discoveryTitle', item.title);
-        document.getElementById('discoveryOpen')?.classList.remove('hidden');
-        toast.classList.remove('hidden');
-        clearTimeout(state.discoveryTimer);
-        state.discoveryTimer = window.setTimeout(dismissDiscovery, 6500);
+        renderNoticeCenter();
     }
 
     function dismissDiscovery() {
-        const toast = document.getElementById('discoveryToast');
-        toast?.classList.add('hidden');
-        state.discoveryQueue.shift();
-        window.setTimeout(showNextDiscovery, 180);
+        document.getElementById('discoveryToast')?.classList.add('hidden');
     }
 
     function openLatestDiscovery() {
-        const id = document.getElementById('discoveryToast')?.dataset.loreId || '';
-        dismissDiscovery();
+        const id = state.notices.find((notice) => notice.loreId)?.loreId || '';
+        closeNoticeTray();
         state.loreFilter = 'ALL';
         openPanel('chronicle');
         if (id) void openLore(id);
     }
 
     function showNotice(message, heading) {
-        const toast = document.getElementById('discoveryToast');
-        if (!toast) return;
-        clearTimeout(state.discoveryTimer);
-        toast.dataset.loreId = '';
-        const small = toast.querySelector('small');
-        if (small) small.textContent = heading || 'My Keep';
-        text('discoveryTitle', message || 'Something changed.');
-        document.getElementById('discoveryOpen')?.classList.add('hidden');
-        toast.classList.remove('hidden');
-        state.discoveryTimer = window.setTimeout(() => toast.classList.add('hidden'), 4200);
+        addNotice(message || 'Something changed.', heading || 'My Keep', '');
+    }
+
+    function addNotice(message, heading, loreId) {
+        state.notices.unshift({ message, heading, loreId: loreId || '', at: nowMs() });
+        state.notices = state.notices.slice(0, 20);
+        state.noticeUnread += 1;
+        renderNoticeCenter();
+    }
+
+    function renderNoticeCenter() {
+        const list = document.getElementById('noticeList');
+        if (list) list.innerHTML = state.notices.length ? state.notices.map((notice) => {
+            const tag = notice.loreId ? 'button' : 'div';
+            const action = notice.loreId ? ` type="button" data-notice-lore="${escapeAttr(notice.loreId)}"` : '';
+            return `<${tag} class="notice-item"${action}><i aria-hidden="true">${notice.loreId ? '▤' : '✦'}</i><span><small>${escapeHtml(notice.heading)}</small><strong>${escapeHtml(notice.message)}</strong></span></${tag}>`;
+        }).join('') : '<div class="notice-empty">No new Keep activity. Construction timers remain in Projects.</div>';
+        text('noticeBadge', state.noticeUnread);
+        document.getElementById('noticeBadge')?.classList.toggle('hidden', state.noticeUnread <= 0);
+    }
+
+    function toggleNoticeTray() {
+        const tray = document.getElementById('noticeTray');
+        if (!tray) return;
+        const opening = tray.classList.contains('hidden');
+        tray.classList.toggle('hidden', !opening);
+        document.getElementById('noticeButton')?.setAttribute('aria-expanded', String(opening));
+        if (opening) {
+            state.noticeUnread = 0;
+            renderNoticeCenter();
+        }
+    }
+
+    function closeNoticeTray() {
+        document.getElementById('noticeTray')?.classList.add('hidden');
+        document.getElementById('noticeButton')?.setAttribute('aria-expanded', 'false');
     }
 
     function showGate(message) {
@@ -1362,7 +1460,7 @@
             }
             station.available = 0;
             snapshot.collected = { resource: stationId === 'woodlot' ? 'TIMBER' : 'ESSENCE', amount, stationId };
-        } else if (path.endsWith('/resident')) {
+        } else if (path.endsWith('/keep/resident')) {
             const stationId = body.stationId || 'woodlot';
             const stations = snapshot.stations || [snapshot.station];
             for (const item of stations) {
@@ -1371,6 +1469,21 @@
             const station = stations.find((item) => item.id === stationId) || snapshot.station;
             station.residentId = body.residentId || '';
             station.resident = (snapshot.residents || []).find((item) => item.id === body.residentId) || null;
+        } else if (path.endsWith('/enclave/resident')) {
+            const slots = snapshot.enclave?.slots || [];
+            for (const slot of slots) {
+                if (body.residentId && slot.residentId === body.residentId) {
+                    slot.residentId = ''; slot.resident = null; slot.mission = null;
+                }
+            }
+            const slot = slots[number(body.slot)];
+            if (slot) {
+                const resident = (snapshot.residents || []).find((item) => item.id === body.residentId) || null;
+                slot.residentId = resident?.id || '';
+                slot.resident = resident;
+                slot.mission = resident ? { id: `enclave_mission:${resident.id}`, name: 'Resident mission', description: 'Help the sanctuary together.', progress: 0, goal: 3, complete: false, claimed: false, gold: 90, remnants: 20 } : null;
+            }
+            if (snapshot.enclave) snapshot.enclave.residentCount = slots.filter((item) => item.resident).length;
         } else if (path.endsWith('/build')) {
             const option = (snapshot.buildOptions || []).find((item) => item.id === body.buildId);
             if (option) {
@@ -1432,10 +1545,12 @@
             };
         } else if (path.endsWith('/reward')) {
             const item = (snapshot.milestones || []).find((milestone) => milestone.id === body.rewardId);
-            const reward = item?.reward || snapshot.weeklyTribute?.reward || {};
+            const mission = (snapshot.enclave?.slots || []).map((slot) => slot.mission).find((entry) => entry?.id === body.rewardId);
+            const reward = item?.reward || mission || snapshot.weeklyTribute?.reward || {};
             snapshot.resources.gold = number(snapshot.resources.gold) + number(reward.gold);
             snapshot.resources.remnants = number(snapshot.resources.remnants) + number(reward.remnants);
             if (item) { item.claimed = true; item.canClaim = false; }
+            if (mission) mission.claimed = true;
             if (body.rewardId === 'weekly_tribute' && snapshot.weeklyTribute) snapshot.weeklyTribute.ready = false;
             snapshot.rewardClaimed = { id: body.rewardId, gold: number(reward.gold), remnants: number(reward.remnants) };
         } else if (path.endsWith('/craft')) {
@@ -1452,8 +1567,11 @@
             }
         } else if (path.endsWith('/decoration')) {
             snapshot.placedDecorations = snapshot.placedDecorations || {};
-            if (body.displayed) snapshot.placedDecorations[body.roomId] = body.decorationId;
-            else if (snapshot.placedDecorations[body.roomId] === body.decorationId) delete snapshot.placedDecorations[body.roomId];
+            const placed = new Set(String(snapshot.placedDecorations[body.roomId] || '').split(',').filter(Boolean));
+            if (body.displayed) placed.add(body.decorationId);
+            else placed.delete(body.decorationId);
+            if (placed.size) snapshot.placedDecorations[body.roomId] = [...placed].join(',');
+            else delete snapshot.placedDecorations[body.roomId];
             const decoration = (snapshot.decorations || []).find((item) => item.id === body.decorationId);
             if (decoration) decoration.displayed = Boolean(body.displayed);
         } else if (path.endsWith('/theme')) {
@@ -1505,6 +1623,14 @@
             snapshot.station.level = 2;
             snapshot.station.ratePerMinute *= 2;
             mockUnlock(snapshot, 'letter_green_covenant');
+        } else if (construction.id === 'build_enclave') {
+            snapshot.visualState.enclaveLevel = 1;
+            snapshot.enclave = snapshot.enclave || { capacity: 5, residentCount: 0, slots: [] };
+            snapshot.enclave.built = true;
+            snapshot.enclave.level = 1;
+            while (snapshot.enclave.slots.length < 5) snapshot.enclave.slots.push({ slot: snapshot.enclave.slots.length, residentId: '', resident: null, mission: null });
+            const enclave = (snapshot.buildings || []).find((item) => item.id === 'enclave');
+            if (enclave) { enclave.level = 1; enclave.status = 'COMPLETE'; enclave.name = 'Siegeling Enclave'; }
         } else if (String(construction.id).startsWith('hall_level_')) {
             const level = number(String(construction.id).slice('hall_level_'.length));
             if (snapshot.visualState) snapshot.visualState.hallLevel = level;
@@ -1623,6 +1749,7 @@
             build_forge: 'Kindle the Accord Forge', build_fridge: 'Raise the Frost Fridge',
             build_generator: 'Tune the Elemental Generator', storehouse_level_2: 'Vault the Storehouse',
             build_quarry: 'Open the Covenant Quarry', build_kitchen: 'Warm the Garden Kitchen',
+            build_enclave: 'Raise the Siegeling Enclave',
             build_builders_yard: 'Raise the Builder’s Yard',
             hall_level_2: 'Raise the Timber Outpost', hall_level_3: 'Settle the Courtyard',
             hall_level_4: 'Cut the Stonehold', hall_level_5: 'Raise the Keep Walls',
@@ -1755,6 +1882,16 @@
             selectedRelationshipId: state.selectedRelationshipId || null,
             inventoryFilter: state.inventoryFilter || 'ALL',
             placedDecorations: snapshot.placedDecorations || {},
+            enclave: snapshot.enclave ? {
+                built: Boolean(snapshot.enclave.built),
+                residentCount: number(snapshot.enclave.residentCount),
+                capacity: number(snapshot.enclave.capacity),
+                slots: (snapshot.enclave.slots || []).map((slot) => ({
+                    slot: number(slot.slot), resident: slot.resident?.name || null,
+                    mission: slot.mission ? { id: slot.mission.id, progress: number(slot.mission.progress), goal: number(slot.mission.goal), complete: Boolean(slot.mission.complete), claimed: Boolean(slot.mission.claimed) } : null
+                }))
+            } : null,
+            noticeCenter: { unread: state.noticeUnread, count: state.notices.length, open: !document.getElementById('noticeTray')?.classList.contains('hidden') },
             construction: snapshot.activeConstruction ? { id: snapshot.activeConstruction.id, remainingSeconds: constructionRemaining(), progressPercent: constructionPercent(), collapsed: state.constructionCollapsed } : null,
             activePanel: state.panel || null,
             interior: state.interior || null,
