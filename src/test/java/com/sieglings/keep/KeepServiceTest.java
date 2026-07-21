@@ -21,8 +21,10 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -58,6 +60,7 @@ class KeepServiceTest {
         lore.load();
         service = new KeepService(store, progressionService, cards, lore);
         service.setClock(clock);
+        service.setRandom(new Random(7));
 
         user = new AccountUser();
         user.setId("keeper@example.com");
@@ -69,12 +72,14 @@ class KeepServiceTest {
         Map<String, Object> snapshot = service.getSnapshot(user);
 
         assertEquals("Ari's Keep", snapshot.get("keepName"));
-        assertEquals(1L, ((Number) snapshot.get("stateVersion")).longValue());
+        assertTrue(((Number) snapshot.get("stateVersion")).longValue() >= 1L);
         assertEquals(KeepService.INITIAL_TIMBER, intAt(snapshot, "resources", "timber"));
         assertEquals(15, intAt(snapshot, "station", "available"));
         assertEquals(2, ((List<?>) snapshot.get("residents")).size());
         assertEquals(1, ((List<?>) snapshot.get("lore")).size());
-        assertEquals(1, ((List<?>) snapshot.get("availableConversations")).size());
+        assertTrue(conversationIds(snapshot).contains("steward_first_promise"));
+        assertTrue(conversationIds(snapshot).stream().anyMatch(id -> id.startsWith("visitor_")),
+                "A lore-tied road visitor should appear on the first sanctuary visit.");
     }
 
     @Test
@@ -129,47 +134,102 @@ class KeepServiceTest {
         assertEquals(Boolean.TRUE, valueAt(completed, "visualState", "archiveRestored"));
         assertTrue(loreIds(completed).contains("chronicle_living_elements"));
         assertTrue(loreIds(completed).contains("letter_pre_covenant_watch"));
-        assertEquals(2, ((List<?>) completed.get("availableConversations")).size(),
-                "The steward remains available and the archive conversation unlocks after both recovered records.");
-        assertTrue(((List<?>) completed.get("availableConversations")).stream()
-                .map(Map.class::cast).anyMatch(item -> "archivist_living_elements".equals(item.get("id"))));
+        assertTrue(conversationIds(completed).contains("steward_first_promise"));
+        assertTrue(conversationIds(completed).contains("archivist_living_elements"),
+                "The archive conversation unlocks after both recovered records.");
     }
 
     @Test
     void dialogueChoicePersistsRelationshipWithoutChangingEconomy() {
-        int timberBefore = intAt(service.getSnapshot(user), "resources", "timber");
-        Map<String, Object> result = service.chooseDialogue(user, "steward_first_promise", "partners", "talk-1", 1);
+        Map<String, Object> before = service.getSnapshot(user);
+        int timberBefore = intAt(before, "resources", "timber");
+        long version = ((Number) before.get("stateVersion")).longValue();
+        Map<String, Object> result = service.chooseDialogue(user, "steward_first_promise", "partners", "talk-1", version);
 
         assertEquals(timberBefore, intAt(result, "resources", "timber"));
         assertNotNull(result.get("dialogueResult"));
         assertTrue(((List<?>) result.get("choiceFlags")).contains("charter_stewardship"));
         assertEquals("Acquainted", ((Map<?, ?>) ((List<?>) result.get("relationships")).get(0)).get("stage"));
-        assertTrue(((List<?>) result.get("availableConversations")).isEmpty());
+        assertFalse(conversationIds(result).contains("steward_first_promise"));
+    }
+
+    @Test
+    void rngVisitorEventsCanTradeSpendAndAlterTimberOrMaterials() {
+        service.getSnapshot(user);
+        store.state.getUnlockedLoreIds().add("letter_forester_maren");
+        store.state.getActiveVisitorIds().clear();
+        store.state.getActiveVisitorIds().add("visitor_traveling_peddler");
+        store.state.setLastVisitorRollAt(clock.instant());
+        store.state.setTimber(120);
+        store.state.getMaterialInventory().put("verdant_fiber", 5);
+
+        service.setRandom(new Random(1));
+        long version = store.state.getVersion();
+        Map<String, Object> sold = service.chooseDialogue(user, "visitor_traveling_peddler", "sell_timber",
+                "visitor-sell-1", version);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> dialogue = (Map<String, Object>) sold.get("dialogueResult");
+        assertEquals("VISITOR", dialogue.get("kind"));
+        assertEquals(20, ((Number) dialogue.get("timberSpent")).intValue());
+        assertTrue(intAt(sold, "resources", "timber") <= 100);
+        assertNotNull(dialogue.get("summary"));
+        assertFalse(conversationIds(sold).contains("visitor_traveling_peddler"),
+                "Resolved visitors leave until their cooldown elapses.");
+        assertTrue(store.state.getVisitorAvailableAt().containsKey("visitor_traveling_peddler"));
+    }
+
+    @Test
+    void visitorTradeRejectsUnaffordableChoicesAndFixedTradesMoveMaterials() {
+        service.getSnapshot(user);
+        store.state.getUnlockedLoreIds().add("ledger_quartermaster_sera");
+        store.state.setStorehouseLevel(1);
+        store.state.getActiveVisitorIds().clear();
+        store.state.getActiveVisitorIds().add("visitor_quartermaster_runner");
+        store.state.setLastVisitorRollAt(clock.instant());
+        store.state.getMaterialInventory().put("verdant_fiber", 1);
+        store.state.getMaterialInventory().put("ember_ingot", 0);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.chooseDialogue(user, "visitor_quartermaster_runner", "controlled_trade",
+                        "visitor-trade-fail", store.state.getVersion()));
+
+        store.state.getMaterialInventory().put("verdant_fiber", 6);
+        Map<String, Object> traded = service.chooseDialogue(user, "visitor_quartermaster_runner", "controlled_trade",
+                "visitor-trade-ok", store.state.getVersion());
+        assertEquals(2, materialAmount(traded, "verdant_fiber"));
+        assertEquals(3, materialAmount(traded, "ember_ingot"));
+        assertTrue(loreIds(traded).contains("memorabilia_shared_crate_seal"));
     }
 
     @Test
     void keepActionsRecordLifetimeProgressionStats() {
-        service.getSnapshot(user);
+        Map<String, Object> start = service.getSnapshot(user);
         assertTrue(progression.isKeepFounded(), "Loading the keep marks the sanctuary as founded.");
+        long version = ((Number) start.get("stateVersion")).longValue();
 
-        service.collect(user, "collect-1", 1);
+        service.collect(user, "collect-1", version);
         assertEquals(15, progression.getKeepTimberCollected());
-        service.collect(user, "collect-1", 1);
+        service.collect(user, "collect-1", version);
         assertEquals(15, progression.getKeepTimberCollected(),
                 "A replayed request id must not double-count collected timber.");
+        version = store.state.getVersion();
 
-        service.startBuild(user, "restore_archive", "build-1", 2);
+        service.startBuild(user, "restore_archive", "build-1", version);
         clock.advance(Duration.ofSeconds(KeepService.ARCHIVE_RESTORE_SECONDS + 1));
         service.getSnapshot(user);
         assertEquals(1, progression.getKeepProjectsCompleted());
+        version = store.state.getVersion();
 
-        service.readLore(user, "charter_three_promises", "read-1", 4);
+        service.readLore(user, "charter_three_promises", "read-1", version);
         assertEquals(1, progression.getKeepLoreRead());
-        service.readLore(user, "charter_three_promises", "read-2", 5);
+        version = store.state.getVersion();
+        service.readLore(user, "charter_three_promises", "read-2", version);
         assertEquals(1, progression.getKeepLoreRead(),
                 "Re-reading an entry must not inflate the lifetime count.");
+        version = store.state.getVersion();
 
-        service.chooseDialogue(user, "steward_first_promise", "partners", "talk-1", 6);
+        service.chooseDialogue(user, "steward_first_promise", "partners", "talk-1", version);
         assertEquals(1, progression.getKeepConversationsCompleted());
     }
 
@@ -211,8 +271,8 @@ class KeepServiceTest {
         assertEquals(12, ((Number) station(returned, "forge").get("available")).intValue());
         assertNotNull(returned.get("offlineReport"));
 
-        long version = ((Number) returned.get("stateVersion")).longValue();
-        Map<String, Object> assigned = service.inviteResident(user, "garden", "mossling", "garden-resident", version);
+        Map<String, Object> assigned = service.inviteResident(user, "garden", "mossling", "garden-resident",
+                store.state.getVersion());
         assertEquals("mossling", station(assigned, "garden").get("residentId"));
         assertEquals(0.30, ((Number) station(assigned, "garden").get("ratePerMinute")).doubleValue(), 0.0001);
         assertEquals("", station(assigned, "forge").get("residentId"));
@@ -222,13 +282,14 @@ class KeepServiceTest {
     void milestoneRewardsGrantCardGameCurrencyOnlyOnce() {
         service.getSnapshot(user);
         store.state.setEssenceCollectCount(1);
+        long version = store.state.getVersion();
 
-        Map<String, Object> claimed = service.claimReward(user, "first_harvest", "reward-1", 1);
+        Map<String, Object> claimed = service.claimReward(user, "first_harvest", "reward-1", version);
         assertEquals(100, intAt(claimed, "resources", "gold"));
         assertEquals(25, intAt(claimed, "resources", "remnants"));
         assertTrue(progression.getKeepRewardClaimIds().contains("first_harvest"));
         assertThrows(IllegalArgumentException.class,
-                () -> service.claimReward(user, "first_harvest", "reward-2", 2));
+                () -> service.claimReward(user, "first_harvest", "reward-2", store.state.getVersion()));
         assertEquals(100, progression.getGold());
         assertEquals(25, progression.getRemnants());
     }
@@ -254,13 +315,14 @@ class KeepServiceTest {
         store.state.getMaterialInventory().put("verdant_fiber", 20);
         store.state.getMaterialInventory().put("ember_ingot", 10);
 
-        Map<String, Object> decoration = service.craft(user, "living_trellis", "craft-decor", 1);
+        long version = store.state.getVersion();
+        Map<String, Object> decoration = service.craft(user, "living_trellis", "craft-decor", version);
         assertEquals(12, materialAmount(decoration, "verdant_fiber"));
         Map<String, Object> placed = service.placeDecoration(user, "garden", "living_trellis", true,
-                "place-decor", 2);
+                "place-decor", store.state.getVersion());
         assertEquals("living_trellis", valueAt(placed, "placedDecorations", "garden"));
 
-        Map<String, Object> tool = service.craft(user, "gardener_tools", "craft-tool", 3);
+        Map<String, Object> tool = service.craft(user, "gardener_tools", "craft-tool", store.state.getVersion());
         assertEquals(0.30, ((Number) station(tool, "garden").get("ratePerMinute")).doubleValue(), 0.0001);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> recipes = (List<Map<String, Object>>) tool.get("recipes");
@@ -296,6 +358,12 @@ class KeepServiceTest {
     @SuppressWarnings("unchecked")
     private static List<String> loreIds(Map<String, Object> snapshot) {
         return ((List<Map<String, Object>>) snapshot.get("lore")).stream().map(item -> String.valueOf(item.get("id"))).toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<String> conversationIds(Map<String, Object> snapshot) {
+        return ((List<Map<String, Object>>) snapshot.get("availableConversations")).stream()
+                .map(item -> String.valueOf(item.get("id"))).toList();
     }
 
     private static SieglingCard card(String id, String name, Element element) {

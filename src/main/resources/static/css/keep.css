@@ -726,8 +726,11 @@ a { text-decoration: none; }
 .empty-state { padding: 28px 16px; text-align: center; color: rgba(255, 247, 220, .6); font-size: 12px; line-height: 1.5; }
 
 .conversation-card { display: grid; grid-template-columns: 48px 1fr; gap: 10px; cursor: pointer; }
+.conversation-card.is-visitor { border-color: rgba(159, 233, 255, .42); background: rgba(159, 233, 255, .05); }
 .npc-mini { width: 48px; height: 48px; display: grid; place-items: center; border: 2px solid rgba(244, 204, 98, .5); border-radius: 50%; background: linear-gradient(145deg, #785c4c, #293d48); font: 700 18px Georgia, serif; }
+.conversation-card.is-visitor .npc-mini { border-color: rgba(159, 233, 255, .55); background: linear-gradient(145deg, #4c6578, #293d48); }
 .conversation-card small { color: var(--gold); font-size: 9px; }
+.visitor-tag { display: inline-block; margin-top: 4px; color: #9fe9ff; font-size: 9px; font-style: normal; letter-spacing: .04em; text-transform: uppercase; }
 .relationship-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 11px; }
 .relationship-card span { color: rgba(255, 247, 220, .65); }
 
@@ -746,13 +749,17 @@ a { text-decoration: none; }
 .npc-portrait { align-self: start; aspect-ratio: 4 / 5; display: grid; place-items: end center; overflow: hidden; border: 2px solid rgba(244, 204, 98, .35); border-radius: 48% 48% 16px 16px; background: radial-gradient(circle at 50% 26%, #c89978 0 12%, transparent 12.5%), linear-gradient(150deg, #8d6553, #233b47 64%); box-shadow: inset 0 -40px rgba(11, 22, 29, .32); }
 .npc-portrait span::after { content: "EV"; display: grid; place-items: center; width: 78px; height: 78px; margin-bottom: 22px; border: 1px solid rgba(255, 255, 255, .16); border-radius: 50%; color: rgba(255, 247, 220, .8); background: rgba(17, 31, 40, .62); font: 700 24px Georgia, serif; }
 .npc-portrait.is-archivist span::after { content: "NP"; }
+.npc-portrait.is-visitor { background: radial-gradient(circle at 50% 26%, #9bb7c8 0 12%, transparent 12.5%), linear-gradient(150deg, #5d7a88, #1d3340 64%); }
 .dialogue-copy { padding: 8px 8px 4px 0; }
 .dialogue-copy h2 { margin: 4px 0 2px; font: 700 28px/1.1 Georgia, serif; color: #fff1b7; }
 .dialogue-copy > small { color: rgba(255, 247, 220, .55); font-size: 10px; }
 .dialogue-copy > p { margin: 22px 0; color: rgba(255, 247, 220, .86); font: 16px/1.6 Georgia, serif; }
+.dialogue-summary { margin: -8px 0 18px; padding: 10px 12px; border-left: 3px solid #9fe9ff; background: rgba(159, 233, 255, .08); color: #d7f6ff; font: 13px/1.45 Georgia, serif; }
 .dialogue-choices { display: grid; gap: 8px; }
-.dialogue-choices button { padding: 11px 13px; border: 1px solid rgba(244, 204, 98, .26); border-radius: 11px; color: var(--cream); background: rgba(255, 255, 255, .05); text-align: left; font-size: 12px; line-height: 1.4; cursor: pointer; }
-.dialogue-choices button:hover { border-color: var(--gold); background: rgba(244, 204, 98, .1); }
+.dialogue-choices button { display: grid; gap: 4px; padding: 11px 13px; border: 1px solid rgba(244, 204, 98, .26); border-radius: 11px; color: var(--cream); background: rgba(255, 255, 255, .05); text-align: left; font-size: 12px; line-height: 1.4; cursor: pointer; }
+.dialogue-choices button small { color: rgba(159, 233, 255, .88); font-size: 10px; }
+.dialogue-choices button:hover:not(:disabled) { border-color: var(--gold); background: rgba(244, 204, 98, .1); }
+.dialogue-choices button:disabled { opacity: .45; cursor: not-allowed; }
 .dialogue-response { padding: 15px; border-left: 3px solid var(--gold); background: rgba(244, 204, 98, .07); color: rgba(255, 247, 220, .86); font: 15px/1.6 Georgia, serif; }
 
 .discovery-toast {

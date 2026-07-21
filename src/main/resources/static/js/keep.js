@@ -294,17 +294,38 @@
         state.activeConversationId = conversation.id;
         const portrait = document.getElementById('dialoguePortrait');
         portrait?.classList.toggle('is-archivist', conversation.npcId === 'archivist_pell');
+        portrait?.classList.toggle('is-visitor', String(conversation.kind || '').toUpperCase() === 'VISITOR');
         text('dialogueRole', conversation.npcRole);
         text('dialogueName', conversation.npcName);
         text('dialogueKicker', conversation.kicker);
         text('dialoguePrompt', conversation.prompt);
+        const summary = document.getElementById('dialogueSummary');
+        if (summary) {
+            summary.textContent = '';
+            summary.classList.add('hidden');
+        }
         const choices = document.getElementById('dialogueChoices');
         if (choices) {
-            choices.innerHTML = (conversation.choices || []).map((choice) =>
-                `<button type="button" data-dialogue-choice="${escapeAttr(choice.id)}">${escapeHtml(choice.label)}</button>`
-            ).join('');
+            choices.innerHTML = (conversation.choices || []).map((choice) => {
+                const cost = choiceCostHint(choice);
+                const disabled = choice.affordable === false;
+                const rng = choice.hasRng ? '<i class="choice-rng">chance</i>' : '';
+                return `<button type="button" data-dialogue-choice="${escapeAttr(choice.id)}" ${disabled ? 'disabled' : ''}>
+                    <span>${escapeHtml(choice.label)}</span>
+                    ${cost || rng ? `<small>${escapeHtml(cost)}${cost && rng ? ' · ' : ''}${rng ? 'chance' : ''}</small>` : ''}
+                </button>`;
+            }).join('');
         }
         document.getElementById('dialogueOverlay')?.classList.remove('hidden');
+    }
+
+    function choiceCostHint(choice) {
+        const parts = [];
+        if (number(choice.timberCost) > 0) parts.push(`${number(choice.timberCost)} timber`);
+        for (const cost of choice.materialCosts || []) {
+            if (number(cost.amount) > 0) parts.push(`${number(cost.amount)} ${cost.name || cost.id}`);
+        }
+        return parts.join(' · ');
     }
 
     async function chooseDialogue(choiceId) {
@@ -313,6 +334,14 @@
         if (!data) return;
         const result = data.dialogueResult || {};
         text('dialoguePrompt', result.response || 'The conversation settles into a thoughtful silence.');
+        const summary = document.getElementById('dialogueSummary');
+        if (summary) {
+            summary.textContent = result.summary || '';
+            summary.classList.toggle('hidden', !result.summary);
+        }
+        if (result.summary && result.summary !== 'No stores changed.') {
+            showNotice(result.summary, result.npcName || 'Visitor');
+        }
         const choices = document.getElementById('dialogueChoices');
         if (choices) choices.innerHTML = '<button type="button" data-dialogue-done>Return to the keep</button>';
         renderPanel();
@@ -817,12 +846,15 @@
         const conversations = state.snapshot.availableConversations || [];
         const relationships = state.snapshot.relationships || [];
         const available = conversations.length
-            ? conversations.map((conversation) => `<section class="conversation-card" data-conversation-id="${escapeAttr(conversation.id)}"><span class="npc-mini">${escapeHtml(initials(conversation.npcName))}</span><span><small>${escapeHtml(conversation.npcRole)}</small><h3>${escapeHtml(conversation.npcName)}</h3><p>${escapeHtml(conversation.kicker || 'Waiting to speak')}</p></span></section>`).join('')
-            : '<div class="empty-state">No one is waiting to speak. New construction and discoveries draw different voices to the sanctuary.</div>';
+            ? conversations.map((conversation) => {
+                const visitor = String(conversation.kind || '').toUpperCase() === 'VISITOR';
+                return `<section class="conversation-card ${visitor ? 'is-visitor' : ''}" data-conversation-id="${escapeAttr(conversation.id)}"><span class="npc-mini">${escapeHtml(initials(conversation.npcName))}</span><span><small>${escapeHtml(visitor ? 'Road visitor' : conversation.npcRole)}</small><h3>${escapeHtml(conversation.npcName)}</h3><p>${escapeHtml(conversation.kicker || 'Waiting to speak')}</p>${visitor ? '<em class="visitor-tag">Trade · gift · risk</em>' : ''}</span></section>`;
+            }).join('')
+            : '<div class="empty-state">No one is waiting to speak. Lore discoveries and the road draw new visitors with trades, gifts, and risks.</div>';
         const bonds = relationships.length
             ? `<span class="eyebrow">Relationships</span>${relationships.map((item) => `<div class="relationship-card"><strong>${escapeHtml(item.npcName)}</strong><span>${escapeHtml(item.stage)}</span></div>`).join('')}`
             : '';
-        return `<p class="panel-intro">Conversations preserve conflicting perspectives. Your answers change trust and the sanctuary's memory, never its production rate.</p>${available}${bonds}`;
+        return `<p class="panel-intro">Story voices shape the Chronicle. Road visitors bring RNG events—timber and materials can be gained, traded, or lost—always tied to the sanctuary's lore.</p>${available}${bonds}`;
     }
 
     function updatePanelLiveValues() {
@@ -984,7 +1016,20 @@
             const conversation = (snapshot.availableConversations || []).find((item) => item.id === body.conversationId);
             const choice = conversation?.choices?.find((item) => item.id === body.choiceId);
             snapshot.availableConversations = (snapshot.availableConversations || []).filter((item) => item.id !== body.conversationId);
-            snapshot.dialogueResult = { npcId: conversation?.npcId, npcName: conversation?.npcName, response: choice?.response || 'The sanctuary remembers your answer.' };
+            if (number(choice?.timberCost) > 0) {
+                snapshot.resources.timber = Math.max(0, number(snapshot.resources.timber) - number(choice.timberCost));
+            }
+            for (const cost of choice?.materialCosts || []) {
+                const material = (snapshot.resources.materials || []).find((item) => item.id === cost.id);
+                if (material) material.amount = Math.max(0, number(material.amount) - number(cost.amount));
+            }
+            snapshot.dialogueResult = {
+                npcId: conversation?.npcId,
+                npcName: conversation?.npcName,
+                kind: conversation?.kind || 'STORY',
+                response: choice?.response || 'The sanctuary remembers your answer.',
+                summary: choiceCostHint(choice || {}) ? `Spent ${choiceCostHint(choice)}.` : 'No stores changed.'
+            };
         } else if (path.endsWith('/reward')) {
             const item = (snapshot.milestones || []).find((milestone) => milestone.id === body.rewardId);
             const reward = item?.reward || snapshot.weeklyTribute?.reward || {};

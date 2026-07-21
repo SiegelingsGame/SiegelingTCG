@@ -3,6 +3,7 @@ package com.sieglings.keep;
 import com.sieglings.keep.KeepLoreCatalog.Conversation;
 import com.sieglings.keep.KeepLoreCatalog.ConversationChoice;
 import com.sieglings.keep.KeepLoreCatalog.LoreEntry;
+import com.sieglings.keep.KeepLoreCatalog.Outcome;
 import com.sieglings.model.Card;
 import com.sieglings.model.SieglingCard;
 import com.sieglings.persistence.entity.AccountUser;
@@ -25,6 +26,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -51,6 +53,8 @@ public class KeepService {
     public static final long GENERATOR_LEVEL_ONE_SECONDS = 14_400;
     private static final Duration OFFLINE_REPORT_THRESHOLD = Duration.ofMinutes(5);
     private static final Duration TRIBUTE_COOLDOWN = Duration.ofDays(7);
+    private static final Duration VISITOR_ROLL_COOLDOWN = Duration.ofHours(2);
+    private static final int MAX_ACTIVE_VISITORS = 2;
     private static final int REQUEST_HISTORY_LIMIT = 120;
     private static final Object[] LOCKS = createLocks();
     private static final Map<String, FacilityDefinition> FACILITIES = createFacilities();
@@ -63,6 +67,7 @@ public class KeepService {
     @Autowired(required = false)
     private PlayerProgressionStore progressionStore;
     private Clock clock = Clock.systemUTC();
+    private Random random = new Random();
 
     public KeepService(KeepStore store,
                        PlayerProgressionService progressionService,
@@ -87,10 +92,11 @@ public class KeepService {
             boolean returning = awaySince != null
                     && Duration.between(awaySince, context.now()).compareTo(OFFLINE_REPORT_THRESHOLD) >= 0;
             boolean produced = completed || (returning && materializeAllProduction(state, context.residents(), context.now()));
+            boolean visitorsChanged = refreshVisitors(state, context.now());
             Map<String, Object> offlineReport = offlineReport(state, awaySince, context.now(), timberBefore,
                     facilityBefore, completed ? completingProject : "", beforeUnlocks);
             state.setLastVisitedAt(context.now());
-            if (completed || produced) {
+            if (completed || produced || visitorsChanged) {
                 bump(context.state(), context.now());
                 store.save(state);
             } else {
@@ -202,6 +208,7 @@ public class KeepService {
                                               String requestId, long expectedVersion) {
         return mutate(user, requestId, expectedVersion, context -> {
             KeepState state = context.state();
+            refreshVisitors(state, context.now());
             Conversation conversation = loreCatalog.conversation(conversationId);
             if (conversation == null || !isConversationAvailable(state, conversation)) {
                 throw new IllegalArgumentException("That conversation is not available.");
@@ -210,14 +217,63 @@ public class KeepService {
                     .filter(item -> item.id().equals(choiceId))
                     .findFirst()
                     .orElseThrow(() -> new IllegalArgumentException("Unknown conversation choice."));
-            addUnique(state.getCompletedConversationIds(), conversation.id());
-            if (choice.flag() != null && !choice.flag().isBlank()) addUnique(state.getChoiceFlags(), choice.flag());
-            state.getNpcTrust().merge(conversation.npcId(), Math.max(0, choice.relationshipDelta()), Integer::sum);
+            if (state.getTimber() < choice.timberCost()) {
+                throw new IllegalArgumentException("You need " + choice.timberCost() + " timber for that choice.");
+            }
+            requireMaterials(state, choice.materialCosts(), "choice");
+            state.setTimber(state.getTimber() - choice.timberCost());
+            spendMaterials(state, choice.materialCosts());
+
+            String response = choice.response();
+            int relationshipDelta = choice.relationshipDelta();
+            String flag = choice.flag();
+            int timberDelta = choice.timberDelta();
+            Map<String, Integer> materialDeltas = new LinkedHashMap<>(choice.materialDeltas());
+            String unlockLoreId = choice.unlockLoreId();
+            String outcomeId = "";
+            if (!choice.outcomes().isEmpty()) {
+                Outcome outcome = rollOutcome(choice.outcomes());
+                outcomeId = outcome.id();
+                response = outcome.response() == null || outcome.response().isBlank() ? response : outcome.response();
+                relationshipDelta = outcome.relationshipDelta();
+                flag = outcome.flag() != null ? outcome.flag() : flag;
+                timberDelta = outcome.timberDelta();
+                materialDeltas = new LinkedHashMap<>(outcome.materialDeltas());
+                if (outcome.unlockLoreId() != null) unlockLoreId = outcome.unlockLoreId();
+            }
+
+            int appliedTimber = applyTimberDelta(state, timberDelta);
+            Map<String, Integer> appliedMaterials = applyMaterialDeltas(state, materialDeltas);
+            if (flag != null && !flag.isBlank()) addUnique(state.getChoiceFlags(), flag);
+            if (unlockLoreId != null) unlock(state, unlockLoreId);
+            int trustGain = Math.max(0, relationshipDelta);
+            if (relationshipDelta < 0) {
+                int current = state.getNpcTrust().getOrDefault(conversation.npcId(), 0);
+                state.getNpcTrust().put(conversation.npcId(), Math.max(0, current + relationshipDelta));
+            } else {
+                state.getNpcTrust().merge(conversation.npcId(), trustGain, Integer::sum);
+            }
+
+            if (loreCatalog.isVisitor(conversation)) {
+                state.getActiveVisitorIds().remove(conversation.id());
+                state.getVisitorAvailableAt().put(conversation.id(),
+                        context.now().plus(Duration.ofHours(conversation.cooldownHours())));
+            } else {
+                addUnique(state.getCompletedConversationIds(), conversation.id());
+            }
             recordKeepStats(context.progression(), p -> p.setKeepConversationsCompleted(p.getKeepConversationsCompleted() + 1));
+
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("npcId", conversation.npcId());
             result.put("npcName", conversation.npcName());
-            result.put("response", choice.response());
+            result.put("kind", conversation.kind());
+            result.put("response", response);
+            result.put("outcomeId", outcomeId);
+            result.put("timberSpent", choice.timberCost());
+            result.put("timberDelta", appliedTimber);
+            result.put("materialCosts", serializeMaterialCosts(choice.materialCosts()));
+            result.put("materialDeltas", serializeMaterialDeltas(appliedMaterials));
+            result.put("summary", dialogueSummary(choice.timberCost(), appliedTimber, choice.materialCosts(), appliedMaterials));
             return Map.of("dialogueResult", result);
         });
     }
@@ -340,6 +396,7 @@ public class KeepService {
             List<String> beforeUnlocks = new ArrayList<>(state.getUnlockedLoreIds());
             boolean completed = materializeConstruction(state, context.residents(), context.now());
             boolean produced = materializeAllProduction(state, context.residents(), context.now());
+            refreshVisitors(state, context.now());
             if (completed) {
                 recordKeepStats(context.progression(), p -> p.setKeepProjectsCompleted(p.getKeepProjectsCompleted() + 1));
             }
@@ -1216,30 +1273,169 @@ public class KeepService {
             item.put("npcRole", conversation.npcRole());
             item.put("kicker", conversation.kicker());
             item.put("prompt", conversation.prompt());
-            item.put("choices", conversation.choices().stream().map(choice -> Map.of(
-                    "id", choice.id(), "label", choice.label()
-            )).toList());
+            item.put("kind", conversation.kind());
+            item.put("choices", conversation.choices().stream().map(choice -> {
+                Map<String, Object> choiceOut = new LinkedHashMap<>();
+                choiceOut.put("id", choice.id());
+                choiceOut.put("label", choice.label());
+                choiceOut.put("timberCost", choice.timberCost());
+                choiceOut.put("materialCosts", serializeMaterialCosts(choice.materialCosts()));
+                choiceOut.put("hasRng", !choice.outcomes().isEmpty());
+                choiceOut.put("affordable", state.getTimber() >= choice.timberCost()
+                        && hasMaterials(state, choice.materialCosts()));
+                return choiceOut;
+            }).toList());
             out.add(item);
         }
         return out;
     }
 
     private boolean isConversationAvailable(KeepState state, Conversation conversation) {
-        return !state.getCompletedConversationIds().contains(conversation.id())
-                && state.getUnlockedLoreIds().containsAll(conversation.requiresLoreIds());
+        if (!state.getUnlockedLoreIds().containsAll(conversation.requiresLoreIds())) return false;
+        if (!state.getChoiceFlags().containsAll(conversation.requiresFlags())) return false;
+        if (state.getStorehouseLevel() < conversation.minStorehouseLevel()) return false;
+        if (loreCatalog.isVisitor(conversation)) {
+            return state.getActiveVisitorIds().contains(conversation.id());
+        }
+        return !state.getCompletedConversationIds().contains(conversation.id());
+    }
+
+    private boolean refreshVisitors(KeepState state, Instant now) {
+        List<String> active = state.getActiveVisitorIds();
+        active.removeIf(id -> {
+            Conversation conversation = loreCatalog.conversation(id);
+            return conversation == null || !loreCatalog.isVisitor(conversation);
+        });
+        boolean changed = false;
+        boolean rollReady = state.getLastVisitorRollAt() == null
+                || !now.isBefore(state.getLastVisitorRollAt().plus(VISITOR_ROLL_COOLDOWN));
+        if (!rollReady || active.size() >= MAX_ACTIVE_VISITORS) {
+            state.setActiveVisitorIds(active);
+            return false;
+        }
+        List<Conversation> candidates = new ArrayList<>();
+        for (Conversation visitor : loreCatalog.visitorTemplates()) {
+            if (active.contains(visitor.id())) continue;
+            if (!meetsVisitorRequirements(state, visitor, now)) continue;
+            candidates.add(visitor);
+        }
+        if (candidates.isEmpty()) {
+            state.setActiveVisitorIds(active);
+            return false;
+        }
+        while (active.size() < MAX_ACTIVE_VISITORS && !candidates.isEmpty()) {
+            Conversation picked = weightedPick(candidates);
+            active.add(picked.id());
+            candidates.remove(picked);
+            changed = true;
+        }
+        if (changed) state.setLastVisitorRollAt(now);
+        state.setActiveVisitorIds(active);
+        return changed;
+    }
+
+    private boolean meetsVisitorRequirements(KeepState state, Conversation visitor, Instant now) {
+        if (!state.getUnlockedLoreIds().containsAll(visitor.requiresLoreIds())) return false;
+        if (!state.getChoiceFlags().containsAll(visitor.requiresFlags())) return false;
+        if (state.getStorehouseLevel() < visitor.minStorehouseLevel()) return false;
+        Instant availableAt = state.getVisitorAvailableAt().get(visitor.id());
+        return availableAt == null || !now.isBefore(availableAt);
+    }
+
+    private Conversation weightedPick(List<Conversation> candidates) {
+        int total = candidates.stream().mapToInt(Conversation::weight).sum();
+        int roll = total <= 1 ? 0 : random.nextInt(total);
+        int cursor = 0;
+        for (Conversation candidate : candidates) {
+            cursor += candidate.weight();
+            if (roll < cursor) return candidate;
+        }
+        return candidates.get(candidates.size() - 1);
+    }
+
+    private Outcome rollOutcome(List<Outcome> outcomes) {
+        int total = outcomes.stream().mapToInt(Outcome::weight).sum();
+        int roll = total <= 1 ? 0 : random.nextInt(total);
+        int cursor = 0;
+        for (Outcome outcome : outcomes) {
+            cursor += outcome.weight();
+            if (roll < cursor) return outcome;
+        }
+        return outcomes.get(outcomes.size() - 1);
+    }
+
+    private int applyTimberDelta(KeepState state, int delta) {
+        if (delta == 0) return 0;
+        if (delta < 0) {
+            int spent = Math.min(state.getTimber(), -delta);
+            state.setTimber(state.getTimber() - spent);
+            return -spent;
+        }
+        int room = Math.max(0, timberInventoryCapacity(state) - state.getTimber());
+        int gained = Math.min(room, delta);
+        state.setTimber(state.getTimber() + gained);
+        return gained;
+    }
+
+    private Map<String, Integer> applyMaterialDeltas(KeepState state, Map<String, Integer> deltas) {
+        Map<String, Integer> applied = new LinkedHashMap<>();
+        if (deltas == null || deltas.isEmpty()) return applied;
+        int capacity = materialInventoryCapacity(state);
+        for (Map.Entry<String, Integer> entry : deltas.entrySet()) {
+            int delta = entry.getValue() == null ? 0 : entry.getValue();
+            if (delta == 0) continue;
+            int owned = state.getMaterialInventory().getOrDefault(entry.getKey(), 0);
+            if (delta < 0) {
+                int spent = Math.min(owned, -delta);
+                state.getMaterialInventory().put(entry.getKey(), owned - spent);
+                applied.put(entry.getKey(), -spent);
+            } else {
+                int room = Math.max(0, capacity - owned);
+                int gained = Math.min(room, delta);
+                state.getMaterialInventory().put(entry.getKey(), owned + gained);
+                if (gained != 0) applied.put(entry.getKey(), gained);
+            }
+        }
+        return applied;
+    }
+
+    private List<Map<String, Object>> serializeMaterialDeltas(Map<String, Integer> deltas) {
+        return deltas.entrySet().stream().map(entry -> {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("id", entry.getKey());
+            item.put("name", materialName(entry.getKey()));
+            item.put("amount", entry.getValue());
+            return item;
+        }).toList();
+    }
+
+    private String dialogueSummary(int timberSpent, int timberDelta, Map<String, Integer> materialCosts,
+                                   Map<String, Integer> materialDeltas) {
+        List<String> parts = new ArrayList<>();
+        if (timberSpent > 0) parts.add("spent " + timberSpent + " timber");
+        if (timberDelta > 0) parts.add("gained " + timberDelta + " timber");
+        if (timberDelta < 0) parts.add("lost " + (-timberDelta) + " timber");
+        materialCosts.forEach((id, amount) -> {
+            if (amount != null && amount > 0) parts.add("spent " + amount + " " + materialName(id));
+        });
+        materialDeltas.forEach((id, amount) -> {
+            if (amount == null || amount == 0) return;
+            parts.add((amount > 0 ? "gained " : "lost ") + Math.abs(amount) + " " + materialName(id));
+        });
+        return parts.isEmpty() ? "No stores changed." : String.join("; ", parts) + ".";
     }
 
     private List<Map<String, Object>> relationships(KeepState state) {
-        Map<String, String> names = Map.of(
-                "steward_elara", "Steward Elara Venn",
-                "archivist_pell", "Archivist Nara Pell",
-                "quartermaster_sera", "Quartermaster Sera Vale"
-        );
+        Map<String, String> names = new LinkedHashMap<>();
+        for (Conversation conversation : loreCatalog.allConversations()) {
+            names.putIfAbsent(conversation.npcId(), conversation.npcName());
+        }
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map.Entry<String, Integer> entry : state.getNpcTrust().entrySet()) {
             int trust = Math.max(0, entry.getValue());
             String stage = trust >= 7 ? "Bonded" : trust >= 3 ? "Trusted" : trust >= 1 ? "Acquainted" : "Wary";
-            out.add(Map.of("npcId", entry.getKey(), "npcName", names.getOrDefault(entry.getKey(), entry.getKey()), "stage", stage));
+            out.add(Map.of("npcId", entry.getKey(),
+                    "npcName", names.getOrDefault(entry.getKey(), entry.getKey()), "stage", stage));
         }
         return out;
     }
@@ -1301,6 +1497,10 @@ public class KeepService {
 
     void setClock(Clock clock) {
         this.clock = clock == null ? Clock.systemUTC() : clock;
+    }
+
+    void setRandom(Random random) {
+        this.random = random == null ? new Random() : random;
     }
 
     private record Resident(String id, String name, String element, String rarity, String artUrl,
