@@ -399,8 +399,7 @@
         const resident = station.resident;
         const worker = document.getElementById('residentWorker');
         worker?.classList.toggle('hidden', !resident);
-        const workerArt = document.getElementById('residentWorkerArt');
-        if (workerArt) workerArt.innerHTML = resident ? residentAvatarContent(resident) : '';
+        setResidentOverlayArt(document.getElementById('residentWorkerArt'), resident);
 
         const archiveRestored = Boolean(visual.archiveRestored);
         text('archiveName', archiveRestored ? 'Living Archive' : 'Ruined Archive');
@@ -624,11 +623,10 @@
         interior.dataset.archiveRestored = String(Boolean(state.snapshot.visualState?.archiveRestored));
         const resident = state.interior === 'woodlot' ? state.snapshot.station?.resident : stationById(state.interior)?.resident;
         document.getElementById('interiorResident')?.classList.toggle('hidden', !resident);
-        const art = document.getElementById('interiorResidentArt');
-        if (art) art.innerHTML = resident ? residentAvatarContent(resident) : '';
+        setResidentOverlayArt(document.getElementById('interiorResidentArt'), resident);
         text('interiorResidentName', resident ? resident.name : '');
         interior.querySelectorAll('[data-facility-resident]').forEach((node) => node.classList.toggle('hidden', !resident));
-        interior.querySelectorAll('[data-facility-resident-art]').forEach((node) => { node.innerHTML = resident ? residentAvatarContent(resident) : ''; });
+        interior.querySelectorAll('[data-facility-resident-art]').forEach((node) => setResidentOverlayArt(node, resident));
         interior.querySelectorAll('[data-facility-resident-name]').forEach((node) => { node.textContent = resident?.name || ''; });
         const placed = state.snapshot.placedDecorations || {};
         interior.querySelectorAll('[data-decoration-art]').forEach((node) => {
@@ -1195,6 +1193,13 @@
     function residentAvatarContent(resident) {
         if (resident?.artUrl) return `<img src="${escapeAttr(resident.artUrl)}" alt="">`;
         return escapeHtml(initials(resident?.name || 'S'));
+    }
+
+    /** Scene residents use Siege-style standing overlay cutouts when art is available. */
+    function setResidentOverlayArt(node, resident) {
+        if (!node) return;
+        node.classList.toggle('has-overlay-art', Boolean(resident?.artUrl));
+        node.innerHTML = resident ? residentAvatarContent(resident) : '';
     }
 
     function initials(value) {

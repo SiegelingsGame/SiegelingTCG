@@ -60,17 +60,39 @@ public class PlayerProgressionController {
                                            @RequestBody Map<String, Object> req) {
         try {
             AccountUser user = accountService.requireUser(authorizationHeader);
+            // Pack grant is persisted first. Profile defaults are best-effort so a
+            // favorite-Siegling / title hiccup can never strand a new account with
+            // starterChosen=true but an error body (and no gacha payload).
             PlayerProgressionEntity progression = progressionService.chooseStarterPack(user, string(req, "packId"));
             Map<String, Object> response = buildResponse(user, progression);
-            if (profileSettingsService != null) {
-                response.put("profileSettings", profileSettingsService.serialize(
-                        profileSettingsService.save(user, starterProfileSettings(progression.getStarterPackId())),
-                        user
-                ));
-            }
+            applyStarterProfileDefaults(user, progression, response);
             return response;
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage());
+        }
+    }
+
+    private void applyStarterProfileDefaults(AccountUser user,
+                                             PlayerProgressionEntity progression,
+                                             Map<String, Object> response) {
+        if (profileSettingsService == null || progression == null) {
+            return;
+        }
+        try {
+            response.put("profileSettings", profileSettingsService.serialize(
+                    profileSettingsService.save(user, starterProfileSettings(progression)),
+                    user
+            ));
+        } catch (RuntimeException ex) {
+            // Progression already saved — never convert that into a client failure.
+            try {
+                response.put("profileSettings", profileSettingsService.serialize(
+                        profileSettingsService.getOrCreate(user),
+                        user
+                ));
+            } catch (RuntimeException ignored) {
+                // Client will apply local starter profile defaults from the pack.
+            }
         }
     }
 
@@ -182,8 +204,8 @@ public class PlayerProgressionController {
         return out;
     }
 
-    private Map<String, Object> starterProfileSettings(String packId) {
-        String element = starterElement(packId);
+    private Map<String, Object> starterProfileSettings(PlayerProgressionEntity progression) {
+        String element = starterElement(progression == null ? null : progression.getStarterPackId());
         Map<String, Object> settings = new LinkedHashMap<>();
         settings.put("favoriteElement", element);
         settings.put("playerTitleId", switch (element) {
@@ -204,7 +226,13 @@ public class PlayerProgressionController {
             case "ICE", "WATER" -> "Frost Sigil";
             default -> "Molten Sigil";
         });
-        settings.put("favoriteSieglingId", starterFavoriteSieglingId(element));
+        // Must be a Siegeling from this pack grant. Picking the first catalog card
+        // of the element used to throw "Choose a Siegeling you own." after the pack
+        // had already been saved, breaking registration / gacha.
+        String favoriteId = starterFavoriteSieglingId(element, progression);
+        if (!favoriteId.isBlank()) {
+            settings.put("favoriteSieglingId", favoriteId);
+        }
         return settings;
     }
 
@@ -217,15 +245,26 @@ public class PlayerProgressionController {
         return element.isBlank() ? "FIRE" : element;
     }
 
-    private String starterFavoriteSieglingId(String element) {
+    private String starterFavoriteSieglingId(String element, PlayerProgressionEntity progression) {
+        Map<String, Integer> owned = progression == null || progression.getOwnedCards() == null
+                ? Map.of()
+                : progression.getOwnedCards();
         return cardDefinitionService.getDeckBuilderCatalog().stream()
                 .filter(card -> "SIEGLING".equals(card.getCardType().name()))
+                .filter(card -> owned.getOrDefault(card.getId(), 0) > 0)
                 .filter(card -> card.getElement().name().equals(element)
                         || ("ICE".equals(element) && card.getElement().name().equals("WATER"))
                         || ("WATER".equals(element) && card.getElement().name().equals("ICE")))
                 .findFirst()
                 .map(Card::getId)
-                .orElse("");
+                .orElseGet(() -> owned.entrySet().stream()
+                        .filter(entry -> entry.getValue() != null && entry.getValue() > 0)
+                        .map(Map.Entry::getKey)
+                        .filter(cardId -> cardDefinitionService.getDeckBuilderCatalog().stream()
+                                .anyMatch(card -> card.getId().equals(cardId)
+                                        && "SIEGLING".equals(card.getCardType().name())))
+                        .findFirst()
+                        .orElse(""));
     }
 
     private Map<String, Object> serializeCardLite(Card card) {
