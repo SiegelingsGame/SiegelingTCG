@@ -44,6 +44,8 @@
         completionRefreshPending: false,
         constructionCollapsed: false,
         selectedStation: 'woodlot',
+        selectedRelationshipId: '',
+        inventoryFilter: 'ALL',
         pendingOfflineReport: null,
         offlineVisible: false,
         testMode: Boolean(window.__KEEP_TEST_SNAPSHOT__)
@@ -137,6 +139,19 @@
         const stationChoice = event.target.closest('[data-resident-station]');
         if (stationChoice) {
             state.selectedStation = stationChoice.dataset.residentStation || 'woodlot';
+            renderPanel();
+            return;
+        }
+        const inventoryFilter = event.target.closest('[data-inventory-filter]');
+        if (inventoryFilter) {
+            state.inventoryFilter = inventoryFilter.dataset.inventoryFilter || 'ALL';
+            renderPanel();
+            return;
+        }
+        const relationship = event.target.closest('[data-relationship-id]');
+        if (relationship) {
+            const id = relationship.dataset.relationshipId || '';
+            state.selectedRelationshipId = state.selectedRelationshipId === id ? '' : id;
             renderPanel();
             return;
         }
@@ -518,6 +533,9 @@
         } else if (state.panel === 'conversations') {
             setPanelHeading('Voices of the sanctuary', 'Conversations');
             body.innerHTML = conversationsMarkup();
+        } else if (state.panel === 'inventory') {
+            setPanelHeading('Keep inventory', 'Raw & manufactured');
+            body.innerHTML = inventoryMarkup();
         }
     }
 
@@ -758,12 +776,22 @@
         const stationTabs = `<div class="station-tabs">${stations.map((item) => `<button class="${item.id === state.selectedStation ? 'active' : ''}" type="button" data-resident-station="${escapeAttr(item.id)}">${escapeHtml(item.name)}</button>`).join('')}</div>`;
         if (!residents.length) return `${stationTabs}<div class="empty-state">Owned Siegeling cards introduce their evolution family to the sanctuary. Choose a starter pack to meet your first residents.</div>`;
         return `${stationTabs}<p class="panel-intro">Assigning a resident to ${escapeHtml(station.name || 'this station')} moves it from any previous work slot. Cards remain available in decks and expeditions.</p>${residents.map((resident) => {
+            const assigned = assignmentFor(resident.id);
             const invited = station.residentId === resident.id;
             const affinity = residentAffinity(resident, station);
-            return `<section class="resident-card ${invited ? 'is-invited' : ''}">
+            let action;
+            if (invited) {
+                action = `<button class="panel-button secondary" type="button" data-station-id="${escapeAttr(station.id || 'woodlot')}" data-invite-resident="${escapeAttr(resident.id)}">Rest</button>`;
+            } else if (assigned) {
+                // Already working elsewhere — show the post, not a second Assign that looks free.
+                action = `<button class="panel-button secondary assigned-elsewhere" type="button" data-resident-station="${escapeAttr(assigned.id)}" title="Open ${escapeAttr(assigned.name || 'station')}">${escapeHtml(`At ${shortStationName(assigned)}`)}</button>`;
+            } else {
+                action = `<button class="panel-button" type="button" data-station-id="${escapeAttr(station.id || 'woodlot')}" data-invite-resident="${escapeAttr(resident.id)}">Assign</button>`;
+            }
+            return `<section class="resident-card ${invited ? 'is-invited' : assigned ? 'is-assigned-elsewhere' : ''}">
                 <span class="resident-avatar" style="--resident-color:${escapeAttr(elementColors[resident.element] || elementColors.NEUTRAL)}">${residentAvatarContent(resident)}</span>
                 <span class="resident-copy"><h3>${escapeHtml(resident.name)}</h3><small>${escapeHtml(resident.element)} · ${escapeHtml(affinity)}</small></span>
-                <button class="panel-button ${invited ? 'secondary' : ''}" type="button" data-station-id="${escapeAttr(station.id || 'woodlot')}" data-invite-resident="${escapeAttr(resident.id)}">${invited ? 'Rest' : 'Assign'}</button>
+                ${action}
             </section>`;
         }).join('')}`;
     }
@@ -850,9 +878,72 @@
             }).join('')
             : '<div class="empty-state">No one is waiting to speak. Lore discoveries and the road draw new visitors with trades, gifts, and risks.</div>';
         const bonds = relationships.length
-            ? `<span class="eyebrow">Relationships</span>${relationships.map((item) => `<div class="relationship-card"><strong>${escapeHtml(item.npcName)}</strong><span>${escapeHtml(item.stage)}</span></div>`).join('')}`
+            ? `<span class="eyebrow">Relationships</span><p class="panel-intro relationship-hint">Select a voice to view where they stand — from wary distance to bonded trust.</p>${relationships.map((item) => relationshipCardMarkup(item)).join('')}`
             : '';
         return `<p class="panel-intro">Story voices shape the Chronicle. Road and yard visitors bring RNG slices of Siegeling daily life—breakfast, nests, play, chores—where timber and materials can be gained, traded, or lost.</p>${available}${bonds}`;
+    }
+
+    function relationshipCardMarkup(item) {
+        const selected = state.selectedRelationshipId === item.npcId;
+        const trust = Math.max(0, number(item.trust));
+        const trustMax = Math.max(1, number(item.trustMax) || 7);
+        const fill = Math.round(clamp(trust / trustMax, 0, 1) * 100);
+        const stage = item.stage || relationshipStage(trust);
+        const feeling = trust >= 7 ? 'They stand with you.'
+            : trust >= 3 ? 'They trust your word.'
+                : trust >= 1 ? 'They know your name.'
+                    : 'They keep their distance.';
+        return `<button class="relationship-card ${selected ? 'is-selected' : ''}" type="button" data-relationship-id="${escapeAttr(item.npcId)}" aria-expanded="${selected ? 'true' : 'false'}">
+            <span class="relationship-head"><strong>${escapeHtml(item.npcName)}</strong><span class="relationship-stage">${escapeHtml(stage)}</span></span>
+            <span class="relationship-spectrum" role="meter" aria-valuemin="0" aria-valuemax="${trustMax}" aria-valuenow="${trust}" aria-label="${escapeAttr(`${item.npcName} relationship: ${stage}`)}">
+                <span class="spectrum-ends" aria-hidden="true"><i>Distant</i><i>Bonded</i></span>
+                <span class="spectrum-track"><i style="width:${fill}%"></i><em style="left:${fill}%"></em></span>
+                <span class="spectrum-labels" aria-hidden="true"><i>Wary</i><i>Acquainted</i><i>Trusted</i><i>Bonded</i></span>
+            </span>
+            ${selected ? `<span class="relationship-detail"><small>Trust ${trust}/${trustMax}</small><p>${escapeHtml(feeling)}</p></span>` : ''}
+        </button>`;
+    }
+
+    function inventoryMarkup() {
+        const resources = state.snapshot.resources || {};
+        const materials = resources.materials || [];
+        const recipes = state.snapshot.recipes || [];
+        const crafted = recipes.filter((item) => item.crafted);
+        const filter = state.inventoryFilter || 'ALL';
+        const tabs = [
+            ['ALL', 'All'],
+            ['RAW', 'Raw'],
+            ['CRAFTED', 'Manufactured']
+        ];
+        const showRaw = filter === 'ALL' || filter === 'RAW';
+        const showCrafted = filter === 'ALL' || filter === 'CRAFTED';
+        const timberCap = number(resources.timberCapacity);
+        const materialCap = number(resources.materialCapacity);
+        const rawCards = `
+            <section class="inventory-card raw-card">
+                <span class="inventory-icon" aria-hidden="true">▰</span>
+                <span class="inventory-copy"><small>Raw · Woodlot</small><h3>Timber</h3>
+                <div class="meter"><i style="width:${Math.round(clamp(number(resources.timber) / Math.max(1, timberCap), 0, 1) * 100)}%"></i></div>
+                <strong>${number(resources.timber)} / ${timberCap}</strong></span>
+            </section>
+            ${materials.map((item) => `<section class="inventory-card raw-card">
+                <span class="inventory-icon" aria-hidden="true">${materialIcon(item.id)}</span>
+                <span class="inventory-copy"><small>Raw · ${escapeHtml(facilityTitle(item.facilityId))}</small><h3>${escapeHtml(item.name)}</h3>
+                <div class="meter"><i style="width:${Math.round(clamp(number(item.amount) / Math.max(1, number(item.capacity) || materialCap), 0, 1) * 100)}%"></i></div>
+                <strong>${number(item.amount)} / ${number(item.capacity) || materialCap}</strong></span>
+            </section>`).join('')}`;
+        const craftedCards = crafted.length
+            ? crafted.map((item) => `<section class="inventory-card crafted-card">
+                <span class="inventory-icon" aria-hidden="true">${craftedIcon(item.type)}</span>
+                <span class="inventory-copy"><small>Manufactured · ${escapeHtml(titleCase(item.type || 'item'))}</small><h3>${escapeHtml(item.name)}</h3>
+                <p>${escapeHtml(item.bonus || item.description || 'Ready in the Keep.')}</p>
+                <strong>×${Math.max(1, number(item.count))}</strong></span>
+            </section>`).join('')
+            : '<div class="empty-state">No manufactured goods yet. Craft tools, bonuses, and decorations inside restored workshops.</div>';
+        return `<p class="panel-intro">Raw stocks come from the Woodlot and elemental workshops. Manufactured goods are crafted items held by the Keep.</p>
+            <div class="lore-tabs inventory-tabs">${tabs.map(([id, label]) => `<button class="${filter === id ? 'active' : ''}" type="button" data-inventory-filter="${id}">${label}</button>`).join('')}</div>
+            ${showRaw ? `<span class="eyebrow">Raw materials</span>${rawCards}` : ''}
+            ${showCrafted ? `<span class="eyebrow">Manufactured</span>${craftedCards}` : ''}`;
     }
 
     function updatePanelLiveValues() {
@@ -1104,6 +1195,41 @@
         return (state.snapshot?.stations || [state.snapshot?.station]).find((station) => station?.id === id) || null;
     }
 
+    function assignmentFor(residentId) {
+        if (!residentId) return null;
+        return (state.snapshot?.stations || []).find((station) => station?.residentId === residentId)
+            || (state.snapshot?.station?.residentId === residentId ? state.snapshot.station : null);
+    }
+
+    function shortStationName(station) {
+        const shorts = {
+            woodlot: 'Woodlot', garden: 'Garden', forge: 'Forge', fridge: 'Fridge', generator: 'Generator'
+        };
+        if (station?.id && shorts[station.id]) return shorts[station.id];
+        return String(station?.name || 'station')
+            .replace(/^Restorative\s+/i, '')
+            .replace(/^Covenant\s+/i, '')
+            .replace(/^Accord\s+/i, '')
+            .replace(/^Frost\s+/i, '')
+            .replace(/^Elemental\s+/i, '');
+    }
+
+    function facilityTitle(id) {
+        return ({ woodlot: 'Woodlot', garden: 'Garden', forge: 'Forge', fridge: 'Fridge', generator: 'Generator' })[id] || titleCase(id || 'workshop');
+    }
+
+    function craftedIcon(type) {
+        return ({ TOOL: '⚒', BONUS: '✦', DECORATION: '◇' })[String(type || '').toUpperCase()] || '◆';
+    }
+
+    function relationshipStage(trust) {
+        const value = Math.max(0, number(trust));
+        if (value >= 7) return 'Bonded';
+        if (value >= 3) return 'Trusted';
+        if (value >= 1) return 'Acquainted';
+        return 'Wary';
+    }
+
     function materialById(id) {
         return (state.snapshot?.resources?.materials || []).find((item) => item.id === id) || null;
     }
@@ -1260,6 +1386,12 @@
             milestones: (snapshot.milestones || []).map((item) => ({ id: item.id, complete: Boolean(item.complete), claimed: Boolean(item.claimed), canClaim: Boolean(item.canClaim) })),
             weeklyTribute: snapshot.weeklyTribute || null,
             recipes: (snapshot.recipes || []).map((item) => ({ id: item.id, roomId: item.roomId, type: item.type, crafted: Boolean(item.crafted), canCraft: Boolean(item.canCraft) })),
+            relationships: (snapshot.relationships || []).map((item) => ({
+                npcId: item.npcId, npcName: item.npcName, stage: item.stage,
+                trust: number(item.trust), trustMax: number(item.trustMax) || 7
+            })),
+            selectedRelationshipId: state.selectedRelationshipId || null,
+            inventoryFilter: state.inventoryFilter || 'ALL',
             placedDecorations: snapshot.placedDecorations || {},
             construction: snapshot.activeConstruction ? { id: snapshot.activeConstruction.id, remainingSeconds: constructionRemaining(), progressPercent: constructionPercent(), collapsed: state.constructionCollapsed } : null,
             activePanel: state.panel || null,
