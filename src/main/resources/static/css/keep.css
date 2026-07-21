@@ -1485,6 +1485,26 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
 .gate-card h1 { margin: 5px 0 10px; font: 700 32px Georgia, serif; }
 .gate-card p { margin: 0 auto 22px; color: rgba(255, 247, 220, .68); line-height: 1.55; }
 .gate-card > div { display: flex; justify-content: center; gap: 8px; }
+.gate-card .primary-action { cursor: pointer; font: inherit; }
+
+/* In-page sign-in modal (keeps the keeper on My Keep). */
+.keep-login { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 18px; }
+.keep-login.hidden { display: none; }
+.keep-login-scrim { position: absolute; inset: 0; background: rgba(7, 18, 25, .78); backdrop-filter: blur(7px); }
+.keep-login-card { position: relative; width: min(430px, calc(100vw - 30px)); padding: 30px 30px 26px; border: 1px solid rgba(244, 204, 98, .42); border-radius: 20px; background: linear-gradient(155deg, #1c3844, #111f2c 72%); box-shadow: 0 25px 80px rgba(0, 0, 0, .5); text-align: center; }
+.keep-login-close { position: absolute; top: 12px; right: 14px; width: 32px; height: 32px; border: none; border-radius: 50%; background: rgba(255, 255, 255, .06); color: var(--cream); font-size: 22px; line-height: 1; cursor: pointer; }
+.keep-login-close:hover { background: rgba(255, 255, 255, .12); }
+.keep-login-body { display: flex; flex-direction: column; gap: 11px; }
+.keep-login-body .eyebrow { color: var(--gold); }
+.keep-login-body strong { font: 700 26px Georgia, serif; }
+.keep-login-note { color: rgba(255, 247, 220, .68); line-height: 1.5; font-size: 14px; margin-bottom: 4px; }
+.keep-login-input { width: 100%; padding: 12px 14px; border: 1px solid var(--line); border-radius: 11px; background: rgba(255, 255, 255, .05); color: var(--cream); font-size: 15px; }
+.keep-login-input:focus { outline: none; border-color: rgba(244, 204, 98, .7); }
+.keep-login-error { min-height: 18px; margin: 0; color: #ff8a6a; font-size: 13px; }
+.keep-login-btn { width: 100%; padding: 12px 14px; border-radius: 11px; border: 1px solid var(--line); font: 700 15px Georgia, serif; cursor: pointer; }
+.keep-login-btn.primary { border-color: rgba(244, 204, 98, .55); color: #14232b; background: var(--gold); }
+.keep-login-btn.primary:disabled { opacity: .6; cursor: default; }
+.keep-login-btn.ghost { color: var(--cream); background: rgba(255, 255, 255, .055); }
 
 .offline-overlay { position: fixed; inset: 0; z-index: 82; display: grid; place-items: center; padding: 18px; background: rgba(7, 18, 25, .78); backdrop-filter: blur(7px); }
 .offline-card { width: min(440px, 100%); max-height: min(690px, 88dvh); overflow: auto; padding: 27px; border: 1px solid rgba(244, 204, 98, .42); border-radius: 20px; background: linear-gradient(155deg, #1c3844, #111f2c 72%); box-shadow: 0 24px 80px rgba(0, 0, 0, .56); text-align: center; }
