@@ -183,6 +183,11 @@ body {
     box-shadow: 0 0 18px rgba(255, 215, 0, 0.24);
 }
 
+.play-hub-tabs .keep-label-short,
+.play-hub-menu-panel .keep-label-short {
+    display: none;
+}
+
 .play-hub-actions {
     display: flex;
     align-items: center;
@@ -288,7 +293,7 @@ body {
     .play-hub-tabs {
         width: 100%;
         display: grid;
-        grid-template-columns: repeat(7, minmax(0, 1fr));
+        grid-template-columns: repeat(8, minmax(0, 1fr));
         gap: 4px;
         padding: 4px;
         order: 2;
@@ -299,6 +304,14 @@ body {
         padding: 7px 2px;
         text-align: center;
         font-size: 10px;
+    }
+    .play-hub-tabs .keep-label-full,
+    .play-hub-menu-panel .keep-label-full {
+        display: none;
+    }
+    .play-hub-tabs .keep-label-short,
+    .play-hub-menu-panel .keep-label-short {
+        display: inline;
     }
     .play-hub-actions {
         display: grid;
