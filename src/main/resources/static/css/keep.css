@@ -1064,6 +1064,22 @@ button.resource-pill:focus-visible {
 .notice-tray > header strong { font: 700 15px Georgia, serif; color: #fff1b7; }
 .notice-tray > header button { width: 30px; height: 30px; border-radius: 8px; color: var(--cream); background: rgba(255,255,255,.07); cursor: pointer; }
 #noticeList { max-height: min(445px, calc(100dvh - 220px)); overflow-y: auto; padding: 8px; }
+
+.notice-construction-group { display: grid; gap: 7px; margin-bottom: 5px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.notice-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 2px 3px 0; }
+.notice-section-heading span { color: rgba(255, 247, 220, .66); font-size: 8px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+.notice-section-heading strong { color: var(--gold); font-size: 8px; letter-spacing: .06em; text-transform: uppercase; }
+.notice-construction-card { display: grid; gap: 7px; width: 100%; padding: 9px; border: 1px solid rgba(244, 204, 98, .18); border-radius: 11px; color: var(--cream); background: rgba(244, 204, 98, .045); text-align: left; cursor: pointer; }
+.notice-construction-card:hover { border-color: rgba(244, 204, 98, .42); background: rgba(244, 204, 98, .09); }
+.notice-construction-card:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.notice-construction-row { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+.notice-construction-row > i { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 9px; color: #172333; background: var(--gold); font-style: normal; }
+.notice-construction-row > span { min-width: 0; display: flex; flex-direction: column; }
+.notice-construction-row small { color: var(--gold); font-size: 8px; letter-spacing: .08em; text-transform: uppercase; }
+.notice-construction-row strong { overflow: hidden; color: #fff1b7; font: 700 12px/1.3 Georgia, serif; text-overflow: ellipsis; white-space: nowrap; }
+.notice-construction-row time { min-width: 52px; color: #fff1b7; font-size: 10px; font-weight: 900; text-align: right; font-variant-numeric: tabular-nums; }
+.notice-construction-meter { height: 4px; overflow: hidden; border-radius: 99px; background: rgba(255, 255, 255, .1); }
+.notice-construction-meter i { display: block; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #ca884c, var(--gold)); transition: width .4s linear; }
 .notice-item { width: 100%; display: grid; grid-template-columns: 30px minmax(0, 1fr); align-items: center; gap: 9px; padding: 9px; border: 0; border-radius: 10px; color: var(--cream); background: transparent; text-align: left; }
 button.notice-item { cursor: pointer; }
 button.notice-item:hover { background: rgba(244, 204, 98, .08); }
@@ -2004,6 +2020,9 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     .dialogue-copy > p { margin: 14px 0; font-size: 13px; line-height: 1.5; }
     .dialogue-choices { grid-column: 1 / -1; }
     .notice-tray { top: calc(61px + var(--safe-top)); right: calc(7px + var(--safe-right)); }
+    .notice-construction-card { padding: 8px; }
+    .notice-construction-row { grid-template-columns: 28px minmax(0, 1fr) auto; gap: 7px; }
+    .notice-construction-row > i { width: 28px; height: 28px; }
     .room-tool-set { left: 7%; top: 11%; transform: scale(.78); transform-origin: top left; }
     .room-decoration-set [data-decor-slot="4"] { right: 20%; }
     .enclave-interior-residents b { width: 50px; height: 66px; }
