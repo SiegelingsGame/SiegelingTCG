@@ -121,6 +121,33 @@ class GameJavaScriptRegressionTest {
     }
 
     @Test
+    void starterPackSelectionRecoversAndReturnsHomeAfterGacha() throws IOException {
+        String homeScript = readHomeScript();
+        String choosePack = extractFunction(homeScript, "async function choosePack(packId, count = 1)");
+        String clearPackResult = extractFunction(homeScript, "function clearPackResult()");
+        String recoverStarter = extractFunction(homeScript, "async function recoverStarterPackProgression()");
+
+        assertTrue(
+                homeScript.contains("STARTER_PACK_TIMEOUT_MS = 60000")
+                        && choosePack.contains("starterMode ? STARTER_PACK_TIMEOUT_MS : PACK_OPEN_TIMEOUT_MS"),
+                "Starter pack opens need a longer timeout than shop packs so cold Firestore grants can finish."
+        );
+        assertTrue(
+                choosePack.contains("recoverStarterPackProgression()")
+                        && recoverStarter.contains("/api/player/progression")
+                        && recoverStarter.contains("starterChosen"),
+                "If the starter POST errors/times out after the grant, the client must recover from progression."
+        );
+        assertTrue(
+                clearPackResult.contains("source")
+                        && clearPackResult.contains("STARTER")
+                        && clearPackResult.contains("navigateHub('home'")
+                        && clearPackResult.contains("maybeStartOnboardingTour()"),
+                "Dismissing the starter gacha must land on Home and start the onboarding tour."
+        );
+    }
+
+    @Test
     void shopCardPreviewHasModalShellForRenderedDetails() throws IOException {
         String homeScript = readHomeScript();
         String homeMarkup = Files.readString(HOME_HTML);
