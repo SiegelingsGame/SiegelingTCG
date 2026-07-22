@@ -971,12 +971,23 @@
             interior.dataset.room = id;
             interior.setAttribute('aria-hidden', 'false');
         }
+        setGroundsSuppressed(true);
         renderInterior();
     }
 
     function closeInterior() {
         state.interior = '';
         document.getElementById('keepInterior')?.setAttribute('aria-hidden', 'true');
+        setGroundsSuppressed(false);
+    }
+
+    function setGroundsSuppressed(suppressed) {
+        const grounds = document.getElementById('sceneViewport');
+        if (!grounds) return;
+        grounds.classList.toggle('is-suppressed', suppressed);
+        grounds.toggleAttribute('inert', suppressed);
+        if (suppressed) grounds.setAttribute('aria-hidden', 'true');
+        else grounds.removeAttribute('aria-hidden');
     }
 
     function renderInterior() {
@@ -1007,6 +1018,9 @@
         interior.dataset.toolTier = String(toolTier);
         interior.querySelectorAll('[data-tool-tier]').forEach((node) => {
             node.classList.toggle('is-crafted', number(node.dataset.toolTier) <= toolTier);
+        });
+        interior.querySelectorAll('.room-tool-set').forEach((rack) => {
+            rack.classList.toggle('has-installed-tools', Boolean(rack.querySelector('.is-crafted')));
         });
         renderEnclaveResidents();
         const root = loreById('memorabilia_petrified_root');

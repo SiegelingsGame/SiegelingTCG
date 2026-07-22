@@ -18,6 +18,7 @@ class GameJavaScriptRegressionTest {
     private static final Path STYLE_CSS = Path.of("src/main/resources/static/css/style.css");
     private static final Path KEEP_HTML = Path.of("src/main/resources/static/keep.html");
     private static final Path KEEP_CSS = Path.of("src/main/resources/static/css/keep.css");
+    private static final Path KEEP_JS = Path.of("src/main/resources/static/js/keep.js");
 
     @Test
     void onlineStartDoesNotFallBackToSoloBattle() throws IOException {
@@ -525,20 +526,35 @@ class GameJavaScriptRegressionTest {
     void keepBuildingsAndRoomsUseLayeredPaperTreatments() throws IOException {
         String keepHtml = Files.readString(KEEP_HTML);
         String keepCss = Files.readString(KEEP_CSS);
+        String keepJs = Files.readString(KEEP_JS);
 
         assertTrue(
-                keepHtml.contains("id=\"paper-building-cutout\"")
-                        && keepHtml.contains("id=\"paper-prop-cutout\"")
-                        && keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=15"),
-                "Keep architecture must ship both paper filters, attach them to exterior SVGs, and refresh the CSS cache pin."
+                keepHtml.contains("class=\"paper-building-shell\"")
+                        && keepHtml.contains("/css/keep.css?v=16")
+                        && keepHtml.contains("/js/keep.js?v=17"),
+                "Keep architecture must retain its paper building hooks and refresh both asset cache pins."
         );
         assertTrue(
-                keepCss.contains("filter: url(\"#paper-building-cutout\")")
-                        && keepCss.contains("filter: url(\"#paper-prop-cutout\")")
+                keepCss.contains(".building-illustration svg.paper-building-shell")
+                        && keepCss.contains("drop-shadow(0 1px 0 #ead8ad)")
                         && keepCss.contains(".int-backwall::after")
                         && keepCss.contains("mix-blend-mode: soft-light"),
-                "Exterior silhouettes, interior props, and room shells must retain their shared cardstock edges and print grain."
+                "Exterior silhouettes and room shells must retain their cardstock edges and print grain."
+        );
+        assertFalse(
+                keepHtml.contains("id=\"paper-prop-cutout\"")
+                        || keepHtml.contains("id=\"paper-building-cutout\"")
+                        || keepCss.contains("filter: url(\"#paper-prop-cutout\")")
+                        || keepCss.contains("filter: url(\"#paper-building-cutout\")"),
+                "Keep architecture must not use expensive SVG filters for animated props or large building silhouettes."
+        );
+        assertTrue(
+                keepCss.contains(".room-tool-set.has-installed-tools")
+                        && keepCss.contains(".crafted-decoration { display: none; z-index: 2; }")
+                        && keepJs.contains("rack.classList.toggle('has-installed-tools'")
+                        && keepJs.contains("setGroundsSuppressed(true)")
+                        && keepCss.contains("content-visibility: hidden"),
+                "Empty tool racks must stay hidden, decorations must layer above them, and open interiors must suspend grounds painting."
         );
     }
 
