@@ -660,6 +660,12 @@ button.resource-pill:focus-visible {
 .node-reward { display: flex; justify-content: center; gap: 8px; font-size: 12px; font-weight: 700; }
 .node-reward .reward-gold { color: var(--gold); }
 .node-reward .reward-rem { color: #d0a7ff; }
+/* Theme-music toggle: dimmed with a slash when muted. */
+.music-toggle.is-muted { opacity: .5; }
+.music-toggle { position: relative; }
+.music-toggle.is-muted::after { content: ""; position: absolute; left: 20%; right: 20%; top: 50%; height: 2px; background: currentColor; transform: rotate(-45deg); border-radius: 2px; }
+.node-decoration { margin: 0; color: #9be8b4; font-size: 10px; font-weight: 700; line-height: 1.3; }
+.node-decoration span { color: #f4cc62; }
 .node-unlock { margin: 0; color: rgba(255, 247, 220, .72); font-size: 10px; line-height: 1.35; }
 .node-claim { margin-top: auto; padding: 7px 10px; border: none; border-radius: 9px; background: var(--gold); color: #14232b; font: 800 12px Georgia, serif; cursor: pointer; }
 .node-claim:hover { filter: brightness(1.05); }

@@ -105,6 +105,7 @@
         migrateStoredToken();
         bindEvents();
         bindLoginModal();
+        initMusic();
         initSceneView();
         if (state.testMode) {
             applySnapshot(clone(window.__KEEP_TEST_SNAPSHOT__), false);
@@ -465,7 +466,9 @@
         const data = await perform('/api/keep/reward', { rewardId });
         if (data?.rewardClaimed) {
             const reward = data.rewardClaimed;
-            showNotice(`+${number(reward.gold)} Siegecoins · +${number(reward.remnants)} Remnants`, 'Sanctuary reward');
+            const parts = [`+${number(reward.gold)} Siegecoins`, `+${number(reward.remnants)} Remnants`];
+            if (reward.decorationName) parts.push(`✿ ${reward.decorationName}`);
+            showNotice(parts.join(' · '), 'Sanctuary reward');
         }
     }
 
@@ -1479,6 +1482,56 @@
         document.getElementById('noticeButton')?.setAttribute('aria-expanded', 'false');
     }
 
+    // ── Theme music ───────────────────────────────────────────────────────────
+    // Loops the main theme in Keep mode behind a header toggle. Preference persists;
+    // browsers block autoplay-with-sound until a user gesture, so when the saved
+    // preference is "on" we also arm a one-shot gesture starter.
+    const MUSIC_KEY = 'sieglingsKeepMusicOn';
+
+    function initMusic() {
+        const audio = document.getElementById('keepTheme');
+        const button = document.getElementById('musicToggle');
+        if (!audio || !button) return;
+        audio.volume = 0.32;
+        let on;
+        try { on = (localStorage.getItem(MUSIC_KEY) || '1') === '1'; } catch (e) { on = true; }
+
+        function reflect() {
+            button.classList.toggle('is-muted', !on);
+            button.setAttribute('aria-pressed', String(on));
+            button.title = on ? 'Mute theme music' : 'Play theme music';
+        }
+        function tryPlay() {
+            if (!on) return;
+            const promise = audio.play();
+            if (promise && promise.catch) promise.catch(() => { /* autoplay blocked until a gesture */ });
+        }
+        function armGestureStart() {
+            const starter = () => {
+                document.removeEventListener('pointerdown', starter);
+                document.removeEventListener('keydown', starter);
+                tryPlay();
+            };
+            document.addEventListener('pointerdown', starter);
+            document.addEventListener('keydown', starter);
+        }
+
+        reflect();
+        if (on) { tryPlay(); armGestureStart(); }
+
+        button.addEventListener('click', () => {
+            on = !on;
+            try { localStorage.setItem(MUSIC_KEY, on ? '1' : '0'); } catch (e) { /* private mode */ }
+            reflect();
+            if (on) tryPlay(); else audio.pause();
+        });
+        // Don't keep playing over a backgrounded tab; resume on return if still enabled.
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) audio.pause();
+            else if (on) tryPlay();
+        });
+    }
+
     // ── Keeper's Journey (leveling / battlepass timeline) ─────────────────────
 
     function keeperData() { return state.snapshot?.keeper || null; }
@@ -1547,6 +1600,8 @@
         const stateClass = l.claimed ? 'is-claimed' : l.canClaim ? 'is-ready' : l.reached ? 'is-earned' : 'is-locked';
         const gold = number(l.reward?.gold);
         const remnants = number(l.reward?.remnants);
+        const decoration = l.reward?.decorationName
+            ? `<p class="node-decoration" title="Decoration"><span aria-hidden="true">✿</span> ${escapeHtml(l.reward.decorationName)}</p>` : '';
         const unlock = l.unlockLabel ? `<p class="node-unlock">${escapeHtml(l.unlockLabel)}</p>` : '';
         const action = l.canClaim
             ? `<button class="node-claim" type="button" data-claim-keep-reward="keeper_level:${lv}">Claim</button>`
@@ -1554,7 +1609,7 @@
         return `<article class="journey-node ${stateClass}${l.current ? ' is-current' : ''}">
             <div class="node-badge"><small>LV</small><strong>${lv}</strong></div>
             <div class="node-reward"><span class="reward-gold" title="Siegecoins">◈ ${gold}</span><span class="reward-rem" title="Remnants">✦ ${remnants}</span></div>
-            ${unlock}${action}</article>`;
+            ${decoration}${unlock}${action}</article>`;
     }
 
     function openJourney() {
