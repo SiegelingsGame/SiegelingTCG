@@ -1529,6 +1529,53 @@ select.search-input { color-scheme: dark; }
     -webkit-backdrop-filter: blur(6px);
 }
 
+.shop-purchase-confirm-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 95;
+    display: grid;
+    place-items: center;
+    padding: 18px;
+    background: rgba(0, 0, 0, 0.68);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+.shop-purchase-confirm-modal.hidden {
+    display: none;
+}
+
+.shop-purchase-confirm-panel {
+    width: min(420px, 100%);
+    padding: 18px 16px 14px;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 38%),
+        #0b1124;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.shop-purchase-confirm-panel h2 {
+    margin: 4px 0 8px;
+    font-size: 1.35rem;
+}
+
+.shop-purchase-confirm-panel p {
+    margin: 0 0 16px;
+    color: rgba(255, 255, 255, 0.78);
+    line-height: 1.45;
+}
+
+.shop-purchase-confirm-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+.shop-purchase-confirm-actions .primary-btn,
+.shop-purchase-confirm-actions .ghost-btn {
+    min-width: 96px;
+}
+
 .shop-card-preview-panel {
     position: relative;
     width: min(780px, 100%);

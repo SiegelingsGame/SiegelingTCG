@@ -128,11 +128,13 @@ class GameJavaScriptRegressionTest {
         String choosePack = extractFunction(homeScript, "async function choosePack(packId, count = 1)");
         String clearPackResult = extractFunction(homeScript, "function clearPackResult()");
         String recoverStarter = extractFunction(homeScript, "async function recoverStarterPackProgression()");
+        String recoverShop = extractFunction(homeScript, "async function recoverShopPackProgression(requestId, packId)");
 
         assertTrue(
-                homeScript.contains("STARTER_PACK_TIMEOUT_MS = 60000")
+                homeScript.contains("PACK_OPEN_TIMEOUT_MS = 60000")
+                        && homeScript.contains("STARTER_PACK_TIMEOUT_MS = 60000")
                         && choosePack.contains("starterMode ? STARTER_PACK_TIMEOUT_MS : PACK_OPEN_TIMEOUT_MS"),
-                "Starter pack opens need a longer timeout than shop packs so cold Firestore grants can finish."
+                "Shop and starter pack opens need a 60s timeout so cold Firestore grants can finish."
         );
         assertTrue(
                 choosePack.contains("recoverStarterPackProgression()")
@@ -141,11 +143,43 @@ class GameJavaScriptRegressionTest {
                 "If the starter POST errors/times out after the grant, the client must recover from progression."
         );
         assertTrue(
+                choosePack.contains("recoverShopPackProgression(requestId, packId)")
+                        && recoverShop.contains("requestId")
+                        && recoverShop.contains("packHistory"),
+                "Timed-out shop pack opens must recover the reveal from progression via the idempotency request id."
+        );
+        assertTrue(
                 clearPackResult.contains("source")
                         && clearPackResult.contains("STARTER")
                         && clearPackResult.contains("navigateHub('home'")
                         && clearPackResult.contains("maybeStartOnboardingTour()"),
                 "Dismissing the starter gacha must land on Home and start the onboarding tour."
+        );
+    }
+
+    @Test
+    void dailyOfferPurchaseShowsImmediateConfirmModal() throws IOException {
+        String homeScript = readHomeScript();
+        String homeMarkup = Files.readString(HOME_HTML);
+        String purchaseDaily = extractFunction(homeScript, "async function purchaseDailyOffer(offerId)");
+        String confirmDaily = extractFunction(homeScript, "function confirmDailyOfferPurchase(offer)");
+
+        assertTrue(
+                homeMarkup.contains("id=\"shopPurchaseConfirmModal\"")
+                        && homeMarkup.contains("data-shop-purchase-confirm")
+                        && homeMarkup.contains("data-shop-purchase-cancel"),
+                "Daily card buys need a confirm modal shell so the tap can show feedback before the POST."
+        );
+        assertTrue(
+                purchaseDaily.contains("confirmDailyOfferPurchase(offer)")
+                        && confirmDaily.contains("shopPurchaseConfirmModal")
+                        && confirmDaily.contains("shopPurchaseConfirmResolver = resolve"),
+                "Daily offer taps must open the confirm modal synchronously before awaiting the purchase API."
+        );
+        assertTrue(
+                purchaseDaily.contains("Buying…")
+                        && purchaseDaily.contains("dailyOfferPurchasePending"),
+                "After confirm, the buy button must show an in-flight Buying state."
         );
     }
 

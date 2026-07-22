@@ -11,7 +11,7 @@
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
     <link rel="stylesheet" href="/css/style.css?v=213">
-    <link rel="stylesheet" href="/css/home.css?v=111">
+    <link rel="stylesheet" href="/css/home.css?v=112">
 </head>
 <body>
 <div class="home-shell">
@@ -85,6 +85,18 @@
         <div class="shop-card-preview-panel panel">
             <button class="shop-card-preview-close" type="button" data-close-shop-card-preview aria-label="Close card preview">&times;</button>
             <div id="shopCardPreviewBody"></div>
+        </div>
+    </div>
+
+    <div class="shop-purchase-confirm-modal hidden" id="shopPurchaseConfirmModal" role="dialog" aria-modal="true" aria-labelledby="shopPurchaseConfirmTitle">
+        <div class="shop-purchase-confirm-panel panel" role="document">
+            <span class="eyebrow">Confirm purchase</span>
+            <h2 id="shopPurchaseConfirmTitle">Buy card</h2>
+            <p id="shopPurchaseConfirmCopy">Spend Siegecoins to add this card to your binder?</p>
+            <div class="shop-purchase-confirm-actions">
+                <button class="ghost-btn" type="button" id="shopPurchaseConfirmCancel" data-shop-purchase-cancel>Cancel</button>
+                <button class="primary-btn" type="button" id="shopPurchaseConfirmBuy" data-shop-purchase-confirm>Buy</button>
+            </div>
         </div>
     </div>
 
@@ -386,7 +398,7 @@
 <script src="/js/game.js?v=208"></script>
 <script src="/js/card-binder-visual.js?v=14"></script>
 <script src="/js/achievements.js?v=7"></script>
-<script src="/js/home.js?v=109"></script>
+<script src="/js/home.js?v=110"></script>
 <script src="/js/sw-register.js?v=1"></script>
 </body>
 </html>

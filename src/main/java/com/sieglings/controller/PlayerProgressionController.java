@@ -200,7 +200,9 @@ public class PlayerProgressionController {
         out.put("packs", packCatalogService.serializePacks());
         out.put("dailyOffers", packCatalogService.serializeDailyOffers());
         out.put("titleCatalog", playerTitleCatalogService.serializeCatalog());
-        out.put("cardCatalog", cardDefinitionService.getDeckBuilderCatalog().stream().map(this::serializeCardLite).toList());
+        // Intentionally omit cardCatalog: clients already load it from /api/game/options.
+        // Re-serializing the full deck-builder catalog on every shop/pack/progression
+        // mutation was the main cause of slow daily buys and pack-open timeouts.
         return out;
     }
 
@@ -265,16 +267,6 @@ public class PlayerProgressionController {
                                         && "SIEGLING".equals(card.getCardType().name())))
                         .findFirst()
                         .orElse(""));
-    }
-
-    private Map<String, Object> serializeCardLite(Card card) {
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("id", card.getId());
-        out.put("name", card.getName());
-        out.put("type", card.getCardType().name());
-        out.put("element", card.getElement().name());
-        out.put("rarity", card.getRarity().name());
-        return out;
     }
 
     private String string(Map<String, Object> req, String key) {

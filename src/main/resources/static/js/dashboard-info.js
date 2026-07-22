@@ -250,7 +250,7 @@
     topics['shop-prices'] = {
         title: 'Shop Prices',
         html: '<p>Each card\'s shop price is looked up by <strong>rarity + card type</strong>. Set an override for a cell to replace the default for every card of that combination; reset it to fall back to the default again.</p>' +
-            '<p>Overrides apply immediately to packs and daily card offers. Premade decks are priced separately and are not affected here.</p>'
+            '<p>SiegeKnight (TRAINER) defaults start at <strong>300</strong> Siegecoins and scale up with rarity; Siegelings, spells, and traps use a lower rarity ladder. Overrides apply immediately to packs and daily card offers. Premade decks are priced separately and are not affected here.</p>'
     };
 
     topics['siege-events'] = {

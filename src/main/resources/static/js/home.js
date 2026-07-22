@@ -70,7 +70,10 @@
     const PRESENCE_HEARTBEAT_MS = 45 * 1000;
     const PENDING_PACK_OPEN_REQUEST_KEY = 'sieglingsPendingPackOpenRequest';
     const MAX_PENDING_PACK_OPEN_REQUESTS = 20;
-    const PACK_OPEN_TIMEOUT_MS = 15000;
+    // Shop pack opens persist to Firestore; cold Cloud Run / Firestore can exceed
+    // 15s the same way starter grants do. Keep this aligned with starter budget so
+    // the reveal is not aborted while the charge is still finishing.
+    const PACK_OPEN_TIMEOUT_MS = 60000;
     // Starter choice hits Firestore progression + profile defaults; cold starts
     // can exceed the shop pack budget the same way /api/game/new does.
     const STARTER_PACK_TIMEOUT_MS = 60000;
@@ -383,6 +386,7 @@
         lobbyBusy: false,
         packReveal: null,
         packOpeningPending: null,
+        dailyOfferPurchasePending: null,
         packOpeningDismissedKey: '',
         shopView: 'browse',
         shopPreviewCardId: '',
@@ -3713,6 +3717,10 @@
             rarity: offer.rarity || catalogCard.rarity || 'COMMON',
             notches: catalogCard.notches || [],
             abilities: catalogCard.abilities || (catalogCard.ability ? [catalogCard.ability] : []),
+            // Daily offers carry a description even when /api/game/options omits
+            // the card (spells/traps outside the guest catalog); prefer it so the
+            // shop tile does not fall through to "Description coming soon."
+            description: offer.description || catalogCard.description || '',
             cardArtUrl: offer.cardArtUrl || catalogCard.cardArtUrl || '',
             cardArtMode: offer.cardArtMode || catalogCard.cardArtMode || ''
         };
@@ -5816,6 +5824,68 @@
         return null;
     }
 
+    // Shop pack opens can charge/grant before the HTTP body arrives. On timeout
+    // or a dropped response, look up progression by the idempotency request id
+    // so the player still reaches the reveal instead of an empty shop.
+    async function recoverShopPackProgression(requestId, packId) {
+        if (!requestId) return null;
+        try {
+            const recovered = await fetchJson('/api/player/progression', {
+                timeoutMs: PACK_OPEN_TIMEOUT_MS
+            });
+            if (!recovered || recovered.error || !recovered.progression) {
+                return null;
+            }
+            const history = recovered.progression.packHistory || [];
+            const matched = history.find(entry => entry && entry.requestId === requestId);
+            if (!matched) {
+                return null;
+            }
+            // Reveal reads packHistory[0]; if the matched entry is not first
+            // (unlikely for a just-completed open), still accept the payload —
+            // applyShopPackOpenResult will use the matched entry when needed.
+            recovered._recoveredPackEntry = matched;
+            recovered._recoveredPackId = packId;
+            return recovered;
+        } catch (error) {
+            console.error(error);
+        }
+        return null;
+    }
+
+    function applyShopPackOpenResult(data, pack, requestId) {
+        state.progression = data.progression;
+        state.packs = data.packs || state.packs;
+        state.dailyOffers = data.dailyOffers || state.dailyOffers;
+        state.titleCatalog = data.titleCatalog || state.titleCatalog || state.progression?.playerTitles || [];
+        clearPackOpenRequestId(requestId);
+        const latest = data._recoveredPackEntry || state.progression?.packHistory?.[0];
+        if (latest && data._recoveredPackEntry && state.progression?.packHistory?.[0]?.requestId !== requestId) {
+            // Keep reveal keyed to the recovered open even if newer history arrived.
+            state.progression = {
+                ...state.progression,
+                packHistory: [latest, ...(state.progression.packHistory || []).filter(entry => entry !== latest)]
+            };
+        }
+        const revealLatest = state.progression?.packHistory?.[0];
+        if (revealLatest) {
+            pushNotification('pack', `Pack opened: ${pack?.name || revealLatest.packId || 'Card pack'}`, `${(revealLatest.cards || []).length} cards added to your binder.`);
+        }
+        if (notifSnapshot) notifSnapshot.gold = Number(state.progression?.gold) || notifSnapshot.gold;
+        detectNewCards();
+        state.packOpeningDismissedKey = '';
+        state.packReveal = revealLatest ? {
+            packId: revealLatest.packId,
+            openedAt: revealLatest.openedAt,
+            revealed: new Set(),
+            dissolvedRemnants: new Set(),
+            lastRevealedId: '',
+            previewId: '',
+            sparkColor: elementColor(revealLatest.cards?.[0]?.element || 'FIRE')
+        } : null;
+        return revealLatest;
+    }
+
     async function choosePack(packId, count = 1) {
         if (!state.profile?.authenticated) {
             openAuth();
@@ -5860,6 +5930,15 @@
             }
         }
 
+        // Shop packs can likewise charge before the response is lost. Recover by
+        // request id so the player still gets the reveal screen.
+        if ((!data || data.error) && !starterMode && requestId) {
+            const recovered = await recoverShopPackProgression(requestId, packId);
+            if (recovered) {
+                data = recovered;
+            }
+        }
+
         // The server may have charged and granted before the response was lost.
         // Keep the request id so a retry can be deduped server-side.
         if (!data || data.error) {
@@ -5876,29 +5955,29 @@
         // the heavy reveal animation can never lose the cards or, worse, surface a
         // "could not open" error that tricks the player into paying for the pack
         // again.
-        state.progression = data.progression;
-        state.packs = data.packs || state.packs;
-        state.dailyOffers = data.dailyOffers || state.dailyOffers;
-        state.titleCatalog = data.titleCatalog || state.titleCatalog || state.progression?.playerTitles || [];
-        clearPackOpenRequestId(requestId);
-        const latest = state.progression?.packHistory?.[0];
-        if (latest) {
-            pushNotification('pack', `Pack opened: ${pack?.name || latest.packId || 'Card pack'}`, `${(latest.cards || []).length} cards added to your binder.`);
-        }
-        if (notifSnapshot) notifSnapshot.gold = Number(state.progression?.gold) || notifSnapshot.gold;
-        // Tag the freshly pulled cards as "New" until the player opens them.
-        detectNewCards();
-        state.packOpeningDismissedKey = '';
-        state.packReveal = latest ? {
-            packId: latest.packId,
-            openedAt: latest.openedAt,
-            revealed: new Set(),
-            dissolvedRemnants: new Set(),
-            lastRevealedId: '',
-            previewId: '',
-            sparkColor: elementColor(latest.cards?.[0]?.element || 'FIRE')
-        } : null;
+        let latest;
         if (starterMode) {
+            state.progression = data.progression;
+            state.packs = data.packs || state.packs;
+            state.dailyOffers = data.dailyOffers || state.dailyOffers;
+            state.titleCatalog = data.titleCatalog || state.titleCatalog || state.progression?.playerTitles || [];
+            clearPackOpenRequestId(requestId);
+            latest = state.progression?.packHistory?.[0];
+            if (latest) {
+                pushNotification('pack', `Pack opened: ${pack?.name || latest.packId || 'Card pack'}`, `${(latest.cards || []).length} cards added to your binder.`);
+            }
+            if (notifSnapshot) notifSnapshot.gold = Number(state.progression?.gold) || notifSnapshot.gold;
+            detectNewCards();
+            state.packOpeningDismissedKey = '';
+            state.packReveal = latest ? {
+                packId: latest.packId,
+                openedAt: latest.openedAt,
+                revealed: new Set(),
+                dissolvedRemnants: new Set(),
+                lastRevealedId: '',
+                previewId: '',
+                sparkColor: elementColor(latest.cards?.[0]?.element || 'FIRE')
+            } : null;
             const serverPrefs = applyProfileSettingsFromServer(data.profileSettings);
             if (serverPrefs) {
                 state.profilePrefs = { ...defaultProfilePrefs(state.profile?.user || {}), ...serverPrefs };
@@ -5907,6 +5986,8 @@
             } else {
                 applyStarterProfileDefaults();
             }
+        } else {
+            latest = applyShopPackOpenResult(data, pack, requestId);
         }
 
         // Phase 3 — the (heavy) reveal animation. If anything here throws, the
@@ -5932,19 +6013,105 @@
         });
     }
 
+    let shopPurchaseConfirmResolver = null;
+
+    function resolveShopPurchaseConfirm(result) {
+        const resolver = shopPurchaseConfirmResolver;
+        shopPurchaseConfirmResolver = null;
+        if (resolver) resolver(Boolean(result));
+    }
+
+    function hideShopPurchaseConfirm() {
+        const modal = document.getElementById('shopPurchaseConfirmModal');
+        if (modal) modal.classList.add('hidden');
+        const cancelBtn = document.getElementById('shopPurchaseConfirmCancel');
+        const buyBtn = document.getElementById('shopPurchaseConfirmBuy');
+        if (cancelBtn) cancelBtn.disabled = false;
+        if (buyBtn) buyBtn.disabled = false;
+    }
+
+    function closeShopPurchaseConfirm(result) {
+        hideShopPurchaseConfirm();
+        resolveShopPurchaseConfirm(result);
+    }
+
+    function confirmDailyOfferPurchase(offer) {
+        const card = dailyOfferCard(offer);
+        const name = card?.name || offer.cardName || 'this card';
+        const price = Number(offer.price) || 0;
+        const modal = document.getElementById('shopPurchaseConfirmModal');
+        const title = document.getElementById('shopPurchaseConfirmTitle');
+        const copy = document.getElementById('shopPurchaseConfirmCopy');
+        const buyBtn = document.getElementById('shopPurchaseConfirmBuy');
+        const cancelBtn = document.getElementById('shopPurchaseConfirmCancel');
+        if (!modal || !title || !copy || !buyBtn) {
+            // Fallback when the modal shell is missing (old cached HTML).
+            return Promise.resolve(window.confirm(`Buy ${name} for ${price} Siegecoins?`));
+        }
+        title.textContent = `Buy ${name}?`;
+        copy.textContent = `Spend ${price} Siegecoins to add ${name} to your collection?`;
+        buyBtn.innerHTML = renderCoinAmount(price, 'Buy');
+        buyBtn.disabled = false;
+        if (cancelBtn) cancelBtn.disabled = false;
+        modal.classList.remove('hidden');
+        // Show the confirm panel in this same turn — before any await — so the
+        // tap feels instant even when the later purchase POST is slow.
+        return new Promise(resolve => {
+            shopPurchaseConfirmResolver = resolve;
+        });
+    }
+
     async function purchaseDailyOffer(offerId) {
         if (!state.profile?.authenticated) {
             openAuth();
             return;
         }
-        const data = await fetchJson('/api/shop/purchase-card', { method: 'POST', body: JSON.stringify({ offerId }) });
-        if (data?.error) return alert(data.error);
-        state.progression = data.progression;
-        state.packs = data.packs || state.packs;
-        state.dailyOffers = data.dailyOffers || state.dailyOffers;
-        state.titleCatalog = data.titleCatalog || state.titleCatalog || state.progression?.playerTitles || [];
-        detectNewCards();
-        render();
+        if (state.dailyOfferPurchasePending) {
+            return;
+        }
+        const offer = (state.dailyOffers || []).find(item => item.id === offerId);
+        if (!offer) return;
+        if (state.progression?.purchasedDailyOfferIds?.includes(offer.id)) {
+            return;
+        }
+        const confirmed = await confirmDailyOfferPurchase(offer);
+        if (!confirmed) return;
+
+        state.dailyOfferPurchasePending = offerId;
+        const buyBtn = document.getElementById('shopPurchaseConfirmBuy');
+        const cancelBtn = document.getElementById('shopPurchaseConfirmCancel');
+        if (buyBtn) {
+            buyBtn.disabled = true;
+            buyBtn.textContent = 'Buying…';
+        }
+        if (cancelBtn) cancelBtn.disabled = true;
+        // Also mark the tile button so a re-render mid-flight does not look idle.
+        document.querySelectorAll(`[data-daily-offer-id="${CSS.escape(offerId)}"]`).forEach(btn => {
+            btn.disabled = true;
+            btn.textContent = 'Buying…';
+        });
+
+        try {
+            const data = await fetchJson('/api/shop/purchase-card', {
+                method: 'POST',
+                body: JSON.stringify({ offerId }),
+                timeoutMs: PACK_OPEN_TIMEOUT_MS
+            });
+            hideShopPurchaseConfirm();
+            if (data?.error) {
+                renderShop();
+                return alert(data.error);
+            }
+            state.progression = data.progression;
+            state.packs = data.packs || state.packs;
+            state.dailyOffers = data.dailyOffers || state.dailyOffers;
+            state.titleCatalog = data.titleCatalog || state.titleCatalog || state.progression?.playerTitles || [];
+            detectNewCards();
+            render();
+        } finally {
+            state.dailyOfferPurchasePending = null;
+            if (cancelBtn) cancelBtn.disabled = false;
+        }
     }
 
     function packSessionKey(latest) {
@@ -7050,7 +7217,7 @@
         } catch (error) {
             console.error(error);
             if (error?.name === 'AbortError') {
-                return { error: 'Pack opening is taking too long. Please try again.', timedOut: true };
+                return { error: 'That request is taking too long. Please try again.', timedOut: true };
             }
             return { error: 'Network error. Check your connection and try again.' };
         } finally {
@@ -9350,6 +9517,16 @@
             closeShopCardPreview();
             return;
         }
+        if (event.target.closest('[data-shop-purchase-cancel]')
+            || (event.target.id === 'shopPurchaseConfirmModal')) {
+            closeShopPurchaseConfirm(false);
+            return;
+        }
+        if (event.target.closest('[data-shop-purchase-confirm]')) {
+            // Keep the modal visible so it can flip to "Buying…" after resolve.
+            resolveShopPurchaseConfirm(true);
+            return;
+        }
         if (event.target.closest('[data-clear-pack-result]')) {
             clearPackResult();
             return;
@@ -9390,6 +9567,9 @@
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape' && state.shopCardPreviewOpen) {
             closeShopCardPreview();
+        }
+        if (event.key === 'Escape' && shopPurchaseConfirmResolver) {
+            closeShopPurchaseConfirm(false);
         }
     });
 })();
