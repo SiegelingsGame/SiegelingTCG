@@ -26,11 +26,27 @@ class ShopPriceCatalogServiceTest {
                     ShopPriceCatalogService.DEFAULT_PRICE_BY_RARITY.get(rarity),
                     service.priceFor(rarity, CardType.SIEGLING)
             );
+            assertEquals(
+                    ShopPriceCatalogService.DEFAULT_TRAINER_PRICE_BY_RARITY.get(rarity),
+                    service.priceFor(rarity, CardType.TRAINER)
+            );
+            assertTrue(
+                    service.priceFor(rarity, CardType.TRAINER) >= 300,
+                    "SiegeKnight defaults must start at 300 Siegecoins"
+            );
         }
 
         List<ShopPriceCatalogService.PriceRow> grid = service.buildPriceGrid();
         assertEquals(Rarity.values().length * CardType.values().length, grid.size());
         assertTrue(grid.stream().noneMatch(ShopPriceCatalogService.PriceRow::isOverride));
+        assertEquals(
+                ShopPriceCatalogService.DEFAULT_TRAINER_PRICE_BY_RARITY.get(Rarity.COMMON),
+                grid.stream()
+                        .filter(row -> row.rarity() == Rarity.COMMON && row.cardType() == CardType.TRAINER)
+                        .findFirst()
+                        .orElseThrow()
+                        .defaultPrice()
+        );
     }
 
     @Test

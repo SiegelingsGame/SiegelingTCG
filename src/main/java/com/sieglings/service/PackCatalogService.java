@@ -431,7 +431,7 @@ public class PackCatalogService {
             return shopPriceCatalogService.priceFor(card.getRarity(), card.getCardType());
         }
         // No override service wired (e.g. plain unit tests) — fall back to the default table.
-        return ShopPriceCatalogService.DEFAULT_PRICE_BY_RARITY.get(card.getRarity());
+        return ShopPriceCatalogService.defaultPriceFor(card.getRarity(), card.getCardType());
     }
 
     private Comparator<Card> cardSort() {
