@@ -9,7 +9,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#173f54">
-    <link rel="stylesheet" href="/css/keep.css?v=17">
+    <link rel="stylesheet" href="/css/keep.css?v=18">
 </head>
 <body>
 <svg class="keep-svg-defs" width="0" height="0" aria-hidden="true" focusable="false">
@@ -70,6 +70,7 @@
             <button class="icon-button" id="noticeButton" type="button" aria-label="Open Keep updates" aria-expanded="false">
                 <span aria-hidden="true">✦</span><span class="unread-badge hidden" id="noticeBadge">0</span>
             </button>
+            <button class="icon-button music-toggle" id="musicToggle" type="button" aria-pressed="false" aria-label="Toggle theme music" title="Play theme music"><span aria-hidden="true">♪</span></button>
             <button class="icon-button" id="helpButton" type="button" aria-label="How My Keep works" title="How My Keep works">?</button>
             <button class="icon-button" id="fullscreenButton" type="button" aria-label="Toggle fullscreen" title="Fullscreen (F)">⛶</button>
         </div>
@@ -563,8 +564,9 @@
     </div>
 </div>
 
+<audio id="keepTheme" loop preload="auto" src="/audio/sieglings-theme.mp3?v=1"></audio>
 <script src="/js/config.js?v=1"></script>
-<script src="/js/keep.js?v=18"></script>
+<script src="/js/keep.js?v=19"></script>
 <script src="/js/sw-register.js?v=1"></script>
 </body>
 </html>

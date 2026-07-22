@@ -63,6 +63,12 @@ public class KeepService {
     private static final int KEEPER_QUEST_XP = 50;
     private static final int KEEPER_RESOURCE_XP_DAILY_CAP = 150;
     private static final int KEEPER_LEVELS_PER_CHAPTER = 5;
+    /** Decoration granted at specific Keeper Levels (owned outright, placeable once its room is built). */
+    private static final Map<Integer, String> KEEPER_LEVEL_DECORATIONS = Map.ofEntries(
+            Map.entry(3, "carved_waypost"), Map.entry(4, "living_trellis"),
+            Map.entry(6, "ember_lantern"), Map.entry(9, "frostglass_mobile"),
+            Map.entry(11, "harmonic_orb"), Map.entry(14, "stone_sentinel"),
+            Map.entry(18, "hearth_garland"), Map.entry(22, "covenant_tapestry"));
     /** Chapter titles for the battlepass timeline; each spans 5 Keeper Levels. */
     private static final String[][] KEEPER_CHAPTERS = {
             {"The Wounded Ground", "Build a sanctuary that takes nothing without giving something back."},
@@ -492,6 +498,7 @@ public class KeepService {
             int gold;
             int remnants;
             String claimKey = id;
+            String grantedDecorationId = "";
             Map<String, Integer> orderCosts = null;
             if ("first_harvest".equals(id)) {
                 if (state.getEssenceCollectCount() < 1) throw new IllegalArgumentException("Complete an elemental harvest first.");
@@ -559,9 +566,10 @@ public class KeepService {
                 if (keeperLevel(state.getKeeperXp()) < lv) {
                     throw new IllegalArgumentException("Reach Keeper Level " + lv + " to claim that reward.");
                 }
-                int[] reward = keeperReward(lv);
-                gold = reward[0];
-                remnants = reward[1];
+                KeeperReward levelReward = keeperReward(lv);
+                gold = levelReward.gold();
+                remnants = levelReward.remnants();
+                grantedDecorationId = levelReward.decorationId();
                 claimKey = "keeper_level:" + lv;
             } else {
                 throw new IllegalArgumentException("Unknown sanctuary reward.");
@@ -571,6 +579,9 @@ public class KeepService {
                 throw new IllegalArgumentException("That sanctuary reward has already been claimed.");
             }
             if (orderCosts != null) spendMaterials(state, orderCosts);
+            if (grantedDecorationId != null && !grantedDecorationId.isBlank()) {
+                state.getCraftedItemCounts().merge(grantedDecorationId, 1, Integer::sum);
+            }
             progression.setGold(progression.getGold() + gold);
             progression.setRemnants(progression.getRemnants() + remnants);
             progression.getKeepRewardClaimIds().add(claimKey);
@@ -586,6 +597,10 @@ public class KeepService {
             reward.put("goldBalance", progression.getGold());
             reward.put("remnantsBalance", progression.getRemnants());
             if (questXp > 0) reward.put("keeperXpAwarded", questXp);
+            if (grantedDecorationId != null && !grantedDecorationId.isBlank()) {
+                reward.put("decorationId", grantedDecorationId);
+                reward.put("decorationName", recipeName(grantedDecorationId));
+            }
             return Map.of("rewardClaimed", reward);
         });
     }
@@ -2223,9 +2238,12 @@ public class KeepService {
         return 1;
     }
 
-    /** Timeline copy for what a level opens: keep-rank ups map to real rank names. */
+    /** Timeline copy for what a level opens: keep-rank ups (the buildings) map to real
+     *  rank names; otherwise a granted decoration or the milestone cache. */
     private String keeperUnlockLabel(int level) {
         if (level >= 2 && level <= HALL_MAX_LEVEL) return "Keep rank up · " + rankName(level);
+        String decoration = KEEPER_LEVEL_DECORATIONS.getOrDefault(level, "");
+        if (!decoration.isBlank()) return "New decoration · " + recipeName(decoration);
         if (level % KEEPER_LEVELS_PER_CHAPTER == 0) return "Milestone cache · bonus Siegecoins & Remnants";
         return "";
     }
@@ -2276,11 +2294,18 @@ public class KeepService {
             boolean claimed = progression.getKeepRewardClaimIds().contains("keeper_level:" + lv);
             boolean canClaim = reached && !claimed;
             if (canClaim) unclaimed++;
-            int[] reward = keeperReward(lv);
+            KeeperReward reward = keeperReward(lv);
+            Map<String, Object> rewardOut = new LinkedHashMap<>();
+            rewardOut.put("gold", reward.gold());
+            rewardOut.put("remnants", reward.remnants());
+            if (!reward.decorationId().isBlank()) {
+                rewardOut.put("decorationId", reward.decorationId());
+                rewardOut.put("decorationName", recipeName(reward.decorationId()));
+            }
             Map<String, Object> node = new LinkedHashMap<>();
             node.put("level", lv);
             node.put("chapterNumber", (lv - 1) / KEEPER_LEVELS_PER_CHAPTER + 1);
-            node.put("reward", Map.of("gold", reward[0], "remnants", reward[1]));
+            node.put("reward", rewardOut);
             node.put("unlockLabel", keeperUnlockLabel(lv));
             node.put("requiredXp", keeperXpToReach(lv));
             node.put("reached", reached);
@@ -2294,12 +2319,18 @@ public class KeepService {
         return out;
     }
 
-    /** Free-track reward for a Keeper Level: {gold, remnants}. Every 5th level pays a milestone bonus. */
-    private int[] keeperReward(int level) {
+    /** Free-track reward for a Keeper Level: gold + remnants every level (milestone bonus every 5th),
+     *  plus an owned decoration on the levels in KEEPER_LEVEL_DECORATIONS. */
+    private KeeperReward keeperReward(int level) {
         int gold = 40 + level * 12;
         int remnants = 8 + level * 3;
         if (level % KEEPER_LEVELS_PER_CHAPTER == 0) { gold += 120; remnants += 40; }
-        return new int[]{gold, remnants};
+        return new KeeperReward(gold, remnants, KEEPER_LEVEL_DECORATIONS.getOrDefault(level, ""));
+    }
+
+    private String recipeName(String recipeId) {
+        CraftRecipe recipe = RECIPES.get(recipeId);
+        return recipe == null ? "" : recipe.name();
     }
 
     private void recordKeepStats(PlayerProgressionEntity progression, Consumer<PlayerProgressionEntity> update) {
@@ -2380,6 +2411,7 @@ public class KeepService {
                                      int gold, int remnants) { }
     private record BuildProject(String id, String name, int timberCost, Map<String, Integer> materialCosts,
                                 long durationSeconds) { }
+    private record KeeperReward(int gold, int remnants, String decorationId) { }
     private record Context(PlayerProgressionEntity progression, KeepState state, List<Resident> residents, Instant now) { }
 
     public static class StaleKeepStateException extends IllegalStateException {

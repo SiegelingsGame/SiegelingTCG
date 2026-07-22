@@ -675,6 +675,24 @@ class KeepServiceTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void keeperLevelRewardsGrantDecorations() {
+        service.getSnapshot(user);        // seed the day's daily XP
+        store.state.setKeeperXp(500);     // Keeper Level 4
+        Map<String, Object> keeper = (Map<String, Object>) service.getSnapshot(user).get("keeper");
+        List<Map<String, Object>> levels = (List<Map<String, Object>>) keeper.get("levels");
+        Map<String, Object> reward3 = (Map<String, Object>) levels.get(2).get("reward"); // level 3
+        assertEquals("carved_waypost", reward3.get("decorationId"));
+        assertEquals("Carved Covenant Waypost", reward3.get("decorationName"));
+
+        Map<String, Object> claimed = service.claimReward(user, "keeper_level:3", "deco-1", -1);
+        Map<String, Object> reward = (Map<String, Object>) claimed.get("rewardClaimed");
+        assertEquals("Carved Covenant Waypost", reward.get("decorationName"));
+        assertTrue(store.state.getCraftedItemCounts().getOrDefault("carved_waypost", 0) >= 1,
+                "Claiming a decoration level grants the decoration as an owned, placeable item.");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void keeperLevelGatesKeepRankUpgradesButNotTheRestorationChain() {
         Map<String, Object> snapshot = service.getSnapshot(user); // Keeper Level 2
         List<Map<String, Object>> options = (List<Map<String, Object>>) snapshot.get("buildOptions");
