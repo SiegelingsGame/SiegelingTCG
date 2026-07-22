@@ -603,6 +603,97 @@ class KeepServiceTest {
                 "The order can only be filled once per week.");
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void keeperBlockExposesFreeTrackChaptersAndLevels() {
+        Map<String, Object> keeper = (Map<String, Object>) service.getSnapshot(user).get("keeper");
+        assertNotNull(keeper);
+        assertEquals(KeepService.KEEPER_MAX_LEVEL, ((Number) keeper.get("maxLevel")).intValue());
+        List<Map<String, Object>> chapters = (List<Map<String, Object>>) keeper.get("chapters");
+        assertEquals(5, chapters.size());
+        assertEquals("The Wounded Ground", chapters.get(0).get("title"));
+        List<Map<String, Object>> levels = (List<Map<String, Object>>) keeper.get("levels");
+        assertEquals(KeepService.KEEPER_MAX_LEVEL, levels.size());
+        long previous = -1;
+        for (Map<String, Object> level : levels) {
+            long required = ((Number) level.get("requiredXp")).longValue();
+            assertTrue(required > previous, "Keeper level XP thresholds must strictly increase.");
+            previous = required;
+        }
+        assertEquals(16200L, previous, "reach(25) = 25*24*27 = 16200.");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void dailyVisitAwardsKeeperXpOncePerUtcDay() {
+        Map<String, Object> first = service.getSnapshot(user);
+        assertEquals(60, ((Number) first.get("keeperDailyXpAwarded")).intValue());
+        Map<String, Object> keeper = (Map<String, Object>) first.get("keeper");
+        // 52 one-time backfill (1 build level + 1 starting lore) + 60 daily visit.
+        assertEquals(112L, ((Number) keeper.get("totalXp")).longValue());
+        assertEquals(2, ((Number) keeper.get("level")).intValue());
+
+        Map<String, Object> sameDay = service.getSnapshot(user);
+        assertFalse(sameDay.containsKey("keeperDailyXpAwarded"), "Daily XP is granted only once per UTC day.");
+
+        clock.advance(Duration.ofDays(1));
+        assertEquals(60, ((Number) service.getSnapshot(user).get("keeperDailyXpAwarded")).intValue());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void collectingResourcesAwardsCappedResourceXpThatResetsDaily() {
+        Map<String, Object> collected = service.collect(user, "collect-1", -1);
+        assertEquals(10, ((Number) collected.get("keeperXpAwarded")).intValue());
+        Map<String, Object> keeper = (Map<String, Object>) collected.get("keeper");
+        assertEquals(10, ((Number) keeper.get("resourceXpToday")).intValue());
+
+        clock.advance(Duration.ofDays(1));
+        Map<String, Object> nextDay = (Map<String, Object>) service.getSnapshot(user).get("keeper");
+        assertEquals(0, ((Number) nextDay.get("resourceXpToday")).intValue(), "The resource-XP cap resets each day.");
+    }
+
+    @Test
+    void claimingAKeeperLevelRewardPaysOnceAndGuardsUnreachedLevels() {
+        service.getSnapshot(user); // reaches Keeper Level 2
+        long goldBefore = progression.getGold();
+
+        Map<String, Object> claimed = service.claimReward(user, "keeper_level:1", "claim-1", -1);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> reward = (Map<String, Object>) claimed.get("rewardClaimed");
+        assertEquals(52, ((Number) reward.get("gold")).intValue());    // 40 + 12*1
+        assertEquals(11, ((Number) reward.get("remnants")).intValue()); // 8 + 3*1
+        assertEquals(goldBefore + 52, progression.getGold());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.claimReward(user, "keeper_level:1", "claim-2", -1),
+                "A Keeper Level reward can only be claimed once.");
+        assertThrows(IllegalArgumentException.class,
+                () -> service.claimReward(user, "keeper_level:6", "claim-3", -1),
+                "An unreached Keeper Level cannot be claimed.");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void keeperLevelGatesKeepRankUpgradesButNotTheRestorationChain() {
+        Map<String, Object> snapshot = service.getSnapshot(user); // Keeper Level 2
+        List<Map<String, Object>> options = (List<Map<String, Object>>) snapshot.get("buildOptions");
+        // The prerequisite-sequenced chain stays open (level 1).
+        Map<String, Object> archive = options.stream()
+                .filter(item -> "restore_archive".equals(item.get("id"))).findFirst().orElseThrow();
+        assertEquals(1, ((Number) archive.get("requiredLevel")).intValue());
+        assertEquals(Boolean.TRUE, archive.get("levelMet"));
+
+        // The next keep rank is what leveling unlocks: hall rank N asks for Keeper Level N.
+        store.state.setArchiveLevel(1);
+        store.state.setTimber(500);
+        List<Map<String, Object>> gated = (List<Map<String, Object>>) service.getSnapshot(user).get("buildOptions");
+        Map<String, Object> hall2 = gated.stream()
+                .filter(item -> "hall_level_2".equals(item.get("id"))).findFirst().orElseThrow();
+        assertEquals(2, ((Number) hall2.get("requiredLevel")).intValue());
+        assertEquals(Boolean.TRUE, hall2.get("levelMet")); // Keeper Level 2 reached
+    }
+
     @SuppressWarnings("unchecked")
     private static Object valueAt(Map<String, Object> source, String mapKey, String valueKey) {
         return ((Map<String, Object>) source.get(mapKey)).get(valueKey);

@@ -609,6 +609,63 @@ button.resource-pill:focus-visible {
 .scene-caption h1 { margin: 2px 0 4px; font: 700 clamp(20px, 3vw, 34px)/1 Georgia, serif; }
 .scene-caption p { margin: 0; color: rgba(255, 247, 220, .75); font-size: clamp(10px, 1.2vw, 13px); }
 
+/* The caption doubles as the entry point to the Keeper's Journey timeline. */
+.scene-caption[role="button"] { cursor: pointer; transition: transform .12s ease, box-shadow .12s ease, background .2s ease; }
+.scene-caption[role="button"]:hover { transform: translateX(2px); background: linear-gradient(90deg, rgba(20, 31, 43, .92), rgba(20, 31, 43, .42)); }
+.scene-caption[role="button"]:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.caption-xp { margin-top: 8px; height: 6px; border-radius: 999px; background: rgba(0, 0, 0, .34); overflow: hidden; }
+.caption-xp i { display: block; height: 100%; }
+.caption-xp b { display: block; height: 100%; width: 0; border-radius: 999px; background: linear-gradient(90deg, var(--gold), #ffe9a8); transition: width .5s ease; }
+.caption-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
+.caption-foot small { color: rgba(255, 247, 220, .72); font-size: 10px; letter-spacing: .02em; }
+.caption-journey-cta { display: inline-flex; align-items: center; gap: 5px; color: var(--gold); font: 900 9px/1 sans-serif; letter-spacing: .1em; text-transform: uppercase; }
+.caption-badge { display: inline-grid; place-items: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: #e0483a; color: #fff; font-size: 10px; font-weight: 800; }
+
+/* Keeper's Journey overlay — the battlepass chapter/level timeline. */
+.journey-overlay { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 16px; }
+.journey-overlay.hidden { display: none; }
+.journey-scrim { position: absolute; inset: 0; background: rgba(7, 18, 25, .8); backdrop-filter: blur(7px); }
+.journey-card { position: relative; width: min(940px, 100%); max-height: min(760px, 90dvh); display: flex; flex-direction: column; padding: 22px 22px 18px; border: 1px solid rgba(244, 204, 98, .42); border-radius: 20px; background: linear-gradient(160deg, #1d3745, #10202b 74%); box-shadow: 0 30px 90px rgba(0, 0, 0, .58); }
+.journey-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.journey-header h2 { margin: 3px 0 3px; font: 700 clamp(22px, 3vw, 30px) Georgia, serif; color: #fff3c0; }
+.journey-header small { color: rgba(255, 247, 220, .66); font-size: 12px; line-height: 1.4; }
+.journey-levelbar { margin: 14px 0 5px; height: 9px; border-radius: 999px; background: rgba(0, 0, 0, .38); overflow: hidden; }
+.journey-levelbar i { display: block; height: 100%; }
+.journey-levelbar b { display: block; height: 100%; width: 0; border-radius: 999px; background: linear-gradient(90deg, var(--gold), #ffe9a8); transition: width .5s ease; }
+.journey-xp-label { display: block; margin-bottom: 12px; color: rgba(255, 247, 220, .8); font-size: 12px; }
+/* min-width:0 keeps the wide, horizontally-scrolling track from forcing the
+   card past the viewport (otherwise the grid column balloons to content width). */
+.journey-track { display: flex; gap: 16px; min-width: 0; max-width: 100%; overflow-x: auto; overflow-y: hidden; padding: 4px 2px 12px; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
+.journey-card { min-width: 0; }
+.journey-chapter { scroll-snap-align: start; flex: 0 0 auto; display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 16px; background: rgba(255, 255, 255, .03); }
+.journey-chapter.is-current { border-color: rgba(244, 204, 98, .55); box-shadow: 0 0 0 1px rgba(244, 204, 98, .25) inset; }
+.journey-chapter.is-complete { opacity: .92; }
+.chapter-head strong { display: block; font: 700 17px Georgia, serif; color: var(--cream); }
+.chapter-head small { display: block; max-width: 320px; color: rgba(255, 247, 220, .6); font-size: 11px; line-height: 1.4; }
+.journey-nodes { display: flex; gap: 10px; }
+.journey-node { position: relative; flex: 0 0 auto; width: 132px; display: flex; flex-direction: column; gap: 7px; padding: 12px 11px; border: 1px solid var(--line); border-radius: 14px; background: rgba(9, 20, 27, .6); text-align: center; }
+.journey-node.is-locked { opacity: .55; }
+.journey-node.is-earned { border-color: rgba(150, 255, 180, .3); }
+.journey-node.is-ready { border-color: rgba(244, 204, 98, .7); background: rgba(244, 204, 98, .08); box-shadow: 0 6px 20px rgba(244, 204, 98, .12); }
+.journey-node.is-claimed { border-color: rgba(150, 255, 180, .28); background: rgba(60, 90, 70, .18); }
+.journey-node.is-current { outline: 2px solid rgba(244, 204, 98, .5); outline-offset: 1px; }
+.node-badge { display: inline-grid; place-items: center; width: 46px; height: 46px; margin: 0 auto; border-radius: 50%; border: 1px solid rgba(244, 204, 98, .5); background: rgba(244, 204, 98, .07); }
+.node-badge small { font-size: 8px; letter-spacing: .12em; color: var(--gold); }
+.node-badge strong { font: 800 18px Georgia, serif; color: #fff3c0; line-height: 1; }
+.node-reward { display: flex; justify-content: center; gap: 8px; font-size: 12px; font-weight: 700; }
+.node-reward .reward-gold { color: var(--gold); }
+.node-reward .reward-rem { color: #d0a7ff; }
+.node-unlock { margin: 0; color: rgba(255, 247, 220, .72); font-size: 10px; line-height: 1.35; }
+.node-claim { margin-top: auto; padding: 7px 10px; border: none; border-radius: 9px; background: var(--gold); color: #14232b; font: 800 12px Georgia, serif; cursor: pointer; }
+.node-claim:hover { filter: brightness(1.05); }
+.node-status { margin-top: auto; font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: rgba(255, 247, 220, .5); }
+.journey-node.is-earned .node-status { color: rgba(150, 255, 180, .8); }
+.journey-node.is-claimed .node-status { color: rgba(150, 255, 180, .7); }
+
+/* Project cards gated behind a Keeper Level read as locked. */
+.project-card.is-level-locked { opacity: .82; border-color: rgba(244, 204, 98, .28); }
+.project-card.is-level-locked .eyebrow { color: #f0b45a; }
+
 .construction-banner {
     position: absolute;
     z-index: 15;

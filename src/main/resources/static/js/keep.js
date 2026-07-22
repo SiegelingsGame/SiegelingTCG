@@ -135,6 +135,10 @@
         document.getElementById('tutorialSkip')?.addEventListener('click', finishTutorial);
         document.getElementById('tutorialNext')?.addEventListener('click', tutorialAdvance);
         document.getElementById('offlineDismiss')?.addEventListener('click', dismissOfflineReport);
+        // The scene caption doubles as the Keeper's Journey button; keyboard-activate it.
+        document.getElementById('sceneCaption')?.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openJourney(); }
+        });
         // iOS Safari can leave the document scrolled after a rotation even with
         // overflow hidden, hiding the fixed header; snap back whenever it happens.
         window.addEventListener('resize', resetViewportScroll);
@@ -148,6 +152,7 @@
             if (event.key.toLowerCase() === 'f' && !isTyping(event.target)) toggleFullscreen();
             if (event.key === 'Escape') {
                 if (!document.getElementById('keepTutorial')?.classList.contains('hidden')) finishTutorial();
+                else if (!document.getElementById('journeyOverlay')?.classList.contains('hidden')) closeJourney();
                 else if (!document.getElementById('dialogueOverlay')?.classList.contains('hidden')) closeDialogue();
                 else if (state.panel) closePanel();
                 else closeInterior();
@@ -259,6 +264,8 @@
             openPanel(panelTrigger.dataset.openPanel);
             return;
         }
+        if (event.target.closest('[data-open-journey]')) { openJourney(); return; }
+        if (event.target.closest('#journeyClose') || event.target.closest('[data-close-journey]')) { closeJourney(); return; }
         const building = event.target.closest('[data-building]');
         if (building) {
             if (building.dataset.building === 'facilities') openPanel('facilities');
@@ -553,6 +560,7 @@
         state.snapshot = next;
         if (next.offlineReport) state.pendingOfflineReport = clone(next.offlineReport);
         state.receivedAtMs = Date.now() + state.debugTimeOffsetMs;
+        announceKeeperProgress(next);
         renderAll();
         if (announceDiscoveries) {
             const ids = Array.isArray(next.newLoreUnlocks)
@@ -595,6 +603,7 @@
                 .map((item) => constructionTarget(item.id)).filter(Boolean).join(' ');
         }
         renderFavoriteShrine();
+        renderJourney();
         const rank = snapshot.keepRank || {};
         text('hallRankLabel', rank.name
             ? `${rank.name} · Rank ${number(rank.level) || 1}/${number(rank.maxLevel) || HALL_MAX_LEVEL}`
@@ -1236,9 +1245,13 @@
             for (const cost of option.materialCosts || []) {
                 if (number(materialById(cost.id)?.amount) < number(cost.amount)) shortages.push(cost.name);
             }
-            const blockedLabel = constructions.length >= slots ? 'Crews busy'
+            const levelLocked = option.levelMet === false;
+            const blockedLabel = levelLocked ? `Reach Keeper Level ${number(option.requiredLevel)}`
+                : constructions.length >= slots ? 'Crews busy'
                 : `Need ${escapeHtml(shortages.join(' & ') || 'prior project')}`;
-            return `<section class="project-card ${option.rankName ? 'is-rank-project' : ''}"><span class="eyebrow">${option.rankName ? `Keep rank · ${escapeHtml(option.rankName)}` : 'Visible restoration'}</span><h3>${escapeHtml(option.name)}</h3><p>${escapeHtml(option.description || '')}</p>
+            const eyebrow = levelLocked ? `Locked · Keeper Level ${number(option.requiredLevel)}`
+                : option.rankName ? `Keep rank · ${escapeHtml(option.rankName)}` : 'Visible restoration';
+            return `<section class="project-card ${option.rankName ? 'is-rank-project' : ''}${levelLocked ? ' is-level-locked' : ''}"><span class="eyebrow">${eyebrow}</span><h3>${escapeHtml(option.name)}</h3><p>${escapeHtml(option.description || '')}</p>
                 <div class="cost-row"><span>${escapeHtml(formatDuration(option.durationSeconds))}</span><strong>${escapeHtml(costs.join(' · '))}</strong></div>
                 <div class="button-row"><button class="panel-button" type="button" data-start-build="${escapeAttr(option.id)}" ${option.canStart ? '' : 'disabled'}>${option.canStart ? 'Begin project' : blockedLabel}</button></div></section>`;
         }).join('');
@@ -1450,6 +1463,106 @@
     function closeNoticeTray() {
         document.getElementById('noticeTray')?.classList.add('hidden');
         document.getElementById('noticeButton')?.setAttribute('aria-expanded', 'false');
+    }
+
+    // ── Keeper's Journey (leveling / battlepass timeline) ─────────────────────
+
+    function keeperData() { return state.snapshot?.keeper || null; }
+
+    function keeperProgressPercent(keeper) {
+        if (!keeper) return 0;
+        if (keeper.atMax) return 100;
+        const forLevel = number(keeper.xpForLevel);
+        return forLevel > 0 ? Math.max(0, Math.min(100, Math.round(number(keeper.xpIntoLevel) / forLevel * 100))) : 0;
+    }
+
+    function toggleBadge(id, count) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.textContent = count > 9 ? '9+' : String(count);
+        el.classList.toggle('hidden', count <= 0);
+    }
+
+    /** Updates the scene caption (chapter + XP bar) and the journey badge every render. */
+    function renderJourney() {
+        const keeper = keeperData();
+        if (!keeper) return;
+        const level = number(keeper.level) || 1;
+        const chapters = keeper.chapters || [];
+        const current = chapters.find((c) => c.current) || chapters[0] || {};
+        text('captionChapter', `Chapter ${roman(number(current.number) || 1)} · Keeper Level ${level}`);
+        text('captionTitle', current.title || 'The Wounded Ground');
+        text('captionSubtitle', current.subtitle || '');
+        const fill = document.getElementById('captionXpFill');
+        if (fill) fill.style.width = keeperProgressPercent(keeper) + '%';
+        text('captionXpLabel', keeper.atMax
+            ? `Keeper Level ${level} · Max · ${number(keeper.totalXp)} XP`
+            : `${number(keeper.xpIntoLevel)} / ${number(keeper.xpForLevel)} XP to Level ${level + 1}`);
+        toggleBadge('journeyBadge', number(keeper.unclaimedRewards));
+        if (!document.getElementById('journeyOverlay')?.classList.contains('hidden')) renderJourneyTrack();
+    }
+
+    function renderJourneyTrack() {
+        const keeper = keeperData();
+        const track = document.getElementById('journeyTrack');
+        if (!keeper || !track) return;
+        const level = number(keeper.level) || 1;
+        const unclaimed = number(keeper.unclaimedRewards);
+        text('journeyEyebrow', `${keeper.rankName || 'The Keep'} · The Keeper's Journey`);
+        text('journeyTitle', keeper.atMax ? `Keeper Level ${level} · Max` : `Keeper Level ${level}`);
+        const fill = document.getElementById('journeyXpFill');
+        if (fill) fill.style.width = keeperProgressPercent(keeper) + '%';
+        text('journeyXpLabel', keeper.atMax
+            ? `${number(keeper.totalXp)} XP earned · every reward on the free track is within reach`
+            : `${number(keeper.xpIntoLevel)} / ${number(keeper.xpForLevel)} XP to Level ${level + 1}`
+                + (unclaimed > 0 ? ` · ${unclaimed} reward${unclaimed === 1 ? '' : 's'} ready to claim` : ''));
+        const levels = keeper.levels || [];
+        track.innerHTML = (keeper.chapters || []).map((ch) => {
+            const nodes = levels.filter((l) => number(l.chapterNumber) === number(ch.number)).map(journeyNodeMarkup).join('');
+            const cls = `journey-chapter${ch.current ? ' is-current' : ''}${ch.complete ? ' is-complete' : ''}`;
+            return `<section class="${cls}">
+                <header class="chapter-head"><span class="eyebrow">Chapter ${roman(number(ch.number))}${ch.complete ? ' · Complete' : ch.current ? ' · In progress' : ''}</span>
+                    <strong>${escapeHtml(ch.title || '')}</strong><small>${escapeHtml(ch.subtitle || '')}</small></header>
+                <div class="journey-nodes">${nodes}</div></section>`;
+        }).join('');
+        track.querySelector('.journey-chapter.is-current')?.scrollIntoView({ inline: 'center', block: 'nearest' });
+    }
+
+    function journeyNodeMarkup(l) {
+        const lv = number(l.level);
+        const stateClass = l.claimed ? 'is-claimed' : l.canClaim ? 'is-ready' : l.reached ? 'is-earned' : 'is-locked';
+        const gold = number(l.reward?.gold);
+        const remnants = number(l.reward?.remnants);
+        const unlock = l.unlockLabel ? `<p class="node-unlock">${escapeHtml(l.unlockLabel)}</p>` : '';
+        const action = l.canClaim
+            ? `<button class="node-claim" type="button" data-claim-keep-reward="keeper_level:${lv}">Claim</button>`
+            : `<span class="node-status">${l.claimed ? 'Claimed' : l.reached ? 'Earned' : `Reach Lv ${lv}`}</span>`;
+        return `<article class="journey-node ${stateClass}${l.current ? ' is-current' : ''}">
+            <div class="node-badge"><small>LV</small><strong>${lv}</strong></div>
+            <div class="node-reward"><span class="reward-gold" title="Siegecoins">◈ ${gold}</span><span class="reward-rem" title="Remnants">✦ ${remnants}</span></div>
+            ${unlock}${action}</article>`;
+    }
+
+    function openJourney() {
+        renderJourneyTrack();
+        document.getElementById('journeyOverlay')?.classList.remove('hidden');
+    }
+
+    function closeJourney() {
+        document.getElementById('journeyOverlay')?.classList.add('hidden');
+    }
+
+    /** Surfaces level-ups and daily-visit XP as non-blocking notices. */
+    function announceKeeperProgress(next) {
+        const keeper = next?.keeper;
+        if (!keeper) return;
+        const level = number(keeper.level) || 1;
+        if (typeof state.lastKeeperLevel === 'number' && level > state.lastKeeperLevel) {
+            showNotice(`Keeper Level ${level} reached · ${keeper.rankName || 'new rewards'} · open the Journey to claim`, 'Level up');
+        }
+        state.lastKeeperLevel = level;
+        const daily = number(next.keeperDailyXpAwarded);
+        if (daily > 0) showNotice(`+${daily} XP for today's visit`, 'Keeper XP');
     }
 
     function showGate(message) {

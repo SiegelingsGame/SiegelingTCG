@@ -9,7 +9,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#173f54">
-    <link rel="stylesheet" href="/css/keep.css?v=15">
+    <link rel="stylesheet" href="/css/keep.css?v=16">
 </head>
 <body>
 <svg class="keep-svg-defs" width="0" height="0" aria-hidden="true" focusable="false">
@@ -320,10 +320,16 @@
 
             </div>
 
-            <div class="scene-caption">
-                <span class="eyebrow">Chapter I</span>
-                <h1>The Wounded Ground</h1>
-                <p>Build a sanctuary that takes nothing without giving something back.</p>
+            <div class="scene-caption" id="sceneCaption" data-open-journey role="button" tabindex="0"
+                 aria-label="Open the Keeper's Journey timeline">
+                <span class="eyebrow" id="captionChapter">Chapter I · Keeper Level 1</span>
+                <h1 id="captionTitle">The Wounded Ground</h1>
+                <p id="captionSubtitle">Build a sanctuary that takes nothing without giving something back.</p>
+                <div class="caption-xp" aria-hidden="true"><i><b id="captionXpFill"></b></i></div>
+                <div class="caption-foot">
+                    <small id="captionXpLabel">0 / 100 XP</small>
+                    <span class="caption-journey-cta">The Keeper's Journey <em class="caption-badge hidden" id="journeyBadge">0</em></span>
+                </div>
             </div>
 
             <div class="scene-zoom" role="group" aria-label="Scene view controls">
@@ -463,6 +469,23 @@
         <button type="button" data-open-panel="conversations"><span aria-hidden="true">◌</span><strong>Voices</strong><i class="dock-dot hidden" id="conversationDot"></i></button>
     </nav>
 
+    <div class="journey-overlay hidden" id="journeyOverlay" role="dialog" aria-modal="true" aria-labelledby="journeyTitle">
+        <div class="journey-scrim" data-close-journey></div>
+        <div class="journey-card">
+            <header class="journey-header">
+                <div>
+                    <span class="eyebrow" id="journeyEyebrow">The Keeper's Journey</span>
+                    <h2 id="journeyTitle">Keeper Level 1</h2>
+                    <small id="journeySubtitle">Earn XP from daily visits, quests, collecting, and finishing projects.</small>
+                </div>
+                <button class="icon-button" id="journeyClose" type="button" aria-label="Close the Keeper's Journey">×</button>
+            </header>
+            <div class="journey-levelbar"><i><b id="journeyXpFill"></b></i></div>
+            <small class="journey-xp-label" id="journeyXpLabel"></small>
+            <div class="journey-track" id="journeyTrack" aria-label="Chapter and level timeline"></div>
+        </div>
+    </div>
+
     <div class="dialogue-overlay hidden" id="dialogueOverlay" role="dialog" aria-modal="true" aria-labelledby="dialogueName">
         <div class="dialogue-card">
             <button class="dialogue-close" id="dialogueClose" type="button" aria-label="Close conversation">×</button>
@@ -541,7 +564,7 @@
 </div>
 
 <script src="/js/config.js?v=1"></script>
-<script src="/js/keep.js?v=17"></script>
+<script src="/js/keep.js?v=18"></script>
 <script src="/js/sw-register.js?v=1"></script>
 </body>
 </html>
