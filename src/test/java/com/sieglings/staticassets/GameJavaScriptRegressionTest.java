@@ -128,6 +128,8 @@ class GameJavaScriptRegressionTest {
         String homeScript = readHomeScript();
         String choosePack = extractFunction(homeScript, "async function choosePack(packId, count = 1)");
         String clearPackResult = extractFunction(homeScript, "function clearPackResult()");
+        String renderStarterGate = extractFunction(homeScript, "function renderStarterGate()");
+        String recoverProgression = extractFunction(homeScript, "async function recoverProgressionSnapshot()");
         String recoverStarter = extractFunction(homeScript, "async function recoverStarterPackProgression()");
         String recoverShop = extractFunction(homeScript, "async function recoverShopPackProgression(requestId, packId)");
 
@@ -139,9 +141,17 @@ class GameJavaScriptRegressionTest {
         );
         assertTrue(
                 choosePack.contains("recoverStarterPackProgression()")
-                        && recoverStarter.contains("/api/player/progression")
+                        && recoverProgression.contains("/api/player/progression")
+                        && recoverStarter.contains("recoverProgressionSnapshot()")
                         && recoverStarter.contains("starterChosen"),
                 "If the starter POST errors/times out after the grant, the client must recover from progression."
+        );
+        assertTrue(
+                choosePack.contains("if (!state.progression)")
+                        && choosePack.contains("await retryMissingProgression()")
+                        && renderStarterGate.contains("progressionMissing")
+                        && renderStarterGate.contains("data-retry-progression"),
+                "A partial authenticated profile must recover progression instead of routing a new account to the paid shop endpoint."
         );
         assertTrue(
                 choosePack.contains("recoverShopPackProgression(requestId, packId)")
