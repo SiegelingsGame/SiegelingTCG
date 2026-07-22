@@ -200,6 +200,11 @@ button.resource-pill:focus-visible {
 .keep-scene-viewport,
 .keep-scene { position: absolute; inset: 0; overflow: hidden; }
 .keep-scene-viewport { background: #9ed2ce; }
+.keep-scene-viewport.is-suppressed {
+    visibility: hidden;
+    content-visibility: hidden;
+    pointer-events: none;
+}
 
 .keep-scene {
     --heal: 0;
@@ -387,7 +392,7 @@ button.resource-pill:focus-visible {
 .quarter-hotspot { right: 22%; top: 48%; width: clamp(150px, 21vw, 260px); height: clamp(128px, 23vh, 215px); }
 .enclave-hotspot { left: 23%; top: 47%; width: clamp(142px, 19vw, 245px); height: clamp(126px, 22vh, 210px); }
 .enclave-illustration { position: absolute; inset: 2px 3px 34px; display: block; transition: filter .35s, opacity .35s; }
-.enclave-hut { position: absolute; bottom: 16%; width: 35%; height: 42%; border: 2px solid #5b4631; border-radius: 5px 5px 2px 2px; background: repeating-linear-gradient(92deg, rgba(245, 222, 174, .08) 0 1px, transparent 1px 7px), repeating-linear-gradient(90deg, #8d6b45 0 9px, #755635 9px 11px); box-shadow: inset 3px 0 rgba(237, 217, 176, .16), inset -5px -4px rgba(54, 38, 25, .2); filter: url("#paper-building-cutout"); }
+.enclave-hut { position: absolute; bottom: 16%; width: 35%; height: 42%; border: 2px solid #5b4631; border-radius: 5px 5px 2px 2px; background: repeating-linear-gradient(92deg, rgba(245, 222, 174, .08) 0 1px, transparent 1px 7px), repeating-linear-gradient(90deg, #8d6b45 0 9px, #755635 9px 11px); box-shadow: inset 3px 0 rgba(237, 217, 176, .16), inset -5px -4px rgba(54, 38, 25, .2); filter: drop-shadow(0 1px 0 #ead8ad) drop-shadow(2px 3px 2px rgba(23, 19, 15, .48)); }
 .enclave-hut::before { content: ""; position: absolute; left: -9%; right: -9%; top: -35%; height: 42%; background: repeating-linear-gradient(87deg, rgba(240, 223, 183, .08) 0 1px, transparent 1px 8px), #3e5a49; clip-path: polygon(50% 0, 100% 100%, 0 100%); }
 .enclave-hut::after { content: ""; position: absolute; left: 39%; bottom: 0; width: 23%; height: 55%; border-radius: 8px 8px 0 0; background: #3d2d24; }
 .enclave-hut.hut-one { left: 7%; }
@@ -412,7 +417,7 @@ button.resource-pill:focus-visible {
 .exterior-enclave-residents b:nth-child(5) { left: 84%; animation-delay: -2.4s; }
 .quarter-illustration { position: absolute; inset: 2px 4px 34px; display: block; filter: drop-shadow(0 7px 5px rgba(22, 29, 25, .28)); }
 .quarter-path { position: absolute; left: 20%; right: 8%; bottom: 2%; height: 18%; background: rgba(199, 173, 121, .58); clip-path: polygon(46% 0, 56% 0, 100% 100%, 0 100%); }
-.quarter-building { position: absolute; display: block; width: 26%; height: 30%; bottom: 13%; border: 1px solid rgba(32, 43, 39, .62); border-radius: 3px 3px 1px 1px; opacity: .34; filter: url("#paper-building-cutout") grayscale(.7); transition: opacity .5s, filter .5s, transform .5s; box-shadow: inset 3px 0 rgba(245, 226, 188, .16), inset -4px -3px rgba(37, 28, 22, .18); }
+.quarter-building { position: absolute; display: block; width: 26%; height: 30%; bottom: 13%; border: 1px solid rgba(32, 43, 39, .62); border-radius: 3px 3px 1px 1px; opacity: .34; filter: grayscale(.7) drop-shadow(0 1px 0 #ead8ad) drop-shadow(2px 3px 2px rgba(23, 19, 15, .4)); transition: opacity .5s, filter .5s, transform .5s; box-shadow: inset 3px 0 rgba(245, 226, 188, .16), inset -4px -3px rgba(37, 28, 22, .18); }
 .quarter-building::before { content: ""; position: absolute; left: -8%; right: -8%; top: -30%; height: 40%; background: #334a4d; clip-path: polygon(50% 0, 100% 100%, 0 100%); }
 .quarter-building b { position: absolute; left: 38%; bottom: 0; width: 24%; height: 52%; border-radius: 5px 5px 0 0; background: rgba(255, 232, 168, .6); }
 /* Three terraced rows keep all eight sites readable in the small cluster. */
@@ -445,7 +450,7 @@ button.resource-pill:focus-visible {
 .keep-scene[data-generator-level]:not([data-generator-level="0"]) .quarter-generator,
 .keep-scene[data-quarry-level]:not([data-quarry-level="0"]) .quarter-quarry,
 .keep-scene[data-kitchen-level]:not([data-kitchen-level="0"]) .quarter-kitchen,
-.keep-scene[data-builders-yard-level]:not([data-builders-yard-level="0"]) .quarter-yard { opacity: 1; filter: url("#paper-building-cutout"); transform: translateY(-2px); }
+.keep-scene[data-builders-yard-level]:not([data-builders-yard-level="0"]) .quarter-yard { opacity: 1; filter: drop-shadow(0 1px 0 #ead8ad) drop-shadow(2px 3px 2px rgba(23, 19, 15, .48)); transform: translateY(-2px); }
 .keep-scene[data-storehouse-level="2"] .quarter-storehouse,
 .keep-scene[data-garden-level="2"] .quarter-garden,
 .keep-scene[data-forge-level="2"] .quarter-forge,
@@ -1348,7 +1353,7 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
 .keep-interior[data-room="kitchen"][data-fill="0"] .kitchen-pot::after { opacity: .2; }
 .keep-interior[data-room="kitchen"][data-fill="4"] .kitchen-hearth { box-shadow: inset 0 0 0 8px #5e4430, 0 0 44px rgba(255, 150, 70, .4); }
 
-.crafted-decoration { display: none; }
+.crafted-decoration { display: none; z-index: 2; }
 .crafted-decoration.is-placed { display: block; }
 .hall-crafted-tapestry { position: absolute; left: 8%; top: 13%; width: 9%; height: 35%; background: linear-gradient(90deg, #7fb472 0 25%, #d77b4e 25% 50%, #88d7e9 50% 75%, #b39ee3 75%); clip-path: polygon(0 0,100% 0,100% 86%,50% 100%,0 86%); box-shadow: inset 0 5px #f4cc62; }
 
@@ -1362,15 +1367,18 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
 .room-generator { --room-accent: #ffe95d; --room-accent-2: #9deaff; }
 .room-quarry { --room-accent: #c9c3ad; --room-accent-2: #ffe5a0; }
 .room-kitchen { --room-accent: #f0b46c; --room-accent-2: #a9d478; }
-.room-tool-set { position: absolute; left: 12%; top: 14%; z-index: 3; width: 92px; height: 82px; border: 4px solid rgba(45, 37, 28, .58); border-bottom-width: 7px; border-radius: 5px; background: rgba(12, 18, 20, .12); }
-.room-tool-set i { position: absolute; bottom: 8px; width: 7px; height: 48px; display: none; border-radius: 5px 5px 2px 2px; background: linear-gradient(90deg, #66513d, var(--room-accent), #66513d); transform-origin: bottom center; filter: drop-shadow(0 3px 2px rgba(0, 0, 0, .38)); }
+.room-tool-set { position: absolute; left: 4%; top: 5%; z-index: 1; display: none; width: 78px; height: 52px; border-bottom: 6px solid #5d4632; border-radius: 0 0 4px 4px; background: linear-gradient(180deg, transparent 0 82%, rgba(237, 221, 184, .32) 83% 86%, transparent 87%); filter: drop-shadow(2px 3px 1px rgba(19, 15, 11, .3)); }
+.room-tool-set.has-installed-tools { display: block; }
+.room-garden .room-tool-set,
+.room-kitchen .room-tool-set { left: auto; right: 4%; }
+.room-tool-set i { position: absolute; bottom: 6px; width: 6px; height: 36px; display: none; border-radius: 5px 5px 2px 2px; background: linear-gradient(90deg, #66513d, var(--room-accent), #66513d); transform-origin: bottom center; filter: drop-shadow(0 2px 1px rgba(0, 0, 0, .34)); }
 .room-tool-set i::before { content: ""; position: absolute; left: 50%; top: -7px; width: 18px; height: 11px; translate: -50% 0; border-radius: 45% 45% 3px 3px; background: var(--room-accent-2); box-shadow: inset 0 -3px rgba(30, 35, 35, .3); }
 .room-tool-set i.is-crafted { display: block; animation: tool-arrive .35s ease both; }
-.room-tool-set i:nth-child(1) { left: 9px; transform: rotate(-12deg); }
-.room-tool-set i:nth-child(2) { left: 26px; height: 42px; transform: rotate(7deg); }
-.room-tool-set i:nth-child(3) { left: 43px; height: 54px; transform: rotate(-4deg); }
-.room-tool-set i:nth-child(4) { left: 60px; height: 45px; transform: rotate(10deg); }
-.room-tool-set i:nth-child(5) { left: 76px; height: 57px; transform: rotate(-8deg); }
+.room-tool-set i:nth-child(1) { left: 8px; transform: rotate(-12deg); }
+.room-tool-set i:nth-child(2) { left: 22px; height: 32px; transform: rotate(7deg); }
+.room-tool-set i:nth-child(3) { left: 36px; height: 41px; transform: rotate(-4deg); }
+.room-tool-set i:nth-child(4) { left: 50px; height: 34px; transform: rotate(10deg); }
+.room-tool-set i:nth-child(5) { left: 63px; height: 43px; transform: rotate(-8deg); }
 .room-decoration-set i { position: absolute; z-index: 2; display: none; color: var(--room-accent); filter: drop-shadow(0 4px 4px rgba(0, 0, 0, .34)); animation: decor-arrive .4s ease both; }
 .room-decoration-set i.is-placed { display: block; }
 .room-decoration-set [data-decor-slot="1"] { left: 30%; bottom: 14%; width: 12%; height: 28%; border: 5px solid #765435; border-top-color: var(--room-accent); background: repeating-linear-gradient(45deg, transparent 0 9px, color-mix(in srgb, var(--room-accent) 65%, transparent) 10px 12px); }
@@ -1891,12 +1899,12 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
 .theme-swatch.active i { box-shadow: 0 0 0 2px var(--gold), 0 0 12px var(--swatch); }
 .project-card.is-rank-project { border-color: rgba(244, 204, 98, .45); background: rgba(244, 204, 98, .06); }
 
-/* Keep architecture shares the residents' layered paper language: dark ink at
-   the cut edge, a warm cardstock reveal, subtle print fibers, and a small lift
-   from the scenery. Room colors stay distinct beneath the common material. */
+/* Keep architecture shares the residents' layered paper language. Lightweight
+   hard-edge shadows preserve the cardstock lift without large SVG morphology,
+   turbulence, or blur graphs; room grain and prop edges stay in CSS. */
 .building-illustration svg.paper-building-shell {
     overflow: visible;
-    filter: url("#paper-building-cutout");
+    filter: drop-shadow(0 1px 0 #ead8ad) drop-shadow(0 0 1px #241e18) drop-shadow(3px 5px 2px rgba(23, 19, 15, .48));
 }
 .paper-building-shell .building-contact-shadow { display: none; }
 
@@ -1928,25 +1936,6 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     background-size: 19px 17px, 23px 21px, auto;
     mix-blend-mode: soft-light;
     opacity: .78;
-}
-
-@supports (filter: url("#paper-prop-cutout")) {
-    :is(
-        .hall-window-int, .hall-banner-int, .hall-hearth, .hall-charter, .hall-table, .hall-candle,
-        .lodge-window, .lodge-shelf, .lodge-herb, .lodge-bench, .lodge-logs,
-        .arch-window-int, .arch-shelf, .arch-desk, .arch-lamp, .arch-plinth,
-        .arch-broken-shelf, .arch-fallen-beam, .arch-rubble,
-        .garden-window, .garden-bed, .garden-water, .garden-worktable, .living-trellis,
-        .forge-hearth, .forge-anvil, .forge-rack, .forge-bellows, .ember-lantern,
-        .fridge-vault, .fridge-shelf, .fridge-crystal, .frostglass-mobile,
-        .generator-coil, .generator-console, .generator-conduit, .harmonic-orb,
-        .quarry-face, .quarry-blocks, .quarry-cart, .quarry-lantern, .stone-sentinel,
-        .kitchen-hearth, .kitchen-shelf, .kitchen-table, .kitchen-pot, .hearth-garland,
-        .enclave-window, .enclave-banner, .enclave-nest,
-        .room-tool-set, .room-decoration-set > i
-    ) {
-        filter: url("#paper-prop-cutout");
-    }
 }
 
 /* Placed Siegelings read as printed standees: a dark illustration contour,
@@ -2137,7 +2126,9 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     .notice-construction-card { padding: 8px; }
     .notice-construction-row { grid-template-columns: 28px minmax(0, 1fr) auto; gap: 7px; }
     .notice-construction-row > i { width: 28px; height: 28px; }
-    .room-tool-set { left: 7%; top: 11%; transform: scale(.78); transform-origin: top left; }
+    .room-tool-set { left: 3%; top: 4%; transform: scale(.84); transform-origin: top left; }
+    .room-garden .room-tool-set,
+    .room-kitchen .room-tool-set { left: auto; right: 3%; transform-origin: top right; }
     .room-decoration-set [data-decor-slot="4"] { right: 20%; }
     .enclave-interior-residents b { width: 50px; height: 66px; }
 }
