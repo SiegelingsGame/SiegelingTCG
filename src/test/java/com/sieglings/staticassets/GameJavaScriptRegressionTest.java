@@ -425,6 +425,21 @@ class GameJavaScriptRegressionTest {
                         && updateMulligan.contains("redrawBtn.textContent"),
                 "Mulligan selection must update in place so existing card image nodes are never replaced or flashed."
         );
+        String selectTrainer = extractFunction(gameScript, "function selectTrainerOption(");
+        String updateTrainer = extractFunction(gameScript, "function updateTrainerSelectionUI(");
+        String renderLoadout = extractFunction(gameScript, "function renderLoadoutOptions(");
+        assertTrue(
+                selectTrainer.contains("updateTrainerSelectionUI()")
+                        && !selectTrainer.contains("renderLoadoutOptions()")
+                        && updateTrainer.contains(".knight-card[data-trainer-id]")
+                        && updateTrainer.contains("card.classList.toggle('selected', selected)")
+                        && updateTrainer.contains("card.setAttribute('aria-pressed'")
+                        && updateTrainer.contains("knight-selected-ribbon")
+                        && renderLoadout.contains("preloadArtUrl(knightUploadedCardArtUrl(trainer))")
+                        && renderLoadout.contains("data-trainer-id=\"${escapeHtmlAttribute(trainer.id)}\"")
+                        && renderLoadout.contains("loading=\"eager\" decoding=\"async\""),
+                "SiegeKnight selection must preserve and eagerly preload every commander image while updating selection chrome in place."
+        );
     }
 
     @Test

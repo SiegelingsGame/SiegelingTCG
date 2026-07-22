@@ -9116,8 +9116,40 @@ function selectTrainerOption(trainerId) {
         detachSavedDeckSelection();
     }
     selectedTrainerId = trainerId;
-    renderLoadoutOptions();
+    // The trainer pool has not changed, so preserve its live image nodes.
+    // Rebuilding the whole grid here makes remote holographic/full-card art
+    // disappear until a second fetch and decode completes.
+    updateTrainerSelectionUI();
     updateLoadoutSummary();
+}
+
+function updateTrainerSelectionUI() {
+    const trainerEl = document.getElementById('trainerOptions');
+    if (!trainerEl) {
+        return;
+    }
+    trainerEl.querySelectorAll('.knight-card[data-trainer-id]').forEach((card) => {
+        const selected = card.dataset.trainerId === selectedTrainerId;
+        const recommended = card.classList.contains('recommended');
+        card.classList.toggle('selected', selected);
+        card.setAttribute('aria-pressed', selected ? 'true' : 'false');
+
+        let ribbon = card.querySelector('.knight-selected-ribbon, .knight-recommend-ribbon');
+        const ribbonClass = selected
+            ? 'knight-selected-ribbon'
+            : (recommended ? 'knight-recommend-ribbon' : '');
+        if (!ribbonClass) {
+            ribbon?.remove();
+            return;
+        }
+        if (!ribbon) {
+            ribbon = document.createElement('span');
+            card.prepend(ribbon);
+        }
+        ribbon.className = ribbonClass;
+        ribbon.textContent = selected ? 'Selected' : 'Recommended';
+    });
+    scheduleSiegeKnightCardFit();
 }
 
 function isTrainerOwned(trainerId) {
@@ -9788,6 +9820,7 @@ function renderLoadoutOptions() {
     if (visibleTrainers.length > 0 && !visibleTrainers.some((trainer) => trainer.id === selectedTrainerId)) {
         selectedTrainerId = visibleTrainers[0].id;
     }
+    visibleTrainers.forEach((trainer) => preloadArtUrl(knightUploadedCardArtUrl(trainer)));
     trainerEl.innerHTML = visibleTrainers.map(trainer => {
         const selected = trainer.id === selectedTrainerId ? ' selected' : '';
         const elHex = getElementHex(trainer.element);
@@ -9823,10 +9856,10 @@ function renderLoadoutOptions() {
         if (fullCardArtUrl && fullCardMode) {
             const holoClass = cardShowsPlayerHolographic(trainer) ? ' is-holographic' : '';
             const holoOverlay = cardShowsPlayerHolographic(trainer) ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
-            return `<button type="button" class="knight-card knight-full-card-art${holoClass}${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
+            return `<button type="button" class="knight-card knight-full-card-art${holoClass}${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" data-trainer-id="${escapeHtmlAttribute(trainer.id)}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
                 ${topRibbon}
                 ${levelBadge}
-                <img ${webpImgAttrs(fullCardArtUrl)} alt="${escapeHtmlAttribute(trainer.name || 'SiegeKnight card')}" loading="lazy"${knightArtStyleAttr(trainer)}>
+                <img ${webpImgAttrs(fullCardArtUrl)} alt="${escapeHtmlAttribute(trainer.name || 'SiegeKnight card')}" loading="eager" decoding="async"${knightArtStyleAttr(trainer)}>
                 ${holoOverlay}
                 ${knightCardBody}
             </button>`;
@@ -9839,17 +9872,17 @@ function renderLoadoutOptions() {
             // does not load that module.
             const holoClass = cardShowsPlayerHolographic(trainer) ? ' is-holographic' : '';
             const holoOverlay = cardShowsPlayerHolographic(trainer) ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
-            return `<button type="button" class="knight-card knight-full-card-art knight-overlay-art${holoClass}${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)};${siegeknightCardBackStyle()};${elementIconStyle}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
+            return `<button type="button" class="knight-card knight-full-card-art knight-overlay-art${holoClass}${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" data-trainer-id="${escapeHtmlAttribute(trainer.id)}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)};${siegeknightCardBackStyle()};${elementIconStyle}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
                 ${topRibbon}
                 ${levelBadge}
-                <div class="knight-overlay-art-window"><img class="knight-overlay-art-img" ${webpImgAttrs(fullCardArtUrl)} alt="" loading="lazy"${knightArtStyleAttr(trainer)}></div>
+                <div class="knight-overlay-art-window"><img class="knight-overlay-art-img" ${webpImgAttrs(fullCardArtUrl)} alt="" loading="eager" decoding="async"${knightArtStyleAttr(trainer)}></div>
                 <div class="knight-card-template" aria-hidden="true"></div>
                 <div class="knight-shield-element" aria-label="${escapeHtmlAttribute(formatElementLabel(trainer.element))}">${getElementSigil(trainer.element)}</div>
                 ${holoOverlay}
                 ${knightCardBody}
             </button>`;
         }
-        return `<button type="button" class="knight-card has-knight-back${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)};${siegeknightCardBackStyle()};${elementIconStyle}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
+        return `<button type="button" class="knight-card has-knight-back${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" data-trainer-id="${escapeHtmlAttribute(trainer.id)}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)};${siegeknightCardBackStyle()};${elementIconStyle}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
             ${topRibbon}
             ${levelBadge}
             <div class="knight-card-sigil">${sigil}</div>
