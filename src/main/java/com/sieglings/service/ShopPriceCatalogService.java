@@ -64,14 +64,40 @@ public class ShopPriceCatalogService {
     public static final int MIN_PRICE = 0;
     public static final int MAX_PRICE = 100_000;
 
-    /** Same values as the price switch PackCatalogService used to hardcode; kept as the defaults. */
+    /**
+     * Default daily-rotation prices for Siegelings, spells, and traps.
+     * Raised so direct buys feel premium versus pack pulls.
+     */
     public static final Map<Rarity, Integer> DEFAULT_PRICE_BY_RARITY = Map.of(
-            Rarity.COMMON, 60,
-            Rarity.UNCOMMON, 95,
-            Rarity.RARE, 140,
-            Rarity.EPIC, 210,
-            Rarity.LEGENDARY, 320
+            Rarity.COMMON, 100,
+            Rarity.UNCOMMON, 160,
+            Rarity.RARE, 240,
+            Rarity.EPIC, 360,
+            Rarity.LEGENDARY, 520
     );
+
+    /**
+     * SiegeKnight (TRAINER) daily-rotation prices. Knights unlock a whole
+     * loadout identity, so they start at 300 and scale harder with rarity.
+     */
+    public static final Map<Rarity, Integer> DEFAULT_TRAINER_PRICE_BY_RARITY = Map.of(
+            Rarity.COMMON, 300,
+            Rarity.UNCOMMON, 400,
+            Rarity.RARE, 550,
+            Rarity.EPIC, 750,
+            Rarity.LEGENDARY, 1000
+    );
+
+    /** Baseline price before any Firestore/editor override. */
+    public static int defaultPriceFor(Rarity rarity, CardType cardType) {
+        if (rarity == null) {
+            throw new IllegalArgumentException("Rarity is required.");
+        }
+        if (cardType == CardType.TRAINER) {
+            return DEFAULT_TRAINER_PRICE_BY_RARITY.get(rarity);
+        }
+        return DEFAULT_PRICE_BY_RARITY.get(rarity);
+    }
 
     private static final long CACHE_TTL_MILLIS = 60_000L;
     static final String RESOURCE_PATH = "cards/shop-prices.json";
@@ -102,7 +128,7 @@ public class ShopPriceCatalogService {
             throw new IllegalArgumentException("Rarity is required.");
         }
         Integer override = overridesByKey(loadSnapshot().data()).get(key(rarity, cardType));
-        return override != null ? override : DEFAULT_PRICE_BY_RARITY.get(rarity);
+        return override != null ? override : defaultPriceFor(rarity, cardType);
     }
 
     /** Full rarity x card type grid for the dashboard, merging defaults with any overrides. */
@@ -158,7 +184,7 @@ public class ShopPriceCatalogService {
         for (Rarity rarity : Rarity.values()) {
             for (CardType cardType : CardType.values()) {
                 Integer override = overrides.get(key(rarity, cardType));
-                int defaultPrice = DEFAULT_PRICE_BY_RARITY.get(rarity);
+                int defaultPrice = defaultPriceFor(rarity, cardType);
                 rows.add(new PriceRow(
                         rarity,
                         cardType,
