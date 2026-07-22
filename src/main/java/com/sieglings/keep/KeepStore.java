@@ -88,6 +88,11 @@ public class KeepStore {
         payload.put("processedRequestIds", state.getProcessedRequestIds());
         payload.put("lastVisitedAt", timestamp(state.getLastVisitedAt()));
         payload.put("lastTributeClaimedAt", timestamp(state.getLastTributeClaimedAt()));
+        payload.put("keeperXp", state.getKeeperXp());
+        payload.put("keeperXpBackfilled", state.isKeeperXpBackfilled());
+        payload.put("keeperDailyXpAt", timestamp(state.getKeeperDailyXpAt()));
+        payload.put("keeperResourceXpToday", state.getKeeperResourceXpToday());
+        payload.put("keeperResourceXpDay", state.getKeeperResourceXpDay());
         payload.put("createdAt", timestamp(state.getCreatedAt()));
         payload.put("updatedAt", timestamp(state.getUpdatedAt()));
         try {
@@ -160,6 +165,11 @@ public class KeepStore {
         state.setProcessedRequestIds(strings(snapshot.get("processedRequestIds")));
         state.setLastVisitedAt(instant(snapshot.get("lastVisitedAt")));
         state.setLastTributeClaimedAt(instant(snapshot.get("lastTributeClaimedAt")));
+        state.setKeeperXp(number(snapshot.get("keeperXp"), 0));
+        state.setKeeperXpBackfilled(Boolean.TRUE.equals(snapshot.get("keeperXpBackfilled")));
+        state.setKeeperDailyXpAt(instant(snapshot.get("keeperDailyXpAt")));
+        state.setKeeperResourceXpToday((int) number(snapshot.get("keeperResourceXpToday"), 0));
+        state.setKeeperResourceXpDay(string(snapshot.get("keeperResourceXpDay")));
         state.setCreatedAt(instant(snapshot.get("createdAt")));
         state.setUpdatedAt(instant(snapshot.get("updatedAt")));
         return state;

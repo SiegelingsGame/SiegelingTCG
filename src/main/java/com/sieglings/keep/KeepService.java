@@ -54,6 +54,23 @@ public class KeepService {
     public static final int ENCLAVE_BUILD_COST = 240;
     public static final long ENCLAVE_BUILD_SECONDS = 7_200;
     private static final int ENCLAVE_CAPACITY = 5;
+    // ── Keeper leveling / battlepass ──────────────────────────────────────────
+    public static final int KEEPER_MAX_LEVEL = 25;
+    private static final int KEEPER_DAILY_LOGIN_XP = 60;
+    private static final int KEEPER_TIMBER_COLLECT_XP = 10;
+    private static final int KEEPER_MATERIAL_COLLECT_XP = 15;
+    private static final int KEEPER_PROJECT_XP = 40;
+    private static final int KEEPER_QUEST_XP = 50;
+    private static final int KEEPER_RESOURCE_XP_DAILY_CAP = 150;
+    private static final int KEEPER_LEVELS_PER_CHAPTER = 5;
+    /** Chapter titles for the battlepass timeline; each spans 5 Keeper Levels. */
+    private static final String[][] KEEPER_CHAPTERS = {
+            {"The Wounded Ground", "Build a sanctuary that takes nothing without giving something back."},
+            {"Roots in the Ash", "Coax the first workshops from a land still learning to trust you."},
+            {"Halls Remembered", "Raise real stone, and let the keep hold its own history again."},
+            {"The Elements Answer", "Master every element and the residents who carry them."},
+            {"A Sanctuary Renowned", "A grand keep whose light reaches Akhar's distant front."}
+    };
     private static final Duration OFFLINE_REPORT_THRESHOLD = Duration.ofMinutes(5);
     private static final Duration TRIBUTE_COOLDOWN = Duration.ofDays(7);
     private static final Duration VISITOR_ROLL_COOLDOWN = Duration.ofHours(2);
@@ -108,8 +125,9 @@ public class KeepService {
             boolean visitorsChanged = refreshVisitors(state, context.now());
             Map<String, Object> offlineReport = offlineReport(state, awaySince, context.now(), timberBefore,
                     facilityBefore, completedProjects, beforeUnlocks);
+            int dailyXp = grantDailyKeeperXp(state, context.now());
             state.setLastVisitedAt(context.now());
-            if (completed || produced || visitorsChanged) {
+            if (completed || produced || visitorsChanged || dailyXp > 0) {
                 bump(context.state(), context.now());
                 store.save(state);
             } else {
@@ -119,7 +137,9 @@ public class KeepService {
                 recordKeepStats(context.progression(),
                         p -> p.setKeepProjectsCompleted(p.getKeepProjectsCompleted() + completedProjects.size()));
             }
-            return serialize(user, context.progression(), state, context.residents(), context.now(), offlineReport);
+            Map<String, Object> snapshot = serialize(user, context.progression(), state, context.residents(), context.now(), offlineReport);
+            if (dailyXp > 0) snapshot.put("keeperDailyXpAwarded", dailyXp);
+            return snapshot;
         }
     }
 
@@ -149,8 +169,10 @@ public class KeepService {
             if (state.getWoodlotCollectCount() >= 3) unlock(state, "memorabilia_petrified_root");
             final int granted = grant;
             recordKeepStats(context.progression(), p -> p.setKeepTimberCollected(p.getKeepTimberCollected() + granted));
+            int xpGained = grantResourceKeeperXp(state, context.now(), KEEPER_TIMBER_COLLECT_XP);
             Map<String, Object> extra = new LinkedHashMap<>();
             extra.put("collected", Map.of("resource", "TIMBER", "amount", grant));
+            if (xpGained > 0) extra.put("keeperXpAwarded", xpGained);
             return extra;
         });
     }
@@ -529,6 +551,18 @@ public class KeepService {
                 }
                 gold = mission.gold();
                 remnants = mission.remnants();
+            } else if (id.startsWith("keeper_level:")) {
+                int lv;
+                try { lv = Integer.parseInt(id.substring("keeper_level:".length())); }
+                catch (NumberFormatException e) { throw new IllegalArgumentException("Unknown sanctuary reward."); }
+                if (lv < 1 || lv > KEEPER_MAX_LEVEL) throw new IllegalArgumentException("Unknown sanctuary reward.");
+                if (keeperLevel(state.getKeeperXp()) < lv) {
+                    throw new IllegalArgumentException("Reach Keeper Level " + lv + " to claim that reward.");
+                }
+                int[] reward = keeperReward(lv);
+                gold = reward[0];
+                remnants = reward[1];
+                claimKey = "keeper_level:" + lv;
             } else {
                 throw new IllegalArgumentException("Unknown sanctuary reward.");
             }
@@ -542,12 +576,16 @@ public class KeepService {
             progression.getKeepRewardClaimIds().add(claimKey);
             progression.setUpdatedAt(context.now());
             if (progressionStore != null) progressionStore.save(progression);
+            // Completing a quest is itself a progression beat; claiming the battlepass
+            // payout is not (that XP is what earned the level in the first place).
+            int questXp = id.startsWith("keeper_level:") ? 0 : awardKeeperXp(state, KEEPER_QUEST_XP);
             Map<String, Object> reward = new LinkedHashMap<>();
             reward.put("id", id);
             reward.put("gold", gold);
             reward.put("remnants", remnants);
             reward.put("goldBalance", progression.getGold());
             reward.put("remnantsBalance", progression.getRemnants());
+            if (questXp > 0) reward.put("keeperXpAwarded", questXp);
             return Map.of("rewardClaimed", reward);
         });
     }
@@ -615,6 +653,7 @@ public class KeepService {
         List<Resident> residents = residents(progression);
         KeepState state = store.findByUserId(user.getId()).orElseGet(() -> store.save(newState(user.getId(), now)));
         repairDefaults(state, now);
+        backfillKeeperXp(state);
         if (!progression.isKeepFounded()) {
             recordKeepStats(progression, p -> p.setKeepFounded(true));
         }
@@ -675,6 +714,7 @@ public class KeepService {
                 state.setConstructionCompletesAt(null);
             }
             completed.add(id);
+            awardKeeperXp(state, KEEPER_PROJECT_XP);
         }
         if (!completed.isEmpty()) materializeAllProduction(state, residents, now);
         return completed;
@@ -858,8 +898,12 @@ public class KeepService {
         state.getFacilityStored().put(id, state.getFacilityStored().getOrDefault(id, 0) - grant);
         state.setEssenceCollectCount(state.getEssenceCollectCount() + 1);
         advanceEnclaveMissions(state, "MATERIAL_COLLECTION");
-        return Map.of("collected", Map.of("resource", resourceId, "resourceName", definition.resourceName(),
+        int xpGained = grantResourceKeeperXp(state, context.now(), KEEPER_MATERIAL_COLLECT_XP);
+        Map<String, Object> collected = new LinkedHashMap<>();
+        collected.put("collected", Map.of("resource", resourceId, "resourceName", definition.resourceName(),
                 "amount", grant, "stationId", id));
+        if (xpGained > 0) collected.put("keeperXpAwarded", xpGained);
+        return collected;
     }
 
     private String normalizeStationId(String stationId) {
@@ -1370,6 +1414,10 @@ public class KeepService {
             }
         };
         if (!valid) throw new IllegalArgumentException("That project is not available yet.");
+        int requiredLevel = keeperUnlockLevel(project.id());
+        if (keeperLevel(state.getKeeperXp()) < requiredLevel) {
+            throw new IllegalArgumentException("Reach Keeper Level " + requiredLevel + " to begin this project.");
+        }
     }
 
     private int parseHallLevel(String projectId) {
@@ -1731,6 +1779,7 @@ public class KeepService {
         out.put("weeklyTribute", weeklyTribute(state, progression, residents, now));
         out.put("weeklyOrder", weeklyOrder(state, progression, residents, now));
         if (offlineReport != null && !offlineReport.isEmpty()) out.put("offlineReport", offlineReport);
+        out.put("keeper", keeperBlock(state, progression, now));
         out.put("progressionReady", progression.getStarterPackId() != null);
         return out;
     }
@@ -1848,6 +1897,8 @@ public class KeepService {
 
     private Map<String, Object> buildOption(KeepState state, String id, String name, int timberCost, Map<String, Integer> materialCosts,
                                             long seconds, String description, boolean unlocked) {
+        int requiredLevel = keeperUnlockLevel(id);
+        boolean levelMet = keeperLevel(state.getKeeperXp()) >= requiredLevel;
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("id", id);
         out.put("name", name);
@@ -1855,7 +1906,9 @@ public class KeepService {
         out.put("materialCosts", serializeMaterialCosts(materialCosts));
         out.put("durationSeconds", seconds);
         out.put("description", description);
-        out.put("canStart", unlocked && hasFreeConstructionSlot(state)
+        out.put("requiredLevel", requiredLevel);
+        out.put("levelMet", levelMet);
+        out.put("canStart", unlocked && levelMet && hasFreeConstructionSlot(state)
                 && state.getTimber() >= timberCost && hasMaterials(state, materialCosts));
         return out;
     }
@@ -2093,6 +2146,162 @@ public class KeepService {
     }
 
     /** Lifetime keep stats power keep achievements and titles; recording is best-effort and must never fail a keep action. */
+    // ── Keeper leveling / battlepass ──────────────────────────────────────────
+
+    /** Cumulative XP required to reach a level. Step L→L+1 costs 50L+50, so
+     *  reach(L) = 25(L-1)(L+2): reach(2)=100, reach(3)=250, … reach(25)=16200. */
+    private static long keeperXpToReach(int level) {
+        int l = Math.max(1, Math.min(KEEPER_MAX_LEVEL, level));
+        return 25L * (l - 1) * (l + 2);
+    }
+
+    private int keeperLevel(long xp) {
+        int level = 1;
+        while (level < KEEPER_MAX_LEVEL && xp >= keeperXpToReach(level + 1)) level++;
+        return level;
+    }
+
+    private String dayKey(Instant now) {
+        return now.atZone(ZoneOffset.UTC).toLocalDate().toString();
+    }
+
+    /** Adds XP up to the level cap; returns the amount actually applied. */
+    private int awardKeeperXp(KeepState state, int amount) {
+        if (state == null || amount <= 0) return 0;
+        long max = keeperXpToReach(KEEPER_MAX_LEVEL);
+        long before = state.getKeeperXp();
+        long after = Math.min(max, before + amount);
+        state.setKeeperXp(after);
+        return (int) (after - before);
+    }
+
+    /** First visit of a new UTC day grants login XP. Returns XP applied (0 if already claimed today). */
+    private int grantDailyKeeperXp(KeepState state, Instant now) {
+        String today = dayKey(now);
+        String lastDay = state.getKeeperDailyXpAt() == null ? "" : dayKey(state.getKeeperDailyXpAt());
+        if (today.equals(lastDay)) return 0;
+        state.setKeeperDailyXpAt(now);
+        return awardKeeperXp(state, KEEPER_DAILY_LOGIN_XP);
+    }
+
+    /** Resource-collection XP, throttled by a per-day cap so idle-collecting can't be farmed. */
+    private int grantResourceKeeperXp(KeepState state, Instant now, int desired) {
+        String today = dayKey(now);
+        if (!today.equals(state.getKeeperResourceXpDay())) {
+            state.setKeeperResourceXpDay(today);
+            state.setKeeperResourceXpToday(0);
+        }
+        int room = Math.max(0, KEEPER_RESOURCE_XP_DAILY_CAP - state.getKeeperResourceXpToday());
+        int grant = Math.min(room, Math.max(0, desired));
+        if (grant <= 0) return 0;
+        state.setKeeperResourceXpToday(state.getKeeperResourceXpToday() + grant);
+        return awardKeeperXp(state, grant);
+    }
+
+    /** One-time seeding so keeps that predate leveling start at a level matching their progress. */
+    private void backfillKeeperXp(KeepState state) {
+        if (state.isKeeperXpBackfilled()) return;
+        long floor = (long) totalBuildLevels(state) * 40L
+                + (long) state.getWoodlotCollectCount() * 10L
+                + (long) state.getEssenceCollectCount() * 15L
+                + (long) state.getCraftCount() * 20L
+                + (long) state.getUnlockedLoreIds().size() * 12L
+                + (long) Math.max(0, hallLevel(state) - 1) * 120L;
+        long max = keeperXpToReach(KEEPER_MAX_LEVEL);
+        state.setKeeperXp(Math.min(max, Math.max(state.getKeeperXp(), floor)));
+        state.setKeeperXpBackfilled(true);
+    }
+
+    /** Keeper Level required to begin a project. The prerequisite-sequenced restoration
+     *  chain stays ungated (level 1); the keep-RANK upgrades are what leveling unlocks,
+     *  so raising to hall rank N asks for Keeper Level N. */
+    private int keeperUnlockLevel(String projectId) {
+        if (projectId != null && projectId.startsWith("hall_level_")) {
+            int n = parseHallLevel(projectId);
+            return n <= 0 ? 1 : Math.min(KEEPER_MAX_LEVEL, n);
+        }
+        return 1;
+    }
+
+    /** Timeline copy for what a level opens: keep-rank ups map to real rank names. */
+    private String keeperUnlockLabel(int level) {
+        if (level >= 2 && level <= HALL_MAX_LEVEL) return "Keep rank up · " + rankName(level);
+        if (level % KEEPER_LEVELS_PER_CHAPTER == 0) return "Milestone cache · bonus Siegecoins & Remnants";
+        return "";
+    }
+
+    private Map<String, Object> keeperBlock(KeepState state, PlayerProgressionEntity progression, Instant now) {
+        long xp = state.getKeeperXp();
+        int level = keeperLevel(xp);
+        boolean atMax = level >= KEEPER_MAX_LEVEL;
+        long start = keeperXpToReach(level);
+        long end = atMax ? start : keeperXpToReach(level + 1);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("level", level);
+        out.put("maxLevel", KEEPER_MAX_LEVEL);
+        out.put("totalXp", xp);
+        out.put("levelStartXp", start);
+        out.put("levelEndXp", end);
+        out.put("xpIntoLevel", xp - start);
+        out.put("xpForLevel", Math.max(0, end - start));
+        out.put("atMax", atMax);
+        out.put("rankName", rankName(hallLevel(state)));
+        String lastDay = state.getKeeperDailyXpAt() == null ? "" : dayKey(state.getKeeperDailyXpAt());
+        out.put("dailyXpClaimed", dayKey(now).equals(lastDay));
+        out.put("dailyLoginXp", KEEPER_DAILY_LOGIN_XP);
+        out.put("resourceXpToday", dayKey(now).equals(state.getKeeperResourceXpDay()) ? state.getKeeperResourceXpToday() : 0);
+        out.put("resourceXpDailyCap", KEEPER_RESOURCE_XP_DAILY_CAP);
+
+        List<Map<String, Object>> chapters = new ArrayList<>();
+        for (int c = 0; c < KEEPER_CHAPTERS.length; c++) {
+            int from = c * KEEPER_LEVELS_PER_CHAPTER + 1;
+            int to = (c + 1) * KEEPER_LEVELS_PER_CHAPTER;
+            Map<String, Object> chapter = new LinkedHashMap<>();
+            chapter.put("id", "chapter_" + (c + 1));
+            chapter.put("number", c + 1);
+            chapter.put("title", KEEPER_CHAPTERS[c][0]);
+            chapter.put("subtitle", KEEPER_CHAPTERS[c][1]);
+            chapter.put("fromLevel", from);
+            chapter.put("toLevel", to);
+            chapter.put("current", level >= from && level <= to);
+            chapter.put("complete", level > to);
+            chapters.add(chapter);
+        }
+        out.put("chapters", chapters);
+
+        List<Map<String, Object>> levels = new ArrayList<>();
+        int unclaimed = 0;
+        for (int lv = 1; lv <= KEEPER_MAX_LEVEL; lv++) {
+            boolean reached = level >= lv;
+            boolean claimed = progression.getKeepRewardClaimIds().contains("keeper_level:" + lv);
+            boolean canClaim = reached && !claimed;
+            if (canClaim) unclaimed++;
+            int[] reward = keeperReward(lv);
+            Map<String, Object> node = new LinkedHashMap<>();
+            node.put("level", lv);
+            node.put("chapterNumber", (lv - 1) / KEEPER_LEVELS_PER_CHAPTER + 1);
+            node.put("reward", Map.of("gold", reward[0], "remnants", reward[1]));
+            node.put("unlockLabel", keeperUnlockLabel(lv));
+            node.put("requiredXp", keeperXpToReach(lv));
+            node.put("reached", reached);
+            node.put("claimed", claimed);
+            node.put("canClaim", canClaim);
+            node.put("current", lv == level);
+            levels.add(node);
+        }
+        out.put("levels", levels);
+        out.put("unclaimedRewards", unclaimed);
+        return out;
+    }
+
+    /** Free-track reward for a Keeper Level: {gold, remnants}. Every 5th level pays a milestone bonus. */
+    private int[] keeperReward(int level) {
+        int gold = 40 + level * 12;
+        int remnants = 8 + level * 3;
+        if (level % KEEPER_LEVELS_PER_CHAPTER == 0) { gold += 120; remnants += 40; }
+        return new int[]{gold, remnants};
+    }
+
     private void recordKeepStats(PlayerProgressionEntity progression, Consumer<PlayerProgressionEntity> update) {
         if (progression == null) return;
         try {

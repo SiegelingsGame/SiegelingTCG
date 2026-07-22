@@ -55,6 +55,15 @@ public class KeepState {
     private List<String> processedRequestIds = new ArrayList<>();
     private Instant lastVisitedAt;
     private Instant lastTributeClaimedAt;
+    // Keeper leveling / battlepass. keeperXp is lifetime XP; the level is derived
+    // from it. Backfill runs once for keeps that predate the system so their level
+    // reflects work already done. Daily-login and resource XP are rate-limited by
+    // the two "daily" trackers (a UTC day key plus that day's accumulated resource XP).
+    private long keeperXp;
+    private boolean keeperXpBackfilled;
+    private Instant keeperDailyXpAt;
+    private int keeperResourceXpToday;
+    private String keeperResourceXpDay = "";
     private Instant createdAt;
     private Instant updatedAt;
 
@@ -171,6 +180,16 @@ public class KeepState {
     public void setLastVisitedAt(Instant lastVisitedAt) { this.lastVisitedAt = lastVisitedAt; }
     public Instant getLastTributeClaimedAt() { return lastTributeClaimedAt; }
     public void setLastTributeClaimedAt(Instant lastTributeClaimedAt) { this.lastTributeClaimedAt = lastTributeClaimedAt; }
+    public long getKeeperXp() { return keeperXp; }
+    public void setKeeperXp(long keeperXp) { this.keeperXp = Math.max(0, keeperXp); }
+    public boolean isKeeperXpBackfilled() { return keeperXpBackfilled; }
+    public void setKeeperXpBackfilled(boolean keeperXpBackfilled) { this.keeperXpBackfilled = keeperXpBackfilled; }
+    public Instant getKeeperDailyXpAt() { return keeperDailyXpAt; }
+    public void setKeeperDailyXpAt(Instant keeperDailyXpAt) { this.keeperDailyXpAt = keeperDailyXpAt; }
+    public int getKeeperResourceXpToday() { return keeperResourceXpToday; }
+    public void setKeeperResourceXpToday(int keeperResourceXpToday) { this.keeperResourceXpToday = Math.max(0, keeperResourceXpToday); }
+    public String getKeeperResourceXpDay() { return keeperResourceXpDay; }
+    public void setKeeperResourceXpDay(String keeperResourceXpDay) { this.keeperResourceXpDay = keeperResourceXpDay == null ? "" : keeperResourceXpDay; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }

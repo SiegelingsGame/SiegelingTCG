@@ -4,6 +4,38 @@
     const AUTH_TOKEN_KEY = 'sieglingsAuthToken';
     const COOKIE_SESSION_VALUE = 'cookie';
     const apiBase = String(window.SIEGLINGS_CONFIG?.apiBaseUrl || '').replace(/\/$/, '');
+
+    // Auth model mirrors home.js: real sessions ride the httpOnly `sgl_session`
+    // cookie (bridged onto the Authorization header server-side). The readable,
+    // secret-free `sgl_auth` companion cookie only proves a session exists and
+    // that cookies round-trip in this environment.
+    function hasReadableAuthCookie() {
+        try {
+            return document.cookie.split('; ').some((c) => c.startsWith('sgl_auth='));
+        } catch (e) {
+            return false;
+        }
+    }
+    // iOS standalone Web Apps don't reliably send the session cookie across the
+    // full-page navigations this multi-page app uses, so there we keep sending the
+    // localStorage Bearer token instead of relying on the cookie.
+    function isStandalonePWA() {
+        try {
+            return window.navigator.standalone === true
+                || Boolean(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+        } catch (e) {
+            return false;
+        }
+    }
+    function isLegacyBearerToken(token) {
+        return Boolean(token) && token !== COOKIE_SESSION_VALUE;
+    }
+    // Prefer cookie auth in browsers where cookies are confirmed working; only fall
+    // back to a real Bearer token in a standalone Web App (or when cookies don't
+    // round-trip). Keeps the stored token in step with home.js after login.
+    function preferredStoredToken(loginToken) {
+        return (hasReadableAuthCookie() && !isStandalonePWA()) ? COOKIE_SESSION_VALUE : (loginToken || '');
+    }
     const TUTORIAL_KEY = 'sieglingsKeepTutorialSeen';
     const TUTORIAL_STEPS = [
         {
@@ -70,7 +102,9 @@
     document.addEventListener('DOMContentLoaded', init);
 
     async function init() {
+        migrateStoredToken();
         bindEvents();
+        bindLoginModal();
         initSceneView();
         if (state.testMode) {
             applySnapshot(clone(window.__KEEP_TEST_SNAPSHOT__), false);
@@ -101,6 +135,10 @@
         document.getElementById('tutorialSkip')?.addEventListener('click', finishTutorial);
         document.getElementById('tutorialNext')?.addEventListener('click', tutorialAdvance);
         document.getElementById('offlineDismiss')?.addEventListener('click', dismissOfflineReport);
+        // The scene caption doubles as the Keeper's Journey button; keyboard-activate it.
+        document.getElementById('sceneCaption')?.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openJourney(); }
+        });
         // iOS Safari can leave the document scrolled after a rotation even with
         // overflow hidden, hiding the fixed header; snap back whenever it happens.
         window.addEventListener('resize', resetViewportScroll);
@@ -114,6 +152,7 @@
             if (event.key.toLowerCase() === 'f' && !isTyping(event.target)) toggleFullscreen();
             if (event.key === 'Escape') {
                 if (!document.getElementById('keepTutorial')?.classList.contains('hidden')) finishTutorial();
+                else if (!document.getElementById('journeyOverlay')?.classList.contains('hidden')) closeJourney();
                 else if (!document.getElementById('dialogueOverlay')?.classList.contains('hidden')) closeDialogue();
                 else if (state.panel) closePanel();
                 else closeInterior();
@@ -225,6 +264,8 @@
             openPanel(panelTrigger.dataset.openPanel);
             return;
         }
+        if (event.target.closest('[data-open-journey]')) { openJourney(); return; }
+        if (event.target.closest('#journeyClose') || event.target.closest('[data-close-journey]')) { closeJourney(); return; }
         const building = event.target.closest('[data-building]');
         if (building) {
             if (building.dataset.building === 'facilities') openPanel('facilities');
@@ -519,6 +560,7 @@
         state.snapshot = next;
         if (next.offlineReport) state.pendingOfflineReport = clone(next.offlineReport);
         state.receivedAtMs = Date.now() + state.debugTimeOffsetMs;
+        announceKeeperProgress(next);
         renderAll();
         if (announceDiscoveries) {
             const ids = Array.isArray(next.newLoreUnlocks)
@@ -561,6 +603,7 @@
                 .map((item) => constructionTarget(item.id)).filter(Boolean).join(' ');
         }
         renderFavoriteShrine();
+        renderJourney();
         const rank = snapshot.keepRank || {};
         text('hallRankLabel', rank.name
             ? `${rank.name} · Rank ${number(rank.level) || 1}/${number(rank.maxLevel) || HALL_MAX_LEVEL}`
@@ -1216,9 +1259,13 @@
             for (const cost of option.materialCosts || []) {
                 if (number(materialById(cost.id)?.amount) < number(cost.amount)) shortages.push(cost.name);
             }
-            const blockedLabel = constructions.length >= slots ? 'Crews busy'
+            const levelLocked = option.levelMet === false;
+            const blockedLabel = levelLocked ? `Reach Keeper Level ${number(option.requiredLevel)}`
+                : constructions.length >= slots ? 'Crews busy'
                 : `Need ${escapeHtml(shortages.join(' & ') || 'prior project')}`;
-            return `<section class="project-card ${option.rankName ? 'is-rank-project' : ''}"><span class="eyebrow">${option.rankName ? `Keep rank · ${escapeHtml(option.rankName)}` : 'Visible restoration'}</span><h3>${escapeHtml(option.name)}</h3><p>${escapeHtml(option.description || '')}</p>
+            const eyebrow = levelLocked ? `Locked · Keeper Level ${number(option.requiredLevel)}`
+                : option.rankName ? `Keep rank · ${escapeHtml(option.rankName)}` : 'Visible restoration';
+            return `<section class="project-card ${option.rankName ? 'is-rank-project' : ''}${levelLocked ? ' is-level-locked' : ''}"><span class="eyebrow">${eyebrow}</span><h3>${escapeHtml(option.name)}</h3><p>${escapeHtml(option.description || '')}</p>
                 <div class="cost-row"><span>${escapeHtml(formatDuration(option.durationSeconds))}</span><strong>${escapeHtml(costs.join(' · '))}</strong></div>
                 <div class="button-row"><button class="panel-button" type="button" data-start-build="${escapeAttr(option.id)}" ${option.canStart ? '' : 'disabled'}>${option.canStart ? 'Begin project' : blockedLabel}</button></div></section>`;
         }).join('');
@@ -1432,9 +1479,263 @@
         document.getElementById('noticeButton')?.setAttribute('aria-expanded', 'false');
     }
 
+    // ── Keeper's Journey (leveling / battlepass timeline) ─────────────────────
+
+    function keeperData() { return state.snapshot?.keeper || null; }
+
+    function keeperProgressPercent(keeper) {
+        if (!keeper) return 0;
+        if (keeper.atMax) return 100;
+        const forLevel = number(keeper.xpForLevel);
+        return forLevel > 0 ? Math.max(0, Math.min(100, Math.round(number(keeper.xpIntoLevel) / forLevel * 100))) : 0;
+    }
+
+    function toggleBadge(id, count) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.textContent = count > 9 ? '9+' : String(count);
+        el.classList.toggle('hidden', count <= 0);
+    }
+
+    /** Updates the scene caption (chapter + XP bar) and the journey badge every render. */
+    function renderJourney() {
+        const keeper = keeperData();
+        if (!keeper) return;
+        const level = number(keeper.level) || 1;
+        const chapters = keeper.chapters || [];
+        const current = chapters.find((c) => c.current) || chapters[0] || {};
+        text('captionChapter', `Chapter ${roman(number(current.number) || 1)} · Keeper Level ${level}`);
+        text('captionTitle', current.title || 'The Wounded Ground');
+        text('captionSubtitle', current.subtitle || '');
+        const fill = document.getElementById('captionXpFill');
+        if (fill) fill.style.width = keeperProgressPercent(keeper) + '%';
+        text('captionXpLabel', keeper.atMax
+            ? `Keeper Level ${level} · Max · ${number(keeper.totalXp)} XP`
+            : `${number(keeper.xpIntoLevel)} / ${number(keeper.xpForLevel)} XP to Level ${level + 1}`);
+        toggleBadge('journeyBadge', number(keeper.unclaimedRewards));
+        if (!document.getElementById('journeyOverlay')?.classList.contains('hidden')) renderJourneyTrack();
+    }
+
+    function renderJourneyTrack() {
+        const keeper = keeperData();
+        const track = document.getElementById('journeyTrack');
+        if (!keeper || !track) return;
+        const level = number(keeper.level) || 1;
+        const unclaimed = number(keeper.unclaimedRewards);
+        text('journeyEyebrow', `${keeper.rankName || 'The Keep'} · The Keeper's Journey`);
+        text('journeyTitle', keeper.atMax ? `Keeper Level ${level} · Max` : `Keeper Level ${level}`);
+        const fill = document.getElementById('journeyXpFill');
+        if (fill) fill.style.width = keeperProgressPercent(keeper) + '%';
+        text('journeyXpLabel', keeper.atMax
+            ? `${number(keeper.totalXp)} XP earned · every reward on the free track is within reach`
+            : `${number(keeper.xpIntoLevel)} / ${number(keeper.xpForLevel)} XP to Level ${level + 1}`
+                + (unclaimed > 0 ? ` · ${unclaimed} reward${unclaimed === 1 ? '' : 's'} ready to claim` : ''));
+        const levels = keeper.levels || [];
+        track.innerHTML = (keeper.chapters || []).map((ch) => {
+            const nodes = levels.filter((l) => number(l.chapterNumber) === number(ch.number)).map(journeyNodeMarkup).join('');
+            const cls = `journey-chapter${ch.current ? ' is-current' : ''}${ch.complete ? ' is-complete' : ''}`;
+            return `<section class="${cls}">
+                <header class="chapter-head"><span class="eyebrow">Chapter ${roman(number(ch.number))}${ch.complete ? ' · Complete' : ch.current ? ' · In progress' : ''}</span>
+                    <strong>${escapeHtml(ch.title || '')}</strong><small>${escapeHtml(ch.subtitle || '')}</small></header>
+                <div class="journey-nodes">${nodes}</div></section>`;
+        }).join('');
+        track.querySelector('.journey-chapter.is-current')?.scrollIntoView({ inline: 'center', block: 'nearest' });
+    }
+
+    function journeyNodeMarkup(l) {
+        const lv = number(l.level);
+        const stateClass = l.claimed ? 'is-claimed' : l.canClaim ? 'is-ready' : l.reached ? 'is-earned' : 'is-locked';
+        const gold = number(l.reward?.gold);
+        const remnants = number(l.reward?.remnants);
+        const unlock = l.unlockLabel ? `<p class="node-unlock">${escapeHtml(l.unlockLabel)}</p>` : '';
+        const action = l.canClaim
+            ? `<button class="node-claim" type="button" data-claim-keep-reward="keeper_level:${lv}">Claim</button>`
+            : `<span class="node-status">${l.claimed ? 'Claimed' : l.reached ? 'Earned' : `Reach Lv ${lv}`}</span>`;
+        return `<article class="journey-node ${stateClass}${l.current ? ' is-current' : ''}">
+            <div class="node-badge"><small>LV</small><strong>${lv}</strong></div>
+            <div class="node-reward"><span class="reward-gold" title="Siegecoins">◈ ${gold}</span><span class="reward-rem" title="Remnants">✦ ${remnants}</span></div>
+            ${unlock}${action}</article>`;
+    }
+
+    function openJourney() {
+        renderJourneyTrack();
+        document.getElementById('journeyOverlay')?.classList.remove('hidden');
+    }
+
+    function closeJourney() {
+        document.getElementById('journeyOverlay')?.classList.add('hidden');
+    }
+
+    /** Surfaces level-ups and daily-visit XP as non-blocking notices. */
+    function announceKeeperProgress(next) {
+        const keeper = next?.keeper;
+        if (!keeper) return;
+        const level = number(keeper.level) || 1;
+        if (typeof state.lastKeeperLevel === 'number' && level > state.lastKeeperLevel) {
+            showNotice(`Keeper Level ${level} reached · ${keeper.rankName || 'new rewards'} · open the Journey to claim`, 'Level up');
+        }
+        state.lastKeeperLevel = level;
+        const daily = number(next.keeperDailyXpAwarded);
+        if (daily > 0) showNotice(`+${daily} XP for today's visit`, 'Keeper XP');
+    }
+
     function showGate(message) {
         text('gateMessage', message || 'Sign in and choose a starter pack to begin rebuilding My Keep.');
         document.getElementById('keepGate')?.classList.remove('hidden');
+    }
+
+    function hideGate() {
+        document.getElementById('keepGate')?.classList.add('hidden');
+    }
+
+    // Once a readable session cookie is confirmed (and we're not a standalone Web
+    // App), collapse any lingering real Bearer token in localStorage to the cookie
+    // sentinel so this page — like home.js — stops sending a token that would
+    // pre-empt the cookie. Purely local; the credential itself lives in the cookie.
+    function migrateStoredToken() {
+        if (state.testMode) return;
+        try {
+            const stored = localStorage.getItem(AUTH_TOKEN_KEY) || '';
+            if (isLegacyBearerToken(stored) && hasReadableAuthCookie() && !isStandalonePWA()) {
+                localStorage.setItem(AUTH_TOKEN_KEY, COOKIE_SESSION_VALUE);
+            }
+        } catch (e) { /* private browsing / storage disabled */ }
+    }
+
+    // In-page sign-in. Signing in from My Keep re-loads the keep in place rather
+    // than bouncing the keeper back to /home.
+    function bindLoginModal() {
+        const modal = document.getElementById('keepLogin');
+        const body = document.getElementById('keepLoginBody');
+        if (!modal || !body) return;
+
+        let step = 'credentials';            // 'credentials' | 'display-name'
+        let draft = { email: '', password: '' };
+        let busy = false;
+
+        function open() {
+            step = 'credentials';
+            draft = { email: '', password: '' };
+            render();
+            modal.classList.remove('hidden');
+            window.setTimeout(() => body.querySelector('input')?.focus(), 30);
+        }
+        function close() {
+            modal.classList.add('hidden');
+        }
+
+        function render() {
+            body.innerHTML = step === 'display-name' ? displayNameMarkup() : credentialsMarkup();
+            bindCard();
+        }
+
+        function credentialsMarkup() {
+            return '<span class="eyebrow">A covenant requires a keeper</span>'
+                + '<strong id="keepLoginTitle">Sign in to your Keep</strong>'
+                + '<span class="keep-login-note">Your sanctuary, Siegecoins, and cards live with your account. Sign in and rebuilding continues right here.</span>'
+                + '<input class="keep-login-input" id="keepLoginEmail" type="email" autocomplete="email" placeholder="Email" value="' + escapeAttr(draft.email) + '">'
+                + '<input class="keep-login-input" id="keepLoginPassword" type="password" autocomplete="current-password" placeholder="Password" value="' + escapeAttr(draft.password) + '">'
+                + '<p class="keep-login-error" id="keepLoginError" role="alert"></p>'
+                + '<button class="keep-login-btn primary" id="keepLoginSubmit" type="button">Log In</button>'
+                + '<button class="keep-login-btn ghost" id="keepLoginRegister" type="button">Register</button>';
+        }
+
+        function displayNameMarkup() {
+            return '<span class="eyebrow">A covenant requires a keeper</span>'
+                + '<strong id="keepLoginTitle">Choose your display name</strong>'
+                + '<span class="keep-login-note">Confirm how other keepers will see you (' + escapeHtml(draft.email) + ').</span>'
+                + '<input class="keep-login-input" id="keepLoginName" maxlength="20" placeholder="Display name">'
+                + '<p class="keep-login-error" id="keepLoginError" role="alert"></p>'
+                + '<button class="keep-login-btn primary" id="keepLoginConfirm" type="button">Confirm</button>'
+                + '<button class="keep-login-btn ghost" id="keepLoginBack" type="button">Back</button>';
+        }
+
+        function showError(message) {
+            const el = body.querySelector('#keepLoginError');
+            if (el) el.textContent = message || '';
+        }
+
+        function readCredentials() {
+            return {
+                email: (body.querySelector('#keepLoginEmail')?.value || '').trim(),
+                password: body.querySelector('#keepLoginPassword')?.value || ''
+            };
+        }
+
+        function beginRegister() {
+            const creds = readCredentials();
+            if (!creds.email.includes('@') || creds.email.startsWith('@') || creds.email.endsWith('@')) {
+                return showError('Enter a valid email address.');
+            }
+            if (!creds.password || creds.password.length < 6) {
+                return showError('Passwords must be at least 6 characters.');
+            }
+            draft = { email: creds.email, password: creds.password };
+            step = 'display-name';
+            render();
+            window.setTimeout(() => body.querySelector('#keepLoginName')?.focus(), 30);
+        }
+
+        async function submit(mode) {
+            if (busy) return;
+            const payload = mode === 'register'
+                ? { email: draft.email, password: draft.password, displayName: (body.querySelector('#keepLoginName')?.value || '').trim() }
+                : readCredentials();
+            if (mode === 'login' && (!payload.email || !payload.password)) {
+                return showError('Enter your email and password.');
+            }
+            busy = true;
+            const submitBtn = body.querySelector('#keepLoginSubmit, #keepLoginConfirm');
+            const originalLabel = submitBtn ? submitBtn.textContent : '';
+            if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Please wait…'; }
+            try {
+                const resp = await fetch(`${apiBase}/api/auth/${mode}`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                let data = null;
+                try { data = await resp.json(); } catch (_ignored) { /* non-JSON */ }
+                if (!resp.ok || !data || data.error || !data.token) {
+                    showError((data && data.error) || 'Something went wrong. Please try again.');
+                    return;
+                }
+                try { localStorage.setItem(AUTH_TOKEN_KEY, preferredStoredToken(data.token)); } catch (e) { /* storage off */ }
+                // Continue rebuilding in place: dismiss the gate/modal and reload the keep.
+                close();
+                hideGate();
+                document.getElementById('keepLoading')?.classList.remove('hidden');
+                await loadSnapshot(true);
+                maybeShowTutorial();
+                maybeShowOfflineReport();
+            } catch (_networkError) {
+                showError('Network error. Check your connection and try again.');
+            } finally {
+                busy = false;
+                if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = originalLabel; }
+            }
+        }
+
+        function bindCard() {
+            body.querySelector('#keepLoginSubmit')?.addEventListener('click', () => submit('login'));
+            body.querySelector('#keepLoginRegister')?.addEventListener('click', beginRegister);
+            body.querySelector('#keepLoginConfirm')?.addEventListener('click', () => submit('register'));
+            body.querySelector('#keepLoginBack')?.addEventListener('click', () => { step = 'credentials'; render(); });
+            body.querySelector('#keepLoginPassword')?.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') submit('login');
+            });
+            body.querySelector('#keepLoginName')?.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') submit('register');
+            });
+        }
+
+        document.getElementById('gateSignIn')?.addEventListener('click', open);
+        document.getElementById('keepLoginClose')?.addEventListener('click', close);
+        modal.querySelectorAll('[data-close-login]').forEach((el) => el.addEventListener('click', close));
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !modal.classList.contains('hidden')) close();
+        });
     }
 
     function hideLoading() {
@@ -1445,7 +1746,12 @@
         if (state.testMode) return mockApi(path, options);
         const token = localStorage.getItem(AUTH_TOKEN_KEY) || '';
         const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
-        if (token && token !== COOKIE_SESSION_VALUE) headers.Authorization = `Bearer ${token}`;
+        // Only send a legacy Bearer token when the cookie can't carry the session.
+        // A stale/expired localStorage token would otherwise pre-empt the httpOnly
+        // cookie (the server only bridges the cookie when no Authorization header is
+        // present), leaving a genuinely signed-in keeper stuck at the gate.
+        const preferCookie = hasReadableAuthCookie() && !isStandalonePWA();
+        if (isLegacyBearerToken(token) && !preferCookie) headers.Authorization = `Bearer ${token}`;
         try {
             const response = await fetch(`${apiBase}${path}`, { credentials: 'same-origin', ...options, headers });
             const raw = await response.text();
