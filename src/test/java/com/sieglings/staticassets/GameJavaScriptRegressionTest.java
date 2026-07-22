@@ -16,6 +16,8 @@ class GameJavaScriptRegressionTest {
     private static final Path HOME_HTML = Path.of("src/main/resources/static/home.html");
     private static final Path CARD_DASHBOARD_JS = Path.of("src/main/resources/static/js/card-dashboard.js");
     private static final Path STYLE_CSS = Path.of("src/main/resources/static/css/style.css");
+    private static final Path KEEP_HTML = Path.of("src/main/resources/static/keep.html");
+    private static final Path KEEP_CSS = Path.of("src/main/resources/static/css/keep.css");
 
     @Test
     void onlineStartDoesNotFallBackToSoloBattle() throws IOException {
@@ -482,6 +484,27 @@ class GameJavaScriptRegressionTest {
                         && style.contains("object-fit: fill !important;"),
                 "Dedicated holo art must fill the shared card box the same way the painted element frame does "
                         + "(background-size 100% 100%), so no letterbox exposes the standard frame behind it on the board or in previews."
+        );
+    }
+
+    @Test
+    void keepBuildingsAndRoomsUseLayeredPaperTreatments() throws IOException {
+        String keepHtml = Files.readString(KEEP_HTML);
+        String keepCss = Files.readString(KEEP_CSS);
+
+        assertTrue(
+                keepHtml.contains("id=\"paper-building-cutout\"")
+                        && keepHtml.contains("id=\"paper-prop-cutout\"")
+                        && keepHtml.contains("class=\"paper-building-shell\"")
+                        && keepHtml.contains("/css/keep.css?v=15"),
+                "Keep architecture must ship both paper filters, attach them to exterior SVGs, and refresh the CSS cache pin."
+        );
+        assertTrue(
+                keepCss.contains("filter: url(\"#paper-building-cutout\")")
+                        && keepCss.contains("filter: url(\"#paper-prop-cutout\")")
+                        && keepCss.contains(".int-backwall::after")
+                        && keepCss.contains("mix-blend-mode: soft-light"),
+                "Exterior silhouettes, interior props, and room shells must retain their shared cardstock edges and print grain."
         );
     }
 

@@ -387,8 +387,8 @@ button.resource-pill:focus-visible {
 .quarter-hotspot { right: 22%; top: 48%; width: clamp(150px, 21vw, 260px); height: clamp(128px, 23vh, 215px); }
 .enclave-hotspot { left: 23%; top: 47%; width: clamp(142px, 19vw, 245px); height: clamp(126px, 22vh, 210px); }
 .enclave-illustration { position: absolute; inset: 2px 3px 34px; display: block; transition: filter .35s, opacity .35s; }
-.enclave-hut { position: absolute; bottom: 16%; width: 35%; height: 42%; border: 2px solid #5b4631; border-radius: 5px 5px 2px 2px; background: repeating-linear-gradient(90deg, #8d6b45 0 9px, #755635 9px 11px); box-shadow: 0 7px 8px rgba(25, 30, 24, .3); }
-.enclave-hut::before { content: ""; position: absolute; left: -9%; right: -9%; top: -35%; height: 42%; background: #3e5a49; clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+.enclave-hut { position: absolute; bottom: 16%; width: 35%; height: 42%; border: 2px solid #5b4631; border-radius: 5px 5px 2px 2px; background: repeating-linear-gradient(92deg, rgba(245, 222, 174, .08) 0 1px, transparent 1px 7px), repeating-linear-gradient(90deg, #8d6b45 0 9px, #755635 9px 11px); box-shadow: inset 3px 0 rgba(237, 217, 176, .16), inset -5px -4px rgba(54, 38, 25, .2); filter: url("#paper-building-cutout"); }
+.enclave-hut::before { content: ""; position: absolute; left: -9%; right: -9%; top: -35%; height: 42%; background: repeating-linear-gradient(87deg, rgba(240, 223, 183, .08) 0 1px, transparent 1px 8px), #3e5a49; clip-path: polygon(50% 0, 100% 100%, 0 100%); }
 .enclave-hut::after { content: ""; position: absolute; left: 39%; bottom: 0; width: 23%; height: 55%; border-radius: 8px 8px 0 0; background: #3d2d24; }
 .enclave-hut.hut-one { left: 7%; }
 .enclave-hut.hut-two { right: 5%; bottom: 22%; transform: scale(.82); }
@@ -412,7 +412,7 @@ button.resource-pill:focus-visible {
 .exterior-enclave-residents b:nth-child(5) { left: 84%; animation-delay: -2.4s; }
 .quarter-illustration { position: absolute; inset: 2px 4px 34px; display: block; filter: drop-shadow(0 7px 5px rgba(22, 29, 25, .28)); }
 .quarter-path { position: absolute; left: 20%; right: 8%; bottom: 2%; height: 18%; background: rgba(199, 173, 121, .58); clip-path: polygon(46% 0, 56% 0, 100% 100%, 0 100%); }
-.quarter-building { position: absolute; display: block; width: 26%; height: 30%; bottom: 13%; border: 1px solid rgba(32, 43, 39, .38); border-radius: 3px 3px 1px 1px; opacity: .34; filter: grayscale(.7); transition: opacity .5s, filter .5s, transform .5s; }
+.quarter-building { position: absolute; display: block; width: 26%; height: 30%; bottom: 13%; border: 1px solid rgba(32, 43, 39, .62); border-radius: 3px 3px 1px 1px; opacity: .34; filter: url("#paper-building-cutout") grayscale(.7); transition: opacity .5s, filter .5s, transform .5s; box-shadow: inset 3px 0 rgba(245, 226, 188, .16), inset -4px -3px rgba(37, 28, 22, .18); }
 .quarter-building::before { content: ""; position: absolute; left: -8%; right: -8%; top: -30%; height: 40%; background: #334a4d; clip-path: polygon(50% 0, 100% 100%, 0 100%); }
 .quarter-building b { position: absolute; left: 38%; bottom: 0; width: 24%; height: 52%; border-radius: 5px 5px 0 0; background: rgba(255, 232, 168, .6); }
 /* Three terraced rows keep all eight sites readable in the small cluster. */
@@ -445,7 +445,7 @@ button.resource-pill:focus-visible {
 .keep-scene[data-generator-level]:not([data-generator-level="0"]) .quarter-generator,
 .keep-scene[data-quarry-level]:not([data-quarry-level="0"]) .quarter-quarry,
 .keep-scene[data-kitchen-level]:not([data-kitchen-level="0"]) .quarter-kitchen,
-.keep-scene[data-builders-yard-level]:not([data-builders-yard-level="0"]) .quarter-yard { opacity: 1; filter: none; transform: translateY(-2px); }
+.keep-scene[data-builders-yard-level]:not([data-builders-yard-level="0"]) .quarter-yard { opacity: 1; filter: url("#paper-building-cutout"); transform: translateY(-2px); }
 .keep-scene[data-storehouse-level="2"] .quarter-storehouse,
 .keep-scene[data-garden-level="2"] .quarter-garden,
 .keep-scene[data-forge-level="2"] .quarter-forge,
@@ -1890,6 +1890,64 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
 .theme-swatch.active { border-color: var(--gold); background: rgba(244, 204, 98, .1); }
 .theme-swatch.active i { box-shadow: 0 0 0 2px var(--gold), 0 0 12px var(--swatch); }
 .project-card.is-rank-project { border-color: rgba(244, 204, 98, .45); background: rgba(244, 204, 98, .06); }
+
+/* Keep architecture shares the residents' layered paper language: dark ink at
+   the cut edge, a warm cardstock reveal, subtle print fibers, and a small lift
+   from the scenery. Room colors stay distinct beneath the common material. */
+.building-illustration svg.paper-building-shell {
+    overflow: visible;
+    filter: url("#paper-building-cutout");
+}
+.paper-building-shell .building-contact-shadow { display: none; }
+
+.int-backwall,
+.int-sidewall,
+.int-floor {
+    box-sizing: border-box;
+    border: 2px solid rgba(42, 33, 25, .78);
+    box-shadow:
+        inset 0 0 0 2px rgba(235, 218, 178, .17),
+        inset -10px -12px 24px rgba(31, 24, 18, .2),
+        0 5px 0 rgba(30, 23, 18, .24);
+}
+.int-backwall { border-bottom-width: 5px; }
+.int-sidewall.side-left { border-right-width: 5px; }
+.int-sidewall.side-right { border-left-width: 5px; }
+.int-floor { border-top: 5px solid rgba(43, 33, 24, .82); }
+.int-backwall::after,
+.int-sidewall::after,
+.int-floor::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+        radial-gradient(circle at 17% 23%, rgba(255, 244, 214, .14) 0 1px, transparent 1.6px),
+        radial-gradient(circle at 73% 68%, rgba(45, 32, 22, .15) 0 .8px, transparent 1.4px),
+        repeating-linear-gradient(96deg, rgba(248, 232, 195, .055) 0 1px, transparent 1px 7px);
+    background-size: 19px 17px, 23px 21px, auto;
+    mix-blend-mode: soft-light;
+    opacity: .78;
+}
+
+@supports (filter: url("#paper-prop-cutout")) {
+    :is(
+        .hall-window-int, .hall-banner-int, .hall-hearth, .hall-charter, .hall-table, .hall-candle,
+        .lodge-window, .lodge-shelf, .lodge-herb, .lodge-bench, .lodge-logs,
+        .arch-window-int, .arch-shelf, .arch-desk, .arch-lamp, .arch-plinth,
+        .arch-broken-shelf, .arch-fallen-beam, .arch-rubble,
+        .garden-window, .garden-bed, .garden-water, .garden-worktable, .living-trellis,
+        .forge-hearth, .forge-anvil, .forge-rack, .forge-bellows, .ember-lantern,
+        .fridge-vault, .fridge-shelf, .fridge-crystal, .frostglass-mobile,
+        .generator-coil, .generator-console, .generator-conduit, .harmonic-orb,
+        .quarry-face, .quarry-blocks, .quarry-cart, .quarry-lantern, .stone-sentinel,
+        .kitchen-hearth, .kitchen-shelf, .kitchen-table, .kitchen-pot, .hearth-garland,
+        .enclave-window, .enclave-banner, .enclave-nest,
+        .room-tool-set, .room-decoration-set > i
+    ) {
+        filter: url("#paper-prop-cutout");
+    }
+}
 
 /* Placed Siegelings read as printed standees: a dark illustration contour,
    warm die-cut paper rim, dark outer keyline, and a lifted cast shadow. The
