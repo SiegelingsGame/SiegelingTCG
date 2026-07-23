@@ -136,6 +136,33 @@
     if (id === 'battleScreen' || id === 'mapScreen') resetViewportScroll();
   }
 
+  function renderGameToText() {
+    var run = state.run || {};
+    var screen = document.body.dataset.screen || 'loadingScreen';
+    var visibleChoices = [];
+    var choiceRoots = ['campGrid', 'cacheOptions', 'brokerGrid', 'smithGrid', 'caravanGrid', 'eventChoices', 'rewardGrid'];
+    choiceRoots.forEach(function (id) {
+      var root = $(id);
+      if (!root || root.closest('.hidden')) return;
+      Array.prototype.forEach.call(root.querySelectorAll('button,.camp-card,.reward-card'), function (node) {
+        var text = String(node.innerText || node.textContent || '').replace(/\s+/g, ' ').trim();
+        if (text) visibleChoices.push(text.slice(0, 180));
+      });
+    });
+    return JSON.stringify({
+      coordinateSystem: 'DOM viewport; origin top-left; x increases right; y increases down',
+      screen: screen,
+      busy: !!state.busy,
+      gold: Number(run.gold || 0),
+      party: (run.party || []).map(function (p) {
+        return { id: p.id, name: p.name, element: p.element, hp: p.hp, maxHp: p.maxHp, alive: !!p.alive };
+      }),
+      choices: visibleChoices
+    });
+  }
+  window.render_game_to_text = renderGameToText;
+  window.advanceTime = function () { return renderGameToText(); };
+
   function resetViewportScroll() {
     if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
     document.documentElement.scrollTop = 0;
@@ -1527,6 +1554,34 @@
     });
   }
 
+  /**
+   * Places the active warband directly into an illustrated stop. These are
+   * live party members (not decorative stand-ins), so tapping one opens the
+   * same detail card used by the map and battle surfaces.
+   */
+  function renderLocationParty(hostId, party) {
+    var host = $(hostId);
+    if (!host) return;
+    host.innerHTML = '';
+    (party || []).filter(function (p) { return p.alive; }).forEach(function (p, i) {
+      var fig = el('button', 'location-siegling ' + elClass(p.element));
+      fig.type = 'button';
+      fig.style.setProperty('--fig-i', i);
+      fig.setAttribute('aria-label', 'View ' + (p.name || 'Siegeling'));
+      fig.innerHTML = p.artUrl
+        ? '<img src="' + artAttr(p.artUrl) + '" alt=""><span>' + esc(p.name) + '</span>'
+        : '<b>' + icon(p.element) + '</b><span>' + esc(p.name) + '</span>';
+      fig.addEventListener('click', function () {
+        showUnitModal({
+          name: p.name, element: p.element, artUrl: p.artUrl,
+          subtitle: 'HP ' + p.hp + '/' + p.maxHp + ' · ⚡ ' + p.speed,
+          cards: p.cards || []
+        });
+      });
+      host.appendChild(fig);
+    });
+  }
+
   // ---- rest camp (interactive stop) -------------------------------------
   function renderCamp() {
     showScreen('campScreen');
@@ -1534,16 +1589,7 @@
     $('campNote').textContent = run.camp.note || '';
     $('campGold').textContent = '🪙 ' + (run.gold || 0);
 
-    // party silhouettes around the fire
-    var cp = $('campParty'); cp.innerHTML = '';
-    (run.party || []).forEach(function (p, i) {
-      if (!p.alive) return;
-      var fig = p.artUrl
-        ? el('div', 'camp-fig', '<img src="' + artAttr(p.artUrl) + '" alt="">')
-        : el('div', 'camp-fig camp-fig-fallback', icon(p.element));
-      fig.style.setProperty('--fig-i', i);
-      cp.appendChild(fig);
-    });
+    renderLocationParty('campParty', run.party);
 
     var grid = $('campGrid'); grid.innerHTML = '';
     (run.camp.options || []).forEach(function (opt) {
@@ -1584,6 +1630,7 @@
     showScreen('cacheScreen');
     var run = state.run;
     var c = run.cache;
+    renderLocationParty('cacheParty', run.party);
     var isDig = !c.game || c.game === 'DIG';
     $('cacheDigBtn').classList.toggle('hidden', !isDig);
     $('cacheTakeBtn').classList.toggle('hidden', !isDig);
@@ -1645,6 +1692,7 @@
     var run = state.run;
     var b = run.broker;
     $('brokerGold').textContent = '🪙 ' + (run.gold || 0);
+    renderLocationParty('brokerParty', run.party);
 
     var grid = $('brokerGrid'); grid.innerHTML = '';
     (b.offers || []).forEach(function (offer) {
@@ -1736,17 +1784,45 @@
     smithScrapMode = false;
     var run = state.run, sm = run.smith;
     $('smithGold').textContent = '🪙 ' + (run.gold || 0);
+    renderLocationParty('smithParty', run.party);
     var grid = $('smithGrid'); grid.innerHTML = '';
-    (sm.options || []).forEach(function (o) {
-      var card = el('div', 'camp-card ' + elClass(o.element) + (o.used ? ' used' : ''));
-      card.innerHTML = '<div class="camp-glyph">🔨</div>' +
-        '<div class="camp-card-title">' + esc(o.title) + '</div>' +
-        '<div class="camp-card-desc">' + esc(o.desc) + '</div>' +
-        (o.cost > 0 ? '<div class="camp-card-cost">🪙 ' + o.cost + '</div>' : '');
+    (sm.options || []).forEach(function (o, i) {
+      var detail = smithUpgradeDetail(o);
+      var card = el('button', 'camp-card upgrade-choice-card ' + elClass(o.element) + (o.used ? ' used' : ''));
+      card.type = 'button';
+      card.innerHTML =
+        '<span class="upgrade-choice-index">Epiphany ' + String(i + 1).padStart(2, '0') + '</span>' +
+        '<span class="upgrade-card-sigil">✦</span>' +
+        '<span class="upgrade-original"><small>Original</small><b>' + esc(detail.before) + '</b></span>' +
+        '<span class="upgrade-arrow">↓</span>' +
+        '<span class="upgrade-awakened"><small>Awakened form</small><b>' + esc(detail.after) + '</b><em>' + esc(detail.change) + '</em></span>' +
+        (o.cost > 0 ? '<span class="upgrade-cost">Choose · 🪙 ' + o.cost + '</span>' : '<span class="upgrade-cost">Choose</span>');
       if (!o.used && o.affordable) { card.classList.add('clickable'); card.addEventListener('click', function () { simplePost('/api/siege/smith/choose', { optionId: o.id }, { source: 'smith', title: 'Smith', icon: '🔨' }); }); }
-      else if (!o.affordable) card.classList.add('unaffordable');
+      else if (!o.affordable) { card.classList.add('unaffordable'); card.disabled = true; }
+      else if (o.used) card.disabled = true;
       grid.appendChild(card);
     });
+  }
+
+  function smithUpgradeDetail(option) {
+    var raw = String(option.desc || '');
+    var arrow = raw.indexOf('→');
+    var before = String(option.title || '').replace(/^Chisel\s+/i, '') || 'Card';
+    var after = before + '+';
+    var change = raw;
+    if (arrow >= 0) {
+      before = raw.slice(0, arrow).trim() || before;
+      var right = raw.slice(arrow + 1).trim();
+      var changeAt = right.lastIndexOf('(');
+      if (changeAt >= 0 && right.endsWith(')')) {
+        after = right.slice(0, changeAt).trim() || after;
+        change = right.slice(changeAt + 1, -1).trim();
+      } else {
+        after = right || after;
+        change = 'Improved card effect';
+      }
+    }
+    return { before: before, after: after, change: change || 'Improved card effect' };
   }
   function toggleSmithScrap() {
     smithScrapMode = !smithScrapMode;
@@ -1773,6 +1849,7 @@
     showScreen('caravanScreen');
     var run = state.run, cv = run.caravan;
     $('caravanGold').textContent = '🪙 ' + (run.gold || 0);
+    renderLocationParty('caravanParty', run.party);
     var grid = $('caravanGrid'); grid.innerHTML = '';
     (cv.options || []).forEach(function (o) {
       var icon = o.kind === 'SHOP_ITEM' ? (o.item ? o.item.icon : '📦') : o.kind === 'SHOP_HEAL' ? '🍲' : '🃏';
@@ -1791,6 +1868,7 @@
   function renderEvent() {
     showScreen('eventScreen');
     var run = state.run, ev = run.event;
+    renderLocationParty('eventParty', run.party);
     $('eventIcon').textContent = ev.icon || '❔';
     $('eventTitle').textContent = ev.title || 'Event';
     $('eventPrompt').textContent = ev.prompt || '';
@@ -3486,7 +3564,8 @@
     renderXpRecap();
     var grid = $('rewardGrid'); grid.innerHTML = '';
     (state.run.pendingRewards || []).forEach(function (opt) {
-      var c = el('div', 'reward-card ' + elClass(opt.element) + ' kind-' + opt.kind);
+      var c = el('button', 'reward-card ' + elClass(opt.element) + ' kind-' + opt.kind);
+      c.type = 'button';
       var art = opt.artUrl
         ? '<div class="reward-art" style="background-image:url(\'' + artCss(opt.artUrl) + '\')"></div>'
         : '<div class="reward-glyph">' + (REWARD_ICON[opt.kind] || '🎁') + '</div>';
