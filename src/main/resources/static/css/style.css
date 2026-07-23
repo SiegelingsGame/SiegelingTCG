@@ -7855,8 +7855,17 @@ body.placement-active .board-cell.legal {
 .selected-preview-card.element-frame .card-art-selected.card-art-crop-illustration img,
 .mulligan-showcase.element-frame .card-art-preview.card-art-crop-illustration img,
 .mulligan-showcase.element-frame .card-art-selected.card-art-crop-illustration img {
-    width: calc(100% * var(--card-art-zoom, 1));
+    /* The art window is a flex container (centres its child). A zoomed
+       `width: calc(100% * zoom)` is a flex item and gets shrunk back toward the
+       window width; the exact amount depends on the image's intrinsic size, so
+       while the (large) source art is still downloading the width collapses and
+       the illustration renders tiny — the "smaller on some surfaces" bug. Drive
+       the width off the zoomed height instead (auto → height x intrinsic ratio)
+       and opt the item out of flex shrinking, so the art fills the window the
+       same way on every surface and never collapses mid-load. */
+    width: auto;
     height: calc(100% * var(--card-art-zoom, 1));
+    flex-shrink: 0;
     max-width: none;
     max-height: none;
     object-fit: cover;
