@@ -21,6 +21,7 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.temporal.IsoFields;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -211,11 +212,9 @@ public class KeepService {
             KeepState state = context.state();
             String id = buildId == null ? "" : buildId.trim();
             if (!hasFreeConstructionSlot(state)) {
-                throw new IllegalArgumentException(constructionSlots(state) > 1
-                        ? "Both construction crews are busy. Finish a current project first."
-                        : "Finish the current construction project first.");
+                throw new IllegalArgumentException("All construction teams are active. Finish a current project first.");
             }
-            if (id.equals(state.getActiveConstructionId()) || id.equals(state.getActiveConstructionId2())) {
+            if (constructionSlotsInUse(state).stream().anyMatch(slot -> id.equals(slot.id()))) {
                 throw new IllegalArgumentException("That project is already underway.");
             }
             BuildProject project = buildProject(id);
@@ -228,31 +227,40 @@ public class KeepService {
             materializeAllProduction(state, context.residents(), context.now());
             state.setTimber(state.getTimber() - project.timberCost());
             spendMaterials(state, project.materialCosts());
-            if (state.getActiveConstructionId().isBlank()) {
-                state.setActiveConstructionId(id);
-                state.setConstructionStartedAt(context.now());
-                state.setConstructionCompletesAt(context.now().plusSeconds(project.durationSeconds()));
-            } else {
-                state.setActiveConstructionId2(id);
-                state.setConstructionStartedAt2(context.now());
-                state.setConstructionCompletesAt2(context.now().plusSeconds(project.durationSeconds()));
-            }
+            addConstruction(state, id, context.now(), context.now().plusSeconds(project.durationSeconds()));
             return Map.of("constructionStarted", id);
         });
     }
 
-    /** The Builder's Yard staffs a second construction crew. */
+    /** Keeper journey milestones add one team at levels 5, 10, 15, 20, and 25. */
     private int constructionSlots(KeepState state) {
-        return state.getBuildersYardLevel() >= 1 ? 2 : 1;
+        return 1 + Math.min(5, keeperLevel(state.getKeeperXp()) / 5);
     }
 
     private boolean hasFreeConstructionSlot(KeepState state) {
-        if (state.getActiveConstructionId().isBlank()) return true;
-        return constructionSlots(state) >= 2 && state.getActiveConstructionId2().isBlank();
+        return constructionSlotsInUse(state).size() < constructionSlots(state);
     }
 
     private boolean isConstructing(KeepState state, String projectId) {
-        return projectId.equals(state.getActiveConstructionId()) || projectId.equals(state.getActiveConstructionId2());
+        return constructionSlotsInUse(state).stream().anyMatch(slot -> projectId.equals(slot.id()));
+    }
+
+    private void addConstruction(KeepState state, String id, Instant startedAt, Instant completesAt) {
+        if (state.getActiveConstructionId().isBlank()) {
+            state.setActiveConstructionId(id);
+            state.setConstructionStartedAt(startedAt);
+            state.setConstructionCompletesAt(completesAt);
+            return;
+        }
+        if (state.getActiveConstructionId2().isBlank()) {
+            state.setActiveConstructionId2(id);
+            state.setConstructionStartedAt2(startedAt);
+            state.setConstructionCompletesAt2(completesAt);
+            return;
+        }
+        state.getAdditionalConstructionIds().add(id);
+        state.getAdditionalConstructionStartedAts().add(startedAt);
+        state.getAdditionalConstructionCompletesAts().add(completesAt);
     }
 
     public Map<String, Object> readLore(AccountUser user, String loreId,
@@ -703,36 +711,70 @@ public class KeepService {
         if (!state.getUnlockedLoreIds().contains("charter_three_promises")) unlock(state, "charter_three_promises");
     }
 
-    /** Completes every due project across both crew slots, earliest first, and
-        returns the completed project ids. */
+    /** Completes every due project across all level-provided teams, earliest first. */
     private List<String> materializeConstructions(KeepState state, List<Resident> residents, Instant now) {
         List<String> completed = new ArrayList<>();
         while (true) {
-            boolean slotOneDue = !state.getActiveConstructionId().isBlank()
-                    && state.getConstructionCompletesAt() != null && !now.isBefore(state.getConstructionCompletesAt());
-            boolean slotTwoDue = !state.getActiveConstructionId2().isBlank()
-                    && state.getConstructionCompletesAt2() != null && !now.isBefore(state.getConstructionCompletesAt2());
-            if (!slotOneDue && !slotTwoDue) break;
-            boolean takeSlotTwo = slotTwoDue && (!slotOneDue
-                    || state.getConstructionCompletesAt2().isBefore(state.getConstructionCompletesAt()));
-            String id = takeSlotTwo ? state.getActiveConstructionId2() : state.getActiveConstructionId();
-            Instant completesAt = takeSlotTwo ? state.getConstructionCompletesAt2() : state.getConstructionCompletesAt();
-            materializeAllProduction(state, residents, completesAt);
-            applyConstructionEffects(state, id, completesAt);
-            if (takeSlotTwo) {
-                state.setActiveConstructionId2("");
-                state.setConstructionStartedAt2(null);
-                state.setConstructionCompletesAt2(null);
-            } else {
-                state.setActiveConstructionId("");
-                state.setConstructionStartedAt(null);
-                state.setConstructionCompletesAt(null);
-            }
-            completed.add(id);
+            ConstructionSlot due = constructionSlotsInUse(state).stream()
+                    .filter(slot -> slot.completesAt() != null && !now.isBefore(slot.completesAt()))
+                    .min(Comparator.comparing(ConstructionSlot::completesAt))
+                    .orElse(null);
+            if (due == null) break;
+            materializeAllProduction(state, residents, due.completesAt());
+            applyConstructionEffects(state, due.id(), due.completesAt());
+            clearConstruction(state, due.index());
+            completed.add(due.id());
             awardKeeperXp(state, KEEPER_PROJECT_XP);
         }
         if (!completed.isEmpty()) materializeAllProduction(state, residents, now);
         return completed;
+    }
+
+    private List<ConstructionSlot> constructionSlotsInUse(KeepState state) {
+        List<ConstructionSlot> out = new ArrayList<>();
+        if (!state.getActiveConstructionId().isBlank()) {
+            out.add(new ConstructionSlot(0, state.getActiveConstructionId(), state.getConstructionStartedAt(),
+                    state.getConstructionCompletesAt()));
+        }
+        if (!state.getActiveConstructionId2().isBlank()) {
+            out.add(new ConstructionSlot(1, state.getActiveConstructionId2(), state.getConstructionStartedAt2(),
+                    state.getConstructionCompletesAt2()));
+        }
+        List<String> ids = state.getAdditionalConstructionIds();
+        List<Instant> starts = state.getAdditionalConstructionStartedAts();
+        List<Instant> completes = state.getAdditionalConstructionCompletesAts();
+        for (int index = 0; index < ids.size(); index++) {
+            String id = ids.get(index);
+            if (id == null || id.isBlank()) continue;
+            out.add(new ConstructionSlot(index + 2, id, index < starts.size() ? starts.get(index) : null,
+                    index < completes.size() ? completes.get(index) : null));
+        }
+        return out;
+    }
+
+    private void clearConstruction(KeepState state, int index) {
+        if (index == 0) {
+            state.setActiveConstructionId("");
+            state.setConstructionStartedAt(null);
+            state.setConstructionCompletesAt(null);
+            return;
+        }
+        if (index == 1) {
+            state.setActiveConstructionId2("");
+            state.setConstructionStartedAt2(null);
+            state.setConstructionCompletesAt2(null);
+            return;
+        }
+        int additionalIndex = index - 2;
+        if (additionalIndex < state.getAdditionalConstructionIds().size()) {
+            state.getAdditionalConstructionIds().remove(additionalIndex);
+        }
+        if (additionalIndex < state.getAdditionalConstructionStartedAts().size()) {
+            state.getAdditionalConstructionStartedAts().remove(additionalIndex);
+        }
+        if (additionalIndex < state.getAdditionalConstructionCompletesAts().size()) {
+            state.getAdditionalConstructionCompletesAts().remove(additionalIndex);
+        }
     }
 
     private void applyConstructionEffects(KeepState state, String id, Instant completesAt) {
@@ -1722,6 +1764,19 @@ public class KeepService {
 
         List<Map<String, Object>> residentPayload = residents.stream().map(this::serializeResident).toList();
         out.put("residents", residentPayload);
+        int siegelingSlotCapacity = 1 + (int) FACILITIES.keySet().stream()
+                .filter(id -> facilityLevel(state, id) > 0).count()
+                + (state.getEnclaveLevel() > 0 ? ENCLAVE_CAPACITY : 0);
+        int activeSiegelingSlots = (state.getWoodlotResidentId().isBlank() ? 0 : 1)
+                + (int) FACILITIES.keySet().stream()
+                .filter(id -> facilityLevel(state, id) > 0)
+                .filter(id -> !state.getFacilityResidentIds().getOrDefault(id, "").isBlank()).count()
+                + (state.getEnclaveLevel() > 0
+                    ? (int) normalizedEnclaveResidents(state).stream().filter(id -> !id.isBlank()).count() : 0);
+        out.put("siegelingSlots", Map.of(
+                "active", activeSiegelingSlots,
+                "capacity", siegelingSlotCapacity,
+                "available", Math.max(0, siegelingSlotCapacity - activeSiegelingSlots)));
         out.put("buildings", buildings(state));
         out.put("buildOptions", buildOptions(state));
         List<Map<String, Object>> constructions = activeConstructions(state, now);
@@ -1802,8 +1857,8 @@ public class KeepService {
     private List<Map<String, Object>> buildings(KeepState state) {
         List<Map<String, Object>> out = new ArrayList<>();
         int hall = hallLevel(state);
-        boolean hallConstructing = state.getActiveConstructionId().startsWith("hall_level_")
-                || state.getActiveConstructionId2().startsWith("hall_level_");
+        boolean hallConstructing = constructionSlotsInUse(state).stream()
+                .anyMatch(slot -> slot.id().startsWith("hall_level_"));
         out.add(building("great_hall", "Covenant Hall", hall, hallConstructing ? "CONSTRUCTING" : "COMPLETE"));
         out.add(building("builders_yard", state.getBuildersYardLevel() > 0 ? "Builder's Yard" : "Yard Foundations",
                 state.getBuildersYardLevel(), isConstructing(state, "build_builders_yard") ? "CONSTRUCTING"
@@ -1868,7 +1923,7 @@ public class KeepService {
             BuildProject project = buildProject("build_builders_yard");
             out.add(buildOption(state, project.id(), project.name(), project.timberCost(), project.materialCosts(),
                     project.durationSeconds(),
-                    "Advanced construction recipes and a second crew: level-2 expansions unlock and two projects can run at once.", true));
+                    "Advanced construction recipes: level-2 expansions unlock while Keeper Level determines simultaneous teams.", true));
         }
         if (state.getBuildersYardLevel() >= 1) {
             for (FacilityDefinition definition : FACILITIES.values()) {
@@ -1930,12 +1985,10 @@ public class KeepService {
 
     private List<Map<String, Object>> activeConstructions(KeepState state, Instant now) {
         List<Map<String, Object>> out = new ArrayList<>();
-        Map<String, Object> first = constructionEntry(state.getActiveConstructionId(),
-                state.getConstructionStartedAt(), state.getConstructionCompletesAt(), now);
-        if (first != null) out.add(first);
-        Map<String, Object> second = constructionEntry(state.getActiveConstructionId2(),
-                state.getConstructionStartedAt2(), state.getConstructionCompletesAt2(), now);
-        if (second != null) out.add(second);
+        for (ConstructionSlot slot : constructionSlotsInUse(state)) {
+            Map<String, Object> entry = constructionEntry(slot.id(), slot.startedAt(), slot.completesAt(), now);
+            if (entry != null) out.add(entry);
+        }
         return out;
     }
 
@@ -2411,6 +2464,7 @@ public class KeepService {
                                      int gold, int remnants) { }
     private record BuildProject(String id, String name, int timberCost, Map<String, Integer> materialCosts,
                                 long durationSeconds) { }
+    private record ConstructionSlot(int index, String id, Instant startedAt, Instant completesAt) { }
     private record KeeperReward(int gold, int remnants, String decorationId) { }
     private record Context(PlayerProgressionEntity progression, KeepState state, List<Resident> residents, Instant now) { }
 

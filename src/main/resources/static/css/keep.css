@@ -150,6 +150,8 @@ button.resource-pill:focus-visible {
 .pulse-dot { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); }
 .resource-icon { color: #d89b56; text-shadow: 0 1px 0 #6f4222; transform: translateY(-50%) rotate(90deg); }
 .essence-pill .resource-icon { color: #9fe9ff; text-shadow: 0 0 9px rgba(117, 224, 255, .8); transform: translateY(-50%); }
+.siegeling-pill .resource-icon { color: #ffe7a2; text-shadow: 0 0 8px rgba(244, 204, 98, .45); transform: translateY(-50%); }
+.construction-team-pill .resource-icon { color: #d8a56f; text-shadow: 0 1px 0 #6f4222; transform: translateY(-50%); }
 .pulse-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 4px rgba(111, 207, 139, .12), 0 0 12px var(--green); }
 
 .keep-header-actions {
@@ -2114,15 +2116,15 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     .keep-brand strong { font-size: 14px; }
     .keep-brand small { font-size: 7px; }
     .keep-resource-bar { grid-row: 2; grid-column: 1 / -1; position: absolute; left: 50%; top: calc(57px + var(--safe-top)); transform: translateX(-50%); z-index: 35; pointer-events: none; }
-    .keep-resource-bar .inventory-trigger { pointer-events: auto; }
+    .keep-resource-bar button { pointer-events: auto; }
     .resource-pill,
-    .station-pill { min-width: 82px; padding: 5px 9px 5px 27px; border-radius: 0 0 10px 10px; background: rgba(17, 31, 41, .88); }
+    .station-pill { min-width: 72px; padding: 5px 7px 5px 24px; border-radius: 0 0 10px 10px; background: rgba(17, 31, 41, .88); }
     .resource-pill strong,
     .station-pill strong { font-size: 12px; }
     .resource-pill small,
     .station-pill small { font-size: 7px; }
     .resource-icon,
-    .pulse-dot { left: 9px; }
+    .pulse-dot { left: 8px; }
     .keep-header-actions { gap: 4px; }
     .header-link { display: none; }
     .icon-button { width: 36px; min-height: 36px; }

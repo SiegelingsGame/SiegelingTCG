@@ -9,7 +9,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#173f54">
-    <link rel="stylesheet" href="/css/keep.css?v=18">
+    <link rel="stylesheet" href="/css/keep.css?v=19">
 </head>
 <body>
 <svg class="keep-svg-defs" width="0" height="0" aria-hidden="true" focusable="false">
@@ -55,9 +55,14 @@
             <span><strong id="keepName">My Keep</strong><small id="chapterLabel">Chapter I · The Wounded Ground</small></span>
         </a>
         <div class="keep-resource-bar" aria-label="Keep resources">
-            <span class="resource-pill timber-pill"><span class="resource-icon" aria-hidden="true">▰</span><strong id="timberAmount">0</strong><small>Timber</small></span>
+            <button class="resource-pill siegeling-pill" type="button" data-open-panel="residents" aria-label="Open Siegeling assignments">
+                <span class="resource-icon" aria-hidden="true">&#9822;</span><strong id="siegelingSlotAmount">0/1</strong><small>Siegelings</small>
+            </button>
             <button class="resource-pill essence-pill inventory-trigger" type="button" data-open-panel="inventory" aria-label="Open keep inventory">
                 <span class="resource-icon" aria-hidden="true">✦</span><strong id="materialAmount">0</strong><small>Materials</small>
+            </button>
+            <button class="resource-pill construction-team-pill" type="button" data-open-panel="projects" aria-label="Open construction projects">
+                <span class="resource-icon" aria-hidden="true">&#9874;</span><strong id="constructionTeamAmount">0/1</strong><small>Teams</small>
             </button>
             <span class="station-pill"><span class="pulse-dot" aria-hidden="true"></span><strong id="stationAvailable">0</strong><small>Ready</small></span>
         </div>
@@ -566,7 +571,7 @@
 
 <audio id="keepTheme" loop preload="auto" src="/audio/sieglings-theme.mp3?v=1"></audio>
 <script src="/js/config.js?v=1"></script>
-<script src="/js/keep.js?v=19"></script>
+<script src="/js/keep.js?v=20"></script>
 <script src="/js/sw-register.js?v=1"></script>
 </body>
 </html>
