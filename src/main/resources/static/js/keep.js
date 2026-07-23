@@ -578,9 +578,13 @@
         if (!snapshot) return;
         text('keepName', snapshot.keepName || 'My Keep');
         text('chapterLabel', `Chapter ${roman(snapshot.chapter?.number || 1)} · ${snapshot.chapter?.title || 'The Wounded Ground'}`);
-        text('timberAmount', `${number(snapshot.resources?.timber)}/${number(snapshot.resources?.timberCapacity)}`);
         const materials = snapshot.resources?.materials || [];
-        text('materialAmount', `${materials.reduce((sum, item) => sum + number(item.amount), 0)}/${number(snapshot.resources?.materialCapacity) * Math.max(1, materials.length)}`);
+        const materialAmount = number(snapshot.resources?.timber)
+            + materials.reduce((sum, item) => sum + number(item.amount), 0);
+        const materialCapacity = number(snapshot.resources?.timberCapacity)
+            + materials.reduce((sum, item) => sum + (number(item.capacity) || number(snapshot.resources?.materialCapacity)), 0);
+        text('materialAmount', `${materialAmount}/${materialCapacity}`);
+        renderHeaderCapacityCounters();
 
         const scene = document.getElementById('keepScene');
         const visual = snapshot.visualState || {};
@@ -666,6 +670,7 @@
         const totalReady = (state.snapshot.stations || [state.snapshot.station]).reduce(
             (sum, station) => sum + projectedStationAvailable(station), 0);
         text('stationAvailable', totalReady);
+        renderHeaderCapacityCounters();
         text('collectAmount', `${available} timber`);
         const collect = document.getElementById('collectButton');
         if (collect) collect.disabled = available <= 0 || number(state.snapshot.resources?.timber) >= number(state.snapshot.resources?.timberCapacity) || state.busy;
@@ -710,6 +715,31 @@
         const snapshot = state.snapshot || {};
         if (Array.isArray(snapshot.activeConstructions)) return snapshot.activeConstructions.filter(Boolean);
         return snapshot.activeConstruction ? [snapshot.activeConstruction] : [];
+    }
+
+    function renderHeaderCapacityCounters() {
+        const snapshot = state.snapshot || {};
+        const slots = snapshot.siegelingSlots || {};
+        const activeSiegelings = (snapshot.stations || [snapshot.station]).filter((station) => station?.residentId).length
+            + (snapshot.enclave?.slots || []).filter((slot) => slot?.residentId).length;
+        const siegelingCapacity = Math.max(1, activeSiegelings, number(slots.capacity));
+        text('siegelingSlotAmount', `${activeSiegelings}/${siegelingCapacity}`);
+        const siegelingPill = document.querySelector('.siegeling-pill');
+        if (siegelingPill) {
+            const available = Math.max(0, siegelingCapacity - activeSiegelings);
+            siegelingPill.setAttribute('aria-label', `Open Siegeling assignments: ${activeSiegelings} active, ${available} available`);
+            siegelingPill.title = `${activeSiegelings} active · ${available} available`;
+        }
+
+        const activeTeams = activeConstructionList().length;
+        const teamCapacity = Math.max(1, number(snapshot.constructionSlots) || 1);
+        text('constructionTeamAmount', `${activeTeams}/${teamCapacity}`);
+        const constructionPill = document.querySelector('.construction-team-pill');
+        if (constructionPill) {
+            const available = Math.max(0, teamCapacity - activeTeams);
+            constructionPill.setAttribute('aria-label', `Open construction projects: ${activeTeams} active, ${available} available`);
+            constructionPill.title = `${activeTeams} active · ${available} available`;
+        }
     }
 
     function renderFavoriteShrine() {
@@ -780,7 +810,7 @@
         const banner = document.getElementById('constructionBanner');
         banner?.classList.toggle('hidden', !constructions.length);
         if (!constructions.length) return;
-        // The banner tracks whichever crew finishes soonest; a second crew is noted inline.
+        // The compact banner tracks whichever active team finishes soonest.
         const soonest = constructions.reduce((best, item) =>
             constructionEntryRemaining(item) < constructionEntryRemaining(best) ? item : best, constructions[0]);
         text('constructionName', projectName(soonest.id)
@@ -1250,7 +1280,7 @@
         const constructions = activeConstructionList();
         const slots = Math.max(1, number(state.snapshot.constructionSlots) || 1);
         const crewNote = slots > 1 || constructions.length
-            ? `<p class="panel-intro crew-note">Construction crews: ${constructions.length}/${slots} busy${slots > 1 ? ' · the Builder’s Yard staffs a second crew' : ''}.</p>`
+            ? `<p class="panel-intro crew-note">Construction teams: ${constructions.length}/${slots} active${slots > 1 ? ` · Keeper Level ${number(state.snapshot.keeper?.level) || 1} coordinates ${slots} simultaneous projects` : ''}.</p>`
             : '';
         const inProgress = constructions.map((item, index) => `<section class="project-card"><span class="eyebrow">In progress${slots > 1 ? ` · Crew ${index + 1}` : ''}</span><h3>${escapeHtml(projectName(item.id))}</h3><p>The site changes through foundations, scaffolding, and completion. No progress is lost while you are away.</p><div class="meter"><i data-live-construction-meter="${index}" style="width:${constructionPercent(index)}%"></i></div><div class="cost-row"><span data-live-construction-time="${index}">${escapeHtml(formatDuration(constructionEntryRemaining(item)))}</span><strong>Workers active</strong></div></section>`).join('');
         const options = state.snapshot.buildOptions || [];
@@ -2254,6 +2284,8 @@
                 resident: station.resident?.name || null, affinities: station.affinities || []
             })),
             keepRank: snapshot.keepRank || null,
+            keeper: snapshot.keeper || null,
+            siegelingSlots: snapshot.siegelingSlots || null,
             hallTheme: snapshot.visualState?.hallTheme || 'covenant',
             favorite: snapshot.favorite || null,
             weeklyOrder: snapshot.weeklyOrder || null,

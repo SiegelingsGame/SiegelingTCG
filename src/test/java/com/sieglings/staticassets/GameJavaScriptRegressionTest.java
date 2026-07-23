@@ -545,8 +545,8 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=18")
-                        && keepHtml.contains("/js/keep.js?v=19"),
+                        && keepHtml.contains("/css/keep.css?v=19")
+                        && keepHtml.contains("/js/keep.js?v=20"),
                 "Keep architecture must retain its paper building hooks and refresh both asset cache pins."
         );
         assertTrue(

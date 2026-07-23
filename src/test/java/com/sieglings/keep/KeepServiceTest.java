@@ -76,6 +76,10 @@ class KeepServiceTest {
         assertTrue(((Number) snapshot.get("stateVersion")).longValue() >= 1L);
         assertEquals(KeepService.INITIAL_TIMBER, intAt(snapshot, "resources", "timber"));
         assertEquals(15, intAt(snapshot, "station", "available"));
+        assertEquals(0, intAt(snapshot, "siegelingSlots", "active"));
+        assertEquals(1, intAt(snapshot, "siegelingSlots", "capacity"));
+        assertEquals(1, intAt(snapshot, "siegelingSlots", "available"));
+        assertEquals(1, ((Number) snapshot.get("constructionSlots")).intValue());
         assertEquals(3, ((List<?>) snapshot.get("residents")).size());
         assertEquals(1, ((List<?>) snapshot.get("lore")).size());
         assertTrue(conversationIds(snapshot).contains("steward_first_promise"));
@@ -92,6 +96,8 @@ class KeepServiceTest {
 
         Map<String, Object> invited = service.inviteResident(user, "mossling", "resident-1", 2);
         assertEquals("mossling", valueAt(invited, "station", "residentId"));
+        assertEquals(1, intAt(invited, "siegelingSlots", "active"));
+        assertEquals(0, intAt(invited, "siegelingSlots", "available"));
         assertEquals(1.15, ((Number) valueAt(invited, "station", "ratePerMinute")).doubleValue(), 0.0001);
 
         clock.advance(Duration.ofMinutes(60));
@@ -410,6 +416,10 @@ class KeepServiceTest {
 
         store.state.setTimber(0);
         service.setEnclaveResident(user, 0, "mossling", "enclave-resident", store.state.getVersion());
+        Map<String, Object> occupied = service.getSnapshot(user);
+        assertEquals(1, intAt(occupied, "siegelingSlots", "active"));
+        assertEquals(6, intAt(occupied, "siegelingSlots", "capacity"));
+        assertEquals(5, intAt(occupied, "siegelingSlots", "available"));
         for (int index = 0; index < 3; index++) {
             clock.advance(Duration.ofMinutes(2));
             service.collect(user, "woodlot", "enclave-collect-" + index, store.state.getVersion());
@@ -514,7 +524,7 @@ class KeepServiceTest {
     }
 
     @Test
-    void buildersYardUnlocksSecondCrewAndAdvancedRecipes() {
+    void keeperLevelsIncreaseConstructionTeamsAndBuildersYardUnlocksAdvancedRecipes() {
         service.getSnapshot(user);
         store.state.setArchiveLevel(1);
         store.state.setWoodlotLevel(2);
@@ -534,18 +544,28 @@ class KeepServiceTest {
         service.startBuild(user, "build_forge", "build-1", store.state.getVersion());
         assertThrows(IllegalArgumentException.class,
                 () -> service.startBuild(user, "build_fridge", "build-2", store.state.getVersion()),
-                "Without the yard only one crew works at a time.");
+                "Keeper Levels 1-4 coordinate one construction team.");
 
+        store.state.setKeeperXp(700); // Keeper Level 5 unlocks team two.
         store.state.setBuildersYardLevel(1);
         Map<String, Object> second = service.startBuild(user, "build_fridge", "build-3", store.state.getVersion());
         assertEquals(2, ((List<?>) second.get("activeConstructions")).size());
         assertEquals(2, ((Number) second.get("constructionSlots")).intValue());
 
-        clock.advance(Duration.ofSeconds(KeepService.FRIDGE_LEVEL_ONE_SECONDS + 1));
+        store.state.setKeeperXp(2_700); // Keeper Level 10 unlocks team three.
+        Map<String, Object> third = service.startBuild(user, "build_generator", "build-4", store.state.getVersion());
+        assertEquals(3, ((List<?>) third.get("activeConstructions")).size());
+        assertEquals(3, ((Number) third.get("constructionSlots")).intValue());
+        assertThrows(IllegalArgumentException.class,
+                () -> service.startBuild(user, "build_quarry", "build-5", store.state.getVersion()),
+                "All level-provided teams are active.");
+
+        clock.advance(Duration.ofSeconds(KeepService.GENERATOR_LEVEL_ONE_SECONDS + 1));
         Map<String, Object> completed = service.getSnapshot(user);
         assertEquals(1, ((Number) station(completed, "forge").get("level")).intValue());
         assertEquals(1, ((Number) station(completed, "fridge").get("level")).intValue());
-        assertEquals(2, progression.getKeepProjectsCompleted());
+        assertEquals(1, ((Number) station(completed, "generator").get("level")).intValue());
+        assertEquals(3, progression.getKeepProjectsCompleted());
 
         Map<String, Object> advanced = service.startBuild(user, "garden_level_2", "adv-ok", store.state.getVersion());
         assertNotNull(advanced.get("activeConstruction"));

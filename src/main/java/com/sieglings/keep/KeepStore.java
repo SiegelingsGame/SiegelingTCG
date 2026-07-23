@@ -58,6 +58,9 @@ public class KeepStore {
         payload.put("activeConstructionId2", state.getActiveConstructionId2());
         payload.put("constructionStartedAt2", timestamp(state.getConstructionStartedAt2()));
         payload.put("constructionCompletesAt2", timestamp(state.getConstructionCompletesAt2()));
+        payload.put("additionalConstructionIds", state.getAdditionalConstructionIds());
+        payload.put("additionalConstructionStartedAts", timestampList(state.getAdditionalConstructionStartedAts()));
+        payload.put("additionalConstructionCompletesAts", timestampList(state.getAdditionalConstructionCompletesAts()));
         payload.put("woodlotStored", state.getWoodlotStored());
         payload.put("woodlotProductionRemainder", state.getWoodlotProductionRemainder());
         payload.put("woodlotCollectCount", state.getWoodlotCollectCount());
@@ -135,6 +138,9 @@ public class KeepStore {
         state.setActiveConstructionId2(string(snapshot.get("activeConstructionId2")));
         state.setConstructionStartedAt2(instant(snapshot.get("constructionStartedAt2")));
         state.setConstructionCompletesAt2(instant(snapshot.get("constructionCompletesAt2")));
+        state.setAdditionalConstructionIds(strings(snapshot.get("additionalConstructionIds")));
+        state.setAdditionalConstructionStartedAts(instants(snapshot.get("additionalConstructionStartedAts")));
+        state.setAdditionalConstructionCompletesAts(instants(snapshot.get("additionalConstructionCompletesAts")));
         state.setWoodlotStored((int) number(snapshot.get("woodlotStored"), 0));
         state.setWoodlotProductionRemainder(decimal(snapshot.get("woodlotProductionRemainder"), 0));
         state.setWoodlotCollectCount((int) number(snapshot.get("woodlotCollectCount"), 0));
@@ -250,6 +256,19 @@ public class KeepStore {
     private static Map<String, Object> timestampMap(Map<String, Instant> values) {
         Map<String, Object> out = new LinkedHashMap<>();
         if (values != null) values.forEach((key, value) -> out.put(key, timestamp(value)));
+        return out;
+    }
+
+    private static List<Instant> instants(Object value) {
+        List<Instant> out = new ArrayList<>();
+        if (!(value instanceof List<?> list)) return out;
+        for (Object item : list) out.add(instant(item));
+        return out;
+    }
+
+    private static List<Object> timestampList(List<Instant> values) {
+        List<Object> out = new ArrayList<>();
+        if (values != null) values.forEach(value -> out.add(timestamp(value)));
         return out;
     }
 }

@@ -25,6 +25,9 @@ public class KeepState {
     private String activeConstructionId2 = "";
     private Instant constructionStartedAt2;
     private Instant constructionCompletesAt2;
+    private List<String> additionalConstructionIds = new ArrayList<>();
+    private List<Instant> additionalConstructionStartedAts = new ArrayList<>();
+    private List<Instant> additionalConstructionCompletesAts = new ArrayList<>();
     private int woodlotStored;
     private double woodlotProductionRemainder;
     private int woodlotCollectCount;
@@ -101,6 +104,16 @@ public class KeepState {
     public void setConstructionStartedAt2(Instant constructionStartedAt2) { this.constructionStartedAt2 = constructionStartedAt2; }
     public Instant getConstructionCompletesAt2() { return constructionCompletesAt2; }
     public void setConstructionCompletesAt2(Instant constructionCompletesAt2) { this.constructionCompletesAt2 = constructionCompletesAt2; }
+    public List<String> getAdditionalConstructionIds() { return additionalConstructionIds; }
+    public void setAdditionalConstructionIds(List<String> values) { this.additionalConstructionIds = copy(values); }
+    public List<Instant> getAdditionalConstructionStartedAts() { return additionalConstructionStartedAts; }
+    public void setAdditionalConstructionStartedAts(List<Instant> values) {
+        this.additionalConstructionStartedAts = values == null ? new ArrayList<>() : new ArrayList<>(values);
+    }
+    public List<Instant> getAdditionalConstructionCompletesAts() { return additionalConstructionCompletesAts; }
+    public void setAdditionalConstructionCompletesAts(List<Instant> values) {
+        this.additionalConstructionCompletesAts = values == null ? new ArrayList<>() : new ArrayList<>(values);
+    }
     public int getWoodlotStored() { return woodlotStored; }
     public void setWoodlotStored(int woodlotStored) { this.woodlotStored = Math.max(0, woodlotStored); }
     public double getWoodlotProductionRemainder() { return woodlotProductionRemainder; }
