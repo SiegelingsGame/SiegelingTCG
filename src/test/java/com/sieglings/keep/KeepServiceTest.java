@@ -712,6 +712,18 @@ class KeepServiceTest {
     }
 
     @Test
+    void claimedKeeperDecorationIsRepairedAfterSplitPersistenceFailure() {
+        service.getSnapshot(user);
+        progression.getKeepRewardClaimIds().add("keeper_level:3");
+        store.state.getCraftedItemCounts().remove("carved_waypost");
+
+        service.getSnapshot(user);
+
+        assertEquals(1, store.state.getCraftedItemCounts().get("carved_waypost"),
+                "A durable claim marker must restore a decoration lost when the Keep document failed to save.");
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void keeperLevelGatesKeepRankUpgradesButNotTheRestorationChain() {
         Map<String, Object> snapshot = service.getSnapshot(user); // Keeper Level 2

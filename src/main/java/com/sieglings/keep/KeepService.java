@@ -677,6 +677,7 @@ public class KeepService {
         KeepState state = store.findByUserId(user.getId()).orElseGet(() -> store.save(newState(user.getId(), now)));
         repairDefaults(state, now);
         backfillKeeperXp(state);
+        repairClaimedKeeperDecorations(state, progression);
         if (!progression.isKeepFounded()) {
             recordKeepStats(progression, p -> p.setKeepFounded(true));
         }
@@ -709,6 +710,23 @@ public class KeepService {
             state.getMaterialInventory().putIfAbsent(FACILITIES.get(id).resourceId(), 0);
         }
         if (!state.getUnlockedLoreIds().contains("charter_three_promises")) unlock(state, "charter_three_promises");
+    }
+
+    /**
+     * Reward claims and Keep inventory live in separate Firestore documents. If
+     * the progression write succeeds but the Keep write fails, the claim is
+     * already consumed on retry. Rebuild this derived entitlement from the
+     * durable claim marker so a transient split-write failure cannot lose it.
+     */
+    private void repairClaimedKeeperDecorations(KeepState state, PlayerProgressionEntity progression) {
+        if (progression == null) return;
+        for (Map.Entry<Integer, String> reward : KEEPER_LEVEL_DECORATIONS.entrySet()) {
+            String decorationId = reward.getValue();
+            if (progression.getKeepRewardClaimIds().contains("keeper_level:" + reward.getKey())
+                    && craftedCount(state, decorationId) < 1) {
+                state.getCraftedItemCounts().put(decorationId, 1);
+            }
+        }
     }
 
     /** Completes every due project across all level-provided teams, earliest first. */
