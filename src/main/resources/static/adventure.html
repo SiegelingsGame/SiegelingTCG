@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Siege — Siegelings Adventure</title>
 <link rel="icon" href="/favicon.png">
-<link rel="stylesheet" href="/css/adventure.css?v=36">
+<link rel="stylesheet" href="/css/adventure.css?v=38">
 </head>
 <body>
 <div class="siege-app" id="siegeApp">
@@ -130,33 +130,63 @@
 
   <!-- Rest Camp (interactive stop) -->
   <section class="siege-screen hidden" id="campScreen">
-    <div class="camp-scene">
-      <div class="camp-sky"></div>
-      <div class="camp-fire">🔥</div>
-      <div class="camp-tent">⛺</div>
-      <div class="camp-party" id="campParty"></div>
-    </div>
-    <h1 class="camp-title">Rest Camp</h1>
-    <p class="siege-sub" id="campNote"></p>
-    <div class="camp-meta"><span class="gold-chip" id="campGold">🪙 0</span><span id="campReward" class="camp-reward"></span></div>
-    <div class="camp-grid" id="campGrid"></div>
-    <div class="camp-actions">
-      <button class="siege-btn primary" id="campLeaveBtn" type="button">Break Camp ▸</button>
+    <div class="location-stage location-camp">
+      <svg class="location-art" viewBox="0 0 1200 680" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <defs>
+          <linearGradient id="campNight" x2="0" y2="1"><stop stop-color="#162c48"/><stop offset=".55" stop-color="#31485b"/><stop offset="1" stop-color="#17251f"/></linearGradient>
+          <radialGradient id="campGlow"><stop stop-color="#ffd36a" stop-opacity=".9"/><stop offset=".45" stop-color="#e86c28" stop-opacity=".32"/><stop offset="1" stop-color="#e86c28" stop-opacity="0"/></radialGradient>
+          <filter id="campPaper"><feDropShadow dx="0" dy="8" stdDeviation="5" flood-opacity=".42"/></filter>
+        </defs>
+        <rect width="1200" height="680" fill="url(#campNight)"/>
+        <circle cx="930" cy="110" r="62" fill="#eaf4dc" opacity=".75"/><circle cx="954" cy="92" r="62" fill="#1d334a"/>
+        <path d="M0 390L130 210 250 360 380 160 540 370 720 205 910 360 1060 190 1200 330V680H0Z" fill="#172528"/>
+        <path d="M0 455Q170 385 330 445T650 430T930 440T1200 390V680H0Z" fill="#24352c"/>
+        <path d="M0 515Q230 430 455 505T845 485T1200 510V680H0Z" fill="#18251e"/>
+        <ellipse cx="610" cy="505" rx="245" ry="170" fill="url(#campGlow)"/>
+        <g filter="url(#campPaper)">
+          <path d="M860 468L970 302 1085 468Z" fill="#aa6d42" stroke="#241b1a" stroke-width="9"/>
+          <path d="M970 302V470" stroke="#efd49c" stroke-width="7"/><path d="M872 468H1076" stroke="#241b1a" stroke-width="12"/>
+          <path d="M558 522l48-72 50 72-31-7-20 31-18-31z" fill="#ffb13c" stroke="#542715" stroke-width="7"/>
+          <path d="M530 548h144M555 520l94 54M650 520l-95 54" stroke="#38251d" stroke-width="16" stroke-linecap="round"/>
+        </g>
+      </svg>
+      <div class="location-party" id="campParty"></div>
+      <div class="location-overlay">
+        <div class="location-copy"><span class="location-kicker">Safe zone</span><h1>Rest Camp</h1><p id="campNote"></p></div>
+        <div class="location-meta"><span class="gold-chip" id="campGold">🪙 0</span><span id="campReward" class="camp-reward"></span></div>
+        <div class="camp-grid location-choice-grid" id="campGrid"></div>
+        <div class="camp-actions"><button class="siege-btn primary" id="campLeaveBtn" type="button">Break Camp</button></div>
+      </div>
     </div>
   </section>
 
   <!-- Cache dig minigame -->
   <section class="siege-screen hidden" id="cacheScreen">
-    <div class="cache-scene"><span class="cache-chest" id="cacheChest">🪙</span></div>
-    <h1 class="camp-title">Buried Cache</h1>
-    <p class="siege-sub">Dig for loot — but every dig risks a collapse that buries the unbanked gold.</p>
-    <div class="cache-loot" id="cacheLoot"></div>
-    <div class="camp-grid" id="cacheOptions"></div>
-    <div class="cache-risk"><div class="cache-riskbar"><div class="cache-riskfill" id="cacheRiskFill"></div></div><span id="cacheRiskText"></span></div>
-    <div class="camp-meta"><span id="cacheReward" class="camp-reward"></span></div>
-    <div class="camp-actions">
-      <button class="siege-btn" id="cacheDigBtn" type="button">⛏ Dig Deeper</button>
-      <button class="siege-btn primary" id="cacheTakeBtn" type="button">Bank the Loot ▸</button>
+    <div class="location-stage location-cache">
+      <svg class="location-art" viewBox="0 0 1200 680" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <defs><linearGradient id="cacheCave" x2="0" y2="1"><stop stop-color="#141b32"/><stop offset=".55" stop-color="#2a2948"/><stop offset="1" stop-color="#11151f"/></linearGradient><radialGradient id="cacheLight"><stop stop-color="#ffd36a" stop-opacity=".62"/><stop offset="1" stop-color="#ffd36a" stop-opacity="0"/></radialGradient><filter id="cachePaper"><feDropShadow dx="0" dy="9" stdDeviation="5" flood-opacity=".6"/></filter></defs>
+        <rect width="1200" height="680" fill="url(#cacheCave)"/><ellipse cx="840" cy="385" rx="280" ry="250" fill="url(#cacheLight)"/>
+        <path d="M0 0h1200v92L1080 70 930 160 790 76 645 145 470 62 300 155 160 72 0 112z" fill="#0b1019"/>
+        <path d="M0 485Q190 420 370 480T740 455T1200 450V680H0Z" fill="#171827"/>
+        <g fill="#292947" stroke="#0c1018" stroke-width="9"><path d="M120 500l85-250 92 250z"/><path d="M980 505l75-295 104 295z"/><path d="M360 490l50-178 64 178z"/></g>
+        <g filter="url(#cachePaper)"><path d="M770 490h220v-122H770z" fill="#72523c" stroke="#1b1719" stroke-width="12"/><path d="M758 372q122-104 244 0z" fill="#9b7043" stroke="#1b1719" stroke-width="12"/><path d="M858 362h48v145h-48z" fill="#e2b85f" stroke="#39291e" stroke-width="7"/><circle cx="882" cy="428" r="14" fill="#fff0a1"/></g>
+      </svg>
+      <div class="location-party" id="cacheParty"></div>
+      <div class="cache-focus"><span class="cache-chest" id="cacheChest">🪙</span></div>
+      <div class="location-overlay cache-overlay">
+        <div class="location-copy">
+          <span class="location-kicker">Risk encounter</span><h1>Buried Cache</h1>
+          <p>Dig for loot, but every attempt raises the chance of a collapse.</p>
+          <div class="cache-loot" id="cacheLoot"></div>
+          <div class="cache-risk"><div class="cache-riskbar"><div class="cache-riskfill" id="cacheRiskFill"></div></div><span id="cacheRiskText"></span></div>
+          <div class="camp-meta"><span id="cacheReward" class="camp-reward"></span></div>
+        </div>
+        <div class="camp-grid location-choice-grid" id="cacheOptions"></div>
+        <div class="camp-actions">
+          <button class="siege-btn" id="cacheDigBtn" type="button">Dig Deeper</button>
+          <button class="siege-btn primary" id="cacheTakeBtn" type="button">Bank the Loot</button>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -189,28 +219,38 @@
 
   <!-- Broker stall (recruit or swap Siegelings) -->
   <section class="siege-screen hidden" id="brokerScreen">
-    <div class="camp-scene broker-scene">
-      <div class="camp-sky"></div>
-      <div class="broker-npc">🐾</div>
-      <div class="camp-tent">🏪</div>
-    </div>
-    <h1 class="camp-title">Mercenary Broker</h1>
-    <p class="siege-sub">Elite mercenaries for rent — one fights your NEXT battle with powerful boon cards, then departs with its pay.</p>
-    <div class="camp-meta"><span class="gold-chip" id="brokerGold">🪙 0</span><span id="brokerReward" class="camp-reward"></span></div>
-    <div class="camp-grid" id="brokerGrid"></div>
-    <div class="camp-actions">
-      <button class="siege-btn primary" id="brokerLeaveBtn" type="button">Move On ▸</button>
+    <div class="location-stage location-broker">
+      <svg class="location-art" viewBox="0 0 1200 680" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <defs><linearGradient id="brokerSky" x2="0" y2="1"><stop stop-color="#251b42"/><stop offset=".58" stop-color="#50345d"/><stop offset="1" stop-color="#191827"/></linearGradient><filter id="brokerPaper"><feDropShadow dx="0" dy="9" stdDeviation="5" flood-opacity=".5"/></filter></defs>
+        <rect width="1200" height="680" fill="url(#brokerSky)"/>
+        <path d="M0 300L175 190 300 320 470 175 650 325 840 150 1040 310 1200 210V680H0Z" fill="#181829"/>
+        <path d="M0 470Q200 420 380 470T760 445T1200 455V680H0Z" fill="#272036"/>
+        <g filter="url(#brokerPaper)">
+          <path d="M780 430L905 245 1080 430Z" fill="#704d88" stroke="#1a1424" stroke-width="10"/><path d="M905 245v195" stroke="#d5b8e8" stroke-width="7"/>
+          <rect x="748" y="430" width="356" height="74" rx="8" fill="#3a273f" stroke="#17121b" stroke-width="10"/>
+          <path d="M760 427h332l-22 42H782z" fill="#ad7658" stroke="#20151c" stroke-width="8"/>
+          <circle cx="850" cy="411" r="28" fill="#70d6c7"/><circle cx="924" cy="407" r="24" fill="#ffd36a"/><circle cx="990" cy="413" r="27" fill="#a88bdf"/>
+        </g>
+        <path d="M655 405q55-105 110 0v112H655z" fill="#282037" stroke="#c8a5e8" stroke-width="8"/><circle cx="710" cy="353" r="43" fill="#45345d" stroke="#c8a5e8" stroke-width="8"/>
+      </svg>
+      <div class="location-party" id="brokerParty"></div>
+      <div class="location-npc"><span class="location-npc-mark">Broker</span><span aria-hidden="true">♞</span></div>
+      <div class="location-overlay">
+        <div class="location-copy"><span class="location-kicker">Traveling service</span><h1>Mercenary Broker</h1><p>Hire a companion for the next battle or reshape your warband.</p></div>
+        <div class="location-meta"><span class="gold-chip" id="brokerGold">🪙 0</span><span id="brokerReward" class="camp-reward"></span></div>
+        <div class="camp-grid location-choice-grid" id="brokerGrid"></div>
+        <div class="camp-actions"><button class="siege-btn primary" id="brokerLeaveBtn" type="button">Move On</button></div>
+      </div>
     </div>
   </section>
 
   <!-- Rewards -->
   <section class="siege-screen hidden" id="rewardScreen">
-    <h1 class="reward-heading">Victory!</h1>
-    <p class="siege-sub" id="rewardSub">Choose one reward to strengthen the run.</p>
-    <div class="xp-recap hidden" id="xpRecap"></div>
-    <div class="reward-grid" id="rewardGrid"></div>
-    <div class="reward-actions">
-      <button class="siege-btn" id="rewardSkipBtn" type="button">Skip Reward</button>
+    <div class="epiphany-screen">
+      <div class="epiphany-header"><span class="location-kicker">Victory reward</span><h1>Choose an <em>expedition boon</em></h1><p id="rewardSub">Choose one reward to strengthen the run.</p></div>
+      <div class="xp-recap hidden" id="xpRecap"></div>
+      <div class="reward-grid" id="rewardGrid"></div>
+      <div class="reward-actions"><button class="siege-btn overlay-skip" id="rewardSkipBtn" type="button">Skip Reward</button></div>
     </div>
   </section>
 
@@ -261,32 +301,63 @@
 
   <!-- Smith / Caravan (reuse camp layout) -->
   <section class="siege-screen hidden" id="smithScreen">
-    <div class="camp-scene smith-scene"><div class="camp-sky"></div><div class="broker-npc">🔨</div><div class="camp-tent">⚒️</div></div>
-    <h1 class="camp-title">The Smith</h1>
-    <p class="siege-sub">Chisel a card into a stronger version — or scrap one to thin your deck.</p>
-    <div class="camp-meta"><span class="gold-chip" id="smithGold">🪙 0</span><span id="smithReward" class="camp-reward"></span></div>
-    <div class="camp-grid" id="smithGrid"></div>
-    <div class="camp-actions">
-      <button class="siege-btn" id="smithScrapBtn" type="button">🗑 Scrap a card…</button>
-      <button class="siege-btn primary" id="smithLeaveBtn" type="button">Leave Forge ▸</button>
+    <div class="location-stage location-smith">
+      <svg class="location-art" viewBox="0 0 1200 680" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <defs><linearGradient id="forgeWall" x2="0" y2="1"><stop stop-color="#263344"/><stop offset=".62" stop-color="#332c2b"/><stop offset="1" stop-color="#171819"/></linearGradient><radialGradient id="forgeHeat"><stop stop-color="#ffd765" stop-opacity=".95"/><stop offset=".35" stop-color="#f06424" stop-opacity=".5"/><stop offset="1" stop-color="#f06424" stop-opacity="0"/></radialGradient><filter id="forgePaper"><feDropShadow dx="0" dy="8" stdDeviation="5" flood-opacity=".55"/></filter></defs>
+        <rect width="1200" height="680" fill="url(#forgeWall)"/>
+        <path d="M0 178h1200M0 330h1200M0 482h1200M180 0v520M430 0v520M690 0v520M950 0v520" stroke="#13171b" stroke-width="13" opacity=".65"/>
+        <ellipse cx="900" cy="385" rx="230" ry="205" fill="url(#forgeHeat)"/>
+        <g filter="url(#forgePaper)"><path d="M820 485V280h195v205z" fill="#57322b" stroke="#17181b" stroke-width="12"/><path d="M852 448V320h130v128z" fill="#ff7b29" stroke="#241915" stroke-width="10"/><path d="M852 448l36-88 30 52 25-61 39 97z" fill="#ffd65a"/><path d="M490 450h220l-35 75H525z" fill="#677080" stroke="#15181e" stroke-width="11"/><rect x="575" y="520" width="50" height="94" fill="#414852" stroke="#15181e" stroke-width="10"/></g>
+        <path d="M715 430q58-118 116 0v120H715z" fill="#33282b" stroke="#e7a75f" stroke-width="8"/><circle cx="773" cy="370" r="44" fill="#684538" stroke="#e7a75f" stroke-width="8"/>
+      </svg>
+      <div class="location-party" id="smithParty"></div>
+      <div class="location-npc smith-npc"><span class="location-npc-mark">Master Smith</span><span aria-hidden="true">⚒</span></div>
+      <div class="location-overlay smith-overlay">
+        <div class="location-copy"><span class="location-kicker">Card awakening</span><h1>Choose an <em>upgrade</em></h1><p>Select one of three cards to chisel into its stronger form.</p></div>
+        <div class="location-meta"><span class="gold-chip" id="smithGold">🪙 0</span><span id="smithReward" class="camp-reward"></span></div>
+        <div class="camp-grid location-choice-grid epiphany-grid" id="smithGrid"></div>
+        <div class="camp-actions"><button class="siege-btn" id="smithScrapBtn" type="button">Scrap a card</button><button class="siege-btn primary" id="smithLeaveBtn" type="button">Leave Forge</button></div>
+      </div>
     </div>
   </section>
 
   <section class="siege-screen hidden" id="caravanScreen">
-    <div class="camp-scene caravan-scene"><div class="camp-sky"></div><div class="broker-npc">🐫</div><div class="camp-tent">🏪</div></div>
-    <h1 class="camp-title">Merchant Caravan</h1>
-    <p class="siege-sub">Items, techniques and supplies for gold.</p>
-    <div class="camp-meta"><span class="gold-chip" id="caravanGold">🪙 0</span><span id="caravanReward" class="camp-reward"></span></div>
-    <div class="camp-grid" id="caravanGrid"></div>
-    <div class="camp-actions"><button class="siege-btn primary" id="caravanLeaveBtn" type="button">Move On ▸</button></div>
+    <div class="location-stage location-caravan">
+      <svg class="location-art" viewBox="0 0 1200 680" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <defs><linearGradient id="duneSky" x2="0" y2="1"><stop stop-color="#243d5d"/><stop offset=".52" stop-color="#d58058"/><stop offset="1" stop-color="#382928"/></linearGradient><filter id="dunePaper"><feDropShadow dx="0" dy="8" stdDeviation="5" flood-opacity=".5"/></filter></defs>
+        <rect width="1200" height="680" fill="url(#duneSky)"/><circle cx="190" cy="130" r="72" fill="#ffe49b" opacity=".88"/>
+        <path d="M0 420Q225 305 455 424T900 398T1200 365V680H0Z" fill="#a96445"/><path d="M0 505Q220 410 470 520T900 475T1200 485V680H0Z" fill="#704437"/>
+        <g filter="url(#dunePaper)"><rect x="770" y="360" width="325" height="150" rx="20" fill="#755040" stroke="#281d1c" stroke-width="11"/><path d="M750 370h365l-62-105H812z" fill="#d1a45f" stroke="#281d1c" stroke-width="10"/><circle cx="835" cy="520" r="48" fill="#332a2b" stroke="#b18452" stroke-width="12"/><circle cx="1030" cy="520" r="48" fill="#332a2b" stroke="#b18452" stroke-width="12"/><path d="M825 355v-74h200v74" fill="#66455e" stroke="#281d1c" stroke-width="9"/><path d="M825 300h200" stroke="#d8b46c" stroke-width="12" stroke-dasharray="34 18"/></g>
+        <path d="M690 430q55-108 110 0v110H690z" fill="#5c3e35" stroke="#f1c87a" stroke-width="8"/><circle cx="745" cy="375" r="42" fill="#8d5b42" stroke="#f1c87a" stroke-width="8"/>
+      </svg>
+      <div class="location-party" id="caravanParty"></div>
+      <div class="location-npc caravan-npc"><span class="location-npc-mark">Merchant</span><span aria-hidden="true">✦</span></div>
+      <div class="location-overlay">
+        <div class="location-copy"><span class="location-kicker">Traveling shop</span><h1>Merchant Caravan</h1><p>Choose supplies, techniques, or field equipment.</p></div>
+        <div class="location-meta"><span class="gold-chip" id="caravanGold">🪙 0</span><span id="caravanReward" class="camp-reward"></span></div>
+        <div class="camp-grid location-choice-grid" id="caravanGrid"></div>
+        <div class="camp-actions"><button class="siege-btn primary" id="caravanLeaveBtn" type="button">Move On</button></div>
+      </div>
+    </div>
   </section>
 
   <section class="siege-screen hidden" id="eventScreen">
-    <div class="event-scene"><span class="event-icon" id="eventIcon">❔</span></div>
-    <h1 class="camp-title" id="eventTitle">Event</h1>
-    <p class="siege-sub event-prompt" id="eventPrompt"></p>
-    <div class="camp-meta"><span class="gold-chip" id="eventGold">🪙 0</span></div>
-    <div class="event-choices" id="eventChoices"></div>
+    <div class="location-stage location-event">
+      <svg class="location-art" viewBox="0 0 1200 680" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <defs><linearGradient id="eventMist" x2="0" y2="1"><stop stop-color="#142f39"/><stop offset=".52" stop-color="#28505a"/><stop offset="1" stop-color="#10282b"/></linearGradient><radialGradient id="eventAura"><stop stop-color="#74e6de" stop-opacity=".6"/><stop offset="1" stop-color="#74e6de" stop-opacity="0"/></radialGradient></defs>
+        <rect width="1200" height="680" fill="url(#eventMist)"/><circle cx="850" cy="290" r="260" fill="url(#eventAura)"/>
+        <path d="M0 425Q190 345 360 430T720 410T1200 390V680H0Z" fill="#183638"/>
+        <g fill="#10282b" stroke="#2b5f5c" stroke-width="8"><path d="M90 485l85-275 76 275z"/><path d="M1020 490l72-310 88 310z"/><path d="M780 492l58-250 72 250z"/></g>
+        <path d="M820 470V280M744 470h152" stroke="#78d8cb" stroke-width="13" stroke-linecap="round"/><circle cx="820" cy="265" r="62" fill="#173d42" stroke="#78d8cb" stroke-width="10"/>
+      </svg>
+      <div class="location-party" id="eventParty"></div>
+      <div class="event-focus"><span class="event-icon" id="eventIcon">?</span></div>
+      <div class="location-overlay">
+        <div class="location-copy"><span class="location-kicker">Encounter</span><h1 id="eventTitle">Event</h1><p id="eventPrompt"></p></div>
+        <div class="location-meta"><span class="gold-chip" id="eventGold">🪙 0</span></div>
+        <div class="event-choices location-choice-grid" id="eventChoices"></div>
+      </div>
+    </div>
   </section>
 
   <!-- Cache/event puzzle mini-games (LINE / RPS / MATCH) -->
@@ -379,6 +450,6 @@
 
   <div class="siege-toast hidden" id="siegeToast"></div>
 </div>
-<script src="/js/adventure.js?v=37"></script>
+<script src="/js/adventure.js?v=38"></script>
 </body>
 </html>
