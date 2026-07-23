@@ -484,6 +484,25 @@ body[data-screen="rewardScreen"]{
   border-color:rgba(220,235,255,.2); border-top-color:var(--el,#ffe285);
   box-shadow:0 9px 22px rgba(0,0,0,.32);
 }
+.location-overlay .camp-service-card{
+  --el:#ffe285; width:100%; appearance:none; font:inherit; cursor:pointer;
+  background:
+    radial-gradient(circle at 78% 20%,rgba(255,226,133,.22),transparent 34%),
+    linear-gradient(145deg,rgba(61,55,43,.74),rgba(16,20,28,.7));
+}
+.location-overlay .camp-service-card.kind-BROKER_MENU{
+  --el:#c896ff;
+  background:
+    radial-gradient(circle at 78% 20%,rgba(200,150,255,.22),transparent 34%),
+    linear-gradient(145deg,rgba(53,40,70,.74),rgba(16,20,28,.7));
+}
+.camp-service-badge,.camp-service-count{font-size:9px; font-weight:900; letter-spacing:.09em; text-transform:uppercase;}
+.camp-service-badge{color:var(--el);}
+.camp-service-count{color:rgba(232,236,243,.64); letter-spacing:0;}
+.location-overlay .camp-service-card .camp-glyph{font-size:34px; text-align:left; margin:2px 0;}
+.camp-service-open{margin-top:7px; color:var(--el); font-size:11px; font-weight:900;}
+.camp-menu-open .location-overlay{max-height:52%;}
+.camp-menu-open .location-overlay .location-choice-grid{grid-template-columns:repeat(auto-fit,minmax(175px,1fr));}
 .location-overlay .camp-card:hover,.location-overlay .camp-card:focus-visible{
   transform:translateY(-4px); outline:none; border-color:var(--el,#ffe285);
   box-shadow:0 14px 28px rgba(0,0,0,.45),0 0 18px color-mix(in srgb,var(--el,#ffe285) 18%,transparent);
@@ -1756,6 +1775,13 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
   .location-overlay .camp-card{min-height:96px; padding:7px 9px;}
   .location-overlay .camp-art{height:36px;}
   .location-overlay .camp-card-desc{font-size:9px;}
+  .camp-menu-open .location-overlay .location-choice-grid{
+    display:grid; grid-template-columns:none; grid-auto-flow:column; grid-auto-columns:minmax(170px,1fr);
+    overflow-x:auto; overflow-y:hidden; scroll-snap-type:x proximity; padding:2px 2px 6px;
+    scrollbar-width:none;
+  }
+  .camp-menu-open .location-overlay .location-choice-grid::-webkit-scrollbar{display:none;}
+  .camp-menu-open .location-overlay .camp-card{scroll-snap-align:center;}
   .location-overlay .upgrade-choice-card{height:174px; min-height:174px; max-height:174px;}
   .upgrade-card-sigil{width:30px;height:30px;font-size:18px;}
   .upgrade-original small,.upgrade-awakened small,.upgrade-choice-index{font-size:7px;}

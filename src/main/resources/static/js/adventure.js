@@ -27,6 +27,7 @@
     warbandLoadToken: 0,
     interactionResult: null,
     pendingKnightUnlock: null,
+    campMenu: null,
     deferBattleHandRender: false
   };
 
@@ -47,7 +48,7 @@
   };
   var NODE_ICON = { BATTLE: '⚔️', ELITE: '🔺', REST: '🏕️', TREASURE: '💎', BROKER: '🐾', SMITH: '🔨', CARAVAN: '🐫', EVENT: '❔', BOSS: '👑' };
   var NODE_TINT = { BATTLE: '#8fa3bf', ELITE: '#ff6e6e', REST: '#7ee787', TREASURE: '#ffd066', BROKER: '#c896ff', BOSS: '#ff9a3c' };
-  var CAMP_ICON = { REST: '🔥', SHOP_CARD: '🃏', SHOP_HEAL: '🍲', SHOP_UPGRADE: '⚒️', BROKER: '🐾' };
+  var CAMP_ICON = { REST: '🔥', SHOP_CARD: '🃏', SHOP_HEAL: '🍲', SHOP_UPGRADE: '⚒️', SHOP_MENU: '🛒', BROKER: '🐾', BROKER_MENU: '♞' };
   var PASSIVE_META = {
     SHIELD: { icon: '🛡', name: 'Bulwark' },
     ATTACK: { icon: '⚔', name: 'Warlord' },
@@ -153,6 +154,7 @@
       coordinateSystem: 'DOM viewport; origin top-left; x increases right; y increases down',
       screen: screen,
       busy: !!state.busy,
+      campMenu: state.campMenu,
       gold: Number(run.gold || 0),
       party: (run.party || []).map(function (p) {
         return { id: p.id, name: p.name, element: p.element, hp: p.hp, maxHp: p.maxHp, alive: !!p.alive };
@@ -462,7 +464,7 @@
     $('smithScrapBtn').addEventListener('click', function () { toggleSmithScrap(); });
     $('caravanLeaveBtn').addEventListener('click', function () { simplePost('/api/siege/caravan/leave'); });
     $('resultBtn').addEventListener('click', function () { setToken(null); location.href = '/play'; });
-    $('campLeaveBtn').addEventListener('click', campLeave);
+    $('campLeaveBtn').addEventListener('click', campPrimaryAction);
     $('cacheDigBtn').addEventListener('click', cacheDig);
     $('cacheTakeBtn').addEventListener('click', cacheTake);
     $('brokerLeaveBtn').addEventListener('click', brokerLeave);
@@ -1276,6 +1278,7 @@
   function renderRun() {
     var run = state.run;
     if (!run) { loadRoster(); return; }
+    if (!run.camp) state.campMenu = null;
     $('abandonBtn').classList.toggle('hidden', run.status !== 'ACTIVE');
     if (run.battle) { renderBattle(); return; }
     // A freshly joined Siegeling gets its gacha reveal before anything else —
@@ -1583,44 +1586,107 @@
   }
 
   // ---- rest camp (interactive stop) -------------------------------------
+  function campOptionGroup(opt) {
+    if (!opt) return 'CAMP';
+    if (String(opt.kind || '').indexOf('SHOP_') === 0) return 'SHOP';
+    if (opt.kind === 'BROKER') return 'BROKER';
+    return 'CAMP';
+  }
+
+  function renderCampOption(grid, opt, resultTitle, resultIcon) {
+    var canUse = !opt.used && opt.affordable;
+    var c = el('div', 'camp-card ' + elClass(opt.element) + ' kind-' + opt.kind + (opt.used ? ' used' : '') + (canUse ? '' : ' locked'));
+    var art = opt.artUrl
+      ? '<div class="camp-art" style="background-image:url(\'' + artCss(opt.artUrl) + '\')"></div>'
+      : '<div class="camp-glyph">' + (CAMP_ICON[opt.kind] || '🎁') + '</div>';
+    var costChip = opt.cost > 0 ? '<span class="camp-cost' + (opt.affordable ? '' : ' broke') + '">🪙 ' + opt.cost + '</span>' : '<span class="camp-cost free">FREE</span>';
+    c.innerHTML =
+      '<div class="camp-card-head">' + costChip + (opt.used ? '<span class="camp-used">✓ used</span>' : '') + '</div>' +
+      art +
+      '<div class="camp-card-title">' + esc(opt.title) + '</div>' +
+      '<div class="camp-card-desc">' + esc(opt.desc) + '</div>';
+    if (canUse) c.addEventListener('click', function () { campChoose(opt.id, resultTitle, resultIcon); });
+    grid.appendChild(c);
+  }
+
+  function renderCampService(grid, kind, offers) {
+    var isShop = kind === 'SHOP';
+    var available = offers.filter(function (opt) { return !opt.used; }).length;
+    var c = el('button', 'camp-card camp-service-card ' + (isShop ? 'kind-SHOP_MENU' : 'kind-BROKER_MENU'));
+    c.type = 'button';
+    c.setAttribute('aria-label', (isShop ? 'Open Wandering Trader shop' : 'Open Siegeling Broker menu') + ', ' + available + ' offers available');
+    c.innerHTML =
+      '<div class="camp-card-head"><span class="camp-service-badge">' + (isShop ? 'SHOP' : 'RECRUIT') + '</span><span class="camp-service-count">' + available + '/' + offers.length + ' available</span></div>' +
+      '<div class="camp-glyph">' + (isShop ? CAMP_ICON.SHOP_MENU : CAMP_ICON.BROKER_MENU) + '</div>' +
+      '<div class="camp-card-title">' + (isShop ? 'Wandering Trader' : 'Siegeling Broker') + '</div>' +
+      '<div class="camp-card-desc">' + (isShop ? 'Browse cards, a hot meal, and field upgrades.' : 'Browse companions available to join the warband.') + '</div>' +
+      '<div class="camp-service-open">Open menu ▸</div>';
+    c.addEventListener('click', function () {
+      state.campMenu = kind;
+      renderCamp();
+    });
+    grid.appendChild(c);
+  }
+
   function renderCamp() {
     showScreen('campScreen');
     var run = state.run;
-    $('campNote').textContent = run.camp.note || '';
+    var options = run.camp.options || [];
+    var shopOptions = options.filter(function (opt) { return campOptionGroup(opt) === 'SHOP'; });
+    var brokerOptions = options.filter(function (opt) { return campOptionGroup(opt) === 'BROKER'; });
+    if ((state.campMenu === 'SHOP' && !shopOptions.length) || (state.campMenu === 'BROKER' && !brokerOptions.length)) {
+      state.campMenu = null;
+    }
+    var inShop = state.campMenu === 'SHOP';
+    var inBroker = state.campMenu === 'BROKER';
+    $('campKicker').textContent = inShop ? 'Camp shop' : inBroker ? 'Camp service' : 'Safe zone';
+    $('campTitle').textContent = inShop ? 'Wandering Trader' : inBroker ? 'Siegeling Broker' : 'Rest Camp';
+    $('campNote').textContent = inShop
+      ? 'Browse every offer, then return to the fire. Shopping does not spend the Rest option.'
+      : inBroker
+        ? 'Review the visiting recruits, then return to the fire. Recruiting does not spend the Rest option.'
+        : (run.camp.note || '');
     $('campGold').textContent = '🪙 ' + (run.gold || 0);
+    $('campLeaveBtn').textContent = state.campMenu ? 'Back to Camp' : 'Break Camp';
+    $('campScreen').classList.toggle('camp-menu-open', !!state.campMenu);
 
     renderLocationParty('campParty', run.party);
 
     var grid = $('campGrid'); grid.innerHTML = '';
-    (run.camp.options || []).forEach(function (opt) {
-      var canUse = !opt.used && opt.affordable;
-      var c = el('div', 'camp-card ' + elClass(opt.element) + ' kind-' + opt.kind + (opt.used ? ' used' : '') + (canUse ? '' : ' locked'));
-      var art = opt.artUrl
-        ? '<div class="camp-art" style="background-image:url(\'' + artCss(opt.artUrl) + '\')"></div>'
-        : '<div class="camp-glyph">' + (CAMP_ICON[opt.kind] || '🎁') + '</div>';
-      var costChip = opt.cost > 0 ? '<span class="camp-cost' + (opt.affordable ? '' : ' broke') + '">🪙 ' + opt.cost + '</span>' : '<span class="camp-cost free">FREE</span>';
-      c.innerHTML =
-        '<div class="camp-card-head">' + costChip + (opt.used ? '<span class="camp-used">✓ used</span>' : '') + '</div>' +
-        art +
-        '<div class="camp-card-title">' + esc(opt.title) + '</div>' +
-        '<div class="camp-card-desc">' + esc(opt.desc) + '</div>';
-      if (canUse) c.addEventListener('click', function () { campChoose(opt.id); });
-      grid.appendChild(c);
+    if (inShop || inBroker) {
+      (inShop ? shopOptions : brokerOptions).forEach(function (opt) {
+        renderCampOption(grid, opt, inShop ? 'Wandering Trader' : 'Siegeling Broker', inShop ? '🛒' : '🐾');
+      });
+      return;
+    }
+    options.filter(function (opt) { return campOptionGroup(opt) === 'CAMP'; }).forEach(function (opt) {
+      renderCampOption(grid, opt, 'Rest Camp', '🏕️');
     });
+    if (shopOptions.length) renderCampService(grid, 'SHOP', shopOptions);
+    if (brokerOptions.length) renderCampService(grid, 'BROKER', brokerOptions);
   }
 
-  function campChoose(optionId) {
+  function campChoose(optionId, resultTitle, resultIcon) {
     if (state.busy) return; state.busy = true;
     api('/api/siege/camp/choose', { method: 'POST', body: { token: token(), optionId: optionId } })
-      .then(function (run) { applyInteractionResponse(run, { source: 'camp', title: 'Rest Camp', icon: '🏕️' }); })
+      .then(function (run) { applyInteractionResponse(run, { source: 'camp', title: resultTitle || 'Rest Camp', icon: resultIcon || '🏕️' }); })
       .catch(function (e) { toast(e.message); })
       .then(function () { state.busy = false; });
+  }
+
+  function campPrimaryAction() {
+    if (state.campMenu) {
+      state.campMenu = null;
+      renderCamp();
+      return;
+    }
+    campLeave();
   }
 
   function campLeave() {
     if (state.busy) return; state.busy = true;
     api('/api/siege/camp/leave', { method: 'POST', body: { token: token() } })
-      .then(function (run) { state.run = run; renderRun(); })
+      .then(function (run) { state.campMenu = null; state.run = run; renderRun(); })
       .catch(function (e) { toast(e.message); })
       .then(function () { state.busy = false; });
   }
