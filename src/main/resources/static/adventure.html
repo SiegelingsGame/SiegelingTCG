@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Siege — Siegelings Adventure</title>
 <link rel="icon" href="/favicon.png">
-<link rel="stylesheet" href="/css/adventure.css?v=38">
+<link rel="stylesheet" href="/css/adventure.css?v=39">
 </head>
 <body>
 <div class="siege-app" id="siegeApp">
@@ -152,7 +152,7 @@
       </svg>
       <div class="location-party" id="campParty"></div>
       <div class="location-overlay">
-        <div class="location-copy"><span class="location-kicker">Safe zone</span><h1>Rest Camp</h1><p id="campNote"></p></div>
+        <div class="location-copy"><span class="location-kicker" id="campKicker">Safe zone</span><h1 id="campTitle">Rest Camp</h1><p id="campNote"></p></div>
         <div class="location-meta"><span class="gold-chip" id="campGold">🪙 0</span><span id="campReward" class="camp-reward"></span></div>
         <div class="camp-grid location-choice-grid" id="campGrid"></div>
         <div class="camp-actions"><button class="siege-btn primary" id="campLeaveBtn" type="button">Break Camp</button></div>
@@ -450,6 +450,6 @@
 
   <div class="siege-toast hidden" id="siegeToast"></div>
 </div>
-<script src="/js/adventure.js?v=38"></script>
+<script src="/js/adventure.js?v=39"></script>
 </body>
 </html>
