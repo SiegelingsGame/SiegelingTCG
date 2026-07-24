@@ -2401,6 +2401,19 @@ public class SiegeService {
             if (idx < 0 || idx >= run.getDeckTemplates().size()) throw new IllegalArgumentException("No such card.");
             if (run.getDeckTemplates().size() <= 3) throw new IllegalArgumentException("Your deck is too thin to scrap more.");
             SiegeCard removed = run.getDeckTemplates().remove(idx);
+            // Scraping shifts later deck indices. Remap remaining chisel offers so they
+            // keep targeting the same cards the player was shown; drop the scrapped card's offer.
+            List<CampOption> remapped = new ArrayList<>();
+            for (CampOption option : run.getSmithOptions()) {
+                if (option.templateIndex == idx) continue;
+                int mappedIndex = option.templateIndex > idx ? option.templateIndex - 1 : option.templateIndex;
+                CampOption copy = CampOption.smith(option.id, option.kind, option.title, option.desc,
+                        option.element, mappedIndex, option.cost);
+                copy.used = option.used;
+                remapped.add(copy);
+            }
+            run.getSmithOptions().clear();
+            run.getSmithOptions().addAll(remapped);
             run.setLastReward("Scrapped " + removed.getSpec().name() + " — a leaner deck.");
             return serialize(run);
         }
