@@ -1889,7 +1889,18 @@ public class KeepService {
         return Map.of("id", id, "name", name, "level", level, "status", status);
     }
 
+    /**
+     * A project stays "available" by its prerequisites while its crew works — facility levels only
+     * rise on completion — so an in-progress project would otherwise be offered again and fail at
+     * startBuild. Drop it here so a free team only ever sees projects it can actually take.
+     */
     private List<Map<String, Object>> buildOptions(KeepState state) {
+        List<Map<String, Object>> out = collectBuildOptions(state);
+        out.removeIf(option -> isConstructing(state, String.valueOf(option.get("id"))));
+        return out;
+    }
+
+    private List<Map<String, Object>> collectBuildOptions(KeepState state) {
         List<Map<String, Object>> out = new ArrayList<>();
         if (state.getArchiveLevel() < 1) {
             out.add(buildOption(state, "restore_archive", "Restore the Living Archive", ARCHIVE_RESTORE_COST, Map.of(),

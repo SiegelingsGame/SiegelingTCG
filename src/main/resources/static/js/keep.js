@@ -1283,7 +1283,10 @@
             ? `<p class="panel-intro crew-note">Construction teams: ${constructions.length}/${slots} active${slots > 1 ? ` · Keeper Level ${number(state.snapshot.keeper?.level) || 1} coordinates ${slots} simultaneous projects` : ''}.</p>`
             : '';
         const inProgress = constructions.map((item, index) => `<section class="project-card"><span class="eyebrow">In progress${slots > 1 ? ` · Crew ${index + 1}` : ''}</span><h3>${escapeHtml(projectName(item.id))}</h3><p>The site changes through foundations, scaffolding, and completion. No progress is lost while you are away.</p><div class="meter"><i data-live-construction-meter="${index}" style="width:${constructionPercent(index)}%"></i></div><div class="cost-row"><span data-live-construction-time="${index}">${escapeHtml(formatDuration(constructionEntryRemaining(item)))}</span><strong>Workers active</strong></div></section>`).join('');
-        const options = state.snapshot.buildOptions || [];
+        // Parity with KeepService.buildOptions: a project a crew already holds is never offered again,
+        // so a stale snapshot cannot render a "Begin project" button the server will reject.
+        const busyIds = new Set(constructions.map((item) => item.id));
+        const options = (state.snapshot.buildOptions || []).filter((option) => !busyIds.has(option.id));
         const optionCards = options.map((option) => {
             const costs = [`▰ ${number(option.timberCost)} timber`];
             for (const cost of option.materialCosts || []) costs.push(`${materialIcon(cost.id)} ${number(cost.amount)} ${cost.name}`);
