@@ -67,6 +67,9 @@
         tutorialStep: -1,
         loreFilter: 'ALL',
         expandedLoreId: '',
+        // Entries read during this Chronicle visit stay filed under Unread until the panel is
+        // reopened, so the card under the player's finger never jumps groups as it is marked read.
+        sessionReadLoreIds: [],
         activeConversationId: '',
         receivedAtMs: Date.now(),
         debugTimeOffsetMs: 0,
@@ -81,7 +84,6 @@
         pendingOfflineReport: null,
         offlineVisible: false,
         notices: [],
-        noticeUnread: 0,
         mobileLayout: window.matchMedia('(max-width: 767px)').matches,
         testMode: Boolean(window.__KEEP_TEST_SNAPSHOT__)
     };
@@ -482,6 +484,7 @@
         if (!item) return;
         state.expandedLoreId = state.expandedLoreId === loreId ? '' : loreId;
         if (!item.read) {
+            if (!state.sessionReadLoreIds.includes(loreId)) state.sessionReadLoreIds.push(loreId);
             await perform('/api/keep/lore/read', { loreId });
             state.expandedLoreId = loreId;
         } else {
@@ -842,6 +845,8 @@
     }
 
     function openPanel(panel) {
+        // Entering the Chronicle afresh files everything read on the last visit under Read.
+        if (panel !== state.panel) state.sessionReadLoreIds = [];
         state.panel = panel || '';
         document.querySelector('.keep-main')?.classList.add('panel-open');
         document.getElementById('keepPanel')?.setAttribute('aria-hidden', 'false');
@@ -1328,14 +1333,24 @@
             ['ALL', 'All'], ['LETTER', 'Letters'], ['MEMORABILIA', 'Relics'], ['CHRONICLE', 'Chronicle']
         ];
         const entries = (state.snapshot.lore || []).filter((item) => state.loreFilter === 'ALL' || item.type === state.loreFilter);
+        const unread = entries.filter((item) => !item.read || state.sessionReadLoreIds.includes(item.id));
+        const read = entries.filter((item) => !unread.includes(item));
+        const groups = listSection('Unread', unread.filter((item) => !item.read).length, unread.map(loreCardMarkup))
+            + listSection('Read', read.length, read.map(loreCardMarkup));
         return `<div class="lore-tabs">${tabs.map(([id, label]) => `<button class="${state.loreFilter === id ? 'active' : ''}" type="button" data-lore-filter="${id}">${label}</button>`).join('')}</div>
-            ${entries.length ? entries.map(loreCardMarkup).join('') : '<div class="empty-state">No discoveries in this collection yet. Production, construction, and conversations uncover new records.</div>'}`;
+            ${entries.length ? groups : '<div class="empty-state">No discoveries in this collection yet. Production, construction, and conversations uncover new records.</div>'}`;
+    }
+
+    /** Shared read/unread divider for the Chronicle, the Voices list, and the notice tray. */
+    function listSection(label, count, cards) {
+        if (!cards.length) return '';
+        return `<div class="list-section-heading"><span>${escapeHtml(label)}</span><strong>${number(count)}</strong></div>${cards.join('')}`;
     }
 
     function loreCardMarkup(item) {
         const expanded = state.expandedLoreId === item.id;
         const memorabilia = item.type === 'MEMORABILIA';
-        return `<article class="lore-card ${item.read ? '' : 'unread'} ${expanded ? 'expanded' : ''}" data-lore-id="${escapeAttr(item.id)}">
+        return `<article class="lore-card ${item.read ? 'is-read' : 'unread'} ${expanded ? 'expanded' : ''}" data-lore-id="${escapeAttr(item.id)}">
             ${memorabilia && expanded ? '<div class="memorabilia-figure"><span class="root-art"></span></div>' : ''}
             <span class="eyebrow">${escapeHtml(typeLabel(item.type))}</span><h3>${escapeHtml(item.title)}</h3>
             <div class="card-meta"><span>${escapeHtml(item.perspective || 'Unknown source')}</span><span>${escapeHtml(item.era || '')}</span></div>
@@ -1347,14 +1362,18 @@
     function conversationsMarkup() {
         const conversations = state.snapshot.availableConversations || [];
         const relationships = state.snapshot.relationships || [];
-        const available = conversations.length
-            ? conversations.map((conversation) => {
-                const visitor = String(conversation.kind || '').toUpperCase() === 'VISITOR';
-                return `<section class="conversation-card ${visitor ? 'is-visitor' : ''}" data-conversation-id="${escapeAttr(conversation.id)}"><span class="npc-mini">${escapeHtml(initials(conversation.npcName))}</span><span><small>${escapeHtml(visitor ? 'Road visitor' : conversation.npcRole)}</small><h3>${escapeHtml(conversation.npcName)}</h3><p>${escapeHtml(conversation.kicker || 'Waiting to speak')}</p>${visitor ? '<em class="visitor-tag">Trade · gift · risk</em>' : ''}</span></section>`;
-            }).join('')
+        const cards = conversations.map((conversation) => {
+            const visitor = String(conversation.kind || '').toUpperCase() === 'VISITOR';
+            return `<section class="conversation-card ${visitor ? 'is-visitor' : ''}" data-conversation-id="${escapeAttr(conversation.id)}"><span class="npc-mini">${escapeHtml(initials(conversation.npcName))}</span><span><small>${escapeHtml(visitor ? 'Road visitor' : conversation.npcRole)}</small><h3>${escapeHtml(conversation.npcName)}</h3><p>${escapeHtml(conversation.kicker || 'Waiting to speak')}</p>${visitor ? '<em class="visitor-tag">Trade · gift · risk</em>' : ''}</span></section>`;
+        });
+        const available = cards.length
+            ? listSection('Waiting to speak', cards.length, cards)
             : '<div class="empty-state">No one is waiting to speak. Lore discoveries and the road draw new visitors with trades, gifts, and risks.</div>';
         const bonds = relationships.length
-            ? `<span class="eyebrow">Relationships</span><p class="panel-intro relationship-hint">Select a voice to view where they stand — from wary distance to bonded trust.</p>${relationships.map((item) => relationshipCardMarkup(item)).join('')}`
+            ? listSection('Spoken with', relationships.length, [
+                '<p class="panel-intro relationship-hint">Select a voice to view where they stand — from wary distance to bonded trust.</p>',
+                ...relationships.map((item) => relationshipCardMarkup(item))
+            ])
             : '';
         return `<p class="panel-intro">Story voices shape the Chronicle. Road and yard visitors bring RNG slices of Siegeling daily life—breakfast, nests, play, chores—where timber and materials can be gained, traded, or lost.</p>${available}${bonds}`;
     }
@@ -1472,9 +1491,22 @@
     }
 
     function addNotice(message, heading, loreId) {
-        state.notices.unshift({ message, heading, loreId: loreId || '', at: nowMs() });
+        state.notices.unshift({ message, heading, loreId: loreId || '', at: nowMs(), read: false });
         state.notices = state.notices.slice(0, 20);
-        state.noticeUnread += 1;
+        renderNoticeCenter();
+    }
+
+    function unreadNoticeCount() {
+        return state.notices.filter((notice) => !notice.read).length;
+    }
+
+    /**
+     * Messages are marked read when the tray closes, not when it opens: closing is the moment the
+     * player has actually seen them, and it keeps the New group and the header badge in agreement.
+     */
+    function markNoticesRead() {
+        if (!unreadNoticeCount()) return;
+        for (const notice of state.notices) notice.read = true;
         renderNoticeCenter();
     }
 
@@ -1488,14 +1520,19 @@
                 <span class="notice-construction-meter"><i data-live-construction-meter="${index}" style="width:${constructionPercent(index)}%"></i></span>
             </button>`).join('')}
         </section>` : '';
-        const activityMarkup = state.notices.length ? state.notices.map((notice) => {
+        const card = (notice) => {
             const tag = notice.loreId ? 'button' : 'div';
             const action = notice.loreId ? ` type="button" data-notice-lore="${escapeAttr(notice.loreId)}"` : '';
-            return `<${tag} class="notice-item"${action}><i aria-hidden="true">${notice.loreId ? '▤' : '✦'}</i><span><small>${escapeHtml(notice.heading)}</small><strong>${escapeHtml(notice.message)}</strong></span></${tag}>`;
-        }).join('') : `<div class="notice-empty">${constructions.length ? 'Construction is underway. New sanctuary updates will appear here.' : 'No new Keep activity. Start a project or continue restoring the sanctuary.'}</div>`;
+            return `<${tag} class="notice-item ${notice.read ? 'is-read' : 'unread'}"${action}><i aria-hidden="true">${notice.loreId ? '▤' : '✦'}</i><span><small>${escapeHtml(notice.heading)}</small><strong>${escapeHtml(notice.message)}</strong></span></${tag}>`;
+        };
+        const unread = state.notices.filter((notice) => !notice.read);
+        const read = state.notices.filter((notice) => notice.read);
+        const activityMarkup = state.notices.length
+            ? listSection('New', unread.length, unread.map(card)) + listSection('Earlier', read.length, read.map(card))
+            : `<div class="notice-empty">${constructions.length ? 'Construction is underway. New sanctuary updates will appear here.' : 'No new Keep activity. Start a project or continue restoring the sanctuary.'}</div>`;
         if (list) list.innerHTML = constructionMarkup + activityMarkup;
-        text('noticeBadge', state.noticeUnread);
-        document.getElementById('noticeBadge')?.classList.toggle('hidden', state.noticeUnread <= 0);
+        text('noticeBadge', unreadNoticeCount());
+        document.getElementById('noticeBadge')?.classList.toggle('hidden', unreadNoticeCount() <= 0);
     }
 
     function toggleNoticeTray() {
@@ -1504,15 +1541,16 @@
         const opening = tray.classList.contains('hidden');
         tray.classList.toggle('hidden', !opening);
         document.getElementById('noticeButton')?.setAttribute('aria-expanded', String(opening));
-        if (opening) {
-            state.noticeUnread = 0;
-            renderNoticeCenter();
-        }
+        if (opening) renderNoticeCenter();
+        else markNoticesRead();
     }
 
     function closeNoticeTray() {
-        document.getElementById('noticeTray')?.classList.add('hidden');
+        const tray = document.getElementById('noticeTray');
+        const wasOpen = tray && !tray.classList.contains('hidden');
+        tray?.classList.add('hidden');
         document.getElementById('noticeButton')?.setAttribute('aria-expanded', 'false');
+        if (wasOpen) markNoticesRead();
     }
 
     // ── Theme music ───────────────────────────────────────────────────────────
@@ -2321,7 +2359,8 @@
                 }))
             } : null,
             noticeCenter: {
-                unread: state.noticeUnread,
+                unread: unreadNoticeCount(),
+                read: state.notices.length - unreadNoticeCount(),
                 count: state.notices.length,
                 open: !document.getElementById('noticeTray')?.classList.contains('hidden'),
                 constructionTimers: activeConstructionList().map((item, index) => ({

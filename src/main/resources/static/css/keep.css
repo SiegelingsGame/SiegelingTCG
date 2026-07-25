@@ -945,11 +945,23 @@ button.resource-pill:focus-visible {
 .enclave-mission p { margin: 0; color: rgba(255,247,220,.66); font-size: 9px; line-height: 1.4; }
 .enclave-mission .panel-button { width: 100%; margin-top: 8px; }
 
+/* Read/unread divider shared by the Chronicle, the Voices list, and the notice tray. */
+.list-section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 4px 2px 7px; padding-bottom: 5px; border-bottom: 1px solid var(--line); }
+.list-section-heading + .list-section-heading { margin-top: 4px; }
+.list-section-heading span { color: rgba(255, 247, 220, .66); font-size: 9px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; }
+.list-section-heading strong { color: var(--gold); font-size: 9px; font-weight: 900; font-variant-numeric: tabular-nums; }
+#noticeList .list-section-heading { margin: 7px 3px 5px; }
+#noticeList .list-section-heading:first-child { margin-top: 2px; }
+
 .lore-tabs { position: sticky; top: -14px; z-index: 2; display: flex; gap: 5px; margin: -14px -14px 12px; padding: 10px 14px; background: rgba(20, 31, 43, .96); border-bottom: 1px solid var(--line); }
 .lore-tabs button { flex: 1; min-height: 32px; border-radius: 9px; color: rgba(255, 247, 220, .66); background: rgba(255, 255, 255, .045); font-size: 9px; font-weight: 800; cursor: pointer; }
 .lore-tabs button.active { color: #172333; background: var(--gold); }
 .lore-card { position: relative; cursor: pointer; }
 .lore-card.unread::before { content: ""; position: absolute; width: 8px; height: 8px; top: 12px; right: 12px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 9px var(--gold); }
+/* Read entries recede so the Unread group above them reads as the live list. */
+.lore-card.is-read { border-color: rgba(255, 247, 220, .1); background: rgba(255, 255, 255, .022); }
+.lore-card.is-read h3 { color: rgba(255, 241, 183, .74); }
+.lore-card.is-read.expanded { border-color: rgba(244, 204, 98, .42); }
 .lore-card.expanded { border-color: rgba(244, 204, 98, .42); }
 .lore-body { padding-top: 8px; border-top: 1px solid var(--line); white-space: pre-line; }
 .memorabilia-figure { height: 95px; display: grid; place-items: center; margin-bottom: 8px; border-radius: 10px; background: radial-gradient(circle, rgba(255, 154, 80, .2), transparent 66%); }
@@ -1159,6 +1171,10 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
 .notice-item > span { min-width: 0; display: flex; flex-direction: column; }
 .notice-item small { color: var(--gold); font-size: 8px; letter-spacing: .08em; text-transform: uppercase; }
 .notice-item strong { overflow: hidden; text-overflow: ellipsis; color: #fff1b7; font: 700 12px/1.3 Georgia, serif; }
+.notice-item.unread { background: rgba(244, 204, 98, .07); }
+.notice-item.is-read > i { color: rgba(23, 35, 51, .8); background: rgba(244, 204, 98, .45); }
+.notice-item.is-read small { color: rgba(244, 204, 98, .66); }
+.notice-item.is-read strong { color: rgba(255, 241, 183, .7); }
 .notice-empty { padding: 20px 12px; color: rgba(255, 247, 220, .62); font-size: 11px; text-align: center; }
 
 /* —— Building interiors —— */

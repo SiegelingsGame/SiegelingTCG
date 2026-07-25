@@ -545,8 +545,8 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=19")
-                        && keepHtml.contains("/js/keep.js?v=21"),
+                        && keepHtml.contains("/css/keep.css?v=20")
+                        && keepHtml.contains("/js/keep.js?v=22"),
                 "Keep architecture must retain its paper building hooks and refresh both asset cache pins."
         );
         assertTrue(
@@ -570,6 +570,33 @@ class GameJavaScriptRegressionTest {
                         && keepJs.contains("setGroundsSuppressed(true)")
                         && keepCss.contains("content-visibility: hidden"),
                 "Empty tool racks must stay hidden, decorations must layer above them, and open interiors must suspend grounds painting."
+        );
+    }
+
+    @Test
+    void keepListsSeparateUnreadEntriesFromReadOnes() throws IOException {
+        String keepCss = Files.readString(KEEP_CSS);
+        String keepJs = Files.readString(KEEP_JS);
+
+        assertTrue(
+                keepJs.contains("listSection('Unread'") && keepJs.contains("listSection('Read'")
+                        && keepJs.contains("listSection('New'") && keepJs.contains("listSection('Earlier'")
+                        && keepCss.contains(".list-section-heading"),
+                "The Chronicle and the notice tray must file unread entries above read ones under their own dividers."
+        );
+        assertTrue(
+                keepJs.contains("at: nowMs(), read: false") && keepJs.contains("function markNoticesRead()")
+                        && keepJs.contains("function unreadNoticeCount()")
+                        && keepCss.contains(".notice-item.unread") && keepCss.contains(".notice-item.is-read"),
+                "Messages must carry their own read state so the New group and the header badge agree."
+        );
+        assertFalse(
+                keepJs.contains("state.noticeUnread"),
+                "The tray badge must derive from per-message read state, not a counter that zeroes on open."
+        );
+        assertTrue(
+                keepJs.contains("state.sessionReadLoreIds"),
+                "An entry read during a Chronicle visit must hold its place until the panel is reopened."
         );
     }
 
