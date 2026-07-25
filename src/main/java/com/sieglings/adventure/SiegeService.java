@@ -3152,18 +3152,27 @@ public class SiegeService {
             m.put("cache", null);
         }
 
-        // Broker stall (mercenary rentals).
+        // Broker stall: permanent recruits when the warband has room, mercenary
+        // rentals when it is full (and always one merc alternative while hiring).
         if (run.isInBroker()) {
+            boolean partyFull = run.getParty().size() >= content.partyMax();
+            // Merc-only stalls (full party) expose rental prices; open stalls expose
+            // hire/swap prices. Per-offer cost/kind still win for mixed menus.
+            boolean mercOnly = partyFull;
             Map<String, Object> broker = new LinkedHashMap<>();
-            broker.put("hireCost", MERC_RENT_COST);
-            broker.put("swapCost", MERC_RENT_COST);
-            broker.put("merc", true);
+            broker.put("hireCost", mercOnly ? MERC_RENT_COST : BROKER_HIRE_COST);
+            broker.put("swapCost", mercOnly ? MERC_RENT_COST : BROKER_SWAP_COST);
+            broker.put("merc", mercOnly);
             broker.put("mercUnderContract", run.getMercenary() != null);
-            broker.put("partyFull", false);
+            broker.put("partyFull", partyFull);
             List<Map<String, Object>> offers = new ArrayList<>();
             for (CampOption o : run.getBrokerOptions()) {
                 Map<String, Object> om = new LinkedHashMap<>();
+                boolean mercOffer = "MERC".equals(o.kind);
                 om.put("id", o.id);
+                om.put("kind", o.kind);
+                om.put("merc", mercOffer);
+                om.put("cost", o.cost);
                 om.put("name", o.title.replace(" joins for hire", "").replace(" — mercenary", ""));
                 om.put("element", o.element == null ? null : o.element.name());
                 om.put("artUrl", o.artUrl);
