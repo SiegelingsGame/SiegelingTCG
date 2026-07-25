@@ -13187,6 +13187,7 @@ const NOTCH_ICON_PATHS = {
     SHADOW: '/img/notches/notch-shadow.png',
     ELECTRIC: '/img/notches/notch-electric.png',
     METAL: '/img/notches/notch-metal.png',
+    PSYCHIC: '/img/notches/notch-psychic.png',
     POISON: '/img/notches/notch-poison.png'
 };
 

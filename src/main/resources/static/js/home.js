@@ -127,6 +127,7 @@
         SHADOW: '/img/notches/notch-shadow.png',
         ELECTRIC: '/img/notches/notch-electric.png',
         METAL: '/img/notches/notch-metal.png',
+        PSYCHIC: '/img/notches/notch-psychic.png',
         POISON: '/img/notches/notch-poison.png'
     };
     const ENERGY_COST_FILTERS = ['ALL', 'FREE', '1', '2', '3', '4', '5+'];
