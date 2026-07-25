@@ -7145,6 +7145,7 @@ body.placement-active .board-cell.legal {
 .bc-notch.filled.undead   { background: var(--undead); border-color: #6a5a7c; }
 .bc-notch.filled.psychic  { background: var(--psychic); border-color: #9a6ecc; }
 .bc-notch.filled.poison   { background: var(--poison); border-color: #4f9a2a; }
+.bc-notch.filled.light    { background: var(--light); border-color: #c9a961; }
 
 .bc-notch.filled[style*="--notch-icon"] {
     background: var(--notch-icon, radial-gradient(circle at 35% 28%, rgba(255,255,255,0.78), transparent 30%)), var(--notch, #f0f0f0);
@@ -7223,6 +7224,7 @@ body.placement-active .board-cell.legal {
 .notch-dot.undead { background: var(--undead); border-color: #6a5a7c; }
 .notch-dot.psychic { background: var(--psychic); border-color: #9a6ecc; }
 .notch-dot.poison { background: var(--poison); border-color: #4f9a2a; }
+.notch-dot.light { background: var(--light); border-color: #c9a961; }
 
 .notch-dot[style*="--notch-icon"] {
     background: var(--notch-icon, radial-gradient(circle at 35% 28%, rgba(255,255,255,0.72), transparent 30%)), var(--notch, rgba(8, 12, 20, 0.76));

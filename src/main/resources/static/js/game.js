@@ -13187,8 +13187,10 @@ const NOTCH_ICON_PATHS = {
     SHADOW: '/img/notches/notch-shadow.png',
     ELECTRIC: '/img/notches/notch-electric.png',
     METAL: '/img/notches/notch-metal.png',
+    UNDEAD: '/img/notches/notch-undead.png',
     PSYCHIC: '/img/notches/notch-psychic.png',
-    POISON: '/img/notches/notch-poison.png'
+    POISON: '/img/notches/notch-poison.png',
+    LIGHT: '/img/notches/notch-light.png'
 };
 
 function renderBoardNotches(notches, options) {
