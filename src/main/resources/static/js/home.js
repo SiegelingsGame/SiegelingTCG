@@ -320,6 +320,8 @@
         selectedCardId: null,
         detailArtCardId: '',
         detailArtVariant: 'STANDARD',
+        shopDetailArtCardId: '',
+        shopDetailArtVariant: 'STANDARD',
         detailArtSwipeStartX: null,
         detailArtSwipeSuppressUntil: 0,
         search: '',
@@ -1203,11 +1205,13 @@
             if (artToggle) {
                 event.preventDefault();
                 event.stopPropagation();
-                state.detailArtVariant = artToggle.dataset.cardArtToggle === 'HOLOGRAPHIC' ? 'HOLOGRAPHIC' : 'STANDARD';
-                renderDetail();
+                setCardArtVariant(cardArtSurfaceOf(artToggle), artToggle.dataset.cardArtToggle);
                 return;
             }
-            if (event.target.closest('[data-card-fullscreen]') && Date.now() >= state.detailArtSwipeSuppressUntil) openCardFullscreen();
+            const fullscreenTrigger = event.target.closest('[data-card-fullscreen]');
+            if (fullscreenTrigger && Date.now() >= state.detailArtSwipeSuppressUntil) {
+                openCardFullscreenForSurface(cardArtSurfaceOf(fullscreenTrigger));
+            }
         });
         document.addEventListener('pointerdown', (event) => {
             if (!event.target.closest('[data-card-art-stack]')) return;
@@ -1218,20 +1222,20 @@
             const deltaX = event.clientX - state.detailArtSwipeStartX;
             state.detailArtSwipeStartX = null;
             if (Math.abs(deltaX) < 36) return;
-            state.detailArtVariant = deltaX < 0 ? 'HOLOGRAPHIC' : 'STANDARD';
             state.detailArtSwipeSuppressUntil = Date.now() + 400;
-            renderDetail();
+            setCardArtVariant(cardArtSurfaceOf(event.target), deltaX < 0 ? 'HOLOGRAPHIC' : 'STANDARD');
         });
         document.addEventListener('pointercancel', () => {
             state.detailArtSwipeStartX = null;
         });
         // Keyboard activation for the (non-button) card preview trigger.
         document.addEventListener('keydown', (event) => {
+            const fullscreenTrigger = event.target.closest?.('[data-card-fullscreen]');
             if ((event.key === 'Enter' || event.key === ' ')
                 && !event.target.closest('[data-card-art-toggle]')
-                && event.target.closest('[data-card-fullscreen]')) {
+                && fullscreenTrigger) {
                 event.preventDefault();
-                openCardFullscreen();
+                openCardFullscreenForSurface(cardArtSurfaceOf(fullscreenTrigger));
             }
         });
         document.getElementById('cardFullscreenBack')?.addEventListener('click', closeCardFullscreen);
@@ -2035,27 +2039,56 @@
         </button>`;
     }
 
-    // Shared card art markup for the Card View tray and its full-screen
-    // takeover so both surfaces render an identical card.
+    // Shared card art markup for the Card View tray, the shop card preview, and
+    // the full-screen takeover so every surface renders an identical card. Each
+    // surface parks its own standard/holographic selection under these keys.
+    const CARD_ART_SURFACES = {
+        binder: { cardKey: 'detailArtCardId', variantKey: 'detailArtVariant' },
+        shop: { cardKey: 'shopDetailArtCardId', variantKey: 'shopDetailArtVariant' }
+    };
+
     function hasHolographicFullCardArt(card) {
         return Boolean(String(card?.holographicCardArtUrl || '').trim());
     }
 
-    function selectedDetailArtVariant(card) {
-        if (state.detailArtCardId !== String(card?.id || '')) {
-            state.detailArtCardId = String(card?.id || '');
-            state.detailArtVariant = hasHolographicFullCardArt(card) ? 'HOLOGRAPHIC' : 'STANDARD';
-        }
-        if (!hasHolographicFullCardArt(card)) return 'STANDARD';
-        return state.detailArtVariant === 'HOLOGRAPHIC' ? 'HOLOGRAPHIC' : 'STANDARD';
+    function cardArtSurfaceKeys(surface) {
+        return CARD_ART_SURFACES[surface] || CARD_ART_SURFACES.binder;
     }
 
-    function renderDetailCardPreviewMarkup(card, extraPreviewClass = '', forcedVariant = '') {
+    function cardArtSurfaceOf(element) {
+        const host = element?.closest?.('[data-card-art-surface]');
+        const surface = host?.dataset?.cardArtSurface || '';
+        return CARD_ART_SURFACES[surface] ? surface : 'binder';
+    }
+
+    // Toggling/swiping art re-renders only the surface the gesture came from so
+    // the binder tray and the shop preview keep independent variant state.
+    function setCardArtVariant(surface, variant) {
+        const keys = cardArtSurfaceKeys(surface);
+        state[keys.variantKey] = variant === 'HOLOGRAPHIC' ? 'HOLOGRAPHIC' : 'STANDARD';
+        if (surface === 'shop') {
+            renderShopCardPreviewModal();
+            return;
+        }
+        renderDetail();
+    }
+
+    function selectedDetailArtVariant(card, surface = 'binder') {
+        const keys = cardArtSurfaceKeys(surface);
+        if (state[keys.cardKey] !== String(card?.id || '')) {
+            state[keys.cardKey] = String(card?.id || '');
+            state[keys.variantKey] = hasHolographicFullCardArt(card) ? 'HOLOGRAPHIC' : 'STANDARD';
+        }
+        if (!hasHolographicFullCardArt(card)) return 'STANDARD';
+        return state[keys.variantKey] === 'HOLOGRAPHIC' ? 'HOLOGRAPHIC' : 'STANDARD';
+    }
+
+    function renderDetailCardPreviewMarkup(card, extraPreviewClass = '', forcedVariant = '', surface = 'binder') {
         const previewClass = `detail-card-preview${extraPreviewClass ? ` ${extraPreviewClass}` : ''}`;
         if (card.type === 'SIEGEKNIGHT') {
             return `<div class="knight-detail-preview">${renderKnightBinderCard(card)}</div>`;
         }
-        const variant = forcedVariant || selectedDetailArtVariant(card);
+        const variant = forcedVariant || selectedDetailArtVariant(card, surface);
         const renderCard = { ...card, holographic: variant === 'HOLOGRAPHIC' };
         const lockedHolographicDescription = variant === 'HOLOGRAPHIC' && !cardShowsPlayerHolographic(card)
             ? { holographicDescriptionText: "LOCKED — Upgrade this card's holographic finish to use it in your binder and matches." }
@@ -2073,16 +2106,17 @@
             : `<div class="binder-card ${previewClass}" style="--el:${elementColor(card.element)}">${renderBinderCardShell(card)}</div>`;
     }
 
-    function renderDetailCardArtStack(card) {
+    function renderDetailCardArtStack(card, surface = 'binder') {
         if (!hasHolographicFullCardArt(card) || card.type === 'SIEGEKNIGHT') {
-            return renderDetailCardPreviewMarkup(card);
+            return renderDetailCardPreviewMarkup(card, '', '', surface);
         }
-        const variant = selectedDetailArtVariant(card);
-        return `<div class="detail-card-art-stack is-${variant.toLowerCase()}" data-card-art-stack aria-label="Swipe left or right to compare standard and holographic card art">
-            <div class="detail-card-art-layer detail-card-art-standard${variant === 'STANDARD' ? ' active' : ''}">${renderDetailCardPreviewMarkup(card, '', 'STANDARD')}</div>
-            <div class="detail-card-art-layer detail-card-art-holographic${variant === 'HOLOGRAPHIC' ? ' active' : ''}">${renderDetailCardPreviewMarkup(card, '', 'HOLOGRAPHIC')}</div>
+        const variant = selectedDetailArtVariant(card, surface);
+        const surfaceAttr = escapeAttr(surface);
+        return `<div class="detail-card-art-stack is-${variant.toLowerCase()}" data-card-art-stack data-card-art-surface="${surfaceAttr}" aria-label="Swipe left or right to compare standard and holographic card art">
+            <div class="detail-card-art-layer detail-card-art-standard${variant === 'STANDARD' ? ' active' : ''}">${renderDetailCardPreviewMarkup(card, '', 'STANDARD', surface)}</div>
+            <div class="detail-card-art-layer detail-card-art-holographic${variant === 'HOLOGRAPHIC' ? ' active' : ''}">${renderDetailCardPreviewMarkup(card, '', 'HOLOGRAPHIC', surface)}</div>
         </div>
-        <div class="detail-card-art-toggle" role="group" aria-label="Card art version">
+        <div class="detail-card-art-toggle" role="group" aria-label="Card art version" data-card-art-surface="${surfaceAttr}">
             <button type="button" data-card-art-toggle="STANDARD" class="${variant === 'STANDARD' ? 'active' : ''}" aria-pressed="${variant === 'STANDARD'}">Standard</button>
             <button type="button" data-card-art-toggle="HOLOGRAPHIC" class="${variant === 'HOLOGRAPHIC' ? 'active' : ''}" aria-pressed="${variant === 'HOLOGRAPHIC'}">Holographic</button>
         </div>
@@ -2091,13 +2125,17 @@
 
     // Full-screen card takeover: tapping the card in the Card View tray blows
     // the art up to fill the screen; the back arrow returns to the tray.
-    function openCardFullscreen() {
+    function openCardFullscreenForSurface(surface = 'binder') {
+        openCardFullscreen(surface === 'shop' ? selectedShopPreviewCard() : selectedCard(), surface);
+    }
+
+    function openCardFullscreen(sourceCard = null, surface = 'binder') {
         const overlay = document.getElementById('cardFullscreen');
         const body = document.getElementById('cardFullscreenBody');
-        let card = selectedCard();
+        let card = sourceCard || selectedCard();
         if (!overlay || !body || !card) return;
         card = withPlayerHolographic(card);
-        body.innerHTML = renderDetailCardPreviewMarkup(card, 'card-fullscreen-preview');
+        body.innerHTML = renderDetailCardPreviewMarkup(card, 'card-fullscreen-preview', '', surface);
         overlay.classList.remove('hidden');
         document.body.classList.add('card-fullscreen-open');
         window.SieglingsCardShowcase?.scheduleFramedSummaryFit?.();
@@ -2119,7 +2157,7 @@
 
     function renderEvolutionLink(card, fallbackName = '') {
         if (!card) return `<strong>${escapeHtml(fallbackName || 'Base')}</strong>`;
-        return `<button class="detail-evolution-link" type="button" data-evolution-card-id="${escapeAttr(card.id)}" aria-label="View ${escapeAttr(card.name || 'evolution card')} in the card binder">
+        return `<button class="detail-evolution-link" type="button" data-evolution-card-id="${escapeAttr(card.id)}" aria-label="View ${escapeAttr(card.name || 'evolution card')} card details">
             <span>${escapeHtml(card.name || fallbackName || card.id)}</span><span class="detail-evolution-arrow" aria-hidden="true">&rsaquo;</span>
         </button>`;
     }
@@ -2188,7 +2226,7 @@
         const cardPreview = renderDetailCardArtStack(card);
         panel.innerHTML = `
             <button class="tray-close-btn" type="button" data-tray-close aria-label="Close">&times;</button>
-            <div class="detail-card-preview-wrap" data-card-fullscreen role="button" tabindex="0" aria-label="View card full screen" title="Tap to view full screen">${cardPreview}</div>
+            <div class="detail-card-preview-wrap" data-card-fullscreen data-card-art-surface="binder" role="button" tabindex="0" aria-label="View card full screen" title="Tap to view full screen">${cardPreview}</div>
             ${isSiegeknight ? '' : `<div class="chip-wrap detail-chip-wrap">
                 ${renderActiveNotchChips(card.notches)}
             </div>
@@ -3598,7 +3636,11 @@
         const packs = starterMode ? starterPacks : state.packs;
         const dailyOffers = starterMode ? [] : state.dailyOffers;
         const shopTitles = shopTitleOffers();
-        if (dailyOffers.length && !dailyOffers.some(offer => offer.cardId === state.shopPreviewCardId)) {
+        // An open preview can be walked to an evolution relative that is not on
+        // offer today; only snap back to the first offer when nothing resolves.
+        if (dailyOffers.length
+            && !dailyOffers.some(offer => offer.cardId === state.shopPreviewCardId)
+            && !(state.shopCardPreviewOpen && findCard(state.shopPreviewCardId))) {
             state.shopPreviewCardId = dailyOffers[0].cardId;
         }
         grid.innerHTML = `
@@ -3728,8 +3770,14 @@
 
     function selectedShopPreviewCard() {
         const offers = state.dailyOffers || [];
-        const offer = offers.find(item => item.cardId === state.shopPreviewCardId) || offers[0];
-        return offer ? dailyOfferCard(offer) : null;
+        const offer = offers.find(item => item.cardId === state.shopPreviewCardId);
+        if (offer) return dailyOfferCard(offer);
+        // Evolution links inside the preview can walk to a relative that is not
+        // one of today's offers, so fall back to the binder catalog before the
+        // first offer.
+        const catalogCard = state.shopPreviewCardId ? findCard(state.shopPreviewCardId) : null;
+        if (catalogCard) return catalogCard;
+        return offers[0] ? dailyOfferCard(offers[0]) : null;
     }
 
     function renderDailyOfferTile(offer) {
@@ -3745,14 +3793,19 @@
 
     function renderDailyOfferCardPreview(card, owned) {
         const binderVisual = window.SieglingsCardBinderVisual;
+        card = withPlayerHolographic(card);
+        // Mirror the binder tile so an owned holographic finish reads the same
+        // in the shop as it does in the collection.
+        const holoOptions = binderHolographicOptions();
         if (card.type === 'SIEGEKNIGHT') {
             return `<button class="daily-card-preview card-tile binder-card framed-binder-tile knight-binder-tile" type="button" data-shop-preview-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}" aria-label="View ${escapeAttr(card.name || 'daily card')} details">
                 ${renderKnightBinderCard(card, { compact: true })}
             </button>`;
         }
-        if (binderVisual?.usesFullCardArt?.(card)) {
+        if (binderVisual?.usesFullCardArt?.(card, holoOptions)) {
             return `<button class="daily-card-preview card-tile binder-card framed-binder-tile" type="button" data-shop-preview-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}" aria-label="View ${escapeAttr(card.name || 'daily card')} details">
                 ${binderVisual.renderBinderCardTile(card, {
+                    ...holoOptions,
                     ownedOverride: owned,
                     descriptionText: shopCardDescriptionFor(card)
                 })}
@@ -3761,6 +3814,7 @@
         if (binderVisual?.usesFramedCardTemplate?.(card)) {
             return `<button class="daily-card-preview card-tile binder-card framed-binder-tile" type="button" data-shop-preview-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}" aria-label="View ${escapeAttr(card.name || 'daily card')} details">
                 ${binderVisual.renderBinderCardTile(card, {
+                    ...holoOptions,
                     ownedOverride: owned,
                     descriptionText: shopCardDescriptionFor(card)
                 })}
@@ -3769,7 +3823,7 @@
         const modeClass = binderVisual?.resolveArtModeClass(card) || '';
         return `<button class="daily-card-preview card-tile binder-card${modeClass}" type="button" data-shop-preview-card-id="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}" aria-label="View ${escapeAttr(card.name || 'daily card')} details">
             ${binderVisual?.renderBinderCardShell
-                ? binderVisual.renderBinderCardShell(card, { ownedOverride: owned, descriptionText: shopCardDescriptionFor(card) })
+                ? binderVisual.renderBinderCardShell(card, { ...holoOptions, ownedOverride: owned, descriptionText: shopCardDescriptionFor(card) })
                 : renderBinderCardShell(card)}
         </button>`;
     }
@@ -3789,32 +3843,39 @@
         renderHudTools();
     }
 
+    function selectShopEvolutionCard(cardId) {
+        const card = findCard(cardId);
+        if (!card) return;
+        state.shopPreviewCardId = card.id;
+        renderShop();
+        requestAnimationFrame(() => {
+            document.querySelector('.shop-card-preview-panel')?.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+    }
+
     function renderShopCardPreviewModal() {
         const modal = document.getElementById('shopCardPreviewModal');
         const body = document.getElementById('shopCardPreviewBody');
         if (!modal || !body) return;
-        const card = selectedShopPreviewCard();
+        let card = selectedShopPreviewCard();
         modal.classList.toggle('hidden', !state.shopCardPreviewOpen || !card);
         if (!state.shopCardPreviewOpen || !card) {
             body.innerHTML = '';
             return;
         }
+        card = withPlayerHolographic(card);
         const isSiegeknight = card.type === 'SIEGEKNIGHT';
         const abilities = card.abilities || (card.ability ? [card.ability] : []);
         const cost = cardEnergyCost(card);
         const costElement = card.costElement || card.trapBucketElement || card.element || 'NEUTRAL';
         const owned = ownedCount(card.id);
-        const cardPreview = isSiegeknight
-            ? `<div class="knight-detail-preview">${renderKnightBinderCard(card)}</div>`
-            : window.SieglingsCardBinderVisual?.renderBinderCardPreview
-            ? window.SieglingsCardBinderVisual.renderBinderCardPreview(card, {
-                ownedOverride: owned,
-                previewClass: 'detail-card-preview shop-card-preview-card',
-                compactAbilityLimit: 3,
-                summaryMode: 'description',
-                descriptionText: shopCardDescriptionFor(card)
-            })
-            : `<div class="binder-card detail-card-preview" style="--el:${elementColor(card.element)}">${renderBinderCardShell(card)}</div>`;
+        const evolvesFromCard = card.type === 'SIEGLING' && card.evolvesFromId
+            ? findCard(card.evolvesFromId)
+            : null;
+        const evolvesToCards = card.type === 'SIEGLING' ? evolutionTargets(card) : [];
+        // Same card view as the binder tray: holographic/standard art stack with
+        // its toggle plus the full-screen takeover on tap.
+        const cardPreview = renderDetailCardArtStack(card, 'shop');
         body.innerHTML = `
             <div class="shop-card-preview-head">
                 <div>
@@ -3824,7 +3885,7 @@
                 </div>
             </div>
             <div class="shop-card-preview-layout">
-                <div class="detail-card-preview-wrap">${cardPreview}</div>
+                <div class="detail-card-preview-wrap" data-card-fullscreen data-card-art-surface="shop" role="button" tabindex="0" aria-label="View card full screen" title="Tap to view full screen">${cardPreview}</div>
                 <div class="shop-card-preview-details">
                     ${isSiegeknight ? '' : `<div class="chip-wrap detail-chip-wrap">${renderActiveNotchChips(card.notches)}</div>
                     <div class="detail-cost-block">
@@ -3838,7 +3899,8 @@
                         ${card.type === 'SIEGLING' ? `<div><span>Health</span><strong>${card.health ?? '-'}</strong></div>
                         <div><span>Speed</span><strong>${card.speed ?? '-'}</strong></div>
                         <div><span>Row</span><strong>${format(card.preferredRow || '-')}</strong></div>
-                        <div><span>Evolution</span><strong>${escapeHtml(card.evolvesFromName || card.evolvesFromId || 'Base')}</strong></div>` : ''}
+                        <div><span>Evolves from</span>${renderEvolutionLink(evolvesFromCard, card.evolvesFromName || card.evolvesFromId || 'Base')}</div>
+                        ${evolvesToCards.length ? `<div><span>Evolves to</span><strong class="detail-evolution-links">${evolvesToCards.map(target => renderEvolutionLink(target)).join('')}</strong></div>` : ''}` : ''}
                         ${!isSiegeknight && card.type !== 'SIEGLING' ? `<div><span>Cost</span><strong>${cost} ${format(costElement)}</strong></div>
                         <div><span>Reaction</span><strong>${format(card.requiredReaction || 'None')}</strong></div>
                         <div><span>Row</span><strong>${format(card.preferredRow || 'Any')}</strong></div>` : ''}
@@ -3853,6 +3915,12 @@
                     </div>
                 </div>
             </div>`;
+        body.querySelectorAll('[data-evolution-card-id]').forEach(link => link.addEventListener('click', () => {
+            selectShopEvolutionCard(link.dataset.evolutionCardId);
+        }));
+        window.SieglingsCardShowcase?.scheduleFramedSummaryFit?.();
+        window.SieglingsCardBinderVisual?.scheduleDescriptionFit?.();
+        window.SieglingsCardShowcase?.scheduleSiegeKnightCardFit?.();
     }
 
     function renderBinderCardEnergyCost(cost, element) {
