@@ -1641,6 +1641,16 @@ select.search-input { color-scheme: dark; }
     margin: 0 auto;
 }
 
+/* The shared standard/holographic art stack sizes the card, so the layers
+   inside it fill the stack instead of taking the shop's own card width. */
+.shop-card-preview-layout .detail-card-art-stack {
+    width: min(100%, 250px);
+}
+
+.shop-card-preview-layout .detail-card-art-stack .detail-card-preview {
+    width: 100%;
+}
+
 .shop-card-preview-details {
     min-width: 0;
 }
@@ -8563,6 +8573,12 @@ body.gacha-active {
     .shop-card-preview-layout .detail-card-preview,
     .shop-card-preview-layout .knight-detail-preview {
         width: min(100%, 190px);
+    }
+    .shop-card-preview-layout .detail-card-art-stack {
+        width: min(100%, 190px);
+    }
+    .shop-card-preview-layout .detail-card-art-stack .detail-card-preview {
+        width: 100%;
     }
     .shop-card-preview-head h2 {
         font-size: 21px;
