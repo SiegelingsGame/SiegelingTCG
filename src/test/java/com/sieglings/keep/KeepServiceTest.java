@@ -572,6 +572,34 @@ class KeepServiceTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void aProjectUnderConstructionLeavesTheOfferListSoAFreeTeamCanStartSomethingElse() {
+        service.getSnapshot(user);
+        store.state.setArchiveLevel(1);
+        store.state.setWoodlotLevel(2);
+        store.state.setStorehouseLevel(1);
+        store.state.setKeeperXp(700); // Keeper Level 5 coordinates two teams.
+        store.state.setTimber(2_000);
+
+        Map<String, Object> started = service.startBuild(user, "build_generator", "busy-1", store.state.getVersion());
+        List<Map<String, Object>> options = (List<Map<String, Object>>) started.get("buildOptions");
+        assertTrue(options.stream().noneMatch(item -> "build_generator".equals(item.get("id"))),
+                "A project a crew already holds must not be offered again — startBuild would reject it.");
+
+        Map<String, Object> kitchen = options.stream()
+                .filter(item -> "build_kitchen".equals(item.get("id"))).findFirst().orElseThrow();
+        assertEquals(Boolean.TRUE, kitchen.get("canStart"), "The free second team can still take another project.");
+        service.startBuild(user, "build_kitchen", "busy-2", store.state.getVersion());
+
+        clock.advance(Duration.ofSeconds(KeepService.GENERATOR_LEVEL_ONE_SECONDS + 1));
+        Map<String, Object> completed = service.getSnapshot(user);
+        assertEquals(1, ((Number) station(completed, "generator").get("level")).intValue());
+        List<Map<String, Object>> after = (List<Map<String, Object>>) completed.get("buildOptions");
+        assertTrue(after.stream().noneMatch(item -> "build_generator".equals(item.get("id"))),
+                "A finished facility leaves the level-1 offer list.");
+    }
+
+    @Test
     void quarryAndKitchenProduceStoneAndProvisions() {
         service.getSnapshot(user);
         store.state.setStorehouseLevel(1);
