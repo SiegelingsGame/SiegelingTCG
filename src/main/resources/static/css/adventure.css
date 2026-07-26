@@ -387,6 +387,15 @@ body[data-screen="rewardScreen"]{
   box-shadow:0 24px 70px rgba(0,0,0,.58), inset 0 0 0 1px rgba(255,255,255,.04);
 }
 .location-art{position:absolute; inset:0; width:100%; height:100%; z-index:-2;}
+/* Each stage ships two compositions. The 1200x680 board is drawn for a wide
+   stage; slicing it into a tall phone stage crops the sides away and leaves the
+   scene reading as empty backdrop, so portrait gets its own 720x1280 drawing
+   with the prop and horizon placed for that frame. Exactly one is in flow. */
+.location-art-tall{display:none;}
+@media (orientation:portrait){
+  .location-art-wide{display:none;}
+  .location-art-tall{display:block;}
+}
 .location-stage::after{
   content:""; position:absolute; inset:0; z-index:-1; pointer-events:none;
   background:
@@ -574,7 +583,10 @@ body[data-screen="rewardScreen"]{
 .epiphany-screen .xp-recap{position:relative; z-index:1; max-width:980px; margin:8px auto 14px;}
 .epiphany-screen .reward-grid{
   position:relative; z-index:1; width:min(100%,1120px); max-width:none; margin:0 auto;
-  grid-template-columns:repeat(3,minmax(0,1fr)); gap:clamp(10px,2vw,22px);
+  /* Reward count varies (3, or 4 when an item sigil is offered) — auto columns
+     keep every card on one row instead of orphaning the 4th onto its own. */
+  grid-template-columns:none; grid-auto-flow:column; grid-auto-columns:minmax(0,1fr);
+  gap:clamp(10px,2vw,22px);
 }
 .epiphany-screen .reward-card{
   position:relative; min-height:390px; display:flex; flex-direction:column; align-items:center;
@@ -1727,14 +1739,6 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
   .location-meta{justify-content:flex-end; align-self:start; flex-wrap:wrap;}
   .location-meta .gold-chip{font-size:11px; padding:4px 8px;}
   .location-meta .camp-reward{max-width:110px; font-size:9px; text-align:right;}
-  .location-overlay .location-choice-grid,
-  .location-overlay .epiphany-grid,
-  .location-overlay .event-choices{
-    display:grid; grid-template-columns:none; grid-auto-flow:column; grid-auto-columns:minmax(172px,72vw);
-    gap:9px; overflow-x:auto; scroll-snap-type:x proximity; padding:3px 2px 7px;
-    scrollbar-width:none;
-  }
-  .location-overlay .location-choice-grid::-webkit-scrollbar{display:none;}
   .location-overlay .camp-card{scroll-snap-align:center; min-height:118px;}
   .location-overlay .camp-actions{flex-direction:row; justify-content:flex-end; min-width:0;}
   .location-overlay .camp-actions .siege-btn{width:auto; min-width:116px;}
@@ -1745,6 +1749,20 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
   .epiphany-header p{font-size:11px;}
   .epiphany-header::after{margin-top:5px;}
   .epiphany-screen .xp-recap{max-height:142px; overflow:auto; margin:6px 0 10px;}
+}
+
+/* Portrait phones are too narrow to show every option at once, so the choice
+   rows become swipeable carousels. Landscape has the width to lay them out
+   flat and is handled at the bottom of this file instead. */
+@media (max-width:760px) and (orientation:portrait){
+  .location-overlay .location-choice-grid,
+  .location-overlay .epiphany-grid,
+  .location-overlay .event-choices{
+    display:grid; grid-template-columns:none; grid-auto-flow:column; grid-auto-columns:minmax(172px,72vw);
+    gap:9px; overflow-x:auto; scroll-snap-type:x proximity; padding:3px 2px 7px;
+    scrollbar-width:none;
+  }
+  .location-overlay .location-choice-grid::-webkit-scrollbar{display:none;}
   .epiphany-screen .reward-grid{
     display:grid; grid-template-columns:none; grid-auto-flow:column; grid-auto-columns:minmax(246px,78vw);
     justify-content:start; overflow-x:auto; scroll-snap-type:x mandatory; padding:5px 10vw 12px;
@@ -1775,13 +1793,6 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
   .location-overlay .camp-card{min-height:96px; padding:7px 9px;}
   .location-overlay .camp-art{height:36px;}
   .location-overlay .camp-card-desc{font-size:9px;}
-  .camp-menu-open .location-overlay .location-choice-grid{
-    display:grid; grid-template-columns:none; grid-auto-flow:column; grid-auto-columns:minmax(170px,1fr);
-    overflow-x:auto; overflow-y:hidden; scroll-snap-type:x proximity; padding:2px 2px 6px;
-    scrollbar-width:none;
-  }
-  .camp-menu-open .location-overlay .location-choice-grid::-webkit-scrollbar{display:none;}
-  .camp-menu-open .location-overlay .camp-card{scroll-snap-align:center;}
   .location-overlay .upgrade-choice-card{height:174px; min-height:174px; max-height:174px;}
   .upgrade-card-sigil{width:30px;height:30px;font-size:18px;}
   .upgrade-original small,.upgrade-awakened small,.upgrade-choice-index{font-size:7px;}
@@ -1798,4 +1809,73 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
   .epiphany-screen .reward-glyph{font-size:46px;margin:12px 0;}
   .epiphany-screen .reward-title{font-size:17px;}
   .epiphany-screen .reward-actions{margin-top:4px;}
+}
+
+/* ---------- Phone landscape: one screen, no scrolling ----------
+   A short wide viewport has the width to show every choice at once, so the
+   choice rows become a single flex line that divides the overlay evenly —
+   whatever the option count — and the card internals scale down with it. The
+   overlay clips rather than scrolls so nothing hides below a fold. Placed last
+   so it wins the source-order tie against the two earlier phone queries that
+   both match a 844x390 viewport. */
+@media (orientation:landscape) and (max-width:979px) and (max-height:600px){
+  .location-overlay,.smith-overlay{
+    max-height:78%; overflow:hidden;
+    gap:5px 12px; padding:8px 12px max(8px,env(safe-area-inset-bottom,0px));
+  }
+  .camp-menu-open .location-overlay{max-height:78%;}
+  .location-overlay .location-choice-grid,
+  .location-overlay .event-choices,
+  .camp-menu-open .location-overlay .location-choice-grid{
+    display:flex; flex-flow:row nowrap; align-items:stretch; gap:6px;
+    grid-auto-flow:row; grid-auto-columns:auto; grid-template-columns:none;
+    overflow:visible; padding:0;
+  }
+  /* flex-basis:0 divides the row evenly however many options arrive. */
+  .location-overlay .location-choice-grid > *,
+  .location-overlay .event-choices > *{flex:1 1 0; min-width:0;}
+  .location-overlay .camp-card,
+  .location-overlay .event-choice{
+    min-height:0; height:100%; padding:6px 8px; border-radius:10px; scroll-snap-align:none;
+  }
+  .location-overlay .camp-glyph{font-size:17px; margin:0 0 2px;}
+  .location-overlay .camp-art{height:28px; margin:0 0 3px;}
+  .location-overlay .camp-card-title{font-size:11px; line-height:1.15;}
+  .location-overlay .camp-card-desc{
+    font-size:9px; margin-top:2px; line-height:1.3;
+    display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
+  }
+  .location-overlay .camp-service-badge,
+  .location-overlay .camp-service-count{font-size:8px;}
+  .location-overlay .camp-service-open{margin-top:3px; font-size:9px;}
+  .location-overlay .event-choice .ec-label{font-size:11px; line-height:1.15;}
+  .location-overlay .event-choice .ec-desc{
+    font-size:9px; line-height:1.3;
+    display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
+  }
+  .location-overlay .camp-actions{min-width:96px;}
+  .location-overlay .camp-actions .siege-btn{padding:7px 10px; font-size:11px;}
+
+  /* Rewards: the same flat row, so a 4-option spread (card/card/upgrade plus an
+     item sigil) still fits between the header and the bottom of the screen. */
+  .epiphany-screen{overflow:hidden;}
+  .epiphany-screen .reward-grid{
+    display:grid; grid-template-columns:none; grid-auto-flow:column;
+    grid-auto-columns:minmax(0,1fr); gap:8px; padding:0; overflow:visible;
+    width:100%; justify-content:stretch;
+  }
+  .epiphany-screen .reward-card{
+    min-height:0; height:100%; padding:8px 9px; border-radius:12px; scroll-snap-align:none;
+  }
+  .epiphany-screen .reward-card::before{font-size:9px; letter-spacing:.28em; margin-bottom:4px;}
+  .epiphany-screen .reward-kind{margin:0 0 4px; font-size:8px; padding:1px 7px;}
+  .epiphany-screen .reward-glyph{font-size:34px; margin:4px 0 6px;}
+  .epiphany-screen .reward-art{height:74px; margin:2px 0 6px;}
+  .epiphany-screen .reward-title{font-size:14px; line-height:1.1;}
+  .epiphany-screen .reward-cardmeta{margin-top:3px; font-size:9px;}
+  .epiphany-screen .reward-desc{
+    margin-top:4px; font-size:9.5px; line-height:1.3;
+    display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden;
+  }
+  .epiphany-screen .reward-actions{margin-top:6px;}
 }

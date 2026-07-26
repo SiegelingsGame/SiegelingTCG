@@ -3568,7 +3568,7 @@
   }
 
   // ---- rewards ----------------------------------------------------------
-  var REWARD_ICON = { CARD: '🃏', UPGRADE: '⬆️', RECRUIT: '🐾' };
+  var REWARD_ICON = { CARD: '🃏', UPGRADE: '⬆️', RECRUIT: '🐾', ITEM: '🎒' };
 
   function renderXpRecap() {
     var host = $('xpRecap');
@@ -3634,7 +3634,7 @@
       c.type = 'button';
       var art = opt.artUrl
         ? '<div class="reward-art" style="background-image:url(\'' + artCss(opt.artUrl) + '\')"></div>'
-        : '<div class="reward-glyph">' + (REWARD_ICON[opt.kind] || '🎁') + '</div>';
+        : '<div class="reward-glyph">' + esc(opt.itemIcon || REWARD_ICON[opt.kind] || '🎁') + '</div>';
       var meta = '';
       if (opt.kind === 'CARD' && opt.cardEffect) {
         meta = '<div class="reward-cardmeta">' + icon(opt.element) + ' ' + esc(opt.cardEffect) + ' · power ' + opt.cardValue + ' · ' + opt.cardCost + ' AP</div>';
@@ -3651,7 +3651,7 @@
   }
 
   function kindLabel(kind) {
-    return { CARD: 'New Card', UPGRADE: 'Upgrade', RECRUIT: 'Recruit' }[kind] || 'Reward';
+    return { CARD: 'New Card', UPGRADE: 'Upgrade', RECRUIT: 'Recruit', ITEM: 'Item' }[kind] || 'Reward';
   }
 
   function chooseReward(optionId) {
