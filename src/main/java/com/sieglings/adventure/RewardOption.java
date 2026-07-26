@@ -9,6 +9,7 @@ import com.sieglings.model.enums.Element;
  *   <li>{@code CARD}    — {@link #cardSpec} + {@link #ownerId} (add a new card to the deck)</li>
  *   <li>{@code UPGRADE} — {@link #templateIndex} (strengthen an existing deck card)</li>
  *   <li>{@code RECRUIT} — {@link #sieglingId} (a new Siegeling joins the warband)</li>
+ *   <li>{@code ITEM}    — {@link #itemId} (a carryable item goes to the inventory)</li>
  * </ul>
  */
 record RewardOption(
@@ -21,17 +22,22 @@ record RewardOption(
         AbilitySpec cardSpec,
         String ownerId,
         int templateIndex,
-        String sieglingId
+        String sieglingId,
+        String itemId
 ) {
     static RewardOption card(String id, String title, String desc, Element element, AbilitySpec spec, String ownerId) {
-        return new RewardOption(id, "CARD", title, desc, element, null, spec, ownerId, -1, null);
+        return new RewardOption(id, "CARD", title, desc, element, null, spec, ownerId, -1, null, null);
     }
 
     static RewardOption upgrade(String id, String title, String desc, Element element, int templateIndex) {
-        return new RewardOption(id, "UPGRADE", title, desc, element, null, null, null, templateIndex, null);
+        return new RewardOption(id, "UPGRADE", title, desc, element, null, null, null, templateIndex, null, null);
     }
 
     static RewardOption recruit(String id, String title, String desc, Element element, String artUrl, String sieglingId) {
-        return new RewardOption(id, "RECRUIT", title, desc, element, artUrl, null, null, -1, sieglingId);
+        return new RewardOption(id, "RECRUIT", title, desc, element, artUrl, null, null, -1, sieglingId, null);
+    }
+
+    static RewardOption item(String id, String title, String desc, String itemId) {
+        return new RewardOption(id, "ITEM", title, desc, null, null, null, null, -1, null, itemId);
     }
 }

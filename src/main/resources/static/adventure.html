@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Siege — Siegelings Adventure</title>
 <link rel="icon" href="/favicon.png">
-<link rel="stylesheet" href="/css/adventure.css?v=39">
+<link rel="stylesheet" href="/css/adventure.css?v=42">
 </head>
 <body>
 <div class="siege-app" id="siegeApp">
@@ -131,7 +131,7 @@
   <!-- Rest Camp (interactive stop) -->
   <section class="siege-screen hidden" id="campScreen">
     <div class="location-stage location-camp">
-      <svg class="location-art" viewBox="0 0 1200 680" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <svg class="location-art location-art-wide" viewBox="0 0 1200 680" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
         <defs>
           <linearGradient id="campNight" x2="0" y2="1"><stop stop-color="#162c48"/><stop offset=".55" stop-color="#31485b"/><stop offset="1" stop-color="#17251f"/></linearGradient>
           <radialGradient id="campGlow"><stop stop-color="#ffd36a" stop-opacity=".9"/><stop offset=".45" stop-color="#e86c28" stop-opacity=".32"/><stop offset="1" stop-color="#e86c28" stop-opacity="0"/></radialGradient>
@@ -150,6 +150,25 @@
           <path d="M530 548h144M555 520l94 54M650 520l-95 54" stroke="#38251d" stroke-width="16" stroke-linecap="round"/>
         </g>
       </svg>
+      <svg class="location-art location-art-tall" viewBox="0 0 720 1280" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <defs>
+          <linearGradient id="campNightP" x2="0" y2="1"><stop stop-color="#162c48"/><stop offset=".5" stop-color="#31485b"/><stop offset="1" stop-color="#17251f"/></linearGradient>
+          <radialGradient id="campGlowP"><stop stop-color="#ffd36a" stop-opacity=".9"/><stop offset=".45" stop-color="#e86c28" stop-opacity=".32"/><stop offset="1" stop-color="#e86c28" stop-opacity="0"/></radialGradient>
+          <filter id="campPaperP"><feDropShadow dx="0" dy="8" stdDeviation="5" flood-opacity=".42"/></filter>
+        </defs>
+        <rect width="720" height="1280" fill="url(#campNightP)"/>
+        <circle cx="548" cy="152" r="66" fill="#eaf4dc" opacity=".75"/><circle cx="574" cy="130" r="66" fill="#1d334a"/>
+        <path d="M0 392L98 258 196 362 300 220 410 356 528 232 630 344 720 268V1280H0Z" fill="#172528"/>
+        <path d="M0 486Q152 410 302 470T566 452T720 424V1280H0Z" fill="#24352c"/>
+        <path d="M0 700Q186 612 388 692T720 664V1280H0Z" fill="#18251e"/>
+        <ellipse cx="286" cy="690" rx="250" ry="190" fill="url(#campGlowP)"/>
+        <g filter="url(#campPaperP)" transform="translate(-60 0)">
+          <path d="M470 636L580 452 700 636Z" fill="#aa6d42" stroke="#241b1a" stroke-width="9"/>
+          <path d="M580 452V638" stroke="#efd49c" stroke-width="7"/><path d="M482 636H692" stroke="#241b1a" stroke-width="12"/>
+          <path d="M238 726l46-70 48 70-30-7-19 30-17-30z" fill="#ffb13c" stroke="#542715" stroke-width="7"/>
+          <path d="M210 752h142M235 724l92 54M330 724l-93 54" stroke="#38251d" stroke-width="16" stroke-linecap="round"/>
+        </g>
+      </svg>
       <div class="location-party" id="campParty"></div>
       <div class="location-overlay">
         <div class="location-copy"><span class="location-kicker" id="campKicker">Safe zone</span><h1 id="campTitle">Rest Camp</h1><p id="campNote"></p></div>
@@ -163,13 +182,33 @@
   <!-- Cache dig minigame -->
   <section class="siege-screen hidden" id="cacheScreen">
     <div class="location-stage location-cache">
-      <svg class="location-art" viewBox="0 0 1200 680" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <svg class="location-art location-art-wide" viewBox="0 0 1200 680" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
         <defs><linearGradient id="cacheCave" x2="0" y2="1"><stop stop-color="#141b32"/><stop offset=".55" stop-color="#2a2948"/><stop offset="1" stop-color="#11151f"/></linearGradient><radialGradient id="cacheLight"><stop stop-color="#ffd36a" stop-opacity=".62"/><stop offset="1" stop-color="#ffd36a" stop-opacity="0"/></radialGradient><filter id="cachePaper"><feDropShadow dx="0" dy="9" stdDeviation="5" flood-opacity=".6"/></filter></defs>
         <rect width="1200" height="680" fill="url(#cacheCave)"/><ellipse cx="840" cy="385" rx="280" ry="250" fill="url(#cacheLight)"/>
         <path d="M0 0h1200v92L1080 70 930 160 790 76 645 145 470 62 300 155 160 72 0 112z" fill="#0b1019"/>
         <path d="M0 485Q190 420 370 480T740 455T1200 450V680H0Z" fill="#171827"/>
         <g fill="#292947" stroke="#0c1018" stroke-width="9"><path d="M120 500l85-250 92 250z"/><path d="M980 505l75-295 104 295z"/><path d="M360 490l50-178 64 178z"/></g>
         <g filter="url(#cachePaper)"><path d="M770 490h220v-122H770z" fill="#72523c" stroke="#1b1719" stroke-width="12"/><path d="M758 372q122-104 244 0z" fill="#9b7043" stroke="#1b1719" stroke-width="12"/><path d="M858 362h48v145h-48z" fill="#e2b85f" stroke="#39291e" stroke-width="7"/><circle cx="882" cy="428" r="14" fill="#fff0a1"/></g>
+      </svg>
+      <svg class="location-art location-art-tall" viewBox="0 0 720 1280" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <defs>
+          <linearGradient id="cacheCaveP" x2="0" y2="1"><stop stop-color="#141b32"/><stop offset=".5" stop-color="#2a2948"/><stop offset="1" stop-color="#11151f"/></linearGradient>
+          <radialGradient id="cacheLightP"><stop stop-color="#ffd36a" stop-opacity=".62"/><stop offset="1" stop-color="#ffd36a" stop-opacity="0"/></radialGradient>
+          <filter id="cachePaperP"><feDropShadow dx="0" dy="9" stdDeviation="5" flood-opacity=".6"/></filter>
+        </defs>
+        <rect width="720" height="1280" fill="url(#cacheCaveP)"/>
+        <ellipse cx="510" cy="590" rx="300" ry="300" fill="url(#cacheLightP)"/>
+        <path d="M0 0h720v168L640 138 552 232 466 146 378 220 274 132 172 226 84 140 0 194z" fill="#0b1019"/>
+        <path d="M0 726Q168 648 340 714T720 686V1280H0Z" fill="#171827"/>
+        <g fill="#292947" stroke="#0c1018" stroke-width="9">
+          <path d="M74 742l70-268 78 268z"/><path d="M596 748l62-286 84 286z"/><path d="M262 736l44-190 56 190z"/>
+        </g>
+        <g filter="url(#cachePaperP)" transform="translate(-46 0)">
+          <path d="M452 742h222v-136H452z" fill="#72523c" stroke="#1b1719" stroke-width="12"/>
+          <path d="M440 610q124-112 246 0z" fill="#9b7043" stroke="#1b1719" stroke-width="12"/>
+          <path d="M540 598h48v162h-48z" fill="#e2b85f" stroke="#39291e" stroke-width="7"/>
+          <circle cx="564" cy="672" r="15" fill="#fff0a1"/>
+        </g>
       </svg>
       <div class="location-party" id="cacheParty"></div>
       <div class="cache-focus"><span class="cache-chest" id="cacheChest">🪙</span></div>
@@ -220,7 +259,7 @@
   <!-- Broker stall (recruit or swap Siegelings) -->
   <section class="siege-screen hidden" id="brokerScreen">
     <div class="location-stage location-broker">
-      <svg class="location-art" viewBox="0 0 1200 680" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <svg class="location-art location-art-wide" viewBox="0 0 1200 680" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
         <defs><linearGradient id="brokerSky" x2="0" y2="1"><stop stop-color="#251b42"/><stop offset=".58" stop-color="#50345d"/><stop offset="1" stop-color="#191827"/></linearGradient><filter id="brokerPaper"><feDropShadow dx="0" dy="9" stdDeviation="5" flood-opacity=".5"/></filter></defs>
         <rect width="1200" height="680" fill="url(#brokerSky)"/>
         <path d="M0 300L175 190 300 320 470 175 650 325 840 150 1040 310 1200 210V680H0Z" fill="#181829"/>
@@ -232,6 +271,24 @@
           <circle cx="850" cy="411" r="28" fill="#70d6c7"/><circle cx="924" cy="407" r="24" fill="#ffd36a"/><circle cx="990" cy="413" r="27" fill="#a88bdf"/>
         </g>
         <path d="M655 405q55-105 110 0v112H655z" fill="#282037" stroke="#c8a5e8" stroke-width="8"/><circle cx="710" cy="353" r="43" fill="#45345d" stroke="#c8a5e8" stroke-width="8"/>
+      </svg>
+      <svg class="location-art location-art-tall" viewBox="0 0 720 1280" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <defs>
+          <linearGradient id="brokerSkyP" x2="0" y2="1"><stop stop-color="#251b42"/><stop offset=".54" stop-color="#50345d"/><stop offset="1" stop-color="#191827"/></linearGradient>
+          <filter id="brokerPaperP"><feDropShadow dx="0" dy="9" stdDeviation="5" flood-opacity=".5"/></filter>
+        </defs>
+        <rect width="720" height="1280" fill="url(#brokerSkyP)"/>
+        <path d="M0 330L104 236 190 350 288 222 396 356 508 206 620 340 720 272V1280H0Z" fill="#181829"/>
+        <path d="M0 700Q168 640 330 700T614 672T720 682V1280H0Z" fill="#272036"/>
+        <g filter="url(#brokerPaperP)" transform="translate(-44 0)">
+          <path d="M414 640L534 452 664 640Z" fill="#704d88" stroke="#1a1424" stroke-width="10"/>
+          <path d="M534 452v192" stroke="#d5b8e8" stroke-width="7"/>
+          <rect x="392" y="640" width="292" height="76" rx="8" fill="#3a273f" stroke="#17121b" stroke-width="10"/>
+          <path d="M402 637h272l-20 44H422z" fill="#ad7658" stroke="#20151c" stroke-width="8"/>
+          <circle cx="466" cy="620" r="28" fill="#70d6c7"/><circle cx="538" cy="616" r="24" fill="#ffd36a"/><circle cx="606" cy="622" r="27" fill="#a88bdf"/>
+        </g>
+        <path d="M180 626q52-102 104 0v116H180z" fill="#282037" stroke="#c8a5e8" stroke-width="8"/>
+        <circle cx="232" cy="576" r="42" fill="#45345d" stroke="#c8a5e8" stroke-width="8"/>
       </svg>
       <div class="location-party" id="brokerParty"></div>
       <div class="location-npc"><span class="location-npc-mark">Broker</span><span aria-hidden="true">♞</span></div>
@@ -302,13 +359,30 @@
   <!-- Smith / Caravan (reuse camp layout) -->
   <section class="siege-screen hidden" id="smithScreen">
     <div class="location-stage location-smith">
-      <svg class="location-art" viewBox="0 0 1200 680" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <svg class="location-art location-art-wide" viewBox="0 0 1200 680" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
         <defs><linearGradient id="forgeWall" x2="0" y2="1"><stop stop-color="#263344"/><stop offset=".62" stop-color="#332c2b"/><stop offset="1" stop-color="#171819"/></linearGradient><radialGradient id="forgeHeat"><stop stop-color="#ffd765" stop-opacity=".95"/><stop offset=".35" stop-color="#f06424" stop-opacity=".5"/><stop offset="1" stop-color="#f06424" stop-opacity="0"/></radialGradient><filter id="forgePaper"><feDropShadow dx="0" dy="8" stdDeviation="5" flood-opacity=".55"/></filter></defs>
         <rect width="1200" height="680" fill="url(#forgeWall)"/>
         <path d="M0 178h1200M0 330h1200M0 482h1200M180 0v520M430 0v520M690 0v520M950 0v520" stroke="#13171b" stroke-width="13" opacity=".65"/>
         <ellipse cx="900" cy="385" rx="230" ry="205" fill="url(#forgeHeat)"/>
         <g filter="url(#forgePaper)"><path d="M820 485V280h195v205z" fill="#57322b" stroke="#17181b" stroke-width="12"/><path d="M852 448V320h130v128z" fill="#ff7b29" stroke="#241915" stroke-width="10"/><path d="M852 448l36-88 30 52 25-61 39 97z" fill="#ffd65a"/><path d="M490 450h220l-35 75H525z" fill="#677080" stroke="#15181e" stroke-width="11"/><rect x="575" y="520" width="50" height="94" fill="#414852" stroke="#15181e" stroke-width="10"/></g>
         <path d="M715 430q58-118 116 0v120H715z" fill="#33282b" stroke="#e7a75f" stroke-width="8"/><circle cx="773" cy="370" r="44" fill="#684538" stroke="#e7a75f" stroke-width="8"/>
+      </svg>
+      <svg class="location-art location-art-tall" viewBox="0 0 720 1280" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <defs>
+          <linearGradient id="forgeWallP" x2="0" y2="1"><stop stop-color="#263344"/><stop offset=".6" stop-color="#332c2b"/><stop offset="1" stop-color="#171819"/></linearGradient>
+          <radialGradient id="forgeHeatP"><stop stop-color="#ffd765" stop-opacity=".95"/><stop offset=".35" stop-color="#f06424" stop-opacity=".5"/><stop offset="1" stop-color="#f06424" stop-opacity="0"/></radialGradient>
+          <filter id="forgePaperP"><feDropShadow dx="0" dy="8" stdDeviation="5" flood-opacity=".55"/></filter>
+        </defs>
+        <rect width="720" height="1280" fill="url(#forgeWallP)"/>
+        <path d="M0 190h720M0 372h720M0 554h720M0 736h720M150 0v880M340 0v880M530 0v880" stroke="#13171b" stroke-width="13" opacity=".65"/>
+        <ellipse cx="500" cy="600" rx="260" ry="250" fill="url(#forgeHeatP)"/>
+        <g filter="url(#forgePaperP)" transform="translate(-30 0)">
+          <path d="M440 690V446h216v244z" fill="#57322b" stroke="#17181b" stroke-width="12"/>
+          <path d="M476 648V494h144v154z" fill="#ff7b29" stroke="#241915" stroke-width="10"/>
+          <path d="M476 648l40-104 34 62 28-72 42 114z" fill="#ffd65a"/>
+          <path d="M132 712h228l-36 78H168z" fill="#677080" stroke="#15181e" stroke-width="11"/>
+          <rect x="220" y="786" width="52" height="98" fill="#414852" stroke="#15181e" stroke-width="10"/>
+        </g>
       </svg>
       <div class="location-party" id="smithParty"></div>
       <div class="location-npc smith-npc"><span class="location-npc-mark">Master Smith</span><span aria-hidden="true">⚒</span></div>
@@ -323,12 +397,30 @@
 
   <section class="siege-screen hidden" id="caravanScreen">
     <div class="location-stage location-caravan">
-      <svg class="location-art" viewBox="0 0 1200 680" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <svg class="location-art location-art-wide" viewBox="0 0 1200 680" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
         <defs><linearGradient id="duneSky" x2="0" y2="1"><stop stop-color="#243d5d"/><stop offset=".52" stop-color="#d58058"/><stop offset="1" stop-color="#382928"/></linearGradient><filter id="dunePaper"><feDropShadow dx="0" dy="8" stdDeviation="5" flood-opacity=".5"/></filter></defs>
         <rect width="1200" height="680" fill="url(#duneSky)"/><circle cx="190" cy="130" r="72" fill="#ffe49b" opacity=".88"/>
         <path d="M0 420Q225 305 455 424T900 398T1200 365V680H0Z" fill="#a96445"/><path d="M0 505Q220 410 470 520T900 475T1200 485V680H0Z" fill="#704437"/>
         <g filter="url(#dunePaper)"><rect x="770" y="360" width="325" height="150" rx="20" fill="#755040" stroke="#281d1c" stroke-width="11"/><path d="M750 370h365l-62-105H812z" fill="#d1a45f" stroke="#281d1c" stroke-width="10"/><circle cx="835" cy="520" r="48" fill="#332a2b" stroke="#b18452" stroke-width="12"/><circle cx="1030" cy="520" r="48" fill="#332a2b" stroke="#b18452" stroke-width="12"/><path d="M825 355v-74h200v74" fill="#66455e" stroke="#281d1c" stroke-width="9"/><path d="M825 300h200" stroke="#d8b46c" stroke-width="12" stroke-dasharray="34 18"/></g>
         <path d="M690 430q55-108 110 0v110H690z" fill="#5c3e35" stroke="#f1c87a" stroke-width="8"/><circle cx="745" cy="375" r="42" fill="#8d5b42" stroke="#f1c87a" stroke-width="8"/>
+      </svg>
+      <svg class="location-art location-art-tall" viewBox="0 0 720 1280" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <defs>
+          <linearGradient id="duneSkyP" x2="0" y2="1"><stop stop-color="#243d5d"/><stop offset=".46" stop-color="#d58058"/><stop offset="1" stop-color="#382928"/></linearGradient>
+          <filter id="dunePaperP"><feDropShadow dx="0" dy="8" stdDeviation="5" flood-opacity=".5"/></filter>
+        </defs>
+        <rect width="720" height="1280" fill="url(#duneSkyP)"/>
+        <circle cx="176" cy="190" r="76" fill="#ffe49b" opacity=".88"/>
+        <path d="M0 470Q186 356 372 474T720 428V1280H0Z" fill="#a96445"/>
+        <path d="M0 740Q180 640 392 748T720 706V1280H0Z" fill="#704437"/>
+        <g filter="url(#dunePaperP)" transform="translate(-72 0)">
+          <rect x="404" y="556" width="290" height="152" rx="20" fill="#755040" stroke="#281d1c" stroke-width="11"/>
+          <path d="M386 566h326l-56-106H442z" fill="#d1a45f" stroke="#281d1c" stroke-width="10"/>
+          <circle cx="464" cy="718" r="46" fill="#332a2b" stroke="#b18452" stroke-width="12"/>
+          <circle cx="638" cy="718" r="46" fill="#332a2b" stroke="#b18452" stroke-width="12"/>
+          <path d="M452 551v-74h194v74" fill="#66455e" stroke="#281d1c" stroke-width="9"/>
+          <path d="M452 496h194" stroke="#d8b46c" stroke-width="12" stroke-dasharray="34 18"/>
+        </g>
       </svg>
       <div class="location-party" id="caravanParty"></div>
       <div class="location-npc caravan-npc"><span class="location-npc-mark">Merchant</span><span aria-hidden="true">✦</span></div>
@@ -343,12 +435,26 @@
 
   <section class="siege-screen hidden" id="eventScreen">
     <div class="location-stage location-event">
-      <svg class="location-art" viewBox="0 0 1200 680" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <svg class="location-art location-art-wide" viewBox="0 0 1200 680" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
         <defs><linearGradient id="eventMist" x2="0" y2="1"><stop stop-color="#142f39"/><stop offset=".52" stop-color="#28505a"/><stop offset="1" stop-color="#10282b"/></linearGradient><radialGradient id="eventAura"><stop stop-color="#74e6de" stop-opacity=".6"/><stop offset="1" stop-color="#74e6de" stop-opacity="0"/></radialGradient></defs>
         <rect width="1200" height="680" fill="url(#eventMist)"/><circle cx="850" cy="290" r="260" fill="url(#eventAura)"/>
         <path d="M0 425Q190 345 360 430T720 410T1200 390V680H0Z" fill="#183638"/>
         <g fill="#10282b" stroke="#2b5f5c" stroke-width="8"><path d="M90 485l85-275 76 275z"/><path d="M1020 490l72-310 88 310z"/><path d="M780 492l58-250 72 250z"/></g>
         <path d="M820 470V280M744 470h152" stroke="#78d8cb" stroke-width="13" stroke-linecap="round"/><circle cx="820" cy="265" r="62" fill="#173d42" stroke="#78d8cb" stroke-width="10"/>
+      </svg>
+      <svg class="location-art location-art-tall" viewBox="0 0 720 1280" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <defs>
+          <linearGradient id="eventMistP" x2="0" y2="1"><stop stop-color="#142f39"/><stop offset=".5" stop-color="#28505a"/><stop offset="1" stop-color="#10282b"/></linearGradient>
+          <radialGradient id="eventAuraP"><stop stop-color="#74e6de" stop-opacity=".6"/><stop offset="1" stop-color="#74e6de" stop-opacity="0"/></radialGradient>
+        </defs>
+        <rect width="720" height="1280" fill="url(#eventMistP)"/>
+        <circle cx="500" cy="470" r="290" fill="url(#eventAuraP)"/>
+        <path d="M0 662Q166 578 336 664T720 620V1280H0Z" fill="#183638"/>
+        <g fill="#10282b" stroke="#2b5f5c" stroke-width="8">
+          <path d="M46 700l72-296 66 296z"/><path d="M602 706l62-330 74 330z"/><path d="M420 708l52-244 62 244z"/>
+        </g>
+        <path d="M498 690V440M424 690h150" stroke="#78d8cb" stroke-width="13" stroke-linecap="round"/>
+        <circle cx="498" cy="424" r="62" fill="#173d42" stroke="#78d8cb" stroke-width="10"/>
       </svg>
       <div class="location-party" id="eventParty"></div>
       <div class="event-focus"><span class="event-icon" id="eventIcon">?</span></div>
@@ -450,6 +556,6 @@
 
   <div class="siege-toast hidden" id="siegeToast"></div>
 </div>
-<script src="/js/adventure.js?v=39"></script>
+<script src="/js/adventure.js?v=40"></script>
 </body>
 </html>

@@ -67,6 +67,9 @@
         tutorialStep: -1,
         loreFilter: 'ALL',
         expandedLoreId: '',
+        // Entries read during this Chronicle visit stay filed under Unread until the panel is
+        // reopened, so the card under the player's finger never jumps groups as it is marked read.
+        sessionReadLoreIds: [],
         activeConversationId: '',
         receivedAtMs: Date.now(),
         debugTimeOffsetMs: 0,
@@ -81,7 +84,6 @@
         pendingOfflineReport: null,
         offlineVisible: false,
         notices: [],
-        noticeUnread: 0,
         mobileLayout: window.matchMedia('(max-width: 767px)').matches,
         testMode: Boolean(window.__KEEP_TEST_SNAPSHOT__)
     };
@@ -151,6 +153,14 @@
         window.addEventListener('scroll', resetViewportScroll, { passive: true });
         document.addEventListener('keydown', (event) => {
             if (event.key.toLowerCase() === 'f' && !isTyping(event.target)) toggleFullscreen();
+            // Arrow keys walk the interior tour, but only when no overlay owns the focus.
+            if ((event.key === 'ArrowLeft' || event.key === 'ArrowRight') && state.interior && !state.panel
+                && !isTyping(event.target)
+                && document.getElementById('keepTutorial')?.classList.contains('hidden') !== false
+                && document.getElementById('dialogueOverlay')?.classList.contains('hidden') !== false) {
+                event.preventDefault();
+                stepInterior(event.key === 'ArrowLeft' ? -1 : 1);
+            }
             if (event.key === 'Escape') {
                 if (!document.getElementById('keepTutorial')?.classList.contains('hidden')) finishTutorial();
                 else if (!document.getElementById('journeyOverlay')?.classList.contains('hidden')) closeJourney();
@@ -290,6 +300,16 @@
         const enterFacility = event.target.closest('[data-enter-facility]');
         if (enterFacility) {
             openInterior(enterFacility.dataset.enterFacility);
+            return;
+        }
+        const interiorStep = event.target.closest('[data-interior-step]');
+        if (interiorStep) {
+            stepInterior(number(interiorStep.dataset.interiorStep));
+            return;
+        }
+        const interiorGoto = event.target.closest('[data-interior-goto]');
+        if (interiorGoto) {
+            if (interiorGoto.dataset.interiorGoto !== state.interior) openInterior(interiorGoto.dataset.interiorGoto);
             return;
         }
         const stationChoice = event.target.closest('[data-resident-station]');
@@ -482,6 +502,7 @@
         if (!item) return;
         state.expandedLoreId = state.expandedLoreId === loreId ? '' : loreId;
         if (!item.read) {
+            if (!state.sessionReadLoreIds.includes(loreId)) state.sessionReadLoreIds.push(loreId);
             await perform('/api/keep/lore/read', { loreId });
             state.expandedLoreId = loreId;
         } else {
@@ -499,7 +520,9 @@
         state.activeConversationId = conversation.id;
         const portrait = document.getElementById('dialoguePortrait');
         portrait?.classList.toggle('is-archivist', conversation.npcId === 'archivist_pell');
-        portrait?.classList.toggle('is-visitor', String(conversation.kind || '').toUpperCase() === 'VISITOR');
+        const kind = String(conversation.kind || '').toUpperCase();
+        portrait?.classList.toggle('is-visitor', kind === 'VISITOR' || kind === 'INTERACTION');
+        portrait?.classList.toggle('is-interaction', kind === 'INTERACTION');
         text('dialogueRole', conversation.npcRole);
         text('dialogueName', conversation.npcName);
         text('dialogueKicker', conversation.kicker);
@@ -508,6 +531,11 @@
         if (summary) {
             summary.textContent = '';
             summary.classList.add('hidden');
+        }
+        const affinity = document.getElementById('dialogueAffinity');
+        if (affinity) {
+            affinity.textContent = '';
+            affinity.classList.add('hidden');
         }
         const choices = document.getElementById('dialogueChoices');
         if (choices) {
@@ -544,8 +572,26 @@
             summary.textContent = result.summary || '';
             summary.classList.toggle('hidden', !result.summary);
         }
+        const affinity = document.getElementById('dialogueAffinity');
+        if (affinity) {
+            const delta = number(result.relationshipDelta);
+            const stage = result.stage || relationshipStage(result.trust);
+            const trust = number(result.trust);
+            const trustMax = Math.max(1, number(result.trustMax) || 7);
+            let line = '';
+            if (delta > 0) line = `Affinity +${delta} · ${stage} (${trust}/${trustMax})`;
+            else if (delta < 0) line = `Affinity ${delta} · ${stage} (${trust}/${trustMax})`;
+            else if (result.trust != null) line = `Affinity unchanged · ${stage} (${trust}/${trustMax})`;
+            affinity.textContent = line;
+            affinity.classList.toggle('hidden', !line);
+            affinity.classList.toggle('is-up', delta > 0);
+            affinity.classList.toggle('is-down', delta < 0);
+        }
         if (result.summary && result.summary !== 'No stores changed.') {
             showNotice(result.summary, result.npcName || 'Visitor');
+        } else if (number(result.relationshipDelta) !== 0) {
+            const delta = number(result.relationshipDelta);
+            showNotice(delta > 0 ? `Affinity +${delta}` : `Affinity ${delta}`, result.npcName || 'Voice');
         }
         const choices = document.getElementById('dialogueChoices');
         if (choices) choices.innerHTML = '<button type="button" data-dialogue-done>Return to the keep</button>';
@@ -805,22 +851,52 @@
         window.setTimeout(() => chip.remove(), 1500);
     }
 
+    function constructionBannerSignature(constructions) {
+        return constructions.map((item) => String(item?.id || '')).join('|');
+    }
+
+    function constructionEntryProgress(entry) {
+        if (!entry) return 0;
+        const started = Date.parse(entry.startedAt || '') || nowMs();
+        const completes = Date.parse(entry.completesAt || '') || nowMs();
+        if (completes <= started) return 1;
+        return clamp((nowMs() - started) / (completes - started), 0, 1);
+    }
+
     function renderConstruction() {
         const constructions = activeConstructionList();
         const banner = document.getElementById('constructionBanner');
+        const jobs = document.getElementById('constructionBannerJobs');
         banner?.classList.toggle('hidden', !constructions.length);
-        if (!constructions.length) return;
-        // The compact banner tracks whichever active team finishes soonest.
-        const soonest = constructions.reduce((best, item) =>
-            constructionEntryRemaining(item) < constructionEntryRemaining(best) ? item : best, constructions[0]);
-        text('constructionName', projectName(soonest.id)
-            + (constructions.length > 1 ? ` · +${constructions.length - 1} more` : ''));
-        text('constructionTimer', formatDuration(constructionEntryRemaining(soonest)));
-        const started = Date.parse(soonest.startedAt || '') || nowMs();
-        const completes = Date.parse(soonest.completesAt || '') || nowMs();
-        const progress = completes <= started ? 1 : clamp((nowMs() - started) / (completes - started), 0, 1);
-        const bar = document.getElementById('constructionProgress');
-        if (bar) bar.style.width = `${Math.round(progress * 100)}%`;
+        if (!jobs) {
+            renderConstructionCollapseState();
+            return;
+        }
+        if (!constructions.length) {
+            jobs.innerHTML = '';
+            delete jobs.dataset.signature;
+            renderConstructionCollapseState();
+            return;
+        }
+        // Rebuild only when the crew set changes so the progress bars keep a
+        // continuous width transition while timers tick every second.
+        const signature = constructionBannerSignature(constructions);
+        if (jobs.dataset.signature !== signature) {
+            jobs.dataset.signature = signature;
+            jobs.innerHTML = constructions.map((item, index) => {
+                const progress = Math.round(constructionEntryProgress(item) * 100);
+                return `<div class="construction-job" data-construction-index="${index}">
+                    <span><strong>${escapeHtml(projectName(item.id))}</strong><small data-live-banner-time="${index}">${escapeHtml(formatDuration(constructionEntryRemaining(item)))}</small></span>
+                    <i aria-hidden="true"><b data-live-banner-meter="${index}" style="width:${progress}%"></b></i>
+                </div>`;
+            }).join('');
+        }
+        constructions.forEach((item, index) => {
+            const time = jobs.querySelector(`[data-live-banner-time="${index}"]`);
+            const meter = jobs.querySelector(`[data-live-banner-meter="${index}"]`);
+            if (time) time.textContent = formatDuration(constructionEntryRemaining(item));
+            if (meter) meter.style.width = `${Math.round(constructionEntryProgress(item) * 100)}%`;
+        });
         renderConstructionCollapseState();
     }
 
@@ -842,6 +918,8 @@
     }
 
     function openPanel(panel) {
+        // Entering the Chronicle afresh files everything read on the last visit under Read.
+        if (panel !== state.panel) state.sessionReadLoreIds = [];
         state.panel = panel || '';
         document.querySelector('.keep-main')?.classList.add('panel-open');
         document.getElementById('keepPanel')?.setAttribute('aria-hidden', 'false');
@@ -1014,7 +1092,7 @@
         const roomDecorations = recipes.filter((item) => item.type === 'DECORATION');
         const cards = recipes.length ? recipes.map((recipe) => `<section class="craft-card ${recipe.crafted ? 'is-crafted' : ''}">
             <span class="craft-type">${escapeHtml(recipe.type)}${number(recipe.tier) ? ` · ${number(recipe.tier)}/5` : ''}</span><h3>${escapeHtml(recipe.name)}</h3><p>${escapeHtml(recipe.description || '')}</p>
-            <small>${escapeHtml(recipe.bonus || '')}</small><div class="craft-costs">${(recipe.costs || []).map((cost) => `<span>${materialIcon(cost.id)} ${number(cost.amount)} ${escapeHtml(cost.name)}</span>`).join('')}</div>
+            <small>${escapeHtml(recipe.bonus || '')}</small><div class="craft-costs">${(recipe.costs || []).map((cost) => `<span class="${materialHeld(cost.id) >= number(cost.amount) ? 'is-met' : 'is-short'}">${materialIcon(cost.id)} ${number(cost.amount)} ${escapeHtml(cost.name)}</span>`).join('')}</div>
             <button class="panel-button" type="button" data-craft-recipe="${escapeAttr(recipe.id)}" ${recipe.canCraft ? '' : 'disabled'}>${recipe.crafted ? 'Crafted' : recipe.levelMet === false ? 'Upgrade room to level 2' : recipe.prerequisiteMet === false ? 'Craft previous tool' : recipe.canCraft ? 'Craft item' : 'Gather materials'}</button>
         </section>`).join('') : '<div class="empty-state">This room has no available blueprints yet.</div>';
         const placements = decorations.map((decoration) => `<section class="decoration-control"><span><small>Interior decoration ${number(decoration.tier) ? `${number(decoration.tier)}/5` : ''}</small><strong>${escapeHtml(decoration.name)}</strong></span><button class="panel-button secondary" type="button" data-place-decoration="${escapeAttr(decoration.id)}" data-room-id="${escapeAttr(roomId)}" data-displayed="${String(Boolean(decoration.displayed))}">${decoration.displayed ? 'Store decoration' : 'Place decoration'}</button></section>`).join('');
@@ -1049,6 +1127,52 @@
         }
         setGroundsSuppressed(true);
         renderInterior();
+    }
+
+    /* —— Interior tour: walk the keep room by room without returning to the grounds. —— */
+    const INTERIOR_TOUR = ['great_hall', 'woodlot', 'garden', 'forge', 'fridge', 'generator', 'quarry', 'kitchen', 'enclave', 'archive'];
+    const INTERIOR_SHORT_NAMES = {
+        great_hall: 'Hall', woodlot: 'Woodlot', garden: 'Garden', forge: 'Forge', fridge: 'Fridge',
+        generator: 'Generator', quarry: 'Quarry', kitchen: 'Kitchen', enclave: 'Enclave', archive: 'Archive'
+    };
+
+    /** Only rooms the player can actually stand in — unbuilt facilities are skipped. */
+    function interiorRooms() {
+        if (!state.snapshot) return [];
+        return INTERIOR_TOUR.filter((id) => {
+            if (id === 'great_hall' || id === 'woodlot' || id === 'archive') return true;
+            if (id === 'enclave') return Boolean(state.snapshot.enclave?.built);
+            return Boolean(stationById(id));
+        });
+    }
+
+    function stepInterior(delta) {
+        const rooms = interiorRooms();
+        if (rooms.length < 2) return;
+        const index = rooms.indexOf(state.interior);
+        if (index < 0) return;
+        openInterior(rooms[(index + delta + rooms.length) % rooms.length]);
+    }
+
+    function renderInteriorNav() {
+        const nav = document.getElementById('interiorNav');
+        if (!nav) return;
+        const rooms = interiorRooms();
+        const index = rooms.indexOf(state.interior);
+        nav.classList.toggle('hidden', rooms.length < 2 || index < 0);
+        if (rooms.length < 2 || index < 0) return;
+        const previous = rooms[(index - 1 + rooms.length) % rooms.length];
+        const next = rooms[(index + 1) % rooms.length];
+        text('interiorPrevLabel', INTERIOR_SHORT_NAMES[previous] || previous);
+        text('interiorNextLabel', INTERIOR_SHORT_NAMES[next] || next);
+        document.getElementById('interiorPrev')?.setAttribute('aria-label', `Go to ${INTERIOR_SHORT_NAMES[previous] || previous}`);
+        document.getElementById('interiorNext')?.setAttribute('aria-label', `Go to ${INTERIOR_SHORT_NAMES[next] || next}`);
+        const rail = document.getElementById('interiorRail');
+        if (rail) {
+            rail.innerHTML = rooms.map((id) => `<button type="button" role="tab" class="rail-dot ${id === state.interior ? 'is-current' : ''}"
+                data-interior-goto="${escapeAttr(id)}" aria-selected="${id === state.interior}"
+                aria-label="${escapeAttr(INTERIOR_SHORT_NAMES[id] || id)}" title="${escapeAttr(INTERIOR_SHORT_NAMES[id] || id)}"></button>`).join('');
+        }
     }
 
     function closeInterior() {
@@ -1099,6 +1223,7 @@
             rack.classList.toggle('has-installed-tools', Boolean(rack.querySelector('.is-crafted')));
         });
         renderEnclaveResidents();
+        renderInteriorNav();
         const root = loreById('memorabilia_petrified_root');
         document.getElementById('interiorPlinth')?.classList.toggle('hidden', !root?.displayed);
         const actions = document.getElementById('interiorActions');
@@ -1283,7 +1408,10 @@
             ? `<p class="panel-intro crew-note">Construction teams: ${constructions.length}/${slots} active${slots > 1 ? ` · Keeper Level ${number(state.snapshot.keeper?.level) || 1} coordinates ${slots} simultaneous projects` : ''}.</p>`
             : '';
         const inProgress = constructions.map((item, index) => `<section class="project-card"><span class="eyebrow">In progress${slots > 1 ? ` · Crew ${index + 1}` : ''}</span><h3>${escapeHtml(projectName(item.id))}</h3><p>The site changes through foundations, scaffolding, and completion. No progress is lost while you are away.</p><div class="meter"><i data-live-construction-meter="${index}" style="width:${constructionPercent(index)}%"></i></div><div class="cost-row"><span data-live-construction-time="${index}">${escapeHtml(formatDuration(constructionEntryRemaining(item)))}</span><strong>Workers active</strong></div></section>`).join('');
-        const options = state.snapshot.buildOptions || [];
+        // Parity with KeepService.buildOptions: a project a crew already holds is never offered again,
+        // so a stale snapshot cannot render a "Begin project" button the server will reject.
+        const busyIds = new Set(constructions.map((item) => item.id));
+        const options = (state.snapshot.buildOptions || []).filter((option) => !busyIds.has(option.id));
         const optionCards = options.map((option) => {
             const costs = [`▰ ${number(option.timberCost)} timber`];
             for (const cost of option.materialCosts || []) costs.push(`${materialIcon(cost.id)} ${number(cost.amount)} ${cost.name}`);
@@ -1325,14 +1453,24 @@
             ['ALL', 'All'], ['LETTER', 'Letters'], ['MEMORABILIA', 'Relics'], ['CHRONICLE', 'Chronicle']
         ];
         const entries = (state.snapshot.lore || []).filter((item) => state.loreFilter === 'ALL' || item.type === state.loreFilter);
+        const unread = entries.filter((item) => !item.read || state.sessionReadLoreIds.includes(item.id));
+        const read = entries.filter((item) => !unread.includes(item));
+        const groups = listSection('Unread', unread.filter((item) => !item.read).length, unread.map(loreCardMarkup))
+            + listSection('Read', read.length, read.map(loreCardMarkup));
         return `<div class="lore-tabs">${tabs.map(([id, label]) => `<button class="${state.loreFilter === id ? 'active' : ''}" type="button" data-lore-filter="${id}">${label}</button>`).join('')}</div>
-            ${entries.length ? entries.map(loreCardMarkup).join('') : '<div class="empty-state">No discoveries in this collection yet. Production, construction, and conversations uncover new records.</div>'}`;
+            ${entries.length ? groups : '<div class="empty-state">No discoveries in this collection yet. Production, construction, and conversations uncover new records.</div>'}`;
+    }
+
+    /** Shared read/unread divider for the Chronicle, the Voices list, and the notice tray. */
+    function listSection(label, count, cards) {
+        if (!cards.length) return '';
+        return `<div class="list-section-heading"><span>${escapeHtml(label)}</span><strong>${number(count)}</strong></div>${cards.join('')}`;
     }
 
     function loreCardMarkup(item) {
         const expanded = state.expandedLoreId === item.id;
         const memorabilia = item.type === 'MEMORABILIA';
-        return `<article class="lore-card ${item.read ? '' : 'unread'} ${expanded ? 'expanded' : ''}" data-lore-id="${escapeAttr(item.id)}">
+        return `<article class="lore-card ${item.read ? 'is-read' : 'unread'} ${expanded ? 'expanded' : ''}" data-lore-id="${escapeAttr(item.id)}">
             ${memorabilia && expanded ? '<div class="memorabilia-figure"><span class="root-art"></span></div>' : ''}
             <span class="eyebrow">${escapeHtml(typeLabel(item.type))}</span><h3>${escapeHtml(item.title)}</h3>
             <div class="card-meta"><span>${escapeHtml(item.perspective || 'Unknown source')}</span><span>${escapeHtml(item.era || '')}</span></div>
@@ -1344,16 +1482,28 @@
     function conversationsMarkup() {
         const conversations = state.snapshot.availableConversations || [];
         const relationships = state.snapshot.relationships || [];
-        const available = conversations.length
-            ? conversations.map((conversation) => {
-                const visitor = String(conversation.kind || '').toUpperCase() === 'VISITOR';
-                return `<section class="conversation-card ${visitor ? 'is-visitor' : ''}" data-conversation-id="${escapeAttr(conversation.id)}"><span class="npc-mini">${escapeHtml(initials(conversation.npcName))}</span><span><small>${escapeHtml(visitor ? 'Road visitor' : conversation.npcRole)}</small><h3>${escapeHtml(conversation.npcName)}</h3><p>${escapeHtml(conversation.kicker || 'Waiting to speak')}</p>${visitor ? '<em class="visitor-tag">Trade · gift · risk</em>' : ''}</span></section>`;
-            }).join('')
-            : '<div class="empty-state">No one is waiting to speak. Lore discoveries and the road draw new visitors with trades, gifts, and risks.</div>';
+        const cards = conversations.map((conversation) => {
+            const kind = String(conversation.kind || '').toUpperCase();
+            const visitor = kind === 'VISITOR';
+            const interaction = kind === 'INTERACTION';
+            const tag = visitor
+                ? '<em class="visitor-tag">Trade · gift · risk</em>'
+                : interaction
+                    ? '<em class="visitor-tag interaction-tag">Returns · affinity</em>'
+                    : '';
+            const role = visitor ? 'Road visitor' : interaction ? 'Interaction' : conversation.npcRole;
+            return `<section class="conversation-card ${visitor ? 'is-visitor' : ''} ${interaction ? 'is-interaction' : ''}" data-conversation-id="${escapeAttr(conversation.id)}"><span class="npc-mini">${escapeHtml(initials(conversation.npcName))}</span><span><small>${escapeHtml(role)}</small><h3>${escapeHtml(conversation.npcName)}</h3><p>${escapeHtml(conversation.kicker || 'Waiting to speak')}</p>${tag}</span></section>`;
+        });
+        const available = cards.length
+            ? listSection('Waiting to speak', cards.length, cards)
+            : '<div class="empty-state">No one is waiting to speak. Interaction NPCs return after a cooldown; the road still brings new visitors.</div>';
         const bonds = relationships.length
-            ? `<span class="eyebrow">Relationships</span><p class="panel-intro relationship-hint">Select a voice to view where they stand — from wary distance to bonded trust.</p>${relationships.map((item) => relationshipCardMarkup(item)).join('')}`
+            ? listSection('Spoken with', relationships.length, [
+                '<p class="panel-intro relationship-hint">Select a voice to view affinity — Distant, Acquainted, Trusted, or Bonded. How you answer when they return moves the bar.</p>',
+                ...relationships.map((item) => relationshipCardMarkup(item))
+            ])
             : '';
-        return `<p class="panel-intro">Story voices shape the Chronicle. Road and yard visitors bring RNG slices of Siegeling daily life—breakfast, nests, play, chores—where timber and materials can be gained, traded, or lost.</p>${available}${bonds}`;
+        return `<p class="panel-intro">Story voices shape the Chronicle. Interaction NPCs (yard life, steward check-ins) return on occasion so your answers can raise or lower affinity. Road visitors still bring trades, gifts, and risks.</p>${available}${bonds}`;
     }
 
     function relationshipCardMarkup(item) {
@@ -1371,9 +1521,9 @@
             <span class="relationship-spectrum" role="meter" aria-valuemin="0" aria-valuemax="${trustMax}" aria-valuenow="${trust}" aria-label="${escapeAttr(`${item.npcName} relationship: ${stage}`)}">
                 <span class="spectrum-ends" aria-hidden="true"><i>Distant</i><i>Bonded</i></span>
                 <span class="spectrum-track"><i style="width:${fill}%"></i><em style="left:${fill}%"></em></span>
-                <span class="spectrum-labels" aria-hidden="true"><i>Wary</i><i>Acquainted</i><i>Trusted</i><i>Bonded</i></span>
+                <span class="spectrum-labels" aria-hidden="true"><i>Distant</i><i>Acquainted</i><i>Trusted</i><i>Bonded</i></span>
             </span>
-            ${selected ? `<span class="relationship-detail"><small>Trust ${trust}/${trustMax}</small><p>${escapeHtml(feeling)}</p></span>` : ''}
+            ${selected ? `<span class="relationship-detail"><small>Affinity ${trust}/${trustMax}</small><p>${escapeHtml(feeling)}</p></span>` : ''}
         </button>`;
     }
 
@@ -1469,9 +1619,22 @@
     }
 
     function addNotice(message, heading, loreId) {
-        state.notices.unshift({ message, heading, loreId: loreId || '', at: nowMs() });
+        state.notices.unshift({ message, heading, loreId: loreId || '', at: nowMs(), read: false });
         state.notices = state.notices.slice(0, 20);
-        state.noticeUnread += 1;
+        renderNoticeCenter();
+    }
+
+    function unreadNoticeCount() {
+        return state.notices.filter((notice) => !notice.read).length;
+    }
+
+    /**
+     * Messages are marked read when the tray closes, not when it opens: closing is the moment the
+     * player has actually seen them, and it keeps the New group and the header badge in agreement.
+     */
+    function markNoticesRead() {
+        if (!unreadNoticeCount()) return;
+        for (const notice of state.notices) notice.read = true;
         renderNoticeCenter();
     }
 
@@ -1485,14 +1648,19 @@
                 <span class="notice-construction-meter"><i data-live-construction-meter="${index}" style="width:${constructionPercent(index)}%"></i></span>
             </button>`).join('')}
         </section>` : '';
-        const activityMarkup = state.notices.length ? state.notices.map((notice) => {
+        const card = (notice) => {
             const tag = notice.loreId ? 'button' : 'div';
             const action = notice.loreId ? ` type="button" data-notice-lore="${escapeAttr(notice.loreId)}"` : '';
-            return `<${tag} class="notice-item"${action}><i aria-hidden="true">${notice.loreId ? '▤' : '✦'}</i><span><small>${escapeHtml(notice.heading)}</small><strong>${escapeHtml(notice.message)}</strong></span></${tag}>`;
-        }).join('') : `<div class="notice-empty">${constructions.length ? 'Construction is underway. New sanctuary updates will appear here.' : 'No new Keep activity. Start a project or continue restoring the sanctuary.'}</div>`;
+            return `<${tag} class="notice-item ${notice.read ? 'is-read' : 'unread'}"${action}><i aria-hidden="true">${notice.loreId ? '▤' : '✦'}</i><span><small>${escapeHtml(notice.heading)}</small><strong>${escapeHtml(notice.message)}</strong></span></${tag}>`;
+        };
+        const unread = state.notices.filter((notice) => !notice.read);
+        const read = state.notices.filter((notice) => notice.read);
+        const activityMarkup = state.notices.length
+            ? listSection('New', unread.length, unread.map(card)) + listSection('Earlier', read.length, read.map(card))
+            : `<div class="notice-empty">${constructions.length ? 'Construction is underway. New sanctuary updates will appear here.' : 'No new Keep activity. Start a project or continue restoring the sanctuary.'}</div>`;
         if (list) list.innerHTML = constructionMarkup + activityMarkup;
-        text('noticeBadge', state.noticeUnread);
-        document.getElementById('noticeBadge')?.classList.toggle('hidden', state.noticeUnread <= 0);
+        text('noticeBadge', unreadNoticeCount());
+        document.getElementById('noticeBadge')?.classList.toggle('hidden', unreadNoticeCount() <= 0);
     }
 
     function toggleNoticeTray() {
@@ -1501,15 +1669,16 @@
         const opening = tray.classList.contains('hidden');
         tray.classList.toggle('hidden', !opening);
         document.getElementById('noticeButton')?.setAttribute('aria-expanded', String(opening));
-        if (opening) {
-            state.noticeUnread = 0;
-            renderNoticeCenter();
-        }
+        if (opening) renderNoticeCenter();
+        else markNoticesRead();
     }
 
     function closeNoticeTray() {
-        document.getElementById('noticeTray')?.classList.add('hidden');
+        const tray = document.getElementById('noticeTray');
+        const wasOpen = tray && !tray.classList.contains('hidden');
+        tray?.classList.add('hidden');
         document.getElementById('noticeButton')?.setAttribute('aria-expanded', 'false');
+        if (wasOpen) markNoticesRead();
     }
 
     // ── Theme music ───────────────────────────────────────────────────────────
@@ -1957,11 +2126,24 @@
                 const material = (snapshot.resources.materials || []).find((item) => item.id === cost.id);
                 if (material) material.amount = Math.max(0, number(material.amount) - number(cost.amount));
             }
+            const delta = number(choice?.relationshipDelta);
+            const prior = (snapshot.relationships || []).find((item) => item.npcId === conversation?.npcId);
+            const trust = Math.max(0, Math.min(7, number(prior?.trust) + delta));
+            const stage = relationshipStage(trust);
+            const relationships = (snapshot.relationships || []).filter((item) => item.npcId !== conversation?.npcId);
+            if (conversation?.npcId) {
+                relationships.unshift({ npcId: conversation.npcId, npcName: conversation.npcName, trust, trustMax: 7, stage });
+            }
+            snapshot.relationships = relationships;
             snapshot.dialogueResult = {
                 npcId: conversation?.npcId,
                 npcName: conversation?.npcName,
                 kind: conversation?.kind || 'STORY',
                 response: choice?.response || 'The sanctuary remembers your answer.',
+                relationshipDelta: delta,
+                trust,
+                trustMax: 7,
+                stage,
                 summary: choiceCostHint(choice || {}) ? `Spent ${choiceCostHint(choice)}.` : 'No stores changed.'
             };
         } else if (path.endsWith('/reward')) {
@@ -2075,6 +2257,11 @@
         return Math.min(number(station.storageCapacity), number(station.available) + Math.floor(elapsedMinutes * number(station.ratePerMinute)));
     }
 
+    /** Held amount of a raw material, used to flag shortfalls on cross-workshop recipes. */
+    function materialHeld(id) {
+        return number((state.snapshot?.resources?.materials || []).find((item) => item.id === id)?.amount);
+    }
+
     function stationById(id) {
         return (state.snapshot?.stations || [state.snapshot?.station]).find((station) => station?.id === id) || null;
     }
@@ -2111,7 +2298,7 @@
         if (value >= 7) return 'Bonded';
         if (value >= 3) return 'Trusted';
         if (value >= 1) return 'Acquainted';
-        return 'Wary';
+        return 'Distant';
     }
 
     function materialById(id) {
@@ -2318,7 +2505,8 @@
                 }))
             } : null,
             noticeCenter: {
-                unread: state.noticeUnread,
+                unread: unreadNoticeCount(),
+                read: state.notices.length - unreadNoticeCount(),
                 count: state.notices.length,
                 open: !document.getElementById('noticeTray')?.classList.contains('hidden'),
                 constructionTimers: activeConstructionList().map((item, index) => ({
@@ -2329,6 +2517,16 @@
                 }))
             },
             construction: snapshot.activeConstruction ? { id: snapshot.activeConstruction.id, remainingSeconds: constructionRemaining(), progressPercent: constructionPercent(), collapsed: state.constructionCollapsed } : null,
+            constructionBanner: {
+                visible: activeConstructionList().length > 0,
+                collapsed: state.constructionCollapsed,
+                jobs: activeConstructionList().map((item, index) => ({
+                    id: item.id,
+                    name: projectName(item.id),
+                    remainingSeconds: constructionEntryRemaining(item),
+                    progressPercent: constructionPercent(index)
+                }))
+            },
             activePanel: state.panel || null,
             interior: state.interior || null,
             tutorialVisible: !document.getElementById('keepTutorial')?.classList.contains('hidden'),

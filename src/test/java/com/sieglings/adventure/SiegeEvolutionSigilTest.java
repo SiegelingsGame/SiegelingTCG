@@ -14,6 +14,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -107,6 +108,62 @@ class SiegeEvolutionSigilTest {
         assertEquals(next.getId(), run.getParty().getFirst().getSourceCardId());
         assertNotEquals(baseCardId, run.getParty().getFirst().getSourceCardId());
         assertTrue(run.getBattle().getEvents().stream().anyMatch(e -> "evolve".equals(e.get("type"))));
+    }
+
+    /**
+     * A run resumed from a mid-battle checkpoint used to keep the evolved form
+     * for good: the snapshot dropped the {@code evolvedFrom} link, so the
+     * post-battle revert had no base form to walk back to.
+     */
+    @Test
+    void evolutionRevertsAfterBattleEvenWhenTheRunWasResumed() throws Exception {
+        SiegeRun run = siegeService.lookup(token).orElseThrow();
+        run.getInventory().add("evolution-sigil");
+        siegeService.equipItem(token, "evolution-sigil", memberId);
+
+        String baseCardId = run.getParty().getFirst().getSourceCardId();
+        SieglingCard next = content.evolutionOf(baseCardId).orElseThrow();
+        invokeStartBattle(run, List.of(
+                new Combatant("foe-0", "Raider", run.getParty().getFirst().getElement(), Side.ENEMY, 20, 4, null)));
+        assertEquals(next.getId(), run.getParty().getFirst().getSourceCardId());
+
+        // Round-trip the live battle exactly the way a checkpoint resume does,
+        // then rebuild the party from the restored combatants (SiegeService#resume).
+        SiegeBattle restored = roundTripBattle(run.getBattle());
+        Combatant restoredMember = restored.findCombatant(memberId);
+        assertNotNull(restoredMember, "the evolved member survives the round trip");
+        assertNotNull(restoredMember.getEvolvedFrom(), "the pre-evolution form survives the round trip");
+        assertEquals("evolution-sigil", restoredMember.getItemId(), "the equipped sigil survives the round trip");
+        run.setBattle(restored);
+        run.getParty().clear();
+        for (Combatant c : restored.getCombatants()) {
+            if (c.getSide() == Side.PLAYER && !c.isKnight()) run.getParty().add(c);
+            if (c.getSide() == Side.PLAYER && c.isKnight()) run.setKnightUnit(c);
+        }
+
+        // Win the fight: the party must come home in its base form.
+        for (Combatant foe : restored.living(Side.ENEMY)) foe.setHp(0);
+        invokeCheckEnd(run);
+
+        assertEquals(BattlePhase.WON, restored.getPhase());
+        assertEquals(baseCardId, run.getParty().getFirst().getSourceCardId(),
+                "evolution is battle-scoped and must revert after the battle");
+    }
+
+    @SuppressWarnings("unchecked")
+    private SiegeBattle roundTripBattle(SiegeBattle battle) throws Exception {
+        Method snap = SiegeService.class.getDeclaredMethod("snapshotBattle", SiegeBattle.class);
+        snap.setAccessible(true);
+        Map<String, Object> snapshot = (Map<String, Object>) snap.invoke(siegeService, battle);
+        Method restore = SiegeService.class.getDeclaredMethod("restoreBattle", Map.class);
+        restore.setAccessible(true);
+        return (SiegeBattle) restore.invoke(siegeService, snapshot);
+    }
+
+    private void invokeCheckEnd(SiegeRun run) throws Exception {
+        Method m = SiegeCombatEngine.class.getDeclaredMethod("checkEnd", SiegeRun.class);
+        m.setAccessible(true);
+        m.invoke(engine, run);
     }
 
     private void invokeStartBattle(SiegeRun run, List<Combatant> enemies) throws Exception {

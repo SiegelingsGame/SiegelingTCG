@@ -5,6 +5,10 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashSet;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -14,11 +18,17 @@ class GameJavaScriptRegressionTest {
     private static final Path GAME_JS = Path.of("src/main/resources/static/js/game.js");
     private static final Path HOME_JS = Path.of("src/main/resources/static/js/home.js");
     private static final Path HOME_HTML = Path.of("src/main/resources/static/home.html");
+    private static final Path PLAY_HTML = Path.of("src/main/resources/static/play.html");
+    private static final Path CARD_DASHBOARD_HTML = Path.of("src/main/resources/static/card-dashboard.html");
+    private static final Path CARD_BINDER_VISUAL_JS = Path.of("src/main/resources/static/js/card-binder-visual.js");
+    private static final Path NOTCH_IMAGE_DIR = Path.of("src/main/resources/static/img/notches");
     private static final Path CARD_DASHBOARD_JS = Path.of("src/main/resources/static/js/card-dashboard.js");
     private static final Path STYLE_CSS = Path.of("src/main/resources/static/css/style.css");
     private static final Path KEEP_HTML = Path.of("src/main/resources/static/keep.html");
     private static final Path KEEP_CSS = Path.of("src/main/resources/static/css/keep.css");
     private static final Path KEEP_JS = Path.of("src/main/resources/static/js/keep.js");
+    private static final Path ADVENTURE_CSS = Path.of("src/main/resources/static/css/adventure.css");
+    private static final Path ADVENTURE_HTML = Path.of("src/main/resources/static/adventure.html");
 
     @Test
     void onlineStartDoesNotFallBackToSoloBattle() throws IOException {
@@ -199,6 +209,93 @@ class GameJavaScriptRegressionTest {
                 homeMarkup.contains("data-shop-card-preview-backdrop")
                         && homeMarkup.contains("data-close-shop-card-preview"),
                 "Shop card preview modal must keep backdrop and close-button hooks so users can dismiss it."
+        );
+    }
+
+    @Test
+    void profileDashboardTrimsBattlesFavoritesAndSocialTable() throws IOException {
+        String homeScript = readHomeScript();
+        String homeMarkup = Files.readString(HOME_HTML);
+        String homeCss = Files.readString(Path.of("src/main/resources/static/css/home.css"));
+        String battleList = extractFunction(homeScript, "function renderBattleHistoryList(view, reviewable = true)");
+        String collection = extractFunction(homeScript, "function renderCollectionSnapshot(view)");
+        String friends = extractFunction(homeScript, "function renderFriendsPanel(view)");
+        String summary = extractFunction(homeScript, "function collectionSummary()");
+
+        assertTrue(
+                homeScript.contains("PROFILE_BATTLE_PREVIEW_MAX = 3")
+                        && battleList.contains("battles.slice(0, PROFILE_BATTLE_PREVIEW_MAX)")
+                        && battleList.contains("data-battle-history-open")
+                        && homeMarkup.contains("id=\"battleHistoryModalHost\""),
+                "Recent Battles must preview three matches and open the full scroll in a popup."
+        );
+        assertTrue(
+                homeScript.contains("PROFILE_FAVORITE_CARD_MAX = 3")
+                        && summary.contains("usingFavoriteCards")
+                        && summary.contains("rarestSorted.slice(0, PROFILE_FAVORITE_CARD_MAX)")
+                        && collection.contains("renderProfileShowcaseCard")
+                        && collection.contains("data-favorite-cards-open")
+                        && homeMarkup.contains("id=\"favoriteCardsModalHost\""),
+                "Cards Owned must showcase up to three player favorites with real card art, defaulting to rarest owned."
+        );
+        assertTrue(
+                homeScript.contains("PROFILE_FRIEND_PREVIEW_MAX = 3")
+                        && homeScript.contains("PROFILE_LOBBY_PREVIEW_MAX = 3")
+                        && friends.contains("friends.slice(0, PROFILE_FRIEND_PREVIEW_MAX)")
+                        && friends.contains(".slice(0, PROFILE_LOBBY_PREVIEW_MAX)")
+                        && friends.contains("profile-social-panel")
+                        && friends.contains("is-compact")
+                        && !friends.contains("friends-panel"),
+                "Social Table must show three friends and three lobbies, and must not reuse the tall friends-modal panel class."
+        );
+        assertTrue(
+                homeCss.contains(".battle-list-preview")
+                        && homeCss.contains(".profile-social-panel")
+                        && homeCss.contains(".mini-card-row-art"),
+                "Profile trim styles for battle preview, social shrink, and favorite card art must ship in home.css."
+        );
+        assertTrue(
+                homeMarkup.contains("home.js?v=114") && homeMarkup.contains("home.css?v=114"),
+                "Cache-bust pins for the profile dashboard trim must advance on home.html."
+        );
+    }
+
+    @Test
+    void everyPaintedElementUsesItsDedicatedNotchMedallion() throws IOException {
+        String gameScript = readGameScript();
+        String homeScript = readHomeScript();
+        String binderScript = Files.readString(CARD_BINDER_VISUAL_JS);
+        Set<String> elements = Set.of(
+                "fire", "earth", "wind", "water", "ice", "shadow",
+                "electric", "metal", "undead", "psychic", "poison", "light"
+        );
+
+        for (String element : elements) {
+            String mapping = element.toUpperCase() + ": '/img/notches/notch-" + element + ".png'";
+            assertTrue(
+                    gameScript.contains(mapping) && homeScript.contains(mapping) && binderScript.contains(mapping),
+                    element + " must resolve to the same painted medallion in battle, Home, and binder views."
+            );
+            assertTrue(
+                    Files.isRegularFile(NOTCH_IMAGE_DIR.resolve("notch-" + element + ".png"))
+                            && Files.isRegularFile(NOTCH_IMAGE_DIR.resolve("notch-" + element + ".webp")),
+                    element + " must ship both PNG and WebP medallion assets."
+            );
+        }
+
+        String homeMarkup = Files.readString(HOME_HTML);
+        String playMarkup = Files.readString(PLAY_HTML);
+        String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
+        assertTrue(
+                homeMarkup.contains("style.css?v=216")
+                        && homeMarkup.contains("game.js?v=212")
+                        && homeMarkup.contains("card-binder-visual.js?v=17")
+                        && homeMarkup.contains("home.js?v=114")
+                        && playMarkup.contains("style.css?v=216")
+                        && playMarkup.contains("game.js?v=212")
+                        && dashboardMarkup.contains("style.css?v=216")
+                        && dashboardMarkup.contains("card-binder-visual.js?v=17"),
+                "Every surface must advance its cache pins with the complete painted-notch set."
         );
     }
 
@@ -538,6 +635,34 @@ class GameJavaScriptRegressionTest {
     }
 
     @Test
+    void keepInteriorsDrawUniqueFurnishingsAndWalkRoomToRoom() throws IOException {
+        String keepHtml = Files.readString(KEEP_HTML);
+        String keepCss = Files.readString(KEEP_CSS);
+        String keepJs = Files.readString(KEEP_JS);
+
+        Matcher placeable = Pattern.compile("data-decoration-art=\"([a-z_]+)\" data-decor-slot=").matcher(keepHtml);
+        Set<String> decorationIds = new LinkedHashSet<>();
+        while (placeable.find()) decorationIds.add(placeable.group(1));
+        assertTrue(decorationIds.size() >= 28, "Every production room should still offer its placeable furnishings.");
+        for (String id : decorationIds) {
+            assertTrue(
+                    keepCss.contains("[data-decoration-art=\"" + id + "\"]"),
+                    id + " has no art of its own — interiors must not share one recoloured decoration template."
+            );
+        }
+        assertFalse(
+                keepCss.contains(".room-decoration-set [data-decor-slot="),
+                "Decoration geometry keyed by slot number makes every workshop read as the same room in a new hue."
+        );
+        assertTrue(
+                keepJs.contains("function stepInterior(") && keepJs.contains("INTERIOR_TOUR")
+                        && keepJs.contains("data-interior-goto=") && keepHtml.contains("data-interior-step=\"-1\"")
+                        && keepCss.contains(".interior-arrow"),
+                "Players must be able to move between interiors without stepping back out to the grounds."
+        );
+    }
+
+    @Test
     void keepBuildingsAndRoomsUseLayeredPaperTreatments() throws IOException {
         String keepHtml = Files.readString(KEEP_HTML);
         String keepCss = Files.readString(KEEP_CSS);
@@ -545,9 +670,13 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=19")
-                        && keepHtml.contains("/js/keep.js?v=20"),
-                "Keep architecture must retain its paper building hooks and refresh both asset cache pins."
+                        && keepHtml.contains("/css/keep.css?v=23")
+                        && keepHtml.contains("/js/keep.js?v=25")
+                        && keepHtml.contains("id=\"constructionBannerJobs\"")
+                        && keepJs.contains("constructionBannerSignature")
+                        && keepJs.contains("data-live-banner-time=")
+                        && !keepJs.contains("+${constructions.length - 1} more"),
+                "Keep architecture must retain its paper building hooks, refresh both asset cache pins, and show each concurrent construction job in the banner."
         );
         assertTrue(
                 keepCss.contains(".building-illustration svg.paper-building-shell")
@@ -570,6 +699,96 @@ class GameJavaScriptRegressionTest {
                         && keepJs.contains("setGroundsSuppressed(true)")
                         && keepCss.contains("content-visibility: hidden"),
                 "Empty tool racks must stay hidden, decorations must layer above them, and open interiors must suspend grounds painting."
+        );
+    }
+
+    @Test
+    void keepInteractionNpcsSurfaceAffinityAndDistantSpectrum() throws IOException {
+        String keepHtml = Files.readString(KEEP_HTML);
+        String keepCss = Files.readString(KEEP_CSS);
+        String keepJs = Files.readString(KEEP_JS);
+
+        assertTrue(
+                keepJs.contains("kind === 'INTERACTION'")
+                        && keepJs.contains("Returns · affinity")
+                        && keepJs.contains("Affinity +")
+                        && keepJs.contains("return 'Distant'")
+                        && keepJs.contains("<i>Distant</i><i>Acquainted</i><i>Trusted</i><i>Bonded</i>")
+                        && keepHtml.contains("id=\"dialogueAffinity\"")
+                        && keepCss.contains(".dialogue-affinity")
+                        && keepCss.contains(".conversation-card.is-interaction"),
+                "Interaction NPCs must show recurring affinity feedback on the Distant→Bonded Voices spectrum."
+        );
+        assertFalse(
+                keepJs.contains("return 'Wary'"),
+                "The zero-trust Voices stage is Distant, matching the spectrum labels."
+        );
+    }
+
+    @Test
+    void keepListsSeparateUnreadEntriesFromReadOnes() throws IOException {
+        String keepCss = Files.readString(KEEP_CSS);
+        String keepJs = Files.readString(KEEP_JS);
+
+        assertTrue(
+                keepJs.contains("listSection('Unread'") && keepJs.contains("listSection('Read'")
+                        && keepJs.contains("listSection('New'") && keepJs.contains("listSection('Earlier'")
+                        && keepCss.contains(".list-section-heading"),
+                "The Chronicle and the notice tray must file unread entries above read ones under their own dividers."
+        );
+        assertTrue(
+                keepJs.contains("at: nowMs(), read: false") && keepJs.contains("function markNoticesRead()")
+                        && keepJs.contains("function unreadNoticeCount()")
+                        && keepCss.contains(".notice-item.unread") && keepCss.contains(".notice-item.is-read"),
+                "Messages must carry their own read state so the New group and the header badge agree."
+        );
+        assertFalse(
+                keepJs.contains("state.noticeUnread"),
+                "The tray badge must derive from per-message read state, not a counter that zeroes on open."
+        );
+        assertTrue(
+                keepJs.contains("state.sessionReadLoreIds"),
+                "An entry read during a Chronicle visit must hold its place until the panel is reopened."
+        );
+    }
+
+    @Test
+    void siegeLocationsFillTheWholeDeviceScreenWithoutOneLargeGlassPanel() throws IOException {
+        String adventureCss = Files.readString(ADVENTURE_CSS).replace("\r\n", "\n");
+        String adventureHtml = Files.readString(ADVENTURE_HTML);
+
+        assertTrue(
+                adventureCss.contains("body[data-screen=\"campScreen\"] .siege-app,")
+                        && adventureCss.contains("body[data-screen=\"rewardScreen\"] .siege-app{\n"
+                                + "  position:relative; max-width:none; width:100%;\n"
+                                + "  height:100dvh; min-height:0; overflow:hidden; padding:0;"),
+                "Location screens must run edge to edge — no max-width box and no page padding around the scene."
+        );
+        assertTrue(
+                adventureCss.contains(".location-stage{\n"
+                        + "  position:relative; flex:1 1 auto; width:100%; height:100%; min-height:0;\n"
+                        + "  overflow:hidden; isolation:isolate; border:0; border-radius:0;"),
+                "The scene fills its screen instead of sitting in a rounded, inset card."
+        );
+        assertTrue(
+                adventureCss.contains(".location-overlay{\n"
+                        + "  position:absolute; inset:0; z-index:8; pointer-events:none;")
+                        && adventureCss.contains(".location-overlay > *{pointer-events:auto;}"),
+                "The overlay must be a transparent layout layer over the whole stage, not a docked panel."
+        );
+        assertFalse(
+                adventureCss.contains("background:linear-gradient(180deg,rgba(8,12,18,.26),rgba(7,10,15,.54));")
+                        || adventureCss.contains("backdrop-filter:blur(5px) saturate(1.08);"),
+                "The single large glass box behind every decision is gone; the blur now lives on the individual pieces."
+        );
+        assertTrue(
+                adventureCss.contains("calc(env(safe-area-inset-top, 0px) + 46px)")
+                        && adventureCss.contains("calc(12px + env(safe-area-inset-bottom, 0px))"),
+                "Art bleeds under the notch and home indicator while controls stay inset by the safe area."
+        );
+        assertTrue(
+                adventureHtml.contains("/css/adventure.css?v=42"),
+                "adventure.css must be cache-busted after the full-bleed location rework."
         );
     }
 

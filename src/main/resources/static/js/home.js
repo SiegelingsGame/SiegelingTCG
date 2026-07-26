@@ -412,8 +412,16 @@
         missionResetTimer: null,
         missionTab: 'daily',
         featuredEditOpen: false,
-        featuredDraft: null
+        featuredDraft: null,
+        battleHistoryOpen: false,
+        favoriteCardsEditOpen: false,
+        favoriteCardsDraft: null
     };
+
+    const PROFILE_FAVORITE_CARD_MAX = 3;
+    const PROFILE_BATTLE_PREVIEW_MAX = 3;
+    const PROFILE_FRIEND_PREVIEW_MAX = 3;
+    const PROFILE_LOBBY_PREVIEW_MAX = 3;
 
     const LEADERBOARD_PERIODS = [
         ['daily', 'Daily'],
@@ -4484,6 +4492,8 @@
             ${renderAchievementBadges(view)}
         </div>`;
         renderEditProfileModalHost(view);
+        renderBattleHistoryModalHost(view);
+        renderFavoriteCardsModalHost(view);
         bindProfileDashboard();
         bindPlayerProfileLinks(body);
         window.SieglingsCardShowcase?.scheduleFramedSummaryFit?.();
@@ -4495,6 +4505,81 @@
         const host = document.getElementById('editProfileModalHost');
         if (!host) return;
         host.innerHTML = state.profileEditOpen && view ? renderEditProfileModal(view) : '';
+    }
+
+    function renderBattleHistoryModalHost(view, matchSource) {
+        const host = document.getElementById('battleHistoryModalHost');
+        if (!host) return;
+        host.innerHTML = state.battleHistoryOpen && view ? renderBattleHistoryModal(view) : '';
+        if (!state.battleHistoryOpen || !view) return;
+        const overlay = host.querySelector('.profile-modal');
+        overlay?.addEventListener('click', (event) => {
+            if (event.target === overlay) {
+                state.battleHistoryOpen = false;
+                renderBattleHistoryModalHost(null);
+            }
+        });
+        host.querySelectorAll('[data-battle-history-close]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                state.battleHistoryOpen = false;
+                renderBattleHistoryModalHost(null);
+            });
+        });
+        host.querySelectorAll('.battle-row-clickable[data-match-index]').forEach(row => {
+            const index = Number(row.dataset.matchIndex);
+            row.addEventListener('click', () => openMatchReview(index, matchSource));
+            row.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openMatchReview(index, matchSource);
+                }
+            });
+        });
+    }
+
+    function renderFavoriteCardsModalHost(view) {
+        const host = document.getElementById('favoriteCardsModalHost');
+        if (!host) return;
+        host.innerHTML = state.favoriteCardsEditOpen && view ? renderFavoriteCardsModal(view) : '';
+        if (!state.favoriteCardsEditOpen || !view) return;
+        const overlay = host.querySelector('.profile-modal');
+        overlay?.addEventListener('click', (event) => {
+            if (event.target === overlay) {
+                state.favoriteCardsEditOpen = false;
+                state.favoriteCardsDraft = null;
+                renderFavoriteCardsModalHost(null);
+            }
+        });
+        host.querySelectorAll('[data-favorite-cards-close]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                state.favoriteCardsEditOpen = false;
+                state.favoriteCardsDraft = null;
+                renderFavoriteCardsModalHost(null);
+            });
+        });
+        host.querySelectorAll('[data-favorite-card-toggle]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = btn.dataset.favoriteCardToggle;
+                const draft = Array.isArray(state.favoriteCardsDraft) ? state.favoriteCardsDraft.slice() : [];
+                const idx = draft.indexOf(id);
+                if (idx >= 0) {
+                    draft.splice(idx, 1);
+                } else if (draft.length < PROFILE_FAVORITE_CARD_MAX) {
+                    draft.push(id);
+                } else {
+                    return;
+                }
+                state.favoriteCardsDraft = draft;
+                renderFavoriteCardsModalHost(view);
+            });
+        });
+        host.querySelector('[data-favorite-cards-save]')?.addEventListener('click', () => {
+            void saveFavoriteCards();
+        });
+        host.querySelector('[data-favorite-cards-clear]')?.addEventListener('click', () => {
+            state.favoriteCardsDraft = [];
+            renderFavoriteCardsModalHost(view);
+        });
     }
 
     function profileViewModel() {
@@ -4542,7 +4627,8 @@
             preferredCardBack: starterCardBackName(favoriteElement),
             favoriteSiegling: '',
             favoriteSieglingId: starterFavoriteSieglingId(favoriteElement),
-            featuredBadgeIds: []
+            featuredBadgeIds: [],
+            favoriteCardIds: []
         };
     }
 
@@ -4801,36 +4887,88 @@
         </section>`;
     }
 
+    function renderBattleRow(battle, reviewable = true) {
+        return `<article class="battle-row ${reviewable ? 'battle-row-clickable' : ''} ${battle.result === 'WIN' ? 'is-win' : 'is-loss'}"${reviewable ? ` data-match-index="${battle.index}" role="button" tabindex="0" aria-label="Review match vs ${escapeAttr(battle.opponentName)}"` : ''}>
+            <div class="battle-result">${escapeHtml(battle.result)}</div>
+            <div class="battle-main">
+                <strong>${escapeHtml(battle.opponentName)}</strong>
+                <span>${escapeHtml(battle.opponentType)} / ${escapeHtml(battle.deckUsed)}</span>
+            </div>
+            ${renderElementBadge(battle.element)}
+            <div class="battle-meta"><span>${escapeHtml(battle.date)}</span>${battle.duration ? `<span>${escapeHtml(battle.duration)}</span>` : ''}</div>
+            <div class="battle-reward">${renderCoinAmount(battle.reward, '')}</div>
+        </article>`;
+    }
+
     function renderBattleHistoryList(view, reviewable = true) {
+        const battles = view.battles || [];
+        const preview = battles.slice(0, PROFILE_BATTLE_PREVIEW_MAX);
+        const hasMore = battles.length > PROFILE_BATTLE_PREVIEW_MAX;
         return `<section class="profile-panel battle-history-panel">
             <div class="profile-panel-head">
                 <div><span class="eyebrow">Recent Battles</span><h3>Last Match Scroll</h3></div>
-                <span class="profile-soft-pill">${view.battles.length} entries</span>
+                ${battles.length
+                    ? `<button class="ghost-btn compact-btn profile-soft-pill-btn" type="button" data-battle-history-open>${battles.length} entries</button>`
+                    : '<span class="profile-soft-pill">No matches yet</span>'}
             </div>
-            <div class="battle-list">
-                ${view.battles.length
-                    ? view.battles.map(battle => `<article class="battle-row ${reviewable ? 'battle-row-clickable' : ''} ${battle.result === 'WIN' ? 'is-win' : 'is-loss'}"${reviewable ? ` data-match-index="${battle.index}" role="button" tabindex="0" aria-label="Review match vs ${escapeAttr(battle.opponentName)}"` : ''}>
-                        <div class="battle-result">${escapeHtml(battle.result)}</div>
-                        <div class="battle-main">
-                            <strong>${escapeHtml(battle.opponentName)}</strong>
-                            <span>${escapeHtml(battle.opponentType)} / ${escapeHtml(battle.deckUsed)}</span>
-                        </div>
-                        ${renderElementBadge(battle.element)}
-                        <div class="battle-meta"><span>${escapeHtml(battle.date)}</span>${battle.duration ? `<span>${escapeHtml(battle.duration)}</span>` : ''}</div>
-                        <div class="battle-reward">${renderCoinAmount(battle.reward, '')}</div>
-                    </article>`).join('')
+            <div class="battle-list battle-list-preview">
+                ${preview.length
+                    ? preview.map(battle => renderBattleRow(battle, reviewable)).join('')
                     : '<div class="social-empty-state"><strong>No battles recorded yet</strong><span>Finish a PVE or PVP match while signed in and it will appear here.</span></div>'}
             </div>
+            ${hasMore ? '<p class="profile-muted battle-history-more-note">Showing the latest 3. Open entries to review the full scroll.</p>' : ''}
         </section>`;
+    }
+
+    function renderBattleHistoryModal(view) {
+        const battles = view.battles || [];
+        return `<div class="profile-modal" role="dialog" aria-modal="true" aria-labelledby="battleHistoryTitle">
+            <div class="profile-edit-panel profile-panel battle-history-modal-panel" style="${profileThemeStyle(view?.theme || elementThemes.Neutral)}">
+                <div class="profile-panel-head">
+                    <div><span class="eyebrow">Recent Battles</span><h3 id="battleHistoryTitle">Full Match Scroll</h3></div>
+                    <button class="ghost-btn compact-btn" type="button" data-battle-history-close>Close</button>
+                </div>
+                <div class="battle-list battle-list-modal">
+                    ${battles.length
+                        ? battles.map(battle => renderBattleRow(battle, true)).join('')
+                        : '<div class="social-empty-state"><strong>No battles recorded yet</strong><span>Finish a match while signed in and it will appear here.</span></div>'}
+                </div>
+            </div>
+        </div>`;
+    }
+
+    function renderProfileShowcaseCard(card) {
+        if (!card?.id) {
+            return `<div class="profile-showcase-card profile-showcase-card-empty"><span>Empty slot</span></div>`;
+        }
+        return renderCardTile(card)
+            .replace('card-tile binder-card', 'card-tile binder-card profile-showcase-card')
+            .replace('type="button"', 'type="button" data-profile-showcase-card');
+    }
+
+    function renderProfileFavoritePickArt(card) {
+        const binderVisual = window.SieglingsCardBinderVisual;
+        const holoOptions = binderHolographicOptions();
+        if (binderVisual?.usesFullCardArt?.(card, holoOptions) || binderVisual?.usesFramedCardTemplate?.(card)) {
+            return binderVisual.renderBinderCardTile(card, {
+                ...holoOptions,
+                descriptionText: shopCardDescriptionFor(card)
+            });
+        }
+        return renderBinderCardShell(card, { ownedOverride: ownedCount(card.id) || 1 });
     }
 
     function renderCollectionSnapshot(view) {
         const { collection } = view;
-        const previewCards = collection.previewCards.length ? collection.previewCards : (state.options?.cardCatalog || []).slice(0, 4);
+        const previewCards = collection.previewCards || [];
+        const usingDefaults = !collection.usingFavoriteCards;
         return `<section class="profile-panel collection-panel">
             <div class="profile-panel-head">
                 <div><span class="eyebrow">Collection Snapshot</span><h3>Cards Owned</h3></div>
-                <button class="ghost-btn compact-btn" type="button" data-profile-route="cards">Binder</button>
+                <div class="profile-panel-head-actions">
+                    <button class="ghost-btn compact-btn" type="button" data-favorite-cards-open>Favorites</button>
+                    <button class="ghost-btn compact-btn" type="button" data-profile-route="cards">Binder</button>
+                </div>
             </div>
             <div class="collection-meter">
                 <div><strong>${collection.completion}%</strong><span>Completion</span></div>
@@ -4842,14 +4980,54 @@
                 <div><span>Rarest owned</span><strong>${escapeHtml(collection.rarestCard)}</strong></div>
                 <div><span>Most collected</span><strong>${escapeHtml(collection.mostCollectedElement)}</strong></div>
             </div>
-            <div class="mini-card-row">
-                ${previewCards.map(card => `<div class="profile-mini-card" style="--el:${elementColor(card?.element)}">
-                    <span>${escapeHtml(format(card?.element).slice(0, 1) || '?')}</span>
-                    <strong>${escapeHtml(card?.name || 'Locked Slot')}</strong>
-                    <small>${escapeHtml(format(card?.rarity || 'Unknown'))}</small>
-                </div>`).join('')}
+            <div class="mini-card-row mini-card-row-art">
+                ${previewCards.length
+                    ? previewCards.map(card => renderProfileShowcaseCard(card)).join('')
+                    : '<div class="profile-showcase-card profile-showcase-card-empty"><span>Own cards to showcase favorites here</span></div>'}
             </div>
+            <p class="profile-muted collection-favorites-note">${usingDefaults
+                ? 'Showing your rarest owned cards until you pick up to 3 favorites.'
+                : 'Your 3 favorite cards. Tap Favorites to change the showcase.'}</p>
         </section>`;
+    }
+
+    function renderFavoriteCardsModal(view) {
+        const owned = (state.options?.cardCatalog || [])
+            .filter(card => ownedCount(card.id) > 0)
+            .sort((a, b) => (RARITY_ORDER[b.rarity] || 0) - (RARITY_ORDER[a.rarity] || 0) || a.name.localeCompare(b.name));
+        const draft = Array.isArray(state.favoriteCardsDraft)
+            ? state.favoriteCardsDraft
+            : (view?.prefs?.favoriteCardIds || []).slice(0, PROFILE_FAVORITE_CARD_MAX);
+        if (!Array.isArray(state.favoriteCardsDraft)) {
+            state.favoriteCardsDraft = draft.slice();
+        }
+        return `<div class="profile-modal" role="dialog" aria-modal="true" aria-labelledby="favoriteCardsTitle">
+            <div class="profile-edit-panel profile-panel favorite-cards-modal-panel" style="${profileThemeStyle(view?.theme || elementThemes.Neutral)}">
+                <div class="profile-panel-head">
+                    <div><span class="eyebrow">Collection Snapshot</span><h3 id="favoriteCardsTitle">Choose favorite cards</h3></div>
+                    <span class="profile-soft-pill">${draft.length}/${PROFILE_FAVORITE_CARD_MAX} selected</span>
+                </div>
+                <p class="profile-muted">Pick up to three owned cards. Clear the picks to fall back to your rarest cards.</p>
+                <div class="favorite-cards-pick-grid">
+                    ${owned.length
+                        ? owned.map(card => {
+                            const idx = draft.indexOf(card.id);
+                            const picked = idx >= 0;
+                            return `<button type="button" class="favorite-cards-pick${picked ? ' is-picked' : ''}" data-favorite-card-toggle="${escapeAttr(card.id)}" aria-pressed="${picked}" style="--el:${elementColor(card.element)}">
+                                <span class="favorite-cards-pick-art">${renderProfileFavoritePickArt(card)}</span>
+                                <span class="favorite-cards-pick-copy"><strong>${escapeHtml(card.name)}</strong><small>${escapeHtml(format(card.rarity))} · ${escapeHtml(format(card.element))}</small></span>
+                                <span class="favorite-cards-pick-mark" aria-hidden="true">${picked ? idx + 1 : '+'}</span>
+                            </button>`;
+                        }).join('')
+                        : '<div class="social-empty-state"><strong>No owned cards yet</strong><span>Open packs or claim starters to pick favorites.</span></div>'}
+                </div>
+                <div class="profile-edit-actions">
+                    <button class="ghost-btn" type="button" data-favorite-cards-clear>Use rarest</button>
+                    <button class="ghost-btn" type="button" data-favorite-cards-close>Cancel</button>
+                    <button class="primary-btn profile-theme-btn" type="button" data-favorite-cards-save>Save favorites</button>
+                </div>
+            </div>
+        </div>`;
     }
 
     function renderDeckSnapshot(view) {
@@ -4871,17 +5049,22 @@
 
     function renderFriendsPanel(view) {
         const friends = state.profile?.friends || [];
-        return `<section class="profile-panel friends-panel">
+        const previewFriends = friends.slice(0, PROFILE_FRIEND_PREVIEW_MAX);
+        const openLobbies = filteredRooms()
+            .filter(room => !isRoomFull(room))
+            .slice(0, PROFILE_LOBBY_PREVIEW_MAX);
+        const hasLobbies = openLobbies.length > 0;
+        return `<section class="profile-panel profile-social-panel${hasLobbies ? '' : ' is-compact'}">
             <div class="profile-panel-head">
                 <div><span class="eyebrow">Friends</span><h3>Social Table</h3></div>
-                <span class="profile-soft-pill">${view.friendCount} friends</span>
+                <button class="ghost-btn compact-btn profile-soft-pill-btn" type="button" data-profile-route="social">${view.friendCount} friend${view.friendCount === 1 ? '' : 's'}</button>
             </div>
             <div class="friend-search-row">
                 <input class="search-input" placeholder="Find Players" aria-label="Find Players">
                 <button class="primary-btn profile-theme-btn" type="button" data-profile-route="social">Add Friend</button>
             </div>
             <div class="friend-activity">
-                ${friends.length ? friends.slice(0, 4).map(friend => {
+                ${previewFriends.length ? previewFriends.map(friend => {
                     const playerId = friend.userId || friend.email;
                     const label = friend.displayName || friend.email;
                     return `<div class="friend-activity-row">
@@ -4895,8 +5078,26 @@
                         </div>
                     </div>`;
                 }).join('') : '<div class="friend-activity-note"><strong>No friends yet</strong><span>Add friends from the Social page using their email.</span></div>'}
-                <div class="friend-activity-note"><strong>Open lobbies</strong><span>Use Social to join rooms or invite friends once room invites are connected.</span></div>
+                ${friends.length > PROFILE_FRIEND_PREVIEW_MAX
+                    ? `<div class="friend-activity-note"><strong>More friends</strong><span>${friends.length - PROFILE_FRIEND_PREVIEW_MAX} more on Social</span></div>`
+                    : ''}
             </div>
+            ${hasLobbies ? `<div class="profile-lobby-list">
+                <div class="profile-lobby-head"><strong>Open lobbies</strong><span>${openLobbies.length} shown</span></div>
+                ${openLobbies.map(room => {
+                    const element = inferRoomElement(room);
+                    const ownLobby = isOwnLobby(room);
+                    const roomId = escapeAttr(room.roomId || '');
+                    const title = ownLobby ? 'My Arena' : escapeHtml(room.name || `${room.hostName || 'Host'}'s Arena`);
+                    return `<div class="profile-lobby-row">
+                        <div class="profile-lobby-main">
+                            <strong>${title}</strong>
+                            <span>${escapeHtml(format(element))} · ${escapeHtml(room.roomId || '')}</span>
+                        </div>
+                        <button class="ghost-btn compact-btn" type="button" data-profile-lobby="${roomId}" data-profile-lobby-action="${ownLobby ? 'open' : 'join'}">${ownLobby ? 'Open' : 'Join'}</button>
+                    </div>`;
+                }).join('')}
+            </div>` : ''}
         </section>`;
     }
 
@@ -5355,6 +5556,27 @@
         document.querySelectorAll('[data-profile-route]').forEach(btn => btn.addEventListener('click', () => navigateHub(btn.dataset.profileRoute)));
         document.querySelectorAll('.friend-activity [data-view-profile]').forEach(btn => btn.addEventListener('click', () => navigateToPlayerProfile(btn.dataset.viewProfile)));
         document.querySelectorAll('.friend-activity [data-message-friend]').forEach(btn => btn.addEventListener('click', () => openMessageComposer(btn.dataset.messageFriend)));
+        document.querySelectorAll('[data-battle-history-open]').forEach(btn => btn.addEventListener('click', () => {
+            state.battleHistoryOpen = true;
+            renderBattleHistoryModalHost(profileViewModel());
+        }));
+        document.querySelectorAll('[data-favorite-cards-open]').forEach(btn => btn.addEventListener('click', () => {
+            const view = profileViewModel();
+            state.favoriteCardsDraft = (view.prefs.favoriteCardIds || []).slice(0, PROFILE_FAVORITE_CARD_MAX);
+            state.favoriteCardsEditOpen = true;
+            renderFavoriteCardsModalHost(view);
+        }));
+        document.querySelectorAll('[data-profile-lobby]').forEach(btn => btn.addEventListener('click', () => {
+            const roomId = btn.dataset.profileLobby;
+            if (!roomId) return;
+            openLobbyWaitingRoom(roomId);
+        }));
+        document.querySelectorAll('[data-profile-showcase-card]').forEach(btn => btn.addEventListener('click', () => {
+            const cardId = btn.dataset.cardId || btn.closest('[data-card-id]')?.dataset.cardId;
+            if (!cardId) return;
+            state.selectedCardId = cardId;
+            navigateHub('cards');
+        }));
         document.querySelectorAll('.battle-row-clickable[data-match-index]').forEach(row => {
             const index = Number(row.dataset.matchIndex);
             row.addEventListener('click', () => openMatchReview(index));
@@ -5366,6 +5588,33 @@
             });
         });
         bindAchievementRoutes(document.getElementById('profileSectionBody') || document);
+    }
+
+    async function saveFavoriteCards() {
+        const ids = Array.isArray(state.favoriteCardsDraft)
+            ? state.favoriteCardsDraft.slice(0, PROFILE_FAVORITE_CARD_MAX)
+            : [];
+        const data = await fetchJson('/api/profile/settings', {
+            method: 'POST',
+            body: JSON.stringify({ favoriteCardIds: ids })
+        });
+        if (!data || data.error) {
+            window.alert(data?.error || 'Could not save your favorite cards.');
+            return;
+        }
+        const serverPrefs = applyProfileSettingsFromServer(data.profileSettings);
+        if (serverPrefs) {
+            state.profilePrefs = { ...(state.profilePrefs || {}), ...serverPrefs };
+            cacheProfilePrefs(state.profilePrefs);
+        } else {
+            state.profilePrefs = { ...(state.profilePrefs || {}), favoriteCardIds: ids };
+        }
+        state.favoriteCardsEditOpen = false;
+        state.favoriteCardsDraft = null;
+        pushNotification('rank', 'Favorite cards updated', ids.length
+            ? 'Your collection snapshot now shows your picks.'
+            : 'Your collection snapshot will show your rarest cards.');
+        safeRender(renderProfile);
     }
 
     // Opens a read-only review of a recorded match (stats + turn-by-turn log),
@@ -5571,18 +5820,28 @@
             elementCounts[element] = (elementCounts[element] || 0) + count;
         });
         const mostCollectedElement = Object.entries(elementCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Neutral';
-        const rarest = [...ownedCardModels].sort((a, b) => (RARITY_ORDER[b.card.rarity] || 0) - (RARITY_ORDER[a.card.rarity] || 0))[0]?.card;
-        const previewCards = ownedCardModels
-            .sort((a, b) => (RARITY_ORDER[b.card.rarity] || 0) - (RARITY_ORDER[a.card.rarity] || 0) || b.count - a.count)
-            .slice(0, 4)
-            .map(item => item.card);
+        const rarestSorted = [...ownedCardModels].sort((a, b) =>
+            (RARITY_ORDER[b.card.rarity] || 0) - (RARITY_ORDER[a.card.rarity] || 0) || b.count - a.count);
+        const rarest = rarestSorted[0]?.card;
+        const favoriteIds = Array.isArray(state.profilePrefs?.favoriteCardIds)
+            ? state.profilePrefs.favoriteCardIds.filter(Boolean)
+            : [];
+        const favoriteCards = favoriteIds
+            .map(id => findCard(id))
+            .filter(card => card && ownedCount(card.id) > 0)
+            .slice(0, PROFILE_FAVORITE_CARD_MAX);
+        const usingFavoriteCards = favoriteCards.length > 0;
+        const previewCards = usingFavoriteCards
+            ? favoriteCards
+            : rarestSorted.slice(0, PROFILE_FAVORITE_CARD_MAX).map(item => item.card);
         return {
             ownedTotal,
             uniqueOwned,
             completion: Math.min(100, Math.round((uniqueOwned / totalCatalog) * 100)),
             rarestCard: rarest?.name || 'Undiscovered',
             mostCollectedElement,
-            previewCards
+            previewCards,
+            usingFavoriteCards
         };
     }
 
@@ -8069,7 +8328,8 @@
             favoriteSiegling: settings.favoriteSiegling || '',
             favoriteSieglingId: settings.favoriteSieglingId || '',
             favoriteSieglingCard: settings.favoriteSieglingCard || null,
-            featuredBadgeIds: Array.isArray(settings.featuredBadgeIds) ? settings.featuredBadgeIds : []
+            featuredBadgeIds: Array.isArray(settings.featuredBadgeIds) ? settings.featuredBadgeIds : [],
+            favoriteCardIds: Array.isArray(settings.favoriteCardIds) ? settings.favoriteCardIds.filter(Boolean).slice(0, PROFILE_FAVORITE_CARD_MAX) : []
         };
         const elementSource = settings.favoriteElementLabel || settings.favoriteElement;
         if (elementSource != null && String(elementSource).trim()) {
@@ -8106,7 +8366,8 @@
                 bio: prefs.bio,
                 preferredCardBack: prefs.preferredCardBack,
                 favoriteSiegling: prefs.favoriteSiegling,
-                favoriteSieglingId: prefs.favoriteSieglingId
+                favoriteSieglingId: prefs.favoriteSieglingId,
+                favoriteCardIds: Array.isArray(prefs.favoriteCardIds) ? prefs.favoriteCardIds : []
             }));
         } catch (_error) {
             // ignore quota errors
@@ -9168,6 +9429,10 @@
             navigateHub('profile');
         });
         const matchSource = view.data.recentMatches || [];
+        body.querySelector('[data-battle-history-open]')?.addEventListener('click', () => {
+            state.battleHistoryOpen = true;
+            renderBattleHistoryModalHost(view, matchSource);
+        });
         body.querySelectorAll('.battle-row-clickable[data-match-index]').forEach(row => {
             const index = Number(row.dataset.matchIndex);
             row.addEventListener('click', () => openMatchReview(index, matchSource));
@@ -9198,6 +9463,8 @@
         }
         const view = publicProfileViewModel(data);
         body.innerHTML = renderPublicProfilePageHtml(view);
+        state.battleHistoryOpen = false;
+        renderBattleHistoryModalHost(null);
         bindPublicProfilePage(view);
     }
 

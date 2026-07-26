@@ -88,7 +88,7 @@ a { text-decoration: none; }
 .keep-brand span,
 .resource-pill,
 .station-pill,
-.construction-banner > span {
+.construction-job > span {
     display: flex;
     flex-direction: column;
     min-width: 0;
@@ -686,8 +686,10 @@ button.resource-pill:focus-visible {
     top: 14px;
     transform: translateX(-50%);
     min-width: min(340px, 70vw);
+    max-width: min(420px, calc(100vw - 16px));
     display: grid;
-    grid-template-columns: auto 1fr auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: start;
     gap: 9px;
     padding: 8px 13px 11px;
     border: 1px solid rgba(244, 204, 98, .4);
@@ -696,12 +698,39 @@ button.resource-pill:focus-visible {
     box-shadow: 0 8px 24px rgba(4, 13, 19, .25);
 }
 .hammer-icon { align-self: center; color: var(--gold); font-size: 20px; }
+.construction-banner-jobs {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+}
+.construction-job {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+}
+.construction-job + .construction-job {
+    padding-top: 7px;
+    border-top: 1px solid rgba(255, 247, 220, .1);
+}
 .construction-banner strong { font-size: 12px; }
 .construction-banner small { color: rgba(255, 247, 220, .65); font-size: 10px; }
-.construction-banner > i { grid-column: 1 / -1; height: 4px; border-radius: 99px; overflow: hidden; background: rgba(255, 255, 255, .11); }
-.construction-banner > i b { display: block; width: 0; height: 100%; background: linear-gradient(90deg, #ca884c, var(--gold)); transition: width .4s linear; }
+.construction-job > i {
+    display: block;
+    height: 4px;
+    border-radius: 99px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, .11);
+}
+.construction-job > i b {
+    display: block;
+    width: 0;
+    height: 100%;
+    background: linear-gradient(90deg, #ca884c, var(--gold));
+    transition: width .4s linear;
+}
 .construction-toggle {
-    align-self: center;
+    align-self: start;
+    margin-top: 1px;
     width: 27px;
     height: 27px;
     display: grid;
@@ -718,8 +747,10 @@ button.resource-pill:focus-visible {
 .construction-toggle:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .construction-banner.is-collapsed { min-width: min(250px, calc(100vw - 16px)); padding-block: 6px; }
 .construction-banner.is-collapsed .hammer-icon { font-size: 17px; }
-.construction-banner.is-collapsed small,
-.construction-banner.is-collapsed > i { display: none; }
+.construction-banner.is-collapsed .construction-job small,
+.construction-banner.is-collapsed .construction-job > i { display: none; }
+.construction-banner.is-collapsed .construction-banner-jobs { gap: 0; }
+.construction-banner.is-collapsed .construction-job + .construction-job { display: none; }
 
 .keep-dock {
     flex: 0 0 auto;
@@ -914,6 +945,10 @@ button.resource-pill:focus-visible {
 .craft-type { position: absolute; top: 11px; right: 10px; padding: 3px 6px; border-radius: 99px; color: #172333; background: #9fe9ff; font-size: 7px; font-weight: 900; }
 .craft-costs { display: flex; flex-wrap: wrap; gap: 5px; margin: 9px 0; }
 .craft-costs span { padding: 4px 7px; border-radius: 99px; color: rgba(255,247,220,.76); background: rgba(255,255,255,.07); font-size: 8px; }
+/* Expansions pull materials from partner workshops, so shortfalls need to read
+   at a glance instead of only through a disabled Craft button. */
+.craft-costs span.is-met { color: #cfe9b8; background: rgba(143, 206, 111, .16); }
+.craft-costs span.is-short { color: #ffc9a4; background: rgba(255, 138, 78, .17); box-shadow: inset 0 0 0 1px rgba(255, 138, 78, .35); }
 .craft-card .panel-button { width: 100%; min-height: 34px; }
 .decoration-control { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px; border: 1px solid rgba(244,204,98,.32); border-radius: 12px; background: rgba(244,204,98,.055); }
 .decoration-control > span { min-width: 0; display: flex; flex-direction: column; }
@@ -945,11 +980,23 @@ button.resource-pill:focus-visible {
 .enclave-mission p { margin: 0; color: rgba(255,247,220,.66); font-size: 9px; line-height: 1.4; }
 .enclave-mission .panel-button { width: 100%; margin-top: 8px; }
 
+/* Read/unread divider shared by the Chronicle, the Voices list, and the notice tray. */
+.list-section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 4px 2px 7px; padding-bottom: 5px; border-bottom: 1px solid var(--line); }
+.list-section-heading + .list-section-heading { margin-top: 4px; }
+.list-section-heading span { color: rgba(255, 247, 220, .66); font-size: 9px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; }
+.list-section-heading strong { color: var(--gold); font-size: 9px; font-weight: 900; font-variant-numeric: tabular-nums; }
+#noticeList .list-section-heading { margin: 7px 3px 5px; }
+#noticeList .list-section-heading:first-child { margin-top: 2px; }
+
 .lore-tabs { position: sticky; top: -14px; z-index: 2; display: flex; gap: 5px; margin: -14px -14px 12px; padding: 10px 14px; background: rgba(20, 31, 43, .96); border-bottom: 1px solid var(--line); }
 .lore-tabs button { flex: 1; min-height: 32px; border-radius: 9px; color: rgba(255, 247, 220, .66); background: rgba(255, 255, 255, .045); font-size: 9px; font-weight: 800; cursor: pointer; }
 .lore-tabs button.active { color: #172333; background: var(--gold); }
 .lore-card { position: relative; cursor: pointer; }
 .lore-card.unread::before { content: ""; position: absolute; width: 8px; height: 8px; top: 12px; right: 12px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 9px var(--gold); }
+/* Read entries recede so the Unread group above them reads as the live list. */
+.lore-card.is-read { border-color: rgba(255, 247, 220, .1); background: rgba(255, 255, 255, .022); }
+.lore-card.is-read h3 { color: rgba(255, 241, 183, .74); }
+.lore-card.is-read.expanded { border-color: rgba(244, 204, 98, .42); }
 .lore-card.expanded { border-color: rgba(244, 204, 98, .42); }
 .lore-body { padding-top: 8px; border-top: 1px solid var(--line); white-space: pre-line; }
 .memorabilia-figure { height: 95px; display: grid; place-items: center; margin-bottom: 8px; border-radius: 10px; background: radial-gradient(circle, rgba(255, 154, 80, .2), transparent 66%); }
@@ -958,10 +1005,13 @@ button.resource-pill:focus-visible {
 
 .conversation-card { display: grid; grid-template-columns: 48px 1fr; gap: 10px; cursor: pointer; }
 .conversation-card.is-visitor { border-color: rgba(159, 233, 255, .42); background: rgba(159, 233, 255, .05); }
+.conversation-card.is-interaction { border-color: rgba(196, 220, 120, .42); background: rgba(196, 220, 120, .06); }
 .npc-mini { width: 48px; height: 48px; display: grid; place-items: center; border: 2px solid rgba(244, 204, 98, .5); border-radius: 50%; background: linear-gradient(145deg, #785c4c, #293d48); font: 700 18px Georgia, serif; }
 .conversation-card.is-visitor .npc-mini { border-color: rgba(159, 233, 255, .55); background: linear-gradient(145deg, #4c6578, #293d48); }
+.conversation-card.is-interaction .npc-mini { border-color: rgba(196, 220, 120, .55); background: linear-gradient(145deg, #5a6a3a, #2d3720); }
 .conversation-card small { color: var(--gold); font-size: 9px; }
 .visitor-tag { display: inline-block; margin-top: 4px; color: #9fe9ff; font-size: 9px; font-style: normal; letter-spacing: .04em; text-transform: uppercase; }
+.visitor-tag.interaction-tag { color: #d4e89a; }
 .relationship-card { display: flex; flex-direction: column; align-items: stretch; gap: 8px; width: 100%; padding: 12px 13px; text-align: left; cursor: pointer; font: inherit; color: inherit; appearance: none; }
 .relationship-card span { color: rgba(255, 247, 220, .65); }
 .relationship-card .relationship-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; font-size: 11px; }
@@ -1080,11 +1130,23 @@ button.resource-pill:focus-visible {
 .npc-portrait span::after { content: "EV"; display: grid; place-items: center; width: 78px; height: 78px; margin-bottom: 22px; border: 1px solid rgba(255, 255, 255, .16); border-radius: 50%; color: rgba(255, 247, 220, .8); background: rgba(17, 31, 40, .62); font: 700 24px Georgia, serif; }
 .npc-portrait.is-archivist span::after { content: "NP"; }
 .npc-portrait.is-visitor { background: radial-gradient(circle at 50% 26%, #9bb7c8 0 12%, transparent 12.5%), linear-gradient(150deg, #5d7a88, #1d3340 64%); }
+.npc-portrait.is-interaction { background: radial-gradient(circle at 50% 26%, #c8d98a 0 12%, transparent 12.5%), linear-gradient(150deg, #6a7a42, #2a3420 64%); }
 .dialogue-copy { padding: 8px 8px 4px 0; }
 .dialogue-copy h2 { margin: 4px 0 2px; font: 700 28px/1.1 Georgia, serif; color: #fff1b7; }
 .dialogue-copy > small { color: rgba(255, 247, 220, .55); font-size: 10px; }
 .dialogue-copy > p { margin: 22px 0; color: rgba(255, 247, 220, .86); font: 16px/1.6 Georgia, serif; }
 .dialogue-summary { margin: -8px 0 18px; padding: 10px 12px; border-left: 3px solid #9fe9ff; background: rgba(159, 233, 255, .08); color: #d7f6ff; font: 13px/1.45 Georgia, serif; }
+.dialogue-affinity {
+    margin: -4px 0 16px;
+    padding: 8px 12px;
+    border-left: 3px solid #c4dc78;
+    background: rgba(196, 220, 120, .1);
+    color: #e8f2c4;
+    font: 12px/1.4 Georgia, serif;
+    letter-spacing: .02em;
+}
+.dialogue-affinity.is-up { border-left-color: #b8d45a; color: #eaf7b8; }
+.dialogue-affinity.is-down { border-left-color: #e08a6a; background: rgba(224, 138, 106, .1); color: #f3d0c2; }
 .dialogue-choices { display: grid; gap: 8px; }
 .dialogue-choices button { display: grid; gap: 4px; padding: 11px 13px; border: 1px solid rgba(244, 204, 98, .26); border-radius: 11px; color: var(--cream); background: rgba(255, 255, 255, .05); text-align: left; font-size: 12px; line-height: 1.4; cursor: pointer; }
 .dialogue-choices button small { color: rgba(159, 233, 255, .88); font-size: 10px; }
@@ -1159,6 +1221,10 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
 .notice-item > span { min-width: 0; display: flex; flex-direction: column; }
 .notice-item small { color: var(--gold); font-size: 8px; letter-spacing: .08em; text-transform: uppercase; }
 .notice-item strong { overflow: hidden; text-overflow: ellipsis; color: #fff1b7; font: 700 12px/1.3 Georgia, serif; }
+.notice-item.unread { background: rgba(244, 204, 98, .07); }
+.notice-item.is-read > i { color: rgba(23, 35, 51, .8); background: rgba(244, 204, 98, .45); }
+.notice-item.is-read small { color: rgba(244, 204, 98, .66); }
+.notice-item.is-read strong { color: rgba(255, 241, 183, .7); }
 .notice-empty { padding: 20px 12px; color: rgba(255, 247, 220, .62); font-size: 11px; text-align: center; }
 
 /* —— Building interiors —— */
@@ -1198,7 +1264,65 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
 }
 .interior-heading { min-width: 0; }
 .interior-heading h2 { margin: 1px 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 19px/1.1 Georgia, serif; }
-.interior-stage { position: relative; grid-row: 2; grid-column: 1; overflow: hidden; }
+.interior-viewport { position: relative; grid-row: 2; grid-column: 1; min-height: 0; overflow: hidden; }
+.interior-stage { position: absolute; inset: 0; overflow: hidden; }
+
+/* Room-to-room tour controls float over the stage so players never have to
+   step back out to the grounds to visit the next building. */
+.interior-nav { position: absolute; inset: 0; z-index: 8; pointer-events: none; }
+.interior-nav.hidden { display: none; }
+.interior-arrow {
+    position: absolute;
+    top: 50%;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 42px;
+    padding: 8px 10px;
+    translate: 0 -50%;
+    border: 1px solid rgba(244, 204, 98, .5);
+    border-radius: 12px;
+    color: #ffe9a8;
+    background: rgba(12, 22, 30, .74);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, .42);
+    backdrop-filter: blur(3px);
+    font: 700 11px/1 Georgia, serif;
+    cursor: pointer;
+    pointer-events: auto;
+    transition: background .18s ease, transform .18s ease;
+}
+.interior-arrow:hover { background: rgba(24, 42, 55, .9); }
+.interior-arrow:active { transform: translateY(-50%) scale(.95); }
+.interior-arrow span { font-size: 19px; line-height: 1; }
+.interior-arrow small { max-width: 78px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.interior-arrow.arrow-prev { left: calc(6px + var(--safe-left)); }
+.interior-arrow.arrow-next { right: calc(6px + var(--safe-right)); }
+.interior-rail {
+    position: absolute;
+    left: 50%;
+    bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 9px;
+    translate: -50% 0;
+    border: 1px solid rgba(244, 204, 98, .3);
+    border-radius: 99px;
+    background: rgba(12, 22, 30, .7);
+    pointer-events: auto;
+}
+.rail-dot {
+    width: 9px;
+    height: 9px;
+    padding: 0;
+    border: 1px solid rgba(255, 233, 168, .5);
+    border-radius: 50%;
+    background: rgba(255, 233, 168, .18);
+    cursor: pointer;
+    transition: background .18s ease, transform .18s ease;
+}
+.rail-dot:hover { background: rgba(255, 233, 168, .5); }
+.rail-dot.is-current { background: #f4cc62; transform: scale(1.28); }
 .interior-actions {
     grid-row: 2;
     grid-column: 2;
@@ -1423,8 +1547,10 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
 .hall-crafted-tapestry { position: absolute; left: 8%; top: 13%; width: 9%; height: 35%; background: linear-gradient(90deg, #7fb472 0 25%, #d77b4e 25% 50%, #88d7e9 50% 75%, #b39ee3 75%); clip-path: polygon(0 0,100% 0,100% 86%,50% 100%,0 86%); box-shadow: inset 0 5px #f4cc62; }
 
 /* Every production room has five cumulative tool silhouettes and five
-   independently placeable furnishings. The room hue keeps the shared shapes
-   readable while still making each workshop feel materially different. */
+   independently placeable furnishings. Both are drawn per room rather than
+   recoloured from one template: each rack has its own mounting and head shape,
+   and every decoration owns its silhouette and its spot on the wall or floor,
+   so no two interiors read as the same room in a different hue. */
 .room-woodlot { --room-accent: #9bcf73; --room-accent-2: #d7b477; }
 .room-garden { --room-accent: #a7df7a; --room-accent-2: #f0a5bd; }
 .room-forge { --room-accent: #ff8a4e; --room-accent-2: #ffd178; }
@@ -1432,25 +1558,120 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
 .room-generator { --room-accent: #ffe95d; --room-accent-2: #9deaff; }
 .room-quarry { --room-accent: #c9c3ad; --room-accent-2: #ffe5a0; }
 .room-kitchen { --room-accent: #f0b46c; --room-accent-2: #a9d478; }
-.room-tool-set { position: absolute; left: 4%; top: 5%; z-index: 1; display: none; width: 78px; height: 52px; border-bottom: 6px solid #5d4632; border-radius: 0 0 4px 4px; background: linear-gradient(180deg, transparent 0 82%, rgba(237, 221, 184, .32) 83% 86%, transparent 87%); filter: drop-shadow(2px 3px 1px rgba(19, 15, 11, .3)); }
+.room-tool-set { position: absolute; z-index: 1; display: none; width: 78px; height: 52px; filter: drop-shadow(2px 3px 1px rgba(19, 15, 11, .3)); }
 .room-tool-set.has-installed-tools { display: block; }
-.room-garden .room-tool-set,
-.room-kitchen .room-tool-set { left: auto; right: 4%; }
 .room-tool-set i { position: absolute; bottom: 6px; width: 6px; height: 36px; display: none; border-radius: 5px 5px 2px 2px; background: linear-gradient(90deg, #66513d, var(--room-accent), #66513d); transform-origin: bottom center; filter: drop-shadow(0 2px 1px rgba(0, 0, 0, .34)); }
-.room-tool-set i::before { content: ""; position: absolute; left: 50%; top: -7px; width: 18px; height: 11px; translate: -50% 0; border-radius: 45% 45% 3px 3px; background: var(--room-accent-2); box-shadow: inset 0 -3px rgba(30, 35, 35, .3); }
+.room-tool-set i::before { content: ""; position: absolute; left: 50%; top: -7px; width: 18px; height: 11px; translate: -50% 0; background: var(--room-accent-2); box-shadow: inset 0 -3px rgba(30, 35, 35, .3); }
 .room-tool-set i.is-crafted { display: block; animation: tool-arrive .35s ease both; }
 .room-tool-set i:nth-child(1) { left: 8px; transform: rotate(-12deg); }
 .room-tool-set i:nth-child(2) { left: 22px; height: 32px; transform: rotate(7deg); }
 .room-tool-set i:nth-child(3) { left: 36px; height: 41px; transform: rotate(-4deg); }
 .room-tool-set i:nth-child(4) { left: 50px; height: 34px; transform: rotate(10deg); }
 .room-tool-set i:nth-child(5) { left: 63px; height: 43px; transform: rotate(-8deg); }
+
+/* Woodlot: a peg board of felling tools with wedge heads. */
+.room-woodlot .room-tool-set { left: 3%; top: 4%; border-bottom: 6px solid #5d4632; border-radius: 0 0 4px 4px; background: repeating-linear-gradient(90deg, rgba(120, 88, 55, .5) 0 5px, transparent 5px 15px); }
+.room-woodlot .room-tool-set i::before { clip-path: polygon(0 0, 100% 22%, 100% 100%, 0 78%); }
+/* Garden: hand tools hanging from a wall rail, leaf-bladed. */
+.room-garden .room-tool-set { right: 4%; top: 7%; border-top: 5px solid #4f6338; border-radius: 4px 4px 0 0; }
+.room-garden .room-tool-set i { bottom: auto; top: 8px; transform-origin: top center; }
+.room-garden .room-tool-set i::before { top: auto; bottom: -9px; width: 14px; height: 15px; border-radius: 50% 50% 60% 60% / 40% 40% 80% 80%; }
+/* Forge: hammers stood on a stone block. */
+.room-forge .room-tool-set { left: 4%; top: 4%; border-bottom: 9px solid #4a423c; border-radius: 0 0 3px 3px; background: linear-gradient(180deg, transparent 0 78%, rgba(150, 140, 132, .4) 79% 88%, transparent 89%); }
+.room-forge .room-tool-set i::before { width: 20px; height: 10px; border-radius: 2px; box-shadow: inset 0 -4px rgba(30, 20, 16, .45); }
+/* Fridge: chisels clipped into a frost bracket, diamond heads. */
+.room-fridge .room-tool-set { left: 4%; top: 10%; border-bottom: 5px solid #3f5a63; border-radius: 0 0 10px 10px; background: linear-gradient(180deg, rgba(200, 240, 250, .16), transparent 60%); }
+.room-fridge .room-tool-set i::before { width: 15px; height: 15px; top: -11px; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
+/* Generator: charged rods socketed into a conduit rail. */
+.room-generator .room-tool-set { right: 5%; top: 5%; border-bottom: 5px solid #59617a; border-radius: 3px; background: linear-gradient(180deg, transparent 0 80%, rgba(157, 234, 255, .3) 81% 90%, transparent 91%); }
+.room-generator .room-tool-set i::before { width: 12px; height: 12px; top: -10px; border-radius: 50%; box-shadow: 0 0 10px var(--room-accent-2); }
+/* Quarry: mauls leaned against the wall, no rack at all. */
+.room-quarry .room-tool-set { left: 3%; top: 8%; }
+.room-quarry .room-tool-set i { width: 5px; background: linear-gradient(90deg, #5b5245, #8d8574, #5b5245); }
+.room-quarry .room-tool-set i::before { width: 22px; height: 9px; border-radius: 2px 3px 3px 2px; }
+.room-quarry .room-tool-set i:nth-child(1) { transform: rotate(-22deg); }
+.room-quarry .room-tool-set i:nth-child(2) { transform: rotate(16deg); }
+.room-quarry .room-tool-set i:nth-child(3) { transform: rotate(-11deg); }
+.room-quarry .room-tool-set i:nth-child(4) { transform: rotate(21deg); }
+.room-quarry .room-tool-set i:nth-child(5) { transform: rotate(-17deg); }
+/* Kitchen: utensils hung head-down from a bar. */
+.room-kitchen .room-tool-set { right: 4%; top: 4%; border-top: 4px solid #6a4a2e; border-radius: 99px 99px 0 0; }
+.room-kitchen .room-tool-set i { bottom: auto; top: 6px; transform-origin: top center; }
+.room-kitchen .room-tool-set i::before { top: auto; bottom: -10px; width: 13px; height: 14px; border-radius: 50% 50% 45% 45%; }
+
 .room-decoration-set i { position: absolute; z-index: 2; display: none; color: var(--room-accent); filter: drop-shadow(0 4px 4px rgba(0, 0, 0, .34)); animation: decor-arrive .4s ease both; }
 .room-decoration-set i.is-placed { display: block; }
-.room-decoration-set [data-decor-slot="1"] { left: 30%; bottom: 14%; width: 12%; height: 28%; border: 5px solid #765435; border-top-color: var(--room-accent); background: repeating-linear-gradient(45deg, transparent 0 9px, color-mix(in srgb, var(--room-accent) 65%, transparent) 10px 12px); }
-.room-decoration-set [data-decor-slot="2"] { right: 13%; top: 15%; width: 8%; height: 31%; background: linear-gradient(var(--room-accent), color-mix(in srgb, var(--room-accent) 45%, #27313a)); clip-path: polygon(0 0, 100% 0, 100% 82%, 50% 100%, 0 82%); box-shadow: inset 0 5px var(--room-accent-2); }
-.room-decoration-set [data-decor-slot="3"] { left: 47%; bottom: 12%; width: 72px; height: 30px; border: 6px solid #6a523b; border-radius: 50% 50% 22% 22%; background: radial-gradient(ellipse, var(--room-accent-2), var(--room-accent)); }
-.room-decoration-set [data-decor-slot="4"] { right: 28%; top: 10%; width: 18%; height: 48%; border: 6px solid var(--room-accent); border-bottom: 0; border-radius: 60px 60px 0 0; box-shadow: inset 0 0 16px color-mix(in srgb, var(--room-accent) 35%, transparent); }
-.room-decoration-set [data-decor-slot="5"] { left: 66%; top: 18%; width: 34px; height: 34px; border: 3px solid var(--room-accent-2); border-radius: 50%; background: conic-gradient(var(--room-accent), transparent, var(--room-accent-2), transparent, var(--room-accent)); box-shadow: 0 0 18px color-mix(in srgb, var(--room-accent) 55%, transparent); animation: orb-float 3.2s ease-in-out infinite; }
+
+/* —— Woodlot furnishings —— */
+.room-decoration-set [data-decoration-art="carved_waypost"] { left: 34%; bottom: 6%; width: 5%; height: 30%; background: linear-gradient(90deg, #6b4a2c, #a8783f 45%, #5e4126); border-radius: 3px 3px 0 0; }
+.room-decoration-set [data-decoration-art="carved_waypost"]::before { content: ""; position: absolute; left: -70%; top: 12%; width: 240%; height: 14%; border-radius: 2px; background: #8a6236; box-shadow: inset 0 3px rgba(255, 233, 168, .35); clip-path: polygon(0 50%, 12% 0, 100% 0, 100% 100%, 12% 100%); }
+.room-decoration-set [data-decoration-art="carved_waypost"]::after { content: ""; position: absolute; left: -50%; top: 36%; width: 200%; height: 13%; border-radius: 2px; background: #7a5731; box-shadow: inset 0 3px rgba(255, 233, 168, .25); clip-path: polygon(0 0, 88% 0, 100% 50%, 88% 100%, 0 100%); }
+.room-decoration-set [data-decoration-art="seedling_rack"] { left: 16%; bottom: 30%; width: 14%; height: 20%; background: repeating-linear-gradient(180deg, transparent 0 38%, #5e3f24 39% 48%); border-inline: 4px solid #5e3f24; border-bottom: 4px solid #4c3119; }
+.room-decoration-set [data-decoration-art="seedling_rack"]::after { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at 20% 32%, #8fce6f 0 12%, transparent 13%), radial-gradient(circle at 50% 30%, #a7df7a 0 11%, transparent 12%), radial-gradient(circle at 80% 33%, #7fb472 0 12%, transparent 13%), radial-gradient(circle at 30% 82%, #8fce6f 0 11%, transparent 12%), radial-gradient(circle at 68% 80%, #a7df7a 0 12%, transparent 13%); }
+.room-decoration-set [data-decoration-art="sunwoven_blind"] { left: 39%; top: 7%; width: 22%; height: 9%; border-radius: 0 0 6px 6px; background: repeating-linear-gradient(90deg, #d9bd7e 0 4px, #b9975a 4px 8px); box-shadow: inset 0 -4px rgba(90, 66, 34, .5), 0 4px 8px rgba(0, 0, 0, .3); }
+.room-decoration-set [data-decoration-art="sunwoven_blind"]::after { content: ""; position: absolute; left: 46%; top: 100%; width: 8%; height: 60%; background: #8a6236; }
+.room-decoration-set [data-decoration-art="moss_lanterns"] { right: 30%; top: 3%; width: 8%; height: 22%; background: linear-gradient(90deg, transparent 46%, #5e3f24 46% 54%, transparent 54%); }
+.room-decoration-set [data-decoration-art="moss_lanterns"]::after { content: ""; position: absolute; left: -30%; top: 46%; width: 160%; height: 54%; background: radial-gradient(circle at 16% 30%, #cdf08a 0 22%, transparent 24%), radial-gradient(circle at 50% 62%, #b9e277 0 24%, transparent 26%), radial-gradient(circle at 86% 26%, #d9f79a 0 20%, transparent 22%); filter: drop-shadow(0 0 8px rgba(180, 226, 119, .7)); animation: window-glow 3.6s ease-in-out infinite; }
+.room-decoration-set [data-decoration-art="covenant_chimes"] { left: 6%; top: 26%; width: 7%; height: 24%; border-top: 4px solid #7a5731; }
+.room-decoration-set [data-decoration-art="covenant_chimes"]::after { content: ""; position: absolute; left: 6%; top: 0; width: 88%; height: 100%; background: linear-gradient(180deg, #c2a05c 0 62%, transparent 62%), linear-gradient(180deg, #9bcf73 0 86%, transparent 86%), linear-gradient(180deg, #d7b477 0 46%, transparent 46%); background-size: 4px 100%, 4px 100%, 4px 100%; background-position: 0 0, 50% 0, 100% 0; background-repeat: no-repeat; animation: trellis-sway 3.4s ease-in-out infinite; transform-origin: top center; }
+
+/* —— Garden furnishings —— */
+.room-decoration-set [data-decoration-art="seed_banners"] { left: 3%; top: 5%; width: 8%; height: 26%; background: linear-gradient(180deg, #e6dcc0 0 84%, transparent 84%), linear-gradient(180deg, #cbd9a4 0 70%, transparent 70%), linear-gradient(180deg, #efd7bd 0 92%, transparent 92%); background-size: 30% 100%, 30% 100%, 30% 100%; background-position: 0 0, 50% 0, 100% 0; background-repeat: no-repeat; border-top: 3px solid #7a6034; }
+.room-decoration-set [data-decoration-art="seed_banners"]::after { content: ""; position: absolute; left: 0; right: 0; top: 26%; height: 8%; background: repeating-linear-gradient(90deg, #8c6a3f 0 3px, transparent 3px 9px); }
+.room-decoration-set [data-decoration-art="rain_basin"] { left: 4%; bottom: 2%; width: 18%; height: 10%; border-radius: 50%; background: linear-gradient(180deg, #8c8474 0 34%, #6b6455 35%); box-shadow: 0 5px 7px rgba(0, 0, 0, .35); }
+.room-decoration-set [data-decoration-art="rain_basin"]::after { content: ""; position: absolute; inset: 12% 12% 42%; border-radius: 50%; background: radial-gradient(ellipse at 40% 40%, #cfeef0, #6ea9ac); animation: facility-shimmer 3.2s ease-in-out infinite; }
+.room-decoration-set [data-decoration-art="blossom_arch"] { left: 33%; top: 4%; width: 34%; height: 42%; z-index: 1; border: 7px solid #7a6b45; border-bottom: 0; border-radius: 60% 60% 0 0 / 46% 46% 0 0; }
+.room-decoration-set [data-decoration-art="blossom_arch"]::after { content: ""; position: absolute; inset: -8% -6% 40%; background: radial-gradient(circle at 12% 62%, #f0a5bd 0 7%, transparent 8%), radial-gradient(circle at 26% 30%, #f7c6d6 0 6%, transparent 7%), radial-gradient(circle at 50% 14%, #f0a5bd 0 7%, transparent 8%), radial-gradient(circle at 74% 28%, #f7c6d6 0 6%, transparent 7%), radial-gradient(circle at 88% 60%, #f0a5bd 0 7%, transparent 8%); }
+.room-decoration-set [data-decoration-art="covenant_topiary"] { right: 15%; bottom: 30%; width: 8%; height: 24%; background: linear-gradient(180deg, transparent 0 66%, #6b4a2c 66%); }
+.room-decoration-set [data-decoration-art="covenant_topiary"]::after { content: ""; position: absolute; left: -14%; top: 0; width: 128%; height: 70%; border-radius: 50% 50% 42% 42%; background: radial-gradient(circle at 36% 30%, #b6e88a, #6f9c4e 72%); box-shadow: inset 0 -6px rgba(40, 62, 30, .45); }
+
+/* —— Forge furnishings —— */
+.room-decoration-set [data-decoration-art="oathwork_shield"] { left: 18%; top: 16%; width: 12%; height: 22%; border-radius: 46% 46% 50% 50% / 38% 38% 62% 62%; background: radial-gradient(circle at 46% 34%, #d3a36a, #8a5a34 70%, #5d3a22); box-shadow: inset 0 0 0 4px #ffd178, 0 6px 10px rgba(0, 0, 0, .4); }
+.room-decoration-set [data-decoration-art="oathwork_shield"]::after { content: ""; position: absolute; left: 34%; top: 28%; width: 32%; height: 34%; border-radius: 50%; background: linear-gradient(140deg, #ffd178, #a8712f); }
+.room-decoration-set [data-decoration-art="spark_banner"] { right: 30%; top: 6%; width: 5%; height: 30%; background: linear-gradient(180deg, #d1622f, #7c2f1c); clip-path: polygon(0 0, 100% 0, 100% 78%, 50% 100%, 0 78%); box-shadow: inset 0 4px #ffd178; }
+.room-decoration-set [data-decoration-art="spark_banner"]::after { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at 30% 26%, #ffd178 0 8%, transparent 9%), radial-gradient(circle at 66% 46%, #ffb15e 0 7%, transparent 8%), radial-gradient(circle at 40% 66%, #ffd178 0 6%, transparent 7%); animation: window-glow 2.6s ease-in-out infinite; }
+.room-decoration-set [data-decoration-art="ingot_mosaic"] { left: 32%; bottom: 2%; width: 24%; height: 11%; transform: perspective(320px) rotateX(52deg); background: repeating-linear-gradient(64deg, #a8712f 0 8px, #d1873c 8px 15px, #6f4620 15px 21px); border: 3px solid #4a3a2c; }
+.room-decoration-set [data-decoration-art="forge_chimes"] { left: 30%; top: 3%; width: 6%; height: 24%; border-top: 4px solid #56463c; }
+.room-decoration-set [data-decoration-art="forge_chimes"]::after { content: ""; position: absolute; left: 4%; top: 0; width: 92%; height: 100%; background: linear-gradient(180deg, #9ba2a6 0 74%, transparent 74%), linear-gradient(180deg, #c6cbcd 0 54%, transparent 54%), linear-gradient(180deg, #8b9296 0 90%, transparent 90%); background-size: 5px 100%, 5px 100%, 5px 100%; background-position: 0 0, 50% 0, 100% 0; background-repeat: no-repeat; animation: trellis-sway 4.2s ease-in-out infinite; transform-origin: top center; }
+
+/* —— Fridge furnishings —— */
+.room-decoration-set [data-decoration-art="snowflake_screen"] { left: 5%; bottom: 6%; width: 20%; height: 22%; background: repeating-linear-gradient(90deg, rgba(214, 248, 255, .5) 0 22px, rgba(126, 182, 196, .55) 22px 24px); border: 3px solid #45616a; border-radius: 5px 5px 0 0; }
+.room-decoration-set [data-decoration-art="snowflake_screen"]::after { content: ""; position: absolute; inset: 12%; background: radial-gradient(circle at 18% 40%, #ffffff 0 5%, transparent 6%), radial-gradient(circle at 50% 62%, #eaffff 0 6%, transparent 7%), radial-gradient(circle at 82% 36%, #ffffff 0 5%, transparent 6%); }
+.room-decoration-set [data-decoration-art="memory_crystals"] { right: 26%; bottom: 6%; width: 14%; height: 16%; background: linear-gradient(135deg, #eaffff, #6fb9cd); clip-path: polygon(14% 100%, 0 46%, 20% 8%, 38% 40%, 52% 0, 68% 44%, 84% 18%, 100% 62%, 88% 100%); box-shadow: 0 0 20px rgba(157, 234, 255, .5); animation: facility-shimmer 3s ease-in-out infinite; }
+.room-decoration-set [data-decoration-art="aurora_lamp"] { left: 24%; top: 1%; width: 50%; height: 7%; border-radius: 50%; background: linear-gradient(90deg, rgba(157, 234, 255, 0), #9deaff 22%, #c6b0ff 52%, #9df3c9 78%, rgba(157, 234, 255, 0)); filter: blur(2px); animation: window-glow 4.4s ease-in-out infinite; }
+.room-decoration-set [data-decoration-art="ice_sculpture"] { left: 30%; bottom: 8%; width: 8%; height: 28%; background: linear-gradient(115deg, #f4ffff, #86cfe2 58%, #4d8a9b); clip-path: polygon(50% 0, 76% 26%, 68% 62%, 84% 100%, 16% 100%, 32% 62%, 24% 26%); box-shadow: 0 0 22px rgba(173, 239, 255, .45); }
+.room-decoration-set [data-decoration-art="ice_sculpture"]::after { content: ""; position: absolute; left: -18%; bottom: -8%; width: 136%; height: 14%; border-radius: 50%; background: linear-gradient(#7fa9b5, #3f606b); }
+
+/* —— Generator furnishings —— */
+.room-decoration-set [data-decoration-art="prism_banners"] { left: 34%; top: 2%; width: 32%; height: 12%; background: linear-gradient(180deg, #ff8b55 0 88%, transparent 88%), linear-gradient(180deg, #9eefff 0 100%, transparent 100%), linear-gradient(180deg, #c3ef83 0 76%, transparent 76%); background-size: 18% 100%, 18% 100%, 18% 100%; background-position: 8% 0, 50% 0, 92% 0; background-repeat: no-repeat; border-top: 3px solid #76809b; }
+.room-decoration-set [data-decoration-art="conduit_globe"] { left: 6%; bottom: 6%; width: 12%; height: 22%; background: linear-gradient(180deg, transparent 0 62%, #6a7288 63% 78%, #41485d 79%); }
+.room-decoration-set [data-decoration-art="conduit_globe"]::after { content: ""; position: absolute; left: 4%; top: 0; width: 92%; height: 64%; border: 2px solid rgba(200, 240, 255, .7); border-radius: 50%; background: radial-gradient(circle at 38% 32%, rgba(255, 255, 255, .85), rgba(157, 234, 255, .5) 46%, rgba(70, 110, 160, .55)); box-shadow: 0 0 20px rgba(157, 234, 255, .6); animation: generator-pulse 2.2s ease-in-out infinite; }
+.room-decoration-set [data-decoration-art="thunder_chimes"] { left: 34%; top: 20%; width: 7%; height: 24%; border-top: 4px solid #9db0c8; }
+.room-decoration-set [data-decoration-art="thunder_chimes"]::after { content: ""; position: absolute; left: 2%; top: 0; width: 96%; height: 100%; background: linear-gradient(180deg, #b5c6d8 0 88%, transparent 88%), linear-gradient(180deg, #9deaff 0 62%, transparent 62%), linear-gradient(180deg, #8895aa 0 100%, transparent 100%); background-size: 5px 100%, 5px 100%, 5px 100%; background-position: 0 0, 50% 0, 100% 0; background-repeat: no-repeat; filter: drop-shadow(0 0 5px rgba(157, 234, 255, .6)); animation: trellis-sway 3.8s ease-in-out infinite; transform-origin: top center; }
+.room-decoration-set [data-decoration-art="covenant_orrery"] { right: 20%; bottom: 5%; width: 13%; height: 24%; background: linear-gradient(180deg, transparent 0 70%, #6a7288 71% 84%, #363c4d 85%); }
+.room-decoration-set [data-decoration-art="covenant_orrery"]::after { content: ""; position: absolute; left: 8%; top: 2%; width: 84%; height: 66%; border: 2px solid #ffe95d; border-radius: 50%; box-shadow: inset 0 0 0 6px rgba(157, 234, 255, .35), 0 0 16px rgba(255, 233, 93, .45); transform: rotate(18deg) skewX(-14deg); animation: orb-float 3.6s ease-in-out infinite; }
+
+/* —— Quarry furnishings —— */
+.room-decoration-set [data-decoration-art="rune_mosaic"] { right: 20%; top: 12%; width: 16%; height: 26%; background: repeating-linear-gradient(90deg, #857f6e 0 22px, #6c6759 22px 25px), repeating-linear-gradient(180deg, #8f8a7a 0 20px, #6c6759 20px 23px); box-shadow: inset 0 0 0 4px #4a463b; }
+.room-decoration-set [data-decoration-art="rune_mosaic"]::after { content: ""; position: absolute; inset: 16%; background: linear-gradient(48deg, transparent 44%, #ffe5a0 45% 55%, transparent 56%), linear-gradient(-48deg, transparent 44%, #ffe5a0 45% 55%, transparent 56%), linear-gradient(90deg, transparent 46%, #ffe5a0 47% 53%, transparent 54%); opacity: .75; }
+.room-decoration-set [data-decoration-art="crystal_sconce"] { left: 44%; top: 14%; width: 5%; height: 16%; background: linear-gradient(180deg, transparent 0 52%, #57534a 53%); }
+.room-decoration-set [data-decoration-art="crystal_sconce"]::after { content: ""; position: absolute; left: -20%; top: 0; width: 140%; height: 58%; background: linear-gradient(150deg, #fff3c9, #e0b45c); clip-path: polygon(50% 0, 100% 62%, 74% 100%, 26% 100%, 0 62%); box-shadow: 0 0 26px 6px rgba(255, 226, 140, .45); animation: window-glow 3.2s ease-in-out infinite; }
+.room-decoration-set [data-decoration-art="mason_banner"] { right: 12%; top: 6%; width: 7%; height: 32%; background: linear-gradient(180deg, #9a9584, #6d6a5f); clip-path: polygon(0 0, 100% 0, 100% 88%, 50% 100%, 0 88%); box-shadow: inset 0 4px #c9c3ad; }
+.room-decoration-set [data-decoration-art="mason_banner"]::after { content: ""; position: absolute; left: 22%; top: 18%; width: 56%; height: 44%; background: linear-gradient(90deg, transparent 44%, #3f3c33 45% 55%, transparent 56%), linear-gradient(180deg, transparent 30%, #3f3c33 31% 41%, transparent 42%); }
+.room-decoration-set [data-decoration-art="echo_fountain"] { left: 30%; bottom: 4%; width: 18%; height: 13%; border-radius: 46% 46% 34% 34%; background: linear-gradient(180deg, #b6b1a1 0 30%, #7f7a6b 31%); box-shadow: 0 6px 8px rgba(0, 0, 0, .4); }
+.room-decoration-set [data-decoration-art="echo_fountain"]::after { content: ""; position: absolute; inset: 10% 14% 52%; border-radius: 50%; background: radial-gradient(ellipse at 46% 40%, #dff2f4, #7fa9ac); animation: facility-shimmer 2.8s ease-in-out infinite; }
+
+/* —— Kitchen furnishings —— */
+/* Crocks are drawn at a fixed pixel size so the three bellies keep their shape
+   at every stage width instead of flattening with a percentage box. */
+.room-decoration-set [data-decoration-art="painted_crocks"] { left: 6%; bottom: 14%; width: 102px; height: 32px; filter: drop-shadow(0 4px 3px rgba(10, 8, 5, .4)); }
+.room-decoration-set [data-decoration-art="painted_crocks"]::before { content: ""; position: absolute; left: 0; bottom: 0; width: 28px; height: 30px; border-radius: 30% 30% 46% 46%; background: linear-gradient(90deg, #a8552f, #d8834f 46%, #8e441f); box-shadow: 36px 2px 0 -2px #b9924f, 72px -2px 0 -3px #7f9d55; }
+.room-decoration-set [data-decoration-art="painted_crocks"]::after { content: ""; position: absolute; left: 1px; bottom: 21px; width: 26px; height: 5px; border-radius: 99px; background: rgba(255, 233, 168, .5); box-shadow: 36px 2px rgba(255, 233, 168, .45), 71px -2px rgba(255, 233, 168, .4); }
+.room-decoration-set [data-decoration-art="recipe_tapestry"] { left: 15%; top: 30%; width: 14%; height: 26%; background: linear-gradient(180deg, #e2c896, #b98f56); box-shadow: inset 0 0 0 3px #6a4a2e, 0 5px 9px rgba(0, 0, 0, .35); }
+.room-decoration-set [data-decoration-art="recipe_tapestry"]::after { content: ""; position: absolute; inset: 16%; background: repeating-linear-gradient(180deg, transparent 0 22%, rgba(90, 60, 30, .55) 23% 30%); }
+.room-decoration-set [data-decoration-art="communal_bench"] { left: 24%; bottom: 2%; width: 26%; height: 11%; background: linear-gradient(180deg, #9a7448 34%, #6f5030 35%); clip-path: polygon(0 0, 100% 0, 100% 34%, 90% 35%, 88% 100%, 79% 100%, 79% 35%, 21% 35%, 21% 100%, 12% 100%, 10% 35%, 0 34%); filter: drop-shadow(0 6px 4px rgba(10, 8, 5, .4)); }
+.room-decoration-set [data-decoration-art="lantern_wreath"] { right: 18%; top: 5%; width: 18%; height: 15%; border: 5px solid #6f5030; border-radius: 50%; background: transparent; }
+.room-decoration-set [data-decoration-art="lantern_wreath"]::after { content: ""; position: absolute; inset: -18%; background: radial-gradient(circle at 50% 4%, #ffd88a 0 9%, transparent 10%), radial-gradient(circle at 10% 44%, #ffc46a 0 8%, transparent 9%), radial-gradient(circle at 90% 44%, #ffc46a 0 8%, transparent 9%), radial-gradient(circle at 30% 92%, #ffd88a 0 8%, transparent 9%), radial-gradient(circle at 72% 92%, #ffe1a4 0 8%, transparent 9%); filter: drop-shadow(0 0 8px rgba(255, 196, 106, .7)); animation: window-glow 3s ease-in-out infinite; }
 
 .room-enclave .int-backwall { background: linear-gradient(180deg, #725d47, #514536 64%, #40372d); }
 .room-enclave .int-sidewall { background: linear-gradient(90deg, #45392e, #30281f); }
@@ -2145,7 +2366,7 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
         transform: none;
         border-radius: 12px;
     }
-    .construction-banner.is-collapsed > span:not(.hammer-icon) { display: none; }
+    .construction-banner.is-collapsed .construction-banner-jobs { display: none; }
     .construction-banner.is-collapsed .hammer-icon { font-size: 19px; }
     .construction-banner.is-collapsed .construction-toggle { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; }
     .hall-hotspot { top: 24%; width: 180px; height: 210px; }
@@ -2179,7 +2400,11 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     /* The floating resource pills overlay the top of keep-main; keep the
        interior heading clear of them. */
     .interior-bar { padding-top: 34px; }
-    .interior-stage { grid-column: 1; }
+    .interior-viewport { grid-column: 1; }
+    .interior-arrow { min-height: 38px; padding: 7px 8px; }
+    .interior-arrow small { max-width: 60px; font-size: 10px; }
+    .interior-rail { bottom: 4px; gap: 5px; padding: 4px 7px; }
+    .rail-dot { width: 8px; height: 8px; }
     .interior-actions { grid-row: 3; grid-column: 1; max-height: 42dvh; border-left: 0; border-top: 1px solid var(--line); padding: 11px; }
     .interior-heading h2 { font-size: 16px; }
     .interior-exit { min-height: 34px; padding: 7px 11px; font-size: 11px; }
@@ -2211,10 +2436,13 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     .notice-construction-card { padding: 8px; }
     .notice-construction-row { grid-template-columns: 28px minmax(0, 1fr) auto; gap: 7px; }
     .notice-construction-row > i { width: 28px; height: 28px; }
-    .room-tool-set { left: 3%; top: 4%; transform: scale(.84); transform-origin: top left; }
+    /* Racks keep their per-room anchors; only the scale changes on phones. */
+    .room-tool-set { transform: scale(.84); transform-origin: top left; }
     .room-garden .room-tool-set,
-    .room-kitchen .room-tool-set { left: auto; right: 3%; transform-origin: top right; }
-    .room-decoration-set [data-decor-slot="4"] { right: 20%; }
+    .room-generator .room-tool-set,
+    .room-kitchen .room-tool-set { transform-origin: top right; }
+    .room-decoration-set [data-decoration-art="blossom_arch"] { left: 30%; width: 40%; }
+    .room-decoration-set [data-decoration-art="aurora_lamp"] { left: 20%; width: 60%; }
     .enclave-interior-residents b { width: 50px; height: 66px; }
 }
 
@@ -2258,7 +2486,8 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     .keep-panel { top: 4px; bottom: 4px; width: min(370px, 48vw); height: auto; border-radius: 15px; transform: translateX(calc(100% + 28px)); }
     .keep-main.panel-open .keep-panel { transform: translateX(0); }
     .keep-interior { grid-template-columns: minmax(0, 1fr) min(330px, 44vw); grid-template-rows: auto minmax(0, 1fr); }
-    .interior-stage { grid-row: 2; grid-column: 1; }
+    .interior-viewport { grid-row: 2; grid-column: 1; }
+    .interior-arrow small { display: none; }
     .interior-actions { grid-row: 2; grid-column: 2; max-height: none; border-top: 0; border-left: 1px solid var(--line); padding: 10px; }
     .interior-bar { padding-block: 6px; }
     .interior-heading h2 { font-size: 15px; }

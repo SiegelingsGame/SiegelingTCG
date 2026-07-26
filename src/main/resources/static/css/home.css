@@ -6974,6 +6974,37 @@ body.gacha-active {
     padding-right: 4px;
 }
 
+.battle-list-preview {
+    max-height: none;
+    overflow: visible;
+}
+
+.battle-list-modal {
+    max-height: min(58dvh, 520px);
+}
+
+.battle-history-more-note,
+.collection-favorites-note {
+    margin: 10px 0 0;
+}
+
+.profile-soft-pill-btn {
+    border-radius: 999px;
+    min-height: 28px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 850;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.profile-panel-head-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: flex-end;
+}
+
 .battle-row {
     display: grid;
     grid-template-columns: 58px minmax(150px, 1fr) auto minmax(92px, auto) auto;
@@ -7213,9 +7244,30 @@ body.gacha-active {
 
 .mini-card-row {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
     margin-top: 12px;
+}
+
+.mini-card-row-art .profile-showcase-card,
+.mini-card-row-art .card-tile.profile-showcase-card {
+    width: 100%;
+    min-width: 0;
+    aspect-ratio: 2 / 3;
+    pointer-events: auto;
+}
+
+.profile-showcase-card-empty {
+    min-height: 140px;
+    display: grid;
+    place-items: center;
+    padding: 12px;
+    border: 1px dashed rgba(255, 255, 255, 0.18);
+    border-radius: 10px;
+    color: var(--text-dim);
+    text-align: center;
+    font-size: 12px;
+    font-weight: 800;
 }
 
 .profile-mini-card {
@@ -7253,6 +7305,140 @@ body.gacha-active {
     color: var(--text-dim);
     font-size: 10px;
     font-weight: 850;
+}
+
+.favorite-cards-modal-panel,
+.battle-history-modal-panel {
+    width: min(720px, 100%);
+}
+
+.favorite-cards-pick-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 8px;
+    max-height: min(48dvh, 420px);
+    overflow-y: auto;
+    margin: 12px 0;
+    padding-right: 2px;
+}
+
+.favorite-cards-pick {
+    display: grid;
+    grid-template-columns: 54px minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+    width: 100%;
+    padding: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    background: rgba(8, 12, 24, 0.55);
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.favorite-cards-pick.is-picked {
+    border-color: color-mix(in srgb, var(--el, var(--profile-accent, #ff6a2a)) 70%, white);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--el, var(--profile-accent, #ff6a2a)) 45%, transparent);
+}
+
+.favorite-cards-pick-art {
+    width: 54px;
+    aspect-ratio: 2 / 3;
+    overflow: hidden;
+    border-radius: 6px;
+    pointer-events: none;
+}
+
+.favorite-cards-pick-art .binder-card,
+.favorite-cards-pick-art .card-face,
+.favorite-cards-pick-art .framed-card-shell {
+    width: 100%;
+    height: 100%;
+}
+
+.favorite-cards-pick-copy {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.favorite-cards-pick-copy strong {
+    font-size: 13px;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.favorite-cards-pick-copy small {
+    color: var(--text-dim);
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.favorite-cards-pick-mark {
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 950;
+    color: #081021;
+    background: color-mix(in srgb, var(--el, var(--profile-accent, #ff6a2a)) 72%, white);
+}
+
+.profile-social-panel {
+    height: auto;
+    max-height: none;
+    align-content: start;
+}
+
+.profile-social-panel.is-compact {
+    padding-bottom: 12px;
+}
+
+.profile-lobby-list {
+    display: grid;
+    gap: 8px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.profile-lobby-head,
+.profile-lobby-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+}
+
+.profile-lobby-head {
+    color: var(--text-dim);
+    font-size: 11px;
+    font-weight: 850;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.profile-lobby-main {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.profile-lobby-main strong {
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.profile-lobby-main span {
+    color: var(--text-dim);
+    font-size: 11px;
 }
 
 .profile-side-stack {
@@ -8653,6 +8839,9 @@ body.gacha-active {
     .mini-card-row,
     .achievement-row {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .mini-card-row-art {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
     .battle-list {
         max-height: none;

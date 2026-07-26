@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -83,8 +84,9 @@ class KeepServiceTest {
         assertEquals(3, ((List<?>) snapshot.get("residents")).size());
         assertEquals(1, ((List<?>) snapshot.get("lore")).size());
         assertTrue(conversationIds(snapshot).contains("steward_first_promise"));
-        assertTrue(conversationIds(snapshot).stream().anyMatch(id -> id.startsWith("visitor_")),
-                "A lore-tied road visitor should appear on the first sanctuary visit.");
+        assertTrue(conversationIds(snapshot).stream().anyMatch(id ->
+                        id.startsWith("visitor_") || id.startsWith("interaction_")),
+                "A lore-tied road visitor or Interaction NPC should appear on the first sanctuary visit.");
     }
 
     @Test
@@ -203,13 +205,60 @@ class KeepServiceTest {
                 "breakfast-1", store.state.getVersion());
         @SuppressWarnings("unchecked")
         Map<String, Object> dialogue = (Map<String, Object>) result.get("dialogueResult");
-        assertEquals("VISITOR", dialogue.get("kind"));
+        assertEquals("INTERACTION", dialogue.get("kind"));
         assertEquals(10, ((Number) dialogue.get("timberSpent")).intValue());
         assertTrue(String.valueOf(dialogue.get("outcomeId")).length() > 0);
+        assertNotNull(dialogue.get("relationshipDelta"));
         assertTrue(loreIds(result).contains("chronicle_shared_mornings")
                 || intAt(result, "resources", "timber") < 100
                 || materialAmount(result, "ember_ingot") > 0
                 || materialAmount(result, "verdant_fiber") > 0);
+    }
+
+    @Test
+    void interactionNpcRepeatAfterCooldownAndAffinityFollowsChoices() {
+        service.getSnapshot(user);
+        store.state.getActiveVisitorIds().clear();
+        store.state.getActiveVisitorIds().add("interaction_elara_yard_rounds");
+        store.state.setLastVisitorRollAt(clock.instant());
+
+        Map<String, Object> warm = service.chooseDialogue(user, "interaction_elara_yard_rounds", "ask_first",
+                "elara-warm-1", store.state.getVersion());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> warmDialogue = (Map<String, Object>) warm.get("dialogueResult");
+        assertEquals("INTERACTION", warmDialogue.get("kind"));
+        assertEquals(2, ((Number) warmDialogue.get("relationshipDelta")).intValue());
+        assertEquals(2, ((Number) warmDialogue.get("trust")).intValue());
+        assertEquals("Acquainted", warmDialogue.get("stage"));
+        assertFalse(conversationIds(warm).contains("interaction_elara_yard_rounds"));
+        assertEquals(2, store.state.getNpcTrust().get("steward_elara").intValue());
+
+        // Before cooldown elapses, Elara's interaction must not re-seat even if the roll window opens.
+        store.state.setLastVisitorRollAt(null);
+        Map<String, Object> stillCooling = service.getSnapshot(user);
+        assertFalse(conversationIds(stillCooling).contains("interaction_elara_yard_rounds"));
+
+        clock.advance(Duration.ofHours(6).plusMinutes(1));
+        store.state.setLastVisitorRollAt(null);
+        // Flood the candidate pool with ineligible noise by locking other encounters behind missing lore,
+        // then verify the returning Interaction NPC is preferred once cooldown clears.
+        store.state.getNpcTrust().put("steward_elara", 2);
+        Map<String, Object> returned = service.getSnapshot(user);
+        assertTrue(conversationIds(returned).contains("interaction_elara_yard_rounds")
+                        || store.state.getActiveVisitorIds().contains("interaction_elara_yard_rounds"),
+                "Interaction NPCs should return after their cooldown so affinity can keep moving.");
+
+        store.state.getActiveVisitorIds().clear();
+        store.state.getActiveVisitorIds().add("interaction_elara_yard_rounds");
+        store.state.setLastVisitorRollAt(clock.instant());
+        Map<String, Object> cold = service.chooseDialogue(user, "interaction_elara_yard_rounds", "press_duty",
+                "elara-cold-1", store.state.getVersion());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> coldDialogue = (Map<String, Object>) cold.get("dialogueResult");
+        assertEquals(-2, ((Number) coldDialogue.get("relationshipDelta")).intValue());
+        assertEquals(0, ((Number) coldDialogue.get("trust")).intValue());
+        assertEquals("Distant", coldDialogue.get("stage"));
+        assertEquals(0, store.state.getNpcTrust().get("steward_elara").intValue());
     }
 
     @Test
@@ -361,6 +410,56 @@ class KeepServiceTest {
         List<Map<String, Object>> recipes = (List<Map<String, Object>>) tool.get("recipes");
         assertTrue(recipes.stream().anyMatch(item -> "gardener_tools".equals(item.get("id"))
                 && Boolean.TRUE.equals(item.get("crafted"))));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void roomExpansionsCostMaterialsFromPartnerWorkshops() {
+        service.getSnapshot(user);
+        store.state.setWoodlotLevel(2);
+        for (String id : List.of("garden", "forge", "fridge", "generator", "quarry", "kitchen")) {
+            store.state.getFacilityLevels().put(id, 2);
+            store.state.getFacilityLastAccruedAt().put(id, clock.instant());
+        }
+        Map<String, String> primaryByRoom = Map.of("woodlot", "verdant_fiber", "garden", "verdant_fiber",
+                "forge", "ember_ingot", "fridge", "frost_crystal", "generator", "storm_cell",
+                "quarry", "stone", "kitchen", "provisions");
+
+        List<Map<String, Object>> recipes = (List<Map<String, Object>>) service.getSnapshot(user).get("recipes");
+        int checked = 0;
+        for (Map<String, Object> recipe : recipes) {
+            String room = String.valueOf(recipe.get("roomId"));
+            int tier = ((Number) recipe.get("tier")).intValue();
+            if (!primaryByRoom.containsKey(room) || tier < 2) continue;
+            List<Map<String, Object>> costs = (List<Map<String, Object>>) recipe.get("costs");
+            List<String> materials = costs.stream().map(cost -> String.valueOf(cost.get("id"))).toList();
+            assertTrue(materials.contains(primaryByRoom.get(room)),
+                    recipe.get("id") + " should still cost its own workshop material");
+            assertTrue(materials.size() >= 2,
+                    recipe.get("id") + " should also cost a material from another building, got " + materials);
+            if (tier >= 4) {
+                assertEquals(3, materials.size(),
+                        recipe.get("id") + " should draw on two partner workshops at tier " + tier);
+            }
+            assertEquals(materials.size(), Set.copyOf(materials).size(), recipe.get("id") + " lists a material twice");
+            checked++;
+        }
+        assertEquals(56, checked, "every room expansion tier 2-5 should be covered");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void everyExpansionCarriesItsOwnDescription() {
+        service.getSnapshot(user);
+        store.state.setWoodlotLevel(2);
+        for (String id : List.of("garden", "forge", "fridge", "generator", "quarry", "kitchen")) {
+            store.state.getFacilityLevels().put(id, 2);
+            store.state.getFacilityLastAccruedAt().put(id, clock.instant());
+        }
+        List<Map<String, Object>> recipes = (List<Map<String, Object>>) service.getSnapshot(user).get("recipes");
+        List<String> descriptions = recipes.stream().map(recipe -> String.valueOf(recipe.get("description"))).toList();
+        assertEquals(descriptions.size(), Set.copyOf(descriptions).size(),
+                "shared boilerplate descriptions make every workshop read the same");
     }
 
     @Test
@@ -569,6 +668,34 @@ class KeepServiceTest {
 
         Map<String, Object> advanced = service.startBuild(user, "garden_level_2", "adv-ok", store.state.getVersion());
         assertNotNull(advanced.get("activeConstruction"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void aProjectUnderConstructionLeavesTheOfferListSoAFreeTeamCanStartSomethingElse() {
+        service.getSnapshot(user);
+        store.state.setArchiveLevel(1);
+        store.state.setWoodlotLevel(2);
+        store.state.setStorehouseLevel(1);
+        store.state.setKeeperXp(700); // Keeper Level 5 coordinates two teams.
+        store.state.setTimber(2_000);
+
+        Map<String, Object> started = service.startBuild(user, "build_generator", "busy-1", store.state.getVersion());
+        List<Map<String, Object>> options = (List<Map<String, Object>>) started.get("buildOptions");
+        assertTrue(options.stream().noneMatch(item -> "build_generator".equals(item.get("id"))),
+                "A project a crew already holds must not be offered again — startBuild would reject it.");
+
+        Map<String, Object> kitchen = options.stream()
+                .filter(item -> "build_kitchen".equals(item.get("id"))).findFirst().orElseThrow();
+        assertEquals(Boolean.TRUE, kitchen.get("canStart"), "The free second team can still take another project.");
+        service.startBuild(user, "build_kitchen", "busy-2", store.state.getVersion());
+
+        clock.advance(Duration.ofSeconds(KeepService.GENERATOR_LEVEL_ONE_SECONDS + 1));
+        Map<String, Object> completed = service.getSnapshot(user);
+        assertEquals(1, ((Number) station(completed, "generator").get("level")).intValue());
+        List<Map<String, Object>> after = (List<Map<String, Object>>) completed.get("buildOptions");
+        assertTrue(after.stream().noneMatch(item -> "build_generator".equals(item.get("id"))),
+                "A finished facility leaves the level-1 offer list.");
     }
 
     @Test
