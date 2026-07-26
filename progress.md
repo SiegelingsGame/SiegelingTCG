@@ -1,3 +1,8 @@
+Original prompt: Merge and deploy
+
+- July 26, 2026 Keep Interaction NPC affinity production release: PR `#523` was squash-merged to `main` as `bcf15494`, and the push-to-main pipeline (run [`30185096106`](https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/30185096106)) completed with both the Cloud Run Deploy and Firebase Deploy jobs green.
+- Live verification: `/keep` returns 200 and serves `keep.css?v=22` and `keep.js?v=24` with `dialogueAffinity`, `INTERACTION` / `Returns · affinity`, Distant stage, and `.dialogue-affinity` styles; Hosting + Cloud Run `/api/cards/editor` report `source=FIRESTORE`, `liveEditingEnabled=true`, `firestoreAvailable=true`; `js/config.js` keeps `apiBaseUrl: ''`; `/api/game/options` returns 4 decks / 11 trainers / catalogVersion 345; signed-out `/api/keep` correctly returns 401.
+
 Original prompt: Interaction NPCs should repeat on occasion, so you can increase or decrease your affinity with them, which is based on how you respond to them in interactions
 
 - July 26, 2026 Keep Interaction NPCs recur for affinity: yard daily-life Voices are now `INTERACTION` (not one-and-done story beats), share the visitor roll/cooldown pool, and return after their cooldown — previously spoken NPCs are weight-boosted and can swap into a full slate so affinity can keep moving. Dialogue choices apply `relationshipDelta` to capped `npcTrust` (0–7) and expose delta/stage in `dialogueResult`; zero trust is labeled Distant on the Voices spectrum. Added recurring check-ins for Elara, Pell, Sera, Mira, Pio & Gleam, and Ullo. Voices UI tags Interaction cards, shows affinity up/down after answers, and cache-busts `keep.css?v=22` / `keep.js?v=24`.
