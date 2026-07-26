@@ -2050,16 +2050,22 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
     gap:5px 12px; padding:8px 12px max(8px,env(safe-area-inset-bottom,0px));
   }
   .camp-menu-open .location-overlay{max-height:78%;}
-  .location-overlay .location-choice-grid,
-  .location-overlay .event-choices,
-  .camp-menu-open .location-overlay .location-choice-grid{
+  /* The short-landscape query above keeps utility tiles on one line by
+     scrolling them sideways; its :not() selector outranks a plain two-class
+     rule, so match that specificity here. Shrinking the tiles to share one
+     flex line answers the same "a wrapped second row falls off the bottom"
+     concern without a scrollbar, which is what this layout needs. */
+  .location-overlay .location-choice-grid:not(.epiphany-grid),
+  .location-overlay .event-choices:not(.epiphany-grid),
+  .camp-menu-open .location-overlay .location-choice-grid:not(.epiphany-grid){
     display:flex; flex-flow:row nowrap; align-items:stretch; gap:6px;
     grid-auto-flow:row; grid-auto-columns:auto; grid-template-columns:none;
-    overflow:visible; padding:0;
+    max-height:none; overflow:visible; overflow-x:visible; overflow-y:visible;
+    scroll-snap-type:none; padding:0;
   }
   /* flex-basis:0 divides the row evenly however many options arrive. */
-  .location-overlay .location-choice-grid > *,
-  .location-overlay .event-choices > *{flex:1 1 0; min-width:0;}
+  .location-overlay .location-choice-grid:not(.epiphany-grid) > *,
+  .location-overlay .event-choices:not(.epiphany-grid) > *{flex:1 1 0; min-width:0;}
   .location-overlay .camp-card,
   .location-overlay .event-choice{
     min-height:0; height:100%; padding:6px 8px; border-radius:10px; scroll-snap-align:none;

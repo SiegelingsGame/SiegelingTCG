@@ -711,7 +711,7 @@ class GameJavaScriptRegressionTest {
 
     @Test
     void siegeLocationsFillTheWholeDeviceScreenWithoutOneLargeGlassPanel() throws IOException {
-        String adventureCss = Files.readString(ADVENTURE_CSS);
+        String adventureCss = Files.readString(ADVENTURE_CSS).replace("\r\n", "\n");
         String adventureHtml = Files.readString(ADVENTURE_HTML);
 
         assertTrue(
@@ -744,7 +744,7 @@ class GameJavaScriptRegressionTest {
                 "Art bleeds under the notch and home indicator while controls stay inset by the safe area."
         );
         assertTrue(
-                adventureHtml.contains("/css/adventure.css?v=41"),
+                adventureHtml.contains("/css/adventure.css?v=42"),
                 "adventure.css must be cache-busted after the full-bleed location rework."
         );
     }
