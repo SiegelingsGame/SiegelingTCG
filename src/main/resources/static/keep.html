@@ -9,7 +9,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#173f54">
-    <link rel="stylesheet" href="/css/keep.css?v=22">
+    <link rel="stylesheet" href="/css/keep.css?v=23">
 </head>
 <body>
 <svg class="keep-svg-defs" width="0" height="0" aria-hidden="true" focusable="false">
@@ -346,9 +346,8 @@
 
             <div class="construction-banner hidden" id="constructionBanner" role="status">
                 <span class="hammer-icon" aria-hidden="true">⚒</span>
-                <span><strong id="constructionName">Construction underway</strong><small id="constructionTimer">0:00</small></span>
+                <div class="construction-banner-jobs" id="constructionBannerJobs"></div>
                 <button class="construction-toggle" id="constructionToggle" type="button" aria-expanded="true" aria-label="Collapse construction status"><span aria-hidden="true">−</span></button>
-                <i><b id="constructionProgress"></b></i>
             </div>
         </section>
 
@@ -583,7 +582,7 @@
 
 <audio id="keepTheme" loop preload="auto" src="/audio/sieglings-theme.mp3?v=1"></audio>
 <script src="/js/config.js?v=1"></script>
-<script src="/js/keep.js?v=24"></script>
+<script src="/js/keep.js?v=25"></script>
 <script src="/js/sw-register.js?v=1"></script>
 </body>
 </html>

@@ -88,7 +88,7 @@ a { text-decoration: none; }
 .keep-brand span,
 .resource-pill,
 .station-pill,
-.construction-banner > span {
+.construction-job > span {
     display: flex;
     flex-direction: column;
     min-width: 0;
@@ -686,8 +686,10 @@ button.resource-pill:focus-visible {
     top: 14px;
     transform: translateX(-50%);
     min-width: min(340px, 70vw);
+    max-width: min(420px, calc(100vw - 16px));
     display: grid;
-    grid-template-columns: auto 1fr auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: start;
     gap: 9px;
     padding: 8px 13px 11px;
     border: 1px solid rgba(244, 204, 98, .4);
@@ -696,12 +698,39 @@ button.resource-pill:focus-visible {
     box-shadow: 0 8px 24px rgba(4, 13, 19, .25);
 }
 .hammer-icon { align-self: center; color: var(--gold); font-size: 20px; }
+.construction-banner-jobs {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+}
+.construction-job {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+}
+.construction-job + .construction-job {
+    padding-top: 7px;
+    border-top: 1px solid rgba(255, 247, 220, .1);
+}
 .construction-banner strong { font-size: 12px; }
 .construction-banner small { color: rgba(255, 247, 220, .65); font-size: 10px; }
-.construction-banner > i { grid-column: 1 / -1; height: 4px; border-radius: 99px; overflow: hidden; background: rgba(255, 255, 255, .11); }
-.construction-banner > i b { display: block; width: 0; height: 100%; background: linear-gradient(90deg, #ca884c, var(--gold)); transition: width .4s linear; }
+.construction-job > i {
+    display: block;
+    height: 4px;
+    border-radius: 99px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, .11);
+}
+.construction-job > i b {
+    display: block;
+    width: 0;
+    height: 100%;
+    background: linear-gradient(90deg, #ca884c, var(--gold));
+    transition: width .4s linear;
+}
 .construction-toggle {
-    align-self: center;
+    align-self: start;
+    margin-top: 1px;
     width: 27px;
     height: 27px;
     display: grid;
@@ -718,8 +747,10 @@ button.resource-pill:focus-visible {
 .construction-toggle:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .construction-banner.is-collapsed { min-width: min(250px, calc(100vw - 16px)); padding-block: 6px; }
 .construction-banner.is-collapsed .hammer-icon { font-size: 17px; }
-.construction-banner.is-collapsed small,
-.construction-banner.is-collapsed > i { display: none; }
+.construction-banner.is-collapsed .construction-job small,
+.construction-banner.is-collapsed .construction-job > i { display: none; }
+.construction-banner.is-collapsed .construction-banner-jobs { gap: 0; }
+.construction-banner.is-collapsed .construction-job + .construction-job { display: none; }
 
 .keep-dock {
     flex: 0 0 auto;
@@ -2335,7 +2366,7 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
         transform: none;
         border-radius: 12px;
     }
-    .construction-banner.is-collapsed > span:not(.hammer-icon) { display: none; }
+    .construction-banner.is-collapsed .construction-banner-jobs { display: none; }
     .construction-banner.is-collapsed .hammer-icon { font-size: 19px; }
     .construction-banner.is-collapsed .construction-toggle { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; }
     .hall-hotspot { top: 24%; width: 180px; height: 210px; }

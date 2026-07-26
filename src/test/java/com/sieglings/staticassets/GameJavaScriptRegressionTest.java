@@ -627,9 +627,13 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=22")
-                        && keepHtml.contains("/js/keep.js?v=24"),
-                "Keep architecture must retain its paper building hooks and refresh both asset cache pins."
+                        && keepHtml.contains("/css/keep.css?v=23")
+                        && keepHtml.contains("/js/keep.js?v=25")
+                        && keepHtml.contains("id=\"constructionBannerJobs\"")
+                        && keepJs.contains("constructionBannerSignature")
+                        && keepJs.contains("data-live-banner-time=")
+                        && !keepJs.contains("+${constructions.length - 1} more"),
+                "Keep architecture must retain its paper building hooks, refresh both asset cache pins, and show each concurrent construction job in the banner."
         );
         assertTrue(
                 keepCss.contains(".building-illustration svg.paper-building-shell")
