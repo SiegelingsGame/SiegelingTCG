@@ -851,22 +851,52 @@
         window.setTimeout(() => chip.remove(), 1500);
     }
 
+    function constructionBannerSignature(constructions) {
+        return constructions.map((item) => String(item?.id || '')).join('|');
+    }
+
+    function constructionEntryProgress(entry) {
+        if (!entry) return 0;
+        const started = Date.parse(entry.startedAt || '') || nowMs();
+        const completes = Date.parse(entry.completesAt || '') || nowMs();
+        if (completes <= started) return 1;
+        return clamp((nowMs() - started) / (completes - started), 0, 1);
+    }
+
     function renderConstruction() {
         const constructions = activeConstructionList();
         const banner = document.getElementById('constructionBanner');
+        const jobs = document.getElementById('constructionBannerJobs');
         banner?.classList.toggle('hidden', !constructions.length);
-        if (!constructions.length) return;
-        // The compact banner tracks whichever active team finishes soonest.
-        const soonest = constructions.reduce((best, item) =>
-            constructionEntryRemaining(item) < constructionEntryRemaining(best) ? item : best, constructions[0]);
-        text('constructionName', projectName(soonest.id)
-            + (constructions.length > 1 ? ` · +${constructions.length - 1} more` : ''));
-        text('constructionTimer', formatDuration(constructionEntryRemaining(soonest)));
-        const started = Date.parse(soonest.startedAt || '') || nowMs();
-        const completes = Date.parse(soonest.completesAt || '') || nowMs();
-        const progress = completes <= started ? 1 : clamp((nowMs() - started) / (completes - started), 0, 1);
-        const bar = document.getElementById('constructionProgress');
-        if (bar) bar.style.width = `${Math.round(progress * 100)}%`;
+        if (!jobs) {
+            renderConstructionCollapseState();
+            return;
+        }
+        if (!constructions.length) {
+            jobs.innerHTML = '';
+            delete jobs.dataset.signature;
+            renderConstructionCollapseState();
+            return;
+        }
+        // Rebuild only when the crew set changes so the progress bars keep a
+        // continuous width transition while timers tick every second.
+        const signature = constructionBannerSignature(constructions);
+        if (jobs.dataset.signature !== signature) {
+            jobs.dataset.signature = signature;
+            jobs.innerHTML = constructions.map((item, index) => {
+                const progress = Math.round(constructionEntryProgress(item) * 100);
+                return `<div class="construction-job" data-construction-index="${index}">
+                    <span><strong>${escapeHtml(projectName(item.id))}</strong><small data-live-banner-time="${index}">${escapeHtml(formatDuration(constructionEntryRemaining(item)))}</small></span>
+                    <i aria-hidden="true"><b data-live-banner-meter="${index}" style="width:${progress}%"></b></i>
+                </div>`;
+            }).join('');
+        }
+        constructions.forEach((item, index) => {
+            const time = jobs.querySelector(`[data-live-banner-time="${index}"]`);
+            const meter = jobs.querySelector(`[data-live-banner-meter="${index}"]`);
+            if (time) time.textContent = formatDuration(constructionEntryRemaining(item));
+            if (meter) meter.style.width = `${Math.round(constructionEntryProgress(item) * 100)}%`;
+        });
         renderConstructionCollapseState();
     }
 
@@ -2487,6 +2517,16 @@
                 }))
             },
             construction: snapshot.activeConstruction ? { id: snapshot.activeConstruction.id, remainingSeconds: constructionRemaining(), progressPercent: constructionPercent(), collapsed: state.constructionCollapsed } : null,
+            constructionBanner: {
+                visible: activeConstructionList().length > 0,
+                collapsed: state.constructionCollapsed,
+                jobs: activeConstructionList().map((item, index) => ({
+                    id: item.id,
+                    name: projectName(item.id),
+                    remainingSeconds: constructionEntryRemaining(item),
+                    progressPercent: constructionPercent(index)
+                }))
+            },
             activePanel: state.panel || null,
             interior: state.interior || null,
             tutorialVisible: !document.getElementById('keepTutorial')?.classList.contains('hidden'),
