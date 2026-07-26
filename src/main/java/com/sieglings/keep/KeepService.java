@@ -82,6 +82,10 @@ public class KeepService {
     private static final Duration TRIBUTE_COOLDOWN = Duration.ofDays(7);
     private static final Duration VISITOR_ROLL_COOLDOWN = Duration.ofHours(2);
     private static final int MAX_ACTIVE_VISITORS = 3;
+    /** Bonded threshold / Voices spectrum ceiling — also the soft cap for npcTrust. */
+    public static final int NPC_TRUST_MAX = 7;
+    /** Previously spoken Interaction/Visitor NPCs are more likely to return for affinity play. */
+    private static final int RETURNING_NPC_WEIGHT_MULT = 3;
     private static final int REQUEST_HISTORY_LIMIT = 120;
     private static final Object[] LOCKS = createLocks();
     private static final Map<String, FacilityDefinition> FACILITIES = createFacilities();
@@ -322,15 +326,12 @@ public class KeepService {
             Map<String, Integer> appliedMaterials = applyMaterialDeltas(state, materialDeltas);
             if (flag != null && !flag.isBlank()) addUnique(state.getChoiceFlags(), flag);
             if (unlockLoreId != null) unlock(state, unlockLoreId);
-            int trustGain = Math.max(0, relationshipDelta);
-            if (relationshipDelta < 0) {
-                int current = state.getNpcTrust().getOrDefault(conversation.npcId(), 0);
-                state.getNpcTrust().put(conversation.npcId(), Math.max(0, current + relationshipDelta));
-            } else {
-                state.getNpcTrust().merge(conversation.npcId(), trustGain, Integer::sum);
-            }
+            int trustBefore = Math.max(0, state.getNpcTrust().getOrDefault(conversation.npcId(), 0));
+            int trustAfter = Math.max(0, Math.min(NPC_TRUST_MAX, trustBefore + relationshipDelta));
+            state.getNpcTrust().put(conversation.npcId(), trustAfter);
 
-            if (loreCatalog.isVisitor(conversation)) {
+            if (loreCatalog.isRollingEncounter(conversation)) {
+                // Visitors and Interaction NPCs leave the active slate and return after cooldown.
                 state.getActiveVisitorIds().remove(conversation.id());
                 state.getVisitorAvailableAt().put(conversation.id(),
                         context.now().plus(Duration.ofHours(conversation.cooldownHours())));
@@ -345,6 +346,10 @@ public class KeepService {
             result.put("kind", conversation.kind());
             result.put("response", response);
             result.put("outcomeId", outcomeId);
+            result.put("relationshipDelta", relationshipDelta);
+            result.put("trust", trustAfter);
+            result.put("trustMax", NPC_TRUST_MAX);
+            result.put("stage", relationshipStage(trustAfter));
             result.put("timberSpent", choice.timberCost());
             result.put("timberDelta", appliedTimber);
             result.put("materialCosts", serializeMaterialCosts(choice.materialCosts()));
@@ -2142,7 +2147,7 @@ public class KeepService {
         if (!state.getUnlockedLoreIds().containsAll(conversation.requiresLoreIds())) return false;
         if (!state.getChoiceFlags().containsAll(conversation.requiresFlags())) return false;
         if (state.getStorehouseLevel() < conversation.minStorehouseLevel()) return false;
-        if (loreCatalog.isVisitor(conversation)) {
+        if (loreCatalog.isRollingEncounter(conversation)) {
             return state.getActiveVisitorIds().contains(conversation.id());
         }
         return !state.getCompletedConversationIds().contains(conversation.id());
@@ -2152,12 +2157,12 @@ public class KeepService {
         List<String> active = state.getActiveVisitorIds();
         active.removeIf(id -> {
             Conversation conversation = loreCatalog.conversation(id);
-            return conversation == null || !loreCatalog.isVisitor(conversation);
+            return conversation == null || !loreCatalog.isRollingEncounter(conversation);
         });
         boolean changed = false;
         boolean rollReady = state.getLastVisitorRollAt() == null
                 || !now.isBefore(state.getLastVisitorRollAt().plus(VISITOR_ROLL_COOLDOWN));
-        if (!rollReady || active.size() >= MAX_ACTIVE_VISITORS) {
+        if (!rollReady) {
             state.setActiveVisitorIds(active);
             return false;
         }
@@ -2171,8 +2176,30 @@ public class KeepService {
             state.setActiveVisitorIds(active);
             return false;
         }
+        // Prefer seating one returning voice so affinity can climb or fall over time.
+        // If the slate is full of first meetings, swap one out when a returnee is ready.
+        List<Conversation> returnees = candidates.stream()
+                .filter(candidate -> state.getNpcTrust().containsKey(candidate.npcId()))
+                .collect(Collectors.toCollection(ArrayList::new));
+        boolean returneeSeated = active.stream().anyMatch(id -> isReturningNpc(state, loreCatalog.conversation(id)));
+        if (!returnees.isEmpty() && !returneeSeated) {
+            if (active.size() >= MAX_ACTIVE_VISITORS) {
+                for (int i = active.size() - 1; i >= 0; i--) {
+                    if (!isReturningNpc(state, loreCatalog.conversation(active.get(i)))) {
+                        active.remove(i);
+                        break;
+                    }
+                }
+            }
+            if (active.size() < MAX_ACTIVE_VISITORS) {
+                Conversation picked = weightedPick(returnees, state);
+                active.add(picked.id());
+                candidates.remove(picked);
+                changed = true;
+            }
+        }
         while (active.size() < MAX_ACTIVE_VISITORS && !candidates.isEmpty()) {
-            Conversation picked = weightedPick(candidates);
+            Conversation picked = weightedPick(candidates, state);
             active.add(picked.id());
             candidates.remove(picked);
             changed = true;
@@ -2180,6 +2207,10 @@ public class KeepService {
         if (changed) state.setLastVisitorRollAt(now);
         state.setActiveVisitorIds(active);
         return changed;
+    }
+
+    private boolean isReturningNpc(KeepState state, Conversation conversation) {
+        return conversation != null && state.getNpcTrust().containsKey(conversation.npcId());
     }
 
     private boolean meetsVisitorRequirements(KeepState state, Conversation visitor, Instant now) {
@@ -2190,15 +2221,29 @@ public class KeepService {
         return availableAt == null || !now.isBefore(availableAt);
     }
 
-    private Conversation weightedPick(List<Conversation> candidates) {
-        int total = candidates.stream().mapToInt(Conversation::weight).sum();
+    private Conversation weightedPick(List<Conversation> candidates, KeepState state) {
+        int total = 0;
+        int[] weights = new int[candidates.size()];
+        for (int i = 0; i < candidates.size(); i++) {
+            Conversation candidate = candidates.get(i);
+            int weight = Math.max(1, candidate.weight());
+            if (state != null && state.getNpcTrust().containsKey(candidate.npcId())) {
+                weight *= RETURNING_NPC_WEIGHT_MULT;
+            }
+            weights[i] = weight;
+            total += weight;
+        }
         int roll = total <= 1 ? 0 : random.nextInt(total);
         int cursor = 0;
-        for (Conversation candidate : candidates) {
-            cursor += candidate.weight();
-            if (roll < cursor) return candidate;
+        for (int i = 0; i < candidates.size(); i++) {
+            cursor += weights[i];
+            if (roll < cursor) return candidates.get(i);
         }
         return candidates.get(candidates.size() - 1);
+    }
+
+    private Conversation weightedPick(List<Conversation> candidates) {
+        return weightedPick(candidates, null);
     }
 
     private Outcome rollOutcome(List<Outcome> outcomes) {
@@ -2280,18 +2325,25 @@ public class KeepService {
         }
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map.Entry<String, Integer> entry : state.getNpcTrust().entrySet()) {
-            int trust = Math.max(0, entry.getValue());
-            String stage = trust >= 7 ? "Bonded" : trust >= 3 ? "Trusted" : trust >= 1 ? "Acquainted" : "Wary";
+            int trust = Math.max(0, Math.min(NPC_TRUST_MAX, entry.getValue()));
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("npcId", entry.getKey());
             row.put("npcName", names.getOrDefault(entry.getKey(), entry.getKey()));
-            row.put("stage", stage);
+            row.put("stage", relationshipStage(trust));
             // trustMax matches the Bonded threshold so the Voices spectrum can render like↔dislike.
             row.put("trust", trust);
-            row.put("trustMax", 7);
+            row.put("trustMax", NPC_TRUST_MAX);
             out.add(row);
         }
         return out;
+    }
+
+    static String relationshipStage(int trust) {
+        int value = Math.max(0, trust);
+        if (value >= NPC_TRUST_MAX) return "Bonded";
+        if (value >= 3) return "Trusted";
+        if (value >= 1) return "Acquainted";
+        return "Distant";
     }
 
     /** Lifetime keep stats power keep achievements and titles; recording is best-effort and must never fail a keep action. */

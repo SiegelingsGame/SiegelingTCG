@@ -520,7 +520,9 @@
         state.activeConversationId = conversation.id;
         const portrait = document.getElementById('dialoguePortrait');
         portrait?.classList.toggle('is-archivist', conversation.npcId === 'archivist_pell');
-        portrait?.classList.toggle('is-visitor', String(conversation.kind || '').toUpperCase() === 'VISITOR');
+        const kind = String(conversation.kind || '').toUpperCase();
+        portrait?.classList.toggle('is-visitor', kind === 'VISITOR' || kind === 'INTERACTION');
+        portrait?.classList.toggle('is-interaction', kind === 'INTERACTION');
         text('dialogueRole', conversation.npcRole);
         text('dialogueName', conversation.npcName);
         text('dialogueKicker', conversation.kicker);
@@ -529,6 +531,11 @@
         if (summary) {
             summary.textContent = '';
             summary.classList.add('hidden');
+        }
+        const affinity = document.getElementById('dialogueAffinity');
+        if (affinity) {
+            affinity.textContent = '';
+            affinity.classList.add('hidden');
         }
         const choices = document.getElementById('dialogueChoices');
         if (choices) {
@@ -565,8 +572,26 @@
             summary.textContent = result.summary || '';
             summary.classList.toggle('hidden', !result.summary);
         }
+        const affinity = document.getElementById('dialogueAffinity');
+        if (affinity) {
+            const delta = number(result.relationshipDelta);
+            const stage = result.stage || relationshipStage(result.trust);
+            const trust = number(result.trust);
+            const trustMax = Math.max(1, number(result.trustMax) || 7);
+            let line = '';
+            if (delta > 0) line = `Affinity +${delta} · ${stage} (${trust}/${trustMax})`;
+            else if (delta < 0) line = `Affinity ${delta} · ${stage} (${trust}/${trustMax})`;
+            else if (result.trust != null) line = `Affinity unchanged · ${stage} (${trust}/${trustMax})`;
+            affinity.textContent = line;
+            affinity.classList.toggle('hidden', !line);
+            affinity.classList.toggle('is-up', delta > 0);
+            affinity.classList.toggle('is-down', delta < 0);
+        }
         if (result.summary && result.summary !== 'No stores changed.') {
             showNotice(result.summary, result.npcName || 'Visitor');
+        } else if (number(result.relationshipDelta) !== 0) {
+            const delta = number(result.relationshipDelta);
+            showNotice(delta > 0 ? `Affinity +${delta}` : `Affinity ${delta}`, result.npcName || 'Voice');
         }
         const choices = document.getElementById('dialogueChoices');
         if (choices) choices.innerHTML = '<button type="button" data-dialogue-done>Return to the keep</button>';
@@ -1428,19 +1453,27 @@
         const conversations = state.snapshot.availableConversations || [];
         const relationships = state.snapshot.relationships || [];
         const cards = conversations.map((conversation) => {
-            const visitor = String(conversation.kind || '').toUpperCase() === 'VISITOR';
-            return `<section class="conversation-card ${visitor ? 'is-visitor' : ''}" data-conversation-id="${escapeAttr(conversation.id)}"><span class="npc-mini">${escapeHtml(initials(conversation.npcName))}</span><span><small>${escapeHtml(visitor ? 'Road visitor' : conversation.npcRole)}</small><h3>${escapeHtml(conversation.npcName)}</h3><p>${escapeHtml(conversation.kicker || 'Waiting to speak')}</p>${visitor ? '<em class="visitor-tag">Trade · gift · risk</em>' : ''}</span></section>`;
+            const kind = String(conversation.kind || '').toUpperCase();
+            const visitor = kind === 'VISITOR';
+            const interaction = kind === 'INTERACTION';
+            const tag = visitor
+                ? '<em class="visitor-tag">Trade · gift · risk</em>'
+                : interaction
+                    ? '<em class="visitor-tag interaction-tag">Returns · affinity</em>'
+                    : '';
+            const role = visitor ? 'Road visitor' : interaction ? 'Interaction' : conversation.npcRole;
+            return `<section class="conversation-card ${visitor ? 'is-visitor' : ''} ${interaction ? 'is-interaction' : ''}" data-conversation-id="${escapeAttr(conversation.id)}"><span class="npc-mini">${escapeHtml(initials(conversation.npcName))}</span><span><small>${escapeHtml(role)}</small><h3>${escapeHtml(conversation.npcName)}</h3><p>${escapeHtml(conversation.kicker || 'Waiting to speak')}</p>${tag}</span></section>`;
         });
         const available = cards.length
             ? listSection('Waiting to speak', cards.length, cards)
-            : '<div class="empty-state">No one is waiting to speak. Lore discoveries and the road draw new visitors with trades, gifts, and risks.</div>';
+            : '<div class="empty-state">No one is waiting to speak. Interaction NPCs return after a cooldown; the road still brings new visitors.</div>';
         const bonds = relationships.length
             ? listSection('Spoken with', relationships.length, [
-                '<p class="panel-intro relationship-hint">Select a voice to view where they stand — from wary distance to bonded trust.</p>',
+                '<p class="panel-intro relationship-hint">Select a voice to view affinity — Distant, Acquainted, Trusted, or Bonded. How you answer when they return moves the bar.</p>',
                 ...relationships.map((item) => relationshipCardMarkup(item))
             ])
             : '';
-        return `<p class="panel-intro">Story voices shape the Chronicle. Road and yard visitors bring RNG slices of Siegeling daily life—breakfast, nests, play, chores—where timber and materials can be gained, traded, or lost.</p>${available}${bonds}`;
+        return `<p class="panel-intro">Story voices shape the Chronicle. Interaction NPCs (yard life, steward check-ins) return on occasion so your answers can raise or lower affinity. Road visitors still bring trades, gifts, and risks.</p>${available}${bonds}`;
     }
 
     function relationshipCardMarkup(item) {
@@ -1458,9 +1491,9 @@
             <span class="relationship-spectrum" role="meter" aria-valuemin="0" aria-valuemax="${trustMax}" aria-valuenow="${trust}" aria-label="${escapeAttr(`${item.npcName} relationship: ${stage}`)}">
                 <span class="spectrum-ends" aria-hidden="true"><i>Distant</i><i>Bonded</i></span>
                 <span class="spectrum-track"><i style="width:${fill}%"></i><em style="left:${fill}%"></em></span>
-                <span class="spectrum-labels" aria-hidden="true"><i>Wary</i><i>Acquainted</i><i>Trusted</i><i>Bonded</i></span>
+                <span class="spectrum-labels" aria-hidden="true"><i>Distant</i><i>Acquainted</i><i>Trusted</i><i>Bonded</i></span>
             </span>
-            ${selected ? `<span class="relationship-detail"><small>Trust ${trust}/${trustMax}</small><p>${escapeHtml(feeling)}</p></span>` : ''}
+            ${selected ? `<span class="relationship-detail"><small>Affinity ${trust}/${trustMax}</small><p>${escapeHtml(feeling)}</p></span>` : ''}
         </button>`;
     }
 
@@ -2063,11 +2096,24 @@
                 const material = (snapshot.resources.materials || []).find((item) => item.id === cost.id);
                 if (material) material.amount = Math.max(0, number(material.amount) - number(cost.amount));
             }
+            const delta = number(choice?.relationshipDelta);
+            const prior = (snapshot.relationships || []).find((item) => item.npcId === conversation?.npcId);
+            const trust = Math.max(0, Math.min(7, number(prior?.trust) + delta));
+            const stage = relationshipStage(trust);
+            const relationships = (snapshot.relationships || []).filter((item) => item.npcId !== conversation?.npcId);
+            if (conversation?.npcId) {
+                relationships.unshift({ npcId: conversation.npcId, npcName: conversation.npcName, trust, trustMax: 7, stage });
+            }
+            snapshot.relationships = relationships;
             snapshot.dialogueResult = {
                 npcId: conversation?.npcId,
                 npcName: conversation?.npcName,
                 kind: conversation?.kind || 'STORY',
                 response: choice?.response || 'The sanctuary remembers your answer.',
+                relationshipDelta: delta,
+                trust,
+                trustMax: 7,
+                stage,
                 summary: choiceCostHint(choice || {}) ? `Spent ${choiceCostHint(choice)}.` : 'No stores changed.'
             };
         } else if (path.endsWith('/reward')) {
@@ -2222,7 +2268,7 @@
         if (value >= 7) return 'Bonded';
         if (value >= 3) return 'Trusted';
         if (value >= 1) return 'Acquainted';
-        return 'Wary';
+        return 'Distant';
     }
 
     function materialById(id) {

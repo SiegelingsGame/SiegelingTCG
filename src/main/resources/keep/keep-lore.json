@@ -130,7 +130,7 @@
       "perspective": "Material evidence",
       "era": "The Great War",
       "summary": "A wax seal marked by both human and Siegeling consent for a fair trade.",
-      "body": "One side bears Sera Vale's mark. The other holds a faint elemental impress—warmth, frost, or leaf, depending who last touched it. Peddlers on the sanctuary road treat the seal as proof that a Keep still counts gifts and losses without turning either into conquest.",
+      "body": "One side bears Sera Vale's mark. The other holds a faint elemental impress\u2014warmth, frost, or leaf, depending who last touched it. Peddlers on the sanctuary road treat the seal as proof that a Keep still counts gifts and losses without turning either into conquest.",
       "artKey": "crate-seal"
     },
     {
@@ -151,7 +151,7 @@
       "perspective": "Personal testimony",
       "era": "The Great War",
       "summary": "A letter describes Siegelings choosing the yard for song, naps, and stubborn games once the tools are put away.",
-      "body": "They do not punch a clock. When the Woodlot closes its gates, Earth types roll in the mulch, Ice ones steal the shade by the Fridge, and a Wind Siegeling tries to race the laundry line. If stewardship is real, it must survive ordinary evenings—crumbs, lost toys, and all."
+      "body": "They do not punch a clock. When the Woodlot closes its gates, Earth types roll in the mulch, Ice ones steal the shade by the Fridge, and a Wind Siegeling tries to race the laundry line. If stewardship is real, it must survive ordinary evenings\u2014crumbs, lost toys, and all."
     }
   ],
   "conversations": [
@@ -162,7 +162,9 @@
       "npcRole": "Valorous steward",
       "kicker": "At the broken gate",
       "prompt": "These stones remember the old keep. If we rebuild exactly what stood here, we will inherit its mistakes. What should the workers hear from you first?",
-      "requiresLoreIds": ["charter_three_promises"],
+      "requiresLoreIds": [
+        "charter_three_promises"
+      ],
       "choices": [
         {
           "id": "partners",
@@ -187,7 +189,10 @@
       "npcRole": "Historian of disputed covenants",
       "kicker": "Inside the restored Archive",
       "prompt": "The old histories call these Siegelings attackers. The records name the felled grove, poisoned stream, and quarry only in their margins. Which account belongs at the center of our Chronicle?",
-      "requiresLoreIds": ["chronicle_living_elements", "letter_pre_covenant_watch"],
+      "requiresLoreIds": [
+        "chronicle_living_elements",
+        "letter_pre_covenant_watch"
+      ],
       "choices": [
         {
           "id": "both",
@@ -199,7 +204,7 @@
         {
           "id": "wounds",
           "label": "Begin with the wounds. The attacks make no sense without them.",
-          "response": "A clear thesis. Some Houses will object—which may be evidence that it is needed.",
+          "response": "A clear thesis. Some Houses will object\u2014which may be evidence that it is needed.",
           "relationshipDelta": 1,
           "flag": "archive_centers_wounds"
         }
@@ -212,7 +217,10 @@
       "npcRole": "Keeper of stores and sanctuary tribute",
       "kicker": "Beside the humming Generator",
       "prompt": "The Houses want our surplus measured in weapons. The residents measure it in repaired ground and people fed. What should the Keep's weekly tribute prove?",
-      "requiresLoreIds": ["schematic_elemental_generator", "ledger_quartermaster_sera"],
+      "requiresLoreIds": [
+        "schematic_elemental_generator",
+        "ledger_quartermaster_sera"
+      ],
       "choices": [
         {
           "id": "shared_prosperity",
@@ -237,7 +245,9 @@
       "npcRole": "Valorous steward",
       "kicker": "After Orin's field note arrives",
       "prompt": "The Woodlot answers when we stop treating it like a quarry. Should we teach the Houses that yield, or keep the method quiet until our walls are stronger?",
-      "requiresLoreIds": ["letter_green_covenant"],
+      "requiresLoreIds": [
+        "letter_green_covenant"
+      ],
       "choices": [
         {
           "id": "teach",
@@ -262,7 +272,10 @@
       "npcRole": "Historian of disputed covenants",
       "kicker": "Before the Petrified Root",
       "prompt": "The root warms for Fire and Earth alike. Is it evidence of grief, of warning, or of a covenant older than our Charter?",
-      "requiresLoreIds": ["memorabilia_petrified_root", "letter_forester_maren"],
+      "requiresLoreIds": [
+        "memorabilia_petrified_root",
+        "letter_forester_maren"
+      ],
       "choices": [
         {
           "id": "grief",
@@ -274,7 +287,7 @@
         {
           "id": "older_covenant",
           "label": "An older covenant. We are late to a conversation already underway.",
-          "response": "Then the Archive will say we arrived mid-sentence. Humbling—and accurate.",
+          "response": "Then the Archive will say we arrived mid-sentence. Humbling\u2014and accurate.",
           "relationshipDelta": 1,
           "flag": "root_as_older_covenant"
         }
@@ -290,12 +303,14 @@
       "npcRole": "Refugee caravan lead",
       "kicker": "Dust at the gate",
       "prompt": "Akhar's collectors asked for our Siegeling partners as road tax. We refused. We have little left but need timber for litters and a dry place until dawn. Will the Charter hold for strangers?",
-      "requiresLoreIds": ["charter_three_promises"],
+      "requiresLoreIds": [
+        "charter_three_promises"
+      ],
       "choices": [
         {
           "id": "shelter_gift",
           "label": "Shelter them and gift 18 timber for litters.",
-          "response": "They rest under the Hall banners. At dawn Lin presses a sealed scrap of names into your hand—proof the Charter was kept.",
+          "response": "They rest under the Hall banners. At dawn Lin presses a sealed scrap of names into your hand\u2014proof the Charter was kept.",
           "relationshipDelta": 2,
           "timberCost": 18,
           "timberDelta": 0,
@@ -304,10 +319,12 @@
             {
               "id": "grateful_fiber",
               "weight": 55,
-              "response": "They rest under the Hall banners. At dawn Lin leaves Verdant Fiber gathered along the road—and a scrap of names proving the Charter held.",
+              "response": "They rest under the Hall banners. At dawn Lin leaves Verdant Fiber gathered along the road\u2014and a scrap of names proving the Charter held.",
               "relationshipDelta": 2,
               "timberDelta": 0,
-              "materialDeltas": { "verdant_fiber": 4 },
+              "materialDeltas": {
+                "verdant_fiber": 4
+              },
               "unlockLoreId": "letter_road_toll_refugee",
               "flag": "sheltered_eastern_road"
             },
@@ -323,9 +340,11 @@
             {
               "id": "hidden_cache",
               "weight": 15,
-              "response": "One family reveals a cache they meant for bribes and instead offers Frost Crystals for the icehouse—plus the scrap of names.",
+              "response": "One family reveals a cache they meant for bribes and instead offers Frost Crystals for the icehouse\u2014plus the scrap of names.",
               "relationshipDelta": 2,
-              "materialDeltas": { "frost_crystal": 3 },
+              "materialDeltas": {
+                "frost_crystal": 3
+              },
               "unlockLoreId": "letter_road_toll_refugee",
               "flag": "sheltered_eastern_road"
             }
@@ -341,15 +360,19 @@
             {
               "id": "fair_trade",
               "weight": 50,
-              "response": "They leave Ember Ingots scavenged from a burned wagon—warm still, but freely given.",
+              "response": "They leave Ember Ingots scavenged from a burned wagon\u2014warm still, but freely given.",
               "relationshipDelta": 1,
-              "materialDeltas": { "ember_ingot": 3 }
+              "materialDeltas": {
+                "ember_ingot": 3
+              }
             },
             {
               "id": "meager",
               "weight": 35,
               "response": "All they can spare is a coil of Verdant Fiber and a tired blessing.",
-              "materialDeltas": { "verdant_fiber": 2 }
+              "materialDeltas": {
+                "verdant_fiber": 2
+              }
             },
             {
               "id": "shorted",
@@ -378,8 +401,10 @@
       "npcName": "Kell Maren",
       "npcRole": "Grove-restorer, kin to Forester Maren",
       "kicker": "Among the stumps that remember fire",
-      "prompt": "My aunt wrote of sparks that would not leave the oldest root. I carry saplings that ask for timber nurse-stakes—and I can teach your Woodlot which branches consent to cutting.",
-      "requiresLoreIds": ["letter_forester_maren"],
+      "prompt": "My aunt wrote of sparks that would not leave the oldest root. I carry saplings that ask for timber nurse-stakes\u2014and I can teach your Woodlot which branches consent to cutting.",
+      "requiresLoreIds": [
+        "letter_forester_maren"
+      ],
       "choices": [
         {
           "id": "fund_saplings",
@@ -391,9 +416,11 @@
             {
               "id": "grove_gift",
               "weight": 50,
-              "response": "By dusk the saplings take. Kell returns with Verdant Fiber the grove offered freely—and a promise that your axes will be answered, not feared.",
+              "response": "By dusk the saplings take. Kell returns with Verdant Fiber the grove offered freely\u2014and a promise that your axes will be answered, not feared.",
               "relationshipDelta": 2,
-              "materialDeltas": { "verdant_fiber": 6 },
+              "materialDeltas": {
+                "verdant_fiber": 6
+              },
               "flag": "grove_consent_taught"
             },
             {
@@ -401,7 +428,9 @@
               "weight": 35,
               "response": "The soil is still wounded. Only a little fiber comes free, but Kell marks three branches that will regrow if left.",
               "relationshipDelta": 1,
-              "materialDeltas": { "verdant_fiber": 2 },
+              "materialDeltas": {
+                "verdant_fiber": 2
+              },
               "flag": "grove_consent_taught"
             },
             {
@@ -423,8 +452,10 @@
             {
               "id": "cuttings_ok",
               "weight": 70,
-              "response": "Kell ties cuttings in damp cloth. Verdant Fiber comes with them—thin, honest payment.",
-              "materialDeltas": { "verdant_fiber": 3 }
+              "response": "Kell ties cuttings in damp cloth. Verdant Fiber comes with them\u2014thin, honest payment.",
+              "materialDeltas": {
+                "verdant_fiber": 3
+              }
             },
             {
               "id": "cuttings_fail",
@@ -451,8 +482,10 @@
       "npcName": "Broc the Roadwise",
       "npcRole": "Covenant-road peddler",
       "kicker": "Wagon bells at midday",
-      "prompt": "I buy what Keeps can spare and sell what wounded ground still needs. Timber, fiber, ember, frost, storm—name a trade, and chance will finish the sentence. Fair warning: the road keeps its own jokes.",
-      "requiresLoreIds": ["letter_forester_maren"],
+      "prompt": "I buy what Keeps can spare and sell what wounded ground still needs. Timber, fiber, ember, frost, storm\u2014name a trade, and chance will finish the sentence. Fair warning: the road keeps its own jokes.",
+      "requiresLoreIds": [
+        "letter_forester_maren"
+      ],
       "choices": [
         {
           "id": "sell_timber",
@@ -464,28 +497,36 @@
               "id": "crate_fiber",
               "weight": 30,
               "response": "Inside: Verdant Fiber packed in river leaves. Broc grins. \"The grove pays debts.\"",
-              "materialDeltas": { "verdant_fiber": 5 },
+              "materialDeltas": {
+                "verdant_fiber": 5
+              },
               "unlockLoreId": "memorabilia_shared_crate_seal"
             },
             {
               "id": "crate_ember",
               "weight": 25,
               "response": "Ember Ingots, still smelling of an honest forge. Broc stamps a shared-crate seal for your Archive.",
-              "materialDeltas": { "ember_ingot": 4 },
+              "materialDeltas": {
+                "ember_ingot": 4
+              },
               "unlockLoreId": "memorabilia_shared_crate_seal"
             },
             {
               "id": "crate_frost",
               "weight": 20,
               "response": "Frost Crystals wrapped in wool. \"For medicine, not vanity,\" Broc says, sealing the deal.",
-              "materialDeltas": { "frost_crystal": 4 },
+              "materialDeltas": {
+                "frost_crystal": 4
+              },
               "unlockLoreId": "memorabilia_shared_crate_seal"
             },
             {
               "id": "crate_storm",
               "weight": 15,
               "response": "A humming Storm Cell. Broc looks nervous. \"Maestro would call that circulating luck.\"",
-              "materialDeltas": { "storm_cell": 3 },
+              "materialDeltas": {
+                "storm_cell": 3
+              },
               "unlockLoreId": "memorabilia_shared_crate_seal"
             },
             {
@@ -500,7 +541,9 @@
         {
           "id": "buy_timber",
           "label": "Buy timber: offer 3 Verdant Fiber for wagon wood.",
-          "materialCosts": { "verdant_fiber": 3 },
+          "materialCosts": {
+            "verdant_fiber": 3
+          },
           "response": "Broc weighs the fiber like a judge.",
           "outcomes": [
             {
@@ -520,7 +563,9 @@
               "weight": 15,
               "response": "While you inspect the wood, a latch-hand lifts extra fiber from your satchel. Broc claims innocence too loudly.",
               "relationshipDelta": -1,
-              "materialDeltas": { "verdant_fiber": -2 },
+              "materialDeltas": {
+                "verdant_fiber": -2
+              },
               "timberDelta": 10
             }
           ]
@@ -542,8 +587,10 @@
       "npcName": "Tora Vale-Watch",
       "npcRole": "Descendant of the eastern wall captain",
       "kicker": "On the scar where the quarry road was",
-      "prompt": "My ancestor watched Siegelings break dams but spare fishing boats. I carry quarry-glass that can become Frost Crystals—if you will trade timber for a night's honest watch on your perimeter.",
-      "requiresLoreIds": ["letter_pre_covenant_watch"],
+      "prompt": "My ancestor watched Siegelings break dams but spare fishing boats. I carry quarry-glass that can become Frost Crystals\u2014if you will trade timber for a night's honest watch on your perimeter.",
+      "requiresLoreIds": [
+        "letter_pre_covenant_watch"
+      ],
       "choices": [
         {
           "id": "hire_watch",
@@ -556,22 +603,28 @@
               "weight": 45,
               "response": "A quiet night. Tora leaves Frost Crystals cut from quarry-glass and a sketch of tracks that turned away from your gate.",
               "relationshipDelta": 2,
-              "materialDeltas": { "frost_crystal": 4 }
+              "materialDeltas": {
+                "frost_crystal": 4
+              }
             },
             {
               "id": "raid_scare",
               "weight": 35,
-              "response": "Raiders test the dark. You lose some timber reinforcing the gate, but Tora's warning saves the Woodlot stores—and yields a few crystals.",
+              "response": "Raiders test the dark. You lose some timber reinforcing the gate, but Tora's warning saves the Woodlot stores\u2014and yields a few crystals.",
               "relationshipDelta": 1,
               "timberDelta": -10,
-              "materialDeltas": { "frost_crystal": 2 }
+              "materialDeltas": {
+                "frost_crystal": 2
+              }
             },
             {
               "id": "false_alarm",
               "weight": 20,
               "response": "It was only wind and frightened deer. Tora refunds part of the timber in shame and leaves a single crystal as apology.",
               "timberDelta": 8,
-              "materialDeltas": { "frost_crystal": 1 }
+              "materialDeltas": {
+                "frost_crystal": 1
+              }
             }
           ]
         },
@@ -580,14 +633,16 @@
           "label": "Trade 10 timber directly for quarry-glass crystals.",
           "timberCost": 10,
           "timberDelta": 0,
-          "materialDeltas": { "frost_crystal": 3 },
+          "materialDeltas": {
+            "frost_crystal": 3
+          },
           "response": "A clean swap. Tora salutes the old wall's ghost and departs before second watch.",
           "relationshipDelta": 1
         },
         {
           "id": "refuse_watch",
           "label": "Refuse. The Keep keeps its own night.",
-          "response": "Tora leaves a charcoal mark on the gatepost—the old warning for \"creatures with purpose.\" Sleep comes slower.",
+          "response": "Tora leaves a charcoal mark on the gatepost\u2014the old warning for \"creatures with purpose.\" Sleep comes slower.",
           "relationshipDelta": 0
         }
       ]
@@ -601,8 +656,10 @@
       "npcName": "Courier Nell",
       "npcRole": "Runner for Master Builder Orin Slate",
       "kicker": "Mud on Covenant boots",
-      "prompt": "Orin says your Woodlot learned to ask. He wants a timber sample of consented cuts—and in return I can leave cultivation binders or, if the sample fails his test, take a forfeit for wasting the lesson.",
-      "requiresLoreIds": ["letter_green_covenant"],
+      "prompt": "Orin says your Woodlot learned to ask. He wants a timber sample of consented cuts\u2014and in return I can leave cultivation binders or, if the sample fails his test, take a forfeit for wasting the lesson.",
+      "requiresLoreIds": [
+        "letter_green_covenant"
+      ],
       "choices": [
         {
           "id": "send_sample",
@@ -615,7 +672,9 @@
               "weight": 55,
               "response": "Orin's seal returns with the courier: cultivation binders and Verdant Fiber treated for graft work.",
               "relationshipDelta": 2,
-              "materialDeltas": { "verdant_fiber": 5 },
+              "materialDeltas": {
+                "verdant_fiber": 5
+              },
               "flag": "orin_sample_accepted"
             },
             {
@@ -623,7 +682,9 @@
               "weight": 30,
               "response": "Half the load was cut too eagerly. Orin keeps a forfeit of timber credit but still sends a smaller fiber packet.",
               "timberDelta": -5,
-              "materialDeltas": { "verdant_fiber": 2 }
+              "materialDeltas": {
+                "verdant_fiber": 2
+              }
             },
             {
               "id": "orin_fail",
@@ -635,7 +696,7 @@
         },
         {
           "id": "ask_advice",
-          "label": "Ask for advice only—no timber today.",
+          "label": "Ask for advice only\u2014no timber today.",
           "response": "Nell recites Orin's rule: measure the grove by what will still stand tomorrow. She leaves without taking a stick.",
           "relationshipDelta": 1
         }
@@ -652,13 +713,19 @@
       "npcRole": "Quartermaster's ledger runner",
       "kicker": "Clipboard against storehouse doors",
       "prompt": "Sera Vale wants an audit: empty shelves as trust, full shelves as temptation. Offer a controlled surplus trade, or risk the \"loose crate\" inspection every Keep fears.",
-      "requiresLoreIds": ["ledger_quartermaster_sera"],
+      "requiresLoreIds": [
+        "ledger_quartermaster_sera"
+      ],
       "choices": [
         {
           "id": "controlled_trade",
           "label": "Trade 4 Verdant Fiber for Ember Ingots under seal.",
-          "materialCosts": { "verdant_fiber": 4 },
-          "materialDeltas": { "ember_ingot": 3 },
+          "materialCosts": {
+            "verdant_fiber": 4
+          },
+          "materialDeltas": {
+            "ember_ingot": 3
+          },
           "response": "Joss stamps both sides of a shared-crate seal. The ledger balances. Temptation, for once, is named and limited.",
           "relationshipDelta": 2,
           "flag": "sera_audit_clean",
@@ -679,16 +746,20 @@
             {
               "id": "spoilage",
               "weight": 35,
-              "response": "Moisture spoiled a fiber bale. The audit costs you materials—and earns a lecture about stewardship versus ownership.",
+              "response": "Moisture spoiled a fiber bale. The audit costs you materials\u2014and earns a lecture about stewardship versus ownership.",
               "relationshipDelta": 0,
-              "materialDeltas": { "verdant_fiber": -3 }
+              "materialDeltas": {
+                "verdant_fiber": -3
+              }
             },
             {
               "id": "hidden_contraband",
               "weight": 25,
-              "response": "Someone hid Ember Ingots without a mark. Confiscation feeds the sanctuary forge fund—you keep a share for reporting it.",
+              "response": "Someone hid Ember Ingots without a mark. Confiscation feeds the sanctuary forge fund\u2014you keep a share for reporting it.",
               "relationshipDelta": 2,
-              "materialDeltas": { "ember_ingot": 4 },
+              "materialDeltas": {
+                "ember_ingot": 4
+              },
               "flag": "sera_audit_honest"
             }
           ]
@@ -711,7 +782,9 @@
       "npcRole": "Eleminion garden-speaker",
       "kicker": "Where the soil tastes like rain",
       "prompt": "The Garden that asked permission still asks. Harvest only what is offered and it may gift fiber. Take more, and the ground will reclaim a price.",
-      "requiresLoreIds": ["fieldnote_covenant_garden"],
+      "requiresLoreIds": [
+        "fieldnote_covenant_garden"
+      ],
       "choices": [
         {
           "id": "asked_harvest",
@@ -723,7 +796,9 @@
               "weight": 50,
               "response": "Warmth rises through the soil. Verdant Fiber sheds into your hands like a handshake.",
               "relationshipDelta": 2,
-              "materialDeltas": { "verdant_fiber": 7 },
+              "materialDeltas": {
+                "verdant_fiber": 7
+              },
               "flag": "garden_consent_honored"
             },
             {
@@ -731,7 +806,9 @@
               "weight": 35,
               "response": "Only a little is offered today. Brae says that is still a conversation.",
               "relationshipDelta": 1,
-              "materialDeltas": { "verdant_fiber": 3 },
+              "materialDeltas": {
+                "verdant_fiber": 3
+              },
               "flag": "garden_consent_honored"
             },
             {
@@ -739,7 +816,9 @@
               "weight": 15,
               "response": "The Garden asks for timber mulch first. You lay it down and receive fiber after the roots drink.",
               "timberDelta": -12,
-              "materialDeltas": { "verdant_fiber": 5 },
+              "materialDeltas": {
+                "verdant_fiber": 5
+              },
               "flag": "garden_consent_honored"
             }
           ]
@@ -752,9 +831,12 @@
             {
               "id": "short_gain",
               "weight": 40,
-              "response": "You pull extra fiber—then watch a row wilt. Brae's silence is the invoice.",
+              "response": "You pull extra fiber\u2014then watch a row wilt. Brae's silence is the invoice.",
               "relationshipDelta": -2,
-              "materialDeltas": { "verdant_fiber": 4, "frost_crystal": -1 },
+              "materialDeltas": {
+                "verdant_fiber": 4,
+                "frost_crystal": -1
+              },
               "flag": "garden_overharvest"
             },
             {
@@ -762,7 +844,9 @@
               "weight": 60,
               "response": "The ground reclaims more than you took. Fiber tears, and a young bed dies back overnight.",
               "relationshipDelta": -2,
-              "materialDeltas": { "verdant_fiber": -4 },
+              "materialDeltas": {
+                "verdant_fiber": -4
+              },
               "flag": "garden_overharvest"
             }
           ]
@@ -784,14 +868,18 @@
       "npcName": "Rusk of the Waiting Bellows",
       "npcRole": "Apprentice to Smith Aven Rook",
       "kicker": "Ash on a borrowed apron",
-      "prompt": "Aven taught me to ask flame, not chain it. I can work Ember Ingots from your fiber and timber—if the fire consents. If it refuses, we both pay the cooling cost.",
-      "requiresLoreIds": ["letter_ember_forge"],
+      "prompt": "Aven taught me to ask flame, not chain it. I can work Ember Ingots from your fiber and timber\u2014if the fire consents. If it refuses, we both pay the cooling cost.",
+      "requiresLoreIds": [
+        "letter_ember_forge"
+      ],
       "choices": [
         {
           "id": "consent_forge",
           "label": "Forge with consent: spend 10 timber and 3 Verdant Fiber.",
           "timberCost": 10,
-          "materialCosts": { "verdant_fiber": 3 },
+          "materialCosts": {
+            "verdant_fiber": 3
+          },
           "response": "The bellows wait, then answer.",
           "outcomes": [
             {
@@ -799,15 +887,19 @@
               "weight": 50,
               "response": "Metal bends without screaming. Ember Ingots stack, waste cools clean, and Rusk chalks Aven's rule above your forge door.",
               "relationshipDelta": 2,
-              "materialDeltas": { "ember_ingot": 6 },
+              "materialDeltas": {
+                "ember_ingot": 6
+              },
               "flag": "aven_consent_forge"
             },
             {
               "id": "partial",
               "weight": 35,
-              "response": "The fire consents only in part. You gain fewer ingots, but no one is burned—including the element.",
+              "response": "The fire consents only in part. You gain fewer ingots, but no one is burned\u2014including the element.",
               "relationshipDelta": 1,
-              "materialDeltas": { "ember_ingot": 3 },
+              "materialDeltas": {
+                "ember_ingot": 3
+              },
               "flag": "aven_consent_forge"
             },
             {
@@ -823,7 +915,9 @@
         {
           "id": "force_forge",
           "label": "Force the work: spend 2 Ember Ingots to rush a batch.",
-          "materialCosts": { "ember_ingot": 2 },
+          "materialCosts": {
+            "ember_ingot": 2
+          },
           "response": "The old way still remembers how to hurt.",
           "outcomes": [
             {
@@ -831,7 +925,9 @@
               "weight": 35,
               "response": "You gain raw ingots quickly. The Fire Siegelings watch from the door and do not enter.",
               "relationshipDelta": -1,
-              "materialDeltas": { "ember_ingot": 5 },
+              "materialDeltas": {
+                "ember_ingot": 5
+              },
               "flag": "aven_forced_forge"
             },
             {
@@ -839,7 +935,9 @@
               "weight": 65,
               "response": "A cage-spark leaps. Ingots crack, and you lose more than you spent. Aven's letter feels heavier in the Archive.",
               "relationshipDelta": -2,
-              "materialDeltas": { "ember_ingot": -3 },
+              "materialDeltas": {
+                "ember_ingot": -3
+              },
               "flag": "aven_forced_forge"
             }
           ]
@@ -861,21 +959,27 @@
       "npcName": "Isse of the North Window",
       "npcRole": "Icehouse medicine courier",
       "kicker": "Breath like winter glass",
-      "prompt": "The frost-keepers still leave a place open for the eastern road. I can move Frost Crystals—or medicine bought with them—if you will trust the slate that lists Siegelings beside human names.",
-      "requiresLoreIds": ["inventory_frost_fridge"],
+      "prompt": "The frost-keepers still leave a place open for the eastern road. I can move Frost Crystals\u2014or medicine bought with them\u2014if you will trust the slate that lists Siegelings beside human names.",
+      "requiresLoreIds": [
+        "inventory_frost_fridge"
+      ],
       "choices": [
         {
           "id": "fund_medicine",
           "label": "Fund medicine: pay 3 Frost Crystals.",
-          "materialCosts": { "frost_crystal": 3 },
+          "materialCosts": {
+            "frost_crystal": 3
+          },
           "response": "Isse's pack clinks softly.",
           "outcomes": [
             {
               "id": "medicine_ok",
               "weight": 55,
-              "response": "Feverleaf reaches the road families. Isse returns surplus crystals the icehouse no longer needs—and updates the slate with your Keep's mark.",
+              "response": "Feverleaf reaches the road families. Isse returns surplus crystals the icehouse no longer needs\u2014and updates the slate with your Keep's mark.",
               "relationshipDelta": 2,
-              "materialDeltas": { "frost_crystal": 2 },
+              "materialDeltas": {
+                "frost_crystal": 2
+              },
               "timberDelta": 0,
               "flag": "frost_medicine_sent"
             },
@@ -891,7 +995,9 @@
               "weight": 15,
               "response": "An Undead Siegeling guides Isse past a raid camp. Crystals return doubled, cold as gratitude.",
               "relationshipDelta": 2,
-              "materialDeltas": { "frost_crystal": 4 },
+              "materialDeltas": {
+                "frost_crystal": 4
+              },
               "flag": "frost_medicine_sent"
             }
           ]
@@ -900,14 +1006,16 @@
           "id": "buy_cold",
           "label": "Buy cold storage: 14 timber for Frost Crystals.",
           "timberCost": 14,
-          "materialDeltas": { "frost_crystal": 4 },
+          "materialDeltas": {
+            "frost_crystal": 4
+          },
           "response": "Isse loads the timber for refugee bunks and leaves crystals that will not melt in your Fridge.",
           "relationshipDelta": 1
         },
         {
           "id": "decline_cold",
           "label": "Decline. Keep the icehouse closed today.",
-          "response": "Isse leaves the north window latch unhooked anyway—\"in case someone needs the cold more than pride.\"",
+          "response": "Isse leaves the north window latch unhooked anyway\u2014\"in case someone needs the cold more than pride.\"",
           "relationshipDelta": 0
         }
       ]
@@ -921,13 +1029,18 @@
       "npcName": "Sael of the Shared Current",
       "npcRole": "Circuit pilgrim of Maestro's design",
       "kicker": "Sparks that refuse a single source",
-      "prompt": "Maestro wrote that power seized returns as a wound. I can tune your Storm Cells through a willing circuit—or you can force a draw and learn why the schematic forbids it.",
-      "requiresLoreIds": ["schematic_elemental_generator"],
+      "prompt": "Maestro wrote that power seized returns as a wound. I can tune your Storm Cells through a willing circuit\u2014or you can force a draw and learn why the schematic forbids it.",
+      "requiresLoreIds": [
+        "schematic_elemental_generator"
+      ],
       "choices": [
         {
           "id": "share_circuit",
           "label": "Share the circuit: spend 2 Storm Cells and 1 Ember Ingot.",
-          "materialCosts": { "storm_cell": 2, "ember_ingot": 1 },
+          "materialCosts": {
+            "storm_cell": 2,
+            "ember_ingot": 1
+          },
           "response": "Elements answer in turn.",
           "outcomes": [
             {
@@ -935,15 +1048,20 @@
               "weight": 50,
               "response": "Fire warms water; water turns the wheel; surplus returns as Storm Cells and a calm generator hum.",
               "relationshipDelta": 2,
-              "materialDeltas": { "storm_cell": 5 },
+              "materialDeltas": {
+                "storm_cell": 5
+              },
               "flag": "maestro_circuit_shared"
             },
             {
               "id": "partial_balance",
               "weight": 35,
-              "response": "The circuit balances imperfectly. You recover a little more than you spent—and a margin note in Sael's hand.",
+              "response": "The circuit balances imperfectly. You recover a little more than you spent\u2014and a margin note in Sael's hand.",
               "relationshipDelta": 1,
-              "materialDeltas": { "storm_cell": 3, "frost_crystal": 1 },
+              "materialDeltas": {
+                "storm_cell": 3,
+                "frost_crystal": 1
+              },
               "flag": "maestro_circuit_shared"
             },
             {
@@ -951,7 +1069,9 @@
               "weight": 15,
               "response": "Earth grounds a surge the hard way. Cells crack; Sael bows to the wound and helps sweep the shards.",
               "relationshipDelta": 1,
-              "materialDeltas": { "storm_cell": -1 },
+              "materialDeltas": {
+                "storm_cell": -1
+              },
               "flag": "maestro_circuit_shared"
             }
           ]
@@ -964,9 +1084,11 @@
             {
               "id": "surge_gain",
               "weight": 30,
-              "response": "A violent surplus of Storm Cells—and a smell like burned covenant. Sael will not meet your eyes.",
+              "response": "A violent surplus of Storm Cells\u2014and a smell like burned covenant. Sael will not meet your eyes.",
               "relationshipDelta": -2,
-              "materialDeltas": { "storm_cell": 6 },
+              "materialDeltas": {
+                "storm_cell": 6
+              },
               "flag": "maestro_circuit_seized"
             },
             {
@@ -975,7 +1097,9 @@
               "response": "Power returns as a wound: cells dead, timber scorched from a flash along the Hall beam.",
               "relationshipDelta": -2,
               "timberDelta": -12,
-              "materialDeltas": { "storm_cell": -2 },
+              "materialDeltas": {
+                "storm_cell": -2
+              },
               "flag": "maestro_circuit_seized"
             }
           ]
@@ -997,8 +1121,10 @@
       "npcName": "Reo",
       "npcRole": "Root-touched child of the Woodlot",
       "kicker": "Warm hands on cold stone",
-      "prompt": "The Petrified Root got warm when I sang. It showed me a hollow with old offerings—timber tokens and elemental beads. I can lead you there, but the hollow sometimes takes as much as it gives.",
-      "requiresLoreIds": ["memorabilia_petrified_root"],
+      "prompt": "The Petrified Root got warm when I sang. It showed me a hollow with old offerings\u2014timber tokens and elemental beads. I can lead you there, but the hollow sometimes takes as much as it gives.",
+      "requiresLoreIds": [
+        "memorabilia_petrified_root"
+      ],
       "choices": [
         {
           "id": "follow_hollow",
@@ -1011,14 +1137,19 @@
               "response": "Offerings wait like they knew your names: timber stacked with Verdant Fiber and a single Ember Ingot.",
               "relationshipDelta": 2,
               "timberDelta": 20,
-              "materialDeltas": { "verdant_fiber": 3, "ember_ingot": 1 }
+              "materialDeltas": {
+                "verdant_fiber": 3,
+                "ember_ingot": 1
+              }
             },
             {
               "id": "tithe",
               "weight": 35,
               "response": "The hollow asks a tithe first. You leave timber; it returns Frost Crystals cold enough to ache.",
               "timberDelta": -15,
-              "materialDeltas": { "frost_crystal": 4 }
+              "materialDeltas": {
+                "frost_crystal": 4
+              }
             },
             {
               "id": "empty_echo",
@@ -1047,8 +1178,10 @@
       "npcName": "Assessor Calden",
       "npcRole": "House surplus assessor",
       "kicker": "Ink that smells like ledgers",
-      "prompt": "The Houses measure Keeps by weapons. I am ordered to collect a timber assessment—or accept a materials offset if your sanctuary can prove partnership surplus instead.",
-      "requiresLoreIds": ["ledger_quartermaster_sera"],
+      "prompt": "The Houses measure Keeps by weapons. I am ordered to collect a timber assessment\u2014or accept a materials offset if your sanctuary can prove partnership surplus instead.",
+      "requiresLoreIds": [
+        "ledger_quartermaster_sera"
+      ],
       "choices": [
         {
           "id": "pay_assessment",
@@ -1061,7 +1194,10 @@
         {
           "id": "offset_materials",
           "label": "Offset with 2 Ember Ingots and 2 Frost Crystals.",
-          "materialCosts": { "ember_ingot": 2, "frost_crystal": 2 },
+          "materialCosts": {
+            "ember_ingot": 2,
+            "frost_crystal": 2
+          },
           "response": "Partnership, itemized.",
           "outcomes": [
             {
@@ -1092,7 +1228,7 @@
             {
               "id": "bluff",
               "weight": 60,
-              "response": "Calden's smile is thin, but the spears do not come. Your refusal stands—for this season.",
+              "response": "Calden's smile is thin, but the spears do not come. Your refusal stands\u2014for this season.",
               "flag": "house_assessment_refused"
             },
             {
@@ -1115,8 +1251,11 @@
       "npcName": "Vey (no House named)",
       "npcRole": "Masked road agent",
       "kicker": "A smile that never reaches the eyes",
-      "prompt": "A friendly collector offers \"protection shares\" for timber—or a materials tithe. The accent slips once toward Akhar's camps. Trust is a gamble; refusal may cost more than coin.",
-      "requiresLoreIds": ["chronicle_living_elements", "charter_three_promises"],
+      "prompt": "A friendly collector offers \"protection shares\" for timber\u2014or a materials tithe. The accent slips once toward Akhar's camps. Trust is a gamble; refusal may cost more than coin.",
+      "requiresLoreIds": [
+        "chronicle_living_elements",
+        "charter_three_promises"
+      ],
       "choices": [
         {
           "id": "pay_protection",
@@ -1137,7 +1276,9 @@
               "response": "They return before moonrise for a \"recount,\" taking more timber and a satchel of fiber.",
               "relationshipDelta": -2,
               "timberDelta": -12,
-              "materialDeltas": { "verdant_fiber": -3 },
+              "materialDeltas": {
+                "verdant_fiber": -3
+              },
               "flag": "akhar_tithe_paid"
             }
           ]
@@ -1145,7 +1286,9 @@
         {
           "id": "fake_tithe_materials",
           "label": "Offer 3 Ember Ingots and watch what they do.",
-          "materialCosts": { "ember_ingot": 3 },
+          "materialCosts": {
+            "ember_ingot": 3
+          },
           "response": "Metal changes hands.",
           "outcomes": [
             {
@@ -1166,9 +1309,11 @@
             {
               "id": "turncoat_gift",
               "weight": 25,
-              "response": "Vey's mask slips—literally. A deserter presses Storm Cells into your hands and begs sanctuary under the Charter.",
+              "response": "Vey's mask slips\u2014literally. A deserter presses Storm Cells into your hands and begs sanctuary under the Charter.",
               "relationshipDelta": 2,
-              "materialDeltas": { "storm_cell": 3 },
+              "materialDeltas": {
+                "storm_cell": 3
+              },
               "flag": "akhar_deserter_sheltered"
             }
           ]
@@ -1198,15 +1343,17 @@
     },
     {
       "id": "visitor_breakfast_kettle",
-      "kind": "VISITOR",
+      "kind": "INTERACTION",
       "weight": 18,
       "cooldownHours": 6,
       "npcId": "cook_mira",
       "npcName": "Cook Mira",
       "npcRole": "Hall kitchen keeper",
       "kicker": "Kettle steam and sleepy notches",
-      "prompt": "A Fire Siegeling refuses to warm the hearth until someone shares breakfast. Mira needs timber for the morning stove—or spare fiber for fruit wraps. How does the Keep start its day with its residents?",
-      "requiresLoreIds": ["charter_three_promises"],
+      "prompt": "A Fire Siegeling refuses to warm the hearth until someone shares breakfast. Mira needs timber for the morning stove\u2014or spare fiber for fruit wraps. How does the Keep start its day with its residents?",
+      "requiresLoreIds": [
+        "charter_three_promises"
+      ],
       "choices": [
         {
           "id": "shared_table",
@@ -1219,7 +1366,9 @@
               "weight": 50,
               "response": "The Fire Siegeling finally breathes on the hearth. Mira finds Ember Ingots cooling beside the kettle like thank-you coals.",
               "relationshipDelta": 2,
-              "materialDeltas": { "ember_ingot": 3 },
+              "materialDeltas": {
+                "ember_ingot": 3
+              },
               "unlockLoreId": "chronicle_shared_mornings",
               "flag": "breakfast_shared"
             },
@@ -1237,7 +1386,9 @@
               "weight": 20,
               "response": "Earth Siegelings bring garden leaves for wraps. Verdant Fiber lands in the pantry unasked.",
               "relationshipDelta": 2,
-              "materialDeltas": { "verdant_fiber": 4 },
+              "materialDeltas": {
+                "verdant_fiber": 4
+              },
               "unlockLoreId": "chronicle_shared_mornings",
               "flag": "breakfast_shared"
             }
@@ -1246,7 +1397,9 @@
         {
           "id": "fruit_only",
           "label": "Skip the stove: offer 2 Verdant Fiber for fruit wraps.",
-          "materialCosts": { "verdant_fiber": 2 },
+          "materialCosts": {
+            "verdant_fiber": 2
+          },
           "response": "Cold breakfast, warm company.",
           "outcomes": [
             {
@@ -1254,7 +1407,9 @@
               "weight": 65,
               "response": "The Fire Siegeling sulks, then accepts a pear. Mira slips you a spare Frost Crystal from the cider bucket.",
               "relationshipDelta": 1,
-              "materialDeltas": { "frost_crystal": 1 }
+              "materialDeltas": {
+                "frost_crystal": 1
+              }
             },
             {
               "id": "hearth_strike",
@@ -1267,28 +1422,32 @@
         {
           "id": "skip_breakfast",
           "label": "Tell everyone to forage for themselves.",
-          "response": "The kettle goes quiet. A few Siegelings eat in the yard without you. Mira does not look angry—only tired.",
+          "response": "The kettle goes quiet. A few Siegelings eat in the yard without you. Mira does not look angry\u2014only tired.",
           "relationshipDelta": -1
         }
       ]
     },
     {
       "id": "visitor_nest_mending",
-      "kind": "VISITOR",
+      "kind": "INTERACTION",
       "weight": 16,
       "cooldownHours": 8,
       "npcId": "nest_keeper_opal",
       "npcName": "Opal Reed",
       "npcRole": "Nest and bedding steward",
       "kicker": "Torn moss and polite chirps",
-      "prompt": "Two Siegelings shredded their nest practicing notch-tag. Opal can rebuild with timber frames and fiber lining—or let them sleep on stone and learn the hard way.",
-      "requiresLoreIds": ["charter_three_promises"],
+      "prompt": "Two Siegelings shredded their nest practicing notch-tag. Opal can rebuild with timber frames and fiber lining\u2014or let them sleep on stone and learn the hard way.",
+      "requiresLoreIds": [
+        "charter_three_promises"
+      ],
       "choices": [
         {
           "id": "rebuild_nest",
           "label": "Rebuild: 14 timber and 2 Verdant Fiber.",
           "timberCost": 14,
-          "materialCosts": { "verdant_fiber": 2 },
+          "materialCosts": {
+            "verdant_fiber": 2
+          },
           "response": "Opal hums while she weaves.",
           "outcomes": [
             {
@@ -1296,7 +1455,9 @@
               "weight": 55,
               "response": "The nest holds. Grateful residents leave Frost Crystals they had been hoarding as \"shiny cool rocks.\"",
               "relationshipDelta": 2,
-              "materialDeltas": { "frost_crystal": 3 },
+              "materialDeltas": {
+                "frost_crystal": 3
+              },
               "flag": "nests_mended"
             },
             {
@@ -1312,7 +1473,9 @@
               "weight": 20,
               "response": "Neighbor Siegelings donate spare lining. You get fiber back and a quieter night watch.",
               "relationshipDelta": 2,
-              "materialDeltas": { "verdant_fiber": 3 },
+              "materialDeltas": {
+                "verdant_fiber": 3
+              },
               "flag": "nests_mended"
             }
           ]
@@ -1347,15 +1510,17 @@
     },
     {
       "id": "visitor_notch_play",
-      "kind": "VISITOR",
+      "kind": "INTERACTION",
       "weight": 17,
       "cooldownHours": 7,
       "npcId": "play_warden_tavi",
       "npcName": "Tavi Quinn",
       "npcRole": "Yard play warden",
       "kicker": "Soft chalk rings in the dust",
-      "prompt": "Young Siegelings want a notch-play circle—no real combat, just direction games. Timber markers and a prize stash keep it safe. Refuse, and they invent rules near the woodpile.",
-      "requiresLoreIds": ["charter_three_promises"],
+      "prompt": "Young Siegelings want a notch-play circle\u2014no real combat, just direction games. Timber markers and a prize stash keep it safe. Refuse, and they invent rules near the woodpile.",
+      "requiresLoreIds": [
+        "charter_three_promises"
+      ],
       "choices": [
         {
           "id": "host_play",
@@ -1368,7 +1533,9 @@
               "weight": 45,
               "response": "Nobody gets hurt. A proud Metal-leaning Siegeling leaves Ember Ingots it forged from scrap as \"trophies for everyone.\"",
               "relationshipDelta": 2,
-              "materialDeltas": { "ember_ingot": 2 },
+              "materialDeltas": {
+                "ember_ingot": 2
+              },
               "unlockLoreId": "letter_evening_chorus",
               "flag": "play_hour_kept"
             },
@@ -1378,7 +1545,9 @@
               "response": "The finale knocks over a lumber cart. Worth it, mostly. Fiber from torn prize ribbons still helps the Garden.",
               "relationshipDelta": 1,
               "timberDelta": -7,
-              "materialDeltas": { "verdant_fiber": 2 },
+              "materialDeltas": {
+                "verdant_fiber": 2
+              },
               "unlockLoreId": "letter_evening_chorus",
               "flag": "play_hour_kept"
             },
@@ -1387,7 +1556,9 @@
               "weight": 20,
               "response": "An Electric Siegeling invents a humming toy. Somehow you end the hour with a spare Storm Cell and fewer complaints.",
               "relationshipDelta": 2,
-              "materialDeltas": { "storm_cell": 2 },
+              "materialDeltas": {
+                "storm_cell": 2
+              },
               "unlockLoreId": "letter_evening_chorus",
               "flag": "play_hour_kept"
             }
@@ -1416,7 +1587,9 @@
               "id": "quiet_defiance",
               "weight": 40,
               "response": "They play silently in the mulch and leave you a rude little fiber knot as commentary.",
-              "materialDeltas": { "verdant_fiber": 1 },
+              "materialDeltas": {
+                "verdant_fiber": 1
+              },
               "flag": "play_banned"
             }
           ]
@@ -1425,7 +1598,7 @@
     },
     {
       "id": "visitor_river_bath",
-      "kind": "VISITOR",
+      "kind": "INTERACTION",
       "weight": 14,
       "cooldownHours": 9,
       "npcId": "bath_hen",
@@ -1433,13 +1606,17 @@
       "npcRole": "River-bath attendant",
       "kicker": "Soap-root and splashing debates",
       "prompt": "Bath day. Water Siegelings want the deep pool; Fire ones want steam stones; someone always \"borrows\" towels made of fiber. Henna can run a proper wash if you fund it.",
-      "requiresLoreIds": ["chronicle_living_elements"],
+      "requiresLoreIds": [
+        "chronicle_living_elements"
+      ],
       "choices": [
         {
           "id": "full_bath",
           "label": "Fund bath day: 8 timber and 2 Verdant Fiber.",
           "timberCost": 8,
-          "materialCosts": { "verdant_fiber": 2 },
+          "materialCosts": {
+            "verdant_fiber": 2
+          },
           "response": "Steam, squeaks, negotiated temperatures.",
           "outcomes": [
             {
@@ -1447,7 +1624,9 @@
               "weight": 50,
               "response": "Everyone shines. Ice Siegelings crystallize leftover rinse-water into Frost Crystals for the Fridge.",
               "relationshipDelta": 2,
-              "materialDeltas": { "frost_crystal": 4 },
+              "materialDeltas": {
+                "frost_crystal": 4
+              },
               "flag": "bath_day_done"
             },
             {
@@ -1455,7 +1634,9 @@
               "weight": 30,
               "response": "Half the towels vanish into nests. You are short fiber, rich in gossip.",
               "relationshipDelta": 1,
-              "materialDeltas": { "verdant_fiber": -2 },
+              "materialDeltas": {
+                "verdant_fiber": -2
+              },
               "flag": "bath_day_done"
             },
             {
@@ -1463,7 +1644,9 @@
               "weight": 20,
               "response": "A Fire Siegeling overdoes the steam stones and apologizes with Ember Ingots pulled from the cooled rocks.",
               "relationshipDelta": 2,
-              "materialDeltas": { "ember_ingot": 3 },
+              "materialDeltas": {
+                "ember_ingot": 3
+              },
               "flag": "bath_day_done"
             }
           ]
@@ -1498,15 +1681,17 @@
     },
     {
       "id": "visitor_nap_watch",
-      "kind": "VISITOR",
+      "kind": "INTERACTION",
       "weight": 15,
       "cooldownHours": 8,
       "npcId": "nap_sitter_jon",
       "npcName": "Jon Halfshade",
       "npcRole": "Afternoon nap sitter",
       "kicker": "Soft snores under the lean-to",
-      "prompt": "Siesta hour. Siegelings pile up in sun and shade. Jon asks for timber to widen the lean-to—or warns that without it, someone will nap on your lumber stacks.",
-      "requiresLoreIds": ["letter_forester_maren"],
+      "prompt": "Siesta hour. Siegelings pile up in sun and shade. Jon asks for timber to widen the lean-to\u2014or warns that without it, someone will nap on your lumber stacks.",
+      "requiresLoreIds": [
+        "letter_forester_maren"
+      ],
       "choices": [
         {
           "id": "widen_shade",
@@ -1519,7 +1704,9 @@
               "weight": 55,
               "response": "Quietest afternoon in a month. A Light Siegeling leaves Storm Cells it gathered from static in the blankets.",
               "relationshipDelta": 2,
-              "materialDeltas": { "storm_cell": 2 },
+              "materialDeltas": {
+                "storm_cell": 2
+              },
               "flag": "nap_shade_built"
             },
             {
@@ -1535,14 +1722,16 @@
               "weight": 20,
               "response": "Residents weave spare Verdant Fiber blankets and gift the extras to the Garden.",
               "relationshipDelta": 2,
-              "materialDeltas": { "verdant_fiber": 5 },
+              "materialDeltas": {
+                "verdant_fiber": 5
+              },
               "flag": "nap_shade_built"
             }
           ]
         },
         {
           "id": "allow_stacks",
-          "label": "Let them nap on the lumber—carefully.",
+          "label": "Let them nap on the lumber\u2014carefully.",
           "response": "Dicey.",
           "outcomes": [
             {
@@ -1571,7 +1760,9 @@
               "id": "grumpy_work",
               "weight": 70,
               "response": "They work while grumpy. Output is fine; morale files the complaint in ice.",
-              "materialDeltas": { "frost_crystal": -1 },
+              "materialDeltas": {
+                "frost_crystal": -1
+              },
               "flag": "naps_cancelled"
             },
             {
@@ -1586,15 +1777,17 @@
     },
     {
       "id": "visitor_evening_chorus",
-      "kind": "VISITOR",
+      "kind": "INTERACTION",
       "weight": 13,
       "cooldownHours": 10,
       "npcId": "chorus_lea",
       "npcName": "Lea Softreed",
       "npcRole": "Evening chorus leader",
       "kicker": "Tuning hums at blue hour",
-      "prompt": "After tools are down, Siegelings gather to hum, chirp, and argue about harmony. Lea wants timber risers for the little ones—and promises the yard will feel like a Keep, not a camp.",
-      "requiresLoreIds": ["letter_green_covenant"],
+      "prompt": "After tools are down, Siegelings gather to hum, chirp, and argue about harmony. Lea wants timber risers for the little ones\u2014and promises the yard will feel like a Keep, not a camp.",
+      "requiresLoreIds": [
+        "letter_green_covenant"
+      ],
       "choices": [
         {
           "id": "build_risers",
@@ -1607,14 +1800,16 @@
               "weight": 50,
               "response": "The chorus holds. Workers cry quietly. Someone leaves Frost Crystals arranged like notes on the steps.",
               "relationshipDelta": 2,
-              "materialDeltas": { "frost_crystal": 3 },
+              "materialDeltas": {
+                "frost_crystal": 3
+              },
               "unlockLoreId": "letter_evening_chorus",
               "flag": "evening_chorus_raised"
             },
             {
               "id": "loud_neighbors",
               "weight": 30,
-              "response": "It is beautiful and extremely loud. A startled cart horse costs you timber in fence repairs—and you would still do it again.",
+              "response": "It is beautiful and extremely loud. A startled cart horse costs you timber in fence repairs\u2014and you would still do it again.",
               "relationshipDelta": 1,
               "timberDelta": -8,
               "unlockLoreId": "letter_evening_chorus",
@@ -1625,7 +1820,9 @@
               "weight": 20,
               "response": "An Electric Siegeling finds the overtone. Air prickles; Storm Cells bead on the riser rails.",
               "relationshipDelta": 2,
-              "materialDeltas": { "storm_cell": 3 },
+              "materialDeltas": {
+                "storm_cell": 3
+              },
               "unlockLoreId": "letter_evening_chorus",
               "flag": "evening_chorus_raised"
             }
@@ -1633,7 +1830,7 @@
         },
         {
           "id": "ground_sing",
-          "label": "Sing from the ground—no build.",
+          "label": "Sing from the ground\u2014no build.",
           "response": "The song is smaller and still true. Lea squeezes your shoulder.",
           "relationshipDelta": 1
         },
@@ -1647,21 +1844,25 @@
     },
     {
       "id": "visitor_lost_partner",
-      "kind": "VISITOR",
+      "kind": "INTERACTION",
       "weight": 12,
       "cooldownHours": 11,
       "npcId": "seeker_ramo",
       "npcName": "Ramo",
       "npcRole": "Worried Siegeling partner",
       "kicker": "A leash of unanswered chirps",
-      "prompt": "Ramo's Siegeling companion slipped the yard during chores. Help search with timber signal poles and snack fiber—or wait and hope. Daily life includes panic, too.",
-      "requiresLoreIds": ["charter_three_promises"],
+      "prompt": "Ramo's Siegeling companion slipped the yard during chores. Help search with timber signal poles and snack fiber\u2014or wait and hope. Daily life includes panic, too.",
+      "requiresLoreIds": [
+        "charter_three_promises"
+      ],
       "choices": [
         {
           "id": "search_party",
           "label": "Organize a search: 11 timber and 1 Verdant Fiber.",
           "timberCost": 11,
-          "materialCosts": { "verdant_fiber": 1 },
+          "materialCosts": {
+            "verdant_fiber": 1
+          },
           "response": "Poles, snacks, soft calls.",
           "outcomes": [
             {
@@ -1669,7 +1870,9 @@
               "weight": 55,
               "response": "Found asleep on the Storehouse roof. Ramo gifts Ember Ingots from a pouch meant for road bribes they no longer need.",
               "relationshipDelta": 2,
-              "materialDeltas": { "ember_ingot": 3 },
+              "materialDeltas": {
+                "ember_ingot": 3
+              },
               "flag": "partner_found"
             },
             {
@@ -1678,7 +1881,9 @@
               "response": "Found muddy and proud in the Garden. You spend extra timber cleaning tracks off the Hall floor.",
               "relationshipDelta": 1,
               "timberDelta": -5,
-              "materialDeltas": { "verdant_fiber": 2 },
+              "materialDeltas": {
+                "verdant_fiber": 2
+              },
               "flag": "partner_found"
             },
             {
@@ -1686,7 +1891,9 @@
               "weight": 15,
               "response": "Found hiding from a loud cart. Needs quiet nest time; Opal borrows fiber and returns Frost Crystals from the icehouse \"calm kit.\"",
               "relationshipDelta": 2,
-              "materialDeltas": { "frost_crystal": 2 },
+              "materialDeltas": {
+                "frost_crystal": 2
+              },
               "flag": "partner_found"
             }
           ]
@@ -1720,15 +1927,17 @@
     },
     {
       "id": "visitor_shedding_season",
-      "kind": "VISITOR",
+      "kind": "INTERACTION",
       "weight": 12,
       "cooldownHours": 12,
       "npcId": "groomer_sifa",
       "npcName": "Sifa Comb",
       "npcRole": "Seasonal groomer",
       "kicker": "Drifts of elemental fluff",
-      "prompt": "Shedding week. The Hall looks like a pillow fight between elements. Sifa can card the fluff into Verdant Fiber—or you can sweep it into the fire and hope nobody notices.",
-      "requiresLoreIds": ["fieldnote_covenant_garden"],
+      "prompt": "Shedding week. The Hall looks like a pillow fight between elements. Sifa can card the fluff into Verdant Fiber\u2014or you can sweep it into the fire and hope nobody notices.",
+      "requiresLoreIds": [
+        "fieldnote_covenant_garden"
+      ],
       "choices": [
         {
           "id": "card_fluff",
@@ -1741,7 +1950,9 @@
               "weight": 55,
               "response": "Excellent yield. The Garden accepts the carded Verdant Fiber like rain.",
               "relationshipDelta": 2,
-              "materialDeltas": { "verdant_fiber": 6 },
+              "materialDeltas": {
+                "verdant_fiber": 6
+              },
               "flag": "shedding_carded"
             },
             {
@@ -1749,7 +1960,10 @@
               "weight": 30,
               "response": "Mixed elements tangle. You still get fiber, plus a stubborn Ember Ingot that formed where Fire fluff hit the forge scrap.",
               "relationshipDelta": 1,
-              "materialDeltas": { "verdant_fiber": 3, "ember_ingot": 1 },
+              "materialDeltas": {
+                "verdant_fiber": 3,
+                "ember_ingot": 1
+              },
               "flag": "shedding_carded"
             },
             {
@@ -1757,7 +1971,9 @@
               "weight": 15,
               "response": "Everyone sneezes. Frames break. A little timber lost, a little dignity lost, some fiber saved.",
               "timberDelta": -4,
-              "materialDeltas": { "verdant_fiber": 2 },
+              "materialDeltas": {
+                "verdant_fiber": 2
+              },
               "flag": "shedding_carded"
             }
           ]
@@ -1772,7 +1988,9 @@
               "weight": 40,
               "response": "The Hall warms. A Fire Siegeling approves. Garden residents do not.",
               "relationshipDelta": -1,
-              "materialDeltas": { "ember_ingot": 1 },
+              "materialDeltas": {
+                "ember_ingot": 1
+              },
               "flag": "shedding_burned"
             },
             {
@@ -1795,7 +2013,7 @@
     },
     {
       "id": "visitor_training_pups",
-      "kind": "VISITOR",
+      "kind": "INTERACTION",
       "weight": 11,
       "cooldownHours": 12,
       "npcId": "trainer_beck",
@@ -1803,13 +2021,17 @@
       "npcRole": "Young Siegeling manners coach",
       "kicker": "Tiny notches, huge feelings",
       "prompt": "A clutch of young Siegelings needs manners practice: wait for consent, don't chew Charter posts, share shade. Letter wants training toys and snack fiber. Chaos is free if you refuse.",
-      "requiresLoreIds": ["chronicle_living_elements"],
+      "requiresLoreIds": [
+        "chronicle_living_elements"
+      ],
       "choices": [
         {
           "id": "fund_class",
           "label": "Fund manners class: 9 timber and 2 Verdant Fiber.",
           "timberCost": 9,
-          "materialCosts": { "verdant_fiber": 2 },
+          "materialCosts": {
+            "verdant_fiber": 2
+          },
           "response": "Class is in session.",
           "outcomes": [
             {
@@ -1817,7 +2039,9 @@
               "weight": 50,
               "response": "They graduate with only one chewed boot. Parents leave Frost Crystals for \"the patient Keep.\"",
               "relationshipDelta": 2,
-              "materialDeltas": { "frost_crystal": 3 },
+              "materialDeltas": {
+                "frost_crystal": 3
+              },
               "flag": "manners_class_held"
             },
             {
@@ -1826,7 +2050,9 @@
               "response": "Recess gets creative. Timber toys become modern art. You still gain a little fiber from destroyed chew-ropes recycled by the Garden.",
               "relationshipDelta": 1,
               "timberDelta": -6,
-              "materialDeltas": { "verdant_fiber": 2 },
+              "materialDeltas": {
+                "verdant_fiber": 2
+              },
               "flag": "manners_class_held"
             },
             {
@@ -1834,7 +2060,9 @@
               "weight": 15,
               "response": "One Electric youngster learns \"wait\" on the first try and proudly sparks a tiny Storm Cell into your palm.",
               "relationshipDelta": 2,
-              "materialDeltas": { "storm_cell": 2 },
+              "materialDeltas": {
+                "storm_cell": 2
+              },
               "flag": "manners_class_held"
             }
           ]
@@ -1861,7 +2089,7 @@
         },
         {
           "id": "cancel_class",
-          "label": "Cancel—too busy for pups today.",
+          "label": "Cancel\u2014too busy for pups today.",
           "response": "The pups educate themselves on your lumber pile.",
           "relationshipDelta": -1,
           "timberDelta": -12
@@ -1870,15 +2098,17 @@
     },
     {
       "id": "visitor_market_errand",
-      "kind": "VISITOR",
+      "kind": "INTERACTION",
       "weight": 14,
       "cooldownHours": 9,
       "npcId": "errand_pio",
       "npcName": "Pio and Gleam",
       "npcRole": "Keeper and Siegeling errand pair",
       "kicker": "Basket, bell, bargaining chirp",
-      "prompt": "Pio's Siegeling, Gleam, insists on joining the market errand. They can trade timber for mixed materials—or Gleam might \"improve\" the deal without asking.",
-      "requiresLoreIds": ["letter_forester_maren"],
+      "prompt": "Pio's Siegeling, Gleam, insists on joining the market errand. They can trade timber for mixed materials\u2014or Gleam might \"improve\" the deal without asking.",
+      "requiresLoreIds": [
+        "letter_forester_maren"
+      ],
       "choices": [
         {
           "id": "send_pair",
@@ -1891,7 +2121,11 @@
               "weight": 40,
               "response": "Fair deals all around. Fiber, a crystal, and an ingot come home with muddy footprints.",
               "relationshipDelta": 2,
-              "materialDeltas": { "verdant_fiber": 3, "frost_crystal": 1, "ember_ingot": 1 },
+              "materialDeltas": {
+                "verdant_fiber": 3,
+                "frost_crystal": 1,
+                "ember_ingot": 1
+              },
               "flag": "market_errand_ok"
             },
             {
@@ -1899,7 +2133,9 @@
               "weight": 35,
               "response": "Gleam bargains by sitting on a merchant's ledger until prices drop. You gain extra fiber and a minor reputation for chaos.",
               "relationshipDelta": 1,
-              "materialDeltas": { "verdant_fiber": 5 },
+              "materialDeltas": {
+                "verdant_fiber": 5
+              },
               "flag": "market_errand_ok"
             },
             {
@@ -1908,7 +2144,9 @@
               "response": "Half the timber became road snacks. Gleam is happy. Your inventory is philosophical.",
               "relationshipDelta": 1,
               "timberDelta": 0,
-              "materialDeltas": { "verdant_fiber": 1 },
+              "materialDeltas": {
+                "verdant_fiber": 1
+              },
               "flag": "market_errand_snacks"
             }
           ]
@@ -1923,7 +2161,9 @@
               "id": "boring_success",
               "weight": 70,
               "response": "Boring success. Pio returns with Ember Ingots and no stories.",
-              "materialDeltas": { "ember_ingot": 2 }
+              "materialDeltas": {
+                "ember_ingot": 2
+              }
             },
             {
               "id": "lonely_chew",
@@ -1943,15 +2183,17 @@
     },
     {
       "id": "visitor_rainy_indoor",
-      "kind": "VISITOR",
+      "kind": "INTERACTION",
       "weight": 15,
       "cooldownHours": 8,
       "npcId": "rain_keeper_ullo",
       "npcName": "Ullo Pane",
       "npcRole": "Indoor-day games keeper",
       "kicker": "Rain on Archive glass",
-      "prompt": "Hard rain. Siegelings bounce off the walls—literally. Ullo proposes indoor games with timber toys, or you can open the Hall and accept the mess tax.",
-      "requiresLoreIds": ["charter_three_promises"],
+      "prompt": "Hard rain. Siegelings bounce off the walls\u2014literally. Ullo proposes indoor games with timber toys, or you can open the Hall and accept the mess tax.",
+      "requiresLoreIds": [
+        "charter_three_promises"
+      ],
       "choices": [
         {
           "id": "indoor_games",
@@ -1964,7 +2206,9 @@
               "weight": 50,
               "response": "No broken windows. Psychic-leaning residents leave Storm Cells they spun from cabin fever.",
               "relationshipDelta": 2,
-              "materialDeltas": { "storm_cell": 2 },
+              "materialDeltas": {
+                "storm_cell": 2
+              },
               "flag": "rain_day_games"
             },
             {
@@ -1978,9 +2222,11 @@
             {
               "id": "story_circle",
               "weight": 20,
-              "response": "Games become story circle. Pell copies nothing down on purpose—and still finds fiber bookmarks left in the margins.",
+              "response": "Games become story circle. Pell copies nothing down on purpose\u2014and still finds fiber bookmarks left in the margins.",
               "relationshipDelta": 2,
-              "materialDeltas": { "verdant_fiber": 3 },
+              "materialDeltas": {
+                "verdant_fiber": 3
+              },
               "unlockLoreId": "chronicle_shared_mornings",
               "flag": "rain_day_games"
             }
@@ -1996,7 +2242,9 @@
               "weight": 55,
               "response": "You survive. Barely. A Frost Crystal rolls out of a soaked satchel as rent.",
               "timberDelta": -5,
-              "materialDeltas": { "frost_crystal": 1 }
+              "materialDeltas": {
+                "frost_crystal": 1
+              }
             },
             {
               "id": "banner_casualty",
@@ -2016,7 +2264,7 @@
     },
     {
       "id": "visitor_hatchday",
-      "kind": "VISITOR",
+      "kind": "INTERACTION",
       "weight": 10,
       "cooldownHours": 14,
       "npcId": "hatch_host_neri",
@@ -2024,13 +2272,17 @@
       "npcRole": "Hatchday host",
       "kicker": "Paper crowns on careful horns",
       "prompt": "A Siegeling hatchday. Neri wants a small party: timber table, fiber streamers, optional forge-spark cake. Refuse, and they celebrate in the Woodlot with unsupervised enthusiasm.",
-      "requiresLoreIds": ["chronicle_living_elements"],
+      "requiresLoreIds": [
+        "chronicle_living_elements"
+      ],
       "choices": [
         {
           "id": "throw_party",
           "label": "Throw the party: 12 timber and 2 Verdant Fiber.",
           "timberCost": 12,
-          "materialCosts": { "verdant_fiber": 2 },
+          "materialCosts": {
+            "verdant_fiber": 2
+          },
           "response": "Crowns, crumbs, consent.",
           "outcomes": [
             {
@@ -2038,7 +2290,10 @@
               "weight": 45,
               "response": "Perfect chaos. Guests leave Ember Ingots and Frost Crystals as presents \"for the Keep that remembers hatchdays.\"",
               "relationshipDelta": 2,
-              "materialDeltas": { "ember_ingot": 2, "frost_crystal": 2 },
+              "materialDeltas": {
+                "ember_ingot": 2,
+                "frost_crystal": 2
+              },
               "unlockLoreId": "letter_evening_chorus",
               "flag": "hatchday_held"
             },
@@ -2048,7 +2303,9 @@
               "response": "The spark cake is literal. Minor scorch on a table; major joy. Extra timber for sand buckets.",
               "relationshipDelta": 1,
               "timberDelta": -6,
-              "materialDeltas": { "ember_ingot": 1 },
+              "materialDeltas": {
+                "ember_ingot": 1
+              },
               "flag": "hatchday_held"
             },
             {
@@ -2056,7 +2313,9 @@
               "weight": 20,
               "response": "The birthday Siegeling re-gifts half the presents to shy newcomers. Fiber and kindness recirculate.",
               "relationshipDelta": 2,
-              "materialDeltas": { "verdant_fiber": 4 },
+              "materialDeltas": {
+                "verdant_fiber": 4
+              },
               "flag": "hatchday_held"
             }
           ]
@@ -2069,7 +2328,7 @@
         },
         {
           "id": "no_party",
-          "label": "No party—work schedule is full.",
+          "label": "No party\u2014work schedule is full.",
           "response": "They celebrate in the Woodlot. Unsupervised enthusiasm invoices you in timber.",
           "relationshipDelta": -1,
           "outcomes": [
@@ -2084,7 +2343,9 @@
               "id": "quiet_gift",
               "weight": 35,
               "response": "They keep it gentle after all and leave a single Frost Crystal on your desk without comment.",
-              "materialDeltas": { "frost_crystal": 1 },
+              "materialDeltas": {
+                "frost_crystal": 1
+              },
               "flag": "hatchday_unsupervised"
             }
           ]
@@ -2093,15 +2354,17 @@
     },
     {
       "id": "visitor_chore_swap",
-      "kind": "VISITOR",
+      "kind": "INTERACTION",
       "weight": 16,
       "cooldownHours": 7,
       "npcId": "chore_broker_kipp",
       "npcName": "Kipp",
       "npcRole": "Siegeling chore broker",
       "kicker": "A clipboard held in both paws",
-      "prompt": "Kipp, a clever Neutral Siegeling, proposes a chore swap: residents will haul garden fiber if you pay timber wages—or they'll \"help\" the forge if you stake ingots. Daily life is also labor negotiation.",
-      "requiresLoreIds": ["charter_three_promises"],
+      "prompt": "Kipp, a clever Neutral Siegeling, proposes a chore swap: residents will haul garden fiber if you pay timber wages\u2014or they'll \"help\" the forge if you stake ingots. Daily life is also labor negotiation.",
+      "requiresLoreIds": [
+        "charter_three_promises"
+      ],
       "choices": [
         {
           "id": "hire_garden",
@@ -2114,7 +2377,9 @@
               "weight": 60,
               "response": "Honest work. Verdant Fiber stacked with tiny paw-prints on the labels.",
               "relationshipDelta": 2,
-              "materialDeltas": { "verdant_fiber": 5 },
+              "materialDeltas": {
+                "verdant_fiber": 5
+              },
               "flag": "chore_swap_garden"
             },
             {
@@ -2122,7 +2387,9 @@
               "weight": 25,
               "response": "Union-mandated snack break runs long. Smaller fiber haul, bigger hearts.",
               "relationshipDelta": 1,
-              "materialDeltas": { "verdant_fiber": 2 },
+              "materialDeltas": {
+                "verdant_fiber": 2
+              },
               "flag": "chore_swap_garden"
             },
             {
@@ -2130,7 +2397,9 @@
               "weight": 15,
               "response": "They overwater and invent mud skating. You lose timber on boardwalk fixes and gain a story.",
               "timberDelta": -6,
-              "materialDeltas": { "verdant_fiber": 1 },
+              "materialDeltas": {
+                "verdant_fiber": 1
+              },
               "flag": "chore_swap_garden"
             }
           ]
@@ -2138,15 +2407,19 @@
         {
           "id": "hire_forge",
           "label": "Stake 2 Ember Ingots for forge help.",
-          "materialCosts": { "ember_ingot": 2 },
+          "materialCosts": {
+            "ember_ingot": 2
+          },
           "response": "Sparks and safety lectures.",
           "outcomes": [
             {
               "id": "good_shift",
               "weight": 55,
-              "response": "A clean shift. Ingots returned with interest—and a lecture about asking flame first.",
+              "response": "A clean shift. Ingots returned with interest\u2014and a lecture about asking flame first.",
               "relationshipDelta": 2,
-              "materialDeltas": { "ember_ingot": 4 },
+              "materialDeltas": {
+                "ember_ingot": 4
+              },
               "flag": "chore_swap_forge"
             },
             {
@@ -2154,15 +2427,235 @@
               "weight": 45,
               "response": "They make scrap art instead of stock. Cute. Costly. One Storm Cell somehow ends up in the sculpture.",
               "relationshipDelta": 1,
-              "materialDeltas": { "storm_cell": 1 },
+              "materialDeltas": {
+                "storm_cell": 1
+              },
               "flag": "chore_swap_forge"
             }
           ]
         },
         {
           "id": "no_wages",
-          "label": "Refuse wages—chores are \"part of sanctuary.\"",
+          "label": "Refuse wages\u2014chores are \"part of sanctuary.\"",
           "response": "Kipp files this under \"humans forgetting consent.\" The clipboard snaps shut.",
+          "relationshipDelta": -2
+        }
+      ]
+    },
+    {
+      "id": "interaction_elara_yard_rounds",
+      "kind": "INTERACTION",
+      "weight": 20,
+      "cooldownHours": 6,
+      "npcId": "steward_elara",
+      "npcName": "Steward Elara Venn",
+      "npcRole": "Valorous steward",
+      "kicker": "Yard rounds at dusk",
+      "prompt": "Elara walks the yard counting what the Keep took and what it returned. She asks how you want the workers spoken to when a Siegeling refuses a task.",
+      "requiresLoreIds": [
+        "charter_three_promises"
+      ],
+      "choices": [
+        {
+          "id": "ask_first",
+          "label": "Ask first. No task without consent.",
+          "response": "She nods as if rewriting a standing order in the air.",
+          "relationshipDelta": 2,
+          "flag": "elara_rounds_consent"
+        },
+        {
+          "id": "reassign_gently",
+          "label": "Reassign the work quietly\u2014keep the schedule.",
+          "response": "Practical. She accepts it, but watches you a breath longer.",
+          "relationshipDelta": 1
+        },
+        {
+          "id": "press_duty",
+          "label": "Remind them the Charter still needs walls.",
+          "response": "Her jaw sets. \"Walls built on refused work are only another quarry.\"",
+          "relationshipDelta": -2
+        }
+      ]
+    },
+    {
+      "id": "interaction_pell_margin_notes",
+      "kind": "INTERACTION",
+      "weight": 16,
+      "cooldownHours": 8,
+      "npcId": "archivist_pell",
+      "npcName": "Archivist Nara Pell",
+      "npcRole": "Historian of disputed covenants",
+      "kicker": "Ink still wet in the margin",
+      "prompt": "Pell wants a fresh margin note on today's Keep: should the Chronicle record your compromises in full, or only the outcomes that make the sanctuary look steady?",
+      "requiresLoreIds": [
+        "chronicle_living_elements"
+      ],
+      "choices": [
+        {
+          "id": "full_record",
+          "label": "Record the compromises. Let future Keepers see the cost.",
+          "response": "She smiles without warmth. \"Good. Shame makes better historians than pride.\"",
+          "relationshipDelta": 2,
+          "flag": "pell_margins_honest"
+        },
+        {
+          "id": "steady_face",
+          "label": "Keep the public ledger calm; save doubts for private notes.",
+          "response": "She files both versions. Trust grows slower when ink hides.",
+          "relationshipDelta": 0
+        },
+        {
+          "id": "polish",
+          "label": "Polish the story. Visitors need hope more than footnotes.",
+          "response": "\"Hope that cannot survive a footnote is already a lie,\" she says, and closes the book harder than needed.",
+          "relationshipDelta": -1
+        }
+      ]
+    },
+    {
+      "id": "interaction_sera_shelf_check",
+      "kind": "INTERACTION",
+      "weight": 16,
+      "cooldownHours": 8,
+      "npcId": "quartermaster_sera",
+      "npcName": "Quartermaster Sera Vale",
+      "npcRole": "Keeper of stores and sanctuary tribute",
+      "kicker": "Empty shelf, open ledger",
+      "prompt": "Sera taps an empty shelf. Surplus timber could fill it tonight, or you can leave the space as a promise that the Keep will not hoard past need.",
+      "requiresLoreIds": [
+        "ledger_quartermaster_sera"
+      ],
+      "choices": [
+        {
+          "id": "leave_space",
+          "label": "Leave it empty. Room held in trust.",
+          "response": "She marks the shelf with a chalk circle. \"Restraint is also a store.\"",
+          "relationshipDelta": 2,
+          "flag": "sera_shelf_trust"
+        },
+        {
+          "id": "modest_fill",
+          "label": "Stock a modest reserve for hard weather.",
+          "response": "She allows it, then counts twice. Caution is almost trust.",
+          "relationshipDelta": 1,
+          "timberCost": 8,
+          "timberDelta": 0
+        },
+        {
+          "id": "pack_tight",
+          "label": "Fill every gap. Empty shelves look like failure.",
+          "response": "\"Failure is what we call honesty when we fear it,\" she answers, and leaves the ledger open for you to see.",
+          "relationshipDelta": -2
+        }
+      ]
+    },
+    {
+      "id": "interaction_mira_second_kettle",
+      "kind": "INTERACTION",
+      "weight": 18,
+      "cooldownHours": 5,
+      "npcId": "cook_mira",
+      "npcName": "Cook Mira",
+      "npcRole": "Hall kitchen keeper",
+      "kicker": "Second kettle of the day",
+      "prompt": "The first breakfast is done, but a shy Ice Siegeling still waits by the door. Mira asks whether you will stretch the Keep's stores for one more bowl\u2014or close the kitchen.",
+      "requiresLoreIds": [
+        "charter_three_promises"
+      ],
+      "requiresFlags": [
+        "breakfast_shared"
+      ],
+      "choices": [
+        {
+          "id": "extra_bowl",
+          "label": "Stretch the stores: spend 6 timber for one more bowl.",
+          "timberCost": 6,
+          "response": "Steam, a small chirp, and Mira's quieter smile.",
+          "relationshipDelta": 2
+        },
+        {
+          "id": "share_yours",
+          "label": "Split your own portion. No extra cost.",
+          "response": "You eat less. The Siegeling does not forget.",
+          "relationshipDelta": 1
+        },
+        {
+          "id": "close_kitchen",
+          "label": "Close the kitchen. Rules are rules.",
+          "response": "Mira does not argue. The door latch sounds louder than it should.",
+          "relationshipDelta": -1
+        }
+      ]
+    },
+    {
+      "id": "interaction_pio_gleam_return",
+      "kind": "INTERACTION",
+      "weight": 15,
+      "cooldownHours": 7,
+      "npcId": "errand_pio",
+      "npcName": "Pio and Gleam",
+      "npcRole": "Keeper and Siegeling errand pair",
+      "kicker": "Basket back, mud on both",
+      "prompt": "Pio and Gleam return from a short road loop asking whether Gleam may keep a shiny scrap from the ditch\u2014or whether the Keep claims found things for the common stores.",
+      "requiresLoreIds": [
+        "letter_forester_maren"
+      ],
+      "choices": [
+        {
+          "id": "let_gleam_keep",
+          "label": "Let Gleam keep the scrap. Joy is also inventory.",
+          "response": "Gleam rings like a tiny bell. Pio looks relieved you understood.",
+          "relationshipDelta": 2
+        },
+        {
+          "id": "common_stores",
+          "label": "Into the common stores\u2014after Gleam shows everyone.",
+          "response": "A compromise. Gleam parades the scrap once, then sighs it into the crate.",
+          "relationshipDelta": 1,
+          "materialDeltas": {
+            "ember_ingot": 1
+          }
+        },
+        {
+          "id": "confiscate",
+          "label": "Confiscate it immediately. No ditch treasures.",
+          "response": "Gleam sits on your boot in protest. Pio apologizes for both of them.",
+          "relationshipDelta": -2
+        }
+      ]
+    },
+    {
+      "id": "interaction_ullo_quiet_hour",
+      "kind": "INTERACTION",
+      "weight": 15,
+      "cooldownHours": 7,
+      "npcId": "rain_keeper_ullo",
+      "npcName": "Ullo Pane",
+      "npcRole": "Indoor-day games keeper",
+      "kicker": "Quiet hour, loud Siegelings",
+      "prompt": "Ullo proposes a quiet hour so the Archive can think. The Siegelings propose the opposite. Whose side do you take when the Hall starts to vibrate?",
+      "requiresLoreIds": [
+        "charter_three_promises"
+      ],
+      "choices": [
+        {
+          "id": "rotate_spaces",
+          "label": "Rotate spaces: play in the yard, quiet in the Archive.",
+          "response": "Ullo exhales. The yard gains chalk; the Archive keeps its sentences.",
+          "relationshipDelta": 2,
+          "flag": "ullo_quiet_hour"
+        },
+        {
+          "id": "soft_toys",
+          "label": "Fund soft indoor toys: spend 8 timber.",
+          "timberCost": 8,
+          "response": "Noise drops to a tolerable thunder. Ullo almost smiles.",
+          "relationshipDelta": 1
+        },
+        {
+          "id": "shut_it_down",
+          "label": "Shut the games down hard.",
+          "response": "Quiet arrives. So does a colder Hall.",
           "relationshipDelta": -2
         }
       ]

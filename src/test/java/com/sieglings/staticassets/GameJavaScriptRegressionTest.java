@@ -625,8 +625,8 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=21")
-                        && keepHtml.contains("/js/keep.js?v=23"),
+                        && keepHtml.contains("/css/keep.css?v=22")
+                        && keepHtml.contains("/js/keep.js?v=24"),
                 "Keep architecture must retain its paper building hooks and refresh both asset cache pins."
         );
         assertTrue(
@@ -650,6 +650,29 @@ class GameJavaScriptRegressionTest {
                         && keepJs.contains("setGroundsSuppressed(true)")
                         && keepCss.contains("content-visibility: hidden"),
                 "Empty tool racks must stay hidden, decorations must layer above them, and open interiors must suspend grounds painting."
+        );
+    }
+
+    @Test
+    void keepInteractionNpcsSurfaceAffinityAndDistantSpectrum() throws IOException {
+        String keepHtml = Files.readString(KEEP_HTML);
+        String keepCss = Files.readString(KEEP_CSS);
+        String keepJs = Files.readString(KEEP_JS);
+
+        assertTrue(
+                keepJs.contains("kind === 'INTERACTION'")
+                        && keepJs.contains("Returns · affinity")
+                        && keepJs.contains("Affinity +")
+                        && keepJs.contains("return 'Distant'")
+                        && keepJs.contains("<i>Distant</i><i>Acquainted</i><i>Trusted</i><i>Bonded</i>")
+                        && keepHtml.contains("id=\"dialogueAffinity\"")
+                        && keepCss.contains(".dialogue-affinity")
+                        && keepCss.contains(".conversation-card.is-interaction"),
+                "Interaction NPCs must show recurring affinity feedback on the Distant→Bonded Voices spectrum."
+        );
+        assertFalse(
+                keepJs.contains("return 'Wary'"),
+                "The zero-trust Voices stage is Distant, matching the spectrum labels."
         );
     }
 
