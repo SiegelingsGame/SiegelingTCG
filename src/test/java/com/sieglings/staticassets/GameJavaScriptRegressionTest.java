@@ -28,6 +28,7 @@ class GameJavaScriptRegressionTest {
     private static final Path KEEP_CSS = Path.of("src/main/resources/static/css/keep.css");
     private static final Path KEEP_JS = Path.of("src/main/resources/static/js/keep.js");
     private static final Path ADVENTURE_CSS = Path.of("src/main/resources/static/css/adventure.css");
+    private static final Path ADVENTURE_JS = Path.of("src/main/resources/static/js/adventure.js");
     private static final Path ADVENTURE_HTML = Path.of("src/main/resources/static/adventure.html");
 
     @Test
@@ -806,9 +807,30 @@ class GameJavaScriptRegressionTest {
                 "Art bleeds under the notch and home indicator while controls stay inset by the safe area."
         );
         assertTrue(
-                adventureHtml.contains("/css/adventure.css?v=42"),
+                adventureHtml.contains("/css/adventure.css?v=43"),
                 "adventure.css must be cache-busted after the full-bleed location rework."
         );
+    }
+
+    @Test
+    void siegeRunMenuSavesBeforeQuitAndRestartsOnlyAfterServerAbandon() throws IOException {
+        String adventureHtml = Files.readString(ADVENTURE_HTML);
+        String adventureJs = Files.readString(ADVENTURE_JS);
+
+        assertTrue(adventureHtml.contains("id=\"runMenuSave\"")
+                        && adventureHtml.contains("id=\"runMenuRestart\"")
+                        && adventureHtml.contains("id=\"runMenuQuit\"")
+                        && adventureHtml.contains("/css/adventure.css?v=43")
+                        && adventureHtml.contains("/js/adventure.js?v=41"),
+                "The active-run menu and both cache-busted bundles must ship together.");
+        String restartRun = extractFunction(adventureJs, "function restartRun(");
+        assertTrue(adventureJs.contains("api('/api/siege/run/save'")
+                        && adventureJs.contains("if (!run.checkpoint) throw new Error")
+                        && restartRun.contains("api('/api/siege/run/abandon'")
+                        && restartRun.indexOf("api('/api/siege/run/abandon'") < restartRun.indexOf("setToken(null); state.run = null"),
+                "Save/Quit must require a durable checkpoint and Restart must abandon server state before clearing local state.");
+        assertFalse(adventureJs.contains("resetPageScroll"),
+                "The menu port must not revive the stale PR's superseded map-scroll implementation.");
     }
 
     private static String readGameScript() throws IOException {

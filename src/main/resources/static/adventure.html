@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Siege — Siegelings Adventure</title>
 <link rel="icon" href="/favicon.png">
-<link rel="stylesheet" href="/css/adventure.css?v=42">
+<link rel="stylesheet" href="/css/adventure.css?v=43">
 </head>
 <body>
 <div class="siege-app" id="siegeApp">
@@ -14,7 +14,7 @@
   <header class="siege-topbar">
     <a class="siege-back" href="/play" title="Back to Play">◄ Play</a>
     <div class="siege-title">SIEGE <span>Adventure Expedition</span></div>
-    <button class="siege-abandon hidden" id="abandonBtn" type="button">Abandon Run</button>
+    <button class="siege-abandon hidden" id="runMenuBtn" type="button" aria-haspopup="dialog" aria-controls="runMenu" aria-expanded="false">Menu</button>
   </header>
 
   <!-- Loading -->
@@ -554,8 +554,20 @@
     </div>
   </div>
 
+  <div class="run-menu hidden" id="runMenu" role="dialog" aria-modal="true" aria-labelledby="runMenuTitle">
+    <button class="run-menu-backdrop" id="runMenuBackdrop" type="button" aria-label="Close expedition menu"></button>
+    <div class="run-menu-panel" tabindex="-1">
+      <div class="run-menu-title" id="runMenuTitle">Expedition Menu</div>
+      <p class="run-menu-status" id="runMenuStatus" aria-live="polite">Save now, restart this run, or return to Play.</p>
+      <button class="run-menu-item" id="runMenuSave" type="button"><span aria-hidden="true">💾</span> Save</button>
+      <button class="run-menu-item" id="runMenuRestart" type="button"><span aria-hidden="true">🔄</span> Restart</button>
+      <button class="run-menu-item danger" id="runMenuQuit" type="button"><span aria-hidden="true">🚪</span> Quit</button>
+      <button class="run-menu-cancel" id="runMenuCancel" type="button">Cancel</button>
+    </div>
+  </div>
+
   <div class="siege-toast hidden" id="siegeToast"></div>
 </div>
-<script src="/js/adventure.js?v=40"></script>
+<script src="/js/adventure.js?v=41"></script>
 </body>
 </html>
