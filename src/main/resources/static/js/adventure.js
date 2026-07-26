@@ -28,7 +28,8 @@
     interactionResult: null,
     pendingKnightUnlock: null,
     campMenu: null,
-    deferBattleHandRender: false
+    deferBattleHandRender: false,
+    runMenuReturnFocus: null
   };
 
   var EL_ICON = {
@@ -369,7 +370,7 @@
    *  showing exactly where it left off (party HP, gold, floor, mid-battle). */
   function renderResumePrompt(run) {
     showScreen('resumeScreen');
-    $('abandonBtn').classList.add('hidden');
+    updateRunMenu(false);
     var node = (run.map || []).find(function (n) { return n.id === run.currentNodeId; });
     var floor = node ? (node.row + 1) : 1;
     $('resumeFloor').textContent = '📍 Floor ' + floor;
@@ -530,22 +531,95 @@
       var b = e.target.closest ? e.target.closest('.bg-shop-buy') : null;
       if (b && !b.disabled) buyBgItem(b.getAttribute('data-item'));
     });
-    $('abandonBtn').addEventListener('click', function () {
-      if (confirm('Abandon this expedition?')) { setToken(null); state.run = null; state.party = []; state.knightId = null; loadRoster(); }
+    $('runMenuBtn').addEventListener('click', openRunMenu);
+    $('runMenuBackdrop').addEventListener('click', closeRunMenu);
+    $('runMenuCancel').addEventListener('click', closeRunMenu);
+    $('runMenuSave').addEventListener('click', saveRunFromMenu);
+    $('runMenuRestart').addEventListener('click', restartRun);
+    $('runMenuQuit').addEventListener('click', quitRun);
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !$('runMenu').classList.contains('hidden')) closeRunMenu();
     });
     $('resumeContinueBtn').addEventListener('click', function () { renderRun(); });
-    $('resumeRestartBtn').addEventListener('click', function () {
-      if (!confirm('Start over? Your current expedition (progress, gold, party) will be lost.')) return;
-      var t = token();
-      setToken(null); state.run = null; state.party = []; state.knightId = null;
-      api('/api/siege/run/abandon', { method: 'POST', body: { token: t } }).catch(function () {}).then(loadRoster);
-    });
+    $('resumeRestartBtn').addEventListener('click', restartRun);
+  }
+
+  function updateRunMenu(show) {
+    $('runMenuBtn').classList.toggle('hidden', !show);
+    if (!show) closeRunMenu(false);
+  }
+
+  function setRunMenuBusy(busy, message) {
+    ['runMenuSave', 'runMenuRestart', 'runMenuQuit'].forEach(function (id) { $(id).disabled = busy; });
+    if (message) $('runMenuStatus').textContent = message;
+  }
+
+  function openRunMenu() {
+    if (!state.run || state.run.status !== 'ACTIVE') return;
+    state.runMenuReturnFocus = document.activeElement;
+    $('runMenuStatus').textContent = 'Save now, restart this run, or return to Play.';
+    $('runMenu').classList.remove('hidden');
+    $('runMenuBtn').setAttribute('aria-expanded', 'true');
+    $('runMenuSave').focus();
+  }
+
+  function closeRunMenu(restoreFocus) {
+    $('runMenu').classList.add('hidden');
+    $('runMenuBtn').setAttribute('aria-expanded', 'false');
+    setRunMenuBusy(false);
+    if (restoreFocus !== false && state.runMenuReturnFocus && document.contains(state.runMenuReturnFocus)) {
+      state.runMenuReturnFocus.focus();
+    }
+    state.runMenuReturnFocus = null;
+  }
+
+  function saveRunFromMenu() {
+    if (state.busy || !state.run || state.run.status !== 'ACTIVE') return;
+    state.busy = true;
+    setRunMenuBusy(true, 'Saving expedition...');
+    api('/api/siege/run/save', { method: 'POST', body: { token: token() } })
+      .then(function (run) {
+        state.run = run;
+        if (!run.checkpoint) throw new Error('Could not save right now. Please try again.');
+        $('runMenuStatus').textContent = 'Saved. You can safely return later.';
+        toast('Expedition saved.');
+      })
+      .catch(function (e) { $('runMenuStatus').textContent = e.message; toast(e.message); })
+      .then(function () { state.busy = false; setRunMenuBusy(false); });
+  }
+
+  function restartRun() {
+    if (state.busy || !confirm('Start over? Your current expedition, gold, and party will be lost.')) return;
+    var t = token();
+    state.busy = true;
+    setRunMenuBusy(true, 'Restarting expedition...');
+    api('/api/siege/run/abandon', { method: 'POST', body: { token: t } })
+      .then(function () {
+        setToken(null); state.run = null; state.party = []; state.knightId = null;
+        closeRunMenu(false); loadRoster();
+      })
+      .catch(function (e) { $('runMenuStatus').textContent = e.message; toast(e.message); })
+      .then(function () { state.busy = false; setRunMenuBusy(false); });
+  }
+
+  function quitRun() {
+    if (state.busy || !confirm('Save this expedition and return to Play?')) return;
+    state.busy = true;
+    setRunMenuBusy(true, 'Saving before exit...');
+    api('/api/siege/run/save', { method: 'POST', body: { token: token() } })
+      .then(function (run) {
+        state.run = run;
+        if (!run.checkpoint) throw new Error('Could not save, so the expedition remains open. Please try again.');
+        location.href = '/play';
+      })
+      .catch(function (e) { $('runMenuStatus').textContent = e.message; toast(e.message); })
+      .then(function () { state.busy = false; setRunMenuBusy(false); });
   }
 
   // ---- team select (paged: mode -> knight -> warband) -------------------
   function renderSetup() {
     showScreen('setupScreen');
-    $('abandonBtn').classList.add('hidden');
+    updateRunMenu(false);
     var order = { mode: 0, knight: 1, party: 2 };
     if (order[state.setupStep] == null) state.setupStep = 'mode';
     var onMode = state.setupStep === 'mode';
@@ -1277,9 +1351,9 @@
 
   function renderRun() {
     var run = state.run;
-    if (!run) { loadRoster(); return; }
+    if (!run) { updateRunMenu(false); loadRoster(); return; }
     if (!run.camp) state.campMenu = null;
-    $('abandonBtn').classList.toggle('hidden', run.status !== 'ACTIVE');
+    updateRunMenu(run.status === 'ACTIVE');
     if (run.battle) { renderBattle(); return; }
     // A freshly joined Siegeling gets its gacha reveal before anything else —
     // claim it, then the normal reward flow continues.

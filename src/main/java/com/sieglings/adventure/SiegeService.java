@@ -602,6 +602,17 @@ public class SiegeService {
         checkpoints.delete(token);
     }
 
+    /** Player explicitly requested a durable checkpoint from the run menu. */
+    Map<String, Object> saveRun(String token) {
+        SiegeRun run = lookup(token)
+                .orElseThrow(() -> new IllegalArgumentException("Run not found. Start a new expedition."));
+        if (run.getStatus() != RunStatus.ACTIVE) {
+            throw new IllegalArgumentException("This expedition has already ended.");
+        }
+        run.setCheckpointSaved(checkpoints.save(run.getToken(), snapshotRun(run)));
+        return serialize(run);
+    }
+
     // ---- Checkpoints (save mid-battle and at safe map states; resume later) --
 
     /**
