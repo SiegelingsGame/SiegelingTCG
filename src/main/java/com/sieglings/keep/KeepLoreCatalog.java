@@ -17,6 +17,8 @@ import java.util.Map;
 public class KeepLoreCatalog {
     public static final String KIND_STORY = "STORY";
     public static final String KIND_VISITOR = "VISITOR";
+    /** Recurring sanctuary encounters — same roll/cooldown pool as visitors, affinity-focused. */
+    public static final String KIND_INTERACTION = "INTERACTION";
 
     public record LoreEntry(String id, String type, String title, String source, String perspective,
                             String era, String summary, String body, String artKey) { }
@@ -84,17 +86,26 @@ public class KeepLoreCatalog {
     }
 
     public List<Conversation> visitorTemplates() {
-        return conversations.values().stream().filter(this::isVisitor).toList();
+        return conversations.values().stream().filter(this::isRollingEncounter).toList();
     }
 
     public boolean isVisitor(Conversation conversation) {
         return conversation != null && KIND_VISITOR.equalsIgnoreCase(conversation.kind());
     }
 
+    public boolean isInteraction(Conversation conversation) {
+        return conversation != null && KIND_INTERACTION.equalsIgnoreCase(conversation.kind());
+    }
+
+    /** Road visitors and sanctuary Interaction NPCs share the active-slot / cooldown roll pool. */
+    public boolean isRollingEncounter(Conversation conversation) {
+        return isVisitor(conversation) || isInteraction(conversation);
+    }
+
     private Conversation normalize(Conversation value) {
         String kind = value.kind() == null || value.kind().isBlank()
                 ? KIND_STORY : value.kind().trim().toUpperCase(Locale.ROOT);
-        if (!KIND_STORY.equals(kind) && !KIND_VISITOR.equals(kind)) {
+        if (!KIND_STORY.equals(kind) && !KIND_VISITOR.equals(kind) && !KIND_INTERACTION.equals(kind)) {
             throw new IllegalArgumentException("Conversation " + value.id() + " has unknown kind " + value.kind());
         }
         List<ConversationChoice> choices = new ArrayList<>();

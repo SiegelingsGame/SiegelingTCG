@@ -84,8 +84,9 @@ class KeepServiceTest {
         assertEquals(3, ((List<?>) snapshot.get("residents")).size());
         assertEquals(1, ((List<?>) snapshot.get("lore")).size());
         assertTrue(conversationIds(snapshot).contains("steward_first_promise"));
-        assertTrue(conversationIds(snapshot).stream().anyMatch(id -> id.startsWith("visitor_")),
-                "A lore-tied road visitor should appear on the first sanctuary visit.");
+        assertTrue(conversationIds(snapshot).stream().anyMatch(id ->
+                        id.startsWith("visitor_") || id.startsWith("interaction_")),
+                "A lore-tied road visitor or Interaction NPC should appear on the first sanctuary visit.");
     }
 
     @Test
@@ -204,13 +205,60 @@ class KeepServiceTest {
                 "breakfast-1", store.state.getVersion());
         @SuppressWarnings("unchecked")
         Map<String, Object> dialogue = (Map<String, Object>) result.get("dialogueResult");
-        assertEquals("VISITOR", dialogue.get("kind"));
+        assertEquals("INTERACTION", dialogue.get("kind"));
         assertEquals(10, ((Number) dialogue.get("timberSpent")).intValue());
         assertTrue(String.valueOf(dialogue.get("outcomeId")).length() > 0);
+        assertNotNull(dialogue.get("relationshipDelta"));
         assertTrue(loreIds(result).contains("chronicle_shared_mornings")
                 || intAt(result, "resources", "timber") < 100
                 || materialAmount(result, "ember_ingot") > 0
                 || materialAmount(result, "verdant_fiber") > 0);
+    }
+
+    @Test
+    void interactionNpcRepeatAfterCooldownAndAffinityFollowsChoices() {
+        service.getSnapshot(user);
+        store.state.getActiveVisitorIds().clear();
+        store.state.getActiveVisitorIds().add("interaction_elara_yard_rounds");
+        store.state.setLastVisitorRollAt(clock.instant());
+
+        Map<String, Object> warm = service.chooseDialogue(user, "interaction_elara_yard_rounds", "ask_first",
+                "elara-warm-1", store.state.getVersion());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> warmDialogue = (Map<String, Object>) warm.get("dialogueResult");
+        assertEquals("INTERACTION", warmDialogue.get("kind"));
+        assertEquals(2, ((Number) warmDialogue.get("relationshipDelta")).intValue());
+        assertEquals(2, ((Number) warmDialogue.get("trust")).intValue());
+        assertEquals("Acquainted", warmDialogue.get("stage"));
+        assertFalse(conversationIds(warm).contains("interaction_elara_yard_rounds"));
+        assertEquals(2, store.state.getNpcTrust().get("steward_elara").intValue());
+
+        // Before cooldown elapses, Elara's interaction must not re-seat even if the roll window opens.
+        store.state.setLastVisitorRollAt(null);
+        Map<String, Object> stillCooling = service.getSnapshot(user);
+        assertFalse(conversationIds(stillCooling).contains("interaction_elara_yard_rounds"));
+
+        clock.advance(Duration.ofHours(6).plusMinutes(1));
+        store.state.setLastVisitorRollAt(null);
+        // Flood the candidate pool with ineligible noise by locking other encounters behind missing lore,
+        // then verify the returning Interaction NPC is preferred once cooldown clears.
+        store.state.getNpcTrust().put("steward_elara", 2);
+        Map<String, Object> returned = service.getSnapshot(user);
+        assertTrue(conversationIds(returned).contains("interaction_elara_yard_rounds")
+                        || store.state.getActiveVisitorIds().contains("interaction_elara_yard_rounds"),
+                "Interaction NPCs should return after their cooldown so affinity can keep moving.");
+
+        store.state.getActiveVisitorIds().clear();
+        store.state.getActiveVisitorIds().add("interaction_elara_yard_rounds");
+        store.state.setLastVisitorRollAt(clock.instant());
+        Map<String, Object> cold = service.chooseDialogue(user, "interaction_elara_yard_rounds", "press_duty",
+                "elara-cold-1", store.state.getVersion());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> coldDialogue = (Map<String, Object>) cold.get("dialogueResult");
+        assertEquals(-2, ((Number) coldDialogue.get("relationshipDelta")).intValue());
+        assertEquals(0, ((Number) coldDialogue.get("trust")).intValue());
+        assertEquals("Distant", coldDialogue.get("stage"));
+        assertEquals(0, store.state.getNpcTrust().get("steward_elara").intValue());
     }
 
     @Test
