@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -361,6 +362,56 @@ class KeepServiceTest {
         List<Map<String, Object>> recipes = (List<Map<String, Object>>) tool.get("recipes");
         assertTrue(recipes.stream().anyMatch(item -> "gardener_tools".equals(item.get("id"))
                 && Boolean.TRUE.equals(item.get("crafted"))));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void roomExpansionsCostMaterialsFromPartnerWorkshops() {
+        service.getSnapshot(user);
+        store.state.setWoodlotLevel(2);
+        for (String id : List.of("garden", "forge", "fridge", "generator", "quarry", "kitchen")) {
+            store.state.getFacilityLevels().put(id, 2);
+            store.state.getFacilityLastAccruedAt().put(id, clock.instant());
+        }
+        Map<String, String> primaryByRoom = Map.of("woodlot", "verdant_fiber", "garden", "verdant_fiber",
+                "forge", "ember_ingot", "fridge", "frost_crystal", "generator", "storm_cell",
+                "quarry", "stone", "kitchen", "provisions");
+
+        List<Map<String, Object>> recipes = (List<Map<String, Object>>) service.getSnapshot(user).get("recipes");
+        int checked = 0;
+        for (Map<String, Object> recipe : recipes) {
+            String room = String.valueOf(recipe.get("roomId"));
+            int tier = ((Number) recipe.get("tier")).intValue();
+            if (!primaryByRoom.containsKey(room) || tier < 2) continue;
+            List<Map<String, Object>> costs = (List<Map<String, Object>>) recipe.get("costs");
+            List<String> materials = costs.stream().map(cost -> String.valueOf(cost.get("id"))).toList();
+            assertTrue(materials.contains(primaryByRoom.get(room)),
+                    recipe.get("id") + " should still cost its own workshop material");
+            assertTrue(materials.size() >= 2,
+                    recipe.get("id") + " should also cost a material from another building, got " + materials);
+            if (tier >= 4) {
+                assertEquals(3, materials.size(),
+                        recipe.get("id") + " should draw on two partner workshops at tier " + tier);
+            }
+            assertEquals(materials.size(), Set.copyOf(materials).size(), recipe.get("id") + " lists a material twice");
+            checked++;
+        }
+        assertEquals(56, checked, "every room expansion tier 2-5 should be covered");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void everyExpansionCarriesItsOwnDescription() {
+        service.getSnapshot(user);
+        store.state.setWoodlotLevel(2);
+        for (String id : List.of("garden", "forge", "fridge", "generator", "quarry", "kitchen")) {
+            store.state.getFacilityLevels().put(id, 2);
+            store.state.getFacilityLastAccruedAt().put(id, clock.instant());
+        }
+        List<Map<String, Object>> recipes = (List<Map<String, Object>>) service.getSnapshot(user).get("recipes");
+        List<String> descriptions = recipes.stream().map(recipe -> String.valueOf(recipe.get("description"))).toList();
+        assertEquals(descriptions.size(), Set.copyOf(descriptions).size(),
+                "shared boilerplate descriptions make every workshop read the same");
     }
 
     @Test

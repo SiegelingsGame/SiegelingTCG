@@ -9,7 +9,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#173f54">
-    <link rel="stylesheet" href="/css/keep.css?v=20">
+    <link rel="stylesheet" href="/css/keep.css?v=21">
 </head>
 <body>
 <svg class="keep-svg-defs" width="0" height="0" aria-hidden="true" focusable="false">
@@ -357,6 +357,7 @@
                 <button class="interior-exit" id="interiorExit" type="button"><span aria-hidden="true">⟵</span> Grounds</button>
                 <div class="interior-heading"><span class="eyebrow" id="interiorKicker">Inside</span><h2 id="interiorTitle">Interior</h2></div>
             </header>
+            <div class="interior-viewport">
             <div class="interior-stage" aria-hidden="true">
                 <div class="interior-room room-hall">
                     <i class="int-backwall"></i><i class="int-sidewall side-left"></i><i class="int-sidewall side-right"></i><i class="int-floor"></i>
@@ -452,6 +453,16 @@
                         <b data-enclave-resident-slot="0"></b><b data-enclave-resident-slot="1"></b><b data-enclave-resident-slot="2"></b><b data-enclave-resident-slot="3"></b><b data-enclave-resident-slot="4"></b>
                     </span>
                 </div>
+            </div>
+            <nav class="interior-nav" id="interiorNav" aria-label="Move between buildings">
+                <button class="interior-arrow arrow-prev" id="interiorPrev" type="button" data-interior-step="-1">
+                    <span aria-hidden="true">‹</span><small id="interiorPrevLabel">Previous</small>
+                </button>
+                <button class="interior-arrow arrow-next" id="interiorNext" type="button" data-interior-step="1">
+                    <small id="interiorNextLabel">Next</small><span aria-hidden="true">›</span>
+                </button>
+                <div class="interior-rail" id="interiorRail" role="tablist" aria-label="Buildings"></div>
+            </nav>
             </div>
             <div class="interior-actions" id="interiorActions"></div>
         </section>
@@ -571,7 +582,7 @@
 
 <audio id="keepTheme" loop preload="auto" src="/audio/sieglings-theme.mp3?v=1"></audio>
 <script src="/js/config.js?v=1"></script>
-<script src="/js/keep.js?v=22"></script>
+<script src="/js/keep.js?v=23"></script>
 <script src="/js/sw-register.js?v=1"></script>
 </body>
 </html>
