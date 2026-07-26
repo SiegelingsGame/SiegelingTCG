@@ -756,7 +756,15 @@ public class SiegeService {
         m.put("attackBuff", c.getAttackBuff());
         m.put("position", c.getPosition());
         m.put("sourceCardId", c.getSourceCardId());
+        m.put("itemId", c.getItemId());
         m.put("apSpent", c.getApSpent());
+        // Battle evolutions are battle-scoped: without the pre-evolution form the
+        // post-battle revert in SiegeCombatEngine#clearBattleBuffs has nothing to
+        // walk back to, and a run resumed mid-battle would keep the evolved form
+        // permanently. The chain is at most two links deep (stage 1 → 2 → 3).
+        if (c.getEvolvedFrom() != null) {
+            m.put("evolvedFrom", snapshotCombatant(c.getEvolvedFrom()));
+        }
         Map<String, Integer> statuses = new LinkedHashMap<>();
         c.getStatuses().forEach((k, v) -> statuses.put(k.name(), v));
         m.put("statuses", statuses);
@@ -822,7 +830,11 @@ public class SiegeService {
         c.addAttackBuff(intVal(m.get("attackBuff"), 0));
         c.setPosition(intVal(m.get("position"), -1));
         c.setSourceCardId(m.get("sourceCardId") == null ? null : String.valueOf(m.get("sourceCardId")));
+        if (m.get("itemId") != null) c.setItemId(String.valueOf(m.get("itemId")));
         c.setApSpent(intVal(m.get("apSpent"), 0));
+        if (m.get("evolvedFrom") instanceof Map) {
+            c.setEvolvedFrom(restoreCombatant((Map<String, Object>) m.get("evolvedFrom")));
+        }
         Object statuses = m.get("statuses");
         if (statuses instanceof Map) {
             ((Map<String, Object>) statuses).forEach((k, v) -> c.applyStatus(StatusKind.valueOf(k), intVal(v, 1)));
@@ -2772,6 +2784,13 @@ public class SiegeService {
 
     // ---- Rewards ----------------------------------------------------------
 
+    /** Percent chance a normal win also offers an evolution sigil. */
+    private static final int SIGIL_REWARD_CHANCE = 22;
+    /** Elites are the reliable source of sigils. */
+    private static final int SIGIL_REWARD_CHANCE_ELITE = 40;
+    /** Of the sigil offers, the share that upgrade to the stage-3 sigil. */
+    private static final int SIGIL_REWARD_STAGE3_SHARE = 25;
+
     private void generateRewards(SiegeRun run, boolean elite) {
         run.getPendingRewards().clear();
         int optId = 0;
@@ -2791,6 +2810,7 @@ public class SiegeService {
 
         // Elite wins can recruit a new Siegeling (until the warband is full);
         // otherwise offer an upgrade to a random existing card.
+        boolean recruited = false;
         boolean offerRecruit = elite && run.getParty().size() < content.partyMax();
         if (offerRecruit) {
             List<String> names = run.getParty().stream().map(Combatant::getName).toList();
@@ -2802,10 +2822,10 @@ public class SiegeService {
                         s.getName() + " joins!",
                         s.getName() + " (" + s.getElement().name() + ") joins the warband with its moves.",
                         s.getElement(), s.getCardArtUrl(), s.getId()));
-                return;
+                recruited = true;
             }
         }
-        if (!run.getDeckTemplates().isEmpty()) {
+        if (!recruited && !run.getDeckTemplates().isEmpty()) {
             int idx = rng.nextInt(run.getDeckTemplates().size());
             SiegeCard target = run.getDeckTemplates().get(idx);
             AbilitySpec upgraded = content.upgradeSpec(target.getSpec());
@@ -2816,6 +2836,35 @@ public class SiegeService {
                             + describeUpgrade(target.getSpec(), upgraded) + ").",
                     target.getSpec().element(), idx));
         }
+        addEvolutionSigilOffer(run, living, elite, optId);
+    }
+
+    /**
+     * Sometimes adds an evolution sigil to the spoils — the item that starts a
+     * Siegeling's battle already evolved. Only offered when somebody in the
+     * warband could actually equip it and none is already spare, so the choice
+     * is never a dead pick.
+     */
+    private void addEvolutionSigilOffer(SiegeRun run, List<Combatant> living, boolean elite, int optId) {
+        if (rng.nextInt(100) >= (elite ? SIGIL_REWARD_CHANCE_ELITE : SIGIL_REWARD_CHANCE)) return;
+        boolean stage3 = living.stream().anyMatch(m -> m.getSourceCardId() != null
+                && content.hasStage3EvolutionChain(m.getSourceCardId()));
+        // The stage-3 sigil is the rarer prize, and only when someone can use it.
+        String itemId = stage3 && rng.nextInt(100) < SIGIL_REWARD_STAGE3_SHARE
+                ? "evolution-2-sigil" : "evolution-sigil";
+        boolean usable = living.stream().anyMatch(m -> {
+            String cardId = m.getSourceCardId();
+            if (cardId == null || cardId.isBlank()) return false;
+            return "evolution-2-sigil".equals(itemId)
+                    ? content.hasStage3EvolutionChain(cardId)
+                    : content.evolutionOf(cardId).isPresent();
+        });
+        if (!usable || run.getInventory().contains(itemId)) return;
+        SiegeItem item = content.findItem(itemId);
+        if (item == null) return;
+        run.getPendingRewards().add(RewardOption.item(
+                "r" + optId, item.icon() + " " + item.name(),
+                item.effectText() + " · equip it from your inventory.", item.id()));
     }
 
     private String describeUpgrade(AbilitySpec from, AbilitySpec to) {
@@ -2859,6 +2908,13 @@ public class SiegeService {
                     AbilitySpec upgraded = content.upgradeSpec(old.getSpec());
                     run.getDeckTemplates().set(idx, new SiegeCard(old.getInstanceId(), old.getOwnerId(), upgraded));
                     run.setLastReward(old.getSpec().name() + " was upgraded to " + upgraded.name() + ".");
+                }
+            }
+            case "ITEM" -> {
+                SiegeItem item = content.findItem(pick.itemId());
+                if (item != null) {
+                    run.getInventory().add(item.id());
+                    run.setLastReward(item.name() + " went into your pack — equip it from Items.");
                 }
             }
             case "RECRUIT" -> content.findSiegling(pick.sieglingId()).ifPresent(s -> {
@@ -3293,6 +3349,11 @@ public class SiegeService {
             r.put("desc", option.desc());
             r.put("element", option.element() == null ? null : option.element().name());
             r.put("artUrl", option.artUrl());
+            if (option.itemId() != null) {
+                SiegeItem item = content.findItem(option.itemId());
+                r.put("itemId", option.itemId());
+                r.put("itemIcon", item == null ? null : item.icon());
+            }
             if (option.cardSpec() != null) {
                 r.put("cardEffect", option.cardSpec().effect().name());
                 r.put("cardValue", option.cardSpec().value());

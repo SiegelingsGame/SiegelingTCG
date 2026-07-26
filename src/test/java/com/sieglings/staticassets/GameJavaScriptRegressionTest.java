@@ -23,6 +23,8 @@ class GameJavaScriptRegressionTest {
     private static final Path KEEP_HTML = Path.of("src/main/resources/static/keep.html");
     private static final Path KEEP_CSS = Path.of("src/main/resources/static/css/keep.css");
     private static final Path KEEP_JS = Path.of("src/main/resources/static/js/keep.js");
+    private static final Path ADVENTURE_CSS = Path.of("src/main/resources/static/css/adventure.css");
+    private static final Path ADVENTURE_HTML = Path.of("src/main/resources/static/adventure.html");
 
     @Test
     void onlineStartDoesNotFallBackToSoloBattle() throws IOException {
@@ -700,6 +702,46 @@ class GameJavaScriptRegressionTest {
         assertTrue(
                 keepJs.contains("state.sessionReadLoreIds"),
                 "An entry read during a Chronicle visit must hold its place until the panel is reopened."
+        );
+    }
+
+    @Test
+    void siegeLocationsFillTheWholeDeviceScreenWithoutOneLargeGlassPanel() throws IOException {
+        String adventureCss = Files.readString(ADVENTURE_CSS);
+        String adventureHtml = Files.readString(ADVENTURE_HTML);
+
+        assertTrue(
+                adventureCss.contains("body[data-screen=\"campScreen\"] .siege-app,")
+                        && adventureCss.contains("body[data-screen=\"rewardScreen\"] .siege-app{\n"
+                                + "  position:relative; max-width:none; width:100%;\n"
+                                + "  height:100dvh; min-height:0; overflow:hidden; padding:0;"),
+                "Location screens must run edge to edge — no max-width box and no page padding around the scene."
+        );
+        assertTrue(
+                adventureCss.contains(".location-stage{\n"
+                        + "  position:relative; flex:1 1 auto; width:100%; height:100%; min-height:0;\n"
+                        + "  overflow:hidden; isolation:isolate; border:0; border-radius:0;"),
+                "The scene fills its screen instead of sitting in a rounded, inset card."
+        );
+        assertTrue(
+                adventureCss.contains(".location-overlay{\n"
+                        + "  position:absolute; inset:0; z-index:8; pointer-events:none;")
+                        && adventureCss.contains(".location-overlay > *{pointer-events:auto;}"),
+                "The overlay must be a transparent layout layer over the whole stage, not a docked panel."
+        );
+        assertFalse(
+                adventureCss.contains("background:linear-gradient(180deg,rgba(8,12,18,.26),rgba(7,10,15,.54));")
+                        || adventureCss.contains("backdrop-filter:blur(5px) saturate(1.08);"),
+                "The single large glass box behind every decision is gone; the blur now lives on the individual pieces."
+        );
+        assertTrue(
+                adventureCss.contains("calc(env(safe-area-inset-top, 0px) + 46px)")
+                        && adventureCss.contains("calc(12px + env(safe-area-inset-bottom, 0px))"),
+                "Art bleeds under the notch and home indicator while controls stay inset by the safe area."
+        );
+        assertTrue(
+                adventureHtml.contains("/css/adventure.css?v=40"),
+                "adventure.css must be cache-busted after the full-bleed location rework."
         );
     }
 
