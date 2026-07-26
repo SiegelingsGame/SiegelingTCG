@@ -18,6 +18,10 @@ class GameJavaScriptRegressionTest {
     private static final Path GAME_JS = Path.of("src/main/resources/static/js/game.js");
     private static final Path HOME_JS = Path.of("src/main/resources/static/js/home.js");
     private static final Path HOME_HTML = Path.of("src/main/resources/static/home.html");
+    private static final Path PLAY_HTML = Path.of("src/main/resources/static/play.html");
+    private static final Path CARD_DASHBOARD_HTML = Path.of("src/main/resources/static/card-dashboard.html");
+    private static final Path CARD_BINDER_VISUAL_JS = Path.of("src/main/resources/static/js/card-binder-visual.js");
+    private static final Path NOTCH_IMAGE_DIR = Path.of("src/main/resources/static/img/notches");
     private static final Path CARD_DASHBOARD_JS = Path.of("src/main/resources/static/js/card-dashboard.js");
     private static final Path STYLE_CSS = Path.of("src/main/resources/static/css/style.css");
     private static final Path KEEP_HTML = Path.of("src/main/resources/static/keep.html");
@@ -251,8 +255,47 @@ class GameJavaScriptRegressionTest {
                 "Profile trim styles for battle preview, social shrink, and favorite card art must ship in home.css."
         );
         assertTrue(
-                homeMarkup.contains("home.js?v=112") && homeMarkup.contains("home.css?v=114"),
+                homeMarkup.contains("home.js?v=114") && homeMarkup.contains("home.css?v=114"),
                 "Cache-bust pins for the profile dashboard trim must advance on home.html."
+        );
+    }
+
+    @Test
+    void everyPaintedElementUsesItsDedicatedNotchMedallion() throws IOException {
+        String gameScript = readGameScript();
+        String homeScript = readHomeScript();
+        String binderScript = Files.readString(CARD_BINDER_VISUAL_JS);
+        Set<String> elements = Set.of(
+                "fire", "earth", "wind", "water", "ice", "shadow",
+                "electric", "metal", "undead", "psychic", "poison", "light"
+        );
+
+        for (String element : elements) {
+            String mapping = element.toUpperCase() + ": '/img/notches/notch-" + element + ".png'";
+            assertTrue(
+                    gameScript.contains(mapping) && homeScript.contains(mapping) && binderScript.contains(mapping),
+                    element + " must resolve to the same painted medallion in battle, Home, and binder views."
+            );
+            assertTrue(
+                    Files.isRegularFile(NOTCH_IMAGE_DIR.resolve("notch-" + element + ".png"))
+                            && Files.isRegularFile(NOTCH_IMAGE_DIR.resolve("notch-" + element + ".webp")),
+                    element + " must ship both PNG and WebP medallion assets."
+            );
+        }
+
+        String homeMarkup = Files.readString(HOME_HTML);
+        String playMarkup = Files.readString(PLAY_HTML);
+        String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
+        assertTrue(
+                homeMarkup.contains("style.css?v=216")
+                        && homeMarkup.contains("game.js?v=212")
+                        && homeMarkup.contains("card-binder-visual.js?v=17")
+                        && homeMarkup.contains("home.js?v=114")
+                        && playMarkup.contains("style.css?v=216")
+                        && playMarkup.contains("game.js?v=212")
+                        && dashboardMarkup.contains("style.css?v=216")
+                        && dashboardMarkup.contains("card-binder-visual.js?v=17"),
+                "Every surface must advance its cache pins with the complete painted-notch set."
         );
     }
 

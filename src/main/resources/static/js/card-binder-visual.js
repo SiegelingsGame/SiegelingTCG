@@ -24,8 +24,15 @@
         FIRE: '/img/notches/notch-fire.png',
         EARTH: '/img/notches/notch-earth.png',
         WIND: '/img/notches/notch-wind.png',
+        WATER: '/img/notches/notch-water.png',
         ICE: '/img/notches/notch-ice.png',
-        SHADOW: '/img/notches/notch-shadow.png'
+        SHADOW: '/img/notches/notch-shadow.png',
+        ELECTRIC: '/img/notches/notch-electric.png',
+        METAL: '/img/notches/notch-metal.png',
+        UNDEAD: '/img/notches/notch-undead.png',
+        PSYCHIC: '/img/notches/notch-psychic.png',
+        POISON: '/img/notches/notch-poison.png',
+        LIGHT: '/img/notches/notch-light.png'
     };
     const NOTCH_DIRECTIONS = ['TOP_LEFT', 'TOP', 'TOP_RIGHT', 'LEFT', 'RIGHT', 'BOTTOM_LEFT', 'BOTTOM', 'BOTTOM_RIGHT'];
 
