@@ -1,3 +1,8 @@
+Original prompt: Critical bug hunt — Siege checkpoint/resume after #526
+
+- July 26, 2026 Siege checkpoint correctness: two resume bugs around finished battles and battle-scoped evolution. (1) `checkpoint` persisted `BattlePhase.WON`/`LOST` snapshots, but skipped saving once `pendingRewards` were non-empty after `continueRun`, so a Cloud Run recycle on the reward screen restored the WON battle and a second Continue re-applied gold/XP (and final-boss end rewards). Finished battles are now skipped so the last mid-fight snapshot remains. (2) `restoreCombatant` always ran `loadLeveling`, which re-scaled evolved max HP even though `evolve` only copies level/XP; leveled evolutions now keep the snapshotted HP pool across resume.
+- Verification: `./mvnw test` green, including new `SiegeContinueCheckpointTest` (WON does not overwrite mid-fight checkpoints) and `SiegeEvolutionSigilTest#leveledEvolutionKeepsSnapshottedHpAcrossCheckpointRestore`.
+
 Original prompt: Merge and deploy 525, 526 and 527
 
 - July 26, 2026 combined Siege release integration: squash-merged full-bleed locations (#527), portrait stage art plus evolution/sigil fixes (#526), and reward/level-up viewport spacing (#525) to `main` in dependency order, resolving their shared `adventure.css`, `adventure.html`, and `progress.md` edits without dropping any behavior. Because all three concurrent branches independently selected `adventure.css?v=40`, the final integrated release advances the CSS pin to `v41` so clients cannot retain an earlier partial `v40` bundle.
