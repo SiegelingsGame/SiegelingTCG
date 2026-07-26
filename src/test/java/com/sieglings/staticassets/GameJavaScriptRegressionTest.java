@@ -255,7 +255,7 @@ class GameJavaScriptRegressionTest {
                 "Profile trim styles for battle preview, social shrink, and favorite card art must ship in home.css."
         );
         assertTrue(
-                homeMarkup.contains("home.js?v=114") && homeMarkup.contains("home.css?v=114"),
+                homeMarkup.contains("home.js?v=115") && homeMarkup.contains("home.css?v=114"),
                 "Cache-bust pins for the profile dashboard trim must advance on home.html."
         );
     }
@@ -290,7 +290,7 @@ class GameJavaScriptRegressionTest {
                 homeMarkup.contains("style.css?v=216")
                         && homeMarkup.contains("game.js?v=212")
                         && homeMarkup.contains("card-binder-visual.js?v=17")
-                        && homeMarkup.contains("home.js?v=114")
+                        && homeMarkup.contains("home.js?v=115")
                         && playMarkup.contains("style.css?v=216")
                         && playMarkup.contains("game.js?v=212")
                         && dashboardMarkup.contains("style.css?v=216")
@@ -317,6 +317,25 @@ class GameJavaScriptRegressionTest {
         assertTrue(
                 readCache.contains("clearCache(cacheKey)") && shopValidator.contains("data?.packs") && shopValidator.contains("data.packs.length > 0"),
                 "Invalid cached Shop pack payloads must be cleared before falling back to the network."
+        );
+    }
+
+    @Test
+    void shopPackFailureKeepsValidStateAndOffersAForcedRetry() throws IOException {
+        String homeScript = readHomeScript();
+        String applyPayload = extractFunction(homeScript, "function applyShopPacksPayload(data)");
+        String ensureLoaded = extractFunction(homeScript, "async function ensurePacksLoaded(force = false)");
+
+        assertTrue(
+                applyPayload.contains("if (!isValidShopPacksPayload(data))")
+                        && !applyPayload.substring(0, applyPayload.indexOf("return false;")).contains("state.packs ="),
+                "A failed or empty response must not wipe a previously valid in-memory pack catalog."
+        );
+        assertTrue(
+                ensureLoaded.contains("if (force) clearCache('shopPacks')")
+                        && homeScript.contains("data-retry-shop-packs")
+                        && homeScript.contains("ensurePacksLoaded(true)"),
+                "The Shop error state must expose a Retry action that bypasses the stale pack cache."
         );
     }
 

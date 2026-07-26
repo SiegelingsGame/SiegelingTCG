@@ -322,6 +322,7 @@
         packs: [],
         dailyOffers: [],
         titleCatalog: [],
+        shopPacksError: '',
         creatureDescriptions: {},
         rooms: [],
         selectedCardId: null,
@@ -1325,9 +1326,7 @@
             loadDailyMissions()
         ]);
         applyGameOptions(options);
-        state.packs = packs?.packs || [];
-        state.dailyOffers = packs?.dailyOffers || [];
-        state.titleCatalog = packs?.titleCatalog || state.titleCatalog || [];
+        applyShopPacksPayload(packs);
         state.creatureDescriptions = indexCreatureDescriptions(descriptions);
         state.leaderboards = leaderboards || null;
         state.leaderboardsError = leaderboards?.error || '';
@@ -1509,12 +1508,11 @@
         renderRooms();
     }
 
-    async function ensurePacksLoaded() {
-        if (state.packs?.length) return;
+    async function ensurePacksLoaded(force = false) {
+        if (!force && state.packs?.length) return true;
+        if (force) clearCache('shopPacks');
         const packs = await fetchCachedJson('shopPacks', '/api/shop/packs', STATIC_CACHE_TTL_MS, isValidShopPacksPayload);
-        state.packs = packs?.packs || [];
-        state.dailyOffers = packs?.dailyOffers || [];
-        state.titleCatalog = packs?.titleCatalog || state.titleCatalog || [];
+        return applyShopPacksPayload(packs);
     }
 
     function render() {
@@ -3643,6 +3641,13 @@
             .map(title => ({ ...title, unlocked: unlocked.has(title.id) || Boolean(title.unlocked) }));
     }
 
+    function renderShopPacksEmptyState() {
+        if (state.shopPacksError) {
+            return `<div class="unlock-card"><strong>Could not load packs</strong><span>${escapeHtml(state.shopPacksError)}</span><button class="ghost-btn compact-btn" type="button" data-retry-shop-packs>Retry</button></div>`;
+        }
+        return '<div class="unlock-card"><strong>No packs available</strong><span>Pack groups will appear here once the catalog loads.</span></div>';
+    }
+
     function renderShop() {
         const grid = document.getElementById('shopPackGrid');
         if (!grid) return;
@@ -3662,7 +3667,7 @@
             ${dailyOffers.length ? `<div class="shop-row-head"><div><span class="eyebrow">Daily Rotation</span><h2>Five cards today</h2></div><span>Refreshes daily</span></div><div class="daily-offer-grid">${dailyOffers.map(renderDailyOfferTile).join('')}</div>` : ''}
             ${shopTitles.length && !starterMode ? `<div class="shop-row-head"><div><span class="eyebrow">Profile Flair</span><h2>Player titles</h2></div><span>Unlock by playing or buy with Siegecoins</span></div><div class="shop-title-grid">${shopTitles.map(renderShopTitleTile).join('')}</div>` : ''}
             <div class="shop-row-head"><div><span class="eyebrow">${starterMode ? 'Starter Pack' : 'Packs'}</span><h2>${starterMode ? 'Choose your first pack' : 'Elemental and type pulls'}</h2></div></div>
-            ${packs.length ? packs.map(renderPackTile).join('') : '<div class="unlock-card"><strong>No packs available</strong><span>Pack groups will appear here once the catalog loads.</span></div>'}
+            ${packs.length ? packs.map(renderPackTile).join('') : renderShopPacksEmptyState()}
         `;
         document.getElementById('shopGoldLabel').innerHTML = renderCoinAmount(state.progression?.gold || 0);
         renderShopCardPreviewModal();
@@ -7610,11 +7615,7 @@
             applyGameOptions(options);
         }
         const packs = readCache('shopPacks', STATIC_CACHE_TTL_MS, isValidShopPacksPayload);
-        if (packs) {
-            state.packs = packs.packs || [];
-            state.dailyOffers = packs.dailyOffers || [];
-            state.titleCatalog = packs.titleCatalog || state.titleCatalog || [];
-        }
+        if (packs) applyShopPacksPayload(packs);
         const descriptions = readCache('creatureDescriptions', STATIC_CACHE_TTL_MS);
         if (descriptions) {
             state.creatureDescriptions = indexCreatureDescriptions(descriptions);
@@ -7683,6 +7684,19 @@
 
     function isValidShopPacksPayload(data) {
         return Array.isArray(data?.packs) && data.packs.length > 0;
+    }
+
+    function applyShopPacksPayload(data) {
+        if (!isValidShopPacksPayload(data)) {
+            if (data?.error) state.shopPacksError = data.error;
+            else if (data) state.shopPacksError = 'The pack catalog returned no available packs.';
+            return false;
+        }
+        state.shopPacksError = '';
+        state.packs = data.packs;
+        state.dailyOffers = data.dailyOffers || [];
+        state.titleCatalog = data.titleCatalog || state.titleCatalog || [];
+        return true;
     }
 
     function clearCache(cacheKey) {
@@ -9871,6 +9885,10 @@
         }
         if (event.target.closest('[data-clear-pack-result]')) {
             clearPackResult();
+            return;
+        }
+        if (event.target.closest('[data-retry-shop-packs]')) {
+            void ensurePacksLoaded(true).then(() => renderShop());
             return;
         }
         const oddsButton = event.target.closest('[data-pack-odds]');
