@@ -22,6 +22,8 @@ public class ProfileSettingsEntity {
     private String favoriteSiegling = "";
     /** Achievement ids the player has chosen to feature on their profile badge case (max 6). */
     private List<String> featuredBadgeIds = new ArrayList<>();
+    /** Owned card ids showcased in the profile collection snapshot (max 3). Empty = rarest owned. */
+    private List<String> favoriteCardIds = new ArrayList<>();
     private Instant updatedAt = Instant.now();
 
     public String getUserId() { return userId; }
@@ -51,6 +53,10 @@ public class ProfileSettingsEntity {
     public List<String> getFeaturedBadgeIds() { return featuredBadgeIds; }
     public void setFeaturedBadgeIds(List<String> featuredBadgeIds) {
         this.featuredBadgeIds = featuredBadgeIds == null ? new ArrayList<>() : new ArrayList<>(featuredBadgeIds);
+    }
+    public List<String> getFavoriteCardIds() { return favoriteCardIds; }
+    public void setFavoriteCardIds(List<String> favoriteCardIds) {
+        this.favoriteCardIds = favoriteCardIds == null ? new ArrayList<>() : new ArrayList<>(favoriteCardIds);
     }
     public Instant getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }

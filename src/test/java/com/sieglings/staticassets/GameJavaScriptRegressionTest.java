@@ -207,6 +207,54 @@ class GameJavaScriptRegressionTest {
     }
 
     @Test
+    void profileDashboardTrimsBattlesFavoritesAndSocialTable() throws IOException {
+        String homeScript = readHomeScript();
+        String homeMarkup = Files.readString(HOME_HTML);
+        String homeCss = Files.readString(Path.of("src/main/resources/static/css/home.css"));
+        String battleList = extractFunction(homeScript, "function renderBattleHistoryList(view, reviewable = true)");
+        String collection = extractFunction(homeScript, "function renderCollectionSnapshot(view)");
+        String friends = extractFunction(homeScript, "function renderFriendsPanel(view)");
+        String summary = extractFunction(homeScript, "function collectionSummary()");
+
+        assertTrue(
+                homeScript.contains("PROFILE_BATTLE_PREVIEW_MAX = 3")
+                        && battleList.contains("battles.slice(0, PROFILE_BATTLE_PREVIEW_MAX)")
+                        && battleList.contains("data-battle-history-open")
+                        && homeMarkup.contains("id=\"battleHistoryModalHost\""),
+                "Recent Battles must preview three matches and open the full scroll in a popup."
+        );
+        assertTrue(
+                homeScript.contains("PROFILE_FAVORITE_CARD_MAX = 3")
+                        && summary.contains("usingFavoriteCards")
+                        && summary.contains("rarestSorted.slice(0, PROFILE_FAVORITE_CARD_MAX)")
+                        && collection.contains("renderProfileShowcaseCard")
+                        && collection.contains("data-favorite-cards-open")
+                        && homeMarkup.contains("id=\"favoriteCardsModalHost\""),
+                "Cards Owned must showcase up to three player favorites with real card art, defaulting to rarest owned."
+        );
+        assertTrue(
+                homeScript.contains("PROFILE_FRIEND_PREVIEW_MAX = 3")
+                        && homeScript.contains("PROFILE_LOBBY_PREVIEW_MAX = 3")
+                        && friends.contains("friends.slice(0, PROFILE_FRIEND_PREVIEW_MAX)")
+                        && friends.contains(".slice(0, PROFILE_LOBBY_PREVIEW_MAX)")
+                        && friends.contains("profile-social-panel")
+                        && friends.contains("is-compact")
+                        && !friends.contains("friends-panel"),
+                "Social Table must show three friends and three lobbies, and must not reuse the tall friends-modal panel class."
+        );
+        assertTrue(
+                homeCss.contains(".battle-list-preview")
+                        && homeCss.contains(".profile-social-panel")
+                        && homeCss.contains(".mini-card-row-art"),
+                "Profile trim styles for battle preview, social shrink, and favorite card art must ship in home.css."
+        );
+        assertTrue(
+                homeMarkup.contains("home.js?v=112") && homeMarkup.contains("home.css?v=114"),
+                "Cache-bust pins for the profile dashboard trim must advance on home.html."
+        );
+    }
+
+    @Test
     void shopPacksCacheRejectsEmptyOrErroredPayloads() throws IOException {
         String homeScript = readHomeScript();
         String fetchCachedJson = extractFunction(homeScript, "async function fetchCachedJson(cacheKey, path, ttlMs, isValid = null)");
