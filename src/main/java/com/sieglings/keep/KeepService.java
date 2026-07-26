@@ -1624,51 +1624,121 @@ public class KeepService {
                 Map.of("verdant_fiber", 6), false,
                 "A waypost marking the paths the grove has agreed to share.", "Woodlot interior decoration", 1, ""));
 
-        addRoomExpansions(out, "woodlot", "Woodlot", "verdant_fiber", "coppice_hooks",
-                new String[][]{{"sapling_spades", "Sapling Spades"}, {"resin_saws", "Resin-Safe Saws"}, {"grove_pulleys", "Grove Pulleys"}, {"renewal_rig", "Renewal Harvest Rig"}},
-                new String[][]{{"seedling_rack", "Seedling Rack"}, {"sunwoven_blind", "Sunwoven Blind"}, {"moss_lanterns", "Moss Lanterns"}, {"covenant_chimes", "Covenant Wind Chimes"}});
-        addRoomExpansions(out, "garden", "Garden", "verdant_fiber", "gardener_tools",
-                new String[][]{{"dewline_irrigator", "Dewline Irrigator"}, {"pollinator_lanterns", "Pollinator Lanterns"}, {"root_survey_table", "Root Survey Table"}, {"symbiotic_trellis_rig", "Symbiotic Trellis Rig"}},
-                new String[][]{{"seed_banners", "Seed Banners"}, {"rain_basin", "Rain Basin"}, {"blossom_arch", "Blossom Arch"}, {"covenant_topiary", "Covenant Topiary"}});
-        addRoomExpansions(out, "forge", "Forge", "ember_ingot", "tempered_tongs",
-                new String[][]{{"ember_bellows", "Ember Bellows"}, {"resonance_anvil", "Resonance Anvil"}, {"cooling_rack", "Balanced Cooling Rack"}, {"accord_hammer", "Hammer of Accord"}},
-                new String[][]{{"oathwork_shield", "Oathwork Shield"}, {"spark_banner", "Spark Banner"}, {"ingot_mosaic", "Ingot Mosaic"}, {"forge_chimes", "Forge Chimes"}});
-        addRoomExpansions(out, "fridge", "Fridge", "frost_crystal", "coldseal_kit",
-                new String[][]{{"crystal_tongs", "Crystal Tongs"}, {"hoarfrost_shelves", "Hoarfrost Shelves"}, {"thermal_gauge", "Thermal Accord Gauge"}, {"stasis_cabinet", "Stasis Cabinet"}},
-                new String[][]{{"snowflake_screen", "Snowflake Screen"}, {"memory_crystals", "Memory Crystals"}, {"aurora_lamp", "Aurora Lamp"}, {"ice_sculpture", "Covenant Ice Sculpture"}});
-        addRoomExpansions(out, "generator", "Generator", "storm_cell", "tuning_key",
-                new String[][]{{"balanced_coils", "Balanced Coils"}, {"current_dampers", "Current Dampers"}, {"spectrum_console", "Spectrum Console"}, {"maestro_regulator", "Maestro Regulator"}},
-                new String[][]{{"prism_banners", "Prism Banners"}, {"conduit_globe", "Conduit Globe"}, {"thunder_chimes", "Thunder Chimes"}, {"covenant_orrery", "Covenant Orrery"}});
-        addRoomExpansions(out, "quarry", "Quarry", "stone", "mason_mauls",
-                new String[][]{{"grain_compass", "Stone-Grain Compass"}, {"dustless_chisel", "Dustless Chisel"}, {"counterweight_crane", "Counterweight Crane"}, {"covenant_cutter", "Covenant Stone Cutter"}},
-                new String[][]{{"rune_mosaic", "Runestone Mosaic"}, {"crystal_sconce", "Crystal Sconce"}, {"mason_banner", "Mason Banner"}, {"echo_fountain", "Echo Fountain"}});
-        addRoomExpansions(out, "kitchen", "Kitchen", "provisions", "hearth_set",
-                new String[][]{{"garden_knives", "Garden Knives"}, {"preserving_jars", "Preserving Jars"}, {"shared_oven", "Shared Hearth Oven"}, {"abundance_table", "Table of Abundance"}},
-                new String[][]{{"painted_crocks", "Painted Crocks"}, {"recipe_tapestry", "Recipe Tapestry"}, {"communal_bench", "Communal Bench"}, {"lantern_wreath", "Lantern Wreath"}});
+        addRoomExpansions(out, "woodlot", "Woodlot", "verdant_fiber", new String[]{"ember_ingot", "stone"}, "coppice_hooks",
+                new String[][]{
+                        {"sapling_spades", "Sapling Spades", "Narrow iron blades lift seedlings without tearing the root ball."},
+                        {"resin_saws", "Resin-Safe Saws", "Cold-set teeth cut without heating resin, so a wounded trunk still seals itself."},
+                        {"grove_pulleys", "Grove Pulleys", "Counterweighted lines carry fallen limbs out of the grove instead of dragging them through it."},
+                        {"renewal_rig", "Renewal Harvest Rig", "A rolling frame that fells, sorts, and replants in one pass agreed with the grove."}},
+                new String[][]{
+                        {"seedling_rack", "Seedling Rack", "Stepped trays where next season's saplings wait out the frost."},
+                        {"sunwoven_blind", "Sunwoven Blind", "A rolled blind of split cane that rations the grove window's light."},
+                        {"moss_lanterns", "Moss Lanterns", "Glass jars of luminous moss hung from the rafters, fed on nothing but damp air."},
+                        {"covenant_chimes", "Covenant Wind Chimes", "Hollow limbs tuned to the grove's own creak, hung where the door draught reaches them."}});
+        addRoomExpansions(out, "garden", "Garden", "verdant_fiber", new String[]{"frost_crystal", "stone"}, "gardener_tools",
+                new String[][]{
+                        {"dewline_irrigator", "Dewline Irrigator", "Chilled coils pull water from morning air so the beds never draw down the spring."},
+                        {"pollinator_lanterns", "Pollinator Lanterns", "Soft lights that invite night pollinators to work the beds on their own schedule."},
+                        {"root_survey_table", "Root Survey Table", "A glass-topped table for reading root maps before a single bed is disturbed."},
+                        {"symbiotic_trellis_rig", "Symbiotic Trellis Rig", "Movable frames that let climbing growth choose its own direction each season."}},
+                new String[][]{
+                        {"seed_banners", "Seed Banners", "Linen pouches hung in rows, each holding a strain the garden has promised to keep."},
+                        {"rain_basin", "Rain Basin", "A shallow catch basin of polished stone that keeps the bed edges damp."},
+                        {"blossom_arch", "Blossom Arch", "A flowering arch framing the garden window, replanted every spring."},
+                        {"covenant_topiary", "Covenant Topiary", "A shrub clipped into the sanctuary's mark, trimmed only where it agrees to grow."}});
+        addRoomExpansions(out, "forge", "Forge", "ember_ingot", new String[]{"stone", "storm_cell"}, "tempered_tongs",
+                new String[][]{
+                        {"ember_bellows", "Ember Bellows", "Stone-weighted bellows hold an even heat without anyone pumping through the night."},
+                        {"resonance_anvil", "Resonance Anvil", "A tuned face that rings the moment metal is worked past its willingness."},
+                        {"cooling_rack", "Balanced Cooling Rack", "Staged racks let finished work cool slowly instead of being quenched in shock."},
+                        {"accord_hammer", "Hammer of Accord", "A charged head that shapes with pressure rather than force."}},
+                new String[][]{
+                        {"oathwork_shield", "Oathwork Shield", "A ceremonial shield hung above the bellows, never carried into a fight."},
+                        {"spark_banner", "Spark Banner", "Scorch-dyed cloth that catches every flare thrown from the hearth."},
+                        {"ingot_mosaic", "Ingot Mosaic", "Offcut ingots set into the forge floor in a spiral of cooling colors."},
+                        {"forge_chimes", "Forge Chimes", "Failed blade blanks rehung as chimes, so nothing made here is wasted."}});
+        addRoomExpansions(out, "fridge", "Fridge", "frost_crystal", new String[]{"verdant_fiber", "storm_cell"}, "coldseal_kit",
+                new String[][]{
+                        {"crystal_tongs", "Crystal Tongs", "Fiber-wrapped grips move raw crystal without leaching warmth into it."},
+                        {"hoarfrost_shelves", "Hoarfrost Shelves", "Deep shelves that hold their own frost line without a resident tending them."},
+                        {"thermal_gauge", "Thermal Accord Gauge", "A charged gauge that warns before the vault chills past what stored life can take."},
+                        {"stasis_cabinet", "Stasis Cabinet", "A sealed cabinet where nothing ages and nothing is forced to stay."}},
+                new String[][]{
+                        {"snowflake_screen", "Snowflake Screen", "A folding screen of frosted panes that breaks the vault draught."},
+                        {"memory_crystals", "Memory Crystals", "A cluster of clouded crystals that replay the day they were cut."},
+                        {"aurora_lamp", "Aurora Lamp", "A charged ribbon of light drawn across the ceiling like a captive aurora."},
+                        {"ice_sculpture", "Covenant Ice Sculpture", "A carved figure that renews itself from the vault's own frost."}});
+        addRoomExpansions(out, "generator", "Generator", "storm_cell", new String[]{"ember_ingot", "frost_crystal"}, "tuning_key",
+                new String[][]{
+                        {"balanced_coils", "Balanced Coils", "Paired coils share the load so neither side of the current is overdrawn."},
+                        {"current_dampers", "Current Dampers", "Frost-cored dampers absorb the surges that used to shake the workshop."},
+                        {"spectrum_console", "Spectrum Console", "A wide console that reads all four workshop currents at once."},
+                        {"maestro_regulator", "Maestro Regulator", "A regulator that conducts the whole keep's power like a held chord."}},
+                new String[][]{
+                        {"prism_banners", "Prism Banners", "Split-light banners that scatter the conduit glow across the back wall."},
+                        {"conduit_globe", "Conduit Globe", "A glass globe holding a slow, contained storm on a brass stand."},
+                        {"thunder_chimes", "Thunder Chimes", "Hanging rods that answer the coils with a low roll of sound."},
+                        {"covenant_orrery", "Covenant Orrery", "Nested rings modelling every workshop current turning in accord."}});
+        addRoomExpansions(out, "quarry", "Quarry", "stone", new String[]{"ember_ingot", "verdant_fiber"}, "mason_mauls",
+                new String[][]{
+                        {"grain_compass", "Stone-Grain Compass", "An iron needle that finds the seam a block is already willing to split along."},
+                        {"dustless_chisel", "Dustless Chisel", "A damped chisel that keeps cutting dust out of the diggers' lungs."},
+                        {"counterweight_crane", "Counterweight Crane", "Rope and counterweight lift cut blocks that no resident should be asked to carry."},
+                        {"covenant_cutter", "Covenant Stone Cutter", "A guided cutter that takes only the stone the face has already loosened."}},
+                new String[][]{
+                        {"rune_mosaic", "Runestone Mosaic", "Quarry marks reset into the back wall as a record of every face worked."},
+                        {"crystal_sconce", "Crystal Sconce", "A wall sconce of quarry crystal that keeps the cut faces readable."},
+                        {"mason_banner", "Mason Banner", "A dust-grey banner carrying the marks of every mason who worked here."},
+                        {"echo_fountain", "Echo Fountain", "A basin cut from a single block; the quarry answers whatever is said over it."}});
+        addRoomExpansions(out, "kitchen", "Kitchen", "provisions", new String[]{"verdant_fiber", "stone"}, "hearth_set",
+                new String[][]{
+                        {"garden_knives", "Garden Knives", "Fiber-handled knives sized for hands and claws alike."},
+                        {"preserving_jars", "Preserving Jars", "Stone-stoppered jars that hold a season's surplus without a cold vault."},
+                        {"shared_oven", "Shared Hearth Oven", "A second oven mouth so visitors can cook beside the residents, not after them."},
+                        {"abundance_table", "Table of Abundance", "A long table built so no one at the meal sits at its end."}},
+                new String[][]{
+                        {"painted_crocks", "Painted Crocks", "Glazed crocks painted by residents with the meal each one holds."},
+                        {"recipe_tapestry", "Recipe Tapestry", "A woven record of every dish the sanctuary has cooked for a guest."},
+                        {"communal_bench", "Communal Bench", "A low bench pulled up to the hearth for whoever arrives hungry."},
+                        {"lantern_wreath", "Lantern Wreath", "A ring of small lanterns hung over the table for late meals."}});
         return out;
     }
 
+    /**
+     * Room expansions deliberately cost the workshop's own material plus one or two partner
+     * materials, so later tiers cannot be finished by farming a single station. The partner
+     * amounts stay small at tier 2 and grow with the tier to keep the first expansion reachable.
+     */
     private static void addRoomExpansions(Map<String, CraftRecipe> out, String roomId, String roomName,
-                                          String resourceId, String firstToolId,
+                                          String resourceId, String[] partnerResourceIds, String firstToolId,
                                           String[][] tools, String[][] decorations) {
         String previous = firstToolId;
         for (int index = 0; index < tools.length; index++) {
             int tier = index + 2;
             String id = tools[index][0];
             out.put(id, new CraftRecipe(id, tools[index][1], "TOOL", roomId, tier >= 4 ? 2 : 1,
-                    Map.of(resourceId, 8 + tier * 4), false,
-                    "A resident-guided " + roomName.toLowerCase(Locale.ROOT) + " upgrade that becomes visible in the room.",
-                    roomName + " output +20%", tier, previous));
+                    expansionCost(resourceId, partnerResourceIds, 8 + tier * 4, tier, true), false,
+                    tools[index][2], roomName + " output +20%", tier, previous));
             previous = id;
         }
         for (int index = 0; index < decorations.length; index++) {
             int tier = index + 2;
             String id = decorations[index][0];
             out.put(id, new CraftRecipe(id, decorations[index][1], "DECORATION", roomId, tier >= 4 ? 2 : 1,
-                    Map.of(resourceId, 4 + tier * 3), false,
-                    "A placeable " + roomName.toLowerCase(Locale.ROOT) + " furnishing crafted by the sanctuary.",
-                    roomName + " interior decoration", tier, ""));
+                    expansionCost(resourceId, partnerResourceIds, 4 + tier * 3, tier, false), false,
+                    decorations[index][2], roomName + " interior decoration", tier, ""));
         }
+    }
+
+    private static Map<String, Integer> expansionCost(String resourceId, String[] partnerResourceIds,
+                                                      int primaryAmount, int tier, boolean tool) {
+        Map<String, Integer> costs = new LinkedHashMap<>();
+        costs.put(resourceId, primaryAmount);
+        int first = tool ? 2 * tier : tier + 1;
+        int second = tool ? 2 * tier - 3 : tier - 1;
+        if (partnerResourceIds.length > 0) costs.merge(partnerResourceIds[0], first, Integer::sum);
+        if (partnerResourceIds.length > 1 && tier >= 4) costs.merge(partnerResourceIds[1], second, Integer::sum);
+        return java.util.Collections.unmodifiableMap(costs);
     }
 
     private static Map<String, HallTheme> createHallThemes() {

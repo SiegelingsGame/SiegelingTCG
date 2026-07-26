@@ -153,6 +153,14 @@
         window.addEventListener('scroll', resetViewportScroll, { passive: true });
         document.addEventListener('keydown', (event) => {
             if (event.key.toLowerCase() === 'f' && !isTyping(event.target)) toggleFullscreen();
+            // Arrow keys walk the interior tour, but only when no overlay owns the focus.
+            if ((event.key === 'ArrowLeft' || event.key === 'ArrowRight') && state.interior && !state.panel
+                && !isTyping(event.target)
+                && document.getElementById('keepTutorial')?.classList.contains('hidden') !== false
+                && document.getElementById('dialogueOverlay')?.classList.contains('hidden') !== false) {
+                event.preventDefault();
+                stepInterior(event.key === 'ArrowLeft' ? -1 : 1);
+            }
             if (event.key === 'Escape') {
                 if (!document.getElementById('keepTutorial')?.classList.contains('hidden')) finishTutorial();
                 else if (!document.getElementById('journeyOverlay')?.classList.contains('hidden')) closeJourney();
@@ -292,6 +300,16 @@
         const enterFacility = event.target.closest('[data-enter-facility]');
         if (enterFacility) {
             openInterior(enterFacility.dataset.enterFacility);
+            return;
+        }
+        const interiorStep = event.target.closest('[data-interior-step]');
+        if (interiorStep) {
+            stepInterior(number(interiorStep.dataset.interiorStep));
+            return;
+        }
+        const interiorGoto = event.target.closest('[data-interior-goto]');
+        if (interiorGoto) {
+            if (interiorGoto.dataset.interiorGoto !== state.interior) openInterior(interiorGoto.dataset.interiorGoto);
             return;
         }
         const stationChoice = event.target.closest('[data-resident-station]');
@@ -1019,7 +1037,7 @@
         const roomDecorations = recipes.filter((item) => item.type === 'DECORATION');
         const cards = recipes.length ? recipes.map((recipe) => `<section class="craft-card ${recipe.crafted ? 'is-crafted' : ''}">
             <span class="craft-type">${escapeHtml(recipe.type)}${number(recipe.tier) ? ` · ${number(recipe.tier)}/5` : ''}</span><h3>${escapeHtml(recipe.name)}</h3><p>${escapeHtml(recipe.description || '')}</p>
-            <small>${escapeHtml(recipe.bonus || '')}</small><div class="craft-costs">${(recipe.costs || []).map((cost) => `<span>${materialIcon(cost.id)} ${number(cost.amount)} ${escapeHtml(cost.name)}</span>`).join('')}</div>
+            <small>${escapeHtml(recipe.bonus || '')}</small><div class="craft-costs">${(recipe.costs || []).map((cost) => `<span class="${materialHeld(cost.id) >= number(cost.amount) ? 'is-met' : 'is-short'}">${materialIcon(cost.id)} ${number(cost.amount)} ${escapeHtml(cost.name)}</span>`).join('')}</div>
             <button class="panel-button" type="button" data-craft-recipe="${escapeAttr(recipe.id)}" ${recipe.canCraft ? '' : 'disabled'}>${recipe.crafted ? 'Crafted' : recipe.levelMet === false ? 'Upgrade room to level 2' : recipe.prerequisiteMet === false ? 'Craft previous tool' : recipe.canCraft ? 'Craft item' : 'Gather materials'}</button>
         </section>`).join('') : '<div class="empty-state">This room has no available blueprints yet.</div>';
         const placements = decorations.map((decoration) => `<section class="decoration-control"><span><small>Interior decoration ${number(decoration.tier) ? `${number(decoration.tier)}/5` : ''}</small><strong>${escapeHtml(decoration.name)}</strong></span><button class="panel-button secondary" type="button" data-place-decoration="${escapeAttr(decoration.id)}" data-room-id="${escapeAttr(roomId)}" data-displayed="${String(Boolean(decoration.displayed))}">${decoration.displayed ? 'Store decoration' : 'Place decoration'}</button></section>`).join('');
@@ -1054,6 +1072,52 @@
         }
         setGroundsSuppressed(true);
         renderInterior();
+    }
+
+    /* —— Interior tour: walk the keep room by room without returning to the grounds. —— */
+    const INTERIOR_TOUR = ['great_hall', 'woodlot', 'garden', 'forge', 'fridge', 'generator', 'quarry', 'kitchen', 'enclave', 'archive'];
+    const INTERIOR_SHORT_NAMES = {
+        great_hall: 'Hall', woodlot: 'Woodlot', garden: 'Garden', forge: 'Forge', fridge: 'Fridge',
+        generator: 'Generator', quarry: 'Quarry', kitchen: 'Kitchen', enclave: 'Enclave', archive: 'Archive'
+    };
+
+    /** Only rooms the player can actually stand in — unbuilt facilities are skipped. */
+    function interiorRooms() {
+        if (!state.snapshot) return [];
+        return INTERIOR_TOUR.filter((id) => {
+            if (id === 'great_hall' || id === 'woodlot' || id === 'archive') return true;
+            if (id === 'enclave') return Boolean(state.snapshot.enclave?.built);
+            return Boolean(stationById(id));
+        });
+    }
+
+    function stepInterior(delta) {
+        const rooms = interiorRooms();
+        if (rooms.length < 2) return;
+        const index = rooms.indexOf(state.interior);
+        if (index < 0) return;
+        openInterior(rooms[(index + delta + rooms.length) % rooms.length]);
+    }
+
+    function renderInteriorNav() {
+        const nav = document.getElementById('interiorNav');
+        if (!nav) return;
+        const rooms = interiorRooms();
+        const index = rooms.indexOf(state.interior);
+        nav.classList.toggle('hidden', rooms.length < 2 || index < 0);
+        if (rooms.length < 2 || index < 0) return;
+        const previous = rooms[(index - 1 + rooms.length) % rooms.length];
+        const next = rooms[(index + 1) % rooms.length];
+        text('interiorPrevLabel', INTERIOR_SHORT_NAMES[previous] || previous);
+        text('interiorNextLabel', INTERIOR_SHORT_NAMES[next] || next);
+        document.getElementById('interiorPrev')?.setAttribute('aria-label', `Go to ${INTERIOR_SHORT_NAMES[previous] || previous}`);
+        document.getElementById('interiorNext')?.setAttribute('aria-label', `Go to ${INTERIOR_SHORT_NAMES[next] || next}`);
+        const rail = document.getElementById('interiorRail');
+        if (rail) {
+            rail.innerHTML = rooms.map((id) => `<button type="button" role="tab" class="rail-dot ${id === state.interior ? 'is-current' : ''}"
+                data-interior-goto="${escapeAttr(id)}" aria-selected="${id === state.interior}"
+                aria-label="${escapeAttr(INTERIOR_SHORT_NAMES[id] || id)}" title="${escapeAttr(INTERIOR_SHORT_NAMES[id] || id)}"></button>`).join('');
+        }
     }
 
     function closeInterior() {
@@ -1104,6 +1168,7 @@
             rack.classList.toggle('has-installed-tools', Boolean(rack.querySelector('.is-crafted')));
         });
         renderEnclaveResidents();
+        renderInteriorNav();
         const root = loreById('memorabilia_petrified_root');
         document.getElementById('interiorPlinth')?.classList.toggle('hidden', !root?.displayed);
         const actions = document.getElementById('interiorActions');
@@ -2114,6 +2179,11 @@
         if (!station) return 0;
         const elapsedMinutes = Math.max(0, (nowMs() - state.receivedAtMs) / 60000);
         return Math.min(number(station.storageCapacity), number(station.available) + Math.floor(elapsedMinutes * number(station.ratePerMinute)));
+    }
+
+    /** Held amount of a raw material, used to flag shortfalls on cross-workshop recipes. */
+    function materialHeld(id) {
+        return number((state.snapshot?.resources?.materials || []).find((item) => item.id === id)?.amount);
     }
 
     function stationById(id) {

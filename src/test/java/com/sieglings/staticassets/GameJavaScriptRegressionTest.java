@@ -5,6 +5,10 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashSet;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -538,6 +542,34 @@ class GameJavaScriptRegressionTest {
     }
 
     @Test
+    void keepInteriorsDrawUniqueFurnishingsAndWalkRoomToRoom() throws IOException {
+        String keepHtml = Files.readString(KEEP_HTML);
+        String keepCss = Files.readString(KEEP_CSS);
+        String keepJs = Files.readString(KEEP_JS);
+
+        Matcher placeable = Pattern.compile("data-decoration-art=\"([a-z_]+)\" data-decor-slot=").matcher(keepHtml);
+        Set<String> decorationIds = new LinkedHashSet<>();
+        while (placeable.find()) decorationIds.add(placeable.group(1));
+        assertTrue(decorationIds.size() >= 28, "Every production room should still offer its placeable furnishings.");
+        for (String id : decorationIds) {
+            assertTrue(
+                    keepCss.contains("[data-decoration-art=\"" + id + "\"]"),
+                    id + " has no art of its own — interiors must not share one recoloured decoration template."
+            );
+        }
+        assertFalse(
+                keepCss.contains(".room-decoration-set [data-decor-slot="),
+                "Decoration geometry keyed by slot number makes every workshop read as the same room in a new hue."
+        );
+        assertTrue(
+                keepJs.contains("function stepInterior(") && keepJs.contains("INTERIOR_TOUR")
+                        && keepJs.contains("data-interior-goto=") && keepHtml.contains("data-interior-step=\"-1\"")
+                        && keepCss.contains(".interior-arrow"),
+                "Players must be able to move between interiors without stepping back out to the grounds."
+        );
+    }
+
+    @Test
     void keepBuildingsAndRoomsUseLayeredPaperTreatments() throws IOException {
         String keepHtml = Files.readString(KEEP_HTML);
         String keepCss = Files.readString(KEEP_CSS);
@@ -545,8 +577,8 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=20")
-                        && keepHtml.contains("/js/keep.js?v=22"),
+                        && keepHtml.contains("/css/keep.css?v=21")
+                        && keepHtml.contains("/js/keep.js?v=23"),
                 "Keep architecture must retain its paper building hooks and refresh both asset cache pins."
         );
         assertTrue(
