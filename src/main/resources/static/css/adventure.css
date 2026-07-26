@@ -553,9 +553,14 @@ body[data-screen="rewardScreen"]{
 .upgrade-choice-card.unaffordable .upgrade-cost{background:#3b4350; color:#aab4c3;}
 
 /* Victory and upgrade rewards share the same luminous, three-card choice
-   language. It intentionally reads like an Epiphany screen, not a shop grid. */
+   language. It intentionally reads like an Epiphany screen, not a shop grid.
+   The screen is a full-height flex column: header and recap take what they
+   need, the choice grid absorbs everything left over (so the cards grow into
+   the viewport instead of leaving dead space), and the skip row is pinned to
+   the bottom edge. */
 .epiphany-screen{
-  position:relative; min-height:calc(100dvh - 103px); overflow:hidden; padding:18px clamp(10px,3vw,38px) 24px;
+  position:relative; display:flex; flex-direction:column;
+  min-height:calc(100dvh - 103px); overflow:hidden; padding:18px clamp(10px,3vw,38px) 24px;
   border:1px solid rgba(255,255,255,.15); border-radius:20px;
   background:
     radial-gradient(ellipse at 22% 82%,rgba(44,165,187,.26),transparent 34%),
@@ -568,16 +573,20 @@ body[data-screen="rewardScreen"]{
   background:repeating-linear-gradient(0deg,transparent 0 48px,rgba(255,255,255,.08) 49px 50px),
     repeating-linear-gradient(90deg,transparent 0 48px,rgba(255,255,255,.06) 49px 50px);
 }
-.epiphany-header{position:relative; z-index:1; text-align:center; margin:0 auto 12px; max-width:760px;}
+.epiphany-header{position:relative; z-index:1; flex:0 0 auto; text-align:center; margin:0 auto 12px; max-width:760px;}
 .epiphany-header::after{content:"✦"; display:block; margin-top:9px; color:#fff3a1; text-shadow:0 0 14px #fff0a0; font-size:20px;}
 .epiphany-header p{margin:5px 0 0; color:#aeb8c7; font-size:13px;}
-.epiphany-screen .xp-recap{position:relative; z-index:1; max-width:980px; margin:8px auto 14px;}
+.epiphany-screen .xp-recap{
+  position:relative; z-index:1; flex:0 1 auto; min-height:0; overflow:auto;
+  max-width:980px; margin:8px auto 14px;
+}
 .epiphany-screen .reward-grid{
-  position:relative; z-index:1; width:min(100%,1120px); max-width:none; margin:0 auto;
+  position:relative; z-index:1; flex:1 1 auto; min-height:390px; width:min(100%,1120px); max-width:none; margin:0 auto;
   grid-template-columns:repeat(3,minmax(0,1fr)); gap:clamp(10px,2vw,22px);
 }
 .epiphany-screen .reward-card{
-  position:relative; min-height:390px; display:flex; flex-direction:column; align-items:center;
+  position:relative; min-height:390px; height:100%; max-height:640px; align-self:center;
+  display:flex; flex-direction:column; align-items:center;
   justify-content:flex-start; overflow:hidden; border:1px solid color-mix(in srgb,var(--el,#8fcfff) 56%,#fff 12%);
   border-top-width:5px; border-radius:17px; padding:18px 16px; color:var(--text);
   background:
@@ -591,11 +600,13 @@ body[data-screen="rewardScreen"]{
 .epiphany-screen .reward-card:hover,.epiphany-screen .reward-card:focus-visible{transform:translateY(-8px); outline:none; box-shadow:0 24px 46px rgba(0,0,0,.58),0 0 28px color-mix(in srgb,var(--el,#fff) 24%,transparent);}
 .epiphany-screen .reward-kind{margin:0 0 8px;}
 .epiphany-screen .reward-glyph{font-size:72px; margin:26px 0 20px;}
-.epiphany-screen .reward-art{width:100%; height:180px; margin:5px 0 12px;}
+/* Art absorbs the card's spare height so a taller card shows a bigger reward
+   rather than a bigger blank area. */
+.epiphany-screen .reward-art{width:100%; flex:1 1 auto; height:auto; min-height:180px; margin:5px 0 12px;}
 .epiphany-screen .reward-title{font:700 21px/1.1 Georgia,serif; color:#fff;}
 .epiphany-screen .reward-cardmeta{margin-top:8px;}
 .epiphany-screen .reward-desc{margin-top:12px; color:#c2cad5;}
-.epiphany-screen .reward-actions{position:relative; z-index:1; text-align:center; margin-top:15px;}
+.epiphany-screen .reward-actions{position:relative; z-index:1; flex:0 0 auto; text-align:center; margin-top:auto; padding-top:15px;}
 .overlay-skip{border-radius:999px; background:rgba(15,19,27,.72); padding:9px 24px;}
 
 /* ---------- Cache dig minigame ---------- */
@@ -1203,12 +1214,23 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
   .mode-card-title{font-size:22px;}
   .mode-card-desc{font-size:13px;}
   .setup-footer{flex-wrap:wrap;}
-  .xp-recap{margin:12px 0 14px; padding:12px;}
-  .xp-recap-head{align-items:flex-start;}
-  .xp-recap-total{font-size:11px; padding:4px 8px;}
-  .xp-recap-row{align-items:flex-start; flex-direction:column; gap:8px;}
-  .xp-unit-level{width:100%; grid-template-columns:auto 1fr;}
-  .xp-bar{width:100%;}
+  /* Rows stay on one line on phones: a stacked row costs ~90px each, which
+     pushed a full party (knight + 3 Siegelings) out of view behind a scroll. */
+  .xp-recap{margin:12px 0 14px; padding:9px 10px;}
+  .xp-recap-head{align-items:flex-start; margin-bottom:6px;}
+  .xp-recap-head h2{font-size:15px;}
+  .xp-recap-total{font-size:11px; padding:3px 8px;}
+  .xp-levelups{gap:5px; margin-bottom:6px;}
+  .xp-levelups.muted{font-size:11px;}
+  .xp-levelup-chip{font-size:11px; padding:3px 8px;}
+  .xp-recap-list{gap:5px;}
+  .xp-recap-row{align-items:center; flex-direction:row; gap:8px; padding:6px 8px;}
+  .xp-unit-name{font-size:12.5px;}
+  .xp-unit-meta{font-size:10px;}
+  .xp-unit-level{grid-template-columns:auto 74px; gap:2px 6px;}
+  .xp-level-badge{font-size:10px;}
+  .xp-bar{width:74px; height:7px;}
+  .xp-progress-text{font-size:9.5px;}
 
   /* Map + HUD on one screen: slim chips, map fills the rest. */
   .party-strip{flex-wrap:nowrap; overflow-x:auto; gap:6px; margin-bottom:6px; padding-bottom:2px;}
@@ -1739,19 +1761,50 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
   .location-overlay .camp-actions{flex-direction:row; justify-content:flex-end; min-width:0;}
   .location-overlay .camp-actions .siege-btn{width:auto; min-width:116px;}
   .location-overlay .upgrade-choice-card{min-height:246px;}
-  .epiphany-screen{min-height:calc(100dvh - 58px); border-radius:12px; padding:12px 10px;}
-  .epiphany-header{margin-bottom:8px;}
+  /* Portrait phones get the exact viewport height (not min-height) so the
+     column can hand every spare pixel to the recap and the choice cards
+     instead of stranding it under the skip button. */
+  .epiphany-screen{
+    height:calc(100dvh - 48px); min-height:0; border-radius:12px;
+    padding:10px 10px max(8px,env(safe-area-inset-bottom,0px));
+  }
+  .epiphany-header{margin-bottom:4px;}
   .epiphany-header h1{font-size:23px;}
-  .epiphany-header p{font-size:11px;}
-  .epiphany-header::after{margin-top:5px;}
-  .epiphany-screen .xp-recap{max-height:142px; overflow:auto; margin:6px 0 10px;}
+  .epiphany-header p{font-size:11px; margin-top:3px;}
+  .epiphany-header::after{margin-top:2px; font-size:16px;}
+  .epiphany-screen .xp-recap{max-height:none; margin:4px 0 8px;}
   .epiphany-screen .reward-grid{
     display:grid; grid-template-columns:none; grid-auto-flow:column; grid-auto-columns:minmax(246px,78vw);
-    justify-content:start; overflow-x:auto; scroll-snap-type:x mandatory; padding:5px 10vw 12px;
-    scrollbar-width:none;
+    justify-content:start; overflow-x:auto; scroll-snap-type:x mandatory; padding:4px 10vw 6px;
+    scrollbar-width:none; min-height:270px;
   }
   .epiphany-screen .reward-grid::-webkit-scrollbar{display:none;}
-  .epiphany-screen .reward-card{scroll-snap-align:center; min-height:390px;}
+  /* A card with no recap above it would otherwise stretch into a ribbon. */
+  .epiphany-screen .reward-card{scroll-snap-align:center; min-height:0; max-height:min(66vh,540px); justify-content:center;}
+  .epiphany-screen .reward-art{min-height:120px;}
+  .epiphany-screen .reward-glyph{flex:0 0 auto;}
+  .epiphany-screen .reward-actions{padding-top:6px;}
+}
+
+/* Short portrait phones (SE-class): drop the flourish copy so the recap can
+   still show the whole party alongside a usable choice card. */
+@media (max-width:900px) and (max-height:720px) and (orientation:portrait){
+  .epiphany-header p,.epiphany-header::after{display:none;}
+  .epiphany-header h1{font-size:20px;}
+  .epiphany-screen .xp-recap{margin:2px 0 6px; padding:7px 9px;}
+  .epiphany-screen .xp-recap-kicker{display:none;}
+  .epiphany-screen .xp-recap-head{margin-bottom:5px;}
+  .epiphany-screen .xp-recap-head h2{font-size:13px;}
+  .epiphany-screen .xp-recap-row{padding:5px 8px;}
+  .epiphany-screen .reward-grid{min-height:215px;}
+  /* Card art/glyph set the grid's minimum height, so they have to give ground
+     too — otherwise the cards squeeze the recap back behind a scrollbar. */
+  .epiphany-screen .reward-card{padding:12px 13px;}
+  .epiphany-screen .reward-card::before{margin-bottom:5px;}
+  .epiphany-screen .reward-glyph{font-size:44px; margin:10px 0 8px;}
+  .epiphany-screen .reward-art{min-height:72px; margin:2px 0 8px;}
+  .epiphany-screen .reward-title{font-size:18px;}
+  .epiphany-screen .reward-desc{margin-top:8px; font-size:12px;}
 }
 
 @media (max-width:900px) and (max-height:520px){
@@ -1788,14 +1841,18 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
   .upgrade-awakened b{font-size:14px;}
   .upgrade-awakened em{font-size:9px;margin-top:3px;}
   .upgrade-cost{margin-top:4px;padding:5px;}
-  .epiphany-screen{min-height:calc(100dvh - 98px); padding:6px 10px;}
+  .epiphany-screen{height:calc(100dvh - 98px); min-height:0; padding:6px 10px max(6px,env(safe-area-inset-bottom,0px));}
   .epiphany-header .location-kicker,.epiphany-header p,.epiphany-header::after{display:none;}
   .epiphany-header h1{font-size:19px;}
   .epiphany-screen .xp-recap{display:none;}
-  .epiphany-screen .reward-grid{grid-auto-columns:minmax(210px,31vw); padding:3px 7vw 6px;}
-  .epiphany-screen .reward-card{min-height:260px; padding:9px 11px;}
-  .epiphany-screen .reward-art{height:100px;}
-  .epiphany-screen .reward-glyph{font-size:46px;margin:12px 0;}
+  .epiphany-screen .reward-grid{grid-auto-columns:minmax(210px,31vw); padding:3px 7vw 6px; min-height:150px;}
+  .epiphany-screen .reward-card{min-height:0; padding:9px 11px;}
+  /* Landscape leaves ~170px of card: the sparkle rule and the roomy art box
+     are what get cut so the art still reads at all. */
+  .epiphany-screen .reward-card::before{display:none;}
+  .epiphany-screen .reward-art{min-height:48px; margin:2px 0 6px;}
+  .epiphany-screen .reward-glyph{font-size:36px;margin:4px 0 6px;}
   .epiphany-screen .reward-title{font-size:17px;}
-  .epiphany-screen .reward-actions{margin-top:4px;}
+  .epiphany-screen .reward-desc{font-size:11px; margin-top:6px;}
+  .epiphany-screen .reward-actions{padding-top:4px;}
 }
