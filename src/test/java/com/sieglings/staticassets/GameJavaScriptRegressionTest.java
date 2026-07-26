@@ -740,7 +740,7 @@ class GameJavaScriptRegressionTest {
                 "Art bleeds under the notch and home indicator while controls stay inset by the safe area."
         );
         assertTrue(
-                adventureHtml.contains("/css/adventure.css?v=40"),
+                adventureHtml.contains("/css/adventure.css?v=41"),
                 "adventure.css must be cache-busted after the full-bleed location rework."
         );
     }
