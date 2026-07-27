@@ -798,7 +798,7 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=26")
+                        && keepHtml.contains("/css/keep.css?v=27")
                         && keepHtml.contains("/js/keep.js?v=28")
                         && keepHtml.contains("id=\"constructionBannerJobs\"")
                         && keepJs.contains("constructionBannerSignature")
@@ -837,6 +837,19 @@ class GameJavaScriptRegressionTest {
                         && keepCss.contains("height: calc(78px * var(--cutout-scale))")
                         && keepJs.contains("node.dataset.size = residentSize(resident)"),
                 "The size band must scale resident cutouts in the Woodlot and every staffed workshop interior at desktop and phone layouts."
+        );
+        assertTrue(
+                keepCss.contains("width: min(calc(30px * var(--cutout-scale)), 15%)")
+                        && keepCss.contains("animation-name: enclave-exterior-bob")
+                        && keepCss.contains(".exterior-enclave-residents b:nth-child(1) { left: 10%; }")
+                        && keepCss.contains(".exterior-enclave-residents b:nth-child(5) { left: 90%;")
+                        && keepCss.contains(".scene-zoom { right: calc(6px + var(--safe-right)); top: 28%; }"),
+                "All five exterior Enclave residents need separate width-bounded lanes without horizontal wandering or zoom controls covering them."
+        );
+        assertTrue(
+                keepCss.contains(".keep-dock .collect-button { width: min(166px, 22vw); margin: 0 5px;")
+                        && !keepCss.contains(".keep-dock .collect-button { margin-top: -10px;"),
+                "Collect must align inside the dock instead of using a negative top margin that overlaps the Keep map."
         );
     }
 

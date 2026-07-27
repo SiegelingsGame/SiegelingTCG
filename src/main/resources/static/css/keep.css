@@ -437,12 +437,24 @@ button.resource-pill:focus-visible {
 .facility-room-resident > span[data-size="GIGANTIC"] { --cutout-scale: 1.62; }
 .exterior-enclave-residents b[data-size="LARGE"] { z-index: 5; }
 .exterior-enclave-residents b[data-size="GIGANTIC"] { z-index: 6; }
-.exterior-enclave-residents b { width: calc(30px * var(--cutout-scale)); height: calc(38px * var(--cutout-scale)); bottom: 10%; }
-.exterior-enclave-residents b:nth-child(1) { left: 7%; }
-.exterior-enclave-residents b:nth-child(2) { left: 27%; bottom: 5%; animation-delay: -.6s; }
-.exterior-enclave-residents b:nth-child(3) { left: 47%; animation-delay: -1.2s; }
-.exterior-enclave-residents b:nth-child(4) { left: 67%; bottom: 6%; animation-delay: -1.8s; }
-.exterior-enclave-residents b:nth-child(5) { left: 84%; animation-delay: -2.4s; }
+/* The grounds hotspot can be only ~120px wide on a phone. Five size-scaled cutouts cannot
+   safely use fixed pixel widths there: Large/Gigantic residents cover their neighbors and
+   the old 84% fifth anchor clips the last resident. Give every resident a centered lane and
+   cap its exterior box to that lane; the image keeps its aspect inside the box while height
+   still reflects the resident's size band. Horizontal wandering is removed on the grounds
+   so the deliberate gaps cannot close during mismatched animation phases. */
+.exterior-enclave-residents b {
+    width: min(calc(30px * var(--cutout-scale)), 15%);
+    height: calc(38px * var(--cutout-scale));
+    bottom: 8%;
+    transform: translateX(-50%);
+    animation-name: enclave-exterior-bob;
+}
+.exterior-enclave-residents b:nth-child(1) { left: 10%; }
+.exterior-enclave-residents b:nth-child(2) { left: 30%; animation-delay: -.6s; }
+.exterior-enclave-residents b:nth-child(3) { left: 50%; animation-delay: -1.2s; }
+.exterior-enclave-residents b:nth-child(4) { left: 70%; animation-delay: -1.8s; }
+.exterior-enclave-residents b:nth-child(5) { left: 90%; animation-delay: -2.4s; }
 .quarter-illustration { position: absolute; inset: 2px 4px 34px; display: block; filter: drop-shadow(0 7px 5px rgba(22, 29, 25, .28)); }
 .quarter-path { position: absolute; left: 20%; right: 8%; bottom: 2%; height: 18%; background: rgba(199, 173, 121, .58); clip-path: polygon(46% 0, 56% 0, 100% 100%, 0 100%); }
 .quarter-building { position: absolute; display: block; width: 26%; height: 30%; bottom: 13%; border: 1px solid rgba(32, 43, 39, .62); border-radius: 3px 3px 1px 1px; opacity: .34; filter: grayscale(.7) drop-shadow(0 1px 0 #ead8ad) drop-shadow(2px 3px 2px rgba(23, 19, 15, .4)); transition: opacity .5s, filter .5s, transform .5s; box-shadow: inset 3px 0 rgba(245, 226, 188, .16), inset -4px -3px rgba(37, 28, 22, .18); }
@@ -809,7 +821,7 @@ button.resource-pill:focus-visible {
 .keep-dock button > span { color: var(--gold); font-size: 20px; line-height: 1; }
 .keep-dock button strong { font-size: 10px; letter-spacing: .02em; }
 .keep-dock button small { font-size: 8px; color: rgba(255, 247, 220, .62); }
-.keep-dock .collect-button { width: min(166px, 22vw); margin: -17px 5px 0; border-color: rgba(255, 234, 151, .56); color: #172333; background: linear-gradient(180deg, #ffe897, #dcae50); box-shadow: 0 7px 22px rgba(4, 13, 19, .38), inset 0 1px rgba(255, 255, 255, .7); }
+.keep-dock .collect-button { width: min(166px, 22vw); margin: 0 5px; border-color: rgba(255, 234, 151, .56); color: #172333; background: linear-gradient(180deg, #ffe897, #dcae50); box-shadow: 0 7px 22px rgba(4, 13, 19, .38), inset 0 1px rgba(255, 255, 255, .7); }
 .keep-dock .collect-button > span { color: #895627; }
 .keep-dock .collect-button small { color: rgba(23, 35, 51, .72); }
 .keep-dock .collect-button:disabled { filter: grayscale(.7); opacity: .58; cursor: default; }
@@ -2366,6 +2378,7 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
 @keyframes tool-arrive { from { opacity: 0; translate: 0 -9px; } }
 @keyframes decor-arrive { from { opacity: 0; transform: scale(.72); } }
 @keyframes enclave-wander { 0%, 100% { translate: 0 0; } 45% { translate: 4px -4px; } 70% { translate: -3px 0; } }
+@keyframes enclave-exterior-bob { 0%, 100% { translate: 0 0; } 50% { translate: 0 -4px; } }
 @keyframes discovery-in { from { opacity: 0; transform: translate(-50%, 18px) scale(.96); } }
 @keyframes loading-breathe { 50% { transform: translateY(-6px) scale(1.04); } }
 @keyframes facility-glow { 50% { box-shadow: 0 0 13px #ff8151; filter: brightness(1.25); } }
@@ -2438,7 +2451,9 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     .resident-worker { right: 8%; width: 46px; height: 60px; }
     .resident-worker > span { width: 35px; height: 35px; }
     .resident-worker > span.has-overlay-art { width: 46px; height: 58px; }
-    .scene-zoom { right: calc(6px + var(--safe-right)); top: 42%; }
+    /* Keep the fixed zoom controls in the open sky gutter; at 42% they sat directly over
+       the phone Enclave and hid its fourth/fifth residents while the scene was zoomed. */
+    .scene-zoom { right: calc(6px + var(--safe-right)); top: 28%; }
     .scene-zoom button { width: 32px; height: 32px; font-size: 16px; }
     .keep-tower { min-width: 26px; }
     .theme-swatches { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
@@ -2536,7 +2551,6 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     .enclave-hotspot { left: 24%; right: auto; top: 39%; transform: scale(.66); transform-origin: center; }
     .keep-dock { min-height: calc(48px + var(--safe-bottom)); padding-block: 3px calc(3px + var(--safe-bottom)); }
     .keep-dock button > span { font-size: 15px; }
-    .keep-dock .collect-button { margin-top: -10px; }
     .construction-banner { top: 7px; min-width: 290px; }
     .keep-panel { top: 4px; bottom: 4px; width: min(370px, 48vw); height: auto; border-radius: 15px; transform: translateX(calc(100% + 28px)); }
     .keep-main.panel-open .keep-panel { transform: translateX(0); }
