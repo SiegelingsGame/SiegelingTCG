@@ -77,6 +77,7 @@ public class KeepStore {
         payload.put("materialInventory", state.getMaterialInventory());
         payload.put("craftedItemCounts", state.getCraftedItemCounts());
         payload.put("placedDecorations", state.getPlacedDecorations());
+        payload.put("storageUpgradeLevels", state.getStorageUpgradeLevels());
         payload.put("craftCount", state.getCraftCount());
         payload.put("essenceCollectCount", state.getEssenceCollectCount());
         payload.put("activeConstructionId", state.getActiveConstructionId());
@@ -160,6 +161,7 @@ public class KeepStore {
         state.setMaterialInventory(intMap(snapshot.get("materialInventory")));
         state.setCraftedItemCounts(intMap(snapshot.get("craftedItemCounts")));
         state.setPlacedDecorations(stringMap(snapshot.get("placedDecorations")));
+        state.setStorageUpgradeLevels(intMap(snapshot.get("storageUpgradeLevels")));
         state.setCraftCount((int) number(snapshot.get("craftCount"), 0));
         state.setEssenceCollectCount((int) number(snapshot.get("essenceCollectCount"), 0));
         state.setActiveConstructionId(string(snapshot.get("activeConstructionId")));

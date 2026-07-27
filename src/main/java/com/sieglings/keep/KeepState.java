@@ -47,6 +47,8 @@ public class KeepState {
     private Map<String, Integer> materialInventory = new LinkedHashMap<>();
     private Map<String, Integer> craftedItemCounts = new LinkedHashMap<>();
     private Map<String, String> placedDecorations = new LinkedHashMap<>();
+    /** One-time local storage annexes, keyed by production room id. */
+    private Map<String, Integer> storageUpgradeLevels = new LinkedHashMap<>();
     private int craftCount;
     private int essenceCollectCount;
     private String activeConstructionId = "";
@@ -167,6 +169,8 @@ public class KeepState {
         this.placedDecorations = new LinkedHashMap<>();
         if (values != null) values.forEach((key, value) -> this.placedDecorations.put(key, value == null ? "" : value));
     }
+    public Map<String, Integer> getStorageUpgradeLevels() { return storageUpgradeLevels; }
+    public void setStorageUpgradeLevels(Map<String, Integer> values) { this.storageUpgradeLevels = intMap(values); }
     public int getCraftCount() { return craftCount; }
     public void setCraftCount(int craftCount) { this.craftCount = Math.max(0, craftCount); }
     public int getEssenceCollectCount() { return essenceCollectCount; }
