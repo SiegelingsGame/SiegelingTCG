@@ -1419,7 +1419,8 @@
         }
         for (const name of report.completedProjects || []) rows.push(offlineRow('⚒', 'Construction complete', name));
         for (const title of report.loreFound || []) rows.push(offlineRow('▤', 'Lore discovered', title));
-        for (const name of report.capsReached || []) rows.push(offlineRow('!', 'Storage reached capacity', `${name} stopped until collected`, true));
+        const capped = (report.capsReached || []).filter(Boolean);
+        if (capped.length) rows.push(offlineCapacityRow(capped));
         const results = document.getElementById('offlineResults');
         if (results) results.innerHTML = rows.join('') || offlineRow('✓', 'The Keep held steady', 'No stores were lost.');
         document.getElementById('offlineOverlay')?.classList.remove('hidden');
@@ -1428,6 +1429,14 @@
 
     function offlineRow(icon, heading, detail, warning = false) {
         return `<div class="offline-result ${warning ? 'warning' : ''}"><i>${escapeHtml(icon)}</i><span><strong>${escapeHtml(heading)}</strong><small>${escapeHtml(detail)}</small></span></div>`;
+    }
+
+    function offlineCapacityRow(names) {
+        const list = names.map((name) => `<li>${escapeHtml(name)}</li>`).join('');
+        const summary = names.length === 1
+            ? '1 building stopped until collected'
+            : `${names.length} buildings stopped until collected`;
+        return `<div class="offline-result warning offline-capacity"><i>!</i><span><strong>Storage reached capacity</strong><small>${escapeHtml(summary)}</small><ul class="offline-capacity-list">${list}</ul></span></div>`;
     }
 
     function dismissOfflineReport() {
