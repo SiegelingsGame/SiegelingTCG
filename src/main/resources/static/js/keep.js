@@ -1065,7 +1065,7 @@
                     </button>
                     <div>
                         <h3>${escapeHtml(resident.name)}</h3>
-                        <small>${escapeHtml(titleCase(resident.element))} · ${escapeHtml(titleCase(resident.rarity))}</small>
+                        <small>${escapeHtml(titleCase(resident.element))} · ${escapeHtml(titleCase(resident.rarity))} · ${escapeHtml(titleCase(residentSize(resident)))}</small>
                         ${rapportMeterMarkup(resident.rapport)}
                     </div>
                 </div>`
@@ -2623,7 +2623,24 @@
         node.classList.toggle('has-overlay-art', hasArt);
         node.classList.toggle('is-paper-cutout', hasArt);
         node.classList.toggle('is-paper-token', Boolean(resident) && !hasArt);
+        // Enclave cutouts are drawn at world scale, so a gigantic Siegeling towers over a small one.
+        if (resident) node.dataset.size = residentSize(resident);
+        else delete node.dataset.size;
         node.innerHTML = resident ? residentAvatarContent(resident) : '';
+    }
+
+    const RESIDENT_SIZES = ['SMALL', 'MEDIUM', 'LARGE', 'GIGANTIC'];
+
+    /** Server sends the resolved size; fall back to the rarity band if an older payload omits it. */
+    function residentSize(resident) {
+        const size = String(resident?.size || '').trim().toUpperCase();
+        if (RESIDENT_SIZES.indexOf(size) >= 0) return size;
+        switch (String(resident?.rarity || '').trim().toUpperCase()) {
+            case 'LEGENDARY': return 'GIGANTIC';
+            case 'EPIC': return 'LARGE';
+            case 'RARE': return 'MEDIUM';
+            default: return 'SMALL';
+        }
     }
 
     function initials(value) {

@@ -16,6 +16,7 @@ Each entry can replace any of these fields:
 - `health`
 - `speed`
 - `preferredRow`
+- `size`
 - `evolvesFromId`
 - `evolvesFromName`
 - `costElement`
@@ -25,6 +26,29 @@ Each entry can replace any of these fields:
 - `abilities`
 
 If you leave a field out, the generated value stays in place.
+
+## Siegling Size
+
+`size` is `SMALL`, `MEDIUM`, `LARGE`, or `GIGANTIC`. It drives how tall a Siegling stands
+where it is drawn at world scale instead of on a card — today the paper cutouts in the Keep
+enclave, where a gigantic resident towers over a small one.
+
+Leave it out and the card takes the band its rarity implies:
+
+| Rarity | Default size |
+|---|---|
+| Common, Uncommon | Small |
+| Rare | Medium |
+| Epic | Large |
+| Legendary | Gigantic |
+
+(Rarity already tracks how far along an evolution line a card sits, so the band follows an
+evolution: a base form is small and its final stage grows with the rarity it earns. Evolution
+depth only decides cards that carry no rarity at all.)
+
+Set `size` explicitly only for one-off exceptions — the card dashboard's **Size** field on the
+Siegeling page writes exactly this key, and its `Auto (…)` option means "leave it out and follow
+rarity".
 
 ## Example
 
