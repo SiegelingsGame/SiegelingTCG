@@ -750,6 +750,47 @@ class GameJavaScriptRegressionTest {
     }
 
     @Test
+    void enclaveSwapsResidentsByPortraitAndTheDashboardCanTuneTheKeep() throws IOException {
+        String keepJs = Files.readString(KEEP_JS);
+        String keepCss = Files.readString(KEEP_CSS);
+        String dashboardHtml = Files.readString(CARD_DASHBOARD_HTML);
+        String dashboardJs = Files.readString(CARD_DASHBOARD_JS);
+        String keepAdminJs = Files.readString(Path.of("src/main/resources/static/js/keep-admin.js"));
+
+        assertTrue(
+                keepJs.contains("data-enclave-picker=") && keepJs.contains("enclave-portrait")
+                        && keepJs.contains("state.enclavePickerSlot") && keepCss.contains(".enclave-portrait"),
+                "Tapping an Enclave portrait must reopen the assign menu."
+        );
+        assertFalse(
+                keepJs.contains(">Clear</button>"),
+                "The Enclave remove button was replaced by the tappable portrait; a stray Clear button reintroduces two ways to do one thing."
+        );
+        assertTrue(
+                keepJs.contains("!choice.assignment?.assigned") && keepJs.contains("reassign-tag")
+                        && keepCss.contains(".enclave-resident-choice .reassign-tag"),
+                "The assign menu must offer unassigned Siegelings first and tag anyone already posted as a reassignment."
+        );
+        assertTrue(
+                keepJs.contains("function rapportMeterMarkup(") && keepJs.contains("function enclaveTasksMarkup(")
+                        && keepCss.contains(".rapport-block"),
+                "Enclave residents must show their rapport and the tasks that raise it."
+        );
+        assertTrue(
+                dashboardHtml.contains("data-editor-page=\"KEEP\"") && dashboardHtml.contains("id=\"keepTuningPanel\"")
+                        && dashboardHtml.contains("/js/keep-admin.js?v=1")
+                        && dashboardJs.contains("state.editorPage === \"KEEP\"")
+                        && keepAdminJs.contains("/api/keep/tuning"),
+                "The dashboard needs a Keep page wired to the Keep tuning endpoints."
+        );
+        assertTrue(
+                keepAdminJs.contains("Building Output") && keepAdminJs.contains("Siegeling Buffs")
+                        && keepAdminJs.contains("Decorations & Tools") && keepAdminJs.contains("Enclave Tasks"),
+                "Keep tuning must cover building effects, resident buffs, decorations, and Enclave tasks."
+        );
+    }
+
+    @Test
     void keepBuildingsAndRoomsUseLayeredPaperTreatments() throws IOException {
         String keepHtml = Files.readString(KEEP_HTML);
         String keepCss = Files.readString(KEEP_CSS);
@@ -757,8 +798,8 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=23")
-                        && keepHtml.contains("/js/keep.js?v=26")
+                        && keepHtml.contains("/css/keep.css?v=24")
+                        && keepHtml.contains("/js/keep.js?v=27")
                         && keepHtml.contains("id=\"constructionBannerJobs\"")
                         && keepJs.contains("constructionBannerSignature")
                         && keepJs.contains("data-live-banner-time=")

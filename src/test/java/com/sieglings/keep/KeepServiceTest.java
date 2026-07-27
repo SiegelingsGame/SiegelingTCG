@@ -26,6 +26,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -857,6 +858,173 @@ class KeepServiceTest {
                 .filter(item -> "hall_level_2".equals(item.get("id"))).findFirst().orElseThrow();
         assertEquals(2, ((Number) hall2.get("requiredLevel")).intValue());
         assertEquals(Boolean.TRUE, hall2.get("levelMet")); // Keeper Level 2 reached
+    }
+
+    @Test
+    void enclaveOffersElementLadderPlusAPersonalTaskAndReportsWhoIsAlreadyAssigned() {
+        buildEnclave();
+        service.inviteResident(user, "woodlot", "emberling", "station-1", store.state.getVersion());
+        service.setEnclaveResident(user, 0, "mossling", "enclave-0", store.state.getVersion());
+        Map<String, Object> snapshot = service.setEnclaveResident(user, 1, "aurorix", "enclave-1", store.state.getVersion());
+
+        List<Map<String, Object>> mossTasks = enclaveTasks(snapshot, 0);
+        List<Map<String, Object>> auroraTasks = enclaveTasks(snapshot, 1);
+        assertEquals(3, mossTasks.size(), "A resident offers two element tasks plus one personal task.");
+        // Mossling is EARTH, Aurorix is LIGHT: the element rungs must differ.
+        assertEquals(List.of("TIMBER_COLLECTION", "CONSTRUCTION"),
+                mossTasks.subList(0, 2).stream().map(task -> String.valueOf(task.get("event"))).toList());
+        assertEquals(List.of("DECORATION", "CONVERSATION"),
+                auroraTasks.subList(0, 2).stream().map(task -> String.valueOf(task.get("event"))).toList());
+        assertEquals("BOND", mossTasks.get(2).get("source"));
+        assertNotEquals(mossTasks.get(2).get("name"), auroraTasks.get(2).get("name"),
+                "The personal task is bound to the card id, so two residents must not share one.");
+        assertTrue(String.valueOf(mossTasks.get(0).get("description")).contains("Mossling"),
+                "Task copy names the Siegeling it belongs to.");
+
+        // The Enclave picker needs to know who is free and who would be a reassignment.
+        Map<String, Object> ember = residentPayload(snapshot, "emberling");
+        assertEquals(Boolean.TRUE, valueAt(ember, "assignment", "assigned"));
+        assertEquals("Restorative Woodlot", valueAt(ember, "assignment", "label"));
+        Map<String, Object> moss = residentPayload(snapshot, "mossling");
+        assertEquals("ENCLAVE", valueAt(moss, "assignment", "type"));
+        assertEquals("Enclave space 1", valueAt(moss, "assignment", "label"));
+    }
+
+    @Test
+    void bankingATaskPaysRapportRepeatablyAndRapportWidensEveryBuff() {
+        buildEnclave();
+        service.setEnclaveResident(user, 0, "mossling", "enclave-0", store.state.getVersion());
+        service.inviteResident(user, "woodlot", "mossling", "station-1", store.state.getVersion());
+        service.setFavorite(user, "mossling", "fav-1", store.state.getVersion());
+        // Woodlot base 1.0 x (1 + 15% affinity) x (1 + 5% Common favorite) at rapport 0.
+        assertEquals(1.15 * 1.05, woodlotRate(service.getSnapshot(user)), 0.0001);
+
+        String taskId = "enclave_task:mossling:" + firstTaskId("mossling");
+        for (int index = 0; index < 3; index++) {
+            store.state.setTimber(0);
+            clock.advance(Duration.ofMinutes(2));
+            service.collect(user, "woodlot", "rapport-collect-" + index, store.state.getVersion());
+        }
+        Map<String, Object> claimed = service.claimReward(user, taskId, "rapport-claim-1", store.state.getVersion());
+        assertEquals(2, ((Number) valueAt(claimed, "rewardClaimed", "rapportGained")).intValue());
+        assertEquals(0, enclaveTasks(claimed, 0).get(0).get("progress"),
+                "A banked task resets so the resident can offer it again.");
+        assertEquals(1, ((Number) enclaveTasks(claimed, 0).get(0).get("completions")).intValue());
+
+        assertEquals(2, ((Number) valueAt(residentPayload(claimed, "mossling"), "rapport", "points")).intValue());
+        assertEquals(3, ((Number) valueAt(residentPayload(claimed, "mossling"), "rapport", "pointsToNextLevel")).intValue());
+
+        // At the first threshold (5 points) rapport 1 multiplies every buff by 1.10.
+        store.state.getResidentRapport().put("mossling", 5);
+        Map<String, Object> bonded = service.getSnapshot(user);
+        assertEquals(1, ((Number) valueAt(residentPayload(bonded, "mossling"), "rapport", "level")).intValue());
+        assertEquals(10, ((Number) valueAt(residentPayload(bonded, "mossling"), "rapport", "buffPercent")).intValue());
+        assertEquals(6, intAt(bonded, "favorite", "bonusPercent"), "5% Common favorite x 1.10 rounds to 6%.");
+        assertEquals(1.165 * 1.055, woodlotRate(bonded), 0.0001);
+
+        // Rarity disparity is preserved and grows: at the same rapport the Legendary favorite
+        // gains 2 points where the Common one gained 1, so the gap widens rather than flattening.
+        store.state.getResidentRapport().put("aurorix", 5);
+        Map<String, Object> legendary = service.setFavorite(user, "aurorix", "fav-2", store.state.getVersion());
+        assertEquals(22, intAt(legendary, "favorite", "bonusPercent"), "20% Legendary favorite x 1.10.");
+
+        // The task repeats rather than locking behind the one-shot claim set.
+        assertThrows(IllegalArgumentException.class,
+                () -> service.claimReward(user, taskId, "rapport-claim-2", store.state.getVersion()));
+        for (int index = 0; index < 3; index++) {
+            store.state.setTimber(0);
+            clock.advance(Duration.ofMinutes(2));
+            service.collect(user, "woodlot", "rapport-recollect-" + index, store.state.getVersion());
+        }
+        Map<String, Object> again = service.claimReward(user, taskId, "rapport-claim-3", store.state.getVersion());
+        assertEquals(2, ((Number) valueAt(again, "rewardClaimed", "rapportGained")).intValue());
+        assertEquals(7, ((Number) valueAt(residentPayload(again, "mossling"), "rapport", "points")).intValue());
+    }
+
+    @Test
+    void dashboardTuningOverridesWorkshopOutputBuffPercentagesAndTaskLadders() {
+        service.setTuningService(tuningReturning(new KeepTuning(
+                List.of(new KeepTuning.Building("garden", 0.5, 200)),
+                List.of(new KeepTuning.Project("build_enclave", 10, 60L)),
+                new KeepTuning.Buffs(40, 5, 30, 20, 10,
+                        Map.of("COMMON", 25), 50, List.of(0, 2)),
+                List.of(new KeepTuning.Recipe("living_trellis", "Retuned Trellis", "Garden decor",
+                        Map.of("verdant_fiber", 3))),
+                new KeepTuning.Tasks(Map.of("EARTH", List.of(new KeepTuning.Task(
+                        "earth_custom", "CRAFTING", 1, "Retuned Task", "{name} wants a retuned task.",
+                        7, 11, 13))), Map.of()))));
+
+        store.state = null;
+        service.getSnapshot(user);
+        store.state.getFacilityLevels().put("garden", 1);
+        store.state.getFacilityLastAccruedAt().put("garden", clock.instant());
+        service.inviteResident(user, "garden", "mossling", "tuned-station", store.state.getVersion());
+        // Garden: 0.5 base x level 1 x (1 + 40% Earth affinity) = 0.70 per minute.
+        Map<String, Object> tuned = service.getSnapshot(user);
+        assertEquals(0.70, ((Number) station(tuned, "garden").get("ratePerMinute")).doubleValue(), 0.0001);
+        assertEquals(200, ((Number) station(tuned, "garden").get("storageCapacity")).intValue());
+        assertEquals(25, intAt(service.setFavorite(user, "mossling", "tuned-fav", store.state.getVersion()),
+                "favorite", "bonusPercent"));
+
+        Map<String, Object> trellis = recipe(service.getSnapshot(user), "living_trellis");
+        assertEquals("Retuned Trellis", trellis.get("name"));
+        assertEquals("Garden decor", trellis.get("bonus"));
+
+        store.state.setArchiveLevel(1);
+        store.state.setTimber(500);
+        service.startBuild(user, "build_enclave", "tuned-build", store.state.getVersion());
+        clock.advance(Duration.ofSeconds(61));
+        service.getSnapshot(user);
+        Map<String, Object> seated = service.setEnclaveResident(user, 0, "mossling", "tuned-enclave", store.state.getVersion());
+        List<Map<String, Object>> tasks = enclaveTasks(seated, 0);
+        assertEquals("Retuned Task", tasks.get(0).get("name"));
+        assertEquals("Mossling wants a retuned task.", tasks.get(0).get("description"));
+        assertEquals(7, ((Number) tasks.get(0).get("rapport")).intValue());
+        assertEquals(2, tasks.size(), "An element override plus the personal bond task.");
+    }
+
+    private void buildEnclave() {
+        service.getSnapshot(user);
+        store.state.setArchiveLevel(1);
+        store.state.setTimber(500);
+        service.startBuild(user, "build_enclave", "enclave-build", store.state.getVersion());
+        clock.advance(Duration.ofSeconds(KeepService.ENCLAVE_BUILD_SECONDS + 1));
+        service.getSnapshot(user);
+    }
+
+    private String firstTaskId(String residentId) {
+        Map<String, Object> task = enclaveTasks(service.getSnapshot(user), 0).get(0);
+        return String.valueOf(task.get("taskId"));
+    }
+
+    private static double woodlotRate(Map<String, Object> snapshot) {
+        return ((Number) valueAt(snapshot, "station", "ratePerMinute")).doubleValue();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> enclaveTasks(Map<String, Object> snapshot, int slot) {
+        Map<String, Object> enclave = (Map<String, Object>) snapshot.get("enclave");
+        Map<String, Object> entry = (Map<String, Object>) ((List<?>) enclave.get("slots")).get(slot);
+        return (List<Map<String, Object>>) entry.get("tasks");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> residentPayload(Map<String, Object> snapshot, String residentId) {
+        return ((List<Map<String, Object>>) snapshot.get("residents")).stream()
+                .filter(item -> residentId.equals(item.get("id"))).findFirst().orElseThrow();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> recipe(Map<String, Object> snapshot, String id) {
+        return ((List<Map<String, Object>>) snapshot.get("recipes")).stream()
+                .filter(item -> id.equals(item.get("id"))).findFirst().orElseThrow();
+    }
+
+    /** A tuning source that always returns one fixed document, standing in for Firestore. */
+    private static KeepTuningService tuningReturning(KeepTuning tuning) {
+        return new KeepTuningService(new ObjectMapper(), null, "appConfig", "keepTuning") {
+            @Override public KeepTuning current() { return tuning; }
+        };
     }
 
     @SuppressWarnings("unchecked")

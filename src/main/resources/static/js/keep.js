@@ -82,6 +82,9 @@
         completionRefreshPending: false,
         constructionCollapsed: window.matchMedia('(max-width: 767px)').matches,
         selectedStation: 'woodlot',
+        // Which Enclave space has its assign menu open (-1 = none). Kept in state rather than
+        // in the DOM because every snapshot refresh re-renders the panel body.
+        enclavePickerSlot: -1,
         selectedRelationshipId: '',
         inventoryFilter: 'ALL',
         pendingOfflineReport: null,
@@ -288,6 +291,13 @@
             else openInterior(building.dataset.building);
             return;
         }
+        const enclavePicker = event.target.closest('[data-enclave-picker]');
+        if (enclavePicker) {
+            const slot = Number(enclavePicker.dataset.enclavePicker);
+            state.enclavePickerSlot = state.enclavePickerSlot === slot ? -1 : slot;
+            rerenderActiveSurface();
+            return;
+        }
         const enclaveResident = event.target.closest('[data-enclave-resident]');
         if (enclaveResident) {
             void setEnclaveResident(number(enclaveResident.dataset.enclaveSlot), enclaveResident.dataset.enclaveResident);
@@ -486,6 +496,8 @@
 
     async function setEnclaveResident(slot, residentId) {
         const current = state.snapshot?.enclave?.slots?.[slot]?.residentId || '';
+        // Picking the resident who already lives here is the "let them leave" action.
+        state.enclavePickerSlot = -1;
         await perform('/api/keep/enclave/resident', { slot, residentId: current === residentId ? '' : residentId });
     }
 
@@ -495,7 +507,12 @@
             const reward = data.rewardClaimed;
             const parts = [`+${number(reward.gold)} Siegecoins`, `+${number(reward.remnants)} Remnants`];
             if (reward.decorationName) parts.push(`✿ ${reward.decorationName}`);
-            showNotice(parts.join(' · '), 'Sanctuary reward');
+            if (number(reward.rapportGained) > 0) {
+                const rapport = reward.rapport || {};
+                parts.push(`+${number(reward.rapportGained)} rapport with ${reward.rapportResidentName || 'your resident'}`
+                    + (number(rapport.buffPercent) > 0 ? ` (buffs +${number(rapport.buffPercent)}%)` : ''));
+            }
+            showNotice(parts.join(' · '), number(reward.rapportGained) > 0 ? 'Rapport grows' : 'Sanctuary reward');
         }
     }
 
@@ -673,10 +690,13 @@
         text('quarterLabel', builtFacilities ? `${builtFacilities}/7 facilities restored` : 'Foundations awaiting restoration');
         const enclave = snapshot.enclave || {};
         text('enclaveLabel', enclave.built
-            ? `${number(enclave.residentCount)}/${number(enclave.capacity) || 5} residents · missions`
+            ? `${number(enclave.residentCount)}/${number(enclave.capacity) || 5} residents · rapport tasks`
             : 'Build separately from the work quarter');
-        const readyMissions = (enclave.slots || []).filter((slot) => slot.mission?.complete && !slot.mission?.claimed).length;
-        document.getElementById('enclaveMissionAlert')?.classList.toggle('hidden', readyMissions <= 0);
+        const readyTasks = enclave.readyTaskCount != null
+            ? number(enclave.readyTaskCount)
+            : (enclave.slots || []).reduce((total, slot) =>
+                total + (slot.tasks || []).filter((task) => task.complete).length, 0);
+        document.getElementById('enclaveMissionAlert')?.classList.toggle('hidden', readyTasks <= 0);
         renderEnclaveResidents();
 
         const station = snapshot.station || {};
@@ -967,6 +987,13 @@
         }
     }
 
+    /** The Enclave is reachable both as a side panel and as a walkable interior, and the two
+        surfaces host `buildingMarkup` in different containers. Redraw whichever is open. */
+    function rerenderActiveSurface() {
+        if (state.interior) renderInterior();
+        else renderPanel();
+    }
+
     function renderBuildingPanel(id, body) {
         const heading = buildingHeading(id);
         setPanelHeading(heading.title, heading.kicker);
@@ -1019,17 +1046,106 @@
 
     function enclaveMarkup() {
         const enclave = state.snapshot.enclave || {};
-        if (!enclave.built) return `<p class="panel-intro">The Enclave is a home apart from the Elemental Quarter. Residents gather here by choice, socialize, and offer personal missions.</p>${projectsMarkup()}`;
-        const residents = state.snapshot.residents || [];
+        if (!enclave.built) return `<p class="panel-intro">The Enclave is a home apart from the Elemental Quarter. Residents gather here by choice, socialize, and offer tasks that build rapport.</p>${projectsMarkup()}`;
         const slots = enclave.slots || [];
-        return `<p class="panel-intro">Invite up to five owned Siegelings. They remain available everywhere else, appear together in this room, and each brings one sanctuary mission.</p>
-            <div class="enclave-slot-list">${slots.map((slot, index) => {
-                const resident = slot.resident;
-                const mission = slot.mission;
-                const missionMarkup = mission ? `<div class="enclave-mission ${mission.complete ? 'is-complete' : ''}"><span class="eyebrow">${mission.claimed ? 'Mission complete' : 'Resident mission'}</span><h4>${escapeHtml(mission.name)}</h4><p>${escapeHtml(mission.description)}</p><div class="meter"><i style="width:${clamp(number(mission.progress) / Math.max(1, number(mission.goal)) * 100, 0, 100)}%"></i></div><div class="cost-row"><span>${number(mission.progress)}/${number(mission.goal)}</span><strong>${number(mission.gold)} Siegecoins · ${number(mission.remnants)} Remnants</strong></div>${mission.claimed ? '<small>Reward claimed</small>' : `<button class="panel-button" type="button" data-claim-keep-reward="${escapeAttr(mission.id)}" ${mission.complete ? '' : 'disabled'}>${mission.complete ? 'Claim mission reward' : 'Mission in progress'}</button>`}</div>` : '';
-                const choices = residents.map((choice) => `<button type="button" class="enclave-resident-choice ${choice.id === slot.residentId ? 'active' : ''}" data-enclave-resident="${escapeAttr(choice.id)}" data-enclave-slot="${index}" style="--resident-color:${escapeAttr(elementColors[choice.element] || elementColors.NEUTRAL)}"><span>${residentAvatarContent(choice)}</span><small>${escapeHtml(choice.name)}</small></button>`).join('');
-                return `<section class="detail-card enclave-slot-card"><span class="eyebrow">Enclave space ${index + 1}</span>${resident ? `<div class="enclave-current"><span style="--resident-color:${escapeAttr(elementColors[resident.element] || elementColors.NEUTRAL)}">${residentAvatarContent(resident)}</span><div><h3>${escapeHtml(resident.name)}</h3><small>${escapeHtml(titleCase(resident.element))} · ${escapeHtml(titleCase(resident.rarity))}</small></div><button type="button" data-enclave-resident="${escapeAttr(resident.id)}" data-enclave-slot="${index}">Clear</button></div>` : '<p>This space is open.</p>'}${missionMarkup}<details><summary>${resident ? 'Change resident' : 'Invite a resident'}</summary><div class="enclave-resident-choices">${choices}</div></details></section>`;
-            }).join('')}</div>`;
+        return `<p class="panel-intro">Invite up to five owned Siegelings. Tap a resident's portrait to swap them out. Each one offers tasks of its own — finishing them builds rapport, and rapport raises every bonus that Siegeling gives the keep.</p>
+            <div class="enclave-slot-list">${slots.map((slot, index) => enclaveSlotMarkup(slot || {}, index)).join('')}</div>`;
+    }
+
+    function enclaveSlotMarkup(slot, index) {
+        const resident = slot.resident;
+        const pickerOpen = state.enclavePickerSlot === index;
+        const seat = resident
+            ? `<div class="enclave-current">
+                    <button type="button" class="enclave-portrait" data-enclave-picker="${index}"
+                        style="--resident-color:${escapeAttr(elementColors[resident.element] || elementColors.NEUTRAL)}"
+                        aria-expanded="${pickerOpen ? 'true' : 'false'}"
+                        aria-label="Change who lives in enclave space ${index + 1}. ${escapeAttr(resident.name)} lives here now.">
+                        ${residentAvatarContent(resident)}<i class="enclave-portrait-hint" aria-hidden="true">Swap</i>
+                    </button>
+                    <div>
+                        <h3>${escapeHtml(resident.name)}</h3>
+                        <small>${escapeHtml(titleCase(resident.element))} · ${escapeHtml(titleCase(resident.rarity))}</small>
+                        ${rapportMeterMarkup(resident.rapport)}
+                    </div>
+                </div>`
+            : `<button type="button" class="enclave-empty-seat" data-enclave-picker="${index}" aria-expanded="${pickerOpen ? 'true' : 'false'}">
+                    <span aria-hidden="true">+</span><small>This space is open — invite a Siegeling</small>
+                </button>`;
+        return `<section class="detail-card enclave-slot-card ${pickerOpen ? 'is-picking' : ''}">
+            <span class="eyebrow">Enclave space ${index + 1}</span>
+            ${seat}
+            ${pickerOpen ? enclavePickerMarkup(slot, index) : ''}
+            ${resident && !pickerOpen ? enclaveTasksMarkup(slot) : ''}
+        </section>`;
+    }
+
+    function rapportMeterMarkup(rapport) {
+        if (!rapport) return '';
+        const level = number(rapport.level);
+        const max = Math.max(1, number(rapport.maxLevel));
+        const floor = number(rapport.levelPoints);
+        const ceiling = number(rapport.nextLevelPoints);
+        const span = Math.max(1, ceiling - floor);
+        const fill = level >= max ? 100 : clamp((number(rapport.points) - floor) / span * 100, 0, 100);
+        const pips = Array.from({ length: max }, (item, i) => `<i class="${i < level ? 'filled' : ''}"></i>`).join('');
+        return `<div class="rapport-block">
+            <div class="rapport-head"><span class="rapport-pips" aria-hidden="true">${pips}</span>
+                <span class="rapport-label">${escapeHtml(rapport.label || '')}${number(rapport.buffPercent) > 0 ? ` · buffs +${number(rapport.buffPercent)}%` : ''}</span></div>
+            <div class="meter rapport-meter"><i style="width:${fill}%"></i></div>
+            <small>${level >= max ? `Rapport ${level}/${max} · fully bonded` : `Rapport ${level}/${max} · ${number(rapport.pointsToNextLevel)} more to the next level`}</small>
+        </div>`;
+    }
+
+    function enclaveTasksMarkup(slot) {
+        const tasks = slot.tasks && slot.tasks.length ? slot.tasks : (slot.mission ? [slot.mission] : []);
+        if (!tasks.length) return '';
+        return `<div class="enclave-task-list">
+            <span class="eyebrow">Tasks offered</span>
+            ${tasks.map((task) => {
+                const goal = Math.max(1, number(task.goal));
+                const complete = Boolean(task.complete);
+                const completions = number(task.completions);
+                return `<div class="enclave-mission ${complete ? 'is-complete' : ''}">
+                    <h4>${escapeHtml(task.name || '')}${task.source === 'BOND' ? '<i class="task-bond-tag">Personal</i>' : ''}</h4>
+                    <p>${escapeHtml(task.description || '')}</p>
+                    <div class="meter"><i style="width:${clamp(number(task.progress) / goal * 100, 0, 100)}%"></i></div>
+                    <div class="cost-row"><span>${number(task.progress)}/${goal}${completions > 0 ? ` · done ${completions}x` : ''}</span>
+                        <strong>+${number(task.rapport)} rapport · ${number(task.gold)} Siegecoins · ${number(task.remnants)} Remnants</strong></div>
+                    <button class="panel-button" type="button" data-claim-keep-reward="${escapeAttr(task.id)}" ${complete ? '' : 'disabled'}>${complete ? 'Bank the task' : 'Task in progress'}</button>
+                </div>`;
+            }).join('')}
+        </div>`;
+    }
+
+    /** The assign menu. Unassigned Siegelings come first; anyone already posted elsewhere is
+        offered as an explicit reassignment so a player never moves a worker by accident. */
+    function enclavePickerMarkup(slot, index) {
+        const residents = state.snapshot.residents || [];
+        const seated = slot.residentId || '';
+        const available = residents.filter((choice) => choice.id !== seated && !choice.assignment?.assigned);
+        const posted = residents.filter((choice) => choice.id !== seated && choice.assignment?.assigned);
+        const chip = (choice) => {
+            const assignment = choice.assignment || {};
+            const level = number(choice.rapport?.level);
+            return `<button type="button" class="enclave-resident-choice ${assignment.assigned ? 'is-reassign' : ''}"
+                data-enclave-resident="${escapeAttr(choice.id)}" data-enclave-slot="${index}"
+                style="--resident-color:${escapeAttr(elementColors[choice.element] || elementColors.NEUTRAL)}">
+                <span>${residentAvatarContent(choice)}</span>
+                <small>${escapeHtml(choice.name)}</small>
+                ${level > 0 ? `<b class="choice-rapport">Rapport ${level}</b>` : ''}
+                ${assignment.assigned ? `<i class="reassign-tag">Reassign · ${escapeHtml(assignment.label || 'assigned')}</i>` : ''}
+            </button>`;
+        };
+        return `<div class="enclave-picker">
+            <div class="enclave-picker-head"><strong>${seated ? 'Swap this space' : 'Invite a Siegeling'}</strong>
+                <button type="button" class="picker-close" data-enclave-picker="-1" aria-label="Close the assign menu">&times;</button></div>
+            ${seated ? `<button type="button" class="panel-button secondary" data-enclave-resident="${escapeAttr(seated)}" data-enclave-slot="${index}">Let them leave the Enclave</button>` : ''}
+            ${available.length
+                ? `<span class="eyebrow">Unassigned · ${available.length}</span><div class="enclave-resident-choices">${available.map(chip).join('')}</div>`
+                : '<div class="empty-state">Every Siegeling you own is already assigned. Choose one below to move them here.</div>'}
+            ${posted.length ? `<span class="eyebrow">Already assigned</span><div class="enclave-resident-choices">${posted.map(chip).join('')}</div>` : ''}
+        </div>`;
     }
 
     /** Choosing a favorite happens inside the Covenant Hall — a keep-wide honor,
@@ -2087,7 +2203,7 @@
             const slots = snapshot.enclave?.slots || [];
             for (const slot of slots) {
                 if (body.residentId && slot.residentId === body.residentId) {
-                    slot.residentId = ''; slot.resident = null; slot.mission = null;
+                    slot.residentId = ''; slot.resident = null; slot.mission = null; slot.tasks = []; slot.rapport = null;
                 }
             }
             const slot = slots[number(body.slot)];
@@ -2095,9 +2211,24 @@
                 const resident = (snapshot.residents || []).find((item) => item.id === body.residentId) || null;
                 slot.residentId = resident?.id || '';
                 slot.resident = resident;
-                slot.mission = resident ? { id: `enclave_mission:${resident.id}`, name: 'Resident mission', description: 'Help the sanctuary together.', progress: 0, goal: 3, complete: false, claimed: false, gold: 90, remnants: 20 } : null;
+                slot.tasks = resident ? mockEnclaveTasks(resident) : [];
+                slot.rapport = resident?.rapport || null;
+                slot.mission = slot.tasks[0] || null;
             }
-            if (snapshot.enclave) snapshot.enclave.residentCount = slots.filter((item) => item.resident).length;
+            for (const choice of snapshot.residents || []) {
+                const seat = slots.findIndex((item) => item.residentId === choice.id);
+                const stationed = (snapshot.stations || [snapshot.station]).find((item) => item?.residentId === choice.id);
+                choice.assignment = stationed
+                    ? { assigned: true, type: 'STATION', id: stationed.id, label: stationed.name || stationed.id }
+                    : seat >= 0
+                        ? { assigned: true, type: 'ENCLAVE', id: String(seat), label: `Enclave space ${seat + 1}` }
+                        : { assigned: false, type: '', id: '', label: '' };
+            }
+            if (snapshot.enclave) {
+                snapshot.enclave.residentCount = slots.filter((item) => item.resident).length;
+                snapshot.enclave.readyTaskCount = slots.reduce((total, item) =>
+                    total + (item.tasks || []).filter((task) => task.complete).length, 0);
+            }
         } else if (path.endsWith('/build')) {
             const option = (snapshot.buildOptions || []).find((item) => item.id === body.buildId);
             if (option) {
@@ -2172,14 +2303,42 @@
             };
         } else if (path.endsWith('/reward')) {
             const item = (snapshot.milestones || []).find((milestone) => milestone.id === body.rewardId);
-            const mission = (snapshot.enclave?.slots || []).map((slot) => slot.mission).find((entry) => entry?.id === body.rewardId);
-            const reward = item?.reward || mission || snapshot.weeklyTribute?.reward || {};
+            const taskSlot = (snapshot.enclave?.slots || []).find((slot) =>
+                (slot.tasks || []).some((entry) => entry.id === body.rewardId));
+            const task = (taskSlot?.tasks || []).find((entry) => entry.id === body.rewardId)
+                || (snapshot.enclave?.slots || []).map((slot) => slot.mission).find((entry) => entry?.id === body.rewardId);
+            const reward = item?.reward || task || snapshot.weeklyTribute?.reward || {};
             snapshot.resources.gold = number(snapshot.resources.gold) + number(reward.gold);
             snapshot.resources.remnants = number(snapshot.resources.remnants) + number(reward.remnants);
             if (item) { item.claimed = true; item.canClaim = false; }
-            if (mission) mission.claimed = true;
+            if (task) {
+                // Tasks repeat: banking one clears progress and pays rapport once.
+                task.progress = 0;
+                task.complete = false;
+                task.completions = number(task.completions) + 1;
+                const rapport = taskSlot?.resident?.rapport;
+                if (rapport) {
+                    rapport.points = number(rapport.points) + number(task.rapport);
+                    if (rapport.points >= number(rapport.nextLevelPoints) && number(rapport.level) < number(rapport.maxLevel)) {
+                        rapport.level = number(rapport.level) + 1;
+                        rapport.levelPoints = number(rapport.nextLevelPoints);
+                        rapport.nextLevelPoints = number(rapport.nextLevelPoints) * 2;
+                        rapport.buffPercent = number(rapport.level) * 10;
+                    }
+                    rapport.pointsToNextLevel = Math.max(0, number(rapport.nextLevelPoints) - number(rapport.points));
+                    if (taskSlot) taskSlot.rapport = rapport;
+                }
+                snapshot.enclave.readyTaskCount = (snapshot.enclave.slots || []).reduce((total, slot) =>
+                    total + (slot.tasks || []).filter((entry) => entry.complete).length, 0);
+            }
             if (body.rewardId === 'weekly_tribute' && snapshot.weeklyTribute) snapshot.weeklyTribute.ready = false;
             snapshot.rewardClaimed = { id: body.rewardId, gold: number(reward.gold), remnants: number(reward.remnants) };
+            if (task && taskSlot?.resident) {
+                snapshot.rewardClaimed.rapportGained = number(task.rapport);
+                snapshot.rewardClaimed.rapportResidentId = taskSlot.resident.id;
+                snapshot.rewardClaimed.rapportResidentName = taskSlot.resident.name;
+                snapshot.rewardClaimed.rapport = taskSlot.resident.rapport || null;
+            }
         } else if (path.endsWith('/craft')) {
             const recipe = (snapshot.recipes || []).find((item) => item.id === body.recipeId);
             if (recipe) {
@@ -2213,6 +2372,34 @@
         }
         window.__KEEP_TEST_SNAPSHOT__ = clone(snapshot);
         return Promise.resolve(snapshot);
+    }
+
+    /** Offline stand-in for the server's element-defaulted, per-Siegeling task ladder. */
+    function mockEnclaveTasks(resident) {
+        const byElement = {
+            FIRE: ['CRAFTING', 'CONSTRUCTION'], METAL: ['CRAFTING', 'CONSTRUCTION'],
+            ELECTRIC: ['MATERIAL_COLLECTION', 'CRAFTING'], WATER: ['MATERIAL_COLLECTION', 'TIMBER_COLLECTION'],
+            ICE: ['MATERIAL_COLLECTION', 'CRAFTING'], WIND: ['TIMBER_COLLECTION', 'CONVERSATION'],
+            EARTH: ['TIMBER_COLLECTION', 'CONSTRUCTION'], POISON: ['MATERIAL_COLLECTION', 'TIMBER_COLLECTION'],
+            SHADOW: ['CONVERSATION', 'MATERIAL_COLLECTION'], PSYCHIC: ['CONVERSATION', 'DECORATION'],
+            LIGHT: ['DECORATION', 'CONVERSATION'], UNDEAD: ['MATERIAL_COLLECTION', 'DECORATION']
+        };
+        const events = byElement[resident.element] || ['TIMBER_COLLECTION', 'CRAFTING'];
+        const rungs = [{ goal: 3, rapport: 2, gold: 90, remnants: 20 }, { goal: 2, rapport: 3, gold: 140, remnants: 32 }];
+        const tasks = events.map((event, index) => ({
+            id: `enclave_task:${resident.id}:${String(resident.element || 'neutral').toLowerCase()}_${index + 1}`,
+            taskId: `${String(resident.element || 'neutral').toLowerCase()}_${index + 1}`,
+            name: index === 0 ? 'A Task Together' : 'Something Worth Doing',
+            description: `${resident.name} asks for a hand around the sanctuary.`,
+            event, source: 'ELEMENT', progress: 0, complete: false, completions: 0, ...rungs[index]
+        }));
+        tasks.push({
+            id: `enclave_task:${resident.id}:bond_hands`, taskId: 'bond_hands',
+            name: `${resident.name}'s Own Request`, description: `Something only ${resident.name} would ask for.`,
+            event: 'CRAFTING', source: 'BOND', progress: 0, goal: 3, complete: false, completions: 0,
+            rapport: 5, gold: 210, remnants: 48
+        });
+        return tasks;
     }
 
     function mockUnlock(snapshot, id) {
@@ -2523,11 +2710,26 @@
                 built: Boolean(snapshot.enclave.built),
                 residentCount: number(snapshot.enclave.residentCount),
                 capacity: number(snapshot.enclave.capacity),
+                readyTaskCount: number(snapshot.enclave.readyTaskCount),
+                pickerSlot: state.enclavePickerSlot,
                 slots: (snapshot.enclave.slots || []).map((slot) => ({
                     slot: number(slot.slot), resident: slot.resident?.name || null,
-                    mission: slot.mission ? { id: slot.mission.id, progress: number(slot.mission.progress), goal: number(slot.mission.goal), complete: Boolean(slot.mission.complete), claimed: Boolean(slot.mission.claimed) } : null
+                    rapport: slot.resident?.rapport
+                        ? { level: number(slot.resident.rapport.level), points: number(slot.resident.rapport.points), buffPercent: number(slot.resident.rapport.buffPercent) }
+                        : null,
+                    tasks: (slot.tasks || []).map((task) => ({
+                        id: task.id, name: task.name, event: task.event, source: task.source,
+                        progress: number(task.progress), goal: number(task.goal),
+                        complete: Boolean(task.complete), completions: number(task.completions)
+                    }))
                 }))
             } : null,
+            residentAssignments: (snapshot.residents || []).map((resident) => ({
+                id: resident.id, name: resident.name,
+                assigned: Boolean(resident.assignment?.assigned),
+                assignmentLabel: resident.assignment?.label || '',
+                rapportLevel: number(resident.rapport?.level)
+            })),
             noticeCenter: {
                 unread: unreadNoticeCount(),
                 read: state.notices.length - unreadNoticeCount(),

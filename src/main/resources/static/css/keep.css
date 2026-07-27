@@ -960,24 +960,51 @@ button.resource-pill:focus-visible {
 .room-upgrade-summary small { color: rgba(255,247,220,.58); font-size: 8px; text-transform: uppercase; }
 .enclave-slot-list { display: grid; gap: 10px; }
 .enclave-slot-card { margin-bottom: 0; }
-.enclave-current { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; align-items: center; gap: 9px; margin-top: 8px; }
-.enclave-current > span { width: 52px; height: 58px; display: flex; align-items: flex-end; justify-content: center; overflow: hidden; border: 2px solid var(--resident-color, var(--gold)); border-radius: 12px; background: color-mix(in srgb, var(--resident-color, var(--neutral)) 35%, #172333); }
-.enclave-current > span img { width: auto; height: 100%; max-width: 100%; object-fit: contain; object-position: bottom center; }
+.enclave-current { display: grid; grid-template-columns: 56px minmax(0, 1fr); align-items: start; gap: 9px; margin-top: 8px; }
+/* The portrait is the swap control — there is no separate remove button, so it needs the
+   full 44px touch target and a visible affordance that it opens the assign menu. */
+.enclave-portrait { position: relative; width: 56px; height: 62px; display: flex; align-items: flex-end; justify-content: center; overflow: hidden; padding: 0; border: 2px solid var(--resident-color, var(--gold)); border-radius: 12px; background: color-mix(in srgb, var(--resident-color, var(--neutral)) 35%, #172333); cursor: pointer; }
+.enclave-portrait img { width: auto; height: 100%; max-width: 100%; object-fit: contain; object-position: bottom center; }
+.enclave-portrait-hint { position: absolute; left: 0; right: 0; bottom: 0; padding: 2px 0; color: #10171f; background: rgba(244,204,98,.88); font: 700 7px/1 Georgia, serif; text-transform: uppercase; letter-spacing: .06em; font-style: normal; }
+.enclave-portrait[aria-expanded="true"] { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(244,204,98,.35); }
 .enclave-current h3 { margin: 0; }
 .enclave-current small { color: rgba(255,247,220,.58); font-size: 9px; }
-.enclave-current > button { padding: 6px 8px; border-radius: 8px; color: rgba(255,247,220,.72); background: rgba(255,255,255,.07); font-size: 9px; cursor: pointer; }
-.enclave-slot-card details { margin-top: 10px; }
-.enclave-slot-card summary { color: #9fe9ff; font-size: 10px; cursor: pointer; }
+.enclave-empty-seat { display: flex; align-items: center; gap: 10px; width: 100%; margin-top: 8px; padding: 10px; border: 1px dashed var(--line); border-radius: 11px; color: rgba(255,247,220,.72); background: rgba(255,255,255,.03); cursor: pointer; text-align: left; }
+.enclave-empty-seat span { width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 10px; color: #9fe9ff; background: rgba(159,233,255,.12); font: 700 18px Georgia, serif; }
+.enclave-empty-seat small { font-size: 9px; }
+.rapport-block { margin-top: 6px; }
+.rapport-head { display: flex; align-items: center; gap: 6px; }
+.rapport-pips { display: inline-flex; gap: 3px; }
+.rapport-pips i { width: 6px; height: 6px; border: 1px solid rgba(244,204,98,.5); border-radius: 50%; }
+.rapport-pips i.filled { border-color: var(--gold); background: var(--gold); }
+.rapport-label { color: #fff1b7; font-size: 9px; }
+.meter.rapport-meter { margin-top: 4px; }
+.meter.rapport-meter i { background: linear-gradient(90deg, #f4cc62, #ffb0d0); }
+.rapport-block small { display: block; margin-top: 3px; color: rgba(255,247,220,.55); font-size: 8px; }
+.enclave-picker { margin-top: 10px; padding: 10px; border: 1px solid rgba(244,204,98,.35); border-radius: 11px; background: rgba(244,204,98,.05); }
+.enclave-picker-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.enclave-picker-head strong { color: #fff1b7; font: 700 12px Georgia, serif; }
+.enclave-picker .picker-close { width: 26px; height: 26px; border-radius: 8px; color: var(--cream); background: rgba(255,255,255,.08); font-size: 15px; line-height: 1; cursor: pointer; }
+.enclave-picker .panel-button.secondary { width: 100%; margin-bottom: 8px; }
+.enclave-picker .eyebrow { display: block; margin-top: 8px; }
+.enclave-picker .empty-state { margin-top: 6px; }
 .enclave-resident-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
-.enclave-resident-choice { min-width: 0; display: grid; justify-items: center; gap: 3px; padding: 6px 3px; border: 1px solid var(--line); border-radius: 9px; color: var(--cream); background: rgba(255,255,255,.04); cursor: pointer; }
+.enclave-resident-choice { position: relative; min-width: 0; display: grid; justify-items: center; gap: 3px; padding: 6px 3px; border: 1px solid var(--line); border-radius: 9px; color: var(--cream); background: rgba(255,255,255,.04); cursor: pointer; }
 .enclave-resident-choice.active { border-color: var(--gold); background: rgba(244,204,98,.1); }
+.enclave-resident-choice.is-reassign { border-color: rgba(255,176,208,.45); background: rgba(255,176,208,.06); }
 .enclave-resident-choice span { width: 36px; height: 40px; display: flex; align-items: flex-end; justify-content: center; overflow: hidden; border-radius: 8px; background: color-mix(in srgb, var(--resident-color, var(--neutral)) 35%, #172333); }
 .enclave-resident-choice img { width: auto; height: 100%; max-width: 100%; object-fit: contain; object-position: bottom center; }
 .enclave-resident-choice small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 8px; }
+.enclave-resident-choice .choice-rapport { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--gold); font: 700 7px Georgia, serif; }
+/* The post a Siegeling would be pulled off is the whole point of the tag, so it wraps
+   rather than ellipsing — three chips per row leaves no width to truncate into. */
+.enclave-resident-choice .reassign-tag { max-width: 100%; color: #ffb0d0; font: 700 7px/1.25 Georgia, serif; font-style: normal; text-transform: uppercase; letter-spacing: .04em; text-align: center; overflow-wrap: anywhere; }
+.enclave-task-list { margin-top: 4px; }
 .enclave-mission { margin-top: 10px; padding: 10px; border: 1px solid rgba(159,233,255,.25); border-radius: 10px; background: rgba(159,233,255,.05); }
 .enclave-mission.is-complete { border-color: rgba(111,207,139,.5); background: rgba(111,207,139,.07); }
 .enclave-mission h4 { margin: 3px 0; color: #fff1b7; font: 700 13px Georgia, serif; }
 .enclave-mission p { margin: 0; color: rgba(255,247,220,.66); font-size: 9px; line-height: 1.4; }
+.enclave-mission .task-bond-tag { margin-left: 6px; padding: 1px 5px; border-radius: 6px; color: #10171f; background: rgba(255,176,208,.85); font: 700 7px Georgia, serif; font-style: normal; text-transform: uppercase; letter-spacing: .05em; vertical-align: middle; }
 .enclave-mission .panel-button { width: 100%; margin-top: 8px; }
 
 /* Read/unread divider shared by the Chronicle, the Voices list, and the notice tray. */
