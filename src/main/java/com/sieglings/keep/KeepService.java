@@ -6,6 +6,7 @@ import com.sieglings.keep.KeepLoreCatalog.LoreEntry;
 import com.sieglings.keep.KeepLoreCatalog.Outcome;
 import com.sieglings.model.Card;
 import com.sieglings.model.SieglingCard;
+import com.sieglings.model.enums.SieglingSize;
 import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.PlayerProgressionEntity;
 import com.sieglings.persistence.firestore.PlayerProgressionStore;
@@ -1775,8 +1776,10 @@ public class KeepService {
             String element = card.getElement() == null ? "NEUTRAL" : card.getElement().name();
             String rarity = card.getRarity() == null ? "COMMON" : card.getRarity().name();
             boolean preferred = Set.of("EARTH", "WIND", "WATER", "LIGHT").contains(element);
+            SieglingSize size = card.getSize() != null ? card.getSize()
+                    : SieglingSize.defaultFor(card.getRarity(), 0);
             out.add(new Resident(card.getId(), card.getName(), element, rarity,
-                    card.getCardArtUrl() == null ? "" : card.getCardArtUrl(), preferred));
+                    card.getCardArtUrl() == null ? "" : card.getCardArtUrl(), size.name(), preferred));
         }
         out.sort((a, b) -> a.name().compareToIgnoreCase(b.name()));
         return out;
@@ -2097,6 +2100,7 @@ public class KeepService {
         out.put("name", resident.name());
         out.put("element", resident.element());
         out.put("rarity", resident.rarity());
+        out.put("size", resident.size());
         out.put("artUrl", resident.artUrl());
         out.put("preferredAtWoodlot", resident.preferredAtWoodlot());
         out.put("affinityLabel", resident.preferredAtWoodlot() ? "Woodland affinity · +15%" : "Willing helper · normal rate");
@@ -2582,7 +2586,7 @@ public class KeepService {
     }
 
     private record Resident(String id, String name, String element, String rarity, String artUrl,
-                            boolean preferredAtWoodlot) { }
+                            String size, boolean preferredAtWoodlot) { }
     private record FacilityDefinition(String id, String name, String ruinedName, String resourceId,
                                       String resourceName, double baseRatePerMinute, int baseStorage,
                                       Set<String> affinities, String toolRecipeId, String buildDescription) {

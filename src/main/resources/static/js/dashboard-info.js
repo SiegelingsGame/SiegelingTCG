@@ -132,6 +132,19 @@
             '<p>Locked Siegelings still appear in the recruit pool on the map — finding them mid-run adds them to future expeditions.</p>'
     };
 
+    topics['siegling-size'] = {
+        title: 'Siegling Size',
+        html: '<p>How big the Siegeling stands where it is drawn at world scale rather than as a card — today the paper cutouts in the Keep enclave.</p>' +
+            table([
+                row(['<strong>Auto</strong>', 'Follows rarity: Common/Uncommon small, Rare medium, Epic large, Legendary gigantic. Updates on its own if you change the rarity.']),
+                row(['<strong>Small</strong>', 'Base-form silhouette.']),
+                row(['<strong>Medium</strong>', 'Roughly a fifth taller than small.']),
+                row(['<strong>Large</strong>', 'Half again the height of a small cutout.']),
+                row(['<strong>Gigantic</strong>', 'Towering — the default for every Legendary.'])
+            ]) +
+            '<p>Pick an explicit size only for one-off exceptions; leaving it on Auto keeps the card in step with its rarity.</p>'
+    };
+
     topics['action-cards'] = {
         title: 'Strategy & Deception Cards',
         html: '<p><strong>Strategies</strong> (spells) are played from hand for an element + energy cost, often gated by combo size or reaction type.</p>' +

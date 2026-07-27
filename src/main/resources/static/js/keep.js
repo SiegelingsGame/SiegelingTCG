@@ -1028,7 +1028,7 @@
                 const mission = slot.mission;
                 const missionMarkup = mission ? `<div class="enclave-mission ${mission.complete ? 'is-complete' : ''}"><span class="eyebrow">${mission.claimed ? 'Mission complete' : 'Resident mission'}</span><h4>${escapeHtml(mission.name)}</h4><p>${escapeHtml(mission.description)}</p><div class="meter"><i style="width:${clamp(number(mission.progress) / Math.max(1, number(mission.goal)) * 100, 0, 100)}%"></i></div><div class="cost-row"><span>${number(mission.progress)}/${number(mission.goal)}</span><strong>${number(mission.gold)} Siegecoins · ${number(mission.remnants)} Remnants</strong></div>${mission.claimed ? '<small>Reward claimed</small>' : `<button class="panel-button" type="button" data-claim-keep-reward="${escapeAttr(mission.id)}" ${mission.complete ? '' : 'disabled'}>${mission.complete ? 'Claim mission reward' : 'Mission in progress'}</button>`}</div>` : '';
                 const choices = residents.map((choice) => `<button type="button" class="enclave-resident-choice ${choice.id === slot.residentId ? 'active' : ''}" data-enclave-resident="${escapeAttr(choice.id)}" data-enclave-slot="${index}" style="--resident-color:${escapeAttr(elementColors[choice.element] || elementColors.NEUTRAL)}"><span>${residentAvatarContent(choice)}</span><small>${escapeHtml(choice.name)}</small></button>`).join('');
-                return `<section class="detail-card enclave-slot-card"><span class="eyebrow">Enclave space ${index + 1}</span>${resident ? `<div class="enclave-current"><span style="--resident-color:${escapeAttr(elementColors[resident.element] || elementColors.NEUTRAL)}">${residentAvatarContent(resident)}</span><div><h3>${escapeHtml(resident.name)}</h3><small>${escapeHtml(titleCase(resident.element))} · ${escapeHtml(titleCase(resident.rarity))}</small></div><button type="button" data-enclave-resident="${escapeAttr(resident.id)}" data-enclave-slot="${index}">Clear</button></div>` : '<p>This space is open.</p>'}${missionMarkup}<details><summary>${resident ? 'Change resident' : 'Invite a resident'}</summary><div class="enclave-resident-choices">${choices}</div></details></section>`;
+                return `<section class="detail-card enclave-slot-card"><span class="eyebrow">Enclave space ${index + 1}</span>${resident ? `<div class="enclave-current"><span style="--resident-color:${escapeAttr(elementColors[resident.element] || elementColors.NEUTRAL)}">${residentAvatarContent(resident)}</span><div><h3>${escapeHtml(resident.name)}</h3><small>${escapeHtml(titleCase(resident.element))} · ${escapeHtml(titleCase(resident.rarity))} · ${escapeHtml(titleCase(residentSize(resident)))}</small></div><button type="button" data-enclave-resident="${escapeAttr(resident.id)}" data-enclave-slot="${index}">Clear</button></div>` : '<p>This space is open.</p>'}${missionMarkup}<details><summary>${resident ? 'Change resident' : 'Invite a resident'}</summary><div class="enclave-resident-choices">${choices}</div></details></section>`;
             }).join('')}</div>`;
     }
 
@@ -2436,7 +2436,24 @@
         node.classList.toggle('has-overlay-art', hasArt);
         node.classList.toggle('is-paper-cutout', hasArt);
         node.classList.toggle('is-paper-token', Boolean(resident) && !hasArt);
+        // Enclave cutouts are drawn at world scale, so a gigantic Siegeling towers over a small one.
+        if (resident) node.dataset.size = residentSize(resident);
+        else delete node.dataset.size;
         node.innerHTML = resident ? residentAvatarContent(resident) : '';
+    }
+
+    const RESIDENT_SIZES = ['SMALL', 'MEDIUM', 'LARGE', 'GIGANTIC'];
+
+    /** Server sends the resolved size; fall back to the rarity band if an older payload omits it. */
+    function residentSize(resident) {
+        const size = String(resident?.size || '').trim().toUpperCase();
+        if (RESIDENT_SIZES.indexOf(size) >= 0) return size;
+        switch (String(resident?.rarity || '').trim().toUpperCase()) {
+            case 'LEGENDARY': return 'GIGANTIC';
+            case 'EPIC': return 'LARGE';
+            case 'RARE': return 'MEDIUM';
+            default: return 'SMALL';
+        }
     }
 
     function initials(value) {

@@ -10,6 +10,7 @@ import com.sieglings.model.enums.NotchDirection;
 import com.sieglings.model.enums.Rarity;
 import com.sieglings.model.enums.Reaction;
 import com.sieglings.model.enums.Row;
+import com.sieglings.model.enums.SieglingSize;
 import com.sieglings.model.enums.TargetType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -82,6 +83,50 @@ class ManualSieglingCatalogTest {
         assertFalse(ids.contains("emberpup"), "deleted card emberpup should not reappear");
         assertFalse(ids.contains("hotdog"), "deleted card hotdog should not reappear");
         assertTrue(ids.contains("firsky"), "surviving cards should remain");
+    }
+
+    @Test
+    void sieglingSizesDefaultToTheRarityBandAndSurviveAnExplicitOverride() throws Exception {
+        List<SieglingCard> generated = GeneratedCreatureCatalog.createGeneratedForElement(Element.FIRE);
+        MovesPoolService pool = new MovesPoolService(new ObjectMapper(), null);
+
+        List<SieglingCard> defaulted = ManualSieglingCatalog.applyOverrides(Element.FIRE, generated, List.of(), pool);
+        for (SieglingCard card : defaulted) {
+            assertEquals(SieglingSize.defaultFor(card.getRarity(), 0), card.getSize(),
+                    card.getId() + " should take the size band its rarity implies");
+        }
+        assertTrue(defaulted.stream().anyMatch(card -> card.getRarity() == Rarity.LEGENDARY),
+                "the fire roster should contain a legendary to prove the gigantic default");
+        assertTrue(defaulted.stream()
+                        .filter(card -> card.getRarity() == Rarity.LEGENDARY)
+                        .allMatch(card -> card.getSize() == SieglingSize.GIGANTIC),
+                "every legendary is gigantic by default");
+
+        // A one-off dashboard pick wins over the band and round-trips back out to the editor.
+        SieglingCard common = defaulted.stream().filter(card -> card.getRarity() == Rarity.COMMON).findFirst().orElseThrow();
+        ManualSieglingCatalog.ManualSieglingDefinition definition = new ObjectMapper().readValue("""
+                {"type":"SIEGLING","id":"%s","element":"FIRE","size":"gigantic"}
+                """.formatted(common.getId()), ManualSieglingCatalog.ManualSieglingDefinition.class);
+
+        SieglingCard overridden = ManualSieglingCatalog.applyOverrides(Element.FIRE, generated, List.of(definition), pool)
+                .stream().filter(card -> card.getId().equals(common.getId())).findFirst().orElseThrow();
+
+        assertEquals(SieglingSize.GIGANTIC, overridden.getSize());
+        assertEquals(SieglingSize.GIGANTIC, overridden.copy().getSize());
+        assertEquals("GIGANTIC", ManualSieglingCatalog.buildOverrideFile(List.of(overridden)).cards().get(0).size());
+    }
+
+    @Test
+    void unknownSizeValuesAreRejectedBeforeTheyReachTheLiveCatalog() throws Exception {
+        ManualSieglingCatalog.ManualSieglingDefinition definition = new ObjectMapper().readValue("""
+                {"type":"SIEGLING","id":"firsky","element":"FIRE","size":"HUGE"}
+                """, ManualSieglingCatalog.ManualSieglingDefinition.class);
+
+        IllegalArgumentException error = assertThrows(
+                IllegalArgumentException.class,
+                () -> ManualSieglingCatalog.validateDefinitions(List.of(definition))
+        );
+        assertTrue(error.getMessage().contains("unknown size"));
     }
 
     @Test
