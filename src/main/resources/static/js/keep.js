@@ -1027,7 +1027,7 @@
                 <section class="detail-card">
                     <h3>${escapeHtml(String(projectedAvailable()))} timber ready</h3>
                     <div class="meter"><i data-live-woodlot-meter style="width:${woodlotFill()}%"></i></div>
-                    <div class="cost-row"><span>${escapeHtml(formatRate(station.ratePerMinute))} per minute</span><strong>${escapeHtml(String(station.storageCapacity || 0))} storage</strong></div>
+                    <div class="cost-row"><span>${escapeHtml(formatRate(station.ratePerMinute))} per minute</span><strong>${escapeHtml(String(station.storageCapacity || 0))} storage${number(station.storageBonusPercent) ? ` · +${number(station.storageBonusPercent)}% local` : ''}</strong></div>
                     <div class="button-row"><button class="panel-button" type="button" data-collect-inline ${projectedAvailable() <= 0 ? 'disabled' : ''}>Collect timber</button><button class="panel-button secondary" type="button" data-open-panel="residents">Invite resident</button></div>
                 </section>
                 ${station.resident ? `<section class="detail-card"><span class="eyebrow">Current partner</span><h3>${escapeHtml(station.resident.name)}</h3><p>${escapeHtml(station.resident.affinityLabel || '')}. Invited residents remain available in decks and expeditions.</p></section>` : `<div class="empty-state">No resident has been invited. The Woodlot still produces normally.</div>`}
@@ -1203,7 +1203,7 @@
         return `<p class="panel-intro">${facilityInteriorDescription(id)}</p>
             <section class="detail-card"><h3>${ready} ${escapeHtml(station.resourceName || 'materials')} ready</h3>
             <div class="meter"><i data-station-meter="${escapeAttr(id)}" style="width:${stationFill(station)}%"></i></div>
-            <div class="cost-row"><span>${escapeHtml(formatRate(station.ratePerMinute))} per minute</span><strong>${number(station.storageCapacity)} local storage</strong></div>
+            <div class="cost-row"><span>${escapeHtml(formatRate(station.ratePerMinute))} per minute</span><strong>${number(station.storageCapacity)} local storage${number(station.storageBonusPercent) ? ` · +${number(station.storageBonusPercent)}%` : ''}</strong></div>
             <div class="button-row"><button class="panel-button" type="button" data-collect-station="${escapeAttr(id)}" ${ready <= 0 ? 'disabled' : ''}>Collect ${escapeHtml(station.resourceName || 'materials')}</button><button class="panel-button secondary" type="button" data-open-panel="residents" data-select-station="${escapeAttr(id)}">Assign resident</button></div></section>
             ${craftingMarkup(id)}`;
     }
@@ -1213,13 +1213,15 @@
         const decorations = (state.snapshot.decorations || []).filter((item) => item.roomId === roomId && item.crafted);
         const tools = recipes.filter((item) => item.type === 'TOOL');
         const roomDecorations = recipes.filter((item) => item.type === 'DECORATION');
+        const station = stationById(roomId) || {};
+        const decorationTotal = roomDecorations.length;
         const cards = recipes.length ? recipes.map((recipe) => `<section class="craft-card ${recipe.crafted ? 'is-crafted' : ''}">
-            <span class="craft-type">${escapeHtml(recipe.type)}${number(recipe.tier) ? ` · ${number(recipe.tier)}/5` : ''}</span><h3>${escapeHtml(recipe.name)}</h3><p>${escapeHtml(recipe.description || '')}</p>
+            <span class="craft-type">${escapeHtml(recipe.type)}${number(recipe.tier) ? ` · ${number(recipe.tier)}/${recipe.type === 'DECORATION' ? roomDecorations.length : tools.length}` : ''}</span><h3>${escapeHtml(recipe.name)}</h3><p>${escapeHtml(recipe.description || '')}</p>
             <small>${escapeHtml(recipe.bonus || '')}</small><div class="craft-costs">${(recipe.costs || []).map((cost) => `<span class="${materialHeld(cost.id) >= number(cost.amount) ? 'is-met' : 'is-short'}">${materialIcon(cost.id)} ${number(cost.amount)} ${escapeHtml(cost.name)}</span>`).join('')}</div>
             <button class="panel-button" type="button" data-craft-recipe="${escapeAttr(recipe.id)}" ${recipe.canCraft ? '' : 'disabled'}>${recipe.crafted ? 'Crafted' : recipe.levelMet === false ? 'Upgrade room to level 2' : recipe.prerequisiteMet === false ? 'Craft previous tool' : recipe.canCraft ? 'Craft item' : 'Gather materials'}</button>
         </section>`).join('') : '<div class="empty-state">This room has no available blueprints yet.</div>';
-        const placements = decorations.map((decoration) => `<section class="decoration-control"><span><small>Interior decoration ${number(decoration.tier) ? `${number(decoration.tier)}/5` : ''}</small><strong>${escapeHtml(decoration.name)}</strong></span><button class="panel-button secondary" type="button" data-place-decoration="${escapeAttr(decoration.id)}" data-room-id="${escapeAttr(roomId)}" data-displayed="${String(Boolean(decoration.displayed))}">${decoration.displayed ? 'Store decoration' : 'Place decoration'}</button></section>`).join('');
-        const progress = tools.length || roomDecorations.length ? `<div class="room-upgrade-summary"><span><b>${tools.filter((item) => item.crafted).length}/5</b><small>Tools installed</small></span><span><b>${roomDecorations.filter((item) => item.crafted).length}/5</b><small>Decorations crafted</small></span></div>` : '';
+        const placements = decorations.map((decoration) => `<section class="decoration-control"><span><small>${escapeHtml(decoration.bonus || `Interior decoration ${number(decoration.tier) ? `${number(decoration.tier)}/${decorationTotal}` : ''}`)}</small><strong>${escapeHtml(decoration.name)}</strong></span><button class="panel-button secondary" type="button" data-place-decoration="${escapeAttr(decoration.id)}" data-room-id="${escapeAttr(roomId)}" data-displayed="${String(Boolean(decoration.displayed))}">${decoration.displayed ? 'Store decoration' : 'Place decoration'}</button></section>`).join('');
+        const progress = tools.length || roomDecorations.length ? `<div class="room-upgrade-summary"><span><b>${tools.filter((item) => item.crafted).length}/${tools.length}</b><small>Tools installed</small></span><span><b>${roomDecorations.filter((item) => item.crafted).length}/${decorationTotal}</b><small>Decorations crafted</small></span><span><b>+${number(station.storageBonusPercent)}%</b><small>Local storage</small></span></div>` : '';
         const blueprintLabel = roomId === 'woodlot' ? 'Woodlot blueprints' : 'Workshop blueprints';
         return `<div class="crafting-section"><span class="eyebrow">${blueprintLabel}</span>${progress}${cards}${placements}</div>`;
     }
@@ -1440,7 +1442,7 @@
                 <span class="facility-icon facility-${escapeAttr(station.id)}">${facilityIcon(station.id)}</span>
                 <span class="eyebrow">Level ${number(station.level)} · ${escapeHtml(formatRate(station.ratePerMinute))}/min</span>
                 <h3>${escapeHtml(station.name)}</h3>
-                <p>${ready}/${number(station.storageCapacity)} ${escapeHtml(station.resourceName || 'materials')} ready${full ? ' · Storage full' : ''}</p>
+                <p>${ready}/${number(station.storageCapacity)} ${escapeHtml(station.resourceName || 'materials')} ready${full ? ' · Storage full' : ''}${number(station.storageBonusPercent) ? ` · +${number(station.storageBonusPercent)}% local storage` : ''}</p>
                 <div class="meter"><i data-station-meter="${escapeAttr(station.id)}" style="width:${stationFill(station)}%"></i></div>
                 <small>Affinity: ${escapeHtml((station.affinityNames || []).join(', '))}</small>
                 <div class="facility-resident">${station.resident ? `${residentAvatarContent(station.resident)} <span><strong>${escapeHtml(station.resident.name)}</strong><small>${escapeHtml(station.resident.affinityLabel || '')}</small></span>` : '<span><strong>Open resident slot</strong><small>Production continues at base rate</small></span>'}</div>

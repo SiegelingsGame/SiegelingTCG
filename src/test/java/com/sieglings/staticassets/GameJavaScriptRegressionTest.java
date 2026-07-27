@@ -730,7 +730,7 @@ class GameJavaScriptRegressionTest {
         Matcher placeable = Pattern.compile("data-decoration-art=\"([a-z_]+)\" data-decor-slot=").matcher(keepHtml);
         Set<String> decorationIds = new LinkedHashSet<>();
         while (placeable.find()) decorationIds.add(placeable.group(1));
-        assertTrue(decorationIds.size() >= 28, "Every production room should still offer its placeable furnishings.");
+        assertTrue(decorationIds.size() >= 35, "Every production room should expose its six placeable furnishings.");
         for (String id : decorationIds) {
             assertTrue(
                     keepCss.contains("[data-decoration-art=\"" + id + "\"]"),
@@ -740,6 +740,14 @@ class GameJavaScriptRegressionTest {
         assertFalse(
                 keepCss.contains(".room-decoration-set [data-decor-slot="),
                 "Decoration geometry keyed by slot number makes every workshop read as the same room in a new hue."
+        );
+        assertTrue(
+                keepHtml.contains("data-decoration-art=\"coppice_storewall\"")
+                        && keepHtml.contains("data-decoration-art=\"provision_pantry\"")
+                        && keepJs.contains("<small>Local storage</small>")
+                        && keepJs.contains("roomDecorations.filter((item) => item.crafted).length}/${decorationTotal}")
+                        && keepJs.contains("recipe.type === 'DECORATION' ? roomDecorations.length : tools.length"),
+                "The sixth room furnishing must have unique location art and expose its storage effect in the upgrade summary."
         );
         assertTrue(
                 keepJs.contains("function stepInterior(") && keepJs.contains("INTERIOR_TOUR")
@@ -798,8 +806,8 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=27")
-                        && keepHtml.contains("/js/keep.js?v=28")
+                        && keepHtml.contains("/css/keep.css?v=28")
+                        && keepHtml.contains("/js/keep.js?v=29")
                         && keepHtml.contains("id=\"constructionBannerJobs\"")
                         && keepJs.contains("constructionBannerSignature")
                         && keepJs.contains("data-live-banner-time=")

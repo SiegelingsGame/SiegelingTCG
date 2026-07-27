@@ -445,7 +445,7 @@ class KeepServiceTest {
             assertEquals(materials.size(), Set.copyOf(materials).size(), recipe.get("id") + " lists a material twice");
             checked++;
         }
-        assertEquals(56, checked, "every room expansion tier 2-5 should be covered");
+        assertEquals(63, checked, "every room expansion tier 2-6 should be covered");
     }
 
     @Test
@@ -464,7 +464,7 @@ class KeepServiceTest {
     }
 
     @Test
-    void everyProductionRoomOffersFiveVisualToolsAndDecorationsInSequence() {
+    void everyProductionRoomOffersFiveToolsAndSixDecorationsIncludingStorage() {
         service.getSnapshot(user);
         store.state.setWoodlotLevel(2);
         for (String id : List.of("garden", "forge", "fridge", "generator", "quarry", "kitchen")) {
@@ -480,7 +480,7 @@ class KeepServiceTest {
         List<Map<String, Object>> recipes = (List<Map<String, Object>>) snapshot.get("recipes");
         for (String room : List.of("woodlot", "garden", "forge", "fridge", "generator", "quarry", "kitchen")) {
             assertEquals(5, recipes.stream().filter(item -> room.equals(item.get("roomId")) && "TOOL".equals(item.get("type"))).count());
-            assertEquals(5, recipes.stream().filter(item -> room.equals(item.get("roomId")) && "DECORATION".equals(item.get("type"))).count());
+            assertEquals(6, recipes.stream().filter(item -> room.equals(item.get("roomId")) && "DECORATION".equals(item.get("type"))).count());
         }
 
         assertThrows(IllegalArgumentException.class,
@@ -497,6 +497,49 @@ class KeepServiceTest {
         String placedIds = String.valueOf(valueAt(placed, "placedDecorations", "garden"));
         assertTrue(placedIds.contains("living_trellis"));
         assertTrue(placedIds.contains("seed_banners"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void keeperLevelStorageAnnexAndDisplayedFurnishingStackOnLocalCapacity() {
+        service.getSnapshot(user);
+        store.state.setArchiveLevel(1);
+        store.state.setWoodlotLevel(2);
+        store.state.setStorehouseLevel(1);
+        store.state.setBuildersYardLevel(1);
+        store.state.setKeeperXp(2_700); // Keeper Level 10 unlocks the first storage annex.
+        store.state.setTimber(2_000);
+        for (String id : List.of("verdant_fiber", "ember_ingot", "stone")) {
+            store.state.getMaterialInventory().put(id, 200);
+        }
+
+        Map<String, Object> before = service.getSnapshot(user);
+        assertEquals(540, intAt(before, "station", "storageCapacity"));
+        List<Map<String, Object>> options = (List<Map<String, Object>>) before.get("buildOptions");
+        Map<String, Object> annex = options.stream()
+                .filter(item -> "woodlot_storage_annex".equals(item.get("id"))).findFirst().orElseThrow();
+        assertEquals(10, ((Number) annex.get("requiredLevel")).intValue());
+        assertEquals(Boolean.TRUE, annex.get("canStart"));
+
+        service.startBuild(user, "woodlot_storage_annex", "storage-build", store.state.getVersion());
+        clock.advance(Duration.ofSeconds(14_401));
+        Map<String, Object> expanded = service.getSnapshot(user);
+        assertEquals(810, intAt(expanded, "station", "storageCapacity"));
+        assertEquals(50, intAt(expanded, "station", "storageBonusPercent"));
+        assertEquals(1, store.state.getStorageUpgradeLevels().get("woodlot"));
+
+        Map<String, Object> crafted = service.craft(user, "coppice_storewall", "storage-craft", store.state.getVersion());
+        assertEquals("Woodlot storage +25% while displayed", recipe(crafted, "coppice_storewall").get("bonus"));
+        Map<String, Object> placed = service.placeDecoration(user, "woodlot", "coppice_storewall", true,
+                "storage-place", store.state.getVersion());
+        assertEquals(945, intAt(placed, "station", "storageCapacity"));
+        assertEquals(75, intAt(placed, "station", "storageBonusPercent"));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.startBuild(user, "woodlot_storage_annex", "storage-again", store.state.getVersion()));
+
+        Map<String, Object> keeper = (Map<String, Object>) placed.get("keeper");
+        List<Map<String, Object>> levels = (List<Map<String, Object>>) keeper.get("levels");
+        assertTrue(String.valueOf(levels.get(9).get("unlockLabel")).contains("Woodlot Storewall"));
     }
 
     @Test
