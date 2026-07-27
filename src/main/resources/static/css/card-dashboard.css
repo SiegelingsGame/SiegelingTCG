@@ -2300,3 +2300,160 @@ body.move-picker-open {
     width: 100%;
     accent-color: var(--accent);
 }
+
+/* ── Keep tuning page ─────────────────────────────────────────────────────── */
+/* The Keep page is one wide form, not the browse/edit/summary triptych the deck workspace
+   grid is shaped for — span every column so the tuning tables get the whole viewport. */
+.keep-tuning-panel {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.keep-tuning-provenance {
+    margin-bottom: 10px;
+    color: var(--text-soft);
+    font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+}
+
+.keep-tuning-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.keep-tuning-tab {
+    padding: 6px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--field-bg);
+    color: var(--text-soft);
+    font: inherit;
+    font-size: 12.5px;
+    cursor: pointer;
+}
+
+.keep-tuning-tab.active {
+    border-color: var(--accent);
+    color: var(--text-main);
+    background: rgba(255, 255, 255, 0.07);
+}
+
+/* Wide tuning tables scroll inside their own box so the dashboard page never does. */
+.keep-tuning-table-wrap {
+    overflow-x: auto;
+    margin-bottom: 14px;
+}
+
+.keep-tuning-table-wrap .siege-class-table th small {
+    display: block;
+    color: var(--text-soft);
+    font-weight: 400;
+    font-size: 10.5px;
+}
+
+.keep-tuning-table-wrap input,
+.keep-tuning-table-wrap select {
+    width: 100%;
+    min-width: 90px;
+    padding: 4px 6px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--field-bg);
+    color: var(--text-main);
+    font: inherit;
+    font-size: 12px;
+}
+
+.keep-task-table input[data-field="description"] {
+    min-width: 260px;
+}
+
+.keep-task-table input[data-field="name"] {
+    min-width: 160px;
+}
+
+.keep-tuning-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.keep-tuning-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+}
+
+.keep-tuning-field > span {
+    color: var(--text-soft);
+}
+
+.keep-tuning-field input,
+.keep-tuning-field select {
+    padding: 5px 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--field-bg);
+    color: var(--text-main);
+    font: inherit;
+}
+
+.keep-tuning-field small {
+    color: var(--text-soft);
+    font-size: 10.5px;
+}
+
+.keep-tuning-wide {
+    grid-column: 1 / -1;
+}
+
+.keep-tuning-inline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.keep-tuning-inline input[type="text"] {
+    padding: 5px 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--field-bg);
+    color: var(--text-main);
+    font: inherit;
+    font-size: 12px;
+}
+
+.keep-tuning-subhead {
+    margin: 14px 0 8px;
+    font-size: 13px;
+}
+
+.keep-tuning-muted {
+    color: var(--text-soft);
+    font-size: 11.5px;
+}
+
+.keep-tuning-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.keep-tuning-actions .tone-success {
+    color: #6fcf8b;
+}
+
+.keep-tuning-actions .tone-error {
+    color: #ff8f8f;
+}

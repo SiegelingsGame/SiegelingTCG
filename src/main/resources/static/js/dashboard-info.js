@@ -266,6 +266,14 @@
             '<p>SiegeKnight (TRAINER) defaults start at <strong>300</strong> Siegecoins and scale up with rarity; Siegelings, spells, and traps use a lower rarity ladder. Overrides apply immediately to packs and daily card offers. Premade decks are priced separately and are not affected here.</p>'
     };
 
+    topics['keep-tuning'] = {
+        title: 'Keep Tuning',
+        html: '<p>Every field on this page is an <strong>override</strong> of the value My Keep ships with. Blank means "use the shipped value", which is shown as each input\'s placeholder. Saving publishes to every live keep immediately.</p>' +
+            '<p><strong>Building Output</strong> sets each workshop\'s base materials per minute and local storage, before facility level, crafted tools, resident affinity, rapport, and the favorite bonus multiply it. <strong>Construction Costs</strong> sets the timber price and build time of every project.</p>' +
+            '<p><strong>Siegeling Buffs</strong> holds the percentages residents contribute. Rapport is a multiplier on whatever a resident already grants: at a 10% step, a rapport-5 partner gives 1.5x its workshop affinity bonus and 1.5x its favorite bonus. Because the favorite bonus is tiered by rarity, the gap between a Common and a Legendary favorite widens as rapport grows rather than flattening out.</p>' +
+            '<p><strong>Decorations &amp; Tools</strong> retitles blueprints, rewrites their effect label, and re-costs them (<code>verdant_fiber 12, stone 4</code>). <strong>Enclave Tasks</strong> defines the rapport tasks residents offer: each Siegeling gets its element ladder plus one personal bond task chosen from its card id. Override an element to change every Siegeling of that element, or add a card id to replace one Siegeling\'s ladder outright. <code>{name}</code> in task copy is replaced with the Siegeling\'s name.</p>'
+    };
+
     topics['siege-events'] = {
         title: 'Event Choice Outcomes',
         html: '<p class="dash-info-loading">Loading outcome reference…</p>',

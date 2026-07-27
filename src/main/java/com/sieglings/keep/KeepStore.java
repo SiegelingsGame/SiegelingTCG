@@ -54,6 +54,9 @@ public class KeepStore {
         payload.put("enclaveLevel", state.getEnclaveLevel());
         payload.put("enclaveResidentIds", state.getEnclaveResidentIds());
         payload.put("enclaveMissionProgress", state.getEnclaveMissionProgress());
+        payload.put("enclaveTaskProgress", state.getEnclaveTaskProgress());
+        payload.put("enclaveTaskCompletions", state.getEnclaveTaskCompletions());
+        payload.put("residentRapport", state.getResidentRapport());
         payload.put("favoriteResidentId", state.getFavoriteResidentId());
         payload.put("activeConstructionId2", state.getActiveConstructionId2());
         payload.put("constructionStartedAt2", timestamp(state.getConstructionStartedAt2()));
@@ -134,6 +137,9 @@ public class KeepStore {
         state.setEnclaveLevel((int) number(snapshot.get("enclaveLevel"), 0));
         state.setEnclaveResidentIds(strings(snapshot.get("enclaveResidentIds")));
         state.setEnclaveMissionProgress(intMap(snapshot.get("enclaveMissionProgress")));
+        state.setEnclaveTaskProgress(intMap(snapshot.get("enclaveTaskProgress")));
+        state.setEnclaveTaskCompletions(intMap(snapshot.get("enclaveTaskCompletions")));
+        state.setResidentRapport(intMap(snapshot.get("residentRapport")));
         state.setFavoriteResidentId(string(snapshot.get("favoriteResidentId")));
         state.setActiveConstructionId2(string(snapshot.get("activeConstructionId2")));
         state.setConstructionStartedAt2(instant(snapshot.get("constructionStartedAt2")));

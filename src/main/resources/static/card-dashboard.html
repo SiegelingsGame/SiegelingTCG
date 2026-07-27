@@ -21,7 +21,7 @@
          and before card-dashboard.css so the dashboard's own chrome rules stay
          authoritative. -->
     <link rel="stylesheet" href="/css/style.css?v=216">
-    <link rel="stylesheet" href="/css/card-dashboard.css?v=36">
+    <link rel="stylesheet" href="/css/card-dashboard.css?v=37">
     <link rel="stylesheet" href="/css/holographic.css?v=3">
 </head>
 <body>
@@ -106,6 +106,7 @@
         <button class="page-tab" id="showMovesPoolBtn" type="button" data-editor-page="MOVES_POOL">Shared Abilities</button>
         <button class="page-tab" id="showLoadingArtBtn" type="button" data-editor-page="LOADING_ART">Loading Screen Art</button>
         <button class="page-tab" id="showShopBtn" type="button" data-editor-page="SHOP">Shop</button>
+        <button class="page-tab" id="showKeepBtn" type="button" data-editor-page="KEEP">Keep</button>
     </section>
 
     <main class="workspace-grid" id="cardWorkspace">
@@ -997,6 +998,19 @@
         </div>
     </section>
 
+    <section class="deck-workspace hidden" id="keepWorkspace">
+        <div class="panel deck-editor-panel keep-tuning-panel">
+            <div class="panel-heading">
+                <div>
+                    <div class="section-kicker">My Keep</div>
+                    <h2>Keep Tuning</h2>
+                </div>
+                <button type="button" class="dash-info-btn" data-info-topic="keep-tuning" title="How Keep tuning works" aria-label="How Keep tuning works">ⓘ</button>
+            </div>
+            <div id="keepTuningPanel"></div>
+        </div>
+    </section>
+
     <div class="dashboard-info-overlay hidden" id="dashboardInfoOverlay" role="dialog" aria-modal="true" aria-labelledby="dashboardInfoTitle">
         <div class="dashboard-info-modal">
             <div class="dashboard-info-head">
@@ -1148,12 +1162,13 @@
      before card-binder-visual.js so the showcase is registered first. -->
 <script src="/js/game.js?v=213"></script>
 <script src="/js/card-binder-visual.js?v=17"></script>
-<script src="/js/dashboard-info.js?v=4"></script>
-<script src="/js/card-dashboard.js?v=51"></script>
+<script src="/js/dashboard-info.js?v=5"></script>
+<script src="/js/card-dashboard.js?v=52"></script>
 <script src="/js/loading-art-admin.js?v=1"></script>
 <script src="/js/siege-class-admin.js?v=2"></script>
 <script src="/js/siege-item-admin.js?v=2"></script>
 <script src="/js/siege-event-admin.js?v=3"></script>
 <script src="/js/shop-admin.js?v=1"></script>
+<script src="/js/keep-admin.js?v=1"></script>
 </body>
 </html>

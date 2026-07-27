@@ -21,6 +21,12 @@ public class KeepState {
     private int enclaveLevel;
     private List<String> enclaveResidentIds = new ArrayList<>();
     private Map<String, Integer> enclaveMissionProgress = new LinkedHashMap<>();
+    // Rapport tasks are repeatable, so progress resets on claim and the completion count
+    // is tracked separately. Both maps are keyed "<residentId>:<taskId>"; residentRapport
+    // holds the lifetime points that drive a resident's buff multiplier.
+    private Map<String, Integer> enclaveTaskProgress = new LinkedHashMap<>();
+    private Map<String, Integer> enclaveTaskCompletions = new LinkedHashMap<>();
+    private Map<String, Integer> residentRapport = new LinkedHashMap<>();
     private String favoriteResidentId = "";
     private String activeConstructionId2 = "";
     private Instant constructionStartedAt2;
@@ -96,6 +102,12 @@ public class KeepState {
     public void setEnclaveResidentIds(List<String> enclaveResidentIds) { this.enclaveResidentIds = copy(enclaveResidentIds); }
     public Map<String, Integer> getEnclaveMissionProgress() { return enclaveMissionProgress; }
     public void setEnclaveMissionProgress(Map<String, Integer> enclaveMissionProgress) { this.enclaveMissionProgress = intMap(enclaveMissionProgress); }
+    public Map<String, Integer> getEnclaveTaskProgress() { return enclaveTaskProgress; }
+    public void setEnclaveTaskProgress(Map<String, Integer> values) { this.enclaveTaskProgress = intMap(values); }
+    public Map<String, Integer> getEnclaveTaskCompletions() { return enclaveTaskCompletions; }
+    public void setEnclaveTaskCompletions(Map<String, Integer> values) { this.enclaveTaskCompletions = intMap(values); }
+    public Map<String, Integer> getResidentRapport() { return residentRapport; }
+    public void setResidentRapport(Map<String, Integer> values) { this.residentRapport = intMap(values); }
     public String getFavoriteResidentId() { return favoriteResidentId; }
     public void setFavoriteResidentId(String favoriteResidentId) { this.favoriteResidentId = favoriteResidentId == null ? "" : favoriteResidentId; }
     public String getActiveConstructionId2() { return activeConstructionId2; }
