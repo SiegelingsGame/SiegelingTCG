@@ -1,5 +1,6 @@
 package com.sieglings.controller;
 
+import com.sieglings.config.SessionCookieAuthFilter;
 import com.sieglings.config.SessionCookieService;
 import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.MatchHistoryEntity;
@@ -8,15 +9,19 @@ import com.sieglings.service.AccountService;
 import com.sieglings.service.CardDefinitionService;
 import com.sieglings.service.MatchHistoryService;
 import com.sieglings.service.SavedDeckService;
+import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
 import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AuthControllerTest {
 
@@ -30,7 +35,8 @@ class AuthControllerTest {
             }
         });
 
-        Map<String, Object> response = controller.me("Bearer token", new MockHttpServletResponse());
+        Map<String, Object> response = controller.me(
+                "Bearer token", new MockHttpServletRequest(), new MockHttpServletResponse());
 
         assertEquals(true, response.get("authenticated"));
         assertFalse(response.containsKey("token"));
@@ -38,6 +44,113 @@ class AuthControllerTest {
         assertEquals(List.of(), response.get("matchHistory"));
         assertEquals(List.of(), response.get("incomingFriendRequests"));
         assertEquals(List.of(), response.get("outgoingFriendRequests"));
+    }
+
+    /**
+     * Clients drop their localStorage Bearer token only when this flag is true, so a
+     * request whose session cookie never arrived (Firebase Hosting forwards nothing
+     * but {@code __session}) must report false — otherwise the credential is thrown
+     * away and the next page load demands a fresh sign-in.
+     */
+    @Test
+    void meReportsNoCookieSessionWhenTheRequestCarriedNoSessionCookie() throws Exception {
+        AccountUser user = testUser();
+        AuthController controller = createController(new AccountService() {
+            @Override
+            public AccountUser findUser(String authorizationHeader) {
+                return user;
+            }
+        });
+
+        Map<String, Object> response = controller.me(
+                "Bearer token", new MockHttpServletRequest(), new MockHttpServletResponse());
+
+        assertEquals(true, response.get("authenticated"));
+        assertEquals(false, response.get("cookieSession"));
+    }
+
+    @Test
+    void meReportsCookieSessionWhenTheSessionCookieAuthenticatedTheRequest() throws Exception {
+        AccountUser user = testUser();
+        AuthController controller = createController(new AccountService() {
+            @Override
+            public AccountUser findUser(String authorizationHeader) {
+                return user;
+            }
+        });
+
+        // The filter bridges the cookie onto the Authorization header, so the header
+        // and the recorded cookie token are the same value.
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setAttribute(SessionCookieAuthFilter.SESSION_COOKIE_TOKEN_ATTRIBUTE, "session-token");
+
+        Map<String, Object> response = controller.me(
+                "Bearer session-token", request, new MockHttpServletResponse());
+
+        assertEquals(true, response.get("authenticated"));
+        assertEquals(true, response.get("cookieSession"));
+    }
+
+    @Test
+    void unauthenticatedMeReportsNoCookieSession() throws Exception {
+        AuthController controller = createController(new AccountService() {
+            @Override
+            public AccountUser findUser(String authorizationHeader) {
+                return null;
+            }
+        });
+
+        Map<String, Object> response = controller.me(
+                null, new MockHttpServletRequest(), new MockHttpServletResponse());
+
+        assertEquals(false, response.get("authenticated"));
+        assertEquals(false, response.get("cookieSession"));
+    }
+
+    @Test
+    void sessionCookieUsesTheOnlyNameFirebaseHostingForwards() {
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        new SessionCookieService(true).setSession(response, "session-token");
+
+        List<String> setCookies = response.getHeaders("Set-Cookie");
+        String session = setCookies.stream()
+                .filter(header -> header.startsWith(SessionCookieService.SESSION_COOKIE + "="))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("No session cookie was set: " + setCookies));
+
+        assertEquals("__session", SessionCookieService.SESSION_COOKIE);
+        assertTrue(session.contains("session-token"), session);
+        assertTrue(session.contains("HttpOnly"), session);
+        assertTrue(session.contains("Secure"), session);
+        // Scoped to the API so it never becomes part of the Hosting cache key for
+        // static assets.
+        assertTrue(session.contains("Path=/api"), session);
+    }
+
+    @Test
+    void authFilterBridgesTheSessionCookieAndRecordsIt() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setCookies(new Cookie(SessionCookieService.SESSION_COOKIE, "session-token"));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        AtomicReference<String> seenHeader = new AtomicReference<>();
+
+        new SessionCookieAuthFilter().doFilter(request, response, (req, res) ->
+                seenHeader.set(((jakarta.servlet.http.HttpServletRequest) req).getHeader("Authorization")));
+
+        assertEquals("Bearer session-token", seenHeader.get());
+        assertEquals("session-token", request.getAttribute(SessionCookieAuthFilter.SESSION_COOKIE_TOKEN_ATTRIBUTE));
+    }
+
+    @Test
+    void authFilterStillAcceptsThePreRenameSessionCookie() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setCookies(new Cookie(SessionCookieService.LEGACY_SESSION_COOKIE, "legacy-token"));
+        AtomicReference<String> seenHeader = new AtomicReference<>();
+
+        new SessionCookieAuthFilter().doFilter(request, new MockHttpServletResponse(), (req, res) ->
+                seenHeader.set(((jakarta.servlet.http.HttpServletRequest) req).getHeader("Authorization")));
+
+        assertEquals("Bearer legacy-token", seenHeader.get());
     }
 
     @Test

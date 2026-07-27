@@ -61,11 +61,17 @@
 
   // ---- API -----------------------------------------------------------
   var AUTH_TOKEN_KEY = 'sieglingsAuthToken';
+  // Sentinel meaning "the credential lives in the httpOnly session cookie". It is
+  // the whole value, not a prefix: an earlier prefix test never matched it, so every
+  // cookie-mode player sent `Authorization: Bearer cookie`. That bogus header beat
+  // the cookie bridge server-side (an explicit Authorization header always wins),
+  // which is why an expedition never recognised the signed-in account.
+  var COOKIE_SESSION_VALUE = 'cookie';
   function authHeaders(extra) {
     var headers = extra || {};
     try {
       var token = localStorage.getItem(AUTH_TOKEN_KEY) || '';
-      if (token && token.indexOf('cookie:') !== 0 && !headers.Authorization) {
+      if (token && token !== COOKIE_SESSION_VALUE && !headers.Authorization) {
         headers.Authorization = 'Bearer ' + token;
       }
     } catch (e) { /* ignore */ }

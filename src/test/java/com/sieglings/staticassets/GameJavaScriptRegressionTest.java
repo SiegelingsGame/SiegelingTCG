@@ -31,6 +31,73 @@ class GameJavaScriptRegressionTest {
     private static final Path ADVENTURE_JS = Path.of("src/main/resources/static/js/adventure.js");
     private static final Path ADVENTURE_HTML = Path.of("src/main/resources/static/adventure.html");
 
+    private static final Path LANDING_JS = Path.of("src/main/resources/static/js/landing.js");
+
+    /**
+     * The session survives a full-page hop between modes only if every bundle keeps a
+     * credential the backend can actually use. Discarding the localStorage token on
+     * the strength of the client-readable `sgl_auth` cookie is what made a player who
+     * had just signed in on the hub get asked to sign in all over again on My Keep:
+     * Firebase Hosting forwards no cookie but `__session` to Cloud Run, so the cookie
+     * the browser proudly stored never arrived. Only the server's `cookieSession`
+     * verdict may retire the token.
+     */
+    @Test
+    void noBundleDiscardsItsTokenOnAClientSideCookieGuess() throws IOException {
+        for (Path bundle : new Path[] { GAME_JS, HOME_JS, KEEP_JS, LANDING_JS }) {
+            String source = Files.readString(bundle);
+            assertFalse(
+                    source.contains("hasReadableAuthCookie() && !isStandalonePWA()"),
+                    bundle.getFileName() + " must not treat a readable cookie as proof the session reaches the "
+                            + "server; gate the migration on the server's cookieSession flag instead."
+            );
+            assertTrue(
+                    source.contains("cookieAuthConfirmed"),
+                    bundle.getFileName() + " must consult the server-confirmed cookie flag before dropping the token."
+            );
+        }
+
+        String gameScript = readGameScript();
+        assertTrue(
+                gameScript.contains("data.cookieSession === true"),
+                "game.js may only migrate to the cookie sentinel once /api/auth/me confirms the cookie arrived."
+        );
+        assertTrue(
+                Files.readString(HOME_JS).contains("data.cookieSession === true"),
+                "home.js may only migrate to the cookie sentinel once /api/auth/me confirms the cookie arrived."
+        );
+    }
+
+    /**
+     * The sentinel is the literal string "cookie". Testing it with an
+     * {@code indexOf('cookie:')} prefix never matched, so every cookie-mode player
+     * sent {@code Authorization: Bearer cookie} — a bogus header that beat the
+     * server's cookie bridge and left expeditions unable to see the account.
+     */
+    @Test
+    void siegeNeverSendsTheSentinelAsABearerToken() throws IOException {
+        String adventureJs = Files.readString(ADVENTURE_JS);
+
+        assertFalse(
+                adventureJs.contains("indexOf('cookie:')"),
+                "adventure.js must compare against the whole 'cookie' sentinel, not a 'cookie:' prefix."
+        );
+        assertTrue(
+                adventureJs.contains("token !== COOKIE_SESSION_VALUE"),
+                "adventure.js must skip the Authorization header when the token is the cookie sentinel."
+        );
+    }
+
+    @Test
+    void keepOffersRetryRatherThanASignInFormForTransientFailures() throws IOException {
+        String keepJs = Files.readString(KEEP_JS);
+
+        assertTrue(
+                keepJs.contains("data.status === 401 ? 'signin' : 'retry'"),
+                "My Keep must only show the sign-in gate for an authoritative 401; anything else gets a retry."
+        );
+    }
+
     @Test
     void onlineStartDoesNotFallBackToSoloBattle() throws IOException {
         String startSelectedGame = extractFunction(readGameScript(), "async function startSelectedGame()");
@@ -256,7 +323,7 @@ class GameJavaScriptRegressionTest {
                 "Profile trim styles for battle preview, social shrink, and favorite card art must ship in home.css."
         );
         assertTrue(
-                homeMarkup.contains("home.js?v=115") && homeMarkup.contains("home.css?v=114"),
+                homeMarkup.contains("home.js?v=116") && homeMarkup.contains("home.css?v=114"),
                 "Cache-bust pins for the profile dashboard trim must advance on home.html."
         );
     }
@@ -289,11 +356,11 @@ class GameJavaScriptRegressionTest {
         String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
         assertTrue(
                 homeMarkup.contains("style.css?v=216")
-                        && homeMarkup.contains("game.js?v=212")
+                        && homeMarkup.contains("game.js?v=213")
                         && homeMarkup.contains("card-binder-visual.js?v=17")
-                        && homeMarkup.contains("home.js?v=115")
+                        && homeMarkup.contains("home.js?v=116")
                         && playMarkup.contains("style.css?v=216")
-                        && playMarkup.contains("game.js?v=212")
+                        && playMarkup.contains("game.js?v=213")
                         && dashboardMarkup.contains("style.css?v=216")
                         && dashboardMarkup.contains("card-binder-visual.js?v=17"),
                 "Every surface must advance its cache pins with the complete painted-notch set."
@@ -691,7 +758,7 @@ class GameJavaScriptRegressionTest {
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
                         && keepHtml.contains("/css/keep.css?v=23")
-                        && keepHtml.contains("/js/keep.js?v=25")
+                        && keepHtml.contains("/js/keep.js?v=26")
                         && keepHtml.contains("id=\"constructionBannerJobs\"")
                         && keepJs.contains("constructionBannerSignature")
                         && keepJs.contains("data-live-banner-time=")
@@ -821,7 +888,7 @@ class GameJavaScriptRegressionTest {
                         && adventureHtml.contains("id=\"runMenuRestart\"")
                         && adventureHtml.contains("id=\"runMenuQuit\"")
                         && adventureHtml.contains("/css/adventure.css?v=43")
-                        && adventureHtml.contains("/js/adventure.js?v=41"),
+                        && adventureHtml.contains("/js/adventure.js?v=42"),
                 "The active-run menu and both cache-busted bundles must ship together.");
         String restartRun = extractFunction(adventureJs, "function restartRun(");
         assertTrue(adventureJs.contains("api('/api/siege/run/save'")

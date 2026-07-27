@@ -1,5 +1,6 @@
 package com.sieglings.controller;
 
+import com.sieglings.config.SessionCookieAuthFilter;
 import com.sieglings.config.SessionCookieService;
 import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.MatchHistoryEntity;
@@ -13,6 +14,7 @@ import com.sieglings.service.ProfileSettingsService;
 import com.sieglings.service.FriendRequestService;
 import com.sieglings.service.PresenceService;
 import com.sieglings.service.SavedDeckService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -162,17 +164,46 @@ public class AuthController {
 
     @GetMapping("/api/auth/me")
     public Map<String, Object> me(@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+                                  HttpServletRequest request,
                                   HttpServletResponse response) {
         AccountUser user = accountService.findUser(authorizationHeader);
         if (user == null) {
-            return Map.of("authenticated", false);
+            return Map.of("authenticated", false, "cookieSession", false);
         }
         // Refresh the cookie on every authenticated check: this transparently
         // upgrades legacy clients that still authenticate via the Bearer header
         // (the filter resolves either source) to cookie auth, and slides the
         // 30-day expiry forward on activity.
         sessionCookieService.setSession(response, accountService.extractBearerToken(authorizationHeader));
-        return buildProfileResponse(user, null);
+        Map<String, Object> profile = buildProfileResponse(user, null);
+        // The one signal a client cannot derive for itself: did a session cookie
+        // survive the trip to this server? Clients hold on to their Bearer token
+        // until this comes back true, so a stripped cookie degrades to "still
+        // signed in via header" instead of "log in again on every page".
+        profile.put("cookieSession", cookieAuthenticated(request, authorizationHeader, user));
+        return profile;
+    }
+
+    /** True when this request carried a session cookie that resolves to {@code user}. */
+    private boolean cookieAuthenticated(HttpServletRequest request, String authorizationHeader, AccountUser user) {
+        Object attribute = request == null
+                ? null
+                : request.getAttribute(SessionCookieAuthFilter.SESSION_COOKIE_TOKEN_ATTRIBUTE);
+        if (!(attribute instanceof String cookieToken) || cookieToken.isBlank()) {
+            return false;
+        }
+        // When the filter bridged the cookie it IS the credential that just
+        // authenticated this request, so there is nothing left to verify.
+        if (cookieToken.equals(accountService.extractBearerToken(authorizationHeader))) {
+            return true;
+        }
+        try {
+            AccountUser cookieUser = accountService.findUser("Bearer " + cookieToken);
+            return cookieUser != null && Objects.equals(cookieUser.getId(), user.getId());
+        } catch (RuntimeException ex) {
+            log.warn("Unable to verify session cookie for user {}", user.getId(), ex);
+            return false;
+        }
     }
 
     @PostMapping("/api/profile/decks")

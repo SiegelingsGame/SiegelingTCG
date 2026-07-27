@@ -138,6 +138,13 @@ public class KeepController {
                     ? HttpStatus.UNAUTHORIZED : HttpStatus.BAD_REQUEST;
             return error(status, status == HttpStatus.UNAUTHORIZED
                     ? "Sign in to found your sanctuary." : ex.getMessage());
+        } catch (RuntimeException ex) {
+            // A Firestore hiccup while resolving the session used to escape as a 500,
+            // which the client could only read as "not signed in" and answer with the
+            // sign-in gate. Report it as the transient backend failure it is so a
+            // signed-in keeper is never asked to log in again over a blip.
+            return error(HttpStatus.SERVICE_UNAVAILABLE,
+                    "My Keep could not be reached just now. Please try again in a moment.");
         }
     }
 
