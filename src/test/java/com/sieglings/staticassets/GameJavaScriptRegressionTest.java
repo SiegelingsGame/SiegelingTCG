@@ -798,7 +798,7 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=25")
+                        && keepHtml.contains("/css/keep.css?v=26")
                         && keepHtml.contains("/js/keep.js?v=28")
                         && keepHtml.contains("id=\"constructionBannerJobs\"")
                         && keepJs.contains("constructionBannerSignature")
@@ -827,6 +827,16 @@ class GameJavaScriptRegressionTest {
                         && keepJs.contains("setGroundsSuppressed(true)")
                         && keepCss.contains("content-visibility: hidden"),
                 "Empty tool racks must stay hidden, decorations must layer above them, and open interiors must suspend grounds painting."
+        );
+        assertTrue(
+                keepCss.contains(".lodge-resident > span[data-size=\"GIGANTIC\"]")
+                        && keepCss.contains(".facility-room-resident > span[data-size=\"GIGANTIC\"]")
+                        && keepCss.contains("width: calc(78px * var(--cutout-scale))")
+                        && keepCss.contains("height: calc(96px * var(--cutout-scale))")
+                        && keepCss.contains("width: calc(62px * var(--cutout-scale))")
+                        && keepCss.contains("height: calc(78px * var(--cutout-scale))")
+                        && keepJs.contains("node.dataset.size = residentSize(resident)"),
+                "The size band must scale resident cutouts in the Woodlot and every staffed workshop interior at desktop and phone layouts."
         );
     }
 
