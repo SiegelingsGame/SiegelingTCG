@@ -78,12 +78,34 @@ let previewCardScaleFrame = null;
 let framedSummaryFitFrame = null;
 let siegeKnightCardFitFrame = null;
 const DECK_ART_ASSET_KEYS = ['FIRE', 'ICE', 'WATER', 'EARTH', 'WIND'];
+// Bump with home.js ELEMENTAL_CARD_BACK_VERSION when default card-back art changes.
+const DECK_ART_ASSET_VERSION = 3;
+function versionedDeckArtAsset(path) {
+    if (!path) return '';
+    const separator = path.includes('?') ? '&' : '?';
+    return `${path}${separator}v=${DECK_ART_ASSET_VERSION}`;
+}
 const DECK_ART_ASSETS = {
-    FIRE: { back: '/img/decks/card-back-fire.png', icon: '/img/decks/deck-icon-fire.png' },
-    EARTH: { back: '/img/decks/card-back-earth.png', icon: '/img/decks/deck-icon-earth.png' },
-    WIND: { back: '/img/decks/card-back-wind.png', icon: '/img/decks/deck-icon-wind.png' },
-    WATER: { back: '/img/decks/card-back-wind.png', icon: '/img/decks/deck-icon-wind.png' },
-    ICE: { back: '/img/decks/card-back-ice.png', icon: '/img/decks/deck-icon-ice.png' }
+    FIRE: {
+        back: versionedDeckArtAsset('/img/decks/card-back-fire.png'),
+        icon: versionedDeckArtAsset('/img/decks/deck-icon-fire.png')
+    },
+    EARTH: {
+        back: versionedDeckArtAsset('/img/decks/card-back-earth.png'),
+        icon: versionedDeckArtAsset('/img/decks/deck-icon-earth.png')
+    },
+    WIND: {
+        back: versionedDeckArtAsset('/img/decks/card-back-wind.png'),
+        icon: versionedDeckArtAsset('/img/decks/deck-icon-wind.png')
+    },
+    WATER: {
+        back: versionedDeckArtAsset('/img/decks/card-back-wind.png'),
+        icon: versionedDeckArtAsset('/img/decks/deck-icon-wind.png')
+    },
+    ICE: {
+        back: versionedDeckArtAsset('/img/decks/card-back-ice.png'),
+        icon: versionedDeckArtAsset('/img/decks/deck-icon-ice.png')
+    }
 };
 const SIEGEKNIGHT_CARD_BACK = '/img/knights/card-back-siegeknight.png';
 const SIEGEKNIGHT_CARD_TEMPLATE = '/img/knights/siegeknight-card-template.png';
