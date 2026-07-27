@@ -10,6 +10,7 @@ import com.sieglings.model.enums.NotchDirection;
 import com.sieglings.model.enums.Rarity;
 import com.sieglings.model.enums.Reaction;
 import com.sieglings.model.enums.Row;
+import com.sieglings.model.enums.SieglingSize;
 import com.sieglings.model.enums.TargetType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -172,6 +173,7 @@ public class CardOverrideEditorService {
         metadata.put("elements", enumNames(Element.values()));
         metadata.put("cardTypes", List.of("SIEGLING", "SPELL", "TRAP"));
         metadata.put("rarities", enumNames(Rarity.values()));
+        metadata.put("sieglingSizes", enumNames(SieglingSize.values()));
         metadata.put("rows", enumNames(Row.values()));
         metadata.put("targetTypes", enumNames(TargetType.values()));
         metadata.put("notchDirections", enumNames(NotchDirection.values()));

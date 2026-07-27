@@ -411,7 +411,24 @@ button.resource-pill:focus-visible {
 .enclave-residents b.has-resident { display: flex; }
 .enclave-residents b img,
 .enclave-interior-residents b img { width: auto; height: 100%; max-width: 100%; object-fit: contain; object-position: bottom center; }
-.exterior-enclave-residents b { width: 30px; height: 38px; bottom: 10%; }
+/* Enclave residents are the one place a Siegeling is drawn at world scale instead of on a
+   card, so its size band decides how tall the cutout stands. Widths scale with height to keep
+   the art's aspect ratio; the flex-end alignment keeps every cutout planted on the same ground
+   line as it grows upward. Bigger silhouettes sit in front so a gigantic neighbor never gets
+   clipped by a small one. */
+.enclave-residents b,
+.enclave-interior-residents b { --cutout-scale: 1; }
+.enclave-residents b[data-size="SMALL"],
+.enclave-interior-residents b[data-size="SMALL"] { --cutout-scale: .84; }
+.enclave-residents b[data-size="MEDIUM"],
+.enclave-interior-residents b[data-size="MEDIUM"] { --cutout-scale: 1; }
+.enclave-residents b[data-size="LARGE"],
+.enclave-interior-residents b[data-size="LARGE"] { --cutout-scale: 1.24; }
+.enclave-residents b[data-size="GIGANTIC"],
+.enclave-interior-residents b[data-size="GIGANTIC"] { --cutout-scale: 1.62; }
+.exterior-enclave-residents b[data-size="LARGE"] { z-index: 5; }
+.exterior-enclave-residents b[data-size="GIGANTIC"] { z-index: 6; }
+.exterior-enclave-residents b { width: calc(30px * var(--cutout-scale)); height: calc(38px * var(--cutout-scale)); bottom: 10%; }
 .exterior-enclave-residents b:nth-child(1) { left: 7%; }
 .exterior-enclave-residents b:nth-child(2) { left: 27%; bottom: 5%; animation-delay: -.6s; }
 .exterior-enclave-residents b:nth-child(3) { left: 47%; animation-delay: -1.2s; }
@@ -1683,7 +1700,9 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
 .enclave-nest { position: absolute; bottom: 12%; width: 20%; height: 14%; border-radius: 50%; background: repeating-linear-gradient(12deg, #9a774c 0 4px, #6d5135 4px 7px); }
 .enclave-nest.nest-one { left: 12%; }
 .enclave-nest.nest-two { right: 12%; }
-.enclave-interior-residents b { position: absolute; z-index: 5; bottom: 11%; width: 72px; height: 92px; display: none; align-items: flex-end; justify-content: center; filter: drop-shadow(0 8px 7px rgba(0, 0, 0, .45)); animation: enclave-wander 3.4s ease-in-out infinite; }
+.enclave-interior-residents b { position: absolute; z-index: 5; bottom: 11%; width: calc(72px * var(--cutout-scale)); height: calc(92px * var(--cutout-scale)); display: none; align-items: flex-end; justify-content: center; filter: drop-shadow(0 8px 7px rgba(0, 0, 0, .45)); animation: enclave-wander 3.4s ease-in-out infinite; }
+.enclave-interior-residents b[data-size="LARGE"] { z-index: 6; }
+.enclave-interior-residents b[data-size="GIGANTIC"] { z-index: 7; }
 .enclave-interior-residents b.has-resident { display: flex; }
 .enclave-interior-residents b:nth-child(1) { left: 8%; bottom: 18%; }
 .enclave-interior-residents b:nth-child(2) { left: 25%; animation-delay: -.7s; }
@@ -2443,7 +2462,7 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     .room-kitchen .room-tool-set { transform-origin: top right; }
     .room-decoration-set [data-decoration-art="blossom_arch"] { left: 30%; width: 40%; }
     .room-decoration-set [data-decoration-art="aurora_lamp"] { left: 20%; width: 60%; }
-    .enclave-interior-residents b { width: 50px; height: 66px; }
+    .enclave-interior-residents b { width: calc(50px * var(--cutout-scale)); height: calc(66px * var(--cutout-scale)); }
 }
 
 @media (max-width: 360px), (max-height: 590px) {

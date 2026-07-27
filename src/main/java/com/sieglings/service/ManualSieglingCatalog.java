@@ -16,6 +16,7 @@ import com.sieglings.model.enums.NotchDirection;
 import com.sieglings.model.enums.Rarity;
 import com.sieglings.model.enums.Reaction;
 import com.sieglings.model.enums.Row;
+import com.sieglings.model.enums.SieglingSize;
 import com.sieglings.model.enums.TargetType;
 
 import java.nio.file.Path;
@@ -114,6 +115,7 @@ final class ManualSieglingCatalog {
         }
 
         resolveEvolutionNames(cardsById, definitions);
+        applyDefaultSizes(cardsById);
 
         for (SieglingCard card : cardsById.values()) {
             movesPool.hydrateGeneratedCard(card);
@@ -266,6 +268,10 @@ final class ManualSieglingCatalog {
         applyCardDescription(card, definition);
         if (definition.expeditionStarter() != null) {
             card.setExpeditionStarter(definition.expeditionStarter());
+        }
+        SieglingSize size = SieglingSize.parse(definition.size());
+        if (size != null) {
+            card.setSize(size);
         }
 
         return card;
@@ -527,6 +533,33 @@ final class ManualSieglingCatalog {
         }
     }
 
+    /**
+     * Cards the dashboard has not pinned a size on fall back to the rarity band, so surfaces
+     * that draw Sieglings at world scale (Keep enclave cutouts) always have a size to read.
+     */
+    private static void applyDefaultSizes(Map<String, SieglingCard> cardsById) {
+        for (SieglingCard card : cardsById.values()) {
+            if (card.getSize() == null) {
+                card.setSize(SieglingSize.defaultFor(card.getRarity(), evolutionDepth(card, cardsById)));
+            }
+        }
+    }
+
+    private static int evolutionDepth(SieglingCard card, Map<String, SieglingCard> cardsById) {
+        int depth = 0;
+        SieglingCard current = card;
+        Set<String> visited = new LinkedHashSet<>();
+        while (hasText(current.getEvolvesFromId()) && visited.add(current.getId())) {
+            SieglingCard parent = cardsById.get(normalizeId(current.getEvolvesFromId()));
+            if (parent == null) {
+                break;
+            }
+            current = parent;
+            depth += 1;
+        }
+        return depth;
+    }
+
     private static SieglingCard copyCard(SieglingCard source) {
         SieglingCard card = new SieglingCard(
                 source.getId(),
@@ -548,6 +581,7 @@ final class ManualSieglingCatalog {
         card.setCardArtMode(source.getCardArtMode());
         card.setDescription(source.getDescription());
         card.setExpeditionStarter(source.getExpeditionStarter());
+        card.setSize(source.getSize());
         return card;
     }
 
@@ -578,6 +612,10 @@ final class ManualSieglingCatalog {
                 throw new IllegalStateException("Duplicate manual Siegling definition id '" + id + "'.");
             }
             validateCardArtForStorage(definition);
+            if (hasText(definition.size()) && SieglingSize.parse(definition.size()) == null) {
+                throw new IllegalArgumentException("Card '" + id + "' has unknown size '" + definition.size().trim()
+                        + "'. Use SMALL, MEDIUM, LARGE, or GIGANTIC (or leave it blank for the rarity default).");
+            }
         }
 
         for (Element element : Element.values()) {
@@ -707,7 +745,8 @@ final class ManualSieglingCatalog {
                     siegling.getExpeditionStarter(),
                     card.getDescription(),
                     card.getHolographicCardArtUrl(),
-                    card.getHolographicCardArtScale()
+                    card.getHolographicCardArtScale(),
+                    siegling.getSize() == null ? null : siegling.getSize().name()
             );
         }
         if (card instanceof SpellCard spell) {
@@ -745,7 +784,8 @@ final class ManualSieglingCatalog {
                     null,
                     spell.getDescription(),
                     spell.getHolographicCardArtUrl(),
-                    spell.getHolographicCardArtScale()
+                    spell.getHolographicCardArtScale(),
+                    null
             );
         }
         if (card instanceof TrapCard trap) {
@@ -783,7 +823,8 @@ final class ManualSieglingCatalog {
                     null,
                     trap.getDescription(),
                     trap.getHolographicCardArtUrl(),
-                    trap.getHolographicCardArtScale()
+                    trap.getHolographicCardArtScale(),
+                    null
             );
         }
         throw new IllegalStateException("Unsupported card type for override export: " + card.getClass().getSimpleName());
@@ -873,7 +914,9 @@ final class ManualSieglingCatalog {
             Boolean expeditionStarter,
             String description,
             String holographicCardArtUrl,
-            Double holographicCardArtScale
+            Double holographicCardArtScale,
+            /** SMALL/MEDIUM/LARGE/GIGANTIC; blank or absent means "derive from rarity". */
+            String size
     ) {
         ManualSieglingDefinition(
                 CardType type, String id, String name, Element element, Rarity rarity,
@@ -890,7 +933,7 @@ final class ManualSieglingCatalog {
                     trapBucketElement, trapBucketAmount, requiredReaction, requiredComboSize,
                     requiredComboSignature, moveIds, abilities, cardArtUrl, cardArtMode,
                     cardArtOffsetX, cardArtOffsetY, cardArtOffsetXPct, cardArtOffsetYPct,
-                    cardArtScale, cardArtRotation, holographic, expeditionStarter, description, null, null);
+                    cardArtScale, cardArtRotation, holographic, expeditionStarter, description, null, null, null);
         }
     }
 

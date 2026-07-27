@@ -4,6 +4,7 @@ import com.sieglings.model.enums.CardType;
 import com.sieglings.model.enums.Element;
 import com.sieglings.model.enums.Rarity;
 import com.sieglings.model.enums.Row;
+import com.sieglings.model.enums.SieglingSize;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,6 +23,8 @@ public class SieglingCard extends Card {
     private String evolvesFromName;
     /** When true, pickable at expedition warband assembly; false = locked until found on the path. */
     private Boolean expeditionStarter;
+    /** Null means "derive from rarity" — see {@link SieglingSize#defaultFor}. */
+    private SieglingSize size;
 
     public SieglingCard() {
         setCardType(CardType.SIEGLING);
@@ -59,6 +62,7 @@ public class SieglingCard extends Card {
         c.setHolographic(isHolographic());
         c.setDescription(getDescription());
         c.setExpeditionStarter(getExpeditionStarter());
+        c.setSize(size);
         return c;
     }
 
@@ -104,6 +108,8 @@ public class SieglingCard extends Card {
     public boolean isEvolutionCard() { return evolvesFromId != null && !evolvesFromId.isBlank(); }
     public Boolean getExpeditionStarter() { return expeditionStarter; }
     public void setExpeditionStarter(Boolean expeditionStarter) { this.expeditionStarter = expeditionStarter; }
+    public SieglingSize getSize() { return size; }
+    public void setSize(SieglingSize size) { this.size = size; }
 
     @Override
     public void setAbility(Ability ability) {
