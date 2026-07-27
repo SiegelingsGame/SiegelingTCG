@@ -1,7 +1,7 @@
 Original prompt: Implement these card backs into the game as the default for their elements in the shop and decks
 
 - July 27, 2026 elemental default card backs: replaced the Fire/Earth/Wind/Ice deck card-back art (and matching starter pack shop tiles) with the new elemental sigil designs — sprout/earth, three-pronged flame, wind swirl, and snowflake — and made those assets the shared defaults for hub decks, battle loadout decks, shop elemental packs, pack-reveal face-downs, and profile preferred-card-back previews. Shop packs no longer point at a separate starter-*.jpg set for element art; they resolve through the same `DECK_ASSET_PATHS` / `DECK_ART_ASSETS` map. Added versioned card-back URLs (`ELEMENTAL_CARD_BACK_VERSION` / `DECK_ART_ASSET_VERSION` = 3) so CSS backgrounds bust cache, and profile edit/hero now show a thumbnail of the selected Molten/Frost/Gale/Stone sigil. Cache pins advanced to `home.js?v=117`, `home.css?v=115`, `game.js?v=214`.
-- Verification: pending.
+- Verification: `node --check` on `home.js`/`game.js`, focused `GameJavaScriptRegressionTest`, and `git diff --check` pass. Headless Chrome at 390x844 and 1920x1080 loaded all four versioned card-back PNGs (520x760) and confirmed `DECK_ART_ASSET_VERSION === 3` on `/play`. A mocked `/api/shop/packs` + `/api/game/options` pass drove the real hub: every shop `.pack-tile` resolved `--pack-art-image` to `/img/decks/card-back-{fire,earth,wind,ice}.png?v=3`, and every decks `.hub-deck-card` set `--deck-art` to the matching path; captures in `output/web-game/elemental-card-backs-verify/` were visually inspected.
 
 Original prompt: Add more decorations and upgrades that increase storage into the leveling tree and locations
 
