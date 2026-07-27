@@ -105,9 +105,14 @@ const AUTH_TOKEN_STORAGE_KEY = 'sieglingsAuthToken';
 // browser sends automatically — but its presence still drives every "are we signed
 // in?" check and cross-tab storage-event sync exactly as a real token used to.
 const COOKIE_SESSION_VALUE = 'cookie';
-// True when the readable, secret-free `sgl_auth` companion cookie is present. The
-// server sets it alongside the httpOnly session cookie, so this both signals a
-// live session and proves cookies actually round-trip in this environment.
+// Set once the SERVER has confirmed (via `cookieSession` on /api/auth/me) that a
+// session cookie actually reached it. Until then the real Bearer token is kept: a
+// cookie the browser stores can still be dropped in transit (Firebase Hosting
+// forwards only `__session` to Cloud Run), and discarding the token on a readable
+// flag cookie is what made every page after login demand a fresh sign-in.
+const COOKIE_AUTH_CONFIRMED_STORAGE_KEY = 'sieglingsCookieAuthConfirmed';
+// Optimistic "a session probably exists" hint for first paint only. NOT proof that
+// cookies reach the backend — only the server can attest to that.
 function hasReadableAuthCookie() {
     try {
         return document.cookie.split('; ').some((c) => c.startsWith('sgl_auth='));
@@ -134,10 +139,24 @@ function isStandalonePWA() {
         return false;
     }
 }
-// On login, store the cookie sentinel only when cookies are confirmed working AND
-// we're not in a standalone Web App; otherwise persist the real token for Bearer auth.
+function cookieAuthConfirmed() {
+    try {
+        return localStorage.getItem(COOKIE_AUTH_CONFIRMED_STORAGE_KEY) === '1';
+    } catch (e) {
+        return false;
+    }
+}
+function rememberCookieAuth(confirmed) {
+    try {
+        if (confirmed) localStorage.setItem(COOKIE_AUTH_CONFIRMED_STORAGE_KEY, '1');
+        else localStorage.removeItem(COOKIE_AUTH_CONFIRMED_STORAGE_KEY);
+    } catch (e) { /* storage off */ }
+}
+// On login, keep the real token unless the server has already proven cookies make it
+// through; syncAuthProfile() migrates to the sentinel on the first confirmed
+// /api/auth/me, so the credential is never discarded on a guess.
 function preferredStoredToken(loginToken) {
-    return (hasReadableAuthCookie() && !isStandalonePWA()) ? COOKIE_SESSION_VALUE : (loginToken || '');
+    return (cookieAuthConfirmed() && !isStandalonePWA()) ? COOKIE_SESSION_VALUE : (loginToken || '');
 }
 // Last authenticated profile, cached in localStorage and shared with the hub so
 // every page can render the signed-in UI instantly and then revalidate against
@@ -7693,10 +7712,10 @@ async function submitAuth(mode) {
         return;
     }
 
-    // Prefer cookie auth in browsers: persist the sentinel (no secret in
-    // localStorage) once the companion cookie confirms cookies round-trip. In a
-    // standalone Web App, or when cookies are blocked, keep the real token and send
-    // it as a Bearer header so auth survives cross-page navigation.
+    // Keep the real token (sent as a Bearer header) until the server confirms a
+    // session cookie reaches it; only then does the sentinel replace it. That way
+    // auth survives cross-page navigation to Home / My Keep / Siege regardless of
+    // what an edge CDN does with cookies.
     saveAuthToken(preferredStoredToken(data.token));
     authState.profile = data;
     authState.profileResolved = true;
@@ -7728,7 +7747,26 @@ function classifyAuthMe(data) {
     return data.authenticated ? 'signed-in' : 'signed-out';
 }
 
-async function syncAuthProfile(silent = false) {
+// /api/auth/me is the heaviest call on a cold start (it fans out a dozen Firestore
+// reads). Init plus the pageshow/visibility listeners all fire it while the page is
+// still opening, so a first visit paid for it more than once before the account
+// finished restoring. Collapse concurrent callers onto one in-flight request.
+let syncAuthProfileInFlight = null;
+function syncAuthProfile(silent = false) {
+    if (syncAuthProfileInFlight) {
+        // A visible caller joining a silent request still owes the player the
+        // "Restoring your account…" state, so paint it before waiting.
+        if (!silent) {
+            authState.loading = true;
+            renderWelcomeAuth();
+        }
+        return syncAuthProfileInFlight;
+    }
+    syncAuthProfileInFlight = syncAuthProfileNow(silent).finally(() => { syncAuthProfileInFlight = null; });
+    return syncAuthProfileInFlight;
+}
+
+async function syncAuthProfileNow(silent = false) {
     if (!authState.token) {
         authState.profile = null;
         if (!silent) {
@@ -7766,12 +7804,13 @@ async function syncAuthProfile(silent = false) {
         return false;
     }
 
-    // Transparent migration (browsers only): a legacy token rode in as a Bearer
-    // header and the server has now set the session cookie (confirmed by the
-    // readable companion cookie). Drop the secret and keep only the sentinel. Skip
-    // in a standalone Web App, where the cookie isn't reliably sent across pages so
-    // the Bearer token must stay.
-    if (isLegacyBearerToken(authState.token) && hasReadableAuthCookie() && !isStandalonePWA()) {
+    // Transparent migration (browsers only): drop the secret and keep only the
+    // sentinel once the SERVER reports it received the session cookie on this very
+    // request. A readable flag cookie proves only that the browser stored it, not
+    // that it survived the trip, so migrating on that would strand the player at a
+    // sign-in prompt on the next full-page navigation.
+    rememberCookieAuth(data.cookieSession === true);
+    if (isLegacyBearerToken(authState.token) && data.cookieSession === true && !isStandalonePWA()) {
         saveAuthToken(COOKIE_SESSION_VALUE);
     }
 

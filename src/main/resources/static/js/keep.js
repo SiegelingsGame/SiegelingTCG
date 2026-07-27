@@ -5,17 +5,14 @@
     const COOKIE_SESSION_VALUE = 'cookie';
     const apiBase = String(window.SIEGLINGS_CONFIG?.apiBaseUrl || '').replace(/\/$/, '');
 
-    // Auth model mirrors home.js: real sessions ride the httpOnly `sgl_session`
-    // cookie (bridged onto the Authorization header server-side). The readable,
-    // secret-free `sgl_auth` companion cookie only proves a session exists and
-    // that cookies round-trip in this environment.
-    function hasReadableAuthCookie() {
-        try {
-            return document.cookie.split('; ').some((c) => c.startsWith('sgl_auth='));
-        } catch (e) {
-            return false;
-        }
-    }
+    // Auth model mirrors home.js: real sessions ride the httpOnly `__session` cookie
+    // (bridged onto the Authorization header server-side), but only once the server
+    // has confirmed that cookie actually reaches it. Firebase Hosting forwards no
+    // other cookie to Cloud Run, so a session stored under any other name — or read
+    // back from the secret-free `sgl_auth` flag — looks alive to the page while the
+    // backend never sees it. That mismatch is what made a keeper who had just signed
+    // in on the hub land on the My Keep gate and sign in a second time.
+    const COOKIE_AUTH_CONFIRMED_KEY = 'sieglingsCookieAuthConfirmed';
     // iOS standalone Web Apps don't reliably send the session cookie across the
     // full-page navigations this multi-page app uses, so there we keep sending the
     // localStorage Bearer token instead of relying on the cookie.
@@ -30,11 +27,17 @@
     function isLegacyBearerToken(token) {
         return Boolean(token) && token !== COOKIE_SESSION_VALUE;
     }
-    // Prefer cookie auth in browsers where cookies are confirmed working; only fall
-    // back to a real Bearer token in a standalone Web App (or when cookies don't
-    // round-trip). Keeps the stored token in step with home.js after login.
+    function cookieAuthConfirmed() {
+        try {
+            return localStorage.getItem(COOKIE_AUTH_CONFIRMED_KEY) === '1';
+        } catch (e) {
+            return false;
+        }
+    }
+    // Keep the real token unless the hub/play pages have recorded a server-confirmed
+    // cookie session. Keeps the stored token in step with home.js after login.
     function preferredStoredToken(loginToken) {
-        return (hasReadableAuthCookie() && !isStandalonePWA()) ? COOKIE_SESSION_VALUE : (loginToken || '');
+        return (cookieAuthConfirmed() && !isStandalonePWA()) ? COOKIE_SESSION_VALUE : (loginToken || '');
     }
     const TUTORIAL_KEY = 'sieglingsKeepTutorialSeen';
     const TUTORIAL_STEPS = [
@@ -85,6 +88,7 @@
         offlineVisible: false,
         notices: [],
         mobileLayout: window.matchMedia('(max-width: 767px)').matches,
+        gateMode: 'signin',
         testMode: Boolean(window.__KEEP_TEST_SNAPSHOT__)
     };
 
@@ -406,7 +410,10 @@
     async function loadSnapshot(announceDiscoveries = false) {
         const data = await fetchJson('/api/keep');
         if (data?.error) {
-            showGate(data.error);
+            // Only an authoritative 401 means "sign in". A dropped connection or a
+            // backend blip must not ask a keeper who is already signed in to hand
+            // over their password again — offer a retry instead.
+            showGate(data.error, data.status === 401 ? 'signin' : 'retry');
             hideLoading();
             return;
         }
@@ -1833,8 +1840,17 @@
         if (daily > 0) showNotice(`+${daily} XP for today's visit`, 'Keeper XP');
     }
 
-    function showGate(message) {
+    // `mode` is 'signin' (the keeper genuinely has no session) or 'retry' (the keep
+    // could not be reached). They must stay distinct: presenting a login form for a
+    // transient failure is what teaches players their session keeps evaporating.
+    function showGate(message, mode) {
+        state.gateMode = mode === 'retry' ? 'retry' : 'signin';
+        const retry = state.gateMode === 'retry';
         text('gateMessage', message || 'Sign in and choose a starter pack to begin rebuilding My Keep.');
+        const heading = document.querySelector('#keepGate h1');
+        if (heading) heading.textContent = retry ? 'The road is quiet' : 'Found your sanctuary';
+        const action = document.getElementById('gateSignIn');
+        if (action) action.textContent = retry ? 'Try again' : 'Sign in';
         document.getElementById('keepGate')?.classList.remove('hidden');
     }
 
@@ -1842,15 +1858,16 @@
         document.getElementById('keepGate')?.classList.add('hidden');
     }
 
-    // Once a readable session cookie is confirmed (and we're not a standalone Web
-    // App), collapse any lingering real Bearer token in localStorage to the cookie
-    // sentinel so this page — like home.js — stops sending a token that would
-    // pre-empt the cookie. Purely local; the credential itself lives in the cookie.
+    // Collapse a lingering real Bearer token to the cookie sentinel only where the
+    // server has already confirmed it receives the session cookie. My Keep never
+    // calls /api/auth/me itself, so it defers to the confirmation the hub/play pages
+    // recorded rather than re-deriving it from a readable cookie — deriving it here
+    // is exactly how a valid session got thrown away and the gate reappeared.
     function migrateStoredToken() {
         if (state.testMode) return;
         try {
             const stored = localStorage.getItem(AUTH_TOKEN_KEY) || '';
-            if (isLegacyBearerToken(stored) && hasReadableAuthCookie() && !isStandalonePWA()) {
+            if (isLegacyBearerToken(stored) && cookieAuthConfirmed() && !isStandalonePWA()) {
                 localStorage.setItem(AUTH_TOKEN_KEY, COOKIE_SESSION_VALUE);
             }
         } catch (e) { /* private browsing / storage disabled */ }
@@ -1984,7 +2001,15 @@
             });
         }
 
-        document.getElementById('gateSignIn')?.addEventListener('click', open);
+        document.getElementById('gateSignIn')?.addEventListener('click', () => {
+            if (state.gateMode !== 'retry') {
+                open();
+                return;
+            }
+            hideGate();
+            document.getElementById('keepLoading')?.classList.remove('hidden');
+            void loadSnapshot();
+        });
         document.getElementById('keepLoginClose')?.addEventListener('click', close);
         modal.querySelectorAll('[data-close-login]').forEach((el) => el.addEventListener('click', close));
         document.addEventListener('keydown', (e) => {
@@ -2000,12 +2025,11 @@
         if (state.testMode) return mockApi(path, options);
         const token = localStorage.getItem(AUTH_TOKEN_KEY) || '';
         const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
-        // Only send a legacy Bearer token when the cookie can't carry the session.
-        // A stale/expired localStorage token would otherwise pre-empt the httpOnly
-        // cookie (the server only bridges the cookie when no Authorization header is
-        // present), leaving a genuinely signed-in keeper stuck at the gate.
-        const preferCookie = hasReadableAuthCookie() && !isStandalonePWA();
-        if (isLegacyBearerToken(token) && !preferCookie) headers.Authorization = `Bearer ${token}`;
+        // Send the real token whenever we still hold one. It is the credential the
+        // player just signed in with, so it is at least as valid as the cookie; the
+        // sentinel means the token was deliberately dropped after the server
+        // confirmed cookie auth, and only then does the cookie carry the session.
+        if (isLegacyBearerToken(token)) headers.Authorization = `Bearer ${token}`;
         try {
             const response = await fetch(`${apiBase}${path}`, { credentials: 'same-origin', ...options, headers });
             const raw = await response.text();
