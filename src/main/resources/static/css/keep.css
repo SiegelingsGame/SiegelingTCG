@@ -418,22 +418,27 @@ button.resource-pill:focus-visible {
 .enclave-residents b,
 .enclave-interior-residents b,
 .lodge-resident > span,
+.hall-favorite-resident > span,
 .facility-room-resident > span { --cutout-scale: 1; }
 .enclave-residents b[data-size="SMALL"],
 .enclave-interior-residents b[data-size="SMALL"],
 .lodge-resident > span[data-size="SMALL"],
+.hall-favorite-resident > span[data-size="SMALL"],
 .facility-room-resident > span[data-size="SMALL"] { --cutout-scale: .84; }
 .enclave-residents b[data-size="MEDIUM"],
 .enclave-interior-residents b[data-size="MEDIUM"],
 .lodge-resident > span[data-size="MEDIUM"],
+.hall-favorite-resident > span[data-size="MEDIUM"],
 .facility-room-resident > span[data-size="MEDIUM"] { --cutout-scale: 1; }
 .enclave-residents b[data-size="LARGE"],
 .enclave-interior-residents b[data-size="LARGE"],
 .lodge-resident > span[data-size="LARGE"],
+.hall-favorite-resident > span[data-size="LARGE"],
 .facility-room-resident > span[data-size="LARGE"] { --cutout-scale: 1.24; }
 .enclave-residents b[data-size="GIGANTIC"],
 .enclave-interior-residents b[data-size="GIGANTIC"],
 .lodge-resident > span[data-size="GIGANTIC"],
+.hall-favorite-resident > span[data-size="GIGANTIC"],
 .facility-room-resident > span[data-size="GIGANTIC"] { --cutout-scale: 1.62; }
 .exterior-enclave-residents b[data-size="LARGE"] { z-index: 5; }
 .exterior-enclave-residents b[data-size="GIGANTIC"] { z-index: 6; }
@@ -927,9 +932,10 @@ button.resource-pill:focus-visible {
 .favorite-current strong { color: #fff1b7; font: 700 14px Georgia, serif; }
 .favorite-current small { color: #ffe9a8; font-size: 10px; }
 .favorite-choices { display: grid; gap: 6px; }
-.favorite-choice { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 11px; color: var(--cream); background: rgba(255, 255, 255, .04); text-align: left; cursor: pointer; }
-.favorite-choice:hover { border-color: rgba(244, 204, 98, .5); background: rgba(244, 204, 98, .07); }
-.favorite-choice.active { border-color: var(--gold); background: rgba(244, 204, 98, .12); }
+.favorite-choice { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 11px; color: var(--cream); background: rgba(255, 255, 255, .035); text-align: left; cursor: pointer; }
+.favorite-choice:nth-child(even) { background: rgba(244, 204, 98, .07); border-color: rgba(244, 204, 98, .18); }
+.favorite-choice:hover { border-color: rgba(244, 204, 98, .5); background: rgba(244, 204, 98, .1); }
+.favorite-choice.active { border-color: var(--gold); background: rgba(244, 204, 98, .16); }
 .favorite-choice-avatar { width: 38px; height: 38px; display: grid; place-items: center; overflow: hidden; border: 2px solid color-mix(in srgb, var(--resident-color, var(--neutral)) 70%, white); border-radius: 50%; color: #172333; background: var(--resident-color, var(--neutral)); font-size: 13px; font-weight: 900; }
 .favorite-choice-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .favorite-choice-copy { min-width: 0; display: flex; flex-direction: column; }
@@ -1439,6 +1445,62 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
 .hall-candle::after { content: ""; position: absolute; left: 1px; top: -8px; width: 6px; height: 9px; border-radius: 60% 60% 40% 40%; background: radial-gradient(#fff2ae, #f0a23c); box-shadow: 0 0 12px rgba(255, 210, 110, .8); animation: hearth-flicker 1.1s ease-in-out infinite; }
 .hall-candle.candle-one { left: 38%; }
 .hall-candle.candle-two { right: 38%; }
+/* Honored favorite stands by the hearth so the hall visual matches the starred chooser below. */
+.hall-favorite-resident { position: absolute; left: 50%; bottom: 27%; z-index: 4; display: grid; justify-items: center; gap: 4px; transform: translateX(-50%); filter: drop-shadow(0 8px 10px rgba(0, 0, 0, .45)); }
+.hall-favorite-resident > span {
+    width: calc(54px * var(--cutout-scale));
+    height: calc(54px * var(--cutout-scale));
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    overflow: hidden;
+    border: 2px solid #f5d87c;
+    border-radius: 50%;
+    color: #172333;
+    background: #b9d9a8;
+    box-shadow: 0 6px 14px rgba(0, 0, 0, .4), 0 0 16px rgba(244, 204, 98, .28);
+    font-size: 19px;
+    font-weight: 900;
+    animation: worker-bob 2.4s ease-in-out infinite;
+}
+.hall-favorite-resident > span.has-overlay-art {
+    width: calc(78px * var(--cutout-scale));
+    height: calc(96px * var(--cutout-scale));
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    filter: drop-shadow(0 0 10px rgba(244, 204, 98, .35));
+}
+.hall-favorite-resident img {
+    width: auto;
+    height: 100%;
+    max-width: 100%;
+    object-fit: contain;
+    object-position: bottom center;
+    pointer-events: none;
+    user-select: none;
+}
+.hall-favorite-resident > span:not(.has-overlay-art) img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.hall-favorite-resident small {
+    max-width: 96px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 2px 7px;
+    border: 1px solid rgba(244, 204, 98, .4);
+    border-radius: 8px;
+    background: rgba(20, 31, 43, .82);
+    color: #ffe9a8;
+    font-size: 9px;
+    font-weight: 800;
+    text-shadow: none;
+}
 
 /* Woodlot lodge interior: plank walls, workbench, grove window. */
 .room-woodlot .int-backwall { background: repeating-linear-gradient(180deg, #7c5636 0 34px, #6a4527 34px 40px); box-shadow: inset 0 -14px 30px rgba(0, 0, 0, .35); }
@@ -2356,6 +2418,7 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
 }
 .resident-worker .is-paper-cutout { --paper-tilt: -1.5deg; }
 .lodge-resident .is-paper-cutout,
+.hall-favorite-resident .is-paper-cutout,
 .facility-room-resident .is-paper-cutout { --paper-tilt: 1deg; }
 .shrine-art.is-paper-cutout { --paper-tilt: -1deg; }
 .enclave-residents b:nth-child(even).is-paper-cutout { --paper-tilt: 1.6deg; }
@@ -2364,6 +2427,7 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
 /* A card without uploaded art still belongs in the same visual language. */
 .resident-worker > span.is-paper-token,
 .lodge-resident > span.is-paper-token,
+.hall-favorite-resident > span.is-paper-token,
 .facility-room-resident > span.is-paper-token,
 .shrine-art.is-paper-token,
 .enclave-residents b.is-paper-token {
@@ -2494,6 +2558,8 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     .interior-exit { min-height: 34px; padding: 7px 11px; font-size: 11px; }
     .lodge-resident > span { width: calc(44px * var(--cutout-scale)); height: calc(44px * var(--cutout-scale)); }
     .lodge-resident > span.has-overlay-art { width: calc(62px * var(--cutout-scale)); height: calc(78px * var(--cutout-scale)); }
+    .hall-favorite-resident > span { width: calc(44px * var(--cutout-scale)); height: calc(44px * var(--cutout-scale)); }
+    .hall-favorite-resident > span.has-overlay-art { width: calc(62px * var(--cutout-scale)); height: calc(78px * var(--cutout-scale)); }
     .facility-room-resident > span.has-overlay-art { width: calc(62px * var(--cutout-scale)); height: calc(78px * var(--cutout-scale)); }
     .keep-panel {
         top: auto;

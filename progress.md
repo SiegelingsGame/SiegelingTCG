@@ -1,3 +1,8 @@
+Original prompt: Display the favorite siegeling inside the hall. Make alternate colors
+
+- July 27, 2026 Covenant Hall favorite cutout + alternating chooser stripes: the Keeper's Favor list already starred a favorite, but the hall stage stayed empty. Entering Covenant Hall now plants the honored Siegeling as a paper cutout by the hearth (`#hallFavoriteResident`), sized with the same SMALL/MEDIUM/LARGE/GIGANTIC bands as other interiors and labeled with their name. Clearing the favorite hides the cutout again. The chooser list under The Keeper's Favor also alternates row backgrounds (even rows warm gold tint) so long owned-card lists are easier to scan. Cache pins advanced to `keep.css?v=29` / `keep.js?v=30`; `GameJavaScriptRegressionTest` pins the hall favorite hooks and `.favorite-choice:nth-child(even)`.
+- Verification: pending Chromium + focused regression.
+
 Original prompt: Add more decorations and upgrades that increase storage into the leveling tree and locations
 
 - July 27, 2026 Keep storage progression expansion: added one Keeper-level storage-annex project and one sixth, room-specific storage furnishing to the Woodlot, Garden, Forge, Frostworks, Generator, Quarry, and Kitchen. Annexes unlock from Keeper Levels 10-19, require the Builder's Yard plus room level 2, persist per location, and add +50% local storage. Displayed tier-6 furnishings add another +25%; both bonuses stack with the Storehouse after pending production is materialized at the previous capacity. Project cards, level unlock labels, room capacity rows, blueprint tiers, placement controls, and the three-part upgrade summary now expose the new progression and +75% combined result. Keep CSS/JS cache pins advanced to `v=28`/`v=29`.
