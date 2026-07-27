@@ -6623,6 +6623,31 @@ body.gacha-active {
     font-weight: 950;
 }
 
+.profile-card-back-preview {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.profile-card-back-face {
+    flex: 0 0 auto;
+    width: 42px;
+    height: 62px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.28);
+    background: var(--card-back-art, linear-gradient(145deg, #1b2238, #070a12)) center / cover no-repeat;
+}
+
+.profile-card-back-field {
+    display: grid;
+    gap: 8px;
+}
+
+.profile-card-back-field .profile-card-back-preview {
+    margin-top: 2px;
+}
+
 /* With custom art behind the hero, collapse the two-column layout into a
    single right-bound stack of glass panels so the artwork fills the left and
    the identity + favorite-Siegling rail read as one aligned column. */

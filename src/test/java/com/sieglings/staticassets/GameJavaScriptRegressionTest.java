@@ -323,7 +323,7 @@ class GameJavaScriptRegressionTest {
                 "Profile trim styles for battle preview, social shrink, and favorite card art must ship in home.css."
         );
         assertTrue(
-                homeMarkup.contains("home.js?v=116") && homeMarkup.contains("home.css?v=114"),
+                homeMarkup.contains("home.js?v=117") && homeMarkup.contains("home.css?v=115"),
                 "Cache-bust pins for the profile dashboard trim must advance on home.html."
         );
     }
@@ -356,11 +356,11 @@ class GameJavaScriptRegressionTest {
         String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
         assertTrue(
                 homeMarkup.contains("style.css?v=216")
-                        && homeMarkup.contains("game.js?v=213")
+                        && homeMarkup.contains("game.js?v=214")
                         && homeMarkup.contains("card-binder-visual.js?v=17")
-                        && homeMarkup.contains("home.js?v=116")
+                        && homeMarkup.contains("home.js?v=117")
                         && playMarkup.contains("style.css?v=216")
-                        && playMarkup.contains("game.js?v=213")
+                        && playMarkup.contains("game.js?v=214")
                         && dashboardMarkup.contains("style.css?v=216")
                         && dashboardMarkup.contains("card-binder-visual.js?v=17"),
                 "Every surface must advance its cache pins with the complete painted-notch set."
