@@ -77,13 +77,66 @@ let handSelectorScaleFrame = null;
 let previewCardScaleFrame = null;
 let framedSummaryFitFrame = null;
 let siegeKnightCardFitFrame = null;
-const DECK_ART_ASSET_KEYS = ['FIRE', 'ICE', 'WATER', 'EARTH', 'WIND'];
+const DECK_ART_ASSET_KEYS = [
+    'FIRE', 'ICE', 'WATER', 'EARTH', 'WIND', 'SHADOW',
+    'ELECTRIC', 'METAL', 'UNDEAD', 'PSYCHIC', 'POISON', 'LIGHT'
+];
+// Bump with home.js ELEMENTAL_CARD_BACK_VERSION when default card-back art changes.
+const DECK_ART_ASSET_VERSION = 5;
+function versionedDeckArtAsset(path) {
+    if (!path) return '';
+    const separator = path.includes('?') ? '&' : '?';
+    return `${path}${separator}v=${DECK_ART_ASSET_VERSION}`;
+}
 const DECK_ART_ASSETS = {
-    FIRE: { back: '/img/decks/card-back-fire.png', icon: '/img/decks/deck-icon-fire.png' },
-    EARTH: { back: '/img/decks/card-back-earth.png', icon: '/img/decks/deck-icon-earth.png' },
-    WIND: { back: '/img/decks/card-back-wind.png', icon: '/img/decks/deck-icon-wind.png' },
-    WATER: { back: '/img/decks/card-back-wind.png', icon: '/img/decks/deck-icon-wind.png' },
-    ICE: { back: '/img/decks/card-back-ice.png', icon: '/img/decks/deck-icon-ice.png' }
+    FIRE: {
+        back: versionedDeckArtAsset('/img/decks/card-back-fire.png'),
+        icon: versionedDeckArtAsset('/img/decks/deck-icon-fire.png')
+    },
+    EARTH: {
+        back: versionedDeckArtAsset('/img/decks/card-back-earth.png'),
+        icon: versionedDeckArtAsset('/img/decks/deck-icon-earth.png')
+    },
+    WIND: {
+        back: versionedDeckArtAsset('/img/decks/card-back-wind.png'),
+        icon: versionedDeckArtAsset('/img/decks/deck-icon-wind.png')
+    },
+    WATER: {
+        back: versionedDeckArtAsset('/img/decks/card-back-water.png'),
+        icon: versionedDeckArtAsset('/img/decks/deck-icon-wind.png')
+    },
+    ICE: {
+        back: versionedDeckArtAsset('/img/decks/card-back-ice.png'),
+        icon: versionedDeckArtAsset('/img/decks/deck-icon-ice.png')
+    },
+    ELECTRIC: {
+        back: versionedDeckArtAsset('/img/decks/card-back-electric.png'),
+        icon: versionedDeckArtAsset('/img/decks/deck-icon-wind.png')
+    },
+    METAL: {
+        back: versionedDeckArtAsset('/img/decks/card-back-metal.png'),
+        icon: versionedDeckArtAsset('/img/decks/deck-icon-fire.png')
+    },
+    POISON: {
+        back: versionedDeckArtAsset('/img/decks/card-back-poison.png'),
+        icon: versionedDeckArtAsset('/img/decks/deck-icon-earth.png')
+    },
+    UNDEAD: {
+        back: versionedDeckArtAsset('/img/decks/card-back-undead.png'),
+        icon: versionedDeckArtAsset('/img/elements/element-undead.svg')
+    },
+    PSYCHIC: {
+        back: versionedDeckArtAsset('/img/decks/card-back-psychic.png'),
+        icon: versionedDeckArtAsset('/img/elements/element-psychic.svg')
+    },
+    SHADOW: {
+        back: versionedDeckArtAsset('/img/decks/card-back-shadow.png'),
+        icon: versionedDeckArtAsset('/img/elements/element-shadow.svg')
+    },
+    LIGHT: {
+        back: versionedDeckArtAsset('/img/decks/card-back-light.png'),
+        icon: versionedDeckArtAsset('/img/elements/element-light.svg')
+    }
 };
 const SIEGEKNIGHT_CARD_BACK = '/img/knights/card-back-siegeknight.png';
 const SIEGEKNIGHT_CARD_TEMPLATE = '/img/knights/siegeknight-card-template.png';
@@ -12140,7 +12193,7 @@ function buildDeckFaceSigils(elements) {
 }
 
 function deckArtAssetForElements(elements = []) {
-    const key = DECK_ART_ASSET_KEYS.find(element => elements.includes(element));
+    const key = elements.find(element => DECK_ART_ASSET_KEYS.includes(element));
     return key ? DECK_ART_ASSETS[key] : null;
 }
 
@@ -13221,15 +13274,15 @@ const NOTCH_ICON_PATHS = {
     FIRE: '/img/notches/notch-fire.png',
     EARTH: '/img/notches/notch-earth.png',
     WIND: '/img/notches/notch-wind.png',
-    WATER: '/img/notches/notch-water.png',
+    WATER: '/img/notches/notch-water.png?v=2',
     ICE: '/img/notches/notch-ice.png',
-    SHADOW: '/img/notches/notch-shadow.png',
-    ELECTRIC: '/img/notches/notch-electric.png',
-    METAL: '/img/notches/notch-metal.png',
-    UNDEAD: '/img/notches/notch-undead.png',
-    PSYCHIC: '/img/notches/notch-psychic.png',
-    POISON: '/img/notches/notch-poison.png',
-    LIGHT: '/img/notches/notch-light.png'
+    SHADOW: '/img/notches/notch-shadow.png?v=2',
+    ELECTRIC: '/img/notches/notch-electric.png?v=2',
+    METAL: '/img/notches/notch-metal.png?v=2',
+    UNDEAD: '/img/notches/notch-undead.png?v=2',
+    PSYCHIC: '/img/notches/notch-psychic.png?v=2',
+    POISON: '/img/notches/notch-poison.png?v=2',
+    LIGHT: '/img/notches/notch-light.png?v=2'
 };
 
 function renderBoardNotches(notches, options) {

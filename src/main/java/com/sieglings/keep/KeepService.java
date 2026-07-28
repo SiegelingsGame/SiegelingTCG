@@ -56,6 +56,22 @@ public class KeepService {
     public static final int ENCLAVE_BUILD_COST = 240;
     public static final long ENCLAVE_BUILD_SECONDS = 7_200;
     private static final int ENCLAVE_CAPACITY = 5;
+    private static final int ROOM_DECORATION_CAPACITY = 6;
+    private static final double STORAGE_ANNEX_BONUS = .50;
+    private static final double STORAGE_DECORATION_BONUS = .25;
+    private static final Map<String, String> STORAGE_DECORATIONS = Map.of(
+            "woodlot", "coppice_storewall", "garden", "seedkeeper_vault",
+            "forge", "tempered_stock_rack", "fridge", "frostbound_larder",
+            "generator", "charged_cell_bank", "quarry", "stonewise_pallets",
+            "kitchen", "provision_pantry");
+    private static final List<String> PRODUCTION_ROOMS = List.of(
+            "woodlot", "garden", "forge", "fridge", "generator", "quarry", "kitchen");
+    /** Storage annexes are construction-tree unlocks spread across the five Keeper chapters. */
+    private static final Map<String, Integer> STORAGE_PROJECT_LEVELS = Map.of(
+            "woodlot_storage_annex", 10, "garden_storage_annex", 12,
+            "forge_storage_annex", 13, "fridge_storage_annex", 15,
+            "generator_storage_annex", 16, "quarry_storage_annex", 17,
+            "kitchen_storage_annex", 19);
     // ── Keeper leveling / battlepass ──────────────────────────────────────────
     public static final int KEEPER_MAX_LEVEL = 25;
     private static final int KEEPER_DAILY_LOGIN_XP = 60;
@@ -415,10 +431,12 @@ public class KeepService {
                 throw new IllegalArgumentException("That decoration does not belong in this room.");
             }
             if (craftedCount(state, id) < 1) throw new IllegalArgumentException("Craft that decoration before placing it.");
+            // Apply production under the old capacity before a storage furnishing changes it.
+            materializeAllProduction(state, context.residents(), context.now());
             LinkedHashSet<String> placed = placedDecorationIds(state, room);
             if (displayed) {
-                if (placed.size() >= 5 && !placed.contains(id)) {
-                    throw new IllegalArgumentException("That room already displays five decorations.");
+                if (placed.size() >= ROOM_DECORATION_CAPACITY && !placed.contains(id)) {
+                    throw new IllegalArgumentException("That room already displays six decorations.");
                 }
                 // Only a newly displayed decoration counts — re-placing the same one cannot farm rapport.
                 if (!placed.contains(id)) advanceEnclaveTasks(state, context.residents(), "DECORATION");
@@ -915,6 +933,8 @@ public class KeepService {
             state.setBuildersYardLevel(Math.max(1, state.getBuildersYardLevel()));
         } else if ("build_enclave".equals(id)) {
             state.setEnclaveLevel(1);
+        } else if (storageProjectRoom(id) != null) {
+            state.getStorageUpgradeLevels().put(storageProjectRoom(id), 1);
         } else if (id.startsWith("hall_level_")) {
             int level = parseHallLevel(id);
             if (level > 0) state.setHallLevel(Math.max(state.getHallLevel(), level));
@@ -1018,7 +1038,7 @@ public class KeepService {
 
     private int woodlotStorageCapacity(KeepState state) {
         int base = state.getWoodlotLevel() >= 2 ? 360 : 120;
-        return (int) Math.round(base * storageMultiplier(state));
+        return (int) Math.round(base * storageMultiplier(state) * localStorageMultiplier(state, "woodlot"));
     }
 
     private int timberInventoryCapacity(KeepState state) {
@@ -1044,11 +1064,25 @@ public class KeepService {
         return 1.0 + state.getStorehouseLevel() * .5;
     }
 
+    private double localStorageMultiplier(KeepState state, String roomId) {
+        double bonus = state.getStorageUpgradeLevels().getOrDefault(roomId, 0) > 0 ? STORAGE_ANNEX_BONUS : 0;
+        String decorationId = STORAGE_DECORATIONS.get(roomId);
+        if (decorationId != null && placedDecorationIds(state, roomId).contains(decorationId)) {
+            bonus += STORAGE_DECORATION_BONUS;
+        }
+        return 1 + bonus;
+    }
+
+    private int localStorageBonusPercent(KeepState state, String roomId) {
+        return (int) Math.round((localStorageMultiplier(state, roomId) - 1) * 100);
+    }
+
     private int facilityStorageCapacity(KeepState state, String id) {
         FacilityDefinition definition = FACILITIES.get(id);
         if (definition == null) return 0;
         return (int) Math.round(tuning().storage(id, definition.baseStorage())
-                * Math.max(1, facilityLevel(state, id)) * storageMultiplier(state));
+                * Math.max(1, facilityLevel(state, id)) * storageMultiplier(state)
+                * localStorageMultiplier(state, id));
     }
 
     private double facilityRatePerMinute(String id) {
@@ -1295,6 +1329,9 @@ public class KeepService {
         out.put("level", facilityLevel(state, id));
         out.put("available", available);
         out.put("storageCapacity", facilityStorageCapacity(state, id));
+        out.put("storageBonusPercent", localStorageBonusPercent(state, id));
+        out.put("storageUpgradeLevel", state.getStorageUpgradeLevels().getOrDefault(id, 0));
+        out.put("storageDecorationActive", placedDecorationIds(state, id).contains(STORAGE_DECORATIONS.get(id)));
         out.put("ratePerMinute", facilityRate(state, residents, id));
         out.put("residentId", stationResidentId(state, id));
         out.put("resident", resident == null ? null : serializeResident(state, resident, id));
@@ -1409,6 +1446,8 @@ public class KeepService {
             item.put("tier", recipe.tier());
             item.put("crafted", craftedCount(state, recipe.id()) > 0);
             item.put("displayed", placedDecorationIds(state, recipe.roomId()).contains(recipe.id()));
+            item.put("description", recipe.description());
+            item.put("bonus", recipe.bonusLabel());
             return item;
         }).toList();
     }
@@ -1626,7 +1665,10 @@ public class KeepService {
             "build_fridge", "build_generator", "build_quarry", "build_kitchen", "build_builders_yard",
             "build_enclave", "storehouse_level_2", "garden_level_2", "forge_level_2", "fridge_level_2",
             "generator_level_2", "quarry_level_2", "kitchen_level_2", "hall_level_2", "hall_level_3",
-            "hall_level_4", "hall_level_5", "hall_level_6", "hall_level_7", "hall_level_8");
+            "hall_level_4", "hall_level_5", "hall_level_6", "hall_level_7", "hall_level_8",
+            "woodlot_storage_annex", "garden_storage_annex", "forge_storage_annex",
+            "fridge_storage_annex", "generator_storage_annex", "quarry_storage_annex",
+            "kitchen_storage_annex");
 
     /** Shipped workshop output, for the dashboard's "default" column. */
     public static List<Map<String, Object>> shippedBuildingDefaults() {
@@ -1706,6 +1748,10 @@ public class KeepService {
             case "hall_level_8" -> new BuildProject(id, "Consecrate the Grand Keep", 640,
                     Map.of("verdant_fiber", 28, "ember_ingot", 28, "frost_crystal", 22, "storm_cell", 18), 86_400);
             default -> {
+                String storageRoom = storageProjectRoom(id);
+                if (storageRoom != null) {
+                    yield storageBuildProject(id, storageRoom);
+                }
                 String suffix = "_level_2";
                 String facilityId = id.endsWith(suffix) ? id.substring(0, id.length() - suffix.length()) : "";
                 yield FACILITIES.containsKey(facilityId)
@@ -1738,6 +1784,11 @@ public class KeepService {
                 yield hallLevel(state) == level - 1 && hallUpgradeGateMet(state, level);
             }
             default -> {
+                String storageRoom = storageProjectRoom(id);
+                if (storageRoom != null) {
+                    yield state.getBuildersYardLevel() >= 1 && productionRoomLevel(state, storageRoom) >= 2
+                            && state.getStorageUpgradeLevels().getOrDefault(storageRoom, 0) < 1;
+                }
                 String facilityId = id.endsWith("_level_2")
                         ? id.substring(0, id.length() - "_level_2".length()) : "";
                 yield FACILITIES.containsKey(facilityId) && facilityLevel(state, facilityId) == 1
@@ -1812,6 +1863,42 @@ public class KeepService {
             case "quarry" -> Map.of("ember_ingot", 14, "storm_cell", 8);
             case "kitchen" -> Map.of("stone", 14, "frost_crystal", 10);
             default -> Map.of();
+        };
+    }
+
+    private static String storageProjectRoom(String projectId) {
+        if (projectId == null || !projectId.endsWith("_storage_annex")) return null;
+        String roomId = projectId.substring(0, projectId.length() - "_storage_annex".length());
+        return "woodlot".equals(roomId) || FACILITIES.containsKey(roomId) ? roomId : null;
+    }
+
+    private int productionRoomLevel(KeepState state, String roomId) {
+        return "woodlot".equals(roomId) ? state.getWoodlotLevel() : facilityLevel(state, roomId);
+    }
+
+    private static String productionRoomName(String roomId) {
+        if ("woodlot".equals(roomId)) return "Restorative Woodlot";
+        FacilityDefinition definition = FACILITIES.get(roomId);
+        return definition == null ? roomId : definition.name();
+    }
+
+    private static BuildProject storageBuildProject(String id, String roomId) {
+        return switch (roomId) {
+            case "woodlot" -> new BuildProject(id, "Raise the Woodlot Storewall", 260,
+                    Map.of("verdant_fiber", 18, "stone", 8), 14_400);
+            case "garden" -> new BuildProject(id, "Dig the Garden Root Cellar", 280,
+                    Map.of("verdant_fiber", 22, "stone", 10), 18_000);
+            case "forge" -> new BuildProject(id, "Raise the Forge Stockhouse", 320,
+                    Map.of("ember_ingot", 22, "stone", 12), 21_600);
+            case "fridge" -> new BuildProject(id, "Deepen the Frost Vault", 340,
+                    Map.of("frost_crystal", 24, "stone", 12), 25_200);
+            case "generator" -> new BuildProject(id, "Ground the Cell Reserve", 360,
+                    Map.of("storm_cell", 20, "ember_ingot", 12, "stone", 10), 28_800);
+            case "quarry" -> new BuildProject(id, "Cut the Quarry Depot", 380,
+                    Map.of("stone", 30, "verdant_fiber", 12), 32_400);
+            case "kitchen" -> new BuildProject(id, "Raise the Provision Loft", 400,
+                    Map.of("provisions", 24, "stone", 16, "verdant_fiber", 12), 36_000);
+            default -> null;
         };
     }
 
@@ -1908,7 +1995,8 @@ public class KeepService {
                         {"seedling_rack", "Seedling Rack", "Stepped trays where next season's saplings wait out the frost."},
                         {"sunwoven_blind", "Sunwoven Blind", "A rolled blind of split cane that rations the grove window's light."},
                         {"moss_lanterns", "Moss Lanterns", "Glass jars of luminous moss hung from the rafters, fed on nothing but damp air."},
-                        {"covenant_chimes", "Covenant Wind Chimes", "Hollow limbs tuned to the grove's own creak, hung where the door draught reaches them."}});
+                        {"covenant_chimes", "Covenant Wind Chimes", "Hollow limbs tuned to the grove's own creak, hung where the door draught reaches them."},
+                        {"coppice_storewall", "Coppice Storewall", "A ventilated wall of sorted coppice bins keeps a longer harvest dry without sealing it away."}});
         addRoomExpansions(out, "garden", "Garden", "verdant_fiber", new String[]{"frost_crystal", "stone"}, "gardener_tools",
                 new String[][]{
                         {"dewline_irrigator", "Dewline Irrigator", "Chilled coils pull water from morning air so the beds never draw down the spring."},
@@ -1919,7 +2007,8 @@ public class KeepService {
                         {"seed_banners", "Seed Banners", "Linen pouches hung in rows, each holding a strain the garden has promised to keep."},
                         {"rain_basin", "Rain Basin", "A shallow catch basin of polished stone that keeps the bed edges damp."},
                         {"blossom_arch", "Blossom Arch", "A flowering arch framing the garden window, replanted every spring."},
-                        {"covenant_topiary", "Covenant Topiary", "A shrub clipped into the sanctuary's mark, trimmed only where it agrees to grow."}});
+                        {"covenant_topiary", "Covenant Topiary", "A shrub clipped into the sanctuary's mark, trimmed only where it agrees to grow."},
+                        {"seedkeeper_vault", "Seedkeeper Vault", "Breathing drawers preserve seed, fiber, and cuttings beside the beds that produced them."}});
         addRoomExpansions(out, "forge", "Forge", "ember_ingot", new String[]{"stone", "storm_cell"}, "tempered_tongs",
                 new String[][]{
                         {"ember_bellows", "Ember Bellows", "Stone-weighted bellows hold an even heat without anyone pumping through the night."},
@@ -1930,7 +2019,8 @@ public class KeepService {
                         {"oathwork_shield", "Oathwork Shield", "A ceremonial shield hung above the bellows, never carried into a fight."},
                         {"spark_banner", "Spark Banner", "Scorch-dyed cloth that catches every flare thrown from the hearth."},
                         {"ingot_mosaic", "Ingot Mosaic", "Offcut ingots set into the forge floor in a spiral of cooling colors."},
-                        {"forge_chimes", "Forge Chimes", "Failed blade blanks rehung as chimes, so nothing made here is wasted."}});
+                        {"forge_chimes", "Forge Chimes", "Failed blade blanks rehung as chimes, so nothing made here is wasted."},
+                        {"tempered_stock_rack", "Tempered Stock Rack", "A heat-baffled rack keeps ingots sorted near the hearth without annealing their edges."}});
         addRoomExpansions(out, "fridge", "Fridge", "frost_crystal", new String[]{"verdant_fiber", "storm_cell"}, "coldseal_kit",
                 new String[][]{
                         {"crystal_tongs", "Crystal Tongs", "Fiber-wrapped grips move raw crystal without leaching warmth into it."},
@@ -1941,7 +2031,8 @@ public class KeepService {
                         {"snowflake_screen", "Snowflake Screen", "A folding screen of frosted panes that breaks the vault draught."},
                         {"memory_crystals", "Memory Crystals", "A cluster of clouded crystals that replay the day they were cut."},
                         {"aurora_lamp", "Aurora Lamp", "A charged ribbon of light drawn across the ceiling like a captive aurora."},
-                        {"ice_sculpture", "Covenant Ice Sculpture", "A carved figure that renews itself from the vault's own frost."}});
+                        {"ice_sculpture", "Covenant Ice Sculpture", "A carved figure that renews itself from the vault's own frost."},
+                        {"frostbound_larder", "Frostbound Larder", "Layered crystal drawers hold a deeper reserve at a separate, gentler frost line."}});
         addRoomExpansions(out, "generator", "Generator", "storm_cell", new String[]{"ember_ingot", "frost_crystal"}, "tuning_key",
                 new String[][]{
                         {"balanced_coils", "Balanced Coils", "Paired coils share the load so neither side of the current is overdrawn."},
@@ -1952,7 +2043,8 @@ public class KeepService {
                         {"prism_banners", "Prism Banners", "Split-light banners that scatter the conduit glow across the back wall."},
                         {"conduit_globe", "Conduit Globe", "A glass globe holding a slow, contained storm on a brass stand."},
                         {"thunder_chimes", "Thunder Chimes", "Hanging rods that answer the coils with a low roll of sound."},
-                        {"covenant_orrery", "Covenant Orrery", "Nested rings modelling every workshop current turning in accord."}});
+                        {"covenant_orrery", "Covenant Orrery", "Nested rings modelling every workshop current turning in accord."},
+                        {"charged_cell_bank", "Charged Cell Bank", "Insulated cubbies ground spare cells individually so a larger reserve never becomes one storm."}});
         addRoomExpansions(out, "quarry", "Quarry", "stone", new String[]{"ember_ingot", "verdant_fiber"}, "mason_mauls",
                 new String[][]{
                         {"grain_compass", "Stone-Grain Compass", "An iron needle that finds the seam a block is already willing to split along."},
@@ -1963,7 +2055,8 @@ public class KeepService {
                         {"rune_mosaic", "Runestone Mosaic", "Quarry marks reset into the back wall as a record of every face worked."},
                         {"crystal_sconce", "Crystal Sconce", "A wall sconce of quarry crystal that keeps the cut faces readable."},
                         {"mason_banner", "Mason Banner", "A dust-grey banner carrying the marks of every mason who worked here."},
-                        {"echo_fountain", "Echo Fountain", "A basin cut from a single block; the quarry answers whatever is said over it."}});
+                        {"echo_fountain", "Echo Fountain", "A basin cut from a single block; the quarry answers whatever is said over it."},
+                        {"stonewise_pallets", "Stonewise Pallets", "Low sprung pallets spread the weight of finished blocks without cracking the quarry floor."}});
         addRoomExpansions(out, "kitchen", "Kitchen", "provisions", new String[]{"verdant_fiber", "stone"}, "hearth_set",
                 new String[][]{
                         {"garden_knives", "Garden Knives", "Fiber-handled knives sized for hands and claws alike."},
@@ -1974,7 +2067,8 @@ public class KeepService {
                         {"painted_crocks", "Painted Crocks", "Glazed crocks painted by residents with the meal each one holds."},
                         {"recipe_tapestry", "Recipe Tapestry", "A woven record of every dish the sanctuary has cooked for a guest."},
                         {"communal_bench", "Communal Bench", "A low bench pulled up to the hearth for whoever arrives hungry."},
-                        {"lantern_wreath", "Lantern Wreath", "A ring of small lanterns hung over the table for late meals."}});
+                        {"lantern_wreath", "Lantern Wreath", "A ring of small lanterns hung over the table for late meals."},
+                        {"provision_pantry", "Covenant Provision Pantry", "A cool, many-sized pantry gives every resident a shelf and keeps a longer season's meals."}});
         return out;
     }
 
@@ -1998,9 +2092,11 @@ public class KeepService {
         for (int index = 0; index < decorations.length; index++) {
             int tier = index + 2;
             String id = decorations[index][0];
+            String bonus = STORAGE_DECORATIONS.containsValue(id)
+                    ? roomName + " storage +25% while displayed" : roomName + " interior decoration";
             out.put(id, new CraftRecipe(id, decorations[index][1], "DECORATION", roomId, tier >= 4 ? 2 : 1,
                     expansionCost(resourceId, partnerResourceIds, 4 + tier * 3, tier, false), false,
-                    decorations[index][2], roomName + " interior decoration", tier, ""));
+                    decorations[index][2], bonus, tier, ""));
         }
     }
 
@@ -2094,6 +2190,10 @@ public class KeepService {
         station.put("level", state.getWoodlotLevel());
         station.put("available", available);
         station.put("storageCapacity", woodlotStorageCapacity(state));
+        station.put("storageBonusPercent", localStorageBonusPercent(state, "woodlot"));
+        station.put("storageUpgradeLevel", state.getStorageUpgradeLevels().getOrDefault("woodlot", 0));
+        station.put("storageDecorationActive", placedDecorationIds(state, "woodlot")
+                .contains(STORAGE_DECORATIONS.get("woodlot")));
         station.put("ratePerMinute", woodlotRate(state, residents));
         station.put("residentId", state.getWoodlotResidentId());
         station.put("resident", invited == null ? null : serializeResident(state, invited, "woodlot"));
@@ -2295,6 +2395,14 @@ public class KeepService {
                 BuildProject project = buildProject("storehouse_level_2");
                 out.add(buildOption(state, project.id(), project.name(), project.timberCost(), project.materialCosts(),
                         project.durationSeconds(), "Combine all four elemental materials into a larger sanctuary vault.", true));
+            }
+            for (String roomId : PRODUCTION_ROOMS) {
+                if (productionRoomLevel(state, roomId) < 2
+                        || state.getStorageUpgradeLevels().getOrDefault(roomId, 0) > 0) continue;
+                BuildProject project = buildProject(roomId + "_storage_annex");
+                out.add(buildOption(state, project.id(), project.name(), project.timberCost(), project.materialCosts(),
+                        project.durationSeconds(), "Add dedicated local storage beside the "
+                                + productionRoomName(roomId) + " for +50% offline capacity.", true));
             }
         }
         addHallUpgradeOption(state, out);
@@ -2716,6 +2824,8 @@ public class KeepService {
      *  chain stays ungated (level 1); the keep-RANK upgrades are what leveling unlocks,
      *  so raising to hall rank N asks for Keeper Level N. */
     private int keeperUnlockLevel(String projectId) {
+        Integer storageLevel = STORAGE_PROJECT_LEVELS.get(projectId);
+        if (storageLevel != null) return storageLevel;
         if (projectId != null && projectId.startsWith("hall_level_")) {
             int n = parseHallLevel(projectId);
             return n <= 0 ? 1 : Math.min(KEEPER_MAX_LEVEL, n);
@@ -2724,9 +2834,15 @@ public class KeepService {
     }
 
     /** Timeline copy for what a level opens: keep-rank ups (the buildings) map to real
-     *  rank names; otherwise a granted decoration or the milestone cache. */
+     *  rank names; otherwise a granted decoration or the milestone cache. Rank-up nodes
+     *  carry the rank name alone — every node in that band is a rank up, so the prefix
+     *  only repeated itself down the timeline. */
     private String keeperUnlockLabel(int level) {
-        if (level >= 2 && level <= HALL_MAX_LEVEL) return "Keep rank up · " + rankName(level);
+        if (level >= 2 && level <= HALL_MAX_LEVEL) return rankName(level);
+        String storageProject = STORAGE_PROJECT_LEVELS.entrySet().stream()
+                .filter(entry -> entry.getValue() == level)
+                .map(Map.Entry::getKey).findFirst().orElse("");
+        if (!storageProject.isBlank()) return "Storage project: " + buildProject(storageProject).name();
         String decoration = KEEPER_LEVEL_DECORATIONS.getOrDefault(level, "");
         if (!decoration.isBlank()) return "New decoration · " + recipeName(decoration);
         if (level % KEEPER_LEVELS_PER_CHAPTER == 0) return "Milestone cache · bonus Siegecoins & Remnants";

@@ -22,6 +22,7 @@ class GameJavaScriptRegressionTest {
     private static final Path CARD_DASHBOARD_HTML = Path.of("src/main/resources/static/card-dashboard.html");
     private static final Path CARD_BINDER_VISUAL_JS = Path.of("src/main/resources/static/js/card-binder-visual.js");
     private static final Path NOTCH_IMAGE_DIR = Path.of("src/main/resources/static/img/notches");
+    private static final Path CARD_BACK_IMAGE_DIR = Path.of("src/main/resources/static/img/decks");
     private static final Path CARD_DASHBOARD_JS = Path.of("src/main/resources/static/js/card-dashboard.js");
     private static final Path STYLE_CSS = Path.of("src/main/resources/static/css/style.css");
     private static final Path KEEP_HTML = Path.of("src/main/resources/static/keep.html");
@@ -323,8 +324,38 @@ class GameJavaScriptRegressionTest {
                 "Profile trim styles for battle preview, social shrink, and favorite card art must ship in home.css."
         );
         assertTrue(
-                homeMarkup.contains("home.js?v=116") && homeMarkup.contains("home.css?v=114"),
+                homeMarkup.contains("home.js?v=120") && homeMarkup.contains("home.css?v=116"),
                 "Cache-bust pins for the profile dashboard trim must advance on home.html."
+        );
+    }
+
+    @Test
+    void profileFavoriteElementIconsUseCircularNotchMedallions() throws IOException {
+        String homeScript = readHomeScript();
+        String homeCss = Files.readString(Path.of("src/main/resources/static/css/home.css"));
+        String homeMarkup = Files.readString(HOME_HTML);
+        String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
+        String badge = extractFunction(homeScript, "function renderElementBadge(element)");
+        String avatar = extractFunction(homeScript, "function renderPlayerAvatar(prefs = {}, className = 'friend-avatar')");
+
+        assertTrue(
+                badge.contains("notchIconPath(normalized)")
+                        && avatar.contains("notchIconPath(normalizeProfileElement(prefs.favoriteElement))"),
+                "Profile favorite-element badges and element-mode avatars must use painted notch medallions."
+        );
+        assertTrue(
+                homeCss.contains(".player-avatar-element.profile-avatar")
+                        && homeCss.contains(".friend-avatar-wrap .player-avatar-element.friend-avatar")
+                        && homeCss.contains("border-radius: 50%")
+                        && homeCss.contains("object-fit: cover")
+                        && homeCss.contains("padding: 0"),
+                "Element-mode profile and friend avatars must fill a circular frame."
+        );
+        assertTrue(
+                homeMarkup.contains("home.css?v=116")
+                        && homeMarkup.contains("home.js?v=120")
+                        && dashboardMarkup.contains("home.css?v=116"),
+                "Profile icon CSS and JavaScript cache pins must advance together."
         );
     }
 
@@ -339,7 +370,7 @@ class GameJavaScriptRegressionTest {
         );
 
         for (String element : elements) {
-            String mapping = element.toUpperCase() + ": '/img/notches/notch-" + element + ".png'";
+            String mapping = element.toUpperCase() + ": '/img/notches/notch-" + element + ".png";
             assertTrue(
                     gameScript.contains(mapping) && homeScript.contains(mapping) && binderScript.contains(mapping),
                     element + " must resolve to the same painted medallion in battle, Home, and binder views."
@@ -356,14 +387,60 @@ class GameJavaScriptRegressionTest {
         String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
         assertTrue(
                 homeMarkup.contains("style.css?v=216")
-                        && homeMarkup.contains("game.js?v=213")
-                        && homeMarkup.contains("card-binder-visual.js?v=17")
-                        && homeMarkup.contains("home.js?v=116")
+                        && homeMarkup.contains("game.js?v=216")
+                        && homeMarkup.contains("card-binder-visual.js?v=19")
+                        && homeMarkup.contains("home.js?v=120")
                         && playMarkup.contains("style.css?v=216")
-                        && playMarkup.contains("game.js?v=213")
+                        && playMarkup.contains("game.js?v=216")
                         && dashboardMarkup.contains("style.css?v=216")
-                        && dashboardMarkup.contains("card-binder-visual.js?v=17"),
+                        && dashboardMarkup.contains("card-binder-visual.js?v=19"),
                 "Every surface must advance its cache pins with the complete painted-notch set."
+        );
+    }
+
+    @Test
+    void remainingElementsUseTheirDedicatedCardBacks() throws IOException {
+        String gameScript = readGameScript();
+        String homeScript = readHomeScript();
+        Set<String> elements = Set.of(
+                "water", "electric", "metal", "poison",
+                "undead", "psychic", "shadow", "light"
+        );
+
+        assertTrue(
+                homeScript.contains("const ELEMENTAL_CARD_BACK_VERSION = 5")
+                        && gameScript.contains("const DECK_ART_ASSET_VERSION = 5"),
+                "Home and battle must cache-bust the expanded elemental card-back set together."
+        );
+        assertTrue(
+                homeScript.contains("const key = elements.find(element => DECK_ASSET_KEYS.includes(element))")
+                        && gameScript.contains("const key = elements.find(element => DECK_ART_ASSET_KEYS.includes(element))"),
+                "Mixed decks must choose the first configured element's dedicated card back."
+        );
+
+        for (String element : elements) {
+            String asset = "/img/decks/card-back-" + element + ".png";
+            assertTrue(
+                    homeScript.contains(asset) && gameScript.contains(asset),
+                    element + " must resolve to the same card back in Home/shop and battle views."
+            );
+            assertTrue(
+                    Files.isRegularFile(CARD_BACK_IMAGE_DIR.resolve("card-back-" + element + ".png"))
+                            && Files.isRegularFile(CARD_BACK_IMAGE_DIR.resolve("card-back-" + element + ".webp")),
+                    element + " must ship both PNG and WebP card-back assets."
+            );
+        }
+
+        assertTrue(
+                homeScript.contains("Tidal Sigil")
+                        && homeScript.contains("Storm Sigil")
+                        && homeScript.contains("Iron Sigil")
+                        && homeScript.contains("Venom Sigil")
+                        && homeScript.contains("Spectral Sigil")
+                        && homeScript.contains("Mind Sigil")
+                        && homeScript.contains("Umbral Sigil")
+                        && homeScript.contains("Radiant Sigil"),
+                "All eight expanded card backs must be available in the profile picker."
         );
     }
 
@@ -730,7 +807,7 @@ class GameJavaScriptRegressionTest {
         Matcher placeable = Pattern.compile("data-decoration-art=\"([a-z_]+)\" data-decor-slot=").matcher(keepHtml);
         Set<String> decorationIds = new LinkedHashSet<>();
         while (placeable.find()) decorationIds.add(placeable.group(1));
-        assertTrue(decorationIds.size() >= 28, "Every production room should still offer its placeable furnishings.");
+        assertTrue(decorationIds.size() >= 35, "Every production room should expose its six placeable furnishings.");
         for (String id : decorationIds) {
             assertTrue(
                     keepCss.contains("[data-decoration-art=\"" + id + "\"]"),
@@ -740,6 +817,14 @@ class GameJavaScriptRegressionTest {
         assertFalse(
                 keepCss.contains(".room-decoration-set [data-decor-slot="),
                 "Decoration geometry keyed by slot number makes every workshop read as the same room in a new hue."
+        );
+        assertTrue(
+                keepHtml.contains("data-decoration-art=\"coppice_storewall\"")
+                        && keepHtml.contains("data-decoration-art=\"provision_pantry\"")
+                        && keepJs.contains("<small>Local storage</small>")
+                        && keepJs.contains("roomDecorations.filter((item) => item.crafted).length}/${decorationTotal}")
+                        && keepJs.contains("recipe.type === 'DECORATION' ? roomDecorations.length : tools.length"),
+                "The sixth room furnishing must have unique location art and expose its storage effect in the upgrade summary."
         );
         assertTrue(
                 keepJs.contains("function stepInterior(") && keepJs.contains("INTERIOR_TOUR")
@@ -760,7 +845,8 @@ class GameJavaScriptRegressionTest {
 
         for (String holder : new String[] {
                 ".enclave-residents b", ".enclave-interior-residents b",
-                ".resident-worker > span", ".lodge-resident > span", ".facility-room-resident > span" }) {
+                ".resident-worker > span", ".lodge-resident > span", ".hall-favorite-resident > span",
+                ".facility-room-resident > span" }) {
             for (String band : new String[] { "SMALL", "MEDIUM", "LARGE", "GIGANTIC" }) {
                 assertTrue(
                         keepCss.contains(holder + "[data-size=\"" + band + "\"]"),
@@ -772,6 +858,7 @@ class GameJavaScriptRegressionTest {
         // Every cutout dimension in those rooms must actually consume the scale.
         for (String sized : new String[] {
                 ".resident-worker > span.has-overlay-art", ".lodge-resident > span.has-overlay-art",
+                ".hall-favorite-resident > span.has-overlay-art",
                 ".facility-room-resident > span.has-overlay-art" }) {
             int at = keepCss.indexOf(sized);
             assertTrue(at >= 0, sized + " is missing from keep.css");
@@ -781,9 +868,12 @@ class GameJavaScriptRegressionTest {
                     sized + " sets a fixed size, so its room ignores the Siegeling's size band."
             );
         }
+        // The Covenant Hall favorite is #hallFavoriteResident. The older .shrine-art rules are
+        // orphaned — #favoriteShrine is no longer in keep.html — so scaling them would only make
+        // dead CSS look maintained.
         assertFalse(
                 keepCss.contains(".shrine-art[data-size="),
-                "The favorite shrine was removed from the grounds; scaling dead CSS only hides that."
+                "#favoriteShrine is gone from keep.html; scale .hall-favorite-resident instead of dead CSS."
         );
     }
 
@@ -829,6 +919,27 @@ class GameJavaScriptRegressionTest {
     }
 
     @Test
+    void keeperJourneyOpensOnTheCurrentChapterAndScrollsItsListVertically() throws IOException {
+        String keepHtml = Files.readString(KEEP_HTML);
+        String keepCss = Files.readString(KEEP_CSS);
+        String keepJs = Files.readString(KEEP_JS);
+
+        assertTrue(
+                keepHtml.contains("id=\"journeyToggle\"")
+                        && keepJs.contains("journeyShowAllChapters = false")
+                        && keepJs.contains("journeyShowAllChapters || !currentChapter ? chapters : [currentChapter]")
+                        && keepJs.contains("`All ${chapters.length} chapters`"),
+                "The Keeper's Journey must open focused on the current chapter, with a toggle that reveals the full list."
+        );
+        assertTrue(
+                keepCss.contains(".journey-track { flex: 1 1 auto; min-height: 0;")
+                        && keepCss.contains("grid-template-columns: repeat(auto-fill, minmax(118px, 1fr))")
+                        && !keepCss.contains("scroll-snap-type: x proximity"),
+                "The chapter list must own the card's leftover height and wrap its levels into rows, so nothing is clipped in landscape."
+        );
+    }
+
+    @Test
     void keepBuildingsAndRoomsUseLayeredPaperTreatments() throws IOException {
         String keepHtml = Files.readString(KEEP_HTML);
         String keepCss = Files.readString(KEEP_CSS);
@@ -836,20 +947,42 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=26")
-                        && keepHtml.contains("/js/keep.js?v=29")
+                        && keepHtml.contains("/css/keep.css?v=33")
+                        && keepHtml.contains("/js/keep.js?v=34")
+                        && keepHtml.contains("id=\"hallFavoriteResident\"")
                         && keepHtml.contains("id=\"constructionBannerJobs\"")
+                        && keepHtml.contains("id=\"productionReady\"")
                         && keepJs.contains("constructionBannerSignature")
                         && keepJs.contains("data-live-banner-time=")
-                        && !keepJs.contains("+${constructions.length - 1} more"),
-                "Keep architecture must retain its paper building hooks, refresh both asset cache pins, and show each concurrent construction job in the banner."
+                        && keepJs.contains("hallFavoriteResident")
+                        && keepJs.contains("favorite?.resident")
+                        && keepJs.contains("function offlineCapacityRow")
+                        && keepJs.contains("offline-capacity-list")
+                        && keepJs.contains("woodlotCapacity <= 0 || available < woodlotCapacity")
+                        && !keepJs.contains("productionReady')?.classList.toggle('hidden', available <= 0)")
+                        && !keepJs.contains("+${constructions.length - 1} more")
+                        && !keepJs.contains("Storage reached capacity\", `${name} stopped until collected`"),
+                "Keep architecture must retain its paper building hooks, refresh both asset cache pins, show the favorite in Covenant Hall, collapse storage-capacity offline alerts into one multi-line card, show each concurrent construction job in the banner, and gate the Woodlot Collect bubble to a full stockpile."
+        );
+        assertTrue(
+                keepCss.contains(".construction-team-pill {")
+                        && keepCss.contains("grid-template-columns: auto minmax(0, 1fr);")
+                        && keepCss.contains("column-gap: 12px;")
+                        && keepCss.contains("column-gap: 10px;")
+                        && keepCss.contains("position: static;")
+                        && keepCss.contains("min-width: 112px;")
+                        && keepCss.contains("min-width: 100px;"),
+                "The Teams resource pill must lay the hammer beside counts with a real column gap so the glyph cannot overlay N/N."
         );
         assertTrue(
                 keepCss.contains(".building-illustration svg.paper-building-shell")
                         && keepCss.contains("drop-shadow(0 1px 0 #ead8ad)")
                         && keepCss.contains(".int-backwall::after")
-                        && keepCss.contains("mix-blend-mode: soft-light"),
-                "Exterior silhouettes and room shells must retain their cardstock edges and print grain."
+                        && keepCss.contains("mix-blend-mode: soft-light")
+                        && keepCss.contains(".hall-favorite-resident")
+                        && keepCss.contains(".favorite-choice:nth-child(even)")
+                        && keepCss.contains(".offline-capacity-list"),
+                "Exterior silhouettes and room shells must retain their cardstock edges and print grain, with the hall favorite cutout, alternating favorite-choice stripes, and offline capacity list."
         );
         assertFalse(
                 keepHtml.contains("id=\"paper-prop-cutout\"")
@@ -865,6 +998,29 @@ class GameJavaScriptRegressionTest {
                         && keepJs.contains("setGroundsSuppressed(true)")
                         && keepCss.contains("content-visibility: hidden"),
                 "Empty tool racks must stay hidden, decorations must layer above them, and open interiors must suspend grounds painting."
+        );
+        assertTrue(
+                keepCss.contains(".lodge-resident > span[data-size=\"GIGANTIC\"]")
+                        && keepCss.contains(".facility-room-resident > span[data-size=\"GIGANTIC\"]")
+                        && keepCss.contains("width: calc(78px * var(--cutout-scale))")
+                        && keepCss.contains("height: calc(96px * var(--cutout-scale))")
+                        && keepCss.contains("width: calc(62px * var(--cutout-scale))")
+                        && keepCss.contains("height: calc(78px * var(--cutout-scale))")
+                        && keepJs.contains("node.dataset.size = residentSize(resident)"),
+                "The size band must scale resident cutouts in the Woodlot and every staffed workshop interior at desktop and phone layouts."
+        );
+        assertTrue(
+                keepCss.contains("width: min(calc(30px * var(--cutout-scale)), 15%)")
+                        && keepCss.contains("animation-name: enclave-exterior-bob")
+                        && keepCss.contains(".exterior-enclave-residents b:nth-child(1) { left: 10%; }")
+                        && keepCss.contains(".exterior-enclave-residents b:nth-child(5) { left: 90%;")
+                        && keepCss.contains(".scene-zoom { right: calc(6px + var(--safe-right)); top: 28%; }"),
+                "All five exterior Enclave residents need separate width-bounded lanes without horizontal wandering or zoom controls covering them."
+        );
+        assertTrue(
+                keepCss.contains(".keep-dock .collect-button { width: min(166px, 22vw); margin: 0 5px;")
+                        && !keepCss.contains(".keep-dock .collect-button { margin-top: -10px;"),
+                "Collect must align inside the dock instead of using a negative top margin that overlaps the Keep map."
         );
     }
 

@@ -283,6 +283,7 @@
             return;
         }
         if (event.target.closest('[data-open-journey]')) { openJourney(); return; }
+        if (event.target.closest('#journeyToggle')) { journeyShowAllChapters = !journeyShowAllChapters; renderJourneyTrack(); return; }
         if (event.target.closest('#journeyClose') || event.target.closest('[data-close-journey]')) { closeJourney(); return; }
         const building = event.target.closest('[data-building]');
         if (building) {
@@ -747,7 +748,11 @@
         text('collectAmount', `${available} timber`);
         const collect = document.getElementById('collectButton');
         if (collect) collect.disabled = available <= 0 || number(state.snapshot.resources?.timber) >= number(state.snapshot.resources?.timberCapacity) || state.busy;
-        document.getElementById('productionReady')?.classList.toggle('hidden', available <= 0);
+        // Map Collect cue only when the Woodlot stockpile is full — partial stores
+        // still show as growing piles and remain claimable from the dock button.
+        const woodlotCapacity = number(state.snapshot.station?.storageCapacity);
+        document.getElementById('productionReady')?.classList.toggle(
+            'hidden', woodlotCapacity <= 0 || available < woodlotCapacity);
         updateStockpileVisuals();
         renderConstruction();
         // The Keep Activity tray also owns live construction clocks. Updating
@@ -1027,7 +1032,7 @@
                 <section class="detail-card">
                     <h3>${escapeHtml(String(projectedAvailable()))} timber ready</h3>
                     <div class="meter"><i data-live-woodlot-meter style="width:${woodlotFill()}%"></i></div>
-                    <div class="cost-row"><span>${escapeHtml(formatRate(station.ratePerMinute))} per minute</span><strong>${escapeHtml(String(station.storageCapacity || 0))} storage</strong></div>
+                    <div class="cost-row"><span>${escapeHtml(formatRate(station.ratePerMinute))} per minute</span><strong>${escapeHtml(String(station.storageCapacity || 0))} storage${number(station.storageBonusPercent) ? ` · +${number(station.storageBonusPercent)}% local` : ''}</strong></div>
                     <div class="button-row"><button class="panel-button" type="button" data-collect-inline ${projectedAvailable() <= 0 ? 'disabled' : ''}>Collect timber</button><button class="panel-button secondary" type="button" data-open-panel="residents">Invite resident</button></div>
                 </section>
                 ${station.resident ? `<section class="detail-card"><span class="eyebrow">Current partner</span><h3>${escapeHtml(station.resident.name)}</h3><p>${escapeHtml(station.resident.affinityLabel || '')}. Invited residents remain available in decks and expeditions.</p></section>` : `<div class="empty-state">No resident has been invited. The Woodlot still produces normally.</div>`}
@@ -1203,7 +1208,7 @@
         return `<p class="panel-intro">${facilityInteriorDescription(id)}</p>
             <section class="detail-card"><h3>${ready} ${escapeHtml(station.resourceName || 'materials')} ready</h3>
             <div class="meter"><i data-station-meter="${escapeAttr(id)}" style="width:${stationFill(station)}%"></i></div>
-            <div class="cost-row"><span>${escapeHtml(formatRate(station.ratePerMinute))} per minute</span><strong>${number(station.storageCapacity)} local storage</strong></div>
+            <div class="cost-row"><span>${escapeHtml(formatRate(station.ratePerMinute))} per minute</span><strong>${number(station.storageCapacity)} local storage${number(station.storageBonusPercent) ? ` · +${number(station.storageBonusPercent)}%` : ''}</strong></div>
             <div class="button-row"><button class="panel-button" type="button" data-collect-station="${escapeAttr(id)}" ${ready <= 0 ? 'disabled' : ''}>Collect ${escapeHtml(station.resourceName || 'materials')}</button><button class="panel-button secondary" type="button" data-open-panel="residents" data-select-station="${escapeAttr(id)}">Assign resident</button></div></section>
             ${craftingMarkup(id)}`;
     }
@@ -1213,13 +1218,15 @@
         const decorations = (state.snapshot.decorations || []).filter((item) => item.roomId === roomId && item.crafted);
         const tools = recipes.filter((item) => item.type === 'TOOL');
         const roomDecorations = recipes.filter((item) => item.type === 'DECORATION');
+        const station = stationById(roomId) || {};
+        const decorationTotal = roomDecorations.length;
         const cards = recipes.length ? recipes.map((recipe) => `<section class="craft-card ${recipe.crafted ? 'is-crafted' : ''}">
-            <span class="craft-type">${escapeHtml(recipe.type)}${number(recipe.tier) ? ` · ${number(recipe.tier)}/5` : ''}</span><h3>${escapeHtml(recipe.name)}</h3><p>${escapeHtml(recipe.description || '')}</p>
+            <span class="craft-type">${escapeHtml(recipe.type)}${number(recipe.tier) ? ` · ${number(recipe.tier)}/${recipe.type === 'DECORATION' ? roomDecorations.length : tools.length}` : ''}</span><h3>${escapeHtml(recipe.name)}</h3><p>${escapeHtml(recipe.description || '')}</p>
             <small>${escapeHtml(recipe.bonus || '')}</small><div class="craft-costs">${(recipe.costs || []).map((cost) => `<span class="${materialHeld(cost.id) >= number(cost.amount) ? 'is-met' : 'is-short'}">${materialIcon(cost.id)} ${number(cost.amount)} ${escapeHtml(cost.name)}</span>`).join('')}</div>
             <button class="panel-button" type="button" data-craft-recipe="${escapeAttr(recipe.id)}" ${recipe.canCraft ? '' : 'disabled'}>${recipe.crafted ? 'Crafted' : recipe.levelMet === false ? 'Upgrade room to level 2' : recipe.prerequisiteMet === false ? 'Craft previous tool' : recipe.canCraft ? 'Craft item' : 'Gather materials'}</button>
         </section>`).join('') : '<div class="empty-state">This room has no available blueprints yet.</div>';
-        const placements = decorations.map((decoration) => `<section class="decoration-control"><span><small>Interior decoration ${number(decoration.tier) ? `${number(decoration.tier)}/5` : ''}</small><strong>${escapeHtml(decoration.name)}</strong></span><button class="panel-button secondary" type="button" data-place-decoration="${escapeAttr(decoration.id)}" data-room-id="${escapeAttr(roomId)}" data-displayed="${String(Boolean(decoration.displayed))}">${decoration.displayed ? 'Store decoration' : 'Place decoration'}</button></section>`).join('');
-        const progress = tools.length || roomDecorations.length ? `<div class="room-upgrade-summary"><span><b>${tools.filter((item) => item.crafted).length}/5</b><small>Tools installed</small></span><span><b>${roomDecorations.filter((item) => item.crafted).length}/5</b><small>Decorations crafted</small></span></div>` : '';
+        const placements = decorations.map((decoration) => `<section class="decoration-control"><span><small>${escapeHtml(decoration.bonus || `Interior decoration ${number(decoration.tier) ? `${number(decoration.tier)}/${decorationTotal}` : ''}`)}</small><strong>${escapeHtml(decoration.name)}</strong></span><button class="panel-button secondary" type="button" data-place-decoration="${escapeAttr(decoration.id)}" data-room-id="${escapeAttr(roomId)}" data-displayed="${String(Boolean(decoration.displayed))}">${decoration.displayed ? 'Store decoration' : 'Place decoration'}</button></section>`).join('');
+        const progress = tools.length || roomDecorations.length ? `<div class="room-upgrade-summary"><span><b>${tools.filter((item) => item.crafted).length}/${tools.length}</b><small>Tools installed</small></span><span><b>${roomDecorations.filter((item) => item.crafted).length}/${decorationTotal}</b><small>Decorations crafted</small></span><span><b>+${number(station.storageBonusPercent)}%</b><small>Local storage</small></span></div>` : '';
         const blueprintLabel = roomId === 'woodlot' ? 'Woodlot blueprints' : 'Workshop blueprints';
         return `<div class="crafting-section"><span class="eyebrow">${blueprintLabel}</span>${progress}${cards}${placements}</div>`;
     }
@@ -1331,6 +1338,11 @@
         interior.querySelectorAll('[data-facility-resident]').forEach((node) => node.classList.toggle('hidden', !resident));
         interior.querySelectorAll('[data-facility-resident-art]').forEach((node) => setResidentOverlayArt(node, resident));
         interior.querySelectorAll('[data-facility-resident-name]').forEach((node) => { node.textContent = resident?.name || ''; });
+        // The honored favorite stands in Covenant Hall itself, not only in the chooser list below.
+        const favoriteResident = state.interior === 'great_hall' ? (state.snapshot.favorite?.resident || null) : null;
+        document.getElementById('hallFavoriteResident')?.classList.toggle('hidden', !favoriteResident);
+        setResidentOverlayArt(document.getElementById('hallFavoriteArt'), favoriteResident);
+        text('hallFavoriteName', favoriteResident ? favoriteResident.name : '');
         const placed = state.snapshot.placedDecorations || {};
         const placedIds = new Set(String(placed[state.interior] || '').split(',').map((id) => id.trim()).filter(Boolean));
         interior.querySelectorAll('[data-decoration-art]').forEach((node) => {
@@ -1412,7 +1424,8 @@
         }
         for (const name of report.completedProjects || []) rows.push(offlineRow('⚒', 'Construction complete', name));
         for (const title of report.loreFound || []) rows.push(offlineRow('▤', 'Lore discovered', title));
-        for (const name of report.capsReached || []) rows.push(offlineRow('!', 'Storage reached capacity', `${name} stopped until collected`, true));
+        const capped = (report.capsReached || []).filter(Boolean);
+        if (capped.length) rows.push(offlineCapacityRow(capped));
         const results = document.getElementById('offlineResults');
         if (results) results.innerHTML = rows.join('') || offlineRow('✓', 'The Keep held steady', 'No stores were lost.');
         document.getElementById('offlineOverlay')?.classList.remove('hidden');
@@ -1421,6 +1434,14 @@
 
     function offlineRow(icon, heading, detail, warning = false) {
         return `<div class="offline-result ${warning ? 'warning' : ''}"><i>${escapeHtml(icon)}</i><span><strong>${escapeHtml(heading)}</strong><small>${escapeHtml(detail)}</small></span></div>`;
+    }
+
+    function offlineCapacityRow(names) {
+        const list = names.map((name) => `<li>${escapeHtml(name)}</li>`).join('');
+        const summary = names.length === 1
+            ? '1 building stopped until collected'
+            : `${names.length} buildings stopped until collected`;
+        return `<div class="offline-result warning offline-capacity"><i>!</i><span><strong>Storage reached capacity</strong><small>${escapeHtml(summary)}</small><ul class="offline-capacity-list">${list}</ul></span></div>`;
     }
 
     function dismissOfflineReport() {
@@ -1440,7 +1461,7 @@
                 <span class="facility-icon facility-${escapeAttr(station.id)}">${facilityIcon(station.id)}</span>
                 <span class="eyebrow">Level ${number(station.level)} · ${escapeHtml(formatRate(station.ratePerMinute))}/min</span>
                 <h3>${escapeHtml(station.name)}</h3>
-                <p>${ready}/${number(station.storageCapacity)} ${escapeHtml(station.resourceName || 'materials')} ready${full ? ' · Storage full' : ''}</p>
+                <p>${ready}/${number(station.storageCapacity)} ${escapeHtml(station.resourceName || 'materials')} ready${full ? ' · Storage full' : ''}${number(station.storageBonusPercent) ? ` · +${number(station.storageBonusPercent)}% local storage` : ''}</p>
                 <div class="meter"><i data-station-meter="${escapeAttr(station.id)}" style="width:${stationFill(station)}%"></i></div>
                 <small>Affinity: ${escapeHtml((station.affinityNames || []).join(', '))}</small>
                 <div class="facility-resident">${station.resident ? `${residentAvatarContent(station.resident)} <span><strong>${escapeHtml(station.resident.name)}</strong><small>${escapeHtml(station.resident.affinityLabel || '')}</small></span>` : '<span><strong>Open resident slot</strong><small>Production continues at base rate</small></span>'}</div>
@@ -1891,6 +1912,10 @@
         if (!document.getElementById('journeyOverlay')?.classList.contains('hidden')) renderJourneyTrack();
     }
 
+    /** The overlay opens focused on the chapter the keeper is standing in; the
+     *  toolbar toggle expands the rest of the timeline. Reset on every open. */
+    let journeyShowAllChapters = false;
+
     function renderJourneyTrack() {
         const keeper = keeperData();
         const track = document.getElementById('journeyTrack');
@@ -1906,7 +1931,10 @@
             : `${number(keeper.xpIntoLevel)} / ${number(keeper.xpForLevel)} XP to Level ${level + 1}`
                 + (unclaimed > 0 ? ` · ${unclaimed} reward${unclaimed === 1 ? '' : 's'} ready to claim` : ''));
         const levels = keeper.levels || [];
-        track.innerHTML = (keeper.chapters || []).map((ch) => {
+        const chapters = keeper.chapters || [];
+        const currentChapter = chapters.find((c) => c.current) || chapters[chapters.length - 1];
+        const shown = journeyShowAllChapters || !currentChapter ? chapters : [currentChapter];
+        track.innerHTML = shown.map((ch) => {
             const nodes = levels.filter((l) => number(l.chapterNumber) === number(ch.number)).map(journeyNodeMarkup).join('');
             const cls = `journey-chapter${ch.current ? ' is-current' : ''}${ch.complete ? ' is-complete' : ''}`;
             return `<section class="${cls}">
@@ -1914,7 +1942,16 @@
                     <strong>${escapeHtml(ch.title || '')}</strong><small>${escapeHtml(ch.subtitle || '')}</small></header>
                 <div class="journey-nodes">${nodes}</div></section>`;
         }).join('');
-        track.querySelector('.journey-chapter.is-current')?.scrollIntoView({ inline: 'center', block: 'nearest' });
+        const toggle = document.getElementById('journeyToggle');
+        if (toggle) {
+            toggle.textContent = journeyShowAllChapters ? 'Current chapter' : `All ${chapters.length} chapters`;
+            toggle.setAttribute('aria-expanded', String(journeyShowAllChapters));
+            toggle.classList.toggle('hidden', chapters.length < 2);
+        }
+        // Only the expanded list needs to be scrolled back to where the keeper is;
+        // the focused view is a single chapter already sitting at the top.
+        if (journeyShowAllChapters) track.querySelector('.journey-chapter.is-current')?.scrollIntoView({ block: 'nearest' });
+        else track.scrollTop = 0;
     }
 
     function journeyNodeMarkup(l) {
@@ -1924,7 +1961,11 @@
         const remnants = number(l.reward?.remnants);
         const decoration = l.reward?.decorationName
             ? `<p class="node-decoration" title="Decoration"><span aria-hidden="true">✿</span> ${escapeHtml(l.reward.decorationName)}</p>` : '';
-        const unlock = l.unlockLabel ? `<p class="node-unlock">${escapeHtml(l.unlockLabel)}</p>` : '';
+        // A decoration level's unlock copy just names the decoration the chip above
+        // already shows, so drop the second copy rather than print the name twice.
+        const decorationName = l.reward?.decorationName || '';
+        const unlock = l.unlockLabel && !(decorationName && l.unlockLabel.includes(decorationName))
+            ? `<p class="node-unlock">${escapeHtml(l.unlockLabel)}</p>` : '';
         const action = l.canClaim
             ? `<button class="node-claim" type="button" data-claim-keep-reward="keeper_level:${lv}">Claim</button>`
             : `<span class="node-status">${l.claimed ? 'Claimed' : l.reached ? 'Earned' : `Reach Lv ${lv}`}</span>`;
@@ -1935,6 +1976,7 @@
     }
 
     function openJourney() {
+        journeyShowAllChapters = false;
         renderJourneyTrack();
         document.getElementById('journeyOverlay')?.classList.remove('hidden');
     }
@@ -2773,6 +2815,10 @@
             },
             activePanel: state.panel || null,
             interior: state.interior || null,
+            hallFavoriteVisible: Boolean(state.interior === 'great_hall'
+                && state.snapshot?.favorite?.resident
+                && !document.getElementById('hallFavoriteResident')?.classList.contains('hidden')),
+            hallFavoriteName: document.getElementById('hallFavoriteName')?.textContent || '',
             tutorialVisible: !document.getElementById('keepTutorial')?.classList.contains('hidden'),
             offlineReportVisible: state.offlineVisible,
             unreadLore: number(snapshot.unreadLoreCount),
