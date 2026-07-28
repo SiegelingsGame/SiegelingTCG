@@ -806,20 +806,24 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=28")
-                        && keepHtml.contains("/js/keep.js?v=29")
+                        && keepHtml.contains("/css/keep.css?v=29")
+                        && keepHtml.contains("/js/keep.js?v=30")
                         && keepHtml.contains("id=\"constructionBannerJobs\"")
                         && keepJs.contains("constructionBannerSignature")
                         && keepJs.contains("data-live-banner-time=")
-                        && !keepJs.contains("+${constructions.length - 1} more"),
-                "Keep architecture must retain its paper building hooks, refresh both asset cache pins, and show each concurrent construction job in the banner."
+                        && keepJs.contains("function offlineCapacityRow")
+                        && keepJs.contains("offline-capacity-list")
+                        && !keepJs.contains("+${constructions.length - 1} more")
+                        && !keepJs.contains("Storage reached capacity\", `${name} stopped until collected`"),
+                "Keep architecture must retain its paper building hooks, refresh both asset cache pins, show each concurrent construction job in the banner, and collapse storage-capacity offline alerts into one multi-line card."
         );
         assertTrue(
                 keepCss.contains(".building-illustration svg.paper-building-shell")
                         && keepCss.contains("drop-shadow(0 1px 0 #ead8ad)")
                         && keepCss.contains(".int-backwall::after")
-                        && keepCss.contains("mix-blend-mode: soft-light"),
-                "Exterior silhouettes and room shells must retain their cardstock edges and print grain."
+                        && keepCss.contains("mix-blend-mode: soft-light")
+                        && keepCss.contains(".offline-capacity-list"),
+                "Exterior silhouettes and room shells must retain their cardstock edges and print grain, and the offline capacity list must keep its stacked visual."
         );
         assertFalse(
                 keepHtml.contains("id=\"paper-prop-cutout\"")
