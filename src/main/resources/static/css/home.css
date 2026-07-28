@@ -9028,17 +9028,24 @@ body.gacha-active {
     place-items: center;
     background: rgba(8, 14, 28, 0.88);
     border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 50%;
     overflow: hidden;
+    box-shadow: 0 0 24px var(--profile-glow, rgba(255, 255, 255, 0.14));
 }
 
-/* Element avatar icons fill their container (profile hero, friends list, chat)
-   instead of sitting as a tiny 24px glyph in a large empty box. A small inset
-   keeps the emblem off the rounded border. */
+/* Keep element-mode avatars circular even where the generic profile/friend avatar
+   selectors use rounded-square frames for initials and uploaded photos. */
+.player-avatar-element.profile-avatar,
+.friend-avatar-wrap .player-avatar-element.friend-avatar {
+    border-radius: 50%;
+}
+
+/* Painted notch medallions fill the circular profile/friend avatar frame. */
 .player-avatar-element img {
     width: 100%;
     height: 100%;
-    object-fit: contain;
-    padding: 8%;
+    object-fit: cover;
+    padding: 0;
     box-sizing: border-box;
 }
 
