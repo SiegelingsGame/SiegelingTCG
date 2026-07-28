@@ -26,6 +26,10 @@ Original prompt: Akhars front should only feature that feature with an option to
 
 - July 28, 2026 Akhar's Front destination pass: the Keep map now shows only a compact distant mountain beacon for the Front; its wall, defenders, raiders, projectiles, and income badge stay hidden until entry. Entering the unlocked Front isolates the animated rampart battle from the Keep grounds, hides unrelated buildings and Keep navigation, and provides explicit Return to Keep and Manage rampart posts actions. The text-state contract reports `mode=akhars_front`, `location=akhars_front`, and return availability while inside. The branch is reconciled with current `main` at Keep pins `keep.css?v=34` / `keep.js?v=35`; focused Keep/static regressions, the complete Maven suite (325/325), and `git diff --check` pass. The required web-game client verified Keep grounds → Front → Return to Keep on that merged tree with no page/console errors, and the final screenshots were visually inspected. The connected GitHub app is authenticated for publication; production release verification is pending.
 
+Original prompt: Ok make sure that is displayed on the level sheet
+
+- July 28, 2026 Keeper's Journey follow-up: Raise Akhar's Front is now a real Keeper Level 8 destination unlock. The Level 8 card reads `Grand Keep · Project: Raise Akhar's Front`, while a qualified Level 7 keep sees the project locked until reaching Level 8. Focused Keep/static regressions and the complete Maven suite pass 325/325. The required web-game client rendered the user's Level 7/current-Chapter-II sheet with the Akhar project visible on the Level 8 card, no clipping, and no page/console errors; the screenshot was visually inspected.
+
 Original prompt: Update the metal, poison, water and electric notches and card backs
 
 Original prompt: Add the remaining notches and card backs for undead, psychic, shadow and light

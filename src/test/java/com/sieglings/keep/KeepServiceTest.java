@@ -1029,12 +1029,28 @@ class KeepServiceTest {
     @Test
     void akharsFrontUnlocksRampartPostsAndBanksPassiveSiegecoins() {
         service.getSnapshot(user);
+        store.state.setArchiveLevel(1);
+        store.state.setWoodlotLevel(2);
+        store.state.setStorehouseLevel(1);
         store.state.setEnclaveLevel(1);
         store.state.setHallLevel(3);
         store.state.getFacilityLevels().put("quarry", 1);
         store.state.getFacilityLastAccruedAt().put("quarry", clock.instant());
         store.state.getMaterialInventory().put("stone", 20);
         store.state.setTimber(500);
+
+        store.state.setKeeperXp(1_350); // Keeper Level 7: the destination project is visible but still locked.
+        Map<String, Object> levelSeven = service.getSnapshot(user);
+        Map<String, Object> lockedFront = buildOption(levelSeven, "build_akhars_front");
+        assertEquals(8, ((Number) lockedFront.get("requiredLevel")).intValue());
+        assertEquals(Boolean.FALSE, lockedFront.get("levelMet"));
+        Map<String, Object> keeper = (Map<String, Object>) levelSeven.get("keeper");
+        List<Map<String, Object>> levels = (List<Map<String, Object>>) keeper.get("levels");
+        assertEquals("Grand Keep · Project: Raise Akhar's Front", levels.get(7).get("unlockLabel"));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.startBuild(user, "build_akhars_front", "front-too-soon", store.state.getVersion()));
+
+        store.state.setKeeperXp(1_750); // Keeper Level 8 unlocks Akhar's Front.
 
         service.startBuild(user, "build_akhars_front", "front-build", store.state.getVersion());
         clock.advance(Duration.ofSeconds(KeepService.AKHARS_FRONT_BUILD_SECONDS + 1));
@@ -1092,6 +1108,12 @@ class KeepServiceTest {
     @SuppressWarnings("unchecked")
     private static Map<String, Object> recipe(Map<String, Object> snapshot, String id) {
         return ((List<Map<String, Object>>) snapshot.get("recipes")).stream()
+                .filter(item -> id.equals(item.get("id"))).findFirst().orElseThrow();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> buildOption(Map<String, Object> snapshot, String id) {
+        return ((List<Map<String, Object>>) snapshot.get("buildOptions")).stream()
                 .filter(item -> id.equals(item.get("id"))).findFirst().orElseThrow();
     }
 
