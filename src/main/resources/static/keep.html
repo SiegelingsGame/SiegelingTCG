@@ -9,7 +9,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#173f54">
-    <link rel="stylesheet" href="/css/keep.css?v=30">
+    <link rel="stylesheet" href="/css/keep.css?v=31">
 </head>
 <body>
 <svg class="keep-svg-defs" width="0" height="0" aria-hidden="true" focusable="false">
@@ -498,7 +498,10 @@
                 <button class="icon-button" id="journeyClose" type="button" aria-label="Close the Keeper's Journey">×</button>
             </header>
             <div class="journey-levelbar"><i><b id="journeyXpFill"></b></i></div>
-            <small class="journey-xp-label" id="journeyXpLabel"></small>
+            <div class="journey-toolbar">
+                <small class="journey-xp-label" id="journeyXpLabel"></small>
+                <button class="journey-toggle" id="journeyToggle" type="button" aria-expanded="false" aria-controls="journeyTrack">View all chapters</button>
+            </div>
             <div class="journey-track" id="journeyTrack" aria-label="Chapter and level timeline"></div>
         </div>
     </div>
@@ -583,7 +586,7 @@
 
 <audio id="keepTheme" loop preload="auto" src="/audio/sieglings-theme.mp3?v=1"></audio>
 <script src="/js/config.js?v=1"></script>
-<script src="/js/keep.js?v=31"></script>
+<script src="/js/keep.js?v=32"></script>
 <script src="/js/sw-register.js?v=1"></script>
 </body>
 </html>
