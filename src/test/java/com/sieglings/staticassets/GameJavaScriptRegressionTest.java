@@ -883,8 +883,8 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=30")
-                        && keepHtml.contains("/js/keep.js?v=31")
+                        && keepHtml.contains("/css/keep.css?v=32")
+                        && keepHtml.contains("/js/keep.js?v=33")
                         && keepHtml.contains("id=\"hallFavoriteResident\"")
                         && keepHtml.contains("id=\"constructionBannerJobs\"")
                         && keepJs.contains("constructionBannerSignature")
@@ -896,6 +896,19 @@ class GameJavaScriptRegressionTest {
                         && !keepJs.contains("+${constructions.length - 1} more")
                         && !keepJs.contains("Storage reached capacity\", `${name} stopped until collected`"),
                 "Keep architecture must retain its paper building hooks, refresh both asset cache pins, show the favorite in Covenant Hall, collapse storage-capacity offline alerts into one multi-line card, and show each concurrent construction job in the banner."
+        );
+        assertTrue(
+                keepHtml.contains("id=\"frontReturn\"")
+                        && keepHtml.contains("Return to Keep")
+                        && keepHtml.contains("id=\"frontManage\"")
+                        && keepJs.contains("function enterAkharsFront()")
+                        && keepJs.contains("function exitAkharsFront()")
+                        && keepJs.contains("state.frontView ? 'akhars_front' : 'keep'")
+                        && keepCss.contains(".keep-app.front-view-active .keep-dock")
+                        && keepCss.contains(".building-hotspot:not(.front-hotspot)")
+                        && keepCss.contains(".front-battle { position: absolute; inset: 0 0 33px; display: none;")
+                        && keepCss.contains(".keep-app.front-view-active .front-battle { display: block; }"),
+                "Akhar's Front must remain a compact map destination, reveal its battle only after entry, and provide a tested route back to the Keep grounds."
         );
         assertTrue(
                 keepCss.contains(".building-illustration svg.paper-building-shell")

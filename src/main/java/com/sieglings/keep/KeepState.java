@@ -20,6 +20,11 @@ public class KeepState {
     private int buildersYardLevel;
     private int enclaveLevel;
     private List<String> enclaveResidentIds = new ArrayList<>();
+    private int akharsFrontLevel;
+    private List<String> akharsFrontResidentIds = new ArrayList<>();
+    private int akharsFrontStoredGold;
+    private double akharsFrontProductionRemainder;
+    private Instant akharsFrontLastAccruedAt;
     private Map<String, Integer> enclaveMissionProgress = new LinkedHashMap<>();
     // Rapport tasks are repeatable, so progress resets on claim and the completion count
     // is tracked separately. Both maps are keyed "<residentId>:<taskId>"; residentRapport
@@ -102,6 +107,18 @@ public class KeepState {
     public void setEnclaveLevel(int enclaveLevel) { this.enclaveLevel = Math.max(0, enclaveLevel); }
     public List<String> getEnclaveResidentIds() { return enclaveResidentIds; }
     public void setEnclaveResidentIds(List<String> enclaveResidentIds) { this.enclaveResidentIds = copy(enclaveResidentIds); }
+    public int getAkharsFrontLevel() { return akharsFrontLevel; }
+    public void setAkharsFrontLevel(int value) { this.akharsFrontLevel = Math.max(0, value); }
+    public List<String> getAkharsFrontResidentIds() { return akharsFrontResidentIds; }
+    public void setAkharsFrontResidentIds(List<String> values) { this.akharsFrontResidentIds = copy(values); }
+    public int getAkharsFrontStoredGold() { return akharsFrontStoredGold; }
+    public void setAkharsFrontStoredGold(int value) { this.akharsFrontStoredGold = Math.max(0, value); }
+    public double getAkharsFrontProductionRemainder() { return akharsFrontProductionRemainder; }
+    public void setAkharsFrontProductionRemainder(double value) {
+        this.akharsFrontProductionRemainder = Double.isFinite(value) ? Math.max(0, Math.min(.999999999, value)) : 0;
+    }
+    public Instant getAkharsFrontLastAccruedAt() { return akharsFrontLastAccruedAt; }
+    public void setAkharsFrontLastAccruedAt(Instant value) { this.akharsFrontLastAccruedAt = value; }
     public Map<String, Integer> getEnclaveMissionProgress() { return enclaveMissionProgress; }
     public void setEnclaveMissionProgress(Map<String, Integer> enclaveMissionProgress) { this.enclaveMissionProgress = intMap(enclaveMissionProgress); }
     public Map<String, Integer> getEnclaveTaskProgress() { return enclaveTaskProgress; }

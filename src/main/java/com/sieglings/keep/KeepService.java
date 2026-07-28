@@ -56,6 +56,11 @@ public class KeepService {
     public static final int ENCLAVE_BUILD_COST = 240;
     public static final long ENCLAVE_BUILD_SECONDS = 7_200;
     private static final int ENCLAVE_CAPACITY = 5;
+    public static final int AKHARS_FRONT_BUILD_COST = 360;
+    public static final long AKHARS_FRONT_BUILD_SECONDS = 14_400;
+    private static final int AKHARS_FRONT_CAPACITY = 3;
+    private static final int AKHARS_FRONT_GOLD_CAPACITY = 360;
+    private static final double AKHARS_FRONT_GOLD_PER_MINUTE_PER_DEFENDER = 1.0;
     private static final int ROOM_DECORATION_CAPACITY = 6;
     private static final double STORAGE_ANNEX_BONUS = .50;
     private static final double STORAGE_DECORATION_BONUS = .25;
@@ -147,6 +152,7 @@ public class KeepService {
             Instant awaySince = state.getLastVisitedAt();
             List<String> beforeUnlocks = new ArrayList<>(state.getUnlockedLoreIds());
             int timberBefore = state.getWoodlotStored();
+            int frontGoldBefore = state.getAkharsFrontStoredGold();
             Map<String, Integer> facilityBefore = new LinkedHashMap<>(state.getFacilityStored());
             List<String> completedProjects = materializeConstructions(state, context.residents(), context.now());
             boolean completed = !completedProjects.isEmpty();
@@ -155,7 +161,7 @@ public class KeepService {
             boolean produced = completed || (returning && materializeAllProduction(state, context.residents(), context.now()));
             boolean visitorsChanged = refreshVisitors(state, context.now());
             Map<String, Object> offlineReport = offlineReport(state, awaySince, context.now(), timberBefore,
-                    facilityBefore, completedProjects, beforeUnlocks);
+                    frontGoldBefore, facilityBefore, completedProjects, beforeUnlocks);
             int dailyXp = grantDailyKeeperXp(state, context.now());
             state.setLastVisitedAt(context.now());
             if (completed || produced || visitorsChanged || dailyXp > 0) {
@@ -182,6 +188,7 @@ public class KeepService {
         return mutate(user, requestId, expectedVersion, context -> {
             KeepState state = context.state();
             String id = normalizeStationId(stationId);
+            if ("akhars_front".equals(id)) return collectAkharsFront(state, context);
             if (!"woodlot".equals(id)) return collectEssenceStation(state, context, id);
             int room = Math.max(0, timberInventoryCapacity(state) - state.getTimber());
             int grant = Math.min(room, projectedWoodlotAvailable(state, context.residents(), context.now()));
@@ -469,6 +476,32 @@ public class KeepService {
             assignments.set(slot, normalized);
             state.setEnclaveResidentIds(assignments);
             return Map.of("enclaveResidentChanged", true, "slot", slot, "residentId", normalized);
+        });
+    }
+
+    public Map<String, Object> setAkharsFrontResident(AccountUser user, int slot, String residentId,
+                                                       String requestId, long expectedVersion) {
+        return mutate(user, requestId, expectedVersion, context -> {
+            KeepState state = context.state();
+            if (state.getAkharsFrontLevel() < 1) throw new IllegalArgumentException("Unlock Akhar's Front first.");
+            if (slot < 0 || slot >= AKHARS_FRONT_CAPACITY) {
+                throw new IllegalArgumentException("Choose one of the three rampart posts.");
+            }
+            String normalized = residentId == null ? "" : residentId.trim();
+            if (!normalized.isBlank() && context.residents().stream().noneMatch(item -> item.id().equals(normalized))) {
+                throw new IllegalArgumentException("That Siegeling has not joined your collection yet.");
+            }
+            // Settle the old defender count before changing the passive-income rate.
+            materializeAkharsFront(state, context.residents(), context.now());
+            List<String> assignments = normalizedAkharsFrontResidents(state);
+            if (!normalized.isBlank()) {
+                for (int index = 0; index < assignments.size(); index++) {
+                    if (normalized.equals(assignments.get(index))) assignments.set(index, "");
+                }
+            }
+            assignments.set(slot, normalized);
+            state.setAkharsFrontResidentIds(assignments);
+            return Map.of("akharsFrontResidentChanged", true, "slot", slot, "residentId", normalized);
         });
     }
 
@@ -821,6 +854,9 @@ public class KeepService {
 
     private void repairDefaults(KeepState state, Instant now) {
         if (state.getWoodlotLastAccruedAt() == null) state.setWoodlotLastAccruedAt(now);
+        if (state.getAkharsFrontLevel() > 0 && state.getAkharsFrontLastAccruedAt() == null) {
+            state.setAkharsFrontLastAccruedAt(now);
+        }
         if (state.getCreatedAt() == null) state.setCreatedAt(now);
         if (state.getLastVisitedAt() == null) state.setLastVisitedAt(state.getUpdatedAt() == null ? now : state.getUpdatedAt());
         for (String id : FACILITIES.keySet()) {
@@ -933,6 +969,9 @@ public class KeepService {
             state.setBuildersYardLevel(Math.max(1, state.getBuildersYardLevel()));
         } else if ("build_enclave".equals(id)) {
             state.setEnclaveLevel(1);
+        } else if ("build_akhars_front".equals(id)) {
+            state.setAkharsFrontLevel(1);
+            state.setAkharsFrontLastAccruedAt(completesAt);
         } else if (storageProjectRoom(id) != null) {
             state.getStorageUpgradeLevels().put(storageProjectRoom(id), 1);
         } else if (id.startsWith("hall_level_")) {
@@ -964,10 +1003,51 @@ public class KeepService {
 
     private boolean materializeAllProduction(KeepState state, List<Resident> residents, Instant at) {
         int beforeWoodlot = state.getWoodlotStored();
+        int beforeFront = state.getAkharsFrontStoredGold();
         Map<String, Integer> beforeFacilities = new LinkedHashMap<>(state.getFacilityStored());
         materializeProduction(state, residents, at);
         for (String id : FACILITIES.keySet()) materializeFacilityProduction(state, residents, id, at);
-        return beforeWoodlot != state.getWoodlotStored() || !beforeFacilities.equals(state.getFacilityStored());
+        materializeAkharsFront(state, residents, at);
+        return beforeWoodlot != state.getWoodlotStored()
+                || beforeFront != state.getAkharsFrontStoredGold()
+                || !beforeFacilities.equals(state.getFacilityStored());
+    }
+
+    private void materializeAkharsFront(KeepState state, List<Resident> residents, Instant at) {
+        if (state.getAkharsFrontLevel() < 1) return;
+        Instant last = state.getAkharsFrontLastAccruedAt();
+        if (last == null) {
+            state.setAkharsFrontLastAccruedAt(at);
+            return;
+        }
+        if (!at.isAfter(last)) return;
+        long seconds = Duration.between(last, at).getSeconds();
+        int room = Math.max(0, AKHARS_FRONT_GOLD_CAPACITY - state.getAkharsFrontStoredGold());
+        double exact = seconds * akharsFrontRate(state, residents) / 60.0
+                + state.getAkharsFrontProductionRemainder();
+        long produced = Math.max(0, (long) Math.floor(exact + 1e-9));
+        int stored = (int) Math.min(room, produced);
+        state.setAkharsFrontStoredGold(state.getAkharsFrontStoredGold() + stored);
+        state.setAkharsFrontProductionRemainder(produced >= room ? 0 : exact - produced);
+        state.setAkharsFrontLastAccruedAt(at);
+    }
+
+    private double akharsFrontRate(KeepState state, List<Resident> residents) {
+        if (state.getAkharsFrontLevel() < 1) return 0;
+        Set<String> owned = residents.stream().map(Resident::id).collect(Collectors.toSet());
+        long defenders = normalizedAkharsFrontResidents(state).stream()
+                .filter(id -> !id.isBlank() && owned.contains(id)).count();
+        return defenders * AKHARS_FRONT_GOLD_PER_MINUTE_PER_DEFENDER * (1 + favoriteBoost(state, residents));
+    }
+
+    private int projectedAkharsFrontAvailable(KeepState state, List<Resident> residents, Instant at) {
+        if (state.getAkharsFrontLevel() < 1) return 0;
+        Instant last = state.getAkharsFrontLastAccruedAt();
+        if (last == null || !at.isAfter(last)) return state.getAkharsFrontStoredGold();
+        double exact = Duration.between(last, at).getSeconds() * akharsFrontRate(state, residents) / 60.0
+                + state.getAkharsFrontProductionRemainder();
+        return Math.min(AKHARS_FRONT_GOLD_CAPACITY,
+                state.getAkharsFrontStoredGold() + Math.max(0, (int) Math.floor(exact + 1e-9)));
     }
 
     private void materializeFacilityProduction(KeepState state, List<Resident> residents, String id, Instant at) {
@@ -1131,6 +1211,20 @@ public class KeepService {
         return collected;
     }
 
+    private Map<String, Object> collectAkharsFront(KeepState state, Context context) {
+        if (state.getAkharsFrontLevel() < 1) throw new IllegalArgumentException("Unlock Akhar's Front first.");
+        int grant = projectedAkharsFrontAvailable(state, context.residents(), context.now());
+        if (grant <= 0) throw new IllegalArgumentException("The rampart patrol has not earned any Siegecoins yet.");
+        materializeAkharsFront(state, context.residents(), context.now());
+        grant = state.getAkharsFrontStoredGold();
+        state.setAkharsFrontStoredGold(0);
+        context.progression().setGold(context.progression().getGold() + grant);
+        context.progression().setUpdatedAt(context.now());
+        if (progressionStore != null) progressionStore.save(context.progression());
+        return Map.of("collected", Map.of(
+                "resource", "SIEGECOINS", "resourceName", "Siegecoins", "amount", grant, "stationId", "akhars_front"));
+    }
+
     private String normalizeStationId(String stationId) {
         String id = stationId == null ? "" : stationId.trim().toLowerCase(Locale.ROOT);
         return id.isBlank() ? "woodlot" : id;
@@ -1185,6 +1279,15 @@ public class KeepService {
         List<String> residents = new ArrayList<>(state.getEnclaveResidentIds());
         if (residents.size() > ENCLAVE_CAPACITY) residents = new ArrayList<>(residents.subList(0, ENCLAVE_CAPACITY));
         while (residents.size() < ENCLAVE_CAPACITY) residents.add("");
+        return residents;
+    }
+
+    private List<String> normalizedAkharsFrontResidents(KeepState state) {
+        List<String> residents = new ArrayList<>(state.getAkharsFrontResidentIds());
+        if (residents.size() > AKHARS_FRONT_CAPACITY) {
+            residents = new ArrayList<>(residents.subList(0, AKHARS_FRONT_CAPACITY));
+        }
+        while (residents.size() < AKHARS_FRONT_CAPACITY) residents.add("");
         return residents;
     }
 
@@ -1344,7 +1447,7 @@ public class KeepService {
     }
 
     private Map<String, Object> offlineReport(KeepState state, Instant awaySince, Instant now,
-                                               int timberBefore, Map<String, Integer> facilityBefore,
+                                               int timberBefore, int frontGoldBefore, Map<String, Integer> facilityBefore,
                                                List<String> completedProjects, List<String> beforeUnlocks) {
         if (awaySince == null || !now.isAfter(awaySince)
                 || Duration.between(awaySince, now).compareTo(OFFLINE_REPORT_THRESHOLD) < 0) return null;
@@ -1353,6 +1456,10 @@ public class KeepService {
         if (timberProduced > 0) produced.add(Map.of(
                 "stationId", "woodlot", "stationName", "Restorative Woodlot",
                 "resource", "TIMBER", "amount", timberProduced));
+        int frontGoldProduced = Math.max(0, state.getAkharsFrontStoredGold() - frontGoldBefore);
+        if (frontGoldProduced > 0) produced.add(Map.of(
+                "stationId", "akhars_front", "stationName", "Akhar's Front",
+                "resource", "SIEGECOINS", "resourceName", "Siegecoins", "amount", frontGoldProduced));
         for (FacilityDefinition definition : FACILITIES.values()) {
             int amount = Math.max(0, state.getFacilityStored().getOrDefault(definition.id(), 0)
                     - facilityBefore.getOrDefault(definition.id(), 0));
@@ -1373,6 +1480,9 @@ public class KeepService {
                 .toList();
         List<String> capsReached = new ArrayList<>();
         if (state.getWoodlotStored() >= woodlotStorageCapacity(state)) capsReached.add("Restorative Woodlot");
+        if (state.getAkharsFrontLevel() > 0 && state.getAkharsFrontStoredGold() >= AKHARS_FRONT_GOLD_CAPACITY) {
+            capsReached.add("Akhar's Front");
+        }
         for (FacilityDefinition definition : FACILITIES.values()) {
             if (facilityLevel(state, definition.id()) > 0
                     && state.getFacilityStored().getOrDefault(definition.id(), 0) >= facilityStorageCapacity(state, definition.id())) {
@@ -1508,6 +1618,32 @@ public class KeepService {
         return out;
     }
 
+    private Map<String, Object> akharsFront(KeepState state, List<Resident> residents, Instant now) {
+        List<String> assigned = normalizedAkharsFrontResidents(state);
+        List<Map<String, Object>> slots = new ArrayList<>();
+        for (int index = 0; index < AKHARS_FRONT_CAPACITY; index++) {
+            String residentId = assigned.get(index);
+            Resident resident = residents.stream().filter(item -> item.id().equals(residentId)).findFirst().orElse(null);
+            Map<String, Object> slot = new LinkedHashMap<>();
+            slot.put("slot", index);
+            slot.put("residentId", resident == null ? "" : resident.id());
+            slot.put("resident", resident == null ? null : serializeResident(state, resident));
+            slots.add(slot);
+        }
+        int available = projectedAkharsFrontAvailable(state, residents, now);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("built", state.getAkharsFrontLevel() > 0);
+        out.put("level", state.getAkharsFrontLevel());
+        out.put("capacity", AKHARS_FRONT_CAPACITY);
+        out.put("residentCount", assigned.stream().filter(id -> !id.isBlank()).count());
+        out.put("available", available);
+        out.put("storageCapacity", AKHARS_FRONT_GOLD_CAPACITY);
+        out.put("ratePerMinute", akharsFrontRate(state, residents));
+        out.put("isFull", available >= AKHARS_FRONT_GOLD_CAPACITY);
+        out.put("slots", slots);
+        return out;
+    }
+
     /** Where a Siegeling is currently working, so the Enclave can offer the unassigned ones
         first and tag the rest as a reassignment rather than a free invite. */
     private Map<String, Object> residentAssignment(KeepState state, String residentId) {
@@ -1535,6 +1671,15 @@ public class KeepService {
                     type = "ENCLAVE";
                     id = String.valueOf(slot);
                     label = "Enclave space " + (slot + 1);
+                }
+            }
+            if (type.isEmpty() && state.getAkharsFrontLevel() > 0) {
+                List<String> frontIds = normalizedAkharsFrontResidents(state);
+                int slot = frontIds.indexOf(residentId);
+                if (slot >= 0) {
+                    type = "FRONT";
+                    id = String.valueOf(slot);
+                    label = "Akhar's Front post " + (slot + 1);
                 }
             }
         }
@@ -1733,6 +1878,8 @@ public class KeepService {
             case "build_kitchen" -> new BuildProject(id, "Warm the Garden Kitchen", 210, Map.of(), 5_400);
             case "build_builders_yard" -> new BuildProject(id, "Raise the Builder's Yard", 260, Map.of("stone", 18), 10_800);
             case "build_enclave" -> new BuildProject(id, "Raise the Siegeling Enclave", ENCLAVE_BUILD_COST, Map.of(), ENCLAVE_BUILD_SECONDS);
+            case "build_akhars_front" -> new BuildProject(id, "Raise Akhar's Front", AKHARS_FRONT_BUILD_COST,
+                    Map.of("stone", 20), AKHARS_FRONT_BUILD_SECONDS);
             case "storehouse_level_2" -> new BuildProject(id, "Vault the Storehouse", 320,
                     Map.of("verdant_fiber", 18, "ember_ingot", 12, "frost_crystal", 12, "storm_cell", 8), 28_800);
             case "hall_level_2" -> new BuildProject(id, "Raise the Timber Outpost", 120, Map.of(), 900);
@@ -1776,6 +1923,8 @@ public class KeepService {
             case "build_kitchen" -> state.getStorehouseLevel() >= 1 && facilityLevel(state, "kitchen") < 1;
             case "build_builders_yard" -> facilityLevel(state, "quarry") >= 1 && state.getBuildersYardLevel() < 1;
             case "build_enclave" -> state.getArchiveLevel() >= 1 && state.getEnclaveLevel() < 1;
+            case "build_akhars_front" -> state.getEnclaveLevel() >= 1 && hallLevel(state) >= 3
+                    && facilityLevel(state, "quarry") >= 1 && state.getAkharsFrontLevel() < 1;
             case "storehouse_level_2" -> elementalFacilitiesAtLeast(state, 1) && state.getStorehouseLevel() < 2
                     && state.getBuildersYardLevel() >= 1;
             case "hall_level_2", "hall_level_3", "hall_level_4", "hall_level_5",
@@ -2213,13 +2362,16 @@ public class KeepService {
         out.put("residents", residentPayload);
         int siegelingSlotCapacity = 1 + (int) FACILITIES.keySet().stream()
                 .filter(id -> facilityLevel(state, id) > 0).count()
-                + (state.getEnclaveLevel() > 0 ? ENCLAVE_CAPACITY : 0);
+                + (state.getEnclaveLevel() > 0 ? ENCLAVE_CAPACITY : 0)
+                + (state.getAkharsFrontLevel() > 0 ? AKHARS_FRONT_CAPACITY : 0);
         int activeSiegelingSlots = (state.getWoodlotResidentId().isBlank() ? 0 : 1)
                 + (int) FACILITIES.keySet().stream()
                 .filter(id -> facilityLevel(state, id) > 0)
                 .filter(id -> !state.getFacilityResidentIds().getOrDefault(id, "").isBlank()).count()
                 + (state.getEnclaveLevel() > 0
-                    ? (int) normalizedEnclaveResidents(state).stream().filter(id -> !id.isBlank()).count() : 0);
+                    ? (int) normalizedEnclaveResidents(state).stream().filter(id -> !id.isBlank()).count() : 0)
+                + (state.getAkharsFrontLevel() > 0
+                    ? (int) normalizedAkharsFrontResidents(state).stream().filter(id -> !id.isBlank()).count() : 0);
         out.put("siegelingSlots", Map.of(
                 "active", activeSiegelingSlots,
                 "capacity", siegelingSlotCapacity,
@@ -2239,6 +2391,7 @@ public class KeepService {
         visualState.put("hallTheme", state.getHallThemeId().isBlank() ? "covenant" : state.getHallThemeId());
         visualState.put("buildersYardLevel", state.getBuildersYardLevel());
         visualState.put("enclaveLevel", state.getEnclaveLevel());
+        visualState.put("akharsFrontLevel", state.getAkharsFrontLevel());
         visualState.put("favoriteSet", !state.getFavoriteResidentId().isBlank());
         FACILITIES.keySet().forEach(id -> visualState.put(id + "Level", facilityLevel(state, id)));
         out.put("visualState", visualState);
@@ -2292,6 +2445,7 @@ public class KeepService {
         out.put("decorations", decorations(state));
         out.put("placedDecorations", state.getPlacedDecorations());
         out.put("enclave", enclave(state, progression, residents));
+        out.put("akharsFront", akharsFront(state, residents, now));
         out.put("milestones", milestones(state, progression, now));
         out.put("weeklyTribute", weeklyTribute(state, progression, residents, now));
         out.put("weeklyOrder", weeklyOrder(state, progression, residents, now));
@@ -2322,6 +2476,9 @@ public class KeepService {
         out.add(building("enclave", state.getEnclaveLevel() > 0 ? "Siegeling Enclave" : "Enclave Clearing",
                 state.getEnclaveLevel(), isConstructing(state, "build_enclave") ? "CONSTRUCTING"
                         : state.getEnclaveLevel() > 0 ? "COMPLETE" : "FOUNDATIONS"));
+        out.add(building("akhars_front", state.getAkharsFrontLevel() > 0 ? "Akhar's Front" : "Distant Front",
+                state.getAkharsFrontLevel(), isConstructing(state, "build_akhars_front") ? "CONSTRUCTING"
+                        : state.getAkharsFrontLevel() > 0 ? "COMPLETE" : "LOCKED"));
         out.add(building("storehouse", state.getStorehouseLevel() > 0 ? "Covenant Storehouse" : "Storehouse Foundations",
                 state.getStorehouseLevel(), constructionStatus(state, "raise_storehouse", "storehouse_level_2", state.getStorehouseLevel())));
         for (FacilityDefinition definition : FACILITIES.values()) {
@@ -2407,6 +2564,7 @@ public class KeepService {
         }
         addHallUpgradeOption(state, out);
         addEnclaveBuildOption(state, out);
+        addAkharsFrontBuildOption(state, out);
         return out;
     }
 
@@ -2416,6 +2574,16 @@ public class KeepService {
         out.add(buildOption(state, project.id(), project.name(), project.timberCost(), project.materialCosts(),
                 project.durationSeconds(),
                 "A home apart from the work quarter, with five resident spaces and a personal mission from every guest.", true));
+    }
+
+    private void addAkharsFrontBuildOption(KeepState state, List<Map<String, Object>> out) {
+        if (state.getEnclaveLevel() < 1 || hallLevel(state) < 3 || facilityLevel(state, "quarry") < 1
+                || state.getAkharsFrontLevel() > 0 || isConstructing(state, "build_akhars_front")) return;
+        BuildProject project = buildProject("build_akhars_front");
+        out.add(buildOption(state, project.id(), project.name(), project.timberCost(), project.materialCosts(),
+                project.durationSeconds(),
+                "Fortify the road with three voluntary rampart posts. Defenders repel Akhar's raiders and earn Siegecoins while you are away.",
+                true));
     }
 
     /** The next hall rank appears alongside other projects once its gate is met. */

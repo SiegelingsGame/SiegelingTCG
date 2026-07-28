@@ -67,6 +67,7 @@
         snapshot: null,
         panel: '',
         interior: '',
+        frontView: false,
         tutorialStep: -1,
         loreFilter: 'ALL',
         expandedLoreId: '',
@@ -85,6 +86,7 @@
         // Which Enclave space has its assign menu open (-1 = none). Kept in state rather than
         // in the DOM because every snapshot refresh re-renders the panel body.
         enclavePickerSlot: -1,
+        frontPickerSlot: -1,
         selectedRelationshipId: '',
         inventoryFilter: 'ALL',
         pendingOfflineReport: null,
@@ -131,6 +133,8 @@
         document.addEventListener('click', handleClick);
         document.getElementById('panelClose')?.addEventListener('click', closePanel);
         document.getElementById('panelScrim')?.addEventListener('click', closePanel);
+        document.getElementById('frontReturn')?.addEventListener('click', exitAkharsFront);
+        document.getElementById('frontManage')?.addEventListener('click', () => openPanel('building:akhars_front'));
         document.getElementById('dialogueClose')?.addEventListener('click', closeDialogue);
         document.getElementById('dialogueOverlay')?.addEventListener('click', (event) => {
             if (event.target.id === 'dialogueOverlay') closeDialogue();
@@ -173,6 +177,7 @@
                 else if (!document.getElementById('journeyOverlay')?.classList.contains('hidden')) closeJourney();
                 else if (!document.getElementById('dialogueOverlay')?.classList.contains('hidden')) closeDialogue();
                 else if (state.panel) closePanel();
+                else if (state.frontView) exitAkharsFront();
                 else closeInterior();
             }
         });
@@ -288,6 +293,11 @@
         if (building) {
             if (building.dataset.building === 'facilities') openPanel('facilities');
             else if (building.dataset.building === 'enclave' && !state.snapshot?.enclave?.built) openPanel('projects');
+            else if (building.dataset.building === 'akhars_front') {
+                if (state.snapshot?.akharsFront?.built && state.frontView) openPanel('building:akhars_front');
+                else if (state.snapshot?.akharsFront?.built) enterAkharsFront();
+                else openPanel('projects');
+            }
             else openInterior(building.dataset.building);
             return;
         }
@@ -301,6 +311,18 @@
         const enclaveResident = event.target.closest('[data-enclave-resident]');
         if (enclaveResident) {
             void setEnclaveResident(number(enclaveResident.dataset.enclaveSlot), enclaveResident.dataset.enclaveResident);
+            return;
+        }
+        const frontPicker = event.target.closest('[data-front-picker]');
+        if (frontPicker) {
+            const slot = Number(frontPicker.dataset.frontPicker);
+            state.frontPickerSlot = state.frontPickerSlot === slot ? -1 : slot;
+            renderPanel();
+            return;
+        }
+        const frontResident = event.target.closest('[data-front-resident]');
+        if (frontResident) {
+            void setAkharsFrontResident(number(frontResident.dataset.frontSlot), frontResident.dataset.frontResident);
             return;
         }
         const noticeLore = event.target.closest('[data-notice-lore]');
@@ -466,6 +488,15 @@
     }
 
     async function collectStation(stationId) {
+        if (stationId === 'akhars_front') {
+            if (projectedAkharsFrontAvailable() <= 0) return;
+            const data = await perform('/api/keep/collect', { stationId });
+            if (data?.collected) {
+                playCollectBurst(stationId, number(data.collected.amount));
+                showNotice(`+${number(data.collected.amount)} Siegecoins from the rampart patrol.`, "Akhar's Front");
+            }
+            return;
+        }
         const station = stationById(stationId);
         if (!station || projectedStationAvailable(station) <= 0) return;
         const data = await perform('/api/keep/collect', { stationId });
@@ -499,6 +530,12 @@
         // Picking the resident who already lives here is the "let them leave" action.
         state.enclavePickerSlot = -1;
         await perform('/api/keep/enclave/resident', { slot, residentId: current === residentId ? '' : residentId });
+    }
+
+    async function setAkharsFrontResident(slot, residentId) {
+        const current = state.snapshot?.akharsFront?.slots?.[slot]?.residentId || '';
+        state.frontPickerSlot = -1;
+        await perform('/api/keep/akhars-front/resident', { slot, residentId: current === residentId ? '' : residentId });
     }
 
     async function claimReward(rewardId) {
@@ -672,6 +709,7 @@
             scene.dataset.kitchenLevel = String(number(visual.kitchenLevel));
             scene.dataset.buildersYardLevel = String(number(visual.buildersYardLevel));
             scene.dataset.enclaveLevel = String(number(visual.enclaveLevel));
+            scene.dataset.akharsFrontLevel = String(number(visual.akharsFrontLevel));
             scene.dataset.hallLevel = String(hallLevel);
             scene.dataset.hallTheme = visual.hallTheme || 'covenant';
             for (let level = 2; level <= HALL_MAX_LEVEL; level++) scene.classList.toggle(`hall-l${level}`, hallLevel >= level);
@@ -698,6 +736,14 @@
                 total + (slot.tasks || []).filter((task) => task.complete).length, 0);
         document.getElementById('enclaveMissionAlert')?.classList.toggle('hidden', readyTasks <= 0);
         renderEnclaveResidents();
+        const front = snapshot.akharsFront || {};
+        if (scene) scene.dataset.frontDefenders = String(number(front.residentCount));
+        text('frontLabel', front.built
+            ? `${number(front.residentCount)}/${number(front.capacity) || 3} defenders · passive income`
+            : 'Unlock after the Enclave and Quarry');
+        document.getElementById('frontIncome')?.classList.toggle('hidden', !front.built);
+        document.getElementById('frontLock')?.classList.toggle('hidden', Boolean(front.built));
+        renderAkharsFrontResidents();
 
         const station = snapshot.station || {};
         text('woodlotLabel', `Level ${number(station.level) || 1} · ${formatRate(station.ratePerMinute)}/min`);
@@ -745,6 +791,7 @@
         text('stationAvailable', totalReady);
         renderHeaderCapacityCounters();
         text('collectAmount', `${available} timber`);
+        text('frontReadyAmount', String(projectedAkharsFrontAvailable()));
         const collect = document.getElementById('collectButton');
         if (collect) collect.disabled = available <= 0 || number(state.snapshot.resources?.timber) >= number(state.snapshot.resources?.timberCapacity) || state.busy;
         document.getElementById('productionReady')?.classList.toggle('hidden', available <= 0);
@@ -794,7 +841,8 @@
         const snapshot = state.snapshot || {};
         const slots = snapshot.siegelingSlots || {};
         const activeSiegelings = (snapshot.stations || [snapshot.station]).filter((station) => station?.residentId).length
-            + (snapshot.enclave?.slots || []).filter((slot) => slot?.residentId).length;
+            + (snapshot.enclave?.slots || []).filter((slot) => slot?.residentId).length
+            + (snapshot.akharsFront?.slots || []).filter((slot) => slot?.residentId).length;
         const siegelingCapacity = Math.max(1, activeSiegelings, number(slots.capacity));
         text('siegelingSlotAmount', `${activeSiegelings}/${siegelingCapacity}`);
         const siegelingPill = document.querySelector('.siegeling-pill');
@@ -840,12 +888,23 @@
         });
     }
 
+    function renderAkharsFrontResidents() {
+        const slots = state.snapshot?.akharsFront?.slots || [];
+        document.querySelectorAll('[data-front-resident-slot]').forEach((node) => {
+            const slot = slots[number(node.dataset.frontResidentSlot)] || {};
+            node.classList.toggle('has-resident', Boolean(slot.resident));
+            setResidentOverlayArt(node, slot.resident || null);
+            node.title = slot.resident?.name || '';
+        });
+    }
+
     function constructionTarget(constructionId) {
         const id = String(constructionId || '');
         if (!id) return '';
         if (id.startsWith('hall_level_')) return 'hall';
         if (id === 'restore_archive') return 'archive';
         if (id === 'build_enclave') return 'enclave';
+        if (id === 'build_akhars_front') return 'akhars_front';
         if (id === 'woodlot_level_2') return 'woodlot';
         if (id === 'raise_storehouse' || id === 'storehouse_level_2') return 'storehouse';
         if (id.startsWith('build_')) return id.slice('build_'.length);
@@ -854,7 +913,9 @@
     }
 
     function playCollectBurst(stationId, amount) {
-        const anchor = stationId === 'woodlot'
+        const anchor = stationId === 'akhars_front'
+            ? document.querySelector('.front-hotspot')
+            : stationId === 'woodlot'
             ? document.querySelector('.woodlot-hotspot')
             : document.querySelector(`.quarter-building[data-stockpile="${stationId}"]`)
                 || document.querySelector('.quarter-hotspot');
@@ -959,6 +1020,33 @@
         document.getElementById('keepPanel')?.setAttribute('aria-hidden', 'true');
     }
 
+    function enterAkharsFront() {
+        if (!state.snapshot?.akharsFront?.built) {
+            openPanel('projects');
+            return;
+        }
+        closePanel();
+        closeInterior();
+        setZoom(1);
+        state.frontView = true;
+        document.getElementById('keepApp')?.classList.add('front-view-active');
+        document.getElementById('frontViewToolbar')?.setAttribute('aria-hidden', 'false');
+        const hotspot = document.querySelector('.front-hotspot');
+        hotspot?.setAttribute('aria-label', "Manage Akhar's Front rampart posts");
+        document.getElementById('frontReturn')?.focus({ preventScroll: true });
+    }
+
+    function exitAkharsFront() {
+        if (!state.frontView) return;
+        closePanel();
+        state.frontView = false;
+        document.getElementById('keepApp')?.classList.remove('front-view-active');
+        document.getElementById('frontViewToolbar')?.setAttribute('aria-hidden', 'true');
+        const hotspot = document.querySelector('.front-hotspot');
+        hotspot?.setAttribute('aria-label', "Enter Akhar's Front");
+        hotspot?.focus({ preventScroll: true });
+    }
+
     function renderPanel() {
         if (!state.snapshot || !state.panel) return;
         const body = document.getElementById('panelBody');
@@ -1013,6 +1101,10 @@
             const enclave = state.snapshot.enclave || {};
             return { title: 'Siegeling Enclave', kicker: enclave.built ? `${number(enclave.residentCount)}/${number(enclave.capacity) || 5} residents` : 'A sanctuary within the sanctuary' };
         }
+        if (id === 'akhars_front') {
+            const front = state.snapshot.akharsFront || {};
+            return { title: "Akhar's Front", kicker: front.built ? `${number(front.residentCount)}/${number(front.capacity) || 3} rampart posts` : 'Distant front' };
+        }
         const station = stationById(id);
         if (station) return { title: station.name, kicker: `Level ${number(station.level)} · ${station.resourceName || 'Elemental workshop'}` };
         const rank = state.snapshot.keepRank || {};
@@ -1040,6 +1132,7 @@
                 : `<p class="panel-intro">A collapsed record hall lies beneath the eastern wall. Its stones protect letters from the Age Before Cards.</p>${projectsMarkup()}`;
         }
         if (id === 'enclave') return enclaveMarkup();
+        if (id === 'akhars_front') return akharsFrontMarkup();
         if (stationById(id)) return facilityInteriorMarkup(id);
         return `<p class="panel-intro">The sanctuary is founded on Stewardship, Consent, and Shelter.</p>${rankCardMarkup()}${favoriteChooserMarkup()}<section class="detail-card"><h3>The Keeper's Charter</h3><p>No Siegeling will be compelled to labor or fight. The land will be repaired rather than consumed, and those hunted by Akhar may seek refuge here.</p><div class="button-row"><button class="panel-button" type="button" data-open-panel="chronicle">Read the charter</button></div></section>${themePickerMarkup()}${craftingMarkup('great_hall')}`;
     }
@@ -2193,6 +2286,14 @@
         snapshot.serverTime = new Date(nowMs()).toISOString();
         if (path.endsWith('/collect')) {
             const stationId = body.stationId || 'woodlot';
+            if (stationId === 'akhars_front') {
+                const amount = projectedAkharsFrontAvailable();
+                snapshot.resources.gold = number(snapshot.resources.gold) + amount;
+                if (snapshot.akharsFront) snapshot.akharsFront.available = 0;
+                snapshot.collected = { resource: 'SIEGECOINS', resourceName: 'Siegecoins', amount, stationId };
+                window.__KEEP_TEST_SNAPSHOT__ = clone(snapshot);
+                return Promise.resolve(snapshot);
+            }
             const station = (snapshot.stations || [snapshot.station]).find((item) => item.id === stationId) || snapshot.station;
             const amount = projectedStationAvailable(station);
             if (stationId === 'woodlot') {
@@ -2244,6 +2345,23 @@
                 snapshot.enclave.residentCount = slots.filter((item) => item.resident).length;
                 snapshot.enclave.readyTaskCount = slots.reduce((total, item) =>
                     total + (item.tasks || []).filter((task) => task.complete).length, 0);
+            }
+        } else if (path.endsWith('/akhars-front/resident')) {
+            const slots = snapshot.akharsFront?.slots || [];
+            for (const item of slots) {
+                if (body.residentId && item.residentId === body.residentId) {
+                    item.residentId = ''; item.resident = null;
+                }
+            }
+            const slot = slots[number(body.slot)];
+            if (slot) {
+                const resident = (snapshot.residents || []).find((item) => item.id === body.residentId) || null;
+                slot.residentId = resident?.id || '';
+                slot.resident = resident;
+            }
+            if (snapshot.akharsFront) {
+                snapshot.akharsFront.residentCount = slots.filter((item) => item.resident).length;
+                snapshot.akharsFront.ratePerMinute = snapshot.akharsFront.residentCount;
             }
         } else if (path.endsWith('/build')) {
             const option = (snapshot.buildOptions || []).find((item) => item.id === body.buildId);
@@ -2461,6 +2579,13 @@
             while (snapshot.enclave.slots.length < 5) snapshot.enclave.slots.push({ slot: snapshot.enclave.slots.length, residentId: '', resident: null, mission: null });
             const enclave = (snapshot.buildings || []).find((item) => item.id === 'enclave');
             if (enclave) { enclave.level = 1; enclave.status = 'COMPLETE'; enclave.name = 'Siegeling Enclave'; }
+        } else if (construction.id === 'build_akhars_front') {
+            snapshot.visualState.akharsFrontLevel = 1;
+            snapshot.akharsFront = { built: true, level: 1, capacity: 3, residentCount: 0,
+                available: 0, storageCapacity: 360, ratePerMinute: 0, isFull: false,
+                slots: [0, 1, 2].map((slot) => ({ slot, residentId: '', resident: null })) };
+            const front = (snapshot.buildings || []).find((item) => item.id === 'akhars_front');
+            if (front) { front.level = 1; front.status = 'COMPLETE'; front.name = "Akhar's Front"; }
         } else if (String(construction.id).startsWith('hall_level_')) {
             const level = number(String(construction.id).slice('hall_level_'.length));
             if (snapshot.visualState) snapshot.visualState.hallLevel = level;
@@ -2476,6 +2601,53 @@
 
     function projectedAvailable() {
         return projectedStationAvailable(state.snapshot?.station);
+    }
+
+    function akharsFrontMarkup() {
+        const front = state.snapshot.akharsFront || {};
+        if (!front.built) return `<p class="panel-intro">Fortify the road beyond the Keep. Once raised, three Siegelings can volunteer for the ramparts, repel Akhar's raiders, and earn Siegecoins while you are away.</p>${projectsMarkup()}`;
+        const ready = projectedAkharsFrontAvailable();
+        const capacity = Math.max(1, number(front.storageCapacity));
+        return `<p class="panel-intro">Siegelings posted here attack approaching dark raiders from the safety of the ramparts. Every occupied post earns passive Siegecoins; posted Siegelings remain available for decks and battles.</p>
+            <section class="detail-card front-income-card">
+                <span class="eyebrow">Passive income</span><h3>${ready} Siegecoins ready</h3>
+                <div class="meter"><i style="width:${clamp(ready / capacity * 100, 0, 100)}%"></i></div>
+                <div class="cost-row"><span>${escapeHtml(formatRate(front.ratePerMinute))} per minute</span><strong>${capacity} storage</strong></div>
+                <button class="panel-button" type="button" data-collect-station="akhars_front" ${ready <= 0 ? 'disabled' : ''}>Collect Siegecoins</button>
+            </section>
+            <div class="front-post-list">${(front.slots || []).map((slot, index) => akharsFrontSlotMarkup(slot || {}, index)).join('')}</div>`;
+    }
+
+    function akharsFrontSlotMarkup(slot, index) {
+        const resident = slot.resident;
+        const pickerOpen = state.frontPickerSlot === index;
+        const seat = resident
+            ? `<div class="enclave-current"><button type="button" class="enclave-portrait front-portrait" data-front-picker="${index}"
+                    style="--resident-color:${escapeAttr(elementColors[resident.element] || elementColors.NEUTRAL)}" aria-expanded="${pickerOpen ? 'true' : 'false'}"
+                    aria-label="Change the defender at rampart post ${index + 1}. ${escapeAttr(resident.name)} is posted here now.">
+                    ${residentAvatarContent(resident)}<i class="enclave-portrait-hint" aria-hidden="true">Swap</i></button>
+                    <div><h3>${escapeHtml(resident.name)}</h3><small>${escapeHtml(titleCase(resident.element))} · ${escapeHtml(titleCase(resident.rarity))} · defending the rampart</small></div></div>`
+            : `<button type="button" class="enclave-empty-seat" data-front-picker="${index}" aria-expanded="${pickerOpen ? 'true' : 'false'}"><span aria-hidden="true">+</span><small>Post a Siegeling on this rampart</small></button>`;
+        return `<section class="detail-card enclave-slot-card front-post-card ${pickerOpen ? 'is-picking' : ''}"><span class="eyebrow">Rampart post ${index + 1}</span>${seat}${pickerOpen ? akharsFrontPickerMarkup(slot, index) : ''}</section>`;
+    }
+
+    function akharsFrontPickerMarkup(slot, index) {
+        const residents = state.snapshot.residents || [];
+        const seated = slot.residentId || '';
+        const choices = residents.filter((choice) => choice.id !== seated);
+        const chip = (choice) => `<button type="button" class="enclave-resident-choice" data-front-resident="${escapeAttr(choice.id)}" data-front-slot="${index}"
+                style="--resident-color:${escapeAttr(elementColors[choice.element] || elementColors.NEUTRAL)}"><span>${residentAvatarContent(choice)}</span><small>${escapeHtml(choice.name)}</small></button>`;
+        return `<div class="enclave-picker"><div class="enclave-picker-head"><strong>${seated ? 'Change defender' : 'Post a defender'}</strong>
+                <button type="button" class="picker-close" data-front-picker="-1" aria-label="Close the assign menu">&times;</button></div>
+            ${seated ? `<button type="button" class="panel-button secondary" data-front-resident="${escapeAttr(seated)}" data-front-slot="${index}">Leave this rampart open</button>` : ''}
+            ${choices.length ? `<span class="eyebrow">Owned Siegelings</span><div class="enclave-resident-choices">${choices.map(chip).join('')}</div>` : '<div class="empty-state">No other owned Siegelings are available to choose.</div>'}</div>`;
+    }
+
+    function projectedAkharsFrontAvailable() {
+        const front = state.snapshot?.akharsFront;
+        if (!front?.built) return 0;
+        const elapsedMinutes = Math.max(0, (nowMs() - state.receivedAtMs) / 60000);
+        return Math.min(number(front.storageCapacity), number(front.available) + Math.floor(elapsedMinutes * number(front.ratePerMinute)));
     }
 
     function projectedStationAvailable(station) {
@@ -2585,6 +2757,7 @@
             build_generator: 'Tune the Elemental Generator', storehouse_level_2: 'Vault the Storehouse',
             build_quarry: 'Open the Covenant Quarry', build_kitchen: 'Warm the Garden Kitchen',
             build_enclave: 'Raise the Siegeling Enclave',
+            build_akhars_front: "Raise Akhar's Front",
             build_builders_yard: 'Raise the Builder’s Yard',
             hall_level_2: 'Raise the Timber Outpost', hall_level_3: 'Settle the Courtyard',
             hall_level_4: 'Cut the Stonehold', hall_level_5: 'Raise the Keep Walls',
@@ -2695,7 +2868,7 @@
             status: document.getElementById('keepGate')?.classList.contains('hidden') ? 'loading' : 'sign-in-required'
         });
         return JSON.stringify({
-            mode: 'keep',
+            mode: state.frontView ? 'akhars_front' : 'keep',
             coordinateSystem: 'The keep scene uses viewport percentages; origin is top-left, x increases right, y increases down.',
             chapter: snapshot.chapter,
             resources: {
@@ -2725,6 +2898,8 @@
                 id: item.id, remainingSeconds: constructionEntryRemaining(item)
             })),
             sceneView: { zoom: view.zoom, panX: view.panX, panY: view.panY },
+            location: state.frontView ? 'akhars_front' : 'keep_grounds',
+            returnToKeepAvailable: state.frontView,
             stockpileTiers: (snapshot.stations || [snapshot.station]).filter(Boolean).reduce((out, station) => {
                 out[station.id] = fillTier(station);
                 return out;
