@@ -834,6 +834,49 @@ class GameJavaScriptRegressionTest {
         );
     }
 
+    /**
+     * A Siegeling's size band has to mean the same thing in every room it can stand in.
+     * The band shipped Enclave-only, so a Gigantic legendary towered over the huts and then
+     * shrank back to a stock silhouette the moment it was posted to a workshop.
+     */
+    @Test
+    void everyRoomThatDrawsAResidentAtWorldScaleHonoursItsSizeBand() throws IOException {
+        String keepCss = Files.readString(KEEP_CSS);
+
+        for (String holder : new String[] {
+                ".enclave-residents b", ".enclave-interior-residents b",
+                ".resident-worker > span", ".lodge-resident > span", ".hall-favorite-resident > span",
+                ".facility-room-resident > span" }) {
+            for (String band : new String[] { "SMALL", "MEDIUM", "LARGE", "GIGANTIC" }) {
+                assertTrue(
+                        keepCss.contains(holder + "[data-size=\"" + band + "\"]"),
+                        holder + " must take the " + band + " size band, or a resident changes height "
+                                + "just by being reassigned to that room."
+                );
+            }
+        }
+        // Every cutout dimension in those rooms must actually consume the scale.
+        for (String sized : new String[] {
+                ".resident-worker > span.has-overlay-art", ".lodge-resident > span.has-overlay-art",
+                ".hall-favorite-resident > span.has-overlay-art",
+                ".facility-room-resident > span.has-overlay-art" }) {
+            int at = keepCss.indexOf(sized);
+            assertTrue(at >= 0, sized + " is missing from keep.css");
+            String block = keepCss.substring(at, Math.min(keepCss.length(), at + 260));
+            assertTrue(
+                    block.contains("var(--cutout-scale)"),
+                    sized + " sets a fixed size, so its room ignores the Siegeling's size band."
+            );
+        }
+        // The Covenant Hall favorite is #hallFavoriteResident. The older .shrine-art rules are
+        // orphaned — #favoriteShrine is no longer in keep.html — so scaling them would only make
+        // dead CSS look maintained.
+        assertFalse(
+                keepCss.contains(".shrine-art[data-size="),
+                "#favoriteShrine is gone from keep.html; scale .hall-favorite-resident instead of dead CSS."
+        );
+    }
+
     @Test
     void enclaveSwapsResidentsByPortraitAndTheDashboardCanTuneTheKeep() throws IOException {
         String keepJs = Files.readString(KEEP_JS);
@@ -904,8 +947,8 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=32")
-                        && keepHtml.contains("/js/keep.js?v=33")
+                        && keepHtml.contains("/css/keep.css?v=33")
+                        && keepHtml.contains("/js/keep.js?v=34")
                         && keepHtml.contains("id=\"hallFavoriteResident\"")
                         && keepHtml.contains("id=\"constructionBannerJobs\"")
                         && keepHtml.contains("id=\"productionReady\"")

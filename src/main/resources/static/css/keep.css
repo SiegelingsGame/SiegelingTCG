@@ -438,31 +438,37 @@ button.resource-pill:focus-visible {
 .enclave-residents b img,
 .enclave-interior-residents b img { width: auto; height: 100%; max-width: 100%; object-fit: contain; object-position: bottom center; }
 /* Keep residents are drawn at world scale instead of on a card, so their size band decides how
-   tall every exterior and interior cutout stands. Widths scale with height to keep the art's
+   tall every exterior and interior cutout stands — including the grounds worker, so a Siegeling
+   does not change height merely by being seen from outside its workshop. Widths scale with height to keep the art's
    aspect ratio; flex-end alignment keeps each cutout planted on the same ground line as it grows
    upward. Bigger Enclave silhouettes sit in front so a gigantic neighbor is never clipped. */
 .enclave-residents b,
 .enclave-interior-residents b,
+.resident-worker > span,
 .lodge-resident > span,
 .hall-favorite-resident > span,
 .facility-room-resident > span { --cutout-scale: 1; }
 .enclave-residents b[data-size="SMALL"],
 .enclave-interior-residents b[data-size="SMALL"],
+.resident-worker > span[data-size="SMALL"],
 .lodge-resident > span[data-size="SMALL"],
 .hall-favorite-resident > span[data-size="SMALL"],
 .facility-room-resident > span[data-size="SMALL"] { --cutout-scale: .84; }
 .enclave-residents b[data-size="MEDIUM"],
 .enclave-interior-residents b[data-size="MEDIUM"],
+.resident-worker > span[data-size="MEDIUM"],
 .lodge-resident > span[data-size="MEDIUM"],
 .hall-favorite-resident > span[data-size="MEDIUM"],
 .facility-room-resident > span[data-size="MEDIUM"] { --cutout-scale: 1; }
 .enclave-residents b[data-size="LARGE"],
 .enclave-interior-residents b[data-size="LARGE"],
+.resident-worker > span[data-size="LARGE"],
 .lodge-resident > span[data-size="LARGE"],
 .hall-favorite-resident > span[data-size="LARGE"],
 .facility-room-resident > span[data-size="LARGE"] { --cutout-scale: 1.24; }
 .enclave-residents b[data-size="GIGANTIC"],
 .enclave-interior-residents b[data-size="GIGANTIC"],
+.resident-worker > span[data-size="GIGANTIC"],
 .lodge-resident > span[data-size="GIGANTIC"],
 .hall-favorite-resident > span[data-size="GIGANTIC"],
 .facility-room-resident > span[data-size="GIGANTIC"] { --cutout-scale: 1.62; }
@@ -607,8 +613,8 @@ button.resource-pill:focus-visible {
     animation: worker-bob 2.4s ease-in-out infinite;
 }
 .resident-worker > span {
-    width: 42px;
-    height: 42px;
+    width: calc(42px * var(--cutout-scale));
+    height: calc(42px * var(--cutout-scale));
     display: flex;
     align-items: flex-end;
     justify-content: center;
@@ -622,8 +628,8 @@ button.resource-pill:focus-visible {
     font-weight: 900;
 }
 .resident-worker > span.has-overlay-art {
-    width: 58px;
-    height: 72px;
+    width: calc(58px * var(--cutout-scale));
+    height: calc(72px * var(--cutout-scale));
     overflow: visible;
     border: 0;
     border-radius: 0;
@@ -2598,8 +2604,8 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     .building-label strong { font-size: 9px; }
     .building-label small { max-width: 132px; font-size: 6.5px; }
     .resident-worker { right: 8%; width: 46px; height: 60px; }
-    .resident-worker > span { width: 35px; height: 35px; }
-    .resident-worker > span.has-overlay-art { width: 46px; height: 58px; }
+    .resident-worker > span { width: calc(35px * var(--cutout-scale)); height: calc(35px * var(--cutout-scale)); }
+    .resident-worker > span.has-overlay-art { width: calc(46px * var(--cutout-scale)); height: calc(58px * var(--cutout-scale)); }
     /* Keep the fixed zoom controls in the open sky gutter; at 42% they sat directly over
        the phone Enclave and hid its fourth/fifth residents while the scene was zoomed. */
     .scene-zoom { right: calc(6px + var(--safe-right)); top: 28%; }
@@ -2632,6 +2638,11 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     .hall-favorite-resident > span { width: calc(44px * var(--cutout-scale)); height: calc(44px * var(--cutout-scale)); }
     .hall-favorite-resident > span.has-overlay-art { width: calc(62px * var(--cutout-scale)); height: calc(78px * var(--cutout-scale)); }
     .facility-room-resident > span.has-overlay-art { width: calc(62px * var(--cutout-scale)); height: calc(78px * var(--cutout-scale)); }
+    /* A gigantic cutout is tall enough to reach the room's next/prev arrows on a phone. Stand
+       the resident further in so its head clears the arrow column at every band — shifting per
+       band instead would make a Siegeling hop sideways when it is reassigned. */
+    .lodge-resident { left: 46%; }
+    .facility-room-resident { right: 22%; }
     .keep-panel {
         top: auto;
         left: 0;
