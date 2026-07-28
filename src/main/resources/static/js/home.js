@@ -103,7 +103,7 @@
     // Bump when elemental card-back / starter pack art changes so CSS
     // backgrounds and pack reveals pick up the new files.
     const PACK_CARD_BACK_VERSION = 3;
-    const ELEMENTAL_CARD_BACK_VERSION = 3;
+    const ELEMENTAL_CARD_BACK_VERSION = 5;
     // Starter SiegeKnights guests can command in Play. Keep in sync with
     // GameController.GUEST_TRAINER_IDS and game.js.
     const GUEST_TRAINER_IDS = new Set(['squire-bob', 'pyla', 'ser-airek']);
@@ -152,19 +152,22 @@
         FIRE: '/img/notches/notch-fire.png',
         EARTH: '/img/notches/notch-earth.png',
         WIND: '/img/notches/notch-wind.png',
-        WATER: '/img/notches/notch-water.png',
+        WATER: '/img/notches/notch-water.png?v=2',
         ICE: '/img/notches/notch-ice.png',
-        SHADOW: '/img/notches/notch-shadow.png',
-        ELECTRIC: '/img/notches/notch-electric.png',
-        METAL: '/img/notches/notch-metal.png',
-        UNDEAD: '/img/notches/notch-undead.png',
-        PSYCHIC: '/img/notches/notch-psychic.png',
-        POISON: '/img/notches/notch-poison.png',
-        LIGHT: '/img/notches/notch-light.png'
+        SHADOW: '/img/notches/notch-shadow.png?v=2',
+        ELECTRIC: '/img/notches/notch-electric.png?v=2',
+        METAL: '/img/notches/notch-metal.png?v=2',
+        UNDEAD: '/img/notches/notch-undead.png?v=2',
+        PSYCHIC: '/img/notches/notch-psychic.png?v=2',
+        POISON: '/img/notches/notch-poison.png?v=2',
+        LIGHT: '/img/notches/notch-light.png?v=2'
     };
     const ENERGY_COST_FILTERS = ['ALL', 'FREE', '1', '2', '3', '4', '5+'];
     const NOTCH_DIRECTIONS = ['TOP_LEFT', 'TOP', 'TOP_RIGHT', 'LEFT', 'RIGHT', 'BOTTOM_LEFT', 'BOTTOM', 'BOTTOM_RIGHT'];
-    const DECK_ASSET_KEYS = ['FIRE', 'ICE', 'WATER', 'EARTH', 'WIND'];
+    const DECK_ASSET_KEYS = [
+        'FIRE', 'ICE', 'WATER', 'EARTH', 'WIND', 'SHADOW',
+        'ELECTRIC', 'METAL', 'UNDEAD', 'PSYCHIC', 'POISON', 'LIGHT'
+    ];
     // Element defaults for hub decks, shop packs, and profile card backs.
     const DECK_ASSET_PATHS = {
         FIRE: {
@@ -180,12 +183,40 @@
             icon: versionedCardBackAsset('/img/decks/deck-icon-wind.png')
         },
         WATER: {
-            back: versionedCardBackAsset('/img/decks/card-back-wind.png'),
+            back: versionedCardBackAsset('/img/decks/card-back-water.png'),
             icon: versionedCardBackAsset('/img/decks/deck-icon-wind.png')
         },
         ICE: {
             back: versionedCardBackAsset('/img/decks/card-back-ice.png'),
             icon: versionedCardBackAsset('/img/decks/deck-icon-ice.png')
+        },
+        ELECTRIC: {
+            back: versionedCardBackAsset('/img/decks/card-back-electric.png'),
+            icon: versionedCardBackAsset('/img/decks/deck-icon-wind.png')
+        },
+        METAL: {
+            back: versionedCardBackAsset('/img/decks/card-back-metal.png'),
+            icon: versionedCardBackAsset('/img/decks/deck-icon-fire.png')
+        },
+        POISON: {
+            back: versionedCardBackAsset('/img/decks/card-back-poison.png'),
+            icon: versionedCardBackAsset('/img/decks/deck-icon-earth.png')
+        },
+        UNDEAD: {
+            back: versionedCardBackAsset('/img/decks/card-back-undead.png'),
+            icon: versionedCardBackAsset('/img/elements/element-undead.svg')
+        },
+        PSYCHIC: {
+            back: versionedCardBackAsset('/img/decks/card-back-psychic.png'),
+            icon: versionedCardBackAsset('/img/elements/element-psychic.svg')
+        },
+        SHADOW: {
+            back: versionedCardBackAsset('/img/decks/card-back-shadow.png'),
+            icon: versionedCardBackAsset('/img/elements/element-shadow.svg')
+        },
+        LIGHT: {
+            back: versionedCardBackAsset('/img/decks/card-back-light.png'),
+            icon: versionedCardBackAsset('/img/elements/element-light.svg')
         }
     };
     const RARITY_ORDER = { COMMON: 1, UNCOMMON: 2, RARE: 3, EPIC: 4, LEGENDARY: 5 };
@@ -208,7 +239,15 @@
         { name: 'Molten Sigil', element: 'Fire', back: DECK_ASSET_PATHS.FIRE.back },
         { name: 'Frost Sigil', element: 'Ice', back: DECK_ASSET_PATHS.ICE.back },
         { name: 'Gale Sigil', element: 'Wind', back: DECK_ASSET_PATHS.WIND.back },
-        { name: 'Stone Sigil', element: 'Earth', back: DECK_ASSET_PATHS.EARTH.back }
+        { name: 'Stone Sigil', element: 'Earth', back: DECK_ASSET_PATHS.EARTH.back },
+        { name: 'Tidal Sigil', element: 'Water', back: DECK_ASSET_PATHS.WATER.back },
+        { name: 'Storm Sigil', element: 'Electric', back: DECK_ASSET_PATHS.ELECTRIC.back },
+        { name: 'Iron Sigil', element: 'Metal', back: DECK_ASSET_PATHS.METAL.back },
+        { name: 'Venom Sigil', element: 'Poison', back: DECK_ASSET_PATHS.POISON.back },
+        { name: 'Spectral Sigil', element: 'Undead', back: DECK_ASSET_PATHS.UNDEAD.back },
+        { name: 'Mind Sigil', element: 'Psychic', back: DECK_ASSET_PATHS.PSYCHIC.back },
+        { name: 'Umbral Sigil', element: 'Shadow', back: DECK_ASSET_PATHS.SHADOW.back },
+        { name: 'Radiant Sigil', element: 'Light', back: DECK_ASSET_PATHS.LIGHT.back }
     ];
     const elementThemes = {
         Fire: {
@@ -4153,9 +4192,7 @@
 
     function elementalCardBackPath(element) {
         const key = String(element || '').toUpperCase();
-        // Water decks share the Wind card back until a dedicated Water art ships.
-        const resolved = key === 'WATER' ? 'WIND' : key;
-        return DECK_ASSET_PATHS[resolved]?.back || '';
+        return DECK_ASSET_PATHS[key]?.back || '';
     }
 
     function packImageFor(pack) {
@@ -5808,7 +5845,7 @@
     function renderElementBadge(element) {
         const normalized = normalizeProfileElement(element);
         const theme = elementThemes[normalized] || elementThemes.Neutral;
-        const iconPath = elementIconPath(normalized);
+        const iconPath = notchIconPath(normalized);
         return `<span class="element-badge" style="--badge:${theme.badge};--badge-glow:${theme.glow}">
             ${iconPath ? `<img src="${escapeAttr(iconPath)}" alt="" aria-hidden="true">` : ''}
             <span>${escapeHtml(normalized)}</span>
@@ -8219,7 +8256,7 @@
         return active.map(n => `<span class="chip notch-chip" style="${notchIconStyle(n.element)}">${escapeHtml(shortDirection(n.direction))} ${format(n.element)}</span>`).join('');
     }
     function deckAssetForElements(elements = []) {
-        const key = DECK_ASSET_KEYS.find(element => elements.includes(element));
+        const key = elements.find(element => DECK_ASSET_KEYS.includes(element));
         return key ? DECK_ASSET_PATHS[key] : null;
     }
     function parseHubRoute(path) {
@@ -8493,7 +8530,7 @@
             return `<img class="player-avatar-img ${escapeAttr(className)}" src="${escapeAttr(prefs.avatarUrl)}" alt="">`;
         }
         if (mode === 'ELEMENT') {
-            const iconPath = elementIconPath(normalizeProfileElement(prefs.favoriteElement));
+            const iconPath = notchIconPath(normalizeProfileElement(prefs.favoriteElement));
             if (iconPath) {
                 return `<div class="player-avatar-element ${escapeAttr(className)}" aria-hidden="true"><img src="${escapeAttr(iconPath)}" alt=""></div>`;
             }

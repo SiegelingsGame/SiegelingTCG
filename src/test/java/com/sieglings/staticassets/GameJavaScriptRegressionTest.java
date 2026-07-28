@@ -22,6 +22,7 @@ class GameJavaScriptRegressionTest {
     private static final Path CARD_DASHBOARD_HTML = Path.of("src/main/resources/static/card-dashboard.html");
     private static final Path CARD_BINDER_VISUAL_JS = Path.of("src/main/resources/static/js/card-binder-visual.js");
     private static final Path NOTCH_IMAGE_DIR = Path.of("src/main/resources/static/img/notches");
+    private static final Path CARD_BACK_IMAGE_DIR = Path.of("src/main/resources/static/img/decks");
     private static final Path CARD_DASHBOARD_JS = Path.of("src/main/resources/static/js/card-dashboard.js");
     private static final Path STYLE_CSS = Path.of("src/main/resources/static/css/style.css");
     private static final Path KEEP_HTML = Path.of("src/main/resources/static/keep.html");
@@ -323,8 +324,38 @@ class GameJavaScriptRegressionTest {
                 "Profile trim styles for battle preview, social shrink, and favorite card art must ship in home.css."
         );
         assertTrue(
-                homeMarkup.contains("home.js?v=117") && homeMarkup.contains("home.css?v=115"),
+                homeMarkup.contains("home.js?v=120") && homeMarkup.contains("home.css?v=116"),
                 "Cache-bust pins for the profile dashboard trim must advance on home.html."
+        );
+    }
+
+    @Test
+    void profileFavoriteElementIconsUseCircularNotchMedallions() throws IOException {
+        String homeScript = readHomeScript();
+        String homeCss = Files.readString(Path.of("src/main/resources/static/css/home.css"));
+        String homeMarkup = Files.readString(HOME_HTML);
+        String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
+        String badge = extractFunction(homeScript, "function renderElementBadge(element)");
+        String avatar = extractFunction(homeScript, "function renderPlayerAvatar(prefs = {}, className = 'friend-avatar')");
+
+        assertTrue(
+                badge.contains("notchIconPath(normalized)")
+                        && avatar.contains("notchIconPath(normalizeProfileElement(prefs.favoriteElement))"),
+                "Profile favorite-element badges and element-mode avatars must use painted notch medallions."
+        );
+        assertTrue(
+                homeCss.contains(".player-avatar-element.profile-avatar")
+                        && homeCss.contains(".friend-avatar-wrap .player-avatar-element.friend-avatar")
+                        && homeCss.contains("border-radius: 50%")
+                        && homeCss.contains("object-fit: cover")
+                        && homeCss.contains("padding: 0"),
+                "Element-mode profile and friend avatars must fill a circular frame."
+        );
+        assertTrue(
+                homeMarkup.contains("home.css?v=116")
+                        && homeMarkup.contains("home.js?v=120")
+                        && dashboardMarkup.contains("home.css?v=116"),
+                "Profile icon CSS and JavaScript cache pins must advance together."
         );
     }
 
@@ -339,7 +370,7 @@ class GameJavaScriptRegressionTest {
         );
 
         for (String element : elements) {
-            String mapping = element.toUpperCase() + ": '/img/notches/notch-" + element + ".png'";
+            String mapping = element.toUpperCase() + ": '/img/notches/notch-" + element + ".png";
             assertTrue(
                     gameScript.contains(mapping) && homeScript.contains(mapping) && binderScript.contains(mapping),
                     element + " must resolve to the same painted medallion in battle, Home, and binder views."
@@ -356,14 +387,60 @@ class GameJavaScriptRegressionTest {
         String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
         assertTrue(
                 homeMarkup.contains("style.css?v=216")
-                        && homeMarkup.contains("game.js?v=214")
-                        && homeMarkup.contains("card-binder-visual.js?v=17")
-                        && homeMarkup.contains("home.js?v=117")
+                        && homeMarkup.contains("game.js?v=216")
+                        && homeMarkup.contains("card-binder-visual.js?v=19")
+                        && homeMarkup.contains("home.js?v=120")
                         && playMarkup.contains("style.css?v=216")
-                        && playMarkup.contains("game.js?v=214")
+                        && playMarkup.contains("game.js?v=216")
                         && dashboardMarkup.contains("style.css?v=216")
-                        && dashboardMarkup.contains("card-binder-visual.js?v=17"),
+                        && dashboardMarkup.contains("card-binder-visual.js?v=19"),
                 "Every surface must advance its cache pins with the complete painted-notch set."
+        );
+    }
+
+    @Test
+    void remainingElementsUseTheirDedicatedCardBacks() throws IOException {
+        String gameScript = readGameScript();
+        String homeScript = readHomeScript();
+        Set<String> elements = Set.of(
+                "water", "electric", "metal", "poison",
+                "undead", "psychic", "shadow", "light"
+        );
+
+        assertTrue(
+                homeScript.contains("const ELEMENTAL_CARD_BACK_VERSION = 5")
+                        && gameScript.contains("const DECK_ART_ASSET_VERSION = 5"),
+                "Home and battle must cache-bust the expanded elemental card-back set together."
+        );
+        assertTrue(
+                homeScript.contains("const key = elements.find(element => DECK_ASSET_KEYS.includes(element))")
+                        && gameScript.contains("const key = elements.find(element => DECK_ART_ASSET_KEYS.includes(element))"),
+                "Mixed decks must choose the first configured element's dedicated card back."
+        );
+
+        for (String element : elements) {
+            String asset = "/img/decks/card-back-" + element + ".png";
+            assertTrue(
+                    homeScript.contains(asset) && gameScript.contains(asset),
+                    element + " must resolve to the same card back in Home/shop and battle views."
+            );
+            assertTrue(
+                    Files.isRegularFile(CARD_BACK_IMAGE_DIR.resolve("card-back-" + element + ".png"))
+                            && Files.isRegularFile(CARD_BACK_IMAGE_DIR.resolve("card-back-" + element + ".webp")),
+                    element + " must ship both PNG and WebP card-back assets."
+            );
+        }
+
+        assertTrue(
+                homeScript.contains("Tidal Sigil")
+                        && homeScript.contains("Storm Sigil")
+                        && homeScript.contains("Iron Sigil")
+                        && homeScript.contains("Venom Sigil")
+                        && homeScript.contains("Spectral Sigil")
+                        && homeScript.contains("Mind Sigil")
+                        && homeScript.contains("Umbral Sigil")
+                        && homeScript.contains("Radiant Sigil"),
+                "All eight expanded card backs must be available in the profile picker."
         );
     }
 
