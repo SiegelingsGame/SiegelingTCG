@@ -834,6 +834,49 @@ class GameJavaScriptRegressionTest {
         );
     }
 
+    /**
+     * A Siegeling's size band has to mean the same thing in every room it can stand in.
+     * The band shipped Enclave-only, so a Gigantic legendary towered over the huts and then
+     * shrank back to a stock silhouette the moment it was posted to a workshop.
+     */
+    @Test
+    void everyRoomThatDrawsAResidentAtWorldScaleHonoursItsSizeBand() throws IOException {
+        String keepCss = Files.readString(KEEP_CSS);
+
+        for (String holder : new String[] {
+                ".enclave-residents b", ".enclave-interior-residents b",
+                ".resident-worker > span", ".lodge-resident > span", ".hall-favorite-resident > span",
+                ".facility-room-resident > span" }) {
+            for (String band : new String[] { "SMALL", "MEDIUM", "LARGE", "GIGANTIC" }) {
+                assertTrue(
+                        keepCss.contains(holder + "[data-size=\"" + band + "\"]"),
+                        holder + " must take the " + band + " size band, or a resident changes height "
+                                + "just by being reassigned to that room."
+                );
+            }
+        }
+        // Every cutout dimension in those rooms must actually consume the scale.
+        for (String sized : new String[] {
+                ".resident-worker > span.has-overlay-art", ".lodge-resident > span.has-overlay-art",
+                ".hall-favorite-resident > span.has-overlay-art",
+                ".facility-room-resident > span.has-overlay-art" }) {
+            int at = keepCss.indexOf(sized);
+            assertTrue(at >= 0, sized + " is missing from keep.css");
+            String block = keepCss.substring(at, Math.min(keepCss.length(), at + 260));
+            assertTrue(
+                    block.contains("var(--cutout-scale)"),
+                    sized + " sets a fixed size, so its room ignores the Siegeling's size band."
+            );
+        }
+        // The Covenant Hall favorite is #hallFavoriteResident. The older .shrine-art rules are
+        // orphaned — #favoriteShrine is no longer in keep.html — so scaling them would only make
+        // dead CSS look maintained.
+        assertFalse(
+                keepCss.contains(".shrine-art[data-size="),
+                "#favoriteShrine is gone from keep.html; scale .hall-favorite-resident instead of dead CSS."
+        );
+    }
+
     @Test
     void enclaveSwapsResidentsByPortraitAndTheDashboardCanTuneTheKeep() throws IOException {
         String keepJs = Files.readString(KEEP_JS);
@@ -876,6 +919,27 @@ class GameJavaScriptRegressionTest {
     }
 
     @Test
+    void keeperJourneyOpensOnTheCurrentChapterAndScrollsItsListVertically() throws IOException {
+        String keepHtml = Files.readString(KEEP_HTML);
+        String keepCss = Files.readString(KEEP_CSS);
+        String keepJs = Files.readString(KEEP_JS);
+
+        assertTrue(
+                keepHtml.contains("id=\"journeyToggle\"")
+                        && keepJs.contains("journeyShowAllChapters = false")
+                        && keepJs.contains("journeyShowAllChapters || !currentChapter ? chapters : [currentChapter]")
+                        && keepJs.contains("`All ${chapters.length} chapters`"),
+                "The Keeper's Journey must open focused on the current chapter, with a toggle that reveals the full list."
+        );
+        assertTrue(
+                keepCss.contains(".journey-track { flex: 1 1 auto; min-height: 0;")
+                        && keepCss.contains("grid-template-columns: repeat(auto-fill, minmax(118px, 1fr))")
+                        && !keepCss.contains("scroll-snap-type: x proximity"),
+                "The chapter list must own the card's leftover height and wrap its levels into rows, so nothing is clipped in landscape."
+        );
+    }
+
+    @Test
     void keepBuildingsAndRoomsUseLayeredPaperTreatments() throws IOException {
         String keepHtml = Files.readString(KEEP_HTML);
         String keepCss = Files.readString(KEEP_CSS);
@@ -883,19 +947,32 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=32")
-                        && keepHtml.contains("/js/keep.js?v=33")
+                        && keepHtml.contains("/css/keep.css?v=34")
+                        && keepHtml.contains("/js/keep.js?v=35")
                         && keepHtml.contains("id=\"hallFavoriteResident\"")
                         && keepHtml.contains("id=\"constructionBannerJobs\"")
+                        && keepHtml.contains("id=\"productionReady\"")
                         && keepJs.contains("constructionBannerSignature")
                         && keepJs.contains("data-live-banner-time=")
                         && keepJs.contains("hallFavoriteResident")
                         && keepJs.contains("favorite?.resident")
                         && keepJs.contains("function offlineCapacityRow")
                         && keepJs.contains("offline-capacity-list")
+                        && keepJs.contains("woodlotCapacity <= 0 || available < woodlotCapacity")
+                        && !keepJs.contains("productionReady')?.classList.toggle('hidden', available <= 0)")
                         && !keepJs.contains("+${constructions.length - 1} more")
                         && !keepJs.contains("Storage reached capacity\", `${name} stopped until collected`"),
-                "Keep architecture must retain its paper building hooks, refresh both asset cache pins, show the favorite in Covenant Hall, collapse storage-capacity offline alerts into one multi-line card, and show each concurrent construction job in the banner."
+                "Keep architecture must retain its paper building hooks, refresh both asset cache pins, show the favorite in Covenant Hall, collapse storage-capacity offline alerts into one multi-line card, show each concurrent construction job in the banner, and gate the Woodlot Collect bubble to a full stockpile."
+        );
+        assertTrue(
+                keepCss.contains(".construction-team-pill {")
+                        && keepCss.contains("grid-template-columns: auto minmax(0, 1fr);")
+                        && keepCss.contains("column-gap: 12px;")
+                        && keepCss.contains("column-gap: 10px;")
+                        && keepCss.contains("position: static;")
+                        && keepCss.contains("min-width: 112px;")
+                        && keepCss.contains("min-width: 100px;"),
+                "The Teams resource pill must lay the hammer beside counts with a real column gap so the glyph cannot overlay N/N."
         );
         assertTrue(
                 keepHtml.contains("id=\"frontReturn\"")

@@ -288,6 +288,7 @@
             return;
         }
         if (event.target.closest('[data-open-journey]')) { openJourney(); return; }
+        if (event.target.closest('#journeyToggle')) { journeyShowAllChapters = !journeyShowAllChapters; renderJourneyTrack(); return; }
         if (event.target.closest('#journeyClose') || event.target.closest('[data-close-journey]')) { closeJourney(); return; }
         const building = event.target.closest('[data-building]');
         if (building) {
@@ -794,7 +795,11 @@
         text('frontReadyAmount', String(projectedAkharsFrontAvailable()));
         const collect = document.getElementById('collectButton');
         if (collect) collect.disabled = available <= 0 || number(state.snapshot.resources?.timber) >= number(state.snapshot.resources?.timberCapacity) || state.busy;
-        document.getElementById('productionReady')?.classList.toggle('hidden', available <= 0);
+        // Map Collect cue only when the Woodlot stockpile is full — partial stores
+        // still show as growing piles and remain claimable from the dock button.
+        const woodlotCapacity = number(state.snapshot.station?.storageCapacity);
+        document.getElementById('productionReady')?.classList.toggle(
+            'hidden', woodlotCapacity <= 0 || available < woodlotCapacity);
         updateStockpileVisuals();
         renderConstruction();
         // The Keep Activity tray also owns live construction clocks. Updating
@@ -2000,6 +2005,10 @@
         if (!document.getElementById('journeyOverlay')?.classList.contains('hidden')) renderJourneyTrack();
     }
 
+    /** The overlay opens focused on the chapter the keeper is standing in; the
+     *  toolbar toggle expands the rest of the timeline. Reset on every open. */
+    let journeyShowAllChapters = false;
+
     function renderJourneyTrack() {
         const keeper = keeperData();
         const track = document.getElementById('journeyTrack');
@@ -2015,7 +2024,10 @@
             : `${number(keeper.xpIntoLevel)} / ${number(keeper.xpForLevel)} XP to Level ${level + 1}`
                 + (unclaimed > 0 ? ` · ${unclaimed} reward${unclaimed === 1 ? '' : 's'} ready to claim` : ''));
         const levels = keeper.levels || [];
-        track.innerHTML = (keeper.chapters || []).map((ch) => {
+        const chapters = keeper.chapters || [];
+        const currentChapter = chapters.find((c) => c.current) || chapters[chapters.length - 1];
+        const shown = journeyShowAllChapters || !currentChapter ? chapters : [currentChapter];
+        track.innerHTML = shown.map((ch) => {
             const nodes = levels.filter((l) => number(l.chapterNumber) === number(ch.number)).map(journeyNodeMarkup).join('');
             const cls = `journey-chapter${ch.current ? ' is-current' : ''}${ch.complete ? ' is-complete' : ''}`;
             return `<section class="${cls}">
@@ -2023,7 +2035,16 @@
                     <strong>${escapeHtml(ch.title || '')}</strong><small>${escapeHtml(ch.subtitle || '')}</small></header>
                 <div class="journey-nodes">${nodes}</div></section>`;
         }).join('');
-        track.querySelector('.journey-chapter.is-current')?.scrollIntoView({ inline: 'center', block: 'nearest' });
+        const toggle = document.getElementById('journeyToggle');
+        if (toggle) {
+            toggle.textContent = journeyShowAllChapters ? 'Current chapter' : `All ${chapters.length} chapters`;
+            toggle.setAttribute('aria-expanded', String(journeyShowAllChapters));
+            toggle.classList.toggle('hidden', chapters.length < 2);
+        }
+        // Only the expanded list needs to be scrolled back to where the keeper is;
+        // the focused view is a single chapter already sitting at the top.
+        if (journeyShowAllChapters) track.querySelector('.journey-chapter.is-current')?.scrollIntoView({ block: 'nearest' });
+        else track.scrollTop = 0;
     }
 
     function journeyNodeMarkup(l) {
@@ -2033,7 +2054,11 @@
         const remnants = number(l.reward?.remnants);
         const decoration = l.reward?.decorationName
             ? `<p class="node-decoration" title="Decoration"><span aria-hidden="true">✿</span> ${escapeHtml(l.reward.decorationName)}</p>` : '';
-        const unlock = l.unlockLabel ? `<p class="node-unlock">${escapeHtml(l.unlockLabel)}</p>` : '';
+        // A decoration level's unlock copy just names the decoration the chip above
+        // already shows, so drop the second copy rather than print the name twice.
+        const decorationName = l.reward?.decorationName || '';
+        const unlock = l.unlockLabel && !(decorationName && l.unlockLabel.includes(decorationName))
+            ? `<p class="node-unlock">${escapeHtml(l.unlockLabel)}</p>` : '';
         const action = l.canClaim
             ? `<button class="node-claim" type="button" data-claim-keep-reward="keeper_level:${lv}">Claim</button>`
             : `<span class="node-status">${l.claimed ? 'Claimed' : l.reached ? 'Earned' : `Reach Lv ${lv}`}</span>`;
@@ -2044,6 +2069,7 @@
     }
 
     function openJourney() {
+        journeyShowAllChapters = false;
         renderJourneyTrack();
         document.getElementById('journeyOverlay')?.classList.remove('hidden');
     }
@@ -2812,7 +2838,8 @@
         node.classList.toggle('has-overlay-art', hasArt);
         node.classList.toggle('is-paper-cutout', hasArt);
         node.classList.toggle('is-paper-token', Boolean(resident) && !hasArt);
-        // Enclave cutouts are drawn at world scale, so a gigantic Siegeling towers over a small one.
+        // Residents are drawn at world scale in every room they stand in, so a gigantic
+        // Siegeling towers over a small one wherever it is posted — not just the Enclave.
         if (resident) node.dataset.size = residentSize(resident);
         else delete node.dataset.size;
         node.innerHTML = resident ? residentAvatarContent(resident) : '';

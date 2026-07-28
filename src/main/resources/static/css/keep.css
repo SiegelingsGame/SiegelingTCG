@@ -152,6 +152,32 @@ button.resource-pill:focus-visible {
 .essence-pill .resource-icon { color: #9fe9ff; text-shadow: 0 0 9px rgba(117, 224, 255, .8); transform: translateY(-50%); }
 .siegeling-pill .resource-icon { color: #ffe7a2; text-shadow: 0 0 8px rgba(244, 204, 98, .45); transform: translateY(-50%); }
 .construction-team-pill .resource-icon { color: #d8a56f; text-shadow: 0 1px 0 #6f4222; transform: translateY(-50%); }
+/* Hammer glyph is wider than the other resource icons. Lay the Teams pill out as
+   icon | counts so the character ink cannot overlap "7/7" the way absolute
+   positioning did against the shared left padding. */
+.construction-team-pill {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    column-gap: 12px;
+    align-items: center;
+    min-width: 112px;
+    padding: 7px 14px 7px 12px;
+}
+.construction-team-pill .resource-icon {
+    position: static;
+    transform: none;
+    grid-row: 1 / span 2;
+    width: 18px;
+    overflow: hidden;
+    font-size: 15px;
+    line-height: 1;
+    text-align: center;
+}
+.construction-team-pill strong,
+.construction-team-pill small {
+    grid-column: 2;
+}
 .pulse-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 4px rgba(111, 207, 139, .12), 0 0 12px var(--green); }
 
 .keep-header-actions {
@@ -412,31 +438,37 @@ button.resource-pill:focus-visible {
 .enclave-residents b img,
 .enclave-interior-residents b img { width: auto; height: 100%; max-width: 100%; object-fit: contain; object-position: bottom center; }
 /* Keep residents are drawn at world scale instead of on a card, so their size band decides how
-   tall every exterior and interior cutout stands. Widths scale with height to keep the art's
+   tall every exterior and interior cutout stands — including the grounds worker, so a Siegeling
+   does not change height merely by being seen from outside its workshop. Widths scale with height to keep the art's
    aspect ratio; flex-end alignment keeps each cutout planted on the same ground line as it grows
    upward. Bigger Enclave silhouettes sit in front so a gigantic neighbor is never clipped. */
 .enclave-residents b,
 .enclave-interior-residents b,
+.resident-worker > span,
 .lodge-resident > span,
 .hall-favorite-resident > span,
 .facility-room-resident > span { --cutout-scale: 1; }
 .enclave-residents b[data-size="SMALL"],
 .enclave-interior-residents b[data-size="SMALL"],
+.resident-worker > span[data-size="SMALL"],
 .lodge-resident > span[data-size="SMALL"],
 .hall-favorite-resident > span[data-size="SMALL"],
 .facility-room-resident > span[data-size="SMALL"] { --cutout-scale: .84; }
 .enclave-residents b[data-size="MEDIUM"],
 .enclave-interior-residents b[data-size="MEDIUM"],
+.resident-worker > span[data-size="MEDIUM"],
 .lodge-resident > span[data-size="MEDIUM"],
 .hall-favorite-resident > span[data-size="MEDIUM"],
 .facility-room-resident > span[data-size="MEDIUM"] { --cutout-scale: 1; }
 .enclave-residents b[data-size="LARGE"],
 .enclave-interior-residents b[data-size="LARGE"],
+.resident-worker > span[data-size="LARGE"],
 .lodge-resident > span[data-size="LARGE"],
 .hall-favorite-resident > span[data-size="LARGE"],
 .facility-room-resident > span[data-size="LARGE"] { --cutout-scale: 1.24; }
 .enclave-residents b[data-size="GIGANTIC"],
 .enclave-interior-residents b[data-size="GIGANTIC"],
+.resident-worker > span[data-size="GIGANTIC"],
 .lodge-resident > span[data-size="GIGANTIC"],
 .hall-favorite-resident > span[data-size="GIGANTIC"],
 .facility-room-resident > span[data-size="GIGANTIC"] { --cutout-scale: 1.62; }
@@ -757,8 +789,8 @@ button.resource-pill:focus-visible {
     animation: worker-bob 2.4s ease-in-out infinite;
 }
 .resident-worker > span {
-    width: 42px;
-    height: 42px;
+    width: calc(42px * var(--cutout-scale));
+    height: calc(42px * var(--cutout-scale));
     display: flex;
     align-items: flex-end;
     justify-content: center;
@@ -772,8 +804,8 @@ button.resource-pill:focus-visible {
     font-weight: 900;
 }
 .resident-worker > span.has-overlay-art {
-    width: 58px;
-    height: 72px;
+    width: calc(58px * var(--cutout-scale));
+    height: calc(72px * var(--cutout-scale));
     overflow: visible;
     border: 0;
     border-radius: 0;
@@ -858,18 +890,25 @@ button.resource-pill:focus-visible {
 .journey-levelbar { margin: 14px 0 5px; height: 9px; border-radius: 999px; background: rgba(0, 0, 0, .38); overflow: hidden; }
 .journey-levelbar i { display: block; height: 100%; }
 .journey-levelbar b { display: block; height: 100%; width: 0; border-radius: 999px; background: linear-gradient(90deg, var(--gold), #ffe9a8); transition: width .5s ease; }
-.journey-xp-label { display: block; margin-bottom: 12px; color: rgba(255, 247, 220, .8); font-size: 12px; }
-/* min-width:0 keeps the wide, horizontally-scrolling track from forcing the
-   card past the viewport (otherwise the grid column balloons to content width). */
-.journey-track { display: flex; gap: 16px; min-width: 0; max-width: 100%; overflow-x: auto; overflow-y: hidden; padding: 4px 2px 12px; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
+.journey-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.journey-xp-label { display: block; min-width: 0; color: rgba(255, 247, 220, .8); font-size: 12px; }
+.journey-toggle { flex: 0 0 auto; min-height: 32px; padding: 6px 12px; border: 1px solid rgba(244, 204, 98, .5); border-radius: 999px; background: rgba(244, 204, 98, .1); color: var(--gold); font: 800 10px/1 sans-serif; letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
+.journey-toggle:hover { background: rgba(244, 204, 98, .2); }
+.journey-toggle:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+/* The track stacks chapters and scrolls vertically inside the card: the flex
+   child owns the leftover height (min-height:0) so the last row is reachable
+   instead of being clipped by the card's max-height — the landscape failure. */
+.journey-track { flex: 1 1 auto; min-height: 0; min-width: 0; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; overflow-x: hidden; padding: 2px 2px 4px; -webkit-overflow-scrolling: touch; }
 .journey-card { min-width: 0; }
-.journey-chapter { scroll-snap-align: start; flex: 0 0 auto; display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 16px; background: rgba(255, 255, 255, .03); }
+.journey-chapter { flex: 0 0 auto; display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 16px; background: rgba(255, 255, 255, .03); }
 .journey-chapter.is-current { border-color: rgba(244, 204, 98, .55); box-shadow: 0 0 0 1px rgba(244, 204, 98, .25) inset; }
 .journey-chapter.is-complete { opacity: .92; }
 .chapter-head strong { display: block; font: 700 17px Georgia, serif; color: var(--cream); }
-.chapter-head small { display: block; max-width: 320px; color: rgba(255, 247, 220, .6); font-size: 11px; line-height: 1.4; }
-.journey-nodes { display: flex; gap: 10px; }
-.journey-node { position: relative; flex: 0 0 auto; width: 132px; display: flex; flex-direction: column; gap: 7px; padding: 12px 11px; border: 1px solid var(--line); border-radius: 14px; background: rgba(9, 20, 27, .6); text-align: center; }
+.chapter-head small { display: block; color: rgba(255, 247, 220, .6); font-size: 11px; line-height: 1.4; }
+/* auto-fill so a chapter's levels wrap into rows and fill the card width, rather
+   than running off the right edge behind a horizontal scrollbar. */
+.journey-nodes { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
+.journey-node { position: relative; display: flex; flex-direction: column; gap: 7px; padding: 12px 11px; border: 1px solid var(--line); border-radius: 14px; background: rgba(9, 20, 27, .6); text-align: center; }
 .journey-node.is-locked { opacity: .55; }
 .journey-node.is-earned { border-color: rgba(150, 255, 180, .3); }
 .journey-node.is-ready { border-color: rgba(244, 204, 98, .7); background: rgba(244, 204, 98, .08); box-shadow: 0 6px 20px rgba(244, 204, 98, .12); }
@@ -2695,6 +2734,15 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     .keep-resource-bar button { pointer-events: auto; }
     .resource-pill,
     .station-pill { min-width: 72px; padding: 5px 7px 5px 24px; border-radius: 0 0 10px 10px; background: rgba(17, 31, 41, .88); }
+    .construction-team-pill {
+        min-width: 100px;
+        padding: 5px 10px 5px 9px;
+        column-gap: 10px;
+    }
+    .construction-team-pill .resource-icon {
+        width: 15px;
+        font-size: 13px;
+    }
     .resource-pill strong,
     .station-pill strong { font-size: 12px; }
     .resource-pill small,
@@ -2738,8 +2786,8 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     .building-label strong { font-size: 9px; }
     .building-label small { max-width: 132px; font-size: 6.5px; }
     .resident-worker { right: 8%; width: 46px; height: 60px; }
-    .resident-worker > span { width: 35px; height: 35px; }
-    .resident-worker > span.has-overlay-art { width: 46px; height: 58px; }
+    .resident-worker > span { width: calc(35px * var(--cutout-scale)); height: calc(35px * var(--cutout-scale)); }
+    .resident-worker > span.has-overlay-art { width: calc(46px * var(--cutout-scale)); height: calc(58px * var(--cutout-scale)); }
     /* Keep the fixed zoom controls in the open sky gutter; at 42% they sat directly over
        the phone Enclave and hid its fourth/fifth residents while the scene was zoomed. */
     .scene-zoom { right: calc(6px + var(--safe-right)); top: 28%; }
@@ -2772,6 +2820,11 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     .hall-favorite-resident > span { width: calc(44px * var(--cutout-scale)); height: calc(44px * var(--cutout-scale)); }
     .hall-favorite-resident > span.has-overlay-art { width: calc(62px * var(--cutout-scale)); height: calc(78px * var(--cutout-scale)); }
     .facility-room-resident > span.has-overlay-art { width: calc(62px * var(--cutout-scale)); height: calc(78px * var(--cutout-scale)); }
+    /* A gigantic cutout is tall enough to reach the room's next/prev arrows on a phone. Stand
+       the resident further in so its head clears the arrow column at every band — shifting per
+       band instead would make a Siegeling hop sideways when it is reassigned. */
+    .lodge-resident { left: 46%; }
+    .facility-room-resident { right: 22%; }
     .keep-panel {
         top: auto;
         left: 0;
@@ -2805,6 +2858,26 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     .room-decoration-set [data-decoration-art="blossom_arch"] { left: 30%; width: 40%; }
     .room-decoration-set [data-decoration-art="aurora_lamp"] { left: 20%; width: 60%; }
     .enclave-interior-residents b { width: calc(50px * var(--cutout-scale)); height: calc(66px * var(--cutout-scale)); }
+    /* Phone portrait: tighter nodes so a full chapter's levels fit without scrolling. */
+    .journey-overlay { padding: 10px calc(10px + var(--safe-right)) calc(10px + var(--safe-bottom)) calc(10px + var(--safe-left)); }
+    .journey-card { max-height: 92dvh; padding: 15px 13px 12px; }
+    .journey-header h2 { margin: 2px 0; }
+    .journey-header small { font-size: 11px; }
+    .journey-levelbar { margin: 10px 0 4px; height: 7px; }
+    .journey-toolbar { margin-bottom: 9px; }
+    .journey-xp-label { font-size: 11px; }
+    .journey-track { gap: 10px; }
+    .journey-chapter { padding: 10px 9px; gap: 8px; }
+    .chapter-head strong { font-size: 15px; }
+    .journey-nodes { grid-template-columns: repeat(auto-fill, minmax(94px, 1fr)); gap: 7px; }
+    .journey-node { padding: 9px 6px; gap: 5px; }
+    .node-badge { width: 36px; height: 36px; }
+    .node-badge strong { font-size: 15px; }
+    .node-reward { gap: 6px; font-size: 11px; }
+    .node-decoration,
+    .node-unlock { font-size: 9px; }
+    .node-claim { padding: 6px 8px; font-size: 11px; }
+    .node-status { font-size: 9px; }
 }
 
 @media (max-width: 360px), (max-height: 590px) {
@@ -2854,6 +2927,24 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     .interior-bar { padding-block: 6px; }
     .interior-heading h2 { font-size: 15px; }
     .interior-exit { min-height: 32px; padding: 6px 10px; font-size: 11px; }
+    /* Short landscape: the header chrome shrinks so the scrolling chapter list
+       keeps the height it needs and its last row stays inside the card. */
+    .journey-overlay { padding: 6px calc(6px + var(--safe-right)) calc(6px + var(--safe-bottom)) calc(6px + var(--safe-left)); }
+    .journey-card { max-height: calc(100dvh - 12px - var(--safe-bottom)); padding: 11px 14px 10px; border-radius: 16px; }
+    .journey-header h2 { margin: 1px 0; font-size: 20px; }
+    .journey-header small { display: none; }
+    .journey-levelbar { margin: 7px 0 3px; height: 6px; }
+    .journey-toolbar { margin-bottom: 7px; }
+    .journey-track { gap: 9px; }
+    .journey-chapter { padding: 9px; gap: 7px; }
+    .chapter-head strong { font-size: 15px; }
+    .chapter-head small { display: none; }
+    .journey-nodes { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 7px; }
+    .journey-node { padding: 8px 7px; gap: 5px; }
+    .node-badge { width: 34px; height: 34px; }
+    .node-badge strong { font-size: 14px; }
+    .node-decoration,
+    .node-unlock { font-size: 9px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
