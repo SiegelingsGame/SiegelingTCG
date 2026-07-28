@@ -806,7 +806,7 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=31")
+                        && keepHtml.contains("/css/keep.css?v=34")
                         && keepHtml.contains("/js/keep.js?v=32")
                         && keepHtml.contains("id=\"hallFavoriteResident\"")
                         && keepHtml.contains("id=\"constructionBannerJobs\"")
@@ -825,11 +825,13 @@ class GameJavaScriptRegressionTest {
         );
         assertTrue(
                 keepCss.contains(".construction-team-pill {")
-                        && keepCss.contains("min-width: 108px;")
-                        && keepCss.contains("min-width: 88px;")
-                        && keepCss.contains("padding-left: 40px;")
-                        && keepCss.contains("padding-left: 30px;"),
-                "The Teams resource pill must widen enough that the hammer icon sits flush beside active/capacity counts."
+                        && keepCss.contains("grid-template-columns: auto minmax(0, 1fr);")
+                        && keepCss.contains("column-gap: 12px;")
+                        && keepCss.contains("column-gap: 10px;")
+                        && keepCss.contains("position: static;")
+                        && keepCss.contains("min-width: 112px;")
+                        && keepCss.contains("min-width: 100px;"),
+                "The Teams resource pill must lay the hammer beside counts with a real column gap so the glyph cannot overlay N/N."
         );
         assertTrue(
                 keepCss.contains(".building-illustration svg.paper-building-shell")

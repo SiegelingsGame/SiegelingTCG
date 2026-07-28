@@ -152,12 +152,31 @@ button.resource-pill:focus-visible {
 .essence-pill .resource-icon { color: #9fe9ff; text-shadow: 0 0 9px rgba(117, 224, 255, .8); transform: translateY(-50%); }
 .siegeling-pill .resource-icon { color: #ffe7a2; text-shadow: 0 0 8px rgba(244, 204, 98, .45); transform: translateY(-50%); }
 .construction-team-pill .resource-icon { color: #d8a56f; text-shadow: 0 1px 0 #6f4222; transform: translateY(-50%); }
-/* Hammer glyph is wider than the other resource icons; give the Teams pill
-   extra left padding and min-width so "7/7" sits flush beside it. */
+/* Hammer glyph is wider than the other resource icons. Lay the Teams pill out as
+   icon | counts so the character ink cannot overlap "7/7" the way absolute
+   positioning did against the shared left padding. */
 .construction-team-pill {
-    min-width: 108px;
-    padding-left: 40px;
-    padding-right: 14px;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    column-gap: 12px;
+    align-items: center;
+    min-width: 112px;
+    padding: 7px 14px 7px 12px;
+}
+.construction-team-pill .resource-icon {
+    position: static;
+    transform: none;
+    grid-row: 1 / span 2;
+    width: 18px;
+    overflow: hidden;
+    font-size: 15px;
+    line-height: 1;
+    text-align: center;
+}
+.construction-team-pill strong,
+.construction-team-pill small {
+    grid-column: 2;
 }
 .pulse-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 4px rgba(111, 207, 139, .12), 0 0 12px var(--green); }
 
@@ -2523,9 +2542,13 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     .resource-pill,
     .station-pill { min-width: 72px; padding: 5px 7px 5px 24px; border-radius: 0 0 10px 10px; background: rgba(17, 31, 41, .88); }
     .construction-team-pill {
-        min-width: 88px;
-        padding-left: 30px;
-        padding-right: 10px;
+        min-width: 100px;
+        padding: 5px 10px 5px 9px;
+        column-gap: 10px;
+    }
+    .construction-team-pill .resource-icon {
+        width: 15px;
+        font-size: 13px;
     }
     .resource-pill strong,
     .station-pill strong { font-size: 12px; }
