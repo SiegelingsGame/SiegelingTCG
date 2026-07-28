@@ -411,21 +411,38 @@ button.resource-pill:focus-visible {
 .enclave-residents b.has-resident { display: flex; }
 .enclave-residents b img,
 .enclave-interior-residents b img { width: auto; height: 100%; max-width: 100%; object-fit: contain; object-position: bottom center; }
-/* Enclave residents are the one place a Siegeling is drawn at world scale instead of on a
-   card, so its size band decides how tall the cutout stands. Widths scale with height to keep
-   the art's aspect ratio; the flex-end alignment keeps every cutout planted on the same ground
-   line as it grows upward. Bigger silhouettes sit in front so a gigantic neighbor never gets
-   clipped by a small one. */
+/* Wherever a Siegeling is drawn at world scale instead of on a card, its size band decides
+   how tall it stands — the enclave huts and interior, the grounds worker, the woodlot/hall
+   lodge, every workshop room, and the favorite shrine. One ladder drives all of them so a
+   resident keeps the same silhouette height whichever room it is standing in. Widths scale
+   with height to hold the art's aspect ratio, and flex-end alignment keeps every cutout
+   planted on the same ground line as it grows upward. Bigger silhouettes sit in front so a
+   gigantic neighbor never gets clipped by a small one. */
 .enclave-residents b,
-.enclave-interior-residents b { --cutout-scale: 1; }
+.enclave-interior-residents b,
+.resident-worker > span,
+.lodge-resident > span,
+.facility-room-resident > span { --cutout-scale: 1; }
 .enclave-residents b[data-size="SMALL"],
-.enclave-interior-residents b[data-size="SMALL"] { --cutout-scale: .84; }
+.enclave-interior-residents b[data-size="SMALL"],
+.resident-worker > span[data-size="SMALL"],
+.lodge-resident > span[data-size="SMALL"],
+.facility-room-resident > span[data-size="SMALL"] { --cutout-scale: .84; }
 .enclave-residents b[data-size="MEDIUM"],
-.enclave-interior-residents b[data-size="MEDIUM"] { --cutout-scale: 1; }
+.enclave-interior-residents b[data-size="MEDIUM"],
+.resident-worker > span[data-size="MEDIUM"],
+.lodge-resident > span[data-size="MEDIUM"],
+.facility-room-resident > span[data-size="MEDIUM"] { --cutout-scale: 1; }
 .enclave-residents b[data-size="LARGE"],
-.enclave-interior-residents b[data-size="LARGE"] { --cutout-scale: 1.24; }
+.enclave-interior-residents b[data-size="LARGE"],
+.resident-worker > span[data-size="LARGE"],
+.lodge-resident > span[data-size="LARGE"],
+.facility-room-resident > span[data-size="LARGE"] { --cutout-scale: 1.24; }
 .enclave-residents b[data-size="GIGANTIC"],
-.enclave-interior-residents b[data-size="GIGANTIC"] { --cutout-scale: 1.62; }
+.enclave-interior-residents b[data-size="GIGANTIC"],
+.resident-worker > span[data-size="GIGANTIC"],
+.lodge-resident > span[data-size="GIGANTIC"],
+.facility-room-resident > span[data-size="GIGANTIC"] { --cutout-scale: 1.62; }
 .exterior-enclave-residents b[data-size="LARGE"] { z-index: 5; }
 .exterior-enclave-residents b[data-size="GIGANTIC"] { z-index: 6; }
 .exterior-enclave-residents b { width: calc(30px * var(--cutout-scale)); height: calc(38px * var(--cutout-scale)); bottom: 10%; }
@@ -555,8 +572,8 @@ button.resource-pill:focus-visible {
     animation: worker-bob 2.4s ease-in-out infinite;
 }
 .resident-worker > span {
-    width: 42px;
-    height: 42px;
+    width: calc(42px * var(--cutout-scale));
+    height: calc(42px * var(--cutout-scale));
     display: flex;
     align-items: flex-end;
     justify-content: center;
@@ -570,8 +587,8 @@ button.resource-pill:focus-visible {
     font-weight: 900;
 }
 .resident-worker > span.has-overlay-art {
-    width: 58px;
-    height: 72px;
+    width: calc(58px * var(--cutout-scale));
+    height: calc(72px * var(--cutout-scale));
     overflow: visible;
     border: 0;
     border-radius: 0;
@@ -1437,8 +1454,8 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
 .lodge-logs { position: absolute; left: 12%; bottom: 14%; width: 22%; height: 18%; background: radial-gradient(circle at 18% 78%, #d8a86b 0 9%, #8a5c33 9% 13%, transparent 13.5%), radial-gradient(circle at 46% 78%, #d8a86b 0 9%, #8a5c33 9% 13%, transparent 13.5%), radial-gradient(circle at 74% 78%, #d8a86b 0 9%, #8a5c33 9% 13%, transparent 13.5%), radial-gradient(circle at 32% 46%, #d8a86b 0 9%, #8a5c33 9% 13%, transparent 13.5%), radial-gradient(circle at 60% 46%, #d8a86b 0 9%, #8a5c33 9% 13%, transparent 13.5%); filter: drop-shadow(0 6px 4px rgba(10, 8, 5, .35)); }
 .lodge-resident { position: absolute; left: 60%; bottom: 26%; display: grid; justify-items: center; gap: 4px; filter: drop-shadow(0 8px 10px rgba(0, 0, 0, .45)); }
 .lodge-resident > span {
-    width: 54px;
-    height: 54px;
+    width: calc(54px * var(--cutout-scale));
+    height: calc(54px * var(--cutout-scale));
     display: flex;
     align-items: flex-end;
     justify-content: center;
@@ -1453,8 +1470,8 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     animation: worker-bob 2.4s ease-in-out infinite;
 }
 .lodge-resident > span.has-overlay-art {
-    width: 78px;
-    height: 96px;
+    width: calc(78px * var(--cutout-scale));
+    height: calc(96px * var(--cutout-scale));
     overflow: visible;
     border: 0;
     border-radius: 0;
@@ -1738,8 +1755,8 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
 .enclave-interior-residents b:nth-child(5) { right: 8%; bottom: 18%; animation-delay: -2.8s; }
 .facility-room-resident { position: absolute; right: 8%; bottom: 10%; display: grid; justify-items: center; gap: 4px; filter: drop-shadow(0 8px 10px rgba(0, 0, 0, .45)); }
 .facility-room-resident > span {
-    width: 54px;
-    height: 54px;
+    width: calc(54px * var(--cutout-scale));
+    height: calc(54px * var(--cutout-scale));
     display: flex;
     align-items: flex-end;
     justify-content: center;
@@ -1753,8 +1770,8 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     animation: worker-bob 2.4s ease-in-out infinite;
 }
 .facility-room-resident > span.has-overlay-art {
-    width: 78px;
-    height: 96px;
+    width: calc(78px * var(--cutout-scale));
+    height: calc(96px * var(--cutout-scale));
     overflow: visible;
     border: 0;
     border-radius: 0;
@@ -2427,8 +2444,8 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     .building-label strong { font-size: 9px; }
     .building-label small { max-width: 132px; font-size: 6.5px; }
     .resident-worker { right: 8%; width: 46px; height: 60px; }
-    .resident-worker > span { width: 35px; height: 35px; }
-    .resident-worker > span.has-overlay-art { width: 46px; height: 58px; }
+    .resident-worker > span { width: calc(35px * var(--cutout-scale)); height: calc(35px * var(--cutout-scale)); }
+    .resident-worker > span.has-overlay-art { width: calc(46px * var(--cutout-scale)); height: calc(58px * var(--cutout-scale)); }
     .scene-zoom { right: calc(6px + var(--safe-right)); top: 42%; }
     .scene-zoom button { width: 32px; height: 32px; font-size: 16px; }
     .keep-tower { min-width: 26px; }
@@ -2454,9 +2471,16 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     .interior-actions { grid-row: 3; grid-column: 1; max-height: 42dvh; border-left: 0; border-top: 1px solid var(--line); padding: 11px; }
     .interior-heading h2 { font-size: 16px; }
     .interior-exit { min-height: 34px; padding: 7px 11px; font-size: 11px; }
-    .lodge-resident > span { width: 44px; height: 44px; }
-    .lodge-resident > span.has-overlay-art { width: 62px; height: 78px; }
-    .facility-room-resident > span.has-overlay-art { width: 62px; height: 78px; }
+    .lodge-resident > span { width: calc(44px * var(--cutout-scale)); height: calc(44px * var(--cutout-scale)); }
+    .lodge-resident > span.has-overlay-art { width: calc(62px * var(--cutout-scale)); height: calc(78px * var(--cutout-scale)); }
+    /* Same clearance as the workshop rooms: a gigantic cutout must not tuck behind the
+       next-room arrow on a phone. */
+    .lodge-resident { left: 46%; }
+    .facility-room-resident > span.has-overlay-art { width: calc(62px * var(--cutout-scale)); height: calc(78px * var(--cutout-scale)); }
+    /* A gigantic cutout is tall enough to reach the room's next/prev arrows on a phone.
+       Stand the resident further in so its head clears the arrow column at every band —
+       shifting per band instead would make a Siegeling hop sideways when reassigned. */
+    .facility-room-resident { right: 22%; }
     .keep-panel {
         top: auto;
         left: 0;

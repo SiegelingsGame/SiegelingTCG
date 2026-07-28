@@ -2623,7 +2623,8 @@
         node.classList.toggle('has-overlay-art', hasArt);
         node.classList.toggle('is-paper-cutout', hasArt);
         node.classList.toggle('is-paper-token', Boolean(resident) && !hasArt);
-        // Enclave cutouts are drawn at world scale, so a gigantic Siegeling towers over a small one.
+        // Residents are drawn at world scale in every room they stand in, so a gigantic
+        // Siegeling towers over a small one wherever it is posted — not just the Enclave.
         if (resident) node.dataset.size = residentSize(resident);
         else delete node.dataset.size;
         node.innerHTML = resident ? residentAvatarContent(resident) : '';
