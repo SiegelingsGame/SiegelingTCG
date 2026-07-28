@@ -904,19 +904,32 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=31")
-                        && keepHtml.contains("/js/keep.js?v=32")
+                        && keepHtml.contains("/css/keep.css?v=32")
+                        && keepHtml.contains("/js/keep.js?v=33")
                         && keepHtml.contains("id=\"hallFavoriteResident\"")
                         && keepHtml.contains("id=\"constructionBannerJobs\"")
+                        && keepHtml.contains("id=\"productionReady\"")
                         && keepJs.contains("constructionBannerSignature")
                         && keepJs.contains("data-live-banner-time=")
                         && keepJs.contains("hallFavoriteResident")
                         && keepJs.contains("favorite?.resident")
                         && keepJs.contains("function offlineCapacityRow")
                         && keepJs.contains("offline-capacity-list")
+                        && keepJs.contains("woodlotCapacity <= 0 || available < woodlotCapacity")
+                        && !keepJs.contains("productionReady')?.classList.toggle('hidden', available <= 0)")
                         && !keepJs.contains("+${constructions.length - 1} more")
                         && !keepJs.contains("Storage reached capacity\", `${name} stopped until collected`"),
-                "Keep architecture must retain its paper building hooks, refresh both asset cache pins, show the favorite in Covenant Hall, collapse storage-capacity offline alerts into one multi-line card, and show each concurrent construction job in the banner."
+                "Keep architecture must retain its paper building hooks, refresh both asset cache pins, show the favorite in Covenant Hall, collapse storage-capacity offline alerts into one multi-line card, show each concurrent construction job in the banner, and gate the Woodlot Collect bubble to a full stockpile."
+        );
+        assertTrue(
+                keepCss.contains(".construction-team-pill {")
+                        && keepCss.contains("grid-template-columns: auto minmax(0, 1fr);")
+                        && keepCss.contains("column-gap: 12px;")
+                        && keepCss.contains("column-gap: 10px;")
+                        && keepCss.contains("position: static;")
+                        && keepCss.contains("min-width: 112px;")
+                        && keepCss.contains("min-width: 100px;"),
+                "The Teams resource pill must lay the hammer beside counts with a real column gap so the glyph cannot overlay N/N."
         );
         assertTrue(
                 keepCss.contains(".building-illustration svg.paper-building-shell")
