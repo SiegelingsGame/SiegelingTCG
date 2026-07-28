@@ -799,6 +799,27 @@ class GameJavaScriptRegressionTest {
     }
 
     @Test
+    void keeperJourneyOpensOnTheCurrentChapterAndScrollsItsListVertically() throws IOException {
+        String keepHtml = Files.readString(KEEP_HTML);
+        String keepCss = Files.readString(KEEP_CSS);
+        String keepJs = Files.readString(KEEP_JS);
+
+        assertTrue(
+                keepHtml.contains("id=\"journeyToggle\"")
+                        && keepJs.contains("journeyShowAllChapters = false")
+                        && keepJs.contains("journeyShowAllChapters || !currentChapter ? chapters : [currentChapter]")
+                        && keepJs.contains("`All ${chapters.length} chapters`"),
+                "The Keeper's Journey must open focused on the current chapter, with a toggle that reveals the full list."
+        );
+        assertTrue(
+                keepCss.contains(".journey-track { flex: 1 1 auto; min-height: 0;")
+                        && keepCss.contains("grid-template-columns: repeat(auto-fill, minmax(118px, 1fr))")
+                        && !keepCss.contains("scroll-snap-type: x proximity"),
+                "The chapter list must own the card's leftover height and wrap its levels into rows, so nothing is clipped in landscape."
+        );
+    }
+
+    @Test
     void keepBuildingsAndRoomsUseLayeredPaperTreatments() throws IOException {
         String keepHtml = Files.readString(KEEP_HTML);
         String keepCss = Files.readString(KEEP_CSS);
@@ -806,8 +827,8 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=30")
-                        && keepHtml.contains("/js/keep.js?v=31")
+                        && keepHtml.contains("/css/keep.css?v=31")
+                        && keepHtml.contains("/js/keep.js?v=32")
                         && keepHtml.contains("id=\"hallFavoriteResident\"")
                         && keepHtml.contains("id=\"constructionBannerJobs\"")
                         && keepJs.contains("constructionBannerSignature")

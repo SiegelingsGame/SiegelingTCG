@@ -2834,9 +2834,11 @@ public class KeepService {
     }
 
     /** Timeline copy for what a level opens: keep-rank ups (the buildings) map to real
-     *  rank names; otherwise a granted decoration or the milestone cache. */
+     *  rank names; otherwise a granted decoration or the milestone cache. Rank-up nodes
+     *  carry the rank name alone — every node in that band is a rank up, so the prefix
+     *  only repeated itself down the timeline. */
     private String keeperUnlockLabel(int level) {
-        if (level >= 2 && level <= HALL_MAX_LEVEL) return "Keep rank up · " + rankName(level);
+        if (level >= 2 && level <= HALL_MAX_LEVEL) return rankName(level);
         String storageProject = STORAGE_PROJECT_LEVELS.entrySet().stream()
                 .filter(entry -> entry.getValue() == level)
                 .map(Map.Entry::getKey).findFirst().orElse("");
