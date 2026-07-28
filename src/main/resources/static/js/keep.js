@@ -1333,6 +1333,11 @@
         interior.querySelectorAll('[data-facility-resident]').forEach((node) => node.classList.toggle('hidden', !resident));
         interior.querySelectorAll('[data-facility-resident-art]').forEach((node) => setResidentOverlayArt(node, resident));
         interior.querySelectorAll('[data-facility-resident-name]').forEach((node) => { node.textContent = resident?.name || ''; });
+        // The honored favorite stands in Covenant Hall itself, not only in the chooser list below.
+        const favoriteResident = state.interior === 'great_hall' ? (state.snapshot.favorite?.resident || null) : null;
+        document.getElementById('hallFavoriteResident')?.classList.toggle('hidden', !favoriteResident);
+        setResidentOverlayArt(document.getElementById('hallFavoriteArt'), favoriteResident);
+        text('hallFavoriteName', favoriteResident ? favoriteResident.name : '');
         const placed = state.snapshot.placedDecorations || {};
         const placedIds = new Set(String(placed[state.interior] || '').split(',').map((id) => id.trim()).filter(Boolean));
         interior.querySelectorAll('[data-decoration-art]').forEach((node) => {
@@ -2783,6 +2788,10 @@
             },
             activePanel: state.panel || null,
             interior: state.interior || null,
+            hallFavoriteVisible: Boolean(state.interior === 'great_hall'
+                && state.snapshot?.favorite?.resident
+                && !document.getElementById('hallFavoriteResident')?.classList.contains('hidden')),
+            hallFavoriteName: document.getElementById('hallFavoriteName')?.textContent || '',
             tutorialVisible: !document.getElementById('keepTutorial')?.classList.contains('hidden'),
             offlineReportVisible: state.offlineVisible,
             unreadLore: number(snapshot.unreadLoreCount),

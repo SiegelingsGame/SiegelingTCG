@@ -806,24 +806,29 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=29")
-                        && keepHtml.contains("/js/keep.js?v=30")
+                        && keepHtml.contains("/css/keep.css?v=30")
+                        && keepHtml.contains("/js/keep.js?v=31")
+                        && keepHtml.contains("id=\"hallFavoriteResident\"")
                         && keepHtml.contains("id=\"constructionBannerJobs\"")
                         && keepJs.contains("constructionBannerSignature")
                         && keepJs.contains("data-live-banner-time=")
+                        && keepJs.contains("hallFavoriteResident")
+                        && keepJs.contains("favorite?.resident")
                         && keepJs.contains("function offlineCapacityRow")
                         && keepJs.contains("offline-capacity-list")
                         && !keepJs.contains("+${constructions.length - 1} more")
                         && !keepJs.contains("Storage reached capacity\", `${name} stopped until collected`"),
-                "Keep architecture must retain its paper building hooks, refresh both asset cache pins, show each concurrent construction job in the banner, and collapse storage-capacity offline alerts into one multi-line card."
+                "Keep architecture must retain its paper building hooks, refresh both asset cache pins, show the favorite in Covenant Hall, collapse storage-capacity offline alerts into one multi-line card, and show each concurrent construction job in the banner."
         );
         assertTrue(
                 keepCss.contains(".building-illustration svg.paper-building-shell")
                         && keepCss.contains("drop-shadow(0 1px 0 #ead8ad)")
                         && keepCss.contains(".int-backwall::after")
                         && keepCss.contains("mix-blend-mode: soft-light")
+                        && keepCss.contains(".hall-favorite-resident")
+                        && keepCss.contains(".favorite-choice:nth-child(even)")
                         && keepCss.contains(".offline-capacity-list"),
-                "Exterior silhouettes and room shells must retain their cardstock edges and print grain, and the offline capacity list must keep its stacked visual."
+                "Exterior silhouettes and room shells must retain their cardstock edges and print grain, with the hall favorite cutout, alternating favorite-choice stripes, and offline capacity list."
         );
         assertFalse(
                 keepHtml.contains("id=\"paper-prop-cutout\"")
