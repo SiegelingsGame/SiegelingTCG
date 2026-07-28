@@ -77,6 +77,9 @@ public class KeepService {
             "forge_storage_annex", 13, "fridge_storage_annex", 15,
             "generator_storage_annex", 16, "quarry_storage_annex", 17,
             "kitchen_storage_annex", 19);
+    /** Destination projects shown on — and genuinely gated by — the Keeper's Journey. */
+    private static final Map<String, Integer> DESTINATION_PROJECT_LEVELS = Map.of(
+            "build_akhars_front", 8);
     // ── Keeper leveling / battlepass ──────────────────────────────────────────
     public static final int KEEPER_MAX_LEVEL = 25;
     private static final int KEEPER_DAILY_LOGIN_XP = 60;
@@ -2992,6 +2995,8 @@ public class KeepService {
      *  chain stays ungated (level 1); the keep-RANK upgrades are what leveling unlocks,
      *  so raising to hall rank N asks for Keeper Level N. */
     private int keeperUnlockLevel(String projectId) {
+        Integer destinationLevel = DESTINATION_PROJECT_LEVELS.get(projectId);
+        if (destinationLevel != null) return destinationLevel;
         Integer storageLevel = STORAGE_PROJECT_LEVELS.get(projectId);
         if (storageLevel != null) return storageLevel;
         if (projectId != null && projectId.startsWith("hall_level_")) {
@@ -3006,7 +3011,16 @@ public class KeepService {
      *  carry the rank name alone — every node in that band is a rank up, so the prefix
      *  only repeated itself down the timeline. */
     private String keeperUnlockLabel(int level) {
-        if (level >= 2 && level <= HALL_MAX_LEVEL) return rankName(level);
+        List<String> labels = new ArrayList<>();
+        if (level >= 2 && level <= HALL_MAX_LEVEL) labels.add(rankName(level));
+        DESTINATION_PROJECT_LEVELS.entrySet().stream()
+                .filter(entry -> entry.getValue() == level)
+                .map(Map.Entry::getKey)
+                .map(this::buildProject)
+                .filter(project -> project != null)
+                .map(project -> "Project: " + project.name())
+                .forEach(labels::add);
+        if (!labels.isEmpty()) return String.join(" · ", labels);
         String storageProject = STORAGE_PROJECT_LEVELS.entrySet().stream()
                 .filter(entry -> entry.getValue() == level)
                 .map(Map.Entry::getKey).findFirst().orElse("");
