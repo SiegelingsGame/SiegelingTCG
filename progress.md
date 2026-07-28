@@ -22,6 +22,10 @@ Original prompt: The chapter display should always focus on your current chapter
 
 Original prompt: Merge and deploy the branches
 
+Original prompt: Akhars front should only feature that feature with an option to “return to keep” where you’ll see the woodlot etc then merge and deploy cleanly
+
+- July 28, 2026 Akhar's Front destination pass: the Keep map now shows only a compact distant mountain beacon for the Front; its wall, defenders, raiders, projectiles, and income badge stay hidden until entry. Entering the unlocked Front isolates the animated rampart battle from the Keep grounds, hides unrelated buildings and Keep navigation, and provides explicit Return to Keep and Manage rampart posts actions. The text-state contract reports `mode=akhars_front`, `location=akhars_front`, and return availability while inside. The branch is reconciled with current `main` at Keep pins `keep.css?v=34` / `keep.js?v=35`; focused Keep/static regressions, the complete Maven suite (325/325), and `git diff --check` pass. The required web-game client verified Keep grounds → Front → Return to Keep on that merged tree with no page/console errors, and the final screenshots were visually inspected. The connected GitHub app is authenticated for publication; production release verification is pending.
+
 Original prompt: Update the metal, poison, water and electric notches and card backs
 
 Original prompt: Add the remaining notches and card backs for undead, psychic, shadow and light

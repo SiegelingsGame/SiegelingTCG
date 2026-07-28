@@ -947,8 +947,8 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=33")
-                        && keepHtml.contains("/js/keep.js?v=34")
+                        && keepHtml.contains("/css/keep.css?v=34")
+                        && keepHtml.contains("/js/keep.js?v=35")
                         && keepHtml.contains("id=\"hallFavoriteResident\"")
                         && keepHtml.contains("id=\"constructionBannerJobs\"")
                         && keepHtml.contains("id=\"productionReady\"")
@@ -973,6 +973,19 @@ class GameJavaScriptRegressionTest {
                         && keepCss.contains("min-width: 112px;")
                         && keepCss.contains("min-width: 100px;"),
                 "The Teams resource pill must lay the hammer beside counts with a real column gap so the glyph cannot overlay N/N."
+        );
+        assertTrue(
+                keepHtml.contains("id=\"frontReturn\"")
+                        && keepHtml.contains("Return to Keep")
+                        && keepHtml.contains("id=\"frontManage\"")
+                        && keepJs.contains("function enterAkharsFront()")
+                        && keepJs.contains("function exitAkharsFront()")
+                        && keepJs.contains("state.frontView ? 'akhars_front' : 'keep'")
+                        && keepCss.contains(".keep-app.front-view-active .keep-dock")
+                        && keepCss.contains(".building-hotspot:not(.front-hotspot)")
+                        && keepCss.contains(".front-battle { position: absolute; inset: 0 0 33px; display: none;")
+                        && keepCss.contains(".keep-app.front-view-active .front-battle { display: block; }"),
+                "Akhar's Front must remain a compact map destination, reveal its battle only after entry, and provide a tested route back to the Keep grounds."
         );
         assertTrue(
                 keepCss.contains(".building-illustration svg.paper-building-shell")

@@ -417,8 +417,8 @@ button.resource-pill:focus-visible {
 .hall-hotspot { left: 50%; top: 18%; transform: translateX(-50%); width: clamp(180px, 27vw, 360px); height: clamp(190px, 36vh, 350px); }
 .woodlot-hotspot { left: 8%; bottom: 9%; }
 .archive-hotspot { right: 8%; bottom: 10%; }
-.quarter-hotspot { right: 22%; top: 48%; width: clamp(150px, 21vw, 260px); height: clamp(128px, 23vh, 215px); }
-.enclave-hotspot { left: 23%; top: 47%; width: clamp(142px, 19vw, 245px); height: clamp(126px, 22vh, 210px); }
+.quarter-hotspot { left: 23%; top: 48%; width: clamp(150px, 21vw, 260px); height: clamp(128px, 23vh, 215px); }
+.enclave-hotspot { right: 23%; top: 47%; width: clamp(142px, 19vw, 245px); height: clamp(126px, 22vh, 210px); }
 .enclave-illustration { position: absolute; inset: 2px 3px 34px; display: block; transition: filter .35s, opacity .35s; }
 .enclave-hut { position: absolute; bottom: 16%; width: 35%; height: 42%; border: 2px solid #5b4631; border-radius: 5px 5px 2px 2px; background: repeating-linear-gradient(92deg, rgba(245, 222, 174, .08) 0 1px, transparent 1px 7px), repeating-linear-gradient(90deg, #8d6b45 0 9px, #755635 9px 11px); box-shadow: inset 3px 0 rgba(237, 217, 176, .16), inset -5px -4px rgba(54, 38, 25, .2); filter: drop-shadow(0 1px 0 #ead8ad) drop-shadow(2px 3px 2px rgba(23, 19, 15, .48)); }
 .enclave-hut::before { content: ""; position: absolute; left: -9%; right: -9%; top: -35%; height: 42%; background: repeating-linear-gradient(87deg, rgba(240, 223, 183, .08) 0 1px, transparent 1px 8px), #3e5a49; clip-path: polygon(50% 0, 100% 100%, 0 100%); }
@@ -492,6 +492,182 @@ button.resource-pill:focus-visible {
 .exterior-enclave-residents b:nth-child(3) { left: 50%; animation-delay: -1.2s; }
 .exterior-enclave-residents b:nth-child(4) { left: 70%; animation-delay: -1.8s; }
 .exterior-enclave-residents b:nth-child(5) { left: 90%; animation-delay: -2.4s; }
+
+/* On the Keep map Akhar's Front is only a distant mountain destination. The full
+   rampart battle is revealed after the player enters the dedicated Front view. */
+.front-hotspot {
+    right: 10%;
+    top: 13%;
+    width: clamp(150px, 17vw, 205px);
+    height: 72px;
+    z-index: 7;
+    filter: drop-shadow(0 5px 6px rgba(29, 22, 31, .28));
+}
+.front-hotspot::before {
+    content: "";
+    position: absolute;
+    left: 8px;
+    top: 3px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #f06b48;
+    box-shadow: 0 0 0 4px rgba(240, 107, 72, .18), 0 0 16px rgba(255, 166, 91, .78);
+}
+.front-hotspot::after {
+    content: "";
+    position: absolute;
+    left: 12px;
+    top: 12px;
+    width: 2px;
+    height: 23px;
+    background: rgba(49, 45, 41, .8);
+    transform: rotate(9deg);
+    transform-origin: top;
+}
+.front-hotspot .building-label { left: 23px; right: auto; bottom: auto; top: 5px; width: auto; max-width: calc(100% - 23px); padding: 5px 8px; text-align: left; transform: none; }
+.front-hotspot .building-label strong { font-size: 9px; }
+.front-hotspot .building-label small { max-width: 165px; font-size: 6.5px; }
+.front-battle { position: absolute; inset: 0 0 33px; display: none; overflow: hidden; border-radius: 42% 38% 13% 13%; pointer-events: none; }
+.front-rampart { position: absolute; left: -3%; right: -3%; bottom: -8%; width: 106%; height: 61%; z-index: 5; filter: drop-shadow(0 -3px 0 rgba(255, 235, 183, .35)) drop-shadow(0 7px 6px rgba(34, 24, 24, .4)); }
+.front-defenders b {
+    position: absolute;
+    z-index: 7;
+    bottom: 38%;
+    width: 19%;
+    height: 43%;
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+    filter: drop-shadow(0 4px 4px rgba(0, 0, 0, .48));
+    animation: front-defender-brace 1.8s ease-in-out infinite;
+}
+.front-defenders b.has-resident { display: flex; }
+.front-defenders b:nth-child(1) { left: 8%; }
+.front-defenders b:nth-child(2) { left: 32%; animation-delay: -.6s; }
+.front-defenders b:nth-child(3) { left: 56%; animation-delay: -1.2s; }
+.front-defenders img { width: auto; height: 100%; max-width: 100%; object-fit: contain; object-position: bottom center; }
+.front-raiders i { position: absolute; z-index: 2; width: 13%; height: 32%; color: #231a36; filter: drop-shadow(0 5px 3px rgba(23, 12, 32, .42)); animation: front-raider-march 3s ease-in-out infinite; }
+.front-raiders i svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.front-raiders i path { fill: #271b3c; stroke: #100b19; stroke-width: 2.2; }
+.front-raiders i circle { fill: #d8a2ff; filter: drop-shadow(0 0 3px #d8a2ff); }
+.front-raiders i:nth-child(1) { right: 7%; top: 4%; transform: scale(1.12); }
+.front-raiders i:nth-child(2) { right: 23%; top: 20%; animation-delay: -.8s; }
+.front-raiders i:nth-child(3) { right: 39%; top: 1%; transform: scale(.8); animation-delay: -1.5s; }
+.front-raiders i:nth-child(4) { right: 2%; top: 32%; transform: scale(.72); animation-delay: -2.2s; }
+.front-projectile { position: absolute; z-index: 8; left: 32%; bottom: 51%; width: 25px; height: 6px; border-radius: 999px; opacity: 0; transform: rotate(-25deg); transform-origin: left center; background: linear-gradient(90deg, #fff8bf, #7deaff 35%, transparent); box-shadow: 0 0 7px #8ff4ff; animation: front-projectile-flight 2.1s linear infinite; }
+.front-projectile.shot-two { left: 46%; bottom: 58%; background: linear-gradient(90deg, #fff8b8, #ff8b4f 35%, transparent); box-shadow: 0 0 8px #ff8b4f; animation-delay: -.72s; }
+.front-projectile.shot-three { left: 20%; bottom: 56%; width: 20px; background: linear-gradient(90deg, #f6ffbd, #8fe871 35%, transparent); box-shadow: 0 0 7px #8fe871; animation-delay: -1.36s; }
+.front-impact { position: absolute; z-index: 4; width: 9px; height: 9px; border-radius: 50%; opacity: 0; background: #fff5ad; box-shadow: 0 -10px 0 #ff774c, 8px -5px 0 #ffbd55, 9px 6px 0 #fff5ad, -6px 7px 0 #ff774c, -9px -4px 0 #ffbd55; animation: front-impact-burst 2.1s ease-out infinite; }
+.front-impact.impact-one { right: 23%; top: 32%; animation-delay: -.1s; }
+.front-impact.impact-two { right: 6%; top: 17%; animation-delay: -.82s; }
+.front-lock { position: absolute; z-index: 10; left: 50%; top: 38%; translate: -50% -50%; min-width: 112px; padding: 7px 10px; border: 1px solid rgba(244, 204, 98, .42); border-radius: 10px; background: rgba(20, 26, 39, .88); color: #fff3c0; box-shadow: 0 6px 16px rgba(8, 12, 20, .35); pointer-events: none; }
+.front-lock b, .front-lock small { display: block; }
+.front-lock small { margin-top: 2px; color: rgba(255,255,255,.7); font-size: 8px; letter-spacing: .05em; text-transform: uppercase; }
+.front-income { position: absolute; z-index: 10; right: 1%; bottom: 40px; display: none; align-items: center; gap: 5px; padding: 5px 8px; border: 1px solid rgba(244, 204, 98, .48); border-radius: 9px; background: rgba(24, 32, 45, .9); color: #f6cb5f; box-shadow: 0 5px 14px rgba(8, 15, 22, .32); pointer-events: none; }
+.front-income > b { font-size: 15px; }
+.front-income span, .front-income strong, .front-income small { display: block; text-align: left; }
+.front-income strong { color: #fff4c8; font: 800 10px/1 "Segoe UI", sans-serif; }
+.front-income small { margin-top: 2px; color: rgba(255,255,255,.68); font-size: 6.5px; text-transform: uppercase; letter-spacing: .05em; }
+.keep-scene[data-akhars-front-level="0"] .front-battle { filter: grayscale(.9) brightness(.72); opacity: .65; }
+.keep-scene[data-akhars-front-level="0"] .front-raiders i,
+.keep-scene[data-akhars-front-level="0"] .front-projectile,
+.keep-scene[data-akhars-front-level="0"] .front-impact,
+.keep-scene[data-akhars-front-level="0"] .front-defenders { display: none; }
+.keep-scene[data-front-defenders="0"] .front-projectile,
+.keep-scene[data-front-defenders="0"] .front-impact { display: none; }
+.keep-scene[data-akhars-front-level]:not([data-akhars-front-level="0"]) .front-lock { display: none; }
+.keep-scene[data-constructing~="akhars_front"] .front-hotspot .front-lock small { font-size: 0; }
+.keep-scene[data-constructing~="akhars_front"] .front-hotspot .front-lock small::after { content: "Rampart under construction"; font-size: 8px; }
+
+/* Akhar's Front is a destination, not another cluster on the Keep grounds. Entering it
+   removes every other landmark and action surface until the player explicitly returns. */
+.front-view-toolbar {
+    position: absolute;
+    z-index: 28;
+    top: calc(14px + var(--safe-top));
+    left: calc(16px + var(--safe-left));
+    right: calc(16px + var(--safe-right));
+    display: none;
+    grid-template-columns: auto minmax(180px, 1fr) auto;
+    align-items: center;
+    gap: 16px;
+    pointer-events: none;
+}
+.front-view-active .front-view-toolbar { display: grid; }
+.front-return,
+.front-manage {
+    min-height: 42px;
+    padding: 9px 14px;
+    border: 1px solid rgba(244, 204, 98, .48);
+    border-radius: 11px;
+    color: var(--cream);
+    background: rgba(20, 31, 43, .92);
+    box-shadow: 0 8px 24px rgba(5, 13, 20, .3);
+    font-size: 11px;
+    font-weight: 900;
+    cursor: pointer;
+    pointer-events: auto;
+}
+.front-return:hover,
+.front-manage:hover { border-color: var(--gold); background: rgba(38, 52, 65, .96); }
+.front-return:focus-visible,
+.front-manage:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+.front-view-heading { min-width: 0; text-align: center; filter: drop-shadow(0 2px 3px rgba(7, 12, 17, .6)); }
+.front-view-heading strong { display: block; margin: 2px 0; font: 700 clamp(21px, 3vw, 36px)/1 Georgia, serif; color: #fff1b7; }
+.front-view-heading small { color: rgba(255, 247, 220, .78); font-size: 10px; }
+.front-manage { color: #172333; background: linear-gradient(#ffe89a, #d9ab4e); }
+.front-manage:hover { color: #172333; background: linear-gradient(#fff0b2, #e7bc63); }
+
+.keep-app.front-view-active .keep-header { grid-template-columns: minmax(180px, 1fr); }
+.keep-app.front-view-active .keep-resource-bar,
+.keep-app.front-view-active .keep-header-actions,
+.keep-app.front-view-active .keep-dock,
+.keep-app.front-view-active .scene-caption,
+.keep-app.front-view-active .scene-zoom,
+.keep-app.front-view-active .construction-banner,
+.keep-app.front-view-active .keep-scene .river,
+.keep-app.front-view-active .keep-scene .road,
+.keep-app.front-view-active .keep-scene .keep-landmark,
+.keep-app.front-view-active .keep-scene .keep-walls,
+.keep-app.front-view-active .keep-scene .courtyard-layer,
+.keep-app.front-view-active .keep-scene .ambient-motes,
+.keep-app.front-view-active .keep-scene .building-hotspot:not(.front-hotspot) { display: none; }
+.keep-app.front-view-active .front-hotspot {
+    left: 50%;
+    right: auto;
+    top: 51%;
+    width: min(900px, 88vw);
+    height: min(520px, 72vh);
+    transform: translate(-50%, -44%);
+    transform-origin: center;
+    z-index: 20;
+    filter: drop-shadow(0 22px 26px rgba(29, 22, 31, .42));
+}
+.keep-app.front-view-active .front-hotspot::before,
+.keep-app.front-view-active .front-hotspot::after { display: none; }
+.keep-app.front-view-active .front-battle { display: block; }
+.keep-app.front-view-active .front-income:not(.hidden) { display: flex; }
+.keep-app.front-view-active .front-hotspot .building-label { left: 50%; right: auto; top: auto; bottom: 2px; z-index: 12; width: max-content; max-width: none; padding: 8px 14px; text-align: center; transform: translateX(-50%); }
+.keep-app.front-view-active .front-hotspot .building-label strong { font-size: clamp(15px, 2vw, 22px); }
+.keep-app.front-view-active .front-hotspot .building-label small { max-width: none; font-size: 10px; }
+.keep-app.front-view-active .front-income { bottom: 54px; transform: scale(1.12); transform-origin: right bottom; }
+
+@media (max-width: 767px) {
+    .front-view-toolbar { top: calc(8px + var(--safe-top)); left: calc(7px + var(--safe-left)); right: calc(7px + var(--safe-right)); grid-template-columns: auto 1fr; gap: 7px; }
+    .front-view-heading { grid-column: 1 / -1; grid-row: 2; }
+    .front-return,
+    .front-manage { min-height: 36px; padding: 7px 9px; font-size: 9px; }
+    .front-manage { justify-self: end; }
+    .front-view-heading small { display: none; }
+    .keep-app.front-view-active .front-hotspot { top: 57%; width: 96vw; height: min(57vh, 500px); transform: translate(-50%, -44%); }
+}
+
+@media (orientation: landscape) and (max-height: 600px) {
+    .front-view-toolbar { top: 5px; }
+    .front-view-heading small { display: none; }
+    .keep-app.front-view-active .front-hotspot { top: 54%; width: min(820px, 78vw); height: 82vh; transform: translate(-50%, -45%); }
+}
 .quarter-illustration { position: absolute; inset: 2px 4px 34px; display: block; filter: drop-shadow(0 7px 5px rgba(22, 29, 25, .28)); }
 .quarter-path { position: absolute; left: 20%; right: 8%; bottom: 2%; height: 18%; background: rgba(199, 173, 121, .58); clip-path: polygon(46% 0, 56% 0, 100% 100%, 0 100%); }
 .quarter-building { position: absolute; display: block; width: 26%; height: 30%; bottom: 13%; border: 1px solid rgba(32, 43, 39, .62); border-radius: 3px 3px 1px 1px; opacity: .34; filter: grayscale(.7) drop-shadow(0 1px 0 #ead8ad) drop-shadow(2px 3px 2px rgba(23, 19, 15, .4)); transition: opacity .5s, filter .5s, transform .5s; box-shadow: inset 3px 0 rgba(245, 226, 188, .16), inset -4px -3px rgba(37, 28, 22, .18); }
@@ -2525,6 +2701,10 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
 @keyframes decor-arrive { from { opacity: 0; transform: scale(.72); } }
 @keyframes enclave-wander { 0%, 100% { translate: 0 0; } 45% { translate: 4px -4px; } 70% { translate: -3px 0; } }
 @keyframes enclave-exterior-bob { 0%, 100% { translate: 0 0; } 50% { translate: 0 -4px; } }
+@keyframes front-defender-brace { 0%, 100% { translate: 0 0; rotate: -1deg; } 50% { translate: 0 -3px; rotate: 2deg; } }
+@keyframes front-raider-march { 0%, 100% { translate: 6px -4px; } 50% { translate: -5px 4px; } }
+@keyframes front-projectile-flight { 0%, 15% { opacity: 0; translate: 0 0; } 20% { opacity: 1; } 68% { opacity: 1; } 72%, 100% { opacity: 0; translate: 155px -76px; } }
+@keyframes front-impact-burst { 0%, 65% { opacity: 0; transform: scale(.2) rotate(0); } 70% { opacity: 1; } 88% { opacity: 0; transform: scale(1.25) rotate(30deg); } 100% { opacity: 0; } }
 @keyframes discovery-in { from { opacity: 0; transform: translate(-50%, 18px) scale(.96); } }
 @keyframes loading-breathe { 50% { transform: translateY(-6px) scale(1.04); } }
 @keyframes facility-glow { 50% { box-shadow: 0 0 13px #ff8151; filter: brightness(1.25); } }
@@ -2600,6 +2780,8 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
        woodlot) where its label clears the Covenant Hall label. */
     .quarter-hotspot { left: 1%; right: auto; top: 45%; width: 132px; height: 120px; transform: none; }
     .enclave-hotspot { right: 1%; left: auto; top: 43%; width: 126px; height: 116px; }
+    .front-hotspot { right: 2%; top: 23%; width: 148px; height: 60px; transform: none; }
+    .front-income { bottom: 35px; }
     .building-label { max-width: 106%; padding: 5px 7px; }
     .building-label strong { font-size: 9px; }
     .building-label small { max-width: 132px; font-size: 6.5px; }
@@ -2710,6 +2892,7 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     .archive-hotspot { right: -3%; }
     .quarter-hotspot { left: 0; right: auto; top: 44%; width: 118px; height: 104px; transform: none; }
     .enclave-hotspot { right: 0; left: auto; top: 42%; width: 112px; height: 102px; }
+    .front-hotspot { right: 1%; top: 21%; width: 140px; height: 56px; transform: none; }
     .production-ready { display: none !important; }
     .building-label small { display: none; }
 }
@@ -2729,8 +2912,9 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     .hall-hotspot { top: 5%; transform: translateX(-50%) scale(.78); transform-origin: top center; }
     .woodlot-hotspot,
     .archive-hotspot { bottom: 2%; transform: scale(.72); transform-origin: bottom center; }
-    .quarter-hotspot { right: 24%; top: 41%; transform: scale(.66); transform-origin: center; }
-    .enclave-hotspot { left: 24%; right: auto; top: 39%; transform: scale(.66); transform-origin: center; }
+    .quarter-hotspot { left: 24%; right: auto; top: 41%; transform: scale(.78); transform-origin: center; }
+    .enclave-hotspot { right: 24%; left: auto; top: 39%; transform: scale(.78); transform-origin: center; }
+    .front-hotspot { right: 10%; top: 7%; width: 170px; height: 62px; transform: none; }
     .keep-dock { min-height: calc(48px + var(--safe-bottom)); padding-block: 3px calc(3px + var(--safe-bottom)); }
     .keep-dock button > span { font-size: 15px; }
     .construction-banner { top: 7px; min-width: 290px; }

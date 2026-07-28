@@ -126,6 +126,14 @@ public class KeepController {
                 string(body, "residentId"), string(body, "requestId"), version(body)));
     }
 
+    @PostMapping("/api/keep/akhars-front/resident")
+    public ResponseEntity<Map<String, Object>> akharsFrontResident(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody Map<String, Object> body) {
+        return respond(authorizationHeader, user -> keepService.setAkharsFrontResident(user, integer(body, "slot"),
+                string(body, "residentId"), string(body, "requestId"), version(body)));
+    }
+
     private ResponseEntity<Map<String, Object>> respond(String authorizationHeader,
                                                          Function<AccountUser, Map<String, Object>> operation) {
         try {

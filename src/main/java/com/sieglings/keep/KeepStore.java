@@ -53,6 +53,11 @@ public class KeepStore {
         payload.put("buildersYardLevel", state.getBuildersYardLevel());
         payload.put("enclaveLevel", state.getEnclaveLevel());
         payload.put("enclaveResidentIds", state.getEnclaveResidentIds());
+        payload.put("akharsFrontLevel", state.getAkharsFrontLevel());
+        payload.put("akharsFrontResidentIds", state.getAkharsFrontResidentIds());
+        payload.put("akharsFrontStoredGold", state.getAkharsFrontStoredGold());
+        payload.put("akharsFrontProductionRemainder", state.getAkharsFrontProductionRemainder());
+        payload.put("akharsFrontLastAccruedAt", timestamp(state.getAkharsFrontLastAccruedAt()));
         payload.put("enclaveMissionProgress", state.getEnclaveMissionProgress());
         payload.put("enclaveTaskProgress", state.getEnclaveTaskProgress());
         payload.put("enclaveTaskCompletions", state.getEnclaveTaskCompletions());
@@ -137,6 +142,11 @@ public class KeepStore {
         state.setBuildersYardLevel((int) number(snapshot.get("buildersYardLevel"), 0));
         state.setEnclaveLevel((int) number(snapshot.get("enclaveLevel"), 0));
         state.setEnclaveResidentIds(strings(snapshot.get("enclaveResidentIds")));
+        state.setAkharsFrontLevel((int) number(snapshot.get("akharsFrontLevel"), 0));
+        state.setAkharsFrontResidentIds(strings(snapshot.get("akharsFrontResidentIds")));
+        state.setAkharsFrontStoredGold((int) number(snapshot.get("akharsFrontStoredGold"), 0));
+        state.setAkharsFrontProductionRemainder(decimal(snapshot.get("akharsFrontProductionRemainder"), 0));
+        state.setAkharsFrontLastAccruedAt(instant(snapshot.get("akharsFrontLastAccruedAt")));
         state.setEnclaveMissionProgress(intMap(snapshot.get("enclaveMissionProgress")));
         state.setEnclaveTaskProgress(intMap(snapshot.get("enclaveTaskProgress")));
         state.setEnclaveTaskCompletions(intMap(snapshot.get("enclaveTaskCompletions")));

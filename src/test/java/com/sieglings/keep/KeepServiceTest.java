@@ -1026,6 +1026,38 @@ class KeepServiceTest {
         assertEquals(2, tasks.size(), "An element override plus the personal bond task.");
     }
 
+    @Test
+    void akharsFrontUnlocksRampartPostsAndBanksPassiveSiegecoins() {
+        service.getSnapshot(user);
+        store.state.setEnclaveLevel(1);
+        store.state.setHallLevel(3);
+        store.state.getFacilityLevels().put("quarry", 1);
+        store.state.getFacilityLastAccruedAt().put("quarry", clock.instant());
+        store.state.getMaterialInventory().put("stone", 20);
+        store.state.setTimber(500);
+
+        service.startBuild(user, "build_akhars_front", "front-build", store.state.getVersion());
+        clock.advance(Duration.ofSeconds(KeepService.AKHARS_FRONT_BUILD_SECONDS + 1));
+        Map<String, Object> built = service.getSnapshot(user);
+        assertEquals(Boolean.TRUE, valueAt(built, "akharsFront", "built"));
+        assertEquals(3, intAt(built, "akharsFront", "capacity"));
+
+        Map<String, Object> posted = service.setAkharsFrontResident(
+                user, 0, "mossling", "front-post", store.state.getVersion());
+        assertEquals(1, intAt(posted, "akharsFront", "residentCount"));
+        assertEquals(1.0, ((Number) valueAt(posted, "akharsFront", "ratePerMinute")).doubleValue(), .0001);
+
+        clock.advance(Duration.ofMinutes(10));
+        Map<String, Object> accrued = service.getSnapshot(user);
+        assertEquals(10, intAt(accrued, "akharsFront", "available"));
+        int goldBefore = progression.getGold();
+        Map<String, Object> collected = service.collect(
+                user, "akhars_front", "front-collect", store.state.getVersion());
+        assertEquals(goldBefore + 10, progression.getGold());
+        assertEquals(0, intAt(collected, "akharsFront", "available"));
+        assertEquals("SIEGECOINS", valueAt(collected, "collected", "resource"));
+    }
+
     private void buildEnclave() {
         service.getSnapshot(user);
         store.state.setArchiveLevel(1);

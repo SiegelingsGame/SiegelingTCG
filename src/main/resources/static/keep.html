@@ -9,7 +9,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#173f54">
-    <link rel="stylesheet" href="/css/keep.css?v=33">
+    <link rel="stylesheet" href="/css/keep.css?v=34">
 </head>
 <body>
 <svg class="keep-svg-defs" width="0" height="0" aria-hidden="true" focusable="false">
@@ -83,13 +83,12 @@
 
     <main class="keep-main">
         <section class="keep-scene-viewport" id="sceneViewport" aria-label="A frontier sanctuary under restoration">
-            <div class="keep-scene" id="keepScene" data-healing-stage="0" data-archive-restored="false" data-woodlot-level="1" data-hall-level="1" data-hall-theme="covenant" data-constructing="">
+            <div class="keep-scene" id="keepScene" data-healing-stage="0" data-archive-restored="false" data-woodlot-level="1" data-hall-level="1" data-hall-theme="covenant" data-akhars-front-level="0" data-front-defenders="0" data-constructing="">
                 <div class="sky-glow"></div>
                 <div class="cloud cloud-one"></div>
                 <div class="cloud cloud-two"></div>
                 <div class="mountain mountain-back"></div>
                 <div class="mountain mountain-front"></div>
-                <div class="distant-fire" aria-hidden="true"><i></i><span>Akhar's distant front</span></div>
                 <div class="ground-layer"></div>
                 <div class="wounded-earth"></div>
                 <div class="restored-meadow"></div>
@@ -324,6 +323,44 @@
                     <span class="building-label"><strong>Siegeling Enclave</strong><small id="enclaveLabel">A clearing for future residents</small></span>
                 </button>
 
+                <button class="building-hotspot front-hotspot" type="button" data-building="akhars_front" aria-label="Open Akhar's Front">
+                    <span class="front-battle" aria-hidden="true">
+                        <svg class="front-rampart" viewBox="0 0 360 150" preserveAspectRatio="none">
+                            <defs>
+                                <linearGradient id="frontStone" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d7bd8b"/><stop offset="1" stop-color="#7e674d"/></linearGradient>
+                                <pattern id="frontBlocks" width="48" height="32" patternUnits="userSpaceOnUse"><path d="M0 0h48v32H0z" fill="url(#frontStone)"/><path d="M0 31.5h48M24 0v16M0 16h48" stroke="rgba(67,50,38,.32)" stroke-width="2"/></pattern>
+                            </defs>
+                            <path d="M0 64h28V37h32v27h30V37h32v27h30V37h32v27h30V37h32v27h30V37h32v27h52v86H0z" fill="url(#frontBlocks)" stroke="#4a392f" stroke-width="5"/>
+                            <path d="M0 77h360" stroke="#f2dcaa" stroke-width="4" opacity=".58"/>
+                            <path d="M22 112h316" stroke="#5b4638" stroke-width="8" opacity=".28"/>
+                        </svg>
+                        <span class="front-defenders">
+                            <b data-front-resident-slot="0"></b><b data-front-resident-slot="1"></b><b data-front-resident-slot="2"></b>
+                        </span>
+                        <span class="front-raiders">
+                            <i><svg viewBox="0 0 60 80"><path d="M18 15 10 2l16 9 4-9 5 9 16-9-9 14c8 6 12 16 10 28l7 23-13-8-4 19-11-19-12 18-3-20-13 9 7-23c-1-12 2-22 8-28Z"/><circle cx="23" cy="27" r="3"/><circle cx="38" cy="27" r="3"/></svg></i>
+                            <i><svg viewBox="0 0 60 80"><path d="M18 15 10 2l16 9 4-9 5 9 16-9-9 14c8 6 12 16 10 28l7 23-13-8-4 19-11-19-12 18-3-20-13 9 7-23c-1-12 2-22 8-28Z"/><circle cx="23" cy="27" r="3"/><circle cx="38" cy="27" r="3"/></svg></i>
+                            <i><svg viewBox="0 0 60 80"><path d="M18 15 10 2l16 9 4-9 5 9 16-9-9 14c8 6 12 16 10 28l7 23-13-8-4 19-11-19-12 18-3-20-13 9 7-23c-1-12 2-22 8-28Z"/><circle cx="23" cy="27" r="3"/><circle cx="38" cy="27" r="3"/></svg></i>
+                            <i><svg viewBox="0 0 60 80"><path d="M18 15 10 2l16 9 4-9 5 9 16-9-9 14c8 6 12 16 10 28l7 23-13-8-4 19-11-19-12 18-3-20-13 9 7-23c-1-12 2-22 8-28Z"/><circle cx="23" cy="27" r="3"/><circle cx="38" cy="27" r="3"/></svg></i>
+                        </span>
+                        <i class="front-projectile shot-one"></i><i class="front-projectile shot-two"></i><i class="front-projectile shot-three"></i>
+                        <i class="front-impact impact-one"></i><i class="front-impact impact-two"></i>
+                    </span>
+                    <span class="front-lock" id="frontLock"><b aria-hidden="true">&#128274;</b><small>Unlock from Projects</small></span>
+                    <span class="front-income hidden" id="frontIncome"><b aria-hidden="true">&#9673;</b><span><strong id="frontReadyAmount">0</strong><small>Siegecoins ready</small></span></span>
+                    <span class="building-label"><strong>Akhar's Front</strong><small id="frontLabel">Distant raiders gather</small></span>
+                </button>
+
+            </div>
+
+            <div class="front-view-toolbar" id="frontViewToolbar" aria-hidden="true">
+                <button class="front-return" id="frontReturn" type="button"><span aria-hidden="true">&#8592;</span> Return to Keep</button>
+                <div class="front-view-heading">
+                    <span class="eyebrow">Bastion defense</span>
+                    <strong>Akhar's Front</strong>
+                    <small>Hold the ramparts against the approaching dark Siegelings.</small>
+                </div>
+                <button class="front-manage" id="frontManage" type="button">Manage rampart posts</button>
             </div>
 
             <div class="scene-caption" id="sceneCaption" data-open-journey role="button" tabindex="0"
@@ -586,7 +623,7 @@
 
 <audio id="keepTheme" loop preload="auto" src="/audio/sieglings-theme.mp3?v=1"></audio>
 <script src="/js/config.js?v=1"></script>
-<script src="/js/keep.js?v=34"></script>
+<script src="/js/keep.js?v=35"></script>
 <script src="/js/sw-register.js?v=1"></script>
 </body>
 </html>
