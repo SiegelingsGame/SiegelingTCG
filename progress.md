@@ -1,6 +1,6 @@
 Original prompt: Merge and deploy
 
-- July 28, 2026 Keep Collect-bubble + Teams-pill production release: squash-merged PR `#550` onto `main` after resolving sibling Keep Journey (`keep.css?v=31` / `keep.js?v=32`) pin conflicts by retaining both feature guards and bumping pins to `keep.css?v=32` / `keep.js?v=33`. Deploy follows the main-branch Action (Cloud Run then Firebase Hosting + Functions); live verification recorded below after the run completes.
+- July 28, 2026 Keep Collect-bubble + Teams-pill production release: merged PR `#550` (`464aa16c`) to `main` after resolving sibling Keep Journey (`keep.css?v=31` / `keep.js?v=32`) pin conflicts by retaining both feature guards and bumping pins to `keep.css?v=32` / `keep.js?v=33`. Deploy run `30358888182` completed successfully (Cloud Run then Firebase Hosting + Functions). Live `/keep` returns 200 with those pins; served JS contains the full-stockpile Collect gate (`woodlotCapacity <= 0 || available < woodlotCapacity`); served CSS contains the Teams pill grid (`grid-template-columns: auto minmax(0, 1fr)` / `column-gap: 12px` / phone `column-gap: 10px`); Hosting and Cloud Run `/api/cards/editor` both report `source=FIRESTORE` with live editing available; `js/config.js` keeps `apiBaseUrl: ''`; `/api/game/options` returns 4 decks / 11 trainers.
 
 Original prompt: Woodlot should only display “collect” bubble when 100% full / The hammer icon next to teams overlays the numbers increase the bubble area a bit so it can fit flush
 
