@@ -747,7 +747,11 @@
         text('collectAmount', `${available} timber`);
         const collect = document.getElementById('collectButton');
         if (collect) collect.disabled = available <= 0 || number(state.snapshot.resources?.timber) >= number(state.snapshot.resources?.timberCapacity) || state.busy;
-        document.getElementById('productionReady')?.classList.toggle('hidden', available <= 0);
+        // Map Collect cue only when the Woodlot stockpile is full — partial stores
+        // still show as growing piles and remain claimable from the dock button.
+        const woodlotCapacity = number(state.snapshot.station?.storageCapacity);
+        document.getElementById('productionReady')?.classList.toggle(
+            'hidden', woodlotCapacity <= 0 || available < woodlotCapacity);
         updateStockpileVisuals();
         renderConstruction();
         // The Keep Activity tray also owns live construction clocks. Updating
