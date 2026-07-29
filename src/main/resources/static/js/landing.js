@@ -31,10 +31,10 @@
     }
 
     const FEATURED_SIEGELINGS = [
-        { name: 'Pylord',       element: 'FIRE',  art: '/img/legendary/legendary-fire.png',  model: '/assets/models/Model_Pylord.fbx' },
-        { name: 'Glaciemperor', element: 'ICE',   art: '/img/legendary/legendary-ice.png',   model: '/assets/models/Model_Glaciemperor.fbx' },
-        { name: 'Aerovane',     element: 'WIND',  art: '/img/legendary/legendary-wind.png',  model: '/assets/models/Aerovane.fbx' },
-        { name: 'Gymstone',     element: 'EARTH', art: '/img/legendary/legendary-earth.png', model: '/assets/models/Model_Gymstone.fbx' },
+        { name: 'Pylord',       element: 'FIRE',  art: '/img/legendary/legendary-fire.png',  model: '/assets/models/Model_Pylord.fbx', description: 'A crown-forged fire titan that turns every linked ember into a decisive opening.' },
+        { name: 'Glaciemperor', element: 'ICE',   art: '/img/legendary/legendary-ice.png',   model: '/assets/models/Model_Glaciemperor.fbx', description: 'An ancient ruler of the frostbound reaches, patient enough to freeze an entire board in place.' },
+        { name: 'Aerovane',     element: 'WIND',  art: '/img/legendary/legendary-wind.png',  model: '/assets/models/Aerovane.fbx', description: 'A skyborne tactician whose shifting currents reward players who never stand still.' },
+        { name: 'Gymstone',     element: 'EARTH', art: '/img/legendary/legendary-earth.png', model: '/assets/models/Model_Gymstone.fbx', description: 'A living fortress of stone and root, built to hold the field when the battle turns.' },
     ];
 
     const FLAVOR_LINES = [
@@ -76,6 +76,65 @@
         }).join('');
         grid.innerHTML = html;
         document.dispatchEvent(new CustomEvent('sieglings:legendary-grid-rendered'));
+    }
+
+    // The spotlight gives the legendary roster a narrative, rotating treatment
+    // while retaining the browseable card grid beneath it.
+    function bindFeaturedRotator() {
+        const host = document.getElementById('featuredRotator');
+        if (!host || !FEATURED_SIEGELINGS.length) return;
+        let activeIndex = 0;
+        let interval = null;
+        const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        function render(index) {
+            activeIndex = (index + FEATURED_SIEGELINGS.length) % FEATURED_SIEGELINGS.length;
+            const entry = FEATURED_SIEGELINGS[activeIndex];
+            const element = entry.element.toLowerCase();
+            host.style.setProperty('--feature-color', `var(--element-${element})`);
+            host.style.setProperty('--feature-glow', `var(--element-${element}-glow, rgba(117, 218, 255, .4))`);
+            host.innerHTML = `
+                <article class="featured-slide" aria-live="polite">
+                    <div class="featured-slide-art"><img src="${escapeAttr(entry.art)}" alt="${escapeAttr(entry.name)}, legendary ${escapeAttr(entry.element)} Siegeling" loading="eager"></div>
+                    <div class="featured-slide-copy">
+                        <span class="featured-element">Legendary · ${escapeHtml(entry.element)}</span>
+                        <h3>${escapeHtml(entry.name)}</h3>
+                        <p>${escapeHtml(entry.description)}</p>
+                        <div class="featured-controls" aria-label="Featured Siegeling controls">
+                            <button class="featured-control" type="button" data-rotator-prev aria-label="Previous featured Siegeling">←</button>
+                            <button class="featured-control" type="button" data-rotator-next aria-label="Next featured Siegeling">→</button>
+                        </div>
+                    </div>
+                    <div class="featured-dots" aria-label="Select featured Siegeling">
+                        ${FEATURED_SIEGELINGS.map((s, i) => `<button class="featured-dot${i === activeIndex ? ' is-active' : ''}" type="button" data-rotator-index="${i}" aria-label="Show ${escapeAttr(s.name)}" aria-current="${i === activeIndex ? 'true' : 'false'}"></button>`).join('')}
+                    </div>
+                </article>`;
+            host.querySelector('[data-rotator-prev]')?.addEventListener('click', () => render(activeIndex - 1));
+            host.querySelector('[data-rotator-next]')?.addEventListener('click', () => render(activeIndex + 1));
+            host.querySelectorAll('[data-rotator-index]').forEach((button) => button.addEventListener('click', () => render(Number(button.dataset.rotatorIndex))));
+        }
+
+        function stop() { if (interval) { window.clearInterval(interval); interval = null; } }
+        function start() { if (!reducedMotion && !interval) interval = window.setInterval(() => render(activeIndex + 1), 6200); }
+        host.addEventListener('pointerenter', stop);
+        host.addEventListener('pointerleave', start);
+        host.addEventListener('focusin', stop);
+        host.addEventListener('focusout', () => window.setTimeout(() => { if (!host.contains(document.activeElement)) start(); }, 0));
+        render(0);
+        start();
+    }
+
+    function bindLandingFab() {
+        const nav = document.querySelector('.landing-fab');
+        const toggle = nav?.querySelector('.landing-fab-toggle');
+        const menu = nav?.querySelector('.landing-fab-menu');
+        if (!nav || !toggle || !menu) return;
+        function close() { menu.hidden = true; toggle.setAttribute('aria-expanded', 'false'); }
+        function open() { menu.hidden = false; toggle.setAttribute('aria-expanded', 'true'); }
+        toggle.addEventListener('click', () => menu.hidden ? open() : close());
+        menu.querySelectorAll('a').forEach((link) => link.addEventListener('click', close));
+        document.addEventListener('click', (event) => { if (!nav.contains(event.target)) close(); });
+        document.addEventListener('keydown', (event) => { if (event.key === 'Escape') close(); });
     }
 
     function escapeHtml(value) {
@@ -449,6 +508,8 @@
 
     function init() {
         renderCreatureGrid();
+        bindFeaturedRotator();
+        bindLandingFab();
         bindParallax();
         bindTrailerModal();
         bindLoginModal();
