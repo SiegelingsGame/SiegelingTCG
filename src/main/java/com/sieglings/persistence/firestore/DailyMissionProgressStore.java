@@ -42,6 +42,17 @@ public class DailyMissionProgressStore {
         if (progress.getUserId() == null || progress.getUserId().isBlank()) {
             throw new IllegalArgumentException("Daily mission progress user id is required.");
         }
+        Map<String, Object> payload = toPayload(progress);
+        try {
+            doc(progress.getUserId()).set(payload).get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            return progress;
+        } catch (Exception ex) {
+            throw new IllegalStateException("Unable to save daily mission progress to Firestore.", ex);
+        }
+    }
+
+    /** Shared with {@link RewardClaimStore} so a transactional write serializes identically. */
+    Map<String, Object> toPayload(DailyMissionProgressEntity progress) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("dateKey", progress.getDateKey());
         payload.put("counters", progress.getCounters());
@@ -60,12 +71,7 @@ public class DailyMissionProgressStore {
         payload.put("lastLoginClaimKey", progress.getLastLoginClaimKey());
         payload.put("loginStreak", progress.getLoginStreak());
         payload.put("updatedAt", toTimestamp(progress.getUpdatedAt()));
-        try {
-            doc(progress.getUserId()).set(payload).get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            return progress;
-        } catch (Exception ex) {
-            throw new IllegalStateException("Unable to save daily mission progress to Firestore.", ex);
-        }
+        return payload;
     }
 
     public void deleteByUserId(String userId) {
@@ -79,14 +85,14 @@ public class DailyMissionProgressStore {
         }
     }
 
-    private DocumentReference doc(String userId) {
+    DocumentReference doc(String userId) {
         return client.requireFirestore()
                 .collection(client.dailyMissionProgressCollection())
                 .document(userId);
     }
 
     @SuppressWarnings("unchecked")
-    private DailyMissionProgressEntity toEntity(String userId, DocumentSnapshot snapshot) {
+    DailyMissionProgressEntity toEntity(String userId, DocumentSnapshot snapshot) {
         DailyMissionProgressEntity progress = new DailyMissionProgressEntity();
         progress.setUserId(userId);
         progress.setDateKey(snapshot.getString("dateKey"));
