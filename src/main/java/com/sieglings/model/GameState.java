@@ -39,7 +39,7 @@ public class GameState {
     /** Setup actions consumed this turn by Sieglings, spells, and traps. */
     private int playerPlacementsThisTurn = 0;
     private int enemyPlacementsThisTurn = 0;
-    /** External board sockets that have ever been activated; persist even if Sieglinks break. */
+    /** Perimeter call wells activated for this match; each key contributes at most one baseline energy. */
     private Map<String, Element> playerExternalSocketActivations = new LinkedHashMap<>();
     private Map<String, Element> enemyExternalSocketActivations = new LinkedHashMap<>();
     /**

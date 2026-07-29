@@ -160,7 +160,8 @@
         UNDEAD: '/img/notches/notch-undead.png?v=2',
         PSYCHIC: '/img/notches/notch-psychic.png?v=2',
         POISON: '/img/notches/notch-poison.png?v=2',
-        LIGHT: '/img/notches/notch-light.png?v=2'
+        LIGHT: '/img/notches/notch-light.png?v=2',
+        NEUTRAL: '/img/notches/notch-neutral.png?v=2'
     };
     const ENERGY_COST_FILTERS = ['ALL', 'FREE', '1', '2', '3', '4', '5+'];
     const NOTCH_DIRECTIONS = ['TOP_LEFT', 'TOP', 'TOP_RIGHT', 'LEFT', 'RIGHT', 'BOTTOM_LEFT', 'BOTTOM', 'BOTTOM_RIGHT'];

@@ -83,6 +83,51 @@ class EnergyServiceTest {
     }
 
     @Test
+    void activatedCallWellKeepsOneBaselineEnergyAfterDefeatAndReattachment() {
+        SieglingCard outerFire = new SieglingCard(
+                "call-well-fire",
+                "Call Well Fire",
+                Element.FIRE,
+                Rarity.COMMON,
+                10,
+                1,
+                List.of(new Notch(NotchDirection.BOTTOM, Element.FIRE)),
+                Row.BACK
+        );
+        GameState state = new GameState();
+        state.setPlayer(new Player("Player", true));
+        state.setEnemy(new Player("AI Opponent", false));
+        CardInstance original = new CardInstance(outerFire.copy(), 0, 1, true);
+        state.setAt(true, 0, 1, original);
+
+        EnergyService.EnergyBreakdown activated = energyService.getBreakdown(state, true);
+        assertEquals(1, activated.fireExternal());
+        assertEquals(1, state.getExternalSocketActivations(true).size());
+
+        original.setCurrentHealth(0);
+        state.removeDeadSieglings();
+        EnergyService.EnergyBreakdown afterDefeat = energyService.getBreakdown(state, true);
+        assertEquals(1, afterDefeat.fireExternal(), "A defeated attachment must not turn off its call well.");
+
+        SieglingCard outerWater = new SieglingCard(
+                "call-well-water",
+                "Call Well Water",
+                Element.WATER,
+                Rarity.COMMON,
+                10,
+                1,
+                List.of(new Notch(NotchDirection.BOTTOM, Element.WATER)),
+                Row.BACK
+        );
+        state.setAt(true, 0, 1, new CardInstance(outerWater.copy(), 0, 1, true));
+
+        EnergyService.EnergyBreakdown reattached = energyService.getBreakdown(state, true);
+        assertEquals(1, state.getExternalSocketActivations(true).size(), "Reattachment must not add a second well energy.");
+        assertEquals(1, reattached.fireExternal(), "The call well keeps its established baseline element.");
+        assertEquals(0, reattached.waterExternal(), "The reattached notch must not stack more external energy.");
+    }
+
+    @Test
     void moveLinkCannotLeaveNetworkWithoutActiveNotchConnection() {
         SieglingCard root = new SieglingCard(
                 "root-fire",
