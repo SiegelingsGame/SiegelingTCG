@@ -191,15 +191,23 @@ import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
             if (card.dataset.legendaryBound === 'true') return;
             card.dataset.legendaryBound = 'true';
             card.addEventListener('click', () => {
-                cards.forEach((item) => item.classList.toggle('is-selected', item === card));
+                cards.forEach((item) => {
+                    const selected = item === card;
+                    item.classList.toggle('is-selected', selected);
+                    item.setAttribute('aria-pressed', String(selected));
+                });
                 syncVisibleViewport(card);
                 viewports.find((item) => item.card === card)?.spin();
             });
         });
 
-        const fireCard = cards.find((card) => card.dataset.element === 'fire') || cards[0];
-        cards.forEach((item) => item.classList.toggle('is-selected', item === fireCard));
-        syncVisibleViewport(fireCard);
+        // The idle state is a clean elemental notch. A full model or portrait
+        // is revealed only after the player explicitly selects a legendary.
+        cards.forEach((item) => {
+            item.classList.remove('is-selected');
+            item.setAttribute('aria-pressed', 'false');
+        });
+        syncVisibleViewport(null);
         return true;
     }
 

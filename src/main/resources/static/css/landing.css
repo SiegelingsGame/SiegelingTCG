@@ -918,10 +918,40 @@ img { display: block; }
     transform: scale(1.01);
 }
 
-.creature-model-viewport {
+.creature-legendary-stage {
     position: relative;
+    width: min(72%, 158px);
+    aspect-ratio: 1;
+    margin: 16px auto 18px;
     padding: 0;
+    border-radius: 50%;
+    border: 1px solid color-mix(in srgb, var(--creature-color), transparent 34%);
+    box-shadow: 0 0 24px var(--creature-glow), inset 0 0 22px rgba(0,0,0,.38);
 }
+.creature-notch {
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    display: grid;
+    place-items: center;
+    color: var(--creature-color);
+    background: radial-gradient(circle at 50% 50%, var(--creature-glow), transparent 68%), linear-gradient(160deg, rgba(255,255,255,.045), rgba(0,0,0,.34));
+    border-radius: inherit;
+    transition: opacity .28s ease, transform .28s ease, filter .28s ease;
+}
+.creature-notch .sgl-element-svg { width: 61%; height: 61%; filter: drop-shadow(0 0 13px var(--creature-glow)); }
+.creature-model-viewport {
+    position: absolute;
+    inset: 0;
+    padding: 0;
+    opacity: 0;
+    visibility: hidden;
+    overflow: hidden;
+    border-radius: inherit;
+    transition: opacity .28s ease, visibility .28s ease;
+}
+.creature-card.is-selected .creature-model-viewport { opacity: 1; visibility: visible; }
+.creature-card.is-selected .creature-notch { opacity: 0; transform: scale(.9); filter: blur(3px); }
 
 .creature-model-viewport canvas,
 .creature-model-poster,
@@ -943,6 +973,7 @@ img { display: block; }
 
 .creature-model-poster {
     z-index: 3;
+    border-radius: 50%;
     transition: opacity 0.24s ease, visibility 0.24s ease;
 }
 
@@ -1820,6 +1851,25 @@ img { display: block; }
 .featured-dot { width: 7px; height: 7px; padding: 0; border: 0; border-radius: 50%; background: rgba(255,255,255,.35); cursor: pointer; }
 .featured-dot.is-active { background: var(--feature-color); box-shadow: 0 0 9px var(--feature-glow); }
 
+.roster-section { padding: 88px 24px 76px; background: radial-gradient(ellipse at 80% 12%, rgba(15, 194, 255, .14), transparent 42%), radial-gradient(ellipse at 18% 85%, rgba(151, 74, 255, .16), transparent 44%), #081630; }
+.roster-rotator { width: min(1040px, 100%); min-height: 370px; margin: 0 auto; overflow: hidden; border: 1px solid color-mix(in srgb, var(--roster-color, #aeeaff), transparent 65%); border-radius: 24px; background: linear-gradient(125deg, rgba(9, 19, 48, .98), rgba(6, 12, 31, .98)); box-shadow: 0 24px 64px rgba(0,0,0,.36), 0 0 42px color-mix(in srgb, var(--roster-color, #aeeaff), transparent 88%); }
+.roster-loading { min-height: 370px; display: grid; place-items: center; color: rgba(228, 238, 253, .65); font-size: .75rem; font-weight: 800; letter-spacing: .17em; text-transform: uppercase; }
+.roster-slide { position: relative; display: grid; grid-template-columns: minmax(320px, 1.1fr) minmax(330px, .9fr); min-height: 370px; isolation: isolate; }
+.roster-slide::after { content: ''; position: absolute; inset: 0; z-index: -1; opacity: .9; background: radial-gradient(circle at 32% 44%, var(--roster-glow), transparent 48%); }
+.roster-slide-art { min-height: 370px; overflow: hidden; background: radial-gradient(circle at 50% 44%, var(--roster-glow), transparent 55%); }
+.roster-slide-art img { width: 100%; height: 100%; object-fit: cover; filter: drop-shadow(0 25px 30px rgba(0,0,0,.48)); }
+.roster-slide-copy { display: flex; flex-direction: column; justify-content: center; align-items: flex-start; padding: 38px 42px 54px; }
+.roster-element { color: var(--roster-color); font-size: .72rem; font-weight: 800; letter-spacing: .19em; text-transform: uppercase; }
+.roster-slide h3 { margin: 8px 0 12px; color: #fff; font-family: 'Cinzel', Georgia, serif; font-size: clamp(2rem, 4vw, 3.3rem); line-height: 1.05; }
+.roster-slide p { margin: 0; color: rgba(232, 239, 253, .8); line-height: 1.68; }
+.roster-controls { display: flex; gap: 9px; margin-top: 25px; }
+.roster-control { width: 38px; height: 38px; padding: 0; border: 1px solid color-mix(in srgb, var(--roster-color), transparent 35%); border-radius: 50%; color: #fff; background: rgba(255,255,255,.05); cursor: pointer; font-size: 1.1rem; transition: background .18s ease, color .18s ease, transform .18s ease; }
+.roster-control:hover { color: #06132d; background: var(--roster-color); transform: translateY(-2px); }
+.roster-progress { position: absolute; right: 27px; bottom: 23px; color: rgba(232, 239, 253, .5); font-size: .73rem; font-weight: 700; letter-spacing: .12em; }
+.roster-progress span { color: var(--roster-color); }
+.roster-collection-link { display: table; margin: 25px auto 0; color: #b5efff; font-size: .76rem; font-weight: 800; letter-spacing: .15em; text-transform: uppercase; }
+.roster-collection-link span { padding-left: 6px; font-size: 1.05rem; }
+
 .arena-section { display: grid; grid-template-columns: minmax(280px,.85fr) minmax(300px,1fr); align-items: center; gap: clamp(30px, 7vw, 110px); padding: 88px max(24px, calc((100vw - 1050px) / 2)); background: radial-gradient(ellipse at 25% 48%, rgba(112,59,255,.27), transparent 47%), linear-gradient(135deg, #151047, #091c44 55%, #07142e); }
 .arena-visual { position: relative; aspect-ratio: 1; max-width: 395px; width: 100%; justify-self: center; border: 1px solid rgba(154,217,255,.25); border-radius: 50%; background: radial-gradient(circle, rgba(117,44,255,.38), rgba(23,47,104,.18) 45%, transparent 69%); box-shadow: inset 0 0 70px rgba(75,170,255,.12), 0 0 56px rgba(111,70,255,.22); }
 .arena-ring { position: absolute; border: 1px solid rgba(161,226,255,.4); border-radius: 50%; }
@@ -1850,6 +1900,14 @@ img { display: block; }
     .featured-slide-art { min-height: 240px; max-height: 300px; }
     .featured-slide-copy { padding: 24px 23px 50px; }
     .featured-dots { right: 22px; bottom: 22px; }
+    .roster-section { padding-top: 62px; padding-bottom: 58px; }
+    .roster-rotator { min-height: 0; }
+    .roster-loading { min-height: 330px; }
+    .roster-slide { grid-template-columns: 1fr; min-height: 0; }
+    .roster-slide-art { min-height: 252px; max-height: 310px; }
+    .roster-slide-copy { padding: 25px 24px 55px; }
+    .roster-slide h3 { font-size: 2.1rem; }
+    .roster-progress { right: 22px; bottom: 23px; }
     .arena-section { grid-template-columns: 1fr; padding-left: 24px; padding-right: 24px; text-align: center; }
     .arena-visual { max-width: 276px; }
     .arena-actions { justify-content: center; }
