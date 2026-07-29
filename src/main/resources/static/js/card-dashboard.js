@@ -205,10 +205,12 @@
             "showMovesPoolBtn",
             "showLoadingArtBtn",
             "showShopBtn",
+            "showKeepBtn",
             "cardWorkspace",
             "movesPoolWorkspace",
             "loadingArtWorkspace",
             "shopWorkspace",
+            "keepWorkspace",
             "siegeWorkspace",
             "deckWorkspace",
             "trainerWorkspace",
@@ -257,6 +259,7 @@
             "cardHealthInput",
             "cardSpeedInput",
             "cardPreferredRowSelect",
+            "cardSizeSelect",
             "cardEvolvesFromInput",
             "cardCostElementSelect",
             "cardCostAmountInput",
@@ -477,6 +480,7 @@
         refs.showMovesPoolBtn.addEventListener("click", () => setEditorPage("MOVES_POOL"));
         refs.showLoadingArtBtn.addEventListener("click", () => setEditorPage("LOADING_ART"));
         refs.showShopBtn.addEventListener("click", () => setEditorPage("SHOP"));
+        refs.showKeepBtn.addEventListener("click", () => setEditorPage("KEEP"));
         refs.liveElementsWorkspace.addEventListener("change", (event) => {
             const input = event.target.closest("input[data-live-element-index]");
             if (!input || input.type !== "checkbox") {
@@ -921,6 +925,7 @@
         refs.cardHealthInput.addEventListener("input", (event) => updateSelectedCardField("health", toNumber(event.target.value, 0)));
         refs.cardSpeedInput.addEventListener("input", (event) => updateSelectedCardField("speed", toNumber(event.target.value, 0)));
         refs.cardPreferredRowSelect.addEventListener("change", (event) => updateSelectedCardField("preferredRow", event.target.value));
+        refs.cardSizeSelect?.addEventListener("change", (event) => updateSelectedCardField("size", normalizeSieglingSize(event.target.value)));
         refs.cardEvolvesFromInput.addEventListener("input", (event) => updateSelectedCardField("evolvesFromId", event.target.value));
         refs.cardCostElementSelect.addEventListener("change", (event) => updateSelectedCardField("costElement", event.target.value));
         refs.cardCostAmountInput.addEventListener("input", (event) => updateSelectedCardField("costAmount", toNumber(event.target.value, 0)));
@@ -2368,6 +2373,7 @@
                 moveIds,
                 abilities: [],
                 expeditionStarter: card?.expeditionStarter === true,
+                size: normalizeSieglingSize(card?.size),
                 description: String(card?.description || ""),
                 ...normalizeCardArtFields(card)
             };
@@ -2652,6 +2658,8 @@
             state.editorPage = "LOADING_ART";
         } else if (page === "SHOP") {
             state.editorPage = "SHOP";
+        } else if (page === "KEEP") {
+            state.editorPage = "KEEP";
         } else if (page === "SIEGE") {
             state.editorPage = "SIEGE";
         } else if (page === "MOVES_POOL") {
@@ -2869,7 +2877,7 @@
         renderAuth();
         renderStatus();
         renderFilterOptions();
-        refs.cardWorkspace.classList.toggle("hidden", state.editorPage === "DECKS" || state.editorPage === "SIEGE" || state.editorPage === "TRAINERS" || state.editorPage === "LIVE_ELEMENTS" || state.editorPage === "MOVES_POOL" || state.editorPage === "LOADING_ART" || state.editorPage === "SHOP");
+        refs.cardWorkspace.classList.toggle("hidden", state.editorPage === "DECKS" || state.editorPage === "SIEGE" || state.editorPage === "TRAINERS" || state.editorPage === "LIVE_ELEMENTS" || state.editorPage === "MOVES_POOL" || state.editorPage === "LOADING_ART" || state.editorPage === "SHOP" || state.editorPage === "KEEP");
         refs.movesPoolWorkspace.classList.toggle("hidden", state.editorPage !== "MOVES_POOL");
         refs.deckWorkspace.classList.toggle("hidden", state.editorPage !== "DECKS");
         refs.siegeWorkspace.classList.toggle("hidden", state.editorPage !== "SIEGE");
@@ -2877,6 +2885,7 @@
         refs.liveElementsWorkspace.classList.toggle("hidden", state.editorPage !== "LIVE_ELEMENTS");
         refs.loadingArtWorkspace.classList.toggle("hidden", state.editorPage !== "LOADING_ART");
         refs.shopWorkspace.classList.toggle("hidden", state.editorPage !== "SHOP");
+        refs.keepWorkspace.classList.toggle("hidden", state.editorPage !== "KEEP");
         if (state.editorPage === "MOVES_POOL") {
             mountMoveDraftPanel(refs.moveDraftPanelHostPool);
             renderMovesPoolBrowser();
@@ -2963,7 +2972,9 @@
                         ? "Loading screen art"
                     : (state.editorPage === "SHOP"
                         ? "Shop prices"
-                        : `${state.cards.length} card${state.cards.length === 1 ? "" : "s"}`))))));
+                    : (state.editorPage === "KEEP"
+                        ? "Keep tuning"
+                        : `${state.cards.length} card${state.cards.length === 1 ? "" : "s"}`)))))));
         refs.statusMessage.textContent = state.status.message;
 
         refs.dirtyPill.className = `status-pill ${state.dirty ? "is-dirty" : "is-success"}`;
@@ -3002,6 +3013,7 @@
         refs.showMovesPoolBtn.classList.toggle("active", state.editorPage === "MOVES_POOL");
         refs.showLoadingArtBtn.classList.toggle("active", state.editorPage === "LOADING_ART");
         refs.showShopBtn.classList.toggle("active", state.editorPage === "SHOP");
+        refs.showKeepBtn.classList.toggle("active", state.editorPage === "KEEP");
         if (state.editorPage === "LIVE_ELEMENTS") {
             refs.browserTitle.textContent = "Live Elements";
         }
@@ -3051,6 +3063,11 @@
         populateSelect(refs.cardElementSelect, state.metadata?.elements || [], card.element);
         populateSelect(refs.cardRaritySelect, state.metadata?.rarities || [], card.rarity);
         populateSelect(refs.cardPreferredRowSelect, state.metadata?.rows || [], card.preferredRow);
+        if (refs.cardSizeSelect) {
+            populateSelect(refs.cardSizeSelect, sieglingSizes(), normalizeSieglingSize(card.size), true, {
+                "": `Auto (${formatEnumLabel(defaultSieglingSize(card))})`
+            });
+        }
         populateSelect(refs.cardCostElementSelect, ["", ...(state.metadata?.elements || [])], card.costElement, true);
         populateSelect(refs.actionCostElementSelect, ["", ...(state.metadata?.elements || [])], card.costElement, true);
         populateSelect(refs.trapBucketElementSelect, ["", ...(state.metadata?.elements || [])], card.trapBucketElement, true);
@@ -4941,6 +4958,10 @@
             exported.costElement = card.costElement || card.element;
             exported.costAmount = toNumber(card.costAmount, 0);
         }
+        // Only a deliberate pick is exported; leaving it blank keeps the card on the rarity default.
+        if (normalizeSieglingSize(card.size)) {
+            exported.size = normalizeSieglingSize(card.size);
+        }
         const expeditionConfigActive = state.cards.some((row) => row.cardType === "SIEGLING" && row.expeditionStarter === true);
         if (expeditionConfigActive) {
             exported.expeditionStarter = card.expeditionStarter === true;
@@ -5095,6 +5116,57 @@
         return effectLabelMap()[key] || formatEnumLabel(key || "");
     }
 
+    const SIEGLING_SIZES = ["SMALL", "MEDIUM", "LARGE", "GIGANTIC"];
+
+    function sieglingSizes() {
+        return state.metadata?.sieglingSizes?.length ? state.metadata.sieglingSizes : SIEGLING_SIZES;
+    }
+
+    /** The size a card ships with: an explicit dashboard pick, otherwise the derived default. */
+    function resolveSieglingSize(card) {
+        return normalizeSieglingSize(card?.size) || defaultSieglingSize(card);
+    }
+
+    /**
+     * Mirrors SieglingSize.defaultFor on the server — rarity is the band, because rarity already
+     * tracks how far along an evolution line a card sits. Evolution depth only decides rows with
+     * no rarity at all. Keep the two implementations in step.
+     */
+    function defaultSieglingSize(card) {
+        switch (String(card?.rarity || "").toUpperCase()) {
+            case "COMMON":
+            case "UNCOMMON": return "SMALL";
+            case "RARE": return "MEDIUM";
+            case "EPIC": return "LARGE";
+            case "LEGENDARY": return "GIGANTIC";
+            default: break;
+        }
+        const depth = evolutionDepth(card);
+        return depth <= 0 ? "SMALL" : depth === 1 ? "MEDIUM" : "LARGE";
+    }
+
+    function evolutionDepth(card) {
+        const byId = new Map(state.cards.map((row) => [String(row.id || "").trim().toLowerCase(), row]));
+        const visited = new Set();
+        let current = card;
+        let depth = 0;
+        while (current && String(current.evolvesFromId || "").trim() && !visited.has(current.id)) {
+            visited.add(current.id);
+            const parent = byId.get(String(current.evolvesFromId).trim().toLowerCase());
+            if (!parent) {
+                break;
+            }
+            current = parent;
+            depth += 1;
+        }
+        return depth;
+    }
+
+    function normalizeSieglingSize(value) {
+        const normalized = String(value || "").trim().toUpperCase();
+        return SIEGLING_SIZES.includes(normalized) ? normalized : "";
+    }
+
     function formatCardMeta(card) {
         if (card.cardType === "SPELL") {
             const details = [
@@ -5119,6 +5191,7 @@
             const n = (card.moveIds || []).length;
             return [
                 formatEnumLabel(card.rarity),
+                formatEnumLabel(resolveSieglingSize(card)),
                 `${n} move${n === 1 ? "" : "s"}`,
                 `HP ${card.health}`,
                 `SPD ${card.speed}`
@@ -5144,7 +5217,7 @@
         const items = allowBlank ? ["", ...values.filter((value) => value !== "")] : values;
         const previous = select.value;
         const optionMarkup = items.map((value) => {
-            const label = value === "" ? "None" : (customLabels?.[value] || formatEnumLabel(value));
+            const label = customLabels?.[value] || (value === "" ? "None" : formatEnumLabel(value));
             return `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`;
         }).join("");
         if (select.dataset.options !== optionMarkup) {

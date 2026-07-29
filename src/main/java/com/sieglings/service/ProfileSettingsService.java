@@ -130,6 +130,26 @@ public class ProfileSettingsService {
             }
             settings.setFeaturedBadgeIds(featured);
         }
+        if (req.containsKey("favoriteCardIds") && req.get("favoriteCardIds") instanceof List<?> rawCards) {
+            List<String> requested = new java.util.ArrayList<>();
+            for (Object item : rawCards) {
+                if (item == null) {
+                    continue;
+                }
+                String id = String.valueOf(item).trim();
+                if (!id.isBlank() && requested.stream().noneMatch(existing -> existing.equalsIgnoreCase(id))) {
+                    requested.add(id);
+                }
+                if (requested.size() >= 3) {
+                    break;
+                }
+            }
+            List<String> favorites = resolveFavoriteCardIds(requested, progression);
+            if (favorites.size() != requested.size()) {
+                throw new IllegalArgumentException("Choose cards you own for your collection favorites.");
+            }
+            settings.setFavoriteCardIds(favorites);
+        }
         settings.setUpdatedAt(Instant.now());
         return settingsStore.save(settings);
     }
@@ -170,8 +190,34 @@ public class ProfileSettingsService {
             out.put("favoriteSieglingCard", serializeFavoriteCard(favoriteCard, progression, selection.variant()));
         }
         out.put("featuredBadgeIds", settings.getFeaturedBadgeIds() == null ? List.of() : settings.getFeaturedBadgeIds());
+        out.put("favoriteCardIds", resolveFavoriteCardIds(settings.getFavoriteCardIds(), progression));
         out.put("updatedAt", settings.getUpdatedAt() == null ? null : settings.getUpdatedAt().toString());
         return out;
+    }
+
+    /** Keep only owned favorites (max 3), preserving player order. */
+    private List<String> resolveFavoriteCardIds(List<String> requested, PlayerProgressionEntity progression) {
+        if (requested == null || requested.isEmpty()) {
+            return List.of();
+        }
+        List<String> resolved = new java.util.ArrayList<>();
+        for (String raw : requested) {
+            if (raw == null || raw.isBlank() || resolved.size() >= 3) {
+                continue;
+            }
+            String match = progression.getOwnedCards().entrySet().stream()
+                    .filter(entry -> entry.getKey() != null
+                            && entry.getKey().equalsIgnoreCase(raw.trim())
+                            && entry.getValue() != null
+                            && entry.getValue() > 0)
+                    .map(Map.Entry::getKey)
+                    .findFirst()
+                    .orElse("");
+            if (!match.isBlank() && !resolved.contains(match)) {
+                resolved.add(match);
+            }
+        }
+        return resolved;
     }
 
     private Map<String, Object> serializeFavoriteCard(Card card, PlayerProgressionEntity progression, String variant) {

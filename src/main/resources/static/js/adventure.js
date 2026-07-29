@@ -27,7 +27,9 @@
     warbandLoadToken: 0,
     interactionResult: null,
     pendingKnightUnlock: null,
-    deferBattleHandRender: false
+    campMenu: null,
+    deferBattleHandRender: false,
+    runMenuReturnFocus: null
   };
 
   var EL_ICON = {
@@ -47,7 +49,7 @@
   };
   var NODE_ICON = { BATTLE: '⚔️', ELITE: '🔺', REST: '🏕️', TREASURE: '💎', BROKER: '🐾', SMITH: '🔨', CARAVAN: '🐫', EVENT: '❔', BOSS: '👑' };
   var NODE_TINT = { BATTLE: '#8fa3bf', ELITE: '#ff6e6e', REST: '#7ee787', TREASURE: '#ffd066', BROKER: '#c896ff', BOSS: '#ff9a3c' };
-  var CAMP_ICON = { REST: '🔥', SHOP_CARD: '🃏', SHOP_HEAL: '🍲', SHOP_UPGRADE: '⚒️', BROKER: '🐾' };
+  var CAMP_ICON = { REST: '🔥', SHOP_CARD: '🃏', SHOP_HEAL: '🍲', SHOP_UPGRADE: '⚒️', SHOP_MENU: '🛒', BROKER: '🐾', BROKER_MENU: '♞' };
   var PASSIVE_META = {
     SHIELD: { icon: '🛡', name: 'Bulwark' },
     ATTACK: { icon: '⚔', name: 'Warlord' },
@@ -59,11 +61,17 @@
 
   // ---- API -----------------------------------------------------------
   var AUTH_TOKEN_KEY = 'sieglingsAuthToken';
+  // Sentinel meaning "the credential lives in the httpOnly session cookie". It is
+  // the whole value, not a prefix: an earlier prefix test never matched it, so every
+  // cookie-mode player sent `Authorization: Bearer cookie`. That bogus header beat
+  // the cookie bridge server-side (an explicit Authorization header always wins),
+  // which is why an expedition never recognised the signed-in account.
+  var COOKIE_SESSION_VALUE = 'cookie';
   function authHeaders(extra) {
     var headers = extra || {};
     try {
       var token = localStorage.getItem(AUTH_TOKEN_KEY) || '';
-      if (token && token.indexOf('cookie:') !== 0 && !headers.Authorization) {
+      if (token && token !== COOKIE_SESSION_VALUE && !headers.Authorization) {
         headers.Authorization = 'Bearer ' + token;
       }
     } catch (e) { /* ignore */ }
@@ -135,6 +143,34 @@
     document.body.dataset.screen = id;
     if (id === 'battleScreen' || id === 'mapScreen') resetViewportScroll();
   }
+
+  function renderGameToText() {
+    var run = state.run || {};
+    var screen = document.body.dataset.screen || 'loadingScreen';
+    var visibleChoices = [];
+    var choiceRoots = ['campGrid', 'cacheOptions', 'brokerGrid', 'smithGrid', 'caravanGrid', 'eventChoices', 'rewardGrid'];
+    choiceRoots.forEach(function (id) {
+      var root = $(id);
+      if (!root || root.closest('.hidden')) return;
+      Array.prototype.forEach.call(root.querySelectorAll('button,.camp-card,.reward-card'), function (node) {
+        var text = String(node.innerText || node.textContent || '').replace(/\s+/g, ' ').trim();
+        if (text) visibleChoices.push(text.slice(0, 180));
+      });
+    });
+    return JSON.stringify({
+      coordinateSystem: 'DOM viewport; origin top-left; x increases right; y increases down',
+      screen: screen,
+      busy: !!state.busy,
+      campMenu: state.campMenu,
+      gold: Number(run.gold || 0),
+      party: (run.party || []).map(function (p) {
+        return { id: p.id, name: p.name, element: p.element, hp: p.hp, maxHp: p.maxHp, alive: !!p.alive };
+      }),
+      choices: visibleChoices
+    });
+  }
+  window.render_game_to_text = renderGameToText;
+  window.advanceTime = function () { return renderGameToText(); };
 
   function resetViewportScroll() {
     if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
@@ -340,7 +376,7 @@
    *  showing exactly where it left off (party HP, gold, floor, mid-battle). */
   function renderResumePrompt(run) {
     showScreen('resumeScreen');
-    $('abandonBtn').classList.add('hidden');
+    updateRunMenu(false);
     var node = (run.map || []).find(function (n) { return n.id === run.currentNodeId; });
     var floor = node ? (node.row + 1) : 1;
     $('resumeFloor').textContent = '📍 Floor ' + floor;
@@ -435,7 +471,7 @@
     $('smithScrapBtn').addEventListener('click', function () { toggleSmithScrap(); });
     $('caravanLeaveBtn').addEventListener('click', function () { simplePost('/api/siege/caravan/leave'); });
     $('resultBtn').addEventListener('click', function () { setToken(null); location.href = '/play'; });
-    $('campLeaveBtn').addEventListener('click', campLeave);
+    $('campLeaveBtn').addEventListener('click', campPrimaryAction);
     $('cacheDigBtn').addEventListener('click', cacheDig);
     $('cacheTakeBtn').addEventListener('click', cacheTake);
     $('brokerLeaveBtn').addEventListener('click', brokerLeave);
@@ -501,22 +537,95 @@
       var b = e.target.closest ? e.target.closest('.bg-shop-buy') : null;
       if (b && !b.disabled) buyBgItem(b.getAttribute('data-item'));
     });
-    $('abandonBtn').addEventListener('click', function () {
-      if (confirm('Abandon this expedition?')) { setToken(null); state.run = null; state.party = []; state.knightId = null; loadRoster(); }
+    $('runMenuBtn').addEventListener('click', openRunMenu);
+    $('runMenuBackdrop').addEventListener('click', closeRunMenu);
+    $('runMenuCancel').addEventListener('click', closeRunMenu);
+    $('runMenuSave').addEventListener('click', saveRunFromMenu);
+    $('runMenuRestart').addEventListener('click', restartRun);
+    $('runMenuQuit').addEventListener('click', quitRun);
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !$('runMenu').classList.contains('hidden')) closeRunMenu();
     });
     $('resumeContinueBtn').addEventListener('click', function () { renderRun(); });
-    $('resumeRestartBtn').addEventListener('click', function () {
-      if (!confirm('Start over? Your current expedition (progress, gold, party) will be lost.')) return;
-      var t = token();
-      setToken(null); state.run = null; state.party = []; state.knightId = null;
-      api('/api/siege/run/abandon', { method: 'POST', body: { token: t } }).catch(function () {}).then(loadRoster);
-    });
+    $('resumeRestartBtn').addEventListener('click', restartRun);
+  }
+
+  function updateRunMenu(show) {
+    $('runMenuBtn').classList.toggle('hidden', !show);
+    if (!show) closeRunMenu(false);
+  }
+
+  function setRunMenuBusy(busy, message) {
+    ['runMenuSave', 'runMenuRestart', 'runMenuQuit'].forEach(function (id) { $(id).disabled = busy; });
+    if (message) $('runMenuStatus').textContent = message;
+  }
+
+  function openRunMenu() {
+    if (!state.run || state.run.status !== 'ACTIVE') return;
+    state.runMenuReturnFocus = document.activeElement;
+    $('runMenuStatus').textContent = 'Save now, restart this run, or return to Play.';
+    $('runMenu').classList.remove('hidden');
+    $('runMenuBtn').setAttribute('aria-expanded', 'true');
+    $('runMenuSave').focus();
+  }
+
+  function closeRunMenu(restoreFocus) {
+    $('runMenu').classList.add('hidden');
+    $('runMenuBtn').setAttribute('aria-expanded', 'false');
+    setRunMenuBusy(false);
+    if (restoreFocus !== false && state.runMenuReturnFocus && document.contains(state.runMenuReturnFocus)) {
+      state.runMenuReturnFocus.focus();
+    }
+    state.runMenuReturnFocus = null;
+  }
+
+  function saveRunFromMenu() {
+    if (state.busy || !state.run || state.run.status !== 'ACTIVE') return;
+    state.busy = true;
+    setRunMenuBusy(true, 'Saving expedition...');
+    api('/api/siege/run/save', { method: 'POST', body: { token: token() } })
+      .then(function (run) {
+        state.run = run;
+        if (!run.checkpoint) throw new Error('Could not save right now. Please try again.');
+        $('runMenuStatus').textContent = 'Saved. You can safely return later.';
+        toast('Expedition saved.');
+      })
+      .catch(function (e) { $('runMenuStatus').textContent = e.message; toast(e.message); })
+      .then(function () { state.busy = false; setRunMenuBusy(false); });
+  }
+
+  function restartRun() {
+    if (state.busy || !confirm('Start over? Your current expedition, gold, and party will be lost.')) return;
+    var t = token();
+    state.busy = true;
+    setRunMenuBusy(true, 'Restarting expedition...');
+    api('/api/siege/run/abandon', { method: 'POST', body: { token: t } })
+      .then(function () {
+        setToken(null); state.run = null; state.party = []; state.knightId = null;
+        closeRunMenu(false); loadRoster();
+      })
+      .catch(function (e) { $('runMenuStatus').textContent = e.message; toast(e.message); })
+      .then(function () { state.busy = false; setRunMenuBusy(false); });
+  }
+
+  function quitRun() {
+    if (state.busy || !confirm('Save this expedition and return to Play?')) return;
+    state.busy = true;
+    setRunMenuBusy(true, 'Saving before exit...');
+    api('/api/siege/run/save', { method: 'POST', body: { token: token() } })
+      .then(function (run) {
+        state.run = run;
+        if (!run.checkpoint) throw new Error('Could not save, so the expedition remains open. Please try again.');
+        location.href = '/play';
+      })
+      .catch(function (e) { $('runMenuStatus').textContent = e.message; toast(e.message); })
+      .then(function () { state.busy = false; setRunMenuBusy(false); });
   }
 
   // ---- team select (paged: mode -> knight -> warband) -------------------
   function renderSetup() {
     showScreen('setupScreen');
-    $('abandonBtn').classList.add('hidden');
+    updateRunMenu(false);
     var order = { mode: 0, knight: 1, party: 2 };
     if (order[state.setupStep] == null) state.setupStep = 'mode';
     var onMode = state.setupStep === 'mode';
@@ -1248,8 +1357,9 @@
 
   function renderRun() {
     var run = state.run;
-    if (!run) { loadRoster(); return; }
-    $('abandonBtn').classList.toggle('hidden', run.status !== 'ACTIVE');
+    if (!run) { updateRunMenu(false); loadRoster(); return; }
+    if (!run.camp) state.campMenu = null;
+    updateRunMenu(run.status === 'ACTIVE');
     if (run.battle) { renderBattle(); return; }
     // A freshly joined Siegeling gets its gacha reveal before anything else —
     // claim it, then the normal reward flow continues.
@@ -1527,54 +1637,136 @@
     });
   }
 
-  // ---- rest camp (interactive stop) -------------------------------------
-  function renderCamp() {
-    showScreen('campScreen');
-    var run = state.run;
-    $('campNote').textContent = run.camp.note || '';
-    $('campGold').textContent = '🪙 ' + (run.gold || 0);
-
-    // party silhouettes around the fire
-    var cp = $('campParty'); cp.innerHTML = '';
-    (run.party || []).forEach(function (p, i) {
-      if (!p.alive) return;
-      var fig = p.artUrl
-        ? el('div', 'camp-fig', '<img src="' + artAttr(p.artUrl) + '" alt="">')
-        : el('div', 'camp-fig camp-fig-fallback', icon(p.element));
+  /**
+   * Places the active warband directly into an illustrated stop. These are
+   * live party members (not decorative stand-ins), so tapping one opens the
+   * same detail card used by the map and battle surfaces.
+   */
+  function renderLocationParty(hostId, party) {
+    var host = $(hostId);
+    if (!host) return;
+    host.innerHTML = '';
+    (party || []).filter(function (p) { return p.alive; }).forEach(function (p, i) {
+      var fig = el('button', 'location-siegling ' + elClass(p.element));
+      fig.type = 'button';
       fig.style.setProperty('--fig-i', i);
-      cp.appendChild(fig);
-    });
-
-    var grid = $('campGrid'); grid.innerHTML = '';
-    (run.camp.options || []).forEach(function (opt) {
-      var canUse = !opt.used && opt.affordable;
-      var c = el('div', 'camp-card ' + elClass(opt.element) + ' kind-' + opt.kind + (opt.used ? ' used' : '') + (canUse ? '' : ' locked'));
-      var art = opt.artUrl
-        ? '<div class="camp-art" style="background-image:url(\'' + artCss(opt.artUrl) + '\')"></div>'
-        : '<div class="camp-glyph">' + (CAMP_ICON[opt.kind] || '🎁') + '</div>';
-      var costChip = opt.cost > 0 ? '<span class="camp-cost' + (opt.affordable ? '' : ' broke') + '">🪙 ' + opt.cost + '</span>' : '<span class="camp-cost free">FREE</span>';
-      c.innerHTML =
-        '<div class="camp-card-head">' + costChip + (opt.used ? '<span class="camp-used">✓ used</span>' : '') + '</div>' +
-        art +
-        '<div class="camp-card-title">' + esc(opt.title) + '</div>' +
-        '<div class="camp-card-desc">' + esc(opt.desc) + '</div>';
-      if (canUse) c.addEventListener('click', function () { campChoose(opt.id); });
-      grid.appendChild(c);
+      fig.setAttribute('aria-label', 'View ' + (p.name || 'Siegeling'));
+      fig.innerHTML = p.artUrl
+        ? '<img src="' + artAttr(p.artUrl) + '" alt=""><span>' + esc(p.name) + '</span>'
+        : '<b>' + icon(p.element) + '</b><span>' + esc(p.name) + '</span>';
+      fig.addEventListener('click', function () {
+        showUnitModal({
+          name: p.name, element: p.element, artUrl: p.artUrl,
+          subtitle: 'HP ' + p.hp + '/' + p.maxHp + ' · ⚡ ' + p.speed,
+          cards: p.cards || []
+        });
+      });
+      host.appendChild(fig);
     });
   }
 
-  function campChoose(optionId) {
+  // ---- rest camp (interactive stop) -------------------------------------
+  function campOptionGroup(opt) {
+    if (!opt) return 'CAMP';
+    if (String(opt.kind || '').indexOf('SHOP_') === 0) return 'SHOP';
+    if (opt.kind === 'BROKER') return 'BROKER';
+    return 'CAMP';
+  }
+
+  function renderCampOption(grid, opt, resultTitle, resultIcon) {
+    var canUse = !opt.used && opt.affordable;
+    var c = el('div', 'camp-card ' + elClass(opt.element) + ' kind-' + opt.kind + (opt.used ? ' used' : '') + (canUse ? '' : ' locked'));
+    var art = opt.artUrl
+      ? '<div class="camp-art" style="background-image:url(\'' + artCss(opt.artUrl) + '\')"></div>'
+      : '<div class="camp-glyph">' + (CAMP_ICON[opt.kind] || '🎁') + '</div>';
+    var costChip = opt.cost > 0 ? '<span class="camp-cost' + (opt.affordable ? '' : ' broke') + '">🪙 ' + opt.cost + '</span>' : '<span class="camp-cost free">FREE</span>';
+    c.innerHTML =
+      '<div class="camp-card-head">' + costChip + (opt.used ? '<span class="camp-used">✓ used</span>' : '') + '</div>' +
+      art +
+      '<div class="camp-card-title">' + esc(opt.title) + '</div>' +
+      '<div class="camp-card-desc">' + esc(opt.desc) + '</div>';
+    if (canUse) c.addEventListener('click', function () { campChoose(opt.id, resultTitle, resultIcon); });
+    grid.appendChild(c);
+  }
+
+  function renderCampService(grid, kind, offers) {
+    var isShop = kind === 'SHOP';
+    var available = offers.filter(function (opt) { return !opt.used; }).length;
+    var c = el('button', 'camp-card camp-service-card ' + (isShop ? 'kind-SHOP_MENU' : 'kind-BROKER_MENU'));
+    c.type = 'button';
+    c.setAttribute('aria-label', (isShop ? 'Open Wandering Trader shop' : 'Open Siegeling Broker menu') + ', ' + available + ' offers available');
+    c.innerHTML =
+      '<div class="camp-card-head"><span class="camp-service-badge">' + (isShop ? 'SHOP' : 'RECRUIT') + '</span><span class="camp-service-count">' + available + '/' + offers.length + ' available</span></div>' +
+      '<div class="camp-glyph">' + (isShop ? CAMP_ICON.SHOP_MENU : CAMP_ICON.BROKER_MENU) + '</div>' +
+      '<div class="camp-card-title">' + (isShop ? 'Wandering Trader' : 'Siegeling Broker') + '</div>' +
+      '<div class="camp-card-desc">' + (isShop ? 'Browse cards, a hot meal, and field upgrades.' : 'Browse companions available to join the warband.') + '</div>' +
+      '<div class="camp-service-open">Open menu ▸</div>';
+    c.addEventListener('click', function () {
+      state.campMenu = kind;
+      renderCamp();
+    });
+    grid.appendChild(c);
+  }
+
+  function renderCamp() {
+    showScreen('campScreen');
+    var run = state.run;
+    var options = run.camp.options || [];
+    var shopOptions = options.filter(function (opt) { return campOptionGroup(opt) === 'SHOP'; });
+    var brokerOptions = options.filter(function (opt) { return campOptionGroup(opt) === 'BROKER'; });
+    if ((state.campMenu === 'SHOP' && !shopOptions.length) || (state.campMenu === 'BROKER' && !brokerOptions.length)) {
+      state.campMenu = null;
+    }
+    var inShop = state.campMenu === 'SHOP';
+    var inBroker = state.campMenu === 'BROKER';
+    $('campKicker').textContent = inShop ? 'Camp shop' : inBroker ? 'Camp service' : 'Safe zone';
+    $('campTitle').textContent = inShop ? 'Wandering Trader' : inBroker ? 'Siegeling Broker' : 'Rest Camp';
+    $('campNote').textContent = inShop
+      ? 'Browse every offer, then return to the fire. Shopping does not spend the Rest option.'
+      : inBroker
+        ? 'Review the visiting recruits, then return to the fire. Recruiting does not spend the Rest option.'
+        : (run.camp.note || '');
+    $('campGold').textContent = '🪙 ' + (run.gold || 0);
+    $('campLeaveBtn').textContent = state.campMenu ? 'Back to Camp' : 'Break Camp';
+    $('campScreen').classList.toggle('camp-menu-open', !!state.campMenu);
+
+    renderLocationParty('campParty', run.party);
+
+    var grid = $('campGrid'); grid.innerHTML = '';
+    if (inShop || inBroker) {
+      (inShop ? shopOptions : brokerOptions).forEach(function (opt) {
+        renderCampOption(grid, opt, inShop ? 'Wandering Trader' : 'Siegeling Broker', inShop ? '🛒' : '🐾');
+      });
+      return;
+    }
+    options.filter(function (opt) { return campOptionGroup(opt) === 'CAMP'; }).forEach(function (opt) {
+      renderCampOption(grid, opt, 'Rest Camp', '🏕️');
+    });
+    if (shopOptions.length) renderCampService(grid, 'SHOP', shopOptions);
+    if (brokerOptions.length) renderCampService(grid, 'BROKER', brokerOptions);
+  }
+
+  function campChoose(optionId, resultTitle, resultIcon) {
     if (state.busy) return; state.busy = true;
     api('/api/siege/camp/choose', { method: 'POST', body: { token: token(), optionId: optionId } })
-      .then(function (run) { applyInteractionResponse(run, { source: 'camp', title: 'Rest Camp', icon: '🏕️' }); })
+      .then(function (run) { applyInteractionResponse(run, { source: 'camp', title: resultTitle || 'Rest Camp', icon: resultIcon || '🏕️' }); })
       .catch(function (e) { toast(e.message); })
       .then(function () { state.busy = false; });
+  }
+
+  function campPrimaryAction() {
+    if (state.campMenu) {
+      state.campMenu = null;
+      renderCamp();
+      return;
+    }
+    campLeave();
   }
 
   function campLeave() {
     if (state.busy) return; state.busy = true;
     api('/api/siege/camp/leave', { method: 'POST', body: { token: token() } })
-      .then(function (run) { state.run = run; renderRun(); })
+      .then(function (run) { state.campMenu = null; state.run = run; renderRun(); })
       .catch(function (e) { toast(e.message); })
       .then(function () { state.busy = false; });
   }
@@ -1584,6 +1776,7 @@
     showScreen('cacheScreen');
     var run = state.run;
     var c = run.cache;
+    renderLocationParty('cacheParty', run.party);
     var isDig = !c.game || c.game === 'DIG';
     $('cacheDigBtn').classList.toggle('hidden', !isDig);
     $('cacheTakeBtn').classList.toggle('hidden', !isDig);
@@ -1645,6 +1838,7 @@
     var run = state.run;
     var b = run.broker;
     $('brokerGold').textContent = '🪙 ' + (run.gold || 0);
+    renderLocationParty('brokerParty', run.party);
 
     var grid = $('brokerGrid'); grid.innerHTML = '';
     (b.offers || []).forEach(function (offer) {
@@ -1736,17 +1930,45 @@
     smithScrapMode = false;
     var run = state.run, sm = run.smith;
     $('smithGold').textContent = '🪙 ' + (run.gold || 0);
+    renderLocationParty('smithParty', run.party);
     var grid = $('smithGrid'); grid.innerHTML = '';
-    (sm.options || []).forEach(function (o) {
-      var card = el('div', 'camp-card ' + elClass(o.element) + (o.used ? ' used' : ''));
-      card.innerHTML = '<div class="camp-glyph">🔨</div>' +
-        '<div class="camp-card-title">' + esc(o.title) + '</div>' +
-        '<div class="camp-card-desc">' + esc(o.desc) + '</div>' +
-        (o.cost > 0 ? '<div class="camp-card-cost">🪙 ' + o.cost + '</div>' : '');
+    (sm.options || []).forEach(function (o, i) {
+      var detail = smithUpgradeDetail(o);
+      var card = el('button', 'camp-card upgrade-choice-card ' + elClass(o.element) + (o.used ? ' used' : ''));
+      card.type = 'button';
+      card.innerHTML =
+        '<span class="upgrade-choice-index">Epiphany ' + String(i + 1).padStart(2, '0') + '</span>' +
+        '<span class="upgrade-card-sigil">✦</span>' +
+        '<span class="upgrade-original"><small>Original</small><b>' + esc(detail.before) + '</b></span>' +
+        '<span class="upgrade-arrow">↓</span>' +
+        '<span class="upgrade-awakened"><small>Awakened form</small><b>' + esc(detail.after) + '</b><em>' + esc(detail.change) + '</em></span>' +
+        (o.cost > 0 ? '<span class="upgrade-cost">Choose · 🪙 ' + o.cost + '</span>' : '<span class="upgrade-cost">Choose</span>');
       if (!o.used && o.affordable) { card.classList.add('clickable'); card.addEventListener('click', function () { simplePost('/api/siege/smith/choose', { optionId: o.id }, { source: 'smith', title: 'Smith', icon: '🔨' }); }); }
-      else if (!o.affordable) card.classList.add('unaffordable');
+      else if (!o.affordable) { card.classList.add('unaffordable'); card.disabled = true; }
+      else if (o.used) card.disabled = true;
       grid.appendChild(card);
     });
+  }
+
+  function smithUpgradeDetail(option) {
+    var raw = String(option.desc || '');
+    var arrow = raw.indexOf('→');
+    var before = String(option.title || '').replace(/^Chisel\s+/i, '') || 'Card';
+    var after = before + '+';
+    var change = raw;
+    if (arrow >= 0) {
+      before = raw.slice(0, arrow).trim() || before;
+      var right = raw.slice(arrow + 1).trim();
+      var changeAt = right.lastIndexOf('(');
+      if (changeAt >= 0 && right.endsWith(')')) {
+        after = right.slice(0, changeAt).trim() || after;
+        change = right.slice(changeAt + 1, -1).trim();
+      } else {
+        after = right || after;
+        change = 'Improved card effect';
+      }
+    }
+    return { before: before, after: after, change: change || 'Improved card effect' };
   }
   function toggleSmithScrap() {
     smithScrapMode = !smithScrapMode;
@@ -1773,6 +1995,7 @@
     showScreen('caravanScreen');
     var run = state.run, cv = run.caravan;
     $('caravanGold').textContent = '🪙 ' + (run.gold || 0);
+    renderLocationParty('caravanParty', run.party);
     var grid = $('caravanGrid'); grid.innerHTML = '';
     (cv.options || []).forEach(function (o) {
       var icon = o.kind === 'SHOP_ITEM' ? (o.item ? o.item.icon : '📦') : o.kind === 'SHOP_HEAL' ? '🍲' : '🃏';
@@ -1791,6 +2014,7 @@
   function renderEvent() {
     showScreen('eventScreen');
     var run = state.run, ev = run.event;
+    renderLocationParty('eventParty', run.party);
     $('eventIcon').textContent = ev.icon || '❔';
     $('eventTitle').textContent = ev.title || 'Event';
     $('eventPrompt').textContent = ev.prompt || '';
@@ -3424,7 +3648,7 @@
   }
 
   // ---- rewards ----------------------------------------------------------
-  var REWARD_ICON = { CARD: '🃏', UPGRADE: '⬆️', RECRUIT: '🐾' };
+  var REWARD_ICON = { CARD: '🃏', UPGRADE: '⬆️', RECRUIT: '🐾', ITEM: '🎒' };
 
   function renderXpRecap() {
     var host = $('xpRecap');
@@ -3486,10 +3710,11 @@
     renderXpRecap();
     var grid = $('rewardGrid'); grid.innerHTML = '';
     (state.run.pendingRewards || []).forEach(function (opt) {
-      var c = el('div', 'reward-card ' + elClass(opt.element) + ' kind-' + opt.kind);
+      var c = el('button', 'reward-card ' + elClass(opt.element) + ' kind-' + opt.kind);
+      c.type = 'button';
       var art = opt.artUrl
         ? '<div class="reward-art" style="background-image:url(\'' + artCss(opt.artUrl) + '\')"></div>'
-        : '<div class="reward-glyph">' + (REWARD_ICON[opt.kind] || '🎁') + '</div>';
+        : '<div class="reward-glyph">' + esc(opt.itemIcon || REWARD_ICON[opt.kind] || '🎁') + '</div>';
       var meta = '';
       if (opt.kind === 'CARD' && opt.cardEffect) {
         meta = '<div class="reward-cardmeta">' + icon(opt.element) + ' ' + esc(opt.cardEffect) + ' · power ' + opt.cardValue + ' · ' + opt.cardCost + ' AP</div>';
@@ -3506,7 +3731,7 @@
   }
 
   function kindLabel(kind) {
-    return { CARD: 'New Card', UPGRADE: 'Upgrade', RECRUIT: 'Recruit' }[kind] || 'Reward';
+    return { CARD: 'New Card', UPGRADE: 'Upgrade', RECRUIT: 'Recruit', ITEM: 'Item' }[kind] || 'Reward';
   }
 
   function chooseReward(optionId) {

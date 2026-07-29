@@ -51,10 +51,24 @@ public class KeepStore {
         payload.put("hallLevel", state.getHallLevel());
         payload.put("hallThemeId", state.getHallThemeId());
         payload.put("buildersYardLevel", state.getBuildersYardLevel());
+        payload.put("enclaveLevel", state.getEnclaveLevel());
+        payload.put("enclaveResidentIds", state.getEnclaveResidentIds());
+        payload.put("akharsFrontLevel", state.getAkharsFrontLevel());
+        payload.put("akharsFrontResidentIds", state.getAkharsFrontResidentIds());
+        payload.put("akharsFrontStoredGold", state.getAkharsFrontStoredGold());
+        payload.put("akharsFrontProductionRemainder", state.getAkharsFrontProductionRemainder());
+        payload.put("akharsFrontLastAccruedAt", timestamp(state.getAkharsFrontLastAccruedAt()));
+        payload.put("enclaveMissionProgress", state.getEnclaveMissionProgress());
+        payload.put("enclaveTaskProgress", state.getEnclaveTaskProgress());
+        payload.put("enclaveTaskCompletions", state.getEnclaveTaskCompletions());
+        payload.put("residentRapport", state.getResidentRapport());
         payload.put("favoriteResidentId", state.getFavoriteResidentId());
         payload.put("activeConstructionId2", state.getActiveConstructionId2());
         payload.put("constructionStartedAt2", timestamp(state.getConstructionStartedAt2()));
         payload.put("constructionCompletesAt2", timestamp(state.getConstructionCompletesAt2()));
+        payload.put("additionalConstructionIds", state.getAdditionalConstructionIds());
+        payload.put("additionalConstructionStartedAts", timestampList(state.getAdditionalConstructionStartedAts()));
+        payload.put("additionalConstructionCompletesAts", timestampList(state.getAdditionalConstructionCompletesAts()));
         payload.put("woodlotStored", state.getWoodlotStored());
         payload.put("woodlotProductionRemainder", state.getWoodlotProductionRemainder());
         payload.put("woodlotCollectCount", state.getWoodlotCollectCount());
@@ -68,6 +82,7 @@ public class KeepStore {
         payload.put("materialInventory", state.getMaterialInventory());
         payload.put("craftedItemCounts", state.getCraftedItemCounts());
         payload.put("placedDecorations", state.getPlacedDecorations());
+        payload.put("storageUpgradeLevels", state.getStorageUpgradeLevels());
         payload.put("craftCount", state.getCraftCount());
         payload.put("essenceCollectCount", state.getEssenceCollectCount());
         payload.put("activeConstructionId", state.getActiveConstructionId());
@@ -85,6 +100,11 @@ public class KeepStore {
         payload.put("processedRequestIds", state.getProcessedRequestIds());
         payload.put("lastVisitedAt", timestamp(state.getLastVisitedAt()));
         payload.put("lastTributeClaimedAt", timestamp(state.getLastTributeClaimedAt()));
+        payload.put("keeperXp", state.getKeeperXp());
+        payload.put("keeperXpBackfilled", state.isKeeperXpBackfilled());
+        payload.put("keeperDailyXpAt", timestamp(state.getKeeperDailyXpAt()));
+        payload.put("keeperResourceXpToday", state.getKeeperResourceXpToday());
+        payload.put("keeperResourceXpDay", state.getKeeperResourceXpDay());
         payload.put("createdAt", timestamp(state.getCreatedAt()));
         payload.put("updatedAt", timestamp(state.getUpdatedAt()));
         try {
@@ -120,10 +140,24 @@ public class KeepStore {
         state.setHallLevel((int) number(snapshot.get("hallLevel"), 1));
         state.setHallThemeId(string(snapshot.get("hallThemeId")));
         state.setBuildersYardLevel((int) number(snapshot.get("buildersYardLevel"), 0));
+        state.setEnclaveLevel((int) number(snapshot.get("enclaveLevel"), 0));
+        state.setEnclaveResidentIds(strings(snapshot.get("enclaveResidentIds")));
+        state.setAkharsFrontLevel((int) number(snapshot.get("akharsFrontLevel"), 0));
+        state.setAkharsFrontResidentIds(strings(snapshot.get("akharsFrontResidentIds")));
+        state.setAkharsFrontStoredGold((int) number(snapshot.get("akharsFrontStoredGold"), 0));
+        state.setAkharsFrontProductionRemainder(decimal(snapshot.get("akharsFrontProductionRemainder"), 0));
+        state.setAkharsFrontLastAccruedAt(instant(snapshot.get("akharsFrontLastAccruedAt")));
+        state.setEnclaveMissionProgress(intMap(snapshot.get("enclaveMissionProgress")));
+        state.setEnclaveTaskProgress(intMap(snapshot.get("enclaveTaskProgress")));
+        state.setEnclaveTaskCompletions(intMap(snapshot.get("enclaveTaskCompletions")));
+        state.setResidentRapport(intMap(snapshot.get("residentRapport")));
         state.setFavoriteResidentId(string(snapshot.get("favoriteResidentId")));
         state.setActiveConstructionId2(string(snapshot.get("activeConstructionId2")));
         state.setConstructionStartedAt2(instant(snapshot.get("constructionStartedAt2")));
         state.setConstructionCompletesAt2(instant(snapshot.get("constructionCompletesAt2")));
+        state.setAdditionalConstructionIds(strings(snapshot.get("additionalConstructionIds")));
+        state.setAdditionalConstructionStartedAts(instants(snapshot.get("additionalConstructionStartedAts")));
+        state.setAdditionalConstructionCompletesAts(instants(snapshot.get("additionalConstructionCompletesAts")));
         state.setWoodlotStored((int) number(snapshot.get("woodlotStored"), 0));
         state.setWoodlotProductionRemainder(decimal(snapshot.get("woodlotProductionRemainder"), 0));
         state.setWoodlotCollectCount((int) number(snapshot.get("woodlotCollectCount"), 0));
@@ -137,6 +171,7 @@ public class KeepStore {
         state.setMaterialInventory(intMap(snapshot.get("materialInventory")));
         state.setCraftedItemCounts(intMap(snapshot.get("craftedItemCounts")));
         state.setPlacedDecorations(stringMap(snapshot.get("placedDecorations")));
+        state.setStorageUpgradeLevels(intMap(snapshot.get("storageUpgradeLevels")));
         state.setCraftCount((int) number(snapshot.get("craftCount"), 0));
         state.setEssenceCollectCount((int) number(snapshot.get("essenceCollectCount"), 0));
         state.setActiveConstructionId(string(snapshot.get("activeConstructionId")));
@@ -154,6 +189,11 @@ public class KeepStore {
         state.setProcessedRequestIds(strings(snapshot.get("processedRequestIds")));
         state.setLastVisitedAt(instant(snapshot.get("lastVisitedAt")));
         state.setLastTributeClaimedAt(instant(snapshot.get("lastTributeClaimedAt")));
+        state.setKeeperXp(number(snapshot.get("keeperXp"), 0));
+        state.setKeeperXpBackfilled(Boolean.TRUE.equals(snapshot.get("keeperXpBackfilled")));
+        state.setKeeperDailyXpAt(instant(snapshot.get("keeperDailyXpAt")));
+        state.setKeeperResourceXpToday((int) number(snapshot.get("keeperResourceXpToday"), 0));
+        state.setKeeperResourceXpDay(string(snapshot.get("keeperResourceXpDay")));
         state.setCreatedAt(instant(snapshot.get("createdAt")));
         state.setUpdatedAt(instant(snapshot.get("updatedAt")));
         return state;
@@ -234,6 +274,19 @@ public class KeepStore {
     private static Map<String, Object> timestampMap(Map<String, Instant> values) {
         Map<String, Object> out = new LinkedHashMap<>();
         if (values != null) values.forEach((key, value) -> out.put(key, timestamp(value)));
+        return out;
+    }
+
+    private static List<Instant> instants(Object value) {
+        List<Instant> out = new ArrayList<>();
+        if (!(value instanceof List<?> list)) return out;
+        for (Object item : list) out.add(instant(item));
+        return out;
+    }
+
+    private static List<Object> timestampList(List<Instant> values) {
+        List<Object> out = new ArrayList<>();
+        if (values != null) values.forEach(value -> out.add(timestamp(value)));
         return out;
     }
 }

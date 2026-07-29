@@ -88,7 +88,7 @@ a { text-decoration: none; }
 .keep-brand span,
 .resource-pill,
 .station-pill,
-.construction-banner > span {
+.construction-job > span {
     display: flex;
     flex-direction: column;
     min-width: 0;
@@ -150,6 +150,34 @@ button.resource-pill:focus-visible {
 .pulse-dot { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); }
 .resource-icon { color: #d89b56; text-shadow: 0 1px 0 #6f4222; transform: translateY(-50%) rotate(90deg); }
 .essence-pill .resource-icon { color: #9fe9ff; text-shadow: 0 0 9px rgba(117, 224, 255, .8); transform: translateY(-50%); }
+.siegeling-pill .resource-icon { color: #ffe7a2; text-shadow: 0 0 8px rgba(244, 204, 98, .45); transform: translateY(-50%); }
+.construction-team-pill .resource-icon { color: #d8a56f; text-shadow: 0 1px 0 #6f4222; transform: translateY(-50%); }
+/* Hammer glyph is wider than the other resource icons. Lay the Teams pill out as
+   icon | counts so the character ink cannot overlap "7/7" the way absolute
+   positioning did against the shared left padding. */
+.construction-team-pill {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    column-gap: 12px;
+    align-items: center;
+    min-width: 112px;
+    padding: 7px 14px 7px 12px;
+}
+.construction-team-pill .resource-icon {
+    position: static;
+    transform: none;
+    grid-row: 1 / span 2;
+    width: 18px;
+    overflow: hidden;
+    font-size: 15px;
+    line-height: 1;
+    text-align: center;
+}
+.construction-team-pill strong,
+.construction-team-pill small {
+    grid-column: 2;
+}
 .pulse-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 4px rgba(111, 207, 139, .12), 0 0 12px var(--green); }
 
 .keep-header-actions {
@@ -200,6 +228,11 @@ button.resource-pill:focus-visible {
 .keep-scene-viewport,
 .keep-scene { position: absolute; inset: 0; overflow: hidden; }
 .keep-scene-viewport { background: #9ed2ce; }
+.keep-scene-viewport.is-suppressed {
+    visibility: hidden;
+    content-visibility: hidden;
+    pointer-events: none;
+}
 
 .keep-scene {
     --heal: 0;
@@ -384,10 +417,260 @@ button.resource-pill:focus-visible {
 .hall-hotspot { left: 50%; top: 18%; transform: translateX(-50%); width: clamp(180px, 27vw, 360px); height: clamp(190px, 36vh, 350px); }
 .woodlot-hotspot { left: 8%; bottom: 9%; }
 .archive-hotspot { right: 8%; bottom: 10%; }
-.quarter-hotspot { right: 22%; top: 48%; width: clamp(150px, 21vw, 260px); height: clamp(128px, 23vh, 215px); }
+.quarter-hotspot { left: 23%; top: 48%; width: clamp(150px, 21vw, 260px); height: clamp(128px, 23vh, 215px); }
+.enclave-hotspot { right: 23%; top: 47%; width: clamp(142px, 19vw, 245px); height: clamp(126px, 22vh, 210px); }
+.enclave-illustration { position: absolute; inset: 2px 3px 34px; display: block; transition: filter .35s, opacity .35s; }
+.enclave-hut { position: absolute; bottom: 16%; width: 35%; height: 42%; border: 2px solid #5b4631; border-radius: 5px 5px 2px 2px; background: repeating-linear-gradient(92deg, rgba(245, 222, 174, .08) 0 1px, transparent 1px 7px), repeating-linear-gradient(90deg, #8d6b45 0 9px, #755635 9px 11px); box-shadow: inset 3px 0 rgba(237, 217, 176, .16), inset -5px -4px rgba(54, 38, 25, .2); filter: drop-shadow(0 1px 0 #ead8ad) drop-shadow(2px 3px 2px rgba(23, 19, 15, .48)); }
+.enclave-hut::before { content: ""; position: absolute; left: -9%; right: -9%; top: -35%; height: 42%; background: repeating-linear-gradient(87deg, rgba(240, 223, 183, .08) 0 1px, transparent 1px 8px), #3e5a49; clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+.enclave-hut::after { content: ""; position: absolute; left: 39%; bottom: 0; width: 23%; height: 55%; border-radius: 8px 8px 0 0; background: #3d2d24; }
+.enclave-hut.hut-one { left: 7%; }
+.enclave-hut.hut-two { right: 5%; bottom: 22%; transform: scale(.82); }
+.enclave-hearth { position: absolute; left: 48%; bottom: 13%; width: 22%; height: 12%; border-radius: 50%; background: radial-gradient(circle, #ffe27d 0 18%, #ff7a43 20% 40%, #6f4d3b 42% 64%, transparent 66%); filter: drop-shadow(0 0 7px rgba(255, 151, 76, .65)); animation: hearth-flicker 1.7s ease-in-out infinite; }
+.enclave-fence { position: absolute; left: 2%; right: 2%; bottom: 5%; height: 16%; border-bottom: 4px solid #765635; background: repeating-linear-gradient(90deg, #765635 0 4px, transparent 4px 20px); opacity: .82; }
+.keep-scene[data-enclave-level="0"] .enclave-illustration { opacity: .55; filter: grayscale(.8); }
+.keep-scene[data-enclave-level="0"] .enclave-hut { border: 2px dashed rgba(255, 247, 220, .62); background: rgba(255, 255, 255, .04); box-shadow: none; }
+.keep-scene[data-enclave-level="0"] .enclave-hut::before { background: rgba(255, 255, 255, .1); }
+.keep-scene[data-enclave-level="0"] .enclave-hearth,
+.keep-scene[data-enclave-level="0"] .enclave-fence,
+.keep-scene[data-enclave-level="0"] .exterior-enclave-residents { display: none; }
+.enclave-residents b { position: absolute; z-index: 4; display: none; align-items: flex-end; justify-content: center; background: transparent; filter: drop-shadow(0 5px 5px rgba(0, 0, 0, .42)); animation: enclave-wander 3s ease-in-out infinite; }
+.enclave-residents b.has-resident { display: flex; }
+.enclave-residents b img,
+.enclave-interior-residents b img { width: auto; height: 100%; max-width: 100%; object-fit: contain; object-position: bottom center; }
+/* Keep residents are drawn at world scale instead of on a card, so their size band decides how
+   tall every exterior and interior cutout stands — including the grounds worker, so a Siegeling
+   does not change height merely by being seen from outside its workshop. Widths scale with height to keep the art's
+   aspect ratio; flex-end alignment keeps each cutout planted on the same ground line as it grows
+   upward. Bigger Enclave silhouettes sit in front so a gigantic neighbor is never clipped. */
+.enclave-residents b,
+.enclave-interior-residents b,
+.resident-worker > span,
+.lodge-resident > span,
+.hall-favorite-resident > span,
+.facility-room-resident > span { --cutout-scale: 1; }
+.enclave-residents b[data-size="SMALL"],
+.enclave-interior-residents b[data-size="SMALL"],
+.resident-worker > span[data-size="SMALL"],
+.lodge-resident > span[data-size="SMALL"],
+.hall-favorite-resident > span[data-size="SMALL"],
+.facility-room-resident > span[data-size="SMALL"] { --cutout-scale: .84; }
+.enclave-residents b[data-size="MEDIUM"],
+.enclave-interior-residents b[data-size="MEDIUM"],
+.resident-worker > span[data-size="MEDIUM"],
+.lodge-resident > span[data-size="MEDIUM"],
+.hall-favorite-resident > span[data-size="MEDIUM"],
+.facility-room-resident > span[data-size="MEDIUM"] { --cutout-scale: 1; }
+.enclave-residents b[data-size="LARGE"],
+.enclave-interior-residents b[data-size="LARGE"],
+.resident-worker > span[data-size="LARGE"],
+.lodge-resident > span[data-size="LARGE"],
+.hall-favorite-resident > span[data-size="LARGE"],
+.facility-room-resident > span[data-size="LARGE"] { --cutout-scale: 1.24; }
+.enclave-residents b[data-size="GIGANTIC"],
+.enclave-interior-residents b[data-size="GIGANTIC"],
+.resident-worker > span[data-size="GIGANTIC"],
+.lodge-resident > span[data-size="GIGANTIC"],
+.hall-favorite-resident > span[data-size="GIGANTIC"],
+.facility-room-resident > span[data-size="GIGANTIC"] { --cutout-scale: 1.62; }
+.exterior-enclave-residents b[data-size="LARGE"] { z-index: 5; }
+.exterior-enclave-residents b[data-size="GIGANTIC"] { z-index: 6; }
+/* The grounds hotspot can be only ~120px wide on a phone. Five size-scaled cutouts cannot
+   safely use fixed pixel widths there: Large/Gigantic residents cover their neighbors and
+   the old 84% fifth anchor clips the last resident. Give every resident a centered lane and
+   cap its exterior box to that lane; the image keeps its aspect inside the box while height
+   still reflects the resident's size band. Horizontal wandering is removed on the grounds
+   so the deliberate gaps cannot close during mismatched animation phases. */
+.exterior-enclave-residents b {
+    width: min(calc(30px * var(--cutout-scale)), 15%);
+    height: calc(38px * var(--cutout-scale));
+    bottom: 8%;
+    transform: translateX(-50%);
+    animation-name: enclave-exterior-bob;
+}
+.exterior-enclave-residents b:nth-child(1) { left: 10%; }
+.exterior-enclave-residents b:nth-child(2) { left: 30%; animation-delay: -.6s; }
+.exterior-enclave-residents b:nth-child(3) { left: 50%; animation-delay: -1.2s; }
+.exterior-enclave-residents b:nth-child(4) { left: 70%; animation-delay: -1.8s; }
+.exterior-enclave-residents b:nth-child(5) { left: 90%; animation-delay: -2.4s; }
+
+/* On the Keep map Akhar's Front is only a distant mountain destination. The full
+   rampart battle is revealed after the player enters the dedicated Front view. */
+.front-hotspot {
+    right: 10%;
+    top: 13%;
+    width: clamp(150px, 17vw, 205px);
+    height: 72px;
+    z-index: 7;
+    filter: drop-shadow(0 5px 6px rgba(29, 22, 31, .28));
+}
+.front-hotspot::before {
+    content: "";
+    position: absolute;
+    left: 8px;
+    top: 3px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #f06b48;
+    box-shadow: 0 0 0 4px rgba(240, 107, 72, .18), 0 0 16px rgba(255, 166, 91, .78);
+}
+.front-hotspot::after {
+    content: "";
+    position: absolute;
+    left: 12px;
+    top: 12px;
+    width: 2px;
+    height: 23px;
+    background: rgba(49, 45, 41, .8);
+    transform: rotate(9deg);
+    transform-origin: top;
+}
+.front-hotspot .building-label { left: 23px; right: auto; bottom: auto; top: 5px; width: auto; max-width: calc(100% - 23px); padding: 5px 8px; text-align: left; transform: none; }
+.front-hotspot .building-label strong { font-size: 9px; }
+.front-hotspot .building-label small { max-width: 165px; font-size: 6.5px; }
+.front-battle { position: absolute; inset: 0 0 33px; display: none; overflow: hidden; border-radius: 42% 38% 13% 13%; pointer-events: none; }
+.front-rampart { position: absolute; left: -3%; right: -3%; bottom: -8%; width: 106%; height: 61%; z-index: 5; filter: drop-shadow(0 -3px 0 rgba(255, 235, 183, .35)) drop-shadow(0 7px 6px rgba(34, 24, 24, .4)); }
+.front-defenders b {
+    position: absolute;
+    z-index: 7;
+    bottom: 38%;
+    width: 19%;
+    height: 43%;
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+    filter: drop-shadow(0 4px 4px rgba(0, 0, 0, .48));
+    animation: front-defender-brace 1.8s ease-in-out infinite;
+}
+.front-defenders b.has-resident { display: flex; }
+.front-defenders b:nth-child(1) { left: 8%; }
+.front-defenders b:nth-child(2) { left: 32%; animation-delay: -.6s; }
+.front-defenders b:nth-child(3) { left: 56%; animation-delay: -1.2s; }
+.front-defenders img { width: auto; height: 100%; max-width: 100%; object-fit: contain; object-position: bottom center; }
+.front-raiders i { position: absolute; z-index: 2; width: 13%; height: 32%; color: #231a36; filter: drop-shadow(0 5px 3px rgba(23, 12, 32, .42)); animation: front-raider-march 3s ease-in-out infinite; }
+.front-raiders i svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.front-raiders i path { fill: #271b3c; stroke: #100b19; stroke-width: 2.2; }
+.front-raiders i circle { fill: #d8a2ff; filter: drop-shadow(0 0 3px #d8a2ff); }
+.front-raiders i:nth-child(1) { right: 7%; top: 4%; transform: scale(1.12); }
+.front-raiders i:nth-child(2) { right: 23%; top: 20%; animation-delay: -.8s; }
+.front-raiders i:nth-child(3) { right: 39%; top: 1%; transform: scale(.8); animation-delay: -1.5s; }
+.front-raiders i:nth-child(4) { right: 2%; top: 32%; transform: scale(.72); animation-delay: -2.2s; }
+.front-projectile { position: absolute; z-index: 8; left: 32%; bottom: 51%; width: 25px; height: 6px; border-radius: 999px; opacity: 0; transform: rotate(-25deg); transform-origin: left center; background: linear-gradient(90deg, #fff8bf, #7deaff 35%, transparent); box-shadow: 0 0 7px #8ff4ff; animation: front-projectile-flight 2.1s linear infinite; }
+.front-projectile.shot-two { left: 46%; bottom: 58%; background: linear-gradient(90deg, #fff8b8, #ff8b4f 35%, transparent); box-shadow: 0 0 8px #ff8b4f; animation-delay: -.72s; }
+.front-projectile.shot-three { left: 20%; bottom: 56%; width: 20px; background: linear-gradient(90deg, #f6ffbd, #8fe871 35%, transparent); box-shadow: 0 0 7px #8fe871; animation-delay: -1.36s; }
+.front-impact { position: absolute; z-index: 4; width: 9px; height: 9px; border-radius: 50%; opacity: 0; background: #fff5ad; box-shadow: 0 -10px 0 #ff774c, 8px -5px 0 #ffbd55, 9px 6px 0 #fff5ad, -6px 7px 0 #ff774c, -9px -4px 0 #ffbd55; animation: front-impact-burst 2.1s ease-out infinite; }
+.front-impact.impact-one { right: 23%; top: 32%; animation-delay: -.1s; }
+.front-impact.impact-two { right: 6%; top: 17%; animation-delay: -.82s; }
+.front-lock { position: absolute; z-index: 10; left: 50%; top: 38%; translate: -50% -50%; min-width: 112px; padding: 7px 10px; border: 1px solid rgba(244, 204, 98, .42); border-radius: 10px; background: rgba(20, 26, 39, .88); color: #fff3c0; box-shadow: 0 6px 16px rgba(8, 12, 20, .35); pointer-events: none; }
+.front-lock b, .front-lock small { display: block; }
+.front-lock small { margin-top: 2px; color: rgba(255,255,255,.7); font-size: 8px; letter-spacing: .05em; text-transform: uppercase; }
+.front-income { position: absolute; z-index: 10; right: 1%; bottom: 40px; display: none; align-items: center; gap: 5px; padding: 5px 8px; border: 1px solid rgba(244, 204, 98, .48); border-radius: 9px; background: rgba(24, 32, 45, .9); color: #f6cb5f; box-shadow: 0 5px 14px rgba(8, 15, 22, .32); pointer-events: none; }
+.front-income > b { font-size: 15px; }
+.front-income span, .front-income strong, .front-income small { display: block; text-align: left; }
+.front-income strong { color: #fff4c8; font: 800 10px/1 "Segoe UI", sans-serif; }
+.front-income small { margin-top: 2px; color: rgba(255,255,255,.68); font-size: 6.5px; text-transform: uppercase; letter-spacing: .05em; }
+.keep-scene[data-akhars-front-level="0"] .front-battle { filter: grayscale(.9) brightness(.72); opacity: .65; }
+.keep-scene[data-akhars-front-level="0"] .front-raiders i,
+.keep-scene[data-akhars-front-level="0"] .front-projectile,
+.keep-scene[data-akhars-front-level="0"] .front-impact,
+.keep-scene[data-akhars-front-level="0"] .front-defenders { display: none; }
+.keep-scene[data-front-defenders="0"] .front-projectile,
+.keep-scene[data-front-defenders="0"] .front-impact { display: none; }
+.keep-scene[data-akhars-front-level]:not([data-akhars-front-level="0"]) .front-lock { display: none; }
+.keep-scene[data-constructing~="akhars_front"] .front-hotspot .front-lock small { font-size: 0; }
+.keep-scene[data-constructing~="akhars_front"] .front-hotspot .front-lock small::after { content: "Rampart under construction"; font-size: 8px; }
+
+/* Akhar's Front is a destination, not another cluster on the Keep grounds. Entering it
+   removes every other landmark and action surface until the player explicitly returns. */
+.front-view-toolbar {
+    position: absolute;
+    z-index: 28;
+    top: calc(14px + var(--safe-top));
+    left: calc(16px + var(--safe-left));
+    right: calc(16px + var(--safe-right));
+    display: none;
+    grid-template-columns: auto minmax(180px, 1fr) auto;
+    align-items: center;
+    gap: 16px;
+    pointer-events: none;
+}
+.front-view-active .front-view-toolbar { display: grid; }
+.front-return,
+.front-manage {
+    min-height: 42px;
+    padding: 9px 14px;
+    border: 1px solid rgba(244, 204, 98, .48);
+    border-radius: 11px;
+    color: var(--cream);
+    background: rgba(20, 31, 43, .92);
+    box-shadow: 0 8px 24px rgba(5, 13, 20, .3);
+    font-size: 11px;
+    font-weight: 900;
+    cursor: pointer;
+    pointer-events: auto;
+}
+.front-return:hover,
+.front-manage:hover { border-color: var(--gold); background: rgba(38, 52, 65, .96); }
+.front-return:focus-visible,
+.front-manage:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+.front-view-heading { min-width: 0; text-align: center; filter: drop-shadow(0 2px 3px rgba(7, 12, 17, .6)); }
+.front-view-heading strong { display: block; margin: 2px 0; font: 700 clamp(21px, 3vw, 36px)/1 Georgia, serif; color: #fff1b7; }
+.front-view-heading small { color: rgba(255, 247, 220, .78); font-size: 10px; }
+.front-manage { color: #172333; background: linear-gradient(#ffe89a, #d9ab4e); }
+.front-manage:hover { color: #172333; background: linear-gradient(#fff0b2, #e7bc63); }
+
+.keep-app.front-view-active .keep-header { grid-template-columns: minmax(180px, 1fr); }
+.keep-app.front-view-active .keep-resource-bar,
+.keep-app.front-view-active .keep-header-actions,
+.keep-app.front-view-active .keep-dock,
+.keep-app.front-view-active .scene-caption,
+.keep-app.front-view-active .scene-zoom,
+.keep-app.front-view-active .construction-banner,
+.keep-app.front-view-active .keep-scene .river,
+.keep-app.front-view-active .keep-scene .road,
+.keep-app.front-view-active .keep-scene .keep-landmark,
+.keep-app.front-view-active .keep-scene .keep-walls,
+.keep-app.front-view-active .keep-scene .courtyard-layer,
+.keep-app.front-view-active .keep-scene .ambient-motes,
+.keep-app.front-view-active .keep-scene .building-hotspot:not(.front-hotspot) { display: none; }
+.keep-app.front-view-active .front-hotspot {
+    left: 50%;
+    right: auto;
+    top: 51%;
+    width: min(900px, 88vw);
+    height: min(520px, 72vh);
+    transform: translate(-50%, -44%);
+    transform-origin: center;
+    z-index: 20;
+    filter: drop-shadow(0 22px 26px rgba(29, 22, 31, .42));
+}
+.keep-app.front-view-active .front-hotspot::before,
+.keep-app.front-view-active .front-hotspot::after { display: none; }
+.keep-app.front-view-active .front-battle { display: block; }
+.keep-app.front-view-active .front-income:not(.hidden) { display: flex; }
+.keep-app.front-view-active .front-hotspot .building-label { left: 50%; right: auto; top: auto; bottom: 2px; z-index: 12; width: max-content; max-width: none; padding: 8px 14px; text-align: center; transform: translateX(-50%); }
+.keep-app.front-view-active .front-hotspot .building-label strong { font-size: clamp(15px, 2vw, 22px); }
+.keep-app.front-view-active .front-hotspot .building-label small { max-width: none; font-size: 10px; }
+.keep-app.front-view-active .front-income { bottom: 54px; transform: scale(1.12); transform-origin: right bottom; }
+
+@media (max-width: 767px) {
+    .front-view-toolbar { top: calc(8px + var(--safe-top)); left: calc(7px + var(--safe-left)); right: calc(7px + var(--safe-right)); grid-template-columns: auto 1fr; gap: 7px; }
+    .front-view-heading { grid-column: 1 / -1; grid-row: 2; }
+    .front-return,
+    .front-manage { min-height: 36px; padding: 7px 9px; font-size: 9px; }
+    .front-manage { justify-self: end; }
+    .front-view-heading small { display: none; }
+    .keep-app.front-view-active .front-hotspot { top: 57%; width: 96vw; height: min(57vh, 500px); transform: translate(-50%, -44%); }
+}
+
+@media (orientation: landscape) and (max-height: 600px) {
+    .front-view-toolbar { top: 5px; }
+    .front-view-heading small { display: none; }
+    .keep-app.front-view-active .front-hotspot { top: 54%; width: min(820px, 78vw); height: 82vh; transform: translate(-50%, -45%); }
+}
 .quarter-illustration { position: absolute; inset: 2px 4px 34px; display: block; filter: drop-shadow(0 7px 5px rgba(22, 29, 25, .28)); }
 .quarter-path { position: absolute; left: 20%; right: 8%; bottom: 2%; height: 18%; background: rgba(199, 173, 121, .58); clip-path: polygon(46% 0, 56% 0, 100% 100%, 0 100%); }
-.quarter-building { position: absolute; display: block; width: 26%; height: 30%; bottom: 13%; border: 1px solid rgba(32, 43, 39, .38); border-radius: 3px 3px 1px 1px; opacity: .34; filter: grayscale(.7); transition: opacity .5s, filter .5s, transform .5s; }
+.quarter-building { position: absolute; display: block; width: 26%; height: 30%; bottom: 13%; border: 1px solid rgba(32, 43, 39, .62); border-radius: 3px 3px 1px 1px; opacity: .34; filter: grayscale(.7) drop-shadow(0 1px 0 #ead8ad) drop-shadow(2px 3px 2px rgba(23, 19, 15, .4)); transition: opacity .5s, filter .5s, transform .5s; box-shadow: inset 3px 0 rgba(245, 226, 188, .16), inset -4px -3px rgba(37, 28, 22, .18); }
 .quarter-building::before { content: ""; position: absolute; left: -8%; right: -8%; top: -30%; height: 40%; background: #334a4d; clip-path: polygon(50% 0, 100% 100%, 0 100%); }
 .quarter-building b { position: absolute; left: 38%; bottom: 0; width: 24%; height: 52%; border-radius: 5px 5px 0 0; background: rgba(255, 232, 168, .6); }
 /* Three terraced rows keep all eight sites readable in the small cluster. */
@@ -420,7 +703,7 @@ button.resource-pill:focus-visible {
 .keep-scene[data-generator-level]:not([data-generator-level="0"]) .quarter-generator,
 .keep-scene[data-quarry-level]:not([data-quarry-level="0"]) .quarter-quarry,
 .keep-scene[data-kitchen-level]:not([data-kitchen-level="0"]) .quarter-kitchen,
-.keep-scene[data-builders-yard-level]:not([data-builders-yard-level="0"]) .quarter-yard { opacity: 1; filter: none; transform: translateY(-2px); }
+.keep-scene[data-builders-yard-level]:not([data-builders-yard-level="0"]) .quarter-yard { opacity: 1; filter: drop-shadow(0 1px 0 #ead8ad) drop-shadow(2px 3px 2px rgba(23, 19, 15, .48)); transform: translateY(-2px); }
 .keep-scene[data-storehouse-level="2"] .quarter-storehouse,
 .keep-scene[data-garden-level="2"] .quarter-garden,
 .keep-scene[data-forge-level="2"] .quarter-forge,
@@ -488,6 +771,7 @@ button.resource-pill:focus-visible {
 .keep-scene[data-constructing~="archive"] .archive-hotspot .scaffold,
 .keep-scene[data-constructing~="woodlot"] .woodlot-hotspot .scaffold,
 .keep-scene[data-constructing~="hall"] .hall-hotspot .scaffold { display: block; animation: scaffold-pulse 2s ease-in-out infinite; }
+.keep-scene[data-constructing~="enclave"] .enclave-hotspot .scaffold { display: block; animation: scaffold-pulse 2s ease-in-out infinite; }
 
 /* Scene residents stand as Siege-style overlay cutouts (transparent character
    art with a drop shadow), matching adventure battle sprites — not circular
@@ -505,8 +789,8 @@ button.resource-pill:focus-visible {
     animation: worker-bob 2.4s ease-in-out infinite;
 }
 .resident-worker > span {
-    width: 42px;
-    height: 42px;
+    width: calc(42px * var(--cutout-scale));
+    height: calc(42px * var(--cutout-scale));
     display: flex;
     align-items: flex-end;
     justify-content: center;
@@ -520,8 +804,8 @@ button.resource-pill:focus-visible {
     font-weight: 900;
 }
 .resident-worker > span.has-overlay-art {
-    width: 58px;
-    height: 72px;
+    width: calc(58px * var(--cutout-scale));
+    height: calc(72px * var(--cutout-scale));
     overflow: visible;
     border: 0;
     border-radius: 0;
@@ -583,6 +867,76 @@ button.resource-pill:focus-visible {
 .scene-caption h1 { margin: 2px 0 4px; font: 700 clamp(20px, 3vw, 34px)/1 Georgia, serif; }
 .scene-caption p { margin: 0; color: rgba(255, 247, 220, .75); font-size: clamp(10px, 1.2vw, 13px); }
 
+/* The caption doubles as the entry point to the Keeper's Journey timeline. */
+.scene-caption[role="button"] { cursor: pointer; transition: transform .12s ease, box-shadow .12s ease, background .2s ease; }
+.scene-caption[role="button"]:hover { transform: translateX(2px); background: linear-gradient(90deg, rgba(20, 31, 43, .92), rgba(20, 31, 43, .42)); }
+.scene-caption[role="button"]:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.caption-xp { margin-top: 8px; height: 6px; border-radius: 999px; background: rgba(0, 0, 0, .34); overflow: hidden; }
+.caption-xp i { display: block; height: 100%; }
+.caption-xp b { display: block; height: 100%; width: 0; border-radius: 999px; background: linear-gradient(90deg, var(--gold), #ffe9a8); transition: width .5s ease; }
+.caption-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
+.caption-foot small { color: rgba(255, 247, 220, .72); font-size: 10px; letter-spacing: .02em; }
+.caption-journey-cta { display: inline-flex; align-items: center; gap: 5px; color: var(--gold); font: 900 9px/1 sans-serif; letter-spacing: .1em; text-transform: uppercase; }
+.caption-badge { display: inline-grid; place-items: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: #e0483a; color: #fff; font-size: 10px; font-weight: 800; }
+
+/* Keeper's Journey overlay — the battlepass chapter/level timeline. */
+.journey-overlay { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 16px; }
+.journey-overlay.hidden { display: none; }
+.journey-scrim { position: absolute; inset: 0; background: rgba(7, 18, 25, .8); backdrop-filter: blur(7px); }
+.journey-card { position: relative; width: min(940px, 100%); max-height: min(760px, 90dvh); display: flex; flex-direction: column; padding: 22px 22px 18px; border: 1px solid rgba(244, 204, 98, .42); border-radius: 20px; background: linear-gradient(160deg, #1d3745, #10202b 74%); box-shadow: 0 30px 90px rgba(0, 0, 0, .58); }
+.journey-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.journey-header h2 { margin: 3px 0 3px; font: 700 clamp(22px, 3vw, 30px) Georgia, serif; color: #fff3c0; }
+.journey-header small { color: rgba(255, 247, 220, .66); font-size: 12px; line-height: 1.4; }
+.journey-levelbar { margin: 14px 0 5px; height: 9px; border-radius: 999px; background: rgba(0, 0, 0, .38); overflow: hidden; }
+.journey-levelbar i { display: block; height: 100%; }
+.journey-levelbar b { display: block; height: 100%; width: 0; border-radius: 999px; background: linear-gradient(90deg, var(--gold), #ffe9a8); transition: width .5s ease; }
+.journey-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.journey-xp-label { display: block; min-width: 0; color: rgba(255, 247, 220, .8); font-size: 12px; }
+.journey-toggle { flex: 0 0 auto; min-height: 32px; padding: 6px 12px; border: 1px solid rgba(244, 204, 98, .5); border-radius: 999px; background: rgba(244, 204, 98, .1); color: var(--gold); font: 800 10px/1 sans-serif; letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
+.journey-toggle:hover { background: rgba(244, 204, 98, .2); }
+.journey-toggle:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+/* The track stacks chapters and scrolls vertically inside the card: the flex
+   child owns the leftover height (min-height:0) so the last row is reachable
+   instead of being clipped by the card's max-height — the landscape failure. */
+.journey-track { flex: 1 1 auto; min-height: 0; min-width: 0; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; overflow-x: hidden; padding: 2px 2px 4px; -webkit-overflow-scrolling: touch; }
+.journey-card { min-width: 0; }
+.journey-chapter { flex: 0 0 auto; display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 16px; background: rgba(255, 255, 255, .03); }
+.journey-chapter.is-current { border-color: rgba(244, 204, 98, .55); box-shadow: 0 0 0 1px rgba(244, 204, 98, .25) inset; }
+.journey-chapter.is-complete { opacity: .92; }
+.chapter-head strong { display: block; font: 700 17px Georgia, serif; color: var(--cream); }
+.chapter-head small { display: block; color: rgba(255, 247, 220, .6); font-size: 11px; line-height: 1.4; }
+/* auto-fill so a chapter's levels wrap into rows and fill the card width, rather
+   than running off the right edge behind a horizontal scrollbar. */
+.journey-nodes { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
+.journey-node { position: relative; display: flex; flex-direction: column; gap: 7px; padding: 12px 11px; border: 1px solid var(--line); border-radius: 14px; background: rgba(9, 20, 27, .6); text-align: center; }
+.journey-node.is-locked { opacity: .55; }
+.journey-node.is-earned { border-color: rgba(150, 255, 180, .3); }
+.journey-node.is-ready { border-color: rgba(244, 204, 98, .7); background: rgba(244, 204, 98, .08); box-shadow: 0 6px 20px rgba(244, 204, 98, .12); }
+.journey-node.is-claimed { border-color: rgba(150, 255, 180, .28); background: rgba(60, 90, 70, .18); }
+.journey-node.is-current { outline: 2px solid rgba(244, 204, 98, .5); outline-offset: 1px; }
+.node-badge { display: inline-grid; place-items: center; width: 46px; height: 46px; margin: 0 auto; border-radius: 50%; border: 1px solid rgba(244, 204, 98, .5); background: rgba(244, 204, 98, .07); }
+.node-badge small { font-size: 8px; letter-spacing: .12em; color: var(--gold); }
+.node-badge strong { font: 800 18px Georgia, serif; color: #fff3c0; line-height: 1; }
+.node-reward { display: flex; justify-content: center; gap: 8px; font-size: 12px; font-weight: 700; }
+.node-reward .reward-gold { color: var(--gold); }
+.node-reward .reward-rem { color: #d0a7ff; }
+/* Theme-music toggle: dimmed with a slash when muted. */
+.music-toggle.is-muted { opacity: .5; }
+.music-toggle { position: relative; }
+.music-toggle.is-muted::after { content: ""; position: absolute; left: 20%; right: 20%; top: 50%; height: 2px; background: currentColor; transform: rotate(-45deg); border-radius: 2px; }
+.node-decoration { margin: 0; color: #9be8b4; font-size: 10px; font-weight: 700; line-height: 1.3; }
+.node-decoration span { color: #f4cc62; }
+.node-unlock { margin: 0; color: rgba(255, 247, 220, .72); font-size: 10px; line-height: 1.35; }
+.node-claim { margin-top: auto; padding: 7px 10px; border: none; border-radius: 9px; background: var(--gold); color: #14232b; font: 800 12px Georgia, serif; cursor: pointer; }
+.node-claim:hover { filter: brightness(1.05); }
+.node-status { margin-top: auto; font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: rgba(255, 247, 220, .5); }
+.journey-node.is-earned .node-status { color: rgba(150, 255, 180, .8); }
+.journey-node.is-claimed .node-status { color: rgba(150, 255, 180, .7); }
+
+/* Project cards gated behind a Keeper Level read as locked. */
+.project-card.is-level-locked { opacity: .82; border-color: rgba(244, 204, 98, .28); }
+.project-card.is-level-locked .eyebrow { color: #f0b45a; }
+
 .construction-banner {
     position: absolute;
     z-index: 15;
@@ -590,8 +944,10 @@ button.resource-pill:focus-visible {
     top: 14px;
     transform: translateX(-50%);
     min-width: min(340px, 70vw);
+    max-width: min(420px, calc(100vw - 16px));
     display: grid;
-    grid-template-columns: auto 1fr auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: start;
     gap: 9px;
     padding: 8px 13px 11px;
     border: 1px solid rgba(244, 204, 98, .4);
@@ -600,12 +956,39 @@ button.resource-pill:focus-visible {
     box-shadow: 0 8px 24px rgba(4, 13, 19, .25);
 }
 .hammer-icon { align-self: center; color: var(--gold); font-size: 20px; }
+.construction-banner-jobs {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+}
+.construction-job {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+}
+.construction-job + .construction-job {
+    padding-top: 7px;
+    border-top: 1px solid rgba(255, 247, 220, .1);
+}
 .construction-banner strong { font-size: 12px; }
 .construction-banner small { color: rgba(255, 247, 220, .65); font-size: 10px; }
-.construction-banner > i { grid-column: 1 / -1; height: 4px; border-radius: 99px; overflow: hidden; background: rgba(255, 255, 255, .11); }
-.construction-banner > i b { display: block; width: 0; height: 100%; background: linear-gradient(90deg, #ca884c, var(--gold)); transition: width .4s linear; }
+.construction-job > i {
+    display: block;
+    height: 4px;
+    border-radius: 99px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, .11);
+}
+.construction-job > i b {
+    display: block;
+    width: 0;
+    height: 100%;
+    background: linear-gradient(90deg, #ca884c, var(--gold));
+    transition: width .4s linear;
+}
 .construction-toggle {
-    align-self: center;
+    align-self: start;
+    margin-top: 1px;
     width: 27px;
     height: 27px;
     display: grid;
@@ -622,8 +1005,10 @@ button.resource-pill:focus-visible {
 .construction-toggle:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .construction-banner.is-collapsed { min-width: min(250px, calc(100vw - 16px)); padding-block: 6px; }
 .construction-banner.is-collapsed .hammer-icon { font-size: 17px; }
-.construction-banner.is-collapsed small,
-.construction-banner.is-collapsed > i { display: none; }
+.construction-banner.is-collapsed .construction-job small,
+.construction-banner.is-collapsed .construction-job > i { display: none; }
+.construction-banner.is-collapsed .construction-banner-jobs { gap: 0; }
+.construction-banner.is-collapsed .construction-job + .construction-job { display: none; }
 
 .keep-dock {
     flex: 0 0 auto;
@@ -656,7 +1041,7 @@ button.resource-pill:focus-visible {
 .keep-dock button > span { color: var(--gold); font-size: 20px; line-height: 1; }
 .keep-dock button strong { font-size: 10px; letter-spacing: .02em; }
 .keep-dock button small { font-size: 8px; color: rgba(255, 247, 220, .62); }
-.keep-dock .collect-button { width: min(166px, 22vw); margin: -17px 5px 0; border-color: rgba(255, 234, 151, .56); color: #172333; background: linear-gradient(180deg, #ffe897, #dcae50); box-shadow: 0 7px 22px rgba(4, 13, 19, .38), inset 0 1px rgba(255, 255, 255, .7); }
+.keep-dock .collect-button { width: min(166px, 22vw); margin: 0 5px; border-color: rgba(255, 234, 151, .56); color: #172333; background: linear-gradient(180deg, #ffe897, #dcae50); box-shadow: 0 7px 22px rgba(4, 13, 19, .38), inset 0 1px rgba(255, 255, 255, .7); }
 .keep-dock .collect-button > span { color: #895627; }
 .keep-dock .collect-button small { color: rgba(23, 35, 51, .72); }
 .keep-dock .collect-button:disabled { filter: grayscale(.7); opacity: .58; cursor: default; }
@@ -762,9 +1147,10 @@ button.resource-pill:focus-visible {
 .favorite-current strong { color: #fff1b7; font: 700 14px Georgia, serif; }
 .favorite-current small { color: #ffe9a8; font-size: 10px; }
 .favorite-choices { display: grid; gap: 6px; }
-.favorite-choice { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 11px; color: var(--cream); background: rgba(255, 255, 255, .04); text-align: left; cursor: pointer; }
-.favorite-choice:hover { border-color: rgba(244, 204, 98, .5); background: rgba(244, 204, 98, .07); }
-.favorite-choice.active { border-color: var(--gold); background: rgba(244, 204, 98, .12); }
+.favorite-choice { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 7px 9px; border: 1px solid rgba(255, 255, 255, .08); border-radius: 11px; color: var(--cream); background: rgba(12, 22, 30, .55); text-align: left; cursor: pointer; }
+.favorite-choice:nth-child(even) { background: rgba(244, 204, 98, .14); border-color: rgba(244, 204, 98, .28); }
+.favorite-choice:hover { border-color: rgba(244, 204, 98, .55); background: rgba(244, 204, 98, .18); }
+.favorite-choice.active { border-color: var(--gold); background: rgba(244, 204, 98, .24); box-shadow: inset 0 0 0 1px rgba(244, 204, 98, .35); }
 .favorite-choice-avatar { width: 38px; height: 38px; display: grid; place-items: center; overflow: hidden; border: 2px solid color-mix(in srgb, var(--resident-color, var(--neutral)) 70%, white); border-radius: 50%; color: #172333; background: var(--resident-color, var(--neutral)); font-size: 13px; font-weight: 900; }
 .favorite-choice-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .favorite-choice-copy { min-width: 0; display: flex; flex-direction: column; }
@@ -818,17 +1204,85 @@ button.resource-pill:focus-visible {
 .craft-type { position: absolute; top: 11px; right: 10px; padding: 3px 6px; border-radius: 99px; color: #172333; background: #9fe9ff; font-size: 7px; font-weight: 900; }
 .craft-costs { display: flex; flex-wrap: wrap; gap: 5px; margin: 9px 0; }
 .craft-costs span { padding: 4px 7px; border-radius: 99px; color: rgba(255,247,220,.76); background: rgba(255,255,255,.07); font-size: 8px; }
+/* Expansions pull materials from partner workshops, so shortfalls need to read
+   at a glance instead of only through a disabled Craft button. */
+.craft-costs span.is-met { color: #cfe9b8; background: rgba(143, 206, 111, .16); }
+.craft-costs span.is-short { color: #ffc9a4; background: rgba(255, 138, 78, .17); box-shadow: inset 0 0 0 1px rgba(255, 138, 78, .35); }
 .craft-card .panel-button { width: 100%; min-height: 34px; }
 .decoration-control { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px; border: 1px solid rgba(244,204,98,.32); border-radius: 12px; background: rgba(244,204,98,.055); }
 .decoration-control > span { min-width: 0; display: flex; flex-direction: column; }
 .decoration-control small { color: var(--gold); font-size: 8px; text-transform: uppercase; }
 .decoration-control strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #fff1b7; font: 700 12px Georgia, serif; }
+.room-upgrade-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+.room-upgrade-summary > span { display: flex; flex-direction: column; padding: 9px; border: 1px solid rgba(159,233,255,.24); border-radius: 10px; background: rgba(159,233,255,.05); }
+.room-upgrade-summary b { color: #9fe9ff; font: 700 16px Georgia, serif; }
+.room-upgrade-summary small { color: rgba(255,247,220,.58); font-size: 8px; text-transform: uppercase; }
+.enclave-slot-list { display: grid; gap: 10px; }
+.enclave-slot-card { margin-bottom: 0; }
+.enclave-current { display: grid; grid-template-columns: 56px minmax(0, 1fr); align-items: start; gap: 9px; margin-top: 8px; }
+/* The portrait is the swap control — there is no separate remove button, so it needs the
+   full 44px touch target and a visible affordance that it opens the assign menu. */
+.enclave-portrait { position: relative; width: 56px; height: 62px; display: flex; align-items: flex-end; justify-content: center; overflow: hidden; padding: 0; border: 2px solid var(--resident-color, var(--gold)); border-radius: 12px; background: color-mix(in srgb, var(--resident-color, var(--neutral)) 35%, #172333); cursor: pointer; }
+.enclave-portrait img { width: auto; height: 100%; max-width: 100%; object-fit: contain; object-position: bottom center; }
+.enclave-portrait-hint { position: absolute; left: 0; right: 0; bottom: 0; padding: 2px 0; color: #10171f; background: rgba(244,204,98,.88); font: 700 7px/1 Georgia, serif; text-transform: uppercase; letter-spacing: .06em; font-style: normal; }
+.enclave-portrait[aria-expanded="true"] { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(244,204,98,.35); }
+.enclave-current h3 { margin: 0; }
+.enclave-current small { color: rgba(255,247,220,.58); font-size: 9px; }
+.enclave-empty-seat { display: flex; align-items: center; gap: 10px; width: 100%; margin-top: 8px; padding: 10px; border: 1px dashed var(--line); border-radius: 11px; color: rgba(255,247,220,.72); background: rgba(255,255,255,.03); cursor: pointer; text-align: left; }
+.enclave-empty-seat span { width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 10px; color: #9fe9ff; background: rgba(159,233,255,.12); font: 700 18px Georgia, serif; }
+.enclave-empty-seat small { font-size: 9px; }
+.rapport-block { margin-top: 6px; }
+.rapport-head { display: flex; align-items: center; gap: 6px; }
+.rapport-pips { display: inline-flex; gap: 3px; }
+.rapport-pips i { width: 6px; height: 6px; border: 1px solid rgba(244,204,98,.5); border-radius: 50%; }
+.rapport-pips i.filled { border-color: var(--gold); background: var(--gold); }
+.rapport-label { color: #fff1b7; font-size: 9px; }
+.meter.rapport-meter { margin-top: 4px; }
+.meter.rapport-meter i { background: linear-gradient(90deg, #f4cc62, #ffb0d0); }
+.rapport-block small { display: block; margin-top: 3px; color: rgba(255,247,220,.55); font-size: 8px; }
+.enclave-picker { margin-top: 10px; padding: 10px; border: 1px solid rgba(244,204,98,.35); border-radius: 11px; background: rgba(244,204,98,.05); }
+.enclave-picker-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.enclave-picker-head strong { color: #fff1b7; font: 700 12px Georgia, serif; }
+.enclave-picker .picker-close { width: 26px; height: 26px; border-radius: 8px; color: var(--cream); background: rgba(255,255,255,.08); font-size: 15px; line-height: 1; cursor: pointer; }
+.enclave-picker .panel-button.secondary { width: 100%; margin-bottom: 8px; }
+.enclave-picker .eyebrow { display: block; margin-top: 8px; }
+.enclave-picker .empty-state { margin-top: 6px; }
+.enclave-resident-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+.enclave-resident-choice { position: relative; min-width: 0; display: grid; justify-items: center; gap: 3px; padding: 6px 3px; border: 1px solid var(--line); border-radius: 9px; color: var(--cream); background: rgba(255,255,255,.04); cursor: pointer; }
+.enclave-resident-choice.active { border-color: var(--gold); background: rgba(244,204,98,.1); }
+.enclave-resident-choice.is-reassign { border-color: rgba(255,176,208,.45); background: rgba(255,176,208,.06); }
+.enclave-resident-choice span { width: 36px; height: 40px; display: flex; align-items: flex-end; justify-content: center; overflow: hidden; border-radius: 8px; background: color-mix(in srgb, var(--resident-color, var(--neutral)) 35%, #172333); }
+.enclave-resident-choice img { width: auto; height: 100%; max-width: 100%; object-fit: contain; object-position: bottom center; }
+.enclave-resident-choice small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 8px; }
+.enclave-resident-choice .choice-rapport { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--gold); font: 700 7px Georgia, serif; }
+/* The post a Siegeling would be pulled off is the whole point of the tag, so it wraps
+   rather than ellipsing — three chips per row leaves no width to truncate into. */
+.enclave-resident-choice .reassign-tag { max-width: 100%; color: #ffb0d0; font: 700 7px/1.25 Georgia, serif; font-style: normal; text-transform: uppercase; letter-spacing: .04em; text-align: center; overflow-wrap: anywhere; }
+.enclave-task-list { margin-top: 4px; }
+.enclave-mission { margin-top: 10px; padding: 10px; border: 1px solid rgba(159,233,255,.25); border-radius: 10px; background: rgba(159,233,255,.05); }
+.enclave-mission.is-complete { border-color: rgba(111,207,139,.5); background: rgba(111,207,139,.07); }
+.enclave-mission h4 { margin: 3px 0; color: #fff1b7; font: 700 13px Georgia, serif; }
+.enclave-mission p { margin: 0; color: rgba(255,247,220,.66); font-size: 9px; line-height: 1.4; }
+.enclave-mission .task-bond-tag { margin-left: 6px; padding: 1px 5px; border-radius: 6px; color: #10171f; background: rgba(255,176,208,.85); font: 700 7px Georgia, serif; font-style: normal; text-transform: uppercase; letter-spacing: .05em; vertical-align: middle; }
+.enclave-mission .panel-button { width: 100%; margin-top: 8px; }
+
+/* Read/unread divider shared by the Chronicle, the Voices list, and the notice tray. */
+.list-section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 4px 2px 7px; padding-bottom: 5px; border-bottom: 1px solid var(--line); }
+.list-section-heading + .list-section-heading { margin-top: 4px; }
+.list-section-heading span { color: rgba(255, 247, 220, .66); font-size: 9px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; }
+.list-section-heading strong { color: var(--gold); font-size: 9px; font-weight: 900; font-variant-numeric: tabular-nums; }
+#noticeList .list-section-heading { margin: 7px 3px 5px; }
+#noticeList .list-section-heading:first-child { margin-top: 2px; }
 
 .lore-tabs { position: sticky; top: -14px; z-index: 2; display: flex; gap: 5px; margin: -14px -14px 12px; padding: 10px 14px; background: rgba(20, 31, 43, .96); border-bottom: 1px solid var(--line); }
 .lore-tabs button { flex: 1; min-height: 32px; border-radius: 9px; color: rgba(255, 247, 220, .66); background: rgba(255, 255, 255, .045); font-size: 9px; font-weight: 800; cursor: pointer; }
 .lore-tabs button.active { color: #172333; background: var(--gold); }
 .lore-card { position: relative; cursor: pointer; }
 .lore-card.unread::before { content: ""; position: absolute; width: 8px; height: 8px; top: 12px; right: 12px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 9px var(--gold); }
+/* Read entries recede so the Unread group above them reads as the live list. */
+.lore-card.is-read { border-color: rgba(255, 247, 220, .1); background: rgba(255, 255, 255, .022); }
+.lore-card.is-read h3 { color: rgba(255, 241, 183, .74); }
+.lore-card.is-read.expanded { border-color: rgba(244, 204, 98, .42); }
 .lore-card.expanded { border-color: rgba(244, 204, 98, .42); }
 .lore-body { padding-top: 8px; border-top: 1px solid var(--line); white-space: pre-line; }
 .memorabilia-figure { height: 95px; display: grid; place-items: center; margin-bottom: 8px; border-radius: 10px; background: radial-gradient(circle, rgba(255, 154, 80, .2), transparent 66%); }
@@ -837,10 +1291,13 @@ button.resource-pill:focus-visible {
 
 .conversation-card { display: grid; grid-template-columns: 48px 1fr; gap: 10px; cursor: pointer; }
 .conversation-card.is-visitor { border-color: rgba(159, 233, 255, .42); background: rgba(159, 233, 255, .05); }
+.conversation-card.is-interaction { border-color: rgba(196, 220, 120, .42); background: rgba(196, 220, 120, .06); }
 .npc-mini { width: 48px; height: 48px; display: grid; place-items: center; border: 2px solid rgba(244, 204, 98, .5); border-radius: 50%; background: linear-gradient(145deg, #785c4c, #293d48); font: 700 18px Georgia, serif; }
 .conversation-card.is-visitor .npc-mini { border-color: rgba(159, 233, 255, .55); background: linear-gradient(145deg, #4c6578, #293d48); }
+.conversation-card.is-interaction .npc-mini { border-color: rgba(196, 220, 120, .55); background: linear-gradient(145deg, #5a6a3a, #2d3720); }
 .conversation-card small { color: var(--gold); font-size: 9px; }
 .visitor-tag { display: inline-block; margin-top: 4px; color: #9fe9ff; font-size: 9px; font-style: normal; letter-spacing: .04em; text-transform: uppercase; }
+.visitor-tag.interaction-tag { color: #d4e89a; }
 .relationship-card { display: flex; flex-direction: column; align-items: stretch; gap: 8px; width: 100%; padding: 12px 13px; text-align: left; cursor: pointer; font: inherit; color: inherit; appearance: none; }
 .relationship-card span { color: rgba(255, 247, 220, .65); }
 .relationship-card .relationship-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; font-size: 11px; }
@@ -959,11 +1416,23 @@ button.resource-pill:focus-visible {
 .npc-portrait span::after { content: "EV"; display: grid; place-items: center; width: 78px; height: 78px; margin-bottom: 22px; border: 1px solid rgba(255, 255, 255, .16); border-radius: 50%; color: rgba(255, 247, 220, .8); background: rgba(17, 31, 40, .62); font: 700 24px Georgia, serif; }
 .npc-portrait.is-archivist span::after { content: "NP"; }
 .npc-portrait.is-visitor { background: radial-gradient(circle at 50% 26%, #9bb7c8 0 12%, transparent 12.5%), linear-gradient(150deg, #5d7a88, #1d3340 64%); }
+.npc-portrait.is-interaction { background: radial-gradient(circle at 50% 26%, #c8d98a 0 12%, transparent 12.5%), linear-gradient(150deg, #6a7a42, #2a3420 64%); }
 .dialogue-copy { padding: 8px 8px 4px 0; }
 .dialogue-copy h2 { margin: 4px 0 2px; font: 700 28px/1.1 Georgia, serif; color: #fff1b7; }
 .dialogue-copy > small { color: rgba(255, 247, 220, .55); font-size: 10px; }
 .dialogue-copy > p { margin: 22px 0; color: rgba(255, 247, 220, .86); font: 16px/1.6 Georgia, serif; }
 .dialogue-summary { margin: -8px 0 18px; padding: 10px 12px; border-left: 3px solid #9fe9ff; background: rgba(159, 233, 255, .08); color: #d7f6ff; font: 13px/1.45 Georgia, serif; }
+.dialogue-affinity {
+    margin: -4px 0 16px;
+    padding: 8px 12px;
+    border-left: 3px solid #c4dc78;
+    background: rgba(196, 220, 120, .1);
+    color: #e8f2c4;
+    font: 12px/1.4 Georgia, serif;
+    letter-spacing: .02em;
+}
+.dialogue-affinity.is-up { border-left-color: #b8d45a; color: #eaf7b8; }
+.dialogue-affinity.is-down { border-left-color: #e08a6a; background: rgba(224, 138, 106, .1); color: #f3d0c2; }
 .dialogue-choices { display: grid; gap: 8px; }
 .dialogue-choices button { display: grid; gap: 4px; padding: 11px 13px; border: 1px solid rgba(244, 204, 98, .26); border-radius: 11px; color: var(--cream); background: rgba(255, 255, 255, .05); text-align: left; font-size: 12px; line-height: 1.4; cursor: pointer; }
 .dialogue-choices button small { color: rgba(159, 233, 255, .88); font-size: 10px; }
@@ -994,6 +1463,55 @@ button.resource-pill:focus-visible {
 .discovery-toast small { color: var(--gold); font-size: 8px; letter-spacing: .12em; text-transform: uppercase; }
 .discovery-toast strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 13px Georgia, serif; }
 .discovery-toast button { padding: 7px 9px; border-radius: 8px; color: #172333; background: var(--gold); font-size: 9px; font-weight: 900; cursor: pointer; }
+.notice-tray {
+    position: fixed;
+    z-index: 82;
+    top: calc(70px + var(--safe-top));
+    right: calc(12px + var(--safe-right));
+    width: min(340px, calc(100vw - 24px));
+    max-height: min(520px, calc(100dvh - 150px));
+    overflow: hidden;
+    border: 1px solid rgba(244, 204, 98, .42);
+    border-radius: 15px;
+    background: rgba(19, 31, 41, .985);
+    box-shadow: 0 18px 46px rgba(0, 0, 0, .42);
+}
+
+/* SVG filter definitions live in keep.html; this node must never claim layout. */
+.keep-svg-defs { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
+.notice-tray > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 12px; border-bottom: 1px solid var(--line); }
+.notice-tray > header span { display: flex; flex-direction: column; }
+.notice-tray > header small { color: var(--gold); font-size: 8px; letter-spacing: .12em; text-transform: uppercase; }
+.notice-tray > header strong { font: 700 15px Georgia, serif; color: #fff1b7; }
+.notice-tray > header button { width: 30px; height: 30px; border-radius: 8px; color: var(--cream); background: rgba(255,255,255,.07); cursor: pointer; }
+#noticeList { max-height: min(445px, calc(100dvh - 220px)); overflow-y: auto; padding: 8px; }
+.notice-construction-group { display: grid; gap: 7px; margin-bottom: 5px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.notice-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 2px 3px 0; }
+.notice-section-heading span { color: rgba(255, 247, 220, .66); font-size: 8px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+.notice-section-heading strong { color: var(--gold); font-size: 8px; letter-spacing: .06em; text-transform: uppercase; }
+.notice-construction-card { display: grid; gap: 7px; width: 100%; padding: 9px; border: 1px solid rgba(244, 204, 98, .18); border-radius: 11px; color: var(--cream); background: rgba(244, 204, 98, .045); text-align: left; cursor: pointer; }
+.notice-construction-card:hover { border-color: rgba(244, 204, 98, .42); background: rgba(244, 204, 98, .09); }
+.notice-construction-card:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.notice-construction-row { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+.notice-construction-row > i { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 9px; color: #172333; background: var(--gold); font-style: normal; }
+.notice-construction-row > span { min-width: 0; display: flex; flex-direction: column; }
+.notice-construction-row small { color: var(--gold); font-size: 8px; letter-spacing: .08em; text-transform: uppercase; }
+.notice-construction-row strong { overflow: hidden; color: #fff1b7; font: 700 12px/1.3 Georgia, serif; text-overflow: ellipsis; white-space: nowrap; }
+.notice-construction-row time { min-width: 52px; color: #fff1b7; font-size: 10px; font-weight: 900; text-align: right; font-variant-numeric: tabular-nums; }
+.notice-construction-meter { height: 4px; overflow: hidden; border-radius: 99px; background: rgba(255, 255, 255, .1); }
+.notice-construction-meter i { display: block; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #ca884c, var(--gold)); transition: width .4s linear; }
+.notice-item { width: 100%; display: grid; grid-template-columns: 30px minmax(0, 1fr); align-items: center; gap: 9px; padding: 9px; border: 0; border-radius: 10px; color: var(--cream); background: transparent; text-align: left; }
+button.notice-item { cursor: pointer; }
+button.notice-item:hover { background: rgba(244, 204, 98, .08); }
+.notice-item > i { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; color: #172333; background: var(--gold); font-style: normal; }
+.notice-item > span { min-width: 0; display: flex; flex-direction: column; }
+.notice-item small { color: var(--gold); font-size: 8px; letter-spacing: .08em; text-transform: uppercase; }
+.notice-item strong { overflow: hidden; text-overflow: ellipsis; color: #fff1b7; font: 700 12px/1.3 Georgia, serif; }
+.notice-item.unread { background: rgba(244, 204, 98, .07); }
+.notice-item.is-read > i { color: rgba(23, 35, 51, .8); background: rgba(244, 204, 98, .45); }
+.notice-item.is-read small { color: rgba(244, 204, 98, .66); }
+.notice-item.is-read strong { color: rgba(255, 241, 183, .7); }
+.notice-empty { padding: 20px 12px; color: rgba(255, 247, 220, .62); font-size: 11px; text-align: center; }
 
 /* —— Building interiors —— */
 .keep-interior {
@@ -1032,7 +1550,65 @@ button.resource-pill:focus-visible {
 }
 .interior-heading { min-width: 0; }
 .interior-heading h2 { margin: 1px 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 19px/1.1 Georgia, serif; }
-.interior-stage { position: relative; grid-row: 2; grid-column: 1; overflow: hidden; }
+.interior-viewport { position: relative; grid-row: 2; grid-column: 1; min-height: 0; overflow: hidden; }
+.interior-stage { position: absolute; inset: 0; overflow: hidden; }
+
+/* Room-to-room tour controls float over the stage so players never have to
+   step back out to the grounds to visit the next building. */
+.interior-nav { position: absolute; inset: 0; z-index: 8; pointer-events: none; }
+.interior-nav.hidden { display: none; }
+.interior-arrow {
+    position: absolute;
+    top: 50%;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 42px;
+    padding: 8px 10px;
+    translate: 0 -50%;
+    border: 1px solid rgba(244, 204, 98, .5);
+    border-radius: 12px;
+    color: #ffe9a8;
+    background: rgba(12, 22, 30, .74);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, .42);
+    backdrop-filter: blur(3px);
+    font: 700 11px/1 Georgia, serif;
+    cursor: pointer;
+    pointer-events: auto;
+    transition: background .18s ease, transform .18s ease;
+}
+.interior-arrow:hover { background: rgba(24, 42, 55, .9); }
+.interior-arrow:active { transform: translateY(-50%) scale(.95); }
+.interior-arrow span { font-size: 19px; line-height: 1; }
+.interior-arrow small { max-width: 78px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.interior-arrow.arrow-prev { left: calc(6px + var(--safe-left)); }
+.interior-arrow.arrow-next { right: calc(6px + var(--safe-right)); }
+.interior-rail {
+    position: absolute;
+    left: 50%;
+    bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 9px;
+    translate: -50% 0;
+    border: 1px solid rgba(244, 204, 98, .3);
+    border-radius: 99px;
+    background: rgba(12, 22, 30, .7);
+    pointer-events: auto;
+}
+.rail-dot {
+    width: 9px;
+    height: 9px;
+    padding: 0;
+    border: 1px solid rgba(255, 233, 168, .5);
+    border-radius: 50%;
+    background: rgba(255, 233, 168, .18);
+    cursor: pointer;
+    transition: background .18s ease, transform .18s ease;
+}
+.rail-dot:hover { background: rgba(255, 233, 168, .5); }
+.rail-dot.is-current { background: #f4cc62; transform: scale(1.28); }
 .interior-actions {
     grid-row: 2;
     grid-column: 2;
@@ -1053,7 +1629,8 @@ button.resource-pill:focus-visible {
 .keep-interior[data-room="fridge"] .room-fridge,
 .keep-interior[data-room="generator"] .room-generator,
 .keep-interior[data-room="quarry"] .room-quarry,
-.keep-interior[data-room="kitchen"] .room-kitchen { display: block; }
+.keep-interior[data-room="kitchen"] .room-kitchen,
+.keep-interior[data-room="enclave"] .room-enclave { display: block; }
 
 /* Shared room shell: back wall + receding side walls + perspective floor. */
 .int-backwall { position: absolute; inset: 0 12% 30%; }
@@ -1083,6 +1660,62 @@ button.resource-pill:focus-visible {
 .hall-candle::after { content: ""; position: absolute; left: 1px; top: -8px; width: 6px; height: 9px; border-radius: 60% 60% 40% 40%; background: radial-gradient(#fff2ae, #f0a23c); box-shadow: 0 0 12px rgba(255, 210, 110, .8); animation: hearth-flicker 1.1s ease-in-out infinite; }
 .hall-candle.candle-one { left: 38%; }
 .hall-candle.candle-two { right: 38%; }
+/* Honored favorite stands by the hearth so the hall visual matches the starred chooser below. */
+.hall-favorite-resident { position: absolute; left: 50%; bottom: 27%; z-index: 4; display: grid; justify-items: center; gap: 4px; transform: translateX(-50%); filter: drop-shadow(0 8px 10px rgba(0, 0, 0, .45)); }
+.hall-favorite-resident > span {
+    width: calc(54px * var(--cutout-scale));
+    height: calc(54px * var(--cutout-scale));
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    overflow: hidden;
+    border: 2px solid #f5d87c;
+    border-radius: 50%;
+    color: #172333;
+    background: #b9d9a8;
+    box-shadow: 0 6px 14px rgba(0, 0, 0, .4), 0 0 16px rgba(244, 204, 98, .28);
+    font-size: 19px;
+    font-weight: 900;
+    animation: worker-bob 2.4s ease-in-out infinite;
+}
+.hall-favorite-resident > span.has-overlay-art {
+    width: calc(78px * var(--cutout-scale));
+    height: calc(96px * var(--cutout-scale));
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    filter: drop-shadow(0 0 10px rgba(244, 204, 98, .35));
+}
+.hall-favorite-resident img {
+    width: auto;
+    height: 100%;
+    max-width: 100%;
+    object-fit: contain;
+    object-position: bottom center;
+    pointer-events: none;
+    user-select: none;
+}
+.hall-favorite-resident > span:not(.has-overlay-art) img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.hall-favorite-resident small {
+    max-width: 96px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 2px 7px;
+    border: 1px solid rgba(244, 204, 98, .4);
+    border-radius: 8px;
+    background: rgba(20, 31, 43, .82);
+    color: #ffe9a8;
+    font-size: 9px;
+    font-weight: 800;
+    text-shadow: none;
+}
 
 /* Woodlot lodge interior: plank walls, workbench, grove window. */
 .room-woodlot .int-backwall { background: repeating-linear-gradient(180deg, #7c5636 0 34px, #6a4527 34px 40px); box-shadow: inset 0 -14px 30px rgba(0, 0, 0, .35); }
@@ -1102,8 +1735,8 @@ button.resource-pill:focus-visible {
 .lodge-logs { position: absolute; left: 12%; bottom: 14%; width: 22%; height: 18%; background: radial-gradient(circle at 18% 78%, #d8a86b 0 9%, #8a5c33 9% 13%, transparent 13.5%), radial-gradient(circle at 46% 78%, #d8a86b 0 9%, #8a5c33 9% 13%, transparent 13.5%), radial-gradient(circle at 74% 78%, #d8a86b 0 9%, #8a5c33 9% 13%, transparent 13.5%), radial-gradient(circle at 32% 46%, #d8a86b 0 9%, #8a5c33 9% 13%, transparent 13.5%), radial-gradient(circle at 60% 46%, #d8a86b 0 9%, #8a5c33 9% 13%, transparent 13.5%); filter: drop-shadow(0 6px 4px rgba(10, 8, 5, .35)); }
 .lodge-resident { position: absolute; left: 60%; bottom: 26%; display: grid; justify-items: center; gap: 4px; filter: drop-shadow(0 8px 10px rgba(0, 0, 0, .45)); }
 .lodge-resident > span {
-    width: 54px;
-    height: 54px;
+    width: calc(54px * var(--cutout-scale));
+    height: calc(54px * var(--cutout-scale));
     display: flex;
     align-items: flex-end;
     justify-content: center;
@@ -1118,8 +1751,8 @@ button.resource-pill:focus-visible {
     animation: worker-bob 2.4s ease-in-out infinite;
 }
 .lodge-resident > span.has-overlay-art {
-    width: 78px;
-    height: 96px;
+    width: calc(78px * var(--cutout-scale));
+    height: calc(96px * var(--cutout-scale));
     overflow: visible;
     border: 0;
     border-radius: 0;
@@ -1251,13 +1884,174 @@ button.resource-pill:focus-visible {
 .keep-interior[data-room="kitchen"][data-fill="0"] .kitchen-pot::after { opacity: .2; }
 .keep-interior[data-room="kitchen"][data-fill="4"] .kitchen-hearth { box-shadow: inset 0 0 0 8px #5e4430, 0 0 44px rgba(255, 150, 70, .4); }
 
-.crafted-decoration { display: none; }
+.crafted-decoration { display: none; z-index: 2; }
 .crafted-decoration.is-placed { display: block; }
 .hall-crafted-tapestry { position: absolute; left: 8%; top: 13%; width: 9%; height: 35%; background: linear-gradient(90deg, #7fb472 0 25%, #d77b4e 25% 50%, #88d7e9 50% 75%, #b39ee3 75%); clip-path: polygon(0 0,100% 0,100% 86%,50% 100%,0 86%); box-shadow: inset 0 5px #f4cc62; }
+
+/* Every production room has five cumulative tool silhouettes and six
+   independently placeable furnishings. Both are drawn per room rather than
+   recoloured from one template: each rack has its own mounting and head shape,
+   and every decoration owns its silhouette and its spot on the wall or floor,
+   so no two interiors read as the same room in a different hue. */
+.room-woodlot { --room-accent: #9bcf73; --room-accent-2: #d7b477; }
+.room-garden { --room-accent: #a7df7a; --room-accent-2: #f0a5bd; }
+.room-forge { --room-accent: #ff8a4e; --room-accent-2: #ffd178; }
+.room-fridge { --room-accent: #9deaff; --room-accent-2: #e8fbff; }
+.room-generator { --room-accent: #ffe95d; --room-accent-2: #9deaff; }
+.room-quarry { --room-accent: #c9c3ad; --room-accent-2: #ffe5a0; }
+.room-kitchen { --room-accent: #f0b46c; --room-accent-2: #a9d478; }
+.room-tool-set { position: absolute; z-index: 1; display: none; width: 78px; height: 52px; filter: drop-shadow(2px 3px 1px rgba(19, 15, 11, .3)); }
+.room-tool-set.has-installed-tools { display: block; }
+.room-tool-set i { position: absolute; bottom: 6px; width: 6px; height: 36px; display: none; border-radius: 5px 5px 2px 2px; background: linear-gradient(90deg, #66513d, var(--room-accent), #66513d); transform-origin: bottom center; filter: drop-shadow(0 2px 1px rgba(0, 0, 0, .34)); }
+.room-tool-set i::before { content: ""; position: absolute; left: 50%; top: -7px; width: 18px; height: 11px; translate: -50% 0; background: var(--room-accent-2); box-shadow: inset 0 -3px rgba(30, 35, 35, .3); }
+.room-tool-set i.is-crafted { display: block; animation: tool-arrive .35s ease both; }
+.room-tool-set i:nth-child(1) { left: 8px; transform: rotate(-12deg); }
+.room-tool-set i:nth-child(2) { left: 22px; height: 32px; transform: rotate(7deg); }
+.room-tool-set i:nth-child(3) { left: 36px; height: 41px; transform: rotate(-4deg); }
+.room-tool-set i:nth-child(4) { left: 50px; height: 34px; transform: rotate(10deg); }
+.room-tool-set i:nth-child(5) { left: 63px; height: 43px; transform: rotate(-8deg); }
+
+/* Woodlot: a peg board of felling tools with wedge heads. */
+.room-woodlot .room-tool-set { left: 3%; top: 4%; border-bottom: 6px solid #5d4632; border-radius: 0 0 4px 4px; background: repeating-linear-gradient(90deg, rgba(120, 88, 55, .5) 0 5px, transparent 5px 15px); }
+.room-woodlot .room-tool-set i::before { clip-path: polygon(0 0, 100% 22%, 100% 100%, 0 78%); }
+/* Garden: hand tools hanging from a wall rail, leaf-bladed. */
+.room-garden .room-tool-set { right: 4%; top: 7%; border-top: 5px solid #4f6338; border-radius: 4px 4px 0 0; }
+.room-garden .room-tool-set i { bottom: auto; top: 8px; transform-origin: top center; }
+.room-garden .room-tool-set i::before { top: auto; bottom: -9px; width: 14px; height: 15px; border-radius: 50% 50% 60% 60% / 40% 40% 80% 80%; }
+/* Forge: hammers stood on a stone block. */
+.room-forge .room-tool-set { left: 4%; top: 4%; border-bottom: 9px solid #4a423c; border-radius: 0 0 3px 3px; background: linear-gradient(180deg, transparent 0 78%, rgba(150, 140, 132, .4) 79% 88%, transparent 89%); }
+.room-forge .room-tool-set i::before { width: 20px; height: 10px; border-radius: 2px; box-shadow: inset 0 -4px rgba(30, 20, 16, .45); }
+/* Fridge: chisels clipped into a frost bracket, diamond heads. */
+.room-fridge .room-tool-set { left: 4%; top: 10%; border-bottom: 5px solid #3f5a63; border-radius: 0 0 10px 10px; background: linear-gradient(180deg, rgba(200, 240, 250, .16), transparent 60%); }
+.room-fridge .room-tool-set i::before { width: 15px; height: 15px; top: -11px; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
+/* Generator: charged rods socketed into a conduit rail. */
+.room-generator .room-tool-set { right: 5%; top: 5%; border-bottom: 5px solid #59617a; border-radius: 3px; background: linear-gradient(180deg, transparent 0 80%, rgba(157, 234, 255, .3) 81% 90%, transparent 91%); }
+.room-generator .room-tool-set i::before { width: 12px; height: 12px; top: -10px; border-radius: 50%; box-shadow: 0 0 10px var(--room-accent-2); }
+/* Quarry: mauls leaned against the wall, no rack at all. */
+.room-quarry .room-tool-set { left: 3%; top: 8%; }
+.room-quarry .room-tool-set i { width: 5px; background: linear-gradient(90deg, #5b5245, #8d8574, #5b5245); }
+.room-quarry .room-tool-set i::before { width: 22px; height: 9px; border-radius: 2px 3px 3px 2px; }
+.room-quarry .room-tool-set i:nth-child(1) { transform: rotate(-22deg); }
+.room-quarry .room-tool-set i:nth-child(2) { transform: rotate(16deg); }
+.room-quarry .room-tool-set i:nth-child(3) { transform: rotate(-11deg); }
+.room-quarry .room-tool-set i:nth-child(4) { transform: rotate(21deg); }
+.room-quarry .room-tool-set i:nth-child(5) { transform: rotate(-17deg); }
+/* Kitchen: utensils hung head-down from a bar. */
+.room-kitchen .room-tool-set { right: 4%; top: 4%; border-top: 4px solid #6a4a2e; border-radius: 99px 99px 0 0; }
+.room-kitchen .room-tool-set i { bottom: auto; top: 6px; transform-origin: top center; }
+.room-kitchen .room-tool-set i::before { top: auto; bottom: -10px; width: 13px; height: 14px; border-radius: 50% 50% 45% 45%; }
+
+.room-decoration-set i { position: absolute; z-index: 2; display: none; color: var(--room-accent); filter: drop-shadow(0 4px 4px rgba(0, 0, 0, .34)); animation: decor-arrive .4s ease both; }
+.room-decoration-set i.is-placed { display: block; }
+
+/* —— Woodlot furnishings —— */
+.room-decoration-set [data-decoration-art="carved_waypost"] { left: 34%; bottom: 6%; width: 5%; height: 30%; background: linear-gradient(90deg, #6b4a2c, #a8783f 45%, #5e4126); border-radius: 3px 3px 0 0; }
+.room-decoration-set [data-decoration-art="carved_waypost"]::before { content: ""; position: absolute; left: -70%; top: 12%; width: 240%; height: 14%; border-radius: 2px; background: #8a6236; box-shadow: inset 0 3px rgba(255, 233, 168, .35); clip-path: polygon(0 50%, 12% 0, 100% 0, 100% 100%, 12% 100%); }
+.room-decoration-set [data-decoration-art="carved_waypost"]::after { content: ""; position: absolute; left: -50%; top: 36%; width: 200%; height: 13%; border-radius: 2px; background: #7a5731; box-shadow: inset 0 3px rgba(255, 233, 168, .25); clip-path: polygon(0 0, 88% 0, 100% 50%, 88% 100%, 0 100%); }
+.room-decoration-set [data-decoration-art="seedling_rack"] { left: 16%; bottom: 30%; width: 14%; height: 20%; background: repeating-linear-gradient(180deg, transparent 0 38%, #5e3f24 39% 48%); border-inline: 4px solid #5e3f24; border-bottom: 4px solid #4c3119; }
+.room-decoration-set [data-decoration-art="seedling_rack"]::after { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at 20% 32%, #8fce6f 0 12%, transparent 13%), radial-gradient(circle at 50% 30%, #a7df7a 0 11%, transparent 12%), radial-gradient(circle at 80% 33%, #7fb472 0 12%, transparent 13%), radial-gradient(circle at 30% 82%, #8fce6f 0 11%, transparent 12%), radial-gradient(circle at 68% 80%, #a7df7a 0 12%, transparent 13%); }
+.room-decoration-set [data-decoration-art="sunwoven_blind"] { left: 39%; top: 7%; width: 22%; height: 9%; border-radius: 0 0 6px 6px; background: repeating-linear-gradient(90deg, #d9bd7e 0 4px, #b9975a 4px 8px); box-shadow: inset 0 -4px rgba(90, 66, 34, .5), 0 4px 8px rgba(0, 0, 0, .3); }
+.room-decoration-set [data-decoration-art="sunwoven_blind"]::after { content: ""; position: absolute; left: 46%; top: 100%; width: 8%; height: 60%; background: #8a6236; }
+.room-decoration-set [data-decoration-art="moss_lanterns"] { right: 30%; top: 3%; width: 8%; height: 22%; background: linear-gradient(90deg, transparent 46%, #5e3f24 46% 54%, transparent 54%); }
+.room-decoration-set [data-decoration-art="moss_lanterns"]::after { content: ""; position: absolute; left: -30%; top: 46%; width: 160%; height: 54%; background: radial-gradient(circle at 16% 30%, #cdf08a 0 22%, transparent 24%), radial-gradient(circle at 50% 62%, #b9e277 0 24%, transparent 26%), radial-gradient(circle at 86% 26%, #d9f79a 0 20%, transparent 22%); filter: drop-shadow(0 0 8px rgba(180, 226, 119, .7)); animation: window-glow 3.6s ease-in-out infinite; }
+.room-decoration-set [data-decoration-art="covenant_chimes"] { left: 6%; top: 26%; width: 7%; height: 24%; border-top: 4px solid #7a5731; }
+.room-decoration-set [data-decoration-art="covenant_chimes"]::after { content: ""; position: absolute; left: 6%; top: 0; width: 88%; height: 100%; background: linear-gradient(180deg, #c2a05c 0 62%, transparent 62%), linear-gradient(180deg, #9bcf73 0 86%, transparent 86%), linear-gradient(180deg, #d7b477 0 46%, transparent 46%); background-size: 4px 100%, 4px 100%, 4px 100%; background-position: 0 0, 50% 0, 100% 0; background-repeat: no-repeat; animation: trellis-sway 3.4s ease-in-out infinite; transform-origin: top center; }
+.room-decoration-set [data-decoration-art="coppice_storewall"] { right: 4%; top: 18%; width: 16%; height: 25%; border: 4px solid #5d3f25; border-radius: 4px; background: repeating-linear-gradient(180deg, #9a7441 0 17%, #5d3f25 18% 23%); box-shadow: inset 5px 0 rgba(230, 207, 143, .2); }
+.room-decoration-set [data-decoration-art="coppice_storewall"]::after { content: ""; position: absolute; inset: 8% 7%; background: radial-gradient(ellipse at 18% 24%, #c89b52 0 12%, transparent 13%), radial-gradient(ellipse at 72% 24%, #89b86b 0 12%, transparent 13%), radial-gradient(ellipse at 30% 76%, #b98545 0 13%, transparent 14%), radial-gradient(ellipse at 82% 76%, #d1ad68 0 12%, transparent 13%); }
+
+/* —— Garden furnishings —— */
+.room-decoration-set [data-decoration-art="seed_banners"] { left: 3%; top: 5%; width: 8%; height: 26%; background: linear-gradient(180deg, #e6dcc0 0 84%, transparent 84%), linear-gradient(180deg, #cbd9a4 0 70%, transparent 70%), linear-gradient(180deg, #efd7bd 0 92%, transparent 92%); background-size: 30% 100%, 30% 100%, 30% 100%; background-position: 0 0, 50% 0, 100% 0; background-repeat: no-repeat; border-top: 3px solid #7a6034; }
+.room-decoration-set [data-decoration-art="seed_banners"]::after { content: ""; position: absolute; left: 0; right: 0; top: 26%; height: 8%; background: repeating-linear-gradient(90deg, #8c6a3f 0 3px, transparent 3px 9px); }
+.room-decoration-set [data-decoration-art="rain_basin"] { left: 4%; bottom: 2%; width: 18%; height: 10%; border-radius: 50%; background: linear-gradient(180deg, #8c8474 0 34%, #6b6455 35%); box-shadow: 0 5px 7px rgba(0, 0, 0, .35); }
+.room-decoration-set [data-decoration-art="rain_basin"]::after { content: ""; position: absolute; inset: 12% 12% 42%; border-radius: 50%; background: radial-gradient(ellipse at 40% 40%, #cfeef0, #6ea9ac); animation: facility-shimmer 3.2s ease-in-out infinite; }
+.room-decoration-set [data-decoration-art="blossom_arch"] { left: 33%; top: 4%; width: 34%; height: 42%; z-index: 1; border: 7px solid #7a6b45; border-bottom: 0; border-radius: 60% 60% 0 0 / 46% 46% 0 0; }
+.room-decoration-set [data-decoration-art="blossom_arch"]::after { content: ""; position: absolute; inset: -8% -6% 40%; background: radial-gradient(circle at 12% 62%, #f0a5bd 0 7%, transparent 8%), radial-gradient(circle at 26% 30%, #f7c6d6 0 6%, transparent 7%), radial-gradient(circle at 50% 14%, #f0a5bd 0 7%, transparent 8%), radial-gradient(circle at 74% 28%, #f7c6d6 0 6%, transparent 7%), radial-gradient(circle at 88% 60%, #f0a5bd 0 7%, transparent 8%); }
+.room-decoration-set [data-decoration-art="covenant_topiary"] { right: 15%; bottom: 30%; width: 8%; height: 24%; background: linear-gradient(180deg, transparent 0 66%, #6b4a2c 66%); }
+.room-decoration-set [data-decoration-art="covenant_topiary"]::after { content: ""; position: absolute; left: -14%; top: 0; width: 128%; height: 70%; border-radius: 50% 50% 42% 42%; background: radial-gradient(circle at 36% 30%, #b6e88a, #6f9c4e 72%); box-shadow: inset 0 -6px rgba(40, 62, 30, .45); }
+.room-decoration-set [data-decoration-art="seedkeeper_vault"] { right: 3%; bottom: 4%; width: 17%; height: 22%; border: 3px solid #5f5434; border-radius: 7px 7px 2px 2px; background: repeating-linear-gradient(180deg, #b69055 0 28%, #715b38 29% 34%); box-shadow: inset 4px 0 rgba(226, 218, 161, .25); }
+.room-decoration-set [data-decoration-art="seedkeeper_vault"]::after { content: ""; position: absolute; left: 12%; right: 12%; top: 12%; height: 8%; border-radius: 99px; background: #d8c58a; box-shadow: 0 18px #d8c58a, 0 36px #d8c58a; }
+
+/* —— Forge furnishings —— */
+.room-decoration-set [data-decoration-art="oathwork_shield"] { left: 18%; top: 16%; width: 12%; height: 22%; border-radius: 46% 46% 50% 50% / 38% 38% 62% 62%; background: radial-gradient(circle at 46% 34%, #d3a36a, #8a5a34 70%, #5d3a22); box-shadow: inset 0 0 0 4px #ffd178, 0 6px 10px rgba(0, 0, 0, .4); }
+.room-decoration-set [data-decoration-art="oathwork_shield"]::after { content: ""; position: absolute; left: 34%; top: 28%; width: 32%; height: 34%; border-radius: 50%; background: linear-gradient(140deg, #ffd178, #a8712f); }
+.room-decoration-set [data-decoration-art="spark_banner"] { right: 30%; top: 6%; width: 5%; height: 30%; background: linear-gradient(180deg, #d1622f, #7c2f1c); clip-path: polygon(0 0, 100% 0, 100% 78%, 50% 100%, 0 78%); box-shadow: inset 0 4px #ffd178; }
+.room-decoration-set [data-decoration-art="spark_banner"]::after { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at 30% 26%, #ffd178 0 8%, transparent 9%), radial-gradient(circle at 66% 46%, #ffb15e 0 7%, transparent 8%), radial-gradient(circle at 40% 66%, #ffd178 0 6%, transparent 7%); animation: window-glow 2.6s ease-in-out infinite; }
+.room-decoration-set [data-decoration-art="ingot_mosaic"] { left: 32%; bottom: 2%; width: 24%; height: 11%; transform: perspective(320px) rotateX(52deg); background: repeating-linear-gradient(64deg, #a8712f 0 8px, #d1873c 8px 15px, #6f4620 15px 21px); border: 3px solid #4a3a2c; }
+.room-decoration-set [data-decoration-art="forge_chimes"] { left: 30%; top: 3%; width: 6%; height: 24%; border-top: 4px solid #56463c; }
+.room-decoration-set [data-decoration-art="forge_chimes"]::after { content: ""; position: absolute; left: 4%; top: 0; width: 92%; height: 100%; background: linear-gradient(180deg, #9ba2a6 0 74%, transparent 74%), linear-gradient(180deg, #c6cbcd 0 54%, transparent 54%), linear-gradient(180deg, #8b9296 0 90%, transparent 90%); background-size: 5px 100%, 5px 100%, 5px 100%; background-position: 0 0, 50% 0, 100% 0; background-repeat: no-repeat; animation: trellis-sway 4.2s ease-in-out infinite; transform-origin: top center; }
+.room-decoration-set [data-decoration-art="tempered_stock_rack"] { right: 3%; bottom: 5%; width: 20%; height: 20%; border-inline: 5px solid #4e4138; border-bottom: 6px solid #4e4138; background: repeating-linear-gradient(180deg, transparent 0 38%, #645249 39% 48%); }
+.room-decoration-set [data-decoration-art="tempered_stock_rack"]::after { content: ""; position: absolute; inset: 3% 8% 10%; background: linear-gradient(90deg, #e09b4f, #8d5530); clip-path: polygon(0 4%, 90% 4%, 100% 22%, 8% 22%, 8% 43%, 100% 43%, 88% 61%, 0 61%, 0 80%, 92% 80%, 100% 100%, 10% 100%); box-shadow: 0 0 10px rgba(255, 132, 55, .3); }
+
+/* —— Fridge furnishings —— */
+.room-decoration-set [data-decoration-art="snowflake_screen"] { left: 5%; bottom: 6%; width: 20%; height: 22%; background: repeating-linear-gradient(90deg, rgba(214, 248, 255, .5) 0 22px, rgba(126, 182, 196, .55) 22px 24px); border: 3px solid #45616a; border-radius: 5px 5px 0 0; }
+.room-decoration-set [data-decoration-art="snowflake_screen"]::after { content: ""; position: absolute; inset: 12%; background: radial-gradient(circle at 18% 40%, #ffffff 0 5%, transparent 6%), radial-gradient(circle at 50% 62%, #eaffff 0 6%, transparent 7%), radial-gradient(circle at 82% 36%, #ffffff 0 5%, transparent 6%); }
+.room-decoration-set [data-decoration-art="memory_crystals"] { right: 26%; bottom: 6%; width: 14%; height: 16%; background: linear-gradient(135deg, #eaffff, #6fb9cd); clip-path: polygon(14% 100%, 0 46%, 20% 8%, 38% 40%, 52% 0, 68% 44%, 84% 18%, 100% 62%, 88% 100%); box-shadow: 0 0 20px rgba(157, 234, 255, .5); animation: facility-shimmer 3s ease-in-out infinite; }
+.room-decoration-set [data-decoration-art="aurora_lamp"] { left: 24%; top: 1%; width: 50%; height: 7%; border-radius: 50%; background: linear-gradient(90deg, rgba(157, 234, 255, 0), #9deaff 22%, #c6b0ff 52%, #9df3c9 78%, rgba(157, 234, 255, 0)); filter: blur(2px); animation: window-glow 4.4s ease-in-out infinite; }
+.room-decoration-set [data-decoration-art="ice_sculpture"] { left: 30%; bottom: 8%; width: 8%; height: 28%; background: linear-gradient(115deg, #f4ffff, #86cfe2 58%, #4d8a9b); clip-path: polygon(50% 0, 76% 26%, 68% 62%, 84% 100%, 16% 100%, 32% 62%, 24% 26%); box-shadow: 0 0 22px rgba(173, 239, 255, .45); }
+.room-decoration-set [data-decoration-art="ice_sculpture"]::after { content: ""; position: absolute; left: -18%; bottom: -8%; width: 136%; height: 14%; border-radius: 50%; background: linear-gradient(#7fa9b5, #3f606b); }
+.room-decoration-set [data-decoration-art="frostbound_larder"] { right: 3%; bottom: 5%; width: 17%; height: 30%; border: 3px solid #476975; border-radius: 10px 10px 3px 3px; background: linear-gradient(120deg, rgba(229, 252, 255, .88), rgba(105, 177, 196, .72)); box-shadow: inset 0 0 0 5px rgba(255, 255, 255, .18), 0 0 16px rgba(157, 234, 255, .35); }
+.room-decoration-set [data-decoration-art="frostbound_larder"]::after { content: ""; position: absolute; left: 10%; right: 10%; top: 32%; height: 3px; background: #507985; box-shadow: 0 28px #507985, 0 56px #507985; }
+
+/* —— Generator furnishings —— */
+.room-decoration-set [data-decoration-art="prism_banners"] { left: 34%; top: 2%; width: 32%; height: 12%; background: linear-gradient(180deg, #ff8b55 0 88%, transparent 88%), linear-gradient(180deg, #9eefff 0 100%, transparent 100%), linear-gradient(180deg, #c3ef83 0 76%, transparent 76%); background-size: 18% 100%, 18% 100%, 18% 100%; background-position: 8% 0, 50% 0, 92% 0; background-repeat: no-repeat; border-top: 3px solid #76809b; }
+.room-decoration-set [data-decoration-art="conduit_globe"] { left: 6%; bottom: 6%; width: 12%; height: 22%; background: linear-gradient(180deg, transparent 0 62%, #6a7288 63% 78%, #41485d 79%); }
+.room-decoration-set [data-decoration-art="conduit_globe"]::after { content: ""; position: absolute; left: 4%; top: 0; width: 92%; height: 64%; border: 2px solid rgba(200, 240, 255, .7); border-radius: 50%; background: radial-gradient(circle at 38% 32%, rgba(255, 255, 255, .85), rgba(157, 234, 255, .5) 46%, rgba(70, 110, 160, .55)); box-shadow: 0 0 20px rgba(157, 234, 255, .6); animation: generator-pulse 2.2s ease-in-out infinite; }
+.room-decoration-set [data-decoration-art="thunder_chimes"] { left: 34%; top: 20%; width: 7%; height: 24%; border-top: 4px solid #9db0c8; }
+.room-decoration-set [data-decoration-art="thunder_chimes"]::after { content: ""; position: absolute; left: 2%; top: 0; width: 96%; height: 100%; background: linear-gradient(180deg, #b5c6d8 0 88%, transparent 88%), linear-gradient(180deg, #9deaff 0 62%, transparent 62%), linear-gradient(180deg, #8895aa 0 100%, transparent 100%); background-size: 5px 100%, 5px 100%, 5px 100%; background-position: 0 0, 50% 0, 100% 0; background-repeat: no-repeat; filter: drop-shadow(0 0 5px rgba(157, 234, 255, .6)); animation: trellis-sway 3.8s ease-in-out infinite; transform-origin: top center; }
+.room-decoration-set [data-decoration-art="covenant_orrery"] { right: 20%; bottom: 5%; width: 13%; height: 24%; background: linear-gradient(180deg, transparent 0 70%, #6a7288 71% 84%, #363c4d 85%); }
+.room-decoration-set [data-decoration-art="covenant_orrery"]::after { content: ""; position: absolute; left: 8%; top: 2%; width: 84%; height: 66%; border: 2px solid #ffe95d; border-radius: 50%; box-shadow: inset 0 0 0 6px rgba(157, 234, 255, .35), 0 0 16px rgba(255, 233, 93, .45); transform: rotate(18deg) skewX(-14deg); animation: orb-float 3.6s ease-in-out infinite; }
+.room-decoration-set [data-decoration-art="charged_cell_bank"] { right: 3%; top: 30%; width: 17%; height: 25%; border: 3px solid #515a70; border-radius: 5px; background: repeating-linear-gradient(90deg, #343b4e 0 20%, #667086 21% 25%); box-shadow: inset 0 0 0 4px rgba(157, 234, 255, .16); }
+.room-decoration-set [data-decoration-art="charged_cell_bank"]::after { content: ""; position: absolute; inset: 12%; background: radial-gradient(circle at 20% 22%, #ffe95d 0 9%, transparent 10%), radial-gradient(circle at 68% 22%, #9deaff 0 9%, transparent 10%), radial-gradient(circle at 20% 72%, #ff8b55 0 9%, transparent 10%), radial-gradient(circle at 68% 72%, #b8ef83 0 9%, transparent 10%); filter: drop-shadow(0 0 6px rgba(157, 234, 255, .7)); animation: generator-pulse 2.8s ease-in-out infinite; }
+
+/* —— Quarry furnishings —— */
+.room-decoration-set [data-decoration-art="rune_mosaic"] { right: 20%; top: 12%; width: 16%; height: 26%; background: repeating-linear-gradient(90deg, #857f6e 0 22px, #6c6759 22px 25px), repeating-linear-gradient(180deg, #8f8a7a 0 20px, #6c6759 20px 23px); box-shadow: inset 0 0 0 4px #4a463b; }
+.room-decoration-set [data-decoration-art="rune_mosaic"]::after { content: ""; position: absolute; inset: 16%; background: linear-gradient(48deg, transparent 44%, #ffe5a0 45% 55%, transparent 56%), linear-gradient(-48deg, transparent 44%, #ffe5a0 45% 55%, transparent 56%), linear-gradient(90deg, transparent 46%, #ffe5a0 47% 53%, transparent 54%); opacity: .75; }
+.room-decoration-set [data-decoration-art="crystal_sconce"] { left: 44%; top: 14%; width: 5%; height: 16%; background: linear-gradient(180deg, transparent 0 52%, #57534a 53%); }
+.room-decoration-set [data-decoration-art="crystal_sconce"]::after { content: ""; position: absolute; left: -20%; top: 0; width: 140%; height: 58%; background: linear-gradient(150deg, #fff3c9, #e0b45c); clip-path: polygon(50% 0, 100% 62%, 74% 100%, 26% 100%, 0 62%); box-shadow: 0 0 26px 6px rgba(255, 226, 140, .45); animation: window-glow 3.2s ease-in-out infinite; }
+.room-decoration-set [data-decoration-art="mason_banner"] { right: 12%; top: 6%; width: 7%; height: 32%; background: linear-gradient(180deg, #9a9584, #6d6a5f); clip-path: polygon(0 0, 100% 0, 100% 88%, 50% 100%, 0 88%); box-shadow: inset 0 4px #c9c3ad; }
+.room-decoration-set [data-decoration-art="mason_banner"]::after { content: ""; position: absolute; left: 22%; top: 18%; width: 56%; height: 44%; background: linear-gradient(90deg, transparent 44%, #3f3c33 45% 55%, transparent 56%), linear-gradient(180deg, transparent 30%, #3f3c33 31% 41%, transparent 42%); }
+.room-decoration-set [data-decoration-art="echo_fountain"] { left: 30%; bottom: 4%; width: 18%; height: 13%; border-radius: 46% 46% 34% 34%; background: linear-gradient(180deg, #b6b1a1 0 30%, #7f7a6b 31%); box-shadow: 0 6px 8px rgba(0, 0, 0, .4); }
+.room-decoration-set [data-decoration-art="echo_fountain"]::after { content: ""; position: absolute; inset: 10% 14% 52%; border-radius: 50%; background: radial-gradient(ellipse at 46% 40%, #dff2f4, #7fa9ac); animation: facility-shimmer 2.8s ease-in-out infinite; }
+.room-decoration-set [data-decoration-art="stonewise_pallets"] { left: 3%; bottom: 3%; width: 20%; height: 16%; background: repeating-linear-gradient(180deg, #6f6047 0 20%, transparent 21% 36%); border-inline: 5px solid #514638; border-bottom: 5px solid #514638; }
+.room-decoration-set [data-decoration-art="stonewise_pallets"]::after { content: ""; position: absolute; left: 5%; right: 5%; bottom: 34%; height: 58%; background: linear-gradient(135deg, #c8c1ae, #777164); clip-path: polygon(0 24%, 42% 24%, 42% 0, 100% 0, 100% 100%, 58% 100%, 58% 78%, 0 78%); box-shadow: inset -4px -4px rgba(61, 57, 50, .3); }
+
+/* —— Kitchen furnishings —— */
+/* Crocks are drawn at a fixed pixel size so the three bellies keep their shape
+   at every stage width instead of flattening with a percentage box. */
+.room-decoration-set [data-decoration-art="painted_crocks"] { left: 6%; bottom: 14%; width: 102px; height: 32px; filter: drop-shadow(0 4px 3px rgba(10, 8, 5, .4)); }
+.room-decoration-set [data-decoration-art="painted_crocks"]::before { content: ""; position: absolute; left: 0; bottom: 0; width: 28px; height: 30px; border-radius: 30% 30% 46% 46%; background: linear-gradient(90deg, #a8552f, #d8834f 46%, #8e441f); box-shadow: 36px 2px 0 -2px #b9924f, 72px -2px 0 -3px #7f9d55; }
+.room-decoration-set [data-decoration-art="painted_crocks"]::after { content: ""; position: absolute; left: 1px; bottom: 21px; width: 26px; height: 5px; border-radius: 99px; background: rgba(255, 233, 168, .5); box-shadow: 36px 2px rgba(255, 233, 168, .45), 71px -2px rgba(255, 233, 168, .4); }
+.room-decoration-set [data-decoration-art="recipe_tapestry"] { left: 15%; top: 30%; width: 14%; height: 26%; background: linear-gradient(180deg, #e2c896, #b98f56); box-shadow: inset 0 0 0 3px #6a4a2e, 0 5px 9px rgba(0, 0, 0, .35); }
+.room-decoration-set [data-decoration-art="recipe_tapestry"]::after { content: ""; position: absolute; inset: 16%; background: repeating-linear-gradient(180deg, transparent 0 22%, rgba(90, 60, 30, .55) 23% 30%); }
+.room-decoration-set [data-decoration-art="communal_bench"] { left: 24%; bottom: 2%; width: 26%; height: 11%; background: linear-gradient(180deg, #9a7448 34%, #6f5030 35%); clip-path: polygon(0 0, 100% 0, 100% 34%, 90% 35%, 88% 100%, 79% 100%, 79% 35%, 21% 35%, 21% 100%, 12% 100%, 10% 35%, 0 34%); filter: drop-shadow(0 6px 4px rgba(10, 8, 5, .4)); }
+.room-decoration-set [data-decoration-art="lantern_wreath"] { right: 18%; top: 5%; width: 18%; height: 15%; border: 5px solid #6f5030; border-radius: 50%; background: transparent; }
+.room-decoration-set [data-decoration-art="lantern_wreath"]::after { content: ""; position: absolute; inset: -18%; background: radial-gradient(circle at 50% 4%, #ffd88a 0 9%, transparent 10%), radial-gradient(circle at 10% 44%, #ffc46a 0 8%, transparent 9%), radial-gradient(circle at 90% 44%, #ffc46a 0 8%, transparent 9%), radial-gradient(circle at 30% 92%, #ffd88a 0 8%, transparent 9%), radial-gradient(circle at 72% 92%, #ffe1a4 0 8%, transparent 9%); filter: drop-shadow(0 0 8px rgba(255, 196, 106, .7)); animation: window-glow 3s ease-in-out infinite; }
+.room-decoration-set [data-decoration-art="provision_pantry"] { left: 3%; top: 25%; width: 17%; height: 31%; border: 4px solid #65482c; border-radius: 5px 5px 2px 2px; background: repeating-linear-gradient(180deg, #a77b48 0 25%, #684b2e 26% 31%); box-shadow: inset 5px 0 rgba(244, 213, 153, .18); }
+.room-decoration-set [data-decoration-art="provision_pantry"]::after { content: ""; position: absolute; inset: 8%; background: radial-gradient(ellipse at 22% 18%, #d99b58 0 9%, transparent 10%), radial-gradient(ellipse at 72% 18%, #9bb66c 0 10%, transparent 11%), radial-gradient(ellipse at 24% 55%, #e2bd79 0 10%, transparent 11%), radial-gradient(ellipse at 70% 57%, #b46e43 0 9%, transparent 10%), radial-gradient(ellipse at 46% 88%, #cfb16d 0 9%, transparent 10%); }
+
+.room-enclave .int-backwall { background: linear-gradient(180deg, #725d47, #514536 64%, #40372d); }
+.room-enclave .int-sidewall { background: linear-gradient(90deg, #45392e, #30281f); }
+.room-enclave .int-floor { background: repeating-linear-gradient(90deg, #806748 0 70px, #6a5238 70px 76px); }
+.enclave-window { position: absolute; left: 43%; top: 10%; width: 14%; height: 30%; border: 6px solid #3f352a; border-radius: 50% 50% 3px 3px; background: linear-gradient(#bde0d4 0 55%, #6d9d6d 56%); box-shadow: 0 0 24px rgba(181, 230, 193, .28); }
+.enclave-banner { position: absolute; left: 17%; top: 12%; width: 9%; height: 34%; background: linear-gradient(#6d9b73, #3f664b); clip-path: polygon(0 0,100% 0,100% 84%,50% 100%,0 84%); box-shadow: inset 0 5px #f4cc62; }
+.enclave-fire { position: absolute; left: 45%; bottom: 12%; width: 10%; height: 18%; border-radius: 50% 50% 20% 20%; background: radial-gradient(ellipse at 50% 80%, #fff0a1, #ff8b48 45%, transparent 68%); filter: drop-shadow(0 0 14px rgba(255, 151, 76, .65)); animation: hearth-flicker 1.4s ease-in-out infinite; }
+.enclave-fire b { position: absolute; left: -28%; right: -28%; bottom: -10%; height: 22%; border-radius: 50%; background: #594331; box-shadow: 18px 0 #73533a, -18px 0 #73533a; }
+.enclave-nest { position: absolute; bottom: 12%; width: 20%; height: 14%; border-radius: 50%; background: repeating-linear-gradient(12deg, #9a774c 0 4px, #6d5135 4px 7px); }
+.enclave-nest.nest-one { left: 12%; }
+.enclave-nest.nest-two { right: 12%; }
+.enclave-interior-residents b { position: absolute; z-index: 5; bottom: 11%; width: calc(72px * var(--cutout-scale)); height: calc(92px * var(--cutout-scale)); display: none; align-items: flex-end; justify-content: center; filter: drop-shadow(0 8px 7px rgba(0, 0, 0, .45)); animation: enclave-wander 3.4s ease-in-out infinite; }
+.enclave-interior-residents b[data-size="LARGE"] { z-index: 6; }
+.enclave-interior-residents b[data-size="GIGANTIC"] { z-index: 7; }
+.enclave-interior-residents b.has-resident { display: flex; }
+.enclave-interior-residents b:nth-child(1) { left: 8%; bottom: 18%; }
+.enclave-interior-residents b:nth-child(2) { left: 25%; animation-delay: -.7s; }
+.enclave-interior-residents b:nth-child(3) { left: 45%; bottom: 22%; animation-delay: -1.4s; }
+.enclave-interior-residents b:nth-child(4) { right: 25%; animation-delay: -2.1s; }
+.enclave-interior-residents b:nth-child(5) { right: 8%; bottom: 18%; animation-delay: -2.8s; }
 .facility-room-resident { position: absolute; right: 8%; bottom: 10%; display: grid; justify-items: center; gap: 4px; filter: drop-shadow(0 8px 10px rgba(0, 0, 0, .45)); }
 .facility-room-resident > span {
-    width: 54px;
-    height: 54px;
+    width: calc(54px * var(--cutout-scale));
+    height: calc(54px * var(--cutout-scale));
     display: flex;
     align-items: flex-end;
     justify-content: center;
@@ -1271,8 +2065,8 @@ button.resource-pill:focus-visible {
     animation: worker-bob 2.4s ease-in-out infinite;
 }
 .facility-room-resident > span.has-overlay-art {
-    width: 78px;
-    height: 96px;
+    width: calc(78px * var(--cutout-scale));
+    height: calc(96px * var(--cutout-scale));
     overflow: visible;
     border: 0;
     border-radius: 0;
@@ -1343,6 +2137,26 @@ button.resource-pill:focus-visible {
 .gate-card h1 { margin: 5px 0 10px; font: 700 32px Georgia, serif; }
 .gate-card p { margin: 0 auto 22px; color: rgba(255, 247, 220, .68); line-height: 1.55; }
 .gate-card > div { display: flex; justify-content: center; gap: 8px; }
+.gate-card .primary-action { cursor: pointer; font: inherit; }
+
+/* In-page sign-in modal (keeps the keeper on My Keep). */
+.keep-login { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 18px; }
+.keep-login.hidden { display: none; }
+.keep-login-scrim { position: absolute; inset: 0; background: rgba(7, 18, 25, .78); backdrop-filter: blur(7px); }
+.keep-login-card { position: relative; width: min(430px, calc(100vw - 30px)); padding: 30px 30px 26px; border: 1px solid rgba(244, 204, 98, .42); border-radius: 20px; background: linear-gradient(155deg, #1c3844, #111f2c 72%); box-shadow: 0 25px 80px rgba(0, 0, 0, .5); text-align: center; }
+.keep-login-close { position: absolute; top: 12px; right: 14px; width: 32px; height: 32px; border: none; border-radius: 50%; background: rgba(255, 255, 255, .06); color: var(--cream); font-size: 22px; line-height: 1; cursor: pointer; }
+.keep-login-close:hover { background: rgba(255, 255, 255, .12); }
+.keep-login-body { display: flex; flex-direction: column; gap: 11px; }
+.keep-login-body .eyebrow { color: var(--gold); }
+.keep-login-body strong { font: 700 26px Georgia, serif; }
+.keep-login-note { color: rgba(255, 247, 220, .68); line-height: 1.5; font-size: 14px; margin-bottom: 4px; }
+.keep-login-input { width: 100%; padding: 12px 14px; border: 1px solid var(--line); border-radius: 11px; background: rgba(255, 255, 255, .05); color: var(--cream); font-size: 15px; }
+.keep-login-input:focus { outline: none; border-color: rgba(244, 204, 98, .7); }
+.keep-login-error { min-height: 18px; margin: 0; color: #ff8a6a; font-size: 13px; }
+.keep-login-btn { width: 100%; padding: 12px 14px; border-radius: 11px; border: 1px solid var(--line); font: 700 15px Georgia, serif; cursor: pointer; }
+.keep-login-btn.primary { border-color: rgba(244, 204, 98, .55); color: #14232b; background: var(--gold); }
+.keep-login-btn.primary:disabled { opacity: .6; cursor: default; }
+.keep-login-btn.ghost { color: var(--cream); background: rgba(255, 255, 255, .055); }
 
 .offline-overlay { position: fixed; inset: 0; z-index: 82; display: grid; place-items: center; padding: 18px; background: rgba(7, 18, 25, .78); backdrop-filter: blur(7px); }
 .offline-card { width: min(440px, 100%); max-height: min(690px, 88dvh); overflow: auto; padding: 27px; border: 1px solid rgba(244, 204, 98, .42); border-radius: 20px; background: linear-gradient(155deg, #1c3844, #111f2c 72%); box-shadow: 0 24px 80px rgba(0, 0, 0, .56); text-align: center; }
@@ -1356,6 +2170,35 @@ button.resource-pill:focus-visible {
 .offline-result strong { color: #fff1bd; font-size: 13px; }
 .offline-result small { color: rgba(255, 247, 220, .62); font-size: 10px; }
 .offline-result.warning > i { background: #e7a16b; }
+.offline-result.offline-capacity { align-items: flex-start; }
+.offline-result.offline-capacity > i { margin-top: 1px; }
+.offline-capacity-list {
+    list-style: none;
+    margin: 7px 0 0;
+    padding: 0;
+    display: grid;
+    gap: 4px;
+}
+.offline-capacity-list li {
+    position: relative;
+    padding: 3px 8px 3px 18px;
+    border-radius: 7px;
+    background: rgba(231, 161, 107, .12);
+    color: rgba(255, 247, 220, .82);
+    font-size: 11px;
+    line-height: 1.3;
+}
+.offline-capacity-list li::before {
+    content: '';
+    position: absolute;
+    left: 7px;
+    top: 50%;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #e7a16b;
+    transform: translateY(-50%);
+}
 
 /* —— Scene pan & zoom —— */
 .keep-scene { transition: transform .24s ease; will-change: transform; }
@@ -1749,6 +2592,101 @@ button.resource-pill:focus-visible {
 .theme-swatch.active i { box-shadow: 0 0 0 2px var(--gold), 0 0 12px var(--swatch); }
 .project-card.is-rank-project { border-color: rgba(244, 204, 98, .45); background: rgba(244, 204, 98, .06); }
 
+/* Keep architecture shares the residents' layered paper language. Lightweight
+   hard-edge shadows preserve the cardstock lift without large SVG morphology,
+   turbulence, or blur graphs; room grain and prop edges stay in CSS. */
+.building-illustration svg.paper-building-shell {
+    overflow: visible;
+    filter: drop-shadow(0 1px 0 #ead8ad) drop-shadow(0 0 1px #241e18) drop-shadow(3px 5px 2px rgba(23, 19, 15, .48));
+}
+.paper-building-shell .building-contact-shadow { display: none; }
+
+.int-backwall,
+.int-sidewall,
+.int-floor {
+    box-sizing: border-box;
+    border: 2px solid rgba(42, 33, 25, .78);
+    box-shadow:
+        inset 0 0 0 2px rgba(235, 218, 178, .17),
+        inset -10px -12px 24px rgba(31, 24, 18, .2),
+        0 5px 0 rgba(30, 23, 18, .24);
+}
+.int-backwall { border-bottom-width: 5px; }
+.int-sidewall.side-left { border-right-width: 5px; }
+.int-sidewall.side-right { border-left-width: 5px; }
+.int-floor { border-top: 5px solid rgba(43, 33, 24, .82); }
+.int-backwall::after,
+.int-sidewall::after,
+.int-floor::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+        radial-gradient(circle at 17% 23%, rgba(255, 244, 214, .14) 0 1px, transparent 1.6px),
+        radial-gradient(circle at 73% 68%, rgba(45, 32, 22, .15) 0 .8px, transparent 1.4px),
+        repeating-linear-gradient(96deg, rgba(248, 232, 195, .055) 0 1px, transparent 1px 7px);
+    background-size: 19px 17px, 23px 21px, auto;
+    mix-blend-mode: soft-light;
+    opacity: .78;
+}
+
+/* Placed Siegelings read as printed standees: a dark illustration contour,
+   warm die-cut paper rim, dark outer keyline, and a lifted cast shadow. The
+   SVG filter follows transparent PNG/WebP/SVG alpha instead of boxing the art. */
+.is-paper-cutout {
+    isolation: isolate;
+    overflow: visible !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+.is-paper-cutout > img {
+    position: relative;
+    z-index: 1;
+    filter:
+        drop-shadow(1px 0 0 #282019)
+        drop-shadow(-1px 0 0 #282019)
+        drop-shadow(0 1px 0 #282019)
+        drop-shadow(0 -1px 0 #282019)
+        drop-shadow(3px 6px 3px rgba(23, 19, 15, .52));
+    transform: rotate(var(--paper-tilt, -1deg)) translateZ(0);
+    transform-origin: 50% 92%;
+    backface-visibility: hidden;
+}
+@supports (filter: url("#paper-siegling-cutout")) {
+    .is-paper-cutout > img {
+        filter: url("#paper-siegling-cutout");
+    }
+}
+.resident-worker .is-paper-cutout { --paper-tilt: -1.5deg; }
+.lodge-resident .is-paper-cutout,
+.hall-favorite-resident .is-paper-cutout,
+.facility-room-resident .is-paper-cutout { --paper-tilt: 1deg; }
+.shrine-art.is-paper-cutout { --paper-tilt: -1deg; }
+.enclave-residents b:nth-child(even).is-paper-cutout { --paper-tilt: 1.6deg; }
+.enclave-residents b:nth-child(odd).is-paper-cutout { --paper-tilt: -1.4deg; }
+
+/* A card without uploaded art still belongs in the same visual language. */
+.resident-worker > span.is-paper-token,
+.lodge-resident > span.is-paper-token,
+.hall-favorite-resident > span.is-paper-token,
+.facility-room-resident > span.is-paper-token,
+.shrine-art.is-paper-token,
+.enclave-residents b.is-paper-token {
+    border: 2px solid #282019;
+    border-radius: 46% 52% 43% 49%;
+    color: #282019;
+    background: #f2e2b8;
+    box-shadow:
+        0 0 0 3px #f2e2b8,
+        0 0 0 4px #282019,
+        4px 7px 5px rgba(23, 19, 15, .46);
+    font-family: Georgia, serif;
+    text-shadow: 0 1px rgba(255, 255, 255, .45);
+}
+
 @keyframes cloud-drift { 0% { translate: -18vw 0; } 100% { translate: 105vw 0; } }
 @keyframes fire-flicker { to { transform: scale(.74) rotate(8deg); opacity: .72; } }
 @keyframes mote-rise { 0%, 100% { transform: translateY(8px); opacity: .15; } 48% { transform: translateY(-20px); opacity: 1; } }
@@ -1759,6 +2697,14 @@ button.resource-pill:focus-visible {
 @keyframes scaffold-pulse { 50% { filter: brightness(1.16); } }
 @keyframes worker-bob { 50% { transform: translateY(-5px) rotate(2deg); } }
 @keyframes tool-swing { 50% { transform: rotate(-28deg); } }
+@keyframes tool-arrive { from { opacity: 0; translate: 0 -9px; } }
+@keyframes decor-arrive { from { opacity: 0; transform: scale(.72); } }
+@keyframes enclave-wander { 0%, 100% { translate: 0 0; } 45% { translate: 4px -4px; } 70% { translate: -3px 0; } }
+@keyframes enclave-exterior-bob { 0%, 100% { translate: 0 0; } 50% { translate: 0 -4px; } }
+@keyframes front-defender-brace { 0%, 100% { translate: 0 0; rotate: -1deg; } 50% { translate: 0 -3px; rotate: 2deg; } }
+@keyframes front-raider-march { 0%, 100% { translate: 6px -4px; } 50% { translate: -5px 4px; } }
+@keyframes front-projectile-flight { 0%, 15% { opacity: 0; translate: 0 0; } 20% { opacity: 1; } 68% { opacity: 1; } 72%, 100% { opacity: 0; translate: 155px -76px; } }
+@keyframes front-impact-burst { 0%, 65% { opacity: 0; transform: scale(.2) rotate(0); } 70% { opacity: 1; } 88% { opacity: 0; transform: scale(1.25) rotate(30deg); } 100% { opacity: 0; } }
 @keyframes discovery-in { from { opacity: 0; transform: translate(-50%, 18px) scale(.96); } }
 @keyframes loading-breathe { 50% { transform: translateY(-6px) scale(1.04); } }
 @keyframes facility-glow { 50% { box-shadow: 0 0 13px #ff8151; filter: brightness(1.25); } }
@@ -1785,15 +2731,24 @@ button.resource-pill:focus-visible {
     .keep-brand strong { font-size: 14px; }
     .keep-brand small { font-size: 7px; }
     .keep-resource-bar { grid-row: 2; grid-column: 1 / -1; position: absolute; left: 50%; top: calc(57px + var(--safe-top)); transform: translateX(-50%); z-index: 35; pointer-events: none; }
-    .keep-resource-bar .inventory-trigger { pointer-events: auto; }
+    .keep-resource-bar button { pointer-events: auto; }
     .resource-pill,
-    .station-pill { min-width: 82px; padding: 5px 9px 5px 27px; border-radius: 0 0 10px 10px; background: rgba(17, 31, 41, .88); }
+    .station-pill { min-width: 72px; padding: 5px 7px 5px 24px; border-radius: 0 0 10px 10px; background: rgba(17, 31, 41, .88); }
+    .construction-team-pill {
+        min-width: 100px;
+        padding: 5px 10px 5px 9px;
+        column-gap: 10px;
+    }
+    .construction-team-pill .resource-icon {
+        width: 15px;
+        font-size: 13px;
+    }
     .resource-pill strong,
     .station-pill strong { font-size: 12px; }
     .resource-pill small,
     .station-pill small { font-size: 7px; }
     .resource-icon,
-    .pulse-dot { left: 9px; }
+    .pulse-dot { left: 8px; }
     .keep-header-actions { gap: 4px; }
     .header-link { display: none; }
     .icon-button { width: 36px; min-height: 36px; }
@@ -1801,6 +2756,22 @@ button.resource-pill:focus-visible {
     .scene-caption h1 { font-size: 19px; }
     .scene-caption p { font-size: 9px; }
     .construction-banner { top: 140px; min-width: min(310px, calc(100vw - 16px)); padding-block: 6px 9px; }
+    .construction-banner.is-collapsed {
+        left: auto;
+        right: calc(7px + var(--safe-right));
+        top: 112px;
+        width: 42px;
+        height: 42px;
+        min-width: 0;
+        padding: 0;
+        display: grid;
+        place-items: center;
+        transform: none;
+        border-radius: 12px;
+    }
+    .construction-banner.is-collapsed .construction-banner-jobs { display: none; }
+    .construction-banner.is-collapsed .hammer-icon { font-size: 19px; }
+    .construction-banner.is-collapsed .construction-toggle { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; }
     .hall-hotspot { top: 24%; width: 180px; height: 210px; }
     .woodlot-hotspot { left: 1%; bottom: 11%; width: 142px; height: 160px; }
     .archive-hotspot { right: 1%; bottom: 12%; width: 142px; height: 160px; }
@@ -1808,16 +2779,18 @@ button.resource-pill:focus-visible {
        Elemental Quarter drops to the open left band (below the shrine, above the
        woodlot) where its label clears the Covenant Hall label. */
     .quarter-hotspot { left: 1%; right: auto; top: 45%; width: 132px; height: 120px; transform: none; }
-    .favorite-shrine { left: 4%; top: 29%; width: 58px; transform: scale(.76); transform-origin: top left; }
-    .favorite-shrine small { max-width: 72px; font-size: 7px; }
+    .enclave-hotspot { right: 1%; left: auto; top: 43%; width: 126px; height: 116px; }
+    .front-hotspot { right: 2%; top: 23%; width: 148px; height: 60px; transform: none; }
+    .front-income { bottom: 35px; }
     .building-label { max-width: 106%; padding: 5px 7px; }
     .building-label strong { font-size: 9px; }
     .building-label small { max-width: 132px; font-size: 6.5px; }
     .resident-worker { right: 8%; width: 46px; height: 60px; }
-    .resident-worker > span { width: 35px; height: 35px; }
-    .resident-worker > span.has-overlay-art { width: 46px; height: 58px; }
-    .memorabilia-plinth { left: 62%; top: 60%; transform: scale(.78); }
-    .scene-zoom { right: calc(6px + var(--safe-right)); top: 42%; }
+    .resident-worker > span { width: calc(35px * var(--cutout-scale)); height: calc(35px * var(--cutout-scale)); }
+    .resident-worker > span.has-overlay-art { width: calc(46px * var(--cutout-scale)); height: calc(58px * var(--cutout-scale)); }
+    /* Keep the fixed zoom controls in the open sky gutter; at 42% they sat directly over
+       the phone Enclave and hid its fourth/fifth residents while the scene was zoomed. */
+    .scene-zoom { right: calc(6px + var(--safe-right)); top: 28%; }
     .scene-zoom button { width: 32px; height: 32px; font-size: 16px; }
     .keep-tower { min-width: 26px; }
     .theme-swatches { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
@@ -1834,13 +2807,24 @@ button.resource-pill:focus-visible {
     /* The floating resource pills overlay the top of keep-main; keep the
        interior heading clear of them. */
     .interior-bar { padding-top: 34px; }
-    .interior-stage { grid-column: 1; }
+    .interior-viewport { grid-column: 1; }
+    .interior-arrow { min-height: 38px; padding: 7px 8px; }
+    .interior-arrow small { max-width: 60px; font-size: 10px; }
+    .interior-rail { bottom: 4px; gap: 5px; padding: 4px 7px; }
+    .rail-dot { width: 8px; height: 8px; }
     .interior-actions { grid-row: 3; grid-column: 1; max-height: 42dvh; border-left: 0; border-top: 1px solid var(--line); padding: 11px; }
     .interior-heading h2 { font-size: 16px; }
     .interior-exit { min-height: 34px; padding: 7px 11px; font-size: 11px; }
-    .lodge-resident > span { width: 44px; height: 44px; }
-    .lodge-resident > span.has-overlay-art { width: 62px; height: 78px; }
-    .facility-room-resident > span.has-overlay-art { width: 62px; height: 78px; }
+    .lodge-resident > span { width: calc(44px * var(--cutout-scale)); height: calc(44px * var(--cutout-scale)); }
+    .lodge-resident > span.has-overlay-art { width: calc(62px * var(--cutout-scale)); height: calc(78px * var(--cutout-scale)); }
+    .hall-favorite-resident > span { width: calc(44px * var(--cutout-scale)); height: calc(44px * var(--cutout-scale)); }
+    .hall-favorite-resident > span.has-overlay-art { width: calc(62px * var(--cutout-scale)); height: calc(78px * var(--cutout-scale)); }
+    .facility-room-resident > span.has-overlay-art { width: calc(62px * var(--cutout-scale)); height: calc(78px * var(--cutout-scale)); }
+    /* A gigantic cutout is tall enough to reach the room's next/prev arrows on a phone. Stand
+       the resident further in so its head clears the arrow column at every band — shifting per
+       band instead would make a Siegeling hop sideways when it is reassigned. */
+    .lodge-resident { left: 46%; }
+    .facility-room-resident { right: 22%; }
     .keep-panel {
         top: auto;
         left: 0;
@@ -1862,20 +2846,54 @@ button.resource-pill:focus-visible {
     .dialogue-copy h2 { font-size: 21px; }
     .dialogue-copy > p { margin: 14px 0; font-size: 13px; line-height: 1.5; }
     .dialogue-choices { grid-column: 1 / -1; }
-    .discovery-toast { bottom: calc(77px + var(--safe-bottom)); }
+    .notice-tray { top: calc(61px + var(--safe-top)); right: calc(7px + var(--safe-right)); }
+    .notice-construction-card { padding: 8px; }
+    .notice-construction-row { grid-template-columns: 28px minmax(0, 1fr) auto; gap: 7px; }
+    .notice-construction-row > i { width: 28px; height: 28px; }
+    /* Racks keep their per-room anchors; only the scale changes on phones. */
+    .room-tool-set { transform: scale(.84); transform-origin: top left; }
+    .room-garden .room-tool-set,
+    .room-generator .room-tool-set,
+    .room-kitchen .room-tool-set { transform-origin: top right; }
+    .room-decoration-set [data-decoration-art="blossom_arch"] { left: 30%; width: 40%; }
+    .room-decoration-set [data-decoration-art="aurora_lamp"] { left: 20%; width: 60%; }
+    .enclave-interior-residents b { width: calc(50px * var(--cutout-scale)); height: calc(66px * var(--cutout-scale)); }
+    /* Phone portrait: tighter nodes so a full chapter's levels fit without scrolling. */
+    .journey-overlay { padding: 10px calc(10px + var(--safe-right)) calc(10px + var(--safe-bottom)) calc(10px + var(--safe-left)); }
+    .journey-card { max-height: 92dvh; padding: 15px 13px 12px; }
+    .journey-header h2 { margin: 2px 0; }
+    .journey-header small { font-size: 11px; }
+    .journey-levelbar { margin: 10px 0 4px; height: 7px; }
+    .journey-toolbar { margin-bottom: 9px; }
+    .journey-xp-label { font-size: 11px; }
+    .journey-track { gap: 10px; }
+    .journey-chapter { padding: 10px 9px; gap: 8px; }
+    .chapter-head strong { font-size: 15px; }
+    .journey-nodes { grid-template-columns: repeat(auto-fill, minmax(94px, 1fr)); gap: 7px; }
+    .journey-node { padding: 9px 6px; gap: 5px; }
+    .node-badge { width: 36px; height: 36px; }
+    .node-badge strong { font-size: 15px; }
+    .node-reward { gap: 6px; font-size: 11px; }
+    .node-decoration,
+    .node-unlock { font-size: 9px; }
+    .node-claim { padding: 6px 8px; font-size: 11px; }
+    .node-status { font-size: 9px; }
 }
 
 @media (max-width: 360px), (max-height: 590px) {
     .scene-caption p { display: none; }
     .scene-caption { width: auto; padding-block: 7px; }
-    .construction-banner { top: 108px; }
+    .construction-banner:not(.is-collapsed) { top: 108px; }
+    .construction-banner.is-collapsed { top: 98px; }
     .hall-hotspot { top: 20%; height: 180px; transform: translateX(-50%) scale(.86); }
     .woodlot-hotspot,
     .archive-hotspot { bottom: 7%; transform: scale(.84); transform-origin: bottom center; }
     .woodlot-hotspot { left: -3%; }
     .archive-hotspot { right: -3%; }
     .quarter-hotspot { left: 0; right: auto; top: 44%; width: 118px; height: 104px; transform: none; }
-    .favorite-shrine { top: 26%; }
+    .enclave-hotspot { right: 0; left: auto; top: 42%; width: 112px; height: 102px; }
+    .front-hotspot { right: 1%; top: 21%; width: 140px; height: 56px; transform: none; }
+    .production-ready { display: none !important; }
     .building-label small { display: none; }
 }
 
@@ -1894,19 +2912,39 @@ button.resource-pill:focus-visible {
     .hall-hotspot { top: 5%; transform: translateX(-50%) scale(.78); transform-origin: top center; }
     .woodlot-hotspot,
     .archive-hotspot { bottom: 2%; transform: scale(.72); transform-origin: bottom center; }
-    .quarter-hotspot { right: 24%; top: 41%; transform: scale(.66); transform-origin: center; }
+    .quarter-hotspot { left: 24%; right: auto; top: 41%; transform: scale(.78); transform-origin: center; }
+    .enclave-hotspot { right: 24%; left: auto; top: 39%; transform: scale(.78); transform-origin: center; }
+    .front-hotspot { right: 10%; top: 7%; width: 170px; height: 62px; transform: none; }
     .keep-dock { min-height: calc(48px + var(--safe-bottom)); padding-block: 3px calc(3px + var(--safe-bottom)); }
     .keep-dock button > span { font-size: 15px; }
-    .keep-dock .collect-button { margin-top: -10px; }
     .construction-banner { top: 7px; min-width: 290px; }
     .keep-panel { top: 4px; bottom: 4px; width: min(370px, 48vw); height: auto; border-radius: 15px; transform: translateX(calc(100% + 28px)); }
     .keep-main.panel-open .keep-panel { transform: translateX(0); }
     .keep-interior { grid-template-columns: minmax(0, 1fr) min(330px, 44vw); grid-template-rows: auto minmax(0, 1fr); }
-    .interior-stage { grid-row: 2; grid-column: 1; }
+    .interior-viewport { grid-row: 2; grid-column: 1; }
+    .interior-arrow small { display: none; }
     .interior-actions { grid-row: 2; grid-column: 2; max-height: none; border-top: 0; border-left: 1px solid var(--line); padding: 10px; }
     .interior-bar { padding-block: 6px; }
     .interior-heading h2 { font-size: 15px; }
     .interior-exit { min-height: 32px; padding: 6px 10px; font-size: 11px; }
+    /* Short landscape: the header chrome shrinks so the scrolling chapter list
+       keeps the height it needs and its last row stays inside the card. */
+    .journey-overlay { padding: 6px calc(6px + var(--safe-right)) calc(6px + var(--safe-bottom)) calc(6px + var(--safe-left)); }
+    .journey-card { max-height: calc(100dvh - 12px - var(--safe-bottom)); padding: 11px 14px 10px; border-radius: 16px; }
+    .journey-header h2 { margin: 1px 0; font-size: 20px; }
+    .journey-header small { display: none; }
+    .journey-levelbar { margin: 7px 0 3px; height: 6px; }
+    .journey-toolbar { margin-bottom: 7px; }
+    .journey-track { gap: 9px; }
+    .journey-chapter { padding: 9px; gap: 7px; }
+    .chapter-head strong { font-size: 15px; }
+    .chapter-head small { display: none; }
+    .journey-nodes { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 7px; }
+    .journey-node { padding: 8px 7px; gap: 5px; }
+    .node-badge { width: 34px; height: 34px; }
+    .node-badge strong { font-size: 14px; }
+    .node-decoration,
+    .node-unlock { font-size: 9px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

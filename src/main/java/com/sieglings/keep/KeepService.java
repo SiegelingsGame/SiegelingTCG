@@ -6,6 +6,7 @@ import com.sieglings.keep.KeepLoreCatalog.LoreEntry;
 import com.sieglings.keep.KeepLoreCatalog.Outcome;
 import com.sieglings.model.Card;
 import com.sieglings.model.SieglingCard;
+import com.sieglings.model.enums.SieglingSize;
 import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.PlayerProgressionEntity;
 import com.sieglings.persistence.firestore.PlayerProgressionStore;
@@ -21,6 +22,7 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.temporal.IsoFields;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -51,10 +53,64 @@ public class KeepService {
     public static final long FORGE_LEVEL_ONE_SECONDS = 7_200;
     public static final long FRIDGE_LEVEL_ONE_SECONDS = 10_800;
     public static final long GENERATOR_LEVEL_ONE_SECONDS = 14_400;
+    public static final int ENCLAVE_BUILD_COST = 240;
+    public static final long ENCLAVE_BUILD_SECONDS = 7_200;
+    private static final int ENCLAVE_CAPACITY = 5;
+    public static final int AKHARS_FRONT_BUILD_COST = 360;
+    public static final long AKHARS_FRONT_BUILD_SECONDS = 14_400;
+    private static final int AKHARS_FRONT_CAPACITY = 3;
+    private static final int AKHARS_FRONT_GOLD_CAPACITY = 360;
+    private static final double AKHARS_FRONT_GOLD_PER_MINUTE_PER_DEFENDER = 1.0;
+    private static final int ROOM_DECORATION_CAPACITY = 6;
+    private static final double STORAGE_ANNEX_BONUS = .50;
+    private static final double STORAGE_DECORATION_BONUS = .25;
+    private static final Map<String, String> STORAGE_DECORATIONS = Map.of(
+            "woodlot", "coppice_storewall", "garden", "seedkeeper_vault",
+            "forge", "tempered_stock_rack", "fridge", "frostbound_larder",
+            "generator", "charged_cell_bank", "quarry", "stonewise_pallets",
+            "kitchen", "provision_pantry");
+    private static final List<String> PRODUCTION_ROOMS = List.of(
+            "woodlot", "garden", "forge", "fridge", "generator", "quarry", "kitchen");
+    /** Storage annexes are construction-tree unlocks spread across the five Keeper chapters. */
+    private static final Map<String, Integer> STORAGE_PROJECT_LEVELS = Map.of(
+            "woodlot_storage_annex", 10, "garden_storage_annex", 12,
+            "forge_storage_annex", 13, "fridge_storage_annex", 15,
+            "generator_storage_annex", 16, "quarry_storage_annex", 17,
+            "kitchen_storage_annex", 19);
+    /** Destination projects shown on — and genuinely gated by — the Keeper's Journey. */
+    private static final Map<String, Integer> DESTINATION_PROJECT_LEVELS = Map.of(
+            "build_akhars_front", 8);
+    // ── Keeper leveling / battlepass ──────────────────────────────────────────
+    public static final int KEEPER_MAX_LEVEL = 25;
+    private static final int KEEPER_DAILY_LOGIN_XP = 60;
+    private static final int KEEPER_TIMBER_COLLECT_XP = 10;
+    private static final int KEEPER_MATERIAL_COLLECT_XP = 15;
+    private static final int KEEPER_PROJECT_XP = 40;
+    private static final int KEEPER_QUEST_XP = 50;
+    private static final int KEEPER_RESOURCE_XP_DAILY_CAP = 150;
+    private static final int KEEPER_LEVELS_PER_CHAPTER = 5;
+    /** Decoration granted at specific Keeper Levels (owned outright, placeable once its room is built). */
+    private static final Map<Integer, String> KEEPER_LEVEL_DECORATIONS = Map.ofEntries(
+            Map.entry(3, "carved_waypost"), Map.entry(4, "living_trellis"),
+            Map.entry(6, "ember_lantern"), Map.entry(9, "frostglass_mobile"),
+            Map.entry(11, "harmonic_orb"), Map.entry(14, "stone_sentinel"),
+            Map.entry(18, "hearth_garland"), Map.entry(22, "covenant_tapestry"));
+    /** Chapter titles for the battlepass timeline; each spans 5 Keeper Levels. */
+    private static final String[][] KEEPER_CHAPTERS = {
+            {"The Wounded Ground", "Build a sanctuary that takes nothing without giving something back."},
+            {"Roots in the Ash", "Coax the first workshops from a land still learning to trust you."},
+            {"Halls Remembered", "Raise real stone, and let the keep hold its own history again."},
+            {"The Elements Answer", "Master every element and the residents who carry them."},
+            {"A Sanctuary Renowned", "A grand keep whose light reaches Akhar's distant front."}
+    };
     private static final Duration OFFLINE_REPORT_THRESHOLD = Duration.ofMinutes(5);
     private static final Duration TRIBUTE_COOLDOWN = Duration.ofDays(7);
     private static final Duration VISITOR_ROLL_COOLDOWN = Duration.ofHours(2);
     private static final int MAX_ACTIVE_VISITORS = 3;
+    /** Bonded threshold / Voices spectrum ceiling — also the soft cap for npcTrust. */
+    public static final int NPC_TRUST_MAX = 7;
+    /** Previously spoken Interaction/Visitor NPCs are more likely to return for affinity play. */
+    private static final int RETURNING_NPC_WEIGHT_MULT = 3;
     private static final int REQUEST_HISTORY_LIMIT = 120;
     private static final Object[] LOCKS = createLocks();
     private static final Map<String, FacilityDefinition> FACILITIES = createFacilities();
@@ -76,6 +132,9 @@ public class KeepService {
     private final KeepLoreCatalog loreCatalog;
     @Autowired(required = false)
     private PlayerProgressionStore progressionStore;
+    /** Optional so tests (and a Firestore-less runtime) fall back to the shipped balance. */
+    @Autowired(required = false)
+    private KeepTuningService tuningService;
     private Clock clock = Clock.systemUTC();
     private Random random = new Random();
 
@@ -96,6 +155,7 @@ public class KeepService {
             Instant awaySince = state.getLastVisitedAt();
             List<String> beforeUnlocks = new ArrayList<>(state.getUnlockedLoreIds());
             int timberBefore = state.getWoodlotStored();
+            int frontGoldBefore = state.getAkharsFrontStoredGold();
             Map<String, Integer> facilityBefore = new LinkedHashMap<>(state.getFacilityStored());
             List<String> completedProjects = materializeConstructions(state, context.residents(), context.now());
             boolean completed = !completedProjects.isEmpty();
@@ -104,9 +164,10 @@ public class KeepService {
             boolean produced = completed || (returning && materializeAllProduction(state, context.residents(), context.now()));
             boolean visitorsChanged = refreshVisitors(state, context.now());
             Map<String, Object> offlineReport = offlineReport(state, awaySince, context.now(), timberBefore,
-                    facilityBefore, completedProjects, beforeUnlocks);
+                    frontGoldBefore, facilityBefore, completedProjects, beforeUnlocks);
+            int dailyXp = grantDailyKeeperXp(state, context.now());
             state.setLastVisitedAt(context.now());
-            if (completed || produced || visitorsChanged) {
+            if (completed || produced || visitorsChanged || dailyXp > 0) {
                 bump(context.state(), context.now());
                 store.save(state);
             } else {
@@ -116,7 +177,9 @@ public class KeepService {
                 recordKeepStats(context.progression(),
                         p -> p.setKeepProjectsCompleted(p.getKeepProjectsCompleted() + completedProjects.size()));
             }
-            return serialize(user, context.progression(), state, context.residents(), context.now(), offlineReport);
+            Map<String, Object> snapshot = serialize(user, context.progression(), state, context.residents(), context.now(), offlineReport);
+            if (dailyXp > 0) snapshot.put("keeperDailyXpAwarded", dailyXp);
+            return snapshot;
         }
     }
 
@@ -128,6 +191,7 @@ public class KeepService {
         return mutate(user, requestId, expectedVersion, context -> {
             KeepState state = context.state();
             String id = normalizeStationId(stationId);
+            if ("akhars_front".equals(id)) return collectAkharsFront(state, context);
             if (!"woodlot".equals(id)) return collectEssenceStation(state, context, id);
             int room = Math.max(0, timberInventoryCapacity(state) - state.getTimber());
             int grant = Math.min(room, projectedWoodlotAvailable(state, context.residents(), context.now()));
@@ -141,12 +205,15 @@ public class KeepService {
             state.setTimber(state.getTimber() + grant);
             state.setWoodlotStored(state.getWoodlotStored() - grant);
             state.setWoodlotCollectCount(state.getWoodlotCollectCount() + 1);
+            advanceEnclaveTasks(state, context.residents(), "TIMBER_COLLECTION");
             if (state.getWoodlotCollectCount() == 1) unlock(state, "letter_forester_maren");
             if (state.getWoodlotCollectCount() >= 3) unlock(state, "memorabilia_petrified_root");
             final int granted = grant;
             recordKeepStats(context.progression(), p -> p.setKeepTimberCollected(p.getKeepTimberCollected() + granted));
+            int xpGained = grantResourceKeeperXp(state, context.now(), KEEPER_TIMBER_COLLECT_XP);
             Map<String, Object> extra = new LinkedHashMap<>();
             extra.put("collected", Map.of("resource", "TIMBER", "amount", grant));
+            if (xpGained > 0) extra.put("keeperXpAwarded", xpGained);
             return extra;
         });
     }
@@ -179,11 +246,9 @@ public class KeepService {
             KeepState state = context.state();
             String id = buildId == null ? "" : buildId.trim();
             if (!hasFreeConstructionSlot(state)) {
-                throw new IllegalArgumentException(constructionSlots(state) > 1
-                        ? "Both construction crews are busy. Finish a current project first."
-                        : "Finish the current construction project first.");
+                throw new IllegalArgumentException("All construction teams are active. Finish a current project first.");
             }
-            if (id.equals(state.getActiveConstructionId()) || id.equals(state.getActiveConstructionId2())) {
+            if (constructionSlotsInUse(state).stream().anyMatch(slot -> id.equals(slot.id()))) {
                 throw new IllegalArgumentException("That project is already underway.");
             }
             BuildProject project = buildProject(id);
@@ -196,31 +261,40 @@ public class KeepService {
             materializeAllProduction(state, context.residents(), context.now());
             state.setTimber(state.getTimber() - project.timberCost());
             spendMaterials(state, project.materialCosts());
-            if (state.getActiveConstructionId().isBlank()) {
-                state.setActiveConstructionId(id);
-                state.setConstructionStartedAt(context.now());
-                state.setConstructionCompletesAt(context.now().plusSeconds(project.durationSeconds()));
-            } else {
-                state.setActiveConstructionId2(id);
-                state.setConstructionStartedAt2(context.now());
-                state.setConstructionCompletesAt2(context.now().plusSeconds(project.durationSeconds()));
-            }
+            addConstruction(state, id, context.now(), context.now().plusSeconds(project.durationSeconds()));
             return Map.of("constructionStarted", id);
         });
     }
 
-    /** The Builder's Yard staffs a second construction crew. */
+    /** Keeper journey milestones add one team at levels 5, 10, 15, 20, and 25. */
     private int constructionSlots(KeepState state) {
-        return state.getBuildersYardLevel() >= 1 ? 2 : 1;
+        return 1 + Math.min(5, keeperLevel(state.getKeeperXp()) / 5);
     }
 
     private boolean hasFreeConstructionSlot(KeepState state) {
-        if (state.getActiveConstructionId().isBlank()) return true;
-        return constructionSlots(state) >= 2 && state.getActiveConstructionId2().isBlank();
+        return constructionSlotsInUse(state).size() < constructionSlots(state);
     }
 
     private boolean isConstructing(KeepState state, String projectId) {
-        return projectId.equals(state.getActiveConstructionId()) || projectId.equals(state.getActiveConstructionId2());
+        return constructionSlotsInUse(state).stream().anyMatch(slot -> projectId.equals(slot.id()));
+    }
+
+    private void addConstruction(KeepState state, String id, Instant startedAt, Instant completesAt) {
+        if (state.getActiveConstructionId().isBlank()) {
+            state.setActiveConstructionId(id);
+            state.setConstructionStartedAt(startedAt);
+            state.setConstructionCompletesAt(completesAt);
+            return;
+        }
+        if (state.getActiveConstructionId2().isBlank()) {
+            state.setActiveConstructionId2(id);
+            state.setConstructionStartedAt2(startedAt);
+            state.setConstructionCompletesAt2(completesAt);
+            return;
+        }
+        state.getAdditionalConstructionIds().add(id);
+        state.getAdditionalConstructionStartedAts().add(startedAt);
+        state.getAdditionalConstructionCompletesAts().add(completesAt);
     }
 
     public Map<String, Object> readLore(AccountUser user, String loreId,
@@ -282,15 +356,12 @@ public class KeepService {
             Map<String, Integer> appliedMaterials = applyMaterialDeltas(state, materialDeltas);
             if (flag != null && !flag.isBlank()) addUnique(state.getChoiceFlags(), flag);
             if (unlockLoreId != null) unlock(state, unlockLoreId);
-            int trustGain = Math.max(0, relationshipDelta);
-            if (relationshipDelta < 0) {
-                int current = state.getNpcTrust().getOrDefault(conversation.npcId(), 0);
-                state.getNpcTrust().put(conversation.npcId(), Math.max(0, current + relationshipDelta));
-            } else {
-                state.getNpcTrust().merge(conversation.npcId(), trustGain, Integer::sum);
-            }
+            int trustBefore = Math.max(0, state.getNpcTrust().getOrDefault(conversation.npcId(), 0));
+            int trustAfter = Math.max(0, Math.min(NPC_TRUST_MAX, trustBefore + relationshipDelta));
+            state.getNpcTrust().put(conversation.npcId(), trustAfter);
 
-            if (loreCatalog.isVisitor(conversation)) {
+            if (loreCatalog.isRollingEncounter(conversation)) {
+                // Visitors and Interaction NPCs leave the active slate and return after cooldown.
                 state.getActiveVisitorIds().remove(conversation.id());
                 state.getVisitorAvailableAt().put(conversation.id(),
                         context.now().plus(Duration.ofHours(conversation.cooldownHours())));
@@ -298,6 +369,7 @@ public class KeepService {
                 addUnique(state.getCompletedConversationIds(), conversation.id());
             }
             recordKeepStats(context.progression(), p -> p.setKeepConversationsCompleted(p.getKeepConversationsCompleted() + 1));
+            advanceEnclaveTasks(state, context.residents(), "CONVERSATION");
 
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("npcId", conversation.npcId());
@@ -305,6 +377,10 @@ public class KeepService {
             result.put("kind", conversation.kind());
             result.put("response", response);
             result.put("outcomeId", outcomeId);
+            result.put("relationshipDelta", relationshipDelta);
+            result.put("trust", trustAfter);
+            result.put("trustMax", NPC_TRUST_MAX);
+            result.put("stage", relationshipStage(trustAfter));
             result.put("timberSpent", choice.timberCost());
             result.put("timberDelta", appliedTimber);
             result.put("materialCosts", serializeMaterialCosts(choice.materialCosts()));
@@ -338,9 +414,10 @@ public class KeepService {
         return mutate(user, requestId, expectedVersion, context -> {
             KeepState state = context.state();
             String id = recipeId == null ? "" : recipeId.trim();
-            CraftRecipe recipe = RECIPES.get(id);
+            CraftRecipe recipe = recipeById(id);
             if (recipe == null) throw new IllegalArgumentException("Unknown Keep recipe.");
-            if (!recipeAvailable(state, recipe)) throw new IllegalArgumentException("Build the required workshop before crafting that item.");
+            if (!recipeRoomAvailable(state, recipe)) throw new IllegalArgumentException("Build the required workshop before crafting that item.");
+            if (!recipePrerequisiteMet(state, recipe)) throw new IllegalArgumentException("Craft the previous tool upgrade first.");
             if (craftedCount(state, id) > 0 && !recipe.repeatable()) {
                 throw new IllegalArgumentException("That Keep item has already been crafted.");
             }
@@ -348,6 +425,7 @@ public class KeepService {
             spendMaterials(state, recipe.materialCosts());
             state.getCraftedItemCounts().merge(id, 1, Integer::sum);
             state.setCraftCount(state.getCraftCount() + 1);
+            advanceEnclaveTasks(state, context.residents(), "CRAFTING");
             return Map.of("crafted", Map.of("id", id, "name", recipe.name(), "type", recipe.type()));
         });
     }
@@ -358,14 +436,75 @@ public class KeepService {
             KeepState state = context.state();
             String room = normalizeStationId(roomId);
             String id = decorationId == null ? "" : decorationId.trim();
-            CraftRecipe recipe = RECIPES.get(id);
+            CraftRecipe recipe = recipeById(id);
             if (recipe == null || !"DECORATION".equals(recipe.type()) || !room.equals(recipe.roomId())) {
                 throw new IllegalArgumentException("That decoration does not belong in this room.");
             }
             if (craftedCount(state, id) < 1) throw new IllegalArgumentException("Craft that decoration before placing it.");
-            if (displayed) state.getPlacedDecorations().put(room, id);
-            else if (id.equals(state.getPlacedDecorations().get(room))) state.getPlacedDecorations().remove(room);
+            // Apply production under the old capacity before a storage furnishing changes it.
+            materializeAllProduction(state, context.residents(), context.now());
+            LinkedHashSet<String> placed = placedDecorationIds(state, room);
+            if (displayed) {
+                if (placed.size() >= ROOM_DECORATION_CAPACITY && !placed.contains(id)) {
+                    throw new IllegalArgumentException("That room already displays six decorations.");
+                }
+                // Only a newly displayed decoration counts — re-placing the same one cannot farm rapport.
+                if (!placed.contains(id)) advanceEnclaveTasks(state, context.residents(), "DECORATION");
+                placed.add(id);
+            } else {
+                placed.remove(id);
+            }
+            if (placed.isEmpty()) state.getPlacedDecorations().remove(room);
+            else state.getPlacedDecorations().put(room, String.join(",", placed));
             return Map.of("decorationChanged", id, "roomId", room, "displayed", displayed);
+        });
+    }
+
+    public Map<String, Object> setEnclaveResident(AccountUser user, int slot, String residentId,
+                                                   String requestId, long expectedVersion) {
+        return mutate(user, requestId, expectedVersion, context -> {
+            KeepState state = context.state();
+            if (state.getEnclaveLevel() < 1) throw new IllegalArgumentException("Build the Siegeling Enclave first.");
+            if (slot < 0 || slot >= ENCLAVE_CAPACITY) throw new IllegalArgumentException("Choose one of the five enclave spaces.");
+            String normalized = residentId == null ? "" : residentId.trim();
+            if (!normalized.isBlank() && context.residents().stream().noneMatch(item -> item.id().equals(normalized))) {
+                throw new IllegalArgumentException("That Siegeling has not joined your collection yet.");
+            }
+            List<String> assignments = normalizedEnclaveResidents(state);
+            if (!normalized.isBlank()) {
+                for (int index = 0; index < assignments.size(); index++) {
+                    if (normalized.equals(assignments.get(index))) assignments.set(index, "");
+                }
+            }
+            assignments.set(slot, normalized);
+            state.setEnclaveResidentIds(assignments);
+            return Map.of("enclaveResidentChanged", true, "slot", slot, "residentId", normalized);
+        });
+    }
+
+    public Map<String, Object> setAkharsFrontResident(AccountUser user, int slot, String residentId,
+                                                       String requestId, long expectedVersion) {
+        return mutate(user, requestId, expectedVersion, context -> {
+            KeepState state = context.state();
+            if (state.getAkharsFrontLevel() < 1) throw new IllegalArgumentException("Unlock Akhar's Front first.");
+            if (slot < 0 || slot >= AKHARS_FRONT_CAPACITY) {
+                throw new IllegalArgumentException("Choose one of the three rampart posts.");
+            }
+            String normalized = residentId == null ? "" : residentId.trim();
+            if (!normalized.isBlank() && context.residents().stream().noneMatch(item -> item.id().equals(normalized))) {
+                throw new IllegalArgumentException("That Siegeling has not joined your collection yet.");
+            }
+            // Settle the old defender count before changing the passive-income rate.
+            materializeAkharsFront(state, context.residents(), context.now());
+            List<String> assignments = normalizedAkharsFrontResidents(state);
+            if (!normalized.isBlank()) {
+                for (int index = 0; index < assignments.size(); index++) {
+                    if (normalized.equals(assignments.get(index))) assignments.set(index, "");
+                }
+            }
+            assignments.set(slot, normalized);
+            state.setAkharsFrontResidentIds(assignments);
+            return Map.of("akharsFrontResidentChanged", true, "slot", slot, "residentId", normalized);
         });
     }
 
@@ -392,17 +531,75 @@ public class KeepService {
     }
 
     /** The keep-wide favorite bonus scales with the chosen Siegeling's rarity and
-        applies to every station's output plus tribute and weekly-order income. */
+        applies to every station's output plus tribute and weekly-order income.
+        Rapport multiplies it, which widens the rarity gaps rather than flattening them:
+        a Legendary partner always out-earns a Common one, and the distance between them
+        grows by the same threshold as the bonus itself. */
     private double favoriteBoost(KeepState state, List<Resident> residents) {
         Resident favorite = favoriteResident(state, residents);
         if (favorite == null) return 0;
-        return switch (favorite.rarity()) {
-            case "UNCOMMON" -> .08;
-            case "RARE" -> .12;
-            case "EPIC" -> .16;
-            case "LEGENDARY" -> .20;
-            default -> .05;
+        return tuning().favoritePercent(favorite.rarity()) / 100.0 * rapportMultiplier(state, favorite.id());
+    }
+
+    // ── Rapport ───────────────────────────────────────────────────────────────
+
+    private int rapportPoints(KeepState state, String residentId) {
+        if (residentId == null || residentId.isBlank()) return 0;
+        return Math.max(0, state.getResidentRapport().getOrDefault(residentId, 0));
+    }
+
+    /** Rapport level for a point total, clamped to the configured ladder. */
+    private int rapportLevel(KeepState state, String residentId) {
+        List<Integer> thresholds = tuning().rapportThresholds();
+        int points = rapportPoints(state, residentId);
+        int level = 0;
+        for (int index = 1; index < thresholds.size(); index++) {
+            if (points >= thresholds.get(index)) level = index;
+        }
+        return level;
+    }
+
+    /** Points still needed for the next level, or 0 once a resident is fully bonded. */
+    private int rapportPointsToNextLevel(KeepState state, String residentId) {
+        List<Integer> thresholds = tuning().rapportThresholds();
+        int level = rapportLevel(state, residentId);
+        if (level >= thresholds.size() - 1) return 0;
+        return Math.max(0, thresholds.get(level + 1) - rapportPoints(state, residentId));
+    }
+
+    /**
+     * The single multiplier rapport applies to every buff a resident grants. A resident who
+     * grants no bonus at a station still grants none — rapport raises what they already give.
+     */
+    private double rapportMultiplier(KeepState state, String residentId) {
+        return 1 + rapportLevel(state, residentId) * (tuning().rapportStepPercent() / 100.0);
+    }
+
+    private String rapportLabel(int level, int maxLevel) {
+        if (level <= 0) return "Newly arrived";
+        if (level >= maxLevel) return "Bonded";
+        return switch (level) {
+            case 1 -> "Familiar";
+            case 2 -> "Trusted";
+            case 3 -> "Kindred";
+            default -> "Sworn";
         };
+    }
+
+    private Map<String, Object> serializeRapport(KeepState state, String residentId) {
+        int maxLevel = tuning().rapportMaxLevel();
+        int level = rapportLevel(state, residentId);
+        List<Integer> thresholds = tuning().rapportThresholds();
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("points", rapportPoints(state, residentId));
+        out.put("level", level);
+        out.put("maxLevel", maxLevel);
+        out.put("label", rapportLabel(level, maxLevel));
+        out.put("pointsToNextLevel", rapportPointsToNextLevel(state, residentId));
+        out.put("nextLevelPoints", level >= maxLevel ? 0 : thresholds.get(level + 1));
+        out.put("levelPoints", thresholds.get(Math.min(level, thresholds.size() - 1)));
+        out.put("buffPercent", (int) Math.round((rapportMultiplier(state, residentId) - 1) * 100));
+        return out;
     }
 
     private Resident favoriteResident(KeepState state, List<Resident> residents) {
@@ -433,7 +630,11 @@ public class KeepService {
             int gold;
             int remnants;
             String claimKey = id;
+            String grantedDecorationId = "";
             Map<String, Integer> orderCosts = null;
+            boolean repeatableClaim = false;
+            String rapportResidentId = "";
+            int rapportAward = 0;
             if ("first_harvest".equals(id)) {
                 if (state.getEssenceCollectCount() < 1) throw new IllegalArgumentException("Complete an elemental harvest first.");
                 gold = 100;
@@ -479,25 +680,93 @@ public class KeepService {
                 int totalLevels = totalBuildLevels(state);
                 gold = (int) Math.round((90 + totalLevels * 20) * boost);
                 remnants = (int) Math.round((15 + totalLevels * 5) * boost);
+            } else if (id.startsWith("enclave_task:") || id.startsWith("enclave_mission:")) {
+                // "enclave_mission:<residentId>" is the pre-rapport client's id; it still resolves
+                // to the resident's first task so a cached page claims something sensible.
+                String remainder = id.startsWith("enclave_task:")
+                        ? id.substring("enclave_task:".length()) : id.substring("enclave_mission:".length());
+                int split = remainder.indexOf(':');
+                String residentId = split < 0 ? remainder : remainder.substring(0, split);
+                String taskId = split < 0 ? "" : remainder.substring(split + 1);
+                Resident resident = context.residents().stream().filter(item -> item.id().equals(residentId))
+                        .findFirst().orElseThrow(() -> new IllegalArgumentException("That Siegeling task is no longer available."));
+                if (state.getEnclaveLevel() < 1 || !normalizedEnclaveResidents(state).contains(residentId)) {
+                    throw new IllegalArgumentException("Invite that Siegeling to the Enclave first.");
+                }
+                List<KeepEnclaveTaskCatalog.TaskDefinition> tasks = enclaveTasks(resident);
+                KeepEnclaveTaskCatalog.TaskDefinition task = tasks.stream()
+                        .filter(item -> item.id().equals(taskId)).findFirst()
+                        .orElse(taskId.isBlank() && !tasks.isEmpty() ? tasks.get(0) : null);
+                if (task == null) throw new IllegalArgumentException("That Siegeling task is no longer available.");
+                if (enclaveTaskProgress(state, residentId, task) < task.goal()) {
+                    throw new IllegalArgumentException("Complete " + resident.name() + "'s task first.");
+                }
+                // Tasks repeat, so banking one clears its progress instead of locking the id
+                // away in the permanent claim set.
+                repeatableClaim = true;
+                state.getEnclaveTaskProgress().put(taskKey(residentId, task.id()), 0);
+                state.getEnclaveTaskCompletions().merge(taskKey(residentId, task.id()), 1, Integer::sum);
+                rapportResidentId = residentId;
+                rapportAward = task.rapport();
+                gold = task.gold();
+                remnants = task.remnants();
+            } else if (id.startsWith("keeper_level:")) {
+                int lv;
+                try { lv = Integer.parseInt(id.substring("keeper_level:".length())); }
+                catch (NumberFormatException e) { throw new IllegalArgumentException("Unknown sanctuary reward."); }
+                if (lv < 1 || lv > KEEPER_MAX_LEVEL) throw new IllegalArgumentException("Unknown sanctuary reward.");
+                if (keeperLevel(state.getKeeperXp()) < lv) {
+                    throw new IllegalArgumentException("Reach Keeper Level " + lv + " to claim that reward.");
+                }
+                KeeperReward levelReward = keeperReward(lv);
+                gold = levelReward.gold();
+                remnants = levelReward.remnants();
+                grantedDecorationId = levelReward.decorationId();
+                claimKey = "keeper_level:" + lv;
             } else {
                 throw new IllegalArgumentException("Unknown sanctuary reward.");
             }
             PlayerProgressionEntity progression = context.progression();
-            if (progression.getKeepRewardClaimIds().contains(claimKey)) {
+            if (!repeatableClaim && progression.getKeepRewardClaimIds().contains(claimKey)) {
                 throw new IllegalArgumentException("That sanctuary reward has already been claimed.");
             }
             if (orderCosts != null) spendMaterials(state, orderCosts);
+            if (grantedDecorationId != null && !grantedDecorationId.isBlank()) {
+                state.getCraftedItemCounts().merge(grantedDecorationId, 1, Integer::sum);
+            }
+            if (rapportAward > 0 && !rapportResidentId.isBlank()) {
+                // Rapport raises every rate this resident feeds, so settle accrual at the old
+                // rate before the new multiplier applies.
+                materializeAllProduction(state, context.residents(), context.now());
+                state.getResidentRapport().merge(rapportResidentId, rapportAward, Integer::sum);
+            }
             progression.setGold(progression.getGold() + gold);
             progression.setRemnants(progression.getRemnants() + remnants);
-            progression.getKeepRewardClaimIds().add(claimKey);
+            if (!repeatableClaim) progression.getKeepRewardClaimIds().add(claimKey);
             progression.setUpdatedAt(context.now());
             if (progressionStore != null) progressionStore.save(progression);
+            // Completing a quest is itself a progression beat; claiming the battlepass
+            // payout is not (that XP is what earned the level in the first place).
+            int questXp = id.startsWith("keeper_level:") ? 0 : awardKeeperXp(state, KEEPER_QUEST_XP);
             Map<String, Object> reward = new LinkedHashMap<>();
             reward.put("id", id);
             reward.put("gold", gold);
             reward.put("remnants", remnants);
             reward.put("goldBalance", progression.getGold());
             reward.put("remnantsBalance", progression.getRemnants());
+            if (questXp > 0) reward.put("keeperXpAwarded", questXp);
+            if (grantedDecorationId != null && !grantedDecorationId.isBlank()) {
+                reward.put("decorationId", grantedDecorationId);
+                reward.put("decorationName", recipeName(grantedDecorationId));
+            }
+            if (rapportAward > 0 && !rapportResidentId.isBlank()) {
+                final String bondedId = rapportResidentId;
+                reward.put("rapportGained", rapportAward);
+                reward.put("rapportResidentId", bondedId);
+                reward.put("rapportResidentName", context.residents().stream()
+                        .filter(item -> item.id().equals(bondedId)).map(Resident::name).findFirst().orElse(""));
+                reward.put("rapport", serializeRapport(state, bondedId));
+            }
             return Map.of("rewardClaimed", reward);
         });
     }
@@ -565,6 +834,7 @@ public class KeepService {
         List<Resident> residents = residents(progression);
         KeepState state = store.findByUserId(user.getId()).orElseGet(() -> store.save(newState(user.getId(), now)));
         repairDefaults(state, now);
+        backfillKeeperXp(state);
         if (!progression.isKeepFounded()) {
             recordKeepStats(progression, p -> p.setKeepFounded(true));
         }
@@ -587,6 +857,9 @@ public class KeepService {
 
     private void repairDefaults(KeepState state, Instant now) {
         if (state.getWoodlotLastAccruedAt() == null) state.setWoodlotLastAccruedAt(now);
+        if (state.getAkharsFrontLevel() > 0 && state.getAkharsFrontLastAccruedAt() == null) {
+            state.setAkharsFrontLastAccruedAt(now);
+        }
         if (state.getCreatedAt() == null) state.setCreatedAt(now);
         if (state.getLastVisitedAt() == null) state.setLastVisitedAt(state.getUpdatedAt() == null ? now : state.getUpdatedAt());
         for (String id : FACILITIES.keySet()) {
@@ -599,35 +872,71 @@ public class KeepService {
         if (!state.getUnlockedLoreIds().contains("charter_three_promises")) unlock(state, "charter_three_promises");
     }
 
-    /** Completes every due project across both crew slots, earliest first, and
-        returns the completed project ids. */
+    /** Completes every due project across all level-provided teams, earliest first. */
     private List<String> materializeConstructions(KeepState state, List<Resident> residents, Instant now) {
         List<String> completed = new ArrayList<>();
         while (true) {
-            boolean slotOneDue = !state.getActiveConstructionId().isBlank()
-                    && state.getConstructionCompletesAt() != null && !now.isBefore(state.getConstructionCompletesAt());
-            boolean slotTwoDue = !state.getActiveConstructionId2().isBlank()
-                    && state.getConstructionCompletesAt2() != null && !now.isBefore(state.getConstructionCompletesAt2());
-            if (!slotOneDue && !slotTwoDue) break;
-            boolean takeSlotTwo = slotTwoDue && (!slotOneDue
-                    || state.getConstructionCompletesAt2().isBefore(state.getConstructionCompletesAt()));
-            String id = takeSlotTwo ? state.getActiveConstructionId2() : state.getActiveConstructionId();
-            Instant completesAt = takeSlotTwo ? state.getConstructionCompletesAt2() : state.getConstructionCompletesAt();
-            materializeAllProduction(state, residents, completesAt);
-            applyConstructionEffects(state, id, completesAt);
-            if (takeSlotTwo) {
-                state.setActiveConstructionId2("");
-                state.setConstructionStartedAt2(null);
-                state.setConstructionCompletesAt2(null);
-            } else {
-                state.setActiveConstructionId("");
-                state.setConstructionStartedAt(null);
-                state.setConstructionCompletesAt(null);
-            }
-            completed.add(id);
+            ConstructionSlot due = constructionSlotsInUse(state).stream()
+                    .filter(slot -> slot.completesAt() != null && !now.isBefore(slot.completesAt()))
+                    .min(Comparator.comparing(ConstructionSlot::completesAt))
+                    .orElse(null);
+            if (due == null) break;
+            materializeAllProduction(state, residents, due.completesAt());
+            applyConstructionEffects(state, due.id(), due.completesAt());
+            clearConstruction(state, due.index());
+            completed.add(due.id());
+            awardKeeperXp(state, KEEPER_PROJECT_XP);
+            advanceEnclaveTasks(state, residents, "CONSTRUCTION");
         }
         if (!completed.isEmpty()) materializeAllProduction(state, residents, now);
         return completed;
+    }
+
+    private List<ConstructionSlot> constructionSlotsInUse(KeepState state) {
+        List<ConstructionSlot> out = new ArrayList<>();
+        if (!state.getActiveConstructionId().isBlank()) {
+            out.add(new ConstructionSlot(0, state.getActiveConstructionId(), state.getConstructionStartedAt(),
+                    state.getConstructionCompletesAt()));
+        }
+        if (!state.getActiveConstructionId2().isBlank()) {
+            out.add(new ConstructionSlot(1, state.getActiveConstructionId2(), state.getConstructionStartedAt2(),
+                    state.getConstructionCompletesAt2()));
+        }
+        List<String> ids = state.getAdditionalConstructionIds();
+        List<Instant> starts = state.getAdditionalConstructionStartedAts();
+        List<Instant> completes = state.getAdditionalConstructionCompletesAts();
+        for (int index = 0; index < ids.size(); index++) {
+            String id = ids.get(index);
+            if (id == null || id.isBlank()) continue;
+            out.add(new ConstructionSlot(index + 2, id, index < starts.size() ? starts.get(index) : null,
+                    index < completes.size() ? completes.get(index) : null));
+        }
+        return out;
+    }
+
+    private void clearConstruction(KeepState state, int index) {
+        if (index == 0) {
+            state.setActiveConstructionId("");
+            state.setConstructionStartedAt(null);
+            state.setConstructionCompletesAt(null);
+            return;
+        }
+        if (index == 1) {
+            state.setActiveConstructionId2("");
+            state.setConstructionStartedAt2(null);
+            state.setConstructionCompletesAt2(null);
+            return;
+        }
+        int additionalIndex = index - 2;
+        if (additionalIndex < state.getAdditionalConstructionIds().size()) {
+            state.getAdditionalConstructionIds().remove(additionalIndex);
+        }
+        if (additionalIndex < state.getAdditionalConstructionStartedAts().size()) {
+            state.getAdditionalConstructionStartedAts().remove(additionalIndex);
+        }
+        if (additionalIndex < state.getAdditionalConstructionCompletesAts().size()) {
+            state.getAdditionalConstructionCompletesAts().remove(additionalIndex);
+        }
     }
 
     private void applyConstructionEffects(KeepState state, String id, Instant completesAt) {
@@ -661,6 +970,13 @@ public class KeepService {
             completeFacilityLevel(state, "kitchen", 1, completesAt);
         } else if ("build_builders_yard".equals(id)) {
             state.setBuildersYardLevel(Math.max(1, state.getBuildersYardLevel()));
+        } else if ("build_enclave".equals(id)) {
+            state.setEnclaveLevel(1);
+        } else if ("build_akhars_front".equals(id)) {
+            state.setAkharsFrontLevel(1);
+            state.setAkharsFrontLastAccruedAt(completesAt);
+        } else if (storageProjectRoom(id) != null) {
+            state.getStorageUpgradeLevels().put(storageProjectRoom(id), 1);
         } else if (id.startsWith("hall_level_")) {
             int level = parseHallLevel(id);
             if (level > 0) state.setHallLevel(Math.max(state.getHallLevel(), level));
@@ -690,10 +1006,51 @@ public class KeepService {
 
     private boolean materializeAllProduction(KeepState state, List<Resident> residents, Instant at) {
         int beforeWoodlot = state.getWoodlotStored();
+        int beforeFront = state.getAkharsFrontStoredGold();
         Map<String, Integer> beforeFacilities = new LinkedHashMap<>(state.getFacilityStored());
         materializeProduction(state, residents, at);
         for (String id : FACILITIES.keySet()) materializeFacilityProduction(state, residents, id, at);
-        return beforeWoodlot != state.getWoodlotStored() || !beforeFacilities.equals(state.getFacilityStored());
+        materializeAkharsFront(state, residents, at);
+        return beforeWoodlot != state.getWoodlotStored()
+                || beforeFront != state.getAkharsFrontStoredGold()
+                || !beforeFacilities.equals(state.getFacilityStored());
+    }
+
+    private void materializeAkharsFront(KeepState state, List<Resident> residents, Instant at) {
+        if (state.getAkharsFrontLevel() < 1) return;
+        Instant last = state.getAkharsFrontLastAccruedAt();
+        if (last == null) {
+            state.setAkharsFrontLastAccruedAt(at);
+            return;
+        }
+        if (!at.isAfter(last)) return;
+        long seconds = Duration.between(last, at).getSeconds();
+        int room = Math.max(0, AKHARS_FRONT_GOLD_CAPACITY - state.getAkharsFrontStoredGold());
+        double exact = seconds * akharsFrontRate(state, residents) / 60.0
+                + state.getAkharsFrontProductionRemainder();
+        long produced = Math.max(0, (long) Math.floor(exact + 1e-9));
+        int stored = (int) Math.min(room, produced);
+        state.setAkharsFrontStoredGold(state.getAkharsFrontStoredGold() + stored);
+        state.setAkharsFrontProductionRemainder(produced >= room ? 0 : exact - produced);
+        state.setAkharsFrontLastAccruedAt(at);
+    }
+
+    private double akharsFrontRate(KeepState state, List<Resident> residents) {
+        if (state.getAkharsFrontLevel() < 1) return 0;
+        Set<String> owned = residents.stream().map(Resident::id).collect(Collectors.toSet());
+        long defenders = normalizedAkharsFrontResidents(state).stream()
+                .filter(id -> !id.isBlank() && owned.contains(id)).count();
+        return defenders * AKHARS_FRONT_GOLD_PER_MINUTE_PER_DEFENDER * (1 + favoriteBoost(state, residents));
+    }
+
+    private int projectedAkharsFrontAvailable(KeepState state, List<Resident> residents, Instant at) {
+        if (state.getAkharsFrontLevel() < 1) return 0;
+        Instant last = state.getAkharsFrontLastAccruedAt();
+        if (last == null || !at.isAfter(last)) return state.getAkharsFrontStoredGold();
+        double exact = Duration.between(last, at).getSeconds() * akharsFrontRate(state, residents) / 60.0
+                + state.getAkharsFrontProductionRemainder();
+        return Math.min(AKHARS_FRONT_GOLD_CAPACITY,
+                state.getAkharsFrontStoredGold() + Math.max(0, (int) Math.floor(exact + 1e-9)));
     }
 
     private void materializeFacilityProduction(KeepState state, List<Resident> residents, String id, Instant at) {
@@ -736,13 +1093,35 @@ public class KeepService {
     private double woodlotRate(KeepState state, List<Resident> residents) {
         double base = state.getWoodlotLevel() >= 2 ? 2.0 : 1.0;
         Resident invited = residents.stream().filter(r -> r.id().equals(state.getWoodlotResidentId())).findFirst().orElse(null);
-        double rate = invited != null && stationAffinity(invited, "woodlot") ? base * 1.15 : base;
-        return rate * (1 + favoriteBoost(state, residents));
+        double rate = base * (1 + stationBonus(state, invited, "woodlot"));
+        return rate * toolMultiplier(state, "woodlot") * (1 + favoriteBoost(state, residents));
+    }
+
+    /**
+     * The fraction a resident adds to their station's output. Rapport multiplies it, so the
+     * same partner is worth more once you have actually spent time with them.
+     */
+    private double stationBonus(KeepState state, Resident resident, String stationId) {
+        return stationBonusPercent(state, resident, stationId) / 100.0;
+    }
+
+    private double stationBonusPercent(KeepState state, Resident resident, String stationId) {
+        if (resident == null) return 0;
+        KeepTuning tuning = tuning();
+        int base;
+        if ("woodlot".equals(stationId)) {
+            base = stationAffinity(resident, stationId) ? tuning.woodlotAffinityPercent() : 0;
+        } else if (stationAffinity(resident, stationId)) {
+            base = tuning.facilityAffinityPercent();
+        } else {
+            base = "NEUTRAL".equals(resident.element()) ? tuning.facilityNeutralPercent() : 0;
+        }
+        return base * rapportMultiplier(state, resident.id());
     }
 
     private int woodlotStorageCapacity(KeepState state) {
         int base = state.getWoodlotLevel() >= 2 ? 360 : 120;
-        return (int) Math.round(base * storageMultiplier(state));
+        return (int) Math.round(base * storageMultiplier(state) * localStorageMultiplier(state, "woodlot"));
     }
 
     private int timberInventoryCapacity(KeepState state) {
@@ -768,10 +1147,30 @@ public class KeepService {
         return 1.0 + state.getStorehouseLevel() * .5;
     }
 
+    private double localStorageMultiplier(KeepState state, String roomId) {
+        double bonus = state.getStorageUpgradeLevels().getOrDefault(roomId, 0) > 0 ? STORAGE_ANNEX_BONUS : 0;
+        String decorationId = STORAGE_DECORATIONS.get(roomId);
+        if (decorationId != null && placedDecorationIds(state, roomId).contains(decorationId)) {
+            bonus += STORAGE_DECORATION_BONUS;
+        }
+        return 1 + bonus;
+    }
+
+    private int localStorageBonusPercent(KeepState state, String roomId) {
+        return (int) Math.round((localStorageMultiplier(state, roomId) - 1) * 100);
+    }
+
     private int facilityStorageCapacity(KeepState state, String id) {
         FacilityDefinition definition = FACILITIES.get(id);
         if (definition == null) return 0;
-        return (int) Math.round(definition.baseStorage() * Math.max(1, facilityLevel(state, id)) * storageMultiplier(state));
+        return (int) Math.round(tuning().storage(id, definition.baseStorage())
+                * Math.max(1, facilityLevel(state, id)) * storageMultiplier(state)
+                * localStorageMultiplier(state, id));
+    }
+
+    private double facilityRatePerMinute(String id) {
+        FacilityDefinition definition = FACILITIES.get(id);
+        return definition == null ? 0 : tuning().ratePerMinute(id, definition.baseRatePerMinute());
     }
 
     private double facilityRate(KeepState state, List<Resident> residents, String id) {
@@ -779,10 +1178,11 @@ public class KeepService {
         if (definition == null || facilityLevel(state, id) < 1) return 0;
         String residentId = state.getFacilityResidentIds().getOrDefault(id, "");
         Resident resident = residents.stream().filter(item -> item.id().equals(residentId)).findFirst().orElse(null);
-        double affinity = resident == null ? 1.0 : stationAffinity(resident, id) ? 1.2 : "NEUTRAL".equals(resident.element()) ? 1.05 : 1.0;
-        double toolBonus = craftedCount(state, definition.toolRecipeId()) > 0 ? 1.2 : 1.0;
-        double networkBonus = craftedCount(state, "insulated_channels") > 0 ? 1.1 : 1.0;
-        return definition.baseRatePerMinute() * facilityLevel(state, id) * affinity * toolBonus * networkBonus
+        double affinity = 1 + stationBonus(state, resident, id);
+        double toolBonus = toolMultiplier(state, id);
+        double networkBonus = craftedCount(state, "insulated_channels") > 0
+                ? 1 + tuning().elementalNetworkPercent() / 100.0 : 1.0;
+        return facilityRatePerMinute(id) * facilityLevel(state, id) * affinity * toolBonus * networkBonus
                 * (1 + favoriteBoost(state, residents));
     }
 
@@ -805,8 +1205,27 @@ public class KeepService {
         state.getMaterialInventory().put(resourceId, storedInventory + grant);
         state.getFacilityStored().put(id, state.getFacilityStored().getOrDefault(id, 0) - grant);
         state.setEssenceCollectCount(state.getEssenceCollectCount() + 1);
-        return Map.of("collected", Map.of("resource", resourceId, "resourceName", definition.resourceName(),
+        advanceEnclaveTasks(state, context.residents(), "MATERIAL_COLLECTION");
+        int xpGained = grantResourceKeeperXp(state, context.now(), KEEPER_MATERIAL_COLLECT_XP);
+        Map<String, Object> collected = new LinkedHashMap<>();
+        collected.put("collected", Map.of("resource", resourceId, "resourceName", definition.resourceName(),
                 "amount", grant, "stationId", id));
+        if (xpGained > 0) collected.put("keeperXpAwarded", xpGained);
+        return collected;
+    }
+
+    private Map<String, Object> collectAkharsFront(KeepState state, Context context) {
+        if (state.getAkharsFrontLevel() < 1) throw new IllegalArgumentException("Unlock Akhar's Front first.");
+        int grant = projectedAkharsFrontAvailable(state, context.residents(), context.now());
+        if (grant <= 0) throw new IllegalArgumentException("The rampart patrol has not earned any Siegecoins yet.");
+        materializeAkharsFront(state, context.residents(), context.now());
+        grant = state.getAkharsFrontStoredGold();
+        state.setAkharsFrontStoredGold(0);
+        context.progression().setGold(context.progression().getGold() + grant);
+        context.progression().setUpdatedAt(context.now());
+        if (progressionStore != null) progressionStore.save(context.progression());
+        return Map.of("collected", Map.of(
+                "resource", "SIEGECOINS", "resourceName", "Siegecoins", "amount", grant, "stationId", "akhars_front"));
     }
 
     private String normalizeStationId(String stationId) {
@@ -849,6 +1268,75 @@ public class KeepService {
         return Math.max(0, state.getCraftedItemCounts().getOrDefault(id, 0));
     }
 
+    private LinkedHashSet<String> placedDecorationIds(KeepState state, String roomId) {
+        LinkedHashSet<String> ids = new LinkedHashSet<>();
+        String stored = state.getPlacedDecorations().getOrDefault(roomId, "");
+        for (String id : stored.split(",")) {
+            String normalized = id.trim();
+            if (!normalized.isBlank()) ids.add(normalized);
+        }
+        return ids;
+    }
+
+    private List<String> normalizedEnclaveResidents(KeepState state) {
+        List<String> residents = new ArrayList<>(state.getEnclaveResidentIds());
+        if (residents.size() > ENCLAVE_CAPACITY) residents = new ArrayList<>(residents.subList(0, ENCLAVE_CAPACITY));
+        while (residents.size() < ENCLAVE_CAPACITY) residents.add("");
+        return residents;
+    }
+
+    private List<String> normalizedAkharsFrontResidents(KeepState state) {
+        List<String> residents = new ArrayList<>(state.getAkharsFrontResidentIds());
+        if (residents.size() > AKHARS_FRONT_CAPACITY) {
+            residents = new ArrayList<>(residents.subList(0, AKHARS_FRONT_CAPACITY));
+        }
+        while (residents.size() < AKHARS_FRONT_CAPACITY) residents.add("");
+        return residents;
+    }
+
+    /** The rapport tasks a resident currently offers — element defaults, dashboard overrides,
+        and one personal task bound to the Siegeling itself. */
+    private List<KeepEnclaveTaskCatalog.TaskDefinition> enclaveTasks(Resident resident) {
+        return KeepEnclaveTaskCatalog.tasksFor(tuning(), resident.id(), resident.name(), resident.element());
+    }
+
+    /**
+     * Raises the progress bucket of every Enclave resident whose current task watches this
+     * event. Progress is per task rather than per event type, so two residents asking for the
+     * same kind of help each advance their own task.
+     */
+    private void advanceEnclaveTasks(KeepState state, List<Resident> residents, String eventType) {
+        if (state.getEnclaveLevel() < 1) return;
+        Map<String, Resident> byId = residents.stream().collect(Collectors.toMap(Resident::id,
+                Function.identity(), (left, right) -> left, LinkedHashMap::new));
+        for (String residentId : normalizedEnclaveResidents(state)) {
+            if (residentId.isBlank()) continue;
+            Resident resident = byId.get(residentId);
+            if (resident == null) continue;
+            for (KeepEnclaveTaskCatalog.TaskDefinition task : enclaveTasks(resident)) {
+                if (!task.event().equals(eventType)) continue;
+                String key = taskKey(residentId, task.id());
+                if (state.getEnclaveTaskProgress().getOrDefault(key, 0) >= task.goal()) continue;
+                state.getEnclaveTaskProgress().merge(key, 1, Integer::sum);
+            }
+        }
+    }
+
+    private static String taskKey(String residentId, String taskId) {
+        return residentId + ":" + taskId;
+    }
+
+    private int enclaveTaskProgress(KeepState state, String residentId,
+                                     KeepEnclaveTaskCatalog.TaskDefinition task) {
+        return Math.min(task.goal(), Math.max(0,
+                state.getEnclaveTaskProgress().getOrDefault(taskKey(residentId, task.id()), 0)));
+    }
+
+    private int enclaveTaskCompletions(KeepState state, String residentId,
+                                        KeepEnclaveTaskCatalog.TaskDefinition task) {
+        return Math.max(0, state.getEnclaveTaskCompletions().getOrDefault(taskKey(residentId, task.id()), 0));
+    }
+
     private boolean hasMaterials(KeepState state, Map<String, Integer> costs) {
         return costs.entrySet().stream().allMatch(entry ->
                 state.getMaterialInventory().getOrDefault(entry.getKey(), 0) >= entry.getValue());
@@ -874,9 +1362,44 @@ public class KeepService {
                 .map(FacilityDefinition::resourceName).findFirst().orElse(titleCase(id.replace('_', ' ')));
     }
 
-    private boolean recipeAvailable(KeepState state, CraftRecipe recipe) {
-        return "great_hall".equals(recipe.roomId()) || (FACILITIES.containsKey(recipe.roomId())
-                && facilityLevel(state, recipe.roomId()) >= recipe.requiredLevel());
+    /** A blueprint with the dashboard's name/bonus/cost overrides applied. */
+    private CraftRecipe recipeById(String id) {
+        CraftRecipe shipped = RECIPES.get(id);
+        return shipped == null ? null : applyTuning(shipped);
+    }
+
+    private List<CraftRecipe> allRecipes() {
+        return RECIPES.values().stream().map(this::applyTuning).toList();
+    }
+
+    private CraftRecipe applyTuning(CraftRecipe recipe) {
+        KeepTuning tuning = tuning();
+        return new CraftRecipe(recipe.id(), tuning.recipeName(recipe.id(), recipe.name()), recipe.type(),
+                recipe.roomId(), recipe.requiredLevel(), tuning.recipeCosts(recipe.id(), recipe.materialCosts()),
+                recipe.repeatable(), recipe.description(),
+                tuning.recipeBonusLabel(recipe.id(), recipe.bonusLabel()), recipe.tier(), recipe.prerequisiteId());
+    }
+
+    private boolean recipeRoomAvailable(KeepState state, CraftRecipe recipe) {
+        if (!recipeRoomBuilt(state, recipe)) return false;
+        if ("great_hall".equals(recipe.roomId())) return true;
+        if ("woodlot".equals(recipe.roomId())) return state.getWoodlotLevel() >= recipe.requiredLevel();
+        return facilityLevel(state, recipe.roomId()) >= recipe.requiredLevel();
+    }
+
+    private boolean recipeRoomBuilt(KeepState state, CraftRecipe recipe) {
+        if ("great_hall".equals(recipe.roomId()) || "woodlot".equals(recipe.roomId())) return true;
+        return FACILITIES.containsKey(recipe.roomId()) && facilityLevel(state, recipe.roomId()) > 0;
+    }
+
+    private boolean recipePrerequisiteMet(KeepState state, CraftRecipe recipe) {
+        return recipe.prerequisiteId().isBlank() || craftedCount(state, recipe.prerequisiteId()) > 0;
+    }
+
+    private double toolMultiplier(KeepState state, String roomId) {
+        long tier = RECIPES.values().stream().filter(recipe -> "TOOL".equals(recipe.type())
+                        && roomId.equals(recipe.roomId()) && craftedCount(state, recipe.id()) > 0).count();
+        return 1 + Math.min(5, tier) * (tuning().toolTierPercent() / 100.0);
     }
 
     private void completeFacilityLevel(KeepState state, String id, int level, Instant at) {
@@ -912,9 +1435,12 @@ public class KeepService {
         out.put("level", facilityLevel(state, id));
         out.put("available", available);
         out.put("storageCapacity", facilityStorageCapacity(state, id));
+        out.put("storageBonusPercent", localStorageBonusPercent(state, id));
+        out.put("storageUpgradeLevel", state.getStorageUpgradeLevels().getOrDefault(id, 0));
+        out.put("storageDecorationActive", placedDecorationIds(state, id).contains(STORAGE_DECORATIONS.get(id)));
         out.put("ratePerMinute", facilityRate(state, residents, id));
         out.put("residentId", stationResidentId(state, id));
-        out.put("resident", resident == null ? null : serializeResident(resident, id));
+        out.put("resident", resident == null ? null : serializeResident(state, resident, id));
         out.put("resource", definition.resourceId());
         out.put("resourceName", definition.resourceName());
         out.put("isFull", available >= facilityStorageCapacity(state, id));
@@ -924,7 +1450,7 @@ public class KeepService {
     }
 
     private Map<String, Object> offlineReport(KeepState state, Instant awaySince, Instant now,
-                                               int timberBefore, Map<String, Integer> facilityBefore,
+                                               int timberBefore, int frontGoldBefore, Map<String, Integer> facilityBefore,
                                                List<String> completedProjects, List<String> beforeUnlocks) {
         if (awaySince == null || !now.isAfter(awaySince)
                 || Duration.between(awaySince, now).compareTo(OFFLINE_REPORT_THRESHOLD) < 0) return null;
@@ -933,6 +1459,10 @@ public class KeepService {
         if (timberProduced > 0) produced.add(Map.of(
                 "stationId", "woodlot", "stationName", "Restorative Woodlot",
                 "resource", "TIMBER", "amount", timberProduced));
+        int frontGoldProduced = Math.max(0, state.getAkharsFrontStoredGold() - frontGoldBefore);
+        if (frontGoldProduced > 0) produced.add(Map.of(
+                "stationId", "akhars_front", "stationName", "Akhar's Front",
+                "resource", "SIEGECOINS", "resourceName", "Siegecoins", "amount", frontGoldProduced));
         for (FacilityDefinition definition : FACILITIES.values()) {
             int amount = Math.max(0, state.getFacilityStored().getOrDefault(definition.id(), 0)
                     - facilityBefore.getOrDefault(definition.id(), 0));
@@ -953,6 +1483,9 @@ public class KeepService {
                 .toList();
         List<String> capsReached = new ArrayList<>();
         if (state.getWoodlotStored() >= woodlotStorageCapacity(state)) capsReached.add("Restorative Woodlot");
+        if (state.getAkharsFrontLevel() > 0 && state.getAkharsFrontStoredGold() >= AKHARS_FRONT_GOLD_CAPACITY) {
+            capsReached.add("Akhar's Front");
+        }
         for (FacilityDefinition definition : FACILITIES.values()) {
             if (facilityLevel(state, definition.id()) > 0
                     && state.getFacilityStored().getOrDefault(definition.id(), 0) >= facilityStorageCapacity(state, definition.id())) {
@@ -991,8 +1524,10 @@ public class KeepService {
 
     private List<Map<String, Object>> recipes(KeepState state) {
         List<Map<String, Object>> out = new ArrayList<>();
-        for (CraftRecipe recipe : RECIPES.values()) {
-            boolean available = recipeAvailable(state, recipe);
+        for (CraftRecipe recipe : allRecipes()) {
+            boolean roomBuilt = recipeRoomBuilt(state, recipe);
+            boolean levelMet = recipeRoomAvailable(state, recipe);
+            boolean prerequisiteMet = recipePrerequisiteMet(state, recipe);
             boolean crafted = craftedCount(state, recipe.id()) > 0;
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("id", recipe.id());
@@ -1001,11 +1536,14 @@ public class KeepService {
             item.put("description", recipe.description());
             item.put("roomId", recipe.roomId());
             item.put("requiredLevel", recipe.requiredLevel());
+            item.put("tier", recipe.tier());
+            item.put("prerequisiteMet", prerequisiteMet);
+            item.put("levelMet", levelMet);
             item.put("costs", serializeMaterialCosts(recipe.materialCosts()));
-            item.put("available", available);
+            item.put("available", roomBuilt);
             item.put("crafted", crafted);
             item.put("count", craftedCount(state, recipe.id()));
-            item.put("canCraft", available && hasMaterials(state, recipe.materialCosts()) && (recipe.repeatable() || !crafted));
+            item.put("canCraft", levelMet && prerequisiteMet && hasMaterials(state, recipe.materialCosts()) && (recipe.repeatable() || !crafted));
             item.put("bonus", recipe.bonusLabel());
             out.add(item);
         }
@@ -1013,15 +1551,146 @@ public class KeepService {
     }
 
     private List<Map<String, Object>> decorations(KeepState state) {
-        return RECIPES.values().stream().filter(recipe -> "DECORATION".equals(recipe.type())).map(recipe -> {
+        return allRecipes().stream().filter(recipe -> "DECORATION".equals(recipe.type())).map(recipe -> {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("id", recipe.id());
             item.put("name", recipe.name());
             item.put("roomId", recipe.roomId());
+            item.put("tier", recipe.tier());
             item.put("crafted", craftedCount(state, recipe.id()) > 0);
-            item.put("displayed", recipe.id().equals(state.getPlacedDecorations().get(recipe.roomId())));
+            item.put("displayed", placedDecorationIds(state, recipe.roomId()).contains(recipe.id()));
+            item.put("description", recipe.description());
+            item.put("bonus", recipe.bonusLabel());
             return item;
         }).toList();
+    }
+
+    private Map<String, Object> enclave(KeepState state, PlayerProgressionEntity progression, List<Resident> residents) {
+        Map<String, Resident> residentsById = residents.stream().collect(Collectors.toMap(Resident::id,
+                Function.identity(), (left, right) -> left, LinkedHashMap::new));
+        List<Map<String, Object>> slots = new ArrayList<>();
+        List<String> assigned = normalizedEnclaveResidents(state);
+        int readyTasks = 0;
+        for (int index = 0; index < ENCLAVE_CAPACITY; index++) {
+            String residentId = assigned.get(index);
+            Resident resident = residentsById.get(residentId);
+            Map<String, Object> slot = new LinkedHashMap<>();
+            slot.put("slot", index);
+            slot.put("residentId", resident == null ? "" : resident.id());
+            slot.put("resident", resident == null ? null : serializeResident(state, resident));
+            if (resident != null) {
+                List<Map<String, Object>> tasks = new ArrayList<>();
+                for (KeepEnclaveTaskCatalog.TaskDefinition task : enclaveTasks(resident)) {
+                    int progress = enclaveTaskProgress(state, resident.id(), task);
+                    boolean complete = progress >= task.goal();
+                    if (complete) readyTasks++;
+                    Map<String, Object> item = new LinkedHashMap<>();
+                    item.put("id", "enclave_task:" + resident.id() + ":" + task.id());
+                    item.put("taskId", task.id());
+                    item.put("name", task.name());
+                    item.put("description", task.description());
+                    item.put("event", task.event());
+                    item.put("source", task.source());
+                    item.put("progress", progress);
+                    item.put("goal", task.goal());
+                    item.put("complete", complete);
+                    item.put("completions", enclaveTaskCompletions(state, resident.id(), task));
+                    item.put("rapport", task.rapport());
+                    item.put("gold", task.gold());
+                    item.put("remnants", task.remnants());
+                    tasks.add(item);
+                }
+                slot.put("tasks", tasks);
+                slot.put("rapport", serializeRapport(state, resident.id()));
+                // Legacy key: pre-rapport clients render a single mission card per slot.
+                slot.put("mission", tasks.isEmpty() ? null : tasks.get(0));
+            } else {
+                slot.put("tasks", List.of());
+                slot.put("rapport", null);
+                slot.put("mission", null);
+            }
+            slots.add(slot);
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("built", state.getEnclaveLevel() > 0);
+        out.put("level", state.getEnclaveLevel());
+        out.put("capacity", ENCLAVE_CAPACITY);
+        out.put("residentCount", assigned.stream().filter(id -> !id.isBlank()).count());
+        out.put("readyTaskCount", readyTasks);
+        out.put("slots", slots);
+        return out;
+    }
+
+    private Map<String, Object> akharsFront(KeepState state, List<Resident> residents, Instant now) {
+        List<String> assigned = normalizedAkharsFrontResidents(state);
+        List<Map<String, Object>> slots = new ArrayList<>();
+        for (int index = 0; index < AKHARS_FRONT_CAPACITY; index++) {
+            String residentId = assigned.get(index);
+            Resident resident = residents.stream().filter(item -> item.id().equals(residentId)).findFirst().orElse(null);
+            Map<String, Object> slot = new LinkedHashMap<>();
+            slot.put("slot", index);
+            slot.put("residentId", resident == null ? "" : resident.id());
+            slot.put("resident", resident == null ? null : serializeResident(state, resident));
+            slots.add(slot);
+        }
+        int available = projectedAkharsFrontAvailable(state, residents, now);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("built", state.getAkharsFrontLevel() > 0);
+        out.put("level", state.getAkharsFrontLevel());
+        out.put("capacity", AKHARS_FRONT_CAPACITY);
+        out.put("residentCount", assigned.stream().filter(id -> !id.isBlank()).count());
+        out.put("available", available);
+        out.put("storageCapacity", AKHARS_FRONT_GOLD_CAPACITY);
+        out.put("ratePerMinute", akharsFrontRate(state, residents));
+        out.put("isFull", available >= AKHARS_FRONT_GOLD_CAPACITY);
+        out.put("slots", slots);
+        return out;
+    }
+
+    /** Where a Siegeling is currently working, so the Enclave can offer the unassigned ones
+        first and tag the rest as a reassignment rather than a free invite. */
+    private Map<String, Object> residentAssignment(KeepState state, String residentId) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        String type = "";
+        String id = "";
+        String label = "";
+        if (residentId.equals(state.getWoodlotResidentId())) {
+            type = "STATION";
+            id = "woodlot";
+            label = "Restorative Woodlot";
+        } else {
+            for (Map.Entry<String, String> entry : state.getFacilityResidentIds().entrySet()) {
+                if (residentId.equals(entry.getValue()) && facilityLevel(state, entry.getKey()) > 0) {
+                    type = "STATION";
+                    id = entry.getKey();
+                    label = FACILITIES.getOrDefault(entry.getKey(), FacilityDefinition.EMPTY).name();
+                    break;
+                }
+            }
+            if (type.isEmpty() && state.getEnclaveLevel() > 0) {
+                List<String> enclaveIds = normalizedEnclaveResidents(state);
+                int slot = enclaveIds.indexOf(residentId);
+                if (slot >= 0) {
+                    type = "ENCLAVE";
+                    id = String.valueOf(slot);
+                    label = "Enclave space " + (slot + 1);
+                }
+            }
+            if (type.isEmpty() && state.getAkharsFrontLevel() > 0) {
+                List<String> frontIds = normalizedAkharsFrontResidents(state);
+                int slot = frontIds.indexOf(residentId);
+                if (slot >= 0) {
+                    type = "FRONT";
+                    id = String.valueOf(slot);
+                    label = "Akhar's Front post " + (slot + 1);
+                }
+            }
+        }
+        out.put("assigned", !type.isEmpty());
+        out.put("type", type);
+        out.put("id", id);
+        out.put("label", label);
+        return out;
     }
 
     private List<Map<String, Object>> milestones(KeepState state, PlayerProgressionEntity progression, Instant now) {
@@ -1128,7 +1797,77 @@ public class KeepService {
         return date.get(IsoFields.WEEK_BASED_YEAR) + "-W" + date.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR);
     }
 
+    /** Construction project with the dashboard's cost/duration overrides applied. */
     private BuildProject buildProject(String id) {
+        BuildProject shipped = shippedBuildProject(id);
+        if (shipped == null) return null;
+        KeepTuning tuning = tuning();
+        return new BuildProject(shipped.id(), shipped.name(),
+                tuning.timberCost(shipped.id(), shipped.timberCost()), shipped.materialCosts(),
+                tuning.durationSeconds(shipped.id(), shipped.durationSeconds()));
+    }
+
+    /** Every project id the dashboard may retune, in the order players meet them. */
+    private static final List<String> PROJECT_IDS = List.of(
+            "restore_archive", "woodlot_level_2", "raise_storehouse", "build_garden", "build_forge",
+            "build_fridge", "build_generator", "build_quarry", "build_kitchen", "build_builders_yard",
+            "build_enclave", "storehouse_level_2", "garden_level_2", "forge_level_2", "fridge_level_2",
+            "generator_level_2", "quarry_level_2", "kitchen_level_2", "hall_level_2", "hall_level_3",
+            "hall_level_4", "hall_level_5", "hall_level_6", "hall_level_7", "hall_level_8",
+            "woodlot_storage_annex", "garden_storage_annex", "forge_storage_annex",
+            "fridge_storage_annex", "generator_storage_annex", "quarry_storage_annex",
+            "kitchen_storage_annex");
+
+    /** Shipped workshop output, for the dashboard's "default" column. */
+    public static List<Map<String, Object>> shippedBuildingDefaults() {
+        List<Map<String, Object>> out = new ArrayList<>();
+        FACILITIES.forEach((id, definition) -> {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("id", id);
+            item.put("name", definition.name());
+            item.put("resourceName", definition.resourceName());
+            item.put("ratePerMinute", definition.baseRatePerMinute());
+            item.put("storage", definition.baseStorage());
+            out.add(item);
+        });
+        return out;
+    }
+
+    /** Shipped construction cost and duration for every retunable project. */
+    public static List<Map<String, Object>> shippedProjectDefaults() {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (String id : PROJECT_IDS) {
+            BuildProject project = shippedBuildProject(id);
+            if (project == null) continue;
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("id", project.id());
+            item.put("name", project.name());
+            item.put("timberCost", project.timberCost());
+            item.put("seconds", project.durationSeconds());
+            item.put("materialCosts", project.materialCosts());
+            out.add(item);
+        }
+        return out;
+    }
+
+    /** Shipped tool and decoration blueprints, grouped by the room that hosts them. */
+    public static List<Map<String, Object>> shippedRecipeDefaults() {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (CraftRecipe recipe : RECIPES.values()) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("id", recipe.id());
+            item.put("name", recipe.name());
+            item.put("type", recipe.type());
+            item.put("roomId", recipe.roomId());
+            item.put("tier", recipe.tier());
+            item.put("bonusLabel", recipe.bonusLabel());
+            item.put("costs", recipe.materialCosts());
+            out.add(item);
+        }
+        return out;
+    }
+
+    private static BuildProject shippedBuildProject(String id) {
         if (id == null || id.isBlank()) return null;
         return switch (id) {
             case "restore_archive" -> new BuildProject(id, "Restore the Living Archive", ARCHIVE_RESTORE_COST, Map.of(), ARCHIVE_RESTORE_SECONDS);
@@ -1141,6 +1880,9 @@ public class KeepService {
             case "build_quarry" -> new BuildProject(id, "Open the Covenant Quarry", 240, Map.of(), 7_200);
             case "build_kitchen" -> new BuildProject(id, "Warm the Garden Kitchen", 210, Map.of(), 5_400);
             case "build_builders_yard" -> new BuildProject(id, "Raise the Builder's Yard", 260, Map.of("stone", 18), 10_800);
+            case "build_enclave" -> new BuildProject(id, "Raise the Siegeling Enclave", ENCLAVE_BUILD_COST, Map.of(), ENCLAVE_BUILD_SECONDS);
+            case "build_akhars_front" -> new BuildProject(id, "Raise Akhar's Front", AKHARS_FRONT_BUILD_COST,
+                    Map.of("stone", 20), AKHARS_FRONT_BUILD_SECONDS);
             case "storehouse_level_2" -> new BuildProject(id, "Vault the Storehouse", 320,
                     Map.of("verdant_fiber", 18, "ember_ingot", 12, "frost_crystal", 12, "storm_cell", 8), 28_800);
             case "hall_level_2" -> new BuildProject(id, "Raise the Timber Outpost", 120, Map.of(), 900);
@@ -1156,6 +1898,10 @@ public class KeepService {
             case "hall_level_8" -> new BuildProject(id, "Consecrate the Grand Keep", 640,
                     Map.of("verdant_fiber", 28, "ember_ingot", 28, "frost_crystal", 22, "storm_cell", 18), 86_400);
             default -> {
+                String storageRoom = storageProjectRoom(id);
+                if (storageRoom != null) {
+                    yield storageBuildProject(id, storageRoom);
+                }
                 String suffix = "_level_2";
                 String facilityId = id.endsWith(suffix) ? id.substring(0, id.length() - suffix.length()) : "";
                 yield FACILITIES.containsKey(facilityId)
@@ -1179,6 +1925,9 @@ public class KeepService {
             case "build_quarry" -> state.getStorehouseLevel() >= 1 && facilityLevel(state, "quarry") < 1;
             case "build_kitchen" -> state.getStorehouseLevel() >= 1 && facilityLevel(state, "kitchen") < 1;
             case "build_builders_yard" -> facilityLevel(state, "quarry") >= 1 && state.getBuildersYardLevel() < 1;
+            case "build_enclave" -> state.getArchiveLevel() >= 1 && state.getEnclaveLevel() < 1;
+            case "build_akhars_front" -> state.getEnclaveLevel() >= 1 && hallLevel(state) >= 3
+                    && facilityLevel(state, "quarry") >= 1 && state.getAkharsFrontLevel() < 1;
             case "storehouse_level_2" -> elementalFacilitiesAtLeast(state, 1) && state.getStorehouseLevel() < 2
                     && state.getBuildersYardLevel() >= 1;
             case "hall_level_2", "hall_level_3", "hall_level_4", "hall_level_5",
@@ -1187,6 +1936,11 @@ public class KeepService {
                 yield hallLevel(state) == level - 1 && hallUpgradeGateMet(state, level);
             }
             default -> {
+                String storageRoom = storageProjectRoom(id);
+                if (storageRoom != null) {
+                    yield state.getBuildersYardLevel() >= 1 && productionRoomLevel(state, storageRoom) >= 2
+                            && state.getStorageUpgradeLevels().getOrDefault(storageRoom, 0) < 1;
+                }
                 String facilityId = id.endsWith("_level_2")
                         ? id.substring(0, id.length() - "_level_2".length()) : "";
                 yield FACILITIES.containsKey(facilityId) && facilityLevel(state, facilityId) == 1
@@ -1194,6 +1948,10 @@ public class KeepService {
             }
         };
         if (!valid) throw new IllegalArgumentException("That project is not available yet.");
+        int requiredLevel = keeperUnlockLevel(project.id());
+        if (keeperLevel(state.getKeeperXp()) < requiredLevel) {
+            throw new IllegalArgumentException("Reach Keeper Level " + requiredLevel + " to begin this project.");
+        }
     }
 
     private int parseHallLevel(String projectId) {
@@ -1248,7 +2006,7 @@ public class KeepService {
         };
     }
 
-    private Map<String, Integer> levelTwoMaterialCosts(String facilityId) {
+    private static Map<String, Integer> levelTwoMaterialCosts(String facilityId) {
         return switch (facilityId) {
             case "garden" -> Map.of("frost_crystal", 18, "ember_ingot", 14);
             case "forge" -> Map.of("verdant_fiber", 24, "storm_cell", 10);
@@ -1257,6 +2015,42 @@ public class KeepService {
             case "quarry" -> Map.of("ember_ingot", 14, "storm_cell", 8);
             case "kitchen" -> Map.of("stone", 14, "frost_crystal", 10);
             default -> Map.of();
+        };
+    }
+
+    private static String storageProjectRoom(String projectId) {
+        if (projectId == null || !projectId.endsWith("_storage_annex")) return null;
+        String roomId = projectId.substring(0, projectId.length() - "_storage_annex".length());
+        return "woodlot".equals(roomId) || FACILITIES.containsKey(roomId) ? roomId : null;
+    }
+
+    private int productionRoomLevel(KeepState state, String roomId) {
+        return "woodlot".equals(roomId) ? state.getWoodlotLevel() : facilityLevel(state, roomId);
+    }
+
+    private static String productionRoomName(String roomId) {
+        if ("woodlot".equals(roomId)) return "Restorative Woodlot";
+        FacilityDefinition definition = FACILITIES.get(roomId);
+        return definition == null ? roomId : definition.name();
+    }
+
+    private static BuildProject storageBuildProject(String id, String roomId) {
+        return switch (roomId) {
+            case "woodlot" -> new BuildProject(id, "Raise the Woodlot Storewall", 260,
+                    Map.of("verdant_fiber", 18, "stone", 8), 14_400);
+            case "garden" -> new BuildProject(id, "Dig the Garden Root Cellar", 280,
+                    Map.of("verdant_fiber", 22, "stone", 10), 18_000);
+            case "forge" -> new BuildProject(id, "Raise the Forge Stockhouse", 320,
+                    Map.of("ember_ingot", 22, "stone", 12), 21_600);
+            case "fridge" -> new BuildProject(id, "Deepen the Frost Vault", 340,
+                    Map.of("frost_crystal", 24, "stone", 12), 25_200);
+            case "generator" -> new BuildProject(id, "Ground the Cell Reserve", 360,
+                    Map.of("storm_cell", 20, "ember_ingot", 12, "stone", 10), 28_800);
+            case "quarry" -> new BuildProject(id, "Cut the Quarry Depot", 380,
+                    Map.of("stone", 30, "verdant_fiber", 12), 32_400);
+            case "kitchen" -> new BuildProject(id, "Raise the Provision Loft", 400,
+                    Map.of("provisions", 24, "stone", 16, "verdant_fiber", 12), 36_000);
+            default -> null;
         };
     }
 
@@ -1292,50 +2086,181 @@ public class KeepService {
         Map<String, CraftRecipe> out = new LinkedHashMap<>();
         out.put("gardener_tools", new CraftRecipe("gardener_tools", "Rootwise Pruning Kit", "TOOL", "garden", 1,
                 Map.of("verdant_fiber", 12, "ember_ingot", 6), false,
-                "Tools designed with resident guidance increase Garden production.", "Garden output +20%"));
+                "Tools designed with resident guidance increase Garden production.", "Garden output +20%", 1, ""));
         out.put("tempered_tongs", new CraftRecipe("tempered_tongs", "Consent-Forged Tongs", "TOOL", "forge", 1,
                 Map.of("ember_ingot", 12, "frost_crystal", 5), false,
-                "Cold-gripped tongs let partners work the forge without being bound to its heat.", "Forge output +20%"));
+                "Cold-gripped tongs let partners work the forge without being bound to its heat.", "Forge output +20%", 1, ""));
         out.put("coldseal_kit", new CraftRecipe("coldseal_kit", "Coldseal Preservation Kit", "TOOL", "fridge", 1,
                 Map.of("frost_crystal", 12, "verdant_fiber", 8), false,
-                "Woven seals hold a steady frost while leaving the resident free to rest.", "Fridge output +20%"));
+                "Woven seals hold a steady frost while leaving the resident free to rest.", "Fridge output +20%", 1, ""));
         out.put("tuning_key", new CraftRecipe("tuning_key", "Resonance Tuning Key", "TOOL", "generator", 1,
                 Map.of("storm_cell", 10, "ember_ingot", 6), false,
-                "A many-element key balances the shared current instead of forcing it.", "Generator output +20%"));
+                "A many-element key balances the shared current instead of forcing it.", "Generator output +20%", 1, ""));
         out.put("covenant_crates", new CraftRecipe("covenant_crates", "Covenant Storage Crates", "BONUS", "great_hall", 1,
                 Map.of("verdant_fiber", 18, "ember_ingot", 10), false,
-                "Labeled modular crates make every elemental material easier to preserve.", "+75 material capacity"));
+                "Labeled modular crates make every elemental material easier to preserve.", "+75 material capacity", 0, ""));
         out.put("insulated_channels", new CraftRecipe("insulated_channels", "Insulated Element Channels", "BONUS", "generator", 1,
                 Map.of("frost_crystal", 10, "storm_cell", 10), false,
-                "Balanced channels carry surplus power safely between every workshop.", "All elemental output +10%"));
+                "Balanced channels carry surplus power safely between every workshop.", "All elemental output +10%", 0, ""));
         out.put("living_trellis", new CraftRecipe("living_trellis", "Living Covenant Trellis", "DECORATION", "garden", 1,
                 Map.of("verdant_fiber", 8), false,
-                "A flowering trellis that bends toward willing elemental partners.", "Garden interior decoration"));
+                "A flowering trellis that bends toward willing elemental partners.", "Garden interior decoration", 1, ""));
         out.put("ember_lantern", new CraftRecipe("ember_lantern", "Emberglass Lantern", "DECORATION", "forge", 1,
                 Map.of("ember_ingot", 7), false,
-                "A warm lantern whose flame dims whenever the Forge resident rests.", "Forge interior decoration"));
+                "A warm lantern whose flame dims whenever the Forge resident rests.", "Forge interior decoration", 1, ""));
         out.put("frostglass_mobile", new CraftRecipe("frostglass_mobile", "Frostglass Memory Mobile", "DECORATION", "fridge", 1,
                 Map.of("frost_crystal", 7), false,
-                "Chimes of preserved ice replay faint impressions from the sanctuary.", "Fridge interior decoration"));
+                "Chimes of preserved ice replay faint impressions from the sanctuary.", "Fridge interior decoration", 1, ""));
         out.put("harmonic_orb", new CraftRecipe("harmonic_orb", "Harmonic Current Orb", "DECORATION", "generator", 1,
                 Map.of("storm_cell", 6), false,
-                "A hovering model of the four workshop currents moving in accord.", "Generator interior decoration"));
+                "A hovering model of the four workshop currents moving in accord.", "Generator interior decoration", 1, ""));
         out.put("covenant_tapestry", new CraftRecipe("covenant_tapestry", "Tapestry of Four Currents", "DECORATION", "great_hall", 1,
                 Map.of("verdant_fiber", 4, "ember_ingot", 4, "frost_crystal", 4, "storm_cell", 4), false,
-                "A hall tapestry woven from every material produced by the Keep.", "Covenant Hall decoration"));
+                "A hall tapestry woven from every material produced by the Keep.", "Covenant Hall decoration", 1, ""));
         out.put("mason_mauls", new CraftRecipe("mason_mauls", "Stonewise Mason Mauls", "TOOL", "quarry", 1,
                 Map.of("stone", 12, "ember_ingot", 6), false,
-                "Balanced mauls split stone along its willing grain instead of forcing it.", "Quarry output +20%"));
+                "Balanced mauls split stone along its willing grain instead of forcing it.", "Quarry output +20%", 1, ""));
         out.put("hearth_set", new CraftRecipe("hearth_set", "Shared-Table Hearth Set", "TOOL", "kitchen", 1,
                 Map.of("stone", 8, "ember_ingot", 8), false,
-                "Pots sized for residents and visitors alike keep the kitchen turning.", "Kitchen output +20%"));
+                "Pots sized for residents and visitors alike keep the kitchen turning.", "Kitchen output +20%", 1, ""));
         out.put("stone_sentinel", new CraftRecipe("stone_sentinel", "Quarry Stone Sentinel", "DECORATION", "quarry", 1,
                 Map.of("stone", 8), false,
-                "A carved guardian watching over the cut faces of the quarry.", "Quarry interior decoration"));
+                "A carved guardian watching over the cut faces of the quarry.", "Quarry interior decoration", 1, ""));
         out.put("hearth_garland", new CraftRecipe("hearth_garland", "Harvest Hearth Garland", "DECORATION", "kitchen", 1,
                 Map.of("provisions", 7), false,
-                "Dried blooms and braided grain hung over the kitchen hearth.", "Kitchen interior decoration"));
+                "Dried blooms and braided grain hung over the kitchen hearth.", "Kitchen interior decoration", 1, ""));
+
+        out.put("coppice_hooks", new CraftRecipe("coppice_hooks", "Coppice Hooks", "TOOL", "woodlot", 1,
+                Map.of("verdant_fiber", 8), false,
+                "Curved hooks guide fallen growth without scarring living trunks.", "Woodlot output +20%", 1, ""));
+        out.put("carved_waypost", new CraftRecipe("carved_waypost", "Carved Covenant Waypost", "DECORATION", "woodlot", 1,
+                Map.of("verdant_fiber", 6), false,
+                "A waypost marking the paths the grove has agreed to share.", "Woodlot interior decoration", 1, ""));
+
+        addRoomExpansions(out, "woodlot", "Woodlot", "verdant_fiber", new String[]{"ember_ingot", "stone"}, "coppice_hooks",
+                new String[][]{
+                        {"sapling_spades", "Sapling Spades", "Narrow iron blades lift seedlings without tearing the root ball."},
+                        {"resin_saws", "Resin-Safe Saws", "Cold-set teeth cut without heating resin, so a wounded trunk still seals itself."},
+                        {"grove_pulleys", "Grove Pulleys", "Counterweighted lines carry fallen limbs out of the grove instead of dragging them through it."},
+                        {"renewal_rig", "Renewal Harvest Rig", "A rolling frame that fells, sorts, and replants in one pass agreed with the grove."}},
+                new String[][]{
+                        {"seedling_rack", "Seedling Rack", "Stepped trays where next season's saplings wait out the frost."},
+                        {"sunwoven_blind", "Sunwoven Blind", "A rolled blind of split cane that rations the grove window's light."},
+                        {"moss_lanterns", "Moss Lanterns", "Glass jars of luminous moss hung from the rafters, fed on nothing but damp air."},
+                        {"covenant_chimes", "Covenant Wind Chimes", "Hollow limbs tuned to the grove's own creak, hung where the door draught reaches them."},
+                        {"coppice_storewall", "Coppice Storewall", "A ventilated wall of sorted coppice bins keeps a longer harvest dry without sealing it away."}});
+        addRoomExpansions(out, "garden", "Garden", "verdant_fiber", new String[]{"frost_crystal", "stone"}, "gardener_tools",
+                new String[][]{
+                        {"dewline_irrigator", "Dewline Irrigator", "Chilled coils pull water from morning air so the beds never draw down the spring."},
+                        {"pollinator_lanterns", "Pollinator Lanterns", "Soft lights that invite night pollinators to work the beds on their own schedule."},
+                        {"root_survey_table", "Root Survey Table", "A glass-topped table for reading root maps before a single bed is disturbed."},
+                        {"symbiotic_trellis_rig", "Symbiotic Trellis Rig", "Movable frames that let climbing growth choose its own direction each season."}},
+                new String[][]{
+                        {"seed_banners", "Seed Banners", "Linen pouches hung in rows, each holding a strain the garden has promised to keep."},
+                        {"rain_basin", "Rain Basin", "A shallow catch basin of polished stone that keeps the bed edges damp."},
+                        {"blossom_arch", "Blossom Arch", "A flowering arch framing the garden window, replanted every spring."},
+                        {"covenant_topiary", "Covenant Topiary", "A shrub clipped into the sanctuary's mark, trimmed only where it agrees to grow."},
+                        {"seedkeeper_vault", "Seedkeeper Vault", "Breathing drawers preserve seed, fiber, and cuttings beside the beds that produced them."}});
+        addRoomExpansions(out, "forge", "Forge", "ember_ingot", new String[]{"stone", "storm_cell"}, "tempered_tongs",
+                new String[][]{
+                        {"ember_bellows", "Ember Bellows", "Stone-weighted bellows hold an even heat without anyone pumping through the night."},
+                        {"resonance_anvil", "Resonance Anvil", "A tuned face that rings the moment metal is worked past its willingness."},
+                        {"cooling_rack", "Balanced Cooling Rack", "Staged racks let finished work cool slowly instead of being quenched in shock."},
+                        {"accord_hammer", "Hammer of Accord", "A charged head that shapes with pressure rather than force."}},
+                new String[][]{
+                        {"oathwork_shield", "Oathwork Shield", "A ceremonial shield hung above the bellows, never carried into a fight."},
+                        {"spark_banner", "Spark Banner", "Scorch-dyed cloth that catches every flare thrown from the hearth."},
+                        {"ingot_mosaic", "Ingot Mosaic", "Offcut ingots set into the forge floor in a spiral of cooling colors."},
+                        {"forge_chimes", "Forge Chimes", "Failed blade blanks rehung as chimes, so nothing made here is wasted."},
+                        {"tempered_stock_rack", "Tempered Stock Rack", "A heat-baffled rack keeps ingots sorted near the hearth without annealing their edges."}});
+        addRoomExpansions(out, "fridge", "Fridge", "frost_crystal", new String[]{"verdant_fiber", "storm_cell"}, "coldseal_kit",
+                new String[][]{
+                        {"crystal_tongs", "Crystal Tongs", "Fiber-wrapped grips move raw crystal without leaching warmth into it."},
+                        {"hoarfrost_shelves", "Hoarfrost Shelves", "Deep shelves that hold their own frost line without a resident tending them."},
+                        {"thermal_gauge", "Thermal Accord Gauge", "A charged gauge that warns before the vault chills past what stored life can take."},
+                        {"stasis_cabinet", "Stasis Cabinet", "A sealed cabinet where nothing ages and nothing is forced to stay."}},
+                new String[][]{
+                        {"snowflake_screen", "Snowflake Screen", "A folding screen of frosted panes that breaks the vault draught."},
+                        {"memory_crystals", "Memory Crystals", "A cluster of clouded crystals that replay the day they were cut."},
+                        {"aurora_lamp", "Aurora Lamp", "A charged ribbon of light drawn across the ceiling like a captive aurora."},
+                        {"ice_sculpture", "Covenant Ice Sculpture", "A carved figure that renews itself from the vault's own frost."},
+                        {"frostbound_larder", "Frostbound Larder", "Layered crystal drawers hold a deeper reserve at a separate, gentler frost line."}});
+        addRoomExpansions(out, "generator", "Generator", "storm_cell", new String[]{"ember_ingot", "frost_crystal"}, "tuning_key",
+                new String[][]{
+                        {"balanced_coils", "Balanced Coils", "Paired coils share the load so neither side of the current is overdrawn."},
+                        {"current_dampers", "Current Dampers", "Frost-cored dampers absorb the surges that used to shake the workshop."},
+                        {"spectrum_console", "Spectrum Console", "A wide console that reads all four workshop currents at once."},
+                        {"maestro_regulator", "Maestro Regulator", "A regulator that conducts the whole keep's power like a held chord."}},
+                new String[][]{
+                        {"prism_banners", "Prism Banners", "Split-light banners that scatter the conduit glow across the back wall."},
+                        {"conduit_globe", "Conduit Globe", "A glass globe holding a slow, contained storm on a brass stand."},
+                        {"thunder_chimes", "Thunder Chimes", "Hanging rods that answer the coils with a low roll of sound."},
+                        {"covenant_orrery", "Covenant Orrery", "Nested rings modelling every workshop current turning in accord."},
+                        {"charged_cell_bank", "Charged Cell Bank", "Insulated cubbies ground spare cells individually so a larger reserve never becomes one storm."}});
+        addRoomExpansions(out, "quarry", "Quarry", "stone", new String[]{"ember_ingot", "verdant_fiber"}, "mason_mauls",
+                new String[][]{
+                        {"grain_compass", "Stone-Grain Compass", "An iron needle that finds the seam a block is already willing to split along."},
+                        {"dustless_chisel", "Dustless Chisel", "A damped chisel that keeps cutting dust out of the diggers' lungs."},
+                        {"counterweight_crane", "Counterweight Crane", "Rope and counterweight lift cut blocks that no resident should be asked to carry."},
+                        {"covenant_cutter", "Covenant Stone Cutter", "A guided cutter that takes only the stone the face has already loosened."}},
+                new String[][]{
+                        {"rune_mosaic", "Runestone Mosaic", "Quarry marks reset into the back wall as a record of every face worked."},
+                        {"crystal_sconce", "Crystal Sconce", "A wall sconce of quarry crystal that keeps the cut faces readable."},
+                        {"mason_banner", "Mason Banner", "A dust-grey banner carrying the marks of every mason who worked here."},
+                        {"echo_fountain", "Echo Fountain", "A basin cut from a single block; the quarry answers whatever is said over it."},
+                        {"stonewise_pallets", "Stonewise Pallets", "Low sprung pallets spread the weight of finished blocks without cracking the quarry floor."}});
+        addRoomExpansions(out, "kitchen", "Kitchen", "provisions", new String[]{"verdant_fiber", "stone"}, "hearth_set",
+                new String[][]{
+                        {"garden_knives", "Garden Knives", "Fiber-handled knives sized for hands and claws alike."},
+                        {"preserving_jars", "Preserving Jars", "Stone-stoppered jars that hold a season's surplus without a cold vault."},
+                        {"shared_oven", "Shared Hearth Oven", "A second oven mouth so visitors can cook beside the residents, not after them."},
+                        {"abundance_table", "Table of Abundance", "A long table built so no one at the meal sits at its end."}},
+                new String[][]{
+                        {"painted_crocks", "Painted Crocks", "Glazed crocks painted by residents with the meal each one holds."},
+                        {"recipe_tapestry", "Recipe Tapestry", "A woven record of every dish the sanctuary has cooked for a guest."},
+                        {"communal_bench", "Communal Bench", "A low bench pulled up to the hearth for whoever arrives hungry."},
+                        {"lantern_wreath", "Lantern Wreath", "A ring of small lanterns hung over the table for late meals."},
+                        {"provision_pantry", "Covenant Provision Pantry", "A cool, many-sized pantry gives every resident a shelf and keeps a longer season's meals."}});
         return out;
+    }
+
+    /**
+     * Room expansions deliberately cost the workshop's own material plus one or two partner
+     * materials, so later tiers cannot be finished by farming a single station. The partner
+     * amounts stay small at tier 2 and grow with the tier to keep the first expansion reachable.
+     */
+    private static void addRoomExpansions(Map<String, CraftRecipe> out, String roomId, String roomName,
+                                          String resourceId, String[] partnerResourceIds, String firstToolId,
+                                          String[][] tools, String[][] decorations) {
+        String previous = firstToolId;
+        for (int index = 0; index < tools.length; index++) {
+            int tier = index + 2;
+            String id = tools[index][0];
+            out.put(id, new CraftRecipe(id, tools[index][1], "TOOL", roomId, tier >= 4 ? 2 : 1,
+                    expansionCost(resourceId, partnerResourceIds, 8 + tier * 4, tier, true), false,
+                    tools[index][2], roomName + " output +20%", tier, previous));
+            previous = id;
+        }
+        for (int index = 0; index < decorations.length; index++) {
+            int tier = index + 2;
+            String id = decorations[index][0];
+            String bonus = STORAGE_DECORATIONS.containsValue(id)
+                    ? roomName + " storage +25% while displayed" : roomName + " interior decoration";
+            out.put(id, new CraftRecipe(id, decorations[index][1], "DECORATION", roomId, tier >= 4 ? 2 : 1,
+                    expansionCost(resourceId, partnerResourceIds, 4 + tier * 3, tier, false), false,
+                    decorations[index][2], bonus, tier, ""));
+        }
+    }
+
+    private static Map<String, Integer> expansionCost(String resourceId, String[] partnerResourceIds,
+                                                      int primaryAmount, int tier, boolean tool) {
+        Map<String, Integer> costs = new LinkedHashMap<>();
+        costs.put(resourceId, primaryAmount);
+        int first = tool ? 2 * tier : tier + 1;
+        int second = tool ? 2 * tier - 3 : tier - 1;
+        if (partnerResourceIds.length > 0) costs.merge(partnerResourceIds[0], first, Integer::sum);
+        if (partnerResourceIds.length > 1 && tier >= 4) costs.merge(partnerResourceIds[1], second, Integer::sum);
+        return java.util.Collections.unmodifiableMap(costs);
     }
 
     private static Map<String, HallTheme> createHallThemes() {
@@ -1367,8 +2292,10 @@ public class KeepService {
             String element = card.getElement() == null ? "NEUTRAL" : card.getElement().name();
             String rarity = card.getRarity() == null ? "COMMON" : card.getRarity().name();
             boolean preferred = Set.of("EARTH", "WIND", "WATER", "LIGHT").contains(element);
+            SieglingSize size = card.getSize() != null ? card.getSize()
+                    : SieglingSize.defaultFor(card.getRarity(), 0);
             out.add(new Resident(card.getId(), card.getName(), element, rarity,
-                    card.getCardArtUrl() == null ? "" : card.getCardArtUrl(), preferred));
+                    card.getCardArtUrl() == null ? "" : card.getCardArtUrl(), size.name(), preferred));
         }
         out.sort((a, b) -> a.name().compareToIgnoreCase(b.name()));
         return out;
@@ -1415,9 +2342,13 @@ public class KeepService {
         station.put("level", state.getWoodlotLevel());
         station.put("available", available);
         station.put("storageCapacity", woodlotStorageCapacity(state));
+        station.put("storageBonusPercent", localStorageBonusPercent(state, "woodlot"));
+        station.put("storageUpgradeLevel", state.getStorageUpgradeLevels().getOrDefault("woodlot", 0));
+        station.put("storageDecorationActive", placedDecorationIds(state, "woodlot")
+                .contains(STORAGE_DECORATIONS.get("woodlot")));
         station.put("ratePerMinute", woodlotRate(state, residents));
         station.put("residentId", state.getWoodlotResidentId());
-        station.put("resident", invited == null ? null : serializeResident(invited, "woodlot"));
+        station.put("resident", invited == null ? null : serializeResident(state, invited, "woodlot"));
         station.put("collectCount", state.getWoodlotCollectCount());
         station.put("isFull", available >= woodlotStorageCapacity(state));
         station.put("resource", "TIMBER");
@@ -1429,8 +2360,25 @@ public class KeepService {
         }
         out.put("stations", stations);
 
-        List<Map<String, Object>> residentPayload = residents.stream().map(this::serializeResident).toList();
+        List<Map<String, Object>> residentPayload = residents.stream()
+                .map(resident -> serializeResident(state, resident)).toList();
         out.put("residents", residentPayload);
+        int siegelingSlotCapacity = 1 + (int) FACILITIES.keySet().stream()
+                .filter(id -> facilityLevel(state, id) > 0).count()
+                + (state.getEnclaveLevel() > 0 ? ENCLAVE_CAPACITY : 0)
+                + (state.getAkharsFrontLevel() > 0 ? AKHARS_FRONT_CAPACITY : 0);
+        int activeSiegelingSlots = (state.getWoodlotResidentId().isBlank() ? 0 : 1)
+                + (int) FACILITIES.keySet().stream()
+                .filter(id -> facilityLevel(state, id) > 0)
+                .filter(id -> !state.getFacilityResidentIds().getOrDefault(id, "").isBlank()).count()
+                + (state.getEnclaveLevel() > 0
+                    ? (int) normalizedEnclaveResidents(state).stream().filter(id -> !id.isBlank()).count() : 0)
+                + (state.getAkharsFrontLevel() > 0
+                    ? (int) normalizedAkharsFrontResidents(state).stream().filter(id -> !id.isBlank()).count() : 0);
+        out.put("siegelingSlots", Map.of(
+                "active", activeSiegelingSlots,
+                "capacity", siegelingSlotCapacity,
+                "available", Math.max(0, siegelingSlotCapacity - activeSiegelingSlots)));
         out.put("buildings", buildings(state));
         out.put("buildOptions", buildOptions(state));
         List<Map<String, Object>> constructions = activeConstructions(state, now);
@@ -1445,6 +2393,8 @@ public class KeepService {
         visualState.put("hallLevel", hallLevel(state));
         visualState.put("hallTheme", state.getHallThemeId().isBlank() ? "covenant" : state.getHallThemeId());
         visualState.put("buildersYardLevel", state.getBuildersYardLevel());
+        visualState.put("enclaveLevel", state.getEnclaveLevel());
+        visualState.put("akharsFrontLevel", state.getAkharsFrontLevel());
         visualState.put("favoriteSet", !state.getFavoriteResidentId().isBlank());
         FACILITIES.keySet().forEach(id -> visualState.put(id + "Level", facilityLevel(state, id)));
         out.put("visualState", visualState);
@@ -1453,7 +2403,7 @@ public class KeepService {
         int favoritePercent = (int) Math.round(favoriteBoost(state, residents) * 100);
         Map<String, Object> favoriteOut = new LinkedHashMap<>();
         favoriteOut.put("residentId", state.getFavoriteResidentId());
-        favoriteOut.put("resident", favoriteRes == null ? null : serializeResident(favoriteRes));
+        favoriteOut.put("resident", favoriteRes == null ? null : serializeResident(state, favoriteRes));
         favoriteOut.put("bonusPercent", favoritePercent);
         favoriteOut.put("label", favoriteRes == null ? "No favorite chosen"
                 : titleCase(favoriteRes.rarity()) + " favorite · +" + favoritePercent + "% keep-wide");
@@ -1497,10 +2447,13 @@ public class KeepService {
         out.put("recipes", recipes(state));
         out.put("decorations", decorations(state));
         out.put("placedDecorations", state.getPlacedDecorations());
+        out.put("enclave", enclave(state, progression, residents));
+        out.put("akharsFront", akharsFront(state, residents, now));
         out.put("milestones", milestones(state, progression, now));
         out.put("weeklyTribute", weeklyTribute(state, progression, residents, now));
         out.put("weeklyOrder", weeklyOrder(state, progression, residents, now));
         if (offlineReport != null && !offlineReport.isEmpty()) out.put("offlineReport", offlineReport);
+        out.put("keeper", keeperBlock(state, progression, now));
         out.put("progressionReady", progression.getStarterPackId() != null);
         return out;
     }
@@ -1508,8 +2461,8 @@ public class KeepService {
     private List<Map<String, Object>> buildings(KeepState state) {
         List<Map<String, Object>> out = new ArrayList<>();
         int hall = hallLevel(state);
-        boolean hallConstructing = state.getActiveConstructionId().startsWith("hall_level_")
-                || state.getActiveConstructionId2().startsWith("hall_level_");
+        boolean hallConstructing = constructionSlotsInUse(state).stream()
+                .anyMatch(slot -> slot.id().startsWith("hall_level_"));
         out.add(building("great_hall", "Covenant Hall", hall, hallConstructing ? "CONSTRUCTING" : "COMPLETE"));
         out.add(building("builders_yard", state.getBuildersYardLevel() > 0 ? "Builder's Yard" : "Yard Foundations",
                 state.getBuildersYardLevel(), isConstructing(state, "build_builders_yard") ? "CONSTRUCTING"
@@ -1523,6 +2476,12 @@ public class KeepService {
         out.add(building("archive", state.getArchiveLevel() > 0 ? "Living Archive" : "Ruined Archive", state.getArchiveLevel(),
                 isConstructing(state, "restore_archive") ? "CONSTRUCTING"
                         : state.getArchiveLevel() > 0 ? "COMPLETE" : "RUINED"));
+        out.add(building("enclave", state.getEnclaveLevel() > 0 ? "Siegeling Enclave" : "Enclave Clearing",
+                state.getEnclaveLevel(), isConstructing(state, "build_enclave") ? "CONSTRUCTING"
+                        : state.getEnclaveLevel() > 0 ? "COMPLETE" : "FOUNDATIONS"));
+        out.add(building("akhars_front", state.getAkharsFrontLevel() > 0 ? "Akhar's Front" : "Distant Front",
+                state.getAkharsFrontLevel(), isConstructing(state, "build_akhars_front") ? "CONSTRUCTING"
+                        : state.getAkharsFrontLevel() > 0 ? "COMPLETE" : "LOCKED"));
         out.add(building("storehouse", state.getStorehouseLevel() > 0 ? "Covenant Storehouse" : "Storehouse Foundations",
                 state.getStorehouseLevel(), constructionStatus(state, "raise_storehouse", "storehouse_level_2", state.getStorehouseLevel())));
         for (FacilityDefinition definition : FACILITIES.values()) {
@@ -1537,7 +2496,18 @@ public class KeepService {
         return Map.of("id", id, "name", name, "level", level, "status", status);
     }
 
+    /**
+     * A project stays "available" by its prerequisites while its crew works — facility levels only
+     * rise on completion — so an in-progress project would otherwise be offered again and fail at
+     * startBuild. Drop it here so a free team only ever sees projects it can actually take.
+     */
     private List<Map<String, Object>> buildOptions(KeepState state) {
+        List<Map<String, Object>> out = collectBuildOptions(state);
+        out.removeIf(option -> isConstructing(state, String.valueOf(option.get("id"))));
+        return out;
+    }
+
+    private List<Map<String, Object>> collectBuildOptions(KeepState state) {
         List<Map<String, Object>> out = new ArrayList<>();
         if (state.getArchiveLevel() < 1) {
             out.add(buildOption(state, "restore_archive", "Restore the Living Archive", ARCHIVE_RESTORE_COST, Map.of(),
@@ -1550,12 +2520,14 @@ public class KeepService {
                     WOODLOT_LEVEL_TWO_SECONDS, "Replace clear-cutting with a grove shaped by human and Siegeling knowledge.",
                     true));
             addHallUpgradeOption(state, out);
+            addEnclaveBuildOption(state, out);
             return out;
         }
         if (state.getStorehouseLevel() < 1) {
             out.add(buildOption(state, "raise_storehouse", "Raise the Covenant Storehouse", STOREHOUSE_LEVEL_ONE_COST, Map.of(),
                     STOREHOUSE_LEVEL_ONE_SECONDS, "Double timber room and expand every workstation's offline storage.", true));
             addHallUpgradeOption(state, out);
+            addEnclaveBuildOption(state, out);
             return out;
         }
         for (FacilityDefinition definition : FACILITIES.values()) {
@@ -1569,7 +2541,7 @@ public class KeepService {
             BuildProject project = buildProject("build_builders_yard");
             out.add(buildOption(state, project.id(), project.name(), project.timberCost(), project.materialCosts(),
                     project.durationSeconds(),
-                    "Advanced construction recipes and a second crew: level-2 expansions unlock and two projects can run at once.", true));
+                    "Advanced construction recipes: level-2 expansions unlock while Keeper Level determines simultaneous teams.", true));
         }
         if (state.getBuildersYardLevel() >= 1) {
             for (FacilityDefinition definition : FACILITIES.values()) {
@@ -1584,9 +2556,37 @@ public class KeepService {
                 out.add(buildOption(state, project.id(), project.name(), project.timberCost(), project.materialCosts(),
                         project.durationSeconds(), "Combine all four elemental materials into a larger sanctuary vault.", true));
             }
+            for (String roomId : PRODUCTION_ROOMS) {
+                if (productionRoomLevel(state, roomId) < 2
+                        || state.getStorageUpgradeLevels().getOrDefault(roomId, 0) > 0) continue;
+                BuildProject project = buildProject(roomId + "_storage_annex");
+                out.add(buildOption(state, project.id(), project.name(), project.timberCost(), project.materialCosts(),
+                        project.durationSeconds(), "Add dedicated local storage beside the "
+                                + productionRoomName(roomId) + " for +50% offline capacity.", true));
+            }
         }
         addHallUpgradeOption(state, out);
+        addEnclaveBuildOption(state, out);
+        addAkharsFrontBuildOption(state, out);
         return out;
+    }
+
+    private void addEnclaveBuildOption(KeepState state, List<Map<String, Object>> out) {
+        if (state.getArchiveLevel() < 1 || state.getEnclaveLevel() > 0 || isConstructing(state, "build_enclave")) return;
+        BuildProject project = buildProject("build_enclave");
+        out.add(buildOption(state, project.id(), project.name(), project.timberCost(), project.materialCosts(),
+                project.durationSeconds(),
+                "A home apart from the work quarter, with five resident spaces and a personal mission from every guest.", true));
+    }
+
+    private void addAkharsFrontBuildOption(KeepState state, List<Map<String, Object>> out) {
+        if (state.getEnclaveLevel() < 1 || hallLevel(state) < 3 || facilityLevel(state, "quarry") < 1
+                || state.getAkharsFrontLevel() > 0 || isConstructing(state, "build_akhars_front")) return;
+        BuildProject project = buildProject("build_akhars_front");
+        out.add(buildOption(state, project.id(), project.name(), project.timberCost(), project.materialCosts(),
+                project.durationSeconds(),
+                "Fortify the road with three voluntary rampart posts. Defenders repel Akhar's raiders and earn Siegecoins while you are away.",
+                true));
     }
 
     /** The next hall rank appears alongside other projects once its gate is met. */
@@ -1604,6 +2604,8 @@ public class KeepService {
 
     private Map<String, Object> buildOption(KeepState state, String id, String name, int timberCost, Map<String, Integer> materialCosts,
                                             long seconds, String description, boolean unlocked) {
+        int requiredLevel = keeperUnlockLevel(id);
+        boolean levelMet = keeperLevel(state.getKeeperXp()) >= requiredLevel;
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("id", id);
         out.put("name", name);
@@ -1611,19 +2613,19 @@ public class KeepService {
         out.put("materialCosts", serializeMaterialCosts(materialCosts));
         out.put("durationSeconds", seconds);
         out.put("description", description);
-        out.put("canStart", unlocked && hasFreeConstructionSlot(state)
+        out.put("requiredLevel", requiredLevel);
+        out.put("levelMet", levelMet);
+        out.put("canStart", unlocked && levelMet && hasFreeConstructionSlot(state)
                 && state.getTimber() >= timberCost && hasMaterials(state, materialCosts));
         return out;
     }
 
     private List<Map<String, Object>> activeConstructions(KeepState state, Instant now) {
         List<Map<String, Object>> out = new ArrayList<>();
-        Map<String, Object> first = constructionEntry(state.getActiveConstructionId(),
-                state.getConstructionStartedAt(), state.getConstructionCompletesAt(), now);
-        if (first != null) out.add(first);
-        Map<String, Object> second = constructionEntry(state.getActiveConstructionId2(),
-                state.getConstructionStartedAt2(), state.getConstructionCompletesAt2(), now);
-        if (second != null) out.add(second);
+        for (ConstructionSlot slot : constructionSlotsInUse(state)) {
+            Map<String, Object> entry = constructionEntry(slot.id(), slot.startedAt(), slot.completesAt(), now);
+            if (entry != null) out.add(entry);
+        }
         return out;
     }
 
@@ -1646,17 +2648,44 @@ public class KeepService {
         out.put("name", resident.name());
         out.put("element", resident.element());
         out.put("rarity", resident.rarity());
+        out.put("size", resident.size());
         out.put("artUrl", resident.artUrl());
         out.put("preferredAtWoodlot", resident.preferredAtWoodlot());
         out.put("affinityLabel", resident.preferredAtWoodlot() ? "Woodland affinity · +15%" : "Willing helper · normal rate");
         return out;
     }
 
+    /** Resident payload with the live rapport and assignment the Enclave picker needs. */
+    private Map<String, Object> serializeResident(KeepState state, Resident resident) {
+        Map<String, Object> out = serializeResident(resident);
+        out.put("rapport", serializeRapport(state, resident.id()));
+        out.put("assignment", residentAssignment(state, resident.id()));
+        return out;
+    }
+
+    private Map<String, Object> serializeResident(KeepState state, Resident resident, String stationId) {
+        Map<String, Object> out = serializeResident(resident, stationId);
+        out.put("rapport", serializeRapport(state, resident.id()));
+        out.put("assignment", residentAssignment(state, resident.id()));
+        // The station bonus a player actually receives already includes rapport, so the
+        // posted percentage must too or the room card would understate a bonded partner.
+        int effective = (int) Math.round(stationBonusPercent(state, resident, stationId));
+        int level = rapportLevel(state, resident.id());
+        out.put("affinityBonusPercent", effective);
+        out.put("affinityLabel", effective > 0
+                ? titleCase(resident.element()) + " affinity · +" + effective + "%"
+                        + (level > 0 ? " (rapport " + level + ")" : "")
+                : "Willing helper · normal rate");
+        return out;
+    }
+
     private Map<String, Object> serializeResident(Resident resident, String stationId) {
         Map<String, Object> out = serializeResident(resident);
         boolean affinity = stationAffinity(resident, stationId);
-        int bonus = "woodlot".equals(stationId) ? (affinity ? 15 : 0)
-                : affinity ? 20 : "NEUTRAL".equals(resident.element()) ? 5 : 0;
+        int bonus = "woodlot".equals(stationId)
+                ? (affinity ? tuning().woodlotAffinityPercent() : 0)
+                : affinity ? tuning().facilityAffinityPercent()
+                : "NEUTRAL".equals(resident.element()) ? tuning().facilityNeutralPercent() : 0;
         out.put("hasAffinity", affinity);
         out.put("affinityBonusPercent", bonus);
         out.put("affinityLabel", bonus > 0 ? titleCase(resident.element()) + " affinity · +" + bonus + "%"
@@ -1696,7 +2725,7 @@ public class KeepService {
         if (!state.getUnlockedLoreIds().containsAll(conversation.requiresLoreIds())) return false;
         if (!state.getChoiceFlags().containsAll(conversation.requiresFlags())) return false;
         if (state.getStorehouseLevel() < conversation.minStorehouseLevel()) return false;
-        if (loreCatalog.isVisitor(conversation)) {
+        if (loreCatalog.isRollingEncounter(conversation)) {
             return state.getActiveVisitorIds().contains(conversation.id());
         }
         return !state.getCompletedConversationIds().contains(conversation.id());
@@ -1706,12 +2735,12 @@ public class KeepService {
         List<String> active = state.getActiveVisitorIds();
         active.removeIf(id -> {
             Conversation conversation = loreCatalog.conversation(id);
-            return conversation == null || !loreCatalog.isVisitor(conversation);
+            return conversation == null || !loreCatalog.isRollingEncounter(conversation);
         });
         boolean changed = false;
         boolean rollReady = state.getLastVisitorRollAt() == null
                 || !now.isBefore(state.getLastVisitorRollAt().plus(VISITOR_ROLL_COOLDOWN));
-        if (!rollReady || active.size() >= MAX_ACTIVE_VISITORS) {
+        if (!rollReady) {
             state.setActiveVisitorIds(active);
             return false;
         }
@@ -1725,8 +2754,30 @@ public class KeepService {
             state.setActiveVisitorIds(active);
             return false;
         }
+        // Prefer seating one returning voice so affinity can climb or fall over time.
+        // If the slate is full of first meetings, swap one out when a returnee is ready.
+        List<Conversation> returnees = candidates.stream()
+                .filter(candidate -> state.getNpcTrust().containsKey(candidate.npcId()))
+                .collect(Collectors.toCollection(ArrayList::new));
+        boolean returneeSeated = active.stream().anyMatch(id -> isReturningNpc(state, loreCatalog.conversation(id)));
+        if (!returnees.isEmpty() && !returneeSeated) {
+            if (active.size() >= MAX_ACTIVE_VISITORS) {
+                for (int i = active.size() - 1; i >= 0; i--) {
+                    if (!isReturningNpc(state, loreCatalog.conversation(active.get(i)))) {
+                        active.remove(i);
+                        break;
+                    }
+                }
+            }
+            if (active.size() < MAX_ACTIVE_VISITORS) {
+                Conversation picked = weightedPick(returnees, state);
+                active.add(picked.id());
+                candidates.remove(picked);
+                changed = true;
+            }
+        }
         while (active.size() < MAX_ACTIVE_VISITORS && !candidates.isEmpty()) {
-            Conversation picked = weightedPick(candidates);
+            Conversation picked = weightedPick(candidates, state);
             active.add(picked.id());
             candidates.remove(picked);
             changed = true;
@@ -1734,6 +2785,10 @@ public class KeepService {
         if (changed) state.setLastVisitorRollAt(now);
         state.setActiveVisitorIds(active);
         return changed;
+    }
+
+    private boolean isReturningNpc(KeepState state, Conversation conversation) {
+        return conversation != null && state.getNpcTrust().containsKey(conversation.npcId());
     }
 
     private boolean meetsVisitorRequirements(KeepState state, Conversation visitor, Instant now) {
@@ -1744,15 +2799,29 @@ public class KeepService {
         return availableAt == null || !now.isBefore(availableAt);
     }
 
-    private Conversation weightedPick(List<Conversation> candidates) {
-        int total = candidates.stream().mapToInt(Conversation::weight).sum();
+    private Conversation weightedPick(List<Conversation> candidates, KeepState state) {
+        int total = 0;
+        int[] weights = new int[candidates.size()];
+        for (int i = 0; i < candidates.size(); i++) {
+            Conversation candidate = candidates.get(i);
+            int weight = Math.max(1, candidate.weight());
+            if (state != null && state.getNpcTrust().containsKey(candidate.npcId())) {
+                weight *= RETURNING_NPC_WEIGHT_MULT;
+            }
+            weights[i] = weight;
+            total += weight;
+        }
         int roll = total <= 1 ? 0 : random.nextInt(total);
         int cursor = 0;
-        for (Conversation candidate : candidates) {
-            cursor += candidate.weight();
-            if (roll < cursor) return candidate;
+        for (int i = 0; i < candidates.size(); i++) {
+            cursor += weights[i];
+            if (roll < cursor) return candidates.get(i);
         }
         return candidates.get(candidates.size() - 1);
+    }
+
+    private Conversation weightedPick(List<Conversation> candidates) {
+        return weightedPick(candidates, null);
     }
 
     private Outcome rollOutcome(List<Outcome> outcomes) {
@@ -1834,21 +2903,219 @@ public class KeepService {
         }
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map.Entry<String, Integer> entry : state.getNpcTrust().entrySet()) {
-            int trust = Math.max(0, entry.getValue());
-            String stage = trust >= 7 ? "Bonded" : trust >= 3 ? "Trusted" : trust >= 1 ? "Acquainted" : "Wary";
+            int trust = Math.max(0, Math.min(NPC_TRUST_MAX, entry.getValue()));
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("npcId", entry.getKey());
             row.put("npcName", names.getOrDefault(entry.getKey(), entry.getKey()));
-            row.put("stage", stage);
+            row.put("stage", relationshipStage(trust));
             // trustMax matches the Bonded threshold so the Voices spectrum can render like↔dislike.
             row.put("trust", trust);
-            row.put("trustMax", 7);
+            row.put("trustMax", NPC_TRUST_MAX);
             out.add(row);
         }
         return out;
     }
 
+    static String relationshipStage(int trust) {
+        int value = Math.max(0, trust);
+        if (value >= NPC_TRUST_MAX) return "Bonded";
+        if (value >= 3) return "Trusted";
+        if (value >= 1) return "Acquainted";
+        return "Distant";
+    }
+
     /** Lifetime keep stats power keep achievements and titles; recording is best-effort and must never fail a keep action. */
+    // ── Keeper leveling / battlepass ──────────────────────────────────────────
+
+    /** Cumulative XP required to reach a level. Step L→L+1 costs 50L+50, so
+     *  reach(L) = 25(L-1)(L+2): reach(2)=100, reach(3)=250, … reach(25)=16200. */
+    private static long keeperXpToReach(int level) {
+        int l = Math.max(1, Math.min(KEEPER_MAX_LEVEL, level));
+        return 25L * (l - 1) * (l + 2);
+    }
+
+    private int keeperLevel(long xp) {
+        int level = 1;
+        while (level < KEEPER_MAX_LEVEL && xp >= keeperXpToReach(level + 1)) level++;
+        return level;
+    }
+
+    private String dayKey(Instant now) {
+        return now.atZone(ZoneOffset.UTC).toLocalDate().toString();
+    }
+
+    /** Adds XP up to the level cap; returns the amount actually applied. */
+    private int awardKeeperXp(KeepState state, int amount) {
+        if (state == null || amount <= 0) return 0;
+        long max = keeperXpToReach(KEEPER_MAX_LEVEL);
+        long before = state.getKeeperXp();
+        long after = Math.min(max, before + amount);
+        state.setKeeperXp(after);
+        return (int) (after - before);
+    }
+
+    /** First visit of a new UTC day grants login XP. Returns XP applied (0 if already claimed today). */
+    private int grantDailyKeeperXp(KeepState state, Instant now) {
+        String today = dayKey(now);
+        String lastDay = state.getKeeperDailyXpAt() == null ? "" : dayKey(state.getKeeperDailyXpAt());
+        if (today.equals(lastDay)) return 0;
+        state.setKeeperDailyXpAt(now);
+        return awardKeeperXp(state, KEEPER_DAILY_LOGIN_XP);
+    }
+
+    /** Resource-collection XP, throttled by a per-day cap so idle-collecting can't be farmed. */
+    private int grantResourceKeeperXp(KeepState state, Instant now, int desired) {
+        String today = dayKey(now);
+        if (!today.equals(state.getKeeperResourceXpDay())) {
+            state.setKeeperResourceXpDay(today);
+            state.setKeeperResourceXpToday(0);
+        }
+        int room = Math.max(0, KEEPER_RESOURCE_XP_DAILY_CAP - state.getKeeperResourceXpToday());
+        int grant = Math.min(room, Math.max(0, desired));
+        if (grant <= 0) return 0;
+        state.setKeeperResourceXpToday(state.getKeeperResourceXpToday() + grant);
+        return awardKeeperXp(state, grant);
+    }
+
+    /** One-time seeding so keeps that predate leveling start at a level matching their progress. */
+    private void backfillKeeperXp(KeepState state) {
+        if (state.isKeeperXpBackfilled()) return;
+        long floor = (long) totalBuildLevels(state) * 40L
+                + (long) state.getWoodlotCollectCount() * 10L
+                + (long) state.getEssenceCollectCount() * 15L
+                + (long) state.getCraftCount() * 20L
+                + (long) state.getUnlockedLoreIds().size() * 12L
+                + (long) Math.max(0, hallLevel(state) - 1) * 120L;
+        long max = keeperXpToReach(KEEPER_MAX_LEVEL);
+        state.setKeeperXp(Math.min(max, Math.max(state.getKeeperXp(), floor)));
+        state.setKeeperXpBackfilled(true);
+    }
+
+    /** Keeper Level required to begin a project. The prerequisite-sequenced restoration
+     *  chain stays ungated (level 1); the keep-RANK upgrades are what leveling unlocks,
+     *  so raising to hall rank N asks for Keeper Level N. */
+    private int keeperUnlockLevel(String projectId) {
+        Integer destinationLevel = DESTINATION_PROJECT_LEVELS.get(projectId);
+        if (destinationLevel != null) return destinationLevel;
+        Integer storageLevel = STORAGE_PROJECT_LEVELS.get(projectId);
+        if (storageLevel != null) return storageLevel;
+        if (projectId != null && projectId.startsWith("hall_level_")) {
+            int n = parseHallLevel(projectId);
+            return n <= 0 ? 1 : Math.min(KEEPER_MAX_LEVEL, n);
+        }
+        return 1;
+    }
+
+    /** Timeline copy for what a level opens: keep-rank ups (the buildings) map to real
+     *  rank names; otherwise a granted decoration or the milestone cache. Rank-up nodes
+     *  carry the rank name alone — every node in that band is a rank up, so the prefix
+     *  only repeated itself down the timeline. */
+    private String keeperUnlockLabel(int level) {
+        List<String> labels = new ArrayList<>();
+        if (level >= 2 && level <= HALL_MAX_LEVEL) labels.add(rankName(level));
+        DESTINATION_PROJECT_LEVELS.entrySet().stream()
+                .filter(entry -> entry.getValue() == level)
+                .map(Map.Entry::getKey)
+                .map(this::buildProject)
+                .filter(project -> project != null)
+                .map(project -> "Project: " + project.name())
+                .forEach(labels::add);
+        if (!labels.isEmpty()) return String.join(" · ", labels);
+        String storageProject = STORAGE_PROJECT_LEVELS.entrySet().stream()
+                .filter(entry -> entry.getValue() == level)
+                .map(Map.Entry::getKey).findFirst().orElse("");
+        if (!storageProject.isBlank()) return "Storage project: " + buildProject(storageProject).name();
+        String decoration = KEEPER_LEVEL_DECORATIONS.getOrDefault(level, "");
+        if (!decoration.isBlank()) return "New decoration · " + recipeName(decoration);
+        if (level % KEEPER_LEVELS_PER_CHAPTER == 0) return "Milestone cache · bonus Siegecoins & Remnants";
+        return "";
+    }
+
+    private Map<String, Object> keeperBlock(KeepState state, PlayerProgressionEntity progression, Instant now) {
+        long xp = state.getKeeperXp();
+        int level = keeperLevel(xp);
+        boolean atMax = level >= KEEPER_MAX_LEVEL;
+        long start = keeperXpToReach(level);
+        long end = atMax ? start : keeperXpToReach(level + 1);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("level", level);
+        out.put("maxLevel", KEEPER_MAX_LEVEL);
+        out.put("totalXp", xp);
+        out.put("levelStartXp", start);
+        out.put("levelEndXp", end);
+        out.put("xpIntoLevel", xp - start);
+        out.put("xpForLevel", Math.max(0, end - start));
+        out.put("atMax", atMax);
+        out.put("rankName", rankName(hallLevel(state)));
+        String lastDay = state.getKeeperDailyXpAt() == null ? "" : dayKey(state.getKeeperDailyXpAt());
+        out.put("dailyXpClaimed", dayKey(now).equals(lastDay));
+        out.put("dailyLoginXp", KEEPER_DAILY_LOGIN_XP);
+        out.put("resourceXpToday", dayKey(now).equals(state.getKeeperResourceXpDay()) ? state.getKeeperResourceXpToday() : 0);
+        out.put("resourceXpDailyCap", KEEPER_RESOURCE_XP_DAILY_CAP);
+
+        List<Map<String, Object>> chapters = new ArrayList<>();
+        for (int c = 0; c < KEEPER_CHAPTERS.length; c++) {
+            int from = c * KEEPER_LEVELS_PER_CHAPTER + 1;
+            int to = (c + 1) * KEEPER_LEVELS_PER_CHAPTER;
+            Map<String, Object> chapter = new LinkedHashMap<>();
+            chapter.put("id", "chapter_" + (c + 1));
+            chapter.put("number", c + 1);
+            chapter.put("title", KEEPER_CHAPTERS[c][0]);
+            chapter.put("subtitle", KEEPER_CHAPTERS[c][1]);
+            chapter.put("fromLevel", from);
+            chapter.put("toLevel", to);
+            chapter.put("current", level >= from && level <= to);
+            chapter.put("complete", level > to);
+            chapters.add(chapter);
+        }
+        out.put("chapters", chapters);
+
+        List<Map<String, Object>> levels = new ArrayList<>();
+        int unclaimed = 0;
+        for (int lv = 1; lv <= KEEPER_MAX_LEVEL; lv++) {
+            boolean reached = level >= lv;
+            boolean claimed = progression.getKeepRewardClaimIds().contains("keeper_level:" + lv);
+            boolean canClaim = reached && !claimed;
+            if (canClaim) unclaimed++;
+            KeeperReward reward = keeperReward(lv);
+            Map<String, Object> rewardOut = new LinkedHashMap<>();
+            rewardOut.put("gold", reward.gold());
+            rewardOut.put("remnants", reward.remnants());
+            if (!reward.decorationId().isBlank()) {
+                rewardOut.put("decorationId", reward.decorationId());
+                rewardOut.put("decorationName", recipeName(reward.decorationId()));
+            }
+            Map<String, Object> node = new LinkedHashMap<>();
+            node.put("level", lv);
+            node.put("chapterNumber", (lv - 1) / KEEPER_LEVELS_PER_CHAPTER + 1);
+            node.put("reward", rewardOut);
+            node.put("unlockLabel", keeperUnlockLabel(lv));
+            node.put("requiredXp", keeperXpToReach(lv));
+            node.put("reached", reached);
+            node.put("claimed", claimed);
+            node.put("canClaim", canClaim);
+            node.put("current", lv == level);
+            levels.add(node);
+        }
+        out.put("levels", levels);
+        out.put("unclaimedRewards", unclaimed);
+        return out;
+    }
+
+    /** Free-track reward for a Keeper Level: gold + remnants every level (milestone bonus every 5th),
+     *  plus an owned decoration on the levels in KEEPER_LEVEL_DECORATIONS. */
+    private KeeperReward keeperReward(int level) {
+        int gold = 40 + level * 12;
+        int remnants = 8 + level * 3;
+        if (level % KEEPER_LEVELS_PER_CHAPTER == 0) { gold += 120; remnants += 40; }
+        return new KeeperReward(gold, remnants, KEEPER_LEVEL_DECORATIONS.getOrDefault(level, ""));
+    }
+
+    private String recipeName(String recipeId) {
+        CraftRecipe recipe = recipeById(recipeId);
+        return recipe == null ? "" : recipe.name();
+    }
+
     private void recordKeepStats(PlayerProgressionEntity progression, Consumer<PlayerProgressionEntity> update) {
         if (progression == null) return;
         try {
@@ -1907,12 +3174,21 @@ public class KeepService {
         this.clock = clock == null ? Clock.systemUTC() : clock;
     }
 
+    void setTuningService(KeepTuningService tuningService) {
+        this.tuningService = tuningService;
+    }
+
+    /** Live designer tuning, or the shipped defaults when no tuning source is wired. */
+    private KeepTuning tuning() {
+        return tuningService == null ? KeepTuning.EMPTY : tuningService.current();
+    }
+
     void setRandom(Random random) {
         this.random = random == null ? new Random() : random;
     }
 
     private record Resident(String id, String name, String element, String rarity, String artUrl,
-                            boolean preferredAtWoodlot) { }
+                            String size, boolean preferredAtWoodlot) { }
     private record FacilityDefinition(String id, String name, String ruinedName, String resourceId,
                                       String resourceName, double baseRatePerMinute, int baseStorage,
                                       Set<String> affinities, String toolRecipeId, String buildDescription) {
@@ -1922,9 +3198,11 @@ public class KeepService {
     private record HallTheme(String id, String name, String accent, String trim) { }
     private record CraftRecipe(String id, String name, String type, String roomId, int requiredLevel,
                                Map<String, Integer> materialCosts, boolean repeatable,
-                               String description, String bonusLabel) { }
+                               String description, String bonusLabel, int tier, String prerequisiteId) { }
     private record BuildProject(String id, String name, int timberCost, Map<String, Integer> materialCosts,
                                 long durationSeconds) { }
+    private record ConstructionSlot(int index, String id, Instant startedAt, Instant completesAt) { }
+    private record KeeperReward(int gold, int remnants, String decorationId) { }
     private record Context(PlayerProgressionEntity progression, KeepState state, List<Resident> residents, Instant now) { }
 
     public static class StaleKeepStateException extends IllegalStateException {

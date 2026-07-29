@@ -5,6 +5,10 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashSet;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -14,8 +18,86 @@ class GameJavaScriptRegressionTest {
     private static final Path GAME_JS = Path.of("src/main/resources/static/js/game.js");
     private static final Path HOME_JS = Path.of("src/main/resources/static/js/home.js");
     private static final Path HOME_HTML = Path.of("src/main/resources/static/home.html");
+    private static final Path PLAY_HTML = Path.of("src/main/resources/static/play.html");
+    private static final Path CARD_DASHBOARD_HTML = Path.of("src/main/resources/static/card-dashboard.html");
+    private static final Path CARD_BINDER_VISUAL_JS = Path.of("src/main/resources/static/js/card-binder-visual.js");
+    private static final Path NOTCH_IMAGE_DIR = Path.of("src/main/resources/static/img/notches");
+    private static final Path CARD_BACK_IMAGE_DIR = Path.of("src/main/resources/static/img/decks");
     private static final Path CARD_DASHBOARD_JS = Path.of("src/main/resources/static/js/card-dashboard.js");
     private static final Path STYLE_CSS = Path.of("src/main/resources/static/css/style.css");
+    private static final Path KEEP_HTML = Path.of("src/main/resources/static/keep.html");
+    private static final Path KEEP_CSS = Path.of("src/main/resources/static/css/keep.css");
+    private static final Path KEEP_JS = Path.of("src/main/resources/static/js/keep.js");
+    private static final Path ADVENTURE_CSS = Path.of("src/main/resources/static/css/adventure.css");
+    private static final Path ADVENTURE_JS = Path.of("src/main/resources/static/js/adventure.js");
+    private static final Path ADVENTURE_HTML = Path.of("src/main/resources/static/adventure.html");
+
+    private static final Path LANDING_JS = Path.of("src/main/resources/static/js/landing.js");
+
+    /**
+     * The session survives a full-page hop between modes only if every bundle keeps a
+     * credential the backend can actually use. Discarding the localStorage token on
+     * the strength of the client-readable `sgl_auth` cookie is what made a player who
+     * had just signed in on the hub get asked to sign in all over again on My Keep:
+     * Firebase Hosting forwards no cookie but `__session` to Cloud Run, so the cookie
+     * the browser proudly stored never arrived. Only the server's `cookieSession`
+     * verdict may retire the token.
+     */
+    @Test
+    void noBundleDiscardsItsTokenOnAClientSideCookieGuess() throws IOException {
+        for (Path bundle : new Path[] { GAME_JS, HOME_JS, KEEP_JS, LANDING_JS }) {
+            String source = Files.readString(bundle);
+            assertFalse(
+                    source.contains("hasReadableAuthCookie() && !isStandalonePWA()"),
+                    bundle.getFileName() + " must not treat a readable cookie as proof the session reaches the "
+                            + "server; gate the migration on the server's cookieSession flag instead."
+            );
+            assertTrue(
+                    source.contains("cookieAuthConfirmed"),
+                    bundle.getFileName() + " must consult the server-confirmed cookie flag before dropping the token."
+            );
+        }
+
+        String gameScript = readGameScript();
+        assertTrue(
+                gameScript.contains("data.cookieSession === true"),
+                "game.js may only migrate to the cookie sentinel once /api/auth/me confirms the cookie arrived."
+        );
+        assertTrue(
+                Files.readString(HOME_JS).contains("data.cookieSession === true"),
+                "home.js may only migrate to the cookie sentinel once /api/auth/me confirms the cookie arrived."
+        );
+    }
+
+    /**
+     * The sentinel is the literal string "cookie". Testing it with an
+     * {@code indexOf('cookie:')} prefix never matched, so every cookie-mode player
+     * sent {@code Authorization: Bearer cookie} — a bogus header that beat the
+     * server's cookie bridge and left expeditions unable to see the account.
+     */
+    @Test
+    void siegeNeverSendsTheSentinelAsABearerToken() throws IOException {
+        String adventureJs = Files.readString(ADVENTURE_JS);
+
+        assertFalse(
+                adventureJs.contains("indexOf('cookie:')"),
+                "adventure.js must compare against the whole 'cookie' sentinel, not a 'cookie:' prefix."
+        );
+        assertTrue(
+                adventureJs.contains("token !== COOKIE_SESSION_VALUE"),
+                "adventure.js must skip the Authorization header when the token is the cookie sentinel."
+        );
+    }
+
+    @Test
+    void keepOffersRetryRatherThanASignInFormForTransientFailures() throws IOException {
+        String keepJs = Files.readString(KEEP_JS);
+
+        assertTrue(
+                keepJs.contains("data.status === 401 ? 'signin' : 'retry'"),
+                "My Keep must only show the sign-in gate for an authoritative 401; anything else gets a retry."
+        );
+    }
 
     @Test
     void onlineStartDoesNotFallBackToSoloBattle() throws IOException {
@@ -126,11 +208,13 @@ class GameJavaScriptRegressionTest {
         String choosePack = extractFunction(homeScript, "async function choosePack(packId, count = 1)");
         String clearPackResult = extractFunction(homeScript, "function clearPackResult()");
         String recoverStarter = extractFunction(homeScript, "async function recoverStarterPackProgression()");
+        String recoverShop = extractFunction(homeScript, "async function recoverShopPackProgression(requestId, packId)");
 
         assertTrue(
-                homeScript.contains("STARTER_PACK_TIMEOUT_MS = 60000")
+                homeScript.contains("PACK_OPEN_TIMEOUT_MS = 60000")
+                        && homeScript.contains("STARTER_PACK_TIMEOUT_MS = 60000")
                         && choosePack.contains("starterMode ? STARTER_PACK_TIMEOUT_MS : PACK_OPEN_TIMEOUT_MS"),
-                "Starter pack opens need a longer timeout than shop packs so cold Firestore grants can finish."
+                "Shop and starter pack opens need a 60s timeout so cold Firestore grants can finish."
         );
         assertTrue(
                 choosePack.contains("recoverStarterPackProgression()")
@@ -139,11 +223,43 @@ class GameJavaScriptRegressionTest {
                 "If the starter POST errors/times out after the grant, the client must recover from progression."
         );
         assertTrue(
+                choosePack.contains("recoverShopPackProgression(requestId, packId)")
+                        && recoverShop.contains("requestId")
+                        && recoverShop.contains("packHistory"),
+                "Timed-out shop pack opens must recover the reveal from progression via the idempotency request id."
+        );
+        assertTrue(
                 clearPackResult.contains("source")
                         && clearPackResult.contains("STARTER")
                         && clearPackResult.contains("navigateHub('home'")
                         && clearPackResult.contains("maybeStartOnboardingTour()"),
                 "Dismissing the starter gacha must land on Home and start the onboarding tour."
+        );
+    }
+
+    @Test
+    void dailyOfferPurchaseShowsImmediateConfirmModal() throws IOException {
+        String homeScript = readHomeScript();
+        String homeMarkup = Files.readString(HOME_HTML);
+        String purchaseDaily = extractFunction(homeScript, "async function purchaseDailyOffer(offerId)");
+        String confirmDaily = extractFunction(homeScript, "function confirmDailyOfferPurchase(offer)");
+
+        assertTrue(
+                homeMarkup.contains("id=\"shopPurchaseConfirmModal\"")
+                        && homeMarkup.contains("data-shop-purchase-confirm")
+                        && homeMarkup.contains("data-shop-purchase-cancel"),
+                "Daily card buys need a confirm modal shell so the tap can show feedback before the POST."
+        );
+        assertTrue(
+                purchaseDaily.contains("confirmDailyOfferPurchase(offer)")
+                        && confirmDaily.contains("shopPurchaseConfirmModal")
+                        && confirmDaily.contains("shopPurchaseConfirmResolver = resolve"),
+                "Daily offer taps must open the confirm modal synchronously before awaiting the purchase API."
+        );
+        assertTrue(
+                purchaseDaily.contains("Buying…")
+                        && purchaseDaily.contains("dailyOfferPurchasePending"),
+                "After confirm, the buy button must show an in-flight Buying state."
         );
     }
 
@@ -162,6 +278,169 @@ class GameJavaScriptRegressionTest {
                 homeMarkup.contains("data-shop-card-preview-backdrop")
                         && homeMarkup.contains("data-close-shop-card-preview"),
                 "Shop card preview modal must keep backdrop and close-button hooks so users can dismiss it."
+        );
+    }
+
+    @Test
+    void profileDashboardTrimsBattlesFavoritesAndSocialTable() throws IOException {
+        String homeScript = readHomeScript();
+        String homeMarkup = Files.readString(HOME_HTML);
+        String homeCss = Files.readString(Path.of("src/main/resources/static/css/home.css"));
+        String battleList = extractFunction(homeScript, "function renderBattleHistoryList(view, reviewable = true)");
+        String collection = extractFunction(homeScript, "function renderCollectionSnapshot(view)");
+        String friends = extractFunction(homeScript, "function renderFriendsPanel(view)");
+        String summary = extractFunction(homeScript, "function collectionSummary()");
+
+        assertTrue(
+                homeScript.contains("PROFILE_BATTLE_PREVIEW_MAX = 3")
+                        && battleList.contains("battles.slice(0, PROFILE_BATTLE_PREVIEW_MAX)")
+                        && battleList.contains("data-battle-history-open")
+                        && homeMarkup.contains("id=\"battleHistoryModalHost\""),
+                "Recent Battles must preview three matches and open the full scroll in a popup."
+        );
+        assertTrue(
+                homeScript.contains("PROFILE_FAVORITE_CARD_MAX = 3")
+                        && summary.contains("usingFavoriteCards")
+                        && summary.contains("rarestSorted.slice(0, PROFILE_FAVORITE_CARD_MAX)")
+                        && collection.contains("renderProfileShowcaseCard")
+                        && collection.contains("data-favorite-cards-open")
+                        && homeMarkup.contains("id=\"favoriteCardsModalHost\""),
+                "Cards Owned must showcase up to three player favorites with real card art, defaulting to rarest owned."
+        );
+        assertTrue(
+                homeScript.contains("PROFILE_FRIEND_PREVIEW_MAX = 3")
+                        && homeScript.contains("PROFILE_LOBBY_PREVIEW_MAX = 3")
+                        && friends.contains("friends.slice(0, PROFILE_FRIEND_PREVIEW_MAX)")
+                        && friends.contains(".slice(0, PROFILE_LOBBY_PREVIEW_MAX)")
+                        && friends.contains("profile-social-panel")
+                        && friends.contains("is-compact")
+                        && !friends.contains("friends-panel"),
+                "Social Table must show three friends and three lobbies, and must not reuse the tall friends-modal panel class."
+        );
+        assertTrue(
+                homeCss.contains(".battle-list-preview")
+                        && homeCss.contains(".profile-social-panel")
+                        && homeCss.contains(".mini-card-row-art"),
+                "Profile trim styles for battle preview, social shrink, and favorite card art must ship in home.css."
+        );
+        assertTrue(
+                homeMarkup.contains("home.js?v=120") && homeMarkup.contains("home.css?v=116"),
+                "Cache-bust pins for the profile dashboard trim must advance on home.html."
+        );
+    }
+
+    @Test
+    void profileFavoriteElementIconsUseCircularNotchMedallions() throws IOException {
+        String homeScript = readHomeScript();
+        String homeCss = Files.readString(Path.of("src/main/resources/static/css/home.css"));
+        String homeMarkup = Files.readString(HOME_HTML);
+        String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
+        String badge = extractFunction(homeScript, "function renderElementBadge(element)");
+        String avatar = extractFunction(homeScript, "function renderPlayerAvatar(prefs = {}, className = 'friend-avatar')");
+
+        assertTrue(
+                badge.contains("notchIconPath(normalized)")
+                        && avatar.contains("notchIconPath(normalizeProfileElement(prefs.favoriteElement))"),
+                "Profile favorite-element badges and element-mode avatars must use painted notch medallions."
+        );
+        assertTrue(
+                homeCss.contains(".player-avatar-element.profile-avatar")
+                        && homeCss.contains(".friend-avatar-wrap .player-avatar-element.friend-avatar")
+                        && homeCss.contains("border-radius: 50%")
+                        && homeCss.contains("object-fit: cover")
+                        && homeCss.contains("padding: 0"),
+                "Element-mode profile and friend avatars must fill a circular frame."
+        );
+        assertTrue(
+                homeMarkup.contains("home.css?v=116")
+                        && homeMarkup.contains("home.js?v=120")
+                        && dashboardMarkup.contains("home.css?v=116"),
+                "Profile icon CSS and JavaScript cache pins must advance together."
+        );
+    }
+
+    @Test
+    void everyPaintedElementUsesItsDedicatedNotchMedallion() throws IOException {
+        String gameScript = readGameScript();
+        String homeScript = readHomeScript();
+        String binderScript = Files.readString(CARD_BINDER_VISUAL_JS);
+        Set<String> elements = Set.of(
+                "fire", "earth", "wind", "water", "ice", "shadow",
+                "electric", "metal", "undead", "psychic", "poison", "light"
+        );
+
+        for (String element : elements) {
+            String mapping = element.toUpperCase() + ": '/img/notches/notch-" + element + ".png";
+            assertTrue(
+                    gameScript.contains(mapping) && homeScript.contains(mapping) && binderScript.contains(mapping),
+                    element + " must resolve to the same painted medallion in battle, Home, and binder views."
+            );
+            assertTrue(
+                    Files.isRegularFile(NOTCH_IMAGE_DIR.resolve("notch-" + element + ".png"))
+                            && Files.isRegularFile(NOTCH_IMAGE_DIR.resolve("notch-" + element + ".webp")),
+                    element + " must ship both PNG and WebP medallion assets."
+            );
+        }
+
+        String homeMarkup = Files.readString(HOME_HTML);
+        String playMarkup = Files.readString(PLAY_HTML);
+        String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
+        assertTrue(
+                homeMarkup.contains("style.css?v=216")
+                        && homeMarkup.contains("game.js?v=216")
+                        && homeMarkup.contains("card-binder-visual.js?v=19")
+                        && homeMarkup.contains("home.js?v=120")
+                        && playMarkup.contains("style.css?v=216")
+                        && playMarkup.contains("game.js?v=216")
+                        && dashboardMarkup.contains("style.css?v=216")
+                        && dashboardMarkup.contains("card-binder-visual.js?v=19"),
+                "Every surface must advance its cache pins with the complete painted-notch set."
+        );
+    }
+
+    @Test
+    void remainingElementsUseTheirDedicatedCardBacks() throws IOException {
+        String gameScript = readGameScript();
+        String homeScript = readHomeScript();
+        Set<String> elements = Set.of(
+                "water", "electric", "metal", "poison",
+                "undead", "psychic", "shadow", "light"
+        );
+
+        assertTrue(
+                homeScript.contains("const ELEMENTAL_CARD_BACK_VERSION = 5")
+                        && gameScript.contains("const DECK_ART_ASSET_VERSION = 5"),
+                "Home and battle must cache-bust the expanded elemental card-back set together."
+        );
+        assertTrue(
+                homeScript.contains("const key = elements.find(element => DECK_ASSET_KEYS.includes(element))")
+                        && gameScript.contains("const key = elements.find(element => DECK_ART_ASSET_KEYS.includes(element))"),
+                "Mixed decks must choose the first configured element's dedicated card back."
+        );
+
+        for (String element : elements) {
+            String asset = "/img/decks/card-back-" + element + ".png";
+            assertTrue(
+                    homeScript.contains(asset) && gameScript.contains(asset),
+                    element + " must resolve to the same card back in Home/shop and battle views."
+            );
+            assertTrue(
+                    Files.isRegularFile(CARD_BACK_IMAGE_DIR.resolve("card-back-" + element + ".png"))
+                            && Files.isRegularFile(CARD_BACK_IMAGE_DIR.resolve("card-back-" + element + ".webp")),
+                    element + " must ship both PNG and WebP card-back assets."
+            );
+        }
+
+        assertTrue(
+                homeScript.contains("Tidal Sigil")
+                        && homeScript.contains("Storm Sigil")
+                        && homeScript.contains("Iron Sigil")
+                        && homeScript.contains("Venom Sigil")
+                        && homeScript.contains("Spectral Sigil")
+                        && homeScript.contains("Mind Sigil")
+                        && homeScript.contains("Umbral Sigil")
+                        && homeScript.contains("Radiant Sigil"),
+                "All eight expanded card backs must be available in the profile picker."
         );
     }
 
@@ -187,6 +466,25 @@ class GameJavaScriptRegressionTest {
     }
 
     @Test
+    void shopPackFailureKeepsValidStateAndOffersAForcedRetry() throws IOException {
+        String homeScript = readHomeScript();
+        String applyPayload = extractFunction(homeScript, "function applyShopPacksPayload(data)");
+        String ensureLoaded = extractFunction(homeScript, "async function ensurePacksLoaded(force = false)");
+
+        assertTrue(
+                applyPayload.contains("if (!isValidShopPacksPayload(data))")
+                        && !applyPayload.substring(0, applyPayload.indexOf("return false;")).contains("state.packs ="),
+                "A failed or empty response must not wipe a previously valid in-memory pack catalog."
+        );
+        assertTrue(
+                ensureLoaded.contains("if (force) clearCache('shopPacks')")
+                        && homeScript.contains("data-retry-shop-packs")
+                        && homeScript.contains("ensurePacksLoaded(true)"),
+                "The Shop error state must expose a Retry action that bypasses the stale pack cache."
+        );
+    }
+
+    @Test
     void closeHostLobbyDoesNotSendCookieSentinelAsBearerToken() throws IOException {
         String closeHostLobby = extractFunction(readHomeScript(), "async function closeHostLobby(lobby)");
 
@@ -207,6 +505,26 @@ class GameJavaScriptRegressionTest {
                         && extractFunction(homeScript, "async function fetchGameOptions()").contains("if (!state.token)")
                         && extractFunction(homeScript, "async function submitAuth(mode)").contains("await refreshLiveCatalog()"),
                 "Signed-in binder loads must not reuse the guest gameOptions cache."
+        );
+    }
+
+    @Test
+    void binderWaitsForOwnedCardSnapshotWhenCachedProfileIsPartial() throws IOException {
+        String homeScript = readHomeScript();
+        String ownedDataLoading = extractFunction(homeScript, "function ownedDataLoading()");
+        String renderCards = extractFunction(homeScript, "function renderCards()");
+
+        assertTrue(
+                ownedDataLoading.contains("state.progression?.ownedCards")
+                        && ownedDataLoading.contains("!state.profileSynced")
+                        && !ownedDataLoading.contains("!state.profile;"),
+                "A cached identity without progression must keep the binder loading until ownedCards arrives."
+        );
+        assertTrue(
+                renderCards.contains("binderLoadingMarkup('Loading your card binder…')")
+                        && renderCards.contains("grid.setAttribute('aria-busy', 'true')")
+                        && renderCards.contains("allCount.textContent = 'Loading cards…'"),
+                "The binder load race must show a visible and accessible loading status instead of zero owned cards."
         );
     }
 
@@ -368,6 +686,21 @@ class GameJavaScriptRegressionTest {
                         && updateMulligan.contains("redrawBtn.textContent"),
                 "Mulligan selection must update in place so existing card image nodes are never replaced or flashed."
         );
+        String selectTrainer = extractFunction(gameScript, "function selectTrainerOption(");
+        String updateTrainer = extractFunction(gameScript, "function updateTrainerSelectionUI(");
+        String renderLoadout = extractFunction(gameScript, "function renderLoadoutOptions(");
+        assertTrue(
+                selectTrainer.contains("updateTrainerSelectionUI()")
+                        && !selectTrainer.contains("renderLoadoutOptions()")
+                        && updateTrainer.contains(".knight-card[data-trainer-id]")
+                        && updateTrainer.contains("card.classList.toggle('selected', selected)")
+                        && updateTrainer.contains("card.setAttribute('aria-pressed'")
+                        && updateTrainer.contains("knight-selected-ribbon")
+                        && renderLoadout.contains("preloadArtUrl(knightUploadedCardArtUrl(trainer))")
+                        && renderLoadout.contains("data-trainer-id=\"${escapeHtmlAttribute(trainer.id)}\"")
+                        && renderLoadout.contains("loading=\"eager\" decoding=\"async\""),
+                "SiegeKnight selection must preserve and eagerly preload every commander image while updating selection chrome in place."
+        );
     }
 
     @Test
@@ -463,6 +796,356 @@ class GameJavaScriptRegressionTest {
                 "Dedicated holo art must fill the shared card box the same way the painted element frame does "
                         + "(background-size 100% 100%), so no letterbox exposes the standard frame behind it on the board or in previews."
         );
+    }
+
+    @Test
+    void keepInteriorsDrawUniqueFurnishingsAndWalkRoomToRoom() throws IOException {
+        String keepHtml = Files.readString(KEEP_HTML);
+        String keepCss = Files.readString(KEEP_CSS);
+        String keepJs = Files.readString(KEEP_JS);
+
+        Matcher placeable = Pattern.compile("data-decoration-art=\"([a-z_]+)\" data-decor-slot=").matcher(keepHtml);
+        Set<String> decorationIds = new LinkedHashSet<>();
+        while (placeable.find()) decorationIds.add(placeable.group(1));
+        assertTrue(decorationIds.size() >= 35, "Every production room should expose its six placeable furnishings.");
+        for (String id : decorationIds) {
+            assertTrue(
+                    keepCss.contains("[data-decoration-art=\"" + id + "\"]"),
+                    id + " has no art of its own — interiors must not share one recoloured decoration template."
+            );
+        }
+        assertFalse(
+                keepCss.contains(".room-decoration-set [data-decor-slot="),
+                "Decoration geometry keyed by slot number makes every workshop read as the same room in a new hue."
+        );
+        assertTrue(
+                keepHtml.contains("data-decoration-art=\"coppice_storewall\"")
+                        && keepHtml.contains("data-decoration-art=\"provision_pantry\"")
+                        && keepJs.contains("<small>Local storage</small>")
+                        && keepJs.contains("roomDecorations.filter((item) => item.crafted).length}/${decorationTotal}")
+                        && keepJs.contains("recipe.type === 'DECORATION' ? roomDecorations.length : tools.length"),
+                "The sixth room furnishing must have unique location art and expose its storage effect in the upgrade summary."
+        );
+        assertTrue(
+                keepJs.contains("function stepInterior(") && keepJs.contains("INTERIOR_TOUR")
+                        && keepJs.contains("data-interior-goto=") && keepHtml.contains("data-interior-step=\"-1\"")
+                        && keepCss.contains(".interior-arrow"),
+                "Players must be able to move between interiors without stepping back out to the grounds."
+        );
+    }
+
+    /**
+     * A Siegeling's size band has to mean the same thing in every room it can stand in.
+     * The band shipped Enclave-only, so a Gigantic legendary towered over the huts and then
+     * shrank back to a stock silhouette the moment it was posted to a workshop.
+     */
+    @Test
+    void everyRoomThatDrawsAResidentAtWorldScaleHonoursItsSizeBand() throws IOException {
+        String keepCss = Files.readString(KEEP_CSS);
+
+        for (String holder : new String[] {
+                ".enclave-residents b", ".enclave-interior-residents b",
+                ".resident-worker > span", ".lodge-resident > span", ".hall-favorite-resident > span",
+                ".facility-room-resident > span" }) {
+            for (String band : new String[] { "SMALL", "MEDIUM", "LARGE", "GIGANTIC" }) {
+                assertTrue(
+                        keepCss.contains(holder + "[data-size=\"" + band + "\"]"),
+                        holder + " must take the " + band + " size band, or a resident changes height "
+                                + "just by being reassigned to that room."
+                );
+            }
+        }
+        // Every cutout dimension in those rooms must actually consume the scale.
+        for (String sized : new String[] {
+                ".resident-worker > span.has-overlay-art", ".lodge-resident > span.has-overlay-art",
+                ".hall-favorite-resident > span.has-overlay-art",
+                ".facility-room-resident > span.has-overlay-art" }) {
+            int at = keepCss.indexOf(sized);
+            assertTrue(at >= 0, sized + " is missing from keep.css");
+            String block = keepCss.substring(at, Math.min(keepCss.length(), at + 260));
+            assertTrue(
+                    block.contains("var(--cutout-scale)"),
+                    sized + " sets a fixed size, so its room ignores the Siegeling's size band."
+            );
+        }
+        // The Covenant Hall favorite is #hallFavoriteResident. The older .shrine-art rules are
+        // orphaned — #favoriteShrine is no longer in keep.html — so scaling them would only make
+        // dead CSS look maintained.
+        assertFalse(
+                keepCss.contains(".shrine-art[data-size="),
+                "#favoriteShrine is gone from keep.html; scale .hall-favorite-resident instead of dead CSS."
+        );
+    }
+
+    @Test
+    void enclaveSwapsResidentsByPortraitAndTheDashboardCanTuneTheKeep() throws IOException {
+        String keepJs = Files.readString(KEEP_JS);
+        String keepCss = Files.readString(KEEP_CSS);
+        String dashboardHtml = Files.readString(CARD_DASHBOARD_HTML);
+        String dashboardJs = Files.readString(CARD_DASHBOARD_JS);
+        String keepAdminJs = Files.readString(Path.of("src/main/resources/static/js/keep-admin.js"));
+
+        assertTrue(
+                keepJs.contains("data-enclave-picker=") && keepJs.contains("enclave-portrait")
+                        && keepJs.contains("state.enclavePickerSlot") && keepCss.contains(".enclave-portrait"),
+                "Tapping an Enclave portrait must reopen the assign menu."
+        );
+        assertFalse(
+                keepJs.contains(">Clear</button>"),
+                "The Enclave remove button was replaced by the tappable portrait; a stray Clear button reintroduces two ways to do one thing."
+        );
+        assertTrue(
+                keepJs.contains("!choice.assignment?.assigned") && keepJs.contains("reassign-tag")
+                        && keepCss.contains(".enclave-resident-choice .reassign-tag"),
+                "The assign menu must offer unassigned Siegelings first and tag anyone already posted as a reassignment."
+        );
+        assertTrue(
+                keepJs.contains("function rapportMeterMarkup(") && keepJs.contains("function enclaveTasksMarkup(")
+                        && keepCss.contains(".rapport-block"),
+                "Enclave residents must show their rapport and the tasks that raise it."
+        );
+        assertTrue(
+                dashboardHtml.contains("data-editor-page=\"KEEP\"") && dashboardHtml.contains("id=\"keepTuningPanel\"")
+                        && dashboardHtml.contains("/js/keep-admin.js?v=1")
+                        && dashboardJs.contains("state.editorPage === \"KEEP\"")
+                        && keepAdminJs.contains("/api/keep/tuning"),
+                "The dashboard needs a Keep page wired to the Keep tuning endpoints."
+        );
+        assertTrue(
+                keepAdminJs.contains("Building Output") && keepAdminJs.contains("Siegeling Buffs")
+                        && keepAdminJs.contains("Decorations & Tools") && keepAdminJs.contains("Enclave Tasks"),
+                "Keep tuning must cover building effects, resident buffs, decorations, and Enclave tasks."
+        );
+    }
+
+    @Test
+    void keeperJourneyOpensOnTheCurrentChapterAndScrollsItsListVertically() throws IOException {
+        String keepHtml = Files.readString(KEEP_HTML);
+        String keepCss = Files.readString(KEEP_CSS);
+        String keepJs = Files.readString(KEEP_JS);
+
+        assertTrue(
+                keepHtml.contains("id=\"journeyToggle\"")
+                        && keepJs.contains("journeyShowAllChapters = false")
+                        && keepJs.contains("journeyShowAllChapters || !currentChapter ? chapters : [currentChapter]")
+                        && keepJs.contains("`All ${chapters.length} chapters`"),
+                "The Keeper's Journey must open focused on the current chapter, with a toggle that reveals the full list."
+        );
+        assertTrue(
+                keepCss.contains(".journey-track { flex: 1 1 auto; min-height: 0;")
+                        && keepCss.contains("grid-template-columns: repeat(auto-fill, minmax(118px, 1fr))")
+                        && !keepCss.contains("scroll-snap-type: x proximity"),
+                "The chapter list must own the card's leftover height and wrap its levels into rows, so nothing is clipped in landscape."
+        );
+    }
+
+    @Test
+    void keepBuildingsAndRoomsUseLayeredPaperTreatments() throws IOException {
+        String keepHtml = Files.readString(KEEP_HTML);
+        String keepCss = Files.readString(KEEP_CSS);
+        String keepJs = Files.readString(KEEP_JS);
+
+        assertTrue(
+                keepHtml.contains("class=\"paper-building-shell\"")
+                        && keepHtml.contains("/css/keep.css?v=34")
+                        && keepHtml.contains("/js/keep.js?v=35")
+                        && keepHtml.contains("id=\"hallFavoriteResident\"")
+                        && keepHtml.contains("id=\"constructionBannerJobs\"")
+                        && keepHtml.contains("id=\"productionReady\"")
+                        && keepJs.contains("constructionBannerSignature")
+                        && keepJs.contains("data-live-banner-time=")
+                        && keepJs.contains("hallFavoriteResident")
+                        && keepJs.contains("favorite?.resident")
+                        && keepJs.contains("function offlineCapacityRow")
+                        && keepJs.contains("offline-capacity-list")
+                        && keepJs.contains("woodlotCapacity <= 0 || available < woodlotCapacity")
+                        && !keepJs.contains("productionReady')?.classList.toggle('hidden', available <= 0)")
+                        && !keepJs.contains("+${constructions.length - 1} more")
+                        && !keepJs.contains("Storage reached capacity\", `${name} stopped until collected`"),
+                "Keep architecture must retain its paper building hooks, refresh both asset cache pins, show the favorite in Covenant Hall, collapse storage-capacity offline alerts into one multi-line card, show each concurrent construction job in the banner, and gate the Woodlot Collect bubble to a full stockpile."
+        );
+        assertTrue(
+                keepCss.contains(".construction-team-pill {")
+                        && keepCss.contains("grid-template-columns: auto minmax(0, 1fr);")
+                        && keepCss.contains("column-gap: 12px;")
+                        && keepCss.contains("column-gap: 10px;")
+                        && keepCss.contains("position: static;")
+                        && keepCss.contains("min-width: 112px;")
+                        && keepCss.contains("min-width: 100px;"),
+                "The Teams resource pill must lay the hammer beside counts with a real column gap so the glyph cannot overlay N/N."
+        );
+        assertTrue(
+                keepHtml.contains("id=\"frontReturn\"")
+                        && keepHtml.contains("Return to Keep")
+                        && keepHtml.contains("id=\"frontManage\"")
+                        && keepJs.contains("function enterAkharsFront()")
+                        && keepJs.contains("function exitAkharsFront()")
+                        && keepJs.contains("state.frontView ? 'akhars_front' : 'keep'")
+                        && keepCss.contains(".keep-app.front-view-active .keep-dock")
+                        && keepCss.contains(".building-hotspot:not(.front-hotspot)")
+                        && keepCss.contains(".front-battle { position: absolute; inset: 0 0 33px; display: none;")
+                        && keepCss.contains(".keep-app.front-view-active .front-battle { display: block; }"),
+                "Akhar's Front must remain a compact map destination, reveal its battle only after entry, and provide a tested route back to the Keep grounds."
+        );
+        assertTrue(
+                keepCss.contains(".building-illustration svg.paper-building-shell")
+                        && keepCss.contains("drop-shadow(0 1px 0 #ead8ad)")
+                        && keepCss.contains(".int-backwall::after")
+                        && keepCss.contains("mix-blend-mode: soft-light")
+                        && keepCss.contains(".hall-favorite-resident")
+                        && keepCss.contains(".favorite-choice:nth-child(even)")
+                        && keepCss.contains(".offline-capacity-list"),
+                "Exterior silhouettes and room shells must retain their cardstock edges and print grain, with the hall favorite cutout, alternating favorite-choice stripes, and offline capacity list."
+        );
+        assertFalse(
+                keepHtml.contains("id=\"paper-prop-cutout\"")
+                        || keepHtml.contains("id=\"paper-building-cutout\"")
+                        || keepCss.contains("filter: url(\"#paper-prop-cutout\")")
+                        || keepCss.contains("filter: url(\"#paper-building-cutout\")"),
+                "Keep architecture must not use expensive SVG filters for animated props or large building silhouettes."
+        );
+        assertTrue(
+                keepCss.contains(".room-tool-set.has-installed-tools")
+                        && keepCss.contains(".crafted-decoration { display: none; z-index: 2; }")
+                        && keepJs.contains("rack.classList.toggle('has-installed-tools'")
+                        && keepJs.contains("setGroundsSuppressed(true)")
+                        && keepCss.contains("content-visibility: hidden"),
+                "Empty tool racks must stay hidden, decorations must layer above them, and open interiors must suspend grounds painting."
+        );
+        assertTrue(
+                keepCss.contains(".lodge-resident > span[data-size=\"GIGANTIC\"]")
+                        && keepCss.contains(".facility-room-resident > span[data-size=\"GIGANTIC\"]")
+                        && keepCss.contains("width: calc(78px * var(--cutout-scale))")
+                        && keepCss.contains("height: calc(96px * var(--cutout-scale))")
+                        && keepCss.contains("width: calc(62px * var(--cutout-scale))")
+                        && keepCss.contains("height: calc(78px * var(--cutout-scale))")
+                        && keepJs.contains("node.dataset.size = residentSize(resident)"),
+                "The size band must scale resident cutouts in the Woodlot and every staffed workshop interior at desktop and phone layouts."
+        );
+        assertTrue(
+                keepCss.contains("width: min(calc(30px * var(--cutout-scale)), 15%)")
+                        && keepCss.contains("animation-name: enclave-exterior-bob")
+                        && keepCss.contains(".exterior-enclave-residents b:nth-child(1) { left: 10%; }")
+                        && keepCss.contains(".exterior-enclave-residents b:nth-child(5) { left: 90%;")
+                        && keepCss.contains(".scene-zoom { right: calc(6px + var(--safe-right)); top: 28%; }"),
+                "All five exterior Enclave residents need separate width-bounded lanes without horizontal wandering or zoom controls covering them."
+        );
+        assertTrue(
+                keepCss.contains(".keep-dock .collect-button { width: min(166px, 22vw); margin: 0 5px;")
+                        && !keepCss.contains(".keep-dock .collect-button { margin-top: -10px;"),
+                "Collect must align inside the dock instead of using a negative top margin that overlaps the Keep map."
+        );
+    }
+
+    @Test
+    void keepInteractionNpcsSurfaceAffinityAndDistantSpectrum() throws IOException {
+        String keepHtml = Files.readString(KEEP_HTML);
+        String keepCss = Files.readString(KEEP_CSS);
+        String keepJs = Files.readString(KEEP_JS);
+
+        assertTrue(
+                keepJs.contains("kind === 'INTERACTION'")
+                        && keepJs.contains("Returns · affinity")
+                        && keepJs.contains("Affinity +")
+                        && keepJs.contains("return 'Distant'")
+                        && keepJs.contains("<i>Distant</i><i>Acquainted</i><i>Trusted</i><i>Bonded</i>")
+                        && keepHtml.contains("id=\"dialogueAffinity\"")
+                        && keepCss.contains(".dialogue-affinity")
+                        && keepCss.contains(".conversation-card.is-interaction"),
+                "Interaction NPCs must show recurring affinity feedback on the Distant→Bonded Voices spectrum."
+        );
+        assertFalse(
+                keepJs.contains("return 'Wary'"),
+                "The zero-trust Voices stage is Distant, matching the spectrum labels."
+        );
+    }
+
+    @Test
+    void keepListsSeparateUnreadEntriesFromReadOnes() throws IOException {
+        String keepCss = Files.readString(KEEP_CSS);
+        String keepJs = Files.readString(KEEP_JS);
+
+        assertTrue(
+                keepJs.contains("listSection('Unread'") && keepJs.contains("listSection('Read'")
+                        && keepJs.contains("listSection('New'") && keepJs.contains("listSection('Earlier'")
+                        && keepCss.contains(".list-section-heading"),
+                "The Chronicle and the notice tray must file unread entries above read ones under their own dividers."
+        );
+        assertTrue(
+                keepJs.contains("at: nowMs(), read: false") && keepJs.contains("function markNoticesRead()")
+                        && keepJs.contains("function unreadNoticeCount()")
+                        && keepCss.contains(".notice-item.unread") && keepCss.contains(".notice-item.is-read"),
+                "Messages must carry their own read state so the New group and the header badge agree."
+        );
+        assertFalse(
+                keepJs.contains("state.noticeUnread"),
+                "The tray badge must derive from per-message read state, not a counter that zeroes on open."
+        );
+        assertTrue(
+                keepJs.contains("state.sessionReadLoreIds"),
+                "An entry read during a Chronicle visit must hold its place until the panel is reopened."
+        );
+    }
+
+    @Test
+    void siegeLocationsFillTheWholeDeviceScreenWithoutOneLargeGlassPanel() throws IOException {
+        String adventureCss = Files.readString(ADVENTURE_CSS).replace("\r\n", "\n");
+        String adventureHtml = Files.readString(ADVENTURE_HTML);
+
+        assertTrue(
+                adventureCss.contains("body[data-screen=\"campScreen\"] .siege-app,")
+                        && adventureCss.contains("body[data-screen=\"rewardScreen\"] .siege-app{\n"
+                                + "  position:relative; max-width:none; width:100%;\n"
+                                + "  height:100dvh; min-height:0; overflow:hidden; padding:0;"),
+                "Location screens must run edge to edge — no max-width box and no page padding around the scene."
+        );
+        assertTrue(
+                adventureCss.contains(".location-stage{\n"
+                        + "  position:relative; flex:1 1 auto; width:100%; height:100%; min-height:0;\n"
+                        + "  overflow:hidden; isolation:isolate; border:0; border-radius:0;"),
+                "The scene fills its screen instead of sitting in a rounded, inset card."
+        );
+        assertTrue(
+                adventureCss.contains(".location-overlay{\n"
+                        + "  position:absolute; inset:0; z-index:8; pointer-events:none;")
+                        && adventureCss.contains(".location-overlay > *{pointer-events:auto;}"),
+                "The overlay must be a transparent layout layer over the whole stage, not a docked panel."
+        );
+        assertFalse(
+                adventureCss.contains("background:linear-gradient(180deg,rgba(8,12,18,.26),rgba(7,10,15,.54));")
+                        || adventureCss.contains("backdrop-filter:blur(5px) saturate(1.08);"),
+                "The single large glass box behind every decision is gone; the blur now lives on the individual pieces."
+        );
+        assertTrue(
+                adventureCss.contains("calc(env(safe-area-inset-top, 0px) + 46px)")
+                        && adventureCss.contains("calc(12px + env(safe-area-inset-bottom, 0px))"),
+                "Art bleeds under the notch and home indicator while controls stay inset by the safe area."
+        );
+        assertTrue(
+                adventureHtml.contains("/css/adventure.css?v=43"),
+                "adventure.css must be cache-busted after the full-bleed location rework."
+        );
+    }
+
+    @Test
+    void siegeRunMenuSavesBeforeQuitAndRestartsOnlyAfterServerAbandon() throws IOException {
+        String adventureHtml = Files.readString(ADVENTURE_HTML);
+        String adventureJs = Files.readString(ADVENTURE_JS);
+
+        assertTrue(adventureHtml.contains("id=\"runMenuSave\"")
+                        && adventureHtml.contains("id=\"runMenuRestart\"")
+                        && adventureHtml.contains("id=\"runMenuQuit\"")
+                        && adventureHtml.contains("/css/adventure.css?v=43")
+                        && adventureHtml.contains("/js/adventure.js?v=42"),
+                "The active-run menu and both cache-busted bundles must ship together.");
+        String restartRun = extractFunction(adventureJs, "function restartRun(");
+        assertTrue(adventureJs.contains("api('/api/siege/run/save'")
+                        && adventureJs.contains("if (!run.checkpoint) throw new Error")
+                        && restartRun.contains("api('/api/siege/run/abandon'")
+                        && restartRun.indexOf("api('/api/siege/run/abandon'") < restartRun.indexOf("setToken(null); state.run = null"),
+                "Save/Quit must require a durable checkpoint and Restart must abandon server state before clearing local state.");
+        assertFalse(adventureJs.contains("resetPageScroll"),
+                "The menu port must not revive the stale PR's superseded map-scroll implementation.");
     }
 
     private static String readGameScript() throws IOException {

@@ -51,6 +51,7 @@ public class ProfileSettingsStore {
         payload.put("favoriteCardVariant", settings.getFavoriteCardVariant());
         payload.put("favoriteSiegling", settings.getFavoriteSiegling());
         payload.put("featuredBadgeIds", settings.getFeaturedBadgeIds());
+        payload.put("favoriteCardIds", settings.getFavoriteCardIds());
         payload.put("updatedAt", toTimestamp(settings.getUpdatedAt()));
         try {
             doc(settings.getUserId()).set(payload).get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -100,6 +101,16 @@ public class ProfileSettingsStore {
                 }
             }
             settings.setFeaturedBadgeIds(ids);
+        }
+        Object favoriteCards = snapshot.get("favoriteCardIds");
+        if (favoriteCards instanceof java.util.List<?> list) {
+            java.util.List<String> ids = new java.util.ArrayList<>();
+            for (Object item : list) {
+                if (item instanceof String s && !s.isBlank()) {
+                    ids.add(s);
+                }
+            }
+            settings.setFavoriteCardIds(ids);
         }
         Object updatedAt = snapshot.get("updatedAt");
         if (updatedAt instanceof Timestamp ts) {

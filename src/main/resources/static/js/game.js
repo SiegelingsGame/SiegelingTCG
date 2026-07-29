@@ -77,13 +77,66 @@ let handSelectorScaleFrame = null;
 let previewCardScaleFrame = null;
 let framedSummaryFitFrame = null;
 let siegeKnightCardFitFrame = null;
-const DECK_ART_ASSET_KEYS = ['FIRE', 'ICE', 'WATER', 'EARTH', 'WIND'];
+const DECK_ART_ASSET_KEYS = [
+    'FIRE', 'ICE', 'WATER', 'EARTH', 'WIND', 'SHADOW',
+    'ELECTRIC', 'METAL', 'UNDEAD', 'PSYCHIC', 'POISON', 'LIGHT'
+];
+// Bump with home.js ELEMENTAL_CARD_BACK_VERSION when default card-back art changes.
+const DECK_ART_ASSET_VERSION = 5;
+function versionedDeckArtAsset(path) {
+    if (!path) return '';
+    const separator = path.includes('?') ? '&' : '?';
+    return `${path}${separator}v=${DECK_ART_ASSET_VERSION}`;
+}
 const DECK_ART_ASSETS = {
-    FIRE: { back: '/img/decks/card-back-fire.png', icon: '/img/decks/deck-icon-fire.png' },
-    EARTH: { back: '/img/decks/card-back-earth.png', icon: '/img/decks/deck-icon-earth.png' },
-    WIND: { back: '/img/decks/card-back-wind.png', icon: '/img/decks/deck-icon-wind.png' },
-    WATER: { back: '/img/decks/card-back-wind.png', icon: '/img/decks/deck-icon-wind.png' },
-    ICE: { back: '/img/decks/card-back-ice.png', icon: '/img/decks/deck-icon-ice.png' }
+    FIRE: {
+        back: versionedDeckArtAsset('/img/decks/card-back-fire.png'),
+        icon: versionedDeckArtAsset('/img/decks/deck-icon-fire.png')
+    },
+    EARTH: {
+        back: versionedDeckArtAsset('/img/decks/card-back-earth.png'),
+        icon: versionedDeckArtAsset('/img/decks/deck-icon-earth.png')
+    },
+    WIND: {
+        back: versionedDeckArtAsset('/img/decks/card-back-wind.png'),
+        icon: versionedDeckArtAsset('/img/decks/deck-icon-wind.png')
+    },
+    WATER: {
+        back: versionedDeckArtAsset('/img/decks/card-back-water.png'),
+        icon: versionedDeckArtAsset('/img/decks/deck-icon-wind.png')
+    },
+    ICE: {
+        back: versionedDeckArtAsset('/img/decks/card-back-ice.png'),
+        icon: versionedDeckArtAsset('/img/decks/deck-icon-ice.png')
+    },
+    ELECTRIC: {
+        back: versionedDeckArtAsset('/img/decks/card-back-electric.png'),
+        icon: versionedDeckArtAsset('/img/decks/deck-icon-wind.png')
+    },
+    METAL: {
+        back: versionedDeckArtAsset('/img/decks/card-back-metal.png'),
+        icon: versionedDeckArtAsset('/img/decks/deck-icon-fire.png')
+    },
+    POISON: {
+        back: versionedDeckArtAsset('/img/decks/card-back-poison.png'),
+        icon: versionedDeckArtAsset('/img/decks/deck-icon-earth.png')
+    },
+    UNDEAD: {
+        back: versionedDeckArtAsset('/img/decks/card-back-undead.png'),
+        icon: versionedDeckArtAsset('/img/elements/element-undead.svg')
+    },
+    PSYCHIC: {
+        back: versionedDeckArtAsset('/img/decks/card-back-psychic.png'),
+        icon: versionedDeckArtAsset('/img/elements/element-psychic.svg')
+    },
+    SHADOW: {
+        back: versionedDeckArtAsset('/img/decks/card-back-shadow.png'),
+        icon: versionedDeckArtAsset('/img/elements/element-shadow.svg')
+    },
+    LIGHT: {
+        back: versionedDeckArtAsset('/img/decks/card-back-light.png'),
+        icon: versionedDeckArtAsset('/img/elements/element-light.svg')
+    }
 };
 const SIEGEKNIGHT_CARD_BACK = '/img/knights/card-back-siegeknight.png';
 const SIEGEKNIGHT_CARD_TEMPLATE = '/img/knights/siegeknight-card-template.png';
@@ -105,9 +158,14 @@ const AUTH_TOKEN_STORAGE_KEY = 'sieglingsAuthToken';
 // browser sends automatically — but its presence still drives every "are we signed
 // in?" check and cross-tab storage-event sync exactly as a real token used to.
 const COOKIE_SESSION_VALUE = 'cookie';
-// True when the readable, secret-free `sgl_auth` companion cookie is present. The
-// server sets it alongside the httpOnly session cookie, so this both signals a
-// live session and proves cookies actually round-trip in this environment.
+// Set once the SERVER has confirmed (via `cookieSession` on /api/auth/me) that a
+// session cookie actually reached it. Until then the real Bearer token is kept: a
+// cookie the browser stores can still be dropped in transit (Firebase Hosting
+// forwards only `__session` to Cloud Run), and discarding the token on a readable
+// flag cookie is what made every page after login demand a fresh sign-in.
+const COOKIE_AUTH_CONFIRMED_STORAGE_KEY = 'sieglingsCookieAuthConfirmed';
+// Optimistic "a session probably exists" hint for first paint only. NOT proof that
+// cookies reach the backend — only the server can attest to that.
 function hasReadableAuthCookie() {
     try {
         return document.cookie.split('; ').some((c) => c.startsWith('sgl_auth='));
@@ -134,10 +192,24 @@ function isStandalonePWA() {
         return false;
     }
 }
-// On login, store the cookie sentinel only when cookies are confirmed working AND
-// we're not in a standalone Web App; otherwise persist the real token for Bearer auth.
+function cookieAuthConfirmed() {
+    try {
+        return localStorage.getItem(COOKIE_AUTH_CONFIRMED_STORAGE_KEY) === '1';
+    } catch (e) {
+        return false;
+    }
+}
+function rememberCookieAuth(confirmed) {
+    try {
+        if (confirmed) localStorage.setItem(COOKIE_AUTH_CONFIRMED_STORAGE_KEY, '1');
+        else localStorage.removeItem(COOKIE_AUTH_CONFIRMED_STORAGE_KEY);
+    } catch (e) { /* storage off */ }
+}
+// On login, keep the real token unless the server has already proven cookies make it
+// through; syncAuthProfile() migrates to the sentinel on the first confirmed
+// /api/auth/me, so the credential is never discarded on a guess.
 function preferredStoredToken(loginToken) {
-    return (hasReadableAuthCookie() && !isStandalonePWA()) ? COOKIE_SESSION_VALUE : (loginToken || '');
+    return (cookieAuthConfirmed() && !isStandalonePWA()) ? COOKIE_SESSION_VALUE : (loginToken || '');
 }
 // Last authenticated profile, cached in localStorage and shared with the hub so
 // every page can render the signed-in UI instantly and then revalidate against
@@ -7693,10 +7765,10 @@ async function submitAuth(mode) {
         return;
     }
 
-    // Prefer cookie auth in browsers: persist the sentinel (no secret in
-    // localStorage) once the companion cookie confirms cookies round-trip. In a
-    // standalone Web App, or when cookies are blocked, keep the real token and send
-    // it as a Bearer header so auth survives cross-page navigation.
+    // Keep the real token (sent as a Bearer header) until the server confirms a
+    // session cookie reaches it; only then does the sentinel replace it. That way
+    // auth survives cross-page navigation to Home / My Keep / Siege regardless of
+    // what an edge CDN does with cookies.
     saveAuthToken(preferredStoredToken(data.token));
     authState.profile = data;
     authState.profileResolved = true;
@@ -7728,7 +7800,26 @@ function classifyAuthMe(data) {
     return data.authenticated ? 'signed-in' : 'signed-out';
 }
 
-async function syncAuthProfile(silent = false) {
+// /api/auth/me is the heaviest call on a cold start (it fans out a dozen Firestore
+// reads). Init plus the pageshow/visibility listeners all fire it while the page is
+// still opening, so a first visit paid for it more than once before the account
+// finished restoring. Collapse concurrent callers onto one in-flight request.
+let syncAuthProfileInFlight = null;
+function syncAuthProfile(silent = false) {
+    if (syncAuthProfileInFlight) {
+        // A visible caller joining a silent request still owes the player the
+        // "Restoring your account…" state, so paint it before waiting.
+        if (!silent) {
+            authState.loading = true;
+            renderWelcomeAuth();
+        }
+        return syncAuthProfileInFlight;
+    }
+    syncAuthProfileInFlight = syncAuthProfileNow(silent).finally(() => { syncAuthProfileInFlight = null; });
+    return syncAuthProfileInFlight;
+}
+
+async function syncAuthProfileNow(silent = false) {
     if (!authState.token) {
         authState.profile = null;
         if (!silent) {
@@ -7766,12 +7857,13 @@ async function syncAuthProfile(silent = false) {
         return false;
     }
 
-    // Transparent migration (browsers only): a legacy token rode in as a Bearer
-    // header and the server has now set the session cookie (confirmed by the
-    // readable companion cookie). Drop the secret and keep only the sentinel. Skip
-    // in a standalone Web App, where the cookie isn't reliably sent across pages so
-    // the Bearer token must stay.
-    if (isLegacyBearerToken(authState.token) && hasReadableAuthCookie() && !isStandalonePWA()) {
+    // Transparent migration (browsers only): drop the secret and keep only the
+    // sentinel once the SERVER reports it received the session cookie on this very
+    // request. A readable flag cookie proves only that the browser stored it, not
+    // that it survived the trip, so migrating on that would strand the player at a
+    // sign-in prompt on the next full-page navigation.
+    rememberCookieAuth(data.cookieSession === true);
+    if (isLegacyBearerToken(authState.token) && data.cookieSession === true && !isStandalonePWA()) {
         saveAuthToken(COOKIE_SESSION_VALUE);
     }
 
@@ -9116,8 +9208,40 @@ function selectTrainerOption(trainerId) {
         detachSavedDeckSelection();
     }
     selectedTrainerId = trainerId;
-    renderLoadoutOptions();
+    // The trainer pool has not changed, so preserve its live image nodes.
+    // Rebuilding the whole grid here makes remote holographic/full-card art
+    // disappear until a second fetch and decode completes.
+    updateTrainerSelectionUI();
     updateLoadoutSummary();
+}
+
+function updateTrainerSelectionUI() {
+    const trainerEl = document.getElementById('trainerOptions');
+    if (!trainerEl) {
+        return;
+    }
+    trainerEl.querySelectorAll('.knight-card[data-trainer-id]').forEach((card) => {
+        const selected = card.dataset.trainerId === selectedTrainerId;
+        const recommended = card.classList.contains('recommended');
+        card.classList.toggle('selected', selected);
+        card.setAttribute('aria-pressed', selected ? 'true' : 'false');
+
+        let ribbon = card.querySelector('.knight-selected-ribbon, .knight-recommend-ribbon');
+        const ribbonClass = selected
+            ? 'knight-selected-ribbon'
+            : (recommended ? 'knight-recommend-ribbon' : '');
+        if (!ribbonClass) {
+            ribbon?.remove();
+            return;
+        }
+        if (!ribbon) {
+            ribbon = document.createElement('span');
+            card.prepend(ribbon);
+        }
+        ribbon.className = ribbonClass;
+        ribbon.textContent = selected ? 'Selected' : 'Recommended';
+    });
+    scheduleSiegeKnightCardFit();
 }
 
 function isTrainerOwned(trainerId) {
@@ -9788,6 +9912,7 @@ function renderLoadoutOptions() {
     if (visibleTrainers.length > 0 && !visibleTrainers.some((trainer) => trainer.id === selectedTrainerId)) {
         selectedTrainerId = visibleTrainers[0].id;
     }
+    visibleTrainers.forEach((trainer) => preloadArtUrl(knightUploadedCardArtUrl(trainer)));
     trainerEl.innerHTML = visibleTrainers.map(trainer => {
         const selected = trainer.id === selectedTrainerId ? ' selected' : '';
         const elHex = getElementHex(trainer.element);
@@ -9823,10 +9948,10 @@ function renderLoadoutOptions() {
         if (fullCardArtUrl && fullCardMode) {
             const holoClass = cardShowsPlayerHolographic(trainer) ? ' is-holographic' : '';
             const holoOverlay = cardShowsPlayerHolographic(trainer) ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
-            return `<button type="button" class="knight-card knight-full-card-art${holoClass}${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
+            return `<button type="button" class="knight-card knight-full-card-art${holoClass}${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" data-trainer-id="${escapeHtmlAttribute(trainer.id)}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
                 ${topRibbon}
                 ${levelBadge}
-                <img ${webpImgAttrs(fullCardArtUrl)} alt="${escapeHtmlAttribute(trainer.name || 'SiegeKnight card')}" loading="lazy"${knightArtStyleAttr(trainer)}>
+                <img ${webpImgAttrs(fullCardArtUrl)} alt="${escapeHtmlAttribute(trainer.name || 'SiegeKnight card')}" loading="eager" decoding="async"${knightArtStyleAttr(trainer)}>
                 ${holoOverlay}
                 ${knightCardBody}
             </button>`;
@@ -9839,17 +9964,17 @@ function renderLoadoutOptions() {
             // does not load that module.
             const holoClass = cardShowsPlayerHolographic(trainer) ? ' is-holographic' : '';
             const holoOverlay = cardShowsPlayerHolographic(trainer) ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
-            return `<button type="button" class="knight-card knight-full-card-art knight-overlay-art${holoClass}${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)};${siegeknightCardBackStyle()};${elementIconStyle}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
+            return `<button type="button" class="knight-card knight-full-card-art knight-overlay-art${holoClass}${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" data-trainer-id="${escapeHtmlAttribute(trainer.id)}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)};${siegeknightCardBackStyle()};${elementIconStyle}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
                 ${topRibbon}
                 ${levelBadge}
-                <div class="knight-overlay-art-window"><img class="knight-overlay-art-img" ${webpImgAttrs(fullCardArtUrl)} alt="" loading="lazy"${knightArtStyleAttr(trainer)}></div>
+                <div class="knight-overlay-art-window"><img class="knight-overlay-art-img" ${webpImgAttrs(fullCardArtUrl)} alt="" loading="eager" decoding="async"${knightArtStyleAttr(trainer)}></div>
                 <div class="knight-card-template" aria-hidden="true"></div>
                 <div class="knight-shield-element" aria-label="${escapeHtmlAttribute(formatElementLabel(trainer.element))}">${getElementSigil(trainer.element)}</div>
                 ${holoOverlay}
                 ${knightCardBody}
             </button>`;
         }
-        return `<button type="button" class="knight-card has-knight-back${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)};${siegeknightCardBackStyle()};${elementIconStyle}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
+        return `<button type="button" class="knight-card has-knight-back${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" data-trainer-id="${escapeHtmlAttribute(trainer.id)}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)};${siegeknightCardBackStyle()};${elementIconStyle}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
             ${topRibbon}
             ${levelBadge}
             <div class="knight-card-sigil">${sigil}</div>
@@ -12068,7 +12193,7 @@ function buildDeckFaceSigils(elements) {
 }
 
 function deckArtAssetForElements(elements = []) {
-    const key = DECK_ART_ASSET_KEYS.find(element => elements.includes(element));
+    const key = elements.find(element => DECK_ART_ASSET_KEYS.includes(element));
     return key ? DECK_ART_ASSETS[key] : null;
 }
 
@@ -13149,8 +13274,15 @@ const NOTCH_ICON_PATHS = {
     FIRE: '/img/notches/notch-fire.png',
     EARTH: '/img/notches/notch-earth.png',
     WIND: '/img/notches/notch-wind.png',
+    WATER: '/img/notches/notch-water.png?v=2',
     ICE: '/img/notches/notch-ice.png',
-    SHADOW: '/img/notches/notch-shadow.png'
+    SHADOW: '/img/notches/notch-shadow.png?v=2',
+    ELECTRIC: '/img/notches/notch-electric.png?v=2',
+    METAL: '/img/notches/notch-metal.png?v=2',
+    UNDEAD: '/img/notches/notch-undead.png?v=2',
+    PSYCHIC: '/img/notches/notch-psychic.png?v=2',
+    POISON: '/img/notches/notch-poison.png?v=2',
+    LIGHT: '/img/notches/notch-light.png?v=2'
 };
 
 function renderBoardNotches(notches, options) {

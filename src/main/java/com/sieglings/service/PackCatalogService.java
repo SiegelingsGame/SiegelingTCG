@@ -323,7 +323,7 @@ public class PackCatalogService {
         out.put("cardId", card.getId());
         out.put("cardName", card.getName());
         out.put("type", card.getCardType().name());
-        out.put("element", card.getElement().name());
+        out.put("element", elementName(card.getElement()));
         out.put("rarity", card.getRarity().name());
         appendCardArt(out, card);
         if (card instanceof TrainerCard trainer) {
@@ -431,15 +431,19 @@ public class PackCatalogService {
             return shopPriceCatalogService.priceFor(card.getRarity(), card.getCardType());
         }
         // No override service wired (e.g. plain unit tests) — fall back to the default table.
-        return ShopPriceCatalogService.DEFAULT_PRICE_BY_RARITY.get(card.getRarity());
+        return ShopPriceCatalogService.defaultPriceFor(card.getRarity(), card.getCardType());
     }
 
     private Comparator<Card> cardSort() {
         return Comparator
-                .comparing((Card card) -> card.getElement().name())
+                .comparing((Card card) -> elementName(card.getElement()), Comparator.nullsLast(String::compareTo))
                 .thenComparing(card -> card.getRarity().ordinal())
                 .thenComparing(Card::getName)
                 .thenComparing(Card::getId);
+    }
+
+    private String elementName(Element element) {
+        return element == null ? null : element.name();
     }
 
     private String formatElement(Element element) {

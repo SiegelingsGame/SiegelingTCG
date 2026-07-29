@@ -1301,7 +1301,7 @@ body.card-fullscreen-open {
     100% { transform: translateX(360%); }
 }
 
-/* In-grid placeholder while the card catalog is still loading. */
+/* In-grid status while the card catalog or signed-in collection is loading. */
 .binder-loading {
     grid-column: 1 / -1;
     display: flex;
@@ -1323,8 +1323,39 @@ body.card-fullscreen-open {
     animation: binder-spin 0.8s linear infinite;
 }
 
+.binder-loading-bar {
+    width: min(220px, 70vw);
+    height: 5px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 215, 0, 0.2);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.binder-loading-bar > span {
+    display: block;
+    width: 42%;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #ff7a1a, #ffd700);
+    box-shadow: 0 0 12px rgba(255, 174, 34, 0.55);
+    animation: binder-loading-slide 1.15s ease-in-out infinite;
+}
+
 @keyframes binder-spin {
     to { transform: rotate(360deg); }
+}
+
+@keyframes binder-loading-slide {
+    from { transform: translateX(-110%); }
+    to { transform: translateX(250%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .binder-loading-spinner,
+    .binder-loading-bar > span {
+        animation: none;
+    }
 }
 
 .search-input {
@@ -1498,6 +1529,53 @@ select.search-input { color-scheme: dark; }
     -webkit-backdrop-filter: blur(6px);
 }
 
+.shop-purchase-confirm-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 95;
+    display: grid;
+    place-items: center;
+    padding: 18px;
+    background: rgba(0, 0, 0, 0.68);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+.shop-purchase-confirm-modal.hidden {
+    display: none;
+}
+
+.shop-purchase-confirm-panel {
+    width: min(420px, 100%);
+    padding: 18px 16px 14px;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 38%),
+        #0b1124;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.shop-purchase-confirm-panel h2 {
+    margin: 4px 0 8px;
+    font-size: 1.35rem;
+}
+
+.shop-purchase-confirm-panel p {
+    margin: 0 0 16px;
+    color: rgba(255, 255, 255, 0.78);
+    line-height: 1.45;
+}
+
+.shop-purchase-confirm-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+.shop-purchase-confirm-actions .primary-btn,
+.shop-purchase-confirm-actions .ghost-btn {
+    min-width: 96px;
+}
+
 .shop-card-preview-panel {
     position: relative;
     width: min(780px, 100%);
@@ -1561,6 +1639,16 @@ select.search-input { color-scheme: dark; }
 .shop-card-preview-layout .knight-detail-preview {
     width: min(100%, 250px);
     margin: 0 auto;
+}
+
+/* The shared standard/holographic art stack sizes the card, so the layers
+   inside it fill the stack instead of taking the shop's own card width. */
+.shop-card-preview-layout .detail-card-art-stack {
+    width: min(100%, 250px);
+}
+
+.shop-card-preview-layout .detail-card-art-stack .detail-card-preview {
+    width: 100%;
 }
 
 .shop-card-preview-details {
@@ -6535,6 +6623,31 @@ body.gacha-active {
     font-weight: 950;
 }
 
+.profile-card-back-preview {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.profile-card-back-face {
+    flex: 0 0 auto;
+    width: 42px;
+    height: 62px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.28);
+    background: var(--card-back-art, linear-gradient(145deg, #1b2238, #070a12)) center / cover no-repeat;
+}
+
+.profile-card-back-field {
+    display: grid;
+    gap: 8px;
+}
+
+.profile-card-back-field .profile-card-back-preview {
+    margin-top: 2px;
+}
+
 /* With custom art behind the hero, collapse the two-column layout into a
    single right-bound stack of glass panels so the artwork fills the left and
    the identity + favorite-Siegling rail read as one aligned column. */
@@ -6886,6 +6999,37 @@ body.gacha-active {
     padding-right: 4px;
 }
 
+.battle-list-preview {
+    max-height: none;
+    overflow: visible;
+}
+
+.battle-list-modal {
+    max-height: min(58dvh, 520px);
+}
+
+.battle-history-more-note,
+.collection-favorites-note {
+    margin: 10px 0 0;
+}
+
+.profile-soft-pill-btn {
+    border-radius: 999px;
+    min-height: 28px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 850;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.profile-panel-head-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: flex-end;
+}
+
 .battle-row {
     display: grid;
     grid-template-columns: 58px minmax(150px, 1fr) auto minmax(92px, auto) auto;
@@ -7125,9 +7269,30 @@ body.gacha-active {
 
 .mini-card-row {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
     margin-top: 12px;
+}
+
+.mini-card-row-art .profile-showcase-card,
+.mini-card-row-art .card-tile.profile-showcase-card {
+    width: 100%;
+    min-width: 0;
+    aspect-ratio: 2 / 3;
+    pointer-events: auto;
+}
+
+.profile-showcase-card-empty {
+    min-height: 140px;
+    display: grid;
+    place-items: center;
+    padding: 12px;
+    border: 1px dashed rgba(255, 255, 255, 0.18);
+    border-radius: 10px;
+    color: var(--text-dim);
+    text-align: center;
+    font-size: 12px;
+    font-weight: 800;
 }
 
 .profile-mini-card {
@@ -7165,6 +7330,140 @@ body.gacha-active {
     color: var(--text-dim);
     font-size: 10px;
     font-weight: 850;
+}
+
+.favorite-cards-modal-panel,
+.battle-history-modal-panel {
+    width: min(720px, 100%);
+}
+
+.favorite-cards-pick-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 8px;
+    max-height: min(48dvh, 420px);
+    overflow-y: auto;
+    margin: 12px 0;
+    padding-right: 2px;
+}
+
+.favorite-cards-pick {
+    display: grid;
+    grid-template-columns: 54px minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+    width: 100%;
+    padding: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    background: rgba(8, 12, 24, 0.55);
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.favorite-cards-pick.is-picked {
+    border-color: color-mix(in srgb, var(--el, var(--profile-accent, #ff6a2a)) 70%, white);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--el, var(--profile-accent, #ff6a2a)) 45%, transparent);
+}
+
+.favorite-cards-pick-art {
+    width: 54px;
+    aspect-ratio: 2 / 3;
+    overflow: hidden;
+    border-radius: 6px;
+    pointer-events: none;
+}
+
+.favorite-cards-pick-art .binder-card,
+.favorite-cards-pick-art .card-face,
+.favorite-cards-pick-art .framed-card-shell {
+    width: 100%;
+    height: 100%;
+}
+
+.favorite-cards-pick-copy {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.favorite-cards-pick-copy strong {
+    font-size: 13px;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.favorite-cards-pick-copy small {
+    color: var(--text-dim);
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.favorite-cards-pick-mark {
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 950;
+    color: #081021;
+    background: color-mix(in srgb, var(--el, var(--profile-accent, #ff6a2a)) 72%, white);
+}
+
+.profile-social-panel {
+    height: auto;
+    max-height: none;
+    align-content: start;
+}
+
+.profile-social-panel.is-compact {
+    padding-bottom: 12px;
+}
+
+.profile-lobby-list {
+    display: grid;
+    gap: 8px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.profile-lobby-head,
+.profile-lobby-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+}
+
+.profile-lobby-head {
+    color: var(--text-dim);
+    font-size: 11px;
+    font-weight: 850;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.profile-lobby-main {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.profile-lobby-main strong {
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.profile-lobby-main span {
+    color: var(--text-dim);
+    font-size: 11px;
 }
 
 .profile-side-stack {
@@ -8486,6 +8785,12 @@ body.gacha-active {
     .shop-card-preview-layout .knight-detail-preview {
         width: min(100%, 190px);
     }
+    .shop-card-preview-layout .detail-card-art-stack {
+        width: min(100%, 190px);
+    }
+    .shop-card-preview-layout .detail-card-art-stack .detail-card-preview {
+        width: 100%;
+    }
     .shop-card-preview-head h2 {
         font-size: 21px;
     }
@@ -8559,6 +8864,9 @@ body.gacha-active {
     .mini-card-row,
     .achievement-row {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .mini-card-row-art {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
     .battle-list {
         max-height: none;
@@ -8720,17 +9028,24 @@ body.gacha-active {
     place-items: center;
     background: rgba(8, 14, 28, 0.88);
     border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 50%;
     overflow: hidden;
+    box-shadow: 0 0 24px var(--profile-glow, rgba(255, 255, 255, 0.14));
 }
 
-/* Element avatar icons fill their container (profile hero, friends list, chat)
-   instead of sitting as a tiny 24px glyph in a large empty box. A small inset
-   keeps the emblem off the rounded border. */
+/* Keep element-mode avatars circular even where the generic profile/friend avatar
+   selectors use rounded-square frames for initials and uploaded photos. */
+.player-avatar-element.profile-avatar,
+.friend-avatar-wrap .player-avatar-element.friend-avatar {
+    border-radius: 50%;
+}
+
+/* Painted notch medallions fill the circular profile/friend avatar frame. */
 .player-avatar-element img {
     width: 100%;
     height: 100%;
-    object-fit: contain;
-    padding: 8%;
+    object-fit: cover;
+    padding: 0;
     box-sizing: border-box;
 }
 

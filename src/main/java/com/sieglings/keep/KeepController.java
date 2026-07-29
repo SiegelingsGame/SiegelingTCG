@@ -118,6 +118,22 @@ public class KeepController {
                 string(body, "decorationId"), bool(body, "displayed"), string(body, "requestId"), version(body)));
     }
 
+    @PostMapping("/api/keep/enclave/resident")
+    public ResponseEntity<Map<String, Object>> enclaveResident(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody Map<String, Object> body) {
+        return respond(authorizationHeader, user -> keepService.setEnclaveResident(user, integer(body, "slot"),
+                string(body, "residentId"), string(body, "requestId"), version(body)));
+    }
+
+    @PostMapping("/api/keep/akhars-front/resident")
+    public ResponseEntity<Map<String, Object>> akharsFrontResident(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody Map<String, Object> body) {
+        return respond(authorizationHeader, user -> keepService.setAkharsFrontResident(user, integer(body, "slot"),
+                string(body, "residentId"), string(body, "requestId"), version(body)));
+    }
+
     private ResponseEntity<Map<String, Object>> respond(String authorizationHeader,
                                                          Function<AccountUser, Map<String, Object>> operation) {
         try {
@@ -130,6 +146,13 @@ public class KeepController {
                     ? HttpStatus.UNAUTHORIZED : HttpStatus.BAD_REQUEST;
             return error(status, status == HttpStatus.UNAUTHORIZED
                     ? "Sign in to found your sanctuary." : ex.getMessage());
+        } catch (RuntimeException ex) {
+            // A Firestore hiccup while resolving the session used to escape as a 500,
+            // which the client could only read as "not signed in" and answer with the
+            // sign-in gate. Report it as the transient backend failure it is so a
+            // signed-in keeper is never asked to log in again over a blip.
+            return error(HttpStatus.SERVICE_UNAVAILABLE,
+                    "My Keep could not be reached just now. Please try again in a moment.");
         }
     }
 
@@ -154,5 +177,12 @@ public class KeepController {
     private static boolean bool(Map<String, Object> body, String key) {
         Object value = body == null ? null : body.get(key);
         return value instanceof Boolean flag ? flag : Boolean.parseBoolean(String.valueOf(value));
+    }
+
+    private static int integer(Map<String, Object> body, String key) {
+        Object value = body == null ? null : body.get(key);
+        if (value instanceof Number number) return number.intValue();
+        try { return value == null ? -1 : Integer.parseInt(String.valueOf(value)); }
+        catch (NumberFormatException ignored) { return -1; }
     }
 }

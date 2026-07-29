@@ -18,10 +18,27 @@ public class KeepState {
     private int hallLevel = 1;
     private String hallThemeId = "";
     private int buildersYardLevel;
+    private int enclaveLevel;
+    private List<String> enclaveResidentIds = new ArrayList<>();
+    private int akharsFrontLevel;
+    private List<String> akharsFrontResidentIds = new ArrayList<>();
+    private int akharsFrontStoredGold;
+    private double akharsFrontProductionRemainder;
+    private Instant akharsFrontLastAccruedAt;
+    private Map<String, Integer> enclaveMissionProgress = new LinkedHashMap<>();
+    // Rapport tasks are repeatable, so progress resets on claim and the completion count
+    // is tracked separately. Both maps are keyed "<residentId>:<taskId>"; residentRapport
+    // holds the lifetime points that drive a resident's buff multiplier.
+    private Map<String, Integer> enclaveTaskProgress = new LinkedHashMap<>();
+    private Map<String, Integer> enclaveTaskCompletions = new LinkedHashMap<>();
+    private Map<String, Integer> residentRapport = new LinkedHashMap<>();
     private String favoriteResidentId = "";
     private String activeConstructionId2 = "";
     private Instant constructionStartedAt2;
     private Instant constructionCompletesAt2;
+    private List<String> additionalConstructionIds = new ArrayList<>();
+    private List<Instant> additionalConstructionStartedAts = new ArrayList<>();
+    private List<Instant> additionalConstructionCompletesAts = new ArrayList<>();
     private int woodlotStored;
     private double woodlotProductionRemainder;
     private int woodlotCollectCount;
@@ -35,6 +52,8 @@ public class KeepState {
     private Map<String, Integer> materialInventory = new LinkedHashMap<>();
     private Map<String, Integer> craftedItemCounts = new LinkedHashMap<>();
     private Map<String, String> placedDecorations = new LinkedHashMap<>();
+    /** One-time local storage annexes, keyed by production room id. */
+    private Map<String, Integer> storageUpgradeLevels = new LinkedHashMap<>();
     private int craftCount;
     private int essenceCollectCount;
     private String activeConstructionId = "";
@@ -52,6 +71,15 @@ public class KeepState {
     private List<String> processedRequestIds = new ArrayList<>();
     private Instant lastVisitedAt;
     private Instant lastTributeClaimedAt;
+    // Keeper leveling / battlepass. keeperXp is lifetime XP; the level is derived
+    // from it. Backfill runs once for keeps that predate the system so their level
+    // reflects work already done. Daily-login and resource XP are rate-limited by
+    // the two "daily" trackers (a UTC day key plus that day's accumulated resource XP).
+    private long keeperXp;
+    private boolean keeperXpBackfilled;
+    private Instant keeperDailyXpAt;
+    private int keeperResourceXpToday;
+    private String keeperResourceXpDay = "";
     private Instant createdAt;
     private Instant updatedAt;
 
@@ -75,6 +103,30 @@ public class KeepState {
     public void setHallThemeId(String hallThemeId) { this.hallThemeId = hallThemeId == null ? "" : hallThemeId; }
     public int getBuildersYardLevel() { return buildersYardLevel; }
     public void setBuildersYardLevel(int buildersYardLevel) { this.buildersYardLevel = Math.max(0, buildersYardLevel); }
+    public int getEnclaveLevel() { return enclaveLevel; }
+    public void setEnclaveLevel(int enclaveLevel) { this.enclaveLevel = Math.max(0, enclaveLevel); }
+    public List<String> getEnclaveResidentIds() { return enclaveResidentIds; }
+    public void setEnclaveResidentIds(List<String> enclaveResidentIds) { this.enclaveResidentIds = copy(enclaveResidentIds); }
+    public int getAkharsFrontLevel() { return akharsFrontLevel; }
+    public void setAkharsFrontLevel(int value) { this.akharsFrontLevel = Math.max(0, value); }
+    public List<String> getAkharsFrontResidentIds() { return akharsFrontResidentIds; }
+    public void setAkharsFrontResidentIds(List<String> values) { this.akharsFrontResidentIds = copy(values); }
+    public int getAkharsFrontStoredGold() { return akharsFrontStoredGold; }
+    public void setAkharsFrontStoredGold(int value) { this.akharsFrontStoredGold = Math.max(0, value); }
+    public double getAkharsFrontProductionRemainder() { return akharsFrontProductionRemainder; }
+    public void setAkharsFrontProductionRemainder(double value) {
+        this.akharsFrontProductionRemainder = Double.isFinite(value) ? Math.max(0, Math.min(.999999999, value)) : 0;
+    }
+    public Instant getAkharsFrontLastAccruedAt() { return akharsFrontLastAccruedAt; }
+    public void setAkharsFrontLastAccruedAt(Instant value) { this.akharsFrontLastAccruedAt = value; }
+    public Map<String, Integer> getEnclaveMissionProgress() { return enclaveMissionProgress; }
+    public void setEnclaveMissionProgress(Map<String, Integer> enclaveMissionProgress) { this.enclaveMissionProgress = intMap(enclaveMissionProgress); }
+    public Map<String, Integer> getEnclaveTaskProgress() { return enclaveTaskProgress; }
+    public void setEnclaveTaskProgress(Map<String, Integer> values) { this.enclaveTaskProgress = intMap(values); }
+    public Map<String, Integer> getEnclaveTaskCompletions() { return enclaveTaskCompletions; }
+    public void setEnclaveTaskCompletions(Map<String, Integer> values) { this.enclaveTaskCompletions = intMap(values); }
+    public Map<String, Integer> getResidentRapport() { return residentRapport; }
+    public void setResidentRapport(Map<String, Integer> values) { this.residentRapport = intMap(values); }
     public String getFavoriteResidentId() { return favoriteResidentId; }
     public void setFavoriteResidentId(String favoriteResidentId) { this.favoriteResidentId = favoriteResidentId == null ? "" : favoriteResidentId; }
     public String getActiveConstructionId2() { return activeConstructionId2; }
@@ -83,6 +135,16 @@ public class KeepState {
     public void setConstructionStartedAt2(Instant constructionStartedAt2) { this.constructionStartedAt2 = constructionStartedAt2; }
     public Instant getConstructionCompletesAt2() { return constructionCompletesAt2; }
     public void setConstructionCompletesAt2(Instant constructionCompletesAt2) { this.constructionCompletesAt2 = constructionCompletesAt2; }
+    public List<String> getAdditionalConstructionIds() { return additionalConstructionIds; }
+    public void setAdditionalConstructionIds(List<String> values) { this.additionalConstructionIds = copy(values); }
+    public List<Instant> getAdditionalConstructionStartedAts() { return additionalConstructionStartedAts; }
+    public void setAdditionalConstructionStartedAts(List<Instant> values) {
+        this.additionalConstructionStartedAts = values == null ? new ArrayList<>() : new ArrayList<>(values);
+    }
+    public List<Instant> getAdditionalConstructionCompletesAts() { return additionalConstructionCompletesAts; }
+    public void setAdditionalConstructionCompletesAts(List<Instant> values) {
+        this.additionalConstructionCompletesAts = values == null ? new ArrayList<>() : new ArrayList<>(values);
+    }
     public int getWoodlotStored() { return woodlotStored; }
     public void setWoodlotStored(int woodlotStored) { this.woodlotStored = Math.max(0, woodlotStored); }
     public double getWoodlotProductionRemainder() { return woodlotProductionRemainder; }
@@ -124,6 +186,8 @@ public class KeepState {
         this.placedDecorations = new LinkedHashMap<>();
         if (values != null) values.forEach((key, value) -> this.placedDecorations.put(key, value == null ? "" : value));
     }
+    public Map<String, Integer> getStorageUpgradeLevels() { return storageUpgradeLevels; }
+    public void setStorageUpgradeLevels(Map<String, Integer> values) { this.storageUpgradeLevels = intMap(values); }
     public int getCraftCount() { return craftCount; }
     public void setCraftCount(int craftCount) { this.craftCount = Math.max(0, craftCount); }
     public int getEssenceCollectCount() { return essenceCollectCount; }
@@ -162,6 +226,16 @@ public class KeepState {
     public void setLastVisitedAt(Instant lastVisitedAt) { this.lastVisitedAt = lastVisitedAt; }
     public Instant getLastTributeClaimedAt() { return lastTributeClaimedAt; }
     public void setLastTributeClaimedAt(Instant lastTributeClaimedAt) { this.lastTributeClaimedAt = lastTributeClaimedAt; }
+    public long getKeeperXp() { return keeperXp; }
+    public void setKeeperXp(long keeperXp) { this.keeperXp = Math.max(0, keeperXp); }
+    public boolean isKeeperXpBackfilled() { return keeperXpBackfilled; }
+    public void setKeeperXpBackfilled(boolean keeperXpBackfilled) { this.keeperXpBackfilled = keeperXpBackfilled; }
+    public Instant getKeeperDailyXpAt() { return keeperDailyXpAt; }
+    public void setKeeperDailyXpAt(Instant keeperDailyXpAt) { this.keeperDailyXpAt = keeperDailyXpAt; }
+    public int getKeeperResourceXpToday() { return keeperResourceXpToday; }
+    public void setKeeperResourceXpToday(int keeperResourceXpToday) { this.keeperResourceXpToday = Math.max(0, keeperResourceXpToday); }
+    public String getKeeperResourceXpDay() { return keeperResourceXpDay; }
+    public void setKeeperResourceXpDay(String keeperResourceXpDay) { this.keeperResourceXpDay = keeperResourceXpDay == null ? "" : keeperResourceXpDay; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }

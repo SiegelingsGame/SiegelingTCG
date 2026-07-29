@@ -112,6 +112,42 @@ class PackCatalogServiceTest {
         assertEquals("SiegeKnight", serialized.get("tier"));
     }
 
+    @Test
+    void dailyOfferSerializationAndSortingHandleNullElements() throws Exception {
+        PackCatalogService service = createService(new NullElementCardDefinitions());
+
+        List<Map<String, Object>> offers = service.serializeDailyOffers();
+
+        assertEquals(5, offers.size());
+        assertTrue(offers.stream().anyMatch(offer -> offer.get("element") == null));
+    }
+
+    @Test
+    void dailyOfferPricesScaleByRarityAndChargeMoreForKnights() throws Exception {
+        PackCatalogService service = createService(new PricedRotationCardDefinitions());
+
+        List<PackCatalogService.DailyCardOffer> offers = service.listDailyOffers();
+        PackCatalogService.DailyCardOffer knight = offers.stream()
+                .filter(offer -> offer.card().getCardType() == CardType.TRAINER)
+                .findFirst()
+                .orElseThrow();
+        PackCatalogService.DailyCardOffer siegling = offers.stream()
+                .filter(offer -> offer.card().getCardType() == CardType.SIEGLING)
+                .findFirst()
+                .orElseThrow();
+
+        assertEquals(
+                ShopPriceCatalogService.DEFAULT_TRAINER_PRICE_BY_RARITY.get(Rarity.UNCOMMON),
+                knight.price()
+        );
+        assertTrue(knight.price() >= 300, "SiegeKnights must cost at least 300 Siegecoins");
+        assertEquals(
+                ShopPriceCatalogService.DEFAULT_PRICE_BY_RARITY.get(siegling.card().getRarity()),
+                siegling.price()
+        );
+        assertTrue(knight.price() > siegling.price(), "Knights should cost more than same-day Siegling buys");
+    }
+
     private PackCatalogService createService() throws Exception {
         return createService(new NeutralDropCardDefinitions());
     }
@@ -207,6 +243,34 @@ class PackCatalogServiceTest {
         }
     }
 
+    private static class NullElementCardDefinitions extends FireOnlyCardDefinitions {
+        @Override
+        public List<Card> getDeckBuilderCatalog() {
+            return List.of(
+                    new SieglingCard("null-siegling", "Unaligned Unit", null, Rarity.COMMON, 7, 3, List.of(), Row.FRONT),
+                    fireSiegling("fire-b", Row.MIDDLE),
+                    fireSiegling("fire-c", Row.BACK),
+                    new SpellCard("fire-spell", "Fire Spell", Element.FIRE, Rarity.COMMON, 1,
+                            Ability.damage("Spark", "Deal 1 damage", TargetType.SINGLE_ENEMY, null, 1, 1)),
+                    new TrapCard("fire-trap", "Fire Trap", Element.FIRE, Rarity.COMMON, Element.FIRE, 1,
+                            Ability.damage("Snare", "Deal 1 damage", TargetType.SINGLE_ENEMY, null, 1, 1))
+            );
+        }
+
+        @Override
+        public List<TrainerCard> getTrainerOptions() {
+            return List.of(new TrainerCard(
+                    "trainer-null",
+                    "Unaligned Knight",
+                    null,
+                    Rarity.RARE,
+                    Ability.passive("Banner", "Allies gain +1", "damage_boost", 1),
+                    Ability.damage("Strike", "Deal 2 damage", TargetType.SINGLE_ENEMY, null, 1, 2),
+                    false
+            ));
+        }
+    }
+
     private static class FullArtKnightCardDefinitions extends NeutralDropCardDefinitions {
         @Override
         public List<TrainerCard> getTrainerOptions() {
@@ -222,6 +286,33 @@ class PackCatalogServiceTest {
             serBob.setCardArtUrl("/img/knights/ser-bob-full-card.png");
             serBob.setCardArtMode("FULL_CARD");
             return List.of(serBob);
+        }
+    }
+
+    private static class PricedRotationCardDefinitions extends FireOnlyCardDefinitions {
+        @Override
+        public List<Card> getDeckBuilderCatalog() {
+            return List.of(
+                    new SieglingCard("priced-siegling-a", "Priced A", Element.FIRE, Rarity.COMMON, 7, 3, List.of(), Row.FRONT),
+                    new SieglingCard("priced-siegling-b", "Priced B", Element.FIRE, Rarity.COMMON, 7, 3, List.of(), Row.MIDDLE),
+                    new SpellCard("priced-spell", "Priced Spell", Element.FIRE, Rarity.COMMON, 1,
+                            Ability.damage("Spark", "Deal 1 damage", TargetType.SINGLE_ENEMY, null, 1, 1)),
+                    new TrapCard("priced-trap", "Priced Trap", Element.FIRE, Rarity.COMMON, Element.FIRE, 1,
+                            Ability.damage("Snare", "Deal 1 damage", TargetType.SINGLE_ENEMY, null, 1, 1))
+            );
+        }
+
+        @Override
+        public List<TrainerCard> getTrainerOptions() {
+            return List.of(new TrainerCard(
+                    "priced-knight",
+                    "Priced Knight",
+                    Element.FIRE,
+                    Rarity.UNCOMMON,
+                    Ability.passive("Banner", "Allies gain +1", "damage_boost", 1),
+                    Ability.damage("Strike", "Deal 2 damage", TargetType.SINGLE_ENEMY, null, 1, 2),
+                    false
+            ));
         }
     }
 }

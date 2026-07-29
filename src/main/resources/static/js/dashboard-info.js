@@ -132,6 +132,19 @@
             '<p>Locked Siegelings still appear in the recruit pool on the map — finding them mid-run adds them to future expeditions.</p>'
     };
 
+    topics['siegling-size'] = {
+        title: 'Siegling Size',
+        html: '<p>How big the Siegeling stands where it is drawn at world scale rather than as a card — today the paper cutouts in the Keep enclave.</p>' +
+            table([
+                row(['<strong>Auto</strong>', 'Follows rarity: Common/Uncommon small, Rare medium, Epic large, Legendary gigantic. Updates on its own if you change the rarity.']),
+                row(['<strong>Small</strong>', 'Base-form silhouette.']),
+                row(['<strong>Medium</strong>', 'Roughly a fifth taller than small.']),
+                row(['<strong>Large</strong>', 'Half again the height of a small cutout.']),
+                row(['<strong>Gigantic</strong>', 'Towering — the default for every Legendary.'])
+            ]) +
+            '<p>Pick an explicit size only for one-off exceptions; leaving it on Auto keeps the card in step with its rarity.</p>'
+    };
+
     topics['action-cards'] = {
         title: 'Strategy & Deception Cards',
         html: '<p><strong>Strategies</strong> (spells) are played from hand for an element + energy cost, often gated by combo size or reaction type.</p>' +
@@ -250,7 +263,15 @@
     topics['shop-prices'] = {
         title: 'Shop Prices',
         html: '<p>Each card\'s shop price is looked up by <strong>rarity + card type</strong>. Set an override for a cell to replace the default for every card of that combination; reset it to fall back to the default again.</p>' +
-            '<p>Overrides apply immediately to packs and daily card offers. Premade decks are priced separately and are not affected here.</p>'
+            '<p>SiegeKnight (TRAINER) defaults start at <strong>300</strong> Siegecoins and scale up with rarity; Siegelings, spells, and traps use a lower rarity ladder. Overrides apply immediately to packs and daily card offers. Premade decks are priced separately and are not affected here.</p>'
+    };
+
+    topics['keep-tuning'] = {
+        title: 'Keep Tuning',
+        html: '<p>Every field on this page is an <strong>override</strong> of the value My Keep ships with. Blank means "use the shipped value", which is shown as each input\'s placeholder. Saving publishes to every live keep immediately.</p>' +
+            '<p><strong>Building Output</strong> sets each workshop\'s base materials per minute and local storage, before facility level, crafted tools, resident affinity, rapport, and the favorite bonus multiply it. <strong>Construction Costs</strong> sets the timber price and build time of every project.</p>' +
+            '<p><strong>Siegeling Buffs</strong> holds the percentages residents contribute. Rapport is a multiplier on whatever a resident already grants: at a 10% step, a rapport-5 partner gives 1.5x its workshop affinity bonus and 1.5x its favorite bonus. Because the favorite bonus is tiered by rarity, the gap between a Common and a Legendary favorite widens as rapport grows rather than flattening out.</p>' +
+            '<p><strong>Decorations &amp; Tools</strong> retitles blueprints, rewrites their effect label, and re-costs them (<code>verdant_fiber 12, stone 4</code>). <strong>Enclave Tasks</strong> defines the rapport tasks residents offer: each Siegeling gets its element ladder plus one personal bond task chosen from its card id. Override an element to change every Siegeling of that element, or add a card id to replace one Siegeling\'s ladder outright. <code>{name}</code> in task copy is replaced with the Siegeling\'s name.</p>'
     };
 
     topics['siege-events'] = {

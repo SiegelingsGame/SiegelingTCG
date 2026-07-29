@@ -155,11 +155,15 @@
     // Stored under AUTH_TOKEN_KEY when auth has moved to the httpOnly session cookie
     // (no secret in localStorage); home.js/game.js treat it as "signed in".
     const COOKIE_SESSION_VALUE = 'cookie';
+    // Written by home.js/game.js once /api/auth/me reports the server actually
+    // received the session cookie. Until then the real token must be kept, or the
+    // very next page load asks the player to sign in all over again.
+    const COOKIE_AUTH_CONFIRMED_KEY = 'sieglingsCookieAuthConfirmed';
     const POST_LOGIN_DESTINATION = '/home';
 
-    function hasReadableAuthCookie() {
+    function cookieAuthConfirmed() {
         try {
-            return document.cookie.split('; ').some((c) => c.startsWith('sgl_auth='));
+            return localStorage.getItem(COOKIE_AUTH_CONFIRMED_KEY) === '1';
         } catch (e) {
             return false;
         }
@@ -276,12 +280,12 @@
                     showError((data && data.error) || 'Something went wrong. Please try again.');
                     return;
                 }
-                // Prefer cookie auth in browsers; in a standalone Web App (or when
-                // cookies are blocked) keep the real token for Bearer-header auth so
-                // the session survives the full-page Home <-> Play navigation.
+                // Keep the real token for Bearer-header auth unless the server has
+                // already confirmed a session cookie reaches it, so the session
+                // survives the full-page navigation into Home / Play / Keep / Siege.
                 localStorage.setItem(
                     AUTH_TOKEN_KEY,
-                    (hasReadableAuthCookie() && !isStandalonePWA()) ? COOKIE_SESSION_VALUE : data.token
+                    (cookieAuthConfirmed() && !isStandalonePWA()) ? COOKIE_SESSION_VALUE : data.token
                 );
                 window.location.assign(POST_LOGIN_DESTINATION);
             } catch (_networkError) {
