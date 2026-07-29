@@ -3,7 +3,10 @@ package com.sieglings.service;
 import com.sieglings.mission.DailyMissionCatalog;
 import com.sieglings.mission.DailyMissionDefinition;
 import com.sieglings.mission.DailyMissionType;
+import com.sieglings.mission.KnightLevelTrack;
 import com.sieglings.mission.MissionPeriod;
+import com.sieglings.mission.MissionRewardTrack;
+import com.sieglings.model.Card;
 import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.DailyMissionProgressEntity;
 import com.sieglings.persistence.entity.MatchHistoryEntity;
@@ -12,6 +15,7 @@ import com.sieglings.persistence.firestore.DailyMissionProgressStore;
 import com.sieglings.persistence.firestore.PlayerProgressionStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.time.DayOfWeek;
@@ -27,12 +31,16 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 public class DailyMissionService {
 
     /** Flat Siegecoin reward granted once per calendar day just for logging in. */
     public static final int DAILY_LOGIN_REWARD = 100;
+
+    /** The login reward also seeds the daily chest ladder so the bar moves on day one. */
+    public static final int DAILY_LOGIN_POINTS = 10;
 
     private static final DateTimeFormatter DATE_KEY_FORMAT = DateTimeFormatter.ISO_LOCAL_DATE;
 
@@ -41,6 +49,16 @@ public class DailyMissionService {
 
     @Autowired
     private PlayerProgressionStore playerProgressionStore;
+
+    // @Lazy breaks the PlayerProgressionService → DailyMissionService startup
+    // cycle. Only used at claim time, to grant chest / Knight Level card pulls
+    // through the shared copy-cap + duplicate-to-Remnants path.
+    @Autowired(required = false)
+    @Lazy
+    private PlayerProgressionService playerProgressionService;
+
+    @Autowired(required = false)
+    private CardDefinitionService cardDefinitionService;
 
     @Value("${app.leaderboard.time-zone:UTC}")
     private String missionTimeZoneId;
@@ -69,6 +87,9 @@ public class DailyMissionService {
         payload.put("weekKey", progress.getWeekKey());
         payload.put("weeklyResetAt", nextWeeklyResetAt(zone, now).toString());
         payload.put("login", serializeLogin(progress));
+        payload.put("dailyTrack", serializeTrack(MissionPeriod.DAILY, progress));
+        payload.put("weeklyTrack", serializeTrack(MissionPeriod.WEEKLY, progress));
+        payload.put("knight", serializeKnight(progress));
         return payload;
     }
 
@@ -85,6 +106,9 @@ public class DailyMissionService {
             throw new IllegalArgumentException("Mission reward already claimed.");
         }
         claimed.add(definition.id());
+        // Points bank into the period's reward track: daily/weekly fill their chest
+        // ladder, lifetime raises the account-wide Knight Level.
+        progress.addPoints(definition.period(), definition.points());
         progress.setUpdatedAt(Instant.now());
         progressStore.save(progress);
 
@@ -94,8 +118,93 @@ public class DailyMissionService {
         response.put("missionId", definition.id());
         response.put("period", definition.period().name());
         response.put("reward", definition.reward());
+        response.put("points", definition.points());
         response.put("gold", progression.getGold());
         response.put("mission", serializeMission(definition, progress));
+        response.put("dailyMissions", getDailySnapshot(user));
+        return response;
+    }
+
+    /**
+     * Collects one chest from the daily or weekly point ladder. The chest must be
+     * unlocked by the period's banked points and unclaimed; the ladder's final
+     * chest also rolls a random card from the collection catalog.
+     */
+    public Map<String, Object> claimChest(AccountUser user, String periodName, int threshold) {
+        MissionPeriod period = parseTrackPeriod(periodName);
+        MissionRewardTrack.Chest chest = MissionRewardTrack.findChest(period, threshold);
+        if (chest == null) {
+            throw new IllegalArgumentException("Unknown reward chest.");
+        }
+        DailyMissionProgressEntity progress = loadProgress(user.getId());
+        if (progress.points(period) < chest.threshold()) {
+            throw new IllegalArgumentException("Not enough points for that chest yet.");
+        }
+        List<Integer> claimed = new ArrayList<>(progress.claimedChests(period));
+        if (claimed.contains(chest.threshold())) {
+            throw new IllegalArgumentException("Chest reward already claimed.");
+        }
+        claimed.add(chest.threshold());
+        if (period == MissionPeriod.WEEKLY) {
+            progress.setClaimedWeeklyChests(claimed);
+        } else {
+            progress.setClaimedDailyChests(claimed);
+        }
+        progress.setUpdatedAt(Instant.now());
+        progressStore.save(progress);
+
+        GrantResult granted = grantRewards(user, chest.gold(), chest.remnants(), chest.cardPulls());
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("period", period.name());
+        response.put("threshold", chest.threshold());
+        response.put("reward", chest.gold());
+        response.put("remnants", chest.remnants());
+        response.put("cards", granted.cards());
+        response.put("gold", granted.progression().getGold());
+        response.put("remnantsTotal", granted.progression().getRemnants());
+        response.put("dailyMissions", getDailySnapshot(user));
+        return response;
+    }
+
+    /**
+     * Pays out every Knight Level the player has reached but not yet collected.
+     * Levels are banked from lifetime mission points only, so this is a permanent,
+     * one-way track — {@code claimedKnightLevel} is the high-water mark.
+     */
+    public Map<String, Object> claimKnightLevels(AccountUser user) {
+        DailyMissionProgressEntity progress = loadProgress(user.getId());
+        int reached = KnightLevelTrack.levelForPoints(progress.getKnightPoints());
+        int claimedThrough = progress.getClaimedKnightLevel();
+        if (reached <= claimedThrough) {
+            throw new IllegalArgumentException("No Knight Level rewards to collect yet.");
+        }
+
+        int gold = 0;
+        int remnants = 0;
+        int cardPulls = 0;
+        List<Map<String, Object>> levels = new ArrayList<>();
+        for (int level = claimedThrough + 1; level <= reached; level++) {
+            KnightLevelTrack.LevelReward reward = KnightLevelTrack.rewardForLevel(level);
+            gold += reward.gold();
+            remnants += reward.remnants();
+            cardPulls += reward.cardPulls();
+            levels.add(serializeLevelReward(reward));
+        }
+        progress.setClaimedKnightLevel(reached);
+        progress.setUpdatedAt(Instant.now());
+        progressStore.save(progress);
+
+        GrantResult granted = grantRewards(user, gold, remnants, cardPulls);
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("level", reached);
+        response.put("levels", levels);
+        response.put("reward", gold);
+        response.put("remnants", remnants);
+        response.put("cards", granted.cards());
+        response.put("gold", granted.progression().getGold());
+        response.put("remnantsTotal", granted.progression().getRemnants());
         response.put("dailyMissions", getDailySnapshot(user));
         return response;
     }
@@ -115,6 +224,7 @@ public class DailyMissionService {
         int streak = yesterdayKey.equals(progress.getLastLoginClaimKey()) ? progress.getLoginStreak() + 1 : 1;
         progress.setLoginStreak(streak);
         progress.setLastLoginClaimKey(todayKey);
+        progress.addPoints(MissionPeriod.DAILY, DAILY_LOGIN_POINTS);
         progress.setUpdatedAt(Instant.now());
         progressStore.save(progress);
 
@@ -122,6 +232,7 @@ public class DailyMissionService {
 
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("reward", DAILY_LOGIN_REWARD);
+        response.put("points", DAILY_LOGIN_POINTS);
         response.put("streak", streak);
         response.put("gold", progression.getGold());
         response.put("dailyMissions", getDailySnapshot(user));
@@ -202,16 +313,74 @@ public class DailyMissionService {
     }
 
     private PlayerProgressionEntity grantGold(AccountUser user, int amount) {
+        return grantRewards(user, amount, 0, 0).progression();
+    }
+
+    /** A settled chest / level payout: the saved wallet plus any cards actually rolled. */
+    private record GrantResult(PlayerProgressionEntity progression, List<Map<String, Object>> cards) {}
+
+    private GrantResult grantRewards(AccountUser user, int gold, int remnants, int cardPulls) {
         PlayerProgressionEntity progression = playerProgressionStore.findByUserId(user.getId()).orElseGet(() -> {
             PlayerProgressionEntity created = new PlayerProgressionEntity();
             created.setUserId(user.getId());
             created.setGold(PlayerProgressionService.STARTING_GOLD);
             return created;
         });
-        progression.setGold(progression.getGold() + amount);
+        progression.setGold(progression.getGold() + Math.max(0, gold));
+        progression.setRemnants(progression.getRemnants() + Math.max(0, remnants));
+
+        List<Card> pulled = rollCards(cardPulls);
+        List<Map<String, Object>> cards = new ArrayList<>();
+        if (!pulled.isEmpty() && playerProgressionService != null) {
+            // Routed through the shared grant so copy caps and duplicate-to-Remnants
+            // conversion behave exactly as they do for pack pulls.
+            for (PlayerProgressionService.CardGrantOutcome outcome
+                    : playerProgressionService.grantCardsWithCap(progression, pulled)) {
+                cards.add(serializeCardGrant(outcome));
+            }
+        }
         progression.setUpdatedAt(Instant.now());
         playerProgressionStore.save(progression);
-        return progression;
+        return new GrantResult(progression, cards);
+    }
+
+    private List<Card> rollCards(int pulls) {
+        if (pulls <= 0 || cardDefinitionService == null) {
+            return List.of();
+        }
+        List<Card> catalog = cardDefinitionService.getDeckBuilderCatalog();
+        if (catalog.isEmpty()) {
+            return List.of();
+        }
+        List<Card> out = new ArrayList<>();
+        for (int i = 0; i < pulls; i++) {
+            out.add(catalog.get(ThreadLocalRandom.current().nextInt(catalog.size())));
+        }
+        return out;
+    }
+
+    private Map<String, Object> serializeCardGrant(PlayerProgressionService.CardGrantOutcome outcome) {
+        Map<String, Object> card = new LinkedHashMap<>();
+        card.put("id", outcome.card().getId());
+        card.put("name", outcome.card().getName());
+        card.put("element", outcome.card().getElement() == null ? null : outcome.card().getElement().name());
+        card.put("rarity", outcome.card().getRarity() == null ? null : outcome.card().getRarity().name());
+        card.put("granted", outcome.grantedCopy());
+        card.put("remnantsAwarded", outcome.remnantsAwarded());
+        return card;
+    }
+
+    private MissionPeriod parseTrackPeriod(String periodName) {
+        String normalized = periodName == null ? "" : periodName.trim().toUpperCase(Locale.ROOT);
+        MissionPeriod period = switch (normalized) {
+            case "WEEKLY" -> MissionPeriod.WEEKLY;
+            case "DAILY" -> MissionPeriod.DAILY;
+            default -> null;
+        };
+        if (period == null || !MissionRewardTrack.hasTrack(period)) {
+            throw new IllegalArgumentException("Reward chests exist for the daily and weekly tracks only.");
+        }
+        return period;
     }
 
     private DailyMissionProgressEntity loadProgress(String userId) {
@@ -227,12 +396,16 @@ public class DailyMissionService {
             progress.setDateKey(todayKey);
             progress.setCounters(new LinkedHashMap<>());
             progress.setClaimedMissionIds(new ArrayList<>());
+            progress.setDailyPoints(0);
+            progress.setClaimedDailyChests(new ArrayList<>());
             dirty = true;
         }
         if (!weekKey.equals(progress.getWeekKey())) {
             progress.setWeekKey(weekKey);
             progress.setWeeklyCounters(new LinkedHashMap<>());
             progress.setClaimedWeeklyIds(new ArrayList<>());
+            progress.setWeeklyPoints(0);
+            progress.setClaimedWeeklyChests(new ArrayList<>());
             dirty = true;
         }
         if (dirty) {
@@ -264,6 +437,7 @@ public class DailyMissionService {
         mission.put("target", definition.target());
         mission.put("current", current);
         mission.put("reward", definition.reward());
+        mission.put("points", definition.points());
         mission.put("featured", definition.featured());
         mission.put("completed", completed);
         mission.put("claimed", claimed);
@@ -271,11 +445,73 @@ public class DailyMissionService {
         return mission;
     }
 
+    private Map<String, Object> serializeTrack(MissionPeriod period, DailyMissionProgressEntity progress) {
+        int points = progress.points(period);
+        List<Integer> claimed = progress.claimedChests(period);
+        List<Map<String, Object>> chests = new ArrayList<>();
+        for (MissionRewardTrack.Chest chest : MissionRewardTrack.forPeriod(period)) {
+            boolean unlocked = points >= chest.threshold();
+            boolean taken = claimed.contains(chest.threshold());
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("threshold", chest.threshold());
+            row.put("gold", chest.gold());
+            row.put("remnants", chest.remnants());
+            row.put("cardPulls", chest.cardPulls());
+            row.put("unlocked", unlocked);
+            row.put("claimed", taken);
+            row.put("claimable", unlocked && !taken);
+            chests.add(row);
+        }
+        Map<String, Object> track = new LinkedHashMap<>();
+        track.put("period", period.name());
+        track.put("points", points);
+        track.put("maxPoints", MissionRewardTrack.maxPoints(period));
+        track.put("chests", chests);
+        return track;
+    }
+
+    private Map<String, Object> serializeKnight(DailyMissionProgressEntity progress) {
+        int points = progress.getKnightPoints();
+        int level = KnightLevelTrack.levelForPoints(points);
+        int claimedThrough = progress.getClaimedKnightLevel();
+        int intoLevel = KnightLevelTrack.pointsIntoLevel(points);
+        int toAdvance = KnightLevelTrack.pointsToAdvance(level);
+
+        List<Map<String, Object>> pending = new ArrayList<>();
+        for (int pendingLevel = claimedThrough + 1; pendingLevel <= level; pendingLevel++) {
+            pending.add(serializeLevelReward(KnightLevelTrack.rewardForLevel(pendingLevel)));
+        }
+
+        Map<String, Object> knight = new LinkedHashMap<>();
+        knight.put("level", level);
+        knight.put("maxLevel", KnightLevelTrack.MAX_LEVEL);
+        knight.put("points", points);
+        knight.put("pointsIntoLevel", intoLevel);
+        knight.put("pointsForNext", toAdvance);
+        knight.put("claimedLevel", claimedThrough);
+        knight.put("pendingLevels", pending);
+        knight.put("claimable", !pending.isEmpty());
+        knight.put("nextReward", level < KnightLevelTrack.MAX_LEVEL
+                ? serializeLevelReward(KnightLevelTrack.rewardForLevel(level + 1))
+                : null);
+        return knight;
+    }
+
+    private Map<String, Object> serializeLevelReward(KnightLevelTrack.LevelReward reward) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("level", reward.level());
+        out.put("gold", reward.gold());
+        out.put("remnants", reward.remnants());
+        out.put("cardPulls", reward.cardPulls());
+        return out;
+    }
+
     private Map<String, Object> serializeLogin(DailyMissionProgressEntity progress) {
         String todayKey = dateKey(Instant.now());
         boolean claimedToday = todayKey.equals(progress.getLastLoginClaimKey());
         Map<String, Object> login = new LinkedHashMap<>();
         login.put("reward", DAILY_LOGIN_REWARD);
+        login.put("points", DAILY_LOGIN_POINTS);
         login.put("claimedToday", claimedToday);
         login.put("claimable", !claimedToday);
         login.put("streak", progress.getLoginStreak());

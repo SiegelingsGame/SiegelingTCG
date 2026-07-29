@@ -45,6 +45,36 @@ public class DailyMissionController {
         }
     }
 
+    @PostMapping("/api/missions/claim-chest")
+    public Map<String, Object> claimChest(@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+                                          @RequestBody Map<String, Object> req) {
+        try {
+            AccountUser user = accountService.requireUser(authorizationHeader);
+            String period = req == null ? "" : String.valueOf(req.getOrDefault("period", "")).trim();
+            int threshold = req == null ? 0 : parseInt(req.get("threshold"));
+            if (period.isEmpty() || threshold <= 0) {
+                return Map.of("error", "period and threshold are required.");
+            }
+            return dailyMissionService.claimChest(user, period, threshold);
+        } catch (IllegalArgumentException ex) {
+            Map<String, Object> error = new LinkedHashMap<>();
+            error.put("error", ex.getMessage());
+            return error;
+        }
+    }
+
+    @PostMapping("/api/missions/claim-knight")
+    public Map<String, Object> claimKnight(@RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+        try {
+            AccountUser user = accountService.requireUser(authorizationHeader);
+            return dailyMissionService.claimKnightLevels(user);
+        } catch (IllegalArgumentException ex) {
+            Map<String, Object> error = new LinkedHashMap<>();
+            error.put("error", ex.getMessage());
+            return error;
+        }
+    }
+
     @PostMapping("/api/missions/claim-login")
     public Map<String, Object> claimLogin(@RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
         try {
@@ -54,6 +84,17 @@ public class DailyMissionController {
             Map<String, Object> error = new LinkedHashMap<>();
             error.put("error", ex.getMessage());
             return error;
+        }
+    }
+
+    private static int parseInt(Object raw) {
+        if (raw instanceof Number number) {
+            return number.intValue();
+        }
+        try {
+            return Integer.parseInt(String.valueOf(raw).trim());
+        } catch (NumberFormatException ex) {
+            return 0;
         }
     }
 }

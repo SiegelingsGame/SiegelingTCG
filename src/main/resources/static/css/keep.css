@@ -1635,6 +1635,7 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
 }
 .keep-interior[aria-hidden="false"] { visibility: visible; opacity: 1; animation: interior-in .35s ease; }
 .interior-bar {
+    position: relative;
     grid-column: 1 / -1;
     display: flex;
     align-items: center;
@@ -1659,6 +1660,179 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
 .interior-heading h2 { margin: 1px 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 19px/1.1 Georgia, serif; }
 .interior-viewport { position: relative; grid-row: 2; grid-column: 1; min-height: 0; overflow: hidden; }
 .interior-stage { position: absolute; inset: 0; overflow: hidden; }
+
+/* —— Construction, seen from inside the building being worked on —— */
+.interior-build-toggle {
+    flex: 0 0 auto;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 4px 8px;
+    margin-left: auto;
+    min-height: 38px;
+    padding: 5px 11px 6px;
+    border: 1px solid rgba(244, 204, 98, .5);
+    border-radius: 11px;
+    background: linear-gradient(rgba(60, 43, 18, .92), rgba(34, 26, 14, .92));
+    color: #ffe9a8;
+    text-align: left;
+    cursor: pointer;
+    transition: background .18s ease, border-color .18s ease;
+}
+.interior-build-toggle.hidden { display: none; }
+.interior-build-toggle:hover { background: linear-gradient(rgba(80, 57, 22, .95), rgba(46, 35, 18, .95)); }
+.interior-build-toggle[aria-expanded="true"] { border-color: #f4cc62; }
+.build-toggle-icon { grid-row: 1 / span 2; font-size: 17px; font-style: normal; animation: build-tap 2.6s ease-in-out infinite; }
+.build-toggle-copy { display: block; min-width: 0; }
+.build-toggle-copy strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 900; }
+.build-toggle-copy small { display: block; color: rgba(255, 233, 168, .78); font-size: 10px; font-variant-numeric: tabular-nums; }
+.build-toggle-meter {
+    grid-column: 2;
+    display: block;
+    overflow: hidden;
+    height: 3px;
+    border-radius: 2px;
+    background: rgba(0, 0, 0, .45);
+}
+.build-toggle-meter em { display: block; height: 100%; border-radius: 2px; background: linear-gradient(90deg, #f4cc62, #ffb347); transition: width .6s linear; }
+@keyframes build-tap { 0%, 68%, 100% { transform: rotate(0); } 78% { transform: rotate(-22deg); } 88% { transform: rotate(6deg); } }
+
+.interior-build-menu {
+    position: absolute;
+    z-index: 30;
+    top: calc(100% + 6px);
+    right: calc(10px + var(--safe-right));
+    width: min(322px, calc(100vw - 20px));
+    max-height: min(440px, calc(100dvh - 176px));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 12px 13px 13px;
+    border: 1px solid rgba(244, 204, 98, .45);
+    border-radius: 14px;
+    background: rgba(12, 22, 30, .95);
+    box-shadow: 0 14px 34px rgba(0, 0, 0, .5);
+    backdrop-filter: blur(4px);
+    animation: build-menu-in .2s ease;
+}
+.interior-build-menu.hidden { display: none; }
+@keyframes build-menu-in { from { opacity: 0; transform: translateY(-8px); } }
+.build-menu-head { position: relative; padding-right: 26px; }
+.build-menu-head h3 { margin: 2px 0 0; font: 700 16px/1.15 Georgia, serif; color: #fff3cf; }
+.build-menu-close {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    color: rgba(255, 233, 168, .75);
+    background: rgba(255, 255, 255, .06);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+}
+.build-menu-close:hover { color: #fff3cf; background: rgba(255, 255, 255, .14); }
+.build-menu-note { margin: 6px 0 9px; color: rgba(255, 247, 220, .74); font-size: 11px; line-height: 1.45; }
+.build-menu-meter { overflow: hidden; height: 7px; border-radius: 4px; background: rgba(0, 0, 0, .5); }
+.build-menu-meter i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, #f4cc62, #ffb347); transition: width .6s linear; }
+.build-menu-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 10px 0 4px; }
+.build-menu-facts > div { padding: 6px 8px; border: 1px solid rgba(244, 204, 98, .2); border-radius: 9px; background: rgba(255, 255, 255, .04); }
+.build-menu-facts dt { color: rgba(255, 233, 168, .62); font-size: 9px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.build-menu-facts dd { margin: 2px 0 0; color: #fff3cf; font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.time-saver.is-static { border-top: 1px solid rgba(244, 204, 98, .2); margin-top: 8px; padding-top: 8px; }
+.time-saver-heading { display: flex; align-items: center; gap: 7px; color: #ffe9a8; font-size: 12px; }
+.time-saver-heading i { font-style: normal; }
+
+/* The work site is drawn over the finished room so entering mid-build reads as a
+   site, not a completed space with a timer bolted on. */
+.interior-build-art {
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding-bottom: 3%;
+    pointer-events: none;
+}
+.interior-build-art.hidden { display: none; }
+/* Capped rather than stretched: the site stands on the room's floor instead of
+   covering the walls, so the room is still recognisable while work runs. */
+.build-art-svg {
+    display: block;
+    width: auto;
+    height: min(64%, 420px);
+    max-width: 94%;
+    aspect-ratio: 400 / 240;
+    filter: drop-shadow(0 6px 12px rgba(0, 0, 0, .45));
+}
+/* Each quarter of the project raises one more group, so the room the player
+   walked into last visit is visibly further along on this one. */
+.build-art-svg > g { opacity: 0; transform: translateY(10px); transition: opacity .8s ease, transform .8s ease; }
+.build-art-svg > g.is-raised { opacity: 1; transform: none; }
+.build-art-svg .b-tim { fill: #b7863f; }
+.build-art-svg .b-tim-l { fill: #d9ad63; }
+.build-art-svg .b-tim-d { fill: #8a5f2a; }
+.build-art-svg .b-stone { fill: #98a2a6; }
+.build-art-svg .b-stone-d { fill: #6d767a; }
+.build-art-svg .b-brick { fill: #a55f43; }
+.build-art-svg .b-dome { fill: #a55f43; }
+.build-art-svg .b-canvas { fill: #c9b088; }
+.build-art-svg .b-panel { fill: #8fb6c4; }
+.build-art-svg .b-leaf { fill: #7fb35c; }
+.build-art-svg .b-bloom { fill: #f0a5bd; }
+.build-art-svg .b-soil { fill: #5b432c; }
+.build-art-svg .b-rubble { fill: #6d767a; }
+.build-art-svg .b-face { fill: #7d8488; }
+.build-art-svg .b-ice { fill: #a9e8f2; }
+.build-art-svg .b-anvil { fill: #7c848a; }
+.build-art-svg .b-nest { fill: #b7863f; }
+.build-art-svg .b-banner { fill: var(--hall-accent, #f4cc62); }
+.build-art-svg .b-spool { fill: #8a5f2a; }
+.build-art-svg .b-spool-hub { fill: #d9ad63; }
+.build-art-svg .b-fire { fill: #ff8a3d; }
+.build-art-svg .b-glow { fill: #ffcf74; }
+.build-art-svg .b-frost { fill: #a9e8f2; }
+.build-art-svg .b-shadow { fill: rgba(6, 10, 14, .34); }
+.build-art-svg .b-dust circle { fill: rgba(226, 214, 186, .35); }
+.build-art-svg .b-sparks circle { fill: #ffd27a; }
+.build-art-svg .b-beam { fill: none; stroke: #b7863f; stroke-width: 8; stroke-linecap: round; }
+.build-art-svg .b-beam-d { fill: none; stroke: #8a5f2a; stroke-width: 6; stroke-linecap: round; }
+.build-art-svg .b-lattice { fill: none; stroke: #a97b3a; stroke-width: 4; stroke-linecap: round; }
+.build-art-svg .b-hoop { fill: none; stroke: #cbd7dd; stroke-width: 4; }
+.build-art-svg .b-former { fill: none; stroke: #b7863f; stroke-width: 6; }
+.build-art-svg .b-ring { fill: none; stroke: #8b949a; stroke-width: 9; stroke-linecap: round; }
+.build-art-svg .b-winding { fill: none; stroke: #d9ad63; stroke-width: 4; stroke-linecap: round; }
+.build-art-svg .b-coil { fill: none; stroke: #7fd8e8; stroke-width: 4; stroke-linecap: round; }
+.build-art-svg .b-rope { fill: none; stroke: #e6cf99; stroke-width: 2.6; stroke-linecap: round; }
+.build-art-svg .b-bundle { fill: none; stroke: #c8a565; stroke-width: 5; stroke-linecap: round; }
+.build-art-svg .b-straw { fill: none; stroke: #c8a565; stroke-width: 7; stroke-linecap: round; }
+.build-art-svg .b-saw { fill: none; stroke: #cbd7dd; stroke-width: 5; stroke-linecap: round; }
+.build-art-svg .b-steam { fill: none; stroke: rgba(226, 240, 245, .55); stroke-width: 4; stroke-linecap: round; }
+.build-art-svg .b-crack { fill: none; stroke: rgba(12, 10, 8, .55); stroke-width: 4; stroke-linecap: round; }
+.build-art-svg .b-chalk { fill: none; stroke: rgba(255, 240, 200, .5); stroke-width: 2.4; stroke-dasharray: 8 7; stroke-linecap: round; }
+.build-art-svg .b-line { fill: none; stroke: rgba(20, 15, 10, .3); stroke-width: 2.4; }
+.build-art-svg .b-arc { fill: none; stroke: #9deaff; stroke-width: 3; stroke-linecap: round; }
+.build-art-svg .b-hoist { transform-origin: 203px 62px; animation: build-swing 5.2s ease-in-out infinite; }
+.build-art-svg .b-lamp { animation: build-lamp 3.4s ease-in-out infinite; }
+.build-art-svg .b-dust circle { animation: build-motes 6s ease-in-out infinite; }
+.build-art-svg .b-dust circle:nth-child(2) { animation-delay: -1.6s; }
+.build-art-svg .b-dust circle:nth-child(3) { animation-delay: -3.1s; }
+.build-art-svg .b-dust circle:nth-child(4) { animation-delay: -4.4s; }
+.build-art-svg .b-sparks circle { animation: build-motes 2.4s ease-in-out infinite; }
+.build-art-svg .b-sparks circle:nth-child(2) { animation-delay: -.9s; }
+.build-art-svg .b-sparks circle:nth-child(3) { animation-delay: -1.6s; }
+.build-art-svg .b-arc { animation: build-lamp 1.6s steps(2, end) infinite; }
+@keyframes build-swing { 0%, 100% { transform: rotate(-2.6deg); } 50% { transform: rotate(2.6deg); } }
+@keyframes build-lamp { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+@keyframes build-motes { 0% { opacity: 0; transform: translateY(6px); } 40% { opacity: .9; } 100% { opacity: 0; transform: translateY(-26px); } }
+@media (prefers-reduced-motion: reduce) {
+    .build-art-svg .b-hoist, .build-art-svg .b-lamp, .build-art-svg .b-dust circle,
+    .build-art-svg .b-sparks circle, .build-art-svg .b-arc, .build-toggle-icon { animation: none; }
+    .build-art-svg > g { transition: none; }
+}
 
 /* Room-to-room tour controls float over the stage so players never have to
    step back out to the grounds to visit the next building. */
@@ -2929,6 +3103,17 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     .interior-actions { grid-row: 3; grid-column: 1; max-height: 42dvh; border-left: 0; border-top: 1px solid var(--line); padding: 11px; }
     .interior-heading h2 { font-size: 16px; }
     .interior-exit { min-height: 34px; padding: 7px 11px; font-size: 11px; }
+    .interior-build-toggle { min-height: 34px; padding: 4px 8px 5px; gap: 3px 6px; }
+    .build-toggle-icon { font-size: 15px; }
+    .build-toggle-copy strong { max-width: 84px; font-size: 10px; }
+    /* A phone has no room for a floating card beside the room; take the width. */
+    .interior-build-menu {
+        left: calc(6px + var(--safe-left));
+        right: calc(6px + var(--safe-right));
+        width: auto;
+        max-height: calc(100dvh - 200px);
+        padding: 11px;
+    }
     .lodge-resident > span { width: calc(44px * var(--cutout-scale)); height: calc(44px * var(--cutout-scale)); }
     .lodge-resident > span.has-overlay-art { width: calc(62px * var(--cutout-scale)); height: calc(78px * var(--cutout-scale)); }
     .hall-favorite-resident > span { width: calc(44px * var(--cutout-scale)); height: calc(44px * var(--cutout-scale)); }
@@ -3041,6 +3226,9 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     .interior-bar { padding-block: 6px; }
     .interior-heading h2 { font-size: 15px; }
     .interior-exit { min-height: 32px; padding: 6px 10px; font-size: 11px; }
+    .interior-build-toggle { min-height: 32px; padding: 3px 8px 4px; }
+    .interior-build-menu { top: calc(100% + 4px); right: calc(6px + var(--safe-right)); width: min(300px, calc(100vw - 12px)); max-height: calc(100dvh - 74px); padding: 10px; }
+    .build-menu-note { margin: 5px 0 7px; }
     /* Short landscape: the header chrome shrinks so the scrolling chapter list
        keeps the height it needs and its last row stays inside the card. */
     .journey-overlay { padding: 6px calc(6px + var(--safe-right)) calc(6px + var(--safe-bottom)) calc(6px + var(--safe-left)); }

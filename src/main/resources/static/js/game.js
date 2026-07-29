@@ -80,7 +80,7 @@ const DECK_ART_ASSET_KEYS = [
     'ELECTRIC', 'METAL', 'UNDEAD', 'PSYCHIC', 'POISON', 'LIGHT'
 ];
 // Bump with home.js ELEMENTAL_CARD_BACK_VERSION when default card-back art changes.
-const DECK_ART_ASSET_VERSION = 5;
+const DECK_ART_ASSET_VERSION = 6;
 function versionedDeckArtAsset(path) {
     if (!path) return '';
     const separator = path.includes('?') ? '&' : '?';

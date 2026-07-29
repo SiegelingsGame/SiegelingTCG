@@ -95,6 +95,9 @@
         favorPickerOpen: false,
         favorCandidateId: '',
         timeSaverProjectId: '',
+        // Whether the interior HUD's construction menu is expanded. Closed on every
+        // room change so walking the tour never lands behind an open sheet.
+        interiorBuildOpen: false,
         instantBuyProjectId: '',
         selectedRelationshipId: '',
         inventoryFilter: 'ALL',
@@ -191,6 +194,7 @@
                 else if (!document.getElementById('journeyOverlay')?.classList.contains('hidden')) closeJourney();
                 else if (!document.getElementById('dialogueOverlay')?.classList.contains('hidden')) closeDialogue();
                 else if (state.panel) closePanel();
+                else if (state.interiorBuildOpen) { state.interiorBuildOpen = false; renderInteriorConstruction(); }
                 else if (state.frontView) exitAkharsFront();
                 else closeInterior();
             }
@@ -292,6 +296,16 @@
     function handleClick(event) {
         if (event.target.closest('#constructionToggle')) {
             toggleConstructionBanner();
+            return;
+        }
+        if (event.target.closest('#interiorBuildToggle')) {
+            state.interiorBuildOpen = !state.interiorBuildOpen;
+            renderInteriorConstruction();
+            return;
+        }
+        if (event.target.closest('[data-close-build-menu]')) {
+            state.interiorBuildOpen = false;
+            renderInteriorConstruction();
             return;
         }
         const panelTrigger = event.target.closest('[data-open-panel]');
@@ -648,7 +662,10 @@
         } else {
             showNotice(`${formatDuration(result.savedSeconds)} removed from ${projectName(buildId)}.`, 'Materials applied');
         }
-        openPanel('projects');
+        // Buying time from inside the building keeps the player in the room they
+        // are watching change; only the Projects panel path returns to Projects.
+        if (state.interior) renderInterior();
+        else openPanel('projects');
     }
 
     async function openLore(loreId) {
@@ -895,6 +912,7 @@
             'hidden', woodlotCapacity <= 0 || available < woodlotCapacity);
         updateStockpileVisuals();
         renderConstruction();
+        if (state.interior) renderInteriorConstruction();
         // The Keep Activity tray also owns live construction clocks. Updating
         // these lightweight data-bound values every second keeps both the tray
         // and any open project/interior panel synchronized without rebuilding
@@ -1006,8 +1024,9 @@
         if (id === 'woodlot_level_2') return 'woodlot';
         if (id === 'raise_storehouse' || id === 'storehouse_level_2') return 'storehouse';
         if (id.startsWith('build_')) return id.slice('build_'.length);
-        if (id.endsWith('_level_2')) return id.slice(0, -'_level_2'.length);
-        return '';
+        if (id.endsWith('_storage_annex')) return id.slice(0, -'_storage_annex'.length);
+        const level = /^(.+)_level_\d+$/.exec(id);
+        return level ? level[1] : '';
     }
 
     function playCollectBurst(stationId, amount) {
@@ -1597,6 +1616,7 @@
             openPanel('projects');
             return;
         }
+        if (state.interior !== id) state.interiorBuildOpen = false;
         state.interior = id;
         closePanel();
         const interior = document.getElementById('keepInterior');
@@ -1656,7 +1676,9 @@
 
     function closeInterior() {
         state.interior = '';
+        state.interiorBuildOpen = false;
         collapseEnclaveSpaces();
+        renderInteriorConstruction();
         document.getElementById('keepInterior')?.setAttribute('aria-hidden', 'true');
         setGroundsSuppressed(false);
     }
@@ -1709,11 +1731,361 @@
         });
         renderEnclaveResidents();
         renderInteriorNav();
+        renderInteriorConstruction();
         const root = loreById('memorabilia_petrified_root');
         document.getElementById('interiorPlinth')?.classList.toggle('hidden', !root?.displayed);
         const actions = document.getElementById('interiorActions');
         if (actions) actions.innerHTML = buildingMarkup(state.interior);
     }
+
+    /* —— Construction seen from inside the building being worked on ——
+       The grounds banner only says a crew is busy somewhere. Standing in the room
+       under construction, the player gets the site itself: a drawn work site that
+       advances through four quarters of the build, and a HUD menu naming the kind
+       of project, its clock, and the same time savers the Projects panel offers. */
+    const BUILD_PHASES = [
+        { name: 'Groundworks', note: 'Footings marked and materials staged. The crew is still clearing the floor.' },
+        { name: 'Framing', note: 'Scaffold is up and the frame is going in around you.' },
+        { name: 'Raising', note: 'Walls and fittings are taking their shape overhead.' },
+        { name: 'Finishing', note: 'Last details and cleanup before the crew stands down.' }
+    ];
+
+    /** Interior rooms are named for the space; construction ids are named for the building. */
+    function constructionRoomId(constructionId) {
+        const target = constructionTarget(constructionId);
+        return target === 'hall' ? 'great_hall' : target;
+    }
+
+    /** The project a crew is running on the room the player is standing in, if any. */
+    function interiorConstruction() {
+        if (!state.interior) return null;
+        return activeConstructionList().find((item) => constructionRoomId(item.id) === state.interior) || null;
+    }
+
+    function constructionKindLabel(constructionId) {
+        const id = String(constructionId || '');
+        if (id.startsWith('hall_level_')) return 'Keep rank';
+        if (id === 'restore_archive') return 'Restoration';
+        if (id.endsWith('_storage_annex')) return 'Storage annex';
+        if (/_level_\d+$/.test(id)) return 'Expansion';
+        if (id.startsWith('build_') || id.startsWith('raise_')) return 'New building';
+        return 'Project';
+    }
+
+    function constructionPhaseIndex(progress) {
+        return clamp(Math.floor(number(progress) * BUILD_PHASES.length), 0, BUILD_PHASES.length - 1);
+    }
+
+    function formatCompletionTime(value) {
+        const at = Date.parse(value || '');
+        if (!Number.isFinite(at)) return '—';
+        const finish = new Date(at);
+        const time = finish.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        const sameDay = new Date(nowMs()).toDateString() === finish.toDateString();
+        return sameDay ? time : `${finish.toLocaleDateString([], { weekday: 'short' })} ${time}`;
+    }
+
+    function renderInteriorConstruction() {
+        const toggle = document.getElementById('interiorBuildToggle');
+        const menu = document.getElementById('interiorBuildMenu');
+        const art = document.getElementById('interiorBuildArt');
+        const construction = interiorConstruction();
+        if (!construction) {
+            state.interiorBuildOpen = false;
+            toggle?.classList.add('hidden');
+            toggle?.setAttribute('aria-expanded', 'false');
+            menu?.classList.add('hidden');
+            if (menu) { menu.innerHTML = ''; delete menu.dataset.signature; }
+            art?.classList.add('hidden');
+            if (art) { art.innerHTML = ''; delete art.dataset.room; }
+            return;
+        }
+        const progress = constructionEntryProgress(construction);
+        const phase = constructionPhaseIndex(progress);
+        if (art) {
+            if (art.dataset.room !== state.interior) {
+                art.dataset.room = state.interior;
+                art.innerHTML = buildArtMarkup(state.interior);
+            }
+            art.classList.remove('hidden');
+            art.dataset.phase = String(phase);
+            // Raising groups one at a time (rather than re-rendering) lets each new
+            // stage fade in over the room the player is already looking at.
+            art.querySelectorAll('[data-phase-min]').forEach((group) => {
+                group.classList.toggle('is-raised', number(group.dataset.phaseMin) <= phase);
+            });
+        }
+        if (toggle) {
+            toggle.classList.remove('hidden');
+            toggle.setAttribute('aria-expanded', String(Boolean(state.interiorBuildOpen)));
+            text('interiorBuildKind', constructionKindLabel(construction.id));
+            text('interiorBuildClock', formatDuration(constructionEntryRemaining(construction)));
+            const meter = document.getElementById('interiorBuildToggleMeter');
+            if (meter) meter.style.width = `${Math.round(progress * 100)}%`;
+        }
+        if (!menu) return;
+        menu.classList.toggle('hidden', !state.interiorBuildOpen);
+        if (!state.interiorBuildOpen) return;
+        const savers = construction.timeSavers || {};
+        // Rebuilding only on a real change keeps the ticking clock from resetting
+        // a button the player's finger is already on.
+        const signature = [construction.id, phase, number(savers.materialsAvailable),
+            number(savers.siegecoinsAvailable), number(savers.coinCost)].join('|');
+        if (menu.dataset.signature !== signature) {
+            menu.dataset.signature = signature;
+            menu.innerHTML = interiorBuildMenuMarkup(construction, phase);
+        }
+        const time = menu.querySelector('[data-live-interior-time]');
+        if (time) time.textContent = formatDuration(constructionEntryRemaining(construction));
+        const meter = menu.querySelector('[data-live-interior-meter]');
+        if (meter) meter.style.width = `${Math.round(progress * 100)}%`;
+    }
+
+    function interiorBuildMenuMarkup(construction, phaseIndex) {
+        const phase = BUILD_PHASES[phaseIndex] || BUILD_PHASES[0];
+        const crews = activeConstructionList();
+        const crewNumber = Math.max(1, crews.indexOf(construction) + 1);
+        const slots = Math.max(1, number(state.snapshot?.constructionSlots) || 1);
+        const percent = Math.round(constructionEntryProgress(construction) * 100);
+        return `<div class="build-menu-head">
+                <span class="eyebrow">${escapeHtml(constructionKindLabel(construction.id))} · Phase ${phaseIndex + 1} of ${BUILD_PHASES.length}</span>
+                <h3>${escapeHtml(projectName(construction.id))}</h3>
+                <button class="build-menu-close" type="button" data-close-build-menu aria-label="Close construction status">×</button>
+            </div>
+            <p class="build-menu-note">${escapeHtml(phase.note)}</p>
+            <div class="build-menu-meter" aria-hidden="true"><i data-live-interior-meter style="width:${percent}%"></i></div>
+            <dl class="build-menu-facts">
+                <div><dt>Stage</dt><dd>${escapeHtml(phase.name)}</dd></div>
+                <div><dt>Time left</dt><dd data-live-interior-time>${escapeHtml(formatDuration(constructionEntryRemaining(construction)))}</dd></div>
+                <div><dt>Finishes</dt><dd>${escapeHtml(formatCompletionTime(construction.completesAt))}</dd></div>
+                <div><dt>Crew</dt><dd>${crewNumber} of ${slots}</dd></div>
+            </dl>
+            ${timeSaverMarkup(construction, true)}`;
+    }
+
+    /** Flat work-site drawings, one per room, grouped by the quarter they appear in. */
+    function buildArtMarkup(roomId) {
+        const scene = BUILD_ART[roomId] || BUILD_ART_FALLBACK;
+        return `<svg class="build-art-svg" viewBox="0 0 400 240" preserveAspectRatio="xMidYMax meet"
+            aria-hidden="true" focusable="false">${scene}</svg>`;
+    }
+
+    const BUILD_ART_GROUND = `<ellipse class="b-shadow" cx="200" cy="215" rx="158" ry="14"/>`;
+    const BUILD_ART_DUST = `<g class="b-dust"><circle cx="104" cy="198" r="3.2"/><circle cx="196" cy="186" r="2.4"/>
+        <circle cx="292" cy="200" r="3.6"/><circle cx="244" cy="172" r="2"/></g>`;
+
+    const BUILD_ART_FALLBACK = `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-chalk" d="M104 204h192M132 186h136"/>
+            <rect class="b-tim-d" x="96" y="188" width="96" height="9" rx="4"/>
+            <rect class="b-tim" x="104" y="176" width="80" height="9" rx="4"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M148 66v138M256 66v138M144 70h116"/>
+            <path class="b-beam-d" d="M148 126h108"/></g>
+        <g data-phase-min="2">
+            <g class="b-hoist"><path class="b-rope" d="M202 74v42"/><rect class="b-stone" x="184" y="116" width="36" height="26" rx="4"/></g>
+            <rect class="b-stone-d" x="150" y="170" width="50" height="20" rx="3"/>
+            <rect class="b-stone-d" x="204" y="170" width="50" height="20" rx="3"/></g>
+        <g data-phase-min="3">
+            <rect class="b-stone" x="150" y="148" width="104" height="20" rx="3"/>
+            <circle class="b-glow b-lamp" cx="286" cy="96" r="9"/></g>`;
+
+    const BUILD_ART = {
+        // Covenant Hall ranks are cut stone: a timber gantry lifts ashlar onto rising courses.
+        great_hall: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-chalk" d="M96 206h208M124 186h152M124 186v20M276 186v20"/>
+            <rect class="b-tim-d" x="80" y="186" width="94" height="9" rx="4"/>
+            <rect class="b-stone" x="86" y="168" width="40" height="18" rx="3"/>
+            <rect class="b-stone" x="130" y="168" width="40" height="18" rx="3"/>
+            <rect class="b-stone-d" x="108" y="150" width="40" height="18" rx="3"/>
+            <rect class="b-tim" x="292" y="180" width="70" height="8" rx="4"/>
+            <rect class="b-tim" x="300" y="169" width="54" height="8" rx="4"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M152 58v148M254 58v148M146 62h114"/>
+            <path class="b-beam-d" d="M152 96l44-30M254 96l-44-30"/></g>
+        <g data-phase-min="2">
+            <rect class="b-stone" x="168" y="182" width="34" height="18" rx="3"/>
+            <rect class="b-stone" x="206" y="182" width="34" height="18" rx="3"/>
+            <rect class="b-stone-d" x="180" y="162" width="34" height="18" rx="3"/>
+            <rect class="b-stone-d" x="218" y="162" width="34" height="18" rx="3"/>
+            <g class="b-hoist"><path class="b-rope" d="M203 66v44"/><rect class="b-stone" x="184" y="110" width="38" height="26" rx="4"/></g></g>
+        <g data-phase-min="3">
+            <rect class="b-stone" x="160" y="140" width="100" height="20" rx="4"/>
+            <path class="b-banner" d="M120 62h34v52l-17-13-17 13z"/>
+            <circle class="b-glow b-lamp" cx="292" cy="120" r="9"/></g>`,
+        // The Woodlot is cultivated, not felled: saw pit first, drying racks, then staked saplings.
+        woodlot: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-soil" d="M84 206q26-16 52 0zM160 206q26-16 52 0zM236 206q26-16 52 0z"/>
+            <rect class="b-tim-d" x="300" y="176" width="58" height="30" rx="4"/>
+            <path class="b-beam-d" d="M118 190l-8-38"/>
+            <rect class="b-tim-l" x="102" y="140" width="18" height="14" rx="3"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M150 200l30-46M210 200l-30-46M162 200l30-46M222 200l-30-46"/>
+            <rect class="b-tim-l" x="140" y="142" width="106" height="12" rx="5"/>
+            <path class="b-saw" d="M252 148l38-16"/></g>
+        <g data-phase-min="2">
+            <path class="b-beam" d="M96 200V96M304 200V96"/>
+            <path class="b-rope" d="M96 106h208M96 128h208M96 150h208"/>
+            <path class="b-bundle" d="M132 106v22M180 128v20M236 106v20M276 128v22"/></g>
+        <g data-phase-min="3">
+            <path class="b-leaf" d="M110 200q6-52 24-64 12 20 4 64zM196 200q6-58 24-70 12 22 4 70zM282 200q6-48 22-58 12 18 4 58z"/>
+            <circle class="b-glow b-lamp" cx="330" cy="118" r="9"/></g>`,
+        // The Archive is shored before it is shelved — props, then ladder, shelves, and lamp.
+        archive: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <rect class="b-stone-d" x="96" y="46" width="208" height="18" rx="3"/>
+            <path class="b-crack" d="M186 64l12 26-9 22 14 24"/>
+            <path class="b-rubble" d="M152 204l26-30 26 30zM210 204l20-22 20 22z"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M116 202l12-136M284 202l-12-136M200 202V68"/>
+            <path class="b-beam-d" d="M312 200l-12-92M340 200l-12-92"/>
+            <path class="b-rope" d="M302 128h30M306 152h30M310 176h30"/></g>
+        <g data-phase-min="2">
+            <rect class="b-tim-d" x="44" y="116" width="8" height="88" rx="3"/>
+            <rect class="b-tim-d" x="98" y="116" width="8" height="88" rx="3"/>
+            <rect class="b-tim" x="38" y="126" width="74" height="9" rx="4"/>
+            <rect class="b-tim" x="38" y="156" width="74" height="9" rx="4"/>
+            <rect class="b-tim" x="38" y="186" width="74" height="9" rx="4"/></g>
+        <g data-phase-min="3">
+            <rect class="b-canvas" x="48" y="104" width="21" height="22" rx="2"/>
+            <rect class="b-canvas" x="76" y="108" width="18" height="18" rx="2"/>
+            <rect class="b-canvas" x="52" y="136" width="23" height="20" rx="2"/>
+            <circle class="b-glow b-lamp" cx="238" cy="144" r="10"/></g>`,
+        // The Garden raises a trellis over turned beds; blossom is the finishing coat.
+        garden: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-soil" d="M78 202h110v14H78zM212 202h110v14H212z"/>
+            <path class="b-chalk" d="M86 196h94M220 196h94"/>
+            <rect class="b-tim-d" x="176" y="178" width="48" height="26" rx="4"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M104 200V92M172 200V80M228 200V80M296 200V92M100 84h200"/></g>
+        <g data-phase-min="2">
+            <path class="b-lattice" d="M104 120h192M104 152h192M136 200V88M200 200V84M264 200V88"/>
+            <path class="b-hoop" d="M92 200a34 34 0 0168 0M240 200a34 34 0 0168 0"/></g>
+        <g data-phase-min="3">
+            <path class="b-leaf" d="M116 118q26 6 26 34-26-4-26-34zM196 96q28 8 26 38-28-6-26-38zM266 132q26 8 24 36-26-6-24-36z"/>
+            <circle class="b-bloom" cx="150" cy="106" r="7"/><circle class="b-bloom" cx="238" cy="132" r="6"/>
+            <circle class="b-glow b-lamp" cx="322" cy="128" r="9"/></g>`,
+        // The Forge builds upward from the ash pit: scaffold, flue courses, then first fire.
+        forge: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-soil" d="M150 208a50 22 0 01100 0z"/>
+            <rect class="b-brick" x="72" y="180" width="76" height="12" rx="2"/>
+            <rect class="b-brick" x="80" y="166" width="60" height="12" rx="2"/>
+            <rect class="b-tim-d" x="66" y="192" width="90" height="10" rx="4"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M156 202V52M252 202V52"/>
+            <path class="b-beam-d" d="M156 84h96M156 130h96M156 172h96"/></g>
+        <g data-phase-min="2">
+            <rect class="b-brick" x="172" y="150" width="64" height="16" rx="2"/>
+            <rect class="b-brick" x="172" y="130" width="64" height="16" rx="2"/>
+            <rect class="b-brick" x="176" y="110" width="56" height="16" rx="2"/>
+            <path class="b-anvil" d="M276 196h56l-10-14h-14l4-14h-18l4 14h-12z"/>
+            <path class="b-beam-d" d="M282 202h44"/></g>
+        <g data-phase-min="3">
+            <rect class="b-brick" x="180" y="88" width="48" height="16" rx="2"/>
+            <path class="b-fire" d="M204 190q-22-16-14-38 10 12 16 4 6 16 16 6 8 22-18 28z"/>
+            <g class="b-sparks"><circle cx="188" cy="140" r="3"/><circle cx="222" cy="126" r="2.4"/><circle cx="206" cy="108" r="2"/></g></g>`,
+        // The Fridge is a lattice cage packed with panels before the frost coil is charged.
+        fridge: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-straw" d="M70 202h110"/>
+            <rect class="b-ice" x="80" y="176" width="38" height="26" rx="3"/>
+            <rect class="b-ice" x="122" y="176" width="38" height="26" rx="3"/>
+            <rect class="b-canvas" x="286" y="164" width="66" height="38" rx="4"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M150 202V64M256 202V64M144 68h118M146 132h114"/></g>
+        <g data-phase-min="2">
+            <rect class="b-panel" x="156" y="76" width="46" height="48" rx="3"/>
+            <rect class="b-panel" x="206" y="76" width="46" height="48" rx="3"/>
+            <rect class="b-panel" x="156" y="140" width="46" height="52" rx="3"/>
+            <rect class="b-panel" x="206" y="140" width="46" height="52" rx="3"/></g>
+        <g data-phase-min="3">
+            <path class="b-coil" d="M170 168h68M170 152h68M170 184h68"/>
+            <path class="b-ice b-crystal" d="M203 84l20 30-20 30-20-30z"/>
+            <circle class="b-glow b-lamp b-frost" cx="300" cy="120" r="10"/></g>`,
+        // The Generator winds an armature ring before the conduit carries the first arc.
+        generator: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <circle class="b-spool" cx="106" cy="180" r="26"/><circle class="b-spool-hub" cx="106" cy="180" r="9"/>
+            <rect class="b-canvas" x="272" y="170" width="76" height="34" rx="4"/>
+            <path class="b-beam-d" d="M272 186h76"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-ring" d="M138 148a64 64 0 01128 0"/>
+            <path class="b-beam" d="M138 148v54M266 148v54"/></g>
+        <g data-phase-min="2">
+            <path class="b-winding" d="M152 122l16 34M172 104l16 40M196 96l14 44M222 104l14 40M246 122l14 34"/>
+            <path class="b-beam" d="M202 96V60"/><rect class="b-tim-l" x="188" y="52" width="28" height="12" rx="4"/></g>
+        <g data-phase-min="3">
+            <path class="b-arc" d="M172 132q30 22 60 0M162 158q40 30 80 0"/>
+            <circle class="b-glow b-lamp" cx="202" cy="176" r="12"/></g>`,
+        // The Quarry cuts along a chalked face; a derrick lifts each block onto the sled.
+        quarry: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-face" d="M60 204V70h116l-14 134z"/>
+            <path class="b-chalk" d="M72 104h92M72 142h84M72 178h76"/>
+            <path class="b-rubble" d="M186 204l24-24 24 24z"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M300 202V56M300 60L212 92"/>
+            <path class="b-rope" d="M300 84l-64 26M300 202l-48-30"/></g>
+        <g data-phase-min="2">
+            <g class="b-hoist"><path class="b-rope" d="M214 94v34"/><rect class="b-stone" x="196" y="128" width="38" height="26" rx="3"/></g>
+            <rect class="b-tim-d" x="180" y="192" width="96" height="10" rx="4"/>
+            <circle class="b-tim" cx="196" cy="204" r="7"/><circle class="b-tim" cx="260" cy="204" r="7"/></g>
+        <g data-phase-min="3">
+            <rect class="b-stone" x="188" y="168" width="40" height="20" rx="3"/>
+            <rect class="b-stone-d" x="232" y="168" width="40" height="20" rx="3"/>
+            <rect class="b-stone" x="208" y="146" width="40" height="20" rx="3"/>
+            <circle class="b-glow b-lamp" cx="330" cy="104" r="9"/></g>`,
+        // The Kitchen turns a wooden former into a brick dome, then lights its first fire.
+        kitchen: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-chalk" d="M132 204h136"/>
+            <rect class="b-brick" x="66" y="180" width="72" height="12" rx="2"/>
+            <rect class="b-brick" x="74" y="166" width="56" height="12" rx="2"/>
+            <rect class="b-tim-d" x="126" y="192" width="148" height="12" rx="4"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-former" d="M140 192a60 60 0 01120 0"/>
+            <path class="b-beam-d" d="M200 192v-60M170 192l14-52M230 192l-14-52"/></g>
+        <g data-phase-min="2">
+            <path class="b-dome" d="M132 192a68 68 0 01136 0z"/>
+            <path class="b-line" d="M148 160h104M162 138h76M180 122h40"/>
+            <rect class="b-tim" x="286" y="150" width="64" height="9" rx="4"/></g>
+        <g data-phase-min="3">
+            <rect class="b-brick" x="238" y="88" width="30" height="52" rx="3"/>
+            <path class="b-fire" d="M200 190q-18-14-12-32 8 10 14 3 5 13 13 5 7 18-15 24z"/>
+            <path class="b-steam" d="M254 76q10-14 0-26M270 78q10-14 0-26"/>
+            <circle class="b-glow b-lamp" cx="322" cy="120" r="9"/></g>`,
+        // The Enclave is woven, not cut: rafters, then nests, then lanterns for the residents.
+        enclave: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-chalk" d="M100 202h200"/>
+            <path class="b-bundle" d="M74 202l18-46M88 202l16-46M102 202l14-46"/>
+            <rect class="b-tim-d" x="286" y="176" width="66" height="28" rx="4"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M140 202l60-96 60 96M120 202l52-84M280 202l-52-84"/>
+            <path class="b-beam-d" d="M156 152h88"/></g>
+        <g data-phase-min="2">
+            <path class="b-nest" d="M118 170a24 16 0 0148 0zM234 170a24 16 0 0148 0zM178 196a22 15 0 0144 0z"/>
+            <path class="b-rope" d="M156 152l-14 18M244 152l14 18"/></g>
+        <g data-phase-min="3">
+            <path class="b-banner" d="M186 110h28v46l-14-11-14 11z"/>
+            <circle class="b-glow b-lamp" cx="140" cy="140" r="8"/>
+            <circle class="b-glow b-lamp" cx="262" cy="140" r="8"/></g>`
+    };
 
     function maybeShowTutorial() {
         if (!state.snapshot) return;
@@ -1938,9 +2310,11 @@
         return `${crewNote}${projects || '<div class="empty-state">Every current restoration is complete. Weekly tribute and resident affinities keep the sanctuary useful while future chapters arrive.</div>'}${rewardsMarkup()}`;
     }
 
-    function timeSaverMarkup(construction) {
+    /** `alwaysOpen` is for the interior HUD menu, which is itself the disclosure —
+        nesting a second collapse inside it would cost an extra tap for no gain. */
+    function timeSaverMarkup(construction, alwaysOpen) {
         const savers = construction.timeSavers || {};
-        const open = state.timeSaverProjectId === construction.id;
+        const open = alwaysOpen === true || state.timeSaverProjectId === construction.id;
         const remaining = constructionEntryRemaining(construction);
         const materialCost = number(savers.materialCost) || 10;
         const materialPercent = number(savers.materialPercent) || 25;
@@ -1952,10 +2326,11 @@
             ? number(savers.siegecoinsAvailable) : number(state.snapshot.resources?.gold);
         const canUseMaterials = savers.canUseMaterials !== false && materialsAvailable >= materialCost;
         const canUseSiegecoins = savers.canUseSiegecoins !== false && siegecoinsAvailable >= coinCost;
-        return `<div class="time-saver${open ? ' is-open' : ''}">
-            <button class="time-saver-toggle" type="button" data-toggle-time-savers="${escapeAttr(construction.id)}" aria-expanded="${open}">
+        return `<div class="time-saver${open ? ' is-open' : ''}${alwaysOpen ? ' is-static' : ''}">
+            ${alwaysOpen ? '<span class="time-saver-heading"><i aria-hidden="true">⌛</i><strong>Time savers</strong></span>'
+            : `<button class="time-saver-toggle" type="button" data-toggle-time-savers="${escapeAttr(construction.id)}" aria-expanded="${open}">
                 <span><i aria-hidden="true">⌛</i><strong>Time savers</strong></span><small>${open ? 'Hide options' : 'Speed up or complete'}</small>
-            </button>
+            </button>`}
             ${open ? `<div class="time-saver-options">
                 <p>Use mixed workshop materials to cut the remaining time, or spend your account Siegecoins to finish now.</p>
                 <button class="time-saver-choice material" type="button" data-construction-speedup="${escapeAttr(construction.id)}" data-speedup-payment="MATERIALS" ${canUseMaterials ? '' : 'disabled'}>
@@ -3284,6 +3659,18 @@
             sceneView: { zoom: view.zoom, panX: view.panX, panY: view.panY },
             location: state.frontView ? 'akhars_front' : 'keep_grounds',
             returnToKeepAvailable: state.frontView,
+            interiorRoom: state.interior || null,
+            interiorConstruction: (() => {
+                const construction = interiorConstruction();
+                if (!construction) return null;
+                const progress = constructionEntryProgress(construction);
+                return {
+                    id: construction.id, roomId: state.interior, kind: constructionKindLabel(construction.id),
+                    phase: constructionPhaseIndex(progress), phaseName: BUILD_PHASES[constructionPhaseIndex(progress)].name,
+                    remainingSeconds: constructionEntryRemaining(construction),
+                    menuOpen: Boolean(state.interiorBuildOpen)
+                };
+            })(),
             stockpileTiers: (snapshot.stations || [snapshot.station]).filter(Boolean).reduce((out, station) => {
                 out[station.id] = fillTier(station);
                 return out;

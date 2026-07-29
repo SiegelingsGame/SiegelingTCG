@@ -324,7 +324,7 @@ class GameJavaScriptRegressionTest {
                 "Profile trim styles for battle preview, social shrink, and favorite card art must ship in home.css."
         );
         assertTrue(
-                homeMarkup.contains("home.js?v=121") && homeMarkup.contains("home.css?v=116"),
+                homeMarkup.contains("home.js?v=123") && homeMarkup.contains("home.css?v=117"),
                 "Cache-bust pins for the profile dashboard trim must advance on home.html."
         );
     }
@@ -352,9 +352,9 @@ class GameJavaScriptRegressionTest {
                 "Element-mode profile and friend avatars must fill a circular frame."
         );
         assertTrue(
-                homeMarkup.contains("home.css?v=116")
-                        && homeMarkup.contains("home.js?v=121")
-                        && dashboardMarkup.contains("home.css?v=116"),
+                homeMarkup.contains("home.css?v=117")
+                        && homeMarkup.contains("home.js?v=123")
+                        && dashboardMarkup.contains("home.css?v=117"),
                 "Profile icon CSS and JavaScript cache pins must advance together."
         );
     }
@@ -387,11 +387,11 @@ class GameJavaScriptRegressionTest {
         String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
         assertTrue(
                 homeMarkup.contains("style.css?v=217")
-                        && homeMarkup.contains("game.js?v=219")
+                        && homeMarkup.contains("game.js?v=220")
                         && homeMarkup.contains("card-binder-visual.js?v=20")
-                        && homeMarkup.contains("home.js?v=121")
+                        && homeMarkup.contains("home.js?v=123")
                         && playMarkup.contains("style.css?v=217")
-                        && playMarkup.contains("game.js?v=219")
+                        && playMarkup.contains("game.js?v=220")
                         && dashboardMarkup.contains("style.css?v=217")
                         && dashboardMarkup.contains("card-binder-visual.js?v=20"),
                 "Every surface must advance its cache pins with the complete painted-notch set."
@@ -425,8 +425,8 @@ class GameJavaScriptRegressionTest {
         );
 
         assertTrue(
-                homeScript.contains("const ELEMENTAL_CARD_BACK_VERSION = 5")
-                        && gameScript.contains("const DECK_ART_ASSET_VERSION = 5"),
+                homeScript.contains("const ELEMENTAL_CARD_BACK_VERSION = 6")
+                        && gameScript.contains("const DECK_ART_ASSET_VERSION = 6"),
                 "Home and battle must cache-bust the expanded elemental card-back set together."
         );
         assertTrue(
@@ -998,6 +998,53 @@ class GameJavaScriptRegressionTest {
     }
 
     @Test
+    void enteringABuildingUnderConstructionShowsItsSiteAndAConstructionHudMenu() throws IOException {
+        String keepHtml = Files.readString(KEEP_HTML);
+        String keepCss = Files.readString(KEEP_CSS);
+        String keepJs = Files.readString(KEEP_JS);
+
+        assertTrue(
+                keepHtml.contains("id=\"interiorBuildToggle\"")
+                        && keepHtml.contains("id=\"interiorBuildKind\"")
+                        && keepHtml.contains("id=\"interiorBuildClock\"")
+                        && keepHtml.contains("id=\"interiorBuildMenu\"")
+                        && keepHtml.contains("id=\"interiorBuildArt\"")
+                        && keepCss.contains(".interior-build-toggle {")
+                        && keepCss.contains(".interior-build-menu {"),
+                "The interior HUD must carry a construction toggle, its menu, and the work-site drawing."
+        );
+        assertTrue(
+                keepJs.contains("function interiorConstruction(")
+                        && keepJs.contains("function constructionRoomId(")
+                        && keepJs.contains("function renderInteriorConstruction(")
+                        && keepJs.contains("target === 'hall' ? 'great_hall' : target"),
+                "Entering a room must resolve the crew working on that specific building."
+        );
+        assertTrue(
+                keepJs.contains("function constructionKindLabel(")
+                        && keepJs.contains("'Keep rank'") && keepJs.contains("'Storage annex'")
+                        && keepJs.contains("'Expansion'") && keepJs.contains("'New building'")
+                        && keepJs.contains("data-live-interior-time")
+                        && keepJs.contains("function formatCompletionTime(")
+                        && keepJs.contains("timeSaverMarkup(construction, true)"),
+                "The menu must name the construction type, tick its clock, state when it finishes, and reuse the shared time savers."
+        );
+        assertTrue(
+                keepJs.contains("const BUILD_ART = {")
+                        && keepJs.contains("function buildArtMarkup(")
+                        && keepJs.contains("data-phase-min=\"3\"")
+                        && keepCss.contains(".build-art-svg > g.is-raised")
+                        && java.util.stream.Stream.of("great_hall:", "woodlot:", "archive:", "garden:", "forge:",
+                                "fridge:", "generator:", "quarry:", "kitchen:", "enclave:").allMatch(keepJs::contains),
+                "Every walkable room needs its own work-site drawing whose groups raise as the project advances."
+        );
+        assertTrue(
+                keepJs.contains("if (state.interior) renderInterior();\n        else openPanel('projects');"),
+                "Buying time from inside a building must leave the player in the room, not throw them into the Projects panel."
+        );
+    }
+
+    @Test
     void keepBuildingsAndRoomsUseLayeredPaperTreatments() throws IOException {
         String keepHtml = Files.readString(KEEP_HTML);
         String keepCss = Files.readString(KEEP_CSS);
@@ -1005,8 +1052,8 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=37")
-                        && keepHtml.contains("/js/keep.js?v=38")
+                        && keepHtml.contains("/css/keep.css?v=38")
+                        && keepHtml.contains("/js/keep.js?v=39")
                         && keepHtml.contains("id=\"hallFavoriteResident\"")
                         && keepHtml.contains("id=\"constructionBannerJobs\"")
                         && keepHtml.contains("id=\"productionReady\"")
