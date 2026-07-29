@@ -191,6 +191,7 @@ public class PlayerProgressionController {
         out.put("packs", packCatalogService.serializePacks());
         out.put("dailyOffers", packCatalogService.serializeDailyOffers());
         out.put("titleCatalog", playerTitleCatalogService.serializeCatalog());
+        out.put("dailyTitleOffers", playerTitleCatalogService.serializeDailyShopTitles());
         return out;
     }
 
@@ -200,6 +201,7 @@ public class PlayerProgressionController {
         out.put("packs", packCatalogService.serializePacks());
         out.put("dailyOffers", packCatalogService.serializeDailyOffers());
         out.put("titleCatalog", playerTitleCatalogService.serializeCatalog());
+        out.put("dailyTitleOffers", playerTitleCatalogService.serializeDailyShopTitles());
         // Intentionally omit cardCatalog: clients already load it from /api/game/options.
         // Re-serializing the full deck-builder catalog on every shop/pack/progression
         // mutation was the main cause of slow daily buys and pack-open timeouts.
