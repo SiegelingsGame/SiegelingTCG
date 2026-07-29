@@ -94,6 +94,8 @@
         // live in state because every snapshot refresh re-renders the panel body.
         favorPickerOpen: false,
         favorCandidateId: '',
+        timeSaverProjectId: '',
+        instantBuyProjectId: '',
         selectedRelationshipId: '',
         inventoryFilter: 'ALL',
         pendingOfflineReport: null,
@@ -437,6 +439,31 @@
             void startBuild(build.dataset.startBuild);
             return;
         }
+        const instantBuyToggle = event.target.closest('[data-toggle-instant-buy]');
+        if (instantBuyToggle) {
+            const id = instantBuyToggle.dataset.toggleInstantBuy || '';
+            state.instantBuyProjectId = state.instantBuyProjectId === id ? '' : id;
+            renderPanel();
+            return;
+        }
+        const instantBuy = event.target.closest('[data-purchase-build]');
+        if (instantBuy) {
+            void purchaseBuildInstantly(instantBuy.dataset.purchaseBuild);
+            return;
+        }
+        const timeSaverToggle = event.target.closest('[data-toggle-time-savers]');
+        if (timeSaverToggle) {
+            const id = timeSaverToggle.dataset.toggleTimeSavers || '';
+            state.timeSaverProjectId = state.timeSaverProjectId === id ? '' : id;
+            renderPanel();
+            return;
+        }
+        const timeSaver = event.target.closest('[data-construction-speedup]');
+        if (timeSaver) {
+            void buyConstructionTimeSaver(timeSaver.dataset.constructionSpeedup,
+                timeSaver.dataset.speedupPayment || '');
+            return;
+        }
         const theme = event.target.closest('[data-set-theme]');
         if (theme) {
             void setHallTheme(theme.dataset.setTheme);
@@ -595,7 +622,33 @@
 
     async function startBuild(buildId) {
         const data = await perform('/api/keep/build', { buildId });
-        if (data) openPanel('projects');
+        if (data) {
+            state.instantBuyProjectId = '';
+            openPanel('projects');
+        }
+    }
+
+    async function purchaseBuildInstantly(buildId) {
+        const data = await perform('/api/keep/build/purchase', { buildId });
+        const purchased = data?.projectPurchased;
+        if (!purchased) return;
+        state.instantBuyProjectId = '';
+        showNotice(`${purchased.name || projectName(buildId)} purchased for ${number(purchased.coinCost)} Siegecoins.`,
+            'Project complete');
+        openPanel('projects');
+    }
+
+    async function buyConstructionTimeSaver(buildId, payment) {
+        const data = await perform('/api/keep/construction/speedup', { buildId, payment });
+        const result = data?.timeSaverApplied;
+        if (!result) return;
+        if (result.completed) {
+            state.timeSaverProjectId = '';
+            showNotice(`${projectName(buildId)} completed for ${number(result.coinCost)} Siegecoins.`, 'Project complete');
+        } else {
+            showNotice(`${formatDuration(result.savedSeconds)} removed from ${projectName(buildId)}.`, 'Materials applied');
+        }
+        openPanel('projects');
     }
 
     async function openLore(loreId) {
@@ -1848,7 +1901,7 @@
         const crewNote = slots > 1 || constructions.length
             ? `<p class="panel-intro crew-note">Construction teams: ${constructions.length}/${slots} active${slots > 1 ? ` · Keeper Level ${number(state.snapshot.keeper?.level) || 1} coordinates ${slots} simultaneous projects` : ''}.</p>`
             : '';
-        const inProgress = constructions.map((item, index) => `<section class="project-card"><span class="eyebrow">In progress${slots > 1 ? ` · Crew ${index + 1}` : ''}</span><h3>${escapeHtml(projectName(item.id))}</h3><p>The site changes through foundations, scaffolding, and completion. No progress is lost while you are away.</p><div class="meter"><i data-live-construction-meter="${index}" style="width:${constructionPercent(index)}%"></i></div><div class="cost-row"><span data-live-construction-time="${index}">${escapeHtml(formatDuration(constructionEntryRemaining(item)))}</span><strong>Workers active</strong></div></section>`).join('');
+        const inProgress = constructions.map((item, index) => `<section class="project-card"><span class="eyebrow">In progress${slots > 1 ? ` · Crew ${index + 1}` : ''}</span><h3>${escapeHtml(projectName(item.id))}</h3><p>The site changes through foundations, scaffolding, and completion. No progress is lost while you are away.</p><div class="meter"><i data-live-construction-meter="${index}" style="width:${constructionPercent(index)}%"></i></div><div class="cost-row"><span data-live-construction-time="${index}">${escapeHtml(formatDuration(constructionEntryRemaining(item)))}</span><strong>Workers active</strong></div>${timeSaverMarkup(item)}</section>`).join('');
         // Parity with KeepService.buildOptions: a project a crew already holds is never offered again,
         // so a stale snapshot cannot render a "Begin project" button the server will reject.
         const busyIds = new Set(constructions.map((item) => item.id));
@@ -1862,17 +1915,57 @@
                 if (number(materialById(cost.id)?.amount) < number(cost.amount)) shortages.push(cost.name);
             }
             const levelLocked = option.levelMet === false;
+            const instantCost = number(option.instantCoinCost);
+            const siegecoins = number(state.snapshot.resources?.gold);
+            const canPurchase = option.canPurchase !== false && !levelLocked && siegecoins >= instantCost;
+            const buying = state.instantBuyProjectId === option.id;
             const blockedLabel = levelLocked ? `Reach Keeper Level ${number(option.requiredLevel)}`
                 : constructions.length >= slots ? 'Crews busy'
                 : `Need ${escapeHtml(shortages.join(' & ') || 'prior project')}`;
+            const buyLabel = canPurchase ? `Buy instantly · ${instantCost} ◉`
+                : levelLocked ? `Locked · Level ${number(option.requiredLevel)}`
+                : `Need ${Math.max(0, instantCost - siegecoins)} more ◉`;
             const eyebrow = levelLocked ? `Locked · Keeper Level ${number(option.requiredLevel)}`
                 : option.rankName ? `Keep rank · ${escapeHtml(option.rankName)}` : 'Visible restoration';
             return `<section class="project-card ${option.rankName ? 'is-rank-project' : ''}${levelLocked ? ' is-level-locked' : ''}"><span class="eyebrow">${eyebrow}</span><h3>${escapeHtml(option.name)}</h3><p>${escapeHtml(option.description || '')}</p>
                 <div class="cost-row"><span>${escapeHtml(formatDuration(option.durationSeconds))}</span><strong>${escapeHtml(costs.join(' · '))}</strong></div>
-                <div class="button-row"><button class="panel-button" type="button" data-start-build="${escapeAttr(option.id)}" ${option.canStart ? '' : 'disabled'}>${option.canStart ? 'Begin project' : blockedLabel}</button></div></section>`;
+                <div class="button-row project-actions"><button class="panel-button" type="button" data-start-build="${escapeAttr(option.id)}" ${option.canStart ? '' : 'disabled'}>${option.canStart ? 'Begin project' : blockedLabel}</button>
+                    <button class="panel-button instant-buy-button" type="button" data-toggle-instant-buy="${escapeAttr(option.id)}" aria-expanded="${buying}" ${canPurchase ? '' : 'disabled'}>${buyLabel}</button></div>
+                ${buying ? `<div class="instant-purchase-confirm"><span><strong>Purchase immediately?</strong><small>This skips the timber, materials, construction crew, and wait. Progression requirements still apply.</small></span><div class="button-row"><button class="panel-button" type="button" data-purchase-build="${escapeAttr(option.id)}">Confirm · ${instantCost} ◉</button><button class="panel-button secondary" type="button" data-toggle-instant-buy="${escapeAttr(option.id)}">Cancel</button></div></div>` : ''}
+                </section>`;
         }).join('');
         const projects = inProgress + optionCards;
         return `${crewNote}${projects || '<div class="empty-state">Every current restoration is complete. Weekly tribute and resident affinities keep the sanctuary useful while future chapters arrive.</div>'}${rewardsMarkup()}`;
+    }
+
+    function timeSaverMarkup(construction) {
+        const savers = construction.timeSavers || {};
+        const open = state.timeSaverProjectId === construction.id;
+        const remaining = constructionEntryRemaining(construction);
+        const materialCost = number(savers.materialCost) || 10;
+        const materialPercent = number(savers.materialPercent) || 25;
+        const coinCost = number(savers.coinCost) || Math.max(1, Math.ceil(remaining / 300));
+        const materialsAvailable = Number.isFinite(Number(savers.materialsAvailable))
+            ? number(savers.materialsAvailable)
+            : (state.snapshot.resources?.materials || []).reduce((total, item) => total + number(item.amount), 0);
+        const siegecoinsAvailable = Number.isFinite(Number(savers.siegecoinsAvailable))
+            ? number(savers.siegecoinsAvailable) : number(state.snapshot.resources?.gold);
+        const canUseMaterials = savers.canUseMaterials !== false && materialsAvailable >= materialCost;
+        const canUseSiegecoins = savers.canUseSiegecoins !== false && siegecoinsAvailable >= coinCost;
+        return `<div class="time-saver${open ? ' is-open' : ''}">
+            <button class="time-saver-toggle" type="button" data-toggle-time-savers="${escapeAttr(construction.id)}" aria-expanded="${open}">
+                <span><i aria-hidden="true">⌛</i><strong>Time savers</strong></span><small>${open ? 'Hide options' : 'Speed up or complete'}</small>
+            </button>
+            ${open ? `<div class="time-saver-options">
+                <p>Use mixed workshop materials to cut the remaining time, or spend your account Siegecoins to finish now.</p>
+                <button class="time-saver-choice material" type="button" data-construction-speedup="${escapeAttr(construction.id)}" data-speedup-payment="MATERIALS" ${canUseMaterials ? '' : 'disabled'}>
+                    <span><strong>Cut ${materialPercent}%</strong><small>${canUseMaterials ? `${materialsAvailable} materials available` : `Need ${materialCost - materialsAvailable} more materials`}</small></span><b>${materialCost} ✦</b>
+                </button>
+                <button class="time-saver-choice coins" type="button" data-construction-speedup="${escapeAttr(construction.id)}" data-speedup-payment="SIEGECOINS" ${canUseSiegecoins ? '' : 'disabled'}>
+                    <span><strong>Complete now</strong><small>${canUseSiegecoins ? `${siegecoinsAvailable} Siegecoins available` : `Need ${coinCost - siegecoinsAvailable} more Siegecoins`}</small></span><b>${coinCost} ◉</b>
+                </button>
+            </div>` : ''}
+        </div>`;
     }
 
     function projectsMarkupLegacy() {
@@ -2612,6 +2705,52 @@
                 snapshot.activeConstruction = snapshot.activeConstructions[0];
                 snapshot.buildOptions = (snapshot.buildOptions || []).filter((item) => item.id !== option.id);
             }
+        } else if (path.endsWith('/build/purchase')) {
+            const option = (snapshot.buildOptions || []).find((item) => item.id === body.buildId);
+            if (option) {
+                const coinCost = number(option.instantCoinCost);
+                snapshot.resources.gold = Math.max(0, number(snapshot.resources.gold) - coinCost);
+                applyMockConstruction(snapshot, { id: option.id });
+                snapshot.buildOptions = (snapshot.buildOptions || []).filter((item) => item.id !== option.id);
+                snapshot.projectPurchased = { buildId: option.id, name: option.name, coinCost,
+                    goldBalance: snapshot.resources.gold, completed: true };
+            }
+        } else if (path.endsWith('/construction/speedup')) {
+            const constructions = snapshot.activeConstructions || (snapshot.activeConstruction ? [snapshot.activeConstruction] : []);
+            const construction = constructions.find((item) => item.id === body.buildId);
+            if (construction && body.payment === 'MATERIALS') {
+                let cost = number(construction.timeSavers?.materialCost) || 10;
+                const materials = [...(snapshot.resources.materials || [])]
+                    .sort((a, b) => number(b.amount) - number(a.amount) || String(a.id).localeCompare(String(b.id)));
+                for (const material of materials) {
+                    const spent = Math.min(cost, number(material.amount));
+                    material.amount = Math.max(0, number(material.amount) - spent);
+                    cost -= spent;
+                    if (cost <= 0) break;
+                }
+                const remaining = constructionEntryRemaining(construction);
+                const savedSeconds = Math.max(1, Math.ceil(remaining * 0.25));
+                const remainingSeconds = Math.max(1, remaining - savedSeconds);
+                construction.completesAt = new Date(nowMs() + remainingSeconds * 1000).toISOString();
+                construction.remainingSeconds = remainingSeconds;
+                const available = (snapshot.resources.materials || []).reduce((total, item) => total + number(item.amount), 0);
+                construction.timeSavers = {
+                    ...(construction.timeSavers || {}), materialsAvailable: available,
+                    canUseMaterials: available >= 10,
+                    coinCost: Math.max(1, Math.ceil(remainingSeconds / 300))
+                };
+                snapshot.timeSaverApplied = { buildId: body.buildId, payment: 'MATERIALS', materialCost: 10,
+                    materialPercent: 25, savedSeconds, remainingSeconds };
+            } else if (construction && body.payment === 'SIEGECOINS') {
+                const coinCost = number(construction.timeSavers?.coinCost)
+                    || Math.max(1, Math.ceil(constructionEntryRemaining(construction) / 300));
+                snapshot.resources.gold = Math.max(0, number(snapshot.resources.gold) - coinCost);
+                applyMockConstruction(snapshot, construction);
+                snapshot.activeConstructions = constructions.filter((item) => item.id !== body.buildId);
+                snapshot.activeConstruction = snapshot.activeConstructions[0] || null;
+                snapshot.timeSaverApplied = { buildId: body.buildId, payment: 'SIEGECOINS', coinCost,
+                    goldBalance: snapshot.resources.gold, completed: true };
+            }
         } else if (path.endsWith('/favorite')) {
             const resident = (snapshot.residents || []).find((item) => item.id === body.residentId) || null;
             const bonus = favoriteBonusPercent(resident);
@@ -2814,6 +2953,13 @@
                 slots: [0, 1, 2].map((slot) => ({ slot, residentId: '', resident: null })) };
             const front = (snapshot.buildings || []).find((item) => item.id === 'akhars_front');
             if (front) { front.level = 1; front.status = 'COMPLETE'; front.name = "Akhar's Front"; }
+        } else if (String(construction.id).startsWith('build_')) {
+            const facilityId = String(construction.id).slice('build_'.length);
+            if (snapshot.visualState) snapshot.visualState[`${facilityId}Level`] = 1;
+            const station = (snapshot.stations || []).find((item) => item.id === facilityId);
+            if (station) station.level = 1;
+            const building = (snapshot.buildings || []).find((item) => item.id === facilityId);
+            if (building) { building.level = 1; building.status = 'COMPLETE'; }
         } else if (String(construction.id).startsWith('hall_level_')) {
             const level = number(String(construction.id).slice('hall_level_'.length));
             if (snapshot.visualState) snapshot.visualState.hallLevel = level;
@@ -3129,7 +3275,11 @@
             weeklyOrder: snapshot.weeklyOrder || null,
             constructionSlots: number(snapshot.constructionSlots) || 1,
             activeConstructions: activeConstructionList().map((item) => ({
-                id: item.id, remainingSeconds: constructionEntryRemaining(item)
+                id: item.id, remainingSeconds: constructionEntryRemaining(item), timeSavers: item.timeSavers || null
+            })),
+            availableProjects: (snapshot.buildOptions || []).map((item) => ({
+                id: item.id, canStart: Boolean(item.canStart), instantCoinCost: number(item.instantCoinCost),
+                canPurchase: Boolean(item.canPurchase)
             })),
             sceneView: { zoom: view.zoom, panX: view.panX, panY: view.panY },
             location: state.frontView ? 'akhars_front' : 'keep_grounds',

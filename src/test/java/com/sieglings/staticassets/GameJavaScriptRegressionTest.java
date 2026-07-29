@@ -1005,8 +1005,8 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=36")
-                        && keepHtml.contains("/js/keep.js?v=37")
+                        && keepHtml.contains("/css/keep.css?v=37")
+                        && keepHtml.contains("/js/keep.js?v=38")
                         && keepHtml.contains("id=\"hallFavoriteResident\"")
                         && keepHtml.contains("id=\"constructionBannerJobs\"")
                         && keepHtml.contains("id=\"productionReady\"")
@@ -1021,6 +1021,24 @@ class GameJavaScriptRegressionTest {
                         && !keepJs.contains("+${constructions.length - 1} more")
                         && !keepJs.contains("Storage reached capacity\", `${name} stopped until collected`"),
                 "Keep architecture must retain its paper building hooks, refresh both asset cache pins, show the favorite in Covenant Hall, collapse storage-capacity offline alerts into one multi-line card, show each concurrent construction job in the banner, and gate the Woodlot Collect bubble to a full stockpile."
+        );
+        assertTrue(
+                keepJs.contains("/api/keep/construction/speedup")
+                        && keepJs.contains("function timeSaverMarkup(")
+                        && keepJs.contains("data-speedup-payment=\"MATERIALS\"")
+                        && keepJs.contains("data-speedup-payment=\"SIEGECOINS\"")
+                        && keepCss.contains(".time-saver-options")
+                        && keepCss.contains(".time-saver-choice"),
+                "Every active Keep project must expose material and Siegecoin time savers in the Projects popup."
+        );
+        assertTrue(
+                keepJs.contains("/api/keep/build/purchase")
+                        && keepJs.contains("data-toggle-instant-buy=")
+                        && keepJs.contains("data-purchase-build=")
+                        && keepJs.contains("This skips the timber, materials, construction crew, and wait")
+                        && keepCss.contains(".instant-buy-button")
+                        && keepCss.contains(".instant-purchase-confirm"),
+                "Available projects must offer a deliberate Siegecoin instant-purchase confirmation in the shared popup."
         );
         assertTrue(
                 keepCss.contains(".construction-team-pill {")
