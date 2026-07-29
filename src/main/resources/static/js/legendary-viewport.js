@@ -7,6 +7,7 @@ import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
     const loader = new FBXLoader();
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const viewports = [];
+    let featuredViewport = null;
 
     const MODEL_TUNING = {
         fire:  { scale: 2.18, offset: [-0.02, 0.76, 0], rotation: [Math.PI / 2, Math.PI, 0], ring: 0xff6a1a },
@@ -29,6 +30,8 @@ import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
             this.model = null;
             this.mixer = null;
             this.ready = false;
+            this.destroyed = false;
+            this.animationFrame = null;
             this.tuning = MODEL_TUNING[this.element] || MODEL_TUNING.fire;
         }
 
@@ -99,6 +102,7 @@ import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
             loader.load(
                 this.path,
                 (object) => {
+                    if (this.destroyed) return;
                     this.frameModel(object);
                     this.stage.add(object);
                     this.model = object;
@@ -106,6 +110,7 @@ import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
                     if (this.mixer) object.animations.forEach((clip) => this.mixer.clipAction(clip).play());
                     this.ready = true;
                     syncVisibleViewport();
+                    if (this.card.classList.contains('featured-model-card')) this.show(true);
                     this.setLoading(false);
                 },
                 undefined,
@@ -147,7 +152,8 @@ import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
         }
 
         animate() {
-            requestAnimationFrame(() => this.animate());
+            if (this.destroyed) return;
+            this.animationFrame = requestAnimationFrame(() => this.animate());
             if (!this.renderer) return;
             const dt = Math.min(this.clock.getDelta(), 0.04);
             this.mixer?.update(dt);
@@ -168,6 +174,13 @@ import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 
         show(isVisible) {
             this.viewport?.classList.toggle('model-ready', Boolean(isVisible && this.ready));
+        }
+
+        destroy() {
+            this.destroyed = true;
+            if (this.animationFrame) cancelAnimationFrame(this.animationFrame);
+            this.mixer?.stopAllAction();
+            this.renderer?.dispose();
         }
     }
 
@@ -226,12 +239,25 @@ import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
         bindCards();
     }
 
-    window.addEventListener('resize', () => viewports.forEach((viewport) => viewport.resize()));
+    function initFeaturedViewport() {
+        featuredViewport?.destroy();
+        featuredViewport = null;
+        const card = document.querySelector('.featured-model-card[data-model]:not([data-model=""])');
+        if (!card) return;
+        const viewport = new LegendaryViewport(card);
+        if (viewport.init()) featuredViewport = viewport;
+    }
+
+    window.addEventListener('resize', () => {
+        viewports.forEach((viewport) => viewport.resize());
+        featuredViewport?.resize();
+    });
     document.addEventListener('sieglings:legendary-grid-rendered', init);
+    document.addEventListener('sieglings:featured-legendary-rendered', initFeaturedViewport);
 
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => window.setTimeout(init, 0), { once: true });
+        document.addEventListener('DOMContentLoaded', () => window.setTimeout(() => { init(); initFeaturedViewport(); }, 0), { once: true });
     } else {
-        window.setTimeout(init, 0);
+        window.setTimeout(() => { init(); initFeaturedViewport(); }, 0);
     }
 })();

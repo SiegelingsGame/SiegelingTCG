@@ -49,36 +49,27 @@
     function renderCreatureGrid() {
         const grid = document.getElementById('creatureGrid');
         if (!grid) return;
-        const html = FEATURED_SIEGELINGS.map((s) => {
+        const html = FEATURED_SIEGELINGS.map((s, index) => {
             const elKey = String(s.element).toLowerCase();
-            const hasModel = Boolean(s.model);
-            const portrait = hasModel
-                ? `<div class="creature-portrait creature-legendary-stage" aria-hidden="true">
-                        <div class="creature-notch" aria-hidden="true">${getElementSvg(s.element)}</div>
-                        <div class="creature-model-viewport" data-model-viewport data-active-element="${elKey}">
-                        <canvas aria-label="Animated ${escapeAttr(s.name)} model viewport"></canvas>
-                        <img class="creature-model-poster" src="${escapeAttr(s.art)}" alt="" loading="lazy">
-                        <div class="legendary-loading">Summoning model</div>
-                        </div>
-                   </div>`
-                : `<div class="creature-portrait" aria-hidden="true">
-                        <img src="${escapeAttr(s.art)}" alt="" loading="lazy">
-                   </div>`;
             return `
-                <button class="creature-card" type="button" data-element="${elKey}"
-                         data-name="${escapeAttr(s.name)}" data-art="${escapeAttr(s.art)}" data-model="${escapeAttr(s.model || '')}"
-                         aria-label="Reveal ${escapeAttr(s.name)}, legendary ${escapeAttr(s.element)} Siegling"
-                         aria-pressed="false"
+                <button class="legendary-selector${index === 0 ? ' is-selected' : ''}" type="button" data-featured-index="${index}"
+                         aria-label="Show ${escapeAttr(s.name)}, legendary ${escapeAttr(s.element)} Siegling"
+                         aria-pressed="${index === 0 ? 'true' : 'false'}"
                          style="--creature-color: var(--element-${elKey}); --creature-glow: var(--element-${elKey}-glow, rgba(255,255,255,0.4))">
-                    ${portrait}
-                    <div class="creature-name">${escapeHtml(s.name)}</div>
-                    <div class="creature-card-footer">
-                        <span class="creature-element">${s.element}</span>
-                    </div>
+                    <span class="legendary-selector-notch" aria-hidden="true">${getElementSvg(s.element)}</span>
+                    <span class="legendary-selector-name">${escapeHtml(s.name)}</span>
+                    <span class="legendary-selector-element">${escapeHtml(s.element)}</span>
                 </button>
             `;
         }).join('');
         grid.innerHTML = html;
+        grid.querySelectorAll('[data-featured-index]').forEach((button) => {
+            button.addEventListener('click', () => {
+                document.dispatchEvent(new CustomEvent('sieglings:featured-legendary-select', {
+                    detail: { index: Number(button.dataset.featuredIndex) }
+                }));
+            });
+        });
         document.dispatchEvent(new CustomEvent('sieglings:legendary-grid-rendered'));
     }
 
@@ -168,8 +159,6 @@
         const host = document.getElementById('featuredRotator');
         if (!host || !FEATURED_SIEGELINGS.length) return;
         let activeIndex = 0;
-        let interval = null;
-        const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
         function render(index) {
             activeIndex = (index + FEATURED_SIEGELINGS.length) % FEATURED_SIEGELINGS.length;
@@ -179,7 +168,13 @@
             host.style.setProperty('--feature-glow', `var(--element-${element}-glow, rgba(117, 218, 255, .4))`);
             host.innerHTML = `
                 <article class="featured-slide" aria-live="polite">
-                    <div class="featured-slide-art"><img src="${escapeAttr(entry.art)}" alt="${escapeAttr(entry.name)}, legendary ${escapeAttr(entry.element)} Siegeling" loading="eager"></div>
+                    <div class="featured-slide-art featured-model-card" data-element="${escapeAttr(element)}" data-model="${escapeAttr(entry.model || '')}">
+                        <div class="featured-model-viewport" data-model-viewport data-active-element="${escapeAttr(element)}">
+                            <canvas aria-label="Animated ${escapeAttr(entry.name)} model viewport"></canvas>
+                            <img class="featured-model-poster" src="${escapeAttr(entry.art)}" alt="${escapeAttr(entry.name)}, legendary ${escapeAttr(entry.element)} Siegling" loading="eager">
+                            <div class="legendary-loading">Summoning model</div>
+                        </div>
+                    </div>
                     <div class="featured-slide-copy">
                         <span class="featured-element">Legendary · ${escapeHtml(entry.element)}</span>
                         <h3>${escapeHtml(entry.name)}</h3>
@@ -189,23 +184,19 @@
                             <button class="featured-control" type="button" data-rotator-next aria-label="Next featured Siegeling">→</button>
                         </div>
                     </div>
-                    <div class="featured-dots" aria-label="Select featured Siegeling">
-                        ${FEATURED_SIEGELINGS.map((s, i) => `<button class="featured-dot${i === activeIndex ? ' is-active' : ''}" type="button" data-rotator-index="${i}" aria-label="Show ${escapeAttr(s.name)}" aria-current="${i === activeIndex ? 'true' : 'false'}"></button>`).join('')}
-                    </div>
                 </article>`;
             host.querySelector('[data-rotator-prev]')?.addEventListener('click', () => render(activeIndex - 1));
             host.querySelector('[data-rotator-next]')?.addEventListener('click', () => render(activeIndex + 1));
-            host.querySelectorAll('[data-rotator-index]').forEach((button) => button.addEventListener('click', () => render(Number(button.dataset.rotatorIndex))));
+            document.querySelectorAll('[data-featured-index]').forEach((button) => {
+                const selected = Number(button.dataset.featuredIndex) === activeIndex;
+                button.classList.toggle('is-selected', selected);
+                button.setAttribute('aria-pressed', String(selected));
+            });
+            document.dispatchEvent(new CustomEvent('sieglings:featured-legendary-rendered'));
         }
 
-        function stop() { if (interval) { window.clearInterval(interval); interval = null; } }
-        function start() { if (!reducedMotion && !interval) interval = window.setInterval(() => render(activeIndex + 1), 6200); }
-        host.addEventListener('pointerenter', stop);
-        host.addEventListener('pointerleave', start);
-        host.addEventListener('focusin', stop);
-        host.addEventListener('focusout', () => window.setTimeout(() => { if (!host.contains(document.activeElement)) start(); }, 0));
+        document.addEventListener('sieglings:featured-legendary-select', (event) => render(Number(event.detail?.index) || 0));
         render(0);
-        start();
     }
 
     function bindLandingFab() {
