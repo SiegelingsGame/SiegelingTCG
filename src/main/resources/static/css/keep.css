@@ -715,9 +715,10 @@ button.resource-pill:focus-visible {
     box-shadow: 0 0 0 2px rgba(244, 204, 98, .7), 0 0 14px rgba(244, 204, 98, .45);
 }
 
-.building-illustration { position: absolute; inset: 0 0 35px; display: block; }
+.building-illustration { position: absolute; z-index: 0; inset: 0 0 35px; display: block; }
 .building-label {
     position: absolute;
+    z-index: 1;
     left: 50%;
     bottom: 0;
     transform: translateX(-50%);
@@ -735,6 +736,9 @@ button.resource-pill:focus-visible {
 .building-label small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .building-label strong { font: 700 12px/1.15 Georgia, serif; color: #fff3c0; }
 .building-label small { margin-top: 2px; color: rgba(255, 247, 220, .66); font-size: 8px; letter-spacing: .04em; }
+/* The Covenant Gate runs behind the hall callout at higher keep ranks.  Keep
+   this label opaque so the gate cannot show through its status bubble. */
+.hall-hotspot .building-label { background: rgb(20, 31, 43); }
 
 /* Buildings are 2.5D inline SVGs (front facade + darker side face + roof
    planes + contact shadow) so they read as solid structures instead of flat
