@@ -2935,8 +2935,17 @@
         return names.length ? ` Cards pulled: ${names.join(', ')}.` : '';
     }
 
+    // Claim requests are guarded against re-entry: the buttons stay in the DOM
+    // while the POST is in flight, and a double-tap would otherwise send two
+    // claims for the same reward.
+    const claimsInFlight = new Set();
+
     async function claimMissionChest(period, threshold) {
         if (!state.token || !period || !threshold) return;
+        const key = `chest:${period}:${threshold}`;
+        if (claimsInFlight.has(key)) return;
+        claimsInFlight.add(key);
+        try {
         const data = await fetchJson('/api/missions/claim-chest', {
             method: 'POST',
             body: JSON.stringify({ period, threshold: Number(threshold) })
@@ -2952,10 +2961,15 @@
             `${summary}.${claimedCardsDetail(data?.cards)}`);
         safeRender(renderGold);
         safeRender(renderHomeDashboard);
+        } finally {
+            claimsInFlight.delete(key);
+        }
     }
 
     async function claimKnightLevel() {
-        if (!state.token) return;
+        if (!state.token || claimsInFlight.has('knight')) return;
+        claimsInFlight.add('knight');
+        try {
         const data = await fetchJson('/api/missions/claim-knight', { method: 'POST', body: JSON.stringify({}) });
         if (data?.error) {
             window.alert(data.error);
@@ -2967,6 +2981,9 @@
         pushNotification('gold', `Knight Level ${data?.level || ''} reached`, `${summary}.${claimedCardsDetail(data?.cards)}`);
         safeRender(renderGold);
         safeRender(renderHomeDashboard);
+        } finally {
+            claimsInFlight.delete('knight');
+        }
     }
 
     async function claimLoginReward() {

@@ -44,6 +44,33 @@ public class DailyMissionService {
 
     private static final DateTimeFormatter DATE_KEY_FORMAT = DateTimeFormatter.ISO_LOCAL_DATE;
 
+    private static final int CLAIM_LOCK_STRIPES = 64;
+
+    /**
+     * Every claim path is a read-modify-write across two stores: load progress,
+     * check the already-claimed marker, save it, then credit the wallet. Two
+     * concurrent requests for the same player would both read a pre-claim
+     * snapshot, both pass the check, and both pay out — the ledger records one
+     * claim while the wallet receives two. A double-tap on the claim button is
+     * enough to trigger it, so the window is serialized per user here, the same
+     * way PlayerProgressionService guards pack opens. Cloud Run runs this
+     * service at --max-instances 1, so an in-process lock covers every caller.
+     */
+    private final Object[] claimLocks = createLockStripes();
+
+    private static Object[] createLockStripes() {
+        Object[] locks = new Object[CLAIM_LOCK_STRIPES];
+        for (int i = 0; i < locks.length; i++) {
+            locks[i] = new Object();
+        }
+        return locks;
+    }
+
+    private Object claimLock(AccountUser user) {
+        String userId = user == null ? "" : String.valueOf(user.getId());
+        return claimLocks[Math.floorMod(userId.hashCode(), claimLocks.length)];
+    }
+
     @Autowired
     private DailyMissionProgressStore progressStore;
 
@@ -94,6 +121,30 @@ public class DailyMissionService {
     }
 
     public Map<String, Object> claimMission(AccountUser user, String missionId) {
+        synchronized (claimLock(user)) {
+            return claimMissionInternal(user, missionId);
+        }
+    }
+
+    public Map<String, Object> claimChest(AccountUser user, String periodName, int threshold) {
+        synchronized (claimLock(user)) {
+            return claimChestInternal(user, periodName, threshold);
+        }
+    }
+
+    public Map<String, Object> claimKnightLevels(AccountUser user) {
+        synchronized (claimLock(user)) {
+            return claimKnightLevelsInternal(user);
+        }
+    }
+
+    public Map<String, Object> claimLoginReward(AccountUser user) {
+        synchronized (claimLock(user)) {
+            return claimLoginRewardInternal(user);
+        }
+    }
+
+    private Map<String, Object> claimMissionInternal(AccountUser user, String missionId) {
         DailyMissionDefinition definition = DailyMissionCatalog.findById(missionId)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown mission."));
         DailyMissionProgressEntity progress = loadProgress(user.getId());
@@ -130,7 +181,7 @@ public class DailyMissionService {
      * unlocked by the period's banked points and unclaimed; the ladder's final
      * chest also rolls a random card from the collection catalog.
      */
-    public Map<String, Object> claimChest(AccountUser user, String periodName, int threshold) {
+    private Map<String, Object> claimChestInternal(AccountUser user, String periodName, int threshold) {
         MissionPeriod period = parseTrackPeriod(periodName);
         MissionRewardTrack.Chest chest = MissionRewardTrack.findChest(period, threshold);
         if (chest == null) {
@@ -172,7 +223,7 @@ public class DailyMissionService {
      * Levels are banked from lifetime mission points only, so this is a permanent,
      * one-way track — {@code claimedKnightLevel} is the high-water mark.
      */
-    public Map<String, Object> claimKnightLevels(AccountUser user) {
+    private Map<String, Object> claimKnightLevelsInternal(AccountUser user) {
         DailyMissionProgressEntity progress = loadProgress(user.getId());
         int reached = KnightLevelTrack.levelForPoints(progress.getKnightPoints());
         int claimedThrough = progress.getClaimedKnightLevel();
@@ -214,7 +265,7 @@ public class DailyMissionService {
      * consecutive-day login streak. Idempotent within a day — a second call the
      * same day throws so the client cannot double-claim.
      */
-    public Map<String, Object> claimLoginReward(AccountUser user) {
+    private Map<String, Object> claimLoginRewardInternal(AccountUser user) {
         DailyMissionProgressEntity progress = loadProgress(user.getId());
         String todayKey = dateKey(Instant.now());
         if (todayKey.equals(progress.getLastLoginClaimKey())) {
