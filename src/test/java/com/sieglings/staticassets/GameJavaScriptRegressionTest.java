@@ -324,7 +324,7 @@ class GameJavaScriptRegressionTest {
                 "Profile trim styles for battle preview, social shrink, and favorite card art must ship in home.css."
         );
         assertTrue(
-                homeMarkup.contains("home.js?v=120") && homeMarkup.contains("home.css?v=116"),
+                homeMarkup.contains("home.js?v=121") && homeMarkup.contains("home.css?v=116"),
                 "Cache-bust pins for the profile dashboard trim must advance on home.html."
         );
     }
@@ -353,7 +353,7 @@ class GameJavaScriptRegressionTest {
         );
         assertTrue(
                 homeMarkup.contains("home.css?v=116")
-                        && homeMarkup.contains("home.js?v=120")
+                        && homeMarkup.contains("home.js?v=121")
                         && dashboardMarkup.contains("home.css?v=116"),
                 "Profile icon CSS and JavaScript cache pins must advance together."
         );
@@ -389,7 +389,7 @@ class GameJavaScriptRegressionTest {
                 homeMarkup.contains("style.css?v=216")
                         && homeMarkup.contains("game.js?v=216")
                         && homeMarkup.contains("card-binder-visual.js?v=19")
-                        && homeMarkup.contains("home.js?v=120")
+                        && homeMarkup.contains("home.js?v=121")
                         && playMarkup.contains("style.css?v=216")
                         && playMarkup.contains("game.js?v=216")
                         && dashboardMarkup.contains("style.css?v=216")
@@ -940,6 +940,39 @@ class GameJavaScriptRegressionTest {
     }
 
     @Test
+    void keepersFavorPicksACharacterCellAndConfirmsBeforeHonoring() throws IOException {
+        String keepHtml = Files.readString(KEEP_HTML);
+        String keepCss = Files.readString(KEEP_CSS);
+        String keepJs = Files.readString(KEEP_JS);
+
+        assertTrue(
+                keepJs.contains("function favorCellMarkup(") && keepJs.contains("data-favor-open")
+                        && keepJs.contains("is-silhouette") && keepJs.contains("FAVOR_SILHOUETTE"),
+                "The Keeper's Favor must lead with one cell holding the current favorite, or a silhouette when none is honored."
+        );
+        assertTrue(
+                keepJs.contains("function favorTileMarkup(") && keepJs.contains("data-favor-candidate")
+                        && keepJs.contains("state.favorPickerOpen") && keepCss.contains(".favor-grid { display: grid;"),
+                "Tapping the honored cell must open a grid of Siegeling portrait cells."
+        );
+        assertTrue(
+                keepHtml.contains("id=\"favorOverlay\"") && keepHtml.contains("data-favor-approve")
+                        && keepHtml.contains("data-favor-deny") && keepHtml.contains("id=\"favorConfirmArt\"")
+                        && keepJs.contains("function renderFavorConfirm(") && keepJs.contains("function approveFavorCandidate(")
+                        && keepCss.contains(".favor-confirm-card"),
+                "Picking a portrait must raise a confirm sheet with the paper cutout, the effect line, and approve/deny."
+        );
+        assertFalse(
+                keepJs.contains("data-set-favorite") || keepCss.contains(".favorite-choice"),
+                "The old one-tap favorite list must be gone, or a portrait could still change the keep-wide bonus without confirmation."
+        );
+        assertTrue(
+                keepJs.contains("resident.favoriteBonusPercent"),
+                "The confirm sheet must quote the server's per-Siegeling bonus so the preview cannot drift from the boost applied."
+        );
+    }
+
+    @Test
     void keepBuildingsAndRoomsUseLayeredPaperTreatments() throws IOException {
         String keepHtml = Files.readString(KEEP_HTML);
         String keepCss = Files.readString(KEEP_CSS);
@@ -947,8 +980,8 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=34")
-                        && keepHtml.contains("/js/keep.js?v=35")
+                        && keepHtml.contains("/css/keep.css?v=35")
+                        && keepHtml.contains("/js/keep.js?v=36")
                         && keepHtml.contains("id=\"hallFavoriteResident\"")
                         && keepHtml.contains("id=\"constructionBannerJobs\"")
                         && keepHtml.contains("id=\"productionReady\"")
@@ -993,9 +1026,9 @@ class GameJavaScriptRegressionTest {
                         && keepCss.contains(".int-backwall::after")
                         && keepCss.contains("mix-blend-mode: soft-light")
                         && keepCss.contains(".hall-favorite-resident")
-                        && keepCss.contains(".favorite-choice:nth-child(even)")
+                        && keepCss.contains(".favor-cell {")
                         && keepCss.contains(".offline-capacity-list"),
-                "Exterior silhouettes and room shells must retain their cardstock edges and print grain, with the hall favorite cutout, alternating favorite-choice stripes, and offline capacity list."
+                "Exterior silhouettes and room shells must retain their cardstock edges and print grain, with the hall favorite cutout, the honored favor cell, and offline capacity list."
         );
         assertFalse(
                 keepHtml.contains("id=\"paper-prop-cutout\"")

@@ -1134,30 +1134,92 @@ button.resource-pill:focus-visible {
 
 .resident-card { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; align-items: center; gap: 10px; }
 .resident-card.is-favorite { border-color: rgba(244, 204, 98, .5); }
-.favorite-card { border-color: rgba(244, 204, 98, .4); background: rgba(244, 204, 98, .06); }
+.favor-card { border-color: rgba(244, 204, 98, .4); background: rgba(244, 204, 98, .06); }
 .resident-avatar { position: relative; width: 52px; height: 52px; display: grid; place-items: center; overflow: hidden; border: 2px solid color-mix(in srgb, var(--resident-color, var(--neutral)) 70%, white); border-radius: 50%; color: #172333; background: var(--resident-color, var(--neutral)); font-weight: 900; }
 .resident-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .resident-fav-mark { position: absolute; right: -2px; bottom: -2px; width: 18px; height: 18px; display: grid; place-items: center; border: 2px solid var(--panel); border-radius: 50%; background: var(--gold); color: #172333; font-size: 9px; font-style: normal; }
 
-/* Favorite chooser lives inside the Covenant Hall interior. */
-.favorite-current { display: flex; align-items: center; gap: 10px; margin: 8px 0 12px; }
-.favorite-current-avatar { width: 46px; height: 46px; display: grid; place-items: center; overflow: hidden; border: 2px solid var(--gold); border-radius: 50%; color: #172333; background: var(--resident-color, var(--neutral)); font-weight: 900; box-shadow: 0 0 10px rgba(244, 204, 98, .4); }
-.favorite-current-avatar img { width: 100%; height: 100%; object-fit: cover; }
-.favorite-current span { min-width: 0; display: flex; flex-direction: column; }
-.favorite-current strong { color: #fff1b7; font: 700 14px Georgia, serif; }
-.favorite-current small { color: #ffe9a8; font-size: 10px; }
-.favorite-choices { display: grid; gap: 6px; }
-.favorite-choice { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 7px 9px; border: 1px solid rgba(255, 255, 255, .08); border-radius: 11px; color: var(--cream); background: rgba(12, 22, 30, .55); text-align: left; cursor: pointer; }
-.favorite-choice:nth-child(even) { background: rgba(244, 204, 98, .14); border-color: rgba(244, 204, 98, .28); }
-.favorite-choice:hover { border-color: rgba(244, 204, 98, .55); background: rgba(244, 204, 98, .18); }
-.favorite-choice.active { border-color: var(--gold); background: rgba(244, 204, 98, .24); box-shadow: inset 0 0 0 1px rgba(244, 204, 98, .35); }
-.favorite-choice-avatar { width: 38px; height: 38px; display: grid; place-items: center; overflow: hidden; border: 2px solid color-mix(in srgb, var(--resident-color, var(--neutral)) 70%, white); border-radius: 50%; color: #172333; background: var(--resident-color, var(--neutral)); font-size: 13px; font-weight: 900; }
-.favorite-choice-avatar img { width: 100%; height: 100%; object-fit: cover; }
-.favorite-choice-copy { min-width: 0; display: flex; flex-direction: column; }
-.favorite-choice-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #fff1b7; font: 700 13px Georgia, serif; }
-.favorite-choice-copy small { color: rgba(255, 247, 220, .58); font-size: 9px; }
-.favorite-choice-star { font-size: 17px; font-style: normal; color: #ffd76e; }
-.favorite-choice.active .favorite-choice-star { text-shadow: 0 0 8px rgba(244, 204, 98, .7); }
+/* The Keeper's Favor lives inside the Covenant Hall and is character-first: one honored
+   cell, a grid of portrait cells when it is being changed, and a confirm sheet. Cells stay
+   the same size in both states so opening the grid never shifts the card under a thumb. */
+.favor-cell-row { display: grid; grid-template-columns: 92px minmax(0, 1fr); align-items: center; gap: 12px; margin-top: 10px; }
+.favor-cell {
+    position: relative;
+    width: 92px;
+    height: 108px;
+    display: grid;
+    place-items: center;
+    padding: 6px;
+    border: 1px solid rgba(244, 204, 98, .38);
+    border-radius: 14px;
+    background:
+        radial-gradient(circle at 50% 118%, color-mix(in srgb, var(--resident-color, var(--neutral)) 34%, transparent), transparent 62%),
+        rgba(12, 22, 30, .58);
+    cursor: pointer;
+    touch-action: manipulation;
+}
+.favor-cell.has-favorite { border-color: var(--gold); box-shadow: inset 0 0 0 1px rgba(244, 204, 98, .28), 0 0 14px rgba(244, 204, 98, .18); }
+.favor-cell:hover { border-color: var(--gold); }
+.favor-cell-art, .favor-tile-art { display: grid; place-items: center; }
+.favor-cell-art { width: 66px; height: 78px; }
+.favor-cell-art img, .favor-tile-art img { width: auto; height: 100%; max-width: 100%; object-fit: contain; object-position: bottom center; pointer-events: none; }
+.favor-cell-art.is-paper-token, .favor-tile-art.is-paper-token { width: 56px; height: 56px; font-size: 17px; }
+.favor-cell-hint { position: absolute; left: 50%; bottom: -1px; translate: -50% 50%; padding: 2px 8px; border: 1px solid rgba(244, 204, 98, .45); border-radius: 99px; background: rgba(20, 31, 43, .92); color: #ffe9a8; font: 800 8px/1.4 Georgia, serif; font-style: normal; letter-spacing: .06em; text-transform: uppercase; }
+/* An empty honor draws a Siegeling-shaped standee rather than a blank frame. */
+.favor-cell-art.is-silhouette svg, .favor-tile-art.is-silhouette svg { width: 100%; height: 100%; fill: rgba(242, 226, 184, .3); }
+.favor-cell.is-empty { border-style: dashed; }
+.favor-cell-copy { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.favor-cell-copy strong { color: #fff1b7; font: 700 15px Georgia, serif; }
+.favor-cell-copy small { color: rgba(255, 247, 220, .6); font-size: 10px; }
+.favor-cell-effect { margin: 4px 0 0; color: #ffe9a8; font-size: 11px; line-height: 1.4; }
+
+.favor-grid-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 10px 0 8px; }
+.favor-grid-head strong { color: #fff1b7; font: 700 13px Georgia, serif; }
+.favor-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 8px; }
+.favor-tile {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    gap: 2px;
+    padding: 8px 6px 7px;
+    border: 1px solid rgba(255, 255, 255, .1);
+    border-radius: 13px;
+    background:
+        radial-gradient(circle at 50% 112%, color-mix(in srgb, var(--resident-color, var(--neutral)) 30%, transparent), transparent 60%),
+        rgba(12, 22, 30, .55);
+    color: var(--cream);
+    cursor: pointer;
+    touch-action: manipulation;
+}
+.favor-tile:hover { border-color: rgba(244, 204, 98, .6); background: rgba(244, 204, 98, .12); }
+.favor-tile.is-current { border-color: var(--gold); box-shadow: inset 0 0 0 1px rgba(244, 204, 98, .3); }
+.favor-tile-art { width: 60px; height: 66px; }
+.favor-tile strong { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #fff1b7; font: 700 11px Georgia, serif; }
+.favor-tile small { color: rgba(255, 247, 220, .62); font-size: 9px; }
+.favor-tile-star { position: absolute; right: 5px; top: 4px; color: #ffd76e; font-size: 13px; font-style: normal; text-shadow: 0 0 8px rgba(244, 204, 98, .7); }
+
+/* Confirm sheet: the honor is keep-wide, so it is stated and approved before it lands. */
+.favor-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 72;
+    display: grid;
+    place-items: center;
+    padding: calc(18px + var(--safe-top)) calc(18px + var(--safe-right)) calc(18px + var(--safe-bottom)) calc(18px + var(--safe-left));
+    background: rgba(6, 12, 17, .72);
+    backdrop-filter: blur(3px);
+}
+.favor-confirm-card { position: relative; width: min(360px, 100%); max-height: min(620px, 88dvh); display: grid; justify-items: center; gap: 4px; overflow-y: auto; padding: 22px 20px 18px; border: 1px solid rgba(244, 204, 98, .45); border-radius: 20px; background: linear-gradient(155deg, #263c48, #14232e); box-shadow: 0 30px 90px rgba(0, 0, 0, .55); text-align: center; }
+.favor-confirm-close { position: absolute; right: 10px; top: 8px; width: 34px; height: 34px; border-radius: 50%; color: var(--cream); background: rgba(255, 255, 255, .06); font-size: 20px; cursor: pointer; }
+.favor-confirm-art { display: grid; place-items: end center; margin: 6px 0 2px; }
+.favor-confirm-cutout { display: grid; place-items: center; width: 118px; height: 138px; }
+.favor-confirm-cutout img { width: auto; height: 100%; max-width: 100%; object-fit: contain; object-position: bottom center; pointer-events: none; }
+.favor-confirm-cutout.is-paper-token { width: 104px; height: 104px; font-size: 30px; }
+.favor-confirm-card h2 { margin: 6px 0 0; color: #fff1b7; font: 700 24px/1.15 Georgia, serif; }
+.favor-confirm-card > small { color: rgba(255, 247, 220, .6); font-size: 10px; }
+.favor-confirm-effect { margin: 12px 0 0; padding: 7px 14px; border: 1px solid rgba(244, 204, 98, .45); border-radius: 99px; background: rgba(244, 204, 98, .12); color: #ffe9a8; font: 800 13px Georgia, serif; }
+.favor-confirm-description { margin: 10px 0 4px; color: rgba(255, 247, 220, .82); font: 12px/1.55 Georgia, serif; }
+.favor-confirm-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; margin-top: 12px; }
 .resident-copy { min-width: 0; }
 .resident-copy h3 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .resident-copy small { display: block; color: rgba(255, 247, 220, .58); font-size: 9px; }
@@ -1243,7 +1305,8 @@ button.resource-pill:focus-visible {
 .enclave-picker { margin-top: 10px; padding: 10px; border: 1px solid rgba(244,204,98,.35); border-radius: 11px; background: rgba(244,204,98,.05); }
 .enclave-picker-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
 .enclave-picker-head strong { color: #fff1b7; font: 700 12px Georgia, serif; }
-.enclave-picker .picker-close { width: 26px; height: 26px; border-radius: 8px; color: var(--cream); background: rgba(255,255,255,.08); font-size: 15px; line-height: 1; cursor: pointer; }
+.enclave-picker .picker-close,
+.favor-grid-head .picker-close { width: 26px; height: 26px; border-radius: 8px; color: var(--cream); background: rgba(255,255,255,.08); font-size: 15px; line-height: 1; cursor: pointer; }
 .enclave-picker .panel-button.secondary { width: 100%; margin-bottom: 8px; }
 .enclave-picker .eyebrow { display: block; margin-top: 8px; }
 .enclave-picker .empty-state { margin-top: 6px; }
@@ -2664,6 +2727,10 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
 .lodge-resident .is-paper-cutout,
 .hall-favorite-resident .is-paper-cutout,
 .facility-room-resident .is-paper-cutout { --paper-tilt: 1deg; }
+/* Menu cells are read side by side, so their standees sit straighter than world art. */
+.favor-cell-art.is-paper-cutout,
+.favor-tile-art.is-paper-cutout,
+.favor-confirm-cutout.is-paper-cutout { --paper-tilt: -.5deg; }
 .shrine-art.is-paper-cutout { --paper-tilt: -1deg; }
 .enclave-residents b:nth-child(even).is-paper-cutout { --paper-tilt: 1.6deg; }
 .enclave-residents b:nth-child(odd).is-paper-cutout { --paper-tilt: -1.4deg; }
@@ -2674,6 +2741,9 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
 .hall-favorite-resident > span.is-paper-token,
 .facility-room-resident > span.is-paper-token,
 .shrine-art.is-paper-token,
+.favor-cell-art.is-paper-token,
+.favor-tile-art.is-paper-token,
+.favor-confirm-cutout.is-paper-token,
 .enclave-residents b.is-paper-token {
     border: 2px solid #282019;
     border-radius: 46% 52% 43% 49%;

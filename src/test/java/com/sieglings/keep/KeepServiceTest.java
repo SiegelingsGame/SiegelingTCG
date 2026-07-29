@@ -664,6 +664,14 @@ class KeepServiceTest {
 
         Map<String, Object> cleared = service.setFavorite(user, "", "fav-3", store.state.getVersion());
         assertEquals(0, intAt(cleared, "favorite", "bonusPercent"));
+
+        // The favor chooser previews each candidate before it is approved, so every resident
+        // carries the bonus it would grant — not only whoever is honored right now.
+        assertEquals(5, ((Number) residentPayload(cleared, "mossling").get("favoriteBonusPercent")).intValue());
+        assertEquals(20, ((Number) residentPayload(cleared, "aurorix").get("favoriteBonusPercent")).intValue());
+        store.state.getResidentRapport().put("mossling", 5);
+        assertEquals(6, ((Number) residentPayload(service.getSnapshot(user), "mossling").get("favoriteBonusPercent")).intValue(),
+                "A bonded Siegeling must preview the rapport-multiplied favor, matching the boost it applies.");
     }
 
     @Test
