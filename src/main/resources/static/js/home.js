@@ -4443,6 +4443,8 @@
             preferredCardBack: starterCardBackName(favoriteElement),
             favoriteSiegling: '',
             favoriteSieglingId: starterFavoriteSieglingId(favoriteElement),
+            favoriteCardId: starterFavoriteSieglingId(favoriteElement),
+            favoriteCardVariant: 'STANDARD',
             featuredBadgeIds: []
         };
     }
@@ -4495,10 +4497,18 @@
             || humanizeTitleId(id);
     }
 
-    function ownedSieglingCards() {
+    function ownedFavoriteCards() {
         return (state.options?.cardCatalog || [])
-            .filter(card => card.type === 'SIEGLING' && ownedCount(card.id) > 0)
+            .filter(card => (card.type === 'SIEGLING' || card.type === 'SIEGEKNIGHT') && ownedCount(card.id) > 0)
             .sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    function favoriteCardSupportsHolographic(card) {
+        return Boolean(card?.holographic === true || playerOwnsHolographicFinish(card));
+    }
+
+    function favoriteCardSelectionValue(id, variant = 'STANDARD') {
+        return `${String(id || '').trim()}::${String(variant || 'STANDARD').toUpperCase() === 'HOLOGRAPHIC' ? 'HOLOGRAPHIC' : 'STANDARD'}`;
     }
 
     function resolveProfileTitleLabel(prefs) {
@@ -4509,23 +4519,31 @@
 
     function renderProfileFavoriteSiegling(prefs) {
         const cardData = prefs?.favoriteSieglingCard;
-        const cardId = prefs?.favoriteSieglingId || cardData?.id;
+        const cardId = prefs?.favoriteCardId || prefs?.favoriteSieglingId || cardData?.id;
         const card = cardId ? (findCard(cardId) || cardData) : null;
         if (!card?.id) {
-            return '<div class="profile-favorite-card-empty"><span>No favorite Siegeling selected</span></div>';
+            return '<div class="profile-favorite-card-empty"><span>No favorite card selected</span></div>';
+        }
+        const renderCard = { ...card, holographic: prefs?.favoriteCardVariant === 'HOLOGRAPHIC' || card.holographic === true };
+        if (renderCard.type === 'SIEGEKNIGHT') {
+            return `<div class="profile-favorite-card-wrap">
+                <span class="profile-favorite-kicker">Favorite SiegeKnight</span>
+                <div class="profile-favorite-card profile-favorite-siegeknight">${renderKnightBinderCard(renderCard, { showOwnership: false, showXp: false })}</div>
+            </div>`;
         }
         const binderVisual = window.SieglingsCardBinderVisual;
-        const favoritePreview = (binderVisual?.usesFullCardArt?.(card) || binderVisual?.usesFramedCardTemplate?.(card))
-            ? binderVisual.renderBinderCardPreview(card, {
-                ownedOverride: ownedCount(card.id) || Number(card.owned) || 1,
+        const favoritePreview = (binderVisual?.usesFullCardArt?.(renderCard) || binderVisual?.usesFramedCardTemplate?.(renderCard))
+            ? binderVisual.renderBinderCardPreview(renderCard, {
+                ...binderHolographicOptions(),
+                ownedOverride: ownedCount(renderCard.id) || Number(renderCard.owned) || 1,
                 previewClass: 'detail-card-preview profile-favorite-showcase',
-                descriptionText: shopCardDescriptionFor(card)
+                descriptionText: shopCardDescriptionFor(renderCard)
             })
-            : `<div class="profile-favorite-card binder-card" style="--el:${elementColor(card.element)}">
-                ${renderBinderCardShell(card, { ownedOverride: ownedCount(card.id) || Number(card.owned) || 1 })}
+            : `<div class="profile-favorite-card binder-card" style="--el:${elementColor(renderCard.element)}">
+                ${renderBinderCardShell(renderCard, { ownedOverride: ownedCount(renderCard.id) || Number(renderCard.owned) || 1 })}
             </div>`;
         return `<div class="profile-favorite-card-wrap">
-            <span class="profile-favorite-kicker">Favorite Siegeling</span>
+            <span class="profile-favorite-kicker">Favorite Card</span>
             ${favoritePreview}
         </div>`;
     }
@@ -4541,8 +4559,8 @@
         </select></label>`;
     }
 
-    function favoriteSieglingSelect(selectedId) {
-        const cards = ownedSieglingCards();
+    function legacyFavoriteSieglingSelect(selectedId) {
+        const cards = ownedFavoriteCards();
         const current = selectedId || '';
         if (!cards.length) {
             return '<label><span>Favorite Siegeling</span><select class="search-input" disabled><option>Own a Siegeling first</option></select></label>';
@@ -4550,6 +4568,25 @@
         return `<label><span>Favorite Siegeling</span><select class="search-input" data-profile-field="favoriteSieglingId">
             ${cards.map(card => `<option value="${escapeAttr(card.id)}"${card.id === current ? ' selected' : ''}>${escapeHtml(card.name)} · ${format(card.rarity)}</option>`).join('')}
         </select></label>`;
+    }
+
+    // Profile favorite-card selector includes owned Siegelings, SiegeKnights,
+    // and holographic variants available to the player.
+    function favoriteSieglingSelect(selectedId, prefs = {}) {
+        const cards = ownedFavoriteCards();
+        const currentId = selectedId || prefs.favoriteCardId || prefs.favoriteSieglingId || '';
+        const currentVariant = prefs.favoriteCardVariant || 'STANDARD';
+        if (!cards.length) {
+            return '<label><span>Favorite card</span><select class="search-input" disabled><option>Own a Siegeling or SiegeKnight first</option></select></label>';
+        }
+        const options = cards.flatMap(card => {
+            const rows = [`<option value="${escapeAttr(favoriteCardSelectionValue(card.id))}"${card.id === currentId && currentVariant !== 'HOLOGRAPHIC' ? ' selected' : ''}>${escapeHtml(card.name)} \\u00b7 ${format(card.type === 'SIEGEKNIGHT' ? 'SiegeKnight' : 'Siegeling')} \\u00b7 ${format(card.rarity)}</option>`];
+            if (favoriteCardSupportsHolographic(card)) {
+                rows.push(`<option value="${escapeAttr(favoriteCardSelectionValue(card.id, 'HOLOGRAPHIC'))}"${card.id === currentId && currentVariant === 'HOLOGRAPHIC' ? ' selected' : ''}>${escapeHtml(card.name)} \\u00b7 ${format(card.type === 'SIEGEKNIGHT' ? 'SiegeKnight' : 'Siegeling')} \\u00b7 ${format(card.rarity)} \\u00b7 Holographic</option>`);
+            }
+            return rows;
+        }).join('');
+        return `<label><span>Favorite card</span><select class="search-input" data-profile-field="favoriteCardId">${options}</select></label>`;
     }
 
     function applyStarterProfileDefaults() {
@@ -5202,7 +5239,7 @@
                     ${profileTitleSelect(prefs.playerTitleId, prefs)}
                     ${profileInput('Bio/status message', 'bio', prefs.bio)}
                     ${profileCardBackSelect(prefs.preferredCardBack)}
-                    ${favoriteSieglingSelect(prefs.favoriteSieglingId || prefs.favoriteSieglingCard?.id)}
+                    ${favoriteSieglingSelect(prefs.favoriteCardId || prefs.favoriteSieglingId || prefs.favoriteSieglingCard?.id, prefs)}
                 </div>
                 <div class="profile-edit-actions">
                     <button class="ghost-btn" type="button" data-profile-close>Cancel</button>
@@ -5341,10 +5378,13 @@
             const legacy = unlockedPlayerTitles().find(title => title.label === next.playerTitle || title.id === next.playerTitle);
             next.playerTitleId = legacy?.id || defaultStarterTitleId(next.favoriteElement);
         }
-        if (!next.favoriteSieglingId && next.favoriteSiegling) {
-            const legacyCard = ownedSieglingCards().find(card => card.id === next.favoriteSiegling || card.name === next.favoriteSiegling);
-            next.favoriteSieglingId = legacyCard?.id || '';
+        if (!next.favoriteCardId && next.favoriteSiegling) {
+            const legacyCard = ownedFavoriteCards().find(card => card.id === next.favoriteSiegling || card.name === next.favoriteSiegling);
+            next.favoriteCardId = legacyCard?.id || '';
         }
+        const favoriteParts = String(next.favoriteCardId || '').split('::');
+        next.favoriteCardId = favoriteParts[0] || '';
+        next.favoriteCardVariant = favoriteParts[1] === 'HOLOGRAPHIC' ? 'HOLOGRAPHIC' : (next.favoriteCardVariant || 'STANDARD');
         const data = await fetchJson('/api/profile/settings', { method: 'POST', body: JSON.stringify(next) });
         if (!data) return alert('Could not save profile. Is the server running the latest code with /api/profile/settings?');
         if (data.error) return alert(data.error);
@@ -7810,6 +7850,8 @@
             preferredCardBack: settings.preferredCardBack || '',
             favoriteSiegling: settings.favoriteSiegling || '',
             favoriteSieglingId: settings.favoriteSieglingId || '',
+            favoriteCardId: settings.favoriteCardId || settings.favoriteSieglingId || '',
+            favoriteCardVariant: settings.favoriteCardVariant === 'HOLOGRAPHIC' ? 'HOLOGRAPHIC' : 'STANDARD',
             favoriteSieglingCard: settings.favoriteSieglingCard || null,
             featuredBadgeIds: Array.isArray(settings.featuredBadgeIds) ? settings.featuredBadgeIds : []
         };

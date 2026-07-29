@@ -1,6 +1,7 @@
 package com.sieglings.service;
 
 import com.sieglings.model.Card;
+import com.sieglings.model.TrainerCard;
 import com.sieglings.model.enums.CardType;
 import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.PlayerProgressionEntity;
@@ -21,6 +22,7 @@ import java.util.Set;
 @Service
 public class ProfileSettingsService {
     private static final Set<String> AVATAR_MODES = Set.of("INITIAL", "ELEMENT");
+    private record FavoriteSelection(String id, String variant) {}
 
     @Autowired
     private ProfileSettingsStore settingsStore;
@@ -92,16 +94,28 @@ public class ProfileSettingsService {
         if (req.get("preferredCardBack") instanceof String preferredCardBack) {
             settings.setPreferredCardBack(trim(preferredCardBack, 60));
         }
-        String requestedFavoriteId = readString(req, "favoriteSieglingId");
+        String requestedFavoriteId = readString(req, "favoriteCardId");
+        if (requestedFavoriteId.isBlank()) {
+            requestedFavoriteId = readString(req, "favoriteSieglingId");
+        }
         if (requestedFavoriteId.isBlank()) {
             requestedFavoriteId = readString(req, "favoriteSiegling");
         }
         if (!requestedFavoriteId.isBlank()) {
-            String cardId = resolveFavoriteSieglingId(requestedFavoriteId, progression);
-            if (cardId.isBlank()) {
-                throw new IllegalArgumentException("Choose a Siegeling you own.");
+            FavoriteSelection requested = parseFavoriteSelection(requestedFavoriteId,
+                    readString(req, "favoriteCardVariant"));
+            Optional<Card> favorite = findFavoriteById(requested.id());
+            if (favorite.isEmpty() || !ownsFavorite(progression, favorite.get())) {
+                throw new IllegalArgumentException("Choose a card you own.");
             }
-            settings.setFavoriteSiegling(cardId);
+            String variant = hasHolographicVariant(favorite.get(), progression)
+                    && "HOLOGRAPHIC".equals(requested.variant()) ? "HOLOGRAPHIC" : "STANDARD";
+            settings.setFavoriteCardId(favorite.get().getId());
+            settings.setFavoriteCardVariant(variant);
+            // Keep the old field populated for existing achievement/profile clients,
+            // while the new fields support SiegeKnights and card finishes.
+            settings.setFavoriteSiegling(favorite.get().getCardType() == CardType.SIEGLING
+                    ? favorite.get().getId() : "");
         }
         if (req.containsKey("featuredBadgeIds") && req.get("featuredBadgeIds") instanceof List<?> raw) {
             List<String> featured = new java.util.ArrayList<>();
@@ -145,67 +159,134 @@ public class ProfileSettingsService {
         out.put("bio", settings.getBio() == null ? "" : settings.getBio());
         out.put("preferredCardBack", settings.getPreferredCardBack() == null ? "" : settings.getPreferredCardBack());
 
-        String favoriteId = resolveFavoriteSieglingId(settings.getFavoriteSiegling(), progression);
-        out.put("favoriteSieglingId", favoriteId);
-        Card favoriteCard = findSieglingById(favoriteId).orElse(null);
-        out.put("favoriteSiegling", favoriteCard == null ? "" : favoriteCard.getName());
+        FavoriteSelection selection = resolveFavoriteSelection(settings, progression);
+        out.put("favoriteCardId", selection.id());
+        out.put("favoriteCardVariant", selection.variant());
+        out.put("favoriteSieglingId", selection.id().isBlank() || !isSieglingId(selection.id()) ? "" : selection.id());
+        Card favoriteCard = findFavoriteById(selection.id()).orElse(null);
+        out.put("favoriteSiegling", favoriteCard == null || favoriteCard.getCardType() != CardType.SIEGLING
+                ? "" : favoriteCard.getName());
         if (favoriteCard != null) {
-            out.put("favoriteSieglingCard", serializeFavoriteCard(favoriteCard, progression));
+            out.put("favoriteSieglingCard", serializeFavoriteCard(favoriteCard, progression, selection.variant()));
         }
         out.put("featuredBadgeIds", settings.getFeaturedBadgeIds() == null ? List.of() : settings.getFeaturedBadgeIds());
         out.put("updatedAt", settings.getUpdatedAt() == null ? null : settings.getUpdatedAt().toString());
         return out;
     }
 
-    private Map<String, Object> serializeFavoriteCard(Card card, PlayerProgressionEntity progression) {
+    private Map<String, Object> serializeFavoriteCard(Card card, PlayerProgressionEntity progression, String variant) {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("id", card.getId());
         out.put("name", card.getName());
-        out.put("type", card.getCardType().name());
+        out.put("type", card instanceof TrainerCard ? "SIEGEKNIGHT" : card.getCardType().name());
         out.put("element", card.getElement().name());
         out.put("rarity", card.getRarity().name());
         out.put("health", card instanceof com.sieglings.model.SieglingCard siegling ? siegling.getHealth() : null);
         out.put("speed", card instanceof com.sieglings.model.SieglingCard siegling ? siegling.getSpeed() : null);
-        out.put("owned", progression.getOwnedCards().getOrDefault(card.getId(), 0));
+        out.put("tier", card instanceof TrainerCard trainer ? trainer.getTier() : null);
+        out.put("owned", ownsFavorite(progression, card) ? 1 : 0);
+        out.put("cardArtUrl", card.getCardArtUrl());
+        out.put("cardArtMode", card.getCardArtMode());
+        out.put("cardArtOffsetX", card.getCardArtOffsetX());
+        out.put("cardArtOffsetY", card.getCardArtOffsetY());
+        out.put("cardArtOffsetXPct", card.getCardArtOffsetXPct());
+        out.put("cardArtOffsetYPct", card.getCardArtOffsetYPct());
+        out.put("cardArtScale", card.getCardArtScale());
+        out.put("cardArtRotation", card.getCardArtRotation());
+        out.put("holographicCardArtUrl", card.getHolographicCardArtUrl());
+        out.put("holographicCardArtScale", card.getHolographicCardArtScale());
+        out.put("holographic", "HOLOGRAPHIC".equals(normalizeCardVariant(variant)));
+        out.put("description", card.getDescription());
         return out;
     }
 
-    private String resolveFavoriteSieglingId(String rawValue, PlayerProgressionEntity progression) {
-        String trimmed = rawValue == null ? "" : rawValue.trim();
-        if (trimmed.isBlank()) {
-            return firstOwnedSieglingId(progression);
+    private FavoriteSelection resolveFavoriteSelection(ProfileSettingsEntity settings,
+                                                        PlayerProgressionEntity progression) {
+        String rawId = settings.getFavoriteCardId();
+        if (rawId == null || rawId.isBlank()) {
+            rawId = settings.getFavoriteSiegling();
         }
-        Optional<Card> byId = findSieglingById(trimmed);
-        if (byId.isPresent() && ownsSiegling(progression, byId.get().getId())) {
-            return byId.get().getId();
+        FavoriteSelection requested = parseFavoriteSelection(rawId, settings.getFavoriteCardVariant());
+        Optional<Card> selected = findFavoriteById(requested.id());
+        if (selected.isPresent() && ownsFavorite(progression, selected.get())) {
+            String variant = hasHolographicVariant(selected.get(), progression)
+                    && "HOLOGRAPHIC".equals(requested.variant()) ? "HOLOGRAPHIC" : "STANDARD";
+            return new FavoriteSelection(selected.get().getId(), variant);
         }
-        Optional<Card> byName = findSieglingByName(trimmed);
-        if (byName.isPresent() && ownsSiegling(progression, byName.get().getId())) {
-            return byName.get().getId();
-        }
-        return "";
+        String fallback = firstOwnedFavoriteId(progression);
+        return fallback.isBlank() ? new FavoriteSelection("", "STANDARD")
+                : new FavoriteSelection(fallback, "STANDARD");
     }
 
-    private String firstOwnedSieglingId(PlayerProgressionEntity progression) {
-        return cardDefinitionService.getDeckBuilderCatalog().stream()
-                .filter(card -> card.getCardType() == CardType.SIEGLING)
-                .filter(card -> ownsSiegling(progression, card.getId()))
+    private FavoriteSelection parseFavoriteSelection(String rawId, String rawVariant) {
+        String trimmed = rawId == null ? "" : rawId.trim();
+        String variant = normalizeCardVariant(rawVariant);
+        int separator = trimmed.indexOf("::");
+        if (separator > 0) {
+            variant = normalizeCardVariant(trimmed.substring(separator + 2));
+            trimmed = trimmed.substring(0, separator).trim();
+        }
+        return new FavoriteSelection(trimmed, variant);
+    }
+
+    private String normalizeCardVariant(String variant) {
+        return "HOLOGRAPHIC".equalsIgnoreCase(variant) ? "HOLOGRAPHIC" : "STANDARD";
+    }
+
+    private String firstOwnedFavoriteId(PlayerProgressionEntity progression) {
+        Optional<String> card = cardDefinitionService.getDeckBuilderCatalog().stream()
+                .filter(item -> item.getCardType() == CardType.SIEGLING)
+                .filter(item -> ownsFavorite(progression, item))
                 .map(Card::getId)
-                .findFirst()
-                .orElse("");
+                .findFirst();
+        if (card.isPresent()) return card.get();
+        return cardDefinitionService.getTrainerOptions().stream()
+                .filter(item -> ownsFavorite(progression, item))
+                .map(Card::getId)
+                .findFirst().orElse("");
     }
 
-    private boolean ownsSiegling(PlayerProgressionEntity progression, String cardId) {
-        return progression.getOwnedCards().getOrDefault(cardId, 0) > 0;
+    private boolean ownsFavorite(PlayerProgressionEntity progression, Card card) {
+        if (card == null || progression == null) return false;
+        if (card.getCardType() == CardType.TRAINER) {
+            return progression.getTrainerLevels().getOrDefault(card.getId().toLowerCase(Locale.ROOT), 0) > 0;
+        }
+        return progression.getOwnedCards().getOrDefault(card.getId(), 0) > 0;
     }
 
-    private Optional<Card> findSieglingById(String cardId) {
+    private boolean hasHolographicVariant(Card card, PlayerProgressionEntity progression) {
+        if (card == null) return false;
+        if (card.isHolographic()) {
+            return true;
+        }
+        List<String> ownedHolographic = progression == null || progression.getHolographicCardIds() == null
+                ? List.of() : progression.getHolographicCardIds();
+        return ownedHolographic.stream().anyMatch(id -> id != null && id.equalsIgnoreCase(card.getId()));
+    }
+
+    private boolean isSieglingId(String cardId) {
+        return findSieglingById(cardId).isPresent();
+    }
+
+    private Optional<Card> findFavoriteById(String cardId) {
         if (cardId == null || cardId.isBlank()) {
             return Optional.empty();
         }
+        Optional<Card> card = cardDefinitionService.getDeckBuilderCatalog().stream()
+                .filter(item -> item.getCardType() == CardType.SIEGLING)
+                .filter(item -> item.getId().equalsIgnoreCase(cardId.trim()))
+                .findFirst();
+        if (card.isPresent()) return card;
+        return cardDefinitionService.getTrainerOptions().stream()
+                .filter(item -> item.getId().equalsIgnoreCase(cardId.trim()))
+                .map(item -> (Card) item)
+                .findFirst();
+    }
+
+    private Optional<Card> findSieglingById(String cardId) {
         return cardDefinitionService.getDeckBuilderCatalog().stream()
                 .filter(card -> card.getCardType() == CardType.SIEGLING)
-                .filter(card -> card.getId().equalsIgnoreCase(cardId.trim()))
+                .filter(card -> card.getId().equalsIgnoreCase(cardId == null ? "" : cardId.trim()))
                 .findFirst();
     }
 
@@ -229,6 +310,8 @@ public class ProfileSettingsService {
         settings.setPlayerTitle("title_starter_fire");
         settings.setBio("Ready to tune a deck, open a pack, and make the next match count.");
         settings.setPreferredCardBack("Molten Sigil");
+        settings.setFavoriteCardId("");
+        settings.setFavoriteCardVariant("STANDARD");
         settings.setFavoriteSiegling("");
         settings.setUpdatedAt(Instant.now());
         return settings;

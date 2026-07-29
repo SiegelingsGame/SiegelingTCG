@@ -47,6 +47,8 @@ public class ProfileSettingsStore {
         payload.put("playerTitle", settings.getPlayerTitle());
         payload.put("bio", settings.getBio());
         payload.put("preferredCardBack", settings.getPreferredCardBack());
+        payload.put("favoriteCardId", settings.getFavoriteCardId());
+        payload.put("favoriteCardVariant", settings.getFavoriteCardVariant());
         payload.put("favoriteSiegling", settings.getFavoriteSiegling());
         payload.put("featuredBadgeIds", settings.getFeaturedBadgeIds());
         payload.put("updatedAt", toTimestamp(settings.getUpdatedAt()));
@@ -86,6 +88,8 @@ public class ProfileSettingsStore {
         settings.setPlayerTitle(snapshot.getString("playerTitle"));
         settings.setBio(snapshot.getString("bio"));
         settings.setPreferredCardBack(snapshot.getString("preferredCardBack"));
+        settings.setFavoriteCardId(snapshot.getString("favoriteCardId"));
+        settings.setFavoriteCardVariant(snapshot.getString("favoriteCardVariant"));
         settings.setFavoriteSiegling(snapshot.getString("favoriteSiegling"));
         Object featured = snapshot.get("featuredBadgeIds");
         if (featured instanceof java.util.List<?> list) {
