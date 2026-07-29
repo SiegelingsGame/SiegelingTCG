@@ -103,7 +103,7 @@
     // Bump when elemental card-back / starter pack art changes so CSS
     // backgrounds and pack reveals pick up the new files.
     const PACK_CARD_BACK_VERSION = 3;
-    const ELEMENTAL_CARD_BACK_VERSION = 5;
+    const ELEMENTAL_CARD_BACK_VERSION = 6;
     // Starter SiegeKnights guests can command in Play. Keep in sync with
     // GameController.GUEST_TRAINER_IDS and game.js.
     const GUEST_TRAINER_IDS = new Set(['squire-bob', 'pyla', 'ser-airek']);
