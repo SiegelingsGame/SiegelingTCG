@@ -11,7 +11,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/landing.css?v=19">
+    <link rel="stylesheet" href="/css/landing.css?v=21">
 </head>
 <body class="landing-body">
 
@@ -57,6 +57,9 @@
                 <span class="cta-glow" aria-hidden="true"></span>
                 <span class="cta-label">Play Now</span>
             </a>
+            <a class="cta cta-explore" href="/home" id="ctaExplore">
+                <span class="cta-label">Explore</span>
+            </a>
             <a class="cta cta-login" href="/login" id="ctaLogin">
                 <span class="cta-label">Log In</span>
             </a>
@@ -71,6 +74,19 @@
         <span class="scroll-hint-arrow"></span>
     </div>
 </section>
+
+<!-- Quick navigation keeps the long-form landing page easy to explore on mobile. -->
+<nav class="landing-fab" aria-label="Explore Siegelings">
+    <button class="landing-fab-toggle" type="button" aria-expanded="false" aria-controls="landingFabMenu" aria-label="Open page navigation">
+        <span aria-hidden="true">✦</span>
+    </button>
+    <div class="landing-fab-menu" id="landingFabMenu" hidden>
+        <a href="#modes">Game Modes</a>
+        <a href="#creatures">Siegelings</a>
+        <a href="#arena">Arenas</a>
+        <a href="#about">About</a>
+    </div>
+</nav>
 
 <!-- ── Feature strip ─────────────────────────────────────────────────────── -->
 <section class="feature-strip" id="features">
@@ -99,6 +115,29 @@
     </div>
 </section>
 
+<!-- ── Game modes ─────────────────────────────────────────────────────── -->
+<section class="game-modes" id="modes" aria-labelledby="modesTitle">
+    <div class="landing-section-heading">
+        <span class="section-kicker">Choose Your Path</span>
+        <h2 id="modesTitle">Three ways to command the elements</h2>
+        <p>Build a deck for the table, take your warband on an expedition, or grow the sanctuary your Siegelings call home.</p>
+    </div>
+    <div class="mode-grid">
+        <a class="mode-card mode-card-battle" href="/play">
+            <div class="mode-card-image" role="img" aria-label="Elemental battle preview"></div>
+            <div class="mode-card-content"><span class="mode-number">01</span><h3>Battle</h3><p>Place Siegelings, link elemental notches, and outthink your rival on the battle table.</p><span class="mode-link">Enter Battle <b>→</b></span></div>
+        </a>
+        <a class="mode-card mode-card-siege" href="/siege">
+            <div class="mode-card-image" role="img" aria-label="Siege expedition preview"></div>
+            <div class="mode-card-content"><span class="mode-number">02</span><h3>Siege</h3><p>Lead a SiegeKnight across a branching expedition full of battles, rewards, and hard choices.</p><span class="mode-link">Begin a Siege <b>→</b></span></div>
+        </a>
+        <a class="mode-card mode-card-keep" href="/keep">
+            <div class="mode-card-image" role="img" aria-label="My Keep preview"></div>
+            <div class="mode-card-content"><span class="mode-number">03</span><h3>Keep</h3><p>Restore your elemental sanctuary, assign residents, craft materials, and make your mark.</p><span class="mode-link">Visit My Keep <b>→</b></span></div>
+        </a>
+    </div>
+</section>
+
 <!-- ── Creature showcase ────────────────────────────────────────────────── -->
 <section class="creatures" id="creatures">
     <div class="creatures-header">
@@ -106,8 +145,33 @@
         <h2 class="creatures-title">Meet the Legendary Siegelings</h2>
     </div>
 
+    <div class="featured-rotator" id="featuredRotator" aria-roledescription="carousel" aria-label="Featured legendary Siegelings">
+        <!-- Rendered by landing.js from the canonical legendary roster. -->
+    </div>
+
     <div class="creature-grid" id="creatureGrid">
         <!-- Cards rendered by landing.js so the element palette stays canonical -->
+    </div>
+</section>
+
+<!-- ── Social arenas ─────────────────────────────────────────────────── -->
+<section class="arena-section" id="arena" aria-labelledby="arenaTitle">
+    <div class="arena-visual" aria-hidden="true"><span class="arena-ring ring-one"></span><span class="arena-ring ring-two"></span><span class="arena-sigil">⚔</span></div>
+    <div class="arena-copy">
+        <span class="section-kicker">Social Arenas</span>
+        <h2 id="arenaTitle">Find your rivals. Build your legend.</h2>
+        <p>Open a live 1v1 arena, challenge a friend, share an invite, or find a table ready for battle. Your friends, messages, profile, and match history travel with your account.</p>
+        <div class="arena-actions"><a class="cta cta-primary" href="/social">Browse Arenas</a><a class="text-action" href="/social#socialActiveLobby">Host a 1v1 Arena <span>→</span></a></div>
+    </div>
+</section>
+
+<!-- ── About / final conversion ───────────────────────────────────────── -->
+<section class="about-section" id="about" aria-labelledby="aboutTitle">
+    <div class="about-inner">
+        <span class="section-kicker">A PartyChatGaming Experience</span>
+        <h2 id="aboutTitle">Every element has a story. Every battle leaves a mark.</h2>
+        <p>Collect elemental creatures, discover the strategies hidden in their links, and build the command that feels like yours.</p>
+        <div class="about-actions"><a class="cta cta-primary" href="/play">Choose Your Siegeling</a><a class="cta cta-ghost" href="/home">Explore the Collection</a></div>
     </div>
 </section>
 
@@ -165,7 +229,7 @@
   }
 }
 </script>
-<script src="/js/landing.js?v=17"></script>
+<script src="/js/landing.js?v=21"></script>
 <script type="module" src="/js/legendary-viewport.js?v=18"></script>
 <script src="/js/sw-register.js?v=1"></script>
 </body>
