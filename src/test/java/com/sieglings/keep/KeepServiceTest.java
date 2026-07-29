@@ -150,6 +150,121 @@ class KeepServiceTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void constructionTimeSaversSpendMaterialsByPercentageOrAccountCoinsToComplete() {
+        progression.setGold(20);
+        service.getSnapshot(user);
+        store.state.getMaterialInventory().put("verdant_fiber", 7);
+        store.state.getMaterialInventory().put("ember_ingot", 5);
+        service.collect(user, "collect-for-build", store.state.getVersion());
+
+        Map<String, Object> started = service.startBuild(user, "restore_archive", "build-speedup", store.state.getVersion());
+        Map<String, Object> active = (Map<String, Object>) started.get("activeConstruction");
+        long xpBeforeCompletion = ((Number) valueAt(started, "keeper", "totalXp")).longValue();
+        Map<String, Object> offers = (Map<String, Object>) active.get("timeSavers");
+        assertEquals(10, ((Number) offers.get("materialCost")).intValue());
+        assertEquals(25, ((Number) offers.get("materialPercent")).intValue());
+        assertEquals(Boolean.TRUE, offers.get("canUseMaterials"));
+        assertEquals(1, ((Number) offers.get("coinCost")).intValue());
+
+        Map<String, Object> spedUp = service.speedUpConstruction(user, "restore_archive", "materials",
+                "materials-speedup", store.state.getVersion());
+        Map<String, Object> materialResult = (Map<String, Object>) spedUp.get("timeSaverApplied");
+        assertEquals(30, ((Number) materialResult.get("savedSeconds")).longValue());
+        assertEquals(90, ((Number) materialResult.get("remainingSeconds")).longValue());
+        assertEquals(2, materialAmount(spedUp, "ember_ingot") + materialAmount(spedUp, "verdant_fiber"));
+
+        Map<String, Object> completed = service.speedUpConstruction(user, "restore_archive", "siegecoins",
+                "coin-speedup", store.state.getVersion());
+        assertEquals(Boolean.TRUE, valueAt(completed, "visualState", "archiveRestored"));
+        assertTrue(((List<?>) completed.get("activeConstructions")).isEmpty());
+        assertEquals(19, intAt(completed, "resources", "gold"));
+        assertEquals(1, progression.getKeepProjectsCompleted());
+        assertEquals(xpBeforeCompletion + 40, ((Number) valueAt(completed, "keeper", "totalXp")).longValue());
+    }
+
+    @Test
+    void constructionCoinTimeSaverRejectsAnInsufficientAccountBalance() {
+        progression.setGold(0);
+        service.getSnapshot(user);
+        service.collect(user, "collect-for-build", store.state.getVersion());
+        service.startBuild(user, "restore_archive", "build-speedup", store.state.getVersion());
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> service.speedUpConstruction(user, "restore_archive", "siegecoins",
+                        "coin-speedup", store.state.getVersion()));
+        assertTrue(error.getMessage().contains("more Siegecoins"));
+        assertFalse(store.state.getActiveConstructionId().isBlank());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void instantProjectPurchaseUsesOnlyAccountCoinsAndBypassesABusyCrew() {
+        progression.setGold(5_000);
+        service.getSnapshot(user);
+        store.state.setArchiveLevel(1);
+        store.state.setWoodlotLevel(2);
+        store.state.setStorehouseLevel(1);
+        store.state.setTimber(2_000);
+
+        Map<String, Object> optionsSnapshot = service.getSnapshot(user);
+        Map<String, Object> forgeOption = ((List<Map<String, Object>>) optionsSnapshot.get("buildOptions")).stream()
+                .filter(item -> "build_forge".equals(item.get("id"))).findFirst().orElseThrow();
+        int instantCost = ((Number) forgeOption.get("instantCoinCost")).intValue();
+        assertTrue(instantCost >= 500, "Buying a whole building must cost significant Siegecoins.");
+        assertEquals(Boolean.TRUE, forgeOption.get("canPurchase"));
+
+        service.startBuild(user, "build_fridge", "busy-crew", store.state.getVersion());
+        int timberAfterStartingCrew = store.state.getTimber();
+        Map<String, Integer> materialsBefore = Map.copyOf(store.state.getMaterialInventory());
+        Map<String, Object> purchased = service.purchaseBuild(user, "build_forge", "buy-forge", store.state.getVersion());
+
+        assertEquals(1, ((Number) station(purchased, "forge").get("level")).intValue());
+        assertEquals(1, ((List<?>) purchased.get("activeConstructions")).size(),
+                "The unrelated Fridge crew remains active; instant purchase never consumes or clears a crew.");
+        assertEquals("build_fridge", valueAt(purchased, "activeConstruction", "id"));
+        assertEquals(timberAfterStartingCrew, store.state.getTimber());
+        assertEquals(materialsBefore, store.state.getMaterialInventory());
+        assertEquals(5_000 - instantCost, intAt(purchased, "resources", "gold"));
+        assertEquals(1, progression.getKeepProjectsCompleted());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void instantUpgradePurchasePreservesProjectMaterialsAndRejectsInsufficientCoins() {
+        progression.setGold(10_000);
+        service.getSnapshot(user);
+        store.state.setArchiveLevel(1);
+        store.state.setWoodlotLevel(2);
+        store.state.setStorehouseLevel(1);
+        store.state.setBuildersYardLevel(1);
+        store.state.getFacilityLevels().put("garden", 1);
+        store.state.getFacilityLastAccruedAt().put("garden", clock.instant());
+        store.state.setTimber(500);
+        store.state.getMaterialInventory().put("ember_ingot", 40);
+        store.state.getMaterialInventory().put("frost_crystal", 40);
+
+        Map<String, Object> before = service.getSnapshot(user);
+        Map<String, Object> option = ((List<Map<String, Object>>) before.get("buildOptions")).stream()
+                .filter(item -> "garden_level_2".equals(item.get("id"))).findFirst().orElseThrow();
+        int cost = ((Number) option.get("instantCoinCost")).intValue();
+        int timberBefore = store.state.getTimber();
+        Map<String, Integer> materialsBefore = Map.copyOf(store.state.getMaterialInventory());
+
+        Map<String, Object> purchased = service.purchaseBuild(user, "garden_level_2", "buy-upgrade", store.state.getVersion());
+        assertEquals(2, ((Number) station(purchased, "garden").get("level")).intValue());
+        assertEquals(timberBefore, store.state.getTimber());
+        assertEquals(materialsBefore, store.state.getMaterialInventory());
+        assertEquals(10_000 - cost, intAt(purchased, "resources", "gold"));
+
+        progression.setGold(0);
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> service.purchaseBuild(user, "build_forge", "buy-without-coins", store.state.getVersion()));
+        assertTrue(error.getMessage().contains("more Siegecoins"));
+        assertEquals(0, store.state.getFacilityLevels().getOrDefault("forge", 0));
+    }
+
+    @Test
     void dialogueChoicePersistsRelationshipWithoutChangingEconomy() {
         Map<String, Object> before = service.getSnapshot(user);
         int timberBefore = intAt(before, "resources", "timber");

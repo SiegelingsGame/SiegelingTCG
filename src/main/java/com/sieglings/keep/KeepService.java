@@ -55,6 +55,12 @@ public class KeepService {
     public static final long GENERATOR_LEVEL_ONE_SECONDS = 14_400;
     public static final int ENCLAVE_BUILD_COST = 240;
     public static final long ENCLAVE_BUILD_SECONDS = 7_200;
+    public static final int CONSTRUCTION_MATERIAL_SPEEDUP_COST = 10;
+    public static final int CONSTRUCTION_MATERIAL_SPEEDUP_PERCENT = 25;
+    public static final int CONSTRUCTION_COIN_SECONDS_PER_COIN = 300;
+    public static final int INSTANT_BUILD_BASE_COIN_COST = 250;
+    public static final int INSTANT_BUILD_COINS_PER_MINUTE = 2;
+    public static final int INSTANT_BUILD_COINS_PER_MATERIAL = 8;
     private static final int ENCLAVE_CAPACITY = 5;
     public static final int AKHARS_FRONT_BUILD_COST = 360;
     public static final long AKHARS_FRONT_BUILD_SECONDS = 14_400;
@@ -264,6 +270,149 @@ public class KeepService {
             addConstruction(state, id, context.now(), context.now().plusSeconds(project.durationSeconds()));
             return Map.of("constructionStarted", id);
         });
+    }
+
+    /** Purchase an available building or upgrade outright with account Siegecoins.
+     * This replaces its timber/material bill and construction timer, but never its
+     * progression prerequisites or Keeper-level gate. */
+    public Map<String, Object> purchaseBuild(AccountUser user, String buildId,
+                                             String requestId, long expectedVersion) {
+        return mutate(user, requestId, expectedVersion, context -> {
+            KeepState state = context.state();
+            String id = buildId == null ? "" : buildId.trim();
+            if (isConstructing(state, id)) {
+                throw new IllegalArgumentException("That project is already underway. Use its time savers instead.");
+            }
+            BuildProject project = buildProject(id);
+            if (project == null) throw new IllegalArgumentException("Unknown construction project.");
+            validateBuild(state, project);
+            int coinCost = instantBuildCoinCost(project);
+            PlayerProgressionEntity progression = context.progression();
+            if (progression.getGold() < coinCost) {
+                throw new IllegalArgumentException("You need " + (coinCost - progression.getGold())
+                        + " more Siegecoins to buy that project instantly.");
+            }
+
+            progression.setGold(progression.getGold() - coinCost);
+            materializeAllProduction(state, context.residents(), context.now());
+            applyConstructionEffects(state, id, context.now());
+            awardKeeperXp(state, KEEPER_PROJECT_XP);
+            advanceEnclaveTasks(state, context.residents(), "CONSTRUCTION");
+            progression.setKeepProjectsCompleted(progression.getKeepProjectsCompleted() + 1);
+            progression.setUpdatedAt(context.now());
+            if (progressionStore != null) progressionStore.save(progression);
+            return Map.of("projectPurchased", Map.of(
+                    "buildId", id,
+                    "name", project.name(),
+                    "coinCost", coinCost,
+                    "goldBalance", progression.getGold(),
+                    "completed", true));
+        });
+    }
+
+    private int instantBuildCoinCost(BuildProject project) {
+        long minutes = Math.max(1, (long) Math.ceil(project.durationSeconds() / 60.0));
+        long materials = project.materialCosts().values().stream()
+                .mapToLong(value -> Math.max(0, value == null ? 0 : value)).sum();
+        long total = INSTANT_BUILD_BASE_COIN_COST + Math.max(0, project.timberCost())
+                + minutes * INSTANT_BUILD_COINS_PER_MINUTE
+                + materials * INSTANT_BUILD_COINS_PER_MATERIAL;
+        return (int) Math.min(Integer.MAX_VALUE, Math.max(1, total));
+    }
+
+    /**
+     * Buys time against one active project. Materials trim a fixed share of the time
+     * still on the clock; account Siegecoins finish it immediately. Both costs are
+     * derived here so a stale or modified client cannot choose its own price.
+     */
+    public Map<String, Object> speedUpConstruction(AccountUser user, String buildId, String payment,
+                                                    String requestId, long expectedVersion) {
+        return mutate(user, requestId, expectedVersion, context -> {
+            KeepState state = context.state();
+            String id = buildId == null ? "" : buildId.trim();
+            ConstructionSlot slot = constructionSlotsInUse(state).stream()
+                    .filter(item -> item.id().equals(id)).findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("That construction project is no longer underway."));
+            long remaining = Math.max(1, Duration.between(context.now(), slot.completesAt()).getSeconds());
+            String normalizedPayment = payment == null ? "" : payment.trim().toUpperCase(Locale.ROOT);
+
+            if ("MATERIALS".equals(normalizedPayment)) {
+                if (totalMaterials(state) < CONSTRUCTION_MATERIAL_SPEEDUP_COST) {
+                    throw new IllegalArgumentException("You need " + CONSTRUCTION_MATERIAL_SPEEDUP_COST
+                            + " workshop materials for that time saver.");
+                }
+                Map<String, Integer> spent = spendAnyMaterials(state, CONSTRUCTION_MATERIAL_SPEEDUP_COST);
+                long savedSeconds = Math.max(1,
+                        (long) Math.ceil(remaining * CONSTRUCTION_MATERIAL_SPEEDUP_PERCENT / 100.0));
+                long after = Math.max(1, remaining - savedSeconds);
+                setConstructionCompletesAt(state, slot.index(), context.now().plusSeconds(after));
+                return Map.of("timeSaverApplied", Map.of(
+                        "buildId", id,
+                        "payment", "MATERIALS",
+                        "materialCost", CONSTRUCTION_MATERIAL_SPEEDUP_COST,
+                        "materialPercent", CONSTRUCTION_MATERIAL_SPEEDUP_PERCENT,
+                        "materialsSpent", serializeMaterialCosts(spent),
+                        "savedSeconds", savedSeconds,
+                        "remainingSeconds", after));
+            }
+
+            if (!"SIEGECOINS".equals(normalizedPayment)) {
+                throw new IllegalArgumentException("Choose materials or Siegecoins for that time saver.");
+            }
+            int coinCost = constructionCoinCost(remaining);
+            PlayerProgressionEntity progression = context.progression();
+            if (progression.getGold() < coinCost) {
+                throw new IllegalArgumentException("You need " + (coinCost - progression.getGold())
+                        + " more Siegecoins to complete that project.");
+            }
+
+            progression.setGold(progression.getGold() - coinCost);
+            materializeAllProduction(state, context.residents(), context.now());
+            applyConstructionEffects(state, id, context.now());
+            clearConstruction(state, slot.index());
+            awardKeeperXp(state, KEEPER_PROJECT_XP);
+            advanceEnclaveTasks(state, context.residents(), "CONSTRUCTION");
+            progression.setKeepProjectsCompleted(progression.getKeepProjectsCompleted() + 1);
+            progression.setUpdatedAt(context.now());
+            if (progressionStore != null) progressionStore.save(progression);
+            return Map.of("timeSaverApplied", Map.of(
+                    "buildId", id,
+                    "payment", "SIEGECOINS",
+                    "coinCost", coinCost,
+                    "goldBalance", progression.getGold(),
+                    "completed", true));
+        });
+    }
+
+    private int constructionCoinCost(long remainingSeconds) {
+        return Math.max(1, (int) Math.ceil(Math.max(1, remainingSeconds)
+                / (double) CONSTRUCTION_COIN_SECONDS_PER_COIN));
+    }
+
+    private int totalMaterials(KeepState state) {
+        return state.getMaterialInventory().values().stream()
+                .mapToInt(value -> Math.max(0, value == null ? 0 : value)).sum();
+    }
+
+    /** Spend the fullest stacks first so the time saver is predictable and avoids
+     * leaving one workshop capped while rarer, smaller stacks are drained. */
+    private Map<String, Integer> spendAnyMaterials(KeepState state, int amount) {
+        int remaining = Math.max(0, amount);
+        Map<String, Integer> spent = new LinkedHashMap<>();
+        List<Map.Entry<String, Integer>> stacks = new ArrayList<>(state.getMaterialInventory().entrySet());
+        stacks.sort(Comparator.<Map.Entry<String, Integer>>comparingInt(entry ->
+                Math.max(0, entry.getValue() == null ? 0 : entry.getValue())).reversed()
+                .thenComparing(Map.Entry::getKey));
+        for (Map.Entry<String, Integer> stack : stacks) {
+            if (remaining <= 0) break;
+            int owned = Math.max(0, stack.getValue() == null ? 0 : stack.getValue());
+            int take = Math.min(owned, remaining);
+            if (take <= 0) continue;
+            state.getMaterialInventory().put(stack.getKey(), owned - take);
+            spent.put(stack.getKey(), take);
+            remaining -= take;
+        }
+        return spent;
     }
 
     /** Keeper journey milestones add one team at levels 5, 10, 15, 20, and 25. */
@@ -943,6 +1092,20 @@ public class KeepService {
         }
         if (additionalIndex < state.getAdditionalConstructionCompletesAts().size()) {
             state.getAdditionalConstructionCompletesAts().remove(additionalIndex);
+        }
+    }
+
+    private void setConstructionCompletesAt(KeepState state, int index, Instant completesAt) {
+        if (index == 0) {
+            state.setConstructionCompletesAt(completesAt);
+        } else if (index == 1) {
+            state.setConstructionCompletesAt2(completesAt);
+        } else {
+            int additionalIndex = index - 2;
+            while (state.getAdditionalConstructionCompletesAts().size() <= additionalIndex) {
+                state.getAdditionalConstructionCompletesAts().add(null);
+            }
+            state.getAdditionalConstructionCompletesAts().set(additionalIndex, completesAt);
         }
     }
 
@@ -2387,8 +2550,8 @@ public class KeepService {
                 "capacity", siegelingSlotCapacity,
                 "available", Math.max(0, siegelingSlotCapacity - activeSiegelingSlots)));
         out.put("buildings", buildings(state));
-        out.put("buildOptions", buildOptions(state));
-        List<Map<String, Object>> constructions = activeConstructions(state, now);
+        out.put("buildOptions", buildOptions(state, progression));
+        List<Map<String, Object>> constructions = activeConstructions(state, progression, now);
         out.put("activeConstruction", constructions.isEmpty() ? null : constructions.get(0));
         out.put("activeConstructions", constructions);
         out.put("constructionSlots", constructionSlots(state));
@@ -2508,9 +2671,17 @@ public class KeepService {
      * rise on completion — so an in-progress project would otherwise be offered again and fail at
      * startBuild. Drop it here so a free team only ever sees projects it can actually take.
      */
-    private List<Map<String, Object>> buildOptions(KeepState state) {
+    private List<Map<String, Object>> buildOptions(KeepState state, PlayerProgressionEntity progression) {
         List<Map<String, Object>> out = collectBuildOptions(state);
         out.removeIf(option -> isConstructing(state, String.valueOf(option.get("id"))));
+        for (Map<String, Object> option : out) {
+            BuildProject project = buildProject(String.valueOf(option.get("id")));
+            if (project == null) continue;
+            int coinCost = instantBuildCoinCost(project);
+            boolean levelMet = !Boolean.FALSE.equals(option.get("levelMet"));
+            option.put("instantCoinCost", coinCost);
+            option.put("canPurchase", levelMet && progression.getGold() >= coinCost);
+        }
         return out;
     }
 
@@ -2627,11 +2798,24 @@ public class KeepService {
         return out;
     }
 
-    private List<Map<String, Object>> activeConstructions(KeepState state, Instant now) {
+    private List<Map<String, Object>> activeConstructions(KeepState state, PlayerProgressionEntity progression, Instant now) {
         List<Map<String, Object>> out = new ArrayList<>();
         for (ConstructionSlot slot : constructionSlotsInUse(state)) {
             Map<String, Object> entry = constructionEntry(slot.id(), slot.startedAt(), slot.completesAt(), now);
-            if (entry != null) out.add(entry);
+            if (entry != null) {
+                long remaining = ((Number) entry.get("remainingSeconds")).longValue();
+                int materials = totalMaterials(state);
+                int coinCost = constructionCoinCost(remaining);
+                entry.put("timeSavers", Map.of(
+                        "materialPercent", CONSTRUCTION_MATERIAL_SPEEDUP_PERCENT,
+                        "materialCost", CONSTRUCTION_MATERIAL_SPEEDUP_COST,
+                        "materialsAvailable", materials,
+                        "canUseMaterials", materials >= CONSTRUCTION_MATERIAL_SPEEDUP_COST,
+                        "coinCost", coinCost,
+                        "siegecoinsAvailable", progression.getGold(),
+                        "canUseSiegecoins", progression.getGold() >= coinCost));
+                out.add(entry);
+            }
         }
         return out;
     }

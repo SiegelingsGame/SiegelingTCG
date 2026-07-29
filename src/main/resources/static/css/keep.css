@@ -1131,6 +1131,33 @@ button.resource-pill:focus-visible {
 .meter i { display: block; height: 100%; background: linear-gradient(90deg, #67aa6b, #b9d96c); }
 .cost-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; color: rgba(255, 247, 220, .72); font-size: 11px; }
 .cost-row strong { color: #e2aa60; }
+.time-saver { margin-top: 10px; border: 1px solid rgba(125, 212, 255, .2); border-radius: 11px; overflow: hidden; background: rgba(18, 34, 45, .55); }
+.time-saver.is-open { border-color: rgba(125, 212, 255, .38); }
+.time-saver-toggle { width: 100%; min-height: 42px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border: 0; color: var(--cream); background: transparent; cursor: pointer; text-align: left; }
+.time-saver-toggle > span { display: inline-flex; align-items: center; gap: 7px; }
+.time-saver-toggle i { color: #8edcff; font-size: 17px; font-style: normal; }
+.time-saver-toggle strong { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; }
+.time-saver-toggle small { color: rgba(255, 247, 220, .58); font-size: 9px; }
+.time-saver-options { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; padding: 0 9px 9px; }
+.time-saver-options > p { grid-column: 1 / -1; margin: 0 1px 2px; font-size: 10px; }
+.time-saver-choice { min-width: 0; min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 7px; padding: 8px; border: 1px solid rgba(255, 255, 255, .1); border-radius: 9px; color: var(--cream); background: rgba(255, 255, 255, .05); cursor: pointer; text-align: left; }
+.time-saver-choice > span { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.time-saver-choice strong { color: #fff1b7; font-size: 11px; }
+.time-saver-choice small { overflow: hidden; color: rgba(255, 247, 220, .55); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.time-saver-choice b { flex: 0 0 auto; padding: 4px 6px; border-radius: 99px; color: #172333; background: #8edcff; font-size: 10px; white-space: nowrap; }
+.time-saver-choice.coins b { background: #f4cc62; }
+.time-saver-choice:disabled { opacity: .42; cursor: default; }
+.project-actions .panel-button { flex: 1 1 135px; }
+.instant-buy-button { color: #fff3bf; border-color: rgba(244, 204, 98, .58); background: linear-gradient(180deg, rgba(244, 204, 98, .18), rgba(244, 204, 98, .08)); }
+.instant-purchase-confirm { margin-top: 8px; padding: 9px; border: 1px solid rgba(244, 204, 98, .35); border-radius: 10px; background: rgba(244, 204, 98, .08); }
+.instant-purchase-confirm > span { display: flex; flex-direction: column; gap: 3px; }
+.instant-purchase-confirm > span strong { color: #fff1b7; font: 700 12px Georgia, serif; }
+.instant-purchase-confirm > span small { color: rgba(255, 247, 220, .65); font-size: 9px; line-height: 1.4; }
+.instant-purchase-confirm .button-row { margin-top: 8px; }
+@media (max-width: 420px) {
+    .time-saver-options { grid-template-columns: 1fr; }
+    .time-saver-options > p { grid-column: auto; }
+}
 
 .resident-card { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; align-items: center; gap: 10px; }
 .resident-card.is-favorite { border-color: rgba(244, 204, 98, .5); }

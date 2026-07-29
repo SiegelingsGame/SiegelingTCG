@@ -852,6 +852,8 @@ public class GameController {
         resp.put("enemy", serializePlayer(gs, !viewerIsPlayer, false));
         resp.put("playerBoard", serializeBoard(gs, viewerIsPlayer));
         resp.put("enemyBoard", serializeBoard(gs, !viewerIsPlayer));
+        resp.put("playerCallWells", gs.getExternalSocketActivations(viewerIsPlayer));
+        resp.put("enemyCallWells", gs.getExternalSocketActivations(!viewerIsPlayer));
         resp.put("legalPlacements", gameService.getLegalPlacements(gs, viewerIsPlayer));
         resp.put("playerPlacementUsed", gs.isSieglingSetupBudgetExhausted(viewerIsPlayer));
         resp.put("setupSieglingActionsUsed", gs.getSieglingSetupActionsUsed(viewerIsPlayer));

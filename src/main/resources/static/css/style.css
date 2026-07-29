@@ -16948,6 +16948,59 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     40%           { transform: translateY(-4px); opacity: 1; }
 }
 
+/* Solo AI reaction bubble: emerges from the visible enemy HUD and drifts
+   slightly toward the player's side before the next phase banner. */
+.sgl-ai-chat-bubble {
+    position: fixed;
+    z-index: 935;
+    width: clamp(54px, 10vw, 76px);
+    aspect-ratio: 1;
+    display: grid;
+    place-items: center;
+    border: 2px solid rgba(255, 255, 255, 0.82);
+    border-radius: 50% 50% 50% 18%;
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(214, 231, 255, 0.94));
+    box-shadow: 0 10px 34px rgba(0, 0, 0, 0.46), 0 0 24px rgba(118, 230, 255, 0.34);
+    color: #111827;
+    pointer-events: none;
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.28) rotate(-12deg);
+    transform-origin: 20% 80%;
+    transition: opacity 180ms ease, transform 420ms cubic-bezier(0.2, 1.35, 0.4, 1);
+}
+
+.sgl-ai-chat-bubble::after {
+    content: '';
+    position: absolute;
+    left: 4px;
+    bottom: -8px;
+    width: 18px;
+    height: 18px;
+    border-left: 2px solid rgba(255, 255, 255, 0.82);
+    border-bottom: 2px solid rgba(255, 255, 255, 0.82);
+    background: rgba(222, 236, 255, 0.96);
+    transform: rotate(-18deg) skew(-18deg);
+}
+
+.sgl-ai-chat-bubble > span {
+    position: relative;
+    z-index: 1;
+    font-size: clamp(1.8rem, 6vw, 2.8rem);
+    line-height: 1;
+    filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.18));
+}
+
+.sgl-ai-chat-bubble.visible {
+    opacity: 1;
+    transform: translate(calc(-50% + var(--sgl-chat-x, 0px)), calc(-50% + var(--sgl-chat-y, 28px))) scale(1) rotate(0deg);
+}
+
+.sgl-ai-chat-bubble.leaving {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--sgl-chat-x, 0px)), calc(-50% + var(--sgl-chat-y, 28px) + 10px)) scale(0.82);
+    transition-duration: 200ms;
+}
+
 /* Lock player UI during opponent turn ---------------------------------- */
 body.sgl-opponent-turn .actions-bar,
 body.sgl-opponent-turn #playerHand,
@@ -16977,6 +17030,7 @@ body.sgl-opponent-turn .battle-cta-row {
     .board-card.sgl-acting-attack, .board-card.sgl-acting-play { animation: none; }
     .board-card.sgl-impact { animation: none; }
     .sgl-thinking-dot { animation: none; }
+    .sgl-ai-chat-bubble { transition-duration: 1ms; }
 }
 
 /* =============================================================

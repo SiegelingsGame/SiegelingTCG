@@ -366,7 +366,7 @@ class GameJavaScriptRegressionTest {
         String binderScript = Files.readString(CARD_BINDER_VISUAL_JS);
         Set<String> elements = Set.of(
                 "fire", "earth", "wind", "water", "ice", "shadow",
-                "electric", "metal", "undead", "psychic", "poison", "light"
+                "electric", "metal", "undead", "psychic", "poison", "light", "neutral"
         );
 
         for (String element : elements) {
@@ -386,15 +386,32 @@ class GameJavaScriptRegressionTest {
         String playMarkup = Files.readString(PLAY_HTML);
         String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
         assertTrue(
-                homeMarkup.contains("style.css?v=216")
-                        && homeMarkup.contains("game.js?v=216")
-                        && homeMarkup.contains("card-binder-visual.js?v=19")
+                homeMarkup.contains("style.css?v=217")
+                        && homeMarkup.contains("game.js?v=219")
+                        && homeMarkup.contains("card-binder-visual.js?v=20")
                         && homeMarkup.contains("home.js?v=121")
-                        && playMarkup.contains("style.css?v=216")
-                        && playMarkup.contains("game.js?v=216")
-                        && dashboardMarkup.contains("style.css?v=216")
-                        && dashboardMarkup.contains("card-binder-visual.js?v=19"),
+                        && playMarkup.contains("style.css?v=217")
+                        && playMarkup.contains("game.js?v=219")
+                        && dashboardMarkup.contains("style.css?v=217")
+                        && dashboardMarkup.contains("card-binder-visual.js?v=20"),
                 "Every surface must advance its cache pins with the complete painted-notch set."
+        );
+    }
+
+    @Test
+    void callWellsRemainVisibleWithoutAConnectedSiegling() throws IOException {
+        String gameScript = readGameScript();
+        assertTrue(
+                gameScript.contains("gameState?.playerCallWells")
+                        && gameScript.contains("gameState?.enemyCallWells")
+                        && gameScript.contains("rememberedWells[socket.key] || activeSocket?.element")
+                        && gameScript.contains("appendExternalEnergyPoint(out, point, callWellElement")
+                        && gameScript.contains("Call well: 1"),
+                "Battle rendering must use the persistent call-well state after the attached card disappears."
+        );
+        assertFalse(
+                gameScript.contains("externalSocketElementMemory[memorySide] = Object.create(null)"),
+                "Board refreshes must not erase call wells activated earlier in the match."
         );
     }
 
@@ -988,8 +1005,8 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=36")
-                        && keepHtml.contains("/js/keep.js?v=37")
+                        && keepHtml.contains("/css/keep.css?v=37")
+                        && keepHtml.contains("/js/keep.js?v=38")
                         && keepHtml.contains("id=\"hallFavoriteResident\"")
                         && keepHtml.contains("id=\"constructionBannerJobs\"")
                         && keepHtml.contains("id=\"productionReady\"")
@@ -1004,6 +1021,24 @@ class GameJavaScriptRegressionTest {
                         && !keepJs.contains("+${constructions.length - 1} more")
                         && !keepJs.contains("Storage reached capacity\", `${name} stopped until collected`"),
                 "Keep architecture must retain its paper building hooks, refresh both asset cache pins, show the favorite in Covenant Hall, collapse storage-capacity offline alerts into one multi-line card, show each concurrent construction job in the banner, and gate the Woodlot Collect bubble to a full stockpile."
+        );
+        assertTrue(
+                keepJs.contains("/api/keep/construction/speedup")
+                        && keepJs.contains("function timeSaverMarkup(")
+                        && keepJs.contains("data-speedup-payment=\"MATERIALS\"")
+                        && keepJs.contains("data-speedup-payment=\"SIEGECOINS\"")
+                        && keepCss.contains(".time-saver-options")
+                        && keepCss.contains(".time-saver-choice"),
+                "Every active Keep project must expose material and Siegecoin time savers in the Projects popup."
+        );
+        assertTrue(
+                keepJs.contains("/api/keep/build/purchase")
+                        && keepJs.contains("data-toggle-instant-buy=")
+                        && keepJs.contains("data-purchase-build=")
+                        && keepJs.contains("This skips the timber, materials, construction crew, and wait")
+                        && keepCss.contains(".instant-buy-button")
+                        && keepCss.contains(".instant-purchase-confirm"),
+                "Available projects must offer a deliberate Siegecoin instant-purchase confirmation in the shared popup."
         );
         assertTrue(
                 keepCss.contains(".construction-team-pill {")
