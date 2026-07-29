@@ -10,7 +10,7 @@
  *   - Speed toggle (Normal / Fast)
  *
  * Public API (window.SieglingsActionQueue):
- *   enqueueFromStateDiff(prevState, nextState)
+ *   enqueueFromStateDiff(prevState, nextState, playbackContext)
  *   enqueueAction(action)
  *   setSpeed('normal' | 'fast')
  *   getSpeed()
@@ -119,6 +119,19 @@
     }
     function sleep(ms) {
         return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+    const AI_CHAT_EMOJIS = [
+        '\u{1F60F}',
+        '\u{2694}\u{FE0F}',
+        '\u{1F440}',
+        '\u{2728}',
+        '\u{1F4A5}'
+    ];
+    function pickAiChatEmoji(state) {
+        const turn = Math.max(0, Number(state?.turnNumber) || 0);
+        const element = String(state?.enemy?.trainer?.element || state?.enemy?.element || '');
+        const seed = turn + Array.from(element).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+        return AI_CHAT_EMOJIS[seed % AI_CHAT_EMOJIS.length];
     }
     function stripLogPrefix(line) {
         return String(line || '').trim().replace(/^\[Turn\s+\d+\s+\w+\]\s*/i, '');
@@ -1906,7 +1919,7 @@
             this._kick();
         }
 
-        enqueueFromStateDiff(prevState, nextState) {
+        enqueueFromStateDiff(prevState, nextState, playbackContext = null) {
             if (!prevState || !nextState) return;
             // Treat each diff batch as one logical "turn step" for pacing
             // purposes: the first placement in this batch waits the longer
@@ -1961,12 +1974,14 @@
             //      register each placement as the AI makes it
             const phaseChanged = prevState.currentPhase && nextState.currentPhase
                 && prevState.currentPhase !== nextState.currentPhase;
+            const soloAiEndFlow = playbackContext?.soloAiEndTurn === true
+                && !nextState.multiplayer;
             const setupToBattle = phaseChanged
                 && prevState.currentPhase === 'SETUP'
                 && nextState.currentPhase === 'BATTLE';
 
             // Opponent turn beginning → thinking indicator
-            if (prevState.activeSide !== 'ENEMY' && nextState.activeSide === 'ENEMY' && !nextState.gameOver) {
+            if (!soloAiEndFlow && prevState.activeSide !== 'ENEMY' && nextState.activeSide === 'ENEMY' && !nextState.gameOver) {
                 this.markOpponentThinking(true, nextState);
             }
 
@@ -2095,6 +2110,7 @@
             const NEXT_PLAY_GAP  = this.speed === 'fast' ? 80 : 160;
             const ENEMY_PLACEMENT_MS = this.speed === 'fast' ? 420 : 1000;
             let phaseTransitionQueued = false;
+            let aiPlacementPlaybackStarted = false;
 
             // Multi-target label helper. Server damage events from the same
             // attacker (e.g. AoE abilities, row sweeps) get grouped into a
@@ -2126,6 +2142,8 @@
                     placementIsPlayer, p.row, p.col, p.cell
                 );
                 const enemyPaced = side === 'ENEMY';
+                const beginsAiPlayback = soloAiEndFlow && enemyPaced && !aiPlacementPlaybackStarted;
+                if (beginsAiPlayback) aiPlacementPlaybackStarted = true;
                 this.enqueueAction({
                     kind: 'PLAY',
                     side,
@@ -2137,6 +2155,7 @@
                     source: { isPlayer: placementIsPlayer, row: p.row, col: p.col },
                     portraitHtml: `<span class="sgl-toast-sigil">${elementSigil(p.cell.element)}</span>`,
                     placementKey,
+                    beginsAiPlayback,
                     minActionMs: enemyPaced ? ENEMY_PLACEMENT_MS : null,
                     gapAfterMs: enemyPaced
                         ? 0
@@ -2144,8 +2163,8 @@
                 });
             };
 
-            const enqueuePhaseTransitionAction = () => {
-                if (!phaseChanged || phaseTransitionQueued) return;
+            const enqueuePhaseTransitionAction = (force = false) => {
+                if ((!phaseChanged && !force) || phaseTransitionQueued) return;
                 phaseTransitionQueued = true;
                 this.enqueueAction({
                     kind: 'PHASE',
@@ -2157,7 +2176,12 @@
                 });
             };
 
-            if (setupToBattle) {
+            if (soloAiEndFlow) {
+                for (const p of newPlayerPlacements) enqueuePlacementAction(p, 'PLAYER', playerKnight, playerName);
+                for (const p of newEnemyPlacements)  enqueuePlacementAction(p, 'ENEMY',  enemyKnight,  enemyName);
+                newPlayerPlacements.length = 0;
+                newEnemyPlacements.length = 0;
+            } else if (setupToBattle) {
                 for (const p of newPlayerPlacements) enqueuePlacementAction(p, 'PLAYER', playerKnight, playerName);
                 for (const p of newEnemyPlacements)  enqueuePlacementAction(p, 'ENEMY',  enemyKnight,  enemyName);
                 newPlayerPlacements.length = 0;
@@ -2615,7 +2639,7 @@
             // Phase change toast — appended AFTER the just-ended phase's
             // animations and BEFORE the new phase's placements, so the toast
             // marks the boundary between the two blocks the player sees.
-            enqueuePhaseTransitionAction();
+            if (!soloAiEndFlow) enqueuePhaseTransitionAction();
 
             // Placements last — individually paced so the player can see each
             // AI Siegling appear before the next one arrives. First placement
@@ -2704,6 +2728,107 @@
                     gapAfterMs: BATTLE_GAP_MS
                 });
             }
+
+            if (soloAiEndFlow && !nextState.gameOver) {
+                this.enqueueAction({
+                    kind: 'THINK',
+                    side: 'ENEMY',
+                    state: nextState,
+                    holdMs: this.speed === 'fast' ? 240 : 650
+                });
+                this.enqueueAction({
+                    kind: 'CHAT',
+                    side: 'ENEMY',
+                    emoji: pickAiChatEmoji(nextState),
+                    holdMs: this.speed === 'fast' ? 520 : 1250,
+                    gapAfterMs: this.speed === 'fast' ? 100 : 260
+                });
+                enqueuePhaseTransitionAction(true);
+            }
+        }
+
+        async beginSoloAiEndTurn(state) {
+            // A fast player can draw and immediately end setup while the Draw
+            // Phase banner is still resolving. Start this flow only after the
+            // previous playback batch has cleared so its banner/toasts cannot
+            // overlap the end-turn and AI-thinking beats.
+            const idleDeadline = Date.now() + 15000;
+            while (this.processing && Date.now() < idleDeadline) {
+                await sleep(50);
+            }
+            if (typeof window.hidePhaseTransitionBanner === 'function') {
+                window.hidePhaseTransitionBanner();
+            }
+            if (this.activeToast) {
+                this.activeToast.dismiss();
+                this.activeToast = null;
+            }
+            const playerName = state?.playerName || state?.player?.name || 'You';
+            const playerKnight = getKnightElement(state, 'PLAYER');
+            const holdMs = this.speed === 'fast' ? 520 : 1000;
+            this.activeToast = this.toasts.show({
+                kind: 'TURN',
+                label: 'ends turn',
+                actorName: playerName,
+                targetName: '',
+                subtitle: 'The opponent is taking their setup actions.',
+                side: 'PLAYER',
+                knightElement: playerKnight,
+                elementColor: playerKnight,
+                hideAmount: true
+            }, holdMs);
+            await sleep(holdMs);
+            if (this.activeToast) {
+                this.activeToast.dismiss();
+                this.activeToast = null;
+            }
+            await sleep(this.speed === 'fast' ? 100 : 240);
+            this.markOpponentThinking(true, state);
+            await sleep(this.speed === 'fast' ? 120 : 280);
+        }
+
+        _visibleCenter(selectors, fallbackX, fallbackY) {
+            for (const selector of selectors) {
+                const node = document.querySelector(selector);
+                if (!node) continue;
+                const rect = node.getBoundingClientRect();
+                const style = window.getComputedStyle(node);
+                if (rect.width <= 0 || rect.height <= 0 || style.display === 'none' || style.visibility === 'hidden') {
+                    continue;
+                }
+                return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+            }
+            return { x: fallbackX, y: fallbackY };
+        }
+
+        async showOpponentChatBubble(action) {
+            document.querySelectorAll('.sgl-ai-chat-bubble').forEach((node) => node.remove());
+            const source = this._visibleCenter(
+                ['#hudRailEnemy .hud-knight-card', '.mobile-hud-enemy', '#enemyGrid'],
+                window.innerWidth * 0.72,
+                window.innerHeight * 0.24
+            );
+            const target = this._visibleCenter(
+                ['#hudRailPlayer .hud-knight-card', '.mobile-hud-player', '#playerGrid'],
+                window.innerWidth * 0.28,
+                window.innerHeight * 0.76
+            );
+            const node = document.createElement('div');
+            node.className = 'sgl-ai-chat-bubble';
+            node.setAttribute('role', 'status');
+            node.setAttribute('aria-label', 'Opponent sends a reaction');
+            node.style.left = `${source.x}px`;
+            node.style.top = `${source.y}px`;
+            node.style.setProperty('--sgl-chat-x', `${Math.max(-90, Math.min(90, (target.x - source.x) * 0.16))}px`);
+            node.style.setProperty('--sgl-chat-y', `${Math.max(-80, Math.min(80, (target.y - source.y) * 0.16))}px`);
+            node.innerHTML = `<span>${escapeHtml(action.emoji || AI_CHAT_EMOJIS[0])}</span>`;
+            document.body.appendChild(node);
+            requestAnimationFrame(() => node.classList.add('visible'));
+            await sleep(Math.max(420, Number(action.holdMs) || 1250));
+            node.classList.remove('visible');
+            node.classList.add('leaving');
+            await sleep(this.speed === 'fast' ? 100 : 220);
+            node.remove();
         }
 
         markOpponentThinking(active, nextState) {
@@ -2771,6 +2896,31 @@
             const startedAt = Date.now();
             const knight = elementHex(action.knightElement);
             const elColor = elementHex(action.elementColor || action.knightElement);
+
+            if (action.beginsAiPlayback) {
+                this.markOpponentThinking(false);
+                await sleep(this.speed === 'fast' ? 100 : 240);
+            }
+
+            if (action.kind === 'THINK') {
+                if (this.activeToast) {
+                    this.activeToast.dismiss();
+                    this.activeToast = null;
+                    await sleep(this.speed === 'fast' ? 100 : 240);
+                }
+                this.markOpponentThinking(true, action.state);
+                await sleep(Math.max(160, Number(action.holdMs) || 650));
+                this.markOpponentThinking(false);
+                await sleep(this.speed === 'fast' ? 100 : 240);
+                return;
+            }
+
+            if (action.kind === 'CHAT') {
+                await this.showOpponentChatBubble(action);
+                const chatGap = action.gapAfterMs != null ? action.gapAfterMs : t.gapMs;
+                await sleep(chatGap);
+                return;
+            }
 
             // Re-apply hidden state for any placements still pending. Covers
             // the case where game.js's render rebuilt the cell DOM while we
@@ -3266,7 +3416,8 @@
     const queue = new ActionQueue();
     window.SieglingsActionQueue = {
         enqueueAction: (a) => queue.enqueueAction(a),
-        enqueueFromStateDiff: (p, n) => queue.enqueueFromStateDiff(p, n),
+        enqueueFromStateDiff: (p, n, c) => queue.enqueueFromStateDiff(p, n, c),
+        beginSoloAiEndTurn: (s) => queue.beginSoloAiEndTurn(s),
         setSpeed: (s) => queue.setSpeed(s),
         getSpeed: () => queue.getSpeed(),
         clear: () => queue.clear(),

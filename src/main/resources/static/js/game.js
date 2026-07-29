@@ -8769,7 +8769,7 @@ function showErrorToast(message, holdMs = 4200) {
 }
 window.showErrorToast = showErrorToast;
 
-async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS) {
+async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS, playbackContext = null) {
     const opts = { method, headers: getAuthHeaders({ 'Content-Type': 'application/json' }) };
     if (multiplayerSession?.roomId && multiplayerSession?.playerToken) {
         opts.headers['X-Room-Id'] = multiplayerSession.roomId;
@@ -8824,14 +8824,16 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
         }
     }
     if (endpoint !== 'new' && prevState) {
-        maybeNotifyTurnChange(prevState, data);
+        if (!playbackContext?.soloAiEndTurn) {
+            maybeNotifyTurnChange(prevState, data);
+        }
         // The animation/diff layer must never block the state update below. If
         // it throws, the new gameState would otherwise never render and the
         // interaction state never resets, freezing the client on the previous
         // screen (e.g. stuck on the battle target overlay after attacking).
         try {
             if (window.SieglingsActionQueue) {
-                window.SieglingsActionQueue.enqueueFromStateDiff(prevState, data);
+                window.SieglingsActionQueue.enqueueFromStateDiff(prevState, data, playbackContext);
             } else {
                 window.SieglingsFx?.onBoardUpdate(prevState, data);
             }
@@ -11067,9 +11069,24 @@ async function endTurn() {
     closeClaimPopup();
     clearTargetMode();
     window.SieglingsSounds?.play('endturn');
-    const data = await api('endturn');
+    const soloAiEndTurn = !multiplayerSession?.roomId
+        && gameState?.currentPhase === 'SETUP'
+        && gameState?.activeSide === 'PLAYER'
+        && !gameState?.gameOver;
+    if (soloAiEndTurn && window.SieglingsActionQueue?.beginSoloAiEndTurn) {
+        await window.SieglingsActionQueue.beginSoloAiEndTurn(gameState);
+    }
+    const data = await api(
+        'endturn',
+        'POST',
+        null,
+        DEFAULT_REQUEST_TIMEOUT_MS,
+        soloAiEndTurn ? { soloAiEndTurn: true } : null
+    );
     if (data) {
         resetDrawButton();
+    } else if (soloAiEndTurn) {
+        window.SieglingsActionQueue?.markOpponentThinking(false);
     }
 }
 

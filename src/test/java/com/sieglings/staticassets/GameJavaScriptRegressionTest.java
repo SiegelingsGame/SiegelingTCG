@@ -386,13 +386,13 @@ class GameJavaScriptRegressionTest {
         String playMarkup = Files.readString(PLAY_HTML);
         String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
         assertTrue(
-                homeMarkup.contains("style.css?v=216")
-                        && homeMarkup.contains("game.js?v=218")
+                homeMarkup.contains("style.css?v=217")
+                        && homeMarkup.contains("game.js?v=219")
                         && homeMarkup.contains("card-binder-visual.js?v=20")
                         && homeMarkup.contains("home.js?v=121")
-                        && playMarkup.contains("style.css?v=216")
-                        && playMarkup.contains("game.js?v=218")
-                        && dashboardMarkup.contains("style.css?v=216")
+                        && playMarkup.contains("style.css?v=217")
+                        && playMarkup.contains("game.js?v=219")
+                        && dashboardMarkup.contains("style.css?v=217")
                         && dashboardMarkup.contains("card-binder-visual.js?v=20"),
                 "Every surface must advance its cache pins with the complete painted-notch set."
         );
