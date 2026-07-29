@@ -3775,7 +3775,7 @@ select.search-input { color-scheme: dark; }
 
 .mission-row {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto auto auto auto;
+    grid-template-columns: auto minmax(0, 1fr) auto auto auto;
     gap: 10px;
     align-items: center;
     padding: 9px;
@@ -3858,6 +3858,15 @@ select.search-input { color-scheme: dark; }
     font-size: 8px;
     font-weight: 800;
     opacity: 0.72;
+}
+
+/* Keep a mission's two currencies together. On narrow phones this avoids
+   spending one full line for coins and another for points. */
+.mission-rewards {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
 }
 
 /* ── Daily / weekly point chest ladder ──────────────────────────────────── */
@@ -9017,8 +9026,7 @@ body.gacha-active {
         grid-template-columns: auto minmax(0, 1fr);
     }
     .mission-count,
-    .mission-reward,
-    .mission-points {
+    .mission-rewards {
         grid-column: 2;
         justify-self: start;
     }

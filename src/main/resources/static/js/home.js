@@ -1518,13 +1518,27 @@
         return data;
     }
 
-    async function loadDailyMissions() {
+    // A Home paint can happen before the profile-initiated mission request has
+    // returned (especially on mobile after a restored page). Share that request
+    // between callers and repaint the panel once the complete three-period
+    // snapshot arrives so a tab never needs a second tap to populate.
+    let dailyMissionsLoadPromise = null;
+
+    function loadDailyMissions() {
         if (!state.token) {
             state.dailyMissions = null;
             state.dailyMissionsError = '';
             stopMissionResetTimer();
-            return null;
+            return Promise.resolve(null);
         }
+        if (dailyMissionsLoadPromise) return dailyMissionsLoadPromise;
+        dailyMissionsLoadPromise = loadDailyMissionsNow().finally(() => {
+            dailyMissionsLoadPromise = null;
+        });
+        return dailyMissionsLoadPromise;
+    }
+
+    async function loadDailyMissionsNow() {
         try {
             const data = await fetchJson('/api/missions/daily');
             if (data?.error) {
@@ -1534,6 +1548,7 @@
             state.dailyMissions = data;
             state.dailyMissionsError = '';
             startMissionResetTimer();
+            if (state.route === 'home') safeRender(renderHomeDashboard);
             return data;
         } catch (error) {
             state.dailyMissionsError = 'Could not load daily missions.';
@@ -2701,7 +2716,7 @@
         if (tab === 'lifetime') return 'Milestones — never reset';
         if (tab === 'weekly') {
             return snapshot?.weeklyResetAt
-                ? `Resets ${formatMissionResetCountdown(snapshot.weeklyResetAt)}`
+                ? formatMissionResetCountdown(snapshot.weeklyResetAt)
                 : 'Resets weekly (Monday UTC)';
         }
         return snapshot?.resetAt
@@ -2848,10 +2863,14 @@
         const missions = missionsForTab(tab);
         const eyebrow = tab === 'weekly' ? 'Weekly Missions' : (tab === 'lifetime' ? 'Lifetime Rewards' : 'Daily Missions');
         const heading = tab === 'weekly' ? "This week's objectives" : (tab === 'lifetime' ? 'Career milestones' : "Today's objectives");
+        const needsSnapshot = Boolean(state.profile?.authenticated && !state.dailyMissions && !state.dailyMissionsError);
+        if (needsSnapshot) void loadDailyMissions();
         // A failed mission request used to be rendered as a genuine empty state,
         // which made every tab look as though the account had no missions. Keep
         // the problem actionable instead of hiding it behind that fallback.
-        const emptyLabel = state.dailyMissionsError
+        const emptyLabel = needsSnapshot
+            ? 'Loading mission objectives…'
+            : state.dailyMissionsError
             ? `${state.dailyMissionsError} Refresh to try again.`
             : (state.profile?.authenticated
                 ? 'No objectives to show right now.'
@@ -2894,8 +2913,10 @@
                 <div class="mission-progress"><span style="width:${pct}%"></span></div>
             </div>
             <span class="mission-count">${escapeHtml(mission.current)} / ${escapeHtml(mission.target)}</span>
-            <span class="mission-reward">${renderCoinAmount(mission.reward, '')}</span>
-            ${pointsChip}
+            <span class="mission-rewards">
+                <span class="mission-reward">${renderCoinAmount(mission.reward, '')}</span>
+                ${pointsChip}
+            </span>
             ${claimBtn}
         </div>`;
     }
@@ -3116,9 +3137,17 @@
             void claimDailyMission(btn.dataset.missionClaim);
         }));
         root.querySelectorAll('[data-mission-tab]').forEach(btn => btn.addEventListener('click', () => {
-            state.missionTab = btn.dataset.missionTab || 'daily';
+            const tab = btn.dataset.missionTab || 'daily';
+            state.missionTab = tab;
             renderHomeDashboard();
             startMissionResetTimer();
+            const snapshot = state.dailyMissions;
+            const periodMissions = tab === 'weekly'
+                ? snapshot?.weekly
+                : (tab === 'lifetime' ? snapshot?.lifetime : snapshot?.daily);
+            if (!Array.isArray(periodMissions)) {
+                void loadDailyMissions();
+            }
         }));
         root.querySelector('[data-login-claim]')?.addEventListener('click', () => {
             void claimLoginReward();
