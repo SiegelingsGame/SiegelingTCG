@@ -905,6 +905,14 @@ class GameJavaScriptRegressionTest {
                 "Enclave residents must show their rapport and the tasks that raise it."
         );
         assertTrue(
+                keepJs.contains("enclaveOpenSlot: -1") && keepJs.contains("function enclaveSpaceButtonMarkup(")
+                        && keepJs.contains("data-enclave-space=\"${index}\"")
+                        && keepJs.contains("data-enclave-space=\"-1\"")
+                        && keepJs.contains("function collapseEnclaveSpaces(")
+                        && keepCss.contains(".enclave-space-grid") && keepCss.contains(".enclave-collapse"),
+                "Enclave spaces must collapse to a grid of Siegeling buttons that open one space at a time and close back to the grid."
+        );
+        assertTrue(
                 dashboardHtml.contains("data-editor-page=\"KEEP\"") && dashboardHtml.contains("id=\"keepTuningPanel\"")
                         && dashboardHtml.contains("/js/keep-admin.js?v=1")
                         && dashboardJs.contains("state.editorPage === \"KEEP\"")
@@ -980,8 +988,8 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=35")
-                        && keepHtml.contains("/js/keep.js?v=36")
+                        && keepHtml.contains("/css/keep.css?v=36")
+                        && keepHtml.contains("/js/keep.js?v=37")
                         && keepHtml.contains("id=\"hallFavoriteResident\"")
                         && keepHtml.contains("id=\"constructionBannerJobs\"")
                         && keepHtml.contains("id=\"productionReady\"")

@@ -86,6 +86,9 @@
         // Which Enclave space has its assign menu open (-1 = none). Kept in state rather than
         // in the DOM because every snapshot refresh re-renders the panel body.
         enclavePickerSlot: -1,
+        // Which Enclave space is expanded (-1 = the collapsed grid of space buttons). Only one
+        // space is ever open, so five stacked cards never bury the tasks on a phone.
+        enclaveOpenSlot: -1,
         frontPickerSlot: -1,
         // The Keeper's Favor menu walks cell -> portrait grid -> confirm sheet. Both steps
         // live in state because every snapshot refresh re-renders the panel body.
@@ -309,6 +312,15 @@
                 else openPanel('projects');
             }
             else openInterior(building.dataset.building);
+            return;
+        }
+        const enclaveSpace = event.target.closest('[data-enclave-space]');
+        if (enclaveSpace) {
+            const slot = Number(enclaveSpace.dataset.enclaveSpace);
+            state.enclaveOpenSlot = state.enclaveOpenSlot === slot ? -1 : slot;
+            // Collapsing must not leave an assign menu armed for a space the player can no longer see.
+            state.enclavePickerSlot = -1;
+            rerenderActiveSurface();
             return;
         }
         const enclavePicker = event.target.closest('[data-enclave-picker]');
@@ -1040,11 +1052,21 @@
 
     function openPanel(panel) {
         // Entering the Chronicle afresh files everything read on the last visit under Read.
-        if (panel !== state.panel) state.sessionReadLoreIds = [];
+        if (panel !== state.panel) {
+            state.sessionReadLoreIds = [];
+            collapseEnclaveSpaces();
+        }
         state.panel = panel || '';
         document.querySelector('.keep-main')?.classList.add('panel-open');
         document.getElementById('keepPanel')?.setAttribute('aria-hidden', 'false');
         renderPanel();
+    }
+
+    /** Leaving the Enclave surface always returns it to the collapsed grid, so reopening it
+        never drops the player inside a space they left behind. */
+    function collapseEnclaveSpaces() {
+        state.enclaveOpenSlot = -1;
+        state.enclavePickerSlot = -1;
     }
 
     function closePanel() {
@@ -1052,6 +1074,7 @@
         // Leaving the hall ends the favor menu, so returning starts at the honored cell.
         state.favorPickerOpen = false;
         closeFavorConfirm();
+        collapseEnclaveSpaces();
         document.querySelector('.keep-main')?.classList.remove('panel-open');
         document.getElementById('keepPanel')?.setAttribute('aria-hidden', 'true');
     }
@@ -1173,12 +1196,44 @@
         return `<p class="panel-intro">The sanctuary is founded on Stewardship, Consent, and Shelter.</p>${rankCardMarkup()}${favoriteChooserMarkup()}<section class="detail-card"><h3>The Keeper's Charter</h3><p>No Siegeling will be compelled to labor or fight. The land will be repaired rather than consumed, and those hunted by Akhar may seek refuge here.</p><div class="button-row"><button class="panel-button" type="button" data-open-panel="chronicle">Read the charter</button></div></section>${themePickerMarkup()}${craftingMarkup('great_hall')}`;
     }
 
+    /** Spaces are collapsed to a grid of Siegeling buttons by default; opening one expands that
+        space alone. Five stacked cards of tasks and rapport meters do not fit a phone panel. */
     function enclaveMarkup() {
         const enclave = state.snapshot.enclave || {};
         if (!enclave.built) return `<p class="panel-intro">The Enclave is a home apart from the Elemental Quarter. Residents gather here by choice, socialize, and offer tasks that build rapport.</p>${projectsMarkup()}`;
         const slots = enclave.slots || [];
-        return `<p class="panel-intro">Invite up to five owned Siegelings. Tap a resident's portrait to swap them out. Each one offers tasks of its own — finishing them builds rapport, and rapport raises every bonus that Siegeling gives the keep.</p>
-            <div class="enclave-slot-list">${slots.map((slot, index) => enclaveSlotMarkup(slot || {}, index)).join('')}</div>`;
+        const open = state.enclaveOpenSlot;
+        if (open >= 0 && open < slots.length) {
+            return `<p class="panel-intro">Tap the resident's portrait to swap them out. Finishing their tasks builds rapport, and rapport raises every bonus that Siegeling gives the keep.</p>
+                <div class="enclave-slot-list is-expanded">${enclaveSlotMarkup(slots[open] || {}, open)}</div>`;
+        }
+        return `<p class="panel-intro">Invite up to five owned Siegelings. Tap a space to open it — one at a time — to meet its resident, follow their rapport, and bank the tasks they offer.</p>
+            <div class="enclave-space-grid">${slots.map((slot, index) => enclaveSpaceButtonMarkup(slot || {}, index)).join('')}</div>`;
+    }
+
+    /** One cell of the collapsed menu: the Siegeling living in the space, or an open seat. */
+    function enclaveSpaceButtonMarkup(slot, index) {
+        const resident = slot.resident;
+        const ready = enclaveReadyTaskCount(slot);
+        const level = number(resident?.rapport?.level);
+        const label = resident
+            ? `Open enclave space ${index + 1}. ${escapeAttr(resident.name)} lives here${ready > 0 ? `, ${ready} task${ready === 1 ? '' : 's'} ready to bank` : ''}.`
+            : `Open enclave space ${index + 1}. This space is empty.`;
+        return `<button type="button" class="enclave-space-cell ${resident ? 'has-resident' : 'is-empty'}"
+            data-enclave-space="${index}" aria-expanded="false" aria-label="${label}"
+            style="--resident-color:${escapeAttr(elementColors[resident?.element] || elementColors.NEUTRAL)}">
+            <span class="space-index">${index + 1}</span>
+            <span class="space-avatar">${resident ? residentAvatarContent(resident) : '<i aria-hidden="true">+</i>'}</span>
+            <strong>${escapeHtml(resident ? resident.name : 'Open space')}</strong>
+            <small>${escapeHtml(resident ? titleCase(resident.element) : 'Invite a Siegeling')}</small>
+            ${resident && level > 0 ? `<b class="space-rapport">Rapport ${level}</b>` : ''}
+            ${ready > 0 ? `<i class="space-ready" aria-hidden="true">${ready}</i>` : ''}
+        </button>`;
+    }
+
+    function enclaveReadyTaskCount(slot) {
+        const tasks = slot.tasks && slot.tasks.length ? slot.tasks : (slot.mission ? [slot.mission] : []);
+        return tasks.filter((task) => task && task.complete).length;
     }
 
     function enclaveSlotMarkup(slot, index) {
@@ -1202,7 +1257,10 @@
                     <span aria-hidden="true">+</span><small>This space is open — invite a Siegeling</small>
                 </button>`;
         return `<section class="detail-card enclave-slot-card ${pickerOpen ? 'is-picking' : ''}">
-            <span class="eyebrow">Enclave space ${index + 1}</span>
+            <div class="enclave-slot-head">
+                <span class="eyebrow">Enclave space ${index + 1}</span>
+                <button type="button" class="enclave-collapse" data-enclave-space="-1" aria-label="Close this space and return to the enclave spaces">&times;</button>
+            </div>
             ${seat}
             ${pickerOpen ? enclavePickerMarkup(slot, index) : ''}
             ${resident && !pickerOpen ? enclaveTasksMarkup(slot) : ''}
@@ -1545,6 +1603,7 @@
 
     function closeInterior() {
         state.interior = '';
+        collapseEnclaveSpaces();
         document.getElementById('keepInterior')?.setAttribute('aria-hidden', 'true');
         setGroundsSuppressed(false);
     }
@@ -3095,6 +3154,8 @@
                 capacity: number(snapshot.enclave.capacity),
                 readyTaskCount: number(snapshot.enclave.readyTaskCount),
                 pickerSlot: state.enclavePickerSlot,
+                openSlot: state.enclaveOpenSlot,
+                spacesCollapsed: state.enclaveOpenSlot < 0,
                 slots: (snapshot.enclave.slots || []).map((slot) => ({
                     slot: number(slot.slot), resident: slot.resident?.name || null,
                     rapport: slot.resident?.rapport
