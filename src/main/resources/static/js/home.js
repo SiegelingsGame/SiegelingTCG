@@ -408,6 +408,7 @@
         options: null,
         packs: [],
         dailyOffers: [],
+        dailyTitleOffers: [],
         titleCatalog: [],
         shopPacksError: '',
         creatureDescriptions: {},
@@ -3911,9 +3912,9 @@
 
     function shopTitleOffers() {
         const unlocked = new Set((state.progression?.playerTitles || []).filter(title => title.unlocked).map(title => title.id));
-        return (state.titleCatalog || [])
+        const offers = state.dailyTitleOffers?.length ? state.dailyTitleOffers : (state.titleCatalog || [])
             .filter(title => title.source === 'SHOP')
-            .map(title => ({ ...title, unlocked: unlocked.has(title.id) || Boolean(title.unlocked) }));
+        return offers.map(title => ({ ...title, unlocked: unlocked.has(title.id) || Boolean(title.unlocked) }));
     }
 
     function renderShopPacksEmptyState() {
@@ -3940,7 +3941,7 @@
         }
         grid.innerHTML = `
             ${dailyOffers.length ? `<div class="shop-row-head"><div><span class="eyebrow">Daily Rotation</span><h2>Five cards today</h2></div><span>Refreshes daily</span></div><div class="daily-offer-grid">${dailyOffers.map(renderDailyOfferTile).join('')}</div>` : ''}
-            ${shopTitles.length && !starterMode ? `<div class="shop-row-head"><div><span class="eyebrow">Profile Flair</span><h2>Player titles</h2></div><span>Unlock by playing or buy with Siegecoins</span></div><div class="shop-title-grid">${shopTitles.map(renderShopTitleTile).join('')}</div>` : ''}
+            ${shopTitles.length && !starterMode ? `<div class="shop-row-head"><div><span class="eyebrow">Profile Flair</span><h2>Player titles</h2></div><span>Four titles today · Refreshes daily</span></div><div class="shop-title-grid">${shopTitles.map(renderShopTitleTile).join('')}</div>` : ''}
             <div class="shop-row-head"><div><span class="eyebrow">${starterMode ? 'Starter Pack' : 'Packs'}</span><h2>${starterMode ? 'Choose your first pack' : 'Elemental and type pulls'}</h2></div></div>
             ${packs.length ? packs.map(renderPackTile).join('') : renderShopPacksEmptyState()}
         `;
@@ -3978,6 +3979,7 @@
         if (data?.error) return alert(data.error);
         state.progression = data.progression;
         state.titleCatalog = data.titleCatalog || state.titleCatalog;
+        state.dailyTitleOffers = data.dailyTitleOffers || state.dailyTitleOffers;
         renderShop();
         renderGold();
         renderProfile();
@@ -6541,6 +6543,7 @@
         state.packs = data.packs || state.packs;
         state.dailyOffers = data.dailyOffers || state.dailyOffers;
         state.titleCatalog = data.titleCatalog || state.titleCatalog || state.progression?.playerTitles || [];
+        state.dailyTitleOffers = data.dailyTitleOffers || state.dailyTitleOffers || [];
         clearPackOpenRequestId(requestId);
         const latest = data._recoveredPackEntry || state.progression?.packHistory?.[0];
         if (latest && data._recoveredPackEntry && state.progression?.packHistory?.[0]?.requestId !== requestId) {
@@ -6644,6 +6647,7 @@
             state.packs = data.packs || state.packs;
             state.dailyOffers = data.dailyOffers || state.dailyOffers;
             state.titleCatalog = data.titleCatalog || state.titleCatalog || state.progression?.playerTitles || [];
+            state.dailyTitleOffers = data.dailyTitleOffers || state.dailyTitleOffers || [];
             clearPackOpenRequestId(requestId);
             latest = state.progression?.packHistory?.[0];
             if (latest) {
@@ -6789,6 +6793,7 @@
             state.packs = data.packs || state.packs;
             state.dailyOffers = data.dailyOffers || state.dailyOffers;
             state.titleCatalog = data.titleCatalog || state.titleCatalog || state.progression?.playerTitles || [];
+            state.dailyTitleOffers = data.dailyTitleOffers || state.dailyTitleOffers || [];
             detectNewCards();
             render();
         } finally {
@@ -8040,6 +8045,7 @@
         state.packs = data.packs;
         state.dailyOffers = data.dailyOffers || [];
         state.titleCatalog = data.titleCatalog || state.titleCatalog || [];
+        state.dailyTitleOffers = data.dailyTitleOffers || [];
         return true;
     }
 

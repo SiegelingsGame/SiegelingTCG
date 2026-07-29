@@ -105,6 +105,9 @@ public class PlayerTitleService {
         if (def.source() != PlayerTitleCatalogService.Source.SHOP) {
             throw new IllegalArgumentException("That title cannot be purchased.");
         }
+        if (!titleCatalogService.isShopTitleAvailableToday(def.id())) {
+            throw new IllegalArgumentException("That title is not in today's shop rotation.");
+        }
         String normalized = def.id();
         if (isTitleUnlocked(user, progression, normalized)) {
             return progression;
