@@ -11,7 +11,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/landing.css?v=21">
+    <link rel="stylesheet" href="/css/landing.css?v=24">
 </head>
 <body class="landing-body">
 
@@ -78,7 +78,7 @@
 <nav class="landing-fab" aria-label="Explore Siegelings">
     <button class="landing-fab-toggle" type="button" aria-expanded="false" aria-controls="landingFabMenu" aria-label="Open page navigation"><span aria-hidden="true">✦</span></button>
     <div class="landing-fab-menu" id="landingFabMenu" hidden>
-        <a href="#modes">Game Modes</a><a href="#creatures">Siegelings</a><a href="#arena">Arenas</a><a href="#about">About</a>
+        <a href="#modes">Game Modes</a><a href="#roster">Siegelings</a><a href="#creatures">Legendaries</a><a href="#arena">Arenas</a><a href="#about">About</a>
     </div>
 </nav>
 
@@ -118,10 +118,16 @@
     </div>
 </section>
 
-<!-- ── Creature showcase ────────────────────────────────────────────────── -->
+<section class="roster-section" id="roster" aria-labelledby="rosterTitle">
+    <div class="landing-section-heading"><span class="section-kicker">The Siegling Roster</span><h2 id="rosterTitle">Every element has a champion</h2><p>Discover the creatures waiting to join your deck. Each spotlight carries its elemental art, affinity, and battle identity.</p></div>
+    <div class="roster-rotator" id="rosterRotator" aria-roledescription="carousel" aria-label="All Siegelings roster"><div class="roster-loading">Gathering the roster…</div></div>
+    <a class="roster-collection-link" href="/cards">Browse the full collection <span>→</span></a>
+</section>
+
+<!-- ── Legendary Siegling showcase ─────────────────────────────────────── -->
 <section class="creatures" id="creatures">
     <div class="creatures-header">
-        <span class="creatures-kicker">Featured Siegelings</span>
+        <span class="creatures-kicker">Legendary Siegelings</span>
         <h2 class="creatures-title">Meet the Legendary Siegelings</h2>
     </div>
 
@@ -206,8 +212,8 @@
   }
 }
 </script>
-<script src="/js/landing.js?v=21"></script>
-<script type="module" src="/js/legendary-viewport.js?v=18"></script>
+<script src="/js/landing.js?v=23"></script>
+<script type="module" src="/js/legendary-viewport.js?v=19"></script>
 <script src="/js/sw-register.js?v=1"></script>
 </body>
 </html>
