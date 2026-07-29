@@ -2848,9 +2848,14 @@
         const missions = missionsForTab(tab);
         const eyebrow = tab === 'weekly' ? 'Weekly Missions' : (tab === 'lifetime' ? 'Lifetime Rewards' : 'Daily Missions');
         const heading = tab === 'weekly' ? "This week's objectives" : (tab === 'lifetime' ? 'Career milestones' : "Today's objectives");
-        const emptyLabel = state.profile?.authenticated
-            ? 'No objectives to show right now.'
-            : `Sign in to track ${tab} missions.`;
+        // A failed mission request used to be rendered as a genuine empty state,
+        // which made every tab look as though the account had no missions. Keep
+        // the problem actionable instead of hiding it behind that fallback.
+        const emptyLabel = state.dailyMissionsError
+            ? `${state.dailyMissionsError} Refresh to try again.`
+            : (state.profile?.authenticated
+                ? 'No objectives to show right now.'
+                : `Sign in to track ${tab} missions.`);
         const loginTile = tab === 'daily' ? renderLoginRewardTile() : '';
         const showAllBtn = tab === 'daily'
             ? `<button class="ghost-btn command-wide-btn" type="button" data-home-action="missions">${state.showAllMissions ? 'Show Featured Missions' : 'View All Missions'}</button>`
@@ -8283,6 +8288,11 @@
         try {
             await refreshLiveCatalog();
             await ensurePacksLoaded();
+            // Login receives the profile directly, so it does not pass through
+            // syncProfile(), which normally loads this snapshot. Without this
+            // request the Home panel re-renders with null data until a full page
+            // reload, leaving daily, weekly, and lifetime tabs blank.
+            await loadDailyMissions();
             render();
         } finally {
             hideLoadingArtScreen(loadingShownAt);
