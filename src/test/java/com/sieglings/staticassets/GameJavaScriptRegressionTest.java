@@ -324,7 +324,7 @@ class GameJavaScriptRegressionTest {
                 "Profile trim styles for battle preview, social shrink, and favorite card art must ship in home.css."
         );
         assertTrue(
-                homeMarkup.contains("home.js?v=121") && homeMarkup.contains("home.css?v=116"),
+                homeMarkup.contains("home.js?v=123") && homeMarkup.contains("home.css?v=117"),
                 "Cache-bust pins for the profile dashboard trim must advance on home.html."
         );
     }
@@ -352,9 +352,9 @@ class GameJavaScriptRegressionTest {
                 "Element-mode profile and friend avatars must fill a circular frame."
         );
         assertTrue(
-                homeMarkup.contains("home.css?v=116")
-                        && homeMarkup.contains("home.js?v=121")
-                        && dashboardMarkup.contains("home.css?v=116"),
+                homeMarkup.contains("home.css?v=117")
+                        && homeMarkup.contains("home.js?v=123")
+                        && dashboardMarkup.contains("home.css?v=117"),
                 "Profile icon CSS and JavaScript cache pins must advance together."
         );
     }
@@ -387,11 +387,11 @@ class GameJavaScriptRegressionTest {
         String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
         assertTrue(
                 homeMarkup.contains("style.css?v=217")
-                        && homeMarkup.contains("game.js?v=219")
+                        && homeMarkup.contains("game.js?v=220")
                         && homeMarkup.contains("card-binder-visual.js?v=20")
-                        && homeMarkup.contains("home.js?v=121")
+                        && homeMarkup.contains("home.js?v=123")
                         && playMarkup.contains("style.css?v=217")
-                        && playMarkup.contains("game.js?v=219")
+                        && playMarkup.contains("game.js?v=220")
                         && dashboardMarkup.contains("style.css?v=217")
                         && dashboardMarkup.contains("card-binder-visual.js?v=20"),
                 "Every surface must advance its cache pins with the complete painted-notch set."
@@ -425,8 +425,8 @@ class GameJavaScriptRegressionTest {
         );
 
         assertTrue(
-                homeScript.contains("const ELEMENTAL_CARD_BACK_VERSION = 5")
-                        && gameScript.contains("const DECK_ART_ASSET_VERSION = 5"),
+                homeScript.contains("const ELEMENTAL_CARD_BACK_VERSION = 6")
+                        && gameScript.contains("const DECK_ART_ASSET_VERSION = 6"),
                 "Home and battle must cache-bust the expanded elemental card-back set together."
         );
         assertTrue(
