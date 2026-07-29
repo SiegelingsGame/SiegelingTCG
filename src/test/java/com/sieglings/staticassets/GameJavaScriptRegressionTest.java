@@ -998,6 +998,53 @@ class GameJavaScriptRegressionTest {
     }
 
     @Test
+    void enteringABuildingUnderConstructionShowsItsSiteAndAConstructionHudMenu() throws IOException {
+        String keepHtml = Files.readString(KEEP_HTML);
+        String keepCss = Files.readString(KEEP_CSS);
+        String keepJs = Files.readString(KEEP_JS);
+
+        assertTrue(
+                keepHtml.contains("id=\"interiorBuildToggle\"")
+                        && keepHtml.contains("id=\"interiorBuildKind\"")
+                        && keepHtml.contains("id=\"interiorBuildClock\"")
+                        && keepHtml.contains("id=\"interiorBuildMenu\"")
+                        && keepHtml.contains("id=\"interiorBuildArt\"")
+                        && keepCss.contains(".interior-build-toggle {")
+                        && keepCss.contains(".interior-build-menu {"),
+                "The interior HUD must carry a construction toggle, its menu, and the work-site drawing."
+        );
+        assertTrue(
+                keepJs.contains("function interiorConstruction(")
+                        && keepJs.contains("function constructionRoomId(")
+                        && keepJs.contains("function renderInteriorConstruction(")
+                        && keepJs.contains("target === 'hall' ? 'great_hall' : target"),
+                "Entering a room must resolve the crew working on that specific building."
+        );
+        assertTrue(
+                keepJs.contains("function constructionKindLabel(")
+                        && keepJs.contains("'Keep rank'") && keepJs.contains("'Storage annex'")
+                        && keepJs.contains("'Expansion'") && keepJs.contains("'New building'")
+                        && keepJs.contains("data-live-interior-time")
+                        && keepJs.contains("function formatCompletionTime(")
+                        && keepJs.contains("timeSaverMarkup(construction, true)"),
+                "The menu must name the construction type, tick its clock, state when it finishes, and reuse the shared time savers."
+        );
+        assertTrue(
+                keepJs.contains("const BUILD_ART = {")
+                        && keepJs.contains("function buildArtMarkup(")
+                        && keepJs.contains("data-phase-min=\"3\"")
+                        && keepCss.contains(".build-art-svg > g.is-raised")
+                        && java.util.stream.Stream.of("great_hall:", "woodlot:", "archive:", "garden:", "forge:",
+                                "fridge:", "generator:", "quarry:", "kitchen:", "enclave:").allMatch(keepJs::contains),
+                "Every walkable room needs its own work-site drawing whose groups raise as the project advances."
+        );
+        assertTrue(
+                keepJs.contains("if (state.interior) renderInterior();\n        else openPanel('projects');"),
+                "Buying time from inside a building must leave the player in the room, not throw them into the Projects panel."
+        );
+    }
+
+    @Test
     void keepBuildingsAndRoomsUseLayeredPaperTreatments() throws IOException {
         String keepHtml = Files.readString(KEEP_HTML);
         String keepCss = Files.readString(KEEP_CSS);
@@ -1005,8 +1052,8 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=37")
-                        && keepHtml.contains("/js/keep.js?v=38")
+                        && keepHtml.contains("/css/keep.css?v=38")
+                        && keepHtml.contains("/js/keep.js?v=39")
                         && keepHtml.contains("id=\"hallFavoriteResident\"")
                         && keepHtml.contains("id=\"constructionBannerJobs\"")
                         && keepHtml.contains("id=\"productionReady\"")
