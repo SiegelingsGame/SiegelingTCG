@@ -1219,6 +1219,23 @@ button.resource-pill:focus-visible {
 .room-upgrade-summary small { color: rgba(255,247,220,.58); font-size: 8px; text-transform: uppercase; }
 .enclave-slot-list { display: grid; gap: 10px; }
 .enclave-slot-card { margin-bottom: 0; }
+/* Collapsed spaces: a cell-like button per space so all five fit one phone screen. */
+.enclave-space-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.enclave-space-cell { position: relative; min-width: 0; min-height: 108px; display: grid; justify-items: center; align-content: start; gap: 3px; padding: 8px 5px; border: 1px solid var(--line); border-radius: 12px; color: var(--cream); background: rgba(255,255,255,.04); cursor: pointer; }
+.enclave-space-cell.has-resident { border-color: color-mix(in srgb, var(--resident-color, var(--gold)) 55%, transparent); background: color-mix(in srgb, var(--resident-color, var(--neutral)) 10%, rgba(255,255,255,.04)); }
+.enclave-space-cell.is-empty { border-style: dashed; }
+.enclave-space-cell .space-index { position: absolute; top: 4px; left: 5px; color: rgba(255,247,220,.45); font: 700 8px Georgia, serif; }
+.enclave-space-cell .space-avatar { width: 42px; height: 46px; display: flex; align-items: flex-end; justify-content: center; overflow: hidden; border-radius: 9px; background: color-mix(in srgb, var(--resident-color, var(--neutral)) 35%, #172333); }
+.enclave-space-cell.is-empty .space-avatar { align-items: center; color: #9fe9ff; background: rgba(159,233,255,.12); font: 700 20px Georgia, serif; font-style: normal; }
+.enclave-space-cell .space-avatar i { font-style: normal; }
+.enclave-space-cell img { width: auto; height: 100%; max-width: 100%; object-fit: contain; object-position: bottom center; }
+.enclave-space-cell strong { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #fff1b7; font: 700 10px Georgia, serif; }
+.enclave-space-cell small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgba(255,247,220,.55); font-size: 8px; }
+.enclave-space-cell .space-rapport { color: var(--gold); font: 700 7px Georgia, serif; }
+/* Ready tasks are the reason to open a space, so the count rides the collapsed cell. */
+.enclave-space-cell .space-ready { position: absolute; top: 4px; right: 4px; min-width: 15px; padding: 1px 4px; border-radius: 7px; color: #10171f; background: #6fcf8b; font: 700 8px/1.4 Georgia, serif; font-style: normal; }
+.enclave-slot-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.enclave-collapse { width: 30px; height: 30px; flex: none; border-radius: 9px; color: var(--cream); background: rgba(255,255,255,.08); font-size: 17px; line-height: 1; cursor: pointer; }
 .enclave-current { display: grid; grid-template-columns: 56px minmax(0, 1fr); align-items: start; gap: 9px; margin-top: 8px; }
 /* The portrait is the swap control — there is no separate remove button, so it needs the
    full 44px touch target and a visible affordance that it opens the assign menu. */
