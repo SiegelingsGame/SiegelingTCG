@@ -1,7 +1,9 @@
 package com.sieglings.service;
 
+import com.sieglings.mission.DailyMissionCatalog;
 import com.sieglings.mission.DailyMissionType;
 import com.sieglings.mission.MissionPeriod;
+import com.sieglings.mission.MissionRewardTrack;
 import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.DailyMissionProgressEntity;
 import com.sieglings.persistence.entity.MatchHistoryEntity;
@@ -111,6 +113,144 @@ class DailyMissionServiceTest {
         assertEquals(600, claim.get("gold"));
         assertTrue(missionStore.saved.getClaimedWeeklyIds().contains("weekly-pvp-10"));
         assertThrows(IllegalArgumentException.class, () -> service.claimMission(user, "weekly-pvp-10"));
+    }
+
+    @Test
+    void claimingMissionsBanksTrackPoints() {
+        AccountUser user = user();
+        progressionStore.saved = progression(user.getId(), 0);
+        missionStore.saved = progressForToday(user.getId());
+        missionStore.saved.addCounter(DailyMissionType.PVP_WINS, 3);
+        missionStore.saved.addCounter(MissionPeriod.WEEKLY, DailyMissionType.PVP_WINS, 10);
+        missionStore.saved.addCounter(MissionPeriod.LIFETIME, DailyMissionType.PVP_WINS, 100);
+
+        service.claimMission(user, "pvp-wins-3");
+        service.claimMission(user, "weekly-pvp-10");
+        service.claimMission(user, "life-pvp-100");
+
+        assertEquals(20, missionStore.saved.getDailyPoints());
+        assertEquals(250, missionStore.saved.getWeeklyPoints());
+        assertEquals(300, missionStore.saved.getKnightPoints());
+    }
+
+    @Test
+    void loginRewardBanksDailyPoints() {
+        AccountUser user = user();
+        progressionStore.saved = progression(user.getId(), 0);
+        missionStore.saved = progressForToday(user.getId());
+
+        service.claimLoginReward(user);
+
+        assertEquals(DailyMissionService.DAILY_LOGIN_POINTS, missionStore.saved.getDailyPoints());
+    }
+
+    @Test
+    void claimChestGrantsCoinsAndRemnantsOnce() {
+        AccountUser user = user();
+        progressionStore.saved = progression(user.getId(), 0);
+        missionStore.saved = progressForToday(user.getId());
+        missionStore.saved.setDailyPoints(45);
+
+        Map<String, Object> claim = service.claimChest(user, "daily", 40);
+
+        assertEquals(150, claim.get("reward"));
+        assertEquals(40, claim.get("remnants"));
+        assertEquals(150, progressionStore.saved.getGold());
+        assertEquals(40, progressionStore.saved.getRemnants());
+        assertTrue(missionStore.saved.getClaimedDailyChests().contains(40));
+        assertThrows(IllegalArgumentException.class, () -> service.claimChest(user, "daily", 40));
+    }
+
+    @Test
+    void claimChestRejectsLockedThreshold() {
+        AccountUser user = user();
+        progressionStore.saved = progression(user.getId(), 0);
+        missionStore.saved = progressForToday(user.getId());
+        missionStore.saved.setDailyPoints(45);
+
+        assertThrows(IllegalArgumentException.class, () -> service.claimChest(user, "daily", 60));
+        assertThrows(IllegalArgumentException.class, () -> service.claimChest(user, "daily", 55));
+        assertThrows(IllegalArgumentException.class, () -> service.claimChest(user, "lifetime", 40));
+    }
+
+    @Test
+    void dailyResetClearsPointsAndChestsButKeepsKnightProgress() {
+        AccountUser user = user();
+        progressionStore.saved = progression(user.getId(), 0);
+        DailyMissionProgressEntity stale = progressForToday(user.getId());
+        stale.setDateKey("2000-01-01");
+        stale.setWeekKey("2000-W01");
+        stale.setDailyPoints(80);
+        stale.setClaimedDailyChests(List.of(20, 40));
+        stale.setWeeklyPoints(600);
+        stale.setClaimedWeeklyChests(List.of(200));
+        stale.setKnightPoints(450);
+        stale.setClaimedKnightLevel(2);
+        missionStore.saved = stale;
+
+        service.getDailySnapshot(user);
+
+        assertEquals(0, missionStore.saved.getDailyPoints());
+        assertTrue(missionStore.saved.getClaimedDailyChests().isEmpty());
+        assertEquals(0, missionStore.saved.getWeeklyPoints());
+        assertTrue(missionStore.saved.getClaimedWeeklyChests().isEmpty());
+        assertEquals(450, missionStore.saved.getKnightPoints());
+        assertEquals(2, missionStore.saved.getClaimedKnightLevel());
+    }
+
+    @Test
+    void claimKnightLevelsPaysEveryPendingLevelOnce() {
+        AccountUser user = user();
+        progressionStore.saved = progression(user.getId(), 0);
+        missionStore.saved = progressForToday(user.getId());
+        // 100 (L1→2) + 150 (L2→3) = 250 points reaches level 3.
+        missionStore.saved.setKnightPoints(260);
+
+        Map<String, Object> claim = service.claimKnightLevels(user);
+
+        assertEquals(3, claim.get("level"));
+        // Levels 2 and 3: (200+100) + (200+150) gold, (75+50) + (75+75) remnants.
+        assertEquals(650, claim.get("reward"));
+        assertEquals(275, claim.get("remnants"));
+        assertEquals(650, progressionStore.saved.getGold());
+        assertEquals(275, progressionStore.saved.getRemnants());
+        assertEquals(3, missionStore.saved.getClaimedKnightLevel());
+        assertThrows(IllegalArgumentException.class, () -> service.claimKnightLevels(user));
+    }
+
+    @Test
+    void snapshotExposesTracksAndKnightState() {
+        AccountUser user = user();
+        missionStore.saved = progressForToday(user.getId());
+        missionStore.saved.setDailyPoints(45);
+        missionStore.saved.setKnightPoints(100);
+
+        Map<String, Object> snapshot = service.getDailySnapshot(user);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> dailyTrack = (Map<String, Object>) snapshot.get("dailyTrack");
+        assertEquals(45, dailyTrack.get("points"));
+        assertEquals(100, dailyTrack.get("maxPoints"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> chests = (List<Map<String, Object>>) dailyTrack.get("chests");
+        assertEquals(5, chests.size());
+        assertTrue((Boolean) chests.get(1).get("claimable"));
+        assertFalse((Boolean) chests.get(2).get("unlocked"));
+        assertEquals(1, chests.get(4).get("cardPulls"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> knight = (Map<String, Object>) snapshot.get("knight");
+        assertEquals(2, knight.get("level"));
+        assertEquals(1, knight.get("claimedLevel"));
+        assertTrue((Boolean) knight.get("claimable"));
+    }
+
+    @Test
+    void everyPeriodCanFillItsChestLadder() {
+        assertTrue(DailyMissionCatalog.totalPoints(MissionPeriod.DAILY) + DailyMissionService.DAILY_LOGIN_POINTS
+                >= MissionRewardTrack.maxPoints(MissionPeriod.DAILY));
+        assertTrue(DailyMissionCatalog.totalPoints(MissionPeriod.WEEKLY)
+                >= MissionRewardTrack.maxPoints(MissionPeriod.WEEKLY));
     }
 
     @Test

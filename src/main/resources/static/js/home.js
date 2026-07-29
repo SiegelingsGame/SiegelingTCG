@@ -2724,7 +2724,121 @@
                 <small class="mission-subline">${escapeHtml(streakLabel)}</small>
             </div>
             <span class="mission-reward">${renderCoinAmount(login.reward || 100, '')}</span>
+            ${login.points ? `<span class="mission-points" title="+${escapeAttr(login.points)} track points on claim">+${escapeHtml(login.points)}<small>pts</small></span>` : ''}
             ${action}
+        </div>`;
+    }
+
+    function remnantIconMarkup() {
+        return `<img class="remnant-icon" src="${HERO_STAT_ICONS.remnants}" alt="" aria-hidden="true">`;
+    }
+
+    /** Compact "120 coins · 40 Remnants · 1 card" line used by chests and Knight Levels. */
+    function rewardBundleMarkup(gold, remnants, cardPulls) {
+        const parts = [];
+        if (gold > 0) parts.push(`${coinIconMarkup()}<span>${escapeHtml(Number(gold).toLocaleString())}</span>`);
+        if (remnants > 0) parts.push(`${remnantIconMarkup()}<span>${escapeHtml(Number(remnants).toLocaleString())}</span>`);
+        if (cardPulls > 0) parts.push(`<span class="reward-card-chip">${cardPulls > 1 ? `${cardPulls} cards` : 'Random card'}</span>`);
+        return parts.length ? `<span class="reward-bundle">${parts.join('')}</span>` : '';
+    }
+
+    function rewardBundleText(gold, remnants, cardPulls) {
+        const parts = [];
+        if (gold > 0) parts.push(`${Number(gold).toLocaleString()} Siegecoins`);
+        if (remnants > 0) parts.push(`${Number(remnants).toLocaleString()} Remnants`);
+        if (cardPulls > 0) parts.push(cardPulls > 1 ? `${cardPulls} random cards` : '1 random card');
+        return parts.join(' · ');
+    }
+
+    function trackForTab(tab) {
+        const snapshot = state.dailyMissions;
+        if (tab === 'weekly') return snapshot?.weeklyTrack || null;
+        if (tab === 'daily') return snapshot?.dailyTrack || null;
+        return null;
+    }
+
+    /**
+     * Point ladder above the daily/weekly lists. Chests are absolutely positioned
+     * at their threshold's share of the bar so the rail stays honest if the
+     * thresholds are ever retuned to uneven spacing.
+     */
+    function renderMissionTrack(tab) {
+        const track = trackForTab(tab);
+        const chests = track?.chests || [];
+        if (!chests.length) return '';
+        const points = Number(track.points) || 0;
+        const maxPoints = Number(track.maxPoints) || 1;
+        const fill = Math.min(100, Math.round((points / maxPoints) * 100));
+        const label = tab === 'weekly' ? 'Weekly Points' : 'Daily Points';
+        const next = chests.find(chest => !chest.claimed && !chest.unlocked);
+        const ready = chests.filter(chest => chest.claimable).length;
+        const hint = ready
+            ? `${ready} chest${ready > 1 ? 's' : ''} ready to open`
+            : (next
+                ? `${Math.max(0, next.threshold - points)} more points for the next chest`
+                : 'Every chest collected — nice work');
+        return `<div class="mission-track" data-track-period="${escapeAttr(tab)}">
+            <div class="mission-track-head">
+                <span class="mission-track-points"><strong>${escapeHtml(points.toLocaleString())}</strong><small>${escapeHtml(label)}</small></span>
+                <span class="mission-track-hint">${escapeHtml(hint)}</span>
+            </div>
+            <div class="mission-track-rail">
+                <div class="mission-track-inner">
+                    <div class="mission-track-line"><span style="width:${fill}%"></span></div>
+                    ${chests.map(chest => renderTrackChest(tab, chest, maxPoints)).join('')}
+                </div>
+            </div>
+        </div>`;
+    }
+
+    function renderTrackChest(tab, chest, maxPoints) {
+        const pct = Math.min(100, Math.max(0, (Number(chest.threshold) / maxPoints) * 100));
+        const stateClass = chest.claimed ? ' is-claimed' : (chest.claimable ? ' is-claimable' : (chest.unlocked ? ' is-unlocked' : ''));
+        const title = `${chest.threshold} points — ${rewardBundleText(chest.gold, chest.remnants, chest.cardPulls)}`;
+        const attrs = chest.claimable
+            ? `data-chest-period="${escapeAttr(tab)}" data-chest-threshold="${escapeAttr(chest.threshold)}"`
+            : 'disabled';
+        return `<button class="mission-chest${stateClass}" type="button" style="left:${pct}%" title="${escapeAttr(title)}" aria-label="${escapeAttr(title)}" ${attrs}>
+            <span class="mission-chest-lid"></span>
+            <span class="mission-chest-body">${chest.cardPulls > 0 ? '★' : ''}</span>
+            <span class="mission-chest-label">${escapeHtml(chest.threshold)}</span>
+        </button>`;
+    }
+
+    /** Career track on the Lifetime tab — lifetime mission points raise the Knight Level. */
+    function renderKnightPanel() {
+        const knight = state.dailyMissions?.knight;
+        if (!knight) return '';
+        const level = Number(knight.level) || 1;
+        const maxLevel = Number(knight.maxLevel) || level;
+        const into = Number(knight.pointsIntoLevel) || 0;
+        const forNext = Number(knight.pointsForNext) || 0;
+        const maxed = level >= maxLevel || forNext <= 0;
+        const fill = maxed ? 100 : Math.min(100, Math.round((into / forNext) * 100));
+        const pending = knight.pendingLevels || [];
+        const pendingGold = pending.reduce((sum, row) => sum + (Number(row.gold) || 0), 0);
+        const pendingRemnants = pending.reduce((sum, row) => sum + (Number(row.remnants) || 0), 0);
+        const pendingCards = pending.reduce((sum, row) => sum + (Number(row.cardPulls) || 0), 0);
+        const nextReward = knight.nextReward;
+        const footer = pending.length
+            ? `<button class="mission-claim-btn knight-claim-btn" type="button" data-knight-claim>Claim ${pending.length} level${pending.length > 1 ? 's' : ''}</button>`
+            : (maxed
+                ? '<span class="knight-next">Knight Level maxed</span>'
+                : `<span class="knight-next">Level ${level + 1} grants ${rewardBundleMarkup(nextReward?.gold, nextReward?.remnants, nextReward?.cardPulls)}</span>`);
+        const pendingLine = pending.length
+            ? `<div class="knight-pending">Unclaimed: ${rewardBundleMarkup(pendingGold, pendingRemnants, pendingCards)}</div>`
+            : '';
+        return `<div class="knight-panel${pending.length ? ' is-claimable' : ''}">
+            <div class="knight-crest"><small>Knight</small><strong>${escapeHtml(level)}</strong></div>
+            <div class="knight-body">
+                <div class="knight-head">
+                    <strong>Knight Level ${escapeHtml(level)}</strong>
+                    <span>${maxed ? `${escapeHtml(Number(knight.points || 0).toLocaleString())} lifetime points` : `${escapeHtml(into.toLocaleString())} / ${escapeHtml(forNext.toLocaleString())} to Level ${escapeHtml(level + 1)}`}</span>
+                </div>
+                <div class="mission-progress knight-progress"><span style="width:${fill}%"></span></div>
+                ${pendingLine}
+                <div class="knight-foot">${footer}</div>
+            </div>
         </div>`;
     }
 
@@ -2748,6 +2862,7 @@
             <div class="mission-tabs" role="tablist" aria-label="Mission time range">
                 ${MISSION_TABS.map(([id, label]) => `<button class="mission-tab${tab === id ? ' active' : ''}" type="button" data-mission-tab="${escapeAttr(id)}" role="tab" aria-selected="${tab === id}">${escapeHtml(label)}</button>`).join('')}
             </div>
+            ${tab === 'lifetime' ? renderKnightPanel() : renderMissionTrack(tab)}
             <div class="mission-list">
                 ${loginTile}
                 ${missions.length ? missions.map(renderMissionRow).join('') : `<div class="home-empty-emblem">${escapeHtml(emptyLabel)}</div>`}
@@ -2762,6 +2877,10 @@
         const claimBtn = mission.claimable
             ? `<button class="mission-claim-btn" type="button" data-mission-claim="${escapeAttr(mission.id)}">Claim</button>`
             : (mission.claimed ? '<span class="mission-claimed-label">Claimed</span>' : '');
+        const pointsLabel = mission.period === 'LIFETIME' ? 'Knight points' : 'track points';
+        const pointsChip = mission.points
+            ? `<span class="mission-points" title="+${escapeAttr(mission.points)} ${escapeAttr(pointsLabel)} on claim">+${escapeHtml(mission.points)}<small>pts</small></span>`
+            : '';
         return `<div class="mission-row${statusClass}" data-mission-id="${escapeAttr(mission.id)}">
             <span class="mission-icon">${mission.iconMarkup ? mission.icon : escapeHtml(mission.icon)}</span>
             <div class="mission-copy">
@@ -2770,6 +2889,7 @@
             </div>
             <span class="mission-count">${escapeHtml(mission.current)} / ${escapeHtml(mission.target)}</span>
             <span class="mission-reward">${renderCoinAmount(mission.reward, '')}</span>
+            ${pointsChip}
             ${claimBtn}
         </div>`;
     }
@@ -2796,6 +2916,55 @@
         // Keep the diff snapshot current so the next sync doesn't re-report
         // this reward as separately earned gold.
         if (notifSnapshot) notifSnapshot.gold = Number(state.progression?.gold) || notifSnapshot.gold;
+        safeRender(renderGold);
+        safeRender(renderHomeDashboard);
+    }
+
+    /** Applies the wallet/collection deltas every mission-track claim returns. */
+    function applyRewardClaim(data) {
+        if (data?.dailyMissions) state.dailyMissions = data.dailyMissions;
+        if (state.progression) {
+            if (typeof data?.gold === 'number') state.progression.gold = data.gold;
+            if (typeof data?.remnantsTotal === 'number') state.progression.remnants = data.remnantsTotal;
+        }
+        if (notifSnapshot) notifSnapshot.gold = Number(state.progression?.gold) || notifSnapshot.gold;
+    }
+
+    function claimedCardsDetail(cards) {
+        const names = (cards || []).map(card => card?.name).filter(Boolean);
+        return names.length ? ` Cards pulled: ${names.join(', ')}.` : '';
+    }
+
+    async function claimMissionChest(period, threshold) {
+        if (!state.token || !period || !threshold) return;
+        const data = await fetchJson('/api/missions/claim-chest', {
+            method: 'POST',
+            body: JSON.stringify({ period, threshold: Number(threshold) })
+        });
+        if (data?.error) {
+            window.alert(data.error);
+            return;
+        }
+        applyRewardClaim(data);
+        if (!data?.dailyMissions) await loadDailyMissions();
+        const summary = rewardBundleText(data?.reward, data?.remnants, (data?.cards || []).length);
+        pushNotification('gold', `${period === 'weekly' ? 'Weekly' : 'Daily'} chest opened — ${threshold} points`,
+            `${summary}.${claimedCardsDetail(data?.cards)}`);
+        safeRender(renderGold);
+        safeRender(renderHomeDashboard);
+    }
+
+    async function claimKnightLevel() {
+        if (!state.token) return;
+        const data = await fetchJson('/api/missions/claim-knight', { method: 'POST', body: JSON.stringify({}) });
+        if (data?.error) {
+            window.alert(data.error);
+            return;
+        }
+        applyRewardClaim(data);
+        if (!data?.dailyMissions) await loadDailyMissions();
+        const summary = rewardBundleText(data?.reward, data?.remnants, (data?.cards || []).length);
+        pushNotification('gold', `Knight Level ${data?.level || ''} reached`, `${summary}.${claimedCardsDetail(data?.cards)}`);
         safeRender(renderGold);
         safeRender(renderHomeDashboard);
     }
@@ -2930,6 +3099,12 @@
         }));
         root.querySelector('[data-login-claim]')?.addEventListener('click', () => {
             void claimLoginReward();
+        });
+        root.querySelectorAll('[data-chest-threshold]').forEach(btn => btn.addEventListener('click', () => {
+            void claimMissionChest(btn.dataset.chestPeriod, btn.dataset.chestThreshold);
+        }));
+        root.querySelector('[data-knight-claim]')?.addEventListener('click', () => {
+            void claimKnightLevel();
         });
         root.querySelectorAll('[data-home-lb-period]').forEach(btn => btn.addEventListener('click', () => {
             state.leaderboardPeriod = btn.dataset.homeLbPeriod || 'daily';
