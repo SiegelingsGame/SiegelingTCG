@@ -24,8 +24,17 @@ public class DailyMissionController {
 
     @GetMapping("/api/missions/daily")
     public Map<String, Object> daily(@RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
-        AccountUser user = accountService.requireUser(authorizationHeader);
-        return dailyMissionService.getDailySnapshot(user);
+        // Matches the claim endpoints: a signed-out caller gets the same
+        // {"error": ...} envelope the client already handles, rather than the
+        // bare 500 an uncaught requireUser produced.
+        try {
+            AccountUser user = accountService.requireUser(authorizationHeader);
+            return dailyMissionService.getDailySnapshot(user);
+        } catch (IllegalArgumentException ex) {
+            Map<String, Object> error = new LinkedHashMap<>();
+            error.put("error", ex.getMessage());
+            return error;
+        }
     }
 
     @PostMapping("/api/missions/claim")

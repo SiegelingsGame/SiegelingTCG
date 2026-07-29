@@ -199,8 +199,18 @@ public class DailyMissionProgressEntity {
         };
     }
 
+    /**
+     * Only the daily and weekly periods have a chest ladder. LIFETIME feeds the
+     * Knight Level instead, so it throws rather than silently handing back the
+     * daily list — a caller that forgot to filter would otherwise read and mark
+     * daily chests while believing it was working on a lifetime track.
+     */
     public List<Integer> claimedChests(MissionPeriod period) {
-        return period == MissionPeriod.WEEKLY ? claimedWeeklyChests : claimedDailyChests;
+        return switch (period) {
+            case WEEKLY -> claimedWeeklyChests;
+            case DAILY -> claimedDailyChests;
+            default -> throw new IllegalArgumentException("No chest ladder exists for period " + period + ".");
+        };
     }
 
     public Instant getUpdatedAt() {
