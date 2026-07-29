@@ -21,9 +21,10 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Calculates energy from linked notches and explicit perimeter sockets.
+ * Calculates energy from linked notches and persistent perimeter call wells.
  * Linked pairs grant connection energy once per connection.
- * External energy only comes from the board's dedicated outer sockets.
+ * A dedicated outer socket becomes a call well the first time an elemental
+ * notch touches it and contributes one baseline energy for the rest of the match.
  */
 @Service
 public class EnergyService {
@@ -101,11 +102,7 @@ public class EnergyService {
         state.getEnemy().setMistActive(enemyEnergy.mistActive());
     }
 
-    /**
-     * External sockets (board perimeter) contribute energy only while a Siegling is currently touching them.
-     * This must be derived from the live board state so sockets are not permanently active after links break
-     * or units are defeated/moved.
-     */
+    /** Finds newly touched call wells on the live board. GameState latches them for the match. */
     private Map<String, Element> collectExternalSocketTouches(GameState state, boolean isPlayer) {
         Map<String, Element> detected = new LinkedHashMap<>();
         for (CardInstance ci : state.getBoardSieglings(isPlayer)) {
@@ -274,7 +271,8 @@ public class EnergyService {
     }
 
     private EnergyBreakdown analyze(GameState state, boolean isPlayer) {
-        Map<String, Element> activeExternalSockets = collectExternalSocketTouches(state, isPlayer);
+        state.mergeExternalSocketActivations(isPlayer, collectExternalSocketTouches(state, isPlayer));
+        Map<String, Element> callWells = state.getExternalSocketActivations(isPlayer);
 
         int fireInternal = 0;
         int fireExternal = 0;
@@ -354,7 +352,7 @@ public class EnergyService {
             }
         }
 
-        for (Element element : activeExternalSockets.values()) {
+        for (Element element : callWells.values()) {
             switch (element) {
                 case FIRE -> fireExternal++;
                 case EARTH -> earthExternal++;

@@ -1,12 +1,10 @@
 let gameState = null;
 
 /**
- * Remembers the last element that activated each perimeter socket so the socket
- * keeps its color as a reference after the Siegeling is removed. A new notch
- * connection to the same socket overwrites the stored element.
+ * Mirrors the server-authoritative call wells so activated perimeter points stay
+ * lit for the match after their attached Siegeling leaves the board. The first
+ * elemental activation owns the well; reconnecting never adds a second energy.
  */
-// External sockets are active only while a notch currently touches them.
-// We intentionally do NOT "remember" prior touches: otherwise exterior notches appear permanently active.
 let externalSocketElementMemory = { player: Object.create(null), enemy: Object.create(null) };
 
 function clearExternalSocketElementMemory() {
@@ -1087,7 +1085,7 @@ const CARD_ART_BY_KEY = Object.freeze({
 const WELCOME_SLIDES = [
     {
         title: '1. Notches can wake external sockets',
-        copy: 'When you place a Siegeling, any notch that points off the board lines up with a perimeter socket. That live connection feeds your energy pool the same way it does in a real match.',
+        copy: 'When you place a Siegeling, any elemental notch that points off the board awakens a perimeter call well. That well supplies 1 baseline energy for the rest of the battle, even if the Siegeling is defeated.',
         visual: `
             <div class="tutorial-visual tutorial-board">
                 <div class="tutorial-arena-mid tutorial-arena-external-demo">
@@ -12944,12 +12942,15 @@ function collectLinkConnectorElements(out, grid, board, isPlayer) {
     }
 
     const memorySide = isPlayer ? 'player' : 'enemy';
-    // External sockets should reflect the current board state (not latched permanently).
-    // Clear any previously remembered socket elements before repopulating.
-    externalSocketElementMemory[memorySide] = Object.create(null);
-    const freshMem = externalSocketElementMemory[memorySide];
+    const serverCallWells = isPlayer ? gameState?.playerCallWells : gameState?.enemyCallWells;
+    const rememberedWells = externalSocketElementMemory[memorySide];
+    for (const [key, element] of Object.entries(serverCallWells || {})) {
+        if (key && element) rememberedWells[key] = element;
+    }
     activeExternalSockets.forEach((info, key) => {
-        freshMem[key] = info.element;
+        if (String(info.element || '').toUpperCase() !== 'NEUTRAL' && !rememberedWells[key]) {
+            rememberedWells[key] = info.element;
+        }
     });
 
     for (const link of links) {
@@ -13098,13 +13099,14 @@ function collectLinkConnectorElements(out, grid, board, isPlayer) {
 
         const point = getExternalSocketPoint(cellLocal, socket.side);
         const activeSocket = activeExternalSockets.get(socket.key);
+        const callWellElement = rememberedWells[socket.key] || activeSocket?.element || null;
 
         if (activeSocket) {
             const anchor = getCellEdgeAnchor(cellLocal, activeSocket.direction);
             appendExternalLink(out, anchor, point, getElementHex(activeSocket.element));
         }
 
-        appendExternalEnergyPoint(out, point, activeSocket?.element || null);
+        appendExternalEnergyPoint(out, point, callWellElement, Boolean(rememberedWells[socket.key]));
     }
 }
 
@@ -13233,12 +13235,15 @@ function appendExternalLink(out, start, end, color) {
     out.push(connector);
 }
 
-function appendExternalEnergyPoint(out, point, element) {
+function appendExternalEnergyPoint(out, point, element, isCallWell = false) {
     const node = document.createElement('div');
     const activeClass = element ? ` active ${String(element).toLowerCase()}` : '';
-    node.className = `external-energy-point${activeClass}`;
+    node.className = `external-energy-point${activeClass}${isCallWell ? ' call-well' : ''}`;
     node.style.left = `${point.x}px`;
     node.style.top = `${point.y}px`;
+    if (isCallWell) {
+        node.title = `Call well: 1 ${formatElementLabel(element)} baseline energy for this battle`;
+    }
     out.push(node);
 }
 
@@ -13282,7 +13287,8 @@ const NOTCH_ICON_PATHS = {
     UNDEAD: '/img/notches/notch-undead.png?v=2',
     PSYCHIC: '/img/notches/notch-psychic.png?v=2',
     POISON: '/img/notches/notch-poison.png?v=2',
-    LIGHT: '/img/notches/notch-light.png?v=2'
+    LIGHT: '/img/notches/notch-light.png?v=2',
+    NEUTRAL: '/img/notches/notch-neutral.png?v=2'
 };
 
 function renderBoardNotches(notches, options) {
@@ -16082,6 +16088,44 @@ syncDesktopInspectTabUi();
     document.addEventListener('pointerup', finish);
     document.addEventListener('pointercancel', finish);
 })();
+
+function renderBattleGameToText() {
+    if (!gameState) return JSON.stringify({ mode: 'not-started' });
+    const summarizeBoard = (board) => (board || []).map((row, rowIndex) =>
+        (row || []).map((cell, colIndex) => cell ? {
+            row: rowIndex,
+            col: colIndex,
+            id: cell.id,
+            name: cell.name,
+            health: cell.currentHealth ?? cell.health,
+            speed: cell.currentSpeed ?? cell.speed
+        } : null)
+    );
+    return JSON.stringify({
+        mode: 'battle',
+        coordinates: '3x3 boards; row 0 is back, row 2 is front, columns increase left-to-right',
+        phase: gameState.currentPhase,
+        turn: gameState.turnNumber,
+        activeSide: gameState.activeSide,
+        player: {
+            health: gameState.player?.health,
+            energy: getPlayerTotalSpendableEnergy(),
+            callWells: gameState.playerCallWells || {},
+            board: summarizeBoard(gameState.playerBoard)
+        },
+        enemy: {
+            health: gameState.enemy?.health,
+            callWells: gameState.enemyCallWells || {},
+            board: summarizeBoard(gameState.enemyBoard)
+        }
+    });
+}
+
+window.render_game_to_text = renderBattleGameToText;
+window.advanceTime = function () {
+    refreshBoardLinkConnectors();
+    return renderBattleGameToText();
+};
 
 window.SieglingsCardShowcase = {
     renderShowcaseCard,

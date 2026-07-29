@@ -366,7 +366,7 @@ class GameJavaScriptRegressionTest {
         String binderScript = Files.readString(CARD_BINDER_VISUAL_JS);
         Set<String> elements = Set.of(
                 "fire", "earth", "wind", "water", "ice", "shadow",
-                "electric", "metal", "undead", "psychic", "poison", "light"
+                "electric", "metal", "undead", "psychic", "poison", "light", "neutral"
         );
 
         for (String element : elements) {
@@ -387,14 +387,31 @@ class GameJavaScriptRegressionTest {
         String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
         assertTrue(
                 homeMarkup.contains("style.css?v=216")
-                        && homeMarkup.contains("game.js?v=216")
-                        && homeMarkup.contains("card-binder-visual.js?v=19")
+                        && homeMarkup.contains("game.js?v=218")
+                        && homeMarkup.contains("card-binder-visual.js?v=20")
                         && homeMarkup.contains("home.js?v=121")
                         && playMarkup.contains("style.css?v=216")
-                        && playMarkup.contains("game.js?v=216")
+                        && playMarkup.contains("game.js?v=218")
                         && dashboardMarkup.contains("style.css?v=216")
-                        && dashboardMarkup.contains("card-binder-visual.js?v=19"),
+                        && dashboardMarkup.contains("card-binder-visual.js?v=20"),
                 "Every surface must advance its cache pins with the complete painted-notch set."
+        );
+    }
+
+    @Test
+    void callWellsRemainVisibleWithoutAConnectedSiegling() throws IOException {
+        String gameScript = readGameScript();
+        assertTrue(
+                gameScript.contains("gameState?.playerCallWells")
+                        && gameScript.contains("gameState?.enemyCallWells")
+                        && gameScript.contains("rememberedWells[socket.key] || activeSocket?.element")
+                        && gameScript.contains("appendExternalEnergyPoint(out, point, callWellElement")
+                        && gameScript.contains("Call well: 1"),
+                "Battle rendering must use the persistent call-well state after the attached card disappears."
+        );
+        assertFalse(
+                gameScript.contains("externalSocketElementMemory[memorySide] = Object.create(null)"),
+                "Board refreshes must not erase call wells activated earlier in the match."
         );
     }
 
