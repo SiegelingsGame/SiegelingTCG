@@ -502,9 +502,10 @@ button.resource-pill:focus-visible {
     box-shadow: 0 0 0 2px rgba(244, 204, 98, .7), 0 0 14px rgba(244, 204, 98, .45);
 }
 
-.building-illustration { position: absolute; inset: 0 0 35px; display: block; }
+.building-illustration { position: absolute; z-index: 0; inset: 0 0 35px; display: block; }
 .building-label {
     position: absolute;
+    z-index: 1;
     left: 50%;
     bottom: 0;
     transform: translateX(-50%);
