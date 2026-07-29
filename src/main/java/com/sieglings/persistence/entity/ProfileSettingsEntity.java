@@ -19,6 +19,11 @@ public class ProfileSettingsEntity {
     private String playerTitle = "";
     private String bio = "";
     private String preferredCardBack = "";
+    /** The owned Siegeling or SiegeKnight shown in the profile favorite slot. */
+    private String favoriteCardId = "";
+    /** STANDARD or HOLOGRAPHIC when the selected card supports a holo finish. */
+    private String favoriteCardVariant = "STANDARD";
+    /** Legacy Siegeling-only field retained for older profile clients. */
     private String favoriteSiegling = "";
     /** Achievement ids the player has chosen to feature on their profile badge case (max 6). */
     private List<String> featuredBadgeIds = new ArrayList<>();
@@ -48,6 +53,10 @@ public class ProfileSettingsEntity {
     public void setBio(String bio) { this.bio = bio; }
     public String getPreferredCardBack() { return preferredCardBack; }
     public void setPreferredCardBack(String preferredCardBack) { this.preferredCardBack = preferredCardBack; }
+    public String getFavoriteCardId() { return favoriteCardId; }
+    public void setFavoriteCardId(String favoriteCardId) { this.favoriteCardId = favoriteCardId; }
+    public String getFavoriteCardVariant() { return favoriteCardVariant; }
+    public void setFavoriteCardVariant(String favoriteCardVariant) { this.favoriteCardVariant = favoriteCardVariant; }
     public String getFavoriteSiegling() { return favoriteSiegling; }
     public void setFavoriteSiegling(String favoriteSiegling) { this.favoriteSiegling = favoriteSiegling; }
     public List<String> getFeaturedBadgeIds() { return featuredBadgeIds; }
