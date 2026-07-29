@@ -90,6 +90,10 @@
         // space is ever open, so five stacked cards never bury the tasks on a phone.
         enclaveOpenSlot: -1,
         frontPickerSlot: -1,
+        // The Keeper's Favor menu walks cell -> portrait grid -> confirm sheet. Both steps
+        // live in state because every snapshot refresh re-renders the panel body.
+        favorPickerOpen: false,
+        favorCandidateId: '',
         selectedRelationshipId: '',
         inventoryFilter: 'ALL',
         pendingOfflineReport: null,
@@ -142,6 +146,10 @@
         document.getElementById('dialogueOverlay')?.addEventListener('click', (event) => {
             if (event.target.id === 'dialogueOverlay') closeDialogue();
         });
+        // Tapping the darkened surround is the same as denying: the favorite is unchanged.
+        document.getElementById('favorOverlay')?.addEventListener('click', (event) => {
+            if (event.target.id === 'favorOverlay') closeFavorConfirm();
+        });
         document.getElementById('collectButton')?.addEventListener('click', collectTimber);
         document.getElementById('fullscreenButton')?.addEventListener('click', toggleFullscreen);
         document.getElementById('discoveryOpen')?.addEventListener('click', openLatestDiscovery);
@@ -177,6 +185,7 @@
             }
             if (event.key === 'Escape') {
                 if (!document.getElementById('keepTutorial')?.classList.contains('hidden')) finishTutorial();
+                else if (!document.getElementById('favorOverlay')?.classList.contains('hidden')) closeFavorConfirm();
                 else if (!document.getElementById('journeyOverlay')?.classList.contains('hidden')) closeJourney();
                 else if (!document.getElementById('dialogueOverlay')?.classList.contains('hidden')) closeDialogue();
                 else if (state.panel) closePanel();
@@ -433,9 +442,27 @@
             void setHallTheme(theme.dataset.setTheme);
             return;
         }
-        const favorite = event.target.closest('[data-set-favorite]');
-        if (favorite) {
-            void setFavorite(favorite.dataset.setFavorite);
+        if (event.target.closest('[data-favor-open]')) {
+            state.favorPickerOpen = true;
+            rerenderActiveSurface();
+            return;
+        }
+        if (event.target.closest('[data-favor-close]')) {
+            state.favorPickerOpen = false;
+            rerenderActiveSurface();
+            return;
+        }
+        const favorCandidate = event.target.closest('[data-favor-candidate]');
+        if (favorCandidate) {
+            openFavorConfirm(favorCandidate.dataset.favorCandidate);
+            return;
+        }
+        if (event.target.closest('[data-favor-approve]')) {
+            void approveFavorCandidate();
+            return;
+        }
+        if (event.target.closest('[data-favor-deny]')) {
+            closeFavorConfirm();
             return;
         }
         const conversation = event.target.closest('[data-conversation-id]');
@@ -731,6 +758,7 @@
                 .map((item) => constructionTarget(item.id)).filter(Boolean).join(' ');
         }
         renderFavoriteShrine();
+        renderFavorConfirm();
         renderJourney();
         const rank = snapshot.keepRank || {};
         text('hallRankLabel', rank.name
@@ -1043,6 +1071,9 @@
 
     function closePanel() {
         state.panel = '';
+        // Leaving the hall ends the favor menu, so returning starts at the honored cell.
+        state.favorPickerOpen = false;
+        closeFavorConfirm();
         collapseEnclaveSpaces();
         document.querySelector('.keep-main')?.classList.remove('panel-open');
         document.getElementById('keepPanel')?.setAttribute('aria-hidden', 'true');
@@ -1305,25 +1336,139 @@
     }
 
     /** Choosing a favorite happens inside the Covenant Hall — a keep-wide honor,
-        not a per-station assignment, so it lives here rather than the residents dock. */
+        not a per-station assignment, so it lives here rather than the residents dock.
+        The chooser leads with the character rather than a list of names: one cell holds
+        whoever is honored now, tapping it opens a grid of portrait cells, and picking a
+        portrait raises a confirm sheet that states the effect before anything changes. */
     function favoriteChooserMarkup() {
         const residents = state.snapshot.residents || [];
         const favorite = state.snapshot.favorite || {};
+        const heading = `<span class="eyebrow">Favorite Siegeling</span><h3>The Keeper's Favor</h3>`;
         if (!residents.length) {
-            return `<section class="detail-card favorite-card"><span class="eyebrow">Favorite Siegeling</span><h3>The Keeper's Favor</h3><p>Owned Siegelings will gather here. Honor one to inspire the whole keep.</p></section>`;
+            return `<section class="detail-card favor-card">${heading}
+                <div class="favor-cell-row">
+                    <span class="favor-cell is-empty" aria-hidden="true">${favorArtMarkup(null, 'favor-cell-art')}</span>
+                    <div class="favor-cell-copy"><strong>No Siegelings yet</strong>
+                        <small>The pedestal stands empty</small>
+                        <p>Owned Siegelings gather here. Honor one to inspire the whole keep.</p></div>
+                </div></section>`;
         }
-        const current = favorite.resident
-            ? `<div class="favorite-current"><span class="favorite-current-avatar" style="--resident-color:${escapeAttr(elementColors[favorite.resident.element] || elementColors.NEUTRAL)}">${residentAvatarContent(favorite.resident)}</span><span><strong>${escapeHtml(favorite.resident.name)}</strong><small>${escapeHtml(favorite.label || '')}</small></span></div>`
-            : `<p>No favorite is honored yet. Choose one to inspire the whole keep — the bonus scales with their rarity and lifts every station's output, tribute, and orders.</p>`;
-        const choices = residents.map((resident) => {
-            const isFavorite = favorite.residentId === resident.id;
-            return `<button type="button" class="favorite-choice ${isFavorite ? 'active' : ''}" data-set-favorite="${escapeAttr(resident.id)}" style="--resident-color:${escapeAttr(elementColors[resident.element] || elementColors.NEUTRAL)}" aria-pressed="${isFavorite ? 'true' : 'false'}">
-                <span class="favorite-choice-avatar">${residentAvatarContent(resident)}</span>
-                <span class="favorite-choice-copy"><strong>${escapeHtml(resident.name)}</strong><small>${escapeHtml(titleCase(resident.element))} · ${escapeHtml(titleCase(resident.rarity || 'COMMON'))}</small></span>
-                <i class="favorite-choice-star" aria-hidden="true">${isFavorite ? '★' : '☆'}</i>
-            </button>`;
-        }).join('');
-        return `<section class="detail-card favorite-card"><span class="eyebrow">Favorite Siegeling</span><h3>The Keeper's Favor</h3>${current}<div class="favorite-choices">${choices}</div></section>`;
+        if (!state.favorPickerOpen) return `<section class="detail-card favor-card">${heading}${favorCellMarkup(favorite)}</section>`;
+        const tiles = residents.map((resident) => favorTileMarkup(resident, favorite.residentId === resident.id)).join('');
+        return `<section class="detail-card favor-card is-picking">${heading}
+            <div class="favor-grid-head"><strong>${favorite.resident ? 'Honor someone else' : 'Choose who is honored'}</strong>
+                <button type="button" class="picker-close" data-favor-close aria-label="Close the favor menu">&times;</button></div>
+            <div class="favor-grid">${tiles}</div></section>`;
+    }
+
+    /** The single honored cell. It keeps the same footprint whether or not anyone is
+        honored, so opening and closing the grid never shifts the card beneath it. */
+    function favorCellMarkup(favorite) {
+        const resident = favorite.resident || null;
+        const bonus = favoriteBonusPercent(resident);
+        return `<div class="favor-cell-row">
+            <button type="button" class="favor-cell ${resident ? 'has-favorite' : 'is-empty'}" data-favor-open
+                style="--resident-color:${escapeAttr(elementColors[resident?.element] || elementColors.NEUTRAL)}"
+                aria-label="${resident ? `Change the honored Siegeling. ${escapeAttr(resident.name)} is honored now.` : 'Choose the honored Siegeling'}">
+                ${favorArtMarkup(resident, 'favor-cell-art')}
+                <i class="favor-cell-hint" aria-hidden="true">${resident ? 'Change' : 'Choose'}</i>
+            </button>
+            <div class="favor-cell-copy">
+                <strong>${resident ? escapeHtml(resident.name) : 'No favorite honored'}</strong>
+                <small>${resident
+                    ? `${escapeHtml(titleCase(resident.element))} · ${escapeHtml(titleCase(resident.rarity || 'COMMON'))}`
+                    : 'An empty pedestal waits'}</small>
+                <p class="favor-cell-effect">${resident
+                    ? `+${bonus}% to every station's output, tribute, and weekly orders`
+                    : 'Honor one Siegeling to lift the whole keep.'}</p>
+            </div>
+        </div>`;
+    }
+
+    function favorTileMarkup(resident, isFavorite) {
+        return `<button type="button" class="favor-tile ${isFavorite ? 'is-current' : ''}" data-favor-candidate="${escapeAttr(resident.id)}"
+            style="--resident-color:${escapeAttr(elementColors[resident.element] || elementColors.NEUTRAL)}"
+            aria-pressed="${isFavorite ? 'true' : 'false'}">
+            ${favorArtMarkup(resident, 'favor-tile-art')}
+            <strong>${escapeHtml(resident.name)}</strong>
+            <small>${escapeHtml(titleCase(resident.rarity || 'COMMON'))} · +${favoriteBonusPercent(resident)}%</small>
+            ${isFavorite ? '<i class="favor-tile-star" aria-hidden="true">★</i>' : ''}
+        </button>`;
+    }
+
+    /* An unfilled honor still draws a Siegeling-shaped standee, so the cell reads as a
+       vacancy rather than as a broken portrait. */
+    const FAVOR_SILHOUETTE = `<svg viewBox="0 0 64 72" aria-hidden="true" focusable="false">
+        <path d="M17 15 L12 1 L28 9 Z"/><path d="M47 15 L52 1 L36 9 Z"/>
+        <circle cx="32" cy="25" r="17"/>
+        <path d="M32 40c-12 0-21 9-21 21v10h42V61c0-12-9-21-21-21z"/></svg>`;
+
+    function favorArtMarkup(resident, className) {
+        if (!resident) return `<span class="${className} is-silhouette" aria-hidden="true">${FAVOR_SILHOUETTE}</span>`;
+        const paper = resident.artUrl ? 'has-overlay-art is-paper-cutout' : 'is-paper-token';
+        return `<span class="${className} ${paper}" aria-hidden="true">${residentAvatarContent(resident)}</span>`;
+    }
+
+    const FAVOR_FALLBACK_PERCENT = { COMMON: 5, UNCOMMON: 8, RARE: 12, EPIC: 16, LEGENDARY: 20 };
+
+    /** The server states what each Siegeling would grant, rapport included, so the preview
+        cannot drift from the boost the keep actually receives. The rarity ladder below is
+        only a fallback for a snapshot serialized before that field existed. */
+    function favoriteBonusPercent(resident) {
+        if (!resident) return 0;
+        const served = number(resident.favoriteBonusPercent);
+        if (served > 0) return served;
+        return FAVOR_FALLBACK_PERCENT[String(resident.rarity || '').toUpperCase()] || FAVOR_FALLBACK_PERCENT.COMMON;
+    }
+
+    function openFavorConfirm(residentId) {
+        if (!residentById(residentId)) return;
+        state.favorCandidateId = residentId;
+        renderFavorConfirm();
+    }
+
+    function closeFavorConfirm() {
+        state.favorCandidateId = '';
+        document.getElementById('favorOverlay')?.classList.add('hidden');
+    }
+
+    async function approveFavorCandidate() {
+        const candidate = residentById(state.favorCandidateId);
+        if (!candidate) return;
+        closeFavorConfirm();
+        state.favorPickerOpen = false;
+        // setFavorite toggles, so approving the Siegeling already honored steps them down.
+        await setFavorite(candidate.id);
+    }
+
+    /** Nothing is committed until Approve. The sheet names the exact keep-wide effect and
+        who loses the honor, so a mis-tap in the portrait grid costs the keeper nothing. */
+    function renderFavorConfirm() {
+        const overlay = document.getElementById('favorOverlay');
+        if (!overlay) return;
+        const candidate = residentById(state.favorCandidateId);
+        overlay.classList.toggle('hidden', !candidate);
+        if (!candidate) return;
+        const favorite = state.snapshot?.favorite || {};
+        const stepDown = favorite.residentId === candidate.id;
+        const bonus = favoriteBonusPercent(candidate);
+        const rapportLevel = number(candidate.rapport?.level);
+        const art = document.getElementById('favorConfirmArt');
+        if (art) art.innerHTML = favorArtMarkup(candidate, 'favor-confirm-cutout');
+        text('favorConfirmKicker', stepDown ? 'End this honor' : 'Honor a new favorite');
+        text('favorConfirmName', candidate.name);
+        text('favorConfirmMeta', `${titleCase(candidate.element)} · ${titleCase(candidate.rarity || 'COMMON')} · ${titleCase(residentSize(candidate))}`);
+        text('favorConfirmEffect', stepDown
+            ? `Ends +${bonus}% keep-wide output`
+            : `+${bonus}% keep-wide output`);
+        text('favorConfirmDescription', stepDown
+            ? `${candidate.name} returns to the roster and the keep loses the favor bonus until another Siegeling is honored.`
+            : `Honoring ${candidate.name} lifts every station's output, tribute, and weekly orders by ${bonus}%.`
+                + (favorite.resident && favorite.residentId !== candidate.id
+                    ? ` ${favorite.resident.name} steps down from the pedestal.` : '')
+                + (rapportLevel > 0 ? ` Rapport ${rapportLevel} already multiplies this favor.` : ''));
+        const approve = document.getElementById('favorConfirmApprove');
+        if (approve) approve.textContent = stepDown ? 'Step down' : 'Approve';
     }
 
     function rankCardMarkup() {
@@ -2469,9 +2614,7 @@
             }
         } else if (path.endsWith('/favorite')) {
             const resident = (snapshot.residents || []).find((item) => item.id === body.residentId) || null;
-            const bonus = resident
-                ? ({ UNCOMMON: 8, RARE: 12, EPIC: 16, LEGENDARY: 20 })[resident.rarity] || 5
-                : 0;
+            const bonus = favoriteBonusPercent(resident);
             snapshot.favorite = {
                 residentId: resident ? resident.id : '',
                 resident,
@@ -2748,6 +2891,11 @@
 
     function stationById(id) {
         return (state.snapshot?.stations || [state.snapshot?.station]).find((station) => station?.id === id) || null;
+    }
+
+    function residentById(id) {
+        if (!id) return null;
+        return (state.snapshot?.residents || []).find((resident) => resident?.id === id) || null;
     }
 
     function assignmentFor(residentId) {

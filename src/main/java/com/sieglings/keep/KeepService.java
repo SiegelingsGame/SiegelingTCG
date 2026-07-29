@@ -538,7 +538,14 @@ public class KeepService {
     private double favoriteBoost(KeepState state, List<Resident> residents) {
         Resident favorite = favoriteResident(state, residents);
         if (favorite == null) return 0;
-        return tuning().favoritePercent(favorite.rarity()) / 100.0 * rapportMultiplier(state, favorite.id());
+        return favoriteBoostFor(state, favorite);
+    }
+
+    /** What honoring this particular Siegeling would grant, whether or not it is the
+        current favorite. The chooser previews the exact number before the keeper approves,
+        so rapport has to fold in here the same way it does for the active favorite. */
+    private double favoriteBoostFor(KeepState state, Resident resident) {
+        return tuning().favoritePercent(resident.rarity()) / 100.0 * rapportMultiplier(state, resident.id());
     }
 
     // ── Rapport ───────────────────────────────────────────────────────────────
@@ -2660,6 +2667,9 @@ public class KeepService {
         Map<String, Object> out = serializeResident(resident);
         out.put("rapport", serializeRapport(state, resident.id()));
         out.put("assignment", residentAssignment(state, resident.id()));
+        // The favor chooser states the keep-wide effect before the keeper approves it, so the
+        // percentage has to come from the same tuning the boost itself is computed from.
+        out.put("favoriteBonusPercent", (int) Math.round(favoriteBoostFor(state, resident) * 100));
         return out;
     }
 

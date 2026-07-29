@@ -9,7 +9,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#173f54">
-    <link rel="stylesheet" href="/css/keep.css?v=35">
+    <link rel="stylesheet" href="/css/keep.css?v=36">
 </head>
 <body>
 <svg class="keep-svg-defs" width="0" height="0" aria-hidden="true" focusable="false">
@@ -559,6 +559,24 @@
         </div>
     </div>
 
+    <!-- Approving a new favorite is a keep-wide change, so the cell picker hands off to a
+         confirm sheet that states the effect before anything is committed. -->
+    <div class="favor-overlay hidden" id="favorOverlay" role="dialog" aria-modal="true" aria-labelledby="favorConfirmName">
+        <div class="favor-confirm-card">
+            <button class="favor-confirm-close" type="button" data-favor-deny aria-label="Close without changing the favorite">×</button>
+            <span class="eyebrow" id="favorConfirmKicker">Honor a new favorite</span>
+            <div class="favor-confirm-art" id="favorConfirmArt" aria-hidden="true"></div>
+            <h2 id="favorConfirmName">Siegeling</h2>
+            <small id="favorConfirmMeta"></small>
+            <p class="favor-confirm-effect" id="favorConfirmEffect"></p>
+            <p class="favor-confirm-description" id="favorConfirmDescription"></p>
+            <div class="favor-confirm-actions">
+                <button class="panel-button secondary" type="button" data-favor-deny>Deny</button>
+                <button class="panel-button" type="button" data-favor-approve id="favorConfirmApprove">Approve</button>
+            </div>
+        </div>
+    </div>
+
     <div class="discovery-toast hidden" id="discoveryToast" role="status" aria-live="polite">
         <span class="discovery-seal" aria-hidden="true">✦</span>
         <span><small>Lore discovered</small><strong id="discoveryTitle">New Chronicle entry</strong></span>
@@ -623,7 +641,7 @@
 
 <audio id="keepTheme" loop preload="auto" src="/audio/sieglings-theme.mp3?v=1"></audio>
 <script src="/js/config.js?v=1"></script>
-<script src="/js/keep.js?v=36"></script>
+<script src="/js/keep.js?v=37"></script>
 <script src="/js/sw-register.js?v=1"></script>
 </body>
 </html>
