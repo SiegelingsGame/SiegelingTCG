@@ -1160,6 +1160,14 @@ class GameJavaScriptRegressionTest {
                         && !keepCss.contains(".keep-dock .collect-button { margin-top: -10px;"),
                 "Collect must align inside the dock instead of using a negative top margin that overlaps the Keep map."
         );
+        // Locked scenery ("Unlock from Projects") and several panels send the player to Projects by
+        // name, so the dock must keep a control that carries that name — the Teams pill counts crews,
+        // not projects, and leaves those instructions pointing at nothing.
+        assertTrue(
+                keepHtml.contains("<button type=\"button\" data-open-panel=\"projects\">")
+                        && keepHtml.contains("<strong>Projects</strong>"),
+                "The Keep dock must keep its named Projects button so every 'Unlock from Projects' hint has a visible destination."
+        );
     }
 
     @Test
