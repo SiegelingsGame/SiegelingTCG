@@ -963,6 +963,7 @@
         const event = state.snapshot?.activeKeepEvent;
         const alert = document.getElementById('keepEventAlert');
         document.querySelectorAll('.is-damaged').forEach((node) => node.classList.remove('is-damaged'));
+        document.querySelectorAll('.repair-scaffold').forEach((node) => node.remove());
         if (!event) {
             alert?.classList.add('hidden');
             document.body.removeAttribute('data-keep-damage');
@@ -975,13 +976,15 @@
             : event.targetId;
         if (roomId) {
             const safeId = window.CSS?.escape ? window.CSS.escape(roomId) : String(roomId).replace(/[^a-z0-9_-]/gi, '');
-            document.querySelectorAll(`[data-building="${safeId}"], [data-room="${safeId}"], [data-enter-facility="${safeId}"]`)
-                .forEach((node) => node.classList.add('is-damaged'));
+            // Quarter facilities have no data-building of their own; their tile in the
+            // cluster carries data-stockpile, so a damaged forge still gets scaffolded.
+            document.querySelectorAll(`[data-building="${safeId}"], [data-room="${safeId}"], [data-enter-facility="${safeId}"], .quarter-building[data-stockpile="${safeId}"]`)
+                .forEach((node) => { node.classList.add('is-damaged'); raiseRepairScaffold(node); });
         }
         text('keepEventAlertName', event.targetName || event.title);
         text('keepEventKicker', event.kicker || 'A setback strikes');
         text('keepEventTitle', event.title || 'Repairs needed');
-        text('keepEventTarget', `${titleCase(event.targetType)} damaged Â· ${event.targetName || event.targetId}`);
+        text('keepEventTarget', `${titleCase(event.targetType)} damaged · ${event.targetName || event.targetId}`);
         text('keepEventDescription', event.description || 'A part of the Keep needs to be rebuilt.');
         text('keepEventImpact', event.targetType === 'DECORATION'
             ? 'Decoration bonus paused until rebuilt'
@@ -989,19 +992,32 @@
         const timed = document.getElementById('keepEventTimedRepair');
         if (timed) {
             timed.disabled = Boolean(event.repairInProgress);
-            timed.textContent = event.repairInProgress ? 'Timed rebuild underway' : `Rebuild Â· ${formatDuration(event.repairSeconds)}`;
+            timed.textContent = event.repairInProgress ? 'Timed rebuild underway' : `Rebuild · ${formatDuration(event.repairSeconds)}`;
         }
         const coin = document.getElementById('keepEventCoinRepair');
         if (coin) {
             coin.disabled = !event.canPayCoin;
             coin.textContent = event.canPayCoin
-                ? `Repair now Â· ${number(event.coinCost)} coins`
+                ? `Repair now · ${number(event.coinCost)} coins`
                 : `Need ${number(event.coinCost)} coins`;
         }
         text('keepEventStatus', event.repairInProgress
             ? 'The damaged feature stays offline until the rebuild finishes. Siegecoins can still finish it now.'
             : 'Choose a short rebuild timer or spend Siegecoins to restore it immediately.');
         renderKeepEventTimer();
+    }
+
+    // Scaffolding is scene furniture, so it only goes on illustration containers —
+    // never on the interior shell or a panel button that happens to share the id.
+    function raiseRepairScaffold(node) {
+        const host = node.querySelector('.building-illustration, .enclave-illustration, .quarter-illustration')
+            || (node.classList.contains('quarter-building') ? node : null);
+        if (!host || host.querySelector('.repair-scaffold')) return;
+        const scaffold = document.createElement('span');
+        scaffold.className = 'scaffold repair-scaffold';
+        scaffold.setAttribute('aria-hidden', 'true');
+        scaffold.innerHTML = '<b></b><b></b><b></b><i></i>';
+        host.appendChild(scaffold);
     }
 
     function keepEventRemaining() {

@@ -1055,8 +1055,8 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=42")
-                        && keepHtml.contains("/js/keep.js?v=41")
+                        && keepHtml.contains("/css/keep.css?v=43")
+                        && keepHtml.contains("/js/keep.js?v=42")
                         && keepHtml.contains("id=\"hallFavoriteResident\"")
                         && keepHtml.contains("id=\"productionReady\"")
                         && keepJs.contains("constructionBannerSignature")
@@ -1232,6 +1232,18 @@ class GameJavaScriptRegressionTest {
                         && keepCss.contains(".keep-event-alert")
                         && keepCss.contains(".is-damaged"),
                 "Keep setbacks need a persistent damage cue, repair sheet, live timer, coin route, and debug snapshot state."
+        );
+        assertTrue(
+                keepCss.contains(".repair-scaffold")
+                        && keepJs.contains("function raiseRepairScaffold(")
+                        && keepJs.contains("scaffold repair-scaffold"),
+                "Damage must read as scaffolding raised over the building illustration."
+        );
+        assertFalse(
+                keepCss.contains("content: \"REPAIR\""),
+                "Damage must not print a badge on .is-damaged::after: that is the same box as the "
+                        + ".building-hotspot::after hover ring, so it inherits the ring's inset and "
+                        + "stretches into a slab covering the whole building."
         );
         assertTrue(
                 keepJs.contains("data-dialogue-followup=")
