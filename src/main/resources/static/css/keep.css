@@ -1735,9 +1735,26 @@ button.resource-pill:focus-visible {
 .keep-event-actions .panel-button { min-height: 42px; }
 .keep-event-actions .panel-button:not(.secondary) { color: #2a1712; background: linear-gradient(#ffc17e, #ee8b55); }
 .keep-event-status { min-height: 16px; margin: 9px 0 0 !important; color: #ffd2b5 !important; font: 10px/1.4 sans-serif !important; text-align: center; }
+/* A setback raises repair scaffolding over the structure instead of a badge —
+   the building has to stay readable underneath. Never style .is-damaged::after
+   here: on a hotspot that is the same box as .building-hotspot::after (the
+   hover ring, inset 6% 4% 20%), so a badge there inherits the ring's inset and
+   stretches into a slab across the whole building. keep.js injects
+   .repair-scaffold instead, reusing .scaffold geometry so a damaged site and a
+   build site speak the same visual language. */
 .is-damaged { filter: saturate(.5) contrast(.88); }
 .is-damaged .building-illustration, .is-damaged .facility-building { animation: keep-damage-shudder 3.8s ease-in-out infinite; }
-.is-damaged::after { content: "REPAIR"; position: absolute; z-index: 9; left: 50%; top: 8%; translate: -50% 0; padding: 4px 8px; border: 1px solid rgba(255, 177, 130, .76); border-radius: 99px; color: #3a2018; background: #ffab76; font: 900 8px/1 sans-serif; letter-spacing: .08em; box-shadow: 0 5px 16px rgba(0, 0, 0, .3); pointer-events: none; }
+.repair-scaffold { display: block; z-index: 9; inset: 4% 7% 5%; border-color: #8c6440; pointer-events: none; }
+.repair-scaffold::before, .repair-scaffold::after { background: #8c6440; }
+.repair-scaffold b { background: #bd8a5b; }
+/* Draped canvas: the one cue that separates "being repaired" from "being built". */
+.repair-scaffold i { position: absolute; left: 6%; top: 12%; width: 48%; height: 33%; background: repeating-linear-gradient(38deg, rgba(232, 214, 179, .92) 0 5px, rgba(196, 172, 133, .92) 5px 10px); clip-path: polygon(0 0, 100% 7%, 93% 100%, 7% 89%); rotate: -4deg; box-shadow: 0 3px 8px rgba(18, 24, 20, .32); }
+/* Facility tiles in the Quarter are ~35px tall, so the timber has to thin out. */
+.quarter-building .repair-scaffold { inset: -14% -10% 0; border-width: 2px; border-top-width: 3px; }
+.quarter-building .repair-scaffold::before, .quarter-building .repair-scaffold::after { top: -2px; bottom: -2px; width: 2px; }
+.quarter-building .repair-scaffold b { left: -2px; right: -2px; height: 2px; }
+.quarter-building .repair-scaffold i { display: none; }
+.quarter-building.is-damaged { filter: grayscale(.5) saturate(.6) drop-shadow(0 1px 0 #ead8ad) drop-shadow(2px 3px 2px rgba(23, 19, 15, .4)); }
 @keyframes keep-damage-shudder { 0%, 92%, 100% { translate: 0 0; rotate: 0deg; } 94% { translate: -2px 0; rotate: -.5deg; } 96% { translate: 2px 0; rotate: .5deg; } 98% { translate: -1px 0; rotate: 0deg; } }
 
 .discovery-toast {

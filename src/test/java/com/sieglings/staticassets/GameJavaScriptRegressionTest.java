@@ -1242,6 +1242,18 @@ class GameJavaScriptRegressionTest {
                 "Repairs belong in Keep activity and must not render or automatically open a separate map-covering alert."
         );
         assertTrue(
+                keepCss.contains(".repair-scaffold")
+                        && keepJs.contains("function raiseRepairScaffold(")
+                        && keepJs.contains("scaffold repair-scaffold"),
+                "Damage must read as scaffolding raised over the building illustration."
+        );
+        assertFalse(
+                keepCss.contains("content: \"REPAIR\""),
+                "Damage must not print a badge on .is-damaged::after: that is the same box as the "
+                        + ".building-hotspot::after hover ring, so it inherits the ring's inset and "
+                        + "stretches into a slab covering the whole building."
+        );
+        assertTrue(
                 keepJs.contains("data-dialogue-followup=")
                         && keepJs.contains("Face what follows")
                         && keepJs.contains("This answer caused a new Interaction."),
