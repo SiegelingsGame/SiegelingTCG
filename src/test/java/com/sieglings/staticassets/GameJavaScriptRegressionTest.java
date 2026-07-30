@@ -1055,7 +1055,7 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=41")
+                        && keepHtml.contains("/css/keep.css?v=42")
                         && keepHtml.contains("/js/keep.js?v=41")
                         && keepHtml.contains("id=\"hallFavoriteResident\"")
                         && keepHtml.contains("id=\"productionReady\"")
@@ -1116,6 +1116,21 @@ class GameJavaScriptRegressionTest {
                         && keepCss.contains("@keyframes front-torch-flicker")
                         && keepCss.contains(".keep-app.front-view-active .front-battle { display: block;"),
                 "Akhar's Front must remain a compact map destination, reveal its responsive night battle and torches only after entry, name occupied reassignment locations, and provide a tested route back to the Keep grounds."
+        );
+        assertTrue(
+                keepHtml.contains("data-front-raider=\"0\"")
+                        && keepHtml.contains("class=\"front-raider-health\"")
+                        && keepHtml.contains("id=\"frontProjectiles\"")
+                        && keepHtml.contains("id=\"frontCoinBurst\"")
+                        && keepJs.contains("function advanceFrontCombat(ms)")
+                        && keepJs.contains("function defeatFrontRaider(enemy)")
+                        && keepJs.contains("combat.coinsEarned +=")
+                        && keepJs.contains("combatRatePerMinute")
+                        && keepJs.contains("defeatsThisVisit")
+                        && keepCss.contains(".front-raider-health")
+                        && keepCss.contains(".front-projectile::after")
+                        && keepCss.contains(".front-coin-burst.is-visible"),
+                "Akhar's Front combat must march health-bearing dark Siegelings toward the wall, fire elemental projectiles, and surface a coin award for every defeat."
         );
         assertTrue(
                 keepCss.contains(".building-illustration svg.paper-building-shell")

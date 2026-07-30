@@ -92,6 +92,20 @@
         // space is ever open, so five stacked cards never bury the tasks on a phone.
         enclaveOpenSlot: -1,
         frontPickerSlot: -1,
+        frontCombat: {
+            initialized: false,
+            running: false,
+            timeMs: 0,
+            previousFrameMs: 0,
+            nextProjectileId: 1,
+            enemies: [],
+            projectiles: [],
+            defenderCooldowns: [],
+            defeats: 0,
+            coinsEarned: 0,
+            projectedBonusBeforeSession: 0,
+            lastDefeat: null
+        },
         // The Keeper's Favor menu walks cell -> portrait grid -> confirm sheet. Both steps
         // live in state because every snapshot refresh re-renders the panel body.
         favorPickerOpen: false,
@@ -116,6 +130,17 @@
         SHADOW: '#9b6bd0', ELECTRIC: '#ffe63c', METAL: '#b7c0c8', UNDEAD: '#9e8aad',
         PSYCHIC: '#d0a7ff', LIGHT: '#ffe9a8', POISON: '#84c55b', NEUTRAL: '#c8b997'
     };
+    const FRONT_RAIDER_MAX_HEALTH = 8;
+    const FRONT_DEFENDER_ATTACK_MS = 1600;
+    const FRONT_PROJECTILE_MS = 460;
+    const FRONT_RAIDER_MARCH_MS = 18000;
+    const FRONT_RAIDER_RESPAWN_MS = 900;
+    const FRONT_RAIDER_PATHS = [
+        { startX: 89, startY: 18, endX: 68, endY: 49, size: 14, stagger: 0 },
+        { startX: 75, startY: 27, endX: 59, endY: 54, size: 12, stagger: .24 },
+        { startX: 58, startY: 18, endX: 48, endY: 48, size: 10, stagger: .48 },
+        { startX: 97, startY: 34, endX: 76, endY: 58, size: 9, stagger: .7 }
+    ];
 
     const RANK_NAMES = ['Ruined Camp', 'Timber Outpost', 'Settled Courtyard', 'Stonehold',
         'Walled Keep', 'Elemental Stronghold', 'High Castle', 'Grand Keep'];
@@ -141,6 +166,7 @@
         maybeShowTutorial();
         maybeShowOfflineReport();
         window.setInterval(updateLiveState, 1000);
+        startFrontCombatLoop();
     }
 
     function bindEvents() {
@@ -828,8 +854,10 @@
         }
         if (next.offlineReport) state.pendingOfflineReport = clone(next.offlineReport);
         state.receivedAtMs = Date.now() + state.debugTimeOffsetMs;
+        resetFrontCombat();
         announceKeeperProgress(next);
         renderAll();
+        if (state.frontView) initializeFrontCombat();
         if (nextEventId && nextEventId !== previousEventId && state.shownKeepEventId !== nextEventId) openKeepEvent();
         if (announceDiscoveries) {
             const ids = Array.isArray(next.newLoreUnlocks)
@@ -1139,6 +1167,227 @@
         });
     }
 
+    function resetFrontCombat() {
+        const combat = state.frontCombat;
+        combat.initialized = false;
+        combat.running = false;
+        combat.timeMs = 0;
+        combat.previousFrameMs = 0;
+        combat.nextProjectileId = 1;
+        combat.enemies = [];
+        combat.projectiles = [];
+        combat.defenderCooldowns = [];
+        combat.defeats = 0;
+        combat.coinsEarned = 0;
+        combat.projectedBonusBeforeSession = 0;
+        combat.lastDefeat = null;
+        renderFrontCombat();
+    }
+
+    function initializeFrontCombat() {
+        const front = state.snapshot?.akharsFront;
+        if (!front?.built) return;
+        const combat = state.frontCombat;
+        const elapsedMinutes = Math.max(0, (nowMs() - state.receivedAtMs) / 60000);
+        combat.initialized = true;
+        combat.running = true;
+        combat.timeMs = 0;
+        combat.previousFrameMs = 0;
+        combat.nextProjectileId = 1;
+        combat.projectiles = [];
+        combat.defeats = 0;
+        combat.coinsEarned = 0;
+        combat.projectedBonusBeforeSession = Math.floor(elapsedMinutes * number(front.combatRatePerMinute));
+        combat.lastDefeat = null;
+        combat.enemies = FRONT_RAIDER_PATHS.map((path, index) => createFrontRaider(index, -path.stagger));
+        combat.defenderCooldowns = (front.slots || []).map((slot, index) =>
+            slot?.resident ? index * 360 : Number.POSITIVE_INFINITY);
+        renderFrontCombat();
+        updateLiveCounters();
+    }
+
+    function createFrontRaider(index, progress = 0) {
+        return {
+            id: index,
+            health: FRONT_RAIDER_MAX_HEALTH,
+            maxHealth: FRONT_RAIDER_MAX_HEALTH,
+            progress,
+            status: 'marching',
+            hitUntilMs: 0,
+            defeatedAtMs: 0
+        };
+    }
+
+    function startFrontCombatLoop() {
+        if ((state.testMode && !window.__KEEP_AUTOPLAY__) || typeof window.requestAnimationFrame !== 'function') return;
+        const frame = (timestamp) => {
+            const combat = state.frontCombat;
+            if (state.frontView && combat.running) {
+                const elapsed = combat.previousFrameMs ? Math.min(64, Math.max(0, timestamp - combat.previousFrameMs)) : 0;
+                combat.previousFrameMs = timestamp;
+                if (elapsed > 0) advanceFrontCombat(elapsed);
+            } else {
+                combat.previousFrameMs = timestamp;
+            }
+            window.requestAnimationFrame(frame);
+        };
+        window.requestAnimationFrame(frame);
+    }
+
+    function advanceFrontCombat(ms) {
+        const combat = state.frontCombat;
+        if (!combat.initialized || !combat.running || !state.frontView) return;
+        let remaining = Math.max(0, number(ms));
+        // Short fixed steps keep hits, deaths, and respawns deterministic even when a test
+        // advances several seconds at once.
+        while (remaining > 0) {
+            const step = Math.min(50, remaining);
+            updateFrontCombatStep(step);
+            remaining -= step;
+        }
+        renderFrontCombat();
+        updateLiveCounters();
+    }
+
+    function updateFrontCombatStep(stepMs) {
+        const combat = state.frontCombat;
+        combat.timeMs += stepMs;
+
+        for (let index = 0; index < combat.enemies.length; index++) {
+            const enemy = combat.enemies[index];
+            if (enemy.status === 'defeated') {
+                if (combat.timeMs - enemy.defeatedAtMs >= FRONT_RAIDER_RESPAWN_MS) {
+                    combat.enemies[index] = createFrontRaider(index, -.16);
+                }
+                continue;
+            }
+            enemy.progress = Math.min(1, enemy.progress + stepMs / FRONT_RAIDER_MARCH_MS);
+        }
+
+        const slots = state.snapshot?.akharsFront?.slots || [];
+        for (let index = 0; index < slots.length; index++) {
+            if (!slots[index]?.resident) continue;
+            combat.defenderCooldowns[index] = number(combat.defenderCooldowns[index]) - stepMs;
+            if (combat.defenderCooldowns[index] > 0) continue;
+            const target = frontCombatTarget();
+            if (target) launchFrontProjectile(index, slots[index].resident, target);
+            combat.defenderCooldowns[index] += FRONT_DEFENDER_ATTACK_MS;
+        }
+
+        const activeProjectiles = [];
+        for (const projectile of combat.projectiles) {
+            projectile.elapsedMs += stepMs;
+            const target = combat.enemies.find((enemy) => enemy.id === projectile.targetId);
+            if (projectile.elapsedMs < projectile.durationMs) {
+                if (target?.status !== 'defeated') activeProjectiles.push(projectile);
+                continue;
+            }
+            if (!target || target.status === 'defeated') continue;
+            target.health = Math.max(0, target.health - projectile.damage);
+            target.hitUntilMs = combat.timeMs + 190;
+            target.hitColor = projectile.color;
+            if (target.health <= 0) defeatFrontRaider(target);
+        }
+        combat.projectiles = activeProjectiles;
+    }
+
+    function frontCombatTarget() {
+        return state.frontCombat.enemies
+            .filter((enemy) => enemy.status !== 'defeated' && enemy.progress >= 0)
+            .sort((a, b) => b.progress - a.progress || a.health - b.health || a.id - b.id)[0] || null;
+    }
+
+    function launchFrontProjectile(defenderIndex, resident, target) {
+        const starts = [
+            { x: 17.5, y: 58 },
+            { x: 41.5, y: 55 },
+            { x: 65.5, y: 57 }
+        ];
+        const start = starts[defenderIndex] || starts[0];
+        state.frontCombat.projectiles.push({
+            id: state.frontCombat.nextProjectileId++,
+            defenderIndex,
+            targetId: target.id,
+            element: String(resident?.element || 'NEUTRAL').toUpperCase(),
+            color: elementColors[String(resident?.element || 'NEUTRAL').toUpperCase()] || elementColors.NEUTRAL,
+            startX: start.x,
+            startY: start.y,
+            elapsedMs: 0,
+            durationMs: FRONT_PROJECTILE_MS,
+            damage: 1
+        });
+    }
+
+    function defeatFrontRaider(enemy) {
+        const combat = state.frontCombat;
+        const point = frontRaiderPosition(enemy);
+        enemy.status = 'defeated';
+        enemy.defeatedAtMs = combat.timeMs;
+        combat.projectiles = combat.projectiles.filter((shot) => shot.targetId !== enemy.id);
+        combat.defeats += 1;
+        combat.coinsEarned += number(state.snapshot?.akharsFront?.coinsPerDefeat) || 1;
+        combat.lastDefeat = { x: point.x, y: point.y, atMs: combat.timeMs };
+        showFrontCoinBurst(point.x, point.y);
+    }
+
+    function frontRaiderPosition(enemy) {
+        const path = FRONT_RAIDER_PATHS[enemy.id] || FRONT_RAIDER_PATHS[0];
+        const progress = clamp(enemy.progress, 0, 1);
+        return {
+            x: path.startX + (path.endX - path.startX) * progress,
+            y: path.startY + (path.endY - path.startY) * progress,
+            size: path.size
+        };
+    }
+
+    function showFrontCoinBurst(x, y) {
+        const burst = document.getElementById('frontCoinBurst');
+        if (!burst) return;
+        burst.style.setProperty('--coin-x', `${x}%`);
+        burst.style.setProperty('--coin-y', `${y}%`);
+        burst.classList.remove('is-visible');
+        // Restart the award animation when two defenders land near-simultaneous final hits.
+        void burst.offsetWidth;
+        burst.classList.add('is-visible');
+    }
+
+    function renderFrontCombat() {
+        const combat = state.frontCombat;
+        document.querySelectorAll('[data-front-raider]').forEach((node) => {
+            const enemy = combat.enemies[number(node.dataset.frontRaider)];
+            if (!enemy) {
+                node.style.removeProperty('--raider-x');
+                node.style.removeProperty('--raider-y');
+                node.style.removeProperty('--raider-size');
+                node.style.removeProperty('--raider-health');
+                node.classList.remove('is-hit', 'is-defeated');
+                return;
+            }
+            const point = frontRaiderPosition(enemy);
+            node.style.setProperty('--raider-x', `${point.x}%`);
+            node.style.setProperty('--raider-y', `${point.y}%`);
+            node.style.setProperty('--raider-size', `${point.size}%`);
+            node.style.setProperty('--raider-health', `${Math.round(enemy.health / enemy.maxHealth * 100)}%`);
+            node.style.setProperty('--hit-color', enemy.hitColor || '#fff');
+            node.classList.toggle('is-hit', enemy.hitUntilMs > combat.timeMs);
+            node.classList.toggle('is-defeated', enemy.status === 'defeated');
+        });
+
+        const layer = document.getElementById('frontProjectiles');
+        if (!layer) return;
+        layer.innerHTML = combat.projectiles.map((projectile) => {
+            const target = combat.enemies.find((enemy) => enemy.id === projectile.targetId);
+            if (!target) return '';
+            const destination = frontRaiderPosition(target);
+            const progress = clamp(projectile.elapsedMs / projectile.durationMs, 0, 1);
+            const eased = 1 - Math.pow(1 - progress, 2);
+            const x = projectile.startX + (destination.x - projectile.startX) * eased;
+            const y = projectile.startY + (destination.y - projectile.startY) * eased;
+            const angle = Math.atan2(destination.y - projectile.startY, destination.x - projectile.startX) * 180 / Math.PI;
+            return `<i class="front-projectile" data-element="${escapeAttr(projectile.element)}" style="--shot-x:${x.toFixed(2)}%;--shot-y:${y.toFixed(2)}%;--shot-angle:${angle.toFixed(2)}deg;--shot-color:${escapeAttr(projectile.color)}"></i>`;
+        }).join('');
+    }
+
     function constructionTarget(constructionId) {
         const id = String(constructionId || '');
         if (!id) return '';
@@ -1287,6 +1536,7 @@
         state.frontView = true;
         document.getElementById('keepApp')?.classList.add('front-view-active');
         document.getElementById('frontViewToolbar')?.setAttribute('aria-hidden', 'false');
+        initializeFrontCombat();
         const hotspot = document.querySelector('.front-hotspot');
         hotspot?.setAttribute('aria-label', "Manage Akhar's Front rampart posts");
         document.getElementById('frontReturn')?.focus({ preventScroll: true });
@@ -1296,6 +1546,9 @@
         if (!state.frontView) return;
         closePanel();
         state.frontView = false;
+        state.frontCombat.running = false;
+        state.frontCombat.projectiles = [];
+        renderFrontCombat();
         document.getElementById('keepApp')?.classList.remove('front-view-active');
         document.getElementById('frontViewToolbar')?.setAttribute('aria-hidden', 'true');
         const hotspot = document.querySelector('.front-hotspot');
@@ -3147,7 +3400,11 @@
         }
         if (snapshot.akharsFront) {
             snapshot.akharsFront.residentCount = frontSlots.filter((slot) => slot.residentId).length;
-            snapshot.akharsFront.ratePerMinute = snapshot.akharsFront.residentCount;
+            snapshot.akharsFront.passiveRatePerMinute = snapshot.akharsFront.residentCount;
+            snapshot.akharsFront.combatRatePerMinute = snapshot.akharsFront.residentCount * 4;
+            snapshot.akharsFront.ratePerMinute = snapshot.akharsFront.passiveRatePerMinute
+                + snapshot.akharsFront.combatRatePerMinute;
+            snapshot.akharsFront.coinsPerDefeat = 1;
         }
         if (snapshot.siegelingSlots) {
             const active = stations.filter((station, index) => station.residentId
@@ -3229,7 +3486,11 @@
             }
             if (snapshot.akharsFront) {
                 snapshot.akharsFront.residentCount = slots.filter((item) => item.resident).length;
-                snapshot.akharsFront.ratePerMinute = snapshot.akharsFront.residentCount;
+                snapshot.akharsFront.passiveRatePerMinute = snapshot.akharsFront.residentCount;
+                snapshot.akharsFront.combatRatePerMinute = snapshot.akharsFront.residentCount * 4;
+                snapshot.akharsFront.ratePerMinute = snapshot.akharsFront.passiveRatePerMinute
+                    + snapshot.akharsFront.combatRatePerMinute;
+                snapshot.akharsFront.coinsPerDefeat = 1;
             }
             syncMockResidentAssignments(snapshot);
         } else if (path.endsWith('/build')) {
@@ -3610,7 +3871,13 @@
         const front = state.snapshot?.akharsFront;
         if (!front?.built) return 0;
         const elapsedMinutes = Math.max(0, (nowMs() - state.receivedAtMs) / 60000);
-        return Math.min(number(front.storageCapacity), number(front.available) + Math.floor(elapsedMinutes * number(front.ratePerMinute)));
+        const hasCombatBreakdown = front.passiveRatePerMinute != null || front.combatRatePerMinute != null;
+        const passiveRate = hasCombatBreakdown ? number(front.passiveRatePerMinute) : number(front.ratePerMinute);
+        const projectedCombat = state.frontView && state.frontCombat.initialized
+            ? state.frontCombat.projectedBonusBeforeSession + state.frontCombat.coinsEarned
+            : Math.floor(elapsedMinutes * number(front.combatRatePerMinute));
+        return Math.min(number(front.storageCapacity),
+            number(front.available) + Math.floor(elapsedMinutes * passiveRate) + projectedCombat);
     }
 
     function projectedStationAvailable(station) {
@@ -3825,11 +4092,13 @@
     }
 
     window.advanceTime = function (ms) {
-        state.debugTimeOffsetMs += Math.max(0, number(ms));
+        const elapsed = Math.max(0, number(ms));
+        state.debugTimeOffsetMs += elapsed;
         if (state.testMode) {
             completeMockConstructionIfReady();
             completeMockKeepEventIfReady();
         }
+        advanceFrontCombat(elapsed);
         updateLiveCounters();
         renderKeepEventTimer();
     };
@@ -3889,6 +4158,33 @@
             sceneView: { zoom: view.zoom, panX: view.panX, panY: view.panY },
             location: state.frontView ? 'akhars_front' : 'keep_grounds',
             returnToKeepAvailable: state.frontView,
+            akharsFront: (() => {
+                const front = snapshot.akharsFront || {};
+                return {
+                    built: Boolean(front.built),
+                    defenders: number(front.residentCount),
+                    siegecoinsReady: projectedAkharsFrontAvailable(),
+                    passiveRatePerMinute: number(front.passiveRatePerMinute),
+                    combatRatePerMinute: number(front.combatRatePerMinute),
+                    coinsPerDefeat: number(front.coinsPerDefeat) || 1,
+                    combat: {
+                        active: state.frontView && state.frontCombat.running,
+                        defeatsThisVisit: state.frontCombat.defeats,
+                        bonusCoinsThisVisit: state.frontCombat.coinsEarned,
+                        enemies: state.frontCombat.enemies.map((enemy) => {
+                            const point = frontRaiderPosition(enemy);
+                            return {
+                                id: enemy.id, x: Math.round(point.x * 10) / 10, y: Math.round(point.y * 10) / 10,
+                                health: enemy.health, maxHealth: enemy.maxHealth, status: enemy.status
+                            };
+                        }),
+                        projectiles: state.frontCombat.projectiles.map((shot) => ({
+                            element: shot.element, targetId: shot.targetId,
+                            progress: Math.round(clamp(shot.elapsedMs / shot.durationMs, 0, 1) * 100) / 100
+                        }))
+                    }
+                };
+            })(),
             interiorRoom: state.interior || null,
             interiorConstruction: (() => {
                 const construction = interiorConstruction();

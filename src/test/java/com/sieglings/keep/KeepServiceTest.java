@@ -1304,7 +1304,10 @@ class KeepServiceTest {
         Map<String, Object> posted = service.setAkharsFrontResident(
                 user, 0, "mossling", "front-post", store.state.getVersion());
         assertEquals(1, intAt(posted, "akharsFront", "residentCount"));
-        assertEquals(1.0, ((Number) valueAt(posted, "akharsFront", "ratePerMinute")).doubleValue(), .0001);
+        assertEquals(1.0, ((Number) valueAt(posted, "akharsFront", "passiveRatePerMinute")).doubleValue(), .0001);
+        assertEquals(4.0, ((Number) valueAt(posted, "akharsFront", "combatRatePerMinute")).doubleValue(), .0001);
+        assertEquals(5.0, ((Number) valueAt(posted, "akharsFront", "ratePerMinute")).doubleValue(), .0001);
+        assertEquals(1, intAt(posted, "akharsFront", "coinsPerDefeat"));
         assertEquals("", station(posted, "quarry").get("residentId"),
                 "Posting a Keep worker on the wall must vacate its building.");
         assertNull(station(posted, "quarry").get("resident"));
@@ -1316,11 +1319,11 @@ class KeepServiceTest {
 
         clock.advance(Duration.ofMinutes(10));
         Map<String, Object> accrued = service.getSnapshot(user);
-        assertEquals(10, intAt(accrued, "akharsFront", "available"));
+        assertEquals(50, intAt(accrued, "akharsFront", "available"));
         int goldBefore = progression.getGold();
         Map<String, Object> collected = service.collect(
                 user, "akhars_front", "front-collect", store.state.getVersion());
-        assertEquals(goldBefore + 10, progression.getGold());
+        assertEquals(goldBefore + 50, progression.getGold());
         assertEquals(0, intAt(collected, "akharsFront", "available"));
         assertEquals("SIEGECOINS", valueAt(collected, "collected", "resource"));
 
