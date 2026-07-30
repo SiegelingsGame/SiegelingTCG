@@ -3097,6 +3097,68 @@
         }
     }
 
+    function clearMockWorkAssignment(snapshot, residentId) {
+        if (!residentId) return;
+        for (const station of [snapshot.station, ...(snapshot.stations || [])].filter(Boolean)) {
+            if (station.residentId === residentId) {
+                station.residentId = '';
+                station.resident = null;
+            }
+        }
+        for (const slot of snapshot.akharsFront?.slots || []) {
+            if (slot.residentId !== residentId) continue;
+            slot.residentId = '';
+            slot.resident = null;
+        }
+    }
+
+    function clearMockEnclaveAssignment(snapshot, residentId) {
+        if (!residentId) return;
+        for (const slot of snapshot.enclave?.slots || []) {
+            if (slot.residentId !== residentId) continue;
+            slot.residentId = '';
+            slot.resident = null;
+            slot.mission = null;
+            slot.tasks = [];
+            slot.rapport = null;
+        }
+    }
+
+    function syncMockResidentAssignments(snapshot) {
+        const stations = [snapshot.station, ...(snapshot.stations || [])].filter(Boolean);
+        const enclaveSlots = snapshot.enclave?.slots || [];
+        const frontSlots = snapshot.akharsFront?.slots || [];
+        for (const resident of snapshot.residents || []) {
+            const station = stations.find((item) => item.residentId === resident.id);
+            const enclaveSlot = enclaveSlots.findIndex((item) => item.residentId === resident.id);
+            const frontSlot = frontSlots.findIndex((item) => item.residentId === resident.id);
+            resident.assignment = station
+                ? { assigned: true, type: 'STATION', id: station.id, label: station.name || station.id }
+                : frontSlot >= 0
+                    ? { assigned: true, type: 'FRONT', id: String(frontSlot), label: `Akhar's Front post ${frontSlot + 1}` }
+                    : enclaveSlot >= 0
+                        ? { assigned: true, type: 'ENCLAVE', id: String(enclaveSlot), label: `Enclave space ${enclaveSlot + 1}` }
+                        : { assigned: false, type: '', id: '', label: '' };
+        }
+        if (snapshot.enclave) {
+            snapshot.enclave.residentCount = enclaveSlots.filter((slot) => slot.residentId).length;
+            snapshot.enclave.readyTaskCount = enclaveSlots.reduce((total, slot) =>
+                total + (slot.tasks || []).filter((task) => task.complete).length, 0);
+        }
+        if (snapshot.akharsFront) {
+            snapshot.akharsFront.residentCount = frontSlots.filter((slot) => slot.residentId).length;
+            snapshot.akharsFront.ratePerMinute = snapshot.akharsFront.residentCount;
+        }
+        if (snapshot.siegelingSlots) {
+            const active = stations.filter((station, index) => station.residentId
+                    && stations.findIndex((item) => item.id === station.id) === index).length
+                + enclaveSlots.filter((slot) => slot.residentId).length
+                + frontSlots.filter((slot) => slot.residentId).length;
+            snapshot.siegelingSlots.active = active;
+            snapshot.siegelingSlots.available = Math.max(0, number(snapshot.siegelingSlots.capacity) - active);
+        }
+    }
+
     function mockApi(path, options) {
         if (typeof window.__KEEP_TEST_API__ === 'function') {
             return Promise.resolve(window.__KEEP_TEST_API__(path, options, clone(state.snapshot)));
@@ -3133,19 +3195,14 @@
         } else if (path.endsWith('/keep/resident')) {
             const stationId = body.stationId || 'woodlot';
             const stations = snapshot.stations || [snapshot.station];
-            for (const item of stations) {
-                if (item.residentId === body.residentId) { item.residentId = ''; item.resident = null; }
-            }
+            if (body.residentId) clearMockWorkAssignment(snapshot, body.residentId);
             const station = stations.find((item) => item.id === stationId) || snapshot.station;
             station.residentId = body.residentId || '';
             station.resident = (snapshot.residents || []).find((item) => item.id === body.residentId) || null;
+            syncMockResidentAssignments(snapshot);
         } else if (path.endsWith('/enclave/resident')) {
             const slots = snapshot.enclave?.slots || [];
-            for (const slot of slots) {
-                if (body.residentId && slot.residentId === body.residentId) {
-                    slot.residentId = ''; slot.resident = null; slot.mission = null; slot.tasks = []; slot.rapport = null;
-                }
-            }
+            if (body.residentId) clearMockEnclaveAssignment(snapshot, body.residentId);
             const slot = slots[number(body.slot)];
             if (slot) {
                 const resident = (snapshot.residents || []).find((item) => item.id === body.residentId) || null;
@@ -3155,15 +3212,7 @@
                 slot.rapport = resident?.rapport || null;
                 slot.mission = slot.tasks[0] || null;
             }
-            for (const choice of snapshot.residents || []) {
-                const seat = slots.findIndex((item) => item.residentId === choice.id);
-                const stationed = (snapshot.stations || [snapshot.station]).find((item) => item?.residentId === choice.id);
-                choice.assignment = stationed
-                    ? { assigned: true, type: 'STATION', id: stationed.id, label: stationed.name || stationed.id }
-                    : seat >= 0
-                        ? { assigned: true, type: 'ENCLAVE', id: String(seat), label: `Enclave space ${seat + 1}` }
-                        : { assigned: false, type: '', id: '', label: '' };
-            }
+            syncMockResidentAssignments(snapshot);
             if (snapshot.enclave) {
                 snapshot.enclave.residentCount = slots.filter((item) => item.resident).length;
                 snapshot.enclave.readyTaskCount = slots.reduce((total, item) =>
@@ -3171,11 +3220,7 @@
             }
         } else if (path.endsWith('/akhars-front/resident')) {
             const slots = snapshot.akharsFront?.slots || [];
-            for (const item of slots) {
-                if (body.residentId && item.residentId === body.residentId) {
-                    item.residentId = ''; item.resident = null;
-                }
-            }
+            if (body.residentId) clearMockWorkAssignment(snapshot, body.residentId);
             const slot = slots[number(body.slot)];
             if (slot) {
                 const resident = (snapshot.residents || []).find((item) => item.id === body.residentId) || null;
@@ -3186,6 +3231,7 @@
                 snapshot.akharsFront.residentCount = slots.filter((item) => item.resident).length;
                 snapshot.akharsFront.ratePerMinute = snapshot.akharsFront.residentCount;
             }
+            syncMockResidentAssignments(snapshot);
         } else if (path.endsWith('/build')) {
             const option = (snapshot.buildOptions || []).find((item) => item.id === body.buildId);
             if (option) {
@@ -3542,12 +3588,22 @@
         const residents = state.snapshot.residents || [];
         const seated = slot.residentId || '';
         const choices = residents.filter((choice) => choice.id !== seated);
-        const chip = (choice) => `<button type="button" class="enclave-resident-choice" data-front-resident="${escapeAttr(choice.id)}" data-front-slot="${index}"
-                style="--resident-color:${escapeAttr(elementColors[choice.element] || elementColors.NEUTRAL)}"><span>${residentAvatarContent(choice)}</span><small>${escapeHtml(choice.name)}</small></button>`;
+        const available = choices.filter((choice) => !choice.assignment?.assigned);
+        const occupied = choices.filter((choice) => choice.assignment?.assigned);
+        const chip = (choice) => {
+            const assignment = choice.assignment || {};
+            return `<button type="button" class="enclave-resident-choice ${assignment.assigned ? 'is-reassign' : ''}" data-front-resident="${escapeAttr(choice.id)}" data-front-slot="${index}"
+                style="--resident-color:${escapeAttr(elementColors[choice.element] || elementColors.NEUTRAL)}">
+                <span>${residentAvatarContent(choice)}</span><small>${escapeHtml(choice.name)}</small>
+                ${assignment.assigned ? `<i class="reassign-tag">Occupied &middot; ${escapeHtml(assignment.label || 'Keep post')}</i>` : '<i class="available-tag">Available</i>'}
+            </button>`;
+        };
         return `<div class="enclave-picker"><div class="enclave-picker-head"><strong>${seated ? 'Change defender' : 'Post a defender'}</strong>
                 <button type="button" class="picker-close" data-front-picker="-1" aria-label="Close the assign menu">&times;</button></div>
             ${seated ? `<button type="button" class="panel-button secondary" data-front-resident="${escapeAttr(seated)}" data-front-slot="${index}">Leave this rampart open</button>` : ''}
-            ${choices.length ? `<span class="eyebrow">Owned Siegelings</span><div class="enclave-resident-choices">${choices.map(chip).join('')}</div>` : '<div class="empty-state">No other owned Siegelings are available to choose.</div>'}</div>`;
+            ${available.length ? `<span class="eyebrow">Available &middot; ${available.length}</span><div class="enclave-resident-choices">${available.map(chip).join('')}</div>` : ''}
+            ${occupied.length ? `<p class="front-reassign-note">Occupied Siegelings can be moved here. Their current Keep location will be left empty.</p><span class="eyebrow">Occupied elsewhere</span><div class="enclave-resident-choices">${occupied.map(chip).join('')}</div>` : ''}
+            ${choices.length ? '' : '<div class="empty-state">No other owned Siegelings are available to choose.</div>'}</div>`;
     }
 
     function projectedAkharsFrontAvailable() {
@@ -3882,9 +3938,20 @@
             residentAssignments: (snapshot.residents || []).map((resident) => ({
                 id: resident.id, name: resident.name,
                 assigned: Boolean(resident.assignment?.assigned),
+                assignmentType: resident.assignment?.type || '',
                 assignmentLabel: resident.assignment?.label || '',
                 rapportLevel: number(resident.rapport?.level)
             })),
+            akharsFront: snapshot.akharsFront ? {
+                built: Boolean(snapshot.akharsFront.built),
+                residentCount: number(snapshot.akharsFront.residentCount),
+                capacity: number(snapshot.akharsFront.capacity),
+                availableSiegecoins: projectedAkharsFrontAvailable(),
+                pickerSlot: state.frontPickerSlot,
+                slots: (snapshot.akharsFront.slots || []).map((slot) => ({
+                    slot: number(slot.slot), resident: slot.resident?.name || null
+                }))
+            } : null,
             noticeCenter: {
                 unread: unreadNoticeCount(),
                 read: state.notices.length - unreadNoticeCount(),

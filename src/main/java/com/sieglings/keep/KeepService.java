@@ -718,8 +718,10 @@ public class KeepService {
             if (!normalized.isBlank() && context.residents().stream().noneMatch(item -> item.id().equals(normalized))) {
                 throw new IllegalArgumentException("That Siegeling has not joined your collection yet.");
             }
-            // Settle the old defender count before changing the passive-income rate.
-            materializeAkharsFront(state, context.residents(), context.now());
+            // Moving a worker onto the wall must vacate its Keep building. Materialize every
+            // affected producer first so neither the old station nor the rampart loses accrual.
+            materializeAllProduction(state, context.residents(), context.now());
+            if (!normalized.isBlank()) clearResidentAssignment(state, normalized);
             List<String> assignments = normalizedAkharsFrontResidents(state);
             if (!normalized.isBlank()) {
                 for (int index = 0; index < assignments.size(); index++) {
@@ -1525,6 +1527,9 @@ public class KeepService {
     private void clearResidentAssignment(KeepState state, String residentId) {
         if (residentId.equals(state.getWoodlotResidentId())) state.setWoodlotResidentId("");
         state.getFacilityResidentIds().replaceAll((key, value) -> residentId.equals(value) ? "" : value);
+        List<String> front = normalizedAkharsFrontResidents(state);
+        front.replaceAll(value -> residentId.equals(value) ? "" : value);
+        state.setAkharsFrontResidentIds(front);
     }
 
     private void setStationResidentId(KeepState state, String stationId, String residentId) {
@@ -1967,15 +1972,6 @@ public class KeepService {
                     break;
                 }
             }
-            if (type.isEmpty() && state.getEnclaveLevel() > 0) {
-                List<String> enclaveIds = normalizedEnclaveResidents(state);
-                int slot = enclaveIds.indexOf(residentId);
-                if (slot >= 0) {
-                    type = "ENCLAVE";
-                    id = String.valueOf(slot);
-                    label = "Enclave space " + (slot + 1);
-                }
-            }
             if (type.isEmpty() && state.getAkharsFrontLevel() > 0) {
                 List<String> frontIds = normalizedAkharsFrontResidents(state);
                 int slot = frontIds.indexOf(residentId);
@@ -1983,6 +1979,15 @@ public class KeepService {
                     type = "FRONT";
                     id = String.valueOf(slot);
                     label = "Akhar's Front post " + (slot + 1);
+                }
+            }
+            if (type.isEmpty() && state.getEnclaveLevel() > 0) {
+                List<String> enclaveIds = normalizedEnclaveResidents(state);
+                int slot = enclaveIds.indexOf(residentId);
+                if (slot >= 0) {
+                    type = "ENCLAVE";
+                    id = String.valueOf(slot);
+                    label = "Enclave space " + (slot + 1);
                 }
             }
         }

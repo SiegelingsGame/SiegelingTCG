@@ -530,6 +530,47 @@ button.resource-pill:focus-visible {
 .front-hotspot .building-label small { max-width: 165px; font-size: 6.5px; }
 .front-battle { position: absolute; inset: 0 0 33px; display: none; overflow: hidden; border-radius: 42% 38% 13% 13%; pointer-events: none; }
 .front-rampart { position: absolute; left: -3%; right: -3%; bottom: -8%; width: 106%; height: 61%; z-index: 5; filter: drop-shadow(0 -3px 0 rgba(255, 235, 183, .35)) drop-shadow(0 7px 6px rgba(34, 24, 24, .4)); }
+.front-torches i {
+    position: absolute;
+    z-index: 8;
+    bottom: 44%;
+    width: 4px;
+    height: 12%;
+    border-radius: 2px;
+    background: linear-gradient(90deg, #34231d, #8c6546 45%, #2b1b18);
+    box-shadow: 0 2px 2px rgba(0,0,0,.45);
+}
+.front-torches i::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% - 2px);
+    width: 10px;
+    height: 16px;
+    translate: -50% 0;
+    border-radius: 70% 28% 68% 32%;
+    background: radial-gradient(circle at 52% 70%, #fff7b0 0 20%, #ffc351 24% 52%, #e94f4a 58% 75%, transparent 78%);
+    filter: drop-shadow(0 0 4px #ffb249);
+    transform-origin: 50% 100%;
+    animation: front-torch-flicker .85s ease-in-out infinite alternate;
+}
+.front-torches i::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% - 30px);
+    width: clamp(70px, 12vw, 132px);
+    aspect-ratio: 1;
+    translate: -50% 0;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,190,83,.34), rgba(225,75,66,.13) 42%, transparent 72%);
+    mix-blend-mode: screen;
+    pointer-events: none;
+}
+.front-torches i:nth-child(1) { left: 3%; animation-delay: -.2s; }
+.front-torches i:nth-child(2) { left: 28%; animation-delay: -.55s; }
+.front-torches i:nth-child(3) { left: 53%; animation-delay: -.1s; }
+.front-torches i:nth-child(4) { left: 78%; animation-delay: -.7s; }
 .front-defenders b {
     position: absolute;
     z-index: 7;
@@ -620,6 +661,43 @@ button.resource-pill:focus-visible {
 .front-manage:hover { color: #172333; background: linear-gradient(#fff0b2, #e7bc63); }
 
 .keep-app.front-view-active .keep-header { grid-template-columns: minmax(180px, 1fr); }
+.keep-app.front-view-active .keep-scene-viewport { background: #140a23; }
+.keep-app.front-view-active .keep-scene {
+    background:
+        radial-gradient(circle at 16% 25%, rgba(177, 42, 72, .42), transparent 31%),
+        radial-gradient(circle at 82% 18%, rgba(101, 48, 128, .42), transparent 35%),
+        linear-gradient(180deg, #170b2d 0%, #32113c 35%, #66233e 55%, #281829 100%);
+}
+.keep-app.front-view-active .keep-scene::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 18;
+    pointer-events: none;
+    background: linear-gradient(90deg, rgba(9,4,18,.32), transparent 16% 84%, rgba(9,4,18,.32));
+    mix-blend-mode: multiply;
+}
+.keep-app.front-view-active .sky-glow {
+    left: 9%;
+    top: -18%;
+    background: radial-gradient(circle, rgba(255,220,226,.72) 0 9%, rgba(210,101,139,.34) 20%, rgba(110,54,130,.16) 43%, transparent 68%);
+    filter: blur(.5px);
+}
+.keep-app.front-view-active .cloud { background: rgba(216, 154, 188, .12); filter: blur(3px); }
+.keep-app.front-view-active .mountain { bottom: 43%; height: 40%; }
+.keep-app.front-view-active .mountain-back { background: #5b385d; opacity: .55; transform: translateY(-10px) scale(1.05); }
+.keep-app.front-view-active .mountain-front { background: linear-gradient(135deg, #3e294c, #201a38); opacity: .92; }
+.keep-app.front-view-active .ground-layer {
+    inset: 47% -10% -20%;
+    transform: none;
+    border-radius: 48% 52% 0 0;
+    background:
+        radial-gradient(ellipse at 14% 22%, rgba(22,17,31,.48) 0 7%, transparent 7.5%),
+        radial-gradient(ellipse at 83% 43%, rgba(25,17,32,.4) 0 9%, transparent 9.5%),
+        linear-gradient(180deg, #453f43, #24232f 66%);
+}
+.keep-app.front-view-active .wounded-earth { display: none; }
+.keep-app.front-view-active .restored-meadow { opacity: .28; filter: sepia(.55) saturate(1.6) brightness(1.35); }
 .keep-app.front-view-active .keep-resource-bar,
 .keep-app.front-view-active .keep-header-actions,
 .keep-app.front-view-active .keep-dock,
@@ -636,17 +714,33 @@ button.resource-pill:focus-visible {
 .keep-app.front-view-active .front-hotspot {
     left: 50%;
     right: auto;
-    top: 51%;
-    width: min(900px, 88vw);
-    height: min(520px, 72vh);
-    transform: translate(-50%, -44%);
+    top: 54%;
+    width: min(1040px, 94vw);
+    height: min(560px, 72vh);
+    transform: translate(-50%, -42%);
     transform-origin: center;
     z-index: 20;
     filter: drop-shadow(0 22px 26px rgba(29, 22, 31, .42));
 }
 .keep-app.front-view-active .front-hotspot::before,
 .keep-app.front-view-active .front-hotspot::after { display: none; }
-.keep-app.front-view-active .front-battle { display: block; }
+.keep-app.front-view-active .front-battle { display: block; border-radius: 18% 18% 4% 4%; }
+.keep-app.front-view-active .front-battle::before {
+    content: "";
+    position: absolute;
+    z-index: 1;
+    left: -6%;
+    right: -6%;
+    top: 27%;
+    bottom: 30%;
+    border-radius: 52% 48% 0 0;
+    background:
+        radial-gradient(ellipse at 22% 48%, rgba(116,54,65,.35), transparent 24%),
+        linear-gradient(180deg, rgba(70,44,62,.9), rgba(32,29,43,.96));
+    box-shadow: inset 0 18px 35px rgba(147,57,82,.13);
+}
+.keep-app.front-view-active .front-rampart { bottom: 0; height: 54%; filter: drop-shadow(0 -3px 0 rgba(255, 218, 154, .28)) drop-shadow(0 12px 15px rgba(6, 3, 12, .64)); }
+.keep-app.front-view-active .front-defenders b { bottom: 45%; height: 40%; }
 .keep-app.front-view-active .front-income:not(.hidden) { display: flex; }
 .keep-app.front-view-active .front-hotspot .building-label { left: 50%; right: auto; top: auto; bottom: 2px; z-index: 12; width: max-content; max-width: none; padding: 8px 14px; text-align: center; transform: translateX(-50%); }
 .keep-app.front-view-active .front-hotspot .building-label strong { font-size: clamp(15px, 2vw, 22px); }
@@ -660,13 +754,20 @@ button.resource-pill:focus-visible {
     .front-manage { min-height: 36px; padding: 7px 9px; font-size: 9px; }
     .front-manage { justify-self: end; }
     .front-view-heading small { display: none; }
-    .keep-app.front-view-active .front-hotspot { top: 57%; width: 96vw; height: min(57vh, 500px); transform: translate(-50%, -44%); }
+    .keep-app.front-view-active .mountain { bottom: 45%; height: 34%; }
+    .keep-app.front-view-active .ground-layer { inset: 50% -18% -22%; border-radius: 54% 46% 0 0; }
+    .keep-app.front-view-active .front-hotspot { top: 58%; width: 100vw; height: min(64vh, 520px); transform: translate(-50%, -35%); }
+    .keep-app.front-view-active .front-battle { inset-inline: 2%; border-radius: 14% 14% 4% 4%; }
+    .keep-app.front-view-active .front-hotspot .building-label { bottom: 14px; }
+    .keep-app.front-view-active .front-income { right: 3%; bottom: 68px; transform: none; }
 }
 
 @media (orientation: landscape) and (max-height: 600px) {
     .front-view-toolbar { top: 5px; }
     .front-view-heading small { display: none; }
-    .keep-app.front-view-active .front-hotspot { top: 54%; width: min(820px, 78vw); height: 82vh; transform: translate(-50%, -45%); }
+    .keep-app.front-view-active .mountain { bottom: 39%; height: 45%; }
+    .keep-app.front-view-active .ground-layer { inset: 48% -12% -24%; }
+    .keep-app.front-view-active .front-hotspot { top: 56%; width: min(1120px, 94vw); height: 78vh; transform: translate(-50%, -42%); }
 }
 .quarter-illustration { position: absolute; inset: 2px 4px 34px; display: block; filter: drop-shadow(0 7px 5px rgba(22, 29, 25, .28)); }
 .quarter-path { position: absolute; left: 20%; right: 8%; bottom: 2%; height: 18%; background: rgba(199, 173, 121, .58); clip-path: polygon(46% 0, 56% 0, 100% 100%, 0 100%); }
@@ -1366,9 +1467,11 @@ button.resource-pill:focus-visible {
 .enclave-resident-choice img { width: auto; height: 100%; max-width: 100%; object-fit: contain; object-position: bottom center; }
 .enclave-resident-choice small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 8px; }
 .enclave-resident-choice .choice-rapport { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--gold); font: 700 7px Georgia, serif; }
+.enclave-resident-choice .available-tag { color: #8eddb2; font: 700 7px/1.25 Georgia, serif; font-style: normal; text-transform: uppercase; letter-spacing: .05em; }
 /* The post a Siegeling would be pulled off is the whole point of the tag, so it wraps
    rather than ellipsing — three chips per row leaves no width to truncate into. */
 .enclave-resident-choice .reassign-tag { max-width: 100%; color: #ffb0d0; font: 700 7px/1.25 Georgia, serif; font-style: normal; text-transform: uppercase; letter-spacing: .04em; text-align: center; overflow-wrap: anywhere; }
+.front-reassign-note { margin: 10px 0 2px; padding: 8px 9px; border-left: 2px solid #ffb0d0; color: rgba(255,247,220,.72); background: rgba(255,176,208,.055); font-size: 9px; line-height: 1.4; }
 .enclave-task-list { margin-top: 4px; }
 .enclave-mission { margin-top: 10px; padding: 10px; border: 1px solid rgba(159,233,255,.25); border-radius: 10px; background: rgba(159,233,255,.05); }
 .enclave-mission.is-complete { border-color: rgba(111,207,139,.5); background: rgba(111,207,139,.07); }
@@ -3045,6 +3148,7 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
 @keyframes enclave-exterior-bob { 0%, 100% { translate: 0 0; } 50% { translate: 0 -4px; } }
 @keyframes front-defender-brace { 0%, 100% { translate: 0 0; rotate: -1deg; } 50% { translate: 0 -3px; rotate: 2deg; } }
 @keyframes front-raider-march { 0%, 100% { translate: 6px -4px; } 50% { translate: -5px 4px; } }
+@keyframes front-torch-flicker { 0% { transform: scale(.9, 1.04) rotate(-3deg); opacity: .86; } 55% { transform: scale(1.08, .94) rotate(2deg); opacity: 1; } 100% { transform: scale(.96, 1.1) rotate(4deg); opacity: .92; } }
 @keyframes front-projectile-flight { 0%, 15% { opacity: 0; translate: 0 0; } 20% { opacity: 1; } 68% { opacity: 1; } 72%, 100% { opacity: 0; translate: 155px -76px; } }
 @keyframes front-impact-burst { 0%, 65% { opacity: 0; transform: scale(.2) rotate(0); } 70% { opacity: 1; } 88% { opacity: 0; transform: scale(1.25) rotate(30deg); } 100% { opacity: 0; } }
 @keyframes discovery-in { from { opacity: 0; transform: translate(-50%, 18px) scale(.96); } }

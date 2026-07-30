@@ -1298,10 +1298,21 @@ class KeepServiceTest {
         assertEquals(Boolean.TRUE, valueAt(built, "akharsFront", "built"));
         assertEquals(3, intAt(built, "akharsFront", "capacity"));
 
+        service.inviteResident(user, "quarry", "mossling", "front-worker", store.state.getVersion());
+        assertEquals("mossling", station(service.getSnapshot(user), "quarry").get("residentId"));
+
         Map<String, Object> posted = service.setAkharsFrontResident(
                 user, 0, "mossling", "front-post", store.state.getVersion());
         assertEquals(1, intAt(posted, "akharsFront", "residentCount"));
         assertEquals(1.0, ((Number) valueAt(posted, "akharsFront", "ratePerMinute")).doubleValue(), .0001);
+        assertEquals("", station(posted, "quarry").get("residentId"),
+                "Posting a Keep worker on the wall must vacate its building.");
+        assertNull(station(posted, "quarry").get("resident"));
+        assertEquals(1, intAt(posted, "siegelingSlots", "active"),
+                "A reassignment is one occupied role, not two active slots.");
+        Map<String, Object> assignment = (Map<String, Object>) residentPayload(posted, "mossling").get("assignment");
+        assertEquals("FRONT", assignment.get("type"));
+        assertEquals("Akhar's Front post 1", assignment.get("label"));
 
         clock.advance(Duration.ofMinutes(10));
         Map<String, Object> accrued = service.getSnapshot(user);
@@ -1312,6 +1323,11 @@ class KeepServiceTest {
         assertEquals(goldBefore + 10, progression.getGold());
         assertEquals(0, intAt(collected, "akharsFront", "available"));
         assertEquals("SIEGECOINS", valueAt(collected, "collected", "resource"));
+
+        Map<String, Object> returned = service.inviteResident(
+                user, "quarry", "mossling", "front-return-worker", store.state.getVersion());
+        assertEquals(0, intAt(returned, "akharsFront", "residentCount"));
+        assertEquals("mossling", station(returned, "quarry").get("residentId"));
     }
 
     @Test
