@@ -326,7 +326,11 @@
     }
 
     function handleClick(event) {
-        if (event.target.closest('[data-open-keep-event]')) { openKeepEvent(); return; }
+        if (event.target.closest('[data-open-keep-event]')) {
+            if (event.target.closest('#noticeTray')) closeNoticeTray();
+            openKeepEvent();
+            return;
+        }
         if (event.target.closest('[data-close-keep-event]')) { closeKeepEvent(); return; }
         const eventRepair = event.target.closest('[data-keep-event-repair]');
         if (eventRepair) { void repairKeepEvent(eventRepair.dataset.keepEventRepair); return; }
@@ -719,8 +723,6 @@
         if (result.completed) {
             closeKeepEvent();
             showNotice(`${event.targetName} was repaired for ${number(result.coinCost)} Siegecoins.`, 'Setback resolved');
-        } else {
-            showNotice(`${event.targetName} is being rebuilt. ${formatDuration(result.repairSeconds)} remaining.`, 'Repair underway');
         }
     }
 
@@ -845,7 +847,6 @@
     function applySnapshot(next, announceDiscoveries) {
         if (!next || typeof next !== 'object') return;
         const previousLore = new Set((state.snapshot?.lore || []).map((item) => item.id));
-        const previousEventId = state.snapshot?.activeKeepEvent?.id || '';
         state.snapshot = next;
         const nextEventId = next.activeKeepEvent?.id || '';
         if (!nextEventId) {
@@ -858,7 +859,6 @@
         announceKeeperProgress(next);
         renderAll();
         if (state.frontView) initializeFrontCombat();
-        if (nextEventId && nextEventId !== previousEventId && state.shownKeepEventId !== nextEventId) openKeepEvent();
         if (announceDiscoveries) {
             const ids = Array.isArray(next.newLoreUnlocks)
                 ? next.newLoreUnlocks
@@ -961,15 +961,12 @@
 
     function renderKeepEvent() {
         const event = state.snapshot?.activeKeepEvent;
-        const alert = document.getElementById('keepEventAlert');
         document.querySelectorAll('.is-damaged').forEach((node) => node.classList.remove('is-damaged'));
         if (!event) {
-            alert?.classList.add('hidden');
             document.body.removeAttribute('data-keep-damage');
             return;
         }
         document.body.dataset.keepDamage = event.targetId || 'active';
-        alert?.classList.remove('hidden');
         const roomId = event.targetType === 'DECORATION'
             ? (state.snapshot.recipes || []).find((item) => item.id === event.targetId)?.roomId || ''
             : event.targetId;
@@ -978,7 +975,6 @@
             document.querySelectorAll(`[data-building="${safeId}"], [data-room="${safeId}"], [data-enter-facility="${safeId}"]`)
                 .forEach((node) => node.classList.add('is-damaged'));
         }
-        text('keepEventAlertName', event.targetName || event.title);
         text('keepEventKicker', event.kicker || 'A setback strikes');
         text('keepEventTitle', event.title || 'Repairs needed');
         text('keepEventTarget', `${titleCase(event.targetType)} damaged Â· ${event.targetName || event.targetId}`);
@@ -1017,8 +1013,7 @@
         if (!event) return;
         const remaining = keepEventRemaining();
         text('keepEventTimer', formatDuration(remaining));
-        text('keepEventAlertTime', event.repairInProgress ? formatDuration(remaining) : 'Choose repair');
-        document.getElementById('keepEventAlert')?.classList.toggle('is-waiting', !event.repairInProgress);
+        text('keepEventActivityTime', event.repairInProgress ? formatDuration(remaining) : 'Choose repair');
     }
 
     function updateLiveState() {
@@ -2915,6 +2910,10 @@
         return state.notices.filter((notice) => !notice.read).length;
     }
 
+    function keepActivityBadgeCount() {
+        return unreadNoticeCount() + (state.snapshot?.activeKeepEvent ? 1 : 0);
+    }
+
     /**
      * Messages are marked read when the tray closes, not when it opens: closing is the moment the
      * player has actually seen them, and it keeps the New group and the header badge in agreement.
@@ -2928,6 +2927,13 @@
     function renderNoticeCenter() {
         const list = document.getElementById('noticeList');
         const constructions = activeConstructionList();
+        const repair = state.snapshot?.activeKeepEvent;
+        const repairMarkup = repair ? `<section class="notice-repair-group">
+            <div class="notice-section-heading"><span>Repairs</span><strong>${repair.repairInProgress ? 'Underway' : 'Action needed'}</strong></div>
+            <button class="notice-repair-card" type="button" data-open-keep-event aria-label="Open repair details for ${escapeAttr(repair.targetName || repair.title)}">
+                <i aria-hidden="true">!</i><span><small>${repair.repairInProgress ? 'Repair underway' : 'Repair needed'}</small><strong>${escapeHtml(repair.targetName || repair.title)}</strong></span><time id="keepEventActivityTime">${escapeHtml(repair.repairInProgress ? formatDuration(keepEventRemaining()) : 'Choose repair')}</time>
+            </button>
+        </section>` : '';
         const constructionMarkup = constructions.length ? `<section class="notice-construction-group">
             <div class="notice-section-heading"><span>Active construction</span><strong>${constructions.length} crew${constructions.length === 1 ? '' : 's'}</strong></div>
             ${constructions.map((construction, index) => `<button class="notice-construction-card" type="button" data-open-panel="projects" aria-label="Open Projects for ${escapeAttr(projectName(construction.id))}">
@@ -2944,10 +2950,11 @@
         const read = state.notices.filter((notice) => notice.read);
         const activityMarkup = state.notices.length
             ? listSection('New', unread.length, unread.map(card)) + listSection('Earlier', read.length, read.map(card))
-            : `<div class="notice-empty">${constructions.length ? 'Construction is underway. New sanctuary updates will appear here.' : 'No new Keep activity. Start a project or continue restoring the sanctuary.'}</div>`;
-        if (list) list.innerHTML = constructionMarkup + activityMarkup;
-        text('noticeBadge', unreadNoticeCount());
-        document.getElementById('noticeBadge')?.classList.toggle('hidden', unreadNoticeCount() <= 0);
+            : `<div class="notice-empty">${repair || constructions.length ? 'Active Keep work appears above. New sanctuary updates will appear here.' : 'No new Keep activity. Start a project or continue restoring the sanctuary.'}</div>`;
+        if (list) list.innerHTML = repairMarkup + constructionMarkup + activityMarkup;
+        const badgeCount = keepActivityBadgeCount();
+        text('noticeBadge', badgeCount);
+        document.getElementById('noticeBadge')?.classList.toggle('hidden', badgeCount <= 0);
     }
 
     function toggleNoticeTray() {
@@ -4253,6 +4260,12 @@
                 read: state.notices.length - unreadNoticeCount(),
                 count: state.notices.length,
                 open: !document.getElementById('noticeTray')?.classList.contains('hidden'),
+                repair: snapshot.activeKeepEvent ? {
+                    id: snapshot.activeKeepEvent.id,
+                    targetName: snapshot.activeKeepEvent.targetName,
+                    status: snapshot.activeKeepEvent.repairInProgress ? 'underway' : 'action_needed',
+                    remainingSeconds: keepEventRemaining()
+                } : null,
                 constructionTimers: activeConstructionList().map((item, index) => ({
                     id: item.id,
                     name: projectName(item.id),

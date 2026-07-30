@@ -1055,8 +1055,8 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=42")
-                        && keepHtml.contains("/js/keep.js?v=41")
+                        && keepHtml.contains("/css/keep.css?v=43")
+                        && keepHtml.contains("/js/keep.js?v=42")
                         && keepHtml.contains("id=\"hallFavoriteResident\"")
                         && keepHtml.contains("id=\"productionReady\"")
                         && keepJs.contains("constructionBannerSignature")
@@ -1221,17 +1221,25 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("id=\"keepEventOverlay\"")
-                        && keepHtml.contains("id=\"keepEventAlert\"")
                         && keepHtml.contains("data-keep-event-repair=\"TIME\"")
                         && keepHtml.contains("data-keep-event-repair=\"SIEGECOINS\"")
                         && keepJs.contains("/api/keep/event/repair")
                         && keepJs.contains("function renderKeepEvent()")
                         && keepJs.contains("function keepEventRemaining()")
+                        && keepJs.contains("class=\"notice-repair-card\"")
+                        && keepJs.contains("function keepActivityBadgeCount()")
+                        && keepJs.contains("status: snapshot.activeKeepEvent.repairInProgress ? 'underway' : 'action_needed'")
                         && keepJs.contains("activeKeepEvent:")
                         && keepCss.contains(".keep-event-overlay")
-                        && keepCss.contains(".keep-event-alert")
+                        && keepCss.contains(".notice-repair-card")
                         && keepCss.contains(".is-damaged"),
-                "Keep setbacks need a persistent damage cue, repair sheet, live timer, coin route, and debug snapshot state."
+                "Keep setbacks need an activity-menu repair cue, repair sheet, live timer, coin route, and debug snapshot state."
+        );
+        assertFalse(
+                keepHtml.contains("id=\"keepEventAlert\"")
+                        || keepCss.contains(".keep-event-alert")
+                        || keepJs.contains("nextEventId !== previousEventId"),
+                "Repairs belong in Keep activity and must not render or automatically open a separate map-covering alert."
         );
         assertTrue(
                 keepJs.contains("data-dialogue-followup=")
