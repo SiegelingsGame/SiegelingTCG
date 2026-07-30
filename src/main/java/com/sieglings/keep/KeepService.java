@@ -65,8 +65,14 @@ public class KeepService {
     private static final int ENCLAVE_CAPACITY = 5;
     public static final int AKHARS_FRONT_BUILD_COST = 360;
     public static final long AKHARS_FRONT_BUILD_SECONDS = 14_400;
-    private static final int AKHARS_FRONT_CAPACITY = 3;
-    private static final int AKHARS_FRONT_GOLD_CAPACITY = 360;
+    public static final int AKHARS_FRONT_MAX_LEVEL = 4;
+    /** Rampart tiers, indexed by front level (0 = unbuilt). The wall's level *is* its post
+        count, so raising the walls is the only way to field more than one defender, and a
+        better wall also banks more and pays every defender more. */
+    private static final int[] AKHARS_FRONT_GOLD_CAPACITY_BY_LEVEL = {0, 120, 220, 340, 480};
+    private static final int[] AKHARS_FRONT_WALL_BONUS_PERCENT = {0, 0, 10, 20, 35};
+    private static final String[] AKHARS_FRONT_WALL_NAMES = {
+            "Distant front", "Timber Palisade", "Stone Rampart", "Reinforced Bulwark", "Bastion Battlements"};
     private static final double AKHARS_FRONT_GOLD_PER_MINUTE_PER_DEFENDER = 1.0;
     private static final double AKHARS_FRONT_COMBAT_GOLD_PER_MINUTE_PER_DEFENDER = 4.0;
     private static final int AKHARS_FRONT_COINS_PER_DEFEAT = 1;
@@ -713,8 +719,11 @@ public class KeepService {
         return mutate(user, requestId, expectedVersion, context -> {
             KeepState state = context.state();
             if (state.getAkharsFrontLevel() < 1) throw new IllegalArgumentException("Unlock Akhar's Front first.");
-            if (slot < 0 || slot >= AKHARS_FRONT_CAPACITY) {
-                throw new IllegalArgumentException("Choose one of the three rampart posts.");
+            int capacity = akharsFrontCapacity(state);
+            if (slot < 0 || slot >= capacity) {
+                throw new IllegalArgumentException(capacity == 1
+                        ? "The rampart only has one post. Upgrade the walls to open more."
+                        : "Choose one of the " + capacity + " rampart posts.");
             }
             String normalized = residentId == null ? "" : residentId.trim();
             if (!normalized.isBlank() && context.residents().stream().noneMatch(item -> item.id().equals(normalized))) {
@@ -1105,6 +1114,19 @@ public class KeepService {
         if (state.getAkharsFrontLevel() > 0 && state.getAkharsFrontLastAccruedAt() == null) {
             state.setAkharsFrontLastAccruedAt(now);
         }
+        // Akhar's Front shipped with three fixed posts before the walls became upgradable.
+        // Promote those keeps to the tier they were effectively already holding so making
+        // posts a wall-tier reward never evicts a Siegeling somebody had posted.
+        if (state.getAkharsFrontLevel() > 0) {
+            List<String> posted = state.getAkharsFrontResidentIds();
+            int occupied = 0;
+            for (int index = 0; index < posted.size(); index++) {
+                if (posted.get(index) != null && !posted.get(index).isBlank()) occupied = index + 1;
+            }
+            if (occupied > state.getAkharsFrontLevel()) {
+                state.setAkharsFrontLevel(Math.min(AKHARS_FRONT_MAX_LEVEL, occupied));
+            }
+        }
         if (state.getCreatedAt() == null) state.setCreatedAt(now);
         if (state.getLastVisitedAt() == null) state.setLastVisitedAt(state.getUpdatedAt() == null ? now : state.getUpdatedAt());
         if (state.getLastKeepEventRollAt() == null) state.setLastKeepEventRollAt(now);
@@ -1252,6 +1274,9 @@ public class KeepService {
         } else if ("build_akhars_front".equals(id)) {
             state.setAkharsFrontLevel(1);
             state.setAkharsFrontLastAccruedAt(completesAt);
+        } else if (parseAkharsFrontLevel(id) > 0) {
+            state.setAkharsFrontLevel(Math.max(state.getAkharsFrontLevel(), parseAkharsFrontLevel(id)));
+            if (state.getAkharsFrontLastAccruedAt() == null) state.setAkharsFrontLastAccruedAt(completesAt);
         } else if (storageProjectRoom(id) != null) {
             state.getStorageUpgradeLevels().put(storageProjectRoom(id), 1);
         } else if (id.startsWith("hall_level_")) {
@@ -1302,7 +1327,7 @@ public class KeepService {
         }
         if (!at.isAfter(last)) return;
         long seconds = Duration.between(last, at).getSeconds();
-        int room = Math.max(0, AKHARS_FRONT_GOLD_CAPACITY - state.getAkharsFrontStoredGold());
+        int room = Math.max(0, akharsFrontGoldCapacity(state) - state.getAkharsFrontStoredGold());
         double exact = seconds * akharsFrontRate(state, residents) / 60.0
                 + state.getAkharsFrontProductionRemainder();
         long produced = Math.max(0, (long) Math.floor(exact + 1e-9));
@@ -1321,12 +1346,12 @@ public class KeepService {
 
     private double akharsFrontPassiveRate(KeepState state, List<Resident> residents) {
         return akharsFrontDefenderCount(state, residents) * AKHARS_FRONT_GOLD_PER_MINUTE_PER_DEFENDER
-                * (1 + favoriteBoost(state, residents));
+                * akharsFrontWallMultiplier(state) * (1 + favoriteBoost(state, residents));
     }
 
     private double akharsFrontCombatRate(KeepState state, List<Resident> residents) {
         return akharsFrontDefenderCount(state, residents) * AKHARS_FRONT_COMBAT_GOLD_PER_MINUTE_PER_DEFENDER
-                * (1 + favoriteBoost(state, residents));
+                * akharsFrontWallMultiplier(state) * (1 + favoriteBoost(state, residents));
     }
 
     private double akharsFrontRate(KeepState state, List<Resident> residents) {
@@ -1339,7 +1364,7 @@ public class KeepService {
         if (last == null || !at.isAfter(last)) return state.getAkharsFrontStoredGold();
         double exact = Duration.between(last, at).getSeconds() * akharsFrontRate(state, residents) / 60.0
                 + state.getAkharsFrontProductionRemainder();
-        return Math.min(AKHARS_FRONT_GOLD_CAPACITY,
+        return Math.min(akharsFrontGoldCapacity(state),
                 state.getAkharsFrontStoredGold() + Math.max(0, (int) Math.floor(exact + 1e-9)));
     }
 
@@ -1606,12 +1631,64 @@ public class KeepService {
     }
 
     private List<String> normalizedAkharsFrontResidents(KeepState state) {
+        int capacity = akharsFrontCapacity(state);
         List<String> residents = new ArrayList<>(state.getAkharsFrontResidentIds());
-        if (residents.size() > AKHARS_FRONT_CAPACITY) {
-            residents = new ArrayList<>(residents.subList(0, AKHARS_FRONT_CAPACITY));
+        if (residents.size() > capacity) {
+            residents = new ArrayList<>(residents.subList(0, capacity));
         }
-        while (residents.size() < AKHARS_FRONT_CAPACITY) residents.add("");
+        while (residents.size() < capacity) residents.add("");
         return residents;
+    }
+
+    private int akharsFrontLevel(KeepState state) {
+        return Math.min(AKHARS_FRONT_MAX_LEVEL, Math.max(0, state.getAkharsFrontLevel()));
+    }
+
+    /** One rampart post per wall tier: 1 when the front is first raised, 4 fully upgraded. */
+    private int akharsFrontCapacity(KeepState state) {
+        return akharsFrontLevel(state);
+    }
+
+    private int akharsFrontGoldCapacity(KeepState state) {
+        return AKHARS_FRONT_GOLD_CAPACITY_BY_LEVEL[akharsFrontLevel(state)];
+    }
+
+    /** Wall quality paid out as income: better stone means every defender earns more. */
+    private double akharsFrontWallMultiplier(KeepState state) {
+        return 1 + AKHARS_FRONT_WALL_BONUS_PERCENT[akharsFrontLevel(state)] / 100.0;
+    }
+
+    private static String akharsFrontWallName(int level) {
+        return AKHARS_FRONT_WALL_NAMES[Math.min(AKHARS_FRONT_MAX_LEVEL, Math.max(0, level))];
+    }
+
+    private static int parseAkharsFrontLevel(String projectId) {
+        if (projectId == null || !projectId.startsWith("akhars_front_level_")) return 0;
+        try {
+            int level = Integer.parseInt(projectId.substring("akhars_front_level_".length()));
+            return level >= 2 && level <= AKHARS_FRONT_MAX_LEVEL ? level : 0;
+        } catch (NumberFormatException ignored) {
+            return 0;
+        }
+    }
+
+    /** Better walls need the Builder's Yard, and the top two tiers need a keep that can
+        cut and finish stone at scale. */
+    private boolean akharsFrontUpgradeGateMet(KeepState state, int level) {
+        if (state.getBuildersYardLevel() < 1) return false;
+        return switch (level) {
+            case 3 -> hallLevel(state) >= 4;
+            case 4 -> hallLevel(state) >= 5;
+            default -> true;
+        };
+    }
+
+    private String akharsFrontUpgradeRequirement(int level) {
+        return switch (level) {
+            case 3 -> "Needs the Builder's Yard and a " + rankName(4) + " keep.";
+            case 4 -> "Needs the Builder's Yard and a " + rankName(5) + " keep.";
+            default -> "Needs the Builder's Yard.";
+        };
     }
 
     /** The rapport tasks a resident currently offers — element defaults, dashboard overrides,
@@ -1803,7 +1880,7 @@ public class KeepService {
                 .toList();
         List<String> capsReached = new ArrayList<>();
         if (state.getWoodlotStored() >= woodlotStorageCapacity(state)) capsReached.add("Restorative Woodlot");
-        if (state.getAkharsFrontLevel() > 0 && state.getAkharsFrontStoredGold() >= AKHARS_FRONT_GOLD_CAPACITY) {
+        if (state.getAkharsFrontLevel() > 0 && state.getAkharsFrontStoredGold() >= akharsFrontGoldCapacity(state)) {
             capsReached.add("Akhar's Front");
         }
         for (FacilityDefinition definition : FACILITIES.values()) {
@@ -1944,7 +2021,7 @@ public class KeepService {
     private Map<String, Object> akharsFront(KeepState state, List<Resident> residents, Instant now) {
         List<String> assigned = normalizedAkharsFrontResidents(state);
         List<Map<String, Object>> slots = new ArrayList<>();
-        for (int index = 0; index < AKHARS_FRONT_CAPACITY; index++) {
+        for (int index = 0; index < assigned.size(); index++) {
             String residentId = assigned.get(index);
             Resident resident = residents.stream().filter(item -> item.id().equals(residentId)).findFirst().orElse(null);
             Map<String, Object> slot = new LinkedHashMap<>();
@@ -1953,20 +2030,51 @@ public class KeepService {
             slot.put("resident", resident == null ? null : serializeResident(state, resident));
             slots.add(slot);
         }
+        int level = akharsFrontLevel(state);
         int available = projectedAkharsFrontAvailable(state, residents, now);
+        int storageCapacity = akharsFrontGoldCapacity(state);
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("built", state.getAkharsFrontLevel() > 0);
-        out.put("level", state.getAkharsFrontLevel());
-        out.put("capacity", AKHARS_FRONT_CAPACITY);
+        out.put("built", level > 0);
+        out.put("level", level);
+        out.put("maxLevel", AKHARS_FRONT_MAX_LEVEL);
+        out.put("capacity", akharsFrontCapacity(state));
+        out.put("wallName", akharsFrontWallName(level));
+        out.put("wallBonusPercent", AKHARS_FRONT_WALL_BONUS_PERCENT[level]);
         out.put("residentCount", assigned.stream().filter(id -> !id.isBlank()).count());
         out.put("available", available);
-        out.put("storageCapacity", AKHARS_FRONT_GOLD_CAPACITY);
+        out.put("storageCapacity", storageCapacity);
         out.put("ratePerMinute", akharsFrontRate(state, residents));
         out.put("passiveRatePerMinute", akharsFrontPassiveRate(state, residents));
         out.put("combatRatePerMinute", akharsFrontCombatRate(state, residents));
         out.put("coinsPerDefeat", AKHARS_FRONT_COINS_PER_DEFEAT);
-        out.put("isFull", available >= AKHARS_FRONT_GOLD_CAPACITY);
+        out.put("isFull", available >= storageCapacity);
         out.put("slots", slots);
+        out.put("upgrade", akharsFrontUpgrade(state));
+        return out;
+    }
+
+    /** The next wall tier, previewed even while its gate is unmet so the Front screen can
+        tell the player what raising the walls buys and what it still needs. */
+    private Map<String, Object> akharsFrontUpgrade(KeepState state) {
+        int level = akharsFrontLevel(state);
+        if (level < 1 || level >= AKHARS_FRONT_MAX_LEVEL) return null;
+        int next = level + 1;
+        BuildProject project = buildProject("akhars_front_level_" + next);
+        if (project == null) return null;
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("id", project.id());
+        out.put("name", project.name());
+        out.put("level", next);
+        out.put("wallName", akharsFrontWallName(next));
+        out.put("posts", next);
+        out.put("wallBonusPercent", AKHARS_FRONT_WALL_BONUS_PERCENT[next]);
+        out.put("storageCapacity", AKHARS_FRONT_GOLD_CAPACITY_BY_LEVEL[next]);
+        out.put("timberCost", project.timberCost());
+        out.put("materialCosts", serializeMaterialCosts(project.materialCosts()));
+        out.put("durationSeconds", project.durationSeconds());
+        out.put("gateMet", akharsFrontUpgradeGateMet(state, next));
+        out.put("requirement", akharsFrontUpgradeRequirement(next));
+        out.put("inProgress", isConstructing(state, project.id()));
         return out;
     }
 
@@ -2139,7 +2247,8 @@ public class KeepService {
             "hall_level_4", "hall_level_5", "hall_level_6", "hall_level_7", "hall_level_8",
             "woodlot_storage_annex", "garden_storage_annex", "forge_storage_annex",
             "fridge_storage_annex", "generator_storage_annex", "quarry_storage_annex",
-            "kitchen_storage_annex");
+            "kitchen_storage_annex", "build_akhars_front", "akhars_front_level_2",
+            "akhars_front_level_3", "akhars_front_level_4");
 
     /** Shipped workshop output, for the dashboard's "default" column. */
     public static List<Map<String, Object>> shippedBuildingDefaults() {
@@ -2206,6 +2315,12 @@ public class KeepService {
             case "build_enclave" -> new BuildProject(id, "Raise the Siegeling Enclave", ENCLAVE_BUILD_COST, Map.of(), ENCLAVE_BUILD_SECONDS);
             case "build_akhars_front" -> new BuildProject(id, "Raise Akhar's Front", AKHARS_FRONT_BUILD_COST,
                     Map.of("stone", 20), AKHARS_FRONT_BUILD_SECONDS);
+            case "akhars_front_level_2" -> new BuildProject(id, "Reinforce the Rampart", 320,
+                    Map.of("stone", 24), 21_600);
+            case "akhars_front_level_3" -> new BuildProject(id, "Raise the Battlements", 420,
+                    Map.of("stone", 32, "ember_ingot", 14), 36_000);
+            case "akhars_front_level_4" -> new BuildProject(id, "Crown the Bastion", 540,
+                    Map.of("stone", 44, "ember_ingot", 18, "frost_crystal", 14), 57_600);
             case "storehouse_level_2" -> new BuildProject(id, "Vault the Storehouse", 320,
                     Map.of("verdant_fiber", 18, "ember_ingot", 12, "frost_crystal", 12, "storm_cell", 8), 28_800);
             case "hall_level_2" -> new BuildProject(id, "Raise the Timber Outpost", 120, Map.of(), 900);
@@ -2251,6 +2366,10 @@ public class KeepService {
             case "build_enclave" -> state.getArchiveLevel() >= 1 && state.getEnclaveLevel() < 1;
             case "build_akhars_front" -> state.getEnclaveLevel() >= 1 && hallLevel(state) >= 3
                     && facilityLevel(state, "quarry") >= 1 && state.getAkharsFrontLevel() < 1;
+            case "akhars_front_level_2", "akhars_front_level_3", "akhars_front_level_4" -> {
+                int level = parseAkharsFrontLevel(id);
+                yield level > 0 && akharsFrontLevel(state) == level - 1 && akharsFrontUpgradeGateMet(state, level);
+            }
             case "storehouse_level_2" -> elementalFacilitiesAtLeast(state, 1) && state.getStorehouseLevel() < 2
                     && state.getBuildersYardLevel() >= 1;
             case "hall_level_2", "hall_level_3", "hall_level_4", "hall_level_5",
@@ -2689,7 +2808,7 @@ public class KeepService {
         int siegelingSlotCapacity = 1 + (int) FACILITIES.keySet().stream()
                 .filter(id -> facilityLevel(state, id) > 0).count()
                 + (state.getEnclaveLevel() > 0 ? ENCLAVE_CAPACITY : 0)
-                + (state.getAkharsFrontLevel() > 0 ? AKHARS_FRONT_CAPACITY : 0);
+                + akharsFrontCapacity(state);
         int activeSiegelingSlots = (state.getWoodlotResidentId().isBlank() ? 0 : 1)
                 + (int) FACILITIES.keySet().stream()
                 .filter(id -> facilityLevel(state, id) > 0)
@@ -2811,9 +2930,12 @@ public class KeepService {
         out.add(building("enclave", state.getEnclaveLevel() > 0 ? "Siegeling Enclave" : "Enclave Clearing",
                 state.getEnclaveLevel(), isConstructing(state, "build_enclave") ? "CONSTRUCTING"
                         : state.getEnclaveLevel() > 0 ? "COMPLETE" : "FOUNDATIONS"));
-        out.add(building("akhars_front", state.getAkharsFrontLevel() > 0 ? "Akhar's Front" : "Distant Front",
-                state.getAkharsFrontLevel(), isConstructing(state, "build_akhars_front") ? "CONSTRUCTING"
-                        : state.getAkharsFrontLevel() > 0 ? "COMPLETE" : "LOCKED"));
+        int frontLevel = akharsFrontLevel(state);
+        boolean frontBuilding = isConstructing(state, "build_akhars_front")
+                || (frontLevel > 0 && frontLevel < AKHARS_FRONT_MAX_LEVEL
+                    && isConstructing(state, "akhars_front_level_" + (frontLevel + 1)));
+        out.add(building("akhars_front", frontLevel > 0 ? "Akhar's Front" : "Distant Front",
+                frontLevel, frontBuilding ? "CONSTRUCTING" : frontLevel > 0 ? "COMPLETE" : "LOCKED"));
         out.add(building("storehouse", state.getStorehouseLevel() > 0 ? "Covenant Storehouse" : "Storehouse Foundations",
                 state.getStorehouseLevel(), constructionStatus(state, "raise_storehouse", "storehouse_level_2", state.getStorehouseLevel())));
         for (FacilityDefinition definition : FACILITIES.values()) {
@@ -2908,6 +3030,7 @@ public class KeepService {
         addHallUpgradeOption(state, out);
         addEnclaveBuildOption(state, out);
         addAkharsFrontBuildOption(state, out);
+        addAkharsFrontUpgradeOption(state, out);
         return out;
     }
 
@@ -2925,8 +3048,35 @@ public class KeepService {
         BuildProject project = buildProject("build_akhars_front");
         out.add(buildOption(state, project.id(), project.name(), project.timberCost(), project.materialCosts(),
                 project.durationSeconds(),
-                "Fortify the road with three voluntary rampart posts. Defenders repel Akhar's raiders and earn Siegecoins while you are away.",
+                "Fortify the road with one voluntary rampart post. Its defender repels Akhar's raiders and earns Siegecoins while you are away — later wall upgrades open up to four posts.",
                 true));
+    }
+
+    /** Wall tiers are ordinary construction projects, so timed builds, material speed-ups,
+        and the Siegecoin instant purchase all work on them unchanged. */
+    private void addAkharsFrontUpgradeOption(KeepState state, List<Map<String, Object>> out) {
+        int level = akharsFrontLevel(state);
+        if (level < 1 || level >= AKHARS_FRONT_MAX_LEVEL) return;
+        int next = level + 1;
+        String id = "akhars_front_level_" + next;
+        if (!akharsFrontUpgradeGateMet(state, next) || isConstructing(state, id)) return;
+        BuildProject project = buildProject(id);
+        if (project == null) return;
+        Map<String, Object> option = buildOption(state, project.id(), project.name(), project.timberCost(),
+                project.materialCosts(), project.durationSeconds(), akharsFrontUpgradeDescription(next), true);
+        option.put("wallName", akharsFrontWallName(next));
+        out.add(option);
+    }
+
+    private String akharsFrontUpgradeDescription(int level) {
+        return switch (level) {
+            case 2 -> "Fit cut stone over the palisade: a second rampart post, +"
+                    + AKHARS_FRONT_WALL_BONUS_PERCENT[2] + "% Siegecoins from every defender, and a deeper coin bank.";
+            case 3 -> "Crenellate the wall and widen the walk: a third rampart post and +"
+                    + AKHARS_FRONT_WALL_BONUS_PERCENT[3] + "% Siegecoins from every defender.";
+            default -> "Iron, banners, and a full torch line: the fourth and final rampart post and +"
+                    + AKHARS_FRONT_WALL_BONUS_PERCENT[4] + "% Siegecoins from every defender.";
+        };
     }
 
     /** The next hall rank appears alongside other projects once its gate is met. */

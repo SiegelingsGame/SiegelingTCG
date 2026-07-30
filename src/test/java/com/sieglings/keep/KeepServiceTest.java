@@ -21,6 +21,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
@@ -1296,7 +1297,12 @@ class KeepServiceTest {
         clock.advance(Duration.ofSeconds(KeepService.AKHARS_FRONT_BUILD_SECONDS + 1));
         Map<String, Object> built = service.getSnapshot(user);
         assertEquals(Boolean.TRUE, valueAt(built, "akharsFront", "built"));
-        assertEquals(3, intAt(built, "akharsFront", "capacity"));
+        assertEquals(1, intAt(built, "akharsFront", "capacity"), "A new rampart opens exactly one post.");
+        assertEquals("Timber Palisade", valueAt(built, "akharsFront", "wallName"));
+        assertEquals(120, intAt(built, "akharsFront", "storageCapacity"));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.setAkharsFrontResident(user, 1, "mossling", "front-slot-two", store.state.getVersion()),
+                "Post two only exists after the walls are upgraded.");
 
         service.inviteResident(user, "quarry", "mossling", "front-worker", store.state.getVersion());
         assertEquals("mossling", station(service.getSnapshot(user), "quarry").get("residentId"));
@@ -1331,6 +1337,116 @@ class KeepServiceTest {
                 user, "quarry", "mossling", "front-return-worker", store.state.getVersion());
         assertEquals(0, intAt(returned, "akharsFront", "residentCount"));
         assertEquals("mossling", station(returned, "quarry").get("residentId"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void rampartUpgradesOpenOnePostPerTierUpToFour() {
+        service.getSnapshot(user);
+        // A Keep far enough along to own the Front at all: the early build ladder is done.
+        store.state.setArchiveLevel(1);
+        store.state.setWoodlotLevel(2);
+        store.state.setStorehouseLevel(1);
+        store.state.setEnclaveLevel(1);
+        store.state.getFacilityLevels().put("quarry", 1);
+        store.state.getFacilityLastAccruedAt().put("quarry", clock.instant());
+        store.state.setAkharsFrontLevel(1);
+        store.state.setAkharsFrontLastAccruedAt(clock.instant());
+        store.state.setBuildersYardLevel(1);
+        store.state.setHallLevel(5);
+        store.state.setTimber(5_000);
+        store.state.getMaterialInventory().put("stone", 200);
+        store.state.getMaterialInventory().put("ember_ingot", 100);
+        store.state.getMaterialInventory().put("frost_crystal", 100);
+
+        Map<String, Object> tierOne = service.getSnapshot(user);
+        assertEquals(1, ((List<Map<String, Object>>) valueAt(tierOne, "akharsFront", "slots")).size());
+        Map<String, Object> upgrade = (Map<String, Object>) valueAt(tierOne, "akharsFront", "upgrade");
+        assertEquals("akhars_front_level_2", upgrade.get("id"));
+        assertEquals("Stone Rampart", upgrade.get("wallName"));
+        assertEquals(Boolean.TRUE, upgrade.get("gateMet"));
+
+        for (int level = 2; level <= KeepService.AKHARS_FRONT_MAX_LEVEL; level++) {
+            String projectId = "akhars_front_level_" + level;
+            buildOption(service.getSnapshot(user), projectId); // offered before it is started
+            service.startBuild(user, projectId, "rampart-" + level, store.state.getVersion());
+            clock.advance(Duration.ofDays(2));
+            Map<String, Object> raised = service.getSnapshot(user);
+            assertEquals(level, intAt(raised, "akharsFront", "level"));
+            assertEquals(level, intAt(raised, "akharsFront", "capacity"));
+            assertEquals(level, ((List<Map<String, Object>>) valueAt(raised, "akharsFront", "slots")).size());
+        }
+
+        Map<String, Object> bastion = service.getSnapshot(user);
+        assertEquals("Bastion Battlements", valueAt(bastion, "akharsFront", "wallName"));
+        assertEquals(35, intAt(bastion, "akharsFront", "wallBonusPercent"));
+        assertEquals(480, intAt(bastion, "akharsFront", "storageCapacity"));
+        assertNull(valueAt(bastion, "akharsFront", "upgrade"), "The fourth tier is the last one.");
+        assertThrows(NoSuchElementException.class, () -> buildOption(bastion, "akhars_front_level_5"));
+
+        // A fully raised wall pays its defender the tier bonus on both income components.
+        service.inviteResident(user, "woodlot", "mossling", "front-hire", store.state.getVersion());
+        Map<String, Object> posted = service.setAkharsFrontResident(
+                user, 3, "mossling", "front-post-four", store.state.getVersion());
+        assertEquals(1, intAt(posted, "akharsFront", "residentCount"));
+        assertEquals(1.35, ((Number) valueAt(posted, "akharsFront", "passiveRatePerMinute")).doubleValue(), .0001);
+        assertEquals(5.4, ((Number) valueAt(posted, "akharsFront", "combatRatePerMinute")).doubleValue(), .0001);
+        assertEquals("Akhar's Front post 4",
+                ((Map<String, Object>) residentPayload(posted, "mossling").get("assignment")).get("label"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void rampartUpgradesStayGatedUntilTheKeepCanSupportThem() {
+        service.getSnapshot(user);
+        store.state.setArchiveLevel(1);
+        store.state.setWoodlotLevel(2);
+        store.state.setStorehouseLevel(1);
+        store.state.setEnclaveLevel(1);
+        store.state.getFacilityLevels().put("quarry", 1);
+        store.state.getFacilityLastAccruedAt().put("quarry", clock.instant());
+        store.state.setAkharsFrontLevel(1);
+        store.state.setAkharsFrontLastAccruedAt(clock.instant());
+        store.state.setTimber(5_000);
+        store.state.getMaterialInventory().put("stone", 200);
+        store.state.getMaterialInventory().put("ember_ingot", 100);
+
+        Map<String, Object> noYard = service.getSnapshot(user);
+        assertEquals(Boolean.FALSE, ((Map<String, Object>) valueAt(noYard, "akharsFront", "upgrade")).get("gateMet"));
+        assertThrows(NoSuchElementException.class, () -> buildOption(noYard, "akhars_front_level_2"));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.startBuild(user, "akhars_front_level_2", "rampart-early", store.state.getVersion()));
+
+        store.state.setBuildersYardLevel(1);
+        service.startBuild(user, "akhars_front_level_2", "rampart-two", store.state.getVersion());
+        clock.advance(Duration.ofDays(2));
+        assertEquals(2, intAt(service.getSnapshot(user), "akharsFront", "level"));
+
+        // Tier three additionally needs a Stonehold keep, so it stays previewed but unbuildable.
+        Map<String, Object> gated = service.getSnapshot(user);
+        Map<String, Object> upgrade = (Map<String, Object>) valueAt(gated, "akharsFront", "upgrade");
+        assertEquals("akhars_front_level_3", upgrade.get("id"));
+        assertEquals(Boolean.FALSE, upgrade.get("gateMet"));
+        assertEquals("Needs the Builder's Yard and a Stonehold keep.", upgrade.get("requirement"));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.startBuild(user, "akhars_front_level_3", "rampart-three-early", store.state.getVersion()));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void legacyThreePostRampartsKeepTheirDefendersAtTheMatchingTier() {
+        service.getSnapshot(user);
+        // A pre-upgrade Keep document: level 1, but three fixed posts, the third occupied.
+        store.state.setAkharsFrontLevel(1);
+        store.state.setAkharsFrontLastAccruedAt(clock.instant());
+        store.state.setAkharsFrontResidentIds(List.of("", "", "mossling"));
+
+        Map<String, Object> migrated = service.getSnapshot(user);
+        assertEquals(3, intAt(migrated, "akharsFront", "level"), "Three posts means the walls were tier three.");
+        assertEquals(3, intAt(migrated, "akharsFront", "capacity"));
+        List<Map<String, Object>> slots = (List<Map<String, Object>>) valueAt(migrated, "akharsFront", "slots");
+        assertEquals("mossling", slots.get(2).get("residentId"), "The posted defender must survive the migration.");
+        assertEquals(1, intAt(migrated, "akharsFront", "residentCount"));
     }
 
     @Test

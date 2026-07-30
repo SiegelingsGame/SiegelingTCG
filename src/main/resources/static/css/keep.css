@@ -530,6 +530,33 @@ button.resource-pill:focus-visible {
 .front-hotspot .building-label small { max-width: 165px; font-size: 6.5px; }
 .front-battle { position: absolute; inset: 0 0 33px; display: none; overflow: hidden; border-radius: 42% 38% 13% 13%; pointer-events: none; }
 .front-rampart { position: absolute; left: -3%; right: -3%; bottom: -8%; width: 106%; height: 61%; z-index: 5; filter: drop-shadow(0 -3px 0 rgba(255, 235, 183, .35)) drop-shadow(0 7px 6px rgba(34, 24, 24, .4)); }
+/* The rampart SVG paints itself from these variables, so a wall tier is a palette swap
+   plus the dressing in .front-wall-trim — no second copy of the wall geometry. */
+.keep-scene { --wall-top: #d7bd8b; --wall-base: #7e674d; --wall-line: #4a392f; --wall-course: rgba(67, 50, 38, .32); --wall-cap: #f2dcaa; }
+.keep-scene[data-akhars-front-level="1"] { --wall-top: #b48b58; --wall-base: #6a4b30; --wall-line: #3d2a1b; --wall-course: rgba(52, 34, 20, .42); --wall-cap: #e0bd83; }
+.keep-scene[data-akhars-front-level="3"] { --wall-top: #e3cfa6; --wall-base: #897354; --wall-line: #4a392f; --wall-cap: #fbeec2; }
+.keep-scene[data-akhars-front-level="4"] { --wall-top: #f1ddb0; --wall-base: #98805a; --wall-line: #55402c; --wall-course: rgba(80, 58, 36, .3); --wall-cap: #ffe9ae; }
+.front-rampart .wall-stop-top { stop-color: var(--wall-top); }
+.front-rampart .wall-stop-base { stop-color: var(--wall-base); }
+.front-rampart .wall-course { stroke: var(--wall-course); }
+.front-rampart .wall-body { stroke: var(--wall-line); }
+.front-rampart .wall-cap { stroke: var(--wall-cap); }
+.front-wall-trim i { position: absolute; z-index: 6; display: none; }
+/* Tier 1 is a hasty palisade: raw planks lashed over the two widest gaps. */
+.wall-patch { bottom: 30%; width: 7%; height: 16%; border: 1px solid rgba(46, 30, 17, .85); border-radius: 1px; background: repeating-linear-gradient(90deg, #8a6134 0 3px, #6d4a26 3px 6px); box-shadow: 0 2px 3px rgba(0, 0, 0, .4); transform: rotate(-4deg); }
+.wall-patch:nth-of-type(2) { transform: rotate(5deg); }
+.wall-banner { bottom: 21%; width: 5.5%; height: 21%; background: linear-gradient(180deg, #b8324a, #7c1c33); clip-path: polygon(0 0, 100% 0, 100% 78%, 50% 100%, 0 78%); box-shadow: 0 2px 4px rgba(0, 0, 0, .45); }
+.wall-coping { left: 0; right: 0; bottom: 43%; width: 100%; height: 2.5%; background: linear-gradient(90deg, rgba(255, 214, 120, .25), #ffdf9b 22%, #d7a643 52%, #ffdf9b 80%, rgba(255, 214, 120, .25)); box-shadow: 0 0 9px rgba(255, 205, 108, .55); }
+.keep-scene[data-akhars-front-level="1"] .wall-patch,
+.keep-scene[data-akhars-front-level="3"] .wall-banner,
+.keep-scene[data-akhars-front-level="4"] .wall-banner,
+.keep-scene[data-akhars-front-level="4"] .wall-coping { display: block; }
+.wall-patch:nth-of-type(1) { left: 26%; }
+.wall-patch:nth-of-type(2) { left: 62%; }
+.wall-banner:nth-of-type(3) { left: 15%; }
+.wall-banner:nth-of-type(4) { left: 47%; }
+.wall-banner:nth-of-type(5) { left: 79%; }
+.keep-scene[data-akhars-front-level="4"] .wall-banner { background: linear-gradient(180deg, #d8b04a, #8d5f1d); }
 .front-torches i {
     position: absolute;
     z-index: 8;
@@ -571,6 +598,17 @@ button.resource-pill:focus-visible {
 .front-torches i:nth-child(2) { left: 28%; animation-delay: -.55s; }
 .front-torches i:nth-child(3) { left: 53%; animation-delay: -.1s; }
 .front-torches i:nth-child(4) { left: 78%; animation-delay: -.7s; }
+/* Torches light the gaps between posts, so their count and spacing follow the wall tier
+   rather than sitting on top of a defender when the rampart is short or full. */
+.keep-scene[data-akhars-front-level="1"] .front-torches i:nth-child(n+3) { display: none; }
+.keep-scene[data-akhars-front-level="1"] .front-torches i:nth-child(2) { left: 62%; }
+.keep-scene[data-akhars-front-level="2"] .front-torches i:nth-child(4) { display: none; }
+.keep-scene[data-akhars-front-level="2"] .front-torches i:nth-child(2) { left: 45%; }
+.keep-scene[data-akhars-front-level="2"] .front-torches i:nth-child(3) { left: 80%; }
+.keep-scene[data-akhars-front-level="4"] .front-torches i:nth-child(1) { left: 24%; }
+.keep-scene[data-akhars-front-level="4"] .front-torches i:nth-child(2) { left: 47%; }
+.keep-scene[data-akhars-front-level="4"] .front-torches i:nth-child(3) { left: 70%; }
+.keep-scene[data-akhars-front-level="4"] .front-torches i:nth-child(4) { left: 93%; }
 .front-defenders b {
     position: absolute;
     z-index: 7;
@@ -584,9 +622,21 @@ button.resource-pill:focus-visible {
     animation: front-defender-brace 1.8s ease-in-out infinite;
 }
 .front-defenders b.has-resident { display: flex; }
-.front-defenders b:nth-child(1) { left: 8%; }
-.front-defenders b:nth-child(2) { left: 32%; animation-delay: -.6s; }
-.front-defenders b:nth-child(3) { left: 56%; animation-delay: -1.2s; }
+.front-defenders b:nth-child(2) { animation-delay: -.6s; }
+.front-defenders b:nth-child(3) { animation-delay: -1.2s; }
+.front-defenders b:nth-child(4) { animation-delay: -1.8s; }
+/* Posts stay centred on the wall at every tier: one defender stands mid-rampart, four
+   spread edge to edge. FRONT_DEFENDER_STARTS in keep.js mirrors these for projectiles. */
+.keep-scene[data-front-capacity="1"] .front-defenders b:nth-child(1) { left: 40%; }
+.keep-scene[data-front-capacity="2"] .front-defenders b:nth-child(1) { left: 24%; }
+.keep-scene[data-front-capacity="2"] .front-defenders b:nth-child(2) { left: 56%; }
+.keep-scene[data-front-capacity="3"] .front-defenders b:nth-child(1) { left: 8%; }
+.keep-scene[data-front-capacity="3"] .front-defenders b:nth-child(2) { left: 32%; }
+.keep-scene[data-front-capacity="3"] .front-defenders b:nth-child(3) { left: 56%; }
+.keep-scene[data-front-capacity="4"] .front-defenders b:nth-child(1) { left: 4%; }
+.keep-scene[data-front-capacity="4"] .front-defenders b:nth-child(2) { left: 27%; }
+.keep-scene[data-front-capacity="4"] .front-defenders b:nth-child(3) { left: 50%; }
+.keep-scene[data-front-capacity="4"] .front-defenders b:nth-child(4) { left: 73%; }
 .front-defenders img { width: auto; height: 100%; max-width: 100%; object-fit: contain; object-position: bottom center; }
 .front-raiders i {
     position: absolute;
@@ -1535,6 +1585,13 @@ button.resource-pill:focus-visible {
    rather than ellipsing — three chips per row leaves no width to truncate into. */
 .enclave-resident-choice .reassign-tag { max-width: 100%; color: #ffb0d0; font: 700 7px/1.25 Georgia, serif; font-style: normal; text-transform: uppercase; letter-spacing: .04em; text-align: center; overflow-wrap: anywhere; }
 .front-reassign-note { margin: 10px 0 2px; padding: 8px 9px; border-left: 2px solid #ffb0d0; color: rgba(255,247,220,.72); background: rgba(255,176,208,.055); font-size: 9px; line-height: 1.4; }
+.front-wall-card { border-color: rgba(244,204,98,.32); }
+.front-wall-next { margin-top: 10px; padding: 10px; border: 1px solid rgba(244,204,98,.24); border-radius: 10px; background: rgba(244,204,98,.05); }
+.front-wall-next strong { display: block; margin: 2px 0; color: #fff1b7; font: 700 13px Georgia, serif; }
+.front-wall-next small { display: block; color: rgba(255,247,220,.66); font-size: 9px; line-height: 1.4; }
+.front-wall-next .cost-row { margin-top: 7px; }
+.front-wall-next .panel-button { width: 100%; margin-top: 8px; }
+.front-wall-note { margin: 8px 0 0; color: rgba(255,247,220,.66); font-size: 9px; line-height: 1.4; }
 .enclave-task-list { margin-top: 4px; }
 .enclave-mission { margin-top: 10px; padding: 10px; border: 1px solid rgba(159,233,255,.25); border-radius: 10px; background: rgba(159,233,255,.05); }
 .enclave-mission.is-complete { border-color: rgba(111,207,139,.5); background: rgba(111,207,139,.07); }

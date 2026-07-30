@@ -9,7 +9,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#173f54">
-    <link rel="stylesheet" href="/css/keep.css?v=44">
+    <link rel="stylesheet" href="/css/keep.css?v=45">
 </head>
 <body>
 <svg class="keep-svg-defs" width="0" height="0" aria-hidden="true" focusable="false">
@@ -83,7 +83,7 @@
 
     <main class="keep-main">
         <section class="keep-scene-viewport" id="sceneViewport" aria-label="A frontier sanctuary under restoration">
-            <div class="keep-scene" id="keepScene" data-healing-stage="0" data-archive-restored="false" data-woodlot-level="1" data-hall-level="1" data-hall-theme="covenant" data-akhars-front-level="0" data-front-defenders="0" data-constructing="">
+            <div class="keep-scene" id="keepScene" data-healing-stage="0" data-archive-restored="false" data-woodlot-level="1" data-hall-level="1" data-hall-theme="covenant" data-akhars-front-level="0" data-front-defenders="0" data-front-capacity="0" data-constructing="">
                 <div class="sky-glow"></div>
                 <div class="cloud cloud-one"></div>
                 <div class="cloud cloud-two"></div>
@@ -327,16 +327,23 @@
                     <span class="front-battle" aria-hidden="true">
                         <svg class="front-rampart" viewBox="0 0 360 150" preserveAspectRatio="none">
                             <defs>
-                                <linearGradient id="frontStone" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d7bd8b"/><stop offset="1" stop-color="#7e674d"/></linearGradient>
-                                <pattern id="frontBlocks" width="48" height="32" patternUnits="userSpaceOnUse"><path d="M0 0h48v32H0z" fill="url(#frontStone)"/><path d="M0 31.5h48M24 0v16M0 16h48" stroke="rgba(67,50,38,.32)" stroke-width="2"/></pattern>
+                                <linearGradient id="frontStone" x1="0" y1="0" x2="0" y2="1"><stop class="wall-stop-top" offset="0"/><stop class="wall-stop-base" offset="1"/></linearGradient>
+                                <pattern id="frontBlocks" width="48" height="32" patternUnits="userSpaceOnUse"><path d="M0 0h48v32H0z" fill="url(#frontStone)"/><path class="wall-course" d="M0 31.5h48M24 0v16M0 16h48" stroke-width="2"/></pattern>
                             </defs>
-                            <path d="M0 64h28V37h32v27h30V37h32v27h30V37h32v27h30V37h32v27h30V37h32v27h52v86H0z" fill="url(#frontBlocks)" stroke="#4a392f" stroke-width="5"/>
-                            <path d="M0 77h360" stroke="#f2dcaa" stroke-width="4" opacity=".58"/>
-                            <path d="M22 112h316" stroke="#5b4638" stroke-width="8" opacity=".28"/>
+                            <path class="wall-body" d="M0 64h28V37h32v27h30V37h32v27h30V37h32v27h30V37h32v27h30V37h32v27h52v86H0z" fill="url(#frontBlocks)" stroke-width="5"/>
+                            <path class="wall-cap" d="M0 77h360" stroke-width="4" opacity=".58"/>
+                            <path class="wall-shadow" d="M22 112h316" stroke="#5b4638" stroke-width="8" opacity=".28"/>
                         </svg>
+                        <!-- Wall-tier dressing. Every piece is hidden by default and revealed by
+                             .keep-scene[data-akhars-front-level] so one markup block covers all four tiers. -->
+                        <span class="front-wall-trim" aria-hidden="true">
+                            <i class="wall-patch"></i><i class="wall-patch"></i>
+                            <i class="wall-banner"></i><i class="wall-banner"></i><i class="wall-banner"></i>
+                            <i class="wall-coping"></i>
+                        </span>
                         <span class="front-torches"><i></i><i></i><i></i><i></i></span>
                         <span class="front-defenders">
-                            <b data-front-resident-slot="0"></b><b data-front-resident-slot="1"></b><b data-front-resident-slot="2"></b>
+                            <b data-front-resident-slot="0"></b><b data-front-resident-slot="1"></b><b data-front-resident-slot="2"></b><b data-front-resident-slot="3"></b>
                         </span>
                         <span class="front-raiders">
                             <i data-front-raider="0"><span class="front-raider-health"><b></b></span><svg viewBox="0 0 60 80"><path d="M18 15 10 2l16 9 4-9 5 9 16-9-9 14c8 6 12 16 10 28l7 23-13-8-4 19-11-19-12 18-3-20-13 9 7-23c-1-12 2-22 8-28Z"/><circle cx="23" cy="27" r="3"/><circle cx="38" cy="27" r="3"/></svg></i>
@@ -669,7 +676,7 @@
 
 <audio id="keepTheme" loop preload="auto" src="/audio/sieglings-theme.mp3?v=1"></audio>
 <script src="/js/config.js?v=1"></script>
-<script src="/js/keep.js?v=43"></script>
+<script src="/js/keep.js?v=44"></script>
 <script src="/js/sw-register.js?v=1"></script>
 </body>
 </html>
