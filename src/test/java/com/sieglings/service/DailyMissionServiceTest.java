@@ -115,6 +115,71 @@ class DailyMissionServiceTest {
         assertThrows(IllegalArgumentException.class, () -> service.claimMission(user, "weekly-pvp-10"));
     }
 
+    /**
+     * {@code DailyMissionProgressStore.toEntity} rehydrates the claimed-id lists
+     * with {@code Stream.toList()}, which is unmodifiable, while the claim path
+     * appends to them in place. Only the entity's copy-on-set accessors keep that
+     * combination safe, so pin the invariant: a claim over stored immutable lists
+     * must not throw.
+     */
+    @Test
+    void claimMissionAcceptsImmutableStoredClaimLists() {
+        AccountUser user = user();
+        progressionStore.saved = progression(user.getId(), 200);
+        DailyMissionProgressEntity progress = progressForToday(user.getId());
+        progress.addCounter(DailyMissionType.PVP_WINS, 3);
+        progress.addCounter(MissionPeriod.WEEKLY, DailyMissionType.PVP_WINS, 10);
+        progress.addCounter(MissionPeriod.LIFETIME, DailyMissionType.PVP_WINS, 100);
+        progress.setClaimedMissionIds(List.of());
+        progress.setClaimedWeeklyIds(List.of());
+        progress.setClaimedLifetimeIds(List.of());
+        missionStore.saved = progress;
+
+        service.claimMission(user, "pvp-wins-3");
+        service.claimMission(user, "weekly-pvp-10");
+        service.claimMission(user, "life-pvp-100");
+
+        assertTrue(missionStore.saved.getClaimedMissionIds().contains("pvp-wins-3"));
+        assertTrue(missionStore.saved.getClaimedWeeklyIds().contains("weekly-pvp-10"));
+        assertTrue(missionStore.saved.getClaimedLifetimeIds().contains("life-pvp-100"));
+    }
+
+    /** Same invariant on the chest ladder, which the daily/weekly tracks mutate. */
+    @Test
+    void claimChestAcceptsImmutableStoredChestLists() {
+        AccountUser user = user();
+        progressionStore.saved = progression(user.getId(), 0);
+        DailyMissionProgressEntity progress = progressForToday(user.getId());
+        progress.setClaimedDailyChests(List.of());
+        progress.addPoints(MissionPeriod.DAILY, 10_000);
+        missionStore.saved = progress;
+
+        int threshold = MissionRewardTrack.forPeriod(MissionPeriod.DAILY).get(0).threshold();
+        service.claimChest(user, "DAILY", threshold);
+
+        assertTrue(missionStore.saved.getClaimedDailyChests().contains(threshold));
+    }
+
+    /**
+     * The snapshot is a read; a failure to persist the day's rollover must not
+     * take the whole mission panel down with it.
+     */
+    @Test
+    void snapshotStillServesWhenRolloverPersistFails() {
+        AccountUser user = user();
+        DailyMissionProgressEntity stale = progressForToday(user.getId());
+        stale.setDateKey("2000-01-01");
+        stale.setWeekKey("2000-W01");
+        missionStore.saved = stale;
+        missionStore.failSave = true;
+
+        Map<String, Object> snapshot = service.getDailySnapshot(user);
+
+        assertFalse(((List<?>) snapshot.get("daily")).isEmpty());
+        assertFalse(((List<?>) snapshot.get("weekly")).isEmpty());
+        assertFalse(((List<?>) snapshot.get("lifetime")).isEmpty());
+    }
+
     @Test
     void claimingMissionsBanksTrackPoints() {
         AccountUser user = user();
@@ -319,6 +384,7 @@ class DailyMissionServiceTest {
 
     private static final class FakeMissionProgressStore extends DailyMissionProgressStore {
         DailyMissionProgressEntity saved;
+        boolean failSave;
 
         @Override
         public Optional<DailyMissionProgressEntity> findByUserId(String userId) {
@@ -327,6 +393,9 @@ class DailyMissionServiceTest {
 
         @Override
         public DailyMissionProgressEntity save(DailyMissionProgressEntity progress) {
+            if (failSave) {
+                throw new IllegalStateException("Unable to save daily mission progress to Firestore.");
+            }
             saved = progress;
             return progress;
         }
