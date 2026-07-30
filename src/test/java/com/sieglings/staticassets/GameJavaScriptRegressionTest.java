@@ -1041,7 +1041,8 @@ class GameJavaScriptRegressionTest {
                 "Every walkable room needs its own work-site drawing whose groups raise as the project advances."
         );
         assertTrue(
-                keepJs.contains("if (state.interior) renderInterior();\n        else openPanel('projects');"),
+                keepJs.contains("if (state.interior) renderInterior();")
+                        && keepJs.contains("else openPanel('projects');"),
                 "Buying time from inside a building must leave the player in the room, not throw them into the Projects panel."
         );
     }
@@ -1054,8 +1055,8 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=39")
-                        && keepHtml.contains("/js/keep.js?v=39")
+                        && keepHtml.contains("/css/keep.css?v=40")
+                        && keepHtml.contains("/js/keep.js?v=40")
                         && keepHtml.contains("id=\"hallFavoriteResident\"")
                         && keepHtml.contains("id=\"productionReady\"")
                         && keepJs.contains("constructionBannerSignature")
@@ -1181,6 +1182,34 @@ class GameJavaScriptRegressionTest {
         assertFalse(
                 keepJs.contains("return 'Wary'"),
                 "The zero-trust Voices stage is Distant, matching the spectrum labels."
+        );
+    }
+
+    @Test
+    void keepSetbacksExposeTimedAndCoinRepairsWithBadChoiceFollowups() throws IOException {
+        String keepHtml = Files.readString(KEEP_HTML);
+        String keepCss = Files.readString(KEEP_CSS);
+        String keepJs = Files.readString(KEEP_JS);
+
+        assertTrue(
+                keepHtml.contains("id=\"keepEventOverlay\"")
+                        && keepHtml.contains("id=\"keepEventAlert\"")
+                        && keepHtml.contains("data-keep-event-repair=\"TIME\"")
+                        && keepHtml.contains("data-keep-event-repair=\"SIEGECOINS\"")
+                        && keepJs.contains("/api/keep/event/repair")
+                        && keepJs.contains("function renderKeepEvent()")
+                        && keepJs.contains("function keepEventRemaining()")
+                        && keepJs.contains("activeKeepEvent:")
+                        && keepCss.contains(".keep-event-overlay")
+                        && keepCss.contains(".keep-event-alert")
+                        && keepCss.contains(".is-damaged"),
+                "Keep setbacks need a persistent damage cue, repair sheet, live timer, coin route, and debug snapshot state."
+        );
+        assertTrue(
+                keepJs.contains("data-dialogue-followup=")
+                        && keepJs.contains("Face what follows")
+                        && keepJs.contains("This answer caused a new Interaction."),
+                "A bad Voice answer must lead directly into its one-time consequence Interaction."
         );
     }
 

@@ -9,7 +9,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#173f54">
-    <link rel="stylesheet" href="/css/keep.css?v=39">
+    <link rel="stylesheet" href="/css/keep.css?v=40">
 </head>
 <body>
 <svg class="keep-svg-defs" width="0" height="0" aria-hidden="true" focusable="false">
@@ -80,6 +80,10 @@
             <button class="icon-button" id="fullscreenButton" type="button" aria-label="Toggle fullscreen" title="Fullscreen (F)">⛶</button>
         </div>
     </header>
+
+    <button class="keep-event-alert hidden" id="keepEventAlert" type="button" data-open-keep-event aria-label="Open active Keep setback">
+        <span aria-hidden="true">!</span><span><small>Repair needed</small><strong id="keepEventAlertName">Keep damage</strong></span><time id="keepEventAlertTime">9:00</time>
+    </button>
 
     <main class="keep-main">
         <section class="keep-scene-viewport" id="sceneViewport" aria-label="A frontier sanctuary under restoration">
@@ -565,6 +569,26 @@
         </div>
     </div>
 
+    <div class="keep-event-overlay hidden" id="keepEventOverlay" role="dialog" aria-modal="true" aria-labelledby="keepEventTitle">
+        <div class="keep-event-card">
+            <button class="keep-event-close" type="button" data-close-keep-event aria-label="Close setback details">Ã—</button>
+            <div class="keep-event-mark" aria-hidden="true"><span>!</span></div>
+            <div class="keep-event-copy">
+                <span class="eyebrow" id="keepEventKicker">A setback strikes</span>
+                <h2 id="keepEventTitle">Repairs needed</h2>
+                <small id="keepEventTarget">Damaged upgrade</small>
+                <p id="keepEventDescription"></p>
+                <div class="keep-event-impact"><span>Effect</span><strong id="keepEventImpact">Bonuses paused until rebuilt</strong></div>
+                <div class="keep-event-timer" id="keepEventTimerRow"><span>Rebuild time</span><strong id="keepEventTimer">9:00</strong></div>
+                <div class="keep-event-actions">
+                    <button class="panel-button secondary" id="keepEventTimedRepair" type="button" data-keep-event-repair="TIME">Begin timed rebuild</button>
+                    <button class="panel-button" id="keepEventCoinRepair" type="button" data-keep-event-repair="SIEGECOINS">Repair now</button>
+                </div>
+                <p class="keep-event-status" id="keepEventStatus" aria-live="polite"></p>
+            </div>
+        </div>
+    </div>
+
     <!-- Approving a new favorite is a keep-wide change, so the cell picker hands off to a
          confirm sheet that states the effect before anything is committed. -->
     <div class="favor-overlay hidden" id="favorOverlay" role="dialog" aria-modal="true" aria-labelledby="favorConfirmName">
@@ -647,7 +671,7 @@
 
 <audio id="keepTheme" loop preload="auto" src="/audio/sieglings-theme.mp3?v=1"></audio>
 <script src="/js/config.js?v=1"></script>
-<script src="/js/keep.js?v=39"></script>
+<script src="/js/keep.js?v=40"></script>
 <script src="/js/sw-register.js?v=1"></script>
 </body>
 </html>

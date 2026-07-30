@@ -1551,6 +1551,56 @@ button.resource-pill:focus-visible {
 .dialogue-choices button:disabled { opacity: .45; cursor: not-allowed; }
 .dialogue-response { padding: 15px; border-left: 3px solid var(--gold); background: rgba(244, 204, 98, .07); color: rgba(255, 247, 220, .86); font: 15px/1.6 Georgia, serif; }
 
+/* Keep setbacks stay visible after their details are dismissed, without covering the map. */
+.keep-event-alert {
+    position: fixed;
+    z-index: 46;
+    top: calc(78px + var(--safe-top));
+    left: 50%;
+    translate: -50% 0;
+    min-width: min(360px, calc(100vw - 28px));
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 9px;
+    padding: 8px 11px;
+    border: 1px solid rgba(255, 151, 94, .65);
+    border-radius: 13px;
+    color: #fff4dc;
+    background: linear-gradient(135deg, rgba(84, 39, 30, .96), rgba(31, 34, 42, .97));
+    box-shadow: 0 12px 34px rgba(0, 0, 0, .38), inset 0 0 18px rgba(255, 119, 76, .08);
+    cursor: pointer;
+}
+.keep-event-alert > span:first-child { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; color: #351c16; background: #ff9b67; font: 900 20px Georgia, serif; }
+.keep-event-alert > span:nth-child(2) { min-width: 0; display: flex; flex-direction: column; text-align: left; }
+.keep-event-alert small { color: #ffb58e; font-size: 8px; font-weight: 900; letter-spacing: .11em; text-transform: uppercase; }
+.keep-event-alert strong { overflow: hidden; color: #fff1d4; font: 700 12px/1.35 Georgia, serif; text-overflow: ellipsis; white-space: nowrap; }
+.keep-event-alert time { color: #ffd6b9; font: 900 12px/1 Georgia, serif; font-variant-numeric: tabular-nums; }
+.keep-event-alert.is-waiting time { font-size: 9px; text-transform: uppercase; }
+
+.keep-event-overlay { position: fixed; inset: 0; z-index: 76; display: grid; place-items: center; padding: calc(18px + var(--safe-top)) calc(18px + var(--safe-right)) calc(18px + var(--safe-bottom)) calc(18px + var(--safe-left)); background: rgba(8, 10, 14, .76); backdrop-filter: blur(6px); }
+.keep-event-card { position: relative; width: min(620px, 100%); max-height: min(680px, 90dvh); display: grid; grid-template-columns: 126px minmax(0, 1fr); gap: 22px; overflow-y: auto; padding: 26px; border: 1px solid rgba(255, 157, 102, .52); border-radius: 22px; background: radial-gradient(circle at 5% 0, rgba(255, 126, 72, .18), transparent 36%), linear-gradient(150deg, #30383d, #17232c 68%); box-shadow: 0 30px 90px rgba(0, 0, 0, .62); }
+.keep-event-close { position: absolute; z-index: 2; right: 11px; top: 9px; width: 38px; height: 38px; border-radius: 50%; color: var(--cream); background: rgba(255, 255, 255, .07); font-size: 21px; cursor: pointer; }
+.keep-event-mark { align-self: start; aspect-ratio: 1; display: grid; place-items: center; border: 2px dashed rgba(255, 181, 142, .58); border-radius: 28px 48% 25px 45%; background: repeating-linear-gradient(135deg, rgba(255, 146, 91, .14) 0 8px, rgba(12, 22, 29, .16) 8px 16px); rotate: -3deg; }
+.keep-event-mark span { width: 72px; height: 72px; display: grid; place-items: center; border-radius: 50%; color: #351b14; background: linear-gradient(#ffc08e, #ef764d); font: 900 45px/1 Georgia, serif; box-shadow: 0 8px 20px rgba(0, 0, 0, .32); }
+.keep-event-copy { min-width: 0; padding-right: 8px; }
+.keep-event-copy .eyebrow { color: #ffae80; }
+.keep-event-copy h2 { margin: 4px 30px 3px 0; color: #fff1d4; font: 700 27px/1.12 Georgia, serif; }
+.keep-event-copy > small { color: rgba(255, 218, 190, .7); font-size: 10px; }
+.keep-event-copy > p { margin: 17px 0; color: rgba(255, 247, 229, .82); font: 14px/1.55 Georgia, serif; }
+.keep-event-impact, .keep-event-timer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; padding: 9px 11px; border: 1px solid rgba(255, 166, 115, .23); border-radius: 10px; background: rgba(255, 122, 68, .065); }
+.keep-event-impact span, .keep-event-timer span { color: #ffb890; font-size: 8px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+.keep-event-impact strong, .keep-event-timer strong { color: #ffe4c9; font: 700 11px Georgia, serif; text-align: right; }
+.keep-event-timer strong { font-size: 16px; font-variant-numeric: tabular-nums; }
+.keep-event-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 14px; }
+.keep-event-actions .panel-button { min-height: 42px; }
+.keep-event-actions .panel-button:not(.secondary) { color: #2a1712; background: linear-gradient(#ffc17e, #ee8b55); }
+.keep-event-status { min-height: 16px; margin: 9px 0 0 !important; color: #ffd2b5 !important; font: 10px/1.4 sans-serif !important; text-align: center; }
+.is-damaged { filter: saturate(.5) contrast(.88); }
+.is-damaged .building-illustration, .is-damaged .facility-building { animation: keep-damage-shudder 3.8s ease-in-out infinite; }
+.is-damaged::after { content: "REPAIR"; position: absolute; z-index: 9; left: 50%; top: 8%; translate: -50% 0; padding: 4px 8px; border: 1px solid rgba(255, 177, 130, .76); border-radius: 99px; color: #3a2018; background: #ffab76; font: 900 8px/1 sans-serif; letter-spacing: .08em; box-shadow: 0 5px 16px rgba(0, 0, 0, .3); pointer-events: none; }
+@keyframes keep-damage-shudder { 0%, 92%, 100% { translate: 0 0; rotate: 0deg; } 94% { translate: -2px 0; rotate: -.5deg; } 96% { translate: 2px 0; rotate: .5deg; } 98% { translate: -1px 0; rotate: 0deg; } }
+
 .discovery-toast {
     position: fixed;
     z-index: 80;
@@ -3149,6 +3199,14 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     .dialogue-copy h2 { font-size: 21px; }
     .dialogue-copy > p { margin: 14px 0; font-size: 13px; line-height: 1.5; }
     .dialogue-choices { grid-column: 1 / -1; }
+    .keep-event-alert { top: calc(104px + var(--safe-top)); min-width: calc(100vw - 20px); }
+    .keep-event-card { grid-template-columns: 72px minmax(0, 1fr); gap: 13px; padding: 18px 14px; }
+    .keep-event-mark { border-radius: 18px; }
+    .keep-event-mark span { width: 48px; height: 48px; font-size: 30px; }
+    .keep-event-copy { padding-right: 18px; }
+    .keep-event-copy h2 { font-size: 21px; }
+    .keep-event-copy > p, .keep-event-impact, .keep-event-timer, .keep-event-actions, .keep-event-status { grid-column: 1 / -1; }
+    .keep-event-actions { grid-template-columns: 1fr; }
     .notice-tray { top: calc(61px + var(--safe-top)); right: calc(7px + var(--safe-right)); }
     .notice-construction-card { padding: 8px; }
     .notice-construction-row { grid-template-columns: 28px minmax(0, 1fr) auto; gap: 7px; }
