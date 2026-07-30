@@ -2659,6 +2659,206 @@
           "relationshipDelta": -2
         }
       ]
+    },
+    {
+      "id": "followup_refugees_at_dawn", "kind": "INTERACTION", "oneTime": true, "weight": 1, "cooldownHours": 24,
+      "npcId": "refugee_scout", "npcName": "The Refugee Scout", "npcRole": "A voice from beyond the gate", "kicker": "The morning after",
+      "prompt": "A small bundle sits outside the gate where the refugees slept. Their scout waits at bowshot, asking whether the Keep meant its refusal.",
+      "requiresFlags": ["bad_choice_visitor_raid_refugees_turn_away"],
+      "choices": [
+        {"id":"open_side_gate","label":"Open the side gate and offer breakfast.","response":"The scout returns slowly. It is not forgiveness, but it is a beginning.","relationshipDelta":2,"timberCost":8},
+        {"id":"leave_bundle","label":"Leave the bundle untouched and stand by the choice.","response":"By noon both scout and bundle are gone. The empty road feels colder.","relationshipDelta":-1}
+      ]
+    },
+    {
+      "id": "followup_joss_second_audit", "kind": "INTERACTION", "oneTime": true, "weight": 1, "cooldownHours": 24,
+      "npcId": "quartermaster_joss", "npcName": "Quartermaster Joss", "npcRole": "House stores runner", "kicker": "No more delays",
+      "prompt": "Joss returns before sunrise with the audit slate already open. The missing week has made every number look suspicious.",
+      "requiresFlags": ["bad_choice_visitor_quartermaster_runner_delay_audit"],
+      "choices": [
+        {"id":"audit_together","label":"Audit every shelf beside Joss.","response":"The long count restores more confidence than the totals do.","relationshipDelta":2},
+        {"id":"send_manifest","label":"Send a written manifest and keep the doors shut.","response":"Joss accepts the page without accepting the distance.","relationshipDelta":0}
+      ]
+    },
+    {
+      "id": "followup_assessor_receipt", "kind": "INTERACTION", "oneTime": true, "weight": 1, "cooldownHours": 24,
+      "npcId": "house_assessor", "npcName": "The House Assessor", "npcRole": "Collector of old obligations", "kicker": "A receipt with conditions",
+      "prompt": "The assessor returns your payment receipt stamped 'temporary compliance' and asks whether the Keep will keep paying for its own ground.",
+      "requiresFlags": ["bad_choice_visitor_house_assessor_pay_assessment"],
+      "choices": [
+        {"id":"challenge_claim","label":"Challenge the claim under the Covenant Charter.","response":"The assessor finally looks up. A real argument is harder to dismiss than timber.","relationshipDelta":2},
+        {"id":"accept_stamp","label":"Accept the stamp and end the meeting.","response":"The ledger closes, but the obligation remains open.","relationshipDelta":-1}
+      ]
+    },
+    {
+      "id": "followup_empty_breakfast", "kind": "INTERACTION", "oneTime": true, "weight": 1, "cooldownHours": 24,
+      "npcId": "kettle_keeper", "npcName": "Keeper Bera", "npcRole": "Breakfast kettle steward", "kicker": "An empty table",
+      "prompt": "No bowls appear at breakfast. Bera asks whether a sanctuary that will not share a kettle still deserves a common table.",
+      "requiresFlags": ["bad_choice_visitor_breakfast_kettle_skip_breakfast"],
+      "choices": [
+        {"id":"cook_late","label":"Cook a late breakfast yourself.","response":"The first spoonfuls are wary. The second helpings are not.","relationshipDelta":2,"timberCost":6},
+        {"id":"keep_foraging","label":"Keep the foraging order in place.","response":"The table remains clean, efficient, and entirely empty.","relationshipDelta":-1}
+      ]
+    },
+    {
+      "id": "followup_nest_cold", "kind": "INTERACTION", "oneTime": true, "weight": 1, "cooldownHours": 24,
+      "npcId": "nest_mender", "npcName": "Mender Tavi", "npcRole": "Enclave nest keeper", "kicker": "Cold stone, sleepless wings",
+      "prompt": "Tavi brings you a handful of shed down from Siegelings that could not sleep on the stone floor.",
+      "requiresFlags": ["bad_choice_visitor_nest_mending_stone_floor"],
+      "choices": [
+        {"id":"mend_now","label":"Mend the nests before any other work.","response":"By dusk every hollow is warm, and Tavi's shoulders finally lower.","relationshipDelta":2,"timberCost":10},
+        {"id":"wait_supplies","label":"Wait until better supplies arrive.","response":"Tavi takes the down back without another word.","relationshipDelta":-1}
+      ]
+    },
+    {
+      "id": "followup_chalk_hidden", "kind": "INTERACTION", "oneTime": true, "weight": 1, "cooldownHours": 24,
+      "npcId": "yard_coach", "npcName": "Coach Fen", "npcRole": "Notch-play organizer", "kicker": "Chalk marks behind the stores",
+      "prompt": "Fen shows you a secret game scratched into the back wall. The ban moved play out of sight; it did not stop it.",
+      "requiresFlags": ["bad_choice_visitor_notch_play_ban_play"],
+      "choices": [
+        {"id":"mark_safe_pitch","label":"Mark a safe yard pitch and lift the ban.","response":"The hidden scratches become bright boundary lines in the sun.","relationshipDelta":2},
+        {"id":"erase_marks","label":"Erase the marks and repeat the rule.","response":"Fen obeys. Small feet find somewhere farther away.","relationshipDelta":-1}
+      ]
+    },
+    {
+      "id": "followup_dusty_feathers", "kind": "INTERACTION", "oneTime": true, "weight": 1, "cooldownHours": 24,
+      "npcId": "river_guide", "npcName": "River Guide Nemi", "npcRole": "Siegeling wash-day guide", "kicker": "Dust in every feather",
+      "prompt": "Nemi reports itching, snapping Siegelings and a water barrel mysteriously emptied overnight.",
+      "requiresFlags": ["bad_choice_visitor_river_bath_no_bath"],
+      "choices": [
+        {"id":"escort_bath","label":"Escort everyone to the river now.","response":"The return procession is soaked, loud, and visibly happier.","relationshipDelta":2},
+        {"id":"ration_water","label":"Ration the barrels and postpone again.","response":"Nemi writes your name at the bottom of a very long complaint.","relationshipDelta":-1}
+      ]
+    },
+    {
+      "id": "followup_nap_strike", "kind": "INTERACTION", "oneTime": true, "weight": 1, "cooldownHours": 24,
+      "npcId": "nap_watch", "npcName": "Watchkeeper Sol", "npcRole": "Guardian of the quiet hour", "kicker": "A very small strike",
+      "prompt": "Every Siegeling lies down in the courtyard at once. Sol says the chores can negotiate with them directly.",
+      "requiresFlags": ["bad_choice_visitor_nap_watch_wake_all"],
+      "choices": [
+        {"id":"restore_naps","label":"Restore the nap watch and take first shift.","response":"One by one, eyes close. Sol hands you the quiet bell.","relationshipDelta":2},
+        {"id":"order_up","label":"Order everyone back to work.","response":"No one moves. Even the quiet bell seems unimpressed.","relationshipDelta":-1}
+      ]
+    },
+    {
+      "id": "followup_song_outside", "kind": "INTERACTION", "oneTime": true, "weight": 1, "cooldownHours": 24,
+      "npcId": "chorus_keeper", "npcName": "Chorus Keeper Aven", "npcRole": "Evening song leader", "kicker": "A song beyond the walls",
+      "prompt": "The evening chorus gathers outside the gate, where the Keep's quiet-hours rule cannot reach them.",
+      "requiresFlags": ["bad_choice_visitor_evening_chorus_quiet_hours"],
+      "choices": [
+        {"id":"invite_song_home","label":"Invite the chorus home and choose an ending hour together.","response":"The last verse settles softly over the roofs.","relationshipDelta":3},
+        {"id":"close_shutters","label":"Close the shutters and wait them out.","response":"The walls keep out the sound, not its meaning.","relationshipDelta":-2}
+      ]
+    },
+    {
+      "id": "followup_ramo_searches_alone", "kind": "INTERACTION", "oneTime": true, "weight": 1, "cooldownHours": 24,
+      "npcId": "ramo", "npcName": "Ramo", "npcRole": "A keeper searching alone", "kicker": "One lantern on the road",
+      "prompt": "Ramo leaves before dawn to search without the Keep. His lantern is already a distant point when the watch notices.",
+      "requiresFlags": ["bad_choice_visitor_lost_partner_scold"],
+      "choices": [
+        {"id":"follow_ramo","label":"Take a second lantern and follow him.","response":"Ramo does not thank you yet, but he slows enough to walk beside you.","relationshipDelta":3},
+        {"id":"let_him_go","label":"Let him learn from the lonely road.","response":"The light vanishes into rain.","relationshipDelta":-2}
+      ]
+    },
+    {
+      "id": "followup_pups_untrained", "kind": "INTERACTION", "oneTime": true, "weight": 1, "cooldownHours": 24,
+      "npcId": "pup_trainer", "npcName": "Trainer Osa", "npcRole": "Young Siegeling handler", "kicker": "Three chewed tool belts",
+      "prompt": "Osa lays the ruined belts in a row. Canceling class did not cancel the pups' need to learn.",
+      "requiresFlags": ["bad_choice_visitor_training_pups_cancel_class"],
+      "choices": [
+        {"id":"teach_class","label":"Teach the missed class and replace the belts.","response":"The pups learn 'leave it.' Eventually.","relationshipDelta":2,"timberCost":8},
+        {"id":"kennel_pups","label":"Confine the pups until someone has time.","response":"The belts are safe. The unhappy howling reaches every workshop.","relationshipDelta":-1}
+      ]
+    },
+    {
+      "id": "followup_rain_game_secret", "kind": "INTERACTION", "oneTime": true, "weight": 1, "cooldownHours": 24,
+      "npcId": "rain_keeper", "npcName": "Rain Keeper Ullo", "npcRole": "Indoor-day games keeper", "kicker": "Whispers under the table",
+      "prompt": "Ullo discovers the residents playing a silent, elaborate game under the Hall table to avoid your strict quiet.",
+      "requiresFlags": ["bad_choice_visitor_rainy_indoor_strict_quiet"],
+      "choices": [
+        {"id":"join_game","label":"Crawl under the table and learn the rules.","response":"The game is absurd. Your apology fits inside it anyway.","relationshipDelta":2},
+        {"id":"clear_table","label":"Clear the room and enforce the rule.","response":"The whispers stop when you enter from then on.","relationshipDelta":-1}
+      ]
+    },
+    {
+      "id": "followup_hatchday_candle", "kind": "INTERACTION", "oneTime": true, "weight": 1, "cooldownHours": 24,
+      "npcId": "hatchday_keeper", "npcName": "Auntie Rell", "npcRole": "Keeper of hatchday names", "kicker": "One candle left burning",
+      "prompt": "Rell leaves a single candle on your desk for the hatchday the Keep chose not to mark.",
+      "requiresFlags": ["bad_choice_visitor_hatchday_no_party"],
+      "choices": [
+        {"id":"hold_late_party","label":"Hold a small late party tonight.","response":"Late is not the same as forgotten. The candle lights twenty smiles.","relationshipDelta":2,"timberCost":6},
+        {"id":"snuff_candle","label":"Snuff it. The schedule still matters.","response":"Rell takes the cold candle away.","relationshipDelta":-1}
+      ]
+    },
+    {
+      "id": "followup_chore_slowdown", "kind": "INTERACTION", "oneTime": true, "weight": 1, "cooldownHours": 24,
+      "npcId": "chore_broker", "npcName": "Broker Pellin", "npcRole": "Neutral chore broker", "kicker": "Every chore takes twice as long",
+      "prompt": "Pellin explains that unpaid sanctuary labor has become exactly as enthusiastic as its wages.",
+      "requiresFlags": ["bad_choice_visitor_chore_swap_no_wages"],
+      "choices": [
+        {"id":"pay_back_wages","label":"Pay back wages and write a fair rota.","response":"The next broom moves like it belongs to someone respected.","relationshipDelta":3,"timberCost":12},
+        {"id":"threaten_rations","label":"Threaten rations for unfinished work.","response":"Pellin's expression goes still. The rota goes blank.","relationshipDelta":-2}
+      ]
+    },
+    {
+      "id": "followup_elara_wall", "kind": "INTERACTION", "oneTime": true, "weight": 1, "cooldownHours": 24,
+      "npcId": "yard_steward_elara", "npcName": "Steward Elara", "npcRole": "Keeper of yard rounds", "kicker": "A wall without welcome",
+      "prompt": "Elara has finished the wall list and removed every small comfort from it. She asks whether duty was all you meant.",
+      "requiresFlags": ["bad_choice_interaction_elara_yard_rounds_press_duty"],
+      "choices": [
+        {"id":"restore_rounds","label":"Walk the yard with her and restore the welcome rounds.","response":"Elara adds one line back: ask who needs help before counting stone.","relationshipDelta":3},
+        {"id":"approve_list","label":"Approve the efficient list as written.","response":"The walls will rise. Elara will not confuse them with a home.","relationshipDelta":-1}
+      ]
+    },
+    {
+      "id": "followup_pell_correction", "kind": "INTERACTION", "oneTime": true, "weight": 1, "cooldownHours": 24,
+      "npcId": "archivist_pell", "npcName": "Archivist Pell", "npcRole": "Keeper of inconvenient details", "kicker": "The polished story spreads",
+      "prompt": "A visitor repeats your polished version as fact. Pell quietly opens the original ledger between you.",
+      "requiresFlags": ["bad_choice_interaction_pell_margin_notes_polish"],
+      "choices": [
+        {"id":"publish_correction","label":"Publish Pell's correction under the Keep seal.","response":"The truth is less tidy and far more durable.","relationshipDelta":3},
+        {"id":"bury_ledger","label":"Shelve the ledger where visitors cannot find it.","response":"Pell marks the hiding place in ink you cannot erase.","relationshipDelta":-1}
+      ]
+    },
+    {
+      "id": "followup_sera_crushed_pages", "kind": "INTERACTION", "oneTime": true, "weight": 1, "cooldownHours": 24,
+      "npcId": "shelf_keeper_sera", "npcName": "Shelf Keeper Sera", "npcRole": "Guardian of breathing room", "kicker": "Pages crushed at the spine",
+      "prompt": "Sera shows you three books warped by the shelf you ordered packed tight.",
+      "requiresFlags": ["bad_choice_interaction_sera_shelf_check_pack_tight"],
+      "choices": [
+        {"id":"rebuild_spacing","label":"Re-space the shelves and mend the bindings.","response":"Empty space returns, now understood as care rather than failure.","relationshipDelta":3,"timberCost":6},
+        {"id":"blame_bindings","label":"Blame the old bindings and keep the shelves full.","response":"Sera closes the damaged books very gently.","relationshipDelta":-2}
+      ]
+    },
+    {
+      "id": "followup_mira_cold_kettle", "kind": "INTERACTION", "oneTime": true, "weight": 1, "cooldownHours": 24,
+      "npcId": "kitchen_keeper_mira", "npcName": "Mira", "npcRole": "Keeper of the second kettle", "kicker": "A cold kettle at your door",
+      "prompt": "Mira leaves the second kettle outside your room. It is empty, clean, and unmistakably a question.",
+      "requiresFlags": ["bad_choice_interaction_mira_second_kettle_close_kitchen"],
+      "choices": [
+        {"id":"reopen_kitchen","label":"Carry it back and reopen the kitchen together.","response":"Steam returns before trust does, but both return.","relationshipDelta":2},
+        {"id":"store_kettle","label":"Put it in storage. One kettle is enough.","response":"Mira stops asking which rules can bend for people.","relationshipDelta":-1}
+      ]
+    },
+    {
+      "id": "followup_gleam_hides", "kind": "INTERACTION", "oneTime": true, "weight": 1, "cooldownHours": 24,
+      "npcId": "errand_pio", "npcName": "Pio without Gleam", "npcRole": "An errand keeper searching the rafters", "kicker": "The basket returns alone",
+      "prompt": "Pio says Gleam has hidden since the scrap was confiscated and will not answer the usual call.",
+      "requiresFlags": ["bad_choice_interaction_pio_gleam_return_confiscate"],
+      "choices": [
+        {"id":"return_scrap","label":"Return the scrap and apologize where Gleam can hear.","response":"A bright nose appears first, then a cautious whole Siegeling.","relationshipDelta":3},
+        {"id":"wait_gleam_out","label":"Wait. Hunger will bring Gleam down.","response":"Pio's face says he learned something about the Keep instead.","relationshipDelta":-2}
+      ]
+    },
+    {
+      "id": "followup_ullo_silent_hall", "kind": "INTERACTION", "oneTime": true, "weight": 1, "cooldownHours": 24,
+      "npcId": "rain_keeper_ullo", "npcName": "Ullo Pane", "npcRole": "Indoor-day games keeper", "kicker": "The Hall is finally silent",
+      "prompt": "Ullo grants your wish: no games, no chatter, no one lingering in the Hall. He asks if this is the sanctuary you wanted.",
+      "requiresFlags": ["bad_choice_interaction_ullo_quiet_hour_shut_it_down"],
+      "choices": [
+        {"id":"invite_noise_back","label":"Invite everyone back and divide quiet from play spaces.","response":"The first returning laugh echoes like a door unlocking.","relationshipDelta":3},
+        {"id":"keep_silence","label":"Keep the silence. Order has value.","response":"Ullo nods and takes his games somewhere beyond your hearing.","relationshipDelta":-2}
+      ]
     }
   ]
 }

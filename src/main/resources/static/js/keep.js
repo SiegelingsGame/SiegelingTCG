@@ -81,6 +81,8 @@
         discoveryQueue: [],
         discoveryTimer: null,
         completionRefreshPending: false,
+        eventRefreshPending: false,
+        shownKeepEventId: '',
         constructionCollapsed: window.matchMedia('(max-width: 767px)').matches,
         selectedStation: 'woodlot',
         // Which Enclave space has its assign menu open (-1 = none). Kept in state rather than
@@ -151,6 +153,9 @@
         document.getElementById('dialogueOverlay')?.addEventListener('click', (event) => {
             if (event.target.id === 'dialogueOverlay') closeDialogue();
         });
+        document.getElementById('keepEventOverlay')?.addEventListener('click', (event) => {
+            if (event.target.id === 'keepEventOverlay') closeKeepEvent();
+        });
         // Tapping the darkened surround is the same as denying: the favorite is unchanged.
         document.getElementById('favorOverlay')?.addEventListener('click', (event) => {
             if (event.target.id === 'favorOverlay') closeFavorConfirm();
@@ -192,6 +197,7 @@
                 if (!document.getElementById('keepTutorial')?.classList.contains('hidden')) finishTutorial();
                 else if (!document.getElementById('favorOverlay')?.classList.contains('hidden')) closeFavorConfirm();
                 else if (!document.getElementById('journeyOverlay')?.classList.contains('hidden')) closeJourney();
+                else if (!document.getElementById('keepEventOverlay')?.classList.contains('hidden')) closeKeepEvent();
                 else if (!document.getElementById('dialogueOverlay')?.classList.contains('hidden')) closeDialogue();
                 else if (state.panel) closePanel();
                 else if (state.interiorBuildOpen) { state.interiorBuildOpen = false; renderInteriorConstruction(); }
@@ -294,6 +300,10 @@
     }
 
     function handleClick(event) {
+        if (event.target.closest('[data-open-keep-event]')) { openKeepEvent(); return; }
+        if (event.target.closest('[data-close-keep-event]')) { closeKeepEvent(); return; }
+        const eventRepair = event.target.closest('[data-keep-event-repair]');
+        if (eventRepair) { void repairKeepEvent(eventRepair.dataset.keepEventRepair); return; }
         if (event.target.closest('#constructionToggle')) {
             toggleConstructionBanner();
             return;
@@ -516,6 +526,12 @@
             void chooseDialogue(choice.dataset.dialogueChoice);
             return;
         }
+        const followup = event.target.closest('[data-dialogue-followup]');
+        if (followup) {
+            closeDialogue();
+            openConversation(followup.dataset.dialogueFollowup);
+            return;
+        }
         if (event.target.closest('[data-dialogue-done]')) closeDialogue();
         if (event.target.closest('[data-collect-inline]')) void collectTimber();
     }
@@ -668,6 +684,30 @@
         else openPanel('projects');
     }
 
+    async function repairKeepEvent(payment) {
+        const event = state.snapshot?.activeKeepEvent;
+        if (!event) return;
+        const data = await perform('/api/keep/event/repair', { eventId: event.id, payment });
+        const result = data?.keepEventRepair;
+        if (!result) return;
+        if (result.completed) {
+            closeKeepEvent();
+            showNotice(`${event.targetName} was repaired for ${number(result.coinCost)} Siegecoins.`, 'Setback resolved');
+        } else {
+            showNotice(`${event.targetName} is being rebuilt. ${formatDuration(result.repairSeconds)} remaining.`, 'Repair underway');
+        }
+    }
+
+    function openKeepEvent() {
+        if (!state.snapshot?.activeKeepEvent) return;
+        state.shownKeepEventId = state.snapshot.activeKeepEvent.id;
+        document.getElementById('keepEventOverlay')?.classList.remove('hidden');
+    }
+
+    function closeKeepEvent() {
+        document.getElementById('keepEventOverlay')?.classList.add('hidden');
+    }
+
     async function openLore(loreId) {
         const item = loreById(loreId);
         if (!item) return;
@@ -765,7 +805,9 @@
             showNotice(delta > 0 ? `Affinity +${delta}` : `Affinity ${delta}`, result.npcName || 'Voice');
         }
         const choices = document.getElementById('dialogueChoices');
-        if (choices) choices.innerHTML = '<button type="button" data-dialogue-done>Return to the keep</button>';
+        if (choices) choices.innerHTML = result.followupConversationId
+            ? `<button type="button" data-dialogue-followup="${escapeAttr(result.followupConversationId)}"><strong>Face what follows</strong><small>This answer caused a new Interaction.</small></button>`
+            : '<button type="button" data-dialogue-done>Return to the keep</button>';
         renderPanel();
     }
 
@@ -777,11 +819,18 @@
     function applySnapshot(next, announceDiscoveries) {
         if (!next || typeof next !== 'object') return;
         const previousLore = new Set((state.snapshot?.lore || []).map((item) => item.id));
+        const previousEventId = state.snapshot?.activeKeepEvent?.id || '';
         state.snapshot = next;
+        const nextEventId = next.activeKeepEvent?.id || '';
+        if (!nextEventId) {
+            state.shownKeepEventId = '';
+            closeKeepEvent();
+        }
         if (next.offlineReport) state.pendingOfflineReport = clone(next.offlineReport);
         state.receivedAtMs = Date.now() + state.debugTimeOffsetMs;
         announceKeeperProgress(next);
         renderAll();
+        if (nextEventId && nextEventId !== previousEventId && state.shownKeepEventId !== nextEventId) openKeepEvent();
         if (announceDiscoveries) {
             const ids = Array.isArray(next.newLoreUnlocks)
                 ? next.newLoreUnlocks
@@ -822,11 +871,13 @@
             scene.dataset.akharsFrontLevel = String(number(visual.akharsFrontLevel));
             scene.dataset.hallLevel = String(hallLevel);
             scene.dataset.hallTheme = visual.hallTheme || 'covenant';
+            scene.dataset.damagedTarget = visual.damagedTargetId || snapshot.activeKeepEvent?.targetId || '';
             for (let level = 2; level <= HALL_MAX_LEVEL; level++) scene.classList.toggle(`hall-l${level}`, hallLevel >= level);
             // Space-separated targets let CSS [data-constructing~="x"] scaffold both crews' sites.
             scene.dataset.constructing = activeConstructionList()
                 .map((item) => constructionTarget(item.id)).filter(Boolean).join(' ');
         }
+        renderKeepEvent();
         renderFavoriteShrine();
         renderFavorConfirm();
         renderJourney();
@@ -880,10 +931,76 @@
         resetViewportScroll();
     }
 
+    function renderKeepEvent() {
+        const event = state.snapshot?.activeKeepEvent;
+        const alert = document.getElementById('keepEventAlert');
+        document.querySelectorAll('.is-damaged').forEach((node) => node.classList.remove('is-damaged'));
+        if (!event) {
+            alert?.classList.add('hidden');
+            document.body.removeAttribute('data-keep-damage');
+            return;
+        }
+        document.body.dataset.keepDamage = event.targetId || 'active';
+        alert?.classList.remove('hidden');
+        const roomId = event.targetType === 'DECORATION'
+            ? (state.snapshot.recipes || []).find((item) => item.id === event.targetId)?.roomId || ''
+            : event.targetId;
+        if (roomId) {
+            const safeId = window.CSS?.escape ? window.CSS.escape(roomId) : String(roomId).replace(/[^a-z0-9_-]/gi, '');
+            document.querySelectorAll(`[data-building="${safeId}"], [data-room="${safeId}"], [data-enter-facility="${safeId}"]`)
+                .forEach((node) => node.classList.add('is-damaged'));
+        }
+        text('keepEventAlertName', event.targetName || event.title);
+        text('keepEventKicker', event.kicker || 'A setback strikes');
+        text('keepEventTitle', event.title || 'Repairs needed');
+        text('keepEventTarget', `${titleCase(event.targetType)} damaged Â· ${event.targetName || event.targetId}`);
+        text('keepEventDescription', event.description || 'A part of the Keep needs to be rebuilt.');
+        text('keepEventImpact', event.targetType === 'DECORATION'
+            ? 'Decoration bonus paused until rebuilt'
+            : `${event.targetName || 'Building'} is offline until rebuilt`);
+        const timed = document.getElementById('keepEventTimedRepair');
+        if (timed) {
+            timed.disabled = Boolean(event.repairInProgress);
+            timed.textContent = event.repairInProgress ? 'Timed rebuild underway' : `Rebuild Â· ${formatDuration(event.repairSeconds)}`;
+        }
+        const coin = document.getElementById('keepEventCoinRepair');
+        if (coin) {
+            coin.disabled = !event.canPayCoin;
+            coin.textContent = event.canPayCoin
+                ? `Repair now Â· ${number(event.coinCost)} coins`
+                : `Need ${number(event.coinCost)} coins`;
+        }
+        text('keepEventStatus', event.repairInProgress
+            ? 'The damaged feature stays offline until the rebuild finishes. Siegecoins can still finish it now.'
+            : 'Choose a short rebuild timer or spend Siegecoins to restore it immediately.');
+        renderKeepEventTimer();
+    }
+
+    function keepEventRemaining() {
+        const event = state.snapshot?.activeKeepEvent;
+        if (!event) return 0;
+        if (!event.repairInProgress) return number(event.repairSeconds);
+        const completes = Date.parse(event.repairCompletesAt || '');
+        return Number.isFinite(completes) ? Math.max(0, Math.ceil((completes - nowMs()) / 1000)) : number(event.remainingSeconds);
+    }
+
+    function renderKeepEventTimer() {
+        const event = state.snapshot?.activeKeepEvent;
+        if (!event) return;
+        const remaining = keepEventRemaining();
+        text('keepEventTimer', formatDuration(remaining));
+        text('keepEventAlertTime', event.repairInProgress ? formatDuration(remaining) : 'Choose repair');
+        document.getElementById('keepEventAlert')?.classList.toggle('is-waiting', !event.repairInProgress);
+    }
+
     function updateLiveState() {
         if (!state.snapshot) return;
-        if (state.testMode) completeMockConstructionIfReady();
+        if (state.testMode) {
+            completeMockConstructionIfReady();
+            completeMockKeepEventIfReady();
+        }
         updateLiveCounters();
+        renderKeepEventTimer();
         const construction = activeConstructionList().length > 0;
         if (construction && constructionRemaining() <= 0 && !state.testMode && !state.completionRefreshPending) {
             state.completionRefreshPending = true;
@@ -891,6 +1008,14 @@
                 await loadSnapshot(true);
                 state.completionRefreshPending = false;
             }, 800);
+        }
+        if (state.snapshot.activeKeepEvent?.repairInProgress && keepEventRemaining() <= 0
+                && !state.testMode && !state.eventRefreshPending) {
+            state.eventRefreshPending = true;
+            window.setTimeout(async () => {
+                await loadSnapshot(true);
+                state.eventRefreshPending = false;
+            }, 700);
         }
     }
 
@@ -3126,6 +3251,26 @@
                 snapshot.timeSaverApplied = { buildId: body.buildId, payment: 'SIEGECOINS', coinCost,
                     goldBalance: snapshot.resources.gold, completed: true };
             }
+        } else if (path.endsWith('/event/repair')) {
+            const event = snapshot.activeKeepEvent;
+            if (event && body.payment === 'TIME') {
+                event.repairInProgress = true;
+                event.repairStartedAt = new Date(nowMs()).toISOString();
+                event.repairCompletesAt = new Date(nowMs() + number(event.repairSeconds) * 1000).toISOString();
+                event.remainingSeconds = number(event.repairSeconds);
+                snapshot.keepEventRepair = { eventId: event.id, payment: 'TIME', completed: false,
+                    repairSeconds: number(event.repairSeconds), repairCompletesAt: event.repairCompletesAt };
+            } else if (event && body.payment === 'SIEGECOINS') {
+                const coinCost = number(event.coinCost);
+                snapshot.resources.gold = Math.max(0, number(snapshot.resources.gold) - coinCost);
+                snapshot.activeKeepEvent = null;
+                if (snapshot.visualState) {
+                    snapshot.visualState.damagedTargetId = '';
+                    snapshot.visualState.damagedTargetType = '';
+                }
+                snapshot.keepEventRepair = { eventId: event.id, payment: 'SIEGECOINS', completed: true,
+                    coinCost, goldBalance: snapshot.resources.gold };
+            }
         } else if (path.endsWith('/favorite')) {
             const resident = (snapshot.residents || []).find((item) => item.id === body.residentId) || null;
             const bonus = favoriteBonusPercent(resident);
@@ -3297,6 +3442,19 @@
         for (const item of due) applyMockConstruction(snapshot, item);
         snapshot.activeConstructions = pending.filter((item) => constructionEntryRemaining(item) > 0);
         snapshot.activeConstruction = snapshot.activeConstructions[0] || null;
+        snapshot.stateVersion = number(snapshot.stateVersion) + 1;
+        applySnapshot(snapshot, true);
+    }
+
+    function completeMockKeepEventIfReady() {
+        const snapshot = state.snapshot;
+        const event = snapshot?.activeKeepEvent;
+        if (!event?.repairInProgress || keepEventRemaining() > 0) return;
+        snapshot.activeKeepEvent = null;
+        if (snapshot.visualState) {
+            snapshot.visualState.damagedTargetId = '';
+            snapshot.visualState.damagedTargetType = '';
+        }
         snapshot.stateVersion = number(snapshot.stateVersion) + 1;
         applySnapshot(snapshot, true);
     }
@@ -3612,8 +3770,12 @@
 
     window.advanceTime = function (ms) {
         state.debugTimeOffsetMs += Math.max(0, number(ms));
-        if (state.testMode) completeMockConstructionIfReady();
+        if (state.testMode) {
+            completeMockConstructionIfReady();
+            completeMockKeepEventIfReady();
+        }
         updateLiveCounters();
+        renderKeepEventTimer();
     };
 
     window.render_game_to_text = function () {
@@ -3647,6 +3809,18 @@
             siegelingSlots: snapshot.siegelingSlots || null,
             hallTheme: snapshot.visualState?.hallTheme || 'covenant',
             favorite: snapshot.favorite || null,
+            activeKeepEvent: snapshot.activeKeepEvent ? {
+                id: snapshot.activeKeepEvent.id,
+                title: snapshot.activeKeepEvent.title,
+                targetType: snapshot.activeKeepEvent.targetType,
+                targetId: snapshot.activeKeepEvent.targetId,
+                targetName: snapshot.activeKeepEvent.targetName,
+                repairInProgress: Boolean(snapshot.activeKeepEvent.repairInProgress),
+                remainingSeconds: keepEventRemaining(),
+                coinCost: number(snapshot.activeKeepEvent.coinCost),
+                overlayOpen: !document.getElementById('keepEventOverlay')?.classList.contains('hidden')
+            } : null,
+            keepEventCatalogSize: number(snapshot.keepEvents?.catalogSize),
             weeklyOrder: snapshot.weeklyOrder || null,
             constructionSlots: number(snapshot.constructionSlots) || 1,
             activeConstructions: activeConstructionList().map((item) => ({

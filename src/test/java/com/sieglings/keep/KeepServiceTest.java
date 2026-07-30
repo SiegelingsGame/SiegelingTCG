@@ -29,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -62,7 +63,9 @@ class KeepServiceTest {
         };
         KeepLoreCatalog lore = new KeepLoreCatalog(new ObjectMapper());
         lore.load();
-        service = new KeepService(store, progressionService, cards, lore);
+        KeepEventCatalog events = new KeepEventCatalog(new ObjectMapper());
+        events.load();
+        service = new KeepService(store, progressionService, cards, lore, events);
         service.setClock(clock);
         service.setRandom(new Random(7));
 
@@ -89,6 +92,107 @@ class KeepServiceTest {
         assertTrue(conversationIds(snapshot).stream().anyMatch(id ->
                         id.startsWith("visitor_") || id.startsWith("interaction_")),
                 "A lore-tied road visitor or Interaction NPC should appear on the first sanctuary visit.");
+    }
+
+    @Test
+    void adverseEventCatalogHasTwentyShortCoinOrTimedRepairs() {
+        KeepEventCatalog catalog = new KeepEventCatalog(new ObjectMapper());
+        catalog.load();
+
+        assertEquals(20, catalog.allEvents().size());
+        assertEquals(10, catalog.allEvents().stream()
+                .filter(event -> KeepEventCatalog.TARGET_UPGRADE.equals(event.targetType())).count());
+        assertEquals(10, catalog.allEvents().stream()
+                .filter(event -> KeepEventCatalog.TARGET_DECORATION.equals(event.targetType())).count());
+        assertTrue(catalog.allEvents().stream().allMatch(event -> event.repairSeconds() > 0
+                && event.repairSeconds() < 600 && event.coinCost() > 0));
+    }
+
+    @Test
+    void timedEventRepairPausesProductionThenRestoresTargetInUnderTenMinutes() {
+        service.getSnapshot(user);
+        store.state.setHallLevel(2);
+        store.state.setWoodlotLevel(2);
+        store.state.setActiveKeepEventId("woodlot_washout");
+        store.state.setKeepEventOccurredAt(clock.instant());
+
+        Map<String, Object> damaged = service.getSnapshot(user);
+        assertEquals("woodlot_washout", valueAt(damaged, "activeKeepEvent", "id"));
+        assertEquals(0.0, ((Number) valueAt(damaged, "station", "ratePerMinute")).doubleValue(), .0001);
+
+        Map<String, Object> repairing = service.repairKeepEvent(user, "woodlot_washout", "TIME",
+                "event-time-repair", ((Number) damaged.get("stateVersion")).longValue());
+        assertEquals(true, valueAt(repairing, "activeKeepEvent", "repairInProgress"));
+        assertEquals(300, intAt(repairing, "activeKeepEvent", "repairSeconds"));
+
+        clock.advance(Duration.ofSeconds(301));
+        Map<String, Object> restored = service.getSnapshot(user);
+        assertNull(restored.get("activeKeepEvent"));
+        assertEquals(2.0, ((Number) valueAt(restored, "station", "ratePerMinute")).doubleValue(), .0001);
+    }
+
+    @Test
+    void eligibleKeepSometimesRollsAnAdverseEventAfterCooldown() {
+        service.getSnapshot(user);
+        store.state.setHallLevel(2);
+        store.state.setWoodlotLevel(2);
+        service.setRandom(new Random() {
+            @Override public int nextInt(int bound) { return 0; }
+        });
+        clock.advance(Duration.ofMinutes(46));
+
+        Map<String, Object> snapshot = service.getSnapshot(user);
+
+        assertNotNull(snapshot.get("activeKeepEvent"));
+        assertEquals(20, intAt(snapshot, "keepEvents", "catalogSize"));
+        assertEquals(1, intAt(snapshot, "keepEvents", "occurredCount"));
+    }
+
+    @Test
+    void siegecoinsResolveEventImmediatelyAtServerOwnedPrice() {
+        progression.setGold(100);
+        Map<String, Object> first = service.getSnapshot(user);
+        store.state.setActiveKeepEventId("hall_rooffall");
+        store.state.setKeepEventOccurredAt(clock.instant());
+
+        Map<String, Object> repaired = service.repairKeepEvent(user, "hall_rooffall", "SIEGECOINS",
+                "event-coin-repair", ((Number) first.get("stateVersion")).longValue());
+
+        assertNull(repaired.get("activeKeepEvent"));
+        assertEquals(28, progression.getGold());
+        assertEquals(72, intAt(repaired, "keepEventRepair", "coinCost"));
+
+        service.repairKeepEvent(user, "hall_rooffall", "SIEGECOINS",
+                "event-coin-repair", ((Number) first.get("stateVersion")).longValue());
+        assertEquals(28, progression.getGold(), "An idempotent replay must not charge the repair twice.");
+    }
+
+    @Test
+    void twentyBadVoiceChoicesEachHaveAOneTimeInteractionConsequence() {
+        KeepLoreCatalog catalog = new KeepLoreCatalog(new ObjectMapper());
+        catalog.load();
+        List<KeepLoreCatalog.Conversation> followups = catalog.allConversations().stream()
+                .filter(catalog::isInteraction).filter(KeepLoreCatalog.Conversation::oneTime).toList();
+        assertEquals(20, followups.size());
+        assertTrue(followups.stream().allMatch(item -> item.requiresFlags().size() == 1
+                && item.requiresFlags().get(0).startsWith("bad_choice_")));
+
+        Map<String, Object> first = service.getSnapshot(user);
+        if (!store.state.getActiveVisitorIds().contains("interaction_elara_yard_rounds")) {
+            store.state.getActiveVisitorIds().add("interaction_elara_yard_rounds");
+        }
+        Map<String, Object> consequence = service.chooseDialogue(user, "interaction_elara_yard_rounds", "press_duty",
+                "bad-choice", ((Number) first.get("stateVersion")).longValue());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> result = (Map<String, Object>) consequence.get("dialogueResult");
+        assertEquals(true, result.get("badChoice"));
+        assertEquals("followup_elara_wall", result.get("followupConversationId"));
+        assertTrue(conversationIds(consequence).contains("followup_elara_wall"));
+
+        Map<String, Object> resolved = service.chooseDialogue(user, "followup_elara_wall", "restore_rounds",
+                "followup-choice", ((Number) consequence.get("stateVersion")).longValue());
+        assertFalse(conversationIds(resolved).contains("followup_elara_wall"));
+        assertTrue(store.state.getCompletedConversationIds().contains("followup_elara_wall"));
     }
 
     @Test

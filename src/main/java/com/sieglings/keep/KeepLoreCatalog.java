@@ -34,7 +34,8 @@ public class KeepLoreCatalog {
     public record Conversation(String id, String npcId, String npcName, String npcRole, String kicker,
                                String prompt, String kind, int weight, int cooldownHours,
                                int minStorehouseLevel, List<String> requiresLoreIds,
-                               List<String> requiresFlags, List<ConversationChoice> choices) { }
+                               List<String> requiresFlags, boolean oneTime,
+                               List<ConversationChoice> choices) { }
 
     public record CatalogFile(List<LoreEntry> entries, List<Conversation> conversations) { }
 
@@ -89,6 +90,16 @@ public class KeepLoreCatalog {
         return conversations.values().stream().filter(this::isRollingEncounter).toList();
     }
 
+    /** One-shot consequence interactions activated immediately by a poor dialogue choice. */
+    public List<Conversation> followupsForFlag(String flag) {
+        if (flag == null || flag.isBlank()) return List.of();
+        return conversations.values().stream()
+                .filter(this::isInteraction)
+                .filter(Conversation::oneTime)
+                .filter(value -> value.requiresFlags().contains(flag))
+                .toList();
+    }
+
     public boolean isVisitor(Conversation conversation) {
         return conversation != null && KIND_VISITOR.equalsIgnoreCase(conversation.kind());
     }
@@ -118,6 +129,7 @@ public class KeepLoreCatalog {
                 Math.max(0, value.minStorehouseLevel()),
                 List.copyOf(safe(value.requiresLoreIds())),
                 List.copyOf(safe(value.requiresFlags())),
+                value.oneTime(),
                 List.copyOf(choices));
     }
 

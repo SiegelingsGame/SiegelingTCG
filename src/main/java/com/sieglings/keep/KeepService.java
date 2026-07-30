@@ -4,6 +4,7 @@ import com.sieglings.keep.KeepLoreCatalog.Conversation;
 import com.sieglings.keep.KeepLoreCatalog.ConversationChoice;
 import com.sieglings.keep.KeepLoreCatalog.LoreEntry;
 import com.sieglings.keep.KeepLoreCatalog.Outcome;
+import com.sieglings.keep.KeepEventCatalog.KeepEvent;
 import com.sieglings.model.Card;
 import com.sieglings.model.SieglingCard;
 import com.sieglings.model.enums.SieglingSize;
@@ -112,6 +113,8 @@ public class KeepService {
     private static final Duration OFFLINE_REPORT_THRESHOLD = Duration.ofMinutes(5);
     private static final Duration TRIBUTE_COOLDOWN = Duration.ofDays(7);
     private static final Duration VISITOR_ROLL_COOLDOWN = Duration.ofHours(2);
+    private static final Duration KEEP_EVENT_ROLL_COOLDOWN = Duration.ofMinutes(45);
+    private static final int KEEP_EVENT_CHANCE_PERCENT = 35;
     private static final int MAX_ACTIVE_VISITORS = 3;
     /** Bonded threshold / Voices spectrum ceiling — also the soft cap for npcTrust. */
     public static final int NPC_TRUST_MAX = 7;
@@ -136,6 +139,7 @@ public class KeepService {
     private final PlayerProgressionService progressionService;
     private final CardDefinitionService cardDefinitionService;
     private final KeepLoreCatalog loreCatalog;
+    private final KeepEventCatalog eventCatalog;
     @Autowired(required = false)
     private PlayerProgressionStore progressionStore;
     /** Optional so tests (and a Firestore-less runtime) fall back to the shipped balance. */
@@ -147,11 +151,13 @@ public class KeepService {
     public KeepService(KeepStore store,
                        PlayerProgressionService progressionService,
                        CardDefinitionService cardDefinitionService,
-                       KeepLoreCatalog loreCatalog) {
+                       KeepLoreCatalog loreCatalog,
+                       KeepEventCatalog eventCatalog) {
         this.store = store;
         this.progressionService = progressionService;
         this.cardDefinitionService = cardDefinitionService;
         this.loreCatalog = loreCatalog;
+        this.eventCatalog = eventCatalog;
     }
 
     public Map<String, Object> getSnapshot(AccountUser user) {
@@ -169,11 +175,12 @@ public class KeepService {
                     && Duration.between(awaySince, context.now()).compareTo(OFFLINE_REPORT_THRESHOLD) >= 0;
             boolean produced = completed || (returning && materializeAllProduction(state, context.residents(), context.now()));
             boolean visitorsChanged = refreshVisitors(state, context.now());
+            boolean eventChanged = refreshKeepEvent(state, context.now());
             Map<String, Object> offlineReport = offlineReport(state, awaySince, context.now(), timberBefore,
                     frontGoldBefore, facilityBefore, completedProjects, beforeUnlocks);
             int dailyXp = grantDailyKeeperXp(state, context.now());
             state.setLastVisitedAt(context.now());
-            if (completed || produced || visitorsChanged || dailyXp > 0) {
+            if (completed || produced || visitorsChanged || eventChanged || dailyXp > 0) {
                 bump(context.state(), context.now());
                 store.save(state);
             } else {
@@ -397,6 +404,48 @@ public class KeepService {
                 / (double) CONSTRUCTION_COIN_SECONDS_PER_COIN));
     }
 
+    /** Rebuilds the currently damaged Keep feature with either a short timer or Siegecoins. */
+    public Map<String, Object> repairKeepEvent(AccountUser user, String eventId, String payment,
+                                               String requestId, long expectedVersion) {
+        return mutate(user, requestId, expectedVersion, context -> {
+            KeepState state = context.state();
+            KeepEvent event = eventCatalog.event(state.getActiveKeepEventId());
+            String id = eventId == null ? "" : eventId.trim();
+            if (event == null || !event.id().equals(id)) {
+                throw new IllegalArgumentException("That Keep damage has already been repaired.");
+            }
+            String normalizedPayment = payment == null ? "" : payment.trim().toUpperCase(Locale.ROOT);
+            if ("TIME".equals(normalizedPayment)) {
+                if (state.getKeepEventRepairCompletesAt() != null) {
+                    throw new IllegalArgumentException("That rebuild is already underway.");
+                }
+                state.setKeepEventRepairStartedAt(context.now());
+                state.setKeepEventRepairCompletesAt(context.now().plusSeconds(event.repairSeconds()));
+                return Map.of("keepEventRepair", Map.of(
+                        "eventId", event.id(), "payment", "TIME", "completed", false,
+                        "repairSeconds", event.repairSeconds(),
+                        "repairCompletesAt", state.getKeepEventRepairCompletesAt().toString()));
+            }
+            if (!"SIEGECOINS".equals(normalizedPayment)) {
+                throw new IllegalArgumentException("Choose a timed rebuild or Siegecoins.");
+            }
+            PlayerProgressionEntity progression = context.progression();
+            if (progression.getGold() < event.coinCost()) {
+                throw new IllegalArgumentException("You need " + (event.coinCost() - progression.getGold())
+                        + " more Siegecoins to repair that damage now.");
+            }
+            int goldBalance = progression.getGold() - event.coinCost();
+            clearKeepEvent(state);
+            context.afterKeepPersist(p -> {
+                p.setGold(p.getGold() - event.coinCost());
+                p.setUpdatedAt(context.now());
+            });
+            return Map.of("keepEventRepair", Map.of(
+                    "eventId", event.id(), "payment", "SIEGECOINS", "completed", true,
+                    "coinCost", event.coinCost(), "goldBalance", goldBalance));
+        });
+    }
+
     private int totalMaterials(KeepState state) {
         return state.getMaterialInventory().values().stream()
                 .mapToInt(value -> Math.max(0, value == null ? 0 : value)).sum();
@@ -512,6 +561,13 @@ public class KeepService {
             int appliedTimber = applyTimberDelta(state, timberDelta);
             Map<String, Integer> appliedMaterials = applyMaterialDeltas(state, materialDeltas);
             if (flag != null && !flag.isBlank()) addUnique(state.getChoiceFlags(), flag);
+            String consequenceFlag = "";
+            boolean badChoice = relationshipDelta < 0 || appliedTimber < 0
+                    || appliedMaterials.values().stream().anyMatch(value -> value < 0);
+            if (badChoice) {
+                consequenceFlag = "bad_choice_" + conversation.id() + "_" + choice.id();
+                addUnique(state.getChoiceFlags(), consequenceFlag);
+            }
             if (unlockLoreId != null) unlock(state, unlockLoreId);
             int trustBefore = Math.max(0, state.getNpcTrust().getOrDefault(conversation.npcId(), 0));
             int trustAfter = Math.max(0, Math.min(NPC_TRUST_MAX, trustBefore + relationshipDelta));
@@ -520,11 +576,16 @@ public class KeepService {
             if (loreCatalog.isRollingEncounter(conversation)) {
                 // Visitors and Interaction NPCs leave the active slate and return after cooldown.
                 state.getActiveVisitorIds().remove(conversation.id());
-                state.getVisitorAvailableAt().put(conversation.id(),
-                        context.now().plus(Duration.ofHours(conversation.cooldownHours())));
+                if (conversation.oneTime()) {
+                    addUnique(state.getCompletedConversationIds(), conversation.id());
+                } else {
+                    state.getVisitorAvailableAt().put(conversation.id(),
+                            context.now().plus(Duration.ofHours(conversation.cooldownHours())));
+                }
             } else {
                 addUnique(state.getCompletedConversationIds(), conversation.id());
             }
+            String followupConversationId = activateConsequenceFollowup(state, consequenceFlag);
             recordKeepStats(context.progression(), p -> p.setKeepConversationsCompleted(p.getKeepConversationsCompleted() + 1));
             advanceEnclaveTasks(state, context.residents(), "CONVERSATION");
 
@@ -543,6 +604,9 @@ public class KeepService {
             result.put("materialCosts", serializeMaterialCosts(choice.materialCosts()));
             result.put("materialDeltas", serializeMaterialDeltas(appliedMaterials));
             result.put("summary", dialogueSummary(choice.timberCost(), appliedTimber, choice.materialCosts(), appliedMaterials));
+            result.put("badChoice", badChoice);
+            result.put("consequenceFlag", consequenceFlag);
+            result.put("followupConversationId", followupConversationId);
             return Map.of("dialogueResult", result);
         });
     }
@@ -598,6 +662,9 @@ public class KeepService {
                 throw new IllegalArgumentException("That decoration does not belong in this room.");
             }
             if (craftedCount(state, id) < 1) throw new IllegalArgumentException("Craft that decoration before placing it.");
+            if (isDamagedTarget(state, KeepEventCatalog.TARGET_DECORATION, id)) {
+                throw new IllegalArgumentException("Rebuild that damaged decoration before moving it.");
+            }
             // Apply production under the old capacity before a storage furnishing changes it.
             materializeAllProduction(state, context.residents(), context.now());
             LinkedHashSet<String> placed = placedDecorationIds(state, room);
@@ -693,6 +760,7 @@ public class KeepService {
         a Legendary partner always out-earns a Common one, and the distance between them
         grows by the same threshold as the bonus itself. */
     private double favoriteBoost(KeepState state, List<Resident> residents) {
+        if (isDamagedTarget(state, KeepEventCatalog.TARGET_UPGRADE, "great_hall")) return 0;
         Resident favorite = favoriteResident(state, residents);
         if (favorite == null) return 0;
         return favoriteBoostFor(state, favorite);
@@ -946,12 +1014,14 @@ public class KeepService {
             boolean completed = !completedProjects.isEmpty();
             boolean produced = materializeAllProduction(state, context.residents(), context.now());
             refreshVisitors(state, context.now());
+            boolean eventChanged = refreshKeepEvent(state, context.now());
+            boolean worldChanged = completed || produced || eventChanged;
             if (completed) {
                 recordKeepStats(context.progression(),
                         p -> p.setKeepProjectsCompleted(p.getKeepProjectsCompleted() + completedProjects.size()));
             }
             if (state.getProcessedRequestIds().contains(normalizedRequestId)) {
-                if (completed || produced) {
+                if (worldChanged) {
                     bump(state, context.now());
                     store.save(state);
                 }
@@ -960,7 +1030,7 @@ public class KeepService {
                 return out;
             }
             if (expectedVersion >= 0 && state.getVersion() != expectedVersion) {
-                if (completed || produced) {
+                if (worldChanged) {
                     bump(state, context.now());
                     store.save(state);
                 }
@@ -970,7 +1040,7 @@ public class KeepService {
             try {
                 extra = action.apply(context);
             } catch (RuntimeException ex) {
-                if (completed || produced) {
+                if (worldChanged) {
                     bump(state, context.now());
                     store.save(state);
                 }
@@ -1019,6 +1089,7 @@ public class KeepService {
         state.setWoodlotLevel(1);
         state.setWoodlotLastAccruedAt(now.minus(Duration.ofMinutes(15)));
         state.setLastVisitedAt(now);
+        state.setLastKeepEventRollAt(now);
         state.setCreatedAt(now);
         state.setUpdatedAt(now);
         state.setUnlockedLoreIds(List.of("charter_three_promises"));
@@ -1032,6 +1103,7 @@ public class KeepService {
         }
         if (state.getCreatedAt() == null) state.setCreatedAt(now);
         if (state.getLastVisitedAt() == null) state.setLastVisitedAt(state.getUpdatedAt() == null ? now : state.getUpdatedAt());
+        if (state.getLastKeepEventRollAt() == null) state.setLastKeepEventRollAt(now);
         for (String id : FACILITIES.keySet()) {
             if (facilityLevel(state, id) > 0) state.getFacilityLastAccruedAt().putIfAbsent(id, now);
             state.getFacilityStored().putIfAbsent(id, 0);
@@ -1292,6 +1364,7 @@ public class KeepService {
     }
 
     private double woodlotRate(KeepState state, List<Resident> residents) {
+        if (isDamagedTarget(state, KeepEventCatalog.TARGET_UPGRADE, "woodlot")) return 0;
         double base = state.getWoodlotLevel() >= 2 ? 2.0 : 1.0;
         Resident invited = residents.stream().filter(r -> r.id().equals(state.getWoodlotResidentId())).findFirst().orElse(null);
         double rate = base * (1 + stationBonus(state, invited, "woodlot"));
@@ -1326,12 +1399,16 @@ public class KeepService {
     }
 
     private int timberInventoryCapacity(KeepState state) {
-        return TIMBER_INVENTORY_CAPACITY + state.getStorehouseLevel() * 300
+        int storehouse = isDamagedTarget(state, KeepEventCatalog.TARGET_UPGRADE, "storehouse")
+                ? 0 : state.getStorehouseLevel();
+        return TIMBER_INVENTORY_CAPACITY + storehouse * 300
                 + (hallLevel(state) - 1) * 50;
     }
 
     private int materialInventoryCapacity(KeepState state) {
-        return 75 + state.getStorehouseLevel() * 125
+        int storehouse = isDamagedTarget(state, KeepEventCatalog.TARGET_UPGRADE, "storehouse")
+                ? 0 : state.getStorehouseLevel();
+        return 75 + storehouse * 125
                 + (craftedCount(state, "covenant_crates") > 0 ? 75 : 0)
                 + (hallLevel(state) - 1) * 15;
     }
@@ -1345,7 +1422,8 @@ public class KeepService {
     }
 
     private double storageMultiplier(KeepState state) {
-        return 1.0 + state.getStorehouseLevel() * .5;
+        return 1.0 + (isDamagedTarget(state, KeepEventCatalog.TARGET_UPGRADE, "storehouse")
+                ? 0 : state.getStorehouseLevel()) * .5;
     }
 
     private double localStorageMultiplier(KeepState state, String roomId) {
@@ -1377,6 +1455,7 @@ public class KeepService {
     private double facilityRate(KeepState state, List<Resident> residents, String id) {
         FacilityDefinition definition = FACILITIES.get(id);
         if (definition == null || facilityLevel(state, id) < 1) return 0;
+        if (isDamagedTarget(state, KeepEventCatalog.TARGET_UPGRADE, id)) return 0;
         String residentId = state.getFacilityResidentIds().getOrDefault(id, "");
         Resident resident = residents.stream().filter(item -> item.id().equals(residentId)).findFirst().orElse(null);
         double affinity = 1 + stationBonus(state, resident, id);
@@ -1480,6 +1559,21 @@ public class KeepService {
         for (String id : stored.split(",")) {
             String normalized = id.trim();
             if (!normalized.isBlank()) ids.add(normalized);
+        }
+        KeepEvent active = eventCatalog.event(state.getActiveKeepEventId());
+        if (active != null && KeepEventCatalog.TARGET_DECORATION.equals(active.targetType())) {
+            ids.remove(active.targetId());
+        }
+        return ids;
+    }
+
+    private LinkedHashSet<String> rawPlacedDecorationIds(KeepState state) {
+        LinkedHashSet<String> ids = new LinkedHashSet<>();
+        for (String stored : state.getPlacedDecorations().values()) {
+            for (String id : stored.split(",")) {
+                String normalized = id.trim();
+                if (!normalized.isBlank()) ids.add(normalized);
+            }
         }
         return ids;
     }
@@ -2602,6 +2696,9 @@ public class KeepService {
         visualState.put("enclaveLevel", state.getEnclaveLevel());
         visualState.put("akharsFrontLevel", state.getAkharsFrontLevel());
         visualState.put("favoriteSet", !state.getFavoriteResidentId().isBlank());
+        KeepEvent activeEvent = eventCatalog.event(state.getActiveKeepEventId());
+        visualState.put("damagedTargetId", activeEvent == null ? "" : activeEvent.targetId());
+        visualState.put("damagedTargetType", activeEvent == null ? "" : activeEvent.targetType());
         FACILITIES.keySet().forEach(id -> visualState.put(id + "Level", facilityLevel(state, id)));
         out.put("visualState", visualState);
 
@@ -2650,6 +2747,12 @@ public class KeepService {
         out.put("availableConversations", availableConversations(state));
         out.put("relationships", relationships(state));
         out.put("choiceFlags", state.getChoiceFlags());
+        out.put("activeKeepEvent", serializeKeepEvent(state, progression, now));
+        out.put("keepEvents", Map.of(
+                "catalogSize", eventCatalog.allEvents().size(),
+                "occurredCount", state.getKeepEventCount(),
+                "recentEventIds", List.copyOf(state.getRecentKeepEventIds()),
+                "rollCooldownSeconds", KEEP_EVENT_ROLL_COOLDOWN.getSeconds()));
         out.put("recipes", recipes(state));
         out.put("decorations", decorations(state));
         out.put("placedDecorations", state.getPlacedDecorations());
@@ -2956,7 +3059,8 @@ public class KeepService {
         if (!state.getChoiceFlags().containsAll(conversation.requiresFlags())) return false;
         if (state.getStorehouseLevel() < conversation.minStorehouseLevel()) return false;
         if (loreCatalog.isRollingEncounter(conversation)) {
-            return state.getActiveVisitorIds().contains(conversation.id());
+            return state.getActiveVisitorIds().contains(conversation.id())
+                    && (!conversation.oneTime() || !state.getCompletedConversationIds().contains(conversation.id()));
         }
         return !state.getCompletedConversationIds().contains(conversation.id());
     }
@@ -2965,7 +3069,8 @@ public class KeepService {
         List<String> active = state.getActiveVisitorIds();
         active.removeIf(id -> {
             Conversation conversation = loreCatalog.conversation(id);
-            return conversation == null || !loreCatalog.isRollingEncounter(conversation);
+            return conversation == null || !loreCatalog.isRollingEncounter(conversation)
+                    || (conversation.oneTime() && state.getCompletedConversationIds().contains(conversation.id()));
         });
         boolean changed = false;
         boolean rollReady = state.getLastVisitorRollAt() == null
@@ -3025,8 +3130,117 @@ public class KeepService {
         if (!state.getUnlockedLoreIds().containsAll(visitor.requiresLoreIds())) return false;
         if (!state.getChoiceFlags().containsAll(visitor.requiresFlags())) return false;
         if (state.getStorehouseLevel() < visitor.minStorehouseLevel()) return false;
+        if (visitor.oneTime() && state.getCompletedConversationIds().contains(visitor.id())) return false;
         Instant availableAt = state.getVisitorAvailableAt().get(visitor.id());
         return availableAt == null || !now.isBefore(availableAt);
+    }
+
+    private String activateConsequenceFollowup(KeepState state, String flag) {
+        for (Conversation followup : loreCatalog.followupsForFlag(flag)) {
+            if (state.getCompletedConversationIds().contains(followup.id())) continue;
+            addUnique(state.getActiveVisitorIds(), followup.id());
+            return followup.id();
+        }
+        return "";
+    }
+
+    /** Materializes a finished rebuild, then performs one low-frequency adverse-event roll. */
+    private boolean refreshKeepEvent(KeepState state, Instant now) {
+        boolean changed = false;
+        if (!state.getActiveKeepEventId().isBlank()
+                && (eventCatalog.event(state.getActiveKeepEventId()) == null
+                || (state.getKeepEventRepairCompletesAt() != null
+                && !now.isBefore(state.getKeepEventRepairCompletesAt())))) {
+            clearKeepEvent(state);
+            changed = true;
+        }
+        if (!state.getActiveKeepEventId().isBlank() || hallLevel(state) < 2) return changed;
+        Instant lastRoll = state.getLastKeepEventRollAt();
+        if (lastRoll == null) {
+            state.setLastKeepEventRollAt(now);
+            return true;
+        }
+        if (now.isBefore(lastRoll.plus(KEEP_EVENT_ROLL_COOLDOWN))) return changed;
+        state.setLastKeepEventRollAt(now);
+        changed = true;
+        if (random.nextInt(100) >= KEEP_EVENT_CHANCE_PERCENT) return true;
+
+        List<KeepEvent> candidates = eventCatalog.allEvents().stream()
+                .filter(event -> event.minHallLevel() <= hallLevel(state))
+                .filter(event -> keepEventTargetExists(state, event))
+                .collect(Collectors.toCollection(ArrayList::new));
+        if (candidates.size() > 1) {
+            List<KeepEvent> fresh = candidates.stream()
+                    .filter(event -> !state.getRecentKeepEventIds().contains(event.id())).toList();
+            if (!fresh.isEmpty()) candidates = new ArrayList<>(fresh);
+        }
+        if (candidates.isEmpty()) return true;
+        KeepEvent picked = candidates.get(random.nextInt(candidates.size()));
+        state.setActiveKeepEventId(picked.id());
+        state.setKeepEventOccurredAt(now);
+        state.setKeepEventRepairStartedAt(null);
+        state.setKeepEventRepairCompletesAt(null);
+        state.setKeepEventCount(state.getKeepEventCount() + 1);
+        return true;
+    }
+
+    private boolean keepEventTargetExists(KeepState state, KeepEvent event) {
+        if (KeepEventCatalog.TARGET_DECORATION.equals(event.targetType())) {
+            return rawPlacedDecorationIds(state).contains(event.targetId());
+        }
+        return switch (event.targetId()) {
+            case "great_hall" -> hallLevel(state) >= 2;
+            case "woodlot" -> state.getWoodlotLevel() >= 2;
+            case "archive" -> state.getArchiveLevel() > 0;
+            case "storehouse" -> state.getStorehouseLevel() > 0;
+            case "builders_yard" -> state.getBuildersYardLevel() > 0;
+            case "enclave" -> state.getEnclaveLevel() > 0;
+            default -> facilityLevel(state, event.targetId()) > 0;
+        };
+    }
+
+    private boolean isDamagedTarget(KeepState state, String targetType, String targetId) {
+        KeepEvent active = eventCatalog.event(state.getActiveKeepEventId());
+        return active != null && active.targetType().equals(targetType) && active.targetId().equals(targetId);
+    }
+
+    private void clearKeepEvent(KeepState state) {
+        String id = state.getActiveKeepEventId();
+        if (!id.isBlank()) {
+            state.getRecentKeepEventIds().remove(id);
+            state.getRecentKeepEventIds().add(id);
+            while (state.getRecentKeepEventIds().size() > 6) state.getRecentKeepEventIds().remove(0);
+        }
+        state.setActiveKeepEventId("");
+        state.setKeepEventOccurredAt(null);
+        state.setKeepEventRepairStartedAt(null);
+        state.setKeepEventRepairCompletesAt(null);
+    }
+
+    private Map<String, Object> serializeKeepEvent(KeepState state, PlayerProgressionEntity progression, Instant now) {
+        KeepEvent event = eventCatalog.event(state.getActiveKeepEventId());
+        if (event == null) return null;
+        boolean underway = state.getKeepEventRepairCompletesAt() != null;
+        long remaining = underway
+                ? Math.max(0, Duration.between(now, state.getKeepEventRepairCompletesAt()).getSeconds())
+                : event.repairSeconds();
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("id", event.id());
+        out.put("title", event.title());
+        out.put("kicker", event.kicker());
+        out.put("description", event.description());
+        out.put("targetType", event.targetType());
+        out.put("targetId", event.targetId());
+        out.put("targetName", event.targetName());
+        out.put("occurredAt", state.getKeepEventOccurredAt() == null ? now.toString() : state.getKeepEventOccurredAt().toString());
+        out.put("repairSeconds", event.repairSeconds());
+        out.put("repairStartedAt", state.getKeepEventRepairStartedAt() == null ? null : state.getKeepEventRepairStartedAt().toString());
+        out.put("repairCompletesAt", state.getKeepEventRepairCompletesAt() == null ? null : state.getKeepEventRepairCompletesAt().toString());
+        out.put("remainingSeconds", remaining);
+        out.put("repairInProgress", underway);
+        out.put("coinCost", event.coinCost());
+        out.put("canPayCoin", progression.getGold() >= event.coinCost());
+        return out;
     }
 
     private Conversation weightedPick(List<Conversation> candidates, KeepState state) {
