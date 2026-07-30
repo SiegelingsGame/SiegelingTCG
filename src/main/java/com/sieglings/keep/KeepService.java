@@ -68,6 +68,8 @@ public class KeepService {
     private static final int AKHARS_FRONT_CAPACITY = 3;
     private static final int AKHARS_FRONT_GOLD_CAPACITY = 360;
     private static final double AKHARS_FRONT_GOLD_PER_MINUTE_PER_DEFENDER = 1.0;
+    private static final double AKHARS_FRONT_COMBAT_GOLD_PER_MINUTE_PER_DEFENDER = 4.0;
+    private static final int AKHARS_FRONT_COINS_PER_DEFEAT = 1;
     private static final int ROOM_DECORATION_CAPACITY = 6;
     private static final double STORAGE_ANNEX_BONUS = .50;
     private static final double STORAGE_DECORATION_BONUS = .25;
@@ -1310,12 +1312,25 @@ public class KeepService {
         state.setAkharsFrontLastAccruedAt(at);
     }
 
-    private double akharsFrontRate(KeepState state, List<Resident> residents) {
+    private long akharsFrontDefenderCount(KeepState state, List<Resident> residents) {
         if (state.getAkharsFrontLevel() < 1) return 0;
         Set<String> owned = residents.stream().map(Resident::id).collect(Collectors.toSet());
-        long defenders = normalizedAkharsFrontResidents(state).stream()
+        return normalizedAkharsFrontResidents(state).stream()
                 .filter(id -> !id.isBlank() && owned.contains(id)).count();
-        return defenders * AKHARS_FRONT_GOLD_PER_MINUTE_PER_DEFENDER * (1 + favoriteBoost(state, residents));
+    }
+
+    private double akharsFrontPassiveRate(KeepState state, List<Resident> residents) {
+        return akharsFrontDefenderCount(state, residents) * AKHARS_FRONT_GOLD_PER_MINUTE_PER_DEFENDER
+                * (1 + favoriteBoost(state, residents));
+    }
+
+    private double akharsFrontCombatRate(KeepState state, List<Resident> residents) {
+        return akharsFrontDefenderCount(state, residents) * AKHARS_FRONT_COMBAT_GOLD_PER_MINUTE_PER_DEFENDER
+                * (1 + favoriteBoost(state, residents));
+    }
+
+    private double akharsFrontRate(KeepState state, List<Resident> residents) {
+        return akharsFrontPassiveRate(state, residents) + akharsFrontCombatRate(state, residents);
     }
 
     private int projectedAkharsFrontAvailable(KeepState state, List<Resident> residents, Instant at) {
@@ -1947,6 +1962,9 @@ public class KeepService {
         out.put("available", available);
         out.put("storageCapacity", AKHARS_FRONT_GOLD_CAPACITY);
         out.put("ratePerMinute", akharsFrontRate(state, residents));
+        out.put("passiveRatePerMinute", akharsFrontPassiveRate(state, residents));
+        out.put("combatRatePerMinute", akharsFrontCombatRate(state, residents));
+        out.put("coinsPerDefeat", AKHARS_FRONT_COINS_PER_DEFEAT);
         out.put("isFull", available >= AKHARS_FRONT_GOLD_CAPACITY);
         out.put("slots", slots);
         return out;

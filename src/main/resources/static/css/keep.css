@@ -588,20 +588,84 @@ button.resource-pill:focus-visible {
 .front-defenders b:nth-child(2) { left: 32%; animation-delay: -.6s; }
 .front-defenders b:nth-child(3) { left: 56%; animation-delay: -1.2s; }
 .front-defenders img { width: auto; height: 100%; max-width: 100%; object-fit: contain; object-position: bottom center; }
-.front-raiders i { position: absolute; z-index: 2; width: 13%; height: 32%; color: #231a36; filter: drop-shadow(0 5px 3px rgba(23, 12, 32, .42)); animation: front-raider-march 3s ease-in-out infinite; }
+.front-raiders i {
+    position: absolute;
+    z-index: 2;
+    left: var(--raider-x, 82%);
+    top: var(--raider-y, 8%);
+    width: var(--raider-size, 13%);
+    height: 32%;
+    color: #231a36;
+    filter: drop-shadow(0 5px 3px rgba(23, 12, 32, .42));
+    transform: translate(-50%, -50%) rotate(var(--raider-tilt, 0deg));
+    transition: opacity .24s ease, filter .18s ease;
+    animation: front-raider-march .82s ease-in-out infinite;
+}
 .front-raiders i svg { display: block; width: 100%; height: 100%; overflow: visible; }
 .front-raiders i path { fill: #271b3c; stroke: #100b19; stroke-width: 2.2; }
 .front-raiders i circle { fill: #d8a2ff; filter: drop-shadow(0 0 3px #d8a2ff); }
-.front-raiders i:nth-child(1) { right: 7%; top: 4%; transform: scale(1.12); }
-.front-raiders i:nth-child(2) { right: 23%; top: 20%; animation-delay: -.8s; }
-.front-raiders i:nth-child(3) { right: 39%; top: 1%; transform: scale(.8); animation-delay: -1.5s; }
-.front-raiders i:nth-child(4) { right: 2%; top: 32%; transform: scale(.72); animation-delay: -2.2s; }
-.front-projectile { position: absolute; z-index: 8; left: 32%; bottom: 51%; width: 25px; height: 6px; border-radius: 999px; opacity: 0; transform: rotate(-25deg); transform-origin: left center; background: linear-gradient(90deg, #fff8bf, #7deaff 35%, transparent); box-shadow: 0 0 7px #8ff4ff; animation: front-projectile-flight 2.1s linear infinite; }
-.front-projectile.shot-two { left: 46%; bottom: 58%; background: linear-gradient(90deg, #fff8b8, #ff8b4f 35%, transparent); box-shadow: 0 0 8px #ff8b4f; animation-delay: -.72s; }
-.front-projectile.shot-three { left: 20%; bottom: 56%; width: 20px; background: linear-gradient(90deg, #f6ffbd, #8fe871 35%, transparent); box-shadow: 0 0 7px #8fe871; animation-delay: -1.36s; }
-.front-impact { position: absolute; z-index: 4; width: 9px; height: 9px; border-radius: 50%; opacity: 0; background: #fff5ad; box-shadow: 0 -10px 0 #ff774c, 8px -5px 0 #ffbd55, 9px 6px 0 #fff5ad, -6px 7px 0 #ff774c, -9px -4px 0 #ffbd55; animation: front-impact-burst 2.1s ease-out infinite; }
-.front-impact.impact-one { right: 23%; top: 32%; animation-delay: -.1s; }
-.front-impact.impact-two { right: 6%; top: 17%; animation-delay: -.82s; }
+.front-raiders i:nth-child(2) { animation-delay: -.22s; }
+.front-raiders i:nth-child(3) { animation-delay: -.44s; }
+.front-raiders i:nth-child(4) { animation-delay: -.66s; }
+.front-raiders i.is-hit { filter: brightness(1.8) drop-shadow(0 0 8px var(--hit-color, #fff)); }
+.front-raiders i.is-defeated { opacity: 0; animation: front-raider-defeat .55s ease-in forwards; }
+.front-raider-health {
+    position: absolute;
+    z-index: 3;
+    left: 50%;
+    top: -4px;
+    width: 78%;
+    height: 5px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,.7);
+    border-radius: 999px;
+    background: rgba(16, 10, 24, .86);
+    box-shadow: 0 1px 3px rgba(0,0,0,.55);
+    transform: translateX(-50%);
+}
+.front-raider-health b { display: block; width: var(--raider-health, 100%); height: 100%; border-radius: inherit; background: linear-gradient(90deg, #ef5548, #ffd369); transition: width .18s ease; }
+.front-projectiles { position: absolute; inset: 0; z-index: 8; pointer-events: none; }
+.front-projectile {
+    position: absolute;
+    left: var(--shot-x, 30%);
+    top: var(--shot-y, 64%);
+    width: 34px;
+    height: 7px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #fff, var(--shot-color, #7deaff) 45%, transparent);
+    box-shadow: 0 0 9px var(--shot-color, #7deaff);
+    transform: translate(-50%, -50%) rotate(var(--shot-angle, -25deg));
+    transform-origin: center;
+}
+.front-projectile::after {
+    content: "";
+    position: absolute;
+    right: 2px;
+    top: 50%;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 8px 3px var(--shot-color, #7deaff);
+    transform: translateY(-50%);
+}
+.front-coin-burst {
+    position: absolute;
+    z-index: 11;
+    left: var(--coin-x, 73%);
+    top: var(--coin-y, 26%);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    opacity: 0;
+    color: #ffe47e;
+    text-shadow: 0 2px 3px rgba(25, 14, 8, .8);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+.front-coin-burst b { display: grid; place-items: center; width: 25px; height: 25px; border: 2px solid #fff0a4; border-radius: 50%; background: #d69d28; color: #fff8c8; font: 900 11px/1 "Segoe UI", sans-serif; box-shadow: 0 0 14px rgba(255, 218, 97, .8); }
+.front-coin-burst small { color: #fff4c5; font: 800 8px/1.1 "Segoe UI", sans-serif; text-transform: uppercase; letter-spacing: .04em; }
+.front-coin-burst.is-visible { animation: front-coin-award .9s ease-out both; }
 .front-lock { position: absolute; z-index: 10; left: 50%; top: 38%; translate: -50% -50%; min-width: 112px; padding: 7px 10px; border: 1px solid rgba(244, 204, 98, .42); border-radius: 10px; background: rgba(20, 26, 39, .88); color: #fff3c0; box-shadow: 0 6px 16px rgba(8, 12, 20, .35); pointer-events: none; }
 .front-lock b, .front-lock small { display: block; }
 .front-lock small { margin-top: 2px; color: rgba(255,255,255,.7); font-size: 8px; letter-spacing: .05em; text-transform: uppercase; }
@@ -615,8 +679,7 @@ button.resource-pill:focus-visible {
 .keep-scene[data-akhars-front-level="0"] .front-projectile,
 .keep-scene[data-akhars-front-level="0"] .front-impact,
 .keep-scene[data-akhars-front-level="0"] .front-defenders { display: none; }
-.keep-scene[data-front-defenders="0"] .front-projectile,
-.keep-scene[data-front-defenders="0"] .front-impact { display: none; }
+.keep-scene[data-front-defenders="0"] .front-projectiles { display: none; }
 .keep-scene[data-akhars-front-level]:not([data-akhars-front-level="0"]) .front-lock { display: none; }
 .keep-scene[data-constructing~="akhars_front"] .front-hotspot .front-lock small { font-size: 0; }
 .keep-scene[data-constructing~="akhars_front"] .front-hotspot .front-lock small::after { content: "Rampart under construction"; font-size: 8px; }
@@ -3150,6 +3213,8 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
 @keyframes front-raider-march { 0%, 100% { translate: 6px -4px; } 50% { translate: -5px 4px; } }
 @keyframes front-torch-flicker { 0% { transform: scale(.9, 1.04) rotate(-3deg); opacity: .86; } 55% { transform: scale(1.08, .94) rotate(2deg); opacity: 1; } 100% { transform: scale(.96, 1.1) rotate(4deg); opacity: .92; } }
 @keyframes front-projectile-flight { 0%, 15% { opacity: 0; translate: 0 0; } 20% { opacity: 1; } 68% { opacity: 1; } 72%, 100% { opacity: 0; translate: 155px -76px; } }
+@keyframes front-raider-defeat { 0% { opacity: 1; translate: 0 0; rotate: 0deg; } 100% { opacity: 0; translate: 8px 32px; rotate: 18deg; } }
+@keyframes front-coin-award { 0% { opacity: 0; translate: 0 8px; scale: .7; } 18%, 68% { opacity: 1; translate: 0 0; scale: 1; } 100% { opacity: 0; translate: 0 -24px; scale: .9; } }
 @keyframes front-impact-burst { 0%, 65% { opacity: 0; transform: scale(.2) rotate(0); } 70% { opacity: 1; } 88% { opacity: 0; transform: scale(1.25) rotate(30deg); } 100% { opacity: 0; } }
 @keyframes discovery-in { from { opacity: 0; transform: translate(-50%, 18px) scale(.96); } }
 @keyframes loading-breathe { 50% { transform: translateY(-6px) scale(1.04); } }
