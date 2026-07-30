@@ -1,3 +1,8 @@
+Original prompt: Find critical bugs (automation)
+
+- July 30, 2026 Mission panel blanking on rollover-write failure. `GET /api/missions/daily` calls `loadProgress`, which persists the day/week rollover as a side effect of the read. A Firestore save hiccup threw `IllegalStateException` out of the snapshot and blanked all three mission tabs (daily/weekly/lifetime share that one payload). The client then showed an empty/"Internal Server Error" state instead of objectives. Fix: rollover persist is best-effort (in-memory reset still served; the next claim commits it), `DailyMissionController.daily()` returns the `{"error":"Missions are temporarily unavailable."}` envelope for unexpected runtime failures, and `homeDailyMissions()` no longer treats an empty `featured: []` as a populated list (`[] || missions` is truthy). Cache pin `home.js?v=127`.
+- Verification: `node --check` on `home.js`; focused `DailyMissionServiceTest#snapshotStillServesWhenRolloverPersistFails` plus cache-pin regression updates; full Maven suite run on this branch.
+
 Original prompt: Merge and deploy
 
 - July 30, 2026 Consolidation PR `#583` merged to `main` as `9c61204e` and released. First Deploy run [30513728269](https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/30513728269) got Cloud Run green but Firebase Hosting failed installing `firebase-tools` (`npm ECONNRESET`). Retry push `766d9f99` completed as Deploy run [30514138664](https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/30514138664) — Cloud Run and Firebase Hosting + Functions both green. Live pins: `/home` → `home.js?v=126` / `home.css?v=118`, `/siege` → `adventure.js?v=43` / `adventure.css?v=43`, `/card-dashboard.html` → `card-dashboard.js?v=53`.

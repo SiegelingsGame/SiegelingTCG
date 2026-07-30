@@ -326,7 +326,7 @@ class GameJavaScriptRegressionTest {
                 "Profile trim styles for battle preview, social shrink, and favorite card art must ship in home.css."
         );
         assertTrue(
-                homeMarkup.contains("home.js?v=126") && homeMarkup.contains("home.css?v=118"),
+                homeMarkup.contains("home.js?v=127") && homeMarkup.contains("home.css?v=118"),
                 "Cache-bust pins for the profile dashboard trim must advance on home.html."
         );
     }
@@ -355,7 +355,7 @@ class GameJavaScriptRegressionTest {
         );
         assertTrue(
                 homeMarkup.contains("home.css?v=118")
-                        && homeMarkup.contains("home.js?v=126")
+                        && homeMarkup.contains("home.js?v=127")
                         && dashboardMarkup.contains("home.css?v=118"),
                 "Profile icon CSS and JavaScript cache pins must advance together."
         );
@@ -391,7 +391,7 @@ class GameJavaScriptRegressionTest {
                 homeMarkup.contains("style.css?v=217")
                         && homeMarkup.contains("game.js?v=220")
                         && homeMarkup.contains("card-binder-visual.js?v=20")
-                        && homeMarkup.contains("home.js?v=126")
+                        && homeMarkup.contains("home.js?v=127")
                         && playMarkup.contains("style.css?v=217")
                         && playMarkup.contains("game.js?v=220")
                         && dashboardMarkup.contains("style.css?v=217")
