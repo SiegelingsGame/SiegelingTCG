@@ -293,19 +293,25 @@ public class KeepService {
                         + " more Siegecoins to buy that project instantly.");
             }
 
-            progression.setGold(progression.getGold() - coinCost);
+            // Keep effects first; account gold is charged only after the Keep
+            // document persists (see mutate). Charging first left a window where
+            // a failed Keep write deducted Siegecoins without applying the build,
+            // and the client's fresh requestId then charged again on retry.
             materializeAllProduction(state, context.residents(), context.now());
             applyConstructionEffects(state, id, context.now());
             awardKeeperXp(state, KEEPER_PROJECT_XP);
             advanceEnclaveTasks(state, context.residents(), "CONSTRUCTION");
-            progression.setKeepProjectsCompleted(progression.getKeepProjectsCompleted() + 1);
-            progression.setUpdatedAt(context.now());
-            if (progressionStore != null) progressionStore.save(progression);
+            int goldBalance = progression.getGold() - coinCost;
+            context.afterKeepPersist(p -> {
+                p.setGold(p.getGold() - coinCost);
+                p.setKeepProjectsCompleted(p.getKeepProjectsCompleted() + 1);
+                p.setUpdatedAt(context.now());
+            });
             return Map.of("projectPurchased", Map.of(
                     "buildId", id,
                     "name", project.name(),
                     "coinCost", coinCost,
-                    "goldBalance", progression.getGold(),
+                    "goldBalance", goldBalance,
                     "completed", true));
         });
     }
@@ -366,20 +372,22 @@ public class KeepService {
                         + " more Siegecoins to complete that project.");
             }
 
-            progression.setGold(progression.getGold() - coinCost);
             materializeAllProduction(state, context.residents(), context.now());
             applyConstructionEffects(state, id, context.now());
             clearConstruction(state, slot.index());
             awardKeeperXp(state, KEEPER_PROJECT_XP);
             advanceEnclaveTasks(state, context.residents(), "CONSTRUCTION");
-            progression.setKeepProjectsCompleted(progression.getKeepProjectsCompleted() + 1);
-            progression.setUpdatedAt(context.now());
-            if (progressionStore != null) progressionStore.save(progression);
+            int goldBalance = progression.getGold() - coinCost;
+            context.afterKeepPersist(p -> {
+                p.setGold(p.getGold() - coinCost);
+                p.setKeepProjectsCompleted(p.getKeepProjectsCompleted() + 1);
+                p.setUpdatedAt(context.now());
+            });
             return Map.of("timeSaverApplied", Map.of(
                     "buildId", id,
                     "payment", "SIEGECOINS",
                     "coinCost", coinCost,
-                    "goldBalance", progression.getGold(),
+                    "goldBalance", goldBalance,
                     "completed", true));
         });
     }
@@ -971,6 +979,11 @@ public class KeepService {
             rememberRequest(state, normalizedRequestId);
             bump(state, context.now());
             store.save(state);
+            // Account gold/progression lives in a separate document. Apply those
+            // mutations only after Keep persists so a failed Keep write cannot
+            // leave coins credited (or charged) against a rolled-back Keep bank
+            // or unapplied construction.
+            context.flushProgressionAfterKeep(progressionStore);
             Map<String, Object> out = serialize(user, context.progression(), state, context.residents(), context.now());
             addNewUnlocks(out, state, beforeUnlocks);
             if (extra != null) out.putAll(extra);
@@ -991,6 +1004,7 @@ public class KeepService {
         KeepState state = store.findByUserId(user.getId()).orElseGet(() -> store.save(newState(user.getId(), now)));
         repairDefaults(state, now);
         backfillKeeperXp(state);
+        repairClaimedKeeperDecorations(state, progression);
         if (!progression.isKeepFounded()) {
             recordKeepStats(progression, p -> p.setKeepFounded(true));
         }
@@ -1026,6 +1040,23 @@ public class KeepService {
             state.getMaterialInventory().putIfAbsent(FACILITIES.get(id).resourceId(), 0);
         }
         if (!state.getUnlockedLoreIds().contains("charter_three_promises")) unlock(state, "charter_three_promises");
+    }
+
+    /**
+     * Reward claims and Keep inventory live in separate Firestore documents. If
+     * the progression write succeeds but the Keep write fails, the claim is
+     * already consumed on retry. Rebuild this derived entitlement from the
+     * durable claim marker so a transient split-write failure cannot lose it.
+     */
+    private void repairClaimedKeeperDecorations(KeepState state, PlayerProgressionEntity progression) {
+        if (progression == null) return;
+        for (Map.Entry<Integer, String> reward : KEEPER_LEVEL_DECORATIONS.entrySet()) {
+            String decorationId = reward.getValue();
+            if (progression.getKeepRewardClaimIds().contains("keeper_level:" + reward.getKey())
+                    && craftedCount(state, decorationId) < 1) {
+                state.getCraftedItemCounts().put(decorationId, 1);
+            }
+        }
     }
 
     /** Completes every due project across all level-provided teams, earliest first. */
@@ -1391,9 +1422,14 @@ public class KeepService {
         materializeAkharsFront(state, context.residents(), context.now());
         grant = state.getAkharsFrontStoredGold();
         state.setAkharsFrontStoredGold(0);
-        context.progression().setGold(context.progression().getGold() + grant);
-        context.progression().setUpdatedAt(context.now());
-        if (progressionStore != null) progressionStore.save(context.progression());
+        // Clear the bank on Keep before minting account gold. Crediting progression
+        // first left a split-write window where Collect could pay out again after a
+        // failed Keep save restored the uncleared bank from Firestore.
+        final int credited = grant;
+        context.afterKeepPersist(p -> {
+            p.setGold(p.getGold() + credited);
+            p.setUpdatedAt(context.now());
+        });
         return Map.of("collected", Map.of(
                 "resource", "SIEGECOINS", "resourceName", "Siegecoins", "amount", grant, "stationId", "akhars_front"));
     }
@@ -3372,6 +3408,11 @@ public class KeepService {
         this.tuningService = tuningService;
     }
 
+    /** Test seam: inject a progression store so split-write ordering can be asserted. */
+    void setProgressionStore(PlayerProgressionStore progressionStore) {
+        this.progressionStore = progressionStore;
+    }
+
     /** Live designer tuning, or the shipped defaults when no tuning source is wired. */
     private KeepTuning tuning() {
         return tuningService == null ? KeepTuning.EMPTY : tuningService.current();
@@ -3397,7 +3438,46 @@ public class KeepService {
                                 long durationSeconds) { }
     private record ConstructionSlot(int index, String id, Instant startedAt, Instant completesAt) { }
     private record KeeperReward(int gold, int remnants, String decorationId) { }
-    private record Context(PlayerProgressionEntity progression, KeepState state, List<Resident> residents, Instant now) { }
+    /**
+     * Per-mutate working set. Progression updates that must not race a failed
+     * Keep write are queued on {@link #afterKeepPersist} and flushed only after
+     * {@code store.save} succeeds.
+     */
+    private static final class Context {
+        private final PlayerProgressionEntity progression;
+        private final KeepState state;
+        private final List<Resident> residents;
+        private final Instant now;
+        private Consumer<PlayerProgressionEntity> progressionAfterKeep;
+
+        private Context(PlayerProgressionEntity progression, KeepState state, List<Resident> residents, Instant now) {
+            this.progression = progression;
+            this.state = state;
+            this.residents = residents;
+            this.now = now;
+        }
+
+        private PlayerProgressionEntity progression() { return progression; }
+        private KeepState state() { return state; }
+        private List<Resident> residents() { return residents; }
+        private Instant now() { return now; }
+
+        private void afterKeepPersist(Consumer<PlayerProgressionEntity> update) {
+            if (update == null) return;
+            Consumer<PlayerProgressionEntity> prior = progressionAfterKeep;
+            progressionAfterKeep = prior == null ? update : p -> {
+                prior.accept(p);
+                update.accept(p);
+            };
+        }
+
+        private void flushProgressionAfterKeep(PlayerProgressionStore store) {
+            if (progressionAfterKeep == null) return;
+            progressionAfterKeep.accept(progression);
+            progressionAfterKeep = null;
+            if (store != null) store.save(progression);
+        }
+    }
 
     public static class StaleKeepStateException extends IllegalStateException {
         public StaleKeepStateException(String message) { super(message); }

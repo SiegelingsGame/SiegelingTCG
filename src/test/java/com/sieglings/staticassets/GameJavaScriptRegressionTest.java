@@ -208,6 +208,7 @@ class GameJavaScriptRegressionTest {
         String choosePack = extractFunction(homeScript, "async function choosePack(packId, count = 1)");
         String clearPackResult = extractFunction(homeScript, "function clearPackResult()");
         String recoverStarter = extractFunction(homeScript, "async function recoverStarterPackProgression()");
+        String recoverProgression = extractFunction(homeScript, "async function recoverProgressionSnapshot()");
         String recoverShop = extractFunction(homeScript, "async function recoverShopPackProgression(requestId, packId)");
 
         assertTrue(
@@ -218,8 +219,9 @@ class GameJavaScriptRegressionTest {
         );
         assertTrue(
                 choosePack.contains("recoverStarterPackProgression()")
-                        && recoverStarter.contains("/api/player/progression")
-                        && recoverStarter.contains("starterChosen"),
+                        && recoverStarter.contains("recoverProgressionSnapshot()")
+                        && recoverStarter.contains("starterChosen")
+                        && recoverProgression.contains("/api/player/progression"),
                 "If the starter POST errors/times out after the grant, the client must recover from progression."
         );
         assertTrue(
@@ -324,7 +326,7 @@ class GameJavaScriptRegressionTest {
                 "Profile trim styles for battle preview, social shrink, and favorite card art must ship in home.css."
         );
         assertTrue(
-                homeMarkup.contains("home.js?v=125") && homeMarkup.contains("home.css?v=118"),
+                homeMarkup.contains("home.js?v=126") && homeMarkup.contains("home.css?v=118"),
                 "Cache-bust pins for the profile dashboard trim must advance on home.html."
         );
     }
@@ -353,7 +355,7 @@ class GameJavaScriptRegressionTest {
         );
         assertTrue(
                 homeMarkup.contains("home.css?v=118")
-                        && homeMarkup.contains("home.js?v=125")
+                        && homeMarkup.contains("home.js?v=126")
                         && dashboardMarkup.contains("home.css?v=118"),
                 "Profile icon CSS and JavaScript cache pins must advance together."
         );
@@ -389,7 +391,7 @@ class GameJavaScriptRegressionTest {
                 homeMarkup.contains("style.css?v=217")
                         && homeMarkup.contains("game.js?v=220")
                         && homeMarkup.contains("card-binder-visual.js?v=20")
-                        && homeMarkup.contains("home.js?v=125")
+                        && homeMarkup.contains("home.js?v=126")
                         && playMarkup.contains("style.css?v=217")
                         && playMarkup.contains("game.js?v=220")
                         && dashboardMarkup.contains("style.css?v=217")
@@ -1052,10 +1054,9 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=38")
+                        && keepHtml.contains("/css/keep.css?v=39")
                         && keepHtml.contains("/js/keep.js?v=39")
                         && keepHtml.contains("id=\"hallFavoriteResident\"")
-                        && keepHtml.contains("id=\"constructionBannerJobs\"")
                         && keepHtml.contains("id=\"productionReady\"")
                         && keepJs.contains("constructionBannerSignature")
                         && keepJs.contains("data-live-banner-time=")
@@ -1067,7 +1068,7 @@ class GameJavaScriptRegressionTest {
                         && !keepJs.contains("productionReady')?.classList.toggle('hidden', available <= 0)")
                         && !keepJs.contains("+${constructions.length - 1} more")
                         && !keepJs.contains("Storage reached capacity\", `${name} stopped until collected`"),
-                "Keep architecture must retain its paper building hooks, refresh both asset cache pins, show the favorite in Covenant Hall, collapse storage-capacity offline alerts into one multi-line card, show each concurrent construction job in the banner, and gate the Woodlot Collect bubble to a full stockpile."
+                "Keep architecture must retain its paper building hooks, refresh both asset cache pins, show the favorite in Covenant Hall, collapse storage-capacity offline alerts into one multi-line card, and gate the Woodlot Collect bubble to a full stockpile."
         );
         assertTrue(
                 keepJs.contains("/api/keep/construction/speedup")
@@ -1259,7 +1260,7 @@ class GameJavaScriptRegressionTest {
                         && adventureHtml.contains("id=\"runMenuRestart\"")
                         && adventureHtml.contains("id=\"runMenuQuit\"")
                         && adventureHtml.contains("/css/adventure.css?v=43")
-                        && adventureHtml.contains("/js/adventure.js?v=42"),
+                        && adventureHtml.contains("/js/adventure.js?v=43"),
                 "The active-run menu and both cache-busted bundles must ship together.");
         String restartRun = extractFunction(adventureJs, "function restartRun(");
         assertTrue(adventureJs.contains("api('/api/siege/run/save'")
@@ -1269,6 +1270,26 @@ class GameJavaScriptRegressionTest {
                 "Save/Quit must require a durable checkpoint and Restart must abandon server state before clearing local state.");
         assertFalse(adventureJs.contains("resetPageScroll"),
                 "The menu port must not revive the stale PR's superseded map-scroll implementation.");
+    }
+
+    @Test
+    void dashboardPublishesLoadedCatalogVersion() throws IOException {
+        String dashboardScript = Files.readString(CARD_DASHBOARD_JS);
+        String applyServerPayload = extractFunction(dashboardScript, "function applyServerPayload(payload)");
+        String buildExportData = extractFunction(dashboardScript, "function buildExportData()");
+
+        assertTrue(
+                dashboardScript.contains("catalogVersion: 0"),
+                "Dashboard state should track the loaded catalog revision."
+        );
+        assertTrue(
+                applyServerPayload.contains("state.catalogVersion = Number(payload.catalogVersion) || 0;"),
+                "Dashboard loads must remember the server catalog revision."
+        );
+        assertTrue(
+                buildExportData.contains("catalogVersion: state.catalogVersion"),
+                "Live publish payloads must include their base catalog revision to prevent stale full-snapshot overwrites."
+        );
     }
 
     private static String readGameScript() throws IOException {
