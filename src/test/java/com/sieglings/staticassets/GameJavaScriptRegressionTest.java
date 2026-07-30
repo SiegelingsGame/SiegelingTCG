@@ -1055,7 +1055,7 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=44")
+                        && keepHtml.contains("/css/keep.css?v=45")
                         && keepHtml.contains("/js/keep.js?v=43")
                         && keepHtml.contains("id=\"hallFavoriteResident\"")
                         && keepHtml.contains("id=\"productionReady\"")
@@ -1070,6 +1070,13 @@ class GameJavaScriptRegressionTest {
                         && !keepJs.contains("+${constructions.length - 1} more")
                         && !keepJs.contains("Storage reached capacity\", `${name} stopped until collected`"),
                 "Keep architecture must retain its paper building hooks, refresh both asset cache pins, show the favorite in Covenant Hall, collapse storage-capacity offline alerts into one multi-line card, and gate the Woodlot Collect bubble to a full stockpile."
+        );
+        assertTrue(
+                keepCss.contains(".hall-hotspot .building-label")
+                        && keepCss.contains("left: -66px;")
+                        && keepCss.contains("top: -6px;")
+                        && keepCss.contains("bottom: auto;"),
+                "The phone Covenant Hall label must stay in the open upper-left sky instead of covering the gatehouse."
         );
         assertTrue(
                 keepJs.contains("/api/keep/construction/speedup")
