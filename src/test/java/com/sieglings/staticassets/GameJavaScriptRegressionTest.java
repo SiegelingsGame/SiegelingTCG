@@ -1055,8 +1055,8 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=40")
-                        && keepHtml.contains("/js/keep.js?v=40")
+                        && keepHtml.contains("/css/keep.css?v=41")
+                        && keepHtml.contains("/js/keep.js?v=41")
                         && keepHtml.contains("id=\"hallFavoriteResident\"")
                         && keepHtml.contains("id=\"productionReady\"")
                         && keepJs.contains("constructionBannerSignature")
@@ -1106,11 +1106,16 @@ class GameJavaScriptRegressionTest {
                         && keepJs.contains("function enterAkharsFront()")
                         && keepJs.contains("function exitAkharsFront()")
                         && keepJs.contains("state.frontView ? 'akhars_front' : 'keep'")
+                        && keepJs.contains("Occupied Siegelings can be moved here")
+                        && keepJs.contains("assignmentType: resident.assignment?.type || ''")
                         && keepCss.contains(".keep-app.front-view-active .keep-dock")
                         && keepCss.contains(".building-hotspot:not(.front-hotspot)")
                         && keepCss.contains(".front-battle { position: absolute; inset: 0 0 33px; display: none;")
-                        && keepCss.contains(".keep-app.front-view-active .front-battle { display: block; }"),
-                "Akhar's Front must remain a compact map destination, reveal its battle only after entry, and provide a tested route back to the Keep grounds."
+                        && keepHtml.contains("class=\"front-torches\"")
+                        && keepCss.contains("linear-gradient(180deg, #170b2d 0%, #32113c 35%, #66233e 55%, #281829 100%)")
+                        && keepCss.contains("@keyframes front-torch-flicker")
+                        && keepCss.contains(".keep-app.front-view-active .front-battle { display: block;"),
+                "Akhar's Front must remain a compact map destination, reveal its responsive night battle and torches only after entry, name occupied reassignment locations, and provide a tested route back to the Keep grounds."
         );
         assertTrue(
                 keepCss.contains(".building-illustration svg.paper-building-shell")
