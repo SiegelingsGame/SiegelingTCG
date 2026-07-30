@@ -484,6 +484,7 @@
         lobbyBusy: false,
         packReveal: null,
         packOpeningPending: null,
+        progressionRecoveryPending: false,
         dailyOfferPurchasePending: null,
         packOpeningDismissedKey: '',
         shopView: 'browse',
@@ -1494,9 +1495,18 @@
             state.token = COOKIE_SESSION_VALUE;
             try { localStorage.setItem(AUTH_TOKEN_KEY, state.token); } catch (e) { /* ignore */ }
         }
-        state.profile = data;
-        state.progression = data.progression || null;
-        state.profileSynced = true;
+        // Auth profile assembly intentionally tolerates an isolated progression
+        // read failure. Recover through the authoritative progression endpoint
+        // before deciding whether this account still needs a starter pack.
+        if (!data.progression) {
+            const recovered = await recoverProgressionSnapshot();
+            if (recovered) data.progression = recovered.progression;
+        }
+        const sameUser = state.profile?.user?.id && state.profile.user.id === data.user?.id;
+        const progression = data.progression || (sameUser ? state.progression : null);
+        state.profile = progression && !data.progression ? { ...data, progression } : data;
+        state.progression = progression || null;
+        state.profileSynced = Boolean(state.progression);
         syncCollectionVisibilityDefault();
         saveCachedAuthProfile(data);
         await loadDailyMissions();
@@ -1700,12 +1710,22 @@
     function renderStarterGate() {
         const gate = document.getElementById('starterGate');
         const hub = document.getElementById('hubGrid');
+        const progressionMissing = Boolean(state.profile?.authenticated && !state.progression);
         const mustChoose = Boolean(state.profile?.authenticated && state.progression && !state.progression.starterChosen);
-        document.body.classList.toggle('starter-onboarding-active', mustChoose);
-        gate.classList.toggle('hidden', !mustChoose);
-        hub.classList.toggle('hidden', mustChoose);
+        const gateActive = progressionMissing || mustChoose;
+        document.body.classList.toggle('starter-onboarding-active', gateActive);
+        gate.classList.toggle('hidden', !gateActive);
+        hub.classList.toggle('hidden', gateActive);
         const grid = document.getElementById('starterPackGrid');
         if (!grid) return;
+        if (progressionMissing) {
+            grid.innerHTML = `<div class="empty-state" role="status">
+                <strong>${state.progressionRecoveryPending ? 'Loading your starter progress…' : 'Starter progress is temporarily unavailable.'}</strong>
+                <span>${state.progressionRecoveryPending ? 'Checking your collection now.' : 'Retry before choosing a pack so your first cards are granted safely.'}</span>
+                <button class="primary-btn" type="button" data-retry-progression${state.progressionRecoveryPending ? ' disabled' : ''}>${state.progressionRecoveryPending ? 'Loading…' : 'Retry'}</button>
+            </div>`;
+            return;
+        }
         grid.innerHTML = state.packs.filter(pack => pack.starterEligible).map(renderPackTile).join('');
     }
 
@@ -6546,18 +6566,41 @@
         writePendingPackOpenRequests(remaining);
     }
 
-    async function recoverStarterPackProgression() {
+    async function recoverProgressionSnapshot() {
         try {
             const recovered = await fetchJson('/api/player/progression', {
                 timeoutMs: STARTER_PACK_TIMEOUT_MS
             });
-            if (recovered && !recovered.error && recovered.progression?.starterChosen) {
+            if (recovered && !recovered.error && recovered.progression) {
                 return recovered;
             }
         } catch (error) {
             console.error(error);
         }
         return null;
+    }
+
+    async function retryMissingProgression() {
+        if (!state.profile?.authenticated || state.progression || state.progressionRecoveryPending) return;
+        state.progressionRecoveryPending = true;
+        renderStarterGate();
+        try {
+            const recovered = await recoverProgressionSnapshot();
+            if (!recovered) return;
+            state.progression = recovered.progression;
+            state.profile = { ...state.profile, progression: state.progression };
+            state.profileSynced = true;
+            saveCachedAuthProfile(state.profile);
+            render();
+        } finally {
+            state.progressionRecoveryPending = false;
+            renderStarterGate();
+        }
+    }
+
+    async function recoverStarterPackProgression() {
+        const recovered = await recoverProgressionSnapshot();
+        return recovered?.progression?.starterChosen ? recovered : null;
     }
 
     // Shop pack opens can charge/grant before the HTTP body arrives. On timeout
@@ -6627,6 +6670,14 @@
         if (!state.profile?.authenticated) {
             openAuth();
             return;
+        }
+        // A partial auth response must never fall through to the paid shop path:
+        // the server rejects shop purchases until a starter exists, stranding new
+        // accounts without the starter gate. Recover first and keep a retry UI if
+        // progression is still unavailable.
+        if (!state.progression) {
+            await retryMissingProgression();
+            if (!state.progression) return;
         }
         if (state.packOpeningPending) {
             return;
@@ -8292,6 +8343,12 @@
             renderAuthModal();
             return alert(data.error);
         }
+        // Auth profile assembly intentionally tolerates an isolated progression
+        // read failure. Recover before deciding starter-gate / shop eligibility.
+        if (!data.progression) {
+            const recovered = await recoverProgressionSnapshot();
+            if (recovered) data.progression = recovered.progression;
+        }
         state.authLoading = false;
         // Keep the real token + Bearer header unless the server has already proven a
         // session cookie reaches it, so auth survives the full-page navigations to
@@ -8300,7 +8357,8 @@
         localStorage.setItem(AUTH_TOKEN_KEY, state.token);
         state.profile = data;
         saveCachedAuthProfile(data);
-        state.progression = data.progression;
+        state.progression = data.progression || null;
+        state.profileSynced = Boolean(state.progression);
         syncCollectionVisibilityDefault();
         state.profilePrefs = applyProfileSettingsFromServer(data.profileSettings) || defaultProfilePrefs(data.user || {});
         cacheProfilePrefs(state.profilePrefs);
@@ -10306,6 +10364,11 @@
         }
         const packButton = event.target.closest('[data-pack-id]');
         if (packButton) choosePack(packButton.dataset.packId, Number(packButton.dataset.packCount) || 1);
+        const progressionRetry = event.target.closest('[data-retry-progression]');
+        if (progressionRetry) {
+            void retryMissingProgression();
+            return;
+        }
         const dailyOfferButton = event.target.closest('[data-daily-offer-id]');
         if (dailyOfferButton) purchaseDailyOffer(dailyOfferButton.dataset.dailyOfferId);
         const titleButton = event.target.closest('[data-purchase-title-id]');

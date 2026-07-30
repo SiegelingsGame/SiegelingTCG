@@ -1848,21 +1848,27 @@
         : '<div class="camp-glyph">' + icon(offer.element) + '</div>';
       var stats = offer.hp != null ? '<div class="camp-card-desc">❤ ' + offer.hp + ' · ⚡ ' + offer.speed +
         (offer.evolves ? ' · <span class="evo-tag">EVO ↑</span>' : '') + '</div>' : '';
+      // Prefer per-offer kind when present; fall back to stall-level merc for older payloads.
+      var isMerc = offer.kind ? offer.kind === 'MERC' : (offer.merc === true || !!b.merc);
+      var hireCost = isMerc
+        ? (offer.cost != null ? offer.cost : b.hireCost)
+        : (b.hireCost != null ? b.hireCost : offer.cost);
+      var swapCost = b.swapCost != null ? b.swapCost : hireCost;
       c.innerHTML =
         '<div class="camp-card-head"><button class="info-btn broker-info" type="button">ⓘ</button>' +
         (offer.used ? '<span class="camp-used">✓ hired</span>' : '') + '</div>' +
         art +
         '<div class="camp-card-title">' + esc(offer.name) + '</div>' +
         stats +
-        (offer.used ? '' : b.merc
+        (offer.used ? '' : isMerc
           ? '<div class="broker-actions">' +
             '<button class="siege-btn broker-btn hire" type="button"' +
-              ((run.gold >= b.hireCost && !b.mercUnderContract) ? '' : ' disabled') + '>Rent 🪙' + b.hireCost + '</button>' +
+              ((run.gold >= hireCost && !b.mercUnderContract) ? '' : ' disabled') + '>Rent 🪙' + hireCost + '</button>' +
             '</div><div class="camp-card-desc">Fights your NEXT battle with boon cards, then departs.</div>'
           : '<div class="broker-actions">' +
             '<button class="siege-btn broker-btn hire" type="button"' +
-              ((run.gold >= b.hireCost && !b.partyFull) ? '' : ' disabled') + '>Hire 🪙' + b.hireCost + '</button>' +
-            '<button class="siege-btn broker-btn swap" type="button"' + (run.gold >= b.swapCost ? '' : ' disabled') + '>Swap 🪙' + b.swapCost + '</button>' +
+              ((run.gold >= hireCost && !b.partyFull) ? '' : ' disabled') + '>Hire 🪙' + hireCost + '</button>' +
+            '<button class="siege-btn broker-btn swap" type="button"' + (run.gold >= swapCost ? '' : ' disabled') + '>Swap 🪙' + swapCost + '</button>' +
             '</div><div class="broker-swap-row hidden"></div>');
       c.querySelector('.broker-info').addEventListener('click', function (e) {
         e.stopPropagation();

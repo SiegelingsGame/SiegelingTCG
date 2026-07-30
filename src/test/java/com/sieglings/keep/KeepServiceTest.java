@@ -8,6 +8,7 @@ import com.sieglings.model.enums.Rarity;
 import com.sieglings.model.enums.Row;
 import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.PlayerProgressionEntity;
+import com.sieglings.persistence.firestore.PlayerProgressionStore;
 import com.sieglings.service.CardDefinitionService;
 import com.sieglings.service.PlayerProgressionService;
 import org.junit.jupiter.api.BeforeEach;
@@ -1006,6 +1007,18 @@ class KeepServiceTest {
     }
 
     @Test
+    void claimedKeeperDecorationIsRepairedAfterSplitPersistenceFailure() {
+        service.getSnapshot(user);
+        progression.getKeepRewardClaimIds().add("keeper_level:3");
+        store.state.getCraftedItemCounts().remove("carved_waypost");
+
+        service.getSnapshot(user);
+
+        assertEquals(1, store.state.getCraftedItemCounts().get("carved_waypost"),
+                "A durable claim marker must restore a decoration lost when the Keep document failed to save.");
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void keeperLevelGatesKeepRankUpgradesButNotTheRestorationChain() {
         Map<String, Object> snapshot = service.getSnapshot(user); // Keeper Level 2
@@ -1197,6 +1210,80 @@ class KeepServiceTest {
         assertEquals("SIEGECOINS", valueAt(collected, "collected", "resource"));
     }
 
+    @Test
+    void akharsFrontCollectDoesNotCreditGoldWhenKeepSaveFails() {
+        service.getSnapshot(user);
+        store.state.setAkharsFrontLevel(1);
+        store.state.setAkharsFrontLastAccruedAt(clock.instant());
+        store.state.setAkharsFrontStoredGold(25);
+        progression.setGold(100);
+
+        java.util.concurrent.atomic.AtomicInteger progressionSaves = new java.util.concurrent.atomic.AtomicInteger();
+        service.setProgressionStore(new PlayerProgressionStore() {
+            @Override public PlayerProgressionEntity save(PlayerProgressionEntity entity) {
+                progressionSaves.incrementAndGet();
+                return entity;
+            }
+        });
+        store.failNextSave = true;
+
+        assertThrows(IllegalStateException.class,
+                () -> service.collect(user, "akhars_front", "front-collect-fail", store.state.getVersion()));
+        assertEquals(100, progression.getGold(), "Gold must not mint before the Keep bank is persisted.");
+        assertEquals(0, progressionSaves.get(), "Progression must not save when Keep persistence fails.");
+
+        // Simulate Cloud Run reload: Keep document still has the uncleared bank.
+        store.state.setAkharsFrontStoredGold(25);
+        store.failNextSave = false;
+
+        Map<String, Object> collected = service.collect(
+                user, "akhars_front", "front-collect-retry", store.state.getVersion());
+        assertEquals(125, progression.getGold());
+        assertEquals(1, progressionSaves.get());
+        assertEquals(0, intAt(collected, "akharsFront", "available"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void instantPurchaseDoesNotChargeGoldWhenKeepSaveFails() {
+        progression.setGold(5_000);
+        service.getSnapshot(user);
+        store.state.setArchiveLevel(1);
+        store.state.setWoodlotLevel(2);
+        store.state.setStorehouseLevel(1);
+        store.state.setTimber(2_000);
+
+        Map<String, Object> optionsSnapshot = service.getSnapshot(user);
+        Map<String, Object> forgeOption = ((List<Map<String, Object>>) optionsSnapshot.get("buildOptions")).stream()
+                .filter(item -> "build_forge".equals(item.get("id"))).findFirst().orElseThrow();
+        int instantCost = ((Number) forgeOption.get("instantCoinCost")).intValue();
+
+        java.util.concurrent.atomic.AtomicInteger progressionSaves = new java.util.concurrent.atomic.AtomicInteger();
+        service.setProgressionStore(new PlayerProgressionStore() {
+            @Override public PlayerProgressionEntity save(PlayerProgressionEntity entity) {
+                progressionSaves.incrementAndGet();
+                return entity;
+            }
+        });
+        store.failNextSave = true;
+
+        assertThrows(IllegalStateException.class,
+                () -> service.purchaseBuild(user, "build_forge", "buy-forge-fail", store.state.getVersion()));
+        assertEquals(5_000, progression.getGold(), "Siegecoins must not charge before Keep persists the building.");
+        assertEquals(0, progressionSaves.get());
+
+        // Simulate Firestore reload of the pre-purchase Keep document.
+        store.state.getFacilityLevels().remove("forge");
+        store.state.getFacilityLastAccruedAt().remove("forge");
+        store.state.getFacilityStored().remove("forge");
+        store.failNextSave = false;
+
+        Map<String, Object> purchased = service.purchaseBuild(user, "build_forge", "buy-forge-retry", store.state.getVersion());
+        assertEquals(1, ((Number) station(purchased, "forge").get("level")).intValue());
+        assertEquals(5_000 - instantCost, progression.getGold());
+        assertEquals(1, progressionSaves.get());
+    }
+
     private void buildEnclave() {
         service.getSnapshot(user);
         store.state.setArchiveLevel(1);
@@ -1293,8 +1380,16 @@ class KeepServiceTest {
 
     private static class InMemoryKeepStore extends KeepStore {
         private KeepState state;
+        private boolean failNextSave;
         @Override public Optional<KeepState> findByUserId(String userId) { return Optional.ofNullable(state); }
-        @Override public KeepState save(KeepState value) { state = value; return value; }
+        @Override public KeepState save(KeepState value) {
+            if (failNextSave) {
+                failNextSave = false;
+                throw new IllegalStateException("Keep persistence failed.");
+            }
+            state = value;
+            return value;
+        }
         @Override public void deleteByUserId(String userId) { state = null; }
     }
 
