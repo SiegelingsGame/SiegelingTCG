@@ -1606,6 +1606,7 @@
         state.frontView = true;
         document.getElementById('keepApp')?.classList.add('front-view-active');
         document.getElementById('frontViewToolbar')?.setAttribute('aria-hidden', 'false');
+        syncMusicForLocation();
         initializeFrontCombat();
         // The stage only reaches full width once .front-view-active lands, so measure after it.
         renderFrontRampart();
@@ -1652,6 +1653,7 @@
         renderFrontCombat();
         document.getElementById('keepApp')?.classList.remove('front-view-active');
         document.getElementById('frontViewToolbar')?.setAttribute('aria-hidden', 'true');
+        syncMusicForLocation();
         renderFrontRampart(); // back to the map-sized wall, so the viewBox shrinks with it
         const hotspot = document.querySelector('.front-hotspot');
         hotspot?.setAttribute('aria-label', "Enter Akhar's Front");
@@ -3085,52 +3087,76 @@
     }
 
     // ── Theme music ───────────────────────────────────────────────────────────
-    // Loops the main theme in Keep mode behind a header toggle. Preference persists;
+    // Loops the main theme on the Keep grounds and the battle theme at Akhar's Front behind
+    // one shared header toggle. Preference persists across both locations;
     // browsers block autoplay-with-sound until a user gesture, so when the saved
     // preference is "on" we also arm a one-shot gesture starter.
     const MUSIC_KEY = 'sieglingsKeepMusicOn';
+    let musicOn = true;
+
+    function musicTrackForLocation(audio) {
+        return state.frontView ? audio?.dataset.frontSrc : audio?.dataset.keepSrc;
+    }
+
+    function reflectMusicControl() {
+        const button = document.getElementById('musicToggle');
+        if (!button) return;
+        const location = state.frontView ? 'battle' : 'Keep';
+        button.classList.toggle('is-muted', !musicOn);
+        button.setAttribute('aria-pressed', String(musicOn));
+        button.setAttribute('aria-label', musicOn ? `Mute ${location} music` : `Play ${location} music`);
+        button.title = musicOn ? `Mute ${location} music` : `Play ${location} music`;
+    }
+
+    function tryPlayMusic() {
+        const audio = document.getElementById('keepTheme');
+        if (!audio || !musicOn || document.hidden) return;
+        const promise = audio.play();
+        if (promise && promise.catch) promise.catch(() => { /* autoplay blocked until a gesture */ });
+    }
+
+    function syncMusicForLocation() {
+        const audio = document.getElementById('keepTheme');
+        if (!audio) return;
+        const desired = musicTrackForLocation(audio);
+        if (desired && audio.getAttribute('src') !== desired) {
+            audio.pause();
+            audio.setAttribute('src', desired);
+            audio.load();
+        }
+        reflectMusicControl();
+        tryPlayMusic();
+    }
 
     function initMusic() {
         const audio = document.getElementById('keepTheme');
         const button = document.getElementById('musicToggle');
         if (!audio || !button) return;
         audio.volume = 0.32;
-        let on;
-        try { on = (localStorage.getItem(MUSIC_KEY) || '1') === '1'; } catch (e) { on = true; }
-
-        function reflect() {
-            button.classList.toggle('is-muted', !on);
-            button.setAttribute('aria-pressed', String(on));
-            button.title = on ? 'Mute theme music' : 'Play theme music';
-        }
-        function tryPlay() {
-            if (!on) return;
-            const promise = audio.play();
-            if (promise && promise.catch) promise.catch(() => { /* autoplay blocked until a gesture */ });
-        }
+        try { musicOn = (localStorage.getItem(MUSIC_KEY) || '1') === '1'; } catch (e) { musicOn = true; }
         function armGestureStart() {
             const starter = () => {
                 document.removeEventListener('pointerdown', starter);
                 document.removeEventListener('keydown', starter);
-                tryPlay();
+                tryPlayMusic();
             };
             document.addEventListener('pointerdown', starter);
             document.addEventListener('keydown', starter);
         }
 
-        reflect();
-        if (on) { tryPlay(); armGestureStart(); }
+        syncMusicForLocation();
+        if (musicOn) armGestureStart();
 
         button.addEventListener('click', () => {
-            on = !on;
-            try { localStorage.setItem(MUSIC_KEY, on ? '1' : '0'); } catch (e) { /* private mode */ }
-            reflect();
-            if (on) tryPlay(); else audio.pause();
+            musicOn = !musicOn;
+            try { localStorage.setItem(MUSIC_KEY, musicOn ? '1' : '0'); } catch (e) { /* private mode */ }
+            reflectMusicControl();
+            if (musicOn) tryPlayMusic(); else audio.pause();
         });
         // Don't keep playing over a backgrounded tab; resume on return if still enabled.
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) audio.pause();
-            else if (on) tryPlay();
+            else if (musicOn) tryPlayMusic();
         });
     }
 
@@ -4365,6 +4391,11 @@
             sceneView: { zoom: view.zoom, panX: view.panX, panY: view.panY },
             location: state.frontView ? 'akhars_front' : 'keep_grounds',
             returnToKeepAvailable: state.frontView,
+            music: {
+                enabled: musicOn,
+                track: state.frontView ? 'battle' : 'keep',
+                playing: !Boolean(document.getElementById('keepTheme')?.paused)
+            },
             akharsFront: (() => {
                 const front = snapshot.akharsFront || {};
                 return {

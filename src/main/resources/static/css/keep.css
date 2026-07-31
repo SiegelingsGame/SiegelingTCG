@@ -803,7 +803,6 @@ button.resource-pill:focus-visible {
 .front-manage { color: #172333; background: linear-gradient(#ffe89a, #d9ab4e); }
 .front-manage:hover { color: #172333; background: linear-gradient(#fff0b2, #e7bc63); }
 
-.keep-app.front-view-active .keep-header { grid-template-columns: minmax(180px, 1fr); }
 .keep-app.front-view-active .keep-scene-viewport { background: #140a23; }
 .keep-app.front-view-active .keep-scene {
     background:
@@ -841,8 +840,6 @@ button.resource-pill:focus-visible {
 }
 .keep-app.front-view-active .wounded-earth { display: none; }
 .keep-app.front-view-active .restored-meadow { opacity: .28; filter: sepia(.55) saturate(1.6) brightness(1.35); }
-.keep-app.front-view-active .keep-resource-bar,
-.keep-app.front-view-active .keep-header-actions,
 .keep-app.front-view-active .keep-dock,
 .keep-app.front-view-active .scene-caption,
 .keep-app.front-view-active .scene-zoom,
@@ -906,7 +903,9 @@ button.resource-pill:focus-visible {
 .keep-app.front-view-active .front-income { bottom: 54px; transform: scale(1.12); transform-origin: right bottom; }
 
 @media (max-width: 767px) {
-    .front-view-toolbar { top: calc(8px + var(--safe-top)); left: calc(7px + var(--safe-left)); right: calc(7px + var(--safe-right)); grid-template-columns: auto 1fr; gap: 7px; }
+    /* The normal Keep resource row hangs below the compact phone header. Keep the Front
+       controls beneath it so both HUD layers remain visible and tappable at the Wall. */
+    .front-view-toolbar { top: calc(52px + var(--safe-top)); left: calc(7px + var(--safe-left)); right: calc(7px + var(--safe-right)); grid-template-columns: auto 1fr; gap: 7px; }
     .front-view-heading { grid-column: 1 / -1; grid-row: 2; }
     .front-return,
     .front-manage { min-height: 36px; padding: 7px 9px; font-size: 9px; }
