@@ -595,6 +595,29 @@ public class SiegeContentService {
         return enemies;
     }
 
+    /**
+     * The run's opening fight — a fixed yardstick, not a scaled encounter. Element
+     * and name still vary so the fight looks different each run, but every number
+     * that decides how hard it is (foe count, HP, damage, speed, one ability) is
+     * pinned in {@link SiegeTuning}, so a lone Siegeling and a Marshal's pair face
+     * exactly the same opener. From the second fight on, encounters run through
+     * {@link #generateEnemies} and scale off warband size and depth as before.
+     */
+    List<Combatant> generateOpeningEnemies(Random rng, List<Element> palette) {
+        List<Combatant> enemies = new ArrayList<>();
+        for (int i = 0; i < SiegeTuning.OPENING_FIGHT_FOES; i++) {
+            Element element = palette.get(rng.nextInt(palette.size()));
+            String[] names = ENEMY_NAMES_BY_ELEMENT.getOrDefault(element, ENEMY_NAMES_FALLBACK);
+            Combatant foe = new Combatant("foe-1-" + i, names[rng.nextInt(names.length)], element, Side.ENEMY,
+                    SiegeTuning.OPENING_FIGHT_HP, SiegeTuning.OPENING_FIGHT_SPEED, null);
+            int dmg = SiegeTuning.OPENING_FIGHT_DAMAGE;
+            foe.getAbilities().add(new AbilitySpec("ea-strike", "Strike", element, Effect.DAMAGE, dmg,
+                    TargetKind.ENEMY_SINGLE, 0, "Deals " + dmg + " damage to one Siegeling."));
+            enemies.add(foe);
+        }
+        return enemies;
+    }
+
     private List<AbilitySpec> enemyAbilities(Element element, int floor, int count, double dmgMul, Random rng) {
         List<AbilitySpec> abilities = new ArrayList<>();
         int dmg = (int) Math.round((5 + (int) (floor * 0.9) + rng.nextInt(3)) * dmgMul);

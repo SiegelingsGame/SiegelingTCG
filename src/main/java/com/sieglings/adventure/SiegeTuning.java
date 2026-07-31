@@ -137,6 +137,23 @@ final class SiegeTuning {
 
     /** Minimum banked veteran Siegelings required to open the Battlegrounds lobby. */
     static final int BG_MIN_VETERANS = 3;
+    // ---- Opening fight ----------------------------------------------------
+    // The run's first battle is a fixed yardstick rather than a scaled encounter:
+    // every warband meets the same foe, so a Marshal's pair and a lone Siegeling
+    // start from an identical difficulty. Every later fight goes back through the
+    // usual party-size/floor scaling in SiegeContentService#generateEnemies, which
+    // is anchored on these numbers. Values sit mid-band of what a solo warband
+    // used to roll at floor 1, so the opening feels unchanged for a solo start.
+
+    /** Foes in the opening fight. */
+    static final int OPENING_FIGHT_FOES = 1;
+    /** Max HP of each opening-fight foe. */
+    static final int OPENING_FIGHT_HP = 30;
+    /** Damage of the opening foe's single attack. */
+    static final int OPENING_FIGHT_DAMAGE = 5;
+    /** Speed of each opening-fight foe (decides who acts first). */
+    static final int OPENING_FIGHT_SPEED = 8;
+
     /** How many veterans (and one veteran knight) a Battlegrounds squad fields. */
     static final int BG_SQUAD_SIZE = 3;
 
