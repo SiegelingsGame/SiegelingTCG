@@ -9,7 +9,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#173f54">
-    <link rel="stylesheet" href="/css/keep.css?v=46">
+    <link rel="stylesheet" href="/css/keep.css?v=47">
 </head>
 <body>
 <svg class="keep-svg-defs" width="0" height="0" aria-hidden="true" focusable="false">
@@ -333,13 +333,15 @@
                             <path class="wall-body" d="M0 64h28V37h32v27h30V37h32v27h30V37h32v27h30V37h32v27h30V37h32v27h52v86H0z" fill="url(#frontBlocks)" stroke-width="5"/>
                             <path class="wall-cap" d="M0 77h360" stroke-width="4" opacity=".58"/>
                             <path class="wall-shadow" d="M22 112h316" stroke="#5b4638" stroke-width="8" opacity=".28"/>
+                            <!-- Gilt crown for the top tier. Drawn per merlon inside the wall SVG so it
+                                 caps the stonework instead of ruling a bar across the defenders' necks. -->
+                            <path class="wall-crown" fill="none" stroke-width="5"/>
                         </svg>
                         <!-- Wall-tier dressing. Every piece is hidden by default and revealed by
                              .keep-scene[data-akhars-front-level] so one markup block covers all four tiers. -->
                         <span class="front-wall-trim" aria-hidden="true">
                             <i class="wall-patch"></i><i class="wall-patch"></i>
                             <i class="wall-banner"></i><i class="wall-banner"></i><i class="wall-banner"></i>
-                            <i class="wall-coping"></i>
                         </span>
                         <span class="front-torches"><i></i><i></i><i></i><i></i></span>
                         <span class="front-defenders">
@@ -676,7 +678,7 @@
 
 <audio id="keepTheme" loop preload="auto" src="/audio/sieglings-theme.mp3?v=1"></audio>
 <script src="/js/config.js?v=1"></script>
-<script src="/js/keep.js?v=45"></script>
+<script src="/js/keep.js?v=46"></script>
 <script src="/js/sw-register.js?v=1"></script>
 </body>
 </html>

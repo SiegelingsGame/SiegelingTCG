@@ -1055,8 +1055,8 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=46")
-                        && keepHtml.contains("/js/keep.js?v=45")
+                        && keepHtml.contains("/css/keep.css?v=47")
+                        && keepHtml.contains("/js/keep.js?v=46")
                         && keepHtml.contains("id=\"hallFavoriteResident\"")
                         && keepHtml.contains("id=\"productionReady\"")
                         && keepJs.contains("constructionBannerSignature")
