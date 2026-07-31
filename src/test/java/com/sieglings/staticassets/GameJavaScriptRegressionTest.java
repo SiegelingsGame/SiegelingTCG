@@ -1072,6 +1072,13 @@ class GameJavaScriptRegressionTest {
                 "Keep architecture must retain its paper building hooks, refresh both asset cache pins, show the favorite in Covenant Hall, collapse storage-capacity offline alerts into one multi-line card, and gate the Woodlot Collect bubble to a full stockpile."
         );
         assertTrue(
+                keepCss.contains(".hall-hotspot .building-label")
+                        && keepCss.contains("left: -66px;")
+                        && keepCss.contains("top: -6px;")
+                        && keepCss.contains("bottom: auto;"),
+                "The phone Covenant Hall label must stay in the open upper-left sky instead of covering the gatehouse."
+        );
+        assertTrue(
                 keepJs.contains("/api/keep/construction/speedup")
                         && keepJs.contains("function timeSaverMarkup(")
                         && keepJs.contains("data-speedup-payment=\"MATERIALS\"")

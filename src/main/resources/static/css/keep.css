@@ -3363,6 +3363,16 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     .construction-banner.is-collapsed .hammer-icon { font-size: 19px; }
     .construction-banner.is-collapsed .construction-toggle { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; }
     .hall-hotspot { top: 24%; width: 180px; height: 210px; }
+    /* Keep the Hall status out of the gatehouse sightline on phones. The Hall
+       hotspot is 180px wide and centered, so this offset places the callout in
+       the open upper-left sky without changing the building's tap target. */
+    .hall-hotspot .building-label {
+        left: -66px;
+        right: auto;
+        top: -6px;
+        bottom: auto;
+        transform: none;
+    }
     .woodlot-hotspot { left: 1%; bottom: 11%; width: 142px; height: 160px; }
     .archive-hotspot { right: 1%; bottom: 12%; width: 142px; height: 160px; }
     /* Portrait is narrow: the centered hall pushes into the right-mid zone, so the
