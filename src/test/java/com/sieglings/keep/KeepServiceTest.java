@@ -19,6 +19,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -1450,6 +1451,56 @@ class KeepServiceTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void raiderShadesComeFromRealSiegelingArtAndAreRandomised() {
+        Map<String, Object> pool = (Map<String, Object>) service.getSnapshot(user).get("akharsFront");
+        assertEquals(List.of(), pool.get("raiders"),
+                "Cards without uploaded art cannot be shaded, so the pool stays empty.");
+
+        // A catalog wide enough that a 12-card pool is a real sample rather than everything.
+        List<Card> catalog = new ArrayList<>();
+        for (int index = 0; index < 30; index++) {
+            SieglingCard card = card("shade_" + index, "Siegeling " + index, Element.SHADOW);
+            card.setCardArtUrl("/img/cards/shade_" + index + ".png");
+            catalog.add(card);
+        }
+        SieglingCard artless = card("artless", "Artless", Element.EARTH);
+        catalog.add(artless);
+        KeepService shaded = new KeepService(new InMemoryKeepStore(),
+                new PlayerProgressionService() {
+                    @Override public PlayerProgressionEntity getOrCreate(AccountUser ignored) { return progression; }
+                },
+                new CardDefinitionService() {
+                    @Override public List<Card> getDeckBuilderCatalog() { return catalog; }
+                },
+                loreCatalog(), eventCatalog());
+        shaded.setClock(clock);
+        shaded.setRandom(new Random(11));
+
+        List<Map<String, Object>> raiders =
+                (List<Map<String, Object>>) ((Map<String, Object>) shaded.getSnapshot(user).get("akharsFront")).get("raiders");
+        assertEquals(12, raiders.size(), "The pool is capped so a huge catalog does not bloat the snapshot.");
+        assertTrue(raiders.stream().noneMatch(raider -> "artless".equals(raider.get("id"))),
+                "A card with no art cannot be recoloured into a raider.");
+        for (Map<String, Object> raider : raiders) {
+            assertTrue(String.valueOf(raider.get("artUrl")).startsWith("/img/cards/"),
+                    "Raiders carry real card art, not a generated ghost.");
+            assertTrue(String.valueOf(raider.get("name")).startsWith("Shade of "),
+                    "A raider is named as the corrupted form of the Siegeling it is drawn from.");
+            assertEquals("SHADOW", raider.get("element"));
+        }
+        assertEquals(raiders.size(), raiders.stream().map(raider -> raider.get("id")).distinct().count(),
+                "One pool must never offer the same Siegeling twice.");
+
+        // Two different seeds must not produce the same twelve, or "randomised" is a lie.
+        shaded.setRandom(new Random(4));
+        List<Map<String, Object>> reroll =
+                (List<Map<String, Object>>) ((Map<String, Object>) shaded.getSnapshot(user).get("akharsFront")).get("raiders");
+        assertNotEquals(raiders.stream().map(raider -> raider.get("id")).toList(),
+                reroll.stream().map(raider -> raider.get("id")).toList());
+    }
+
+    @Test
     void akharsFrontCollectDoesNotCreditGoldWhenKeepSaveFails() {
         service.getSnapshot(user);
         store.state.setAkharsFrontLevel(1);
@@ -1607,6 +1658,18 @@ class KeepServiceTest {
     private static List<String> conversationIds(Map<String, Object> snapshot) {
         return ((List<Map<String, Object>>) snapshot.get("availableConversations")).stream()
                 .map(item -> String.valueOf(item.get("id"))).toList();
+    }
+
+    private static KeepLoreCatalog loreCatalog() {
+        KeepLoreCatalog lore = new KeepLoreCatalog(new ObjectMapper());
+        lore.load();
+        return lore;
+    }
+
+    private static KeepEventCatalog eventCatalog() {
+        KeepEventCatalog events = new KeepEventCatalog(new ObjectMapper());
+        events.load();
+        return events;
     }
 
     private static SieglingCard card(String id, String name, Element element) {

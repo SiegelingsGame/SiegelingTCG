@@ -23,6 +23,7 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.temporal.IsoFields;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -76,6 +77,8 @@ public class KeepService {
     private static final double AKHARS_FRONT_GOLD_PER_MINUTE_PER_DEFENDER = 1.0;
     private static final double AKHARS_FRONT_COMBAT_GOLD_PER_MINUTE_PER_DEFENDER = 4.0;
     private static final int AKHARS_FRONT_COINS_PER_DEFEAT = 1;
+    /** How many corrupted Siegelings the client may draw raider art from per visit. */
+    private static final int AKHARS_FRONT_RAIDER_POOL = 12;
     private static final int ROOM_DECORATION_CAPACITY = 6;
     private static final double STORAGE_ANNEX_BONUS = .50;
     private static final double STORAGE_DECORATION_BONUS = .25;
@@ -2050,6 +2053,37 @@ public class KeepService {
         out.put("isFull", available >= storageCapacity);
         out.put("slots", slots);
         out.put("upgrade", akharsFrontUpgrade(state));
+        out.put("raiders", akharsFrontRaiderPool());
+        return out;
+    }
+
+    /**
+     * Akhar's raiders are corrupted Siegelings, so they are drawn from the real card catalog
+     * and recoloured client-side rather than being one hard-coded ghost shape. A pool is sent
+     * instead of a fixed cast because raiders respawn continuously while the player watches —
+     * the client picks from it per spawn, so the wall never faces the same four silhouettes.
+     * Only cards with uploaded art qualify; a keep whose catalog has none simply gets an empty
+     * pool and the client keeps its built-in shade.
+     */
+    private List<Map<String, Object>> akharsFrontRaiderPool() {
+        List<SieglingCard> eligible = new ArrayList<>();
+        for (Card card : cardDefinitionService.getDeckBuilderCatalog()) {
+            if (card instanceof SieglingCard siegling
+                    && siegling.getCardArtUrl() != null && !siegling.getCardArtUrl().isBlank()) {
+                eligible.add(siegling);
+            }
+        }
+        if (eligible.isEmpty()) return List.of();
+        Collections.shuffle(eligible, random);
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (SieglingCard card : eligible.subList(0, Math.min(AKHARS_FRONT_RAIDER_POOL, eligible.size()))) {
+            Map<String, Object> raider = new LinkedHashMap<>();
+            raider.put("id", card.getId());
+            raider.put("name", "Shade of " + card.getName());
+            raider.put("element", card.getElement() == null ? "NEUTRAL" : card.getElement().name());
+            raider.put("artUrl", card.getCardArtUrl());
+            out.add(raider);
+        }
         return out;
     }
 

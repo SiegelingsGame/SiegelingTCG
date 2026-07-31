@@ -1234,7 +1234,12 @@
         combat.coinsEarned = 0;
         combat.projectedBonusBeforeSession = Math.floor(elapsedMinutes * number(front.combatRatePerMinute));
         combat.lastDefeat = null;
-        combat.enemies = FRONT_RAIDER_PATHS.map((path, index) => createFrontRaider(index, -path.stagger));
+        // Built by pushing rather than mapping: each raider's shade pick reads the ones already
+        // created, which a .map() cannot see because the array is only assigned once it ends.
+        combat.enemies = [];
+        FRONT_RAIDER_PATHS.forEach((path, index) => {
+            combat.enemies.push(createFrontRaider(index, -path.stagger));
+        });
         combat.defenderCooldowns = (front.slots || []).map((slot, index) =>
             slot?.resident ? index * 360 : Number.POSITIVE_INFINITY);
         renderFrontCombat();
@@ -1244,6 +1249,7 @@
     function createFrontRaider(index, progress = 0) {
         return {
             id: index,
+            shade: pickFrontRaiderShade(index),
             health: FRONT_RAIDER_MAX_HEALTH,
             maxHealth: FRONT_RAIDER_MAX_HEALTH,
             progress,
@@ -1251,6 +1257,24 @@
             hitUntilMs: 0,
             defeatedAtMs: 0
         };
+    }
+
+    /**
+     * Raiders are corrupted Siegelings drawn from the server's pool of real card art, so the
+     * wall faces recoloured Siegelings rather than one repeated ghost. Shades already marching
+     * are avoided so the four raiders on screen stay distinct; the pool is only re-used once
+     * there is nothing else left to send.
+     */
+    function pickFrontRaiderShade(index) {
+        const pool = state.snapshot?.akharsFront?.raiders || [];
+        if (!pool.length) return null;
+        const taken = new Set((state.frontCombat.enemies || [])
+            .filter((enemy) => enemy && enemy.id !== index && enemy.status !== 'defeated')
+            .map((enemy) => enemy.shade?.id)
+            .filter(Boolean));
+        const fresh = pool.filter((shade) => !taken.has(shade.id));
+        const choices = fresh.length ? fresh : pool;
+        return choices[Math.floor(Math.random() * choices.length)] || null;
     }
 
     function startFrontCombatLoop() {
@@ -1382,6 +1406,20 @@
         burst.classList.add('is-visible');
     }
 
+    /** Swaps a raider's art only when its shade actually changes, so the marching animation
+        is not restarted every frame by re-writing identical markup. */
+    function paintFrontRaiderShade(node, enemy) {
+        const art = node.querySelector('.raider-art');
+        if (!art) return;
+        const shadeId = enemy.shade?.artUrl ? String(enemy.shade.id || enemy.shade.artUrl) : '';
+        if (art.dataset.shade === shadeId) return;
+        art.dataset.shade = shadeId;
+        node.classList.toggle('has-shade-art', Boolean(shadeId));
+        if (!shadeId) return;
+        art.innerHTML = `<img src="${escapeAttr(enemy.shade.artUrl)}" alt="">`;
+        node.title = enemy.shade.name || '';
+    }
+
     function renderFrontCombat() {
         const combat = state.frontCombat;
         document.querySelectorAll('[data-front-raider]').forEach((node) => {
@@ -1394,6 +1432,7 @@
                 node.classList.remove('is-hit', 'is-defeated');
                 return;
             }
+            paintFrontRaiderShade(node, enemy);
             const point = frontRaiderPosition(enemy);
             node.style.setProperty('--raider-x', `${point.x}%`);
             node.style.setProperty('--raider-y', `${point.y}%`);
@@ -4352,6 +4391,7 @@
                     passiveRatePerMinute: number(front.passiveRatePerMinute),
                     combatRatePerMinute: number(front.combatRatePerMinute),
                     coinsPerDefeat: number(front.coinsPerDefeat) || 1,
+                    raiderShadePool: (front.raiders || []).length,
                     combat: {
                         active: state.frontView && state.frontCombat.running,
                         defeatsThisVisit: state.frontCombat.defeats,
@@ -4360,7 +4400,8 @@
                             const point = frontRaiderPosition(enemy);
                             return {
                                 id: enemy.id, x: Math.round(point.x * 10) / 10, y: Math.round(point.y * 10) / 10,
-                                health: enemy.health, maxHealth: enemy.maxHealth, status: enemy.status
+                                health: enemy.health, maxHealth: enemy.maxHealth, status: enemy.status,
+                                shade: enemy.shade?.name || null, shadeId: enemy.shade?.id || null
                             };
                         }),
                         projectiles: state.frontCombat.projectiles.map((shot) => ({
