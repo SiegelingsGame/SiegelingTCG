@@ -141,6 +141,22 @@
         { startX: 58, startY: 18, endX: 48, endY: 48, size: 10, stagger: .48 },
         { startX: 97, startY: 34, endX: 76, endY: 58, size: 9, stagger: .7 }
     ];
+    /** Muzzle points per rampart tier, mirroring the per-capacity post lefts in keep.css so
+        a shot leaves the defender that fired it however wide the wall currently is. */
+    const FRONT_DEFENDER_STARTS = {
+        1: [{ x: 49.5, y: 57 }],
+        2: [{ x: 33.5, y: 57 }, { x: 65.5, y: 56 }],
+        3: [{ x: 17.5, y: 58 }, { x: 41.5, y: 55 }, { x: 65.5, y: 57 }],
+        4: [{ x: 13.5, y: 58 }, { x: 36.5, y: 55 }, { x: 59.5, y: 57 }, { x: 82.5, y: 56 }]
+    };
+    const FRONT_MAX_LEVEL = 4;
+    /** Rampart geometry in SVG units. The pitch is the authored merlon + crenel pair, and
+        the px-per-unit is the scale the wall was drawn at, so regenerating the path for a
+        wider stage adds crenellations rather than stretching the ones that are there. */
+    const FRONT_WALL_MERLON = 32;
+    const FRONT_WALL_CRENEL = 30;
+    const FRONT_WALL_PX_PER_UNIT = 3.06;
+    const FRONT_WALL_MIN_UNITS = 360;
 
     const RANK_NAMES = ['Ruined Camp', 'Timber Outpost', 'Settled Courtyard', 'Stonehold',
         'Walled Keep', 'Elemental Stronghold', 'High Castle', 'Grand Keep'];
@@ -203,10 +219,13 @@
         // iOS Safari can leave the document scrolled after a rotation even with
         // overflow hidden, hiding the fixed header; snap back whenever it happens.
         window.addEventListener('resize', resetViewportScroll);
+        window.addEventListener('resize', renderFrontRampart);
         window.addEventListener('orientationchange', () => {
             resetViewportScroll();
             window.setTimeout(resetViewportScroll, 250);
             window.setTimeout(resetViewportScroll, 700);
+            // Rotation resizes the stage after the layout settles, not with the event.
+            window.setTimeout(renderFrontRampart, 250);
         });
         window.addEventListener('scroll', resetViewportScroll, { passive: true });
         document.addEventListener('keydown', (event) => {
@@ -927,9 +946,12 @@
         document.getElementById('enclaveMissionAlert')?.classList.toggle('hidden', readyTasks <= 0);
         renderEnclaveResidents();
         const front = snapshot.akharsFront || {};
-        if (scene) scene.dataset.frontDefenders = String(number(front.residentCount));
+        if (scene) {
+            scene.dataset.frontDefenders = String(number(front.residentCount));
+            scene.dataset.frontCapacity = String(front.built ? frontCapacity() : 0);
+        }
         text('frontLabel', front.built
-            ? `${number(front.residentCount)}/${number(front.capacity) || 3} defenders · passive income`
+            ? `${number(front.residentCount)}/${frontCapacity()} defenders · ${front.wallName || 'rampart'}`
             : 'Unlock after the Enclave and Quarry');
         document.getElementById('frontIncome')?.classList.toggle('hidden', !front.built);
         document.getElementById('frontLock')?.classList.toggle('hidden', Boolean(front.built));
@@ -1309,11 +1331,7 @@
     }
 
     function launchFrontProjectile(defenderIndex, resident, target) {
-        const starts = [
-            { x: 17.5, y: 58 },
-            { x: 41.5, y: 55 },
-            { x: 65.5, y: 57 }
-        ];
+        const starts = FRONT_DEFENDER_STARTS[frontCapacity()] || FRONT_DEFENDER_STARTS[3];
         const start = starts[defenderIndex] || starts[0];
         state.frontCombat.projectiles.push({
             id: state.frontCombat.nextProjectileId++,
@@ -1548,9 +1566,37 @@
         document.getElementById('keepApp')?.classList.add('front-view-active');
         document.getElementById('frontViewToolbar')?.setAttribute('aria-hidden', 'false');
         initializeFrontCombat();
+        // The stage only reaches full width once .front-view-active lands, so measure after it.
+        renderFrontRampart();
+        window.requestAnimationFrame?.(renderFrontRampart);
         const hotspot = document.querySelector('.front-hotspot');
         hotspot?.setAttribute('aria-label', "Manage Akhar's Front rampart posts");
         document.getElementById('frontReturn')?.focus({ preventScroll: true });
+    }
+
+    /**
+     * The rampart is drawn with preserveAspectRatio="none" so it can fill the stage, which
+     * means a wall stretched edge to edge on a wide screen would smear its crenellations and
+     * stonework. Rebuild the path for the width actually rendered instead: the viewBox grows
+     * with the wall and merlons keep a constant pitch, so a phone and an ultrawide show the
+     * same size stone, just more of it.
+     */
+    function renderFrontRampart() {
+        const svg = document.querySelector('.front-rampart');
+        if (!svg) return;
+        const width = svg.getBoundingClientRect().width;
+        if (!(width > 0)) return;
+        const units = Math.max(FRONT_WALL_MIN_UNITS, Math.round(width / FRONT_WALL_PX_PER_UNIT));
+        if (svg.dataset.units === String(units)) return;
+        svg.dataset.units = String(units);
+        svg.setAttribute('viewBox', `0 0 ${units} 150`);
+        let path = 'M0 64h28';
+        for (let x = 28; x < units; x += FRONT_WALL_MERLON + FRONT_WALL_CRENEL) {
+            path += `V37h${FRONT_WALL_MERLON}v27h${FRONT_WALL_CRENEL}`;
+        }
+        svg.querySelector('.wall-body')?.setAttribute('d', `${path}V150H0Z`);
+        svg.querySelector('.wall-cap')?.setAttribute('d', `M0 77h${units}`);
+        svg.querySelector('.wall-shadow')?.setAttribute('d', `M22 112h${Math.max(0, units - 44)}`);
     }
 
     function exitAkharsFront() {
@@ -1562,6 +1608,7 @@
         renderFrontCombat();
         document.getElementById('keepApp')?.classList.remove('front-view-active');
         document.getElementById('frontViewToolbar')?.setAttribute('aria-hidden', 'true');
+        renderFrontRampart(); // back to the map-sized wall, so the viewBox shrinks with it
         const hotspot = document.querySelector('.front-hotspot');
         hotspot?.setAttribute('aria-label', "Enter Akhar's Front");
         hotspot?.focus({ preventScroll: true });
@@ -1623,7 +1670,9 @@
         }
         if (id === 'akhars_front') {
             const front = state.snapshot.akharsFront || {};
-            return { title: "Akhar's Front", kicker: front.built ? `${number(front.residentCount)}/${number(front.capacity) || 3} rampart posts` : 'Distant front' };
+            return { title: "Akhar's Front", kicker: front.built
+                ? `${number(front.residentCount)}/${frontCapacity()} rampart posts · ${front.wallName || 'Rampart'}`
+                : 'Distant front' };
         }
         const station = stationById(id);
         if (station) return { title: station.name, kicker: `Level ${number(station.level)} · ${station.resourceName || 'Elemental workshop'}` };
@@ -3421,14 +3470,7 @@
             snapshot.enclave.readyTaskCount = enclaveSlots.reduce((total, slot) =>
                 total + (slot.tasks || []).filter((task) => task.complete).length, 0);
         }
-        if (snapshot.akharsFront) {
-            snapshot.akharsFront.residentCount = frontSlots.filter((slot) => slot.residentId).length;
-            snapshot.akharsFront.passiveRatePerMinute = snapshot.akharsFront.residentCount;
-            snapshot.akharsFront.combatRatePerMinute = snapshot.akharsFront.residentCount * 4;
-            snapshot.akharsFront.ratePerMinute = snapshot.akharsFront.passiveRatePerMinute
-                + snapshot.akharsFront.combatRatePerMinute;
-            snapshot.akharsFront.coinsPerDefeat = 1;
-        }
+        syncMockFrontRates(snapshot);
         if (snapshot.siegelingSlots) {
             const active = stations.filter((station, index) => station.residentId
                     && stations.findIndex((item) => item.id === station.id) === index).length
@@ -3507,14 +3549,7 @@
                 slot.residentId = resident?.id || '';
                 slot.resident = resident;
             }
-            if (snapshot.akharsFront) {
-                snapshot.akharsFront.residentCount = slots.filter((item) => item.resident).length;
-                snapshot.akharsFront.passiveRatePerMinute = snapshot.akharsFront.residentCount;
-                snapshot.akharsFront.combatRatePerMinute = snapshot.akharsFront.residentCount * 4;
-                snapshot.akharsFront.ratePerMinute = snapshot.akharsFront.passiveRatePerMinute
-                    + snapshot.akharsFront.combatRatePerMinute;
-                snapshot.akharsFront.coinsPerDefeat = 1;
-            }
+            syncMockFrontRates(snapshot);
             syncMockResidentAssignments(snapshot);
         } else if (path.endsWith('/build')) {
             const option = (snapshot.buildOptions || []).find((item) => item.id === body.buildId);
@@ -3811,11 +3846,13 @@
             if (enclave) { enclave.level = 1; enclave.status = 'COMPLETE'; enclave.name = 'Siegeling Enclave'; }
         } else if (construction.id === 'build_akhars_front') {
             snapshot.visualState.akharsFrontLevel = 1;
-            snapshot.akharsFront = { built: true, level: 1, capacity: 3, residentCount: 0,
-                available: 0, storageCapacity: 360, ratePerMinute: 0, isFull: false,
-                slots: [0, 1, 2].map((slot) => ({ slot, residentId: '', resident: null })) };
+            snapshot.akharsFront = { built: true, level: 1, residentCount: 0,
+                available: 0, ratePerMinute: 0, isFull: false, slots: [] };
+            applyMockFrontLevel(snapshot, 1);
             const front = (snapshot.buildings || []).find((item) => item.id === 'akhars_front');
             if (front) { front.level = 1; front.status = 'COMPLETE'; front.name = "Akhar's Front"; }
+        } else if (String(construction.id).startsWith('akhars_front_level_')) {
+            applyMockFrontLevel(snapshot, number(String(construction.id).slice('akhars_front_level_'.length)));
         } else if (String(construction.id).startsWith('build_')) {
             const facilityId = String(construction.id).slice('build_'.length);
             if (snapshot.visualState) snapshot.visualState[`${facilityId}Level`] = 1;
@@ -3840,9 +3877,71 @@
         return projectedStationAvailable(state.snapshot?.station);
     }
 
+    /** Test-mode mirror of the server's rampart tiers, so a harness can walk a wall from one
+        post to four without a backend. Keep the numbers in step with KeepService. */
+    const MOCK_FRONT_TIERS = [
+        null,
+        { wallName: 'Timber Palisade', storageCapacity: 120, wallBonusPercent: 0 },
+        { wallName: 'Stone Rampart', storageCapacity: 220, wallBonusPercent: 10 },
+        { wallName: 'Reinforced Bulwark', storageCapacity: 340, wallBonusPercent: 20 },
+        { wallName: 'Bastion Battlements', storageCapacity: 480, wallBonusPercent: 35 }
+    ];
+    const MOCK_FRONT_UPGRADE_COSTS = {
+        2: { name: 'Reinforce the Rampart', timberCost: 320, durationSeconds: 21600 },
+        3: { name: 'Raise the Battlements', timberCost: 420, durationSeconds: 36000 },
+        4: { name: 'Crown the Bastion', timberCost: 540, durationSeconds: 57600 }
+    };
+
+    function applyMockFrontLevel(snapshot, level) {
+        const front = snapshot.akharsFront;
+        if (!front) return;
+        const next = clamp(number(level) || 1, 1, FRONT_MAX_LEVEL);
+        const tier = MOCK_FRONT_TIERS[next];
+        front.built = true;
+        front.level = next;
+        front.maxLevel = FRONT_MAX_LEVEL;
+        front.capacity = next;
+        front.wallName = tier.wallName;
+        front.wallBonusPercent = tier.wallBonusPercent;
+        front.storageCapacity = tier.storageCapacity;
+        front.slots = front.slots || [];
+        while (front.slots.length < next) front.slots.push({ slot: front.slots.length, residentId: '', resident: null });
+        front.slots = front.slots.slice(0, next);
+        front.upgrade = next >= FRONT_MAX_LEVEL ? null : {
+            id: `akhars_front_level_${next + 1}`,
+            name: MOCK_FRONT_UPGRADE_COSTS[next + 1].name,
+            level: next + 1,
+            wallName: MOCK_FRONT_TIERS[next + 1].wallName,
+            posts: next + 1,
+            wallBonusPercent: MOCK_FRONT_TIERS[next + 1].wallBonusPercent,
+            storageCapacity: MOCK_FRONT_TIERS[next + 1].storageCapacity,
+            timberCost: MOCK_FRONT_UPGRADE_COSTS[next + 1].timberCost,
+            materialCosts: [],
+            durationSeconds: MOCK_FRONT_UPGRADE_COSTS[next + 1].durationSeconds,
+            gateMet: true,
+            requirement: "Needs the Builder's Yard.",
+            inProgress: false
+        };
+        if (snapshot.visualState) snapshot.visualState.akharsFrontLevel = next;
+        const building = (snapshot.buildings || []).find((item) => item.id === 'akhars_front');
+        if (building) { building.level = next; building.status = 'COMPLETE'; }
+        syncMockFrontRates(snapshot);
+    }
+
+    function syncMockFrontRates(snapshot) {
+        const front = snapshot.akharsFront;
+        if (!front) return;
+        const multiplier = 1 + number(front.wallBonusPercent) / 100;
+        front.residentCount = (front.slots || []).filter((slot) => slot.residentId).length;
+        front.passiveRatePerMinute = front.residentCount * multiplier;
+        front.combatRatePerMinute = front.residentCount * 4 * multiplier;
+        front.ratePerMinute = front.passiveRatePerMinute + front.combatRatePerMinute;
+        front.coinsPerDefeat = 1;
+    }
+
     function akharsFrontMarkup() {
         const front = state.snapshot.akharsFront || {};
-        if (!front.built) return `<p class="panel-intro">Fortify the road beyond the Keep. Once raised, three Siegelings can volunteer for the ramparts, repel Akhar's raiders, and earn Siegecoins while you are away.</p>${projectsMarkup()}`;
+        if (!front.built) return `<p class="panel-intro">Fortify the road beyond the Keep. Once raised, a Siegeling can volunteer for the rampart, repel Akhar's raiders, and earn Siegecoins while you are away. Later wall upgrades open up to four posts.</p>${projectsMarkup()}`;
         const ready = projectedAkharsFrontAvailable();
         const capacity = Math.max(1, number(front.storageCapacity));
         return `<p class="panel-intro">Siegelings posted here attack approaching dark raiders from the safety of the ramparts. Every occupied post earns passive Siegecoins; posted Siegelings remain available for decks and battles.</p>
@@ -3852,7 +3951,38 @@
                 <div class="cost-row"><span>${escapeHtml(formatRate(front.ratePerMinute))} per minute</span><strong>${capacity} storage</strong></div>
                 <button class="panel-button" type="button" data-collect-station="akhars_front" ${ready <= 0 ? 'disabled' : ''}>Collect Siegecoins</button>
             </section>
+            ${akharsFrontWallMarkup(front)}
             <div class="front-post-list">${(front.slots || []).map((slot, index) => akharsFrontSlotMarkup(slot || {}, index)).join('')}</div>`;
+    }
+
+    /** Wall tier card: what the current rampart is worth, and what the next one costs. */
+    function akharsFrontWallMarkup(front) {
+        const level = clamp(number(front.level) || 1, 1, FRONT_MAX_LEVEL);
+        const maxLevel = number(front.maxLevel) || FRONT_MAX_LEVEL;
+        const bonus = number(front.wallBonusPercent);
+        const posts = frontCapacity();
+        const current = `<span class="eyebrow">Rampart walls</span>
+            <h3>${escapeHtml(front.wallName || 'Rampart')} &middot; Tier ${level}/${maxLevel}</h3>
+            <div class="cost-row"><span>${posts} rampart ${posts === 1 ? 'post' : 'posts'}</span><strong>${bonus > 0 ? `+${bonus}% defender income` : 'Base defender income'}</strong></div>`;
+        const upgrade = front.upgrade;
+        if (!upgrade) {
+            return `<section class="detail-card front-wall-card">${current}
+                <p class="front-wall-note">The bastion is fully raised — all four posts are open.</p></section>`;
+        }
+        const costs = [`${number(upgrade.timberCost)} timber`]
+            .concat((upgrade.materialCosts || []).map((cost) => `${materialIcon(cost.id)} ${number(cost.amount)} ${cost.name || cost.id}`));
+        const next = `<div class="front-wall-next">
+                <span class="eyebrow">Next tier</span>
+                <strong>${escapeHtml(upgrade.wallName || upgrade.name)}</strong>
+                <small>${number(upgrade.posts)} posts &middot; +${number(upgrade.wallBonusPercent)}% defender income &middot; ${number(upgrade.storageCapacity)} storage</small>
+                <div class="cost-row"><span>${escapeHtml(costs.join(' · '))}</span><strong>${escapeHtml(formatDuration(number(upgrade.durationSeconds)))}</strong></div>
+                ${upgrade.inProgress
+                    ? '<p class="front-wall-note">Masons are on the wall now — track them in Projects.</p>'
+                    : upgrade.gateMet
+                        ? '<button class="panel-button" type="button" data-open-panel="projects">Open Projects to upgrade</button>'
+                        : `<p class="front-wall-note">${escapeHtml(upgrade.requirement || '')}</p>`}
+            </div>`;
+        return `<section class="detail-card front-wall-card">${current}${next}</section>`;
     }
 
     function akharsFrontSlotMarkup(slot, index) {
@@ -3888,6 +4018,14 @@
             ${available.length ? `<span class="eyebrow">Available &middot; ${available.length}</span><div class="enclave-resident-choices">${available.map(chip).join('')}</div>` : ''}
             ${occupied.length ? `<p class="front-reassign-note">Occupied Siegelings can be moved here. Their current Keep location will be left empty.</p><span class="eyebrow">Occupied elsewhere</span><div class="enclave-resident-choices">${occupied.map(chip).join('')}</div>` : ''}
             ${choices.length ? '' : '<div class="empty-state">No other owned Siegelings are available to choose.</div>'}</div>`;
+    }
+
+    /** Rampart posts equal the wall's level; fall back to the served slot count so an older
+        snapshot without `capacity` still renders the posts it actually has. */
+    function frontCapacity() {
+        const front = state.snapshot?.akharsFront;
+        if (!front?.built) return 0;
+        return clamp(number(front.capacity) || (front.slots || []).length || 1, 1, FRONT_MAX_LEVEL);
     }
 
     function projectedAkharsFrontAvailable() {
@@ -4016,6 +4154,8 @@
             build_quarry: 'Open the Covenant Quarry', build_kitchen: 'Warm the Garden Kitchen',
             build_enclave: 'Raise the Siegeling Enclave',
             build_akhars_front: "Raise Akhar's Front",
+            akhars_front_level_2: 'Reinforce the Rampart', akhars_front_level_3: 'Raise the Battlements',
+            akhars_front_level_4: 'Crown the Bastion',
             build_builders_yard: 'Raise the Builder’s Yard',
             hall_level_2: 'Raise the Timber Outpost', hall_level_3: 'Settle the Courtyard',
             hall_level_4: 'Cut the Stonehold', hall_level_5: 'Raise the Keep Walls',
@@ -4185,8 +4325,25 @@
                 const front = snapshot.akharsFront || {};
                 return {
                     built: Boolean(front.built),
+                    level: number(front.level),
+                    maxLevel: number(front.maxLevel) || FRONT_MAX_LEVEL,
+                    wallName: front.wallName || null,
+                    wallBonusPercent: number(front.wallBonusPercent),
+                    posts: frontCapacity(),
+                    capacity: number(front.capacity),
                     defenders: number(front.residentCount),
+                    residentCount: number(front.residentCount),
+                    pickerSlot: state.frontPickerSlot,
+                    slots: (front.slots || []).map((slot) => ({
+                        slot: number(slot.slot), resident: slot.resident?.name || null
+                    })),
+                    upgrade: front.upgrade ? {
+                        id: front.upgrade.id, level: number(front.upgrade.level),
+                        wallName: front.upgrade.wallName, posts: number(front.upgrade.posts),
+                        gateMet: Boolean(front.upgrade.gateMet), inProgress: Boolean(front.upgrade.inProgress)
+                    } : null,
                     siegecoinsReady: projectedAkharsFrontAvailable(),
+                    availableSiegecoins: projectedAkharsFrontAvailable(),
                     passiveRatePerMinute: number(front.passiveRatePerMinute),
                     combatRatePerMinute: number(front.combatRatePerMinute),
                     coinsPerDefeat: number(front.coinsPerDefeat) || 1,
@@ -4261,16 +4418,6 @@
                 assignmentLabel: resident.assignment?.label || '',
                 rapportLevel: number(resident.rapport?.level)
             })),
-            akharsFront: snapshot.akharsFront ? {
-                built: Boolean(snapshot.akharsFront.built),
-                residentCount: number(snapshot.akharsFront.residentCount),
-                capacity: number(snapshot.akharsFront.capacity),
-                availableSiegecoins: projectedAkharsFrontAvailable(),
-                pickerSlot: state.frontPickerSlot,
-                slots: (snapshot.akharsFront.slots || []).map((slot) => ({
-                    slot: number(slot.slot), resident: slot.resident?.name || null
-                }))
-            } : null,
             noticeCenter: {
                 unread: unreadNoticeCount(),
                 read: state.notices.length - unreadNoticeCount(),
