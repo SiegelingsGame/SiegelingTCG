@@ -423,8 +423,20 @@ public class SiegeContentService {
             case SPEED -> 2;    // +2 speed to each Siegeling at battle start
             case HEALTH -> 8;   // +8 max HP to each Siegeling all expedition
             case LOOT -> 40;    // +40% gold from spoils and caches
-            case MARSHAL -> 1;  // starts the run with 1 extra Siegeling
+            case MARSHAL -> 1;  // picks 1 extra Siegeling at warband assembly
         };
+    }
+
+    /**
+     * How many Siegelings the player picks before the run starts. A MARSHAL knight
+     * musters its extra Siegeling up front — the player chooses it at warband
+     * assembly rather than waiting on a mid-run join.
+     */
+    int startingPartySize(TrainerCard knight) {
+        int extra = knight != null && knightPassiveKind(knight) == KnightPassive.MARSHAL
+                ? knightPassiveValue(KnightPassive.MARSHAL)
+                : 0;
+        return Math.min(PARTY_MAX, PARTY_SIZE + extra);
     }
 
     String knightPassiveName(KnightPassive kind) {
@@ -447,7 +459,8 @@ public class SiegeContentService {
             case SPEED -> "The party begins each battle with +" + v + " speed.";
             case HEALTH -> "Every Siegeling has +" + v + " max HP all expedition.";
             case LOOT -> "+" + v + "% gold from spoils and caches.";
-            case MARSHAL -> "Musters an extra Siegeling at the start of the expedition.";
+            case MARSHAL -> "Musters an extra Siegeling: choose " + Math.min(PARTY_MAX, PARTY_SIZE + v)
+                    + " starting Siegelings instead of " + PARTY_SIZE + ".";
         };
     }
 

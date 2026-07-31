@@ -176,6 +176,14 @@ body[data-screen="mapScreen"] #mapScreen{
 }
 .mode-card-status.ready{color:var(--good); border-color:var(--good);}
 .knight-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:12px;}
+/* Availability bands: the knights you can actually take out sit under the first one. */
+.knight-group{
+  grid-column:1 / -1; font-size:10.5px; font-weight:800; letter-spacing:.6px; text-transform:uppercase;
+  color:var(--dim); display:flex; align-items:center; gap:8px; margin:2px 0 -4px;
+}
+.knight-group::after{content:''; flex:1 1 auto; height:1px; background:var(--border);}
+.knight-group-0{color:var(--good);}
+.knight-group-1{color:var(--accent-2);}
 .knight-card .kability{font-size:12px; margin-top:5px;}
 .knight-card .kability-name{color:var(--accent); font-weight:750;}
 .knight-card .kability-sum{color:var(--el); font-weight:650; font-size:11px;}

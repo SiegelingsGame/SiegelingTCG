@@ -1,6 +1,5 @@
 package com.sieglings.adventure;
 
-import com.sieglings.model.SieglingCard;
 import com.sieglings.model.TrainerCard;
 import com.sieglings.model.enums.Element;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,27 +24,23 @@ class SiegeRecruitTimingTest {
     @Autowired
     private SiegeContentService content;
 
-    private String starterKnightId;
-    private String starterSieglingId;
+    private TrainerCard starterKnight;
+    private List<String> starterSieglingIds;
 
     @BeforeEach
     void setUp() {
-        TrainerCard knight = content.selectableKnights().stream()
-                .filter(k -> "squire-bob".equalsIgnoreCase(k.getId()))
-                .findFirst()
-                .orElseGet(() -> content.selectableKnights().getFirst());
-        SieglingCard siegling = content.selectableSieglings().getFirst();
-        starterKnightId = knight.getId();
-        starterSieglingId = siegling.getId();
+        starterKnight = SiegeStarterTestSupport.starterKnight(content);
+        starterSieglingIds = SiegeStarterTestSupport.starterIds(
+                content, starterKnight, content.selectableSieglings().getFirst());
     }
 
     @Test
-    void newRunStartsWithOneSiegelingAndNoJoinReveal() {
-        Map<String, Object> run = siegeService.newRun(null, starterKnightId, List.of(starterSieglingId), "STANDARD");
+    void newRunStartsWithTheKnightsMusterAndNoJoinReveal() {
+        Map<String, Object> run = siegeService.newRun(null, starterKnight.getId(), starterSieglingIds, "STANDARD");
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> party = (List<Map<String, Object>>) run.get("party");
-        assertEquals(1, party.size());
+        assertEquals(content.startingPartySize(starterKnight), party.size());
         assertNull(run.get("recruit"));
     }
 

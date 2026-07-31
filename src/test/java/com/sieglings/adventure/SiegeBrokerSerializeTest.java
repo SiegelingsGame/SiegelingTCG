@@ -31,23 +31,20 @@ class SiegeBrokerSerializeTest {
     private SiegeContentService content;
 
     private String starterKnightId;
-    private String starterSieglingId;
+    private List<String> starterWarband;
 
     @BeforeEach
     void setUp() {
-        TrainerCard knight = content.selectableKnights().stream()
-                .filter(k -> "squire-bob".equalsIgnoreCase(k.getId()))
-                .findFirst()
-                .orElseGet(() -> content.selectableKnights().getFirst());
+        TrainerCard knight = SiegeStarterTestSupport.starterKnight(content);
         SieglingCard siegling = content.selectableSieglings().getFirst();
         starterKnightId = knight.getId();
-        starterSieglingId = siegling.getId();
+        starterWarband = SiegeStarterTestSupport.starterIds(content, knight, siegling);
     }
 
     @Test
     void openBrokerWithRoomSerializesHireOffersNotMercOnlyStall() throws Exception {
         Map<String, Object> started = siegeService.newRun(
-                null, starterKnightId, List.of(starterSieglingId), "STANDARD");
+                null, starterKnightId, starterWarband, "STANDARD");
         String token = (String) started.get("token");
         assertNotNull(token);
 
@@ -90,13 +87,13 @@ class SiegeBrokerSerializeTest {
     @Test
     void openBrokerWhenFullSerializesMercOnlyStall() throws Exception {
         Map<String, Object> started = siegeService.newRun(
-                null, starterKnightId, List.of(starterSieglingId), "STANDARD");
+                null, starterKnightId, starterWarband, "STANDARD");
         String token = (String) started.get("token");
         SiegeRun run = siegeService.lookup(token).orElseThrow();
 
         // Fill the warband to party max so the stall is rental-only.
         List<SieglingCard> fillers = content.selectableSieglings().stream()
-                .filter(s -> !starterSieglingId.equals(s.getId()))
+                .filter(s -> !starterWarband.contains(s.getId()))
                 .toList();
         int fillerIdx = 0;
         while (run.getParty().size() < content.partyMax()) {

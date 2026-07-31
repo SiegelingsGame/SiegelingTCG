@@ -129,6 +129,8 @@ public class SiegeService {
             m.put("passiveKind", passive.name());
             m.put("passiveName", content.knightPassiveName(passive));
             m.put("passiveValue", content.knightPassiveValue(passive));
+            // Marshal knights assemble a bigger warband, so the size is per-knight.
+            m.put("startingParty", content.startingPartySize(k));
             m.put("expeditionStarter", starter);
             m.put("owned", owned);
             m.put("siegeUnlocked", unlocked);
@@ -354,15 +356,21 @@ public class SiegeService {
 
     Map<String, Object> newRun(String authorizationHeader, String knightId, List<String> sieglingIds, String modeName) {
         RunMode mode = "ENDLESS".equalsIgnoreCase(modeName) ? RunMode.ENDLESS : RunMode.STANDARD;
-        if (mode == RunMode.STANDARD
-                ? (sieglingIds == null || sieglingIds.size() != content.partySize())
-                : (sieglingIds == null || sieglingIds.isEmpty() || sieglingIds.size() > content.partyMax())) {
-            throw new IllegalArgumentException(mode == RunMode.STANDARD
-                    ? "Choose exactly " + content.partySize() + " Siegeling — more will join along the way."
-                    : "An endless team needs 1-" + content.partyMax() + " Siegelings.");
-        }
         TrainerCard knight = content.findKnight(knightId)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown SiegeKnight."));
+        // The starting warband is knight-dependent: a Marshal musters an extra Siegeling.
+        int startingParty = content.startingPartySize(knight);
+        if (mode == RunMode.STANDARD
+                ? (sieglingIds == null || sieglingIds.size() != startingParty)
+                : (sieglingIds == null || sieglingIds.isEmpty() || sieglingIds.size() > content.partyMax())) {
+            throw new IllegalArgumentException(mode == RunMode.STANDARD
+                    ? "Choose exactly " + startingParty + " Siegeling" + (startingParty == 1 ? "" : "s")
+                        + " — more will join along the way."
+                    : "An endless team needs 1-" + content.partyMax() + " Siegelings.");
+        }
+        if (new java.util.LinkedHashSet<>(sieglingIds).size() != sieglingIds.size()) {
+            throw new IllegalArgumentException("Each Siegeling can only join the warband once.");
+        }
         AccountUser user = resolveUser(authorizationHeader);
         PlayerProgressionEntity progression = loadProgression(user);
         if (!isKnightSelectable(knight, user, progression)) {
@@ -1761,7 +1769,6 @@ public class SiegeService {
             if (node != null) node.setCleared(true);
             run.setNodesCleared(run.getNodesCleared() + 1);
             int foes = (int) battle.getCombatants().stream().filter(c -> c.getSide() == Side.ENEMY).count();
-            boolean firstBattleWin = run.getEnemiesDefeated() == 0;
             run.setEnemiesDefeated(run.getEnemiesDefeated() + foes);
             int depth = node == null ? 1 : node.getRow() + 1 + run.getLoop() * SiegeContentService.MAP_ROWS;
             run.addScore(foes * (10L + depth) + 5);
@@ -1844,13 +1851,10 @@ public class SiegeService {
 
             // After a battle the warband grows: a wild Siegeling may join
             // (1% stage 3, 5% stage 2) until the team is full. Recruits never
-            // appear before the first combat — including the Marshal class bonus.
+            // appear before the first combat. The Marshal muster is not here —
+            // that knight picks its extra Siegeling at warband assembly instead.
             if (run.getStatus() == RunStatus.ACTIVE && run.getParty().size() < content.partyMax()) {
-                if (firstBattleWin && run.getKnightPassive() == KnightPassive.MARSHAL) {
-                    joinStagedRecruit(run, " answers the Marshal's muster!", true);
-                } else {
-                    joinStagedRecruit(run, " emerges from the battlefield and joins the warband!", true);
-                }
+                joinStagedRecruit(run, " emerges from the battlefield and joins the warband!", true);
             }
         } else if (battle.getPhase() == BattlePhase.LOST) {
             run.setStatus(RunStatus.LOST);

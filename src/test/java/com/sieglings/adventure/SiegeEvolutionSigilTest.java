@@ -35,15 +35,13 @@ class SiegeEvolutionSigilTest {
 
     @BeforeEach
     void setUp() {
-        TrainerCard knight = content.selectableKnights().stream()
-                .filter(k -> "squire-bob".equalsIgnoreCase(k.getId()))
-                .findFirst()
-                .orElseGet(() -> content.selectableKnights().getFirst());
+        TrainerCard knight = SiegeStarterTestSupport.starterKnight(content);
         SieglingCard base = content.selectableSieglings().stream()
                 .filter(s -> content.evolutionOf(s.getId()).isPresent())
                 .findFirst()
                 .orElseGet(() -> content.selectableSieglings().getFirst());
-        Map<String, Object> run = siegeService.newRun(null, knight.getId(), List.of(base.getId()), "STANDARD");
+        Map<String, Object> run = siegeService.newRun(
+                null, knight.getId(), SiegeStarterTestSupport.starterIds(content, knight, base), "STANDARD");
         token = (String) run.get("token");
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> party = (List<Map<String, Object>>) run.get("party");
@@ -57,11 +55,9 @@ class SiegeEvolutionSigilTest {
                 .findFirst();
         if (noEvo.isEmpty()) return;
 
-        TrainerCard knight = content.selectableKnights().stream()
-                .filter(k -> "squire-bob".equalsIgnoreCase(k.getId()))
-                .findFirst()
-                .orElseGet(() -> content.selectableKnights().getFirst());
-        Map<String, Object> run = siegeService.newRun(null, knight.getId(), List.of(noEvo.get().getId()), "STANDARD");
+        TrainerCard knight = SiegeStarterTestSupport.starterKnight(content);
+        Map<String, Object> run = siegeService.newRun(null, knight.getId(),
+                SiegeStarterTestSupport.starterIds(content, knight, noEvo.get()), "STANDARD");
         String t = (String) run.get("token");
         @SuppressWarnings("unchecked")
         String id = ((List<Map<String, Object>>) run.get("party")).getFirst().get("id").toString();
@@ -79,11 +75,9 @@ class SiegeEvolutionSigilTest {
                 .findFirst();
         if (noStage3.isEmpty()) return;
 
-        TrainerCard knight = content.selectableKnights().stream()
-                .filter(k -> "squire-bob".equalsIgnoreCase(k.getId()))
-                .findFirst()
-                .orElseGet(() -> content.selectableKnights().getFirst());
-        Map<String, Object> run = siegeService.newRun(null, knight.getId(), List.of(noStage3.get().getId()), "STANDARD");
+        TrainerCard knight = SiegeStarterTestSupport.starterKnight(content);
+        Map<String, Object> run = siegeService.newRun(null, knight.getId(),
+                SiegeStarterTestSupport.starterIds(content, knight, noStage3.get()), "STANDARD");
         String t = (String) run.get("token");
         @SuppressWarnings("unchecked")
         String id = ((List<Map<String, Object>>) run.get("party")).getFirst().get("id").toString();
