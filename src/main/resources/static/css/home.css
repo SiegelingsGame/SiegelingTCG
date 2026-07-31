@@ -4845,21 +4845,29 @@ body.starter-onboarding-active .starter-gate h1 {
 }
 
 .lobby-section {
+    width: 100%;
+    min-width: 0;
     max-width: 1100px;
     margin: 0 auto;
 }
 
 .lobby-waiting-root {
     display: grid;
+    min-width: 0;
     gap: 16px;
 }
 
 .lobby-waiting-head {
     display: flex;
+    min-width: 0;
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
+}
+
+.lobby-waiting-head > div {
+    min-width: 0;
 }
 
 .lobby-waiting-head h1 {
@@ -4870,11 +4878,13 @@ body.starter-onboarding-active .starter-gate h1 {
 
 .lobby-waiting-grid {
     display: grid;
+    min-width: 0;
     grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
     gap: 14px;
 }
 
 .lobby-panel {
+    min-width: 0;
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 12px;
     background: rgba(3, 8, 20, 0.78);
@@ -4888,6 +4898,7 @@ body.starter-onboarding-active .starter-gate h1 {
 }
 
 .lobby-player-card {
+    min-width: 0;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 10px;
     padding: 12px;
@@ -4985,8 +4996,82 @@ body.starter-onboarding-active .starter-gate h1 {
 }
 
 @media (max-width: 900px) {
+    .lobby-section {
+        padding: 12px;
+    }
+    .lobby-waiting-root {
+        gap: 12px;
+    }
+    .lobby-waiting-head {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: start;
+        gap: 8px;
+    }
+    .lobby-waiting-head h1 {
+        font-size: 22px;
+    }
+    .lobby-waiting-head .social-muted-inline {
+        overflow-wrap: anywhere;
+    }
     .lobby-waiting-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 12px;
+    }
+    .lobby-panel {
+        padding: 12px;
+    }
+    .lobby-player-card {
+        padding: 10px;
+    }
+    .lobby-player-card strong,
+    .lobby-player-card span {
+        overflow-wrap: anywhere;
+    }
+    .lobby-loadout-form label,
+    .lobby-loadout-form .search-input,
+    .lobby-chat-compose .search-input {
+        min-width: 0;
+        max-width: 100%;
+    }
+    .lobby-actions-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .lobby-actions-row > button {
+        width: 100%;
+        min-width: 0;
+        white-space: normal;
+    }
+    .lobby-actions-row > button:last-child:nth-child(odd) {
+        grid-column: 1 / -1;
+    }
+    .lobby-chat-compose {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+    .lobby-chat-compose .search-input {
+        margin-bottom: 0;
+    }
+    #lobbyInviteLink,
+    #lobbyInviteLink a {
+        max-width: 100%;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+}
+
+@media (max-width: 360px) {
+    .lobby-waiting-head,
+    .lobby-players,
+    .lobby-actions-row,
+    .lobby-chat-compose {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .lobby-status-pill {
+        justify-self: start;
+    }
+    .lobby-actions-row > button:last-child:nth-child(odd) {
+        grid-column: auto;
     }
 }
 
