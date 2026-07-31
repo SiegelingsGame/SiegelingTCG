@@ -150,6 +150,13 @@
         4: [{ x: 13.5, y: 58 }, { x: 36.5, y: 55 }, { x: 59.5, y: 57 }, { x: 82.5, y: 56 }]
     };
     const FRONT_MAX_LEVEL = 4;
+    /** Rampart geometry in SVG units. The pitch is the authored merlon + crenel pair, and
+        the px-per-unit is the scale the wall was drawn at, so regenerating the path for a
+        wider stage adds crenellations rather than stretching the ones that are there. */
+    const FRONT_WALL_MERLON = 32;
+    const FRONT_WALL_CRENEL = 30;
+    const FRONT_WALL_PX_PER_UNIT = 3.06;
+    const FRONT_WALL_MIN_UNITS = 360;
 
     const RANK_NAMES = ['Ruined Camp', 'Timber Outpost', 'Settled Courtyard', 'Stonehold',
         'Walled Keep', 'Elemental Stronghold', 'High Castle', 'Grand Keep'];
@@ -212,10 +219,13 @@
         // iOS Safari can leave the document scrolled after a rotation even with
         // overflow hidden, hiding the fixed header; snap back whenever it happens.
         window.addEventListener('resize', resetViewportScroll);
+        window.addEventListener('resize', renderFrontRampart);
         window.addEventListener('orientationchange', () => {
             resetViewportScroll();
             window.setTimeout(resetViewportScroll, 250);
             window.setTimeout(resetViewportScroll, 700);
+            // Rotation resizes the stage after the layout settles, not with the event.
+            window.setTimeout(renderFrontRampart, 250);
         });
         window.addEventListener('scroll', resetViewportScroll, { passive: true });
         document.addEventListener('keydown', (event) => {
@@ -1556,9 +1566,37 @@
         document.getElementById('keepApp')?.classList.add('front-view-active');
         document.getElementById('frontViewToolbar')?.setAttribute('aria-hidden', 'false');
         initializeFrontCombat();
+        // The stage only reaches full width once .front-view-active lands, so measure after it.
+        renderFrontRampart();
+        window.requestAnimationFrame?.(renderFrontRampart);
         const hotspot = document.querySelector('.front-hotspot');
         hotspot?.setAttribute('aria-label', "Manage Akhar's Front rampart posts");
         document.getElementById('frontReturn')?.focus({ preventScroll: true });
+    }
+
+    /**
+     * The rampart is drawn with preserveAspectRatio="none" so it can fill the stage, which
+     * means a wall stretched edge to edge on a wide screen would smear its crenellations and
+     * stonework. Rebuild the path for the width actually rendered instead: the viewBox grows
+     * with the wall and merlons keep a constant pitch, so a phone and an ultrawide show the
+     * same size stone, just more of it.
+     */
+    function renderFrontRampart() {
+        const svg = document.querySelector('.front-rampart');
+        if (!svg) return;
+        const width = svg.getBoundingClientRect().width;
+        if (!(width > 0)) return;
+        const units = Math.max(FRONT_WALL_MIN_UNITS, Math.round(width / FRONT_WALL_PX_PER_UNIT));
+        if (svg.dataset.units === String(units)) return;
+        svg.dataset.units = String(units);
+        svg.setAttribute('viewBox', `0 0 ${units} 150`);
+        let path = 'M0 64h28';
+        for (let x = 28; x < units; x += FRONT_WALL_MERLON + FRONT_WALL_CRENEL) {
+            path += `V37h${FRONT_WALL_MERLON}v27h${FRONT_WALL_CRENEL}`;
+        }
+        svg.querySelector('.wall-body')?.setAttribute('d', `${path}V150H0Z`);
+        svg.querySelector('.wall-cap')?.setAttribute('d', `M0 77h${units}`);
+        svg.querySelector('.wall-shadow')?.setAttribute('d', `M22 112h${Math.max(0, units - 44)}`);
     }
 
     function exitAkharsFront() {
@@ -1570,6 +1608,7 @@
         renderFrontCombat();
         document.getElementById('keepApp')?.classList.remove('front-view-active');
         document.getElementById('frontViewToolbar')?.setAttribute('aria-hidden', 'true');
+        renderFrontRampart(); // back to the map-sized wall, so the viewBox shrinks with it
         const hotspot = document.querySelector('.front-hotspot');
         hotspot?.setAttribute('aria-label', "Enter Akhar's Front");
         hotspot?.focus({ preventScroll: true });
