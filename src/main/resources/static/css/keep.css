@@ -612,15 +612,14 @@ button.resource-pill:focus-visible {
 .keep-scene[data-akhars-front-level="4"] .front-torches i:nth-child(2) { left: 47%; }
 .keep-scene[data-akhars-front-level="4"] .front-torches i:nth-child(3) { left: 70%; }
 .keep-scene[data-akhars-front-level="4"] .front-torches i:nth-child(4) { left: 93%; }
-/* Defenders man the wall rather than hover over it: z-index 4 puts them *behind* the
-   rampart (z 5) so the merlons occlude their lower body and they read as standing on the
-   walk, firing out through the crenel gaps. The wall's merlon tops sit at ~38% of the map
-   stage and ~41% of the front-view stage, so `bottom` is set below those lines on purpose
-   — the overlap is the effect, not a mistake. */
+/* Defenders stand on the rampart's *interior* walk, so they draw in front of the wall
+   (z 7 over the rampart's 5) with their feet at the walkway line — the crenel floor, which
+   sits at ~27% of the map stage and ~31% of the front-view stage. Low enough to be on the
+   wall rather than floating over it, in front so they are on our side of it, not Akhar's. */
 .front-defenders b {
     position: absolute;
-    z-index: 4;
-    bottom: 22%;
+    z-index: 7;
+    bottom: 27%;
     width: 19%;
     height: 40%;
     display: none;
@@ -876,7 +875,7 @@ button.resource-pill:focus-visible {
     box-shadow: inset 0 18px 35px rgba(147,57,82,.13);
 }
 .keep-app.front-view-active .front-rampart { bottom: 0; height: 54%; filter: drop-shadow(0 -3px 0 rgba(255, 218, 154, .28)) drop-shadow(0 12px 15px rgba(6, 3, 12, .64)); }
-.keep-app.front-view-active .front-defenders b { bottom: 25%; height: 42%; }
+.keep-app.front-view-active .front-defenders b { bottom: 31%; height: 42%; }
 .keep-app.front-view-active .front-income:not(.hidden) { display: flex; }
 .keep-app.front-view-active .front-hotspot .building-label { left: 50%; right: auto; top: auto; bottom: 2px; z-index: 12; width: max-content; max-width: none; padding: 8px 14px; text-align: center; transform: translateX(-50%); }
 .keep-app.front-view-active .front-hotspot .building-label strong { font-size: clamp(15px, 2vw, 22px); }

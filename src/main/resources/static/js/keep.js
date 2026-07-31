@@ -143,13 +143,13 @@
     ];
     /** Muzzle points per rampart tier, mirroring the per-capacity post lefts in keep.css so
         a shot leaves the defender that fired it however wide the wall currently is. The y
-        sits just above the merlon line (~41% of the stage) so shots clear the crenel the
-        defender is firing through instead of starting inside the stonework. */
+        tracks the Siegeling's upper body as it stands on the interior walk, so a shot leaves
+        the defender rather than the stonework it is standing on. */
     const FRONT_DEFENDER_STARTS = {
-        1: [{ x: 49.5, y: 45 }],
-        2: [{ x: 33.5, y: 45 }, { x: 65.5, y: 44 }],
-        3: [{ x: 17.5, y: 46 }, { x: 41.5, y: 43 }, { x: 65.5, y: 45 }],
-        4: [{ x: 13.5, y: 46 }, { x: 36.5, y: 43 }, { x: 59.5, y: 45 }, { x: 82.5, y: 44 }]
+        1: [{ x: 49.5, y: 51 }],
+        2: [{ x: 33.5, y: 51 }, { x: 65.5, y: 50 }],
+        3: [{ x: 17.5, y: 52 }, { x: 41.5, y: 49 }, { x: 65.5, y: 51 }],
+        4: [{ x: 13.5, y: 52 }, { x: 36.5, y: 49 }, { x: 59.5, y: 51 }, { x: 82.5, y: 50 }]
     };
     const FRONT_MAX_LEVEL = 4;
     /** Rampart geometry in SVG units. The pitch is the authored merlon + crenel pair, and
