@@ -1,7 +1,6 @@
 package com.sieglings.adventure;
 
 import com.sieglings.model.SieglingCard;
-import com.sieglings.model.TrainerCard;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -29,12 +28,15 @@ class SiegeSigilRewardTest {
     @Autowired
     private SiegeContentService content;
 
-    private String newRunWith(SieglingCard starter) {
-        TrainerCard knight = content.selectableKnights().stream()
-                .filter(k -> "squire-bob".equalsIgnoreCase(k.getId()))
-                .findFirst()
-                .orElseGet(() -> content.selectableKnights().getFirst());
-        Map<String, Object> run = siegeService.newRun(null, knight.getId(), List.of(starter.getId()), "STANDARD");
+    /** A warband whose every member matches {@code filter}; empty when the catalog can't fill it. */
+    private List<String> warbandOf(java.util.function.Predicate<SieglingCard> filter) {
+        return SiegeStarterTestSupport.starterIdsMatching(
+                content, SiegeStarterTestSupport.starterKnight(content), filter);
+    }
+
+    private String newRunWith(List<String> warband) {
+        Map<String, Object> run = siegeService.newRun(
+                null, SiegeStarterTestSupport.starterKnight(content).getId(), warband, "STANDARD");
         return (String) run.get("token");
     }
 
@@ -46,10 +48,8 @@ class SiegeSigilRewardTest {
 
     @Test
     void evolvingWarbandsAreSometimesOfferedAnEvolutionSigil() throws Exception {
-        SieglingCard evolving = content.selectableSieglings().stream()
-                .filter(s -> content.evolutionOf(s.getId()).isPresent())
-                .findFirst()
-                .orElseThrow();
+        List<String> evolving = warbandOf(s -> content.evolutionOf(s.getId()).isPresent());
+        assertFalse(evolving.isEmpty(), "the catalog must supply a full evolving warband");
         SiegeRun run = siegeService.lookup(newRunWith(evolving)).orElseThrow();
 
         RewardOption sigil = null;
@@ -71,10 +71,8 @@ class SiegeSigilRewardTest {
 
     @Test
     void chosenSigilLandsInTheInventory() throws Exception {
-        SieglingCard evolving = content.selectableSieglings().stream()
-                .filter(s -> content.evolutionOf(s.getId()).isPresent())
-                .findFirst()
-                .orElseThrow();
+        List<String> evolving = warbandOf(s -> content.evolutionOf(s.getId()).isPresent());
+        assertFalse(evolving.isEmpty(), "the catalog must supply a full evolving warband");
         String token = newRunWith(evolving);
         SiegeRun run = siegeService.lookup(token).orElseThrow();
 
@@ -99,11 +97,8 @@ class SiegeSigilRewardTest {
 
     @Test
     void warbandsWithNoEvolutionPathAreNeverOfferedASigil() throws Exception {
-        SieglingCard terminal = content.selectableSieglings().stream()
-                .filter(s -> content.evolutionOf(s.getId()).isEmpty())
-                .findFirst()
-                .orElse(null);
-        if (terminal == null) return; // every catalog Siegeling evolves
+        List<String> terminal = warbandOf(s -> content.evolutionOf(s.getId()).isEmpty());
+        if (terminal.isEmpty()) return; // not enough non-evolving Siegelings to field
         SiegeRun run = siegeService.lookup(newRunWith(terminal)).orElseThrow();
 
         for (int i = 0; i < 400; i++) {

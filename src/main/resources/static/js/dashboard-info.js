@@ -240,7 +240,7 @@
                 row(['<strong>Vanguard</strong>', '+2 speed to each Siegeling at battle start.']),
                 row(['<strong>Warden</strong>', '+8 max HP to each Siegeling for the whole expedition.']),
                 row(['<strong>Quartermaster</strong>', '+40% gold from spoils and caches.']),
-                row(['<strong>Marshal</strong>', 'Starts the run with an extra Siegeling in the warband.']),
+                row(['<strong>Marshal</strong>', 'Picks an extra starting Siegeling at warband assembly (2 instead of 1).']),
                 row(['<strong>Default</strong>', 'Uses the knight’s built-in hash assignment — no override.'])
             ])
     };

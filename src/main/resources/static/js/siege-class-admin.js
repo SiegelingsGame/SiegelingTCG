@@ -54,7 +54,7 @@
         }).join('');
         host.innerHTML =
             '<p class="siege-class-note">Assign each SiegeKnight’s roguelike class for Siege mode ' +
-            '(Bulwark, Warlord, Vanguard, Warden, Quartermaster, Marshal — Marshal starts with an extra Siegeling). ' +
+            '(Bulwark, Warlord, Vanguard, Warden, Quartermaster, Marshal — Marshal picks 2 starting Siegelings). ' +
             'Requires an editor login; assignments apply immediately to new runs.</p>' +
             '<table class="siege-class-table"><thead><tr><th>Knight</th><th>Element</th><th>Class</th><th></th></tr></thead>' +
             '<tbody>' + rows + '</tbody></table>';

@@ -670,16 +670,43 @@
     }
   }
 
+  // Availability tier for the knight list: knights you can ride out with right
+  // now sort above ones that still cost Siegecoins, which sort above knights
+  // whose card you don't even own — so the usable ones are always at the top.
+  var KNIGHT_TIERS = [
+    { tier: 0, label: 'Ready to deploy' },
+    { tier: 1, label: 'Unlock with Siegecoins' },
+    { tier: 2, label: 'Locked' }
+  ];
+
+  function knightTier(k, gold) {
+    if (k.selectable) return 0;
+    if (k.canUnlock) return 1;
+    return 2;
+  }
+
   function renderKnightStep() {
     var r = state.roster;
     var kg = $('knightGrid'); kg.innerHTML = '';
     var gold = r.gold || 0;
+    var lastTier = -1;
     r.knights.slice().sort(function (a, b) {
-      if (a.selectable !== b.selectable) return a.selectable ? -1 : 1;
-      if (a.expeditionStarter !== b.expeditionStarter) return a.expeditionStarter ? -1 : 1;
+      var ta = knightTier(a, gold), tb = knightTier(b, gold);
+      if (ta !== tb) return ta - tb;
+      if (ta === 0 && a.expeditionStarter !== b.expeditionStarter) return a.expeditionStarter ? -1 : 1;
+      if (ta === 1) {
+        var aff = function (k) { return gold >= (k.unlockCost || 0); };
+        if (aff(a) !== aff(b)) return aff(a) ? -1 : 1;
+        if ((a.unlockCost || 0) !== (b.unlockCost || 0)) return (a.unlockCost || 0) - (b.unlockCost || 0);
+      }
       return a.name.localeCompare(b.name);
     }).forEach(function (k) {
       var locked = !k.selectable;
+      var tier = knightTier(k, gold);
+      if (tier !== lastTier) {
+        lastTier = tier;
+        kg.appendChild(el('div', 'knight-group knight-group-' + tier, KNIGHT_TIERS[tier].label));
+      }
       var canAffordUnlock = locked && k.canUnlock && gold >= (k.unlockCost || 0);
       var c = el('div', 'knight-card ' + elClass(k.element) + (k.id === state.knightId ? ' sel' : '') + (locked ? ' locked' : ''));
       var summary = specSummary(k.active);
@@ -712,6 +739,7 @@
       if (!locked) {
         c.addEventListener('click', function () {
           state.knightId = k.id;
+          trimPartyToNeed();
           renderKnightStep();
         });
       } else {
@@ -735,9 +763,11 @@
       kn = r.knights.find(function (k) { return k.id === state.knightId; });
     }
     $('knightNextBtn').disabled = !kn;
+    var warbandNote = kn && kn.startingParty > 1 ? ' · warband of ' + kn.startingParty : '';
     $('knightSummary').textContent = kn
-      ? (kn.name + ' — ' + kn.activeName + (r.loggedIn ? ' · 🪙 ' + gold : ''))
+      ? (kn.name + ' — ' + kn.activeName + warbandNote + (r.loggedIn ? ' · 🪙 ' + gold : ''))
       : 'Select a SiegeKnight.';
+    trimPartyToNeed();
   }
 
   function closeKnightLockModal() {
@@ -1211,6 +1241,24 @@
     });
   }
 
+  function selectedKnight() {
+    if (!state.roster || !state.roster.knights) return null;
+    return state.roster.knights.find(function (k) { return k.id === state.knightId; }) || null;
+  }
+
+  /** Starters to pick before the run — a Marshal knight musters an extra one. */
+  function startingPartyNeed() {
+    var kn = selectedKnight();
+    if (kn && kn.startingParty) return Math.max(1, kn.startingParty);
+    return Math.max(1, (state.roster && state.roster.partySize) || 1);
+  }
+
+  /** Swapping to a knight with a smaller muster drops the now-illegal picks. */
+  function trimPartyToNeed() {
+    var need = startingPartyNeed();
+    if (state.party.length > need) state.party = state.party.slice(0, need);
+  }
+
   function toggleSiegling(id) {
     var s = rosterSiegelings(state.roster).find(function (x) { return x.id === id; });
     if (s && s.expeditionStarter === false) {
@@ -1220,7 +1268,8 @@
     var i = state.party.indexOf(id);
     if (i >= 0) { state.party.splice(i, 1); }
     else {
-      if (state.party.length >= (state.roster.partySize || 3)) { toast('You already have ' + (state.roster.partySize || 3) + ' Siegelings.'); return; }
+      var need = startingPartyNeed();
+      if (state.party.length >= need) { toast('You already have ' + need + ' Siegeling' + (need === 1 ? '' : 's') + '.'); return; }
       state.party.push(id);
     }
     renderSieglingGrid();
@@ -1229,7 +1278,15 @@
 
   function refreshSetupFooter() {
     if (!state.roster) return;
-    var need = state.roster.partySize || 1;
+    var need = startingPartyNeed();
+    var sub = $('warbandSub');
+    if (sub) {
+      var kn = selectedKnight();
+      sub.textContent = need > 1
+        ? 'Select ' + need + ' starter siegelings — ' + (kn ? kn.name : 'your knight')
+          + ' musters an extra one. You will find more along the path.'
+        : 'Select your starter siegeling. You will find more along the path.';
+    }
     var ready = state.knightId && state.party.length === need;
     $('startRunBtn').disabled = !ready;
     var names = state.party.map(function (id) {
