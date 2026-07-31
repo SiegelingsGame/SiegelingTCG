@@ -541,6 +541,9 @@ button.resource-pill:focus-visible {
 .front-rampart .wall-course { stroke: var(--wall-course); }
 .front-rampart .wall-body { stroke: var(--wall-line); }
 .front-rampart .wall-cap { stroke: var(--wall-cap); }
+.front-rampart .wall-crown { stroke: var(--wall-crown, transparent); }
+.keep-scene[data-akhars-front-level="4"] { --wall-crown: #ffdc93; }
+.keep-scene[data-akhars-front-level="4"] .front-rampart .wall-crown { filter: drop-shadow(0 0 3px rgba(255, 205, 108, .6)); }
 .front-wall-trim i { position: absolute; z-index: 6; display: none; }
 /* Tier 1 is a hasty palisade: raw planks lashed over the two widest gaps. */
 /* Dressing is sized from the viewport, not from the stage box: the wall is full-bleed, so
@@ -548,11 +551,9 @@ button.resource-pill:focus-visible {
 .wall-patch { bottom: 30%; width: clamp(18px, 2.4vw, 46px); aspect-ratio: .62; border: 1px solid rgba(46, 30, 17, .85); border-radius: 1px; background: repeating-linear-gradient(90deg, #8a6134 0 3px, #6d4a26 3px 6px); box-shadow: 0 2px 3px rgba(0, 0, 0, .4); transform: rotate(-4deg); }
 .wall-patch:nth-of-type(2) { transform: rotate(5deg); }
 .wall-banner { bottom: 21%; width: clamp(20px, 2.6vw, 54px); aspect-ratio: .55; background: linear-gradient(180deg, #b8324a, #7c1c33); clip-path: polygon(0 0, 100% 0, 100% 78%, 50% 100%, 0 78%); box-shadow: 0 2px 4px rgba(0, 0, 0, .45); }
-.wall-coping { left: 0; right: 0; bottom: 43%; width: 100%; height: 2.5%; background: linear-gradient(90deg, rgba(255, 214, 120, .25), #ffdf9b 22%, #d7a643 52%, #ffdf9b 80%, rgba(255, 214, 120, .25)); box-shadow: 0 0 9px rgba(255, 205, 108, .55); }
 .keep-scene[data-akhars-front-level="1"] .wall-patch,
 .keep-scene[data-akhars-front-level="3"] .wall-banner,
-.keep-scene[data-akhars-front-level="4"] .wall-banner,
-.keep-scene[data-akhars-front-level="4"] .wall-coping { display: block; }
+.keep-scene[data-akhars-front-level="4"] .wall-banner { display: block; }
 .wall-patch:nth-of-type(1) { left: 26%; }
 .wall-patch:nth-of-type(2) { left: 62%; }
 .wall-banner:nth-of-type(3) { left: 15%; }
@@ -611,12 +612,16 @@ button.resource-pill:focus-visible {
 .keep-scene[data-akhars-front-level="4"] .front-torches i:nth-child(2) { left: 47%; }
 .keep-scene[data-akhars-front-level="4"] .front-torches i:nth-child(3) { left: 70%; }
 .keep-scene[data-akhars-front-level="4"] .front-torches i:nth-child(4) { left: 93%; }
+/* Defenders stand on the rampart's *interior* walk, so they draw in front of the wall
+   (z 7 over the rampart's 5) with their feet at the walkway line — the crenel floor, which
+   sits at ~27% of the map stage and ~31% of the front-view stage. Low enough to be on the
+   wall rather than floating over it, in front so they are on our side of it, not Akhar's. */
 .front-defenders b {
     position: absolute;
     z-index: 7;
-    bottom: 38%;
+    bottom: 27%;
     width: 19%;
-    height: 43%;
+    height: 40%;
     display: none;
     align-items: flex-end;
     justify-content: center;
@@ -870,7 +875,7 @@ button.resource-pill:focus-visible {
     box-shadow: inset 0 18px 35px rgba(147,57,82,.13);
 }
 .keep-app.front-view-active .front-rampart { bottom: 0; height: 54%; filter: drop-shadow(0 -3px 0 rgba(255, 218, 154, .28)) drop-shadow(0 12px 15px rgba(6, 3, 12, .64)); }
-.keep-app.front-view-active .front-defenders b { bottom: 45%; height: 40%; }
+.keep-app.front-view-active .front-defenders b { bottom: 31%; height: 42%; }
 .keep-app.front-view-active .front-income:not(.hidden) { display: flex; }
 .keep-app.front-view-active .front-hotspot .building-label { left: 50%; right: auto; top: auto; bottom: 2px; z-index: 12; width: max-content; max-width: none; padding: 8px 14px; text-align: center; transform: translateX(-50%); }
 .keep-app.front-view-active .front-hotspot .building-label strong { font-size: clamp(15px, 2vw, 22px); }

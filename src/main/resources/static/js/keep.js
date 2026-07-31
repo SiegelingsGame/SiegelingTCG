@@ -142,12 +142,14 @@
         { startX: 97, startY: 34, endX: 76, endY: 58, size: 9, stagger: .7 }
     ];
     /** Muzzle points per rampart tier, mirroring the per-capacity post lefts in keep.css so
-        a shot leaves the defender that fired it however wide the wall currently is. */
+        a shot leaves the defender that fired it however wide the wall currently is. The y
+        tracks the Siegeling's upper body as it stands on the interior walk, so a shot leaves
+        the defender rather than the stonework it is standing on. */
     const FRONT_DEFENDER_STARTS = {
-        1: [{ x: 49.5, y: 57 }],
-        2: [{ x: 33.5, y: 57 }, { x: 65.5, y: 56 }],
-        3: [{ x: 17.5, y: 58 }, { x: 41.5, y: 55 }, { x: 65.5, y: 57 }],
-        4: [{ x: 13.5, y: 58 }, { x: 36.5, y: 55 }, { x: 59.5, y: 57 }, { x: 82.5, y: 56 }]
+        1: [{ x: 49.5, y: 51 }],
+        2: [{ x: 33.5, y: 51 }, { x: 65.5, y: 50 }],
+        3: [{ x: 17.5, y: 52 }, { x: 41.5, y: 49 }, { x: 65.5, y: 51 }],
+        4: [{ x: 13.5, y: 52 }, { x: 36.5, y: 49 }, { x: 59.5, y: 51 }, { x: 82.5, y: 50 }]
     };
     const FRONT_MAX_LEVEL = 4;
     /** Rampart geometry in SVG units. The pitch is the authored merlon + crenel pair, and
@@ -1591,10 +1593,13 @@
         svg.dataset.units = String(units);
         svg.setAttribute('viewBox', `0 0 ${units} 150`);
         let path = 'M0 64h28';
+        let crown = '';
         for (let x = 28; x < units; x += FRONT_WALL_MERLON + FRONT_WALL_CRENEL) {
             path += `V37h${FRONT_WALL_MERLON}v27h${FRONT_WALL_CRENEL}`;
+            crown += `M${x} 37h${FRONT_WALL_MERLON}`;
         }
         svg.querySelector('.wall-body')?.setAttribute('d', `${path}V150H0Z`);
+        svg.querySelector('.wall-crown')?.setAttribute('d', crown);
         svg.querySelector('.wall-cap')?.setAttribute('d', `M0 77h${units}`);
         svg.querySelector('.wall-shadow')?.setAttribute('d', `M22 112h${Math.max(0, units - 44)}`);
     }
