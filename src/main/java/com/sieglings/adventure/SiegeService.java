@@ -1092,8 +1092,19 @@ public class SiegeService {
                 ? SiegeTuning.bgEnemyHpScalar(run.getAverageVeteranLevel(), run.getBgTierScalar()) : 1.0;
         double bgDmg = run.isBattlegrounds()
                 ? SiegeTuning.bgEnemyDamageScalar(run.getAverageVeteranLevel(), run.getBgTierScalar()) : 1.0;
-        List<Combatant> enemies = content.generateEnemies(battleType, effFloor,
-                Math.max(1, partySize), segment + run.getLoop(), rng, palette, bgHp, bgDmg);
+        // The run's opening fight is a fixed yardstick — same foe for every warband,
+        // so the difficulty curve starts from one known point instead of moving with
+        // the starting party size. Everything after it scales as usual. Row 0 is
+        // always a BATTLE and cleared before any event can ambush you, so
+        // "no fight won yet" identifies exactly that first encounter; Battlegrounds
+        // opts out because its whole premise is enemies scaled to veteran squads.
+        boolean openingFight = run.getEnemiesDefeated() == 0
+                && battleType == NodeType.BATTLE
+                && !run.isBattlegrounds();
+        List<Combatant> enemies = openingFight
+                ? content.generateOpeningEnemies(rng, palette)
+                : content.generateEnemies(battleType, effFloor,
+                        Math.max(1, partySize), segment + run.getLoop(), rng, palette, bgHp, bgDmg);
         if (ambush) {
             // Ambush: enemies get the drop on you — extra shield, bite, and haste.
             for (Combatant foe : enemies) {

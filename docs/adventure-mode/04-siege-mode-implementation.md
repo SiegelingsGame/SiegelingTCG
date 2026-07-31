@@ -269,6 +269,11 @@ win counts:
   depart. Permanent recruiting still happens at camps and elite rewards.
 - **Camp revives**: fallen Siegelings can be revived at Rest Camps — 50% HP for 35g or
   100% for 70g.
+- **Fixed opening fight**: the run's first battle is a fixed yardstick, not a scaled
+  encounter — one foe at `SiegeTuning.OPENING_FIGHT_*` (30 HP, 5 damage, speed 8, one
+  attack), identical for every warband and party size. Only element and name vary.
+  Every fight after it goes back through `generateEnemies` and scales off warband size
+  and depth as before. Battlegrounds opts out (its enemies scale to veteran squads).
 - **Knight roguelike classes**: the **Marshal** class musters its extra Siegeling at
   warband assembly — the player picks **2 starters instead of 1** (the roster row
   carries `startingParty`, and `newRun` enforces it server-side).
