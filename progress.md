@@ -56,6 +56,10 @@ Original prompt: Repairs should display as scaffolding not a big blurb
 
 Original prompt: The project button disappeared ?
 
+Original prompt: Adjust the health bar placement to right above the dark siegeling heads
+
+- July 31, 2026 Front health-bar placement: moved every raider health bar inside its `.raider-art` wrapper and made that wrapper shrink to the rendered SVG/image aspect ratio while remaining bottom-anchored in the movement box. This keeps the bar directly above the visible cutout instead of at the top of the tall pathing box introduced by the recoloured-Siegeling raider art. Cache pins advanced to `keep.css?v=49` / `keep.js?v=48`. Focused `GameJavaScriptRegressionTest` passes with explicit fallback/recoloured-art nesting and cache-pin coverage. The connected browser ran the real combat at 390x844 and 1440x900 against four current Firestore-backed Siegeling cutouts: every bar remained nested with a consistent 4px bar-to-art gap while health widths changed and an elemental projectile was active; both viewports had zero overflow and no console warnings/errors, and both screenshots were visually inspected. The standalone web-game client remains unavailable because Node/npm is not on PATH. TODO: none.
+
 Original prompt: Move repairs under the keep activity menu
 
 - July 30, 2026 Keep repair activity routing: removed the persistent map-covering repair banner and stopped newly received setbacks from opening their repair sheet automatically. An active setback now appears first in Keep activity as a persistent, orange-accented Repairs card; the card distinguishes Action needed from Repair underway, opens the existing timed/Siegecoin repair sheet, and keeps its countdown live. The Keep activity badge includes the active repair until it resolves, while beginning a timed repair no longer creates a duplicate one-time notice for the same work. `render_game_to_text` exposes the repair entry under `noticeCenter`, and cache pins advanced to `keep.css?v=43` / `keep.js?v=42`.

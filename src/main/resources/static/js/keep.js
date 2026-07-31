@@ -1416,7 +1416,7 @@
         art.dataset.shade = shadeId;
         node.classList.toggle('has-shade-art', Boolean(shadeId));
         if (!shadeId) return;
-        art.innerHTML = `<img src="${escapeAttr(enemy.shade.artUrl)}" alt="">`;
+        art.innerHTML = `<span class="front-raider-health"><b></b></span><img src="${escapeAttr(enemy.shade.artUrl)}" alt="">`;
         node.title = enemy.shade.name || '';
     }
 
