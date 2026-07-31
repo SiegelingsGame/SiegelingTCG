@@ -1055,8 +1055,8 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=48")
-                        && keepHtml.contains("/js/keep.js?v=47")
+                        && keepHtml.contains("/css/keep.css?v=49")
+                        && keepHtml.contains("/js/keep.js?v=48")
                         && keepHtml.contains("id=\"hallFavoriteResident\"")
                         && keepHtml.contains("id=\"productionReady\"")
                         && keepJs.contains("constructionBannerSignature")
@@ -1135,6 +1135,10 @@ class GameJavaScriptRegressionTest {
                         && keepJs.contains("combatRatePerMinute")
                         && keepJs.contains("defeatsThisVisit")
                         && keepCss.contains(".front-raider-health")
+                        && keepHtml.contains("class=\"raider-art\"><span class=\"front-raider-health\"")
+                        && keepJs.contains("art.innerHTML = `<span class=\"front-raider-health\"")
+                        && keepCss.contains(".front-raiders i .raider-art svg { display: block; width: 100%; height: auto;")
+                        && keepCss.contains("top: -9px;")
                         && keepCss.contains(".front-projectile::after")
                         && keepCss.contains(".front-coin-burst.is-visible"),
                 "Akhar's Front combat must march health-bearing dark Siegelings toward the wall, fire elemental projectiles, and surface a coin award for every defeat."
