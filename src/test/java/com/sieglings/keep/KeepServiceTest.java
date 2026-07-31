@@ -1025,6 +1025,55 @@ class KeepServiceTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void weeklyOrderDoesNotCreditGoldWhenKeepSaveFails() {
+        service.getSnapshot(user);
+        store.state.getFacilityLevels().put("kitchen", 1);
+        store.state.getFacilityLastAccruedAt().put("kitchen", clock.instant());
+        for (String materialId : List.of("verdant_fiber", "ember_ingot", "frost_crystal", "storm_cell", "stone", "provisions")) {
+            store.state.getMaterialInventory().put(materialId, 60);
+        }
+        Map<String, Object> snapshot = service.getSnapshot(user);
+        Map<String, Object> order = (Map<String, Object>) snapshot.get("weeklyOrder");
+        List<Map<String, Object>> requirements = (List<Map<String, Object>>) order.get("requirements");
+        assertFalse(requirements.isEmpty());
+
+        int goldBefore = progression.getGold();
+        int remnantsBefore = progression.getRemnants();
+        java.util.concurrent.atomic.AtomicInteger progressionSaves = new java.util.concurrent.atomic.AtomicInteger();
+        service.setProgressionStore(new PlayerProgressionStore() {
+            @Override public PlayerProgressionEntity save(PlayerProgressionEntity entity) {
+                progressionSaves.incrementAndGet();
+                return entity;
+            }
+        });
+        store.failNextSave = true;
+
+        assertThrows(IllegalStateException.class,
+                () -> service.claimReward(user, "weekly_order", "order-fail", store.state.getVersion()));
+        assertEquals(goldBefore, progression.getGold(),
+                "Weekly-order Siegecoins must not mint before Keep persists the spent materials.");
+        assertEquals(remnantsBefore, progression.getRemnants());
+        assertTrue(progression.getKeepRewardClaimIds().stream().noneMatch(id -> id.startsWith("weekly_order:")),
+                "The claim marker must not land without the Keep spend.");
+        assertEquals(0, progressionSaves.get());
+
+        // Simulate Cloud Run reload: Firestore still has the unspent materials and no claim.
+        for (String materialId : List.of("verdant_fiber", "ember_ingot", "frost_crystal", "storm_cell", "stone", "provisions")) {
+            store.state.getMaterialInventory().put(materialId, 60);
+        }
+        store.failNextSave = false;
+
+        Map<String, Object> claimed = service.claimReward(user, "weekly_order", "order-retry", store.state.getVersion());
+        assertTrue(progression.getGold() > goldBefore);
+        assertEquals(1, progressionSaves.get());
+        Map<String, Object> orderAfter = (Map<String, Object>) claimed.get("weeklyOrder");
+        assertEquals(Boolean.TRUE, orderAfter.get("claimed"));
+        assertTrue(((List<Map<String, Object>>) orderAfter.get("requirements")).stream()
+                .allMatch(item -> ((Number) item.get("have")).intValue() < 60));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void keeperBlockExposesFreeTrackChaptersAndLevels() {
         Map<String, Object> keeper = (Map<String, Object>) service.getSnapshot(user).get("keeper");
         assertNotNull(keeper);
