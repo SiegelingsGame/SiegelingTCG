@@ -1055,8 +1055,8 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=49")
-                        && keepHtml.contains("/js/keep.js?v=48")
+                        && keepHtml.contains("/css/keep.css?v=50")
+                        && keepHtml.contains("/js/keep.js?v=49")
                         && keepHtml.contains("id=\"hallFavoriteResident\"")
                         && keepHtml.contains("id=\"productionReady\"")
                         && keepJs.contains("constructionBannerSignature")
@@ -1123,6 +1123,16 @@ class GameJavaScriptRegressionTest {
                         && keepCss.contains("@keyframes front-torch-flicker")
                         && keepCss.contains(".keep-app.front-view-active .front-battle { display: block;"),
                 "Akhar's Front must remain a compact map destination, reveal its responsive night battle and torches only after entry, name occupied reassignment locations, and provide a tested route back to the Keep grounds."
+        );
+        assertTrue(
+                keepHtml.contains("data-front-src=\"/audio/sieglings-battle-theme.mp3?v=1\"")
+                        && Files.exists(Path.of("src/main/resources/static/audio/sieglings-battle-theme.mp3"))
+                        && keepJs.contains("function syncMusicForLocation()")
+                        && keepJs.contains("track: state.frontView ? 'battle' : 'keep'")
+                        && keepCss.contains(".front-view-toolbar { top: calc(52px + var(--safe-top));")
+                        && !keepCss.contains(".keep-app.front-view-active .keep-resource-bar")
+                        && !keepCss.contains(".keep-app.front-view-active .keep-header-actions"),
+                "The Wall must retain the complete Keep HUD, place its phone toolbar below the resources, and switch the shared music control to the supplied battle theme."
         );
         assertTrue(
                 keepHtml.contains("data-front-raider=\"0\"")

@@ -1,0 +1,69 @@
+{
+  "serverTime": "2026-07-31T18:00:00.000Z",
+  "stateVersion": 1,
+  "keepName": "Roc's Keep",
+  "chapter": { "id": "wounded_ground", "number": 1, "title": "The Wounded Ground" },
+  "resources": {
+    "timber": 500,
+    "timberCapacity": 600,
+    "materialCapacity": 200,
+    "materials": [
+      { "id": "verdant_fiber", "amount": 420, "capacity": 800 },
+      { "id": "ember_ingot", "amount": 375, "capacity": 800 },
+      { "id": "frost_crystal", "amount": 360, "capacity": 800 },
+      { "id": "storm_cell", "amount": 340, "capacity": 800 }
+    ],
+    "gold": 2530,
+    "remnants": 0
+  },
+  "station": { "id": "woodlot", "name": "Restorative Woodlot", "level": 2, "available": 0, "storageCapacity": 200, "ratePerMinute": 1, "residentId": "", "resident": null, "resource": "TIMBER", "resourceName": "Timber", "affinities": ["EARTH"] },
+  "stations": [],
+  "residents": [],
+  "siegelingSlots": { "active": 14, "capacity": 15, "available": 1 },
+  "constructionTeams": { "active": 0, "capacity": 2, "available": 2 },
+  "buildings": [
+    { "id": "great_hall", "level": 5, "status": "COMPLETE" },
+    { "id": "woodlot", "level": 2, "status": "COMPLETE" },
+    { "id": "akhars_front", "level": 2, "status": "COMPLETE" }
+  ],
+  "buildOptions": [],
+  "activeConstructions": [],
+  "constructionSlots": 2,
+  "visualState": { "archiveRestored": true, "woodlotLevel": 2, "healingStage": 3, "hallLevel": 5, "hallTheme": "covenant", "akharsFrontLevel": 2 },
+  "keepRank": { "level": 5, "maxLevel": 8, "name": "Walled Keep" },
+  "keeper": { "level": 9, "xp": 1750, "levels": [] },
+  "favorite": {},
+  "enclave": { "built": false, "slots": [] },
+  "akharsFront": {
+    "built": true,
+    "level": 2,
+    "capacity": 2,
+    "residentCount": 0,
+    "available": 23,
+    "storageCapacity": 360,
+    "ratePerMinute": 1,
+    "passiveRatePerMinute": 1,
+    "combatRatePerMinute": 0,
+    "coinsPerDefeat": 1,
+    "wallName": "Stone Rampart",
+    "slots": [
+      { "slot": 0, "residentId": "", "resident": null },
+      { "slot": 1, "residentId": "", "resident": null }
+    ],
+    "raiders": []
+  },
+  "hallThemes": [],
+  "lore": [],
+  "unreadLoreCount": 0,
+  "availableConversations": [],
+  "relationships": [],
+  "choiceFlags": [],
+  "keepEvents": { "catalogSize": 20 },
+  "recipes": [],
+  "decorations": [],
+  "placedDecorations": {},
+  "milestones": [],
+  "weeklyTribute": {},
+  "weeklyOrder": {},
+  "progressionReady": true
+}
