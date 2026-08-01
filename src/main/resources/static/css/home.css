@@ -8645,6 +8645,13 @@ body.gacha-active {
     overflow-y: auto;
     margin-top: 0;
     padding: 10px 10px 12px;
+    /* Unlike the binder grid this one is a scroll container with a definite
+       height, so `auto` rows resolve to each tile's min-content. Framed card
+       tiles carry their whole height through aspect-ratio on a percentage-width
+       slot whose innards are absolutely positioned, so that min-content is 0 —
+       every framed row collapsed and only legacy shell tiles stayed visible. */
+    grid-auto-rows: max-content;
+    align-content: start;
 }
 
 .card-tile.preview-focused {
