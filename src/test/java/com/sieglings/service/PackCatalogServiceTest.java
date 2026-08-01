@@ -154,6 +154,35 @@ class PackCatalogServiceTest {
     }
 
     @Test
+    void gameplayElementOrderKeepsWaterAfterTheMainFour() {
+        assertEquals(
+                List.of(
+                        Element.FIRE, Element.ICE, Element.EARTH, Element.WIND, Element.WATER,
+                        Element.SHADOW, Element.ELECTRIC, Element.METAL, Element.UNDEAD, Element.PSYCHIC
+                ),
+                LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER
+        );
+    }
+
+    @Test
+    void elementStarterPacksFollowGameplayElementOrderWithWaterAfterWind() throws Exception {
+        PackCatalogService service = createService(new AllLiveElementsCardDefinitions());
+
+        List<String> starterIds = service.listPacks().stream()
+                .filter(PackCatalogService.PackDefinition::starterEligible)
+                .map(PackCatalogService.PackDefinition::id)
+                .toList();
+
+        assertEquals(
+                List.of("pack_fire", "pack_ice", "pack_earth", "pack_wind", "pack_water",
+                        "pack_shadow", "pack_electric", "pack_metal", "pack_undead", "pack_psychic"),
+                starterIds
+        );
+        assertTrue(starterIds.indexOf("pack_water") > starterIds.indexOf("pack_wind"),
+                "Water must sort after Wind, not between the main four");
+    }
+
+    @Test
     void deactivatedPacksLeaveTheShopListingButStillResolveWithAClearError() throws Exception {
         PackAvailabilityCatalogService availability = inMemoryAvailability();
         PackCatalogService service = createService(new FireOnlyCardDefinitions(), availability);
@@ -221,6 +250,25 @@ class PackCatalogServiceTest {
                         "in-memory", false, updatedByEmail, null);
             }
         };
+    }
+
+    private static class AllLiveElementsCardDefinitions extends CardDefinitionService {
+        @Override
+        public List<String> getActiveLiveElementNames() {
+            return LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER.stream()
+                    .map(Enum::name)
+                    .toList();
+        }
+
+        @Override
+        public List<Card> getDeckBuilderCatalog() {
+            return List.of();
+        }
+
+        @Override
+        public List<TrainerCard> getTrainerOptions() {
+            return List.of();
+        }
     }
 
     private static class FireOnlyCardDefinitions extends CardDefinitionService {

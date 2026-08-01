@@ -173,7 +173,7 @@
     const ENERGY_COST_FILTERS = ['ALL', 'FREE', '1', '2', '3', '4', '5+'];
     const NOTCH_DIRECTIONS = ['TOP_LEFT', 'TOP', 'TOP_RIGHT', 'LEFT', 'RIGHT', 'BOTTOM_LEFT', 'BOTTOM', 'BOTTOM_RIGHT'];
     const DECK_ASSET_KEYS = [
-        'FIRE', 'ICE', 'WATER', 'EARTH', 'WIND', 'SHADOW',
+        'FIRE', 'ICE', 'EARTH', 'WIND', 'WATER', 'SHADOW',
         'ELECTRIC', 'METAL', 'UNDEAD', 'PSYCHIC', 'POISON', 'LIGHT'
     ];
     // Element defaults for hub decks, shop packs, and profile card backs.

@@ -76,7 +76,7 @@ let previewCardScaleFrame = null;
 let framedSummaryFitFrame = null;
 let siegeKnightCardFitFrame = null;
 const DECK_ART_ASSET_KEYS = [
-    'FIRE', 'ICE', 'WATER', 'EARTH', 'WIND', 'SHADOW',
+    'FIRE', 'ICE', 'EARTH', 'WIND', 'WATER', 'SHADOW',
     'ELECTRIC', 'METAL', 'UNDEAD', 'PSYCHIC', 'POISON', 'LIGHT'
 ];
 // Bump with home.js ELEMENTAL_CARD_BACK_VERSION when default card-back art changes.
@@ -921,9 +921,9 @@ if (typeof window.matchMedia === 'function') {
 const ENERGY_ORDER = [
     ['fire', 'Fire'],
     ['ice', 'Ice'],
-    ['water', 'Water'],
     ['earth', 'Earth'],
     ['wind', 'Wind'],
+    ['water', 'Water'],
     ['shadow', 'Shadow'],
     ['electric', 'Electric'],
     ['metal', 'Metal'],
