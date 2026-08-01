@@ -326,7 +326,7 @@ class GameJavaScriptRegressionTest {
                 "Profile trim styles for battle preview, social shrink, and favorite card art must ship in home.css."
         );
         assertTrue(
-                homeMarkup.contains("home.js?v=126") && homeMarkup.contains("home.css?v=120"),
+                homeMarkup.contains("home.js?v=128") && homeMarkup.contains("home.css?v=120"),
                 "Cache-bust pins for the profile dashboard trim must advance on home.html."
         );
     }
@@ -355,7 +355,7 @@ class GameJavaScriptRegressionTest {
         );
         assertTrue(
                 homeMarkup.contains("home.css?v=120")
-                        && homeMarkup.contains("home.js?v=126")
+                        && homeMarkup.contains("home.js?v=128")
                         && dashboardMarkup.contains("home.css?v=120"),
                 "Profile icon CSS and JavaScript cache pins must advance together."
         );
@@ -389,11 +389,11 @@ class GameJavaScriptRegressionTest {
         String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
         assertTrue(
                 homeMarkup.contains("style.css?v=217")
-                        && homeMarkup.contains("game.js?v=220")
+                        && homeMarkup.contains("game.js?v=221")
                         && homeMarkup.contains("card-binder-visual.js?v=20")
-                        && homeMarkup.contains("home.js?v=126")
+                        && homeMarkup.contains("home.js?v=128")
                         && playMarkup.contains("style.css?v=217")
-                        && playMarkup.contains("game.js?v=220")
+                        && playMarkup.contains("game.js?v=221")
                         && dashboardMarkup.contains("style.css?v=217")
                         && dashboardMarkup.contains("card-binder-visual.js?v=20"),
                 "Every surface must advance its cache pins with the complete painted-notch set."
@@ -471,7 +471,7 @@ class GameJavaScriptRegressionTest {
         String shopValidator = extractFunction(homeScript, "function isValidShopPacksPayload(data)");
 
         assertTrue(
-                homeScript.contains("fetchCachedJson('shopPacks', '/api/shop/packs', STATIC_CACHE_TTL_MS, isValidShopPacksPayload)"),
+                homeScript.contains("fetchCachedJson('shopPacks', '/api/shop/packs', PACK_CACHE_TTL_MS, isValidShopPacksPayload)"),
                 "Shop packs must use a validator so an empty cached payload cannot pin the Shop to No packs available."
         );
         assertTrue(
