@@ -1677,6 +1677,82 @@ textarea {
     }
 }
 
+/* The Store page is two full-width stacked panels, not the three-column
+   browser/editor/preview split the card pages use — both tables are wide. */
+#shopWorkspace {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.pack-availability-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.pack-availability-table-wrap {
+    overflow-x: auto;
+}
+
+.pack-availability-table {
+    min-width: 640px;
+}
+
+.pack-availability-table th,
+.pack-availability-table td {
+    vertical-align: top;
+}
+
+.pack-availability-table strong {
+    display: block;
+}
+
+.pack-availability-id {
+    display: block;
+    font-size: 11.5px;
+    opacity: 0.6;
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+
+.pack-availability-desc {
+    display: block;
+    font-size: 11.5px;
+    opacity: 0.75;
+    max-width: 340px;
+    margin-top: 4px;
+}
+
+/* Deactivated rows stay legible but obviously "off" at a glance. */
+.pack-availability-row.is-inactive td {
+    opacity: 0.55;
+}
+
+.pack-availability-toggle-cell {
+    white-space: nowrap;
+}
+
+.pack-availability-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+
+.pack-availability-toggle input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent, #6fa8ff);
+}
+
+@media (max-width: 720px) {
+    .pack-availability-table {
+        min-width: 560px;
+    }
+
+    .pack-availability-desc {
+        max-width: 220px;
+    }
+}
+
 .live-element-toggle-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));

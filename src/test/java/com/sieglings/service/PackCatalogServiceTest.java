@@ -1,5 +1,7 @@
 package com.sieglings.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sieglings.model.Ability;
 import com.sieglings.model.Card;
 import com.sieglings.model.SieglingCard;
@@ -17,9 +19,12 @@ import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PackCatalogServiceTest {
@@ -148,16 +153,74 @@ class PackCatalogServiceTest {
         assertTrue(knight.price() > siegling.price(), "Knights should cost more than same-day Siegling buys");
     }
 
+    @Test
+    void deactivatedPacksLeaveTheShopListingButStillResolveWithAClearError() throws Exception {
+        PackAvailabilityCatalogService availability = inMemoryAvailability();
+        PackCatalogService service = createService(new FireOnlyCardDefinitions(), availability);
+        assertTrue(service.listAvailablePacks().stream().anyMatch(pack -> pack.id().equals("pack_fire")));
+
+        availability.setActive("pack_fire", false, "editor@example.com");
+
+        assertTrue(service.listAvailablePacks().stream().noneMatch(pack -> pack.id().equals("pack_fire")),
+                "a deactivated pack must not be offered in the shop");
+        assertTrue(service.serializePacks().stream().noneMatch(row -> "pack_fire".equals(row.get("id"))));
+        // It stays in the full listing (dashboard) so it can be switched back on.
+        PackCatalogService.PackDefinition stored = service.findPack("pack_fire").orElseThrow();
+        assertFalse(stored.active());
+        assertTrue(service.serializeAllPacks().stream().anyMatch(row -> "pack_fire".equals(row.get("id"))));
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> service.openPack("pack_fire", false));
+        assertEquals("That pack is not currently available.", ex.getMessage());
+
+        availability.setActive("pack_fire", true, "editor@example.com");
+        assertTrue(service.listAvailablePacks().stream().anyMatch(pack -> pack.id().equals("pack_fire")));
+    }
+
     private PackCatalogService createService() throws Exception {
         return createService(new NeutralDropCardDefinitions());
     }
 
     private PackCatalogService createService(CardDefinitionService cardDefinitionService) throws Exception {
+        return createService(cardDefinitionService, null);
+    }
+
+    private PackCatalogService createService(CardDefinitionService cardDefinitionService,
+                                             PackAvailabilityCatalogService availability) throws Exception {
         PackCatalogService service = new PackCatalogService();
         Field field = PackCatalogService.class.getDeclaredField("cardDefinitionService");
         field.setAccessible(true);
         field.set(service, cardDefinitionService);
+        if (availability != null) {
+            Field availabilityField = PackCatalogService.class.getDeclaredField("packAvailabilityCatalogService");
+            availabilityField.setAccessible(true);
+            availabilityField.set(service, availability);
+        }
         return service;
+    }
+
+    /** Availability service backed by an in-memory JsonNode instead of Firestore or a project file. */
+    static PackAvailabilityCatalogService inMemoryAvailability() {
+        ObjectMapper objectMapper = new ObjectMapper();
+        CardOverrideStorageService storage = new CardOverrideStorageService(
+                objectMapper, false, "", "", "(default)", "appConfig", "cardOverrides"
+        );
+        AtomicReference<JsonNode> holder = new AtomicReference<>(
+                objectMapper.valueToTree(new PackAvailabilityCatalogService.PackAvailabilityFile(List.of()))
+        );
+        return new PackAvailabilityCatalogService(objectMapper, storage, "appConfig", "packAvailability") {
+            @Override
+            public LoadSnapshot loadSnapshot() {
+                return new LoadSnapshot(holder.get(), CardOverrideStorageService.StorageBackend.CLASSPATH_RESOURCE,
+                        "in-memory", false, null, null);
+            }
+
+            @Override
+            public LoadSnapshot saveSnapshot(JsonNode data, String updatedByEmail) {
+                holder.set(data);
+                return new LoadSnapshot(data, CardOverrideStorageService.StorageBackend.CLASSPATH_RESOURCE,
+                        "in-memory", false, updatedByEmail, null);
+            }
+        };
     }
 
     private static class FireOnlyCardDefinitions extends CardDefinitionService {
