@@ -278,7 +278,7 @@ public class CardOverrideEditorService {
                 effect(AbilityEffectKeys.PLAYER_DAMAGE, "Player Damage", "Deals direct damage to the opposing player.", List.of("ENEMY_PLAYER")),
                 effect(AbilityEffectKeys.DRAW, "Draw", "Draws cards from the user's deck equal to the effect value.", List.of("SELF")),
                 effect(AbilityEffectKeys.HEAL, "Heal", "Restores health up to the target's max health.", List.of("SINGLE_ALLY", "ALL_ALLIES", "ROW_ALLIES", "ROW_SELECT_ALLIES", "SELF")),
-                effect(AbilityEffectKeys.SHIELD, "Shield", "Grants temporary shield health that absorbs damage before HP.", List.of("SINGLE_ALLY", "ALL_ALLIES", "ROW_ALLIES", "ROW_SELECT_ALLIES", "SELF")),
+                effect(AbilityEffectKeys.SHIELD, "Shield", "Grants temporary shield health that absorbs damage before HP.", List.of("SINGLE_ALLY", "ALL_ALLIES", "ROW_ALLIES", "ROW_SELECT_ALLIES", "SELF", "PASSIVE")),
                 effect(AbilityEffectKeys.FREEZE, "Freeze", "Applies the freeze status.", List.of("SINGLE_ENEMY", "ROW_ENEMIES", "ROW_SELECT_ENEMIES", "ALL_ENEMIES")),
                 effect(AbilityEffectKeys.SPEED_ZERO, "Speed Zero", "Sets effective Speed to 0 for the turn.", List.of("SINGLE_ENEMY", "ROW_ENEMIES", "ROW_SELECT_ENEMIES", "ALL_ENEMIES")),
                 effect(AbilityEffectKeys.SLOW, "Slow", "Reduces the resolved target's Speed by the effect value for the turn.", List.of("SINGLE_ENEMY", "ROW_ENEMIES", "ROW_SELECT_ENEMIES", "ALL_ENEMIES")),

@@ -500,6 +500,8 @@ public class BattleService {
             return switch (printed.getEffectType()) {
                 case AbilityEffectKeys.DAMAGE_BOOST, AbilityEffectKeys.HEALTH_BOOST, AbilityEffectKeys.SPEED_BOOST ->
                         TargetType.ALL_ALLIES;
+                // Shield passives are self-soak ("Still Waters"), not team auras.
+                case AbilityEffectKeys.SHIELD -> TargetType.SELF;
                 default -> TargetType.SINGLE_ALLY;
             };
         }
@@ -509,7 +511,9 @@ public class BattleService {
     private boolean isConnectedNetworkBuff(Ability ability) {
         return AbilityEffectKeys.CONNECTED_ALLIES_HEALTH_BOOST.equals(ability.getEffectType())
                 || AbilityEffectKeys.CONNECTED_ALLIES_DAMAGE_BOOST.equals(ability.getEffectType())
-                || AbilityEffectKeys.CONNECTED_ALLIES_SPEED_BOOST.equals(ability.getEffectType());
+                || AbilityEffectKeys.CONNECTED_ALLIES_SPEED_BOOST.equals(ability.getEffectType())
+                || AbilityEffectKeys.CONNECTED_ALLIES_SHIELD.equals(ability.getEffectType())
+                || AbilityEffectKeys.CONNECTED_ALLIES_SLOW.equals(ability.getEffectType());
     }
 
     private Ability applyAttackerDamageBonus(CardInstance attacker, Ability ability) {

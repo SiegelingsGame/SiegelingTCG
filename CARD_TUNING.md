@@ -116,6 +116,23 @@ Use `abilities` when you want a Siegling to have a full custom battle loadout wi
 }
 ```
 
+## Elemental move identities
+
+Shared battle moves live in `src/main/resources/cards/moves-pool.json`. Each live
+element keeps a 25-move kit (10 STANDARD / 10 SPECIALITY / 5 UTILITY):
+
+| Element | Identity | What the kit leans on |
+| --- | --- | --- |
+| Fire | Damage | Burst `damage`, ally `damage_boost` |
+| Earth | Sustain | `heal`, `health_boost`, connected health |
+| Wind | Speed | `speed_boost`, `move_link`, `speed_zero` |
+| Ice | Control | `freeze`, expensive execute `damage` |
+| Water | Flow | `draw` (cycle), `shield` (absorb), `slow` (erode), mid-curve wave `damage` |
+
+Water deliberately stays off Ice's hard lockdown (`freeze` / `speed_zero`) and Earth's
+permanent sustain (`heal` / `health_boost`). Temporary Shield soaks pressure; Slow
+shaves tempo without skipping a turn; Draw circulates hand resources.
+
 ## Notes
 
 - Use the existing card `id` to override a current Siegling.
@@ -123,6 +140,7 @@ Use `abilities` when you want a Siegling to have a full custom battle loadout wi
 - Set `"costAmount": 0` to clear a play cost.
 - `requiredElement` and `requiredEnergy` live on each ability, so different attacks on the same card can have different costs.
 - If you use `abilities`, that list becomes the Siegling's explicit battle ability loadout.
+- Prefer `moveIds` pointing at `moves-pool.json` entries when authoring new loadouts.
 - `ability.effectType` values should match the supported engine keys in `ABILITY_EFFECT_KEYS.md`.
 - `targetType` values come from `TargetType.java`, and notch directions come from `NotchDirection.java`.
 
