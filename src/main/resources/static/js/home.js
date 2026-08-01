@@ -78,6 +78,13 @@
     // from cache, and the cheap /api/game/catalog-version check revalidates it in
     // the background, re-downloading the full catalog only when it actually moved.
     const STATIC_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+    // The pack catalog is not really static: designers switch individual packs on
+    // and off from the dashboard (Shop > Pack Availability), and the live element
+    // roster adds or removes whole elemental packs. fetchCachedJson serves a fresh
+    // cache without revalidating, so the static TTL would hide those changes from
+    // returning players for a full day. Keep the payload cached long enough to
+    // still paint instantly, short enough that a toggle lands the same session.
+    const PACK_CACHE_TTL_MS = 10 * 60 * 1000;
     // Leaderboards change as matches finish today, so cache them briefly rather
     // than reusing the same snapshot for the full static TTL.
     const LEADERBOARD_CACHE_TTL_MS = 60 * 1000;
@@ -1408,7 +1415,7 @@
     async function loadAll() {
         const [options, packs, descriptions, profile, leaderboards, dailyMissions] = await Promise.all([
             fetchGameOptions(),
-            fetchCachedJson('shopPacks', '/api/shop/packs', STATIC_CACHE_TTL_MS, isValidShopPacksPayload),
+            fetchCachedJson('shopPacks', '/api/shop/packs', PACK_CACHE_TTL_MS, isValidShopPacksPayload),
             fetchCachedJson('creatureDescriptions', '/assets/creature-descriptions.json', STATIC_CACHE_TTL_MS),
             syncProfile(),
             fetchCachedJson('leaderboards', '/api/leaderboards', LEADERBOARD_CACHE_TTL_MS),
@@ -1637,7 +1644,7 @@
     async function ensurePacksLoaded(force = false) {
         if (!force && state.packs?.length) return true;
         if (force) clearCache('shopPacks');
-        const packs = await fetchCachedJson('shopPacks', '/api/shop/packs', STATIC_CACHE_TTL_MS, isValidShopPacksPayload);
+        const packs = await fetchCachedJson('shopPacks', '/api/shop/packs', PACK_CACHE_TTL_MS, isValidShopPacksPayload);
         return applyShopPacksPayload(packs);
     }
 
@@ -8065,7 +8072,7 @@
         if (options) {
             applyGameOptions(options);
         }
-        const packs = readCache('shopPacks', STATIC_CACHE_TTL_MS, isValidShopPacksPayload);
+        const packs = readCache('shopPacks', PACK_CACHE_TTL_MS, isValidShopPacksPayload);
         if (packs) applyShopPacksPayload(packs);
         const descriptions = readCache('creatureDescriptions', STATIC_CACHE_TTL_MS);
         if (descriptions) {

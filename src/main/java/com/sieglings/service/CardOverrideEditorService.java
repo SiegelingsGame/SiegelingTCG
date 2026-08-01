@@ -220,7 +220,8 @@ public class CardOverrideEditorService {
         ObjectNode live = objectMapper.createObjectNode();
         live.set("elements", objectMapper.valueToTree(liveElementCatalogService.buildEditorPayload()));
         data.set("liveElements", live);
-        data.set("packs", objectMapper.valueToTree(packCatalogService.serializePacks()));
+        // Editors need to see deactivated packs too, so they can switch them back on.
+        data.set("packs", objectMapper.valueToTree(packCatalogService.serializeAllPacks()));
         return data;
     }
 

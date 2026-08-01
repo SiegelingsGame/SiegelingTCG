@@ -266,6 +266,13 @@
             '<p>SiegeKnight (TRAINER) defaults start at <strong>300</strong> Siegecoins and scale up with rarity; Siegelings, spells, and traps use a lower rarity ladder. Overrides apply immediately to packs and daily card offers. Premade decks are priced separately and are not affected here.</p>'
     };
 
+    topics['pack-availability'] = {
+        title: 'Pack Availability',
+        html: '<p>Every pack this build ships is listed here. Unchecking <strong>Available</strong> removes that pack from the hub shop immediately — it can no longer be bought, opened in bulk, or picked as a starter — and re-checking it brings it straight back. Nothing about the pack\'s contents or price changes.</p>' +
+            '<p>A pack only appears in this list when <em>all</em> of its elements are live in the <strong>Live Elements</strong> roster. Turning an element off there hides its packs too (Water off hides both the Water pack and Stormtide), so check that page first if a pack you expect is missing.</p>' +
+            '<p>At least one pack, and at least one starter-eligible pack, must stay active — the shop cannot render an empty list and new accounts cannot finish onboarding without a starter. The hub caches the pack catalog in the browser for up to 24 hours, so returning players may keep seeing the previous list until their cache expires.</p>'
+    };
+
     topics['keep-tuning'] = {
         title: 'Keep Tuning',
         html: '<p>Every field on this page is an <strong>override</strong> of the value My Keep ships with. Blank means "use the shipped value", which is shown as each input\'s placeholder. Saving publishes to every live keep immediately.</p>' +

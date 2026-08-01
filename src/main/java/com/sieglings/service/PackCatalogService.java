@@ -75,6 +75,14 @@ public class PackCatalogService {
     @Autowired(required = false)
     private ShopPriceCatalogService shopPriceCatalogService;
 
+    @Autowired(required = false)
+    private PackAvailabilityCatalogService packAvailabilityCatalogService;
+
+    /**
+     * Every pack this build knows about, with {@code active} resolved from the dashboard
+     * availability overrides. Deactivated packs stay in this list so {@link #findPack} can
+     * still resolve them and report "not currently available" instead of "not found".
+     */
     public List<PackDefinition> listPacks() {
         List<PackDefinition> packs = new ArrayList<>();
         for (Element element : LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER) {
@@ -112,7 +120,28 @@ public class PackCatalogService {
                 true, 1200, activeElements, false));
         return packs.stream()
                 .filter(pack -> pack.elements().stream().map(Enum::name).allMatch(cardDefinitionService.getActiveLiveElementNames()::contains))
+                .map(this::applyAvailability)
                 .toList();
+    }
+
+    /** Packs a player may actually see and buy. */
+    public List<PackDefinition> listAvailablePacks() {
+        return listPacks().stream().filter(PackDefinition::active).toList();
+    }
+
+    private PackDefinition applyAvailability(PackDefinition pack) {
+        if (packAvailabilityCatalogService == null || packAvailabilityCatalogService.isActive(pack.id())) {
+            return pack;
+        }
+        return new PackDefinition(
+                pack.id(),
+                pack.name(),
+                pack.description(),
+                false,
+                pack.price(),
+                pack.elements(),
+                pack.starterEligible()
+        );
     }
 
     public Optional<PackDefinition> findPack(String packId) {
@@ -224,7 +253,13 @@ public class PackCatalogService {
         return holo;
     }
 
+    /** Shop-facing listing: deactivated packs are omitted entirely. */
     public List<Map<String, Object>> serializePacks() {
+        return listAvailablePacks().stream().map(this::serializePack).toList();
+    }
+
+    /** Dashboard-facing listing: includes deactivated packs so they can be switched back on. */
+    public List<Map<String, Object>> serializeAllPacks() {
         return listPacks().stream().map(this::serializePack).toList();
     }
 
