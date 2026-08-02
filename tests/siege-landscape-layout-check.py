@@ -13,7 +13,9 @@ import sys
 import threading
 from playwright.sync_api import sync_playwright
 
-ROOT = r"A:\New folder\OneDrive\Desktop\Sieglings\siege-fullscreen-desktop"
+# Derived from this file's location, not hardcoded: the repo is checked out as
+# several git worktrees and a pinned path silently verifies the wrong one.
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATIC = os.path.join(ROOT, "src", "main", "resources", "static")
 OUT = os.path.join(ROOT, "output", "web-game", "siege-desktop-landscape")
 CHROME = os.path.expandvars(

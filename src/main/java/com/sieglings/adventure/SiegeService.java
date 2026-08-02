@@ -778,6 +778,7 @@ public class SiegeService {
         m.put("side", c.getSide().name());
         m.put("knight", c.isKnight());
         m.put("artUrl", c.getArtUrl());
+        m.put("shadeOf", c.getShadeOf());
         m.put("maxHp", c.getMaxHp());
         m.put("hp", c.getHp());
         m.put("shield", c.getShield());
@@ -865,6 +866,9 @@ public class SiegeService {
         c.addAttackBuff(intVal(m.get("attackBuff"), 0));
         c.setPosition(intVal(m.get("position"), -1));
         c.setSourceCardId(m.get("sourceCardId") == null ? null : String.valueOf(m.get("sourceCardId")));
+        // Without this a run resumed mid-battle keeps the shade's art and "Shade of X"
+        // name but loses the badge, so the same foe renders differently after a reload.
+        c.setShadeOf(m.get("shadeOf") == null ? null : String.valueOf(m.get("shadeOf")));
         if (m.get("itemId") != null) c.setItemId(String.valueOf(m.get("itemId")));
         c.setApSpent(intVal(m.get("apSpent"), 0));
         if (m.get("evolvedFrom") instanceof Map) {
@@ -3625,6 +3629,7 @@ public class SiegeService {
         m.put("item", c.getItemId() == null ? null : serializeItem(content.findItem(c.getItemId())));
         m.put("alive", c.isAlive());
         m.put("artUrl", c.getArtUrl());
+        m.put("shadeOf", c.getShadeOf());
         m.put("position", c.getPosition());
         List<String> statuses = new ArrayList<>();
         for (StatusKind s : c.getStatuses().keySet()) statuses.add(s.name());

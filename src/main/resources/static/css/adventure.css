@@ -31,6 +31,11 @@ button{font-family:inherit;}
 .el-UNDEAD{--el:#8c78a0;} .el-PSYCHIC{--el:#c896ff;} .el-POISON{--el:#78dc50;} .el-LIGHT{--el:#fff0b0;}
 .el-NEUTRAL{--el:#95a5a6;}
 
+/* The enemy shade filter's <defs> carrier. It has no visual output of its own,
+   but a 0x0 inline SVG still takes part in layout on some engines — on the
+   battle screen, where the page must never scroll, that is a real hazard. */
+.siege-svg-defs{position:absolute; width:0; height:0; overflow:hidden; pointer-events:none;}
+
 /* app shell — viewport-fit=cover + env(safe-area-inset-*) keeps chrome out
    from under the notch / status bar on phones. */
 .siege-app{
@@ -921,11 +926,32 @@ body[data-screen="rewardScreen"] .siege-screen{
 }
 .sprite .sp-art img{max-height:calc(110px * var(--evo-scale,1)); max-width:100%; object-fit:contain; pointer-events:none; user-select:none;}
 .sprite.enemy .sp-art img{transform:scaleX(-1);}
+/* Siege foes are corrupted Siegelings — the server hands them real card art
+   (SiegeContentService#shadeCard) and this crushes it to the violet-black
+   cutout Akhar's raiders wear in the Keep, so the two surfaces read as the
+   same enemy. The declaration order matches keep.css `.front-raiders i
+   .raider-art img`: the drop-shadow chain is the fallback for browsers with no
+   SVG-filter support, and where the filter resolves it replaces the chain
+   outright rather than stacking with it. The rim shadows are the die-cut edge,
+   not decoration — without them a dark cutout disappears into a dark arena. */
+.sprite.enemy .sp-art img{
+  filter:
+    brightness(.26) saturate(.5) contrast(1.2)
+    drop-shadow(0 0 4px rgba(168, 107, 255, .55))
+    drop-shadow(1px 0 0 #120b1d) drop-shadow(-1px 0 0 #120b1d);
+}
+@supports (filter: url("#paper-siegling-shadow")) {
+  .sprite.enemy .sp-art img{ filter:url("#paper-siegling-shadow"); }
+}
 .sprite .sp-art-fallback span{
   font-size:calc(56px * var(--evo-scale,1)); opacity:.8;
   filter:drop-shadow(0 0 14px var(--el));
 }
-.sprite.enemy .sp-art-fallback span{filter:drop-shadow(0 0 14px var(--el)) grayscale(.2) brightness(.8);}
+/* No art on the card the shade was drawn from (or an empty catalog): the glyph
+   still has to read as corrupted rather than as a bright elemental icon. */
+.sprite.enemy .sp-art-fallback span{
+  filter:brightness(.42) saturate(.55) drop-shadow(0 0 12px rgba(168, 107, 255, .6));
+}
 @keyframes idlebob{0%,100%{transform:translateY(0);}50%{transform:translateY(-6px);}}
 .sprite .sp-shadow{
   width:64%; height:12px; margin:2px auto 0; border-radius:50%;
@@ -955,6 +981,12 @@ body[data-screen="rewardScreen"] .siege-screen{
 .sprite .sp-lvl{display:inline-block; font-size:9px; font-weight:800; line-height:1; padding:2px 3px; border-radius:4px;
   background:#22304a; color:#cfe0ff; margin-right:4px; vertical-align:middle;}
 .sprite .sp-lvl.up{background:#ffd066; color:#3a2c00; box-shadow:0 0 6px rgba(255,208,102,.7);}
+/* "Shade of X" as a badge + the creature's own name — see renderSpriteLine.
+   Violet to match the cutout the foe is wearing, and sized like .sp-lvl so ally
+   and enemy plates keep the same rhythm. */
+.sprite .sp-shade{display:inline-block; font-size:9px; font-weight:800; line-height:1; padding:2px 4px;
+  border-radius:4px; background:#2e1b4d; color:#d8a2ff; margin-right:4px; vertical-align:middle;
+  letter-spacing:.4px; text-transform:uppercase;}
 .sprite .sp-xpbar{height:3px; border-radius:2px; background:#0c1017; margin-top:3px; overflow:hidden;}
 .sprite .sp-xpfill{height:100%; background:linear-gradient(90deg,#5b8def,#8ab4ff); transition:width .35s;}
 .sprite .sp-tags{display:flex; gap:6px; justify-content:center; font-size:10px; color:var(--dim); margin-top:3px;}
@@ -1347,6 +1379,10 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
   .sprite .sp-art-fallback span{font-size:calc(38px * var(--evo-scale,1));}
   .sprite .sp-plate{padding:3px 5px 4px;}
   .sprite .sp-name{font-size:10px;}
+  /* The plate is barely wider than the sprite here, and badge + creature name
+     does not fit: the name is the half worth keeping, since the violet cutout
+     already says the foe is a shade. */
+  .sprite .sp-shade{display:none;}
   .foe-line,.ally-line{min-height:112px;}
 
   .battle-log{max-height:38px; min-height:24px; font-size:11px; padding:4px 10px; margin-top:6px;}
@@ -1764,6 +1800,9 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
   .sprite .sp-art-fallback span{ font-size:calc(var(--arena-sprite-art) * 0.62 * var(--evo-scale,1)); }
   .sprite .sp-plate{ padding:2px 6px 3px; margin-bottom:2px; }
   .sprite .sp-name{ font-size:var(--arena-name); }
+  /* Phone-sized plates cannot hold the badge and the creature's name; the
+     min-height:601px block below puts it back for tablet/desktop. */
+  .sprite .sp-shade{ display:none; }
 
   /* ---- Health + speed stretch across the top as one slim band ----
      Old layout stacked the knight/life plate ABOVE the speed strip in a
@@ -1889,6 +1928,7 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
     padding-inline:max(10px, 6vw, env(safe-area-inset-right,0px));
   }
   .sprite .sp-plate{ padding:4px 9px 5px; margin-bottom:4px; }
+  .sprite .sp-shade{ display:inline-block; }
   .sprite .sp-el{ font-size:11px; }
   .sprite .sp-tags{ font-size:11px; }
   .knight-plate{ padding:7px 11px 8px; }
