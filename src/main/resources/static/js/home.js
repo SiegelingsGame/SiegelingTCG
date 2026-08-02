@@ -418,6 +418,9 @@
         dailyTitleOffers: [],
         titleCatalog: [],
         shopPacksError: '',
+        // The pack catalog is fetched on boot, so the shop starts out loading.
+        // Cleared by applyShopPacksPayload once an attempt resolves either way.
+        shopPacksLoading: true,
         creatureDescriptions: {},
         rooms: [],
         selectedCardId: null,
@@ -1644,6 +1647,7 @@
     async function ensurePacksLoaded(force = false) {
         if (!force && state.packs?.length) return true;
         if (force) clearCache('shopPacks');
+        state.shopPacksLoading = true;
         const packs = await fetchCachedJson('shopPacks', '/api/shop/packs', PACK_CACHE_TTL_MS, isValidShopPacksPayload);
         return applyShopPacksPayload(packs);
     }
@@ -1853,11 +1857,11 @@
         return Boolean(state.token) && !state.profileSynced && !hasOwnedCardsSnapshot;
     }
 
-    function binderLoadingMarkup(label) {
-        return `<div class="binder-loading" role="status" aria-live="polite">
-            <span class="binder-loading-spinner" aria-hidden="true"></span>
+    function panelLoadingMarkup(label) {
+        return `<div class="panel-loading" role="status" aria-live="polite">
+            <span class="panel-loading-spinner" aria-hidden="true"></span>
             <strong>${escapeHtml(label)}</strong>
-            <span class="binder-loading-bar" aria-hidden="true"><span></span></span>
+            <span class="panel-loading-bar" aria-hidden="true"><span></span></span>
         </div>`;
     }
 
@@ -1869,7 +1873,7 @@
         // player — show explicit progress instead of a blank/empty panel.
         if (!state.options || ownedDataLoading()) {
             grid.setAttribute('aria-busy', 'true');
-            grid.innerHTML = binderLoadingMarkup('Loading your card binder…');
+            grid.innerHTML = panelLoadingMarkup('Loading your card binder…');
             if (allCount) allCount.textContent = 'Loading cards…';
             state._cardsRenderSig = '';
             return;
@@ -3201,7 +3205,7 @@
         // Catalog or owned decks still loading — show a spinner instead of an
         // empty grid that would imply the player has no decks.
         if (!state.options || ownedDataLoading()) {
-            grid.innerHTML = binderLoadingMarkup('Loading your decks…');
+            grid.innerHTML = panelLoadingMarkup('Loading your decks…');
             renderSavedDecks();
             return;
         }
@@ -3249,7 +3253,7 @@
         // than "No saved custom decks yet", which would be misleading mid-load.
         if (ownedDataLoading()) {
             if (count) count.textContent = '';
-            grid.innerHTML = binderLoadingMarkup('Loading your saved decks…');
+            grid.innerHTML = panelLoadingMarkup('Loading your saved decks…');
             return;
         }
         const savedDecks = state.profile?.savedDecks || [];
@@ -4002,9 +4006,29 @@
         return '<div class="unlock-card"><strong>No packs available</strong><span>Pack groups will appear here once the catalog loads.</span></div>';
     }
 
+    // Packs, daily card offers and daily titles all arrive in the one
+    // /api/shop/packs payload, and prices/Owned badges need the signed-in
+    // progression snapshot, so either gap means the shop cannot be trusted yet.
+    function shopDataLoading() {
+        if (state.shopPacksLoading && !state.packs.length) return true;
+        return Boolean(state.token) && !state.profileSynced && !state.progression;
+    }
+
     function renderShop() {
         const grid = document.getElementById('shopPackGrid');
         if (!grid) return;
+        const goldLabel = document.getElementById('shopGoldLabel');
+        // Catalog or progression still in flight — show explicit progress instead
+        // of an empty "No packs available" panel that reads like a dead shop.
+        if (shopDataLoading()) {
+            grid.setAttribute('aria-busy', 'true');
+            grid.innerHTML = panelLoadingMarkup('Loading the shop…');
+            if (goldLabel) goldLabel.textContent = 'Loading…';
+            renderShopCardPreviewModal();
+            renderHudTools();
+            return;
+        }
+        grid.setAttribute('aria-busy', 'false');
         const starterMode = state.profile?.authenticated && state.progression && !state.progression.starterChosen;
         const starterPacks = state.packs.filter(pack => pack.starterEligible);
         const packs = starterMode ? starterPacks : state.packs;
@@ -4023,7 +4047,7 @@
             <div class="shop-row-head"><div><span class="eyebrow">${starterMode ? 'Starter Pack' : 'Packs'}</span><h2>${starterMode ? 'Choose your first pack' : 'Elemental and type pulls'}</h2></div></div>
             ${packs.length ? packs.map(renderPackTile).join('') : renderShopPacksEmptyState()}
         `;
-        document.getElementById('shopGoldLabel').innerHTML = renderCoinAmount(state.progression?.gold || 0);
+        if (goldLabel) goldLabel.innerHTML = renderCoinAmount(state.progression?.gold || 0);
         renderShopCardPreviewModal();
         renderHudTools();
     }
@@ -8145,6 +8169,7 @@
     }
 
     function applyShopPacksPayload(data) {
+        state.shopPacksLoading = false;
         if (!isValidShopPacksPayload(data)) {
             if (data?.error) state.shopPacksError = data.error;
             else if (data) state.shopPacksError = 'The pack catalog returned no available packs.';
@@ -10361,6 +10386,9 @@
             return;
         }
         if (event.target.closest('[data-retry-shop-packs]')) {
+            state.shopPacksError = '';
+            state.shopPacksLoading = true;
+            renderShop();
             void ensurePacksLoaded(true).then(() => renderShop());
             return;
         }
