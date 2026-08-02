@@ -326,7 +326,7 @@ class GameJavaScriptRegressionTest {
                 "Profile trim styles for battle preview, social shrink, and favorite card art must ship in home.css."
         );
         assertTrue(
-                homeMarkup.contains("home.js?v=128") && homeMarkup.contains("home.css?v=120"),
+                homeMarkup.contains("home.js?v=129") && homeMarkup.contains("home.css?v=121"),
                 "Cache-bust pins for the profile dashboard trim must advance on home.html."
         );
     }
@@ -354,9 +354,9 @@ class GameJavaScriptRegressionTest {
                 "Element-mode profile and friend avatars must fill a circular frame."
         );
         assertTrue(
-                homeMarkup.contains("home.css?v=120")
-                        && homeMarkup.contains("home.js?v=128")
-                        && dashboardMarkup.contains("home.css?v=120"),
+                homeMarkup.contains("home.css?v=121")
+                        && homeMarkup.contains("home.js?v=129")
+                        && dashboardMarkup.contains("home.css?v=121"),
                 "Profile icon CSS and JavaScript cache pins must advance together."
         );
     }
@@ -388,13 +388,13 @@ class GameJavaScriptRegressionTest {
         String playMarkup = Files.readString(PLAY_HTML);
         String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
         assertTrue(
-                homeMarkup.contains("style.css?v=218")
-                        && homeMarkup.contains("game.js?v=222")
+                homeMarkup.contains("style.css?v=219")
+                        && homeMarkup.contains("game.js?v=223")
                         && homeMarkup.contains("card-binder-visual.js?v=20")
-                        && homeMarkup.contains("home.js?v=128")
-                        && playMarkup.contains("style.css?v=218")
-                        && playMarkup.contains("game.js?v=222")
-                        && dashboardMarkup.contains("style.css?v=218")
+                        && homeMarkup.contains("home.js?v=129")
+                        && playMarkup.contains("style.css?v=219")
+                        && playMarkup.contains("game.js?v=223")
+                        && dashboardMarkup.contains("style.css?v=219")
                         && dashboardMarkup.contains("card-binder-visual.js?v=20"),
                 "Every surface must advance its cache pins with the complete painted-notch set."
         );

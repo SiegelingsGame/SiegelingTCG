@@ -14,9 +14,14 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 @Service
@@ -25,6 +30,14 @@ public class PlayerProgressionService {
 
     public static final int STARTING_GOLD = 100;
     public static final int CUSTOM_DECK_UNLOCK_COPIES = 30;
+    /** Flat Siegecoin price for any premade deck that isn't free. */
+    public static final int PREMADE_DECK_PRICE = 500;
+    /**
+     * Premade decks built purely from these elements are free for everyone; the
+     * deck matching the player's starter pack element is free on top of them.
+     */
+    public static final Set<Element> FREE_DECK_ELEMENTS =
+            Collections.unmodifiableSet(EnumSet.of(Element.FIRE, Element.ICE, Element.EARTH, Element.WIND));
     public static final int SOLO_WIN_GOLD = 10;
     public static final int ONLINE_WIN_GOLD = 5;
     public static final int WIN_STREAK_GOLD = 2;
@@ -291,18 +304,71 @@ public class PlayerProgressionService {
         return saved;
     }
 
+    /**
+     * Premade decks the player can take into a match: the main-four elements are
+     * free for everyone, the starter pack's element comes with the starter
+     * choice, and anything else has to be bought.
+     */
+    public boolean isPremadeDeckUnlocked(PlayerProgressionEntity progression, CardDefinitionService.DeckOption deck) {
+        if (deck == null) {
+            return false;
+        }
+        if (progression != null && progression.getPurchasedDeckIds() != null
+                && progression.getPurchasedDeckIds().contains(deck.id())) {
+            return true;
+        }
+        return isFreePremadeDeck(progression, deck);
+    }
+
+    /** True when every element in the deck is free for this player (no purchase involved). */
+    public boolean isFreePremadeDeck(PlayerProgressionEntity progression, CardDefinitionService.DeckOption deck) {
+        List<Element> elements = deck == null ? null : deck.elements();
+        if (elements == null || elements.isEmpty()) {
+            return false;
+        }
+        return freeDeckElements(progression).containsAll(elements);
+    }
+
+    /** Guests and brand-new accounts (no starter yet) get the main four only. */
+    private Set<Element> freeDeckElements(PlayerProgressionEntity progression) {
+        EnumSet<Element> elements = EnumSet.copyOf(FREE_DECK_ELEMENTS);
+        Element starter = progression == null ? null : starterElementForPack(progression.getStarterPackId());
+        if (starter != null) {
+            elements.add(starter);
+        }
+        return elements;
+    }
+
+    /**
+     * Match-start gate. Unknown deck ids pass through so custom/legacy ids keep
+     * whatever handling they had; a null user is treated as a guest.
+     */
+    public boolean isPremadeDeckUnlockedForUser(AccountUser user, String deckId) {
+        CardDefinitionService.DeckOption deck = cardDefinitionService.getDeckOption(deckId).orElse(null);
+        if (deck == null) {
+            return true;
+        }
+        return isPremadeDeckUnlocked(user == null ? null : getOrCreate(user), deck);
+    }
+
+    public List<String> unlockedPremadeDeckIds(PlayerProgressionEntity progression) {
+        return cardDefinitionService.getDeckOptions().stream()
+                .filter(deck -> isPremadeDeckUnlocked(progression, deck))
+                .map(CardDefinitionService.DeckOption::id)
+                .toList();
+    }
+
     public PlayerProgressionEntity purchaseDeck(AccountUser user, String deckId) {
         PlayerProgressionEntity progression = getOrCreate(user);
         CardDefinitionService.DeckOption deck = cardDefinitionService.getDeckOption(deckId)
                 .orElseThrow(() -> new IllegalArgumentException("Deck not found."));
-        int price = deck.elements().size() <= 1 ? 300 : deck.elements().size() >= 4 ? 700 : 450;
-        if (progression.getPurchasedDeckIds().contains(deck.id())) {
+        if (progression.getPurchasedDeckIds().contains(deck.id()) || isFreePremadeDeck(progression, deck)) {
             return progression;
         }
-        if (progression.getGold() < price) {
+        if (progression.getGold() < PREMADE_DECK_PRICE) {
             throw new IllegalArgumentException("Not enough Siegecoins for that premade deck.");
         }
-        progression.setGold(progression.getGold() - price);
+        progression.setGold(progression.getGold() - PREMADE_DECK_PRICE);
         List<String> purchased = new ArrayList<>(progression.getPurchasedDeckIds());
         purchased.add(deck.id());
         progression.setPurchasedDeckIds(purchased);
@@ -525,6 +591,8 @@ public class PlayerProgressionService {
         out.put("starterPackId", progression.getStarterPackId());
         out.put("starterChosen", progression.getStarterPackId() != null && !progression.getStarterPackId().isBlank());
         out.put("purchasedDeckIds", progression.getPurchasedDeckIds());
+        out.put("unlockedDeckIds", unlockedPremadeDeckIds(progression));
+        out.put("premadeDeckPrice", PREMADE_DECK_PRICE);
         out.put("purchasedDailyOfferIds", progression.getPurchasedDailyOfferIds());
         out.put("packHistory", progression.getPackHistory().stream().limit(12).toList());
         out.put("soloWinStreak", progression.getSoloWinStreak());

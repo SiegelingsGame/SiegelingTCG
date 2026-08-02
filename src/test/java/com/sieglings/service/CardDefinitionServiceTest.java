@@ -31,6 +31,27 @@ class CardDefinitionServiceTest {
     private final CardDefinitionService cardDefinitions = new CardDefinitionService();
 
     @Test
+    void deckOptionsLeadWithTheMainFourElements() {
+        List<Element> leadingElements = cardDefinitions.getDeckOptions().stream()
+                .map(option -> option.elements().get(0))
+                .distinct()
+                .toList();
+
+        assertEquals(
+                List.of(Element.FIRE, Element.ICE, Element.EARTH, Element.WIND),
+                leadingElements.subList(0, 4),
+                "Fire, Ice, Earth, and Wind decks must come before Water and the rest."
+        );
+        assertIterableEquals(
+                LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER.stream()
+                        .filter(leadingElements::contains)
+                        .toList(),
+                leadingElements,
+                "Deck order follows the canonical roster order."
+        );
+    }
+
+    @Test
     void everyPresetDeckUsesBalancedPresetComposition() {
         Map<String, SieglingCard> sieglingsById = cardDefinitions.getDeckBuilderCatalog().stream()
                 .filter(SieglingCard.class::isInstance)

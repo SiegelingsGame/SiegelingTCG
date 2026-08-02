@@ -336,6 +336,74 @@ class PlayerProgressionServiceTest {
         assertEquals(Boolean.FALSE, rewards.get("guestPreview"));
     }
 
+    @Test
+    void mainFourDecksAreFreeAndEverythingElseStaysLocked() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setUserId("player@example.com");
+        store.saved = progression;
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        // No starter chosen yet: Fire / Ice / Earth / Wind only, including the
+        // multi-element deck built purely from them.
+        assertEquals(
+                List.of("deck_fire", "deck_ice", "deck_earth", "deck_wind", "deck_fire_earth"),
+                service.unlockedPremadeDeckIds(progression)
+        );
+    }
+
+    @Test
+    void starterPackElementUnlocksThatElementsDeck() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setUserId("player@example.com");
+        progression.setStarterPackId("pack_water");
+        store.saved = progression;
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        List<String> unlocked = service.unlockedPremadeDeckIds(progression);
+        assertTrue(unlocked.contains("deck_water"), "Water starter unlocks the Water deck.");
+        assertTrue(unlocked.contains("deck_water_wind"), "Water + Wind is all free elements for this player.");
+        assertTrue(!unlocked.contains("deck_shadow"), "Shadow still has to be bought.");
+    }
+
+    @Test
+    void lockedPremadeDeckCostsFiveHundredCoinsOnce() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setUserId("player@example.com");
+        progression.setStarterPackId("pack_fire");
+        progression.setGold(500);
+        store.saved = progression;
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        service.purchaseDeck(user(), "deck_water");
+        assertEquals(0, store.saved.getGold());
+        assertEquals(List.of("deck_water"), store.saved.getPurchasedDeckIds());
+
+        // Re-buying is a no-op rather than a second charge.
+        service.purchaseDeck(user(), "deck_water");
+        assertEquals(0, store.saved.getGold());
+        assertEquals(1, store.saved.getPurchasedDeckIds().size());
+    }
+
+    @Test
+    void freeDeckPurchaseNeverChargesAndShortCoinsAreRejected() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setUserId("player@example.com");
+        progression.setGold(499);
+        store.saved = progression;
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        service.purchaseDeck(user(), "deck_fire");
+        assertEquals(499, store.saved.getGold());
+        assertTrue(store.saved.getPurchasedDeckIds().isEmpty(), "Free decks are never recorded as purchases.");
+
+        assertThrows(IllegalArgumentException.class, () -> service.purchaseDeck(user(), "deck_shadow"));
+        assertEquals(499, store.saved.getGold());
+    }
+
     private PlayerProgressionService createService(PlayerProgressionStore store,
                                                    PackCatalogService packCatalogService,
                                                    CardDefinitionService cardDefinitionService) throws Exception {
@@ -436,6 +504,27 @@ class PlayerProgressionServiceTest {
     }
 
     private static class FakeCardDefinitionService extends CardDefinitionService {
+        private static final List<DeckOption> DECKS = List.of(
+                new DeckOption("deck_fire", "Blazing Core", "", List.of(Element.FIRE), "trainer02"),
+                new DeckOption("deck_ice", "Frostmarch", "", List.of(Element.ICE), "trainer09"),
+                new DeckOption("deck_earth", "Stone Garden", "", List.of(Element.EARTH), "trainer05"),
+                new DeckOption("deck_wind", "Gale Talons", "", List.of(Element.WIND), "trainer06"),
+                new DeckOption("deck_water", "Aquatic Overflow", "", List.of(Element.WATER), "trainer04"),
+                new DeckOption("deck_shadow", "Night Bloom", "", List.of(Element.SHADOW), "trainer07"),
+                new DeckOption("deck_fire_earth", "Ashen Roots", "", List.of(Element.FIRE, Element.EARTH), "trainer05"),
+                new DeckOption("deck_water_wind", "Stormtide", "", List.of(Element.WATER, Element.WIND), "trainer06")
+        );
+
+        @Override
+        public List<DeckOption> getDeckOptions() {
+            return DECKS;
+        }
+
+        @Override
+        public Optional<DeckOption> getDeckOption(String deckId) {
+            return DECKS.stream().filter(deck -> deck.id().equals(deckId)).findFirst();
+        }
+
         @Override
         public int getDeckBuilderMaxCopies() {
             return 3;

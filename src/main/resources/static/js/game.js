@@ -9168,10 +9168,39 @@ function returnToPlayMain() {
 }
 
 function selectDeckOption(deckId) {
+    if (isPremadeDeckLocked(gameOptions?.decks?.find((deck) => deck.id === deckId))) {
+        return;
+    }
     detachSavedDeckSelection();
     selectedDeckId = deckId;
     renderLoadoutOptions();
     updateLoadoutSummary();
+}
+
+// The main four elements are free for everyone and the starter pack's element
+// comes with the starter choice; everything else is bought in Decks. The
+// backend is the authority (progression.unlockedDeckIds) and rejects locked
+// decks at match start — this mirror keeps the picker honest.
+const FREE_DECK_ELEMENTS = new Set(['FIRE', 'ICE', 'EARTH', 'WIND']);
+
+function isPremadeDeckLocked(deck) {
+    if (!deck) {
+        return false;
+    }
+    const unlocked = authState.profile?.progression?.unlockedDeckIds;
+    if (Array.isArray(unlocked)) {
+        return !unlocked.includes(deck.id);
+    }
+    return !(deck.elements || []).every((element) => FREE_DECK_ELEMENTS.has(String(element).toUpperCase()));
+}
+
+function premadeDeckPrice() {
+    return Number(authState.profile?.progression?.premadeDeckPrice) || 500;
+}
+
+/** First deck the player can actually take into a match. */
+function firstUnlockedDeckId() {
+    return (gameOptions?.decks || []).find((deck) => !isPremadeDeckLocked(deck))?.id || null;
 }
 
 function getOwnedTrainerIdSet() {
@@ -9883,7 +9912,13 @@ function renderLoadoutOptions() {
     const selectedDeck = gameOptions.decks.find(deck => deck.id === selectedDeckId);
     const recommendedTrainerIds = new Set(getRecommendedTrainerIdsForDeck(selectedDeck));
 
+    // A locked deck must never stay selected — the backend rejects it at match start.
+    if (isPremadeDeckLocked(gameOptions.decks.find(deck => deck.id === selectedDeckId))) {
+        selectedDeckId = firstUnlockedDeckId() || selectedDeckId;
+    }
+
     deckEl.innerHTML = gameOptions.decks.map(deck => {
+        const locked = isPremadeDeckLocked(deck);
         const selected = deck.id === selectedDeckId ? ' selected' : '';
         const bg = buildDeckBackground(deck.elements);
         const borderColor = buildDeckBorderColors(deck.elements);
@@ -9903,15 +9938,17 @@ function renderLoadoutOptions() {
         const faceSigils = deckArt ? '' : buildDeckFaceSigils(deck.elements);
         const artStyle = deckArt?.back ? `;--deck-art:url('${deckArt.back}')` : '';
 
-        return `<button type="button" class="deck-card${selected} ${elClasses}${deckArt ? ' has-deck-art' : ''}" style="--deck-bg:${bg};--deck-border:${borderColor};--deck-accent:${primaryHex};--deck-glow:${hexToRgba(primaryHex, 0.28)};--deck-glow-strong:${hexToRgba(primaryHex, 0.58)}${artStyle}" onclick="selectDeckOption('${deck.id}')" aria-pressed="${deck.id === selectedDeckId ? 'true' : 'false'}">
+        return `<button type="button" class="deck-card${selected} ${elClasses}${deckArt ? ' has-deck-art' : ''}${locked ? ' is-locked' : ''}" style="--deck-bg:${bg};--deck-border:${borderColor};--deck-accent:${primaryHex};--deck-glow:${hexToRgba(primaryHex, 0.28)};--deck-glow-strong:${hexToRgba(primaryHex, 0.58)}${artStyle}" ${locked ? 'disabled aria-disabled="true"' : `onclick="selectDeckOption('${deck.id}')"`} aria-pressed="${deck.id === selectedDeckId ? 'true' : 'false'}">
             <div class="deck-card-spine">${spineBands}</div>
             ${faceSigils}
-            <span class="deck-card-state">${deck.id === selectedDeckId ? 'Selected' : escapeHtml(deckTheme.playstyle)}</span>
+            <span class="deck-card-state">${locked ? 'Locked' : (deck.id === selectedDeckId ? 'Selected' : escapeHtml(deckTheme.playstyle))}</span>
             <div class="deck-card-body">
                 <span class="deck-card-name">${escapeHtml(deck.name)}</span>
                 <span class="deck-card-elements">${escapeHtml(elementLabels)}</span>
                 <span class="deck-card-desc">${escapeHtml(deckTheme.description || deck.description)}</span>
-                <span class="deck-card-tags">${traits.map(trait => `<span>${escapeHtml(trait)}</span>`).join('')}</span>
+                <span class="deck-card-tags">${locked
+                    ? `<span>Unlock for ${premadeDeckPrice()} Coin in Decks</span>`
+                    : traits.map(trait => `<span>${escapeHtml(trait)}</span>`).join('')}</span>
             </div>
         </button>`;
     }).join('');

@@ -215,10 +215,28 @@ public class CardDefinitionService {
                 .toList();
     }
 
+    /**
+     * Ordered so the four main elements (Fire, Ice, Earth, Wind) lead every deck
+     * list, with the rest following the canonical roster order. Preset data is
+     * dashboard-authored, so its stored order cannot be relied on for this.
+     */
     public List<DeckOption> getDeckOptions() {
         return loadPlayablePresetDeckDefinitions().stream()
                 .map(this::toDeckOption)
+                .sorted(Comparator
+                        .comparingInt((DeckOption deck) -> deckElementRank(deck.elements()))
+                        .thenComparingInt(deck -> deck.elements().size())
+                        .thenComparing(DeckOption::name, Comparator.nullsLast(String::compareToIgnoreCase)))
                 .toList();
+    }
+
+    /** Roster position of a deck's leading element; unknown elements sort last. */
+    private static int deckElementRank(List<Element> elements) {
+        if (elements == null || elements.isEmpty()) {
+            return Integer.MAX_VALUE;
+        }
+        int index = LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER.indexOf(elements.get(0));
+        return index < 0 ? Integer.MAX_VALUE : index;
     }
 
     /** Element names currently active for matchmaking / deck builder (from Firestore when configured). */

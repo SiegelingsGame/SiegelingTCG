@@ -3207,37 +3207,78 @@
         }
         grid.innerHTML = (state.options?.decks || []).map(renderPremadeDeckTile).join('');
         grid.querySelectorAll('[data-preview-deck]').forEach(tile => {
-            tile.addEventListener('click', () => {
-                state.selectedDeckId = tile.dataset.previewDeck || '';
-                openDeckPreview(tile.dataset.previewDeck);
+            const select = () => {
+                const deckId = tile.dataset.previewDeck || '';
+                // Locked decks still open their preview so the player can see
+                // what 500 Siegecoins buys, but they never become the active deck.
+                if (!isPremadeDeckLocked(findPremadeDeck(deckId))) {
+                    state.selectedDeckId = deckId;
+                }
+                openDeckPreview(deckId);
                 renderDecks();
-            });
+            };
+            tile.addEventListener('click', select);
             tile.addEventListener('keydown', (event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
-                    state.selectedDeckId = tile.dataset.previewDeck || '';
-                    openDeckPreview(tile.dataset.previewDeck);
-                    renderDecks();
+                    select();
                 }
+            });
+        });
+        grid.querySelectorAll('[data-unlock-deck]').forEach(btn => {
+            btn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                purchaseDeck(btn.dataset.unlockDeck || '');
             });
         });
         renderSavedDecks();
     }
 
+    // The main four are free for everyone; the starter pack's element comes with
+    // the starter choice. The backend is the authority (progression.unlockedDeckIds)
+    // — this list only covers the signed-out / not-yet-loaded case.
+    const FREE_DECK_ELEMENTS = new Set(['FIRE', 'ICE', 'EARTH', 'WIND']);
+
+    function premadeDeckPrice() {
+        return Number(state.progression?.premadeDeckPrice) || 500;
+    }
+
+    function findPremadeDeck(deckId) {
+        return (state.options?.decks || []).find(deck => deck.id === deckId) || null;
+    }
+
+    function isPremadeDeckLocked(deck) {
+        if (!deck) return false;
+        const unlocked = state.progression?.unlockedDeckIds;
+        if (Array.isArray(unlocked)) {
+            return !unlocked.includes(deck.id);
+        }
+        return !(deck.elements || []).every(element => FREE_DECK_ELEMENTS.has(String(element).toUpperCase()));
+    }
+
     function renderPremadeDeckTile(deck) {
-        const isSelected = state.selectedDeckId === deck.id;
+        const locked = isPremadeDeckLocked(deck);
+        const isSelected = !locked && state.selectedDeckId === deck.id;
         const primary = deck.elements?.[0] || 'FIRE';
         const accent = elementColor(primary);
         const elementLabels = deck.elements.map(format).join(' / ');
         const visual = deckAssetForElements(deck.elements);
         const artStyle = visual?.back ? `;--deck-art:url('${visual.back}')` : '';
-        return `<article class="deck-tile hub-deck-card deck-tile--clickable${isSelected ? ' is-selected' : ''}${visual ? ' has-deck-art' : ''}" data-preview-deck="${escapeAttr(deck.id)}" role="button" tabindex="0" aria-selected="${isSelected}" style="--deck-accent:${accent};--deck-bg:${deckGradient(deck.elements)}${artStyle}">
-            <span class="deck-card-state">Premade</span>
+        const price = premadeDeckPrice();
+        const affordable = Number(state.progression?.gold || 0) >= price;
+        const unlockRow = locked
+            ? `<div class="deck-card-actions deck-unlock-row">
+                <button class="primary-btn deck-unlock-btn" type="button" data-unlock-deck="${escapeAttr(deck.id)}"${affordable ? '' : ' disabled'}>Unlock ${price} Coin</button>
+            </div>`
+            : '';
+        return `<article class="deck-tile hub-deck-card deck-tile--clickable${isSelected ? ' is-selected' : ''}${locked ? ' is-locked' : ''}${visual ? ' has-deck-art' : ''}" data-preview-deck="${escapeAttr(deck.id)}" role="button" tabindex="0" aria-selected="${isSelected}" style="--deck-accent:${accent};--deck-bg:${deckGradient(deck.elements)}${artStyle}">
+            <span class="deck-card-state">${locked ? 'Locked' : 'Premade'}</span>
             <div class="deck-card-body">
                 <strong class="deck-card-name">${escapeHtml(deck.name)}</strong>
                 <span class="deck-card-elements">${escapeHtml(elementLabels)}</span>
                 <span class="deck-card-desc">${escapeHtml(deck.description || 'Ready-to-play battle deck.')}</span>
             </div>
+            ${unlockRow}
         </article>`;
     }
 
@@ -7572,9 +7613,14 @@
 
     async function purchaseDeck(deckId) {
         if (!state.profile?.authenticated) return openAuth();
+        const deck = findPremadeDeck(deckId);
+        if (!deck || !isPremadeDeckLocked(deck)) return;
+        const price = premadeDeckPrice();
+        if (!confirm(`Unlock ${deck.name} for ${price} Siegecoins?`)) return;
         const data = await fetchJson('/api/shop/purchase-deck', { method: 'POST', body: JSON.stringify({ deckId }) });
         if (data?.error) return alert(data.error);
         state.progression = data.progression;
+        state.selectedDeckId = deck.id;
         render();
     }
 
@@ -8490,10 +8536,17 @@
     function selectedDeckId() {
         const savedDeck = selectedSavedDeck();
         if (savedDeck?.deckId) return savedDeck.deckId;
-        if (state.selectedDeckId && (state.options?.decks || []).some(deck => deck.id === state.selectedDeckId)) {
-            return state.selectedDeckId;
+        const selected = findPremadeDeck(state.selectedDeckId);
+        if (selected && !isPremadeDeckLocked(selected)) {
+            return selected.id;
         }
-        return state.options?.defaultDeckId || state.options?.decks?.[0]?.id || 'deck_fire_earth';
+        // Never hand a locked deck to match start — the backend rejects it.
+        const fallback = findPremadeDeck(state.options?.defaultDeckId);
+        if (fallback && !isPremadeDeckLocked(fallback)) {
+            return fallback.id;
+        }
+        const firstUnlocked = (state.options?.decks || []).find(deck => !isPremadeDeckLocked(deck));
+        return firstUnlocked?.id || state.options?.defaultDeckId || state.options?.decks?.[0]?.id || 'deck_fire_earth';
     }
     function indexCreatureDescriptions(descriptions) {
         const entries = Array.isArray(descriptions) ? descriptions : [];
@@ -9214,7 +9267,10 @@
         const trainers = state.options?.trainers || [];
         const selectedDeck = status?.players?.find(player => player.role === (isHost ? 'host' : 'guest'))?.deckId || selectedDeckId();
         const selectedTrainer = status?.players?.find(player => player.role === (isHost ? 'host' : 'guest'))?.trainerId || selectedTrainerId();
-        const deckOptions = decks.map(deck => `<option value="${escapeAttr(deck.id)}" ${deck.id === selectedDeck ? 'selected' : ''}>${escapeHtml(deck.name)}</option>`).join('');
+        const deckOptions = decks.map(deck => {
+            const locked = isPremadeDeckLocked(deck);
+            return `<option value="${escapeAttr(deck.id)}" ${deck.id === selectedDeck ? 'selected' : ''}${locked ? ' disabled' : ''}>${escapeHtml(deck.name + (locked ? ' — Locked' : ''))}</option>`;
+        }).join('');
         const trainerOptions = trainers.map(trainer => {
             const owned = isTrainerOwned(trainer.id);
             const level = Math.max(1, trainerOwnedLevel(trainer.id) || Number(trainer.level) || 1);
