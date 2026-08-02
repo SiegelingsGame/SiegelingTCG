@@ -5,9 +5,46 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Siege — Siegelings Adventure</title>
 <link rel="icon" href="/favicon.png">
-<link rel="stylesheet" href="/css/adventure.css?v=45">
+<link rel="stylesheet" href="/css/adventure.css?v=46">
 </head>
 <body>
+<!-- Enemy Siegelings are corrupted card art, so they need the same die-cut shade
+     filter Akhar's raiders use in the Keep. Copied verbatim from keep.html (id
+     included) rather than shared, because the two pages load no common CSS/markup
+     and a filter is referenced by document-local id — if you retune one, retune both. -->
+<svg class="siege-svg-defs" width="0" height="0" aria-hidden="true" focusable="false">
+  <defs>
+    <filter id="paper-siegling-shadow" x="-40%" y="-35%" width="180%" height="180%" color-interpolation-filters="sRGB">
+      <feMorphology in="SourceAlpha" operator="dilate" radius="4.4" result="shadeOuterShape"/>
+      <feFlood flood-color="#0d0715" result="shadeOuterInk"/>
+      <feComposite in="shadeOuterInk" in2="shadeOuterShape" operator="in" result="shadeOuterEdge"/>
+      <feMorphology in="SourceAlpha" operator="dilate" radius="3.45" result="shadeRimShape"/>
+      <feFlood flood-color="#5a3a8f" result="shadeRimColor"/>
+      <feComposite in="shadeRimColor" in2="shadeRimShape" operator="in" result="shadeRimEdge"/>
+      <feMorphology in="SourceAlpha" operator="dilate" radius="1.55" result="shadeInnerShape"/>
+      <feFlood flood-color="#120b1d" result="shadeInnerInk"/>
+      <feComposite in="shadeInnerInk" in2="shadeInnerShape" operator="in" result="shadeInkEdge"/>
+      <!-- True luminance (0.2126/0.7152/0.0722) ramped onto a violet-black gradient, so the
+           Siegeling's own shading survives while its hue does not. The coefficients are
+           scaled so even white art lands at rgb(.19,.09,.38) — dark, never mid-violet. -->
+      <feColorMatrix in="SourceGraphic" type="matrix" values="
+          0.034 0.114 0.012 0 0.030
+          0.017 0.057 0.006 0 0.012
+          0.064 0.215 0.022 0 0.075
+          0 0 0 1 0" result="shadeArt"/>
+      <feGaussianBlur in="SourceAlpha" stdDeviation="2.4" result="shadeGlowBlur"/>
+      <feFlood flood-color="#a86bff" flood-opacity=".5" result="shadeGlowColor"/>
+      <feComposite in="shadeGlowColor" in2="shadeGlowBlur" operator="in" result="shadeGlow"/>
+      <feMerge>
+        <feMergeNode in="shadeGlow"/>
+        <feMergeNode in="shadeOuterEdge"/>
+        <feMergeNode in="shadeRimEdge"/>
+        <feMergeNode in="shadeInkEdge"/>
+        <feMergeNode in="shadeArt"/>
+      </feMerge>
+    </filter>
+  </defs>
+</svg>
 <div class="siege-app" id="siegeApp">
 
   <!-- Top bar -->
@@ -568,6 +605,6 @@
 
   <div class="siege-toast hidden" id="siegeToast"></div>
 </div>
-<script src="/js/adventure.js?v=44"></script>
+<script src="/js/adventure.js?v=45"></script>
 </body>
 </html>

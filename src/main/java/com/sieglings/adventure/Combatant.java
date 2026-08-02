@@ -46,6 +46,13 @@ class Combatant {
     private boolean leveledRecently;
     private int position = -1;        // notch index for player Siegelings; -1 for others
     private String sourceCardId;      // catalog card this unit was built from (evolution lookups)
+    /**
+     * Enemy-only: the catalog Siegeling this foe is a corrupted copy of. {@link #name}
+     * already reads "Shade of X"; this carries the bare X so the battlefield plate can
+     * show a compact SHADE badge plus the creature's own name — at phone sizes the
+     * prefix alone eats the plate and every foe truncates to "Shade of Shell…".
+     */
+    private String shadeOf;
     /** Battle-scoped: the form this unit evolved from (evolution reverts after battle). */
     private Combatant evolvedFrom;
     /** Battle-scoped evolution gauge: AP spent on this unit's own moves. */
@@ -105,6 +112,8 @@ class Combatant {
     void setPosition(int position) { this.position = position; }
     String getSourceCardId() { return sourceCardId; }
     void setSourceCardId(String sourceCardId) { this.sourceCardId = sourceCardId; }
+    String getShadeOf() { return shadeOf; }
+    void setShadeOf(String shadeOf) { this.shadeOf = shadeOf; }
     String getItemId() { return itemId; }
     void setItemId(String itemId) { this.itemId = itemId; }
     Combatant getEvolvedFrom() { return evolvedFrom; }

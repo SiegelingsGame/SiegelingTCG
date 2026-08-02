@@ -577,6 +577,18 @@ public class SiegeContentService {
         };
         abilityCount = Math.min(3, abilityCount);
 
+        // Deeper foes are drawn from later evolution stages, so the silhouette
+        // escalates with the encounter even though the numbers come from the
+        // scaling above rather than from the card.
+        int shadeStage = switch (type) { case BOSS -> 3; case ELITE -> 2; default -> floor >= 5 ? 2 : 1; };
+        // Shades draw from their OWN stream, seeded once from the encounter's. Picking
+        // a shade consumes a roll only when the catalog has art to offer, so drawing it
+        // from the shared stream let the first foe's shade shift the second foe's HP,
+        // speed and damage — appearance silently changing the fight, which is exactly
+        // what this change must not do. The seed draw happens either way, so the
+        // encounter rolls are identical whatever the catalog holds.
+        Random shadeRng = new Random(rng.nextLong());
+
         for (int i = 0; i < count; i++) {
             Element element = palette.get(rng.nextInt(palette.size()));
             // Tuned up for the fresh-hand-per-turn economy (a full 6 cards every
@@ -584,15 +596,92 @@ public class SiegeContentService {
             int hp = (int) Math.round((30 + floor * 9 + rng.nextInt(10)) * hpMul);
             int speed = 6 + rng.nextInt(8) + (type == NodeType.BOSS ? 2 : 0);
             String[] names = ENEMY_NAMES_BY_ELEMENT.getOrDefault(element, ENEMY_NAMES_FALLBACK);
-            String name = type == NodeType.BOSS
-                    ? bossName(tier, rng)
-                    : names[rng.nextInt(names.length)];
+            // Rolled even when a shade will replace it, so the roll stream — and with
+            // it every number below — is identical whether or not the catalog has art.
+            String fallbackName = names[rng.nextInt(names.length)];
+            // Bosses keep their own title: they are named antagonists (a Squire, a
+            // rogue SiegeKnight, the Siegelord), not corrupted Siegelings.
+            String bossTitle = type == NodeType.BOSS ? bossName(tier, rng) : null;
+            List<AbilitySpec> abilities = enemyAbilities(element, floor, abilityCount, dmgMul, rng);
+            Optional<SieglingCard> shade = shadeCard(element, shadeStage, shadeRng);
             String id = "foe-" + floor + "-" + i;
-            Combatant foe = new Combatant(id, name, element, Side.ENEMY, hp, speed, null);
-            foe.getAbilities().addAll(enemyAbilities(element, floor, abilityCount, dmgMul, rng));
+            // A boss still gets the cutout — otherwise it is the one fight in the run
+            // rendered as a bare element glyph.
+            Combatant foe = new Combatant(id,
+                    bossTitle != null ? bossTitle : shade.map(SiegeContentService::shadeName).orElse(fallbackName),
+                    element, Side.ENEMY, hp, speed,
+                    shade.map(SieglingCard::getCardArtUrl).orElse(null));
+            if (bossTitle == null) shade.map(SieglingCard::getName).ifPresent(foe::setShadeOf);
+            foe.getAbilities().addAll(abilities);
             enemies.add(foe);
         }
         return enemies;
+    }
+
+    // ---- Enemy appearance: corrupted Siegelings from the real catalog ------
+
+    /**
+     * Enemies are corrupted Siegelings pulled from the live card catalog, the same
+     * treatment Akhar's Front gives its raiders in the Keep
+     * ({@code KeepService#akharsFrontRaiderPool}) — real card art, named
+     * {@code Shade of X}, recoloured to a violet-black cutout client-side. This is
+     * appearance only: HP, speed and the ability set still come from the encounter
+     * scaling in {@link #generateEnemies}, so a shade hits exactly as hard as the
+     * generic foe it replaced and the difficulty curve is untouched.
+     *
+     * <p>Only cards with uploaded art qualify — art is the whole point, and a card
+     * without it would render as the element glyph this replaced. A catalog with no
+     * art at all falls back to the themed synthetic names, so nothing regresses.
+     *
+     * <p>The element stays the one the run's palette rolled (it decides the status
+     * the foe inflicts); the card is only searched for within it. When the catalog
+     * has no art-bearing card of that element the search widens to any element, so
+     * a sparse catalog shows a mismatched creature rather than no creature.
+     */
+    private Optional<SieglingCard> shadeCard(Element element, int stage, Random rng) {
+        // Deliberately not sieglingsAtStage() per stage/element pass: that walks the
+        // whole catalog and calls stageOf (itself several catalog scans) for every
+        // card, and this runs on every battle entry. Filter on art FIRST — the cheap
+        // test that rejects nearly everything — then pay for stageOf only on what
+        // survives. A catalog with no uploaded art costs exactly one walk and no
+        // stageOf at all.
+        List<SieglingCard> withArt = new ArrayList<>();
+        for (Card card : cardDefs.getDeckBuilderCatalog()) {
+            if (card instanceof SieglingCard s
+                    && s.getCardArtUrl() != null && !s.getCardArtUrl().isBlank()
+                    && !playableMoves(s).isEmpty()) {
+                withArt.add(s);
+            }
+        }
+        if (withArt.isEmpty()) return Optional.empty();
+
+        Map<Integer, List<SieglingCard>> byStage = new LinkedHashMap<>();
+        for (SieglingCard s : withArt) {
+            byStage.computeIfAbsent(stageOf(s), ignored -> new ArrayList<>()).add(s);
+        }
+        for (int s = Math.max(1, stage); s >= 1; s--) {
+            Optional<SieglingCard> match = pick(byStage.get(s), element, rng);
+            if (match.isPresent()) return match;
+        }
+        for (int s = Math.max(1, stage); s >= 1; s--) {
+            Optional<SieglingCard> any = pick(byStage.get(s), null, rng);
+            if (any.isPresent()) return any;
+        }
+        return Optional.empty();
+    }
+
+    private static Optional<SieglingCard> pick(List<SieglingCard> candidates, Element element, Random rng) {
+        if (candidates == null || candidates.isEmpty()) return Optional.empty();
+        List<SieglingCard> pool = new ArrayList<>();
+        for (SieglingCard cand : candidates) {
+            if (element == null || cand.getElement() == element) pool.add(cand);
+        }
+        return pool.isEmpty() ? Optional.empty() : Optional.of(pool.get(rng.nextInt(pool.size())));
+    }
+
+    /** Matches the Keep's vocabulary for a corrupted Siegeling. */
+    private static String shadeName(SieglingCard card) {
+        return "Shade of " + card.getName();
     }
 
     /**
@@ -605,11 +694,22 @@ public class SiegeContentService {
      */
     List<Combatant> generateOpeningEnemies(Random rng, List<Element> palette) {
         List<Combatant> enemies = new ArrayList<>();
+        // Its own stream, for the same reason as generateEnemies: what the catalog
+        // holds must not reach the rolls (see there).
+        Random shadeRng = new Random(rng.nextLong());
         for (int i = 0; i < SiegeTuning.OPENING_FIGHT_FOES; i++) {
             Element element = palette.get(rng.nextInt(palette.size()));
             String[] names = ENEMY_NAMES_BY_ELEMENT.getOrDefault(element, ENEMY_NAMES_FALLBACK);
-            Combatant foe = new Combatant("foe-1-" + i, names[rng.nextInt(names.length)], element, Side.ENEMY,
-                    SiegeTuning.OPENING_FIGHT_HP, SiegeTuning.OPENING_FIGHT_SPEED, null);
+            String fallbackName = names[rng.nextInt(names.length)];
+            // Which shade shows up varies like the element and name always have; none
+            // of the pinned numbers below depend on it.
+            Optional<SieglingCard> shade = shadeCard(element, 1, shadeRng);
+            Combatant foe = new Combatant("foe-1-" + i,
+                    shade.map(SiegeContentService::shadeName).orElse(fallbackName),
+                    element, Side.ENEMY,
+                    SiegeTuning.OPENING_FIGHT_HP, SiegeTuning.OPENING_FIGHT_SPEED,
+                    shade.map(SieglingCard::getCardArtUrl).orElse(null));
+            shade.map(SieglingCard::getName).ifPresent(foe::setShadeOf);
             int dmg = SiegeTuning.OPENING_FIGHT_DAMAGE;
             foe.getAbilities().add(new AbilitySpec("ea-strike", "Strike", element, Effect.DAMAGE, dmg,
                     TargetKind.ENEMY_SINGLE, 0, "Deals " + dmg + " damage to one Siegeling."));

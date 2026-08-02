@@ -2703,9 +2703,15 @@
             '<div class="sp-gaugefill" style="width:' + Math.round(100 * u.evoGauge / Math.max(1, u.evoGaugeMax)) + '%"></div>' +
             '<span class="sp-gaugetext">🌟 ' + u.evoGauge + '/' + u.evoGaugeMax + '</span></div>';
       }
+      // A foe's full name is "Shade of X". Spelling that out on the plate leaves
+      // no room for X at phone sizes, so the prefix becomes a badge (like the
+      // ally level badge) and the creature keeps the readable half of the line.
+      var plateName = u.shadeOf
+        ? '<span class="sp-shade">Shade</span>' + esc(u.shadeOf)
+        : esc(u.name);
       sp.innerHTML =
         '<div class="sp-plate">' +
-          '<div class="sp-name">' + levelBadge + esc(u.name) + ' <span class="sp-el">' + icon(u.element) + '</span></div>' +
+          '<div class="sp-name">' + levelBadge + plateName + ' <span class="sp-el">' + icon(u.element) + '</span></div>' +
           '<div class="sp-hpbar"><div class="sp-hpfill" style="width:' + pct + '%"></div></div>' +
           xpLine +
           '<div class="sp-tags"><span class="sp-hp">' + u.hp + '/' + u.maxHp + '</span>' + shield + buff + statusChips + '</div>' +

@@ -1344,7 +1344,7 @@ class GameJavaScriptRegressionTest {
                 "Art bleeds under the notch and home indicator while controls stay inset by the safe area."
         );
         assertTrue(
-                adventureHtml.contains("/css/adventure.css?v=44"),
+                adventureHtml.contains("/css/adventure.css?v=46"),
                 "adventure.css must be cache-busted after the full-bleed location rework."
         );
     }
@@ -1357,8 +1357,8 @@ class GameJavaScriptRegressionTest {
         assertTrue(adventureHtml.contains("id=\"runMenuSave\"")
                         && adventureHtml.contains("id=\"runMenuRestart\"")
                         && adventureHtml.contains("id=\"runMenuQuit\"")
-                        && adventureHtml.contains("/css/adventure.css?v=44")
-                        && adventureHtml.contains("/js/adventure.js?v=44"),
+                        && adventureHtml.contains("/css/adventure.css?v=46")
+                        && adventureHtml.contains("/js/adventure.js?v=45"),
                 "The active-run menu and both cache-busted bundles must ship together.");
         String restartRun = extractFunction(adventureJs, "function restartRun(");
         assertTrue(adventureJs.contains("api('/api/siege/run/save'")
