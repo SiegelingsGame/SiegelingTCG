@@ -8252,6 +8252,10 @@ body.placement-active .board-cell.legal {
     --spell-trap-frame-url: url('/img/frames/frame-spell-wind.png');
 }
 
+.hand-card.spell-trap-frame.frame-spell-neutral {
+    --spell-trap-frame-url: url('/img/frames/frame-spell-neutral.png');
+}
+
 .hand-card.spell-trap-frame::after {
     content: '';
     position: absolute;
@@ -8355,6 +8359,16 @@ body.placement-active .board-cell.legal {
     text-shadow:
         0 1px 1px rgba(0, 0, 0, 0.88),
         0 0 4px rgba(0, 0, 0, 0.72);
+}
+
+/* The neutral template's info panel is pale grey, so its panel type inverts
+   (see the NEUTRAL branch of getCompactSummaryInkPalette in game.js). */
+.hand-card.spell-trap-frame.frame-spell-neutral .card-summary-row,
+.hand-card.spell-trap-frame.frame-spell-neutral .card-summary-description {
+    color: #1b2231;
+    text-shadow:
+        0 1px 1px rgba(255, 255, 255, 0.85),
+        0 0 4px rgba(255, 255, 255, 0.7);
 }
 
 .hand-card.spell-trap-frame .card-corner-chip.card-corner-cost {
