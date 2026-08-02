@@ -6004,6 +6004,34 @@ body.tablet-portrait-dock .ab-btn {
     border-color: rgba(255, 215, 90, 0.95);
 }
 
+/* Chain effects splash from the picked target to everything it is notch-linked to. These cells are
+   usually .targetable too, so the arc styling is declared after that block to win the cascade — and
+   the grid ids are needed because #enemyGrid/#playerGrid own the per-side cell border and shadow. */
+#enemyGrid .board-cell.chain-target,
+#playerGrid .board-cell.chain-target {
+    border-color: #7adfff;
+    box-shadow:
+        0 0 0 2px rgba(122, 223, 255, 0.55),
+        0 0 24px rgba(64, 190, 255, 0.32);
+}
+
+.board-cell.chain-target::after {
+    content: '';
+    position: absolute;
+    inset: 4px;
+    border-radius: 6px;
+    border: 1.5px solid rgba(150, 235, 255, 0.95);
+    pointer-events: none;
+    animation: interaction-pulse 0.75s ease-in-out infinite;
+}
+
+body.targeting-active .board-cell.chain-target {
+    opacity: 1;
+    filter: none;
+    transform: translateY(-3px) scale(1.03);
+    z-index: 5;
+}
+
 .board-cell.active-attacker .board-card {
     position: relative;
     z-index: 1;

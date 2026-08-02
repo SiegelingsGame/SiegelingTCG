@@ -8,6 +8,7 @@ import java.util.Set;
 public final class AbilityEffectKeys {
 
     public static final String DAMAGE = "damage";
+    public static final String CHAIN_DAMAGE = "chain_damage";
     public static final String PLAYER_DAMAGE = "player_damage";
     public static final String DRAW = "draw";
     public static final String HEAL = "heal";
@@ -28,6 +29,7 @@ public final class AbilityEffectKeys {
 
     private static final Set<String> ALL = Set.of(
             DAMAGE,
+            CHAIN_DAMAGE,
             PLAYER_DAMAGE,
             DRAW,
             HEAL,

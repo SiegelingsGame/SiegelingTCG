@@ -232,7 +232,7 @@ public class BattleService {
 
         state.log(attacker.getName() + " uses " + ability.getName() + ".");
 
-        if (enemyBoardEmpty && AbilityEffectKeys.DAMAGE.equals(ability.getEffectType())) {
+        if (enemyBoardEmpty && isDirectDamageEffect(ability.getEffectType())) {
             int directDamage = Math.max(1, ability.getEffectValue());
             var opposingPlayer = attacker.isOwner() ? state.getEnemy() : state.getPlayer();
             opposingPlayer.takeDirectDamage(directDamage);
@@ -274,8 +274,14 @@ public class BattleService {
 
     private boolean dealsDamage(Ability ability) {
         String effectType = ability.getEffectType();
-        return AbilityEffectKeys.DAMAGE.equals(effectType)
+        return isDirectDamageEffect(effectType)
                 || AbilityEffectKeys.PLAYER_DAMAGE.equals(effectType);
+    }
+
+    /** Board-damage effects that fall back to face damage when the opposing board is empty. */
+    private static boolean isDirectDamageEffect(String effectType) {
+        return AbilityEffectKeys.DAMAGE.equals(effectType)
+                || AbilityEffectKeys.CHAIN_DAMAGE.equals(effectType);
     }
 
     private boolean isAtFullHealth(CardInstance unit) {
@@ -513,13 +519,14 @@ public class BattleService {
     }
 
     private Ability applyAttackerDamageBonus(CardInstance attacker, Ability ability) {
-        if (!AbilityEffectKeys.DAMAGE.equals(ability.getEffectType())) {
+        if (!isDirectDamageEffect(ability.getEffectType())) {
             return ability;
         }
         int boostedDamage = Math.max(1, ability.getEffectValue() + attacker.getDamageBoost());
         ability.setEffectValue(boostedDamage);
-        if (ability.getDescription() != null && ability.getDescription().startsWith("Deal ")) {
-            ability.setDescription(ability.getDescription().replaceFirst("Deal \\d+", "Deal " + boostedDamage));
+        String description = ability.getDescription();
+        if (description != null && (description.startsWith("Deal ") || description.startsWith("Chain "))) {
+            ability.setDescription(description.replaceFirst("^(Deal|Chain) \\d+", "$1 " + boostedDamage));
         }
         return ability;
     }

@@ -47,6 +47,10 @@ public class Ability {
         return new Ability(name, desc, target, row, count, AbilityEffectKeys.DAMAGE, value, false);
     }
 
+    public static Ability chainDamage(String name, String desc, TargetType target, Row row, int count, int value) {
+        return new Ability(name, desc, target, row, count, AbilityEffectKeys.CHAIN_DAMAGE, value, false);
+    }
+
     public static Ability heal(String name, String desc, TargetType target, Row row, int count, int value) {
         return new Ability(name, desc, target, row, count, AbilityEffectKeys.HEAL, value, false);
     }

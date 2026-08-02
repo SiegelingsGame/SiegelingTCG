@@ -100,6 +100,10 @@ public class EffectService {
                 if (targetRow >= 0 && targetCol >= 0) {
                     CardInstance t = state.getAt(!isPlayerSource, targetRow, targetCol);
                     if (t != null && t.isAlive()) targets.add(t);
+                } else if (isChainDamage(ability)) {
+                    // Auto-target: chain damage wants the busiest link hub, not the weakest unit
+                    CardInstance t = findBestChainTarget(state, !isPlayerSource, ability.getTargetRow());
+                    if (t != null) targets.add(t);
                 } else {
                     // Auto-target: front row first, then middle, then back
                     CardInstance t = findFirstEnemy(state, !isPlayerSource, ability.getTargetRow());
@@ -219,22 +223,14 @@ public class EffectService {
             applyConnectedAlliesSpeedBoost(state, ability, source, Math.max(1, value));
             return;
         }
+        if (AbilityEffectKeys.CHAIN_DAMAGE.equals(effectType)) {
+            applyChainDamage(state, ability, source, targets, Math.max(1, value));
+            return;
+        }
 
         for (CardInstance target : targets) {
             switch (effectType) {
-                case AbilityEffectKeys.DAMAGE -> {
-                    int damage = value;
-                    boolean weaknessBonus = false;
-                    if (source != null && isWeakTo(source.getElement(), target.getElement())) {
-                        damage += 1;
-                        weaknessBonus = true;
-                    }
-
-                    target.takeRawDamage(damage);
-                    state.log(ability.getName() + " deals " + damage + " damage to " + target.getName()
-                            + (weaknessBonus ? " (weakness +1)" : "")
-                            + " (HP: " + target.getCurrentHealth() + ")");
-                }
+                case AbilityEffectKeys.DAMAGE -> dealAbilityDamage(state, ability, source, target, value);
                 case AbilityEffectKeys.HEAL -> {
                     target.healDamage(value);
                     state.log(ability.getName() + " heals " + target.getName() + " for " + value
@@ -295,6 +291,99 @@ public class EffectService {
                 default -> state.log("Unknown effect: " + effectType);
             }
         }
+    }
+
+    private void dealAbilityDamage(GameState state, Ability ability, CardInstance source, CardInstance target, int value) {
+        int damage = value;
+        boolean weaknessBonus = false;
+        if (source != null && isWeakTo(source.getElement(), target.getElement())) {
+            damage += 1;
+            weaknessBonus = true;
+        }
+
+        target.takeRawDamage(damage);
+        state.log(ability.getName() + " deals " + damage + " damage to " + target.getName()
+                + (weaknessBonus ? " (weakness +1)" : "")
+                + " (HP: " + target.getCurrentHealth() + ")");
+    }
+
+    /**
+     * Chain damage hits the picked target and everything wired to it: each Siegling that shares an
+     * active reciprocal notch link with that target, on the target's own board. Weakness is scored
+     * per victim, so a chain can crit some links and not others.
+     */
+    private void applyChainDamage(GameState state, Ability ability, CardInstance source,
+                                  List<CardInstance> primaryTargets, int value) {
+        // Resolve the whole chain before any damage lands — otherwise a lethal first hit would
+        // sever links the rest of the arc is supposed to travel through.
+        List<CardInstance> victims = new ArrayList<>();
+        for (CardInstance primary : primaryTargets) {
+            if (primary == null || !primary.isAlive()) {
+                continue;
+            }
+            List<CardInstance> linked = getChainedTargets(state, primary);
+            addUnique(victims, primary);
+            if (linked.isEmpty()) {
+                state.log(ability.getName() + " finds no links on " + primary.getName() + ".");
+            } else {
+                state.log(ability.getName() + " arcs through " + primary.getName() + "'s links to "
+                        + linked.size() + " connected Siegling" + (linked.size() == 1 ? "" : "s") + "!");
+                linked.forEach(ally -> addUnique(victims, ally));
+            }
+        }
+
+        for (CardInstance victim : victims) {
+            dealAbilityDamage(state, ability, source, victim, value);
+        }
+    }
+
+    /** Sieglings that a chain effect jumps to from {@code primary} (its directly linked board neighbours). */
+    public List<CardInstance> getChainedTargets(GameState state, CardInstance primary) {
+        return placementService.getDirectlyConnectedAllies(state, primary);
+    }
+
+    static boolean isChainDamage(Ability ability) {
+        return ability != null && AbilityEffectKeys.CHAIN_DAMAGE.equals(ability.getEffectType());
+    }
+
+    private void addUnique(List<CardInstance> list, CardInstance candidate) {
+        if (candidate == null || !candidate.isAlive()) {
+            return;
+        }
+        if (list.stream().noneMatch(existing -> existing == candidate)) {
+            list.add(candidate);
+        }
+    }
+
+    /**
+     * Auto-target for chain damage (AI turns and untargeted resolution): the enemy whose links
+     * carry the hit to the most Sieglings, breaking ties on the weakest primary target.
+     */
+    private CardInstance findBestChainTarget(GameState state, boolean side, Row preferredRow) {
+        List<CardInstance> candidates = new ArrayList<>();
+        if (preferredRow != null) {
+            candidates.addAll(getSieglingsInRow(state, side, preferredRow.getIndex()));
+        }
+        if (candidates.isEmpty()) {
+            for (int r = 2; r >= 0; r--) {
+                candidates.addAll(getSieglingsInRow(state, side, r));
+            }
+        }
+        if (candidates.isEmpty()) {
+            return null;
+        }
+
+        CardInstance best = null;
+        int bestChain = -1;
+        for (CardInstance candidate : candidates) {
+            int chain = getChainedTargets(state, candidate).size();
+            if (chain > bestChain
+                    || (chain == bestChain && best != null && candidate.getCurrentHealth() < best.getCurrentHealth())) {
+                best = candidate;
+                bestChain = chain;
+            }
+        }
+        return best;
     }
 
     private void applyPlayerEffect(GameState state, Ability ability, boolean isPlayerSource) {

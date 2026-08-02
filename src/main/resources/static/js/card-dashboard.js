@@ -5640,6 +5640,8 @@
         switch (effectType) {
             case "damage":
                 return buildDamageMoveDescription(value, targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow);
+            case "chain_damage":
+                return buildChainDamageMoveDescription(value, targetType, elementPrefix, selectedEnemyRow);
             case "player_damage":
                 return `Deal ${value} damage to the enemy player`;
             case "draw":
@@ -5713,6 +5715,25 @@
                 return `Deal ${value} damage to the enemy player`;
             default:
                 return "";
+        }
+    }
+
+    function buildChainDamageMoveDescription(value, targetType, elementPrefix, selectedEnemyRow) {
+        switch (targetType) {
+            case "SINGLE_ENEMY":
+                return `Chain ${value} damage to 1 ${elementPrefix}enemy and its connected allies`;
+            case "SINGLE_ALLY":
+                return `Chain ${value} damage to 1 ${elementPrefix}ally and its connected allies`;
+            case "ROW_SELECT_ENEMIES":
+                return `Chain ${value} damage to ${selectedEnemyRow} and their connected allies`;
+            case "ROW_ENEMIES":
+                return elementPrefix
+                    ? `Chain ${value} damage to ${elementPrefix.toLowerCase()}row enemies and their connected allies`
+                    : `Chain ${value} damage to the row and their connected allies`;
+            case "ALL_ENEMIES":
+                return `Chain ${value} damage to all ${elementPrefix}enemies and their connected allies`;
+            default:
+                return `Chain ${value} damage to the target and its connected allies`;
         }
     }
 
