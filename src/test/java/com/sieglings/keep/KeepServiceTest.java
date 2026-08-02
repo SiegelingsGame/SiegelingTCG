@@ -991,6 +991,44 @@ class KeepServiceTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void collectAllGathersEveryReadyProductionPointInOneAction() {
+        service.getSnapshot(user);
+        store.state.setStorehouseLevel(1);
+        store.state.setTimber(0);
+        store.state.setWoodlotStored(0);
+        store.state.setWoodlotLastAccruedAt(clock.instant());
+        store.state.getFacilityLevels().put("quarry", 1);
+        store.state.getFacilityLevels().put("kitchen", 1);
+        store.state.getFacilityLastAccruedAt().put("quarry", clock.instant());
+        store.state.getFacilityLastAccruedAt().put("kitchen", clock.instant());
+        clock.advance(Duration.ofMinutes(100));
+
+        Map<String, Object> before = service.getSnapshot(user);
+        int timberReady = ((Number) station(before, "woodlot").get("available")).intValue();
+        int stoneReady = ((Number) station(before, "quarry").get("available")).intValue();
+        int provisionsReady = ((Number) station(before, "kitchen").get("available")).intValue();
+        assertTrue(timberReady > 0 && stoneReady > 0 && provisionsReady > 0);
+
+        Map<String, Object> collected = service.collect(user, "all", "collect-all-points", store.state.getVersion());
+        Map<String, Object> summary = (Map<String, Object>) collected.get("collected");
+        assertEquals("all", summary.get("stationId"));
+        assertEquals(timberReady + stoneReady + provisionsReady, ((Number) summary.get("amount")).intValue());
+        List<Map<String, Object>> grants = (List<Map<String, Object>>) summary.get("stations");
+        assertEquals(3, grants.size());
+        assertEquals(timberReady, intAt(collected, "resources", "timber"));
+        assertEquals(stoneReady, materialAmount(collected, "stone"));
+        assertEquals(provisionsReady, materialAmount(collected, "provisions"));
+        assertEquals(0, ((Number) station(collected, "woodlot").get("available")).intValue());
+        assertEquals(0, ((Number) station(collected, "quarry").get("available")).intValue());
+        assertEquals(0, ((Number) station(collected, "kitchen").get("available")).intValue());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.collect(user, "all", "collect-all-empty", store.state.getVersion()),
+                "A second collect-all with empty stockpiles must refuse rather than no-op.");
+    }
+
+    @Test
     void weeklyOrderSpendsMaterialsOncePerWeekForBoostedIncome() {
         service.getSnapshot(user);
         assertThrows(IllegalArgumentException.class,

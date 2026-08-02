@@ -213,32 +213,11 @@ public class KeepService {
 
     public Map<String, Object> collect(AccountUser user, String stationId, String requestId, long expectedVersion) {
         return mutate(user, requestId, expectedVersion, context -> {
-            KeepState state = context.state();
             String id = normalizeStationId(stationId);
-            if ("akhars_front".equals(id)) return collectAkharsFront(state, context);
-            if (!"woodlot".equals(id)) return collectEssenceStation(state, context, id);
-            int room = Math.max(0, timberInventoryCapacity(state) - state.getTimber());
-            int grant = Math.min(room, projectedWoodlotAvailable(state, context.residents(), context.now()));
-            if (grant <= 0) {
-                throw new IllegalArgumentException(room <= 0
-                        ? "Your timber store is full. Start a project before collecting more."
-                        : "The Woodlot has not produced any timber yet.");
-            }
-            materializeProduction(state, context.residents(), context.now());
-            grant = Math.min(room, state.getWoodlotStored());
-            state.setTimber(state.getTimber() + grant);
-            state.setWoodlotStored(state.getWoodlotStored() - grant);
-            state.setWoodlotCollectCount(state.getWoodlotCollectCount() + 1);
-            advanceEnclaveTasks(state, context.residents(), "TIMBER_COLLECTION");
-            if (state.getWoodlotCollectCount() == 1) unlock(state, "letter_forester_maren");
-            if (state.getWoodlotCollectCount() >= 3) unlock(state, "memorabilia_petrified_root");
-            final int granted = grant;
-            recordKeepStats(context.progression(), p -> p.setKeepTimberCollected(p.getKeepTimberCollected() + granted));
-            int xpGained = grantResourceKeeperXp(state, context.now(), KEEPER_TIMBER_COLLECT_XP);
-            Map<String, Object> extra = new LinkedHashMap<>();
-            extra.put("collected", Map.of("resource", "TIMBER", "amount", grant));
-            if (xpGained > 0) extra.put("keeperXpAwarded", xpGained);
-            return extra;
+            if ("all".equals(id)) return collectAllStations(context);
+            if ("akhars_front".equals(id)) return collectAkharsFront(context.state(), context);
+            if (!"woodlot".equals(id)) return collectEssenceStation(context.state(), context, id);
+            return collectWoodlot(context);
         });
     }
 
@@ -1511,7 +1490,101 @@ public class KeepService {
                 * (1 + favoriteBoost(state, residents));
     }
 
+    /**
+     * Dock Collect gathers every ready production point in one action — Woodlot
+     * timber plus each built facility stockpile — skipping empty or capped stores
+     * instead of failing the whole claim when only some points can pay out.
+     */
+    private Map<String, Object> collectAllStations(Context context) {
+        List<Map<String, Object>> grants = new ArrayList<>();
+        int xpGained = 0;
+        Map<String, Object> woodlot = tryCollectWoodlot(context);
+        if (woodlot != null) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> entry = (Map<String, Object>) woodlot.get("collected");
+            if (entry != null) grants.add(entry);
+            xpGained += number(woodlot.get("keeperXpAwarded"));
+        }
+        for (String id : FACILITIES.keySet()) {
+            Map<String, Object> facility = tryCollectEssenceStation(context.state(), context, id);
+            if (facility == null) continue;
+            @SuppressWarnings("unchecked")
+            Map<String, Object> entry = (Map<String, Object>) facility.get("collected");
+            if (entry != null) grants.add(entry);
+            xpGained += number(facility.get("keeperXpAwarded"));
+        }
+        if (grants.isEmpty()) {
+            KeepState state = context.state();
+            boolean timberFull = timberInventoryCapacity(state) <= state.getTimber()
+                    && projectedWoodlotAvailable(state, context.residents(), context.now()) > 0;
+            boolean materialsFull = FACILITIES.values().stream().anyMatch(definition -> {
+                if (facilityLevel(state, definition.id()) < 1) return false;
+                int ready = projectedFacilityAvailable(state, context.residents(), definition.id(), context.now());
+                if (ready <= 0) return false;
+                int held = state.getMaterialInventory().getOrDefault(definition.resourceId(), 0);
+                return materialInventoryCapacity(state) <= held;
+            });
+            if (timberFull || materialsFull) {
+                throw new IllegalArgumentException(timberFull && !materialsFull
+                        ? "Your timber store is full. Start a project before collecting more."
+                        : "Your stores are full. Craft or build something before collecting more.");
+            }
+            throw new IllegalArgumentException("Nothing is ready to collect yet.");
+        }
+        int total = grants.stream().mapToInt(entry -> number(entry.get("amount"))).sum();
+        Map<String, Object> collected = new LinkedHashMap<>();
+        collected.put("resource", "ALL");
+        collected.put("resourceName", "Resources");
+        collected.put("amount", total);
+        collected.put("stationId", "all");
+        collected.put("stations", grants);
+        Map<String, Object> extra = new LinkedHashMap<>();
+        extra.put("collected", collected);
+        if (xpGained > 0) extra.put("keeperXpAwarded", xpGained);
+        return extra;
+    }
+
+    private Map<String, Object> collectWoodlot(Context context) {
+        Map<String, Object> granted = tryCollectWoodlot(context);
+        if (granted != null) return granted;
+        KeepState state = context.state();
+        int room = Math.max(0, timberInventoryCapacity(state) - state.getTimber());
+        throw new IllegalArgumentException(room <= 0
+                ? "Your timber store is full. Start a project before collecting more."
+                : "The Woodlot has not produced any timber yet.");
+    }
+
+    private Map<String, Object> tryCollectWoodlot(Context context) {
+        KeepState state = context.state();
+        int room = Math.max(0, timberInventoryCapacity(state) - state.getTimber());
+        int grant = Math.min(room, projectedWoodlotAvailable(state, context.residents(), context.now()));
+        if (grant <= 0) return null;
+        materializeProduction(state, context.residents(), context.now());
+        grant = Math.min(room, state.getWoodlotStored());
+        if (grant <= 0) return null;
+        state.setTimber(state.getTimber() + grant);
+        state.setWoodlotStored(state.getWoodlotStored() - grant);
+        state.setWoodlotCollectCount(state.getWoodlotCollectCount() + 1);
+        advanceEnclaveTasks(state, context.residents(), "TIMBER_COLLECTION");
+        if (state.getWoodlotCollectCount() == 1) unlock(state, "letter_forester_maren");
+        if (state.getWoodlotCollectCount() >= 3) unlock(state, "memorabilia_petrified_root");
+        final int granted = grant;
+        recordKeepStats(context.progression(), p -> p.setKeepTimberCollected(p.getKeepTimberCollected() + granted));
+        int xpGained = grantResourceKeeperXp(state, context.now(), KEEPER_TIMBER_COLLECT_XP);
+        Map<String, Object> collected = new LinkedHashMap<>();
+        collected.put("resource", "TIMBER");
+        collected.put("resourceName", "Timber");
+        collected.put("amount", grant);
+        collected.put("stationId", "woodlot");
+        Map<String, Object> extra = new LinkedHashMap<>();
+        extra.put("collected", collected);
+        if (xpGained > 0) extra.put("keeperXpAwarded", xpGained);
+        return extra;
+    }
+
     private Map<String, Object> collectEssenceStation(KeepState state, Context context, String id) {
+        Map<String, Object> granted = tryCollectEssenceStation(state, context, id);
+        if (granted != null) return granted;
         if (!FACILITIES.containsKey(id) || facilityLevel(state, id) < 1) {
             throw new IllegalArgumentException("Build that elemental facility before collecting from it.");
         }
@@ -1519,14 +1592,22 @@ public class KeepService {
         String resourceId = definition.resourceId();
         int storedInventory = state.getMaterialInventory().getOrDefault(resourceId, 0);
         int room = Math.max(0, materialInventoryCapacity(state) - storedInventory);
+        throw new IllegalArgumentException(room <= 0
+                ? "Your material store is full. Craft or build something before collecting more."
+                : "That facility has not produced any materials yet.");
+    }
+
+    private Map<String, Object> tryCollectEssenceStation(KeepState state, Context context, String id) {
+        if (!FACILITIES.containsKey(id) || facilityLevel(state, id) < 1) return null;
+        FacilityDefinition definition = FACILITIES.get(id);
+        String resourceId = definition.resourceId();
+        int storedInventory = state.getMaterialInventory().getOrDefault(resourceId, 0);
+        int room = Math.max(0, materialInventoryCapacity(state) - storedInventory);
         int grant = Math.min(room, projectedFacilityAvailable(state, context.residents(), id, context.now()));
-        if (grant <= 0) {
-            throw new IllegalArgumentException(room <= 0
-                    ? "Your material store is full. Craft or build something before collecting more."
-                    : "That facility has not produced any materials yet.");
-        }
+        if (grant <= 0) return null;
         materializeFacilityProduction(state, context.residents(), id, context.now());
         grant = Math.min(room, state.getFacilityStored().getOrDefault(id, 0));
+        if (grant <= 0) return null;
         state.getMaterialInventory().put(resourceId, storedInventory + grant);
         state.getFacilityStored().put(id, state.getFacilityStored().getOrDefault(id, 0) - grant);
         state.setEssenceCollectCount(state.getEssenceCollectCount() + 1);
@@ -1537,6 +1618,11 @@ public class KeepService {
                 "amount", grant, "stationId", id));
         if (xpGained > 0) collected.put("keeperXpAwarded", xpGained);
         return collected;
+    }
+
+    private static int number(Object value) {
+        if (value instanceof Number number) return number.intValue();
+        return 0;
     }
 
     private Map<String, Object> collectAkharsFront(KeepState state, Context context) {

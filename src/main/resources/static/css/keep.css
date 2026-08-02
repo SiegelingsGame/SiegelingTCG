@@ -2807,6 +2807,143 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     transform: translateY(-50%);
 }
 
+/* Collect summary — what landed in storage, with before/after fill bars. */
+.collect-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 83;
+    display: grid;
+    place-items: center;
+    padding: calc(16px + var(--safe-top)) calc(16px + var(--safe-right)) calc(16px + var(--safe-bottom)) calc(16px + var(--safe-left));
+    background: rgba(7, 18, 25, .78);
+    backdrop-filter: blur(7px);
+}
+.collect-overlay.hidden { display: none; }
+.collect-card {
+    position: relative;
+    width: min(420px, 100%);
+    max-height: min(690px, 88dvh);
+    overflow: auto;
+    padding: 24px 22px 20px;
+    border: 1px solid rgba(244, 204, 98, .42);
+    border-radius: 20px;
+    background: linear-gradient(155deg, #1c3844, #111f2c 72%);
+    box-shadow: 0 24px 80px rgba(0, 0, 0, .56);
+    text-align: center;
+}
+.collect-close {
+    position: absolute;
+    right: 10px;
+    top: 8px;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    color: var(--cream);
+    background: rgba(255, 255, 255, .06);
+    font-size: 20px;
+    cursor: pointer;
+}
+.collect-seal {
+    display: grid;
+    place-items: center;
+    width: 54px;
+    height: 54px;
+    margin: 0 auto 10px;
+    border-radius: 50%;
+    color: #2b4850;
+    background: linear-gradient(180deg, #ffe897, #dcae50);
+    box-shadow: 0 0 28px rgba(244, 204, 98, .38);
+    font-size: 22px;
+}
+.collect-card h2 { margin: 4px 0 6px; font: 700 28px Georgia, serif; color: #fff3c0; }
+.collect-card > p { margin: 0 0 16px; color: rgba(255, 247, 220, .67); font-size: 13px; }
+.collect-results { display: grid; gap: 9px; margin-bottom: 16px; text-align: left; }
+.collect-row {
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+    padding: 11px 12px;
+    border: 1px solid rgba(255, 255, 255, .1);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, .045);
+}
+.collect-row > i {
+    flex: 0 0 auto;
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    color: #1a3340;
+    background: #8bd7dc;
+    font-style: normal;
+    font-size: 16px;
+}
+.collect-row[data-resource="TIMBER"] > i { background: #c4a06a; }
+.collect-row[data-resource="verdant_fiber"] > i { background: #95c873; }
+.collect-row[data-resource="ember_ingot"] > i { background: #ef8a59; }
+.collect-row[data-resource="frost_crystal"] > i { background: #a9e8f2; }
+.collect-row[data-resource="storm_cell"] > i { background: #cfb4ff; }
+.collect-row[data-resource="stone"] > i { background: #c9c4b4; }
+.collect-row[data-resource="provisions"] > i { background: #eec08a; }
+.collect-row[data-resource="SIEGECOINS"] > i { background: #f4cc62; }
+.collect-row-copy { min-width: 0; display: grid; gap: 4px; }
+.collect-row-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+}
+.collect-row-head strong { color: #fff1bd; font-size: 13px; }
+.collect-row-head em {
+    flex: 0 0 auto;
+    color: #b9d96c;
+    font: 800 12px/1 Georgia, serif;
+    font-style: normal;
+}
+.collect-row-meta {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    color: rgba(255, 247, 220, .62);
+    font-size: 10px;
+}
+.collect-row-meta b { color: rgba(255, 247, 220, .86); font-weight: 700; }
+.collect-meter {
+    position: relative;
+    height: 10px;
+    overflow: hidden;
+    border-radius: 99px;
+    background: rgba(255, 255, 255, .09);
+}
+.collect-meter-was,
+.collect-meter-gain {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    display: block;
+    border-radius: 99px;
+}
+.collect-meter-was {
+    background: linear-gradient(90deg, #4f7d55, #7fa85a);
+}
+.collect-meter-gain {
+    width: 0;
+    background: linear-gradient(90deg, #c9e87a, #ffe897);
+    box-shadow: 0 0 10px rgba(255, 232, 151, .45);
+    transition: width .55s cubic-bezier(.2, .8, .2, 1);
+}
+.collect-overlay.is-revealed .collect-meter-gain { width: var(--gain-width, 0%); }
+.collect-card .panel-button { width: 100%; }
+
+@media (max-width: 430px) {
+    .collect-card { padding: 20px 16px 16px; }
+    .collect-card h2 { font-size: 24px; }
+}
+
 /* —— Scene pan & zoom —— */
 .keep-scene { transition: transform .24s ease; will-change: transform; }
 .keep-scene.is-dragging { transition: none; }
