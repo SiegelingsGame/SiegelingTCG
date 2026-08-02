@@ -9,7 +9,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#173f54">
-    <link rel="stylesheet" href="/css/keep.css?v=50">
+    <link rel="stylesheet" href="/css/keep.css?v=51">
 </head>
 <body>
 <svg class="keep-svg-defs" width="0" height="0" aria-hidden="true" focusable="false">
@@ -683,6 +683,18 @@
         </div>
     </div>
 
+    <div class="collect-overlay hidden" id="collectOverlay" role="dialog" aria-modal="true" aria-labelledby="collectTitle">
+        <div class="collect-card">
+            <button class="collect-close" id="collectClose" type="button" aria-label="Close collect summary">×</button>
+            <span class="collect-seal" aria-hidden="true">▰</span>
+            <span class="eyebrow">Gathered into storage</span>
+            <h2 id="collectTitle">Collected</h2>
+            <p id="collectSummary"></p>
+            <div class="collect-results" id="collectResults"></div>
+            <button class="panel-button" id="collectDismiss" type="button">Continue</button>
+        </div>
+    </div>
+
     <div class="keep-loading" id="keepLoading" aria-live="polite">
         <img src="/img/siegelings-icon.png?v=2" alt="">
         <strong>Listening to the land…</strong>
@@ -714,7 +726,7 @@
        data-front-src="/audio/sieglings-battle-theme.mp3?v=1"
        src="/audio/sieglings-theme.mp3?v=1"></audio>
 <script src="/js/config.js?v=1"></script>
-<script src="/js/keep.js?v=50"></script>
+<script src="/js/keep.js?v=51"></script>
 <script src="/js/sw-register.js?v=1"></script>
 </body>
 </html>

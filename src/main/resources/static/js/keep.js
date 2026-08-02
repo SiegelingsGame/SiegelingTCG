@@ -214,6 +214,11 @@
         document.getElementById('tutorialSkip')?.addEventListener('click', finishTutorial);
         document.getElementById('tutorialNext')?.addEventListener('click', tutorialAdvance);
         document.getElementById('offlineDismiss')?.addEventListener('click', dismissOfflineReport);
+        document.getElementById('collectDismiss')?.addEventListener('click', closeCollectPopup);
+        document.getElementById('collectClose')?.addEventListener('click', closeCollectPopup);
+        document.getElementById('collectOverlay')?.addEventListener('click', (event) => {
+            if (event.target.id === 'collectOverlay') closeCollectPopup();
+        });
         // The scene caption doubles as the Keeper's Journey button; keyboard-activate it.
         document.getElementById('sceneCaption')?.addEventListener('keydown', (event) => {
             if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openJourney(); }
@@ -242,6 +247,7 @@
             }
             if (event.key === 'Escape') {
                 if (!document.getElementById('keepTutorial')?.classList.contains('hidden')) finishTutorial();
+                else if (!document.getElementById('collectOverlay')?.classList.contains('hidden')) closeCollectPopup();
                 else if (!document.getElementById('favorOverlay')?.classList.contains('hidden')) closeFavorConfirm();
                 else if (!document.getElementById('journeyOverlay')?.classList.contains('hidden')) closeJourney();
                 else if (!document.getElementById('keepEventOverlay')?.classList.contains('hidden')) closeKeepEvent();
@@ -632,19 +638,14 @@
 
     async function collectAllReady() {
         if (projectedTotalReady() <= 0 || !canCollectAnyStation()) return;
+        const before = captureStorageSnapshot();
         const data = await perform('/api/keep/collect', { stationId: 'all' });
         if (!data?.collected) return;
         const grants = Array.isArray(data.collected.stations) ? data.collected.stations : [data.collected];
         for (const grant of grants) {
             if (number(grant?.amount) > 0) playCollectBurst(grant.stationId || 'woodlot', number(grant.amount));
         }
-        const total = number(data.collected.amount);
-        if (total > 0) {
-            const points = grants.filter((grant) => number(grant?.amount) > 0).length;
-            showNotice(points > 1
-                ? `+${total} gathered from ${points} production points.`
-                : `+${total} gathered from the keep.`, 'Collect');
-        }
+        openCollectPopup(grants, before);
     }
 
     async function collectStation(stationId) {
@@ -654,17 +655,142 @@
         }
         if (stationId === 'akhars_front') {
             if (projectedAkharsFrontAvailable() <= 0) return;
+            const before = captureStorageSnapshot();
             const data = await perform('/api/keep/collect', { stationId });
             if (data?.collected) {
                 playCollectBurst(stationId, number(data.collected.amount));
-                showNotice(`+${number(data.collected.amount)} Siegecoins from the rampart patrol.`, "Akhar's Front");
+                openCollectPopup([data.collected], before);
             }
             return;
         }
         const station = stationById(stationId);
         if (!station || projectedStationAvailable(station) <= 0) return;
+        const before = captureStorageSnapshot();
         const data = await perform('/api/keep/collect', { stationId });
-        if (data?.collected) playCollectBurst(stationId, number(data.collected.amount));
+        if (data?.collected) {
+            playCollectBurst(stationId, number(data.collected.amount));
+            openCollectPopup([data.collected], before);
+        }
+    }
+
+    /** Snapshot inventory levels before a collect so the popup can draw before/after bars. */
+    function captureStorageSnapshot() {
+        const resources = state.snapshot?.resources || {};
+        const materials = {};
+        for (const item of resources.materials || []) {
+            materials[item.id] = {
+                amount: number(item.amount),
+                capacity: number(item.capacity) || number(resources.materialCapacity),
+                name: item.name || titleCase(item.id)
+            };
+        }
+        return {
+            timber: number(resources.timber),
+            timberCapacity: number(resources.timberCapacity),
+            gold: number(resources.gold),
+            materials
+        };
+    }
+
+    function openCollectPopup(grants, before) {
+        const rows = collectPopupRows(grants || [], before || captureStorageSnapshot());
+        if (!rows.length) return;
+        const overlay = document.getElementById('collectOverlay');
+        const list = document.getElementById('collectResults');
+        if (!overlay || !list) return;
+        const total = rows.reduce((sum, row) => sum + row.gain, 0);
+        text('collectTitle', rows.length === 1 ? `${rows[0].name} gathered` : 'Collected');
+        text('collectSummary', rows.length === 1
+            ? `+${rows[0].gain} added to storage.`
+            : `+${total} from ${rows.length} production points.`);
+        list.innerHTML = rows.map((row) => collectPopupRowMarkup(row)).join('');
+        overlay.classList.remove('hidden', 'is-revealed');
+        // Two frames so the gain segment starts at width 0 before transitioning open.
+        window.requestAnimationFrame(() => {
+            window.requestAnimationFrame(() => overlay.classList.add('is-revealed'));
+        });
+        document.getElementById('collectDismiss')?.focus?.();
+    }
+
+    function closeCollectPopup() {
+        const overlay = document.getElementById('collectOverlay');
+        if (!overlay) return;
+        overlay.classList.add('hidden');
+        overlay.classList.remove('is-revealed');
+    }
+
+    function collectPopupRows(grants, before) {
+        const byResource = new Map();
+        for (const grant of grants) {
+            const amount = number(grant?.amount);
+            if (amount <= 0) continue;
+            const resource = String(grant.resource || (grant.stationId === 'woodlot' ? 'TIMBER' : '')).trim();
+            if (!resource) continue;
+            const current = byResource.get(resource) || {
+                resource,
+                name: grant.resourceName || (resource === 'TIMBER' ? 'Timber' : titleCase(resource)),
+                gain: 0,
+                stationId: grant.stationId || ''
+            };
+            current.gain += amount;
+            if (grant.resourceName) current.name = grant.resourceName;
+            if (grant.stationId) current.stationId = grant.stationId;
+            byResource.set(resource, current);
+        }
+        const afterResources = state.snapshot?.resources || {};
+        return [...byResource.values()].map((row) => {
+            if (row.resource === 'TIMBER') {
+                const after = number(afterResources.timber);
+                const capacity = Math.max(1, number(afterResources.timberCapacity) || before.timberCapacity || 1);
+                const prior = number(before.timber);
+                return { ...row, name: 'Timber', icon: '▰', before: prior, after, capacity };
+            }
+            if (row.resource === 'SIEGECOINS') {
+                const after = number(afterResources.gold);
+                const prior = number(before.gold);
+                return {
+                    ...row, name: 'Siegecoins', icon: '◉',
+                    before: prior, after: after || prior + row.gain, capacity: 0
+                };
+            }
+            const priorMaterial = before.materials?.[row.resource] || {};
+            const afterMaterial = (afterResources.materials || []).find((item) => item.id === row.resource);
+            const capacity = Math.max(1, number(afterMaterial?.capacity)
+                || number(priorMaterial.capacity)
+                || number(afterResources.materialCapacity)
+                || 1);
+            const prior = number(priorMaterial.amount);
+            const after = afterMaterial ? number(afterMaterial.amount) : prior + row.gain;
+            return {
+                ...row,
+                name: row.name || afterMaterial?.name || priorMaterial.name || titleCase(row.resource),
+                icon: materialIcon(row.resource),
+                before: prior,
+                after,
+                capacity
+            };
+        });
+    }
+
+    function collectPopupRowMarkup(row) {
+        const capacity = number(row.capacity);
+        const beforePct = capacity > 0 ? clamp(row.before / capacity * 100, 0, 100) : 0;
+        const afterPct = capacity > 0 ? clamp(row.after / capacity * 100, 0, 100) : 0;
+        const gainPct = Math.max(0, afterPct - beforePct);
+        const storageLabel = capacity > 0
+            ? `<span class="collect-row-meta"><span>Storage <b>${number(row.after)} / ${capacity}</b></span><span>was ${number(row.before)}</span></span>
+                <div class="collect-meter" aria-hidden="true">
+                    <i class="collect-meter-was" style="width:${beforePct}%"></i>
+                    <i class="collect-meter-gain" style="left:${beforePct}%; --gain-width:${gainPct}%"></i>
+                </div>`
+            : `<span class="collect-row-meta"><span>On hand <b>${number(row.after)}</b></span><span>was ${number(row.before)}</span></span>`;
+        return `<section class="collect-row" data-resource="${escapeAttr(row.resource)}">
+            <i aria-hidden="true">${row.icon || '✦'}</i>
+            <div class="collect-row-copy">
+                <div class="collect-row-head"><strong>${escapeHtml(row.name)}</strong><em>+${number(row.gain)}</em></div>
+                ${storageLabel}
+            </div>
+        </section>`;
     }
 
     async function setHallTheme(themeId) {
@@ -3637,7 +3763,14 @@
                 if (material) material.amount = Math.min(number(material.capacity || snapshot.resources.materialCapacity), number(material.amount) + amount);
             }
             station.available = 0;
-            snapshot.collected = { resource: stationId === 'woodlot' ? 'TIMBER' : 'ESSENCE', amount, stationId };
+            snapshot.collected = stationId === 'woodlot'
+                ? { resource: 'TIMBER', resourceName: 'Timber', amount, stationId }
+                : {
+                    resource: station.resource || 'ESSENCE',
+                    resourceName: station.resourceName || 'Materials',
+                    amount,
+                    stationId
+                };
         } else if (path.endsWith('/keep/resident')) {
             const stationId = body.stationId || 'woodlot';
             const stations = snapshot.stations || [snapshot.station];
