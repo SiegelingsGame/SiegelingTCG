@@ -326,7 +326,7 @@ class GameJavaScriptRegressionTest {
                 "Profile trim styles for battle preview, social shrink, and favorite card art must ship in home.css."
         );
         assertTrue(
-                homeMarkup.contains("home.js?v=128") && homeMarkup.contains("home.css?v=120"),
+                homeMarkup.contains("home.js?v=129") && homeMarkup.contains("home.css?v=121"),
                 "Cache-bust pins for the profile dashboard trim must advance on home.html."
         );
     }
@@ -354,9 +354,9 @@ class GameJavaScriptRegressionTest {
                 "Element-mode profile and friend avatars must fill a circular frame."
         );
         assertTrue(
-                homeMarkup.contains("home.css?v=120")
-                        && homeMarkup.contains("home.js?v=128")
-                        && dashboardMarkup.contains("home.css?v=120"),
+                homeMarkup.contains("home.css?v=121")
+                        && homeMarkup.contains("home.js?v=129")
+                        && dashboardMarkup.contains("home.css?v=121"),
                 "Profile icon CSS and JavaScript cache pins must advance together."
         );
     }
@@ -391,7 +391,7 @@ class GameJavaScriptRegressionTest {
                 homeMarkup.contains("style.css?v=218")
                         && homeMarkup.contains("game.js?v=222")
                         && homeMarkup.contains("card-binder-visual.js?v=20")
-                        && homeMarkup.contains("home.js?v=128")
+                        && homeMarkup.contains("home.js?v=129")
                         && playMarkup.contains("style.css?v=218")
                         && playMarkup.contains("game.js?v=222")
                         && dashboardMarkup.contains("style.css?v=218")
@@ -540,10 +540,47 @@ class GameJavaScriptRegressionTest {
                 "A cached identity without progression must keep the binder loading until ownedCards arrives."
         );
         assertTrue(
-                renderCards.contains("binderLoadingMarkup('Loading your card binder…')")
+                renderCards.contains("panelLoadingMarkup('Loading your card binder…')")
                         && renderCards.contains("grid.setAttribute('aria-busy', 'true')")
                         && renderCards.contains("allCount.textContent = 'Loading cards…'"),
                 "The binder load race must show a visible and accessible loading status instead of zero owned cards."
+        );
+    }
+
+    @Test
+    void shopShowsLoadingStatusUntilPacksAndProgressionArrive() throws IOException {
+        String homeScript = readHomeScript();
+        String homeCss = Files.readString(Path.of("src/main/resources/static/css/home.css"));
+        String shopDataLoading = extractFunction(homeScript, "function shopDataLoading()");
+        String renderShop = extractFunction(homeScript, "function renderShop()");
+        String applyShopPacksPayload = extractFunction(homeScript, "function applyShopPacksPayload(data)");
+        String ensurePacksLoaded = extractFunction(homeScript, "async function ensurePacksLoaded(force = false)");
+
+        assertTrue(
+                homeScript.contains("shopPacksLoading: true")
+                        && ensurePacksLoaded.contains("state.shopPacksLoading = true")
+                        && applyShopPacksPayload.contains("state.shopPacksLoading = false"),
+                "The shop must start out loading and clear the flag however the pack catalog attempt resolves."
+        );
+        assertTrue(
+                shopDataLoading.contains("state.shopPacksLoading && !state.packs.length")
+                        && shopDataLoading.contains("!state.profileSynced")
+                        && shopDataLoading.contains("!state.progression"),
+                "A missing pack catalog or an unsynced signed-in progression snapshot must both count as shop loading."
+        );
+        assertTrue(
+                renderShop.contains("if (shopDataLoading())")
+                        && renderShop.contains("panelLoadingMarkup('Loading the shop…')")
+                        && renderShop.contains("grid.setAttribute('aria-busy', 'true')")
+                        && renderShop.contains("goldLabel.textContent = 'Loading…'"),
+                "The shop must show the spinner and loading bar instead of an empty pack panel while data is in flight."
+        );
+        assertTrue(
+                homeCss.contains(".panel-loading-spinner")
+                        && homeCss.contains(".panel-loading-bar")
+                        && homeCss.contains("animation: panel-spin")
+                        && homeCss.contains("animation: panel-loading-slide"),
+                "The shared panel loading spinner and bar styles must ship in home.css."
         );
     }
 
