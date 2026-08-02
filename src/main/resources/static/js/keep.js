@@ -47,7 +47,7 @@
         },
         {
             art: '▰', kicker: 'Grow and gather', title: 'The Woodlot works for you',
-            body: 'The Restorative Woodlot produces timber over time — the READY counter at the top shows how much is waiting. Tap Collect to store it. Cultivation, never clear-cutting.'
+            body: 'Workshops produce timber and materials over time — the READY counter at the top shows how much is waiting across every point. Tap Collect to store it all. Cultivation, never clear-cutting.'
         },
         {
             art: '⚒', kicker: 'Restore the sanctuary', title: 'Spend timber on Projects',
@@ -204,7 +204,7 @@
         document.getElementById('favorOverlay')?.addEventListener('click', (event) => {
             if (event.target.id === 'favorOverlay') closeFavorConfirm();
         });
-        document.getElementById('collectButton')?.addEventListener('click', collectTimber);
+        document.getElementById('collectButton')?.addEventListener('click', collectAllReady);
         document.getElementById('fullscreenButton')?.addEventListener('click', toggleFullscreen);
         document.getElementById('discoveryOpen')?.addEventListener('click', openLatestDiscovery);
         document.getElementById('noticeButton')?.addEventListener('click', toggleNoticeTray);
@@ -584,7 +584,7 @@
             return;
         }
         if (event.target.closest('[data-dialogue-done]')) closeDialogue();
-        if (event.target.closest('[data-collect-inline]')) void collectTimber();
+        if (event.target.closest('[data-collect-inline]')) void collectStation('woodlot');
     }
 
     async function loadSnapshot(announceDiscoveries = false) {
@@ -630,12 +630,28 @@
         }
     }
 
-    async function collectTimber() {
-        if (projectedAvailable() <= 0) return;
-        await collectStation('woodlot');
+    async function collectAllReady() {
+        if (projectedTotalReady() <= 0 || !canCollectAnyStation()) return;
+        const data = await perform('/api/keep/collect', { stationId: 'all' });
+        if (!data?.collected) return;
+        const grants = Array.isArray(data.collected.stations) ? data.collected.stations : [data.collected];
+        for (const grant of grants) {
+            if (number(grant?.amount) > 0) playCollectBurst(grant.stationId || 'woodlot', number(grant.amount));
+        }
+        const total = number(data.collected.amount);
+        if (total > 0) {
+            const points = grants.filter((grant) => number(grant?.amount) > 0).length;
+            showNotice(points > 1
+                ? `+${total} gathered from ${points} production points.`
+                : `+${total} gathered from the keep.`, 'Collect');
+        }
     }
 
     async function collectStation(stationId) {
+        if (stationId === 'all') {
+            await collectAllReady();
+            return;
+        }
         if (stationId === 'akhars_front') {
             if (projectedAkharsFrontAvailable() <= 0) return;
             const data = await perform('/api/keep/collect', { stationId });
@@ -1085,14 +1101,13 @@
     function updateLiveCounters() {
         if (!state.snapshot) return;
         const available = projectedAvailable();
-        const totalReady = (state.snapshot.stations || [state.snapshot.station]).reduce(
-            (sum, station) => sum + projectedStationAvailable(station), 0);
+        const totalReady = projectedTotalReady();
         text('stationAvailable', totalReady);
         renderHeaderCapacityCounters();
-        text('collectAmount', `${available} timber`);
+        text('collectAmount', `${totalReady} ready`);
         text('frontReadyAmount', String(projectedAkharsFrontAvailable()));
         const collect = document.getElementById('collectButton');
-        if (collect) collect.disabled = available <= 0 || number(state.snapshot.resources?.timber) >= number(state.snapshot.resources?.timberCapacity) || state.busy;
+        if (collect) collect.disabled = totalReady <= 0 || !canCollectAnyStation() || state.busy;
         // Map Collect cue only when the Woodlot stockpile is full — partial stores
         // still show as growing piles and remain claimable from the dock button.
         const woodlotCapacity = number(state.snapshot.station?.storageCapacity);
@@ -3571,6 +3586,45 @@
                 window.__KEEP_TEST_SNAPSHOT__ = clone(snapshot);
                 return Promise.resolve(snapshot);
             }
+            if (stationId === 'all') {
+                const grants = [];
+                for (const station of snapshot.stations || [snapshot.station]) {
+                    if (!station?.id) continue;
+                    const amount = projectedStationAvailable(station);
+                    if (amount <= 0) continue;
+                    if (station.id === 'woodlot') {
+                        const room = Math.max(0, number(snapshot.resources.timberCapacity) - number(snapshot.resources.timber));
+                        const grant = Math.min(room, amount);
+                        if (grant <= 0) continue;
+                        snapshot.resources.timber = number(snapshot.resources.timber) + grant;
+                        snapshot.station.collectCount = number(snapshot.station.collectCount) + 1;
+                        if (snapshot.station.collectCount === 1) mockUnlock(snapshot, 'letter_forester_maren');
+                        if (snapshot.station.collectCount >= 3) mockUnlock(snapshot, 'memorabilia_petrified_root');
+                        station.available = 0;
+                        grants.push({ resource: 'TIMBER', resourceName: 'Timber', amount: grant, stationId: 'woodlot' });
+                        continue;
+                    }
+                    const material = (snapshot.resources.materials || []).find((item) => item.id === station.resource);
+                    const capacity = number(material?.capacity || snapshot.resources.materialCapacity);
+                    const room = Math.max(0, capacity - number(material?.amount));
+                    const grant = Math.min(room, amount);
+                    if (grant <= 0) continue;
+                    if (material) material.amount = number(material.amount) + grant;
+                    station.available = 0;
+                    grants.push({
+                        resource: station.resource || 'ESSENCE',
+                        resourceName: station.resourceName || 'Materials',
+                        amount: grant,
+                        stationId: station.id
+                    });
+                }
+                const total = grants.reduce((sum, grant) => sum + number(grant.amount), 0);
+                snapshot.collected = {
+                    resource: 'ALL', resourceName: 'Resources', amount: total, stationId: 'all', stations: grants
+                };
+                window.__KEEP_TEST_SNAPSHOT__ = clone(snapshot);
+                return Promise.resolve(snapshot);
+            }
             const station = (snapshot.stations || [snapshot.station]).find((item) => item.id === stationId) || snapshot.station;
             const amount = projectedStationAvailable(station);
             if (stationId === 'woodlot') {
@@ -3945,6 +3999,30 @@
 
     function projectedAvailable() {
         return projectedStationAvailable(state.snapshot?.station);
+    }
+
+    function projectedTotalReady() {
+        return (state.snapshot?.stations || [state.snapshot?.station]).reduce(
+            (sum, station) => sum + projectedStationAvailable(station), 0);
+    }
+
+    /** True when at least one production point can pay into inventory (not just ready-on-pile). */
+    function canCollectAnyStation() {
+        const snapshot = state.snapshot;
+        if (!snapshot) return false;
+        for (const station of snapshot.stations || [snapshot.station]) {
+            if (!station?.id) continue;
+            const ready = projectedStationAvailable(station);
+            if (ready <= 0) continue;
+            if (station.id === 'woodlot') {
+                if (number(snapshot.resources?.timber) < number(snapshot.resources?.timberCapacity)) return true;
+                continue;
+            }
+            const material = (snapshot.resources?.materials || []).find((item) => item.id === station.resource);
+            const capacity = number(material?.capacity || snapshot.resources?.materialCapacity);
+            if (number(material?.amount) < capacity) return true;
+        }
+        return false;
     }
 
     /** Test-mode mirror of the server's rampart tiers, so a harness can walk a wall from one
