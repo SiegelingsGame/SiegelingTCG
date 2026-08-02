@@ -988,11 +988,22 @@ public class KeepService {
                 materializeAllProduction(state, context.residents(), context.now());
                 state.getResidentRapport().merge(rapportResidentId, rapportAward, Integer::sum);
             }
-            progression.setGold(progression.getGold() + gold);
-            progression.setRemnants(progression.getRemnants() + remnants);
-            if (!repeatableClaim) progression.getKeepRewardClaimIds().add(claimKey);
-            progression.setUpdatedAt(context.now());
-            if (progressionStore != null) progressionStore.save(progression);
+            // Keep spends materials / grants decorations first; account gold and the durable
+            // claim marker flush only after Keep persists. Saving progression inside this
+            // action left a window where a failed Keep write credited weekly_order gold
+            // (and marked the claim) while Firestore still held the unspent materials.
+            final int awardedGold = gold;
+            final int awardedRemnants = remnants;
+            final String durableClaimKey = claimKey;
+            final boolean durableClaim = !repeatableClaim;
+            int goldBalance = progression.getGold() + awardedGold;
+            int remnantsBalance = progression.getRemnants() + awardedRemnants;
+            context.afterKeepPersist(p -> {
+                p.setGold(p.getGold() + awardedGold);
+                p.setRemnants(p.getRemnants() + awardedRemnants);
+                if (durableClaim) p.getKeepRewardClaimIds().add(durableClaimKey);
+                p.setUpdatedAt(context.now());
+            });
             // Completing a quest is itself a progression beat; claiming the battlepass
             // payout is not (that XP is what earned the level in the first place).
             int questXp = id.startsWith("keeper_level:") ? 0 : awardKeeperXp(state, KEEPER_QUEST_XP);
@@ -1000,8 +1011,8 @@ public class KeepService {
             reward.put("id", id);
             reward.put("gold", gold);
             reward.put("remnants", remnants);
-            reward.put("goldBalance", progression.getGold());
-            reward.put("remnantsBalance", progression.getRemnants());
+            reward.put("goldBalance", goldBalance);
+            reward.put("remnantsBalance", remnantsBalance);
             if (questXp > 0) reward.put("keeperXpAwarded", questXp);
             if (grantedDecorationId != null && !grantedDecorationId.isBlank()) {
                 reward.put("decorationId", grantedDecorationId);
