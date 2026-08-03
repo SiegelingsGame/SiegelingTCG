@@ -9,6 +9,7 @@ These are the effect keys the rules engine currently understands.
 | Key | What it does | Typical target type |
 | --- | --- | --- |
 | `damage` | Deals damage to the resolved target or targets. | `SINGLE_ENEMY`, `ROW_ENEMIES`, `ALL_ENEMIES`, `ENEMY_PLAYER` |
+| `chain_damage` | Deals damage to the resolved target **and** to every Siegling that shares an active reciprocal notch link with it (one hop, on the target's own board). | `SINGLE_ENEMY`, `ROW_SELECT_ENEMIES`, `ALL_ENEMIES` |
 | `player_damage` | Deals direct damage to a player target. | `ENEMY_PLAYER` |
 | `heal` | Restores health up to max Health. | `SINGLE_ALLY`, `ALL_ALLIES`, `ENEMY_PLAYER` |
 | `freeze` | Applies the freeze status. | `SINGLE_ENEMY`, `ROW_ENEMIES` |
@@ -24,6 +25,17 @@ These are the effect keys the rules engine currently understands.
 
 ## Notes
 
+- `chain_damage` is the offensive mirror of the `connected_allies_*` keys: those trace links out
+  from the *source*, while chain damage traces links out from the *picked target*. It arcs one hop
+  only — the target's neighbours, not their neighbours' neighbours — and never hits the same
+  Siegling twice when several primary targets share a link. Elemental weakness (+1) and afflictions
+  (Blind/Soak/Rust/inflict) are scored per victim against the source's element. With an empty
+  enemy board it falls back to face damage exactly like `damage`.
+- Chain targeting is driven by the *effect*, not a target type: pick `SINGLE_ENEMY` and the player
+  still selects one card. In the battle view, hovering or pressing a candidate lights its linked
+  cells (`.board-cell.chain-target` in `style.css`) and fans targeting arrows to every victim.
+  When no target is supplied (AI turns), auto-target picks the enemy carrying the most links, ties
+  going to the lowest current health. In Siege (no notch board) it resolves as single-target `DAMAGE`.
 - `connected_allies_damage_boost`, `connected_allies_health_boost`, and `connected_allies_speed_boost` are source-based, so they should be used on board creatures rather than trainers or generic spells.
 - If you want a source creature to strengthen its linked network, these are the keys to use.
 - Current connected-allies logic follows the same reciprocal notch-link rules the board uses for normal connections.
@@ -38,6 +50,7 @@ modes; the mapping lives in `SiegeContentService.effectFor` /
 | Key | Siege effect | Siege targeting |
 | --- | --- | --- |
 | `damage` | `DAMAGE` — value + 2, plus the caster's attack buff. | as written |
+| `chain_damage` | `DAMAGE` — Siege has no notch links, so it lands as a normal attack. | as written |
 | `player_damage` | `DAMAGE` — there is no opposing player, so it lands on the enemy line. | `ALL_ENEMIES` |
 | `draw` | `DRAW` — pulls that many cards (max 3) into the hand. | `SELF` |
 | `heal` | `HEAL` — value + 3. | as written |

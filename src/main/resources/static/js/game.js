@@ -347,6 +347,7 @@ const TARGET_TYPES = {
 };
 const EFFECT_KIND_MAP = {
     damage: 'damage',
+    chain_damage: 'damage',
     player_damage: 'damage',
     destroy: 'damage',
     draw: 'buff',
@@ -2014,7 +2015,108 @@ function getBattleAbilityBaseDamage(ability) {
 
 function isBattleDamageAbility(ability) {
     const effectType = String(ability?.effectType || '').trim().toLowerCase();
-    return effectType === 'damage' || getBattleAbilityBaseDamage(ability) > 0;
+    return effectType === 'damage' || effectType === 'chain_damage' || getBattleAbilityBaseDamage(ability) > 0;
+}
+
+function isChainTargetAbility(ability) {
+    return String(ability?.effectType || '').trim().toLowerCase() === 'chain_damage';
+}
+
+/**
+ * Cells wired to (row, col) by an active reciprocal notch link — the extra victims a chain
+ * effect arcs to. Mirrors PlacementService.getDirectlyConnectedAllies so the highlight cannot
+ * promise a hit the server will not deal.
+ */
+function getLinkedBoardCells(board, isPlayer, row, col) {
+    const origin = board?.[row]?.[col];
+    if (!origin) {
+        return [];
+    }
+    const linked = [];
+    for (const notch of (origin.notches || [])) {
+        const delta = directionDelta(notch.direction, isPlayer);
+        const nextRow = row + delta.dy;
+        const nextCol = col + delta.dx;
+        if (nextRow < 0 || nextRow > 2 || nextCol < 0 || nextCol > 2) {
+            continue;
+        }
+        const neighbor = board?.[nextRow]?.[nextCol];
+        if (!neighbor || !hasOppositeNotch(neighbor.notches, notch.direction)) {
+            continue;
+        }
+        if (linked.some((cell) => cell.row === nextRow && cell.col === nextCol)) {
+            continue;
+        }
+        linked.push({ isPlayer, row: nextRow, col: nextCol });
+    }
+    return linked;
+}
+
+/** Primary picks plus everything the chain jumps to, deduped, for arrow previews. */
+function expandChainTargetCells(ability, cells) {
+    if (!isChainTargetAbility(ability)) {
+        return (cells || []).filter(Boolean);
+    }
+    const out = [];
+    const seen = new Set();
+    const push = (cell) => {
+        const key = `${cell.isPlayer ? 'p' : 'e'}:${cell.row}:${cell.col}`;
+        if (seen.has(key)) {
+            return;
+        }
+        seen.add(key);
+        out.push(cell);
+    };
+    (cells || []).filter(Boolean).forEach((cell) => {
+        push(cell);
+        const board = cell.isPlayer ? gameState?.playerBoard : gameState?.enemyBoard;
+        getLinkedBoardCells(board || [], cell.isPlayer, cell.row, cell.col).forEach(push);
+    });
+    return out;
+}
+
+function clearChainTargetHighlights() {
+    document.querySelectorAll('.board-cell.chain-target').forEach((el) => el.classList.remove('chain-target'));
+}
+
+/** Light up the linked cells a chain would splash to from the given primary picks. */
+function applyChainTargetHighlights(ability, primaryCells) {
+    clearChainTargetHighlights();
+    if (!isChainTargetAbility(ability)) {
+        return;
+    }
+    (primaryCells || []).filter(Boolean).forEach((cell) => {
+        const board = cell.isPlayer ? gameState?.playerBoard : gameState?.enemyBoard;
+        getLinkedBoardCells(board || [], cell.isPlayer, cell.row, cell.col).forEach((linked) => {
+            findBoardCellEl(linked.isPlayer, linked.row, linked.col)?.classList.add('chain-target');
+        });
+    });
+}
+
+/**
+ * Untargeted chain damage lands on the busiest link hub, ties going to the weakest unit —
+ * the same pick EffectService.findBestChainTarget makes, so the preview matches resolution.
+ */
+function findBestChainPreviewCell(board) {
+    let best = null;
+    let bestLinks = -1;
+    let bestHp = 0;
+    for (const row of [2, 1, 0]) {
+        for (let col = 0; col < 3; col++) {
+            const cell = board?.[row]?.[col];
+            if (!cell) {
+                continue;
+            }
+            const links = getLinkedBoardCells(board, false, row, col).length;
+            const hp = Number(cell.hp) || 0;
+            if (links > bestLinks || (links === bestLinks && best && hp < bestHp)) {
+                best = { isPlayer: false, row, col };
+                bestLinks = links;
+                bestHp = hp;
+            }
+        }
+    }
+    return best;
 }
 
 function getBattleAbilityEnemyTargets(ability, selectedRow = -1) {
@@ -2400,6 +2502,7 @@ window.addEventListener('scroll', refreshTargetingPreviewOnLayoutChange, true);
 function clearTargetingPreview() {
     targetPreviewController.clear();
     clearMatchupBadges();
+    clearChainTargetHighlights();
 }
 
 function sourceCellCenter() {
@@ -2463,6 +2566,12 @@ function previewTargetsFor(ability, selectedRow = -1) {
     const targetType = String(ability.targetType || '').trim().toUpperCase();
     switch (targetType) {
         case 'SINGLE_ENEMY': {
+            if (isChainTargetAbility(ability)) {
+                const hub = findBestChainPreviewCell(enemyBoard);
+                if (hub) {
+                    return [hub];
+                }
+            }
             const preferredRow = rowNameToIndex(ability.targetRow);
             if (preferredRow >= 0) {
                 const preferred = firstPreviewCellByRows(enemyBoard, false, [preferredRow]);
@@ -2508,15 +2617,23 @@ function showBattleAbilityPreview(ability, selectedRow = -1) {
     showBattleTargetCellsPreview(ability, previewTargetsFor(ability, selectedRow));
 }
 
-function showBattleTargetCellsPreview(ability, cells) {
+/**
+ * @param cells the primary picks; chain effects expand these to their linked cells here.
+ * @param options.chained pass false when `cells` is the whole "any of these" option list rather
+ *        than a committed pick — every enemy is already lit, so arcing off each one says nothing.
+ */
+function showBattleTargetCellsPreview(ability, cells, options = {}) {
     const sourceCell = sourceCellDescriptor();
-    const targetCells = (cells || []).filter(Boolean);
+    const chained = options.chained !== false;
+    const primaryCells = (cells || []).filter(Boolean);
+    const targetCells = chained ? expandChainTargetCells(ability, primaryCells) : primaryCells;
     if (!sourceCell || targetCells.length === 0) {
         clearTargetingPreview();
         return;
     }
     targetPreviewController.show(sourceCell, targetCells, resolveTargetingArrowPalette(ability));
-    applyMatchupBadgesForCells(ability, cells || []);
+    applyMatchupBadgesForCells(ability, targetCells);
+    applyChainTargetHighlights(chained ? ability : null, primaryCells);
 }
 
 function getMatchupKindForTarget(attackerElement, defenderElement) {
@@ -2559,20 +2676,21 @@ function applyMatchupBadgesForCells(ability, cells) {
     });
 }
 
+/** @returns {{cells: Array, chained: boolean}} chained=false for the broad "pick any of these" list. */
 function getBattleTargetingPreviewCells(ability) {
     if (!ability || !targetMode || !targetContext || targetContext.mode !== 'battle') {
-        return [];
+        return { cells: [], chained: true };
     }
     if (isRowSelectTargetSide(targetContext.side)) {
-        return previewTargetsFor(ability, getRowSelectSelectedRow());
+        return { cells: previewTargetsFor(ability, getRowSelectSelectedRow()), chained: getRowSelectSelectedRow() >= 0 };
     }
     if (targetContext.side === 'enemy') {
-        return collectPreviewCells(gameState?.enemyBoard || [], false);
+        return { cells: collectPreviewCells(gameState?.enemyBoard || [], false), chained: false };
     }
     if (targetContext.side === 'ally') {
-        return collectPreviewCells(gameState?.playerBoard || [], true);
+        return { cells: collectPreviewCells(gameState?.playerBoard || [], true), chained: false };
     }
-    return previewTargetsFor(ability);
+    return { cells: previewTargetsFor(ability), chained: true };
 }
 
 function scheduleBattleTargetingPreview(ability) {
@@ -2585,7 +2703,8 @@ function scheduleBattleTargetingPreview(ability) {
             if (!activeAbility || activeAbility.index !== ability.index) {
                 return;
             }
-            showBattleTargetCellsPreview(activeAbility, getBattleTargetingPreviewCells(activeAbility));
+            const preview = getBattleTargetingPreviewCells(activeAbility);
+            showBattleTargetCellsPreview(activeAbility, preview.cells, { chained: preview.chained });
         });
     });
 }
@@ -2726,8 +2845,25 @@ function handleTargetCellPointerLeave() {
     clearTargetingPreview();
 }
 
+/** The ability driving the current target selection, whatever started it (move, spell, trainer). */
+function getActiveTargetContextAbility() {
+    if (!targetMode || !targetContext) {
+        return null;
+    }
+    if (targetContext.mode === 'battle') {
+        return getActiveBattleTargetAbility();
+    }
+    return targetContext.ability || null;
+}
+
 function previewCellHover(isPlayer, row, col) {
-    if (!targetMode || !targetContext || targetContext.mode !== 'battle') {
+    if (!targetMode || !targetContext) {
+        return;
+    }
+    if (targetContext.mode !== 'battle') {
+        // Spells, traps, and trainer actives have no board source cell to draw arrows from, so a
+        // chain effect just lights up the links it would arc through from the hovered target.
+        applyChainTargetHighlights(getActiveTargetContextAbility(), [{ isPlayer, row, col }]);
         return;
     }
     const ability = gameState?.pendingBattle?.abilities?.find((a) => a.index === targetContext.abilityIndex);
@@ -2796,8 +2932,8 @@ function getBattleTargetingEffectCategory(ability) {
 
 function buildBattleTargetingArrowHint(ability, targetSide, selectedRow = -1) {
     const category = getBattleTargetingEffectCategory(ability);
-    const previewCells = getBattleTargetingPreviewCells(ability);
-    const hasArrowPreview = previewCells.length > 0 && Boolean(sourceCellCenter());
+    const preview = getBattleTargetingPreviewCells(ability);
+    const hasArrowPreview = (preview.cells || []).length > 0 && Boolean(sourceCellCenter());
 
     if (targetSide === 'row-enemy' || targetSide === 'row-ally') {
         if (selectedRow < 0) {
@@ -3329,6 +3465,11 @@ function getCompactAbilityClause(ability) {
     const target = getCompactAbilityTargetPhrase(ability);
     const isBuff = /grant|gain|\+\d/.test(description);
     let clause = '';
+    if (isChainTargetAbility(ability)) {
+        return value > 0
+            ? `Chain ${value} to ${target || 'an enemy'} + links`
+            : `Chain ${target || 'an enemy'} + links`;
+    }
     switch (kind) {
         case 'damage':
             if (isBuff) {
@@ -15148,6 +15289,7 @@ function activateActionCard(card) {
         targetContext = {
             mode: 'spell',
             side: targetSide,
+            ability: card.ability,
             message: `Select a target for ${card.name}.`,
             callback: (row, col) => castSpell(card.id, row, col)
         };
@@ -15349,6 +15491,7 @@ function onTrainerUse() {
         targetContext = {
             mode: 'trainer',
             side: targetSide,
+            ability: trainer.active,
             message: `Select a target for ${trainer.active.name}.`,
             callback: (row, col) => useTrainer(row, col)
         };

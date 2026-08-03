@@ -741,6 +741,171 @@ class EffectServiceTest {
         assertEquals(10, back.getCurrentHealth());
     }
 
+    @Test
+    void chainDamageHitsPickedEnemyAndItsDirectlyLinkedAllies() {
+        GameState state = battleState();
+        CardInstance source = instance("source", 1, 0, true);
+        state.setAt(true, 1, 0, source);
+
+        // Enemy middle row is wired left-to-right: hub links to both neighbours.
+        CardInstance hub = enemyInstance("hub", List.of(
+                new Notch(NotchDirection.LEFT, Element.EARTH),
+                new Notch(NotchDirection.RIGHT, Element.EARTH)
+        ), 1, 1);
+        CardInstance linkedLeft = enemyInstance("linked-left", List.of(
+                new Notch(NotchDirection.RIGHT, Element.EARTH),
+                new Notch(NotchDirection.TOP, Element.EARTH)
+        ), 1, 0);
+        CardInstance linkedRight = enemyInstance("linked-right", List.of(
+                new Notch(NotchDirection.LEFT, Element.EARTH)
+        ), 1, 2);
+        // Two hops out from the hub — chain damage stops at the first ring.
+        CardInstance secondHop = enemyInstance("second-hop", List.of(
+                new Notch(NotchDirection.BOTTOM, Element.EARTH)
+        ), 0, 0);
+        CardInstance isolated = enemyInstance("isolated", List.of(
+                new Notch(NotchDirection.TOP, Element.EARTH)
+        ), 0, 2);
+        state.setAt(false, 1, 1, hub);
+        state.setAt(false, 1, 0, linkedLeft);
+        state.setAt(false, 1, 2, linkedRight);
+        state.setAt(false, 0, 0, secondHop);
+        state.setAt(false, 0, 2, isolated);
+
+        Ability arc = Ability.chainDamage(
+                "Arc Chain",
+                "Chain 3 damage to 1 enemy and its connected allies",
+                TargetType.SINGLE_ENEMY,
+                null,
+                1,
+                3
+        );
+
+        effectService.resolveAbility(state, arc, source, true, 1, 1);
+
+        assertEquals(7, hub.getCurrentHealth(), "Picked target takes the hit.");
+        assertEquals(7, linkedLeft.getCurrentHealth(), "Directly linked ally is chained.");
+        assertEquals(7, linkedRight.getCurrentHealth(), "Directly linked ally is chained.");
+        assertEquals(10, secondHop.getCurrentHealth(), "Second-degree links stay untouched.");
+        assertEquals(10, isolated.getCurrentHealth(), "Unlinked enemies stay untouched.");
+    }
+
+    @Test
+    void chainDamageAutoTargetPicksTheBusiestLinkHub() {
+        GameState state = battleState();
+        CardInstance source = instance("source", 1, 0, true);
+        state.setAt(true, 1, 0, source);
+
+        CardInstance hub = enemyInstance("hub", List.of(
+                new Notch(NotchDirection.LEFT, Element.EARTH),
+                new Notch(NotchDirection.RIGHT, Element.EARTH)
+        ), 1, 1);
+        CardInstance linkedLeft = enemyInstance("linked-left", List.of(
+                new Notch(NotchDirection.RIGHT, Element.EARTH)
+        ), 1, 0);
+        CardInstance linkedRight = enemyInstance("linked-right", List.of(
+                new Notch(NotchDirection.LEFT, Element.EARTH)
+        ), 1, 2);
+        // Weakest enemy on the board, but linked to nothing — plain damage would pick it.
+        CardInstance woundedLoner = enemyInstance("wounded-loner", List.of(), 2, 2);
+        woundedLoner.setCurrentHealth(2);
+        state.setAt(false, 1, 1, hub);
+        state.setAt(false, 1, 0, linkedLeft);
+        state.setAt(false, 1, 2, linkedRight);
+        state.setAt(false, 2, 2, woundedLoner);
+
+        Ability arc = Ability.chainDamage(
+                "Arc Chain",
+                "Chain 3 damage to 1 enemy and its connected allies",
+                TargetType.SINGLE_ENEMY,
+                null,
+                1,
+                3
+        );
+
+        effectService.resolveAbility(state, arc, source, true, -1, -1);
+
+        assertEquals(7, hub.getCurrentHealth(), "Auto-target should pick the enemy carrying the most links.");
+        assertEquals(7, linkedLeft.getCurrentHealth());
+        assertEquals(7, linkedRight.getCurrentHealth());
+        assertEquals(2, woundedLoner.getCurrentHealth(), "Unlinked weakling is not worth chaining into.");
+    }
+
+    @Test
+    void chainDamageHitsEachEnemyOnceWhenPrimaryTargetsShareLinks() {
+        GameState state = battleState();
+        CardInstance source = instance("source", 1, 0, true);
+        state.setAt(true, 1, 0, source);
+
+        CardInstance left = enemyInstance("left", List.of(
+                new Notch(NotchDirection.RIGHT, Element.EARTH)
+        ), 1, 0);
+        CardInstance middle = enemyInstance("middle", List.of(
+                new Notch(NotchDirection.LEFT, Element.EARTH),
+                new Notch(NotchDirection.RIGHT, Element.EARTH)
+        ), 1, 1);
+        CardInstance right = enemyInstance("right", List.of(
+                new Notch(NotchDirection.LEFT, Element.EARTH)
+        ), 1, 2);
+        state.setAt(false, 1, 0, left);
+        state.setAt(false, 1, 1, middle);
+        state.setAt(false, 1, 2, right);
+
+        Ability storm = Ability.chainDamage(
+                "Chain Storm",
+                "Chain 2 damage to all enemies and their connected allies",
+                TargetType.ALL_ENEMIES,
+                null,
+                0,
+                2
+        );
+
+        effectService.resolveAbility(state, storm, source, true, -1, -1);
+
+        assertEquals(8, left.getCurrentHealth(), "Overlapping chains must not double-dip.");
+        assertEquals(8, middle.getCurrentHealth(), "Overlapping chains must not double-dip.");
+        assertEquals(8, right.getCurrentHealth(), "Overlapping chains must not double-dip.");
+    }
+
+    @Test
+    void chainDamageAppliesWeaknessPerVictim() {
+        GameState state = battleState();
+        CardInstance source = instance("fire-source", Element.FIRE, 1, 0, true);
+        state.setAt(true, 1, 0, source);
+
+        CardInstance icyHub = enemyInstance("icy-hub", Element.ICE, List.of(
+                new Notch(NotchDirection.RIGHT, Element.ICE)
+        ), 1, 1);
+        CardInstance waterLink = enemyInstance("water-link", Element.WATER, List.of(
+                new Notch(NotchDirection.LEFT, Element.ICE)
+        ), 1, 2);
+        state.setAt(false, 1, 1, icyHub);
+        state.setAt(false, 1, 2, waterLink);
+
+        Ability arc = Ability.chainDamage(
+                "Arc Chain",
+                "Chain 3 damage to 1 enemy and its connected allies",
+                TargetType.SINGLE_ENEMY,
+                null,
+                1,
+                3
+        );
+
+        effectService.resolveAbility(state, arc, source, true, 1, 1);
+
+        assertEquals(6, icyHub.getCurrentHealth(), "Fire into Ice keeps the weakness bonus on the primary hit.");
+        assertEquals(7, waterLink.getCurrentHealth(), "Chained victim is scored on its own element.");
+    }
+
+    private CardInstance enemyInstance(String id, List<Notch> notches, int row, int col) {
+        return enemyInstance(id, Element.EARTH, notches, row, col);
+    }
+
+    private CardInstance enemyInstance(String id, Element element, List<Notch> notches, int row, int col) {
+        SieglingCard card = new SieglingCard(id, id, element, Rarity.COMMON, 10, 4, notches, Row.MIDDLE);
+        return new CardInstance(card, row, col, false);
+    }
+
     private CardInstance instance(String id, List<Notch> notches, int row, int col) {
         SieglingCard card = new SieglingCard(id, id, Element.EARTH, Rarity.COMMON, 10, 4, notches, Row.MIDDLE);
         return new CardInstance(card, row, col, true);
