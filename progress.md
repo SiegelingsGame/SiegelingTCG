@@ -1,3 +1,7 @@
+Original prompt: Merge and deploy
+
+- August 3, 2026 Production deploy of #642 (hide locked premade decks from battle selection). Merged as `852b099e`; Deploy run [30860023279](https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/30860023279) green — Cloud Run ~4m, Firebase Hosting + Functions ~2.5m. Live pins: `game.js?v=227`, `home.js?v=133`, `style.css?v=219`, `home.css?v=124`. Live `/js/game.js?v=227` uses `getVisibleLoadoutDecks()` with no locked-tile UI in `renderLoadoutOptions`. Editor `source: FIRESTORE` on Hosting and Cloud Run; `apiBaseUrl: ''`; `/api/game/options` 200 (5 decks); `/`, `/play`, `/siege`, `/home`, `/help`, `/keep` 200.
+
 Original prompt: Locked presets should not appear in battle selection
 
 - August 3, 2026 Battle deck selection no longer lists locked premade presets. Play loadout grid + review swap use `getVisibleLoadoutDecks()`; social lobby deck `<select>` filters the same way. Unlock UI stays on the hub Decks page. Pins: `game.js?v=227`, `home.js?v=133`.
