@@ -16417,6 +16417,17 @@ window.advanceTime = function () {
     return renderBattleGameToText();
 };
 
+// The animation queue resolves after the API response has already replaced
+// gameState and rendered the board. Give it a live, read-only route back to the
+// authoritative cell so shield application playback cannot mistake a missing
+// bridge for zero shield and remove a freshly-rendered badge.
+window.SieglingsBoardCellState = {
+    getCell(isPlayer, row, col) {
+        const board = isPlayer ? gameState?.playerBoard : gameState?.enemyBoard;
+        return board?.[Number(row)]?.[Number(col)] || null;
+    }
+};
+
 window.SieglingsCardShowcase = {
     renderShowcaseCard,
     scheduleFramedSummaryFit,
