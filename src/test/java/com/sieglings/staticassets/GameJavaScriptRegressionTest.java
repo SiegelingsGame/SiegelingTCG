@@ -341,7 +341,7 @@ class GameJavaScriptRegressionTest {
                 "Season Snapshot, Loadout Shelf, and Social Table must share the overview rail, with matches and badges paired below."
         );
         assertTrue(
-                homeMarkup.contains("home.js?v=131") && homeMarkup.contains("home.css?v=123"),
+                homeMarkup.contains("home.js?v=132") && homeMarkup.contains("home.css?v=124"),
                 "Cache-bust pins for the profile dashboard trim must advance on home.html."
         );
     }
@@ -369,9 +369,9 @@ class GameJavaScriptRegressionTest {
                 "Element-mode profile and friend avatars must fill a circular frame."
         );
         assertTrue(
-                homeMarkup.contains("home.css?v=123")
-                        && homeMarkup.contains("home.js?v=131")
-                        && dashboardMarkup.contains("home.css?v=123"),
+                homeMarkup.contains("home.css?v=124")
+                        && homeMarkup.contains("home.js?v=132")
+                        && dashboardMarkup.contains("home.css?v=124"),
                 "Profile icon CSS and JavaScript cache pins must advance together."
         );
     }
@@ -406,7 +406,7 @@ class GameJavaScriptRegressionTest {
                 homeMarkup.contains("style.css?v=219")
                         && homeMarkup.contains("game.js?v=226")
                         && homeMarkup.contains("card-binder-visual.js?v=20")
-                        && homeMarkup.contains("home.js?v=131")
+                        && homeMarkup.contains("home.js?v=132")
                         && playMarkup.contains("style.css?v=219")
                         && playMarkup.contains("game.js?v=226")
                         && dashboardMarkup.contains("style.css?v=219")

@@ -2911,6 +2911,43 @@ select.search-input { color-scheme: dark; }
     background: linear-gradient(180deg, #fff8c9, color-mix(in srgb, var(--deck-accent, var(--accent)) 60%, #ffffff));
 }
 
+/* Locked premade decks stay browsable (tap opens the preview). The grey wash
+   sits on the art layer only, so the Locked badge and unlock button read as
+   live controls instead of being desaturated with the rest of the tile. */
+.hub-deck-card.is-locked {
+    border-color: rgba(255, 255, 255, 0.16);
+}
+
+.hub-deck-card.is-locked::before {
+    filter: grayscale(0.9) brightness(0.62);
+}
+
+.hub-deck-card.is-locked .deck-card-state {
+    color: #f6f8ff;
+    background: linear-gradient(180deg, #55607a, #2b3245);
+}
+
+.hub-deck-card.is-locked .deck-card-body {
+    padding-bottom: 96px;
+}
+
+.hub-deck-card .deck-unlock-row {
+    position: absolute;
+    z-index: 3;
+    right: 14px;
+    bottom: 14px;
+    left: 14px;
+}
+
+.hub-deck-card .deck-unlock-btn {
+    width: 100%;
+}
+
+.hub-deck-card .deck-unlock-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
 .hub-deck-card .deck-card-name {
     margin-top: 0;
     color: #fff6da;

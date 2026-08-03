@@ -1,5 +1,7 @@
 Original prompt: Ok update the chains damage to be compatible with the recent changes to main, incorporate new versions of these prs that are compatible
 
+- August 3, 2026 Compatible rework of #616 (premade deck unlocks) on current main: Free Fire/Ice/Earth/Wind + starter element; others 500 coins; match-start gate; locked Decks/Play UI. Client unlock fallback honors cached `starterPackId`/`purchasedDeckIds`; deck purchase refreshes shared auth profile; `/api/auth/me` redraws Play loadout; free main-four singletons sort first. Pins: `game.js?v=226`, `style.css?v=219`, `home.js?v=132`, `home.css?v=124`.
+- Verification: `node --check` on `game.js`/`home.js`; focused progression/deck/regression tests.
 - August 3, 2026 Rebased `chain_damage` (#626) onto current main so it shares the post-affliction `dealAbilityDamage` path (Blind/Soak/Rust/weakness/inflict) instead of the PR's pre-affliction damage body. Hits the picked target plus one-hop reciprocal notch links; auto-target picks the busiest hub. Frontend mirrors link expansion (`.chain-target`, arrows, spell/trainer hover rings). Dashboard/effect catalog + Siege fallback to `DAMAGE`. Pins: `game.js?v=226`, `style.css?v=219`, `card-dashboard.js?v=55`.
 - Verification: `node --check` on `game.js` / `card-dashboard.js`; `EffectServiceTest` chain cases + `GameJavaScriptRegressionTest` pin assertions.
 
