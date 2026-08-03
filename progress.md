@@ -1,3 +1,8 @@
+Original prompt: Create a help page that talks about the different effects, buffs, card types etc
+
+- August 3, 2026 Player Field Guide at `/help`: new `help.html` + `css/help.css?v=1` + `js/help.js?v=1` covering turn loop, card types, board/energy, temporary buffs/statuses, all 12 elemental afflictions, the strength chart, and a short Siege blurb. Sticky TOC on desktop / chip jump nav on mobile, section filter search, hub palette (element CSS vars). Wired via Firebase rewrite + `WebConfig` forward, and a Home nav **Help** link.
+- Verification: `node --check` on `help.js`; headless Chrome at 390×844 (chip nav visible, TOC hidden) and 1920×1080 (TOC visible, chip nav hidden) — 8 sections, 12 affliction rows, filter "burn" leaves 3 sections, no horizontal overflow, no page errors; Home nav exposes `/help`.
+
 Original prompt: Ok make this a single toggle that we can turn off in the future if needed and Merge and deploy
 
 - August 3, 2026 Production deploy of #634 (activate elemental afflictions + master toggle). Merged as `cc62e1da`; Deploy run [30830020716](https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/30830020716) green — Cloud Run ~4m, Firebase Hosting + Functions ~3m. `/play` and `/home` serve `game.js?v=225` with Curse claim/evolve guards; editor `source: FIRESTORE` on Hosting and Cloud Run; `apiBaseUrl: ''`; `/api/game/options` 200. Toggle live as `app.battle.elemental-afflictions-enabled=true`.

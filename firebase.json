@@ -109,6 +109,10 @@
         "destination": "/keep.html"
       },
       {
+        "source": "/help",
+        "destination": "/help.html"
+      },
+      {
         "source": "/api/cards/editor",
         "function": {
           "functionId": "api",
