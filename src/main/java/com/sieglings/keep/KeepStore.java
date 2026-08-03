@@ -96,6 +96,13 @@ public class KeepStore {
         payload.put("activeVisitorIds", state.getActiveVisitorIds());
         payload.put("visitorAvailableAt", timestampMap(state.getVisitorAvailableAt()));
         payload.put("lastVisitorRollAt", timestamp(state.getLastVisitorRollAt()));
+        payload.put("activeKeepEventId", state.getActiveKeepEventId());
+        payload.put("keepEventOccurredAt", timestamp(state.getKeepEventOccurredAt()));
+        payload.put("keepEventRepairStartedAt", timestamp(state.getKeepEventRepairStartedAt()));
+        payload.put("keepEventRepairCompletesAt", timestamp(state.getKeepEventRepairCompletesAt()));
+        payload.put("lastKeepEventRollAt", timestamp(state.getLastKeepEventRollAt()));
+        payload.put("recentKeepEventIds", state.getRecentKeepEventIds());
+        payload.put("keepEventCount", state.getKeepEventCount());
         payload.put("displayedMemorabiliaIds", state.getDisplayedMemorabiliaIds());
         payload.put("processedRequestIds", state.getProcessedRequestIds());
         payload.put("lastVisitedAt", timestamp(state.getLastVisitedAt()));
@@ -185,6 +192,13 @@ public class KeepStore {
         state.setActiveVisitorIds(strings(snapshot.get("activeVisitorIds")));
         state.setVisitorAvailableAt(instantMap(snapshot.get("visitorAvailableAt")));
         state.setLastVisitorRollAt(instant(snapshot.get("lastVisitorRollAt")));
+        state.setActiveKeepEventId(string(snapshot.get("activeKeepEventId")));
+        state.setKeepEventOccurredAt(instant(snapshot.get("keepEventOccurredAt")));
+        state.setKeepEventRepairStartedAt(instant(snapshot.get("keepEventRepairStartedAt")));
+        state.setKeepEventRepairCompletesAt(instant(snapshot.get("keepEventRepairCompletesAt")));
+        state.setLastKeepEventRollAt(instant(snapshot.get("lastKeepEventRollAt")));
+        state.setRecentKeepEventIds(strings(snapshot.get("recentKeepEventIds")));
+        state.setKeepEventCount((int) number(snapshot.get("keepEventCount"), 0));
         state.setDisplayedMemorabiliaIds(strings(snapshot.get("displayedMemorabiliaIds")));
         state.setProcessedRequestIds(strings(snapshot.get("processedRequestIds")));
         state.setLastVisitedAt(instant(snapshot.get("lastVisitedAt")));

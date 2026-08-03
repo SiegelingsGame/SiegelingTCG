@@ -8,7 +8,7 @@
 
     /** Must match server live-element roster order (see LiveElementCatalogService). */
     const DEFAULT_LIVE_ELEMENT_ORDER = [
-        "FIRE", "ICE", "WATER", "EARTH", "WIND", "SHADOW", "ELECTRIC", "METAL", "UNDEAD", "PSYCHIC"
+        "FIRE", "ICE", "EARTH", "WIND", "WATER", "SHADOW", "ELECTRIC", "METAL", "UNDEAD", "PSYCHIC"
     ];
 
     // Matches .trainer-art-portrait.is-overlay { aspect-ratio: 639/919 } and the
@@ -103,6 +103,7 @@
         firestoreError: "",
         updatedBy: "",
         updatedAt: "",
+        catalogVersion: 0,
         auth: { ...DEFAULT_AUTH },
         status: { ...DEFAULT_STATUS },
         ephemeralCardArtPreview: null,
@@ -4879,6 +4880,7 @@
 
     function buildExportData() {
         return {
+            catalogVersion: state.catalogVersion,
             cards: state.cards.map((card) => buildExportCard(card)),
             moves: state.movesPool.map((m) => buildExportMove(m)),
             decks: state.decks.map((deck) => buildExportDeck(deck)),
@@ -5296,6 +5298,7 @@
         state.firestoreError = payload.firestoreError || "";
         state.updatedBy = payload.updatedBy || "";
         state.updatedAt = payload.updatedAt || "";
+        state.catalogVersion = Number(payload.catalogVersion) || 0;
         state.auth = {
             ...DEFAULT_AUTH,
             ...(payload.auth || {}),

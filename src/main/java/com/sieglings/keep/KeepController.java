@@ -71,6 +71,15 @@ public class KeepController {
                 string(body, "requestId"), version(body)));
     }
 
+    @PostMapping("/api/keep/event/repair")
+    public ResponseEntity<Map<String, Object>> repairKeepEvent(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody Map<String, Object> body) {
+        return respond(authorizationHeader, user -> keepService.repairKeepEvent(user,
+                string(body, "eventId"), string(body, "payment"),
+                string(body, "requestId"), version(body)));
+    }
+
     @PostMapping("/api/keep/lore/read")
     public ResponseEntity<Map<String, Object>> readLore(
             @RequestHeader(value = "Authorization", required = false) String authorizationHeader,

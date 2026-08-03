@@ -78,6 +78,13 @@
     // from cache, and the cheap /api/game/catalog-version check revalidates it in
     // the background, re-downloading the full catalog only when it actually moved.
     const STATIC_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+    // The pack catalog is not really static: designers switch individual packs on
+    // and off from the dashboard (Shop > Pack Availability), and the live element
+    // roster adds or removes whole elemental packs. fetchCachedJson serves a fresh
+    // cache without revalidating, so the static TTL would hide those changes from
+    // returning players for a full day. Keep the payload cached long enough to
+    // still paint instantly, short enough that a toggle lands the same session.
+    const PACK_CACHE_TTL_MS = 10 * 60 * 1000;
     // Leaderboards change as matches finish today, so cache them briefly rather
     // than reusing the same snapshot for the full static TTL.
     const LEADERBOARD_CACHE_TTL_MS = 60 * 1000;
@@ -166,7 +173,7 @@
     const ENERGY_COST_FILTERS = ['ALL', 'FREE', '1', '2', '3', '4', '5+'];
     const NOTCH_DIRECTIONS = ['TOP_LEFT', 'TOP', 'TOP_RIGHT', 'LEFT', 'RIGHT', 'BOTTOM_LEFT', 'BOTTOM', 'BOTTOM_RIGHT'];
     const DECK_ASSET_KEYS = [
-        'FIRE', 'ICE', 'WATER', 'EARTH', 'WIND', 'SHADOW',
+        'FIRE', 'ICE', 'EARTH', 'WIND', 'WATER', 'SHADOW',
         'ELECTRIC', 'METAL', 'UNDEAD', 'PSYCHIC', 'POISON', 'LIGHT'
     ];
     // Element defaults for hub decks, shop packs, and profile card backs.
@@ -411,6 +418,9 @@
         dailyTitleOffers: [],
         titleCatalog: [],
         shopPacksError: '',
+        // The pack catalog is fetched on boot, so the shop starts out loading.
+        // Cleared by applyShopPacksPayload once an attempt resolves either way.
+        shopPacksLoading: true,
         creatureDescriptions: {},
         rooms: [],
         selectedCardId: null,
@@ -484,6 +494,7 @@
         lobbyBusy: false,
         packReveal: null,
         packOpeningPending: null,
+        progressionRecoveryPending: false,
         dailyOfferPurchasePending: null,
         packOpeningDismissedKey: '',
         shopView: 'browse',
@@ -1407,7 +1418,7 @@
     async function loadAll() {
         const [options, packs, descriptions, profile, leaderboards, dailyMissions] = await Promise.all([
             fetchGameOptions(),
-            fetchCachedJson('shopPacks', '/api/shop/packs', STATIC_CACHE_TTL_MS, isValidShopPacksPayload),
+            fetchCachedJson('shopPacks', '/api/shop/packs', PACK_CACHE_TTL_MS, isValidShopPacksPayload),
             fetchCachedJson('creatureDescriptions', '/assets/creature-descriptions.json', STATIC_CACHE_TTL_MS),
             syncProfile(),
             fetchCachedJson('leaderboards', '/api/leaderboards', LEADERBOARD_CACHE_TTL_MS),
@@ -1494,9 +1505,18 @@
             state.token = COOKIE_SESSION_VALUE;
             try { localStorage.setItem(AUTH_TOKEN_KEY, state.token); } catch (e) { /* ignore */ }
         }
-        state.profile = data;
-        state.progression = data.progression || null;
-        state.profileSynced = true;
+        // Auth profile assembly intentionally tolerates an isolated progression
+        // read failure. Recover through the authoritative progression endpoint
+        // before deciding whether this account still needs a starter pack.
+        if (!data.progression) {
+            const recovered = await recoverProgressionSnapshot();
+            if (recovered) data.progression = recovered.progression;
+        }
+        const sameUser = state.profile?.user?.id && state.profile.user.id === data.user?.id;
+        const progression = data.progression || (sameUser ? state.progression : null);
+        state.profile = progression && !data.progression ? { ...data, progression } : data;
+        state.progression = progression || null;
+        state.profileSynced = Boolean(state.progression);
         syncCollectionVisibilityDefault();
         saveCachedAuthProfile(data);
         await loadDailyMissions();
@@ -1518,13 +1538,27 @@
         return data;
     }
 
-    async function loadDailyMissions() {
+    // A Home paint can happen before the profile-initiated mission request has
+    // returned (especially on mobile after a restored page). Share that request
+    // between callers and repaint the panel once the complete three-period
+    // snapshot arrives so a tab never needs a second tap to populate.
+    let dailyMissionsLoadPromise = null;
+
+    function loadDailyMissions() {
         if (!state.token) {
             state.dailyMissions = null;
             state.dailyMissionsError = '';
             stopMissionResetTimer();
-            return null;
+            return Promise.resolve(null);
         }
+        if (dailyMissionsLoadPromise) return dailyMissionsLoadPromise;
+        dailyMissionsLoadPromise = loadDailyMissionsNow().finally(() => {
+            dailyMissionsLoadPromise = null;
+        });
+        return dailyMissionsLoadPromise;
+    }
+
+    async function loadDailyMissionsNow() {
         try {
             const data = await fetchJson('/api/missions/daily');
             if (data?.error) {
@@ -1534,6 +1568,7 @@
             state.dailyMissions = data;
             state.dailyMissionsError = '';
             startMissionResetTimer();
+            if (state.route === 'home') safeRender(renderHomeDashboard);
             return data;
         } catch (error) {
             state.dailyMissionsError = 'Could not load daily missions.';
@@ -1612,7 +1647,8 @@
     async function ensurePacksLoaded(force = false) {
         if (!force && state.packs?.length) return true;
         if (force) clearCache('shopPacks');
-        const packs = await fetchCachedJson('shopPacks', '/api/shop/packs', STATIC_CACHE_TTL_MS, isValidShopPacksPayload);
+        state.shopPacksLoading = true;
+        const packs = await fetchCachedJson('shopPacks', '/api/shop/packs', PACK_CACHE_TTL_MS, isValidShopPacksPayload);
         return applyShopPacksPayload(packs);
     }
 
@@ -1685,12 +1721,22 @@
     function renderStarterGate() {
         const gate = document.getElementById('starterGate');
         const hub = document.getElementById('hubGrid');
+        const progressionMissing = Boolean(state.profile?.authenticated && !state.progression);
         const mustChoose = Boolean(state.profile?.authenticated && state.progression && !state.progression.starterChosen);
-        document.body.classList.toggle('starter-onboarding-active', mustChoose);
-        gate.classList.toggle('hidden', !mustChoose);
-        hub.classList.toggle('hidden', mustChoose);
+        const gateActive = progressionMissing || mustChoose;
+        document.body.classList.toggle('starter-onboarding-active', gateActive);
+        gate.classList.toggle('hidden', !gateActive);
+        hub.classList.toggle('hidden', gateActive);
         const grid = document.getElementById('starterPackGrid');
         if (!grid) return;
+        if (progressionMissing) {
+            grid.innerHTML = `<div class="empty-state" role="status">
+                <strong>${state.progressionRecoveryPending ? 'Loading your starter progress…' : 'Starter progress is temporarily unavailable.'}</strong>
+                <span>${state.progressionRecoveryPending ? 'Checking your collection now.' : 'Retry before choosing a pack so your first cards are granted safely.'}</span>
+                <button class="primary-btn" type="button" data-retry-progression${state.progressionRecoveryPending ? ' disabled' : ''}>${state.progressionRecoveryPending ? 'Loading…' : 'Retry'}</button>
+            </div>`;
+            return;
+        }
         grid.innerHTML = state.packs.filter(pack => pack.starterEligible).map(renderPackTile).join('');
     }
 
@@ -1811,11 +1857,11 @@
         return Boolean(state.token) && !state.profileSynced && !hasOwnedCardsSnapshot;
     }
 
-    function binderLoadingMarkup(label) {
-        return `<div class="binder-loading" role="status" aria-live="polite">
-            <span class="binder-loading-spinner" aria-hidden="true"></span>
+    function panelLoadingMarkup(label) {
+        return `<div class="panel-loading" role="status" aria-live="polite">
+            <span class="panel-loading-spinner" aria-hidden="true"></span>
             <strong>${escapeHtml(label)}</strong>
-            <span class="binder-loading-bar" aria-hidden="true"><span></span></span>
+            <span class="panel-loading-bar" aria-hidden="true"><span></span></span>
         </div>`;
     }
 
@@ -1827,7 +1873,7 @@
         // player — show explicit progress instead of a blank/empty panel.
         if (!state.options || ownedDataLoading()) {
             grid.setAttribute('aria-busy', 'true');
-            grid.innerHTML = binderLoadingMarkup('Loading your card binder…');
+            grid.innerHTML = panelLoadingMarkup('Loading your card binder…');
             if (allCount) allCount.textContent = 'Loading cards…';
             state._cardsRenderSig = '';
             return;
@@ -2701,7 +2747,7 @@
         if (tab === 'lifetime') return 'Milestones — never reset';
         if (tab === 'weekly') {
             return snapshot?.weeklyResetAt
-                ? `Resets ${formatMissionResetCountdown(snapshot.weeklyResetAt)}`
+                ? formatMissionResetCountdown(snapshot.weeklyResetAt)
                 : 'Resets weekly (Monday UTC)';
         }
         return snapshot?.resetAt
@@ -2848,9 +2894,18 @@
         const missions = missionsForTab(tab);
         const eyebrow = tab === 'weekly' ? 'Weekly Missions' : (tab === 'lifetime' ? 'Lifetime Rewards' : 'Daily Missions');
         const heading = tab === 'weekly' ? "This week's objectives" : (tab === 'lifetime' ? 'Career milestones' : "Today's objectives");
-        const emptyLabel = state.profile?.authenticated
-            ? 'No objectives to show right now.'
-            : `Sign in to track ${tab} missions.`;
+        const needsSnapshot = Boolean(state.profile?.authenticated && !state.dailyMissions && !state.dailyMissionsError);
+        if (needsSnapshot) void loadDailyMissions();
+        // A failed mission request used to be rendered as a genuine empty state,
+        // which made every tab look as though the account had no missions. Keep
+        // the problem actionable instead of hiding it behind that fallback.
+        const emptyLabel = needsSnapshot
+            ? 'Loading mission objectives…'
+            : state.dailyMissionsError
+            ? `${state.dailyMissionsError} Refresh to try again.`
+            : (state.profile?.authenticated
+                ? 'No objectives to show right now.'
+                : `Sign in to track ${tab} missions.`);
         const loginTile = tab === 'daily' ? renderLoginRewardTile() : '';
         const showAllBtn = tab === 'daily'
             ? `<button class="ghost-btn command-wide-btn" type="button" data-home-action="missions">${state.showAllMissions ? 'Show Featured Missions' : 'View All Missions'}</button>`
@@ -2889,8 +2944,10 @@
                 <div class="mission-progress"><span style="width:${pct}%"></span></div>
             </div>
             <span class="mission-count">${escapeHtml(mission.current)} / ${escapeHtml(mission.target)}</span>
-            <span class="mission-reward">${renderCoinAmount(mission.reward, '')}</span>
-            ${pointsChip}
+            <span class="mission-rewards">
+                <span class="mission-reward">${renderCoinAmount(mission.reward, '')}</span>
+                ${pointsChip}
+            </span>
             ${claimBtn}
         </div>`;
     }
@@ -2936,8 +2993,17 @@
         return names.length ? ` Cards pulled: ${names.join(', ')}.` : '';
     }
 
+    // Claim requests are guarded against re-entry: the buttons stay in the DOM
+    // while the POST is in flight, and a double-tap would otherwise send two
+    // claims for the same reward.
+    const claimsInFlight = new Set();
+
     async function claimMissionChest(period, threshold) {
         if (!state.token || !period || !threshold) return;
+        const key = `chest:${period}:${threshold}`;
+        if (claimsInFlight.has(key)) return;
+        claimsInFlight.add(key);
+        try {
         const data = await fetchJson('/api/missions/claim-chest', {
             method: 'POST',
             body: JSON.stringify({ period, threshold: Number(threshold) })
@@ -2953,10 +3019,15 @@
             `${summary}.${claimedCardsDetail(data?.cards)}`);
         safeRender(renderGold);
         safeRender(renderHomeDashboard);
+        } finally {
+            claimsInFlight.delete(key);
+        }
     }
 
     async function claimKnightLevel() {
-        if (!state.token) return;
+        if (!state.token || claimsInFlight.has('knight')) return;
+        claimsInFlight.add('knight');
+        try {
         const data = await fetchJson('/api/missions/claim-knight', { method: 'POST', body: JSON.stringify({}) });
         if (data?.error) {
             window.alert(data.error);
@@ -2968,6 +3039,9 @@
         pushNotification('gold', `Knight Level ${data?.level || ''} reached`, `${summary}.${claimedCardsDetail(data?.cards)}`);
         safeRender(renderGold);
         safeRender(renderHomeDashboard);
+        } finally {
+            claimsInFlight.delete('knight');
+        }
     }
 
     async function claimLoginReward() {
@@ -3094,9 +3168,17 @@
             void claimDailyMission(btn.dataset.missionClaim);
         }));
         root.querySelectorAll('[data-mission-tab]').forEach(btn => btn.addEventListener('click', () => {
-            state.missionTab = btn.dataset.missionTab || 'daily';
+            const tab = btn.dataset.missionTab || 'daily';
+            state.missionTab = tab;
             renderHomeDashboard();
             startMissionResetTimer();
+            const snapshot = state.dailyMissions;
+            const periodMissions = tab === 'weekly'
+                ? snapshot?.weekly
+                : (tab === 'lifetime' ? snapshot?.lifetime : snapshot?.daily);
+            if (!Array.isArray(periodMissions)) {
+                void loadDailyMissions();
+            }
         }));
         root.querySelector('[data-login-claim]')?.addEventListener('click', () => {
             void claimLoginReward();
@@ -3123,7 +3205,7 @@
         // Catalog or owned decks still loading — show a spinner instead of an
         // empty grid that would imply the player has no decks.
         if (!state.options || ownedDataLoading()) {
-            grid.innerHTML = binderLoadingMarkup('Loading your decks…');
+            grid.innerHTML = panelLoadingMarkup('Loading your decks…');
             renderSavedDecks();
             return;
         }
@@ -3171,7 +3253,7 @@
         // than "No saved custom decks yet", which would be misleading mid-load.
         if (ownedDataLoading()) {
             if (count) count.textContent = '';
-            grid.innerHTML = binderLoadingMarkup('Loading your saved decks…');
+            grid.innerHTML = panelLoadingMarkup('Loading your saved decks…');
             return;
         }
         const savedDecks = state.profile?.savedDecks || [];
@@ -3924,9 +4006,29 @@
         return '<div class="unlock-card"><strong>No packs available</strong><span>Pack groups will appear here once the catalog loads.</span></div>';
     }
 
+    // Packs, daily card offers and daily titles all arrive in the one
+    // /api/shop/packs payload, and prices/Owned badges need the signed-in
+    // progression snapshot, so either gap means the shop cannot be trusted yet.
+    function shopDataLoading() {
+        if (state.shopPacksLoading && !state.packs.length) return true;
+        return Boolean(state.token) && !state.profileSynced && !state.progression;
+    }
+
     function renderShop() {
         const grid = document.getElementById('shopPackGrid');
         if (!grid) return;
+        const goldLabel = document.getElementById('shopGoldLabel');
+        // Catalog or progression still in flight — show explicit progress instead
+        // of an empty "No packs available" panel that reads like a dead shop.
+        if (shopDataLoading()) {
+            grid.setAttribute('aria-busy', 'true');
+            grid.innerHTML = panelLoadingMarkup('Loading the shop…');
+            if (goldLabel) goldLabel.textContent = 'Loading…';
+            renderShopCardPreviewModal();
+            renderHudTools();
+            return;
+        }
+        grid.setAttribute('aria-busy', 'false');
         const starterMode = state.profile?.authenticated && state.progression && !state.progression.starterChosen;
         const starterPacks = state.packs.filter(pack => pack.starterEligible);
         const packs = starterMode ? starterPacks : state.packs;
@@ -3945,7 +4047,7 @@
             <div class="shop-row-head"><div><span class="eyebrow">${starterMode ? 'Starter Pack' : 'Packs'}</span><h2>${starterMode ? 'Choose your first pack' : 'Elemental and type pulls'}</h2></div></div>
             ${packs.length ? packs.map(renderPackTile).join('') : renderShopPacksEmptyState()}
         `;
-        document.getElementById('shopGoldLabel').innerHTML = renderCoinAmount(state.progression?.gold || 0);
+        if (goldLabel) goldLabel.innerHTML = renderCoinAmount(state.progression?.gold || 0);
         renderShopCardPreviewModal();
         renderHudTools();
     }
@@ -6495,18 +6597,41 @@
         writePendingPackOpenRequests(remaining);
     }
 
-    async function recoverStarterPackProgression() {
+    async function recoverProgressionSnapshot() {
         try {
             const recovered = await fetchJson('/api/player/progression', {
                 timeoutMs: STARTER_PACK_TIMEOUT_MS
             });
-            if (recovered && !recovered.error && recovered.progression?.starterChosen) {
+            if (recovered && !recovered.error && recovered.progression) {
                 return recovered;
             }
         } catch (error) {
             console.error(error);
         }
         return null;
+    }
+
+    async function retryMissingProgression() {
+        if (!state.profile?.authenticated || state.progression || state.progressionRecoveryPending) return;
+        state.progressionRecoveryPending = true;
+        renderStarterGate();
+        try {
+            const recovered = await recoverProgressionSnapshot();
+            if (!recovered) return;
+            state.progression = recovered.progression;
+            state.profile = { ...state.profile, progression: state.progression };
+            state.profileSynced = true;
+            saveCachedAuthProfile(state.profile);
+            render();
+        } finally {
+            state.progressionRecoveryPending = false;
+            renderStarterGate();
+        }
+    }
+
+    async function recoverStarterPackProgression() {
+        const recovered = await recoverProgressionSnapshot();
+        return recovered?.progression?.starterChosen ? recovered : null;
     }
 
     // Shop pack opens can charge/grant before the HTTP body arrives. On timeout
@@ -6576,6 +6701,14 @@
         if (!state.profile?.authenticated) {
             openAuth();
             return;
+        }
+        // A partial auth response must never fall through to the paid shop path:
+        // the server rejects shop purchases until a starter exists, stranding new
+        // accounts without the starter gate. Recover first and keep a retry UI if
+        // progression is still unavailable.
+        if (!state.progression) {
+            await retryMissingProgression();
+            if (!state.progression) return;
         }
         if (state.packOpeningPending) {
             return;
@@ -7963,7 +8096,7 @@
         if (options) {
             applyGameOptions(options);
         }
-        const packs = readCache('shopPacks', STATIC_CACHE_TTL_MS, isValidShopPacksPayload);
+        const packs = readCache('shopPacks', PACK_CACHE_TTL_MS, isValidShopPacksPayload);
         if (packs) applyShopPacksPayload(packs);
         const descriptions = readCache('creatureDescriptions', STATIC_CACHE_TTL_MS);
         if (descriptions) {
@@ -8036,6 +8169,7 @@
     }
 
     function applyShopPacksPayload(data) {
+        state.shopPacksLoading = false;
         if (!isValidShopPacksPayload(data)) {
             if (data?.error) state.shopPacksError = data.error;
             else if (data) state.shopPacksError = 'The pack catalog returned no available packs.';
@@ -8241,6 +8375,12 @@
             renderAuthModal();
             return alert(data.error);
         }
+        // Auth profile assembly intentionally tolerates an isolated progression
+        // read failure. Recover before deciding starter-gate / shop eligibility.
+        if (!data.progression) {
+            const recovered = await recoverProgressionSnapshot();
+            if (recovered) data.progression = recovered.progression;
+        }
         state.authLoading = false;
         // Keep the real token + Bearer header unless the server has already proven a
         // session cookie reaches it, so auth survives the full-page navigations to
@@ -8249,7 +8389,8 @@
         localStorage.setItem(AUTH_TOKEN_KEY, state.token);
         state.profile = data;
         saveCachedAuthProfile(data);
-        state.progression = data.progression;
+        state.progression = data.progression || null;
+        state.profileSynced = Boolean(state.progression);
         syncCollectionVisibilityDefault();
         state.profilePrefs = applyProfileSettingsFromServer(data.profileSettings) || defaultProfilePrefs(data.user || {});
         cacheProfilePrefs(state.profilePrefs);
@@ -8266,6 +8407,11 @@
         try {
             await refreshLiveCatalog();
             await ensurePacksLoaded();
+            // Login receives the profile directly, so it does not pass through
+            // syncProfile(), which normally loads this snapshot. Without this
+            // request the Home panel re-renders with null data until a full page
+            // reload, leaving daily, weekly, and lifetime tabs blank.
+            await loadDailyMissions();
             render();
         } finally {
             hideLoadingArtScreen(loadingShownAt);
@@ -10240,6 +10386,9 @@
             return;
         }
         if (event.target.closest('[data-retry-shop-packs]')) {
+            state.shopPacksError = '';
+            state.shopPacksLoading = true;
+            renderShop();
             void ensurePacksLoaded(true).then(() => renderShop());
             return;
         }
@@ -10250,6 +10399,11 @@
         }
         const packButton = event.target.closest('[data-pack-id]');
         if (packButton) choosePack(packButton.dataset.packId, Number(packButton.dataset.packCount) || 1);
+        const progressionRetry = event.target.closest('[data-retry-progression]');
+        if (progressionRetry) {
+            void retryMissingProgression();
+            return;
+        }
         const dailyOfferButton = event.target.closest('[data-daily-offer-id]');
         if (dailyOfferButton) purchaseDailyOffer(dailyOfferButton.dataset.dailyOfferId);
         const titleButton = event.target.closest('[data-purchase-title-id]');

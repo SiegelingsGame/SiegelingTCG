@@ -41,6 +41,17 @@ public class PlayerProgressionStore {
         if (progression.getUserId() == null || progression.getUserId().isBlank()) {
             throw new IllegalArgumentException("Progression user id is required.");
         }
+        Map<String, Object> payload = toPayload(progression);
+        try {
+            doc(progression.getUserId()).set(payload).get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            return progression;
+        } catch (Exception ex) {
+            throw new IllegalStateException("Unable to save player progression to Firestore.", ex);
+        }
+    }
+
+    /** Shared with {@link RewardClaimStore} so a transactional write serializes identically. */
+    Map<String, Object> toPayload(PlayerProgressionEntity progression) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("gold", progression.getGold());
         payload.put("remnants", progression.getRemnants());
@@ -75,12 +86,7 @@ public class PlayerProgressionStore {
         payload.put("soloWinStreak", progression.getSoloWinStreak());
         payload.put("onlineWinStreak", progression.getOnlineWinStreak());
         payload.put("updatedAt", toTimestamp(progression.getUpdatedAt()));
-        try {
-            doc(progression.getUserId()).set(payload).get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            return progression;
-        } catch (Exception ex) {
-            throw new IllegalStateException("Unable to save player progression to Firestore.", ex);
-        }
+        return payload;
     }
 
     public void deleteByUserId(String userId) {
@@ -94,12 +100,12 @@ public class PlayerProgressionStore {
         }
     }
 
-    private DocumentReference doc(String userId) {
+    DocumentReference doc(String userId) {
         return client.requireFirestore().collection(client.progressionCollection()).document(userId);
     }
 
     @SuppressWarnings("unchecked")
-    private PlayerProgressionEntity toProgression(String userId, DocumentSnapshot snapshot) {
+    PlayerProgressionEntity toProgression(String userId, DocumentSnapshot snapshot) {
         PlayerProgressionEntity progression = new PlayerProgressionEntity();
         progression.setUserId(userId);
         Long gold = snapshot.getLong("gold");

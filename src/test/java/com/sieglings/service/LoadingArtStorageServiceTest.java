@@ -1,13 +1,20 @@
 package com.sieglings.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LoadingArtStorageServiceTest {
 
@@ -80,5 +87,38 @@ class LoadingArtStorageServiceTest {
                         ""
                 )
         );
+    }
+
+    @Test
+    void hostedUploadsFailClosedWhenCloudStorageCannotInitialize() throws IOException {
+        Path invalidServiceAccount = Files.createTempFile("loading-art-storage", ".json");
+        Files.writeString(invalidServiceAccount, "{not-json");
+        String pieceId = "hosted-storage-failure-" + UUID.randomUUID();
+        Path localTarget = Path.of("src", "main", "resources", "static", "img", "art", "loading",
+                pieceId + "-landscape.png").toAbsolutePath().normalize();
+        Files.deleteIfExists(localTarget);
+        LoadingArtStorageService service = new LoadingArtStorageService(
+                new ObjectMapper(),
+                true,
+                "example.firebasestorage.app",
+                "example-project",
+                invalidServiceAccount.toString(),
+                true
+        );
+
+        IOException exception = assertThrows(
+                IOException.class,
+                () -> service.saveLoadingArt(
+                        pieceId,
+                        "landscape",
+                        new MockMultipartFile("file", "banner.png", "image/png", new byte[] { 1 })
+                )
+        );
+
+        assertTrue(exception.getMessage().startsWith(
+                "Cloud loading art storage is unavailable; refusing to save to ephemeral local disk."
+        ));
+        assertFalse(Files.exists(localTarget));
+        Files.deleteIfExists(invalidServiceAccount);
     }
 }

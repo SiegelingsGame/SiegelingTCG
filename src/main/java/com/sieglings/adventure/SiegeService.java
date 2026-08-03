@@ -129,6 +129,8 @@ public class SiegeService {
             m.put("passiveKind", passive.name());
             m.put("passiveName", content.knightPassiveName(passive));
             m.put("passiveValue", content.knightPassiveValue(passive));
+            // Marshal knights assemble a bigger warband, so the size is per-knight.
+            m.put("startingParty", content.startingPartySize(k));
             m.put("expeditionStarter", starter);
             m.put("owned", owned);
             m.put("siegeUnlocked", unlocked);
@@ -354,15 +356,21 @@ public class SiegeService {
 
     Map<String, Object> newRun(String authorizationHeader, String knightId, List<String> sieglingIds, String modeName) {
         RunMode mode = "ENDLESS".equalsIgnoreCase(modeName) ? RunMode.ENDLESS : RunMode.STANDARD;
-        if (mode == RunMode.STANDARD
-                ? (sieglingIds == null || sieglingIds.size() != content.partySize())
-                : (sieglingIds == null || sieglingIds.isEmpty() || sieglingIds.size() > content.partyMax())) {
-            throw new IllegalArgumentException(mode == RunMode.STANDARD
-                    ? "Choose exactly " + content.partySize() + " Siegeling — more will join along the way."
-                    : "An endless team needs 1-" + content.partyMax() + " Siegelings.");
-        }
         TrainerCard knight = content.findKnight(knightId)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown SiegeKnight."));
+        // The starting warband is knight-dependent: a Marshal musters an extra Siegeling.
+        int startingParty = content.startingPartySize(knight);
+        if (mode == RunMode.STANDARD
+                ? (sieglingIds == null || sieglingIds.size() != startingParty)
+                : (sieglingIds == null || sieglingIds.isEmpty() || sieglingIds.size() > content.partyMax())) {
+            throw new IllegalArgumentException(mode == RunMode.STANDARD
+                    ? "Choose exactly " + startingParty + " Siegeling" + (startingParty == 1 ? "" : "s")
+                        + " — more will join along the way."
+                    : "An endless team needs 1-" + content.partyMax() + " Siegelings.");
+        }
+        if (new java.util.LinkedHashSet<>(sieglingIds).size() != sieglingIds.size()) {
+            throw new IllegalArgumentException("Each Siegeling can only join the warband once.");
+        }
         AccountUser user = resolveUser(authorizationHeader);
         PlayerProgressionEntity progression = loadProgression(user);
         if (!isKnightSelectable(knight, user, progression)) {
@@ -609,6 +617,16 @@ public class SiegeService {
         if (run.getStatus() != RunStatus.ACTIVE) {
             throw new IllegalArgumentException("This expedition has already ended.");
         }
+        // Same rule as auto-checkpoint: never persist a finished battle. A WON
+        // snapshot lets continueRun re-apply gold/XP after a recycle because the
+        // post-continue reward prompt is not itself checkpointed.
+        if (run.getBattle() != null && run.getBattle().isOver()) {
+            throw new IllegalArgumentException(
+                    "Claim victory (or accept defeat) before saving — a finished battle cannot be checkpointed safely.");
+        }
+        if (!run.getPendingRewards().isEmpty()) {
+            throw new IllegalArgumentException("Choose your spoils before saving.");
+        }
         run.setCheckpointSaved(checkpoints.save(run.getToken(), snapshotRun(run)));
         return serialize(run);
     }
@@ -621,7 +639,10 @@ public class SiegeService {
      * left off. Camp/cache/broker/reward prompts and the cache/event puzzle
      * mini-games are short-lived UI states without their own persisted model, so
      * those are skipped (the last checkpoint before entering them still resumes
-     * cleanly — landing on the map with the node uncleared). Deletes the
+     * cleanly — landing on the map with the node uncleared). Finished battles
+     * (WON/LOST) are also skipped: a WON snapshot would let {@link #continueRun}
+     * re-apply gold/XP/end-rewards after a Cloud Run recycle, because the
+     * post-continue reward prompt itself cannot be checkpointed. Deletes the
      * checkpoint once the run ends.
      */
     private void checkpoint(SiegeRun run) {
@@ -630,7 +651,8 @@ public class SiegeService {
             run.setCheckpointSaved(false);
             return;
         }
-        boolean safe = !run.isInCamp() && !run.isInCache() && !run.isInBroker()
+        boolean battleOver = run.getBattle() != null && run.getBattle().isOver();
+        boolean safe = !battleOver && !run.isInCamp() && !run.isInCache() && !run.isInBroker()
                 && !run.isInMinigame() && run.getPendingRewards().isEmpty();
         if (!safe) return;
         run.setCheckpointSaved(checkpoints.save(run.getToken(), snapshotRun(run)));
@@ -756,6 +778,7 @@ public class SiegeService {
         m.put("side", c.getSide().name());
         m.put("knight", c.isKnight());
         m.put("artUrl", c.getArtUrl());
+        m.put("shadeOf", c.getShadeOf());
         m.put("maxHp", c.getMaxHp());
         m.put("hp", c.getHp());
         m.put("shield", c.getShield());
@@ -828,23 +851,33 @@ public class SiegeService {
         Side side = Side.valueOf(String.valueOf(m.get("side")));
         boolean knight = Boolean.TRUE.equals(m.get("knight"));
         int baseSpeed = intVal(m.get("baseSpeed"), 1);
+        int snapMaxHp = intVal(m.get("maxHp"), 1);
+        int snapHp = intVal(m.get("hp"), snapMaxHp);
         Combatant c = new Combatant(String.valueOf(m.get("id")), String.valueOf(m.get("name")), element, side,
-                intVal(m.get("maxHp"), 1), baseSpeed,
+                snapMaxHp, baseSpeed,
                 m.get("artUrl") == null ? null : String.valueOf(m.get("artUrl")), knight);
         // Leveling first: set the pre-level base, then load XP (re-derives level and
         // rescales max HP from base — never compounds). HP is applied afterwards.
-        c.setBaseMaxHp(intVal(m.get("baseMaxHp"), c.getMaxHp()));
+        c.setBaseMaxHp(intVal(m.get("baseMaxHp"), snapMaxHp));
         c.loadLeveling(intVal(m.get("xp"), 0));
-        c.setHp(intVal(m.get("hp"), c.getMaxHp()));
+        c.setHp(snapHp);
         c.setShield(intVal(m.get("shield"), 0));
         c.setSpeed(intVal(m.get("speed"), baseSpeed));
         c.addAttackBuff(intVal(m.get("attackBuff"), 0));
         c.setPosition(intVal(m.get("position"), -1));
         c.setSourceCardId(m.get("sourceCardId") == null ? null : String.valueOf(m.get("sourceCardId")));
+        // Without this a run resumed mid-battle keeps the shade's art and "Shade of X"
+        // name but loses the badge, so the same foe renders differently after a reload.
+        c.setShadeOf(m.get("shadeOf") == null ? null : String.valueOf(m.get("shadeOf")));
         if (m.get("itemId") != null) c.setItemId(String.valueOf(m.get("itemId")));
         c.setApSpent(intVal(m.get("apSpent"), 0));
         if (m.get("evolvedFrom") instanceof Map) {
+            // Battle evolutions set max HP from the evolved form's formula and only
+            // copy level/XP (no applyLevel). loadLeveling above would re-scale that
+            // already-elevated pool — honour the snapshotted HP instead.
             c.setEvolvedFrom(restoreCombatant((Map<String, Object>) m.get("evolvedFrom")));
+            c.setMaxHp(snapMaxHp);
+            c.setHp(snapHp);
         }
         Object statuses = m.get("statuses");
         if (statuses instanceof Map) {
@@ -1063,8 +1096,19 @@ public class SiegeService {
                 ? SiegeTuning.bgEnemyHpScalar(run.getAverageVeteranLevel(), run.getBgTierScalar()) : 1.0;
         double bgDmg = run.isBattlegrounds()
                 ? SiegeTuning.bgEnemyDamageScalar(run.getAverageVeteranLevel(), run.getBgTierScalar()) : 1.0;
-        List<Combatant> enemies = content.generateEnemies(battleType, effFloor,
-                Math.max(1, partySize), segment + run.getLoop(), rng, palette, bgHp, bgDmg);
+        // The run's opening fight is a fixed yardstick — same foe for every warband,
+        // so the difficulty curve starts from one known point instead of moving with
+        // the starting party size. Everything after it scales as usual. Row 0 is
+        // always a BATTLE and cleared before any event can ambush you, so
+        // "no fight won yet" identifies exactly that first encounter; Battlegrounds
+        // opts out because its whole premise is enemies scaled to veteran squads.
+        boolean openingFight = run.getEnemiesDefeated() == 0
+                && battleType == NodeType.BATTLE
+                && !run.isBattlegrounds();
+        List<Combatant> enemies = openingFight
+                ? content.generateOpeningEnemies(rng, palette)
+                : content.generateEnemies(battleType, effFloor,
+                        Math.max(1, partySize), segment + run.getLoop(), rng, palette, bgHp, bgDmg);
         if (ambush) {
             // Ambush: enemies get the drop on you — extra shield, bite, and haste.
             for (Combatant foe : enemies) {
@@ -1740,7 +1784,6 @@ public class SiegeService {
             if (node != null) node.setCleared(true);
             run.setNodesCleared(run.getNodesCleared() + 1);
             int foes = (int) battle.getCombatants().stream().filter(c -> c.getSide() == Side.ENEMY).count();
-            boolean firstBattleWin = run.getEnemiesDefeated() == 0;
             run.setEnemiesDefeated(run.getEnemiesDefeated() + foes);
             int depth = node == null ? 1 : node.getRow() + 1 + run.getLoop() * SiegeContentService.MAP_ROWS;
             run.addScore(foes * (10L + depth) + 5);
@@ -1823,13 +1866,10 @@ public class SiegeService {
 
             // After a battle the warband grows: a wild Siegeling may join
             // (1% stage 3, 5% stage 2) until the team is full. Recruits never
-            // appear before the first combat — including the Marshal class bonus.
+            // appear before the first combat. The Marshal muster is not here —
+            // that knight picks its extra Siegeling at warband assembly instead.
             if (run.getStatus() == RunStatus.ACTIVE && run.getParty().size() < content.partyMax()) {
-                if (firstBattleWin && run.getKnightPassive() == KnightPassive.MARSHAL) {
-                    joinStagedRecruit(run, " answers the Marshal's muster!", true);
-                } else {
-                    joinStagedRecruit(run, " emerges from the battlefield and joins the warband!", true);
-                }
+                joinStagedRecruit(run, " emerges from the battlefield and joins the warband!", true);
             }
         } else if (battle.getPhase() == BattlePhase.LOST) {
             run.setStatus(RunStatus.LOST);
@@ -2424,6 +2464,19 @@ public class SiegeService {
             if (idx < 0 || idx >= run.getDeckTemplates().size()) throw new IllegalArgumentException("No such card.");
             if (run.getDeckTemplates().size() <= 3) throw new IllegalArgumentException("Your deck is too thin to scrap more.");
             SiegeCard removed = run.getDeckTemplates().remove(idx);
+            // Scraping shifts later deck indices. Remap remaining chisel offers so they
+            // keep targeting the same cards the player was shown; drop the scrapped card's offer.
+            List<CampOption> remapped = new ArrayList<>();
+            for (CampOption option : run.getSmithOptions()) {
+                if (option.templateIndex == idx) continue;
+                int mappedIndex = option.templateIndex > idx ? option.templateIndex - 1 : option.templateIndex;
+                CampOption copy = CampOption.smith(option.id, option.kind, option.title, option.desc,
+                        option.element, mappedIndex, option.cost);
+                copy.used = option.used;
+                remapped.add(copy);
+            }
+            run.getSmithOptions().clear();
+            run.getSmithOptions().addAll(remapped);
             run.setLastReward("Scrapped " + removed.getSpec().name() + " — a leaner deck.");
             return serialize(run);
         }
@@ -3219,18 +3272,27 @@ public class SiegeService {
             m.put("cache", null);
         }
 
-        // Broker stall (mercenary rentals).
+        // Broker stall: permanent recruits when the warband has room, mercenary
+        // rentals when it is full (and always one merc alternative while hiring).
         if (run.isInBroker()) {
+            boolean partyFull = run.getParty().size() >= content.partyMax();
+            // Merc-only stalls (full party) expose rental prices; open stalls expose
+            // hire/swap prices. Per-offer cost/kind still win for mixed menus.
+            boolean mercOnly = partyFull;
             Map<String, Object> broker = new LinkedHashMap<>();
-            broker.put("hireCost", MERC_RENT_COST);
-            broker.put("swapCost", MERC_RENT_COST);
-            broker.put("merc", true);
+            broker.put("hireCost", mercOnly ? MERC_RENT_COST : BROKER_HIRE_COST);
+            broker.put("swapCost", mercOnly ? MERC_RENT_COST : BROKER_SWAP_COST);
+            broker.put("merc", mercOnly);
             broker.put("mercUnderContract", run.getMercenary() != null);
-            broker.put("partyFull", false);
+            broker.put("partyFull", partyFull);
             List<Map<String, Object>> offers = new ArrayList<>();
             for (CampOption o : run.getBrokerOptions()) {
                 Map<String, Object> om = new LinkedHashMap<>();
+                boolean mercOffer = "MERC".equals(o.kind);
                 om.put("id", o.id);
+                om.put("kind", o.kind);
+                om.put("merc", mercOffer);
+                om.put("cost", o.cost);
                 om.put("name", o.title.replace(" joins for hire", "").replace(" — mercenary", ""));
                 om.put("element", o.element == null ? null : o.element.name());
                 om.put("artUrl", o.artUrl);
@@ -3567,6 +3629,7 @@ public class SiegeService {
         m.put("item", c.getItemId() == null ? null : serializeItem(content.findItem(c.getItemId())));
         m.put("alive", c.isAlive());
         m.put("artUrl", c.getArtUrl());
+        m.put("shadeOf", c.getShadeOf());
         m.put("position", c.getPosition());
         List<String> statuses = new ArrayList<>();
         for (StatusKind s : c.getStatuses().keySet()) statuses.add(s.name());

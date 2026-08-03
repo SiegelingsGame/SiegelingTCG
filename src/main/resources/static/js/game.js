@@ -76,7 +76,7 @@ let previewCardScaleFrame = null;
 let framedSummaryFitFrame = null;
 let siegeKnightCardFitFrame = null;
 const DECK_ART_ASSET_KEYS = [
-    'FIRE', 'ICE', 'WATER', 'EARTH', 'WIND', 'SHADOW',
+    'FIRE', 'ICE', 'EARTH', 'WIND', 'WATER', 'SHADOW',
     'ELECTRIC', 'METAL', 'UNDEAD', 'PSYCHIC', 'POISON', 'LIGHT'
 ];
 // Bump with home.js ELEMENTAL_CARD_BACK_VERSION when default card-back art changes.
@@ -786,7 +786,8 @@ const SPELL_TRAP_FRAME_CLASS = {
     FIRE: 'frame-spell-fire',
     EARTH: 'frame-spell-earth',
     ICE: 'frame-spell-ice',
-    WIND: 'frame-spell-wind'
+    WIND: 'frame-spell-wind',
+    NEUTRAL: 'frame-spell-neutral'
 };
 
 function hasElementFrame(element) {
@@ -921,9 +922,9 @@ if (typeof window.matchMedia === 'function') {
 const ENERGY_ORDER = [
     ['fire', 'Fire'],
     ['ice', 'Ice'],
-    ['water', 'Water'],
     ['earth', 'Earth'],
     ['wind', 'Wind'],
+    ['water', 'Water'],
     ['shadow', 'Shadow'],
     ['electric', 'Electric'],
     ['metal', 'Metal'],
@@ -3199,6 +3200,10 @@ function getCompactSummaryInkPalette(element) {
             return { ink: '#ffb8df', strong: '#fff4b7', muted: '#ffe0ef', shadow: 'rgba(25, 4, 15, 0.9)' };
         case 'LIGHT':
             return { ink: '#83efff', strong: '#fff8b8', muted: '#d8fbff', shadow: 'rgba(2, 19, 28, 0.92)' };
+        // Neutral spells/traps sit on the pale grey template, so their panel
+        // ink inverts: dark type with a light halo instead of light on dark.
+        case 'NEUTRAL':
+            return { ink: '#1b2231', strong: '#8a4b06', muted: '#3d4658', shadow: 'rgba(255, 255, 255, 0.85)' };
         default:
             return { ink: '#e8f1ff', strong: '#fff0a8', muted: '#cfdcff', shadow: 'rgba(2, 8, 18, 0.92)' };
     }
@@ -3557,7 +3562,10 @@ function renderShowcaseCard(card, options = {}) {
     const showcaseShield = getShieldInfo(card);
     const showcaseHasShield = showcaseShield.active && showcaseShield.intact > 0;
     const frameClass = cardFrameClass(card).trim();
-    const useCompactSummary = hasElementFrame(card.element) || options.compactSummary;
+    // Painted frames reserve a fixed info panel, so the panel content must be
+    // the compact summary — keyed off the frame the card actually got, since
+    // neutral spells/traps have a spell template but no creature frame.
+    const useCompactSummary = Boolean(frameClass) || options.compactSummary;
     const classes = ['hand-card', elemClass, cardTypeClass(card), options.cardClass, frameClass,
         showcaseHasShield ? 'has-shield' : '', holographicCardClass(card)].filter(Boolean).join(' ');
     const detailEntries = useCompactSummary ? [] : getCardPreviewEntries(card);

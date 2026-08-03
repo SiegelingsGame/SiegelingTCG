@@ -6,6 +6,23 @@ on:
       - main
   workflow_dispatch:
 
+# Two pushes to main landing minutes apart used to deploy in parallel, and
+# whichever job finished last won *per surface* — that is how #604/#605 put a
+# new frontend on Firebase Hosting in front of an old API on Cloud Run, with
+# two green runs and nothing to show anything had gone wrong. Serialize instead:
+# one deploy at a time, for the whole workflow (a job-level group would still
+# let run B's Cloud Run job overlap run A's Hosting job, which is the same race).
+#
+# cancel-in-progress is false on purpose — killing a half-finished deploy is
+# worse than the queue. GitHub still cancels a *pending* run when a newer one
+# joins the group, so a burst of pushes deploys the first and then the newest,
+# never an older commit last. The group is a fixed string rather than a ref, so
+# a workflow_dispatch redeploy queues behind a push deploy: both target the same
+# production project.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 

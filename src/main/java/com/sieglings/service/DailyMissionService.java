@@ -13,6 +13,7 @@ import com.sieglings.persistence.entity.MatchHistoryEntity;
 import com.sieglings.persistence.entity.PlayerProgressionEntity;
 import com.sieglings.persistence.firestore.DailyMissionProgressStore;
 import com.sieglings.persistence.firestore.PlayerProgressionStore;
+import com.sieglings.persistence.firestore.RewardClaimStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
@@ -44,6 +45,33 @@ public class DailyMissionService {
 
     private static final DateTimeFormatter DATE_KEY_FORMAT = DateTimeFormatter.ISO_LOCAL_DATE;
 
+    private static final int CLAIM_LOCK_STRIPES = 64;
+
+    /**
+     * Every claim path is a read-modify-write across two stores: load progress,
+     * check the already-claimed marker, save it, then credit the wallet. Two
+     * concurrent requests for the same player would both read a pre-claim
+     * snapshot, both pass the check, and both pay out — the ledger records one
+     * claim while the wallet receives two. A double-tap on the claim button is
+     * enough to trigger it, so the window is serialized per user here, the same
+     * way PlayerProgressionService guards pack opens. Cloud Run runs this
+     * service at --max-instances 1, so an in-process lock covers every caller.
+     */
+    private final Object[] claimLocks = createLockStripes();
+
+    private static Object[] createLockStripes() {
+        Object[] locks = new Object[CLAIM_LOCK_STRIPES];
+        for (int i = 0; i < locks.length; i++) {
+            locks[i] = new Object();
+        }
+        return locks;
+    }
+
+    private Object claimLock(AccountUser user) {
+        String userId = user == null ? "" : String.valueOf(user.getId());
+        return claimLocks[Math.floorMod(userId.hashCode(), claimLocks.length)];
+    }
+
     @Autowired
     private DailyMissionProgressStore progressStore;
 
@@ -60,11 +88,19 @@ public class DailyMissionService {
     @Autowired(required = false)
     private CardDefinitionService cardDefinitionService;
 
+    // Absent in unit tests and when Firestore has no credentials; the claim path
+    // then falls back to read-modify-write under the striped lock above.
+    @Autowired(required = false)
+    private RewardClaimStore rewardClaimStore;
+
     @Value("${app.leaderboard.time-zone:UTC}")
     private String missionTimeZoneId;
 
     public Map<String, Object> getDailySnapshot(AccountUser user) {
-        DailyMissionProgressEntity progress = loadProgress(user.getId());
+        return buildSnapshot(loadProgress(user.getId()));
+    }
+
+    private Map<String, Object> buildSnapshot(DailyMissionProgressEntity progress) {
         ZoneId zone = zone();
         Instant now = Instant.now();
 
@@ -96,7 +132,70 @@ public class DailyMissionService {
     public Map<String, Object> claimMission(AccountUser user, String missionId) {
         DailyMissionDefinition definition = DailyMissionCatalog.findById(missionId)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown mission."));
-        DailyMissionProgressEntity progress = loadProgress(user.getId());
+        return runClaim(user, (progress, progression) -> claimMissionInternal(definition, progress, progression));
+    }
+
+    public Map<String, Object> claimChest(AccountUser user, String periodName, int threshold) {
+        MissionPeriod period = parseTrackPeriod(periodName);
+        MissionRewardTrack.Chest chest = MissionRewardTrack.findChest(period, threshold);
+        if (chest == null) {
+            throw new IllegalArgumentException("Unknown reward chest.");
+        }
+        // Fetched before the transaction: the catalog read must not run inside it,
+        // and it would be repeated on every optimistic retry.
+        List<Card> catalog = chest.cardPulls() > 0 ? cardCatalog() : List.of();
+        return runClaim(user, (progress, progression) ->
+                claimChestInternal(period, chest, catalog, progress, progression));
+    }
+
+    public Map<String, Object> claimKnightLevels(AccountUser user) {
+        List<Card> catalog = cardCatalog();
+        return runClaim(user, (progress, progression) ->
+                claimKnightLevelsInternal(catalog, progress, progression));
+    }
+
+    public Map<String, Object> claimLoginReward(AccountUser user) {
+        return runClaim(user, this::claimLoginRewardInternal);
+    }
+
+    /**
+     * Runs a claim so the already-claimed marker and the payout land together.
+     *
+     * <p>Firestore transactions make that atomic for every caller, including
+     * other instances, and are used whenever Firestore is reachable. The striped
+     * lock still wraps them: it costs nothing, and it keeps two requests from the
+     * same player on this instance from burning optimistic retries against each
+     * other. Without Firestore (unit tests, credential-less local runs) the lock
+     * is the only guard, which is sound because those runs are single-process.
+     */
+    private Map<String, Object> runClaim(AccountUser user, RewardClaimStore.ClaimBody<Map<String, Object>> body) {
+        synchronized (claimLock(user)) {
+            if (rewardClaimStore != null && rewardClaimStore.isAvailable()) {
+                return rewardClaimStore.runClaim(user.getId(), this::newProgression, (progress, progression) -> {
+                    applyRollover(progress);
+                    return body.apply(progress, progression);
+                });
+            }
+            DailyMissionProgressEntity progress = loadProgress(user.getId());
+            PlayerProgressionEntity progression = playerProgressionStore.findByUserId(user.getId())
+                    .orElseGet(() -> newProgression(user.getId()));
+            Map<String, Object> response = body.apply(progress, progression);
+            progressStore.save(progress);
+            playerProgressionStore.save(progression);
+            return response;
+        }
+    }
+
+    private PlayerProgressionEntity newProgression(String userId) {
+        PlayerProgressionEntity created = new PlayerProgressionEntity();
+        created.setUserId(userId);
+        created.setGold(PlayerProgressionService.STARTING_GOLD);
+        return created;
+    }
+
+    private Map<String, Object> claimMissionInternal(DailyMissionDefinition definition,
+                                                    DailyMissionProgressEntity progress,
+                                                    PlayerProgressionEntity progression) {
         int current = progress.counter(definition.period(), definition.type());
         if (current < definition.target()) {
             throw new IllegalArgumentException("Mission is not complete yet.");
@@ -109,10 +208,9 @@ public class DailyMissionService {
         // Points bank into the period's reward track: daily/weekly fill their chest
         // ladder, lifetime raises the account-wide Knight Level.
         progress.addPoints(definition.period(), definition.points());
-        progress.setUpdatedAt(Instant.now());
-        progressStore.save(progress);
+        touch(progress, progression);
 
-        PlayerProgressionEntity progression = grantGold(user, definition.reward());
+        applyRewards(progression, definition.reward(), 0, 0, List.of());
 
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("missionId", definition.id());
@@ -121,7 +219,7 @@ public class DailyMissionService {
         response.put("points", definition.points());
         response.put("gold", progression.getGold());
         response.put("mission", serializeMission(definition, progress));
-        response.put("dailyMissions", getDailySnapshot(user));
+        response.put("dailyMissions", buildSnapshot(progress));
         return response;
     }
 
@@ -130,13 +228,11 @@ public class DailyMissionService {
      * unlocked by the period's banked points and unclaimed; the ladder's final
      * chest also rolls a random card from the collection catalog.
      */
-    public Map<String, Object> claimChest(AccountUser user, String periodName, int threshold) {
-        MissionPeriod period = parseTrackPeriod(periodName);
-        MissionRewardTrack.Chest chest = MissionRewardTrack.findChest(period, threshold);
-        if (chest == null) {
-            throw new IllegalArgumentException("Unknown reward chest.");
-        }
-        DailyMissionProgressEntity progress = loadProgress(user.getId());
+    private Map<String, Object> claimChestInternal(MissionPeriod period,
+                                                  MissionRewardTrack.Chest chest,
+                                                  List<Card> catalog,
+                                                  DailyMissionProgressEntity progress,
+                                                  PlayerProgressionEntity progression) {
         if (progress.points(period) < chest.threshold()) {
             throw new IllegalArgumentException("Not enough points for that chest yet.");
         }
@@ -150,20 +246,20 @@ public class DailyMissionService {
         } else {
             progress.setClaimedDailyChests(claimed);
         }
-        progress.setUpdatedAt(Instant.now());
-        progressStore.save(progress);
+        touch(progress, progression);
 
-        GrantResult granted = grantRewards(user, chest.gold(), chest.remnants(), chest.cardPulls());
+        List<Map<String, Object>> cards =
+                applyRewards(progression, chest.gold(), chest.remnants(), chest.cardPulls(), catalog);
 
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("period", period.name());
         response.put("threshold", chest.threshold());
         response.put("reward", chest.gold());
         response.put("remnants", chest.remnants());
-        response.put("cards", granted.cards());
-        response.put("gold", granted.progression().getGold());
-        response.put("remnantsTotal", granted.progression().getRemnants());
-        response.put("dailyMissions", getDailySnapshot(user));
+        response.put("cards", cards);
+        response.put("gold", progression.getGold());
+        response.put("remnantsTotal", progression.getRemnants());
+        response.put("dailyMissions", buildSnapshot(progress));
         return response;
     }
 
@@ -172,8 +268,9 @@ public class DailyMissionService {
      * Levels are banked from lifetime mission points only, so this is a permanent,
      * one-way track — {@code claimedKnightLevel} is the high-water mark.
      */
-    public Map<String, Object> claimKnightLevels(AccountUser user) {
-        DailyMissionProgressEntity progress = loadProgress(user.getId());
+    private Map<String, Object> claimKnightLevelsInternal(List<Card> catalog,
+                                                         DailyMissionProgressEntity progress,
+                                                         PlayerProgressionEntity progression) {
         int reached = KnightLevelTrack.levelForPoints(progress.getKnightPoints());
         int claimedThrough = progress.getClaimedKnightLevel();
         if (reached <= claimedThrough) {
@@ -192,20 +289,19 @@ public class DailyMissionService {
             levels.add(serializeLevelReward(reward));
         }
         progress.setClaimedKnightLevel(reached);
-        progress.setUpdatedAt(Instant.now());
-        progressStore.save(progress);
+        touch(progress, progression);
 
-        GrantResult granted = grantRewards(user, gold, remnants, cardPulls);
+        List<Map<String, Object>> cards = applyRewards(progression, gold, remnants, cardPulls, catalog);
 
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("level", reached);
         response.put("levels", levels);
         response.put("reward", gold);
         response.put("remnants", remnants);
-        response.put("cards", granted.cards());
-        response.put("gold", granted.progression().getGold());
-        response.put("remnantsTotal", granted.progression().getRemnants());
-        response.put("dailyMissions", getDailySnapshot(user));
+        response.put("cards", cards);
+        response.put("gold", progression.getGold());
+        response.put("remnantsTotal", progression.getRemnants());
+        response.put("dailyMissions", buildSnapshot(progress));
         return response;
     }
 
@@ -214,8 +310,8 @@ public class DailyMissionService {
      * consecutive-day login streak. Idempotent within a day — a second call the
      * same day throws so the client cannot double-claim.
      */
-    public Map<String, Object> claimLoginReward(AccountUser user) {
-        DailyMissionProgressEntity progress = loadProgress(user.getId());
+    private Map<String, Object> claimLoginRewardInternal(DailyMissionProgressEntity progress,
+                                                        PlayerProgressionEntity progression) {
         String todayKey = dateKey(Instant.now());
         if (todayKey.equals(progress.getLastLoginClaimKey())) {
             throw new IllegalArgumentException("Daily login reward already claimed today.");
@@ -225,17 +321,16 @@ public class DailyMissionService {
         progress.setLoginStreak(streak);
         progress.setLastLoginClaimKey(todayKey);
         progress.addPoints(MissionPeriod.DAILY, DAILY_LOGIN_POINTS);
-        progress.setUpdatedAt(Instant.now());
-        progressStore.save(progress);
+        touch(progress, progression);
 
-        PlayerProgressionEntity progression = grantGold(user, DAILY_LOGIN_REWARD);
+        applyRewards(progression, DAILY_LOGIN_REWARD, 0, 0, List.of());
 
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("reward", DAILY_LOGIN_REWARD);
         response.put("points", DAILY_LOGIN_POINTS);
         response.put("streak", streak);
         response.put("gold", progression.getGold());
-        response.put("dailyMissions", getDailySnapshot(user));
+        response.put("dailyMissions", buildSnapshot(progress));
         return response;
     }
 
@@ -312,24 +407,27 @@ public class DailyMissionService {
         progress.addCounter(MissionPeriod.LIFETIME, type, delta);
     }
 
-    private PlayerProgressionEntity grantGold(AccountUser user, int amount) {
-        return grantRewards(user, amount, 0, 0).progression();
+    /** Stamps both documents so a claim is visible in each row's updatedAt. */
+    private void touch(DailyMissionProgressEntity progress, PlayerProgressionEntity progression) {
+        Instant now = Instant.now();
+        progress.setUpdatedAt(now);
+        progression.setUpdatedAt(now);
     }
 
-    /** A settled chest / level payout: the saved wallet plus any cards actually rolled. */
-    private record GrantResult(PlayerProgressionEntity progression, List<Map<String, Object>> cards) {}
-
-    private GrantResult grantRewards(AccountUser user, int gold, int remnants, int cardPulls) {
-        PlayerProgressionEntity progression = playerProgressionStore.findByUserId(user.getId()).orElseGet(() -> {
-            PlayerProgressionEntity created = new PlayerProgressionEntity();
-            created.setUserId(user.getId());
-            created.setGold(PlayerProgressionService.STARTING_GOLD);
-            return created;
-        });
+    /**
+     * Credits a payout onto the wallet entity and returns the cards actually
+     * rolled. Pure mutation — the caller (transaction body or fallback) owns the
+     * write, so this stays safe to re-run on an optimistic retry.
+     */
+    private List<Map<String, Object>> applyRewards(PlayerProgressionEntity progression,
+                                                   int gold,
+                                                   int remnants,
+                                                   int cardPulls,
+                                                   List<Card> catalog) {
         progression.setGold(progression.getGold() + Math.max(0, gold));
         progression.setRemnants(progression.getRemnants() + Math.max(0, remnants));
 
-        List<Card> pulled = rollCards(cardPulls);
+        List<Card> pulled = rollCards(cardPulls, catalog);
         List<Map<String, Object>> cards = new ArrayList<>();
         if (!pulled.isEmpty() && playerProgressionService != null) {
             // Routed through the shared grant so copy caps and duplicate-to-Remnants
@@ -339,17 +437,16 @@ public class DailyMissionService {
                 cards.add(serializeCardGrant(outcome));
             }
         }
-        progression.setUpdatedAt(Instant.now());
-        playerProgressionStore.save(progression);
-        return new GrantResult(progression, cards);
+        return cards;
     }
 
-    private List<Card> rollCards(int pulls) {
-        if (pulls <= 0 || cardDefinitionService == null) {
-            return List.of();
-        }
-        List<Card> catalog = cardDefinitionService.getDeckBuilderCatalog();
-        if (catalog.isEmpty()) {
+    /** Read once per claim, outside any transaction — this can hit Firestore. */
+    private List<Card> cardCatalog() {
+        return cardDefinitionService == null ? List.of() : cardDefinitionService.getDeckBuilderCatalog();
+    }
+
+    private List<Card> rollCards(int pulls, List<Card> catalog) {
+        if (pulls <= 0 || catalog == null || catalog.isEmpty()) {
             return List.of();
         }
         List<Card> out = new ArrayList<>();
@@ -384,13 +481,29 @@ public class DailyMissionService {
     }
 
     private DailyMissionProgressEntity loadProgress(String userId) {
-        String todayKey = dateKey(Instant.now());
-        String weekKey = weekKey(Instant.now());
         DailyMissionProgressEntity progress = progressStore.findByUserId(userId).orElseGet(() -> {
             DailyMissionProgressEntity created = new DailyMissionProgressEntity();
             created.setUserId(userId);
             return created;
         });
+        if (applyRollover(progress)) {
+            progress.setUpdatedAt(Instant.now());
+            progressStore.save(progress);
+        }
+        return progress;
+    }
+
+    /**
+     * Rolls the daily and weekly scopes over when their period key has moved on.
+     * Split out of {@link #loadProgress} because a claim applies it inside the
+     * transaction, where the commit carries the reset rather than a second write.
+     * Lifetime counters, Knight points, and the claimed-level marker never reset.
+     *
+     * @return true when something was cleared
+     */
+    private boolean applyRollover(DailyMissionProgressEntity progress) {
+        String todayKey = dateKey(Instant.now());
+        String weekKey = weekKey(Instant.now());
         boolean dirty = false;
         if (!todayKey.equals(progress.getDateKey())) {
             progress.setDateKey(todayKey);
@@ -408,11 +521,7 @@ public class DailyMissionService {
             progress.setClaimedWeeklyChests(new ArrayList<>());
             dirty = true;
         }
-        if (dirty) {
-            progress.setUpdatedAt(Instant.now());
-            progressStore.save(progress);
-        }
-        return progress;
+        return dirty;
     }
 
     private List<Map<String, Object>> serializePeriod(MissionPeriod period, DailyMissionProgressEntity progress) {

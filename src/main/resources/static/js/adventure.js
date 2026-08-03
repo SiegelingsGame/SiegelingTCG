@@ -670,16 +670,43 @@
     }
   }
 
+  // Availability tier for the knight list: knights you can ride out with right
+  // now sort above ones that still cost Siegecoins, which sort above knights
+  // whose card you don't even own — so the usable ones are always at the top.
+  var KNIGHT_TIERS = [
+    { tier: 0, label: 'Ready to deploy' },
+    { tier: 1, label: 'Unlock with Siegecoins' },
+    { tier: 2, label: 'Locked' }
+  ];
+
+  function knightTier(k, gold) {
+    if (k.selectable) return 0;
+    if (k.canUnlock) return 1;
+    return 2;
+  }
+
   function renderKnightStep() {
     var r = state.roster;
     var kg = $('knightGrid'); kg.innerHTML = '';
     var gold = r.gold || 0;
+    var lastTier = -1;
     r.knights.slice().sort(function (a, b) {
-      if (a.selectable !== b.selectable) return a.selectable ? -1 : 1;
-      if (a.expeditionStarter !== b.expeditionStarter) return a.expeditionStarter ? -1 : 1;
+      var ta = knightTier(a, gold), tb = knightTier(b, gold);
+      if (ta !== tb) return ta - tb;
+      if (ta === 0 && a.expeditionStarter !== b.expeditionStarter) return a.expeditionStarter ? -1 : 1;
+      if (ta === 1) {
+        var aff = function (k) { return gold >= (k.unlockCost || 0); };
+        if (aff(a) !== aff(b)) return aff(a) ? -1 : 1;
+        if ((a.unlockCost || 0) !== (b.unlockCost || 0)) return (a.unlockCost || 0) - (b.unlockCost || 0);
+      }
       return a.name.localeCompare(b.name);
     }).forEach(function (k) {
       var locked = !k.selectable;
+      var tier = knightTier(k, gold);
+      if (tier !== lastTier) {
+        lastTier = tier;
+        kg.appendChild(el('div', 'knight-group knight-group-' + tier, KNIGHT_TIERS[tier].label));
+      }
       var canAffordUnlock = locked && k.canUnlock && gold >= (k.unlockCost || 0);
       var c = el('div', 'knight-card ' + elClass(k.element) + (k.id === state.knightId ? ' sel' : '') + (locked ? ' locked' : ''));
       var summary = specSummary(k.active);
@@ -712,6 +739,7 @@
       if (!locked) {
         c.addEventListener('click', function () {
           state.knightId = k.id;
+          trimPartyToNeed();
           renderKnightStep();
         });
       } else {
@@ -735,9 +763,11 @@
       kn = r.knights.find(function (k) { return k.id === state.knightId; });
     }
     $('knightNextBtn').disabled = !kn;
+    var warbandNote = kn && kn.startingParty > 1 ? ' · warband of ' + kn.startingParty : '';
     $('knightSummary').textContent = kn
-      ? (kn.name + ' — ' + kn.activeName + (r.loggedIn ? ' · 🪙 ' + gold : ''))
+      ? (kn.name + ' — ' + kn.activeName + warbandNote + (r.loggedIn ? ' · 🪙 ' + gold : ''))
       : 'Select a SiegeKnight.';
+    trimPartyToNeed();
   }
 
   function closeKnightLockModal() {
@@ -1211,6 +1241,24 @@
     });
   }
 
+  function selectedKnight() {
+    if (!state.roster || !state.roster.knights) return null;
+    return state.roster.knights.find(function (k) { return k.id === state.knightId; }) || null;
+  }
+
+  /** Starters to pick before the run — a Marshal knight musters an extra one. */
+  function startingPartyNeed() {
+    var kn = selectedKnight();
+    if (kn && kn.startingParty) return Math.max(1, kn.startingParty);
+    return Math.max(1, (state.roster && state.roster.partySize) || 1);
+  }
+
+  /** Swapping to a knight with a smaller muster drops the now-illegal picks. */
+  function trimPartyToNeed() {
+    var need = startingPartyNeed();
+    if (state.party.length > need) state.party = state.party.slice(0, need);
+  }
+
   function toggleSiegling(id) {
     var s = rosterSiegelings(state.roster).find(function (x) { return x.id === id; });
     if (s && s.expeditionStarter === false) {
@@ -1220,7 +1268,8 @@
     var i = state.party.indexOf(id);
     if (i >= 0) { state.party.splice(i, 1); }
     else {
-      if (state.party.length >= (state.roster.partySize || 3)) { toast('You already have ' + (state.roster.partySize || 3) + ' Siegelings.'); return; }
+      var need = startingPartyNeed();
+      if (state.party.length >= need) { toast('You already have ' + need + ' Siegeling' + (need === 1 ? '' : 's') + '.'); return; }
       state.party.push(id);
     }
     renderSieglingGrid();
@@ -1229,7 +1278,15 @@
 
   function refreshSetupFooter() {
     if (!state.roster) return;
-    var need = state.roster.partySize || 1;
+    var need = startingPartyNeed();
+    var sub = $('warbandSub');
+    if (sub) {
+      var kn = selectedKnight();
+      sub.textContent = need > 1
+        ? 'Select ' + need + ' starter siegelings — ' + (kn ? kn.name : 'your knight')
+          + ' musters an extra one. You will find more along the path.'
+        : 'Select your starter siegeling. You will find more along the path.';
+    }
     var ready = state.knightId && state.party.length === need;
     $('startRunBtn').disabled = !ready;
     var names = state.party.map(function (id) {
@@ -1427,6 +1484,7 @@
 
   function renderMap() {
     showScreen('mapScreen');
+    clearBattleMap();
     var run = state.run;
     renderPartyStrip($('partyStrip'), run.party, run.knight);
     $('mapGold').textContent = '🪙 ' + (run.gold || 0) +
@@ -1568,6 +1626,13 @@
         scroll.scrollTop = Math.max(0, focusY - scroll.clientHeight * 0.6);
       }
     }, 30);
+
+    // Preload the next fight's map composition (orientation currently in effect)
+    // so entering battle doesn't flash the fallback gradient.
+    var nextFight = nodes.find(function (n) {
+      return n.reachable && (n.type === 'BATTLE' || n.type === 'ELITE' || n.type === 'BOSS');
+    });
+    if (nextFight) preloadBattleMap(nextFight);
   }
 
   function travelTo(nodeId) {
@@ -1848,21 +1913,27 @@
         : '<div class="camp-glyph">' + icon(offer.element) + '</div>';
       var stats = offer.hp != null ? '<div class="camp-card-desc">❤ ' + offer.hp + ' · ⚡ ' + offer.speed +
         (offer.evolves ? ' · <span class="evo-tag">EVO ↑</span>' : '') + '</div>' : '';
+      // Prefer per-offer kind when present; fall back to stall-level merc for older payloads.
+      var isMerc = offer.kind ? offer.kind === 'MERC' : (offer.merc === true || !!b.merc);
+      var hireCost = isMerc
+        ? (offer.cost != null ? offer.cost : b.hireCost)
+        : (b.hireCost != null ? b.hireCost : offer.cost);
+      var swapCost = b.swapCost != null ? b.swapCost : hireCost;
       c.innerHTML =
         '<div class="camp-card-head"><button class="info-btn broker-info" type="button">ⓘ</button>' +
         (offer.used ? '<span class="camp-used">✓ hired</span>' : '') + '</div>' +
         art +
         '<div class="camp-card-title">' + esc(offer.name) + '</div>' +
         stats +
-        (offer.used ? '' : b.merc
+        (offer.used ? '' : isMerc
           ? '<div class="broker-actions">' +
             '<button class="siege-btn broker-btn hire" type="button"' +
-              ((run.gold >= b.hireCost && !b.mercUnderContract) ? '' : ' disabled') + '>Rent 🪙' + b.hireCost + '</button>' +
+              ((run.gold >= hireCost && !b.mercUnderContract) ? '' : ' disabled') + '>Rent 🪙' + hireCost + '</button>' +
             '</div><div class="camp-card-desc">Fights your NEXT battle with boon cards, then departs.</div>'
           : '<div class="broker-actions">' +
             '<button class="siege-btn broker-btn hire" type="button"' +
-              ((run.gold >= b.hireCost && !b.partyFull) ? '' : ' disabled') + '>Hire 🪙' + b.hireCost + '</button>' +
-            '<button class="siege-btn broker-btn swap" type="button"' + (run.gold >= b.swapCost ? '' : ' disabled') + '>Swap 🪙' + b.swapCost + '</button>' +
+              ((run.gold >= hireCost && !b.partyFull) ? '' : ' disabled') + '>Hire 🪙' + hireCost + '</button>' +
+            '<button class="siege-btn broker-btn swap" type="button"' + (run.gold >= swapCost ? '' : ' disabled') + '>Swap 🪙' + swapCost + '</button>' +
             '</div><div class="broker-swap-row hidden"></div>');
       c.querySelector('.broker-info').addEventListener('click', function (e) {
         e.stopPropagation();
@@ -2454,10 +2525,82 @@
   }
 
   // ---- battle stage ----------------------------------------------------
+  var MAP_ASSET_V = '1';
+  var battleMapPreload = null;
+
+  /** Deterministic index into a pool from a node id (stable across reloads). */
+  function hashPick(id, n) {
+    var x = (Number(id) || 0) * 2654435761;
+    x = (x ^ (x >>> 16)) >>> 0;
+    return n ? (x % n) : 0;
+  }
+
+  function mapUrl(id, orient) {
+    return '/img/maps/' + id + '-' + orient + '.svg?v=' + MAP_ASSET_V;
+  }
+
+  /** Resolve a node to one stable arena id, shared by paint and preload. */
+  function battleMapId(node) {
+    var catalogs = window.SIEGE_MAPS;
+    if (!node || !catalogs) return null;
+    var segment = Math.max(0, Math.min(2, Math.floor((node.row || 0) / 8)));
+    if (node.type === 'BOSS') return (catalogs.boss || [])[segment] || null;
+    var pool = (catalogs.bySegment || [])[segment] || [];
+    return pool.length ? pool[hashPick(node.id, pool.length)] : null;
+  }
+
+  function clearBattleMap() {
+    var stage = $('battleStage');
+    if (stage) {
+      stage.style.removeProperty('--map-landscape');
+      stage.style.removeProperty('--map-portrait');
+    }
+    delete document.body.dataset.battleMap;
+    delete document.body.dataset.battleNode;
+    if (battleMapPreload && battleMapPreload.parentNode) {
+      battleMapPreload.parentNode.removeChild(battleMapPreload);
+      battleMapPreload = null;
+    }
+  }
+
+  /** Resolve and paint the illustrated battlefield for a map node. */
+  function applyBattleMap(node) {
+    var id = battleMapId(node);
+    if (!id) { clearBattleMap(); return; }
+
+    var stage = $('battleStage');
+    if (!stage) return;
+    stage.style.setProperty('--map-landscape', 'url("' + mapUrl(id, 'landscape') + '")');
+    stage.style.setProperty('--map-portrait', 'url("' + mapUrl(id, 'portrait') + '")');
+    document.body.dataset.battleMap = id;
+    document.body.dataset.battleNode = node.type || '';
+  }
+
+  /** Preload the composition matching current orientation for an upcoming fight. */
+  function preloadBattleMap(node) {
+    if (typeof document === 'undefined') return;
+    var id = battleMapId(node);
+    if (!id) return;
+    var land = matchMedia('(orientation: landscape)').matches;
+    var href = mapUrl(id, land ? 'landscape' : 'portrait');
+    if (battleMapPreload && battleMapPreload.getAttribute('href') === href) return;
+    if (battleMapPreload && battleMapPreload.parentNode) {
+      battleMapPreload.parentNode.removeChild(battleMapPreload);
+    }
+    battleMapPreload = document.createElement('link');
+    battleMapPreload.rel = 'preload';
+    battleMapPreload.as = 'image';
+    battleMapPreload.href = href;
+    document.head.appendChild(battleMapPreload);
+  }
+
   function renderBattle() {
     showScreen('battleScreen');
     var b = state.run.battle;
     if (!b) { renderMap(); return; }
+
+    var node = (state.run.map || []).find(function (n) { return n.id === state.run.currentNodeId; });
+    applyBattleMap(node);
 
     renderKnightPlate(b);
     renderSpeedTrack(b);
@@ -2640,9 +2783,15 @@
             '<div class="sp-gaugefill" style="width:' + Math.round(100 * u.evoGauge / Math.max(1, u.evoGaugeMax)) + '%"></div>' +
             '<span class="sp-gaugetext">🌟 ' + u.evoGauge + '/' + u.evoGaugeMax + '</span></div>';
       }
+      // A foe's full name is "Shade of X". Spelling that out on the plate leaves
+      // no room for X at phone sizes, so the prefix becomes a badge (like the
+      // ally level badge) and the creature keeps the readable half of the line.
+      var plateName = u.shadeOf
+        ? '<span class="sp-shade">Shade</span>' + esc(u.shadeOf)
+        : esc(u.name);
       sp.innerHTML =
         '<div class="sp-plate">' +
-          '<div class="sp-name">' + levelBadge + esc(u.name) + ' <span class="sp-el">' + icon(u.element) + '</span></div>' +
+          '<div class="sp-name">' + levelBadge + plateName + ' <span class="sp-el">' + icon(u.element) + '</span></div>' +
           '<div class="sp-hpbar"><div class="sp-hpfill" style="width:' + pct + '%"></div></div>' +
           xpLine +
           '<div class="sp-tags"><span class="sp-hp">' + u.hp + '/' + u.maxHp + '</span>' + shield + buff + statusChips + '</div>' +

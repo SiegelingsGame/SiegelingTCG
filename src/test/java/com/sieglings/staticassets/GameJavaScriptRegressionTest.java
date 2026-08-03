@@ -31,6 +31,8 @@ class GameJavaScriptRegressionTest {
     private static final Path ADVENTURE_CSS = Path.of("src/main/resources/static/css/adventure.css");
     private static final Path ADVENTURE_JS = Path.of("src/main/resources/static/js/adventure.js");
     private static final Path ADVENTURE_HTML = Path.of("src/main/resources/static/adventure.html");
+    private static final Path SIEGE_MAPS_JS = Path.of("src/main/resources/static/js/siege-maps.js");
+    private static final Path BATTLE_MAP_DIR = Path.of("src/main/resources/static/img/maps");
 
     private static final Path LANDING_JS = Path.of("src/main/resources/static/js/landing.js");
 
@@ -208,6 +210,7 @@ class GameJavaScriptRegressionTest {
         String choosePack = extractFunction(homeScript, "async function choosePack(packId, count = 1)");
         String clearPackResult = extractFunction(homeScript, "function clearPackResult()");
         String recoverStarter = extractFunction(homeScript, "async function recoverStarterPackProgression()");
+        String recoverProgression = extractFunction(homeScript, "async function recoverProgressionSnapshot()");
         String recoverShop = extractFunction(homeScript, "async function recoverShopPackProgression(requestId, packId)");
 
         assertTrue(
@@ -218,8 +221,9 @@ class GameJavaScriptRegressionTest {
         );
         assertTrue(
                 choosePack.contains("recoverStarterPackProgression()")
-                        && recoverStarter.contains("/api/player/progression")
-                        && recoverStarter.contains("starterChosen"),
+                        && recoverStarter.contains("recoverProgressionSnapshot()")
+                        && recoverStarter.contains("starterChosen")
+                        && recoverProgression.contains("/api/player/progression"),
                 "If the starter POST errors/times out after the grant, the client must recover from progression."
         );
         assertTrue(
@@ -337,7 +341,7 @@ class GameJavaScriptRegressionTest {
                 "Season Snapshot, Loadout Shelf, and Social Table must share the overview rail, with matches and badges paired below."
         );
         assertTrue(
-                homeMarkup.contains("home.js?v=124") && homeMarkup.contains("home.css?v=119"),
+                homeMarkup.contains("home.js?v=130") && homeMarkup.contains("home.css?v=122"),
                 "Cache-bust pins for the profile dashboard trim must advance on home.html."
         );
     }
@@ -365,9 +369,9 @@ class GameJavaScriptRegressionTest {
                 "Element-mode profile and friend avatars must fill a circular frame."
         );
         assertTrue(
-                homeMarkup.contains("home.css?v=119")
-                        && homeMarkup.contains("home.js?v=124")
-                        && dashboardMarkup.contains("home.css?v=119"),
+                homeMarkup.contains("home.css?v=122")
+                        && homeMarkup.contains("home.js?v=130")
+                        && dashboardMarkup.contains("home.css?v=122"),
                 "Profile icon CSS and JavaScript cache pins must advance together."
         );
     }
@@ -399,13 +403,13 @@ class GameJavaScriptRegressionTest {
         String playMarkup = Files.readString(PLAY_HTML);
         String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
         assertTrue(
-                homeMarkup.contains("style.css?v=217")
-                        && homeMarkup.contains("game.js?v=220")
+                homeMarkup.contains("style.css?v=218")
+                        && homeMarkup.contains("game.js?v=222")
                         && homeMarkup.contains("card-binder-visual.js?v=20")
-                        && homeMarkup.contains("home.js?v=124")
-                        && playMarkup.contains("style.css?v=217")
-                        && playMarkup.contains("game.js?v=220")
-                        && dashboardMarkup.contains("style.css?v=217")
+                        && homeMarkup.contains("home.js?v=130")
+                        && playMarkup.contains("style.css?v=218")
+                        && playMarkup.contains("game.js?v=222")
+                        && dashboardMarkup.contains("style.css?v=218")
                         && dashboardMarkup.contains("card-binder-visual.js?v=20"),
                 "Every surface must advance its cache pins with the complete painted-notch set."
         );
@@ -482,7 +486,7 @@ class GameJavaScriptRegressionTest {
         String shopValidator = extractFunction(homeScript, "function isValidShopPacksPayload(data)");
 
         assertTrue(
-                homeScript.contains("fetchCachedJson('shopPacks', '/api/shop/packs', STATIC_CACHE_TTL_MS, isValidShopPacksPayload)"),
+                homeScript.contains("fetchCachedJson('shopPacks', '/api/shop/packs', PACK_CACHE_TTL_MS, isValidShopPacksPayload)"),
                 "Shop packs must use a validator so an empty cached payload cannot pin the Shop to No packs available."
         );
         assertTrue(
@@ -551,10 +555,47 @@ class GameJavaScriptRegressionTest {
                 "A cached identity without progression must keep the binder loading until ownedCards arrives."
         );
         assertTrue(
-                renderCards.contains("binderLoadingMarkup('Loading your card binder…')")
+                renderCards.contains("panelLoadingMarkup('Loading your card binder…')")
                         && renderCards.contains("grid.setAttribute('aria-busy', 'true')")
                         && renderCards.contains("allCount.textContent = 'Loading cards…'"),
                 "The binder load race must show a visible and accessible loading status instead of zero owned cards."
+        );
+    }
+
+    @Test
+    void shopShowsLoadingStatusUntilPacksAndProgressionArrive() throws IOException {
+        String homeScript = readHomeScript();
+        String homeCss = Files.readString(Path.of("src/main/resources/static/css/home.css"));
+        String shopDataLoading = extractFunction(homeScript, "function shopDataLoading()");
+        String renderShop = extractFunction(homeScript, "function renderShop()");
+        String applyShopPacksPayload = extractFunction(homeScript, "function applyShopPacksPayload(data)");
+        String ensurePacksLoaded = extractFunction(homeScript, "async function ensurePacksLoaded(force = false)");
+
+        assertTrue(
+                homeScript.contains("shopPacksLoading: true")
+                        && ensurePacksLoaded.contains("state.shopPacksLoading = true")
+                        && applyShopPacksPayload.contains("state.shopPacksLoading = false"),
+                "The shop must start out loading and clear the flag however the pack catalog attempt resolves."
+        );
+        assertTrue(
+                shopDataLoading.contains("state.shopPacksLoading && !state.packs.length")
+                        && shopDataLoading.contains("!state.profileSynced")
+                        && shopDataLoading.contains("!state.progression"),
+                "A missing pack catalog or an unsynced signed-in progression snapshot must both count as shop loading."
+        );
+        assertTrue(
+                renderShop.contains("if (shopDataLoading())")
+                        && renderShop.contains("panelLoadingMarkup('Loading the shop…')")
+                        && renderShop.contains("grid.setAttribute('aria-busy', 'true')")
+                        && renderShop.contains("goldLabel.textContent = 'Loading…'"),
+                "The shop must show the spinner and loading bar instead of an empty pack panel while data is in flight."
+        );
+        assertTrue(
+                homeCss.contains(".panel-loading-spinner")
+                        && homeCss.contains(".panel-loading-bar")
+                        && homeCss.contains("animation: panel-spin")
+                        && homeCss.contains("animation: panel-loading-slide"),
+                "The shared panel loading spinner and bar styles must ship in home.css."
         );
     }
 
@@ -1052,7 +1093,8 @@ class GameJavaScriptRegressionTest {
                 "Every walkable room needs its own work-site drawing whose groups raise as the project advances."
         );
         assertTrue(
-                keepJs.contains("if (state.interior) renderInterior();\n        else openPanel('projects');"),
+                keepJs.contains("if (state.interior) renderInterior();")
+                        && keepJs.contains("else openPanel('projects');"),
                 "Buying time from inside a building must leave the player in the room, not throw them into the Projects panel."
         );
     }
@@ -1065,11 +1107,11 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=38")
-                        && keepHtml.contains("/js/keep.js?v=39")
+                        && keepHtml.contains("/css/keep.css?v=51")
+                        && keepHtml.contains("/js/keep.js?v=51")
                         && keepHtml.contains("id=\"hallFavoriteResident\"")
-                        && keepHtml.contains("id=\"constructionBannerJobs\"")
                         && keepHtml.contains("id=\"productionReady\"")
+                        && keepHtml.contains("id=\"collectOverlay\"")
                         && keepJs.contains("constructionBannerSignature")
                         && keepJs.contains("data-live-banner-time=")
                         && keepJs.contains("hallFavoriteResident")
@@ -1077,10 +1119,26 @@ class GameJavaScriptRegressionTest {
                         && keepJs.contains("function offlineCapacityRow")
                         && keepJs.contains("offline-capacity-list")
                         && keepJs.contains("woodlotCapacity <= 0 || available < woodlotCapacity")
+                        && keepJs.contains("function collectAllReady(")
+                        && keepJs.contains("stationId: 'all'")
+                        && keepJs.contains("function projectedTotalReady(")
+                        && keepJs.contains("`${totalReady} ready`")
+                        && keepJs.contains("function openCollectPopup(")
+                        && keepJs.contains("collect-meter-gain")
+                        && keepCss.contains(".collect-overlay")
+                        && keepCss.contains(".collect-meter-was")
+                        && keepCss.contains(".collect-meter-gain")
                         && !keepJs.contains("productionReady')?.classList.toggle('hidden', available <= 0)")
                         && !keepJs.contains("+${constructions.length - 1} more")
                         && !keepJs.contains("Storage reached capacity\", `${name} stopped until collected`"),
-                "Keep architecture must retain its paper building hooks, refresh both asset cache pins, show the favorite in Covenant Hall, collapse storage-capacity offline alerts into one multi-line card, show each concurrent construction job in the banner, and gate the Woodlot Collect bubble to a full stockpile."
+                "Keep architecture must retain its paper building hooks, refresh both asset cache pins, show the favorite in Covenant Hall, collapse storage-capacity offline alerts into one multi-line card, gate the Woodlot Collect bubble to a full stockpile, collect from every ready production point, and show a collect storage popup."
+        );
+        assertTrue(
+                keepCss.contains(".hall-hotspot .building-label")
+                        && keepCss.contains("left: -66px;")
+                        && keepCss.contains("top: -6px;")
+                        && keepCss.contains("bottom: auto;"),
+                "The phone Covenant Hall label must stay in the open upper-left sky instead of covering the gatehouse."
         );
         assertTrue(
                 keepJs.contains("/api/keep/construction/speedup")
@@ -1117,11 +1175,45 @@ class GameJavaScriptRegressionTest {
                         && keepJs.contains("function enterAkharsFront()")
                         && keepJs.contains("function exitAkharsFront()")
                         && keepJs.contains("state.frontView ? 'akhars_front' : 'keep'")
+                        && keepJs.contains("Occupied Siegelings can be moved here")
+                        && keepJs.contains("assignmentType: resident.assignment?.type || ''")
                         && keepCss.contains(".keep-app.front-view-active .keep-dock")
                         && keepCss.contains(".building-hotspot:not(.front-hotspot)")
                         && keepCss.contains(".front-battle { position: absolute; inset: 0 0 33px; display: none;")
-                        && keepCss.contains(".keep-app.front-view-active .front-battle { display: block; }"),
-                "Akhar's Front must remain a compact map destination, reveal its battle only after entry, and provide a tested route back to the Keep grounds."
+                        && keepHtml.contains("class=\"front-torches\"")
+                        && keepCss.contains("linear-gradient(180deg, #170b2d 0%, #32113c 35%, #66233e 55%, #281829 100%)")
+                        && keepCss.contains("@keyframes front-torch-flicker")
+                        && keepCss.contains(".keep-app.front-view-active .front-battle { display: block;"),
+                "Akhar's Front must remain a compact map destination, reveal its responsive night battle and torches only after entry, name occupied reassignment locations, and provide a tested route back to the Keep grounds."
+        );
+        assertTrue(
+                keepHtml.contains("data-front-src=\"/audio/sieglings-battle-theme.mp3?v=1\"")
+                        && Files.exists(Path.of("src/main/resources/static/audio/sieglings-battle-theme.mp3"))
+                        && keepJs.contains("function syncMusicForLocation()")
+                        && keepJs.contains("track: state.frontView ? 'battle' : 'keep'")
+                        && keepCss.contains(".front-view-toolbar { top: calc(52px + var(--safe-top));")
+                        && !keepCss.contains(".keep-app.front-view-active .keep-resource-bar")
+                        && !keepCss.contains(".keep-app.front-view-active .keep-header-actions"),
+                "The Wall must retain the complete Keep HUD, place its phone toolbar below the resources, and switch the shared music control to the supplied battle theme."
+        );
+        assertTrue(
+                keepHtml.contains("data-front-raider=\"0\"")
+                        && keepHtml.contains("class=\"front-raider-health\"")
+                        && keepHtml.contains("id=\"frontProjectiles\"")
+                        && keepHtml.contains("id=\"frontCoinBurst\"")
+                        && keepJs.contains("function advanceFrontCombat(ms)")
+                        && keepJs.contains("function defeatFrontRaider(enemy)")
+                        && keepJs.contains("combat.coinsEarned +=")
+                        && keepJs.contains("combatRatePerMinute")
+                        && keepJs.contains("defeatsThisVisit")
+                        && keepCss.contains(".front-raider-health")
+                        && keepHtml.contains("class=\"raider-art\"><span class=\"front-raider-health\"")
+                        && keepJs.contains("art.innerHTML = `<span class=\"front-raider-health\"")
+                        && keepCss.contains(".front-raiders i .raider-art svg { display: block; width: 100%; height: auto;")
+                        && keepCss.contains("top: -9px;")
+                        && keepCss.contains(".front-projectile::after")
+                        && keepCss.contains(".front-coin-burst.is-visible"),
+                "Akhar's Front combat must march health-bearing dark Siegelings toward the wall, fire elemental projectiles, and surface a coin award for every defeat."
         );
         assertTrue(
                 keepCss.contains(".building-illustration svg.paper-building-shell")
@@ -1171,6 +1263,14 @@ class GameJavaScriptRegressionTest {
                         && !keepCss.contains(".keep-dock .collect-button { margin-top: -10px;"),
                 "Collect must align inside the dock instead of using a negative top margin that overlaps the Keep map."
         );
+        // Locked scenery ("Unlock from Projects") and several panels send the player to Projects by
+        // name, so the dock must keep a control that carries that name — the Teams pill counts crews,
+        // not projects, and leaves those instructions pointing at nothing.
+        assertTrue(
+                keepHtml.contains("<button type=\"button\" data-open-panel=\"projects\">")
+                        && keepHtml.contains("<strong>Projects</strong>"),
+                "The Keep dock must keep its named Projects button so every 'Unlock from Projects' hint has a visible destination."
+        );
     }
 
     @Test
@@ -1193,6 +1293,54 @@ class GameJavaScriptRegressionTest {
         assertFalse(
                 keepJs.contains("return 'Wary'"),
                 "The zero-trust Voices stage is Distant, matching the spectrum labels."
+        );
+    }
+
+    @Test
+    void keepSetbacksExposeTimedAndCoinRepairsWithBadChoiceFollowups() throws IOException {
+        String keepHtml = Files.readString(KEEP_HTML);
+        String keepCss = Files.readString(KEEP_CSS);
+        String keepJs = Files.readString(KEEP_JS);
+
+        assertTrue(
+                keepHtml.contains("id=\"keepEventOverlay\"")
+                        && keepHtml.contains("data-keep-event-repair=\"TIME\"")
+                        && keepHtml.contains("data-keep-event-repair=\"SIEGECOINS\"")
+                        && keepJs.contains("/api/keep/event/repair")
+                        && keepJs.contains("function renderKeepEvent()")
+                        && keepJs.contains("function keepEventRemaining()")
+                        && keepJs.contains("class=\"notice-repair-card\"")
+                        && keepJs.contains("function keepActivityBadgeCount()")
+                        && keepJs.contains("status: snapshot.activeKeepEvent.repairInProgress ? 'underway' : 'action_needed'")
+                        && keepJs.contains("activeKeepEvent:")
+                        && keepCss.contains(".keep-event-overlay")
+                        && keepCss.contains(".notice-repair-card")
+                        && keepCss.contains(".is-damaged"),
+                "Keep setbacks need an activity-menu repair cue, repair sheet, live timer, coin route, and debug snapshot state."
+        );
+        assertFalse(
+                keepHtml.contains("id=\"keepEventAlert\"")
+                        || keepCss.contains(".keep-event-alert")
+                        || keepJs.contains("nextEventId !== previousEventId"),
+                "Repairs belong in Keep activity and must not render or automatically open a separate map-covering alert."
+        );
+        assertTrue(
+                keepCss.contains(".repair-scaffold")
+                        && keepJs.contains("function raiseRepairScaffold(")
+                        && keepJs.contains("scaffold repair-scaffold"),
+                "Damage must read as scaffolding raised over the building illustration."
+        );
+        assertFalse(
+                keepCss.contains("content: \"REPAIR\""),
+                "Damage must not print a badge on .is-damaged::after: that is the same box as the "
+                        + ".building-hotspot::after hover ring, so it inherits the ring's inset and "
+                        + "stretches into a slab covering the whole building."
+        );
+        assertTrue(
+                keepJs.contains("data-dialogue-followup=")
+                        && keepJs.contains("Face what follows")
+                        && keepJs.contains("This answer caused a new Interaction."),
+                "A bad Voice answer must lead directly into its one-time consequence Interaction."
         );
     }
 
@@ -1258,9 +1406,80 @@ class GameJavaScriptRegressionTest {
                 "Art bleeds under the notch and home indicator while controls stay inset by the safe area."
         );
         assertTrue(
-                adventureHtml.contains("/css/adventure.css?v=43"),
+                adventureHtml.contains("/css/adventure.css?v=49"),
                 "adventure.css must be cache-busted after the full-bleed location rework."
         );
+    }
+
+    @Test
+    void siegeBattleMapsStayStaticSmallAndOrientationMatched() throws IOException {
+        String adventureCss = Files.readString(ADVENTURE_CSS).replace("\r\n", "\n");
+        String adventureHtml = Files.readString(ADVENTURE_HTML);
+        String adventureJs = Files.readString(ADVENTURE_JS);
+        String mapCatalog = Files.readString(SIEGE_MAPS_JS);
+
+        assertTrue(
+                adventureHtml.indexOf("/js/siege-maps.js?v=3") < adventureHtml.indexOf("/js/adventure.js?v=49")
+                        && adventureHtml.contains("<div class=\"battle-map\" id=\"battleMap\" aria-hidden=\"true\"></div>"),
+                "The map catalog must load before adventure.js and the decorative layer must ship inside the stage."
+        );
+        assertTrue(
+                adventureCss.contains("background-image:var(--map-landscape)")
+                        && adventureCss.contains("@media (orientation: portrait){\n  .battle-map{ background-image:var(--map-portrait); }")
+                        && adventureCss.contains("background-size:cover")
+                        && adventureCss.contains("contain:paint"),
+                "One paint-contained map layer must switch compositions with the arena orientation."
+        );
+        assertTrue(
+                adventureCss.contains("flex-flow:row nowrap; gap:var(--arena-unit-gap)")
+                        && adventureCss.contains(".ally-line{ left:var(--arena-side-inset); right:auto; }")
+                        && adventureCss.contains(".foe-line{ right:var(--arena-side-inset); left:auto; flex-direction:row-reverse; }")
+                        && adventureCss.contains("--arena-unit-bottom-clearance"),
+                "Landscape allies and foes must occupy mirrored horizontal lanes between the top chrome and AP HUD."
+        );
+        assertTrue(
+                adventureJs.contains("function battleMapId(node)")
+                        && adventureJs.contains("pool[hashPick(node.id, pool.length)]")
+                        && adventureJs.contains("matchMedia('(orientation: landscape)').matches")
+                        && adventureJs.contains("'.svg?v=' + MAP_ASSET_V"),
+                "Map selection must be deterministic and preload only the current orientation's SVG."
+        );
+
+        String[] ids = {
+                "muster-field", "ash-road", "tourney-yard",
+                "moat-crossing", "rampart-breach", "gatehouse",
+                "keep-hall", "umbral-vault", "throne-of-the-siegelord"
+        };
+        Set<String> delivered = new LinkedHashSet<>();
+        try (var files = Files.list(BATTLE_MAP_DIR)) {
+            files.filter(path -> path.getFileName().toString().endsWith(".svg"))
+                    .forEach(path -> delivered.add(path.getFileName().toString()));
+        }
+        assertTrue(delivered.size() == 18, "Siege must deliver exactly nine landscape/portrait SVG pairs.");
+        assertTrue(mapCatalog.contains("bySegment") && mapCatalog.contains("boss"),
+                "The segment and boss map pools must ship with the compositions.");
+
+        for (String id : ids) {
+            for (String orientation : new String[] { "landscape", "portrait" }) {
+                String name = id + "-" + orientation + ".svg";
+                Path file = BATTLE_MAP_DIR.resolve(name);
+                assertTrue(delivered.contains(name), "Missing battle-map composition " + name);
+                assertTrue(Files.size(file) <= 5 * 1024, name + " exceeds the 5KB raw budget.");
+                String svg = Files.readString(file);
+                String viewBox = orientation.equals("landscape")
+                        ? "viewBox=\"0 0 1200 680\""
+                        : "viewBox=\"0 0 900 800\"";
+                assertTrue(svg.contains(viewBox), name + " has the wrong crop-safe composition ratio.");
+                assertFalse(svg.contains("<text") || svg.contains("<image") || svg.contains("@keyframes")
+                                || svg.contains("<animate") || svg.contains("feTurbulence")
+                                || svg.contains("feGaussianBlur"),
+                        name + " must remain decorative, self-contained, and free of continuous repaint effects.");
+                Matcher shapes = Pattern.compile("<(?:path|rect|circle|ellipse|g)\\b").matcher(svg);
+                int shapeCount = 0;
+                while (shapes.find()) shapeCount++;
+                assertTrue(shapeCount <= 45, name + " exceeds the 45-shape rendering budget.");
+            }
+        }
     }
 
     @Test
@@ -1271,8 +1490,8 @@ class GameJavaScriptRegressionTest {
         assertTrue(adventureHtml.contains("id=\"runMenuSave\"")
                         && adventureHtml.contains("id=\"runMenuRestart\"")
                         && adventureHtml.contains("id=\"runMenuQuit\"")
-                        && adventureHtml.contains("/css/adventure.css?v=43")
-                        && adventureHtml.contains("/js/adventure.js?v=42"),
+                        && adventureHtml.contains("/css/adventure.css?v=49")
+                        && adventureHtml.contains("/js/adventure.js?v=49"),
                 "The active-run menu and both cache-busted bundles must ship together.");
         String restartRun = extractFunction(adventureJs, "function restartRun(");
         assertTrue(adventureJs.contains("api('/api/siege/run/save'")
@@ -1282,6 +1501,26 @@ class GameJavaScriptRegressionTest {
                 "Save/Quit must require a durable checkpoint and Restart must abandon server state before clearing local state.");
         assertFalse(adventureJs.contains("resetPageScroll"),
                 "The menu port must not revive the stale PR's superseded map-scroll implementation.");
+    }
+
+    @Test
+    void dashboardPublishesLoadedCatalogVersion() throws IOException {
+        String dashboardScript = Files.readString(CARD_DASHBOARD_JS);
+        String applyServerPayload = extractFunction(dashboardScript, "function applyServerPayload(payload)");
+        String buildExportData = extractFunction(dashboardScript, "function buildExportData()");
+
+        assertTrue(
+                dashboardScript.contains("catalogVersion: 0"),
+                "Dashboard state should track the loaded catalog revision."
+        );
+        assertTrue(
+                applyServerPayload.contains("state.catalogVersion = Number(payload.catalogVersion) || 0;"),
+                "Dashboard loads must remember the server catalog revision."
+        );
+        assertTrue(
+                buildExportData.contains("catalogVersion: state.catalogVersion"),
+                "Live publish payloads must include their base catalog revision to prevent stale full-snapshot overwrites."
+        );
     }
 
     private static String readGameScript() throws IOException {

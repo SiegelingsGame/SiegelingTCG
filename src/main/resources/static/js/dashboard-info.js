@@ -240,7 +240,7 @@
                 row(['<strong>Vanguard</strong>', '+2 speed to each Siegeling at battle start.']),
                 row(['<strong>Warden</strong>', '+8 max HP to each Siegeling for the whole expedition.']),
                 row(['<strong>Quartermaster</strong>', '+40% gold from spoils and caches.']),
-                row(['<strong>Marshal</strong>', 'Starts the run with an extra Siegeling in the warband.']),
+                row(['<strong>Marshal</strong>', 'Picks an extra starting Siegeling at warband assembly (2 instead of 1).']),
                 row(['<strong>Default</strong>', 'Uses the knight’s built-in hash assignment — no override.'])
             ])
     };
@@ -264,6 +264,13 @@
         title: 'Shop Prices',
         html: '<p>Each card\'s shop price is looked up by <strong>rarity + card type</strong>. Set an override for a cell to replace the default for every card of that combination; reset it to fall back to the default again.</p>' +
             '<p>SiegeKnight (TRAINER) defaults start at <strong>300</strong> Siegecoins and scale up with rarity; Siegelings, spells, and traps use a lower rarity ladder. Overrides apply immediately to packs and daily card offers. Premade decks are priced separately and are not affected here.</p>'
+    };
+
+    topics['pack-availability'] = {
+        title: 'Pack Availability',
+        html: '<p>Every pack this build ships is listed here. Unchecking <strong>Available</strong> removes that pack from the hub shop immediately — it can no longer be bought, opened in bulk, or picked as a starter — and re-checking it brings it straight back. Nothing about the pack\'s contents or price changes.</p>' +
+            '<p>A pack only appears in this list when <em>all</em> of its elements are live in the <strong>Live Elements</strong> roster. Turning an element off there hides its packs too (Water off hides both the Water pack and Stormtide), so check that page first if a pack you expect is missing.</p>' +
+            '<p>At least one pack, and at least one starter-eligible pack, must stay active — the shop cannot render an empty list and new accounts cannot finish onboarding without a starter. The hub caches the pack catalog in the browser for up to 24 hours, so returning players may keep seeing the previous list until their cache expires.</p>'
     };
 
     topics['keep-tuning'] = {

@@ -6,13 +6,13 @@
     "element" : "ICE",
     "active" : true
   }, {
-    "element" : "WATER",
-    "active" : true
-  }, {
     "element" : "EARTH",
     "active" : true
   }, {
     "element" : "WIND",
+    "active" : true
+  }, {
+    "element" : "WATER",
     "active" : true
   }, {
     "element" : "SHADOW",

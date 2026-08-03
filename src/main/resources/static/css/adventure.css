@@ -31,6 +31,11 @@ button{font-family:inherit;}
 .el-UNDEAD{--el:#8c78a0;} .el-PSYCHIC{--el:#c896ff;} .el-POISON{--el:#78dc50;} .el-LIGHT{--el:#fff0b0;}
 .el-NEUTRAL{--el:#95a5a6;}
 
+/* The enemy shade filter's <defs> carrier. It has no visual output of its own,
+   but a 0x0 inline SVG still takes part in layout on some engines — on the
+   battle screen, where the page must never scroll, that is a real hazard. */
+.siege-svg-defs{position:absolute; width:0; height:0; overflow:hidden; pointer-events:none;}
+
 /* app shell — viewport-fit=cover + env(safe-area-inset-*) keeps chrome out
    from under the notch / status bar on phones. */
 .siege-app{
@@ -176,6 +181,14 @@ body[data-screen="mapScreen"] #mapScreen{
 }
 .mode-card-status.ready{color:var(--good); border-color:var(--good);}
 .knight-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:12px;}
+/* Availability bands: the knights you can actually take out sit under the first one. */
+.knight-group{
+  grid-column:1 / -1; font-size:10.5px; font-weight:800; letter-spacing:.6px; text-transform:uppercase;
+  color:var(--dim); display:flex; align-items:center; gap:8px; margin:2px 0 -4px;
+}
+.knight-group::after{content:''; flex:1 1 auto; height:1px; background:var(--border);}
+.knight-group-0{color:var(--good);}
+.knight-group-1{color:var(--accent-2);}
 .knight-card .kability{font-size:12px; margin-top:5px;}
 .knight-card .kability-name{color:var(--accent); font-weight:750;}
 .knight-card .kability-sum{color:var(--el); font-weight:650; font-size:11px;}
@@ -886,6 +899,28 @@ body[data-screen="rewardScreen"] .siege-screen{
     linear-gradient(180deg, #10141f 0%, #131a28 44%, #1a2130 60%, #232b3a 100%);
   transition:box-shadow .16s ease;
 }
+/* Illustrated battlefield — external SVG via CSS background-image,
+   switched by the same orientation media query the layout itself uses.
+   inset:0 bleeds past the landscape padding-inline so art reaches the glass.
+   paint containment keeps sprite bob + plate blur from invalidating the map. */
+.battle-map{
+  position:absolute; inset:0; z-index:0; pointer-events:none;
+  background-image:var(--map-landscape);
+  background-size:cover; background-position:center; background-repeat:no-repeat;
+  contain:paint; isolation:isolate;
+}
+.battle-map::after{
+  content:''; position:absolute; inset:0; pointer-events:none;
+  background:
+    linear-gradient(180deg, rgba(5,8,13,.28), transparent 28%, transparent 62%, rgba(5,8,13,.42)),
+    radial-gradient(ellipse at 50% 48%, transparent 40%, rgba(5,8,13,.34) 100%);
+}
+@media (orientation: portrait){
+  .battle-map{ background-image:var(--map-portrait); }
+}
+/* With real map art, dial the synthetic floor pool down (portrait) or hide it
+   (landscape — the SVG draws its own ground plane; .sp-shadow still plants units). */
+body[data-battle-map] .stage-ground{ opacity:.35; }
 /* A card is being dragged over the arena — glow the drop zone. */
 .battle-stage.drop-hover{box-shadow:inset 0 0 0 2px var(--accent), 0 0 22px rgba(255,154,60,.35);}
 .stage-ground{
@@ -894,6 +929,29 @@ body[data-screen="rewardScreen"] .siege-screen{
              radial-gradient(ellipse at 50% 10%, #2a3346 0%, #1b2231 45%, transparent 72%);
   border-radius:50%;
   pointer-events:none;
+}
+/* Elite/boss reuse segment maps with a CSS vignette on ::before
+   (::after is the drag scrim). Tint strength is tunable via --arena-tint. */
+.battle-stage::before{
+  content:''; position:absolute; inset:0; z-index:1; pointer-events:none;
+  opacity:0; transition:opacity .2s ease;
+  background:radial-gradient(120% 100% at 50% 50%, transparent 35%, rgba(120,20,30, calc(var(--arena-tint, .0))) 100%);
+}
+body[data-battle-node="ELITE"] .battle-stage::before{
+  opacity:1;
+  background:radial-gradient(120% 100% at 50% 50%, transparent 30%, rgba(140,24,36, var(--arena-tint, .38)) 100%);
+}
+body[data-battle-node="BOSS"] .battle-stage::before{
+  opacity:1;
+  background:radial-gradient(130% 110% at 50% 48%, transparent 28%, rgba(90,10,24, var(--arena-tint, .52)) 100%);
+}
+@media (prefers-reduced-motion: no-preference){
+  body[data-battle-node="BOSS"] .battle-stage::before{
+    animation:bossTintPulse 4.5s ease-in-out infinite;
+  }
+  @keyframes bossTintPulse{
+    50%{ opacity:.72; }
+  }
 }
 .foe-line,.ally-line{
   position:relative; display:flex; gap:4%; justify-content:center; align-items:flex-end;
@@ -913,11 +971,32 @@ body[data-screen="rewardScreen"] .siege-screen{
 }
 .sprite .sp-art img{max-height:calc(110px * var(--evo-scale,1)); max-width:100%; object-fit:contain; pointer-events:none; user-select:none;}
 .sprite.enemy .sp-art img{transform:scaleX(-1);}
+/* Siege foes are corrupted Siegelings — the server hands them real card art
+   (SiegeContentService#shadeCard) and this crushes it to the violet-black
+   cutout Akhar's raiders wear in the Keep, so the two surfaces read as the
+   same enemy. The declaration order matches keep.css `.front-raiders i
+   .raider-art img`: the drop-shadow chain is the fallback for browsers with no
+   SVG-filter support, and where the filter resolves it replaces the chain
+   outright rather than stacking with it. The rim shadows are the die-cut edge,
+   not decoration — without them a dark cutout disappears into a dark arena. */
+.sprite.enemy .sp-art img{
+  filter:
+    brightness(.26) saturate(.5) contrast(1.2)
+    drop-shadow(0 0 4px rgba(168, 107, 255, .55))
+    drop-shadow(1px 0 0 #120b1d) drop-shadow(-1px 0 0 #120b1d);
+}
+@supports (filter: url("#paper-siegling-shadow")) {
+  .sprite.enemy .sp-art img{ filter:url("#paper-siegling-shadow"); }
+}
 .sprite .sp-art-fallback span{
   font-size:calc(56px * var(--evo-scale,1)); opacity:.8;
   filter:drop-shadow(0 0 14px var(--el));
 }
-.sprite.enemy .sp-art-fallback span{filter:drop-shadow(0 0 14px var(--el)) grayscale(.2) brightness(.8);}
+/* No art on the card the shade was drawn from (or an empty catalog): the glyph
+   still has to read as corrupted rather than as a bright elemental icon. */
+.sprite.enemy .sp-art-fallback span{
+  filter:brightness(.42) saturate(.55) drop-shadow(0 0 12px rgba(168, 107, 255, .6));
+}
 @keyframes idlebob{0%,100%{transform:translateY(0);}50%{transform:translateY(-6px);}}
 .sprite .sp-shadow{
   width:64%; height:12px; margin:2px auto 0; border-radius:50%;
@@ -947,6 +1026,12 @@ body[data-screen="rewardScreen"] .siege-screen{
 .sprite .sp-lvl{display:inline-block; font-size:9px; font-weight:800; line-height:1; padding:2px 3px; border-radius:4px;
   background:#22304a; color:#cfe0ff; margin-right:4px; vertical-align:middle;}
 .sprite .sp-lvl.up{background:#ffd066; color:#3a2c00; box-shadow:0 0 6px rgba(255,208,102,.7);}
+/* "Shade of X" as a badge + the creature's own name — see renderSpriteLine.
+   Violet to match the cutout the foe is wearing, and sized like .sp-lvl so ally
+   and enemy plates keep the same rhythm. */
+.sprite .sp-shade{display:inline-block; font-size:9px; font-weight:800; line-height:1; padding:2px 4px;
+  border-radius:4px; background:#2e1b4d; color:#d8a2ff; margin-right:4px; vertical-align:middle;
+  letter-spacing:.4px; text-transform:uppercase;}
 .sprite .sp-xpbar{height:3px; border-radius:2px; background:#0c1017; margin-top:3px; overflow:hidden;}
 .sprite .sp-xpfill{height:100%; background:linear-gradient(90deg,#5b8def,#8ab4ff); transition:width .35s;}
 .sprite .sp-tags{display:flex; gap:6px; justify-content:center; font-size:10px; color:var(--dim); margin-top:3px;}
@@ -1339,6 +1424,10 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
   .sprite .sp-art-fallback span{font-size:calc(38px * var(--evo-scale,1));}
   .sprite .sp-plate{padding:3px 5px 4px;}
   .sprite .sp-name{font-size:10px;}
+  /* The plate is barely wider than the sprite here, and badge + creature name
+     does not fit: the name is the half worth keeping, since the violet cutout
+     already says the foe is a shade. */
+  .sprite .sp-shade{display:none;}
   .foe-line,.ally-line{min-height:112px;}
 
   .battle-log{max-height:38px; min-height:24px; font-size:11px; padding:4px 10px; margin-top:6px;}
@@ -1667,32 +1756,50 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
 .interaction-result-meta{display:flex; justify-content:center; margin-top:14px;}
 .interaction-result-btn{display:block; margin:0 auto; padding:13px 42px; font-size:16px;}
 
-/* ---------- Phone landscape (round 7) ----------
-   Landscape phones (~640-956 wide, <=600 tall) are WIDER than the 640px
-   portrait breakpoint, so without this block they fall through to the base +
-   min-width:900 desktop rules: the battle renders as a tall portrait column
-   with the drop-target battlefield and the hand fan below the fold — you
-   cannot actually play — and the map clips its party strip. This block
-   restructures battle and map into a left-rail + main layout that fits one
-   short-height screen. It is placed after the min-width:900 block so its
-   sprite/stage overrides win the source-order tie at 900-956px wide. Desktop
-   landscape (height > 600) and portrait phones never match, so they are
-   untouched. The phone-portrait max-width:640 block also never matches these
-   wide viewports, so nothing here fights it. */
-@media (orientation: landscape) and (max-width: 979px) and (max-height: 600px){
-  /* Reclaim vertical space: slim the app padding + the sticky top bar. */
-  .siege-app{
+/* ---------- Landscape battle: full-bleed arena (every landscape format) -----
+   Started life (round 7) as a phone-only rescue: landscape phones are WIDER
+   than the 640px portrait breakpoint, so they fell through to the base +
+   min-width:900 rules and rendered the battle as a tall portrait column with
+   the hand fan below the fold — unplayable. The replacement is a full-bleed
+   arena with floating overlay chrome, and it turned out to beat the boxed
+   arena on tablet and desktop too (those were capped at the 1120px reading
+   column, wasting most of a wide screen), so it is now THE landscape battle
+   layout at every size. Portrait — phone or tablet — still gets the stacked
+   column, which is the right shape for a tall viewport.
+
+   Sizes come from the --arena-* / --playcard-w custom properties declared
+   here: these values fit a ~390px-tall phone, and the min-height:601px block
+   immediately after scales them up for tablet/desktop. Change a size there,
+   not by duplicating rules. Placed after the min-width:900 block so its
+   sprite/stage overrides win the source-order tie. */
+@media (orientation: landscape){
+  body[data-screen="battleScreen"]{
+    --arena-chrome-top:31px;          /* clearance below the floating top bar */
+    --arena-sprite-w:92px;
+    --arena-sprite-art:64px;
+    --arena-name:10px;
+    --arena-plate-w:min(244px,46vw);
+    --arena-log-w:148px;
+    --arena-hand-h:150px;
+    --playcard-w:94px;
+    --arena-tint:.42;                 /* elite/boss vignette strength on phone */
+    --arena-side-inset:max(10px,env(safe-area-inset-left,0px));
+    --arena-clash-half:clamp(24px,6vw,42px);
+    --arena-unit-gap:clamp(4px,1.2vw,10px);
+    --arena-unit-top-gap:88px;        /* below health/speed/ledger band */
+    --arena-unit-bottom-clearance:calc(var(--arena-hand-h) - 12px);
+  }
+  /* Full bleed needs the reading-column cap and the side gutters gone, or the
+     "edge to edge" arena stops 400px short of each edge on a desktop. */
+  body[data-screen="battleScreen"] .siege-app{
+    max-width:none;
     padding:
       env(safe-area-inset-top, 0px)
       max(8px, env(safe-area-inset-right, 0px))
-      6px
+      0
       max(8px, env(safe-area-inset-left, 0px));
   }
-  body[data-screen="mapScreen"] .siege-topbar{ padding:3px 0; }
-  body[data-screen="battleScreen"] .siege-title,
-  body[data-screen="mapScreen"] .siege-title{ display:none; }
-  body[data-screen="battleScreen"] .siege-back{ font-size:12px; }
-  body[data-screen="battleScreen"] .siege-abandon{ padding:3px 9px; font-size:11px; }
+  body[data-screen="battleScreen"] .siege-title{ display:none; }
 
   /* ---- Battle: full-bleed arena with floating overlay chrome ----
      The battlefield stage becomes the whole screen (edge to edge) and every
@@ -1727,23 +1834,36 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
       radial-gradient(1000px 360px at 50% -60px, rgba(255,154,60,.10), transparent 70%),
       linear-gradient(180deg, #0d1119 0%, #121826 46%, #18202f 62%, #202838 100%);
   }
-  /* Each side is a vertical formation that wraps in ranks toward its own OUTER
-     edge, so a bigger warband stacks a second rank flush with the screen edge
-     instead of creeping into the center gap. align-items/align-content place
-     the front rank hard against the far edge (left for allies, right for foes). */
+  /* Landscape map art draws its own ground plane; hide the synthetic ellipse. */
+  body[data-battle-map] .stage-ground{ display:none; }
+  /* Landscape formations advance horizontally toward the opposing side.
+     DOM slot 1 starts at its home edge, then slots 2/3 move inward. The lane is
+     vertically bounded below the health/speed band and above the hand/AP HUD,
+     so unit plates never hide under either overlay. */
   .foe-line,.ally-line{
-    min-height:0; height:100%; flex:0 1 auto; margin:0;
-    flex-direction:column; flex-wrap:wrap; gap:3%;
-    justify-content:center;
+    position:absolute;
+    top:calc(var(--arena-chrome-top) + var(--arena-unit-top-gap));
+    bottom:var(--arena-unit-bottom-clearance);
+    width:calc(50% - var(--arena-clash-half) - var(--arena-side-inset));
+    min-height:0; height:auto; flex:0 0 auto; margin:0;
+    flex-flow:row nowrap; gap:var(--arena-unit-gap);
+    align-items:center; align-content:normal; justify-content:flex-start;
   }
-  .ally-line{ align-items:flex-start; align-content:flex-start; }  /* hug the far LEFT */
-  .foe-line{ align-items:flex-end; align-content:flex-end; }       /* hug the far RIGHT */
-  .sprite{ width:calc(92px * var(--evo-scale,1)); max-width:calc(22vw * var(--evo-scale,1)); }
-  .sprite .sp-art{ height:calc(64px * var(--evo-scale,1)); }
-  .sprite .sp-art img{ max-height:calc(64px * var(--evo-scale,1)); }
-  .sprite .sp-art-fallback span{ font-size:calc(40px * var(--evo-scale,1)); }
+  .ally-line{ left:var(--arena-side-inset); right:auto; }
+  .foe-line{ right:var(--arena-side-inset); left:auto; flex-direction:row-reverse; }
+  .sprite{
+    flex:0 1 calc(var(--arena-sprite-w) * var(--evo-scale,1)); min-width:0;
+    width:calc(var(--arena-sprite-w) * var(--evo-scale,1));
+    max-width:calc(22vw * var(--evo-scale,1));
+  }
+  .sprite .sp-art{ height:calc(var(--arena-sprite-art) * var(--evo-scale,1)); }
+  .sprite .sp-art img{ max-height:calc(var(--arena-sprite-art) * var(--evo-scale,1)); }
+  .sprite .sp-art-fallback span{ font-size:calc(var(--arena-sprite-art) * 0.62 * var(--evo-scale,1)); }
   .sprite .sp-plate{ padding:2px 6px 3px; margin-bottom:2px; }
-  .sprite .sp-name{ font-size:10px; }
+  .sprite .sp-name{ font-size:var(--arena-name); }
+  /* Phone-sized plates cannot hold the badge and the creature's name; the
+     min-height:601px block below puts it back for tablet/desktop. */
+  .sprite .sp-shade{ display:none; }
 
   /* ---- Health + speed stretch across the top as one slim band ----
      Old layout stacked the knight/life plate ABOVE the speed strip in a
@@ -1753,11 +1873,12 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
      rest of the top. The top-right corner is reserved for the ledger pill,
      the top-center for the hint. */
   .battle-top{
-    position:absolute; top:31px; z-index:14;
-    left:max(6px,env(safe-area-inset-left,0px)); right:160px;
+    position:absolute; top:var(--arena-chrome-top); z-index:14;
+    left:max(6px,env(safe-area-inset-left,0px));
+    right:calc(var(--arena-log-w) + 14px);   /* clear the ledger pill's corner */
     flex-direction:row; align-items:flex-start; gap:10px; margin:0; background:none;
   }
-  .knight-plate{ flex:0 0 auto; width:min(244px,46vw); min-width:0; max-width:none; }
+  .knight-plate{ flex:0 0 auto; width:var(--arena-plate-w); min-width:0; max-width:none; }
   .knight-plate .kp-head{ font-size:11px; }
   .knight-bag-row{ gap:5px; margin-top:5px; }
   .knight-bag-btn{ font-size:10px; padding:3px 7px; }
@@ -1769,8 +1890,8 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
      as messy. Show one tidy line — the newest combat event — with a clear
      "Ledger" affordance beneath it; the full history still opens on tap. */
   .battle-log{
-    position:absolute; top:31px; right:max(6px,env(safe-area-inset-right,0px)); z-index:15;
-    width:148px; max-width:40vw; min-height:0; max-height:none; margin:0;
+    position:absolute; top:var(--arena-chrome-top); right:max(6px,env(safe-area-inset-right,0px)); z-index:15;
+    width:var(--arena-log-w); max-width:40vw; min-height:0; max-height:none; margin:0;
     padding:7px 10px 6px; line-height:1.25;
     background:rgba(10,14,21,.82); border:1px solid var(--border); border-radius:12px;
   }
@@ -1793,10 +1914,9 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
      spilling right. Still scrolls if a large hand overflows. Tall enough to
      hold a card plus the upward arc so nothing clips; touch-action:pan-x on
      .playcard keeps vertical drags reaching the pointer handlers. */
-  body[data-screen="battleScreen"]{ --playcard-w:94px; }
   .hand-fan{
     position:absolute; left:0; right:0; bottom:2px; z-index:16;
-    min-height:150px; margin:0; background:none;
+    min-height:var(--arena-hand-h); margin:0; background:none;
     justify-content:center; padding:16px 12px 4px;
   }
   .playcard{ margin:0 -18px; padding:7px 9px; }
@@ -1832,6 +1952,88 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
     order:4; align-self:flex-end; min-height:44px; padding:11px 22px; font-size:14px; font-weight:800;
     border-radius:26px; box-shadow:0 6px 18px rgba(0,0,0,.5);
   }
+}
+
+/* ---------- Landscape battle on a tall viewport (tablet + desktop) ----------
+   Same full-bleed arena, sized for the room it actually has: the values above
+   are tuned for a 390px-tall phone and read as a toy at 1080p. Everything is
+   viewport-relative and clamped, so a 1024x768 iPad and a 2560x1440 monitor
+   both land somewhere sensible without another breakpoint. Only sizing lives
+   here — the structure (absolute overlays, row-reverse formation, centered
+   fan) is inherited unchanged from the block above. */
+@media (orientation: landscape) and (min-height: 601px){
+  body[data-screen="battleScreen"]{
+    --arena-chrome-top:48px;
+    --arena-sprite-w:clamp(104px, 11vw, 200px);
+    --arena-sprite-art:clamp(76px, 19vh, 190px);
+    --arena-name:12.5px;
+    --arena-plate-w:clamp(210px, 20vw, 300px);
+    --arena-log-w:clamp(168px, 17vw, 260px);
+    --arena-hand-h:clamp(172px, 26vh, 240px);
+    --playcard-w:clamp(104px, 9.5vw, 138px);
+    --arena-tint:.48;
+    --arena-side-inset:max(10px,6vw,env(safe-area-inset-left,0px));
+    --arena-clash-half:clamp(72px,8vw,180px);
+    --arena-unit-gap:clamp(8px,1.2vw,18px);
+    --arena-unit-top-gap:105px;
+    --arena-unit-bottom-clearance:var(--arena-hand-h);
+  }
+  /* The top bar keeps its normal touch targets here — only phones need it
+     shaved down to 3px of padding. */
+  body[data-screen="battleScreen"] .siege-topbar{
+    padding:9px max(14px,env(safe-area-inset-right,0px)) 7px max(14px,env(safe-area-inset-left,0px));
+  }
+  body[data-screen="battleScreen"] .siege-app{
+    padding-left:max(12px, env(safe-area-inset-left, 0px));
+    padding-right:max(12px, env(safe-area-inset-right, 0px));
+  }
+  /* The background still bleeds to both edges, but the two formations pull in
+     off the extreme edges: on a 1920px screen, sides pinned to the glass sit
+     ~1700px apart and the fight reads as two unrelated corners. The inset is a
+     share of the width, so the proportion holds from 1024px to ultrawide. */
+  body[data-screen="battleScreen"] .battle-stage{
+    padding-inline:max(10px, 6vw, env(safe-area-inset-right,0px));
+  }
+  .sprite .sp-plate{ padding:4px 9px 5px; margin-bottom:4px; }
+  .sprite .sp-shade{ display:inline-block; }
+  .sprite .sp-el{ font-size:11px; }
+  .sprite .sp-tags{ font-size:11px; }
+  .knight-plate{ padding:7px 11px 8px; }
+  .knight-plate .kp-head{ font-size:13.5px; }
+  .knight-bag-btn{ font-size:12px; padding:5px 11px; }
+  .speed-track{ padding:8px 13px; }
+  .lane-label{ font-size:10.5px; width:52px; flex-basis:52px; }
+  .battle-log{ padding:9px 13px 8px; }
+  .battle-log .lg{ font-size:12.5px; }
+  .battle-log .lg-more{ font-size:12px; }
+  .battle-hint{ top:12px; font-size:15px; max-width:46vw; }
+  /* Wide cards have room for the rules text again — the phone block hides it. */
+  .playcard{ margin:0 -14px; padding:9px 11px; }
+  .playcard .pc-desc{ display:block; }
+  .ap-display{ padding:9px 8px 8px; border-radius:16px; }
+  .ap-pip{ width:19px; height:19px; }
+  .ap-label{ font-size:12px; }
+  .deck-counts{ font-size:13px; padding:7px 12px; }
+  #endTurnBtn{ min-height:52px; padding:14px 30px; font-size:16px; }
+}
+
+/* ---------- Phone landscape only: map + the page-scrolling screens ----------
+   Short landscape viewports also need the map and the non-fixed screens
+   compacted; tablets and desktops have the height to render those normally,
+   so this stays gated to the original phone-landscape range. */
+@media (orientation: landscape) and (max-width: 979px) and (max-height: 600px){
+  /* Reclaim vertical space: slim the app padding + the sticky top bar. */
+  .siege-app{
+    padding:
+      env(safe-area-inset-top, 0px)
+      max(8px, env(safe-area-inset-right, 0px))
+      6px
+      max(8px, env(safe-area-inset-left, 0px));
+  }
+  body[data-screen="mapScreen"] .siege-topbar{ padding:3px 0; }
+  body[data-screen="mapScreen"] .siege-title{ display:none; }
+  body[data-screen="battleScreen"] .siege-back{ font-size:12px; }
+  body[data-screen="battleScreen"] .siege-abandon{ padding:3px 9px; font-size:11px; }
 
   /* ---- Map: keep the flex column, but everything fits one short screen ----
      The SVG map canvas stays the single flex:1 scroll region; the party strip

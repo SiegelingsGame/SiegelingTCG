@@ -72,6 +72,7 @@ public class CardOverrideEditorService {
         String updatedByEmail = null;
         if (storageService.isFirestoreReady()) {
             updatedByEmail = authService.requireEditor(editorToken).email();
+            assertCatalogRevisionIsCurrent(data);
         }
         CardOverrideStorageService.LoadSnapshot currentCardSnapshot = storageService.loadSnapshot();
         PresetDeckCatalogService.LoadSnapshot currentDeckSnapshot = presetDeckCatalogService.loadSnapshot();
@@ -96,6 +97,18 @@ public class CardOverrideEditorService {
             storageService.markLivePublish(updatedByEmail);
         }
         return buildEditorState(cardSnapshot, deckSnapshot, trainerSnapshot, liveSnapshot, authService.describe(editorToken));
+    }
+
+    private void assertCatalogRevisionIsCurrent(JsonNode data) {
+        JsonNode versionNode = data == null ? null : data.get("catalogVersion");
+        if (versionNode == null || !versionNode.canConvertToLong()) {
+            throw new IllegalArgumentException("The live catalog changed or your dashboard is out of date. Reload the dashboard before publishing.");
+        }
+        long submittedVersion = versionNode.asLong();
+        long currentVersion = storageService.getCatalogRevision();
+        if (submittedVersion != currentVersion) {
+            throw new IllegalArgumentException("The live catalog changed since this dashboard loaded. Reload the latest data before publishing.");
+        }
     }
 
     public Map<String, Object> bootstrapEditor(String email, String password, String displayName) {
@@ -207,7 +220,8 @@ public class CardOverrideEditorService {
         ObjectNode live = objectMapper.createObjectNode();
         live.set("elements", objectMapper.valueToTree(liveElementCatalogService.buildEditorPayload()));
         data.set("liveElements", live);
-        data.set("packs", objectMapper.valueToTree(packCatalogService.serializePacks()));
+        // Editors need to see deactivated packs too, so they can switch them back on.
+        data.set("packs", objectMapper.valueToTree(packCatalogService.serializeAllPacks()));
         return data;
     }
 

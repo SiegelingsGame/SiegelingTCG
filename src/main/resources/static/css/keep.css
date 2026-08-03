@@ -530,12 +530,98 @@ button.resource-pill:focus-visible {
 .front-hotspot .building-label small { max-width: 165px; font-size: 6.5px; }
 .front-battle { position: absolute; inset: 0 0 33px; display: none; overflow: hidden; border-radius: 42% 38% 13% 13%; pointer-events: none; }
 .front-rampart { position: absolute; left: -3%; right: -3%; bottom: -8%; width: 106%; height: 61%; z-index: 5; filter: drop-shadow(0 -3px 0 rgba(255, 235, 183, .35)) drop-shadow(0 7px 6px rgba(34, 24, 24, .4)); }
+/* The rampart SVG paints itself from these variables, so a wall tier is a palette swap
+   plus the dressing in .front-wall-trim — no second copy of the wall geometry. */
+.keep-scene { --wall-top: #d7bd8b; --wall-base: #7e674d; --wall-line: #4a392f; --wall-course: rgba(67, 50, 38, .32); --wall-cap: #f2dcaa; }
+.keep-scene[data-akhars-front-level="1"] { --wall-top: #b48b58; --wall-base: #6a4b30; --wall-line: #3d2a1b; --wall-course: rgba(52, 34, 20, .42); --wall-cap: #e0bd83; }
+.keep-scene[data-akhars-front-level="3"] { --wall-top: #e3cfa6; --wall-base: #897354; --wall-line: #4a392f; --wall-cap: #fbeec2; }
+.keep-scene[data-akhars-front-level="4"] { --wall-top: #f1ddb0; --wall-base: #98805a; --wall-line: #55402c; --wall-course: rgba(80, 58, 36, .3); --wall-cap: #ffe9ae; }
+.front-rampart .wall-stop-top { stop-color: var(--wall-top); }
+.front-rampart .wall-stop-base { stop-color: var(--wall-base); }
+.front-rampart .wall-course { stroke: var(--wall-course); }
+.front-rampart .wall-body { stroke: var(--wall-line); }
+.front-rampart .wall-cap { stroke: var(--wall-cap); }
+.front-rampart .wall-crown { stroke: var(--wall-crown, transparent); }
+.keep-scene[data-akhars-front-level="4"] { --wall-crown: #ffdc93; }
+.keep-scene[data-akhars-front-level="4"] .front-rampart .wall-crown { filter: drop-shadow(0 0 3px rgba(255, 205, 108, .6)); }
+.front-wall-trim i { position: absolute; z-index: 6; display: none; }
+/* Tier 1 is a hasty palisade: raw planks lashed over the two widest gaps. */
+/* Dressing is sized from the viewport, not from the stage box: the wall is full-bleed, so
+   a percentage width would inflate every banner into a billboard on a wide monitor. */
+.wall-patch { bottom: 30%; width: clamp(18px, 2.4vw, 46px); aspect-ratio: .62; border: 1px solid rgba(46, 30, 17, .85); border-radius: 1px; background: repeating-linear-gradient(90deg, #8a6134 0 3px, #6d4a26 3px 6px); box-shadow: 0 2px 3px rgba(0, 0, 0, .4); transform: rotate(-4deg); }
+.wall-patch:nth-of-type(2) { transform: rotate(5deg); }
+.wall-banner { bottom: 21%; width: clamp(20px, 2.6vw, 54px); aspect-ratio: .55; background: linear-gradient(180deg, #b8324a, #7c1c33); clip-path: polygon(0 0, 100% 0, 100% 78%, 50% 100%, 0 78%); box-shadow: 0 2px 4px rgba(0, 0, 0, .45); }
+.keep-scene[data-akhars-front-level="1"] .wall-patch,
+.keep-scene[data-akhars-front-level="3"] .wall-banner,
+.keep-scene[data-akhars-front-level="4"] .wall-banner { display: block; }
+.wall-patch:nth-of-type(1) { left: 26%; }
+.wall-patch:nth-of-type(2) { left: 62%; }
+.wall-banner:nth-of-type(3) { left: 15%; }
+.wall-banner:nth-of-type(4) { left: 47%; }
+.wall-banner:nth-of-type(5) { left: 79%; }
+.keep-scene[data-akhars-front-level="4"] .wall-banner { background: linear-gradient(180deg, #d8b04a, #8d5f1d); }
+.front-torches i {
+    position: absolute;
+    z-index: 8;
+    bottom: 44%;
+    width: 4px;
+    height: 12%;
+    border-radius: 2px;
+    background: linear-gradient(90deg, #34231d, #8c6546 45%, #2b1b18);
+    box-shadow: 0 2px 2px rgba(0,0,0,.45);
+}
+.front-torches i::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% - 2px);
+    width: 10px;
+    height: 16px;
+    translate: -50% 0;
+    border-radius: 70% 28% 68% 32%;
+    background: radial-gradient(circle at 52% 70%, #fff7b0 0 20%, #ffc351 24% 52%, #e94f4a 58% 75%, transparent 78%);
+    filter: drop-shadow(0 0 4px #ffb249);
+    transform-origin: 50% 100%;
+    animation: front-torch-flicker .85s ease-in-out infinite alternate;
+}
+.front-torches i::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% - 30px);
+    width: clamp(70px, 12vw, 132px);
+    aspect-ratio: 1;
+    translate: -50% 0;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,190,83,.34), rgba(225,75,66,.13) 42%, transparent 72%);
+    mix-blend-mode: screen;
+    pointer-events: none;
+}
+.front-torches i:nth-child(1) { left: 3%; animation-delay: -.2s; }
+.front-torches i:nth-child(2) { left: 28%; animation-delay: -.55s; }
+.front-torches i:nth-child(3) { left: 53%; animation-delay: -.1s; }
+.front-torches i:nth-child(4) { left: 78%; animation-delay: -.7s; }
+/* Torches light the gaps between posts, so their count and spacing follow the wall tier
+   rather than sitting on top of a defender when the rampart is short or full. */
+.keep-scene[data-akhars-front-level="1"] .front-torches i:nth-child(n+3) { display: none; }
+.keep-scene[data-akhars-front-level="1"] .front-torches i:nth-child(2) { left: 62%; }
+.keep-scene[data-akhars-front-level="2"] .front-torches i:nth-child(4) { display: none; }
+.keep-scene[data-akhars-front-level="2"] .front-torches i:nth-child(2) { left: 45%; }
+.keep-scene[data-akhars-front-level="2"] .front-torches i:nth-child(3) { left: 80%; }
+.keep-scene[data-akhars-front-level="4"] .front-torches i:nth-child(1) { left: 24%; }
+.keep-scene[data-akhars-front-level="4"] .front-torches i:nth-child(2) { left: 47%; }
+.keep-scene[data-akhars-front-level="4"] .front-torches i:nth-child(3) { left: 70%; }
+.keep-scene[data-akhars-front-level="4"] .front-torches i:nth-child(4) { left: 93%; }
+/* Defenders stand on the rampart's *interior* walk, so they draw in front of the wall
+   (z 7 over the rampart's 5) with their feet at the walkway line — the crenel floor, which
+   sits at ~27% of the map stage and ~31% of the front-view stage. Low enough to be on the
+   wall rather than floating over it, in front so they are on our side of it, not Akhar's. */
 .front-defenders b {
     position: absolute;
     z-index: 7;
-    bottom: 38%;
+    bottom: 27%;
     width: 19%;
-    height: 43%;
+    height: 40%;
     display: none;
     align-items: flex-end;
     justify-content: center;
@@ -543,24 +629,123 @@ button.resource-pill:focus-visible {
     animation: front-defender-brace 1.8s ease-in-out infinite;
 }
 .front-defenders b.has-resident { display: flex; }
-.front-defenders b:nth-child(1) { left: 8%; }
-.front-defenders b:nth-child(2) { left: 32%; animation-delay: -.6s; }
-.front-defenders b:nth-child(3) { left: 56%; animation-delay: -1.2s; }
+.front-defenders b:nth-child(2) { animation-delay: -.6s; }
+.front-defenders b:nth-child(3) { animation-delay: -1.2s; }
+.front-defenders b:nth-child(4) { animation-delay: -1.8s; }
+/* Posts stay centred on the wall at every tier: one defender stands mid-rampart, four
+   spread edge to edge. FRONT_DEFENDER_STARTS in keep.js mirrors these for projectiles. */
+.keep-scene[data-front-capacity="1"] .front-defenders b:nth-child(1) { left: 40%; }
+.keep-scene[data-front-capacity="2"] .front-defenders b:nth-child(1) { left: 24%; }
+.keep-scene[data-front-capacity="2"] .front-defenders b:nth-child(2) { left: 56%; }
+.keep-scene[data-front-capacity="3"] .front-defenders b:nth-child(1) { left: 8%; }
+.keep-scene[data-front-capacity="3"] .front-defenders b:nth-child(2) { left: 32%; }
+.keep-scene[data-front-capacity="3"] .front-defenders b:nth-child(3) { left: 56%; }
+.keep-scene[data-front-capacity="4"] .front-defenders b:nth-child(1) { left: 4%; }
+.keep-scene[data-front-capacity="4"] .front-defenders b:nth-child(2) { left: 27%; }
+.keep-scene[data-front-capacity="4"] .front-defenders b:nth-child(3) { left: 50%; }
+.keep-scene[data-front-capacity="4"] .front-defenders b:nth-child(4) { left: 73%; }
 .front-defenders img { width: auto; height: 100%; max-width: 100%; object-fit: contain; object-position: bottom center; }
-.front-raiders i { position: absolute; z-index: 2; width: 13%; height: 32%; color: #231a36; filter: drop-shadow(0 5px 3px rgba(23, 12, 32, .42)); animation: front-raider-march 3s ease-in-out infinite; }
-.front-raiders i svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.front-raiders i {
+    position: absolute;
+    z-index: 2;
+    left: var(--raider-x, 82%);
+    top: var(--raider-y, 8%);
+    width: var(--raider-size, 13%);
+    height: 32%;
+    color: #231a36;
+    filter: drop-shadow(0 5px 3px rgba(23, 12, 32, .42));
+    transform: translate(-50%, -50%) rotate(var(--raider-tilt, 0deg));
+    transition: opacity .24s ease, filter .18s ease;
+    animation: front-raider-march .82s ease-in-out infinite;
+}
+.front-raiders i .raider-art {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: block;
+}
+.front-raiders i .raider-art svg { display: block; width: 100%; height: auto; overflow: visible; }
 .front-raiders i path { fill: #271b3c; stroke: #100b19; stroke-width: 2.2; }
 .front-raiders i circle { fill: #d8a2ff; filter: drop-shadow(0 0 3px #d8a2ff); }
-.front-raiders i:nth-child(1) { right: 7%; top: 4%; transform: scale(1.12); }
-.front-raiders i:nth-child(2) { right: 23%; top: 20%; animation-delay: -.8s; }
-.front-raiders i:nth-child(3) { right: 39%; top: 1%; transform: scale(.8); animation-delay: -1.5s; }
-.front-raiders i:nth-child(4) { right: 2%; top: 32%; transform: scale(.72); animation-delay: -2.2s; }
-.front-projectile { position: absolute; z-index: 8; left: 32%; bottom: 51%; width: 25px; height: 6px; border-radius: 999px; opacity: 0; transform: rotate(-25deg); transform-origin: left center; background: linear-gradient(90deg, #fff8bf, #7deaff 35%, transparent); box-shadow: 0 0 7px #8ff4ff; animation: front-projectile-flight 2.1s linear infinite; }
-.front-projectile.shot-two { left: 46%; bottom: 58%; background: linear-gradient(90deg, #fff8b8, #ff8b4f 35%, transparent); box-shadow: 0 0 8px #ff8b4f; animation-delay: -.72s; }
-.front-projectile.shot-three { left: 20%; bottom: 56%; width: 20px; background: linear-gradient(90deg, #f6ffbd, #8fe871 35%, transparent); box-shadow: 0 0 7px #8fe871; animation-delay: -1.36s; }
-.front-impact { position: absolute; z-index: 4; width: 9px; height: 9px; border-radius: 50%; opacity: 0; background: #fff5ad; box-shadow: 0 -10px 0 #ff774c, 8px -5px 0 #ffbd55, 9px 6px 0 #fff5ad, -6px 7px 0 #ff774c, -9px -4px 0 #ffbd55; animation: front-impact-burst 2.1s ease-out infinite; }
-.front-impact.impact-one { right: 23%; top: 32%; animation-delay: -.1s; }
-.front-impact.impact-two { right: 6%; top: 17%; animation-delay: -.82s; }
+/* A raider carrying real card art is the same die-cut standee as a resident, recoloured to
+   Akhar's corruption. The drop-shadow chain is the no-SVG-filter fallback; where the filter
+   is supported it replaces the chain outright, exactly as .is-paper-cutout does. */
+.front-raiders i .raider-art img {
+    display: block;
+    width: 100%;
+    height: auto;
+    filter:
+        brightness(.26) saturate(.5) contrast(1.2)
+        drop-shadow(0 0 4px rgba(168, 107, 255, .55))
+        drop-shadow(1px 0 0 #120b1d) drop-shadow(-1px 0 0 #120b1d);
+}
+@supports (filter: url("#paper-siegling-shadow")) {
+    .front-raiders i .raider-art img { filter: url("#paper-siegling-shadow"); }
+}
+.front-raiders i.has-shade-art { height: 38%; }
+.front-raiders i:nth-child(2) { animation-delay: -.22s; }
+.front-raiders i:nth-child(3) { animation-delay: -.44s; }
+.front-raiders i:nth-child(4) { animation-delay: -.66s; }
+.front-raiders i.is-hit { filter: brightness(1.8) drop-shadow(0 0 8px var(--hit-color, #fff)); }
+.front-raiders i.is-defeated { opacity: 0; animation: front-raider-defeat .55s ease-in forwards; }
+.front-raider-health {
+    position: absolute;
+    z-index: 3;
+    left: 50%;
+    top: -9px;
+    width: 78%;
+    height: 5px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,.7);
+    border-radius: 999px;
+    background: rgba(16, 10, 24, .86);
+    box-shadow: 0 1px 3px rgba(0,0,0,.55);
+    transform: translateX(-50%);
+}
+.front-raider-health b { display: block; width: var(--raider-health, 100%); height: 100%; border-radius: inherit; background: linear-gradient(90deg, #ef5548, #ffd369); transition: width .18s ease; }
+.front-projectiles { position: absolute; inset: 0; z-index: 8; pointer-events: none; }
+.front-projectile {
+    position: absolute;
+    left: var(--shot-x, 30%);
+    top: var(--shot-y, 64%);
+    width: 34px;
+    height: 7px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #fff, var(--shot-color, #7deaff) 45%, transparent);
+    box-shadow: 0 0 9px var(--shot-color, #7deaff);
+    transform: translate(-50%, -50%) rotate(var(--shot-angle, -25deg));
+    transform-origin: center;
+}
+.front-projectile::after {
+    content: "";
+    position: absolute;
+    right: 2px;
+    top: 50%;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 8px 3px var(--shot-color, #7deaff);
+    transform: translateY(-50%);
+}
+.front-coin-burst {
+    position: absolute;
+    z-index: 11;
+    left: var(--coin-x, 73%);
+    top: var(--coin-y, 26%);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    opacity: 0;
+    color: #ffe47e;
+    text-shadow: 0 2px 3px rgba(25, 14, 8, .8);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+.front-coin-burst b { display: grid; place-items: center; width: 25px; height: 25px; border: 2px solid #fff0a4; border-radius: 50%; background: #d69d28; color: #fff8c8; font: 900 11px/1 "Segoe UI", sans-serif; box-shadow: 0 0 14px rgba(255, 218, 97, .8); }
+.front-coin-burst small { color: #fff4c5; font: 800 8px/1.1 "Segoe UI", sans-serif; text-transform: uppercase; letter-spacing: .04em; }
+.front-coin-burst.is-visible { animation: front-coin-award .9s ease-out both; }
 .front-lock { position: absolute; z-index: 10; left: 50%; top: 38%; translate: -50% -50%; min-width: 112px; padding: 7px 10px; border: 1px solid rgba(244, 204, 98, .42); border-radius: 10px; background: rgba(20, 26, 39, .88); color: #fff3c0; box-shadow: 0 6px 16px rgba(8, 12, 20, .35); pointer-events: none; }
 .front-lock b, .front-lock small { display: block; }
 .front-lock small { margin-top: 2px; color: rgba(255,255,255,.7); font-size: 8px; letter-spacing: .05em; text-transform: uppercase; }
@@ -574,8 +759,7 @@ button.resource-pill:focus-visible {
 .keep-scene[data-akhars-front-level="0"] .front-projectile,
 .keep-scene[data-akhars-front-level="0"] .front-impact,
 .keep-scene[data-akhars-front-level="0"] .front-defenders { display: none; }
-.keep-scene[data-front-defenders="0"] .front-projectile,
-.keep-scene[data-front-defenders="0"] .front-impact { display: none; }
+.keep-scene[data-front-defenders="0"] .front-projectiles { display: none; }
 .keep-scene[data-akhars-front-level]:not([data-akhars-front-level="0"]) .front-lock { display: none; }
 .keep-scene[data-constructing~="akhars_front"] .front-hotspot .front-lock small { font-size: 0; }
 .keep-scene[data-constructing~="akhars_front"] .front-hotspot .front-lock small::after { content: "Rampart under construction"; font-size: 8px; }
@@ -619,9 +803,43 @@ button.resource-pill:focus-visible {
 .front-manage { color: #172333; background: linear-gradient(#ffe89a, #d9ab4e); }
 .front-manage:hover { color: #172333; background: linear-gradient(#fff0b2, #e7bc63); }
 
-.keep-app.front-view-active .keep-header { grid-template-columns: minmax(180px, 1fr); }
-.keep-app.front-view-active .keep-resource-bar,
-.keep-app.front-view-active .keep-header-actions,
+.keep-app.front-view-active .keep-scene-viewport { background: #140a23; }
+.keep-app.front-view-active .keep-scene {
+    background:
+        radial-gradient(circle at 16% 25%, rgba(177, 42, 72, .42), transparent 31%),
+        radial-gradient(circle at 82% 18%, rgba(101, 48, 128, .42), transparent 35%),
+        linear-gradient(180deg, #170b2d 0%, #32113c 35%, #66233e 55%, #281829 100%);
+}
+.keep-app.front-view-active .keep-scene::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 18;
+    pointer-events: none;
+    background: linear-gradient(90deg, rgba(9,4,18,.32), transparent 16% 84%, rgba(9,4,18,.32));
+    mix-blend-mode: multiply;
+}
+.keep-app.front-view-active .sky-glow {
+    left: 9%;
+    top: -18%;
+    background: radial-gradient(circle, rgba(255,220,226,.72) 0 9%, rgba(210,101,139,.34) 20%, rgba(110,54,130,.16) 43%, transparent 68%);
+    filter: blur(.5px);
+}
+.keep-app.front-view-active .cloud { background: rgba(216, 154, 188, .12); filter: blur(3px); }
+.keep-app.front-view-active .mountain { bottom: 43%; height: 40%; }
+.keep-app.front-view-active .mountain-back { background: #5b385d; opacity: .55; transform: translateY(-10px) scale(1.05); }
+.keep-app.front-view-active .mountain-front { background: linear-gradient(135deg, #3e294c, #201a38); opacity: .92; }
+.keep-app.front-view-active .ground-layer {
+    inset: 47% -10% -20%;
+    transform: none;
+    border-radius: 48% 52% 0 0;
+    background:
+        radial-gradient(ellipse at 14% 22%, rgba(22,17,31,.48) 0 7%, transparent 7.5%),
+        radial-gradient(ellipse at 83% 43%, rgba(25,17,32,.4) 0 9%, transparent 9.5%),
+        linear-gradient(180deg, #453f43, #24232f 66%);
+}
+.keep-app.front-view-active .wounded-earth { display: none; }
+.keep-app.front-view-active .restored-meadow { opacity: .28; filter: sepia(.55) saturate(1.6) brightness(1.35); }
 .keep-app.front-view-active .keep-dock,
 .keep-app.front-view-active .scene-caption,
 .keep-app.front-view-active .scene-zoom,
@@ -633,20 +851,51 @@ button.resource-pill:focus-visible {
 .keep-app.front-view-active .keep-scene .courtyard-layer,
 .keep-app.front-view-active .keep-scene .ambient-motes,
 .keep-app.front-view-active .keep-scene .building-hotspot:not(.front-hotspot) { display: none; }
+/* The bastion reads as a wall with no ends: the stage runs the full viewport width so the
+   rampart leaves the screen on both sides instead of floating as a centred island. */
 .keep-app.front-view-active .front-hotspot {
     left: 50%;
     right: auto;
-    top: 51%;
-    width: min(900px, 88vw);
-    height: min(520px, 72vh);
-    transform: translate(-50%, -44%);
+    top: 54%;
+    width: 100vw;
+    height: min(560px, 72vh);
+    transform: translate(-50%, -42%);
     transform-origin: center;
     z-index: 20;
     filter: drop-shadow(0 22px 26px rgba(29, 22, 31, .42));
 }
 .keep-app.front-view-active .front-hotspot::before,
 .keep-app.front-view-active .front-hotspot::after { display: none; }
-.keep-app.front-view-active .front-battle { display: block; }
+.keep-app.front-view-active .front-battle { display: block; border-radius: 0; }
+/* Only the wall is full-bleed. Posts, torches, raiders and shots stay inside a centred
+   stage so their percentage geometry keeps its composition on a 21:9 monitor. No z-index
+   or transform here — both would make these wrappers stacking contexts and break the
+   raiders-behind-wall / defenders-in-front layering. */
+.keep-app.front-view-active .front-torches,
+.keep-app.front-view-active .front-defenders,
+.keep-app.front-view-active .front-raiders,
+.keep-app.front-view-active .front-projectiles {
+    position: absolute;
+    inset: 0;
+    width: min(1120px, 100%);
+    margin-inline: auto;
+}
+.keep-app.front-view-active .front-battle::before {
+    content: "";
+    position: absolute;
+    z-index: 1;
+    left: -6%;
+    right: -6%;
+    top: 27%;
+    bottom: 30%;
+    border-radius: 52% 48% 0 0;
+    background:
+        radial-gradient(ellipse at 22% 48%, rgba(116,54,65,.35), transparent 24%),
+        linear-gradient(180deg, rgba(70,44,62,.9), rgba(32,29,43,.96));
+    box-shadow: inset 0 18px 35px rgba(147,57,82,.13);
+}
+.keep-app.front-view-active .front-rampart { bottom: 0; height: 54%; filter: drop-shadow(0 -3px 0 rgba(255, 218, 154, .28)) drop-shadow(0 12px 15px rgba(6, 3, 12, .64)); }
+.keep-app.front-view-active .front-defenders b { bottom: 31%; height: 42%; }
 .keep-app.front-view-active .front-income:not(.hidden) { display: flex; }
 .keep-app.front-view-active .front-hotspot .building-label { left: 50%; right: auto; top: auto; bottom: 2px; z-index: 12; width: max-content; max-width: none; padding: 8px 14px; text-align: center; transform: translateX(-50%); }
 .keep-app.front-view-active .front-hotspot .building-label strong { font-size: clamp(15px, 2vw, 22px); }
@@ -654,19 +903,34 @@ button.resource-pill:focus-visible {
 .keep-app.front-view-active .front-income { bottom: 54px; transform: scale(1.12); transform-origin: right bottom; }
 
 @media (max-width: 767px) {
-    .front-view-toolbar { top: calc(8px + var(--safe-top)); left: calc(7px + var(--safe-left)); right: calc(7px + var(--safe-right)); grid-template-columns: auto 1fr; gap: 7px; }
+    /* The normal Keep resource row hangs below the compact phone header. Keep the Front
+       controls beneath it so both HUD layers remain visible and tappable at the Wall. */
+    .front-view-toolbar { top: calc(52px + var(--safe-top)); left: calc(7px + var(--safe-left)); right: calc(7px + var(--safe-right)); grid-template-columns: auto 1fr; gap: 7px; }
     .front-view-heading { grid-column: 1 / -1; grid-row: 2; }
     .front-return,
     .front-manage { min-height: 36px; padding: 7px 9px; font-size: 9px; }
     .front-manage { justify-self: end; }
     .front-view-heading small { display: none; }
-    .keep-app.front-view-active .front-hotspot { top: 57%; width: 96vw; height: min(57vh, 500px); transform: translate(-50%, -44%); }
+    .keep-app.front-view-active .mountain { bottom: 45%; height: 34%; }
+    .keep-app.front-view-active .ground-layer { inset: 50% -18% -22%; border-radius: 54% 46% 0 0; }
+    .keep-app.front-view-active .front-hotspot { top: 58%; width: 100vw; height: min(64vh, 520px); transform: translate(-50%, -35%); }
+    .keep-app.front-view-active .front-battle { inset-inline: 0; border-radius: 0; }
+    .keep-app.front-view-active .front-hotspot .building-label { bottom: 14px; }
+    .keep-app.front-view-active .front-income { right: 3%; bottom: 68px; transform: none; }
 }
 
 @media (orientation: landscape) and (max-height: 600px) {
     .front-view-toolbar { top: 5px; }
     .front-view-heading small { display: none; }
-    .keep-app.front-view-active .front-hotspot { top: 54%; width: min(820px, 78vw); height: 82vh; transform: translate(-50%, -45%); }
+    .keep-app.front-view-active .mountain { bottom: 39%; height: 45%; }
+    .keep-app.front-view-active .ground-layer { inset: 48% -12% -24%; }
+    /* 72vh at 50% rather than 78vh at 56%: the taller stage used to push its own name plate
+       off the bottom of a short landscape viewport. Measured to clear at 360-430px tall. */
+    .keep-app.front-view-active .front-hotspot { top: 50%; width: 100vw; height: 72vh; transform: translate(-50%, -42%); }
+    /* Short screens drop hotspot sublines to save room on the crowded Keep grounds, but the
+       Front is a whole screen and this line is where the defender count and wall tier live.
+       The plate is bottom-anchored, so it grows upward rather than back off the viewport. */
+    .keep-app.front-view-active .front-hotspot .building-label small { display: block; }
 }
 .quarter-illustration { position: absolute; inset: 2px 4px 34px; display: block; filter: drop-shadow(0 7px 5px rgba(22, 29, 25, .28)); }
 .quarter-path { position: absolute; left: 20%; right: 8%; bottom: 2%; height: 18%; background: rgba(199, 173, 121, .58); clip-path: polygon(46% 0, 56% 0, 100% 100%, 0 100%); }
@@ -715,9 +979,10 @@ button.resource-pill:focus-visible {
     box-shadow: 0 0 0 2px rgba(244, 204, 98, .7), 0 0 14px rgba(244, 204, 98, .45);
 }
 
-.building-illustration { position: absolute; inset: 0 0 35px; display: block; }
+.building-illustration { position: absolute; z-index: 0; inset: 0 0 35px; display: block; }
 .building-label {
     position: absolute;
+    z-index: 1;
     left: 50%;
     bottom: 0;
     transform: translateX(-50%);
@@ -735,6 +1000,9 @@ button.resource-pill:focus-visible {
 .building-label small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .building-label strong { font: 700 12px/1.15 Georgia, serif; color: #fff3c0; }
 .building-label small { margin-top: 2px; color: rgba(255, 247, 220, .66); font-size: 8px; letter-spacing: .04em; }
+/* The Covenant Gate runs behind the hall callout at higher keep ranks.  Keep
+   this label opaque so the gate cannot show through its status bubble. */
+.hall-hotspot .building-label { background: rgb(20, 31, 43); }
 
 /* Buildings are 2.5D inline SVGs (front facade + darker side face + roof
    planes + contact shadow) so they read as solid structures instead of flat
@@ -1362,9 +1630,18 @@ button.resource-pill:focus-visible {
 .enclave-resident-choice img { width: auto; height: 100%; max-width: 100%; object-fit: contain; object-position: bottom center; }
 .enclave-resident-choice small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 8px; }
 .enclave-resident-choice .choice-rapport { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--gold); font: 700 7px Georgia, serif; }
+.enclave-resident-choice .available-tag { color: #8eddb2; font: 700 7px/1.25 Georgia, serif; font-style: normal; text-transform: uppercase; letter-spacing: .05em; }
 /* The post a Siegeling would be pulled off is the whole point of the tag, so it wraps
    rather than ellipsing — three chips per row leaves no width to truncate into. */
 .enclave-resident-choice .reassign-tag { max-width: 100%; color: #ffb0d0; font: 700 7px/1.25 Georgia, serif; font-style: normal; text-transform: uppercase; letter-spacing: .04em; text-align: center; overflow-wrap: anywhere; }
+.front-reassign-note { margin: 10px 0 2px; padding: 8px 9px; border-left: 2px solid #ffb0d0; color: rgba(255,247,220,.72); background: rgba(255,176,208,.055); font-size: 9px; line-height: 1.4; }
+.front-wall-card { border-color: rgba(244,204,98,.32); }
+.front-wall-next { margin-top: 10px; padding: 10px; border: 1px solid rgba(244,204,98,.24); border-radius: 10px; background: rgba(244,204,98,.05); }
+.front-wall-next strong { display: block; margin: 2px 0; color: #fff1b7; font: 700 13px Georgia, serif; }
+.front-wall-next small { display: block; color: rgba(255,247,220,.66); font-size: 9px; line-height: 1.4; }
+.front-wall-next .cost-row { margin-top: 7px; }
+.front-wall-next .panel-button { width: 100%; margin-top: 8px; }
+.front-wall-note { margin: 8px 0 0; color: rgba(255,247,220,.66); font-size: 9px; line-height: 1.4; }
 .enclave-task-list { margin-top: 4px; }
 .enclave-mission { margin-top: 10px; padding: 10px; border: 1px solid rgba(159,233,255,.25); border-radius: 10px; background: rgba(159,233,255,.05); }
 .enclave-mission.is-complete { border-color: rgba(111,207,139,.5); background: rgba(111,207,139,.07); }
@@ -1547,6 +1824,46 @@ button.resource-pill:focus-visible {
 .dialogue-choices button:disabled { opacity: .45; cursor: not-allowed; }
 .dialogue-response { padding: 15px; border-left: 3px solid var(--gold); background: rgba(244, 204, 98, .07); color: rgba(255, 247, 220, .86); font: 15px/1.6 Georgia, serif; }
 
+.keep-event-overlay { position: fixed; inset: 0; z-index: 76; display: grid; place-items: center; padding: calc(18px + var(--safe-top)) calc(18px + var(--safe-right)) calc(18px + var(--safe-bottom)) calc(18px + var(--safe-left)); background: rgba(8, 10, 14, .76); backdrop-filter: blur(6px); }
+.keep-event-card { position: relative; width: min(620px, 100%); max-height: min(680px, 90dvh); display: grid; grid-template-columns: 126px minmax(0, 1fr); gap: 22px; overflow-y: auto; padding: 26px; border: 1px solid rgba(255, 157, 102, .52); border-radius: 22px; background: radial-gradient(circle at 5% 0, rgba(255, 126, 72, .18), transparent 36%), linear-gradient(150deg, #30383d, #17232c 68%); box-shadow: 0 30px 90px rgba(0, 0, 0, .62); }
+.keep-event-close { position: absolute; z-index: 2; right: 11px; top: 9px; width: 38px; height: 38px; border-radius: 50%; color: var(--cream); background: rgba(255, 255, 255, .07); font-size: 21px; cursor: pointer; }
+.keep-event-mark { align-self: start; aspect-ratio: 1; display: grid; place-items: center; border: 2px dashed rgba(255, 181, 142, .58); border-radius: 28px 48% 25px 45%; background: repeating-linear-gradient(135deg, rgba(255, 146, 91, .14) 0 8px, rgba(12, 22, 29, .16) 8px 16px); rotate: -3deg; }
+.keep-event-mark span { width: 72px; height: 72px; display: grid; place-items: center; border-radius: 50%; color: #351b14; background: linear-gradient(#ffc08e, #ef764d); font: 900 45px/1 Georgia, serif; box-shadow: 0 8px 20px rgba(0, 0, 0, .32); }
+.keep-event-copy { min-width: 0; padding-right: 8px; }
+.keep-event-copy .eyebrow { color: #ffae80; }
+.keep-event-copy h2 { margin: 4px 30px 3px 0; color: #fff1d4; font: 700 27px/1.12 Georgia, serif; }
+.keep-event-copy > small { color: rgba(255, 218, 190, .7); font-size: 10px; }
+.keep-event-copy > p { margin: 17px 0; color: rgba(255, 247, 229, .82); font: 14px/1.55 Georgia, serif; }
+.keep-event-impact, .keep-event-timer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; padding: 9px 11px; border: 1px solid rgba(255, 166, 115, .23); border-radius: 10px; background: rgba(255, 122, 68, .065); }
+.keep-event-impact span, .keep-event-timer span { color: #ffb890; font-size: 8px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+.keep-event-impact strong, .keep-event-timer strong { color: #ffe4c9; font: 700 11px Georgia, serif; text-align: right; }
+.keep-event-timer strong { font-size: 16px; font-variant-numeric: tabular-nums; }
+.keep-event-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 14px; }
+.keep-event-actions .panel-button { min-height: 42px; }
+.keep-event-actions .panel-button:not(.secondary) { color: #2a1712; background: linear-gradient(#ffc17e, #ee8b55); }
+.keep-event-status { min-height: 16px; margin: 9px 0 0 !important; color: #ffd2b5 !important; font: 10px/1.4 sans-serif !important; text-align: center; }
+/* A setback raises repair scaffolding over the structure instead of a badge —
+   the building has to stay readable underneath. Never style .is-damaged::after
+   here: on a hotspot that is the same box as .building-hotspot::after (the
+   hover ring, inset 6% 4% 20%), so a badge there inherits the ring's inset and
+   stretches into a slab across the whole building. keep.js injects
+   .repair-scaffold instead, reusing .scaffold geometry so a damaged site and a
+   build site speak the same visual language. */
+.is-damaged { filter: saturate(.5) contrast(.88); }
+.is-damaged .building-illustration, .is-damaged .facility-building { animation: keep-damage-shudder 3.8s ease-in-out infinite; }
+.repair-scaffold { display: block; z-index: 9; inset: 4% 7% 5%; border-color: #8c6440; pointer-events: none; }
+.repair-scaffold::before, .repair-scaffold::after { background: #8c6440; }
+.repair-scaffold b { background: #bd8a5b; }
+/* Draped canvas: the one cue that separates "being repaired" from "being built". */
+.repair-scaffold i { position: absolute; left: 6%; top: 12%; width: 48%; height: 33%; background: repeating-linear-gradient(38deg, rgba(232, 214, 179, .92) 0 5px, rgba(196, 172, 133, .92) 5px 10px); clip-path: polygon(0 0, 100% 7%, 93% 100%, 7% 89%); rotate: -4deg; box-shadow: 0 3px 8px rgba(18, 24, 20, .32); }
+/* Facility tiles in the Quarter are ~35px tall, so the timber has to thin out. */
+.quarter-building .repair-scaffold { inset: -14% -10% 0; border-width: 2px; border-top-width: 3px; }
+.quarter-building .repair-scaffold::before, .quarter-building .repair-scaffold::after { top: -2px; bottom: -2px; width: 2px; }
+.quarter-building .repair-scaffold b { left: -2px; right: -2px; height: 2px; }
+.quarter-building .repair-scaffold i { display: none; }
+.quarter-building.is-damaged { filter: grayscale(.5) saturate(.6) drop-shadow(0 1px 0 #ead8ad) drop-shadow(2px 3px 2px rgba(23, 19, 15, .4)); }
+@keyframes keep-damage-shudder { 0%, 92%, 100% { translate: 0 0; rotate: 0deg; } 94% { translate: -2px 0; rotate: -.5deg; } 96% { translate: 2px 0; rotate: .5deg; } 98% { translate: -1px 0; rotate: 0deg; } }
+
 .discovery-toast {
     position: fixed;
     z-index: 80;
@@ -1607,6 +1924,15 @@ button.resource-pill:focus-visible {
 .notice-construction-row time { min-width: 52px; color: #fff1b7; font-size: 10px; font-weight: 900; text-align: right; font-variant-numeric: tabular-nums; }
 .notice-construction-meter { height: 4px; overflow: hidden; border-radius: 99px; background: rgba(255, 255, 255, .1); }
 .notice-construction-meter i { display: block; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #ca884c, var(--gold)); transition: width .4s linear; }
+.notice-repair-group { display: grid; gap: 7px; margin-bottom: 5px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.notice-repair-card { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 8px; width: 100%; padding: 9px; border: 1px solid rgba(255, 151, 94, .38); border-radius: 11px; color: #fff4dc; background: linear-gradient(135deg, rgba(255, 122, 68, .12), rgba(255, 255, 255, .025)); text-align: left; cursor: pointer; }
+.notice-repair-card:hover { border-color: rgba(255, 151, 94, .7); background: linear-gradient(135deg, rgba(255, 122, 68, .2), rgba(255, 255, 255, .04)); }
+.notice-repair-card:focus-visible { outline: 2px solid #ff9b67; outline-offset: 2px; }
+.notice-repair-card > i { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; color: #351c16; background: #ff9b67; font: 900 18px Georgia, serif; font-style: normal; }
+.notice-repair-card > span { min-width: 0; display: flex; flex-direction: column; }
+.notice-repair-card small { color: #ffb58e; font-size: 8px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.notice-repair-card strong { overflow: hidden; color: #fff1d4; font: 700 12px/1.3 Georgia, serif; text-overflow: ellipsis; white-space: nowrap; }
+.notice-repair-card time { min-width: 66px; color: #ffd6b9; font-size: 9px; font-weight: 900; text-align: right; text-transform: uppercase; font-variant-numeric: tabular-nums; }
 .notice-item { width: 100%; display: grid; grid-template-columns: 30px minmax(0, 1fr); align-items: center; gap: 9px; padding: 9px; border: 0; border-radius: 10px; color: var(--cream); background: transparent; text-align: left; }
 button.notice-item { cursor: pointer; }
 button.notice-item:hover { background: rgba(244, 204, 98, .08); }
@@ -2481,6 +2807,143 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     transform: translateY(-50%);
 }
 
+/* Collect summary — what landed in storage, with before/after fill bars. */
+.collect-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 83;
+    display: grid;
+    place-items: center;
+    padding: calc(16px + var(--safe-top)) calc(16px + var(--safe-right)) calc(16px + var(--safe-bottom)) calc(16px + var(--safe-left));
+    background: rgba(7, 18, 25, .78);
+    backdrop-filter: blur(7px);
+}
+.collect-overlay.hidden { display: none; }
+.collect-card {
+    position: relative;
+    width: min(420px, 100%);
+    max-height: min(690px, 88dvh);
+    overflow: auto;
+    padding: 24px 22px 20px;
+    border: 1px solid rgba(244, 204, 98, .42);
+    border-radius: 20px;
+    background: linear-gradient(155deg, #1c3844, #111f2c 72%);
+    box-shadow: 0 24px 80px rgba(0, 0, 0, .56);
+    text-align: center;
+}
+.collect-close {
+    position: absolute;
+    right: 10px;
+    top: 8px;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    color: var(--cream);
+    background: rgba(255, 255, 255, .06);
+    font-size: 20px;
+    cursor: pointer;
+}
+.collect-seal {
+    display: grid;
+    place-items: center;
+    width: 54px;
+    height: 54px;
+    margin: 0 auto 10px;
+    border-radius: 50%;
+    color: #2b4850;
+    background: linear-gradient(180deg, #ffe897, #dcae50);
+    box-shadow: 0 0 28px rgba(244, 204, 98, .38);
+    font-size: 22px;
+}
+.collect-card h2 { margin: 4px 0 6px; font: 700 28px Georgia, serif; color: #fff3c0; }
+.collect-card > p { margin: 0 0 16px; color: rgba(255, 247, 220, .67); font-size: 13px; }
+.collect-results { display: grid; gap: 9px; margin-bottom: 16px; text-align: left; }
+.collect-row {
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+    padding: 11px 12px;
+    border: 1px solid rgba(255, 255, 255, .1);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, .045);
+}
+.collect-row > i {
+    flex: 0 0 auto;
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    color: #1a3340;
+    background: #8bd7dc;
+    font-style: normal;
+    font-size: 16px;
+}
+.collect-row[data-resource="TIMBER"] > i { background: #c4a06a; }
+.collect-row[data-resource="verdant_fiber"] > i { background: #95c873; }
+.collect-row[data-resource="ember_ingot"] > i { background: #ef8a59; }
+.collect-row[data-resource="frost_crystal"] > i { background: #a9e8f2; }
+.collect-row[data-resource="storm_cell"] > i { background: #cfb4ff; }
+.collect-row[data-resource="stone"] > i { background: #c9c4b4; }
+.collect-row[data-resource="provisions"] > i { background: #eec08a; }
+.collect-row[data-resource="SIEGECOINS"] > i { background: #f4cc62; }
+.collect-row-copy { min-width: 0; display: grid; gap: 4px; }
+.collect-row-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+}
+.collect-row-head strong { color: #fff1bd; font-size: 13px; }
+.collect-row-head em {
+    flex: 0 0 auto;
+    color: #b9d96c;
+    font: 800 12px/1 Georgia, serif;
+    font-style: normal;
+}
+.collect-row-meta {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    color: rgba(255, 247, 220, .62);
+    font-size: 10px;
+}
+.collect-row-meta b { color: rgba(255, 247, 220, .86); font-weight: 700; }
+.collect-meter {
+    position: relative;
+    height: 10px;
+    overflow: hidden;
+    border-radius: 99px;
+    background: rgba(255, 255, 255, .09);
+}
+.collect-meter-was,
+.collect-meter-gain {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    display: block;
+    border-radius: 99px;
+}
+.collect-meter-was {
+    background: linear-gradient(90deg, #4f7d55, #7fa85a);
+}
+.collect-meter-gain {
+    width: 0;
+    background: linear-gradient(90deg, #c9e87a, #ffe897);
+    box-shadow: 0 0 10px rgba(255, 232, 151, .45);
+    transition: width .55s cubic-bezier(.2, .8, .2, 1);
+}
+.collect-overlay.is-revealed .collect-meter-gain { width: var(--gain-width, 0%); }
+.collect-card .panel-button { width: 100%; }
+
+@media (max-width: 430px) {
+    .collect-card { padding: 20px 16px 16px; }
+    .collect-card h2 { font-size: 24px; }
+}
+
 /* —— Scene pan & zoom —— */
 .keep-scene { transition: transform .24s ease; will-change: transform; }
 .keep-scene.is-dragging { transition: none; }
@@ -2588,9 +3051,9 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
 .keep-tower.tower-right { right: 27.5%; }
 .keep-tower i { display: none; position: absolute; left: 50%; top: 26%; width: 11px; height: 11px; translate: -50% 0; border-radius: 50%; background: var(--hall-accent); box-shadow: 0 0 16px var(--hall-accent); }
 .keep-scene.hall-l6 .keep-tower i { display: block; animation: generator-pulse 2.2s ease-in-out infinite; }
-.keep-gate { position: absolute; left: 50%; top: 44.5%; width: 7.4%; min-width: 52px; height: 10%; translate: -50% 0; background: linear-gradient(180deg, #979283, #6f6a5b); border-top: 3px solid #a7a18e; box-shadow: 0 8px 10px rgba(24, 32, 26, .35); }
-.keep-gate::after { content: ""; position: absolute; left: 0; right: 0; top: -10px; height: 8px; background: repeating-linear-gradient(90deg, #a7a18e 0 10px, transparent 10px 18px); }
-.keep-gate i { position: absolute; left: 22%; right: 22%; bottom: 0; height: 74%; border-radius: 50% 50% 0 0; background: linear-gradient(#3a2c1d, #57422b); box-shadow: inset 0 0 0 3px var(--hall-trim); }
+.keep-wall-gate { position: absolute; left: 50%; top: 44.5%; width: 7.4%; min-width: 52px; height: 10%; translate: -50% 0; background: linear-gradient(180deg, #979283, #6f6a5b); border-top: 3px solid #a7a18e; box-shadow: 0 8px 10px rgba(24, 32, 26, .35); }
+.keep-wall-gate::after { content: ""; position: absolute; left: 0; right: 0; top: -10px; height: 8px; background: repeating-linear-gradient(90deg, #a7a18e 0 10px, transparent 10px 18px); }
+.keep-wall-gate i { position: absolute; left: 22%; right: 22%; bottom: 0; height: 74%; border-radius: 50% 50% 0 0; background: linear-gradient(#3a2c1d, #57422b); box-shadow: inset 0 0 0 3px var(--hall-trim); }
 
 .keep-landmark { z-index: 1; }
 .keep-landmark i {
@@ -2991,7 +3454,10 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
 @keyframes enclave-exterior-bob { 0%, 100% { translate: 0 0; } 50% { translate: 0 -4px; } }
 @keyframes front-defender-brace { 0%, 100% { translate: 0 0; rotate: -1deg; } 50% { translate: 0 -3px; rotate: 2deg; } }
 @keyframes front-raider-march { 0%, 100% { translate: 6px -4px; } 50% { translate: -5px 4px; } }
+@keyframes front-torch-flicker { 0% { transform: scale(.9, 1.04) rotate(-3deg); opacity: .86; } 55% { transform: scale(1.08, .94) rotate(2deg); opacity: 1; } 100% { transform: scale(.96, 1.1) rotate(4deg); opacity: .92; } }
 @keyframes front-projectile-flight { 0%, 15% { opacity: 0; translate: 0 0; } 20% { opacity: 1; } 68% { opacity: 1; } 72%, 100% { opacity: 0; translate: 155px -76px; } }
+@keyframes front-raider-defeat { 0% { opacity: 1; translate: 0 0; rotate: 0deg; } 100% { opacity: 0; translate: 8px 32px; rotate: 18deg; } }
+@keyframes front-coin-award { 0% { opacity: 0; translate: 0 8px; scale: .7; } 18%, 68% { opacity: 1; translate: 0 0; scale: 1; } 100% { opacity: 0; translate: 0 -24px; scale: .9; } }
 @keyframes front-impact-burst { 0%, 65% { opacity: 0; transform: scale(.2) rotate(0); } 70% { opacity: 1; } 88% { opacity: 0; transform: scale(1.25) rotate(30deg); } 100% { opacity: 0; } }
 @keyframes discovery-in { from { opacity: 0; transform: translate(-50%, 18px) scale(.96); } }
 @keyframes loading-breathe { 50% { transform: translateY(-6px) scale(1.04); } }
@@ -3061,6 +3527,16 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     .construction-banner.is-collapsed .hammer-icon { font-size: 19px; }
     .construction-banner.is-collapsed .construction-toggle { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; }
     .hall-hotspot { top: 24%; width: 180px; height: 210px; }
+    /* Keep the Hall status out of the gatehouse sightline on phones. The Hall
+       hotspot is 180px wide and centered, so this offset places the callout in
+       the open upper-left sky without changing the building's tap target. */
+    .hall-hotspot .building-label {
+        left: -66px;
+        right: auto;
+        top: -6px;
+        bottom: auto;
+        transform: none;
+    }
     .woodlot-hotspot { left: 1%; bottom: 11%; width: 142px; height: 160px; }
     .archive-hotspot { right: 1%; bottom: 12%; width: 142px; height: 160px; }
     /* Portrait is narrow: the centered hall pushes into the right-mid zone, so the
@@ -3145,6 +3621,13 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     .dialogue-copy h2 { font-size: 21px; }
     .dialogue-copy > p { margin: 14px 0; font-size: 13px; line-height: 1.5; }
     .dialogue-choices { grid-column: 1 / -1; }
+    .keep-event-card { grid-template-columns: 72px minmax(0, 1fr); gap: 13px; padding: 18px 14px; }
+    .keep-event-mark { border-radius: 18px; }
+    .keep-event-mark span { width: 48px; height: 48px; font-size: 30px; }
+    .keep-event-copy { padding-right: 18px; }
+    .keep-event-copy h2 { font-size: 21px; }
+    .keep-event-copy > p, .keep-event-impact, .keep-event-timer, .keep-event-actions, .keep-event-status { grid-column: 1 / -1; }
+    .keep-event-actions { grid-template-columns: 1fr; }
     .notice-tray { top: calc(61px + var(--safe-top)); right: calc(7px + var(--safe-right)); }
     .notice-construction-card { padding: 8px; }
     .notice-construction-row { grid-template-columns: 28px minmax(0, 1fr) auto; gap: 7px; }

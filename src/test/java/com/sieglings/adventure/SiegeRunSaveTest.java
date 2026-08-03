@@ -1,5 +1,6 @@
 package com.sieglings.adventure;
 
+import com.sieglings.model.enums.Element;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Constructor;
@@ -34,6 +35,26 @@ class SiegeRunSaveTest {
     void explicitSaveRejectsMissingRun() {
         SiegeService service = new SiegeService();
         assertThrows(IllegalArgumentException.class, () -> service.saveRun(null));
+    }
+
+    @Test
+    void explicitSaveRejectsFinishedBattles() throws Exception {
+        SiegeService service = new SiegeService();
+        RecordingCheckpointStore checkpoints = new RecordingCheckpointStore();
+        setField(service, "checkpoints", checkpoints);
+        setField(service, "content", new SiegeContentService());
+        SiegeRun run = new SiegeRun("save-won");
+        SiegeBattle battle = new SiegeBattle(NodeType.BATTLE);
+        battle.setPhase(BattlePhase.WON);
+        battle.getCombatants().add(new Combatant("ally", "Sprout", Element.EARTH, Side.PLAYER, 60, 6, null));
+        run.setBattle(battle);
+        addRun(service, run);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> service.saveRun("save-won"));
+        assertTrue(ex.getMessage().toLowerCase().contains("finished battle")
+                || ex.getMessage().toLowerCase().contains("claim victory"));
+        assertEquals(0, checkpoints.saveCount, "WON battles must never be written by explicit Save");
     }
 
     private static void setField(Object target, String name, Object value) throws Exception {

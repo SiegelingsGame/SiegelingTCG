@@ -67,6 +67,13 @@ public class KeepState {
     private List<String> activeVisitorIds = new ArrayList<>();
     private Map<String, Instant> visitorAvailableAt = new LinkedHashMap<>();
     private Instant lastVisitorRollAt;
+    private String activeKeepEventId = "";
+    private Instant keepEventOccurredAt;
+    private Instant keepEventRepairStartedAt;
+    private Instant keepEventRepairCompletesAt;
+    private Instant lastKeepEventRollAt;
+    private List<String> recentKeepEventIds = new ArrayList<>();
+    private int keepEventCount;
     private List<String> displayedMemorabiliaIds = new ArrayList<>();
     private List<String> processedRequestIds = new ArrayList<>();
     private Instant lastVisitedAt;
@@ -218,6 +225,20 @@ public class KeepState {
     }
     public Instant getLastVisitorRollAt() { return lastVisitorRollAt; }
     public void setLastVisitorRollAt(Instant lastVisitorRollAt) { this.lastVisitorRollAt = lastVisitorRollAt; }
+    public String getActiveKeepEventId() { return activeKeepEventId; }
+    public void setActiveKeepEventId(String value) { this.activeKeepEventId = value == null ? "" : value; }
+    public Instant getKeepEventOccurredAt() { return keepEventOccurredAt; }
+    public void setKeepEventOccurredAt(Instant value) { this.keepEventOccurredAt = value; }
+    public Instant getKeepEventRepairStartedAt() { return keepEventRepairStartedAt; }
+    public void setKeepEventRepairStartedAt(Instant value) { this.keepEventRepairStartedAt = value; }
+    public Instant getKeepEventRepairCompletesAt() { return keepEventRepairCompletesAt; }
+    public void setKeepEventRepairCompletesAt(Instant value) { this.keepEventRepairCompletesAt = value; }
+    public Instant getLastKeepEventRollAt() { return lastKeepEventRollAt; }
+    public void setLastKeepEventRollAt(Instant value) { this.lastKeepEventRollAt = value; }
+    public List<String> getRecentKeepEventIds() { return recentKeepEventIds; }
+    public void setRecentKeepEventIds(List<String> values) { this.recentKeepEventIds = copy(values); }
+    public int getKeepEventCount() { return keepEventCount; }
+    public void setKeepEventCount(int value) { this.keepEventCount = Math.max(0, value); }
     public List<String> getDisplayedMemorabiliaIds() { return displayedMemorabiliaIds; }
     public void setDisplayedMemorabiliaIds(List<String> displayedMemorabiliaIds) { this.displayedMemorabiliaIds = copy(displayedMemorabiliaIds); }
     public List<String> getProcessedRequestIds() { return processedRequestIds; }
