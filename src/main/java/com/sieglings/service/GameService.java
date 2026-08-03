@@ -243,6 +243,12 @@ public class GameService {
 
         CardInstance existing = state.getAt(isPlayerSide, row, col);
         boolean evolutionPlacement = placementService.isEvolutionPlacement(state, isPlayerSide, row, col, siegling);
+        if (evolutionPlacement && existing != null
+                && elementalAfflictionService != null
+                && elementalAfflictionService.hasCurse(existing)) {
+            state.log(existing.getName() + " is Cursed and cannot evolve!");
+            return state;
+        }
         energyService.recalculateEnergy(state);
         if (state.isSieglingSetupBudgetExhausted(isPlayerSide)) {
             state.log(evolutionPlacement
@@ -289,6 +295,10 @@ public class GameService {
         }
         if (claimed.getBattlePhasesSeen() <= 0) {
             state.log(claimed.getName() + " must survive at least 1 battle phase before it can be claimed.");
+            return state;
+        }
+        if (elementalAfflictionService != null && elementalAfflictionService.hasCurse(claimed)) {
+            state.log(claimed.getName() + " is Cursed and cannot be claimed!");
             return state;
         }
 

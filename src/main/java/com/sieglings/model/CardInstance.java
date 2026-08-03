@@ -68,7 +68,11 @@ public class CardInstance {
         if (isSpeedZero()) {
             return 0;
         }
-        return Math.max(0, currentSpeed + trainerPassiveSpeedBuff);
+        // Chill badges (−1 Speed each); gated by the master ElementalAfflictions switch.
+        int chill = ElementalAfflictions.isEnabled()
+                ? getAfflictionStacks(ElementalAffliction.CHILL)
+                : 0;
+        return Math.max(0, currentSpeed + trainerPassiveSpeedBuff - chill);
     }
 
     public int getEffectiveMaxHealth() {

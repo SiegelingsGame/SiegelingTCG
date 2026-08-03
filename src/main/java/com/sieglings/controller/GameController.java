@@ -1598,7 +1598,16 @@ public class GameController {
             ability.put("targetType", option.getTargetType().name());
             ability.put("targetRow", option.getAbility().getTargetRow() == null ? null : option.getAbility().getTargetRow().name());
             ability.put("effectType", option.getAbility().getEffectType());
-            ability.put("effectValue", option.getAbility().getEffectValue());
+            int effectValue = option.getAbility().getEffectValue();
+            // Blind is already reflected in resolution; surface the reduced value in the panel too.
+            if (com.sieglings.model.ElementalAfflictions.isEnabled()
+                    && attacker.getAfflictionStacks(ElementalAffliction.BLIND) > 0 && effectValue > 0) {
+                effectValue = Math.max(0, effectValue - attacker.getAfflictionStacks(ElementalAffliction.BLIND));
+                if (AbilityEffectKeys.DAMAGE.equals(option.getAbility().getEffectType())) {
+                    effectValue = Math.max(1, effectValue);
+                }
+            }
+            ability.put("effectValue", effectValue);
             ability.put("requiredElement", option.getRequiredElement() == null ? null : option.getRequiredElement().name());
             ability.put("requiredEnergy", option.getRequiredEnergy());
             ability.put("affordable", option.isAffordable());
