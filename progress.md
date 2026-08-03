@@ -1,3 +1,7 @@
+Original prompt: Merge and deploy clean
+
+- August 3, 2026 Production deploy of #638 (`chain_damage`) + #639 (premade deck unlocks). Merged as `b79f2ed0`; Deploy run [30849799612](https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/30849799612) green — Cloud Run ~3.5m, Firebase Hosting + Functions ~2m. Live pins: `game.js?v=226`, `style.css?v=219`, `home.js?v=132`, `home.css?v=124`, `card-dashboard.js?v=55`. `/api/game/options` leads with Fire/Ice/Earth/Wind singletons (5 decks). Editor `source: FIRESTORE` on Hosting and Cloud Run; `apiBaseUrl: ''`; `/`, `/play`, `/siege`, `/home`, `/help` 200.
+
 Original prompt: Ok update the chains damage to be compatible with the recent changes to main, incorporate new versions of these prs that are compatible
 
 - August 3, 2026 Compatible rework of #616 (premade deck unlocks) on current main: Free Fire/Ice/Earth/Wind + starter element; others 500 coins; match-start gate; locked Decks/Play UI. Client unlock fallback honors cached `starterPackId`/`purchasedDeckIds`; deck purchase refreshes shared auth profile; `/api/auth/me` redraws Play loadout; free main-four singletons sort first. Pins: `game.js?v=226`, `style.css?v=219`, `home.js?v=132`, `home.css?v=124`.
