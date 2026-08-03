@@ -1,3 +1,8 @@
+Original prompt: Instead of a help text button add a “?” question mark button next to the bell button that opens a help popup, add a fab navigation for help to quickly jump to sections. Merge and deploy
+
+- August 3, 2026 Help entry is now a `?` button beside the notification bell (`.hud-icon-cluster`) that opens a full Field Guide modal (`#helpModal` iframe → `/help.html?embed=1`). Removed the wrapping Help nav-tab text. Help page gained a section-jump FAB (`#helpFab` / `#helpFabMenu`) for fast anchors; embed mode hides standalone chrome/TOC/chips. Cache pins: `home.js?v=131`, `home.css?v=123`, `help.js?v=2`, `help.css?v=2`.
+- Verification: `node --check` on `home.js`/`help.js`; `GameJavaScriptRegressionTest` green; headless Chrome at 390×844 and 1920×1080 — no Help nav link, `?` cluster present, modal opens embed guide, FAB expands and jumps to Buffs, Close dismisses; standalone `/help` FAB also opens.
+
 Original prompt: Merge and deploy the help update
 
 - August 3, 2026 Production deploy of #635 (Field Guide `/help`). Merged as `4c1e4533`; Deploy run [30832349213](https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/30832349213) green — Cloud Run ~4.5m, Firebase Hosting + Functions ~2m. Live `/help` serves `help.css?v=1` / `help.js?v=1` with Field Guide + 12 affliction rows; Home nav has Help; `/`, `/play`, `/siege`, `/home`, `/cards`, `/shop`, `/keep`, `/help` all 200. Editor `source: FIRESTORE` on Hosting and Cloud Run; `apiBaseUrl: ''`; `/api/game/options` 200 with 5 decks.
