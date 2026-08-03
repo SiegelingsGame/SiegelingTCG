@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Help · Siegelings TCG</title>
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" href="/favicon-48x48.png" sizes="48x48">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <meta name="theme-color" content="#0a1530">
+    <meta name="description" content="Siegelings TCG field guide — card types, turn structure, energy, buffs, and elemental afflictions.">
+    <link rel="stylesheet" href="/css/help.css?v=1">
+</head>
+<body>
+<div class="help-atmosphere" aria-hidden="true"></div>
+<header class="help-top">
+    <a class="help-brand" href="/home">
+        <img src="/img/siegelings-icon.png" alt="" width="36" height="36">
+        <span>
+            <strong>Siegelings TCG</strong>
+            <small>Field Guide</small>
+        </span>
+    </a>
+    <div class="help-top-actions">
+        <a class="help-btn ghost" href="/home">Home</a>
+        <a class="help-btn primary" href="/play">Play</a>
+    </div>
+</header>
+
+<div class="help-layout">
+    <aside class="help-toc" aria-label="Guide sections">
+        <p class="toc-label">Contents</p>
+        <nav class="toc-nav">
+            <a href="#basics">Basics</a>
+            <a href="#turn">Turn loop</a>
+            <a href="#cards">Card types</a>
+            <a href="#board">Board &amp; energy</a>
+            <a href="#buffs">Buffs &amp; statuses</a>
+            <a href="#afflictions">Elemental afflictions</a>
+            <a href="#elements">Element chart</a>
+            <a href="#siege">Siege mode</a>
+        </nav>
+    </aside>
+
+    <main class="help-main">
+        <header class="help-hero" id="top">
+            <p class="help-kicker">Player reference</p>
+            <h1>Field Guide</h1>
+            <p class="help-lede">How battles work — card types, energy links, temporary buffs, and the elemental afflictions that ride on damage.</p>
+            <label class="help-search">
+                <span class="sr-only">Filter guide</span>
+                <input type="search" id="helpSearch" placeholder="Filter sections…" autocomplete="off">
+            </label>
+        </header>
+
+        <nav class="help-chip-nav" aria-label="Jump to section">
+            <a href="#basics">Basics</a>
+            <a href="#turn">Turns</a>
+            <a href="#cards">Cards</a>
+            <a href="#board">Energy</a>
+            <a href="#buffs">Buffs</a>
+            <a href="#afflictions">Afflictions</a>
+            <a href="#elements">Elements</a>
+            <a href="#siege">Siege</a>
+        </nav>
+
+        <section class="help-section" id="basics" data-help-keywords="hp health bounty speed board half 3x3">
+            <h2>Basics</h2>
+            <p>Siegelings is a tactical elemental card game. Each player builds a <strong>3×3 board half</strong>. Creature cards — <em>Sieglings</em> — fight with abilities paid for by elemental energy. There is no printed ATK/DEF: damage comes from abilities.</p>
+            <ul class="help-list">
+                <li><strong>Player HP</strong> starts at 50. When your Siegeling is defeated, you take rarity-based <em>bounty</em> damage.</li>
+                <li><strong>Siegling stats</strong> are Health, Speed, notches (directional colored dots), and abilities.</li>
+                <li><strong>Board cap</strong>: up to 5 Sieglings per side. Evolutions do not count against the cap or the one-placement-per-turn limit.</li>
+                <li>Win by reducing the opponent’s HP to 0.</li>
+            </ul>
+        </section>
+
+        <section class="help-section" id="turn" data-help-keywords="draw setup battle claim place spell trap phase round">
+            <h2>Turn loop</h2>
+            <p>Each round cycles through three phases for the active player:</p>
+            <ol class="help-steps">
+                <li>
+                    <strong>Draw</strong>
+                    <span>Draw cards into your hand to prepare the turn.</span>
+                </li>
+                <li>
+                    <strong>Setup</strong>
+                    <span>Place at most one new Siegeling, cast spells and traps, and optionally <em>claim</em> surviving Sieglings for temporary energy. Elemental afflictions like Burn and Wither often resolve at the start of your Setup.</span>
+                </li>
+                <li>
+                    <strong>Battle</strong>
+                    <span>All ready Sieglings act in Speed order. Spend energy on abilities; then the next round begins.</span>
+                </li>
+            </ol>
+        </section>
+
+        <section class="help-section" id="cards" data-help-keywords="siegling spell trap evolution siegeknight trainer precursor rarity deck">
+            <h2>Card types</h2>
+            <div class="help-type-grid">
+                <article class="help-type">
+                    <h3>Siegling</h3>
+                    <p>Creatures you place on the board. They carry notches, Health, Speed, and battle abilities. Max 3 copies of a card in a deck; full evolution lines only.</p>
+                </article>
+                <article class="help-type">
+                    <h3>Spell</h3>
+                    <p>One-shot effects cast from hand during Setup (or when their timing allows). Paid with elemental energy from your links and sockets.</p>
+                </article>
+                <article class="help-type">
+                    <h3>Trap</h3>
+                    <p>Reactive cards set for later. They fire when their condition is met — often during the opponent’s actions.</p>
+                </article>
+                <article class="help-type">
+                    <h3>Evolution</h3>
+                    <p>Placed onto a live precursor Siegeling on your board. Evolutions skip the placement cap and the one-placement-per-turn limit. Curse blocks evolving that unit.</p>
+                </article>
+                <article class="help-type">
+                    <h3>SiegeKnight</h3>
+                    <p>Your trainer. Grants a passive plus an active or ultimate ability that shapes the whole match.</p>
+                </article>
+            </div>
+            <p class="help-note">Standard premade decks are 40 cards: 20 Sieglings, 10 spells, 10 traps.</p>
+        </section>
+
+        <section class="help-section" id="board" data-help-keywords="notch link socket energy claim foundation network call well perimeter">
+            <h2>Board, notches &amp; energy</h2>
+            <p>Colored dots on a Siegeling’s edges are <strong>notches</strong>. When two adjacent cards’ notches point at each other — a <em>reciprocal link</em> — they connect and generate elemental energy.</p>
+            <ul class="help-list">
+                <li><strong>Sockets</strong> on the board perimeter can also anchor edge cells (left column LEFT, right column RIGHT, outer row TOP/BOTTOM).</li>
+                <li>Energy pays for spells, traps, and battle abilities. Matching the ability’s element costs matters.</li>
+                <li><strong>Claim</strong> (Setup): spend a surviving Siegeling’s presence for temporary energy. Units with <em>Curse</em> cannot be claimed.</li>
+                <li>Placement must stay legal on your half — foundation and network rules decide which cells light up as valid.</li>
+            </ul>
+        </section>
+
+        <section class="help-section" id="buffs" data-help-keywords="shield damage boost speed boost freeze frozen weak strong max health temporary">
+            <h2>Buffs &amp; temporary statuses</h2>
+            <p>Ability effects and trainer passives can apply short-lived badges separate from elemental afflictions:</p>
+            <div class="help-glossary">
+                <div class="gloss-row">
+                    <span class="gloss-badge" style="--badge:#a8b0ba">Shield</span>
+                    <p>Temporary hit points that absorb damage before Health. Cleared when depleted or when temporary effects lapse after Battle.</p>
+                </div>
+                <div class="gloss-row">
+                    <span class="gloss-badge" style="--badge:#ff5544">Damage Boost</span>
+                    <p>Outgoing ability damage is temporarily increased (from abilities, auras, or trainer passives).</p>
+                </div>
+                <div class="gloss-row">
+                    <span class="gloss-badge" style="--badge:#7adfff">Speed Boost</span>
+                    <p>Higher effective Speed — the unit tends to act earlier in the Battle queue.</p>
+                </div>
+                <div class="gloss-row">
+                    <span class="gloss-badge" style="--badge:#46e07a">Max Health</span>
+                    <p>Maximum Health raised (often with a matching heal). Distinct from a Shield stack.</p>
+                </div>
+                <div class="gloss-row">
+                    <span class="gloss-badge" style="--badge:#7adfff">Frozen</span>
+                    <p>Cannot act during Battle. Chill affliction reaches Freeze at 3 stacks until the owner’s next Setup.</p>
+                </div>
+                <div class="gloss-row">
+                    <span class="gloss-badge" style="--badge:#a0b0c0">Speed Zero</span>
+                    <p>Acts last / effectively locked out of normal Speed ordering.</p>
+                </div>
+                <div class="gloss-row">
+                    <span class="gloss-badge" style="--badge:#ff6080">Weak</span>
+                    <p>This unit is on the wrong side of the elemental matchup against an attacker — expect bonus damage.</p>
+                </div>
+                <div class="gloss-row">
+                    <span class="gloss-badge" style="--badge:#ffd060">Strong</span>
+                    <p>Advantage badge when your element hits a weak defender for +1 damage.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="help-section" id="afflictions" data-help-keywords="burn chill stagger disorient soak shock rust toxin curse insight blind wither stack badge">
+            <h2>Elemental afflictions</h2>
+            <p>When an elemental attack deals Health damage, it can add a stack of that element’s affliction. Badges show on the board card. Neutral damage does not inflict.</p>
+            <p class="help-note">Stacks have caps. Some clear on a tick; others persist until cleansed or consumed by their own rule.</p>
+            <div class="affliction-table" role="table" aria-label="Elemental afflictions">
+                <div class="aff-head" role="row">
+                    <span role="columnheader">Element</span>
+                    <span role="columnheader">Affliction</span>
+                    <span role="columnheader">Cap</span>
+                    <span role="columnheader">What it does</span>
+                </div>
+                <div class="aff-row" role="row" data-el="fire">
+                    <span class="el-chip fire">Fire</span>
+                    <strong>Burn</strong>
+                    <span>5</span>
+                    <p>Owner Setup: deal 1 damage × stacks, then clear.</p>
+                </div>
+                <div class="aff-row" role="row" data-el="electric">
+                    <span class="el-chip electric">Electric</span>
+                    <strong>Shock</strong>
+                    <span>5</span>
+                    <p>This card may spend 1 less energy per stack on its abilities (pool unchanged).</p>
+                </div>
+                <div class="aff-row" role="row" data-el="poison">
+                    <span class="el-chip poison">Poison</span>
+                    <strong>Toxin</strong>
+                    <span>5</span>
+                    <p>Cannot heal. Heal attempts remove Toxin stacks 1:1 instead.</p>
+                </div>
+                <div class="aff-row" role="row" data-el="wind">
+                    <span class="el-chip wind">Wind</span>
+                    <strong>Disorient</strong>
+                    <span>3</span>
+                    <p>+1 cost per stack on the lowest-cost ability (ties → first in list).</p>
+                </div>
+                <div class="aff-row" role="row" data-el="shadow">
+                    <span class="el-chip shadow">Shadow</span>
+                    <strong>Curse</strong>
+                    <span>2</span>
+                    <p>Cannot claim or evolve while any Curse remains.</p>
+                </div>
+                <div class="aff-row" role="row" data-el="water">
+                    <span class="el-chip water">Water</span>
+                    <strong>Soak</strong>
+                    <span>5</span>
+                    <p>Attacks against this unit deal +1 damage per stack.</p>
+                </div>
+                <div class="aff-row" role="row" data-el="earth">
+                    <span class="el-chip earth">Earth</span>
+                    <strong>Stagger</strong>
+                    <span>2</span>
+                    <p>1 stack: badge only. 2 stacks: bottom of the Battle queue.</p>
+                </div>
+                <div class="aff-row" role="row" data-el="ice">
+                    <span class="el-chip ice">Ice</span>
+                    <strong>Chill</strong>
+                    <span>3</span>
+                    <p>−1 Speed per stack. At 3: Freeze until owner’s next Setup, then clear.</p>
+                </div>
+                <div class="aff-row" role="row" data-el="psychic">
+                    <span class="el-chip psychic">Psychic</span>
+                    <strong>Insight</strong>
+                    <span>3</span>
+                    <p>At 3 stacks the inflicter draws 1 card, then all Insight clears.</p>
+                </div>
+                <div class="aff-row" role="row" data-el="light">
+                    <span class="el-chip light">Light</span>
+                    <strong>Blind</strong>
+                    <span>3</span>
+                    <p>Ability effect values reduced by 1 per stack.</p>
+                </div>
+                <div class="aff-row" role="row" data-el="metal">
+                    <span class="el-chip metal">Metal</span>
+                    <strong>Rust</strong>
+                    <span>3</span>
+                    <p>Next Metal attack deals +1 per stack, then clears Rust.</p>
+                </div>
+                <div class="aff-row" role="row" data-el="undead">
+                    <span class="el-chip undead">Undead</span>
+                    <strong>Wither</strong>
+                    <span>3</span>
+                    <p>Owner Setup: clamp HP as if max were −1 per stack, then clear.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="help-section" id="elements" data-help-keywords="weakness strength fire ice wind earth water metal electric poison shadow psychic light undead">
+            <h2>Element chart</h2>
+            <p>Hitting a weak defender deals <strong>+1 damage</strong>. Attackers are strong against the elements listed:</p>
+            <div class="strength-grid">
+                <div class="str-row"><span class="el-chip fire">Fire</span><span>→</span><span class="el-chip ice">Ice</span><span class="el-chip metal">Metal</span></div>
+                <div class="str-row"><span class="el-chip ice">Ice</span><span>→</span><span class="el-chip wind">Wind</span><span class="el-chip poison">Poison</span></div>
+                <div class="str-row"><span class="el-chip wind">Wind</span><span>→</span><span class="el-chip earth">Earth</span><span class="el-chip water">Water</span></div>
+                <div class="str-row"><span class="el-chip earth">Earth</span><span>→</span><span class="el-chip fire">Fire</span><span class="el-chip electric">Electric</span></div>
+                <div class="str-row"><span class="el-chip water">Water</span><span>→</span><span class="el-chip fire">Fire</span><span class="el-chip ice">Ice</span></div>
+                <div class="str-row"><span class="el-chip metal">Metal</span><span>→</span><span class="el-chip earth">Earth</span><span class="el-chip wind">Wind</span></div>
+                <div class="str-row"><span class="el-chip electric">Electric</span><span>→</span><span class="el-chip wind">Wind</span><span class="el-chip fire">Fire</span></div>
+                <div class="str-row"><span class="el-chip poison">Poison</span><span>→</span><span class="el-chip ice">Ice</span><span class="el-chip earth">Earth</span></div>
+                <div class="str-row"><span class="el-chip shadow">Shadow</span><span>→</span><span class="el-chip psychic">Psychic</span><span class="el-chip light">Light</span></div>
+                <div class="str-row"><span class="el-chip psychic">Psychic</span><span>→</span><span class="el-chip light">Light</span><span class="el-chip undead">Undead</span></div>
+                <div class="str-row"><span class="el-chip light">Light</span><span>→</span><span class="el-chip undead">Undead</span><span class="el-chip shadow">Shadow</span></div>
+                <div class="str-row"><span class="el-chip undead">Undead</span><span>→</span><span class="el-chip shadow">Shadow</span><span class="el-chip psychic">Psychic</span></div>
+            </div>
+        </section>
+
+        <section class="help-section" id="siege" data-help-keywords="adventure expedition map warband gold rest camp boss elite ap end turn">
+            <h2>Siege mode</h2>
+            <p><a href="/siege">Siege / Adventure</a> is a single-player expedition. Pick a SiegeKnight and starter warband, walk a branching map (battles, elites, rest camps, shops, events, boss), and fight AP-based card battles — drag a card from your hand onto the battlefield, then End Turn.</p>
+            <ul class="help-list">
+                <li>Rules run on the server; the client plays back presentation events.</li>
+                <li>Many battle afflictions and card effects have Siege counterparts (Burn-like DoTs, shields that last until your next turn, party-wide linked effects, and so on).</li>
+                <li>Earn gold, cards, and items as you climb toward the Siegelord.</li>
+            </ul>
+        </section>
+
+        <footer class="help-foot">
+            <p>Ready to fight? <a href="/play">Open the Battle Table</a> · <a href="/siege">Start a Siege run</a> · <a href="/home">Back to Home</a></p>
+        </footer>
+    </main>
+</div>
+
+<script src="/js/help.js?v=1"></script>
+</body>
+</html>
