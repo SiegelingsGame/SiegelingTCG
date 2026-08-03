@@ -780,6 +780,8 @@
         panel.classList.toggle('hidden', !open);
         document.getElementById('hudNotifBtn')?.classList.toggle('active', open);
         if (!open) return;
+        // Help and notifications share the left HUD cluster — only one open.
+        toggleHelpModal(false);
         renderNotifications();
         // Opening the panel marks everything read; rows keep their unread
         // styling until the next open so the player can still spot what's new.
@@ -787,6 +789,28 @@
             state.notifications.forEach(n => { n.read = true; });
             saveNotifications();
             [document.getElementById('hudNotifBadge'), document.getElementById('hudFabBadge')].forEach(badge => badge?.classList.add('hidden'));
+        }
+    }
+
+    function toggleHelpModal(force) {
+        const modal = document.getElementById('helpModal');
+        const btn = document.getElementById('hudHelpBtn');
+        const frame = document.getElementById('helpModalFrame');
+        if (!modal) return;
+        const open = typeof force === 'boolean' ? force : modal.classList.contains('hidden');
+        modal.classList.toggle('hidden', !open);
+        modal.setAttribute('aria-hidden', open ? 'false' : 'true');
+        btn?.classList.toggle('active', open);
+        btn?.setAttribute('aria-expanded', open ? 'true' : 'false');
+        document.body.classList.toggle('help-modal-open', open);
+        if (!open) return;
+        toggleNotifPanel(false);
+        // Lazy-load the Field Guide once so reopen is instant.
+        if (frame && (!frame.dataset.loaded || frame.getAttribute('src') === 'about:blank')) {
+            // Load the static file (not the /help rewrite) so the popup works
+            // under Firebase, Spring, and plain static servers alike.
+            frame.src = '/help.html?embed=1';
+            frame.dataset.loaded = '1';
         }
     }
 
@@ -1017,6 +1041,7 @@
         { target: '#goldPill', title: 'Siegecoins', text: 'Earn coins from matches and daily missions, then spend them on card packs in the Shop.' },
         { target: '#friendsBtn', title: 'Friends & Chat', text: 'Add friends by email, accept invites, and message them from any page.' },
         { target: '#hudNotifBtn', title: 'Notifications', text: 'Match results, rewards, mission completions, and unlocks collect here.' },
+        { target: '#hudHelpBtn', title: 'Field Guide', text: 'Open the help popup anytime for card types, buffs, energy, and elemental afflictions.' },
         { target: '#optionsBtn', title: 'Settings', text: 'Game guides, the Art Gallery, profile sharing, and support live in Settings.' },
         { target: null, title: 'Ready for your first siege?', text: 'Play the tutorial match: place a Siegeling, use a Strategy and a Deception, destroy an enemy Siegeling, and fire your Knight ability. Win and you earn a second starter pack plus bonus Siegecoins.' }
     ];
@@ -1297,11 +1322,24 @@
         });
         document.getElementById('artLightbox')?.addEventListener('click', closeArtLightbox);
         document.getElementById('hudNotifBtn')?.addEventListener('click', () => toggleNotifPanel());
+        document.getElementById('hudHelpBtn')?.addEventListener('click', () => toggleHelpModal());
+        document.getElementById('helpModal')?.addEventListener('click', (event) => {
+            if (event.target.closest('[data-help-close]')) toggleHelpModal(false);
+        });
         document.getElementById('clearNotifsBtn')?.addEventListener('click', clearNotifications);
         document.addEventListener('click', (event) => {
             const panel = document.getElementById('notifPanel');
             if (!panel || panel.classList.contains('hidden')) return;
             if (panel.contains(event.target) || document.getElementById('hudNotifBtn')?.contains(event.target)) return;
+            toggleNotifPanel(false);
+        });
+        document.addEventListener('keydown', (event) => {
+            if (event.key !== 'Escape') return;
+            const helpModal = document.getElementById('helpModal');
+            if (helpModal && !helpModal.classList.contains('hidden')) {
+                toggleHelpModal(false);
+                return;
+            }
             toggleNotifPanel(false);
         });
         loadNotifications();

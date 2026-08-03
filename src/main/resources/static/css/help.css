@@ -550,6 +550,110 @@ body {
     to { opacity: 1; transform: translateY(0); }
 }
 
+/* Section jump FAB — expands into a vertical menu of anchors. */
+.help-fab-wrap {
+    position: fixed;
+    right: calc(14px + var(--safe-right));
+    bottom: calc(18px + var(--safe-bottom));
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+}
+
+.help-fab {
+    width: 52px;
+    height: 52px;
+    border-radius: 999px;
+    border: 2px solid rgba(255, 215, 0, 0.72);
+    background: rgba(10, 16, 32, 0.94);
+    color: #ffe9a0;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 1.45rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5), 0 0 18px rgba(255, 215, 0, 0.18);
+    transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+}
+
+.help-fab:hover,
+.help-fab[aria-expanded="true"] {
+    background: rgba(255, 215, 0, 0.16);
+    border-color: #ffd700;
+}
+
+.help-fab:active { transform: scale(0.96); }
+
+.help-fab-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 168px;
+    padding: 8px;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 215, 0, 0.35);
+    background: rgba(10, 16, 32, 0.96);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
+    animation: help-fade-up 0.2s ease both;
+}
+
+.help-fab-menu[hidden] {
+    display: none !important;
+}
+
+.help-fab-menu a {
+    display: block;
+    padding: 9px 12px;
+    border-radius: 8px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 0.88rem;
+    font-weight: 600;
+}
+
+.help-fab-menu a:hover,
+.help-fab-menu a.is-active {
+    background: rgba(255, 215, 0, 0.12);
+    color: #fff7d9;
+}
+
+html.help-embed .help-top-actions,
+body.help-embed .help-top-actions {
+    display: none;
+}
+
+html.help-embed .help-brand,
+body.help-embed .help-brand {
+    pointer-events: none;
+}
+
+html.help-embed .help-foot,
+body.help-embed .help-foot {
+    display: none;
+}
+
+html.help-embed .help-toc,
+body.help-embed .help-toc {
+    display: none;
+}
+
+html.help-embed .help-layout,
+body.help-embed .help-layout {
+    grid-template-columns: 1fr;
+}
+
+html.help-embed .help-main,
+body.help-embed .help-main {
+    padding: 16px 16px 88px;
+}
+
+html.help-embed .help-chip-nav,
+body.help-embed .help-chip-nav {
+    display: none;
+}
+
 @media (max-width: 860px) {
     .help-layout {
         grid-template-columns: 1fr;
@@ -557,10 +661,12 @@ body {
 
     .help-toc { display: none; }
 
-    .help-chip-nav { display: flex; }
+    /* FAB owns section jumps on phones; chips stay as a secondary strip when
+       the guide is opened full-page (not in the hub popup embed). */
+    html:not(.help-embed) .help-chip-nav { display: flex; }
 
     .help-main {
-        padding: 20px 16px 48px;
+        padding: 20px 16px 96px;
     }
 
     .aff-head { display: none; }

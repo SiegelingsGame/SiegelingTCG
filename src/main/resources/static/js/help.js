@@ -4,12 +4,23 @@
     var sections = Array.prototype.slice.call(document.querySelectorAll('.help-section'));
     var tocLinks = Array.prototype.slice.call(document.querySelectorAll('.toc-nav a'));
     var chipLinks = Array.prototype.slice.call(document.querySelectorAll('.help-chip-nav a'));
+    var fabLinks = Array.prototype.slice.call(document.querySelectorAll('#helpFabMenu a'));
     var searchInput = document.getElementById('helpSearch');
+    var fab = document.getElementById('helpFab');
+    var fabMenu = document.getElementById('helpFabMenu');
 
     function setActive(id) {
-        tocLinks.forEach(function (link) {
-            link.classList.toggle('is-active', link.getAttribute('href') === '#' + id);
+        var href = '#' + id;
+        tocLinks.concat(fabLinks).forEach(function (link) {
+            link.classList.toggle('is-active', link.getAttribute('href') === href);
         });
+    }
+
+    function setFabOpen(open) {
+        if (!fab || !fabMenu) return;
+        fab.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open) fabMenu.removeAttribute('hidden');
+        else fabMenu.setAttribute('hidden', '');
     }
 
     function onScroll() {
@@ -37,26 +48,61 @@
         onScroll();
     }
 
+    function jumpTo(id) {
+        var target = document.getElementById(id) || (id === 'top' ? document.getElementById('top') : null);
+        if (!target) return;
+        target.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        setActive(id === 'top' ? (sections[0] && sections[0].id) : id);
+        setFabOpen(false);
+    }
+
     if (searchInput) {
         searchInput.addEventListener('input', function () {
             filterSections(searchInput.value);
         });
     }
 
+    if (fab) {
+        fab.addEventListener('click', function (event) {
+            event.stopPropagation();
+            var open = fab.getAttribute('aria-expanded') !== 'true';
+            setFabOpen(open);
+        });
+    }
+
+    fabLinks.forEach(function (link) {
+        link.addEventListener('click', function (event) {
+            var id = (link.getAttribute('href') || '').replace('#', '');
+            if (!id) return;
+            event.preventDefault();
+            jumpTo(id);
+        });
+    });
+
+    document.addEventListener('click', function (event) {
+        if (!fabMenu || fabMenu.hasAttribute('hidden')) return;
+        var wrap = document.getElementById('helpFabWrap');
+        if (wrap && wrap.contains(event.target)) return;
+        setFabOpen(false);
+    });
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') setFabOpen(false);
+    });
+
     window.addEventListener('scroll', onScroll, { passive: true });
     onScroll();
 
-    // Respect hash on load after layout.
     if (location.hash) {
-        var target = document.querySelector(location.hash);
-        if (target) {
+        var hashId = location.hash.replace('#', '');
+        var hashTarget = document.getElementById(hashId);
+        if (hashTarget) {
             requestAnimationFrame(function () {
-                target.scrollIntoView({ block: 'start' });
+                hashTarget.scrollIntoView({ block: 'start' });
             });
         }
     }
 
-    // Chip nav already uses hash links; keep focus tidy on mobile.
     chipLinks.concat(tocLinks).forEach(function (link) {
         link.addEventListener('click', function () {
             var id = (link.getAttribute('href') || '').replace('#', '');

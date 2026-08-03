@@ -10,9 +10,25 @@
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
     <meta name="description" content="Siegelings TCG field guide — card types, turn structure, energy, buffs, and elemental afflictions.">
-    <link rel="stylesheet" href="/css/help.css?v=1">
+    <link rel="stylesheet" href="/css/help.css?v=2">
 </head>
 <body>
+<script>
+/* Embed mode is applied before paint so the iframe popup does not flash the
+   standalone Home/Play chrome. */
+(function () {
+    try {
+        if (new URLSearchParams(location.search).get('embed') === '1' || window.self !== window.top) {
+            document.documentElement.classList.add('help-embed');
+            document.addEventListener('DOMContentLoaded', function () {
+                document.body.classList.add('help-embed');
+            });
+        }
+    } catch (e) {
+        document.documentElement.classList.add('help-embed');
+    }
+}());
+</script>
 <div class="help-atmosphere" aria-hidden="true"></div>
 <header class="help-top">
     <a class="help-brand" href="/home">
@@ -293,6 +309,21 @@
     </main>
 </div>
 
-<script src="/js/help.js?v=1"></script>
+<div class="help-fab-wrap" id="helpFabWrap">
+    <nav class="help-fab-menu" id="helpFabMenu" aria-label="Jump to section" hidden>
+        <a href="#basics">Basics</a>
+        <a href="#turn">Turn loop</a>
+        <a href="#cards">Card types</a>
+        <a href="#board">Board &amp; energy</a>
+        <a href="#buffs">Buffs &amp; statuses</a>
+        <a href="#afflictions">Afflictions</a>
+        <a href="#elements">Element chart</a>
+        <a href="#siege">Siege mode</a>
+        <a href="#top">Top</a>
+    </nav>
+    <button class="help-fab" id="helpFab" type="button" aria-label="Jump to section" aria-expanded="false" aria-controls="helpFabMenu" title="Jump to section">?</button>
+</div>
+
+<script src="/js/help.js?v=2"></script>
 </body>
 </html>

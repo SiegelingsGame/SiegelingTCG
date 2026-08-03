@@ -577,13 +577,22 @@ body.card-fullscreen-open {
 }
 
 /* ── Notification center ──────────────────────────────────────────────── */
-/* Auto margins keep the tabs centered while the bell hugs the brand on the
-   left; mobile stretches the tabs full-width so the margins are inert there. */
+/* Auto margins keep the tabs centered while the bell/help cluster hugs the
+   brand on the left; mobile stretches the tabs full-width so the margins
+   are inert there. */
 .home-nav .nav-tabs {
     margin-inline: auto;
 }
 
-.hud-notif-btn {
+.hud-icon-cluster {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+}
+
+.hud-notif-btn,
+.hud-help-btn {
     position: relative;
     display: inline-grid;
     place-items: center;
@@ -598,10 +607,86 @@ body.card-fullscreen-open {
     cursor: pointer;
 }
 
+.hud-help-btn {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1;
+}
+
 .hud-notif-btn:hover,
-.hud-notif-btn.active {
+.hud-notif-btn.active,
+.hud-help-btn:hover,
+.hud-help-btn.active {
     border-color: rgba(255, 215, 0, 0.62);
     background: rgba(255, 215, 0, 0.12);
+}
+
+.help-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 2200;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    padding: calc(10px + env(safe-area-inset-top, 0px)) 12px calc(12px + env(safe-area-inset-bottom, 0px));
+}
+
+.help-modal.hidden {
+    display: none;
+}
+
+.help-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(4, 8, 18, 0.72);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+.help-modal-panel {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    width: min(920px, 100%);
+    max-height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    border: 1px solid rgba(255, 215, 0, 0.38);
+    border-radius: 16px;
+    background: #0b1224;
+    box-shadow: 0 28px 80px rgba(0, 0, 0, 0.65);
+}
+
+.help-modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex: 0 0 auto;
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(10, 16, 32, 0.96);
+}
+
+.help-modal-head strong {
+    color: #fff7d9;
+    font-size: 14px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.help-modal-frame {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    border: 0;
+    background: #0c1224;
+}
+
+body.help-modal-open {
+    overflow: hidden;
 }
 
 .notif-badge {
@@ -8836,12 +8921,13 @@ body.gacha-active {
     .hud-minimize-btn svg {
         transform: none;
     }
-    /* The brand row is centered in the bottom dock, so the bell tucks into
-       the free top-left corner. */
-    .hud-notif-btn {
+    /* The brand row is centered in the bottom dock, so the bell + help
+       cluster tucks into the free top-left corner. */
+    .hud-icon-cluster {
         position: absolute;
         top: 10px;
         left: 10px;
+        z-index: 2;
     }
     .notif-panel {
         top: auto;
@@ -8850,6 +8936,16 @@ body.gacha-active {
         left: 10px;
         width: auto;
         max-height: calc(100vh - 240px - env(safe-area-inset-bottom, 0px));
+    }
+    .help-modal {
+        padding: 0;
+    }
+    .help-modal-panel {
+        width: 100%;
+        height: 100dvh;
+        max-height: none;
+        border-radius: 0;
+        border: 0;
     }
     /* Full-screen takeover on phones: the modal owns the viewport so the
        chat reads like a native messaging screen. */
