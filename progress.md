@@ -1,7 +1,7 @@
 Original prompt: Locked presets should not appear in battle selection
 
 - August 3, 2026 Battle deck selection no longer lists locked premade presets. Play loadout grid + review swap use `getVisibleLoadoutDecks()`; social lobby deck `<select>` filters the same way. Unlock UI stays on the hub Decks page. Pins: `game.js?v=227`, `home.js?v=133`.
-- Verification: `node --check` on `game.js`/`home.js`; `GameJavaScriptRegressionTest#battleLoadoutHidesLockedPremadeDecks`; headless Chromium at 390×844 / 1920×1080 injecting a mixed unlock set — locked names absent from `#deckOptions`, unlocked tiles still present.
+- Verification: `node --check` on `game.js`/`home.js`; `GameJavaScriptRegressionTest#battleLoadoutHidesLockedPremadeDecks` (+ cache-pin updates for `v=227`/`v=133`). Headless Chromium (mocked `/api/game/options` + `/api/auth/me`, unlocked Fire/Earth/Wind only) at 390×844 and 1920×1080: `#deckOptions` shows exactly Blazing Core / Stone Garden / Gale Tokens — no Aquatic Overflow, Night Market, `is-locked`, or Unlock copy. Captures: `/opt/cursor/artifacts/screenshots/battle-loadout-no-locked-mobile.png`, `battle-loadout-no-locked-desktop.png`.
 
 Original prompt: Merge and deploy
 
