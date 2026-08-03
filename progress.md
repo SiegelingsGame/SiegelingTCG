@@ -1,3 +1,7 @@
+Original prompt: Merge and deploy the help update
+
+- August 3, 2026 Production deploy of #635 (Field Guide `/help`). Merged as `4c1e4533`; Deploy run [30832349213](https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/30832349213) green — Cloud Run ~4.5m, Firebase Hosting + Functions ~2m. Live `/help` serves `help.css?v=1` / `help.js?v=1` with Field Guide + 12 affliction rows; Home nav has Help; `/`, `/play`, `/siege`, `/home`, `/cards`, `/shop`, `/keep`, `/help` all 200. Editor `source: FIRESTORE` on Hosting and Cloud Run; `apiBaseUrl: ''`; `/api/game/options` 200 with 5 decks.
+
 Original prompt: Create a help page that talks about the different effects, buffs, card types etc
 
 - August 3, 2026 Player Field Guide at `/help`: new `help.html` + `css/help.css?v=1` + `js/help.js?v=1` covering turn loop, card types, board/energy, temporary buffs/statuses, all 12 elemental afflictions, the strength chart, and a short Siege blurb. Sticky TOC on desktop / chip jump nav on mobile, section filter search, hub palette (element CSS vars). Wired via Firebase rewrite + `WebConfig` forward, and a Home nav **Help** link.
