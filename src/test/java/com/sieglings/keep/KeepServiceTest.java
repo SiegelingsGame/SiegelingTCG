@@ -134,6 +134,46 @@ class KeepServiceTest {
     }
 
     @Test
+    void damagedProductionStationBlocksCollectUntilRepaired() {
+        progression.setGold(100);
+        service.getSnapshot(user);
+        store.state.setHallLevel(2);
+        store.state.setWoodlotLevel(2);
+        store.state.setTimber(0);
+        store.state.setWoodlotStored(90);
+        store.state.setWoodlotLastAccruedAt(clock.instant());
+        store.state.getFacilityLevels().put("garden", 1);
+        store.state.getFacilityStored().put("garden", 40);
+        store.state.getFacilityLastAccruedAt().put("garden", clock.instant());
+        store.state.setActiveKeepEventId("woodlot_washout");
+        store.state.setKeepEventOccurredAt(clock.instant());
+
+        Map<String, Object> damaged = service.getSnapshot(user);
+        assertEquals(90, ((Number) valueAt(damaged, "station", "available")).intValue());
+        IllegalArgumentException woodlotError = assertThrows(IllegalArgumentException.class,
+                () -> service.collect(user, "woodlot", "damaged-woodlot-collect", store.state.getVersion()));
+        assertTrue(woodlotError.getMessage().toLowerCase().contains("rebuild"));
+        assertEquals(90, store.state.getWoodlotStored(), "Damage must keep the stockpile locked, not clear it.");
+
+        Map<String, Object> gardenCollect = service.collect(user, "garden", "undamaged-garden-collect",
+                store.state.getVersion());
+        assertEquals(40, ((Number) valueAt(gardenCollect, "collected", "amount")).intValue());
+
+        store.state.getFacilityStored().put("garden", 0);
+        IllegalArgumentException allError = assertThrows(IllegalArgumentException.class,
+                () -> service.collect(user, "all", "damaged-collect-all", store.state.getVersion()));
+        assertTrue(allError.getMessage().contains("Restorative Woodlot"));
+
+        Map<String, Object> repaired = service.repairKeepEvent(user, "woodlot_washout", "SIEGECOINS",
+                "repair-then-collect", store.state.getVersion());
+        assertNull(repaired.get("activeKeepEvent"));
+        Map<String, Object> collected = service.collect(user, "woodlot", "post-repair-collect",
+                store.state.getVersion());
+        assertEquals(90, ((Number) valueAt(collected, "collected", "amount")).intValue());
+        assertEquals(0, store.state.getWoodlotStored());
+    }
+
+    @Test
     void eligibleKeepSometimesRollsAnAdverseEventAfterCooldown() {
         service.getSnapshot(user);
         store.state.setHallLevel(2);

@@ -1373,6 +1373,37 @@ button.resource-pill:focus-visible {
 .lore-card p,
 .conversation-card p,
 .project-card p { margin: 7px 0; color: rgba(255, 247, 220, .72); font-size: 12px; line-height: 1.48; }
+/* Damaged interiors replace the collect meter with a disabled notice + live rebuild clock. */
+.interior-damage-card {
+    border-color: rgba(255, 151, 94, .42);
+    background: linear-gradient(145deg, rgba(255, 122, 68, .14), rgba(255, 255, 255, .03));
+}
+.interior-damage-card .eyebrow { color: #ffb58e; }
+.interior-damage-card h3 { color: #ffe1c2; }
+.interior-damage-timer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 10px 0 4px;
+    padding: 9px 11px;
+    border: 1px solid rgba(255, 166, 115, .28);
+    border-radius: 10px;
+    background: rgba(255, 122, 68, .08);
+}
+.interior-damage-timer span {
+    color: #ffb890;
+    font-size: 8px;
+    font-weight: 900;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+}
+.interior-damage-timer strong {
+    color: #ffe4c9;
+    font: 700 16px Georgia, serif;
+    font-variant-numeric: tabular-nums;
+}
+.facility-card.is-damaged-station { border-color: rgba(255, 151, 94, .35); }
 .card-meta { display: flex; gap: 5px; flex-wrap: wrap; margin: 7px 0; }
 .card-meta span { padding: 3px 6px; border-radius: 99px; color: rgba(255, 247, 220, .7); background: rgba(255, 255, 255, .07); font-size: 8px; letter-spacing: .06em; text-transform: uppercase; }
 .panel-button,

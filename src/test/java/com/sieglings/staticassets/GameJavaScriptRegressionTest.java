@@ -1107,8 +1107,8 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=51")
-                        && keepHtml.contains("/js/keep.js?v=51")
+                        && keepHtml.contains("/css/keep.css?v=52")
+                        && keepHtml.contains("/js/keep.js?v=52")
                         && keepHtml.contains("id=\"hallFavoriteResident\"")
                         && keepHtml.contains("id=\"productionReady\"")
                         && keepHtml.contains("id=\"collectOverlay\"")
@@ -1313,10 +1313,16 @@ class GameJavaScriptRegressionTest {
                         && keepJs.contains("function keepActivityBadgeCount()")
                         && keepJs.contains("status: snapshot.activeKeepEvent.repairInProgress ? 'underway' : 'action_needed'")
                         && keepJs.contains("activeKeepEvent:")
+                        && keepJs.contains("function roomDamageNoticeMarkup(")
+                        && keepJs.contains("Offline until repaired")
+                        && keepJs.contains("data-live-repair-timer")
+                        && keepJs.contains("function isProductionStationDamaged(")
                         && keepCss.contains(".keep-event-overlay")
                         && keepCss.contains(".notice-repair-card")
-                        && keepCss.contains(".is-damaged"),
-                "Keep setbacks need an activity-menu repair cue, repair sheet, live timer, coin route, and debug snapshot state."
+                        && keepCss.contains(".is-damaged")
+                        && keepCss.contains(".interior-damage-card")
+                        && keepCss.contains(".interior-damage-timer"),
+                "Keep setbacks need an activity-menu repair cue, repair sheet, live timer, coin route, damaged-interior notice, and debug snapshot state."
         );
         assertFalse(
                 keepHtml.contains("id=\"keepEventAlert\"")
