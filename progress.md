@@ -1,5 +1,6 @@
 Original prompt: Ok make this a single toggle that we can turn off in the future if needed and Merge and deploy
 
+- August 3, 2026 Production deploy of #634 (activate elemental afflictions + master toggle). Merged as `cc62e1da`; Deploy run [30830020716](https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/30830020716) green — Cloud Run ~4m, Firebase Hosting + Functions ~3m. `/play` and `/home` serve `game.js?v=225` with Curse claim/evolve guards; editor `source: FIRESTORE` on Hosting and Cloud Run; `apiBaseUrl: ''`; `/api/game/options` 200. Toggle live as `app.battle.elemental-afflictions-enabled=true`.
 - August 3, 2026 Elemental afflictions master toggle: `app.battle.elemental-afflictions-enabled` (default `true`) gates the whole battle affliction system through `ElementalAfflictions.isEnabled()` — inflict, Setup ticks, Shock/Disorient costs, Soak/Rust/Blind/Toxin/Curse, and Chill speed. Flip the property to `false` to disable without removing the framework.
 - Verification: focused toggle-off test in `ElementalAfflictionServiceTest`; full suite green; then merge + production deploy.
 
