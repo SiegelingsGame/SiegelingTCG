@@ -36,19 +36,18 @@ enum Effect {
  * timing/numbers stay Siege-specific.
  */
 enum StatusKind {
-    BURN,       // Fire:   1 damage at the end of each round
-    SLOW,       // Ice:    -2 Speed for 2 rounds
-    STUN,       // Earth:  skip the next action
-    SHOCK,      // Electric: energy-spend pressure on the shocked unit
-    DISORIENT,  // Wind:   raise lowest ability cost (battle contract)
-    POISON,     // Poison: 1 damage at the end of each round (Burn-class DoT)
-    // Catalog-mapped placeholders — applied/shown; full mechanics land with battle enablement.
-    SOAK,
-    RUST,
-    CURSE,
-    INSIGHT,
-    BLIND,
-    WITHER
+    BURN,       // Fire:     1 damage at the end of each round
+    SLOW,       // Ice:      -2 Speed for 2 rounds; reapply freezes (Stun)
+    STUN,       // Earth:    skip the next action
+    SHOCK,      // Electric: −1 party AP (player) / next hit −2 (enemy)
+    DISORIENT,  // Wind:     owner's cards cost +1 AP
+    POISON,     // Poison:   end-round DoT; heals clear the toxin instead
+    SOAK,       // Water:    +1 damage taken from attacks
+    RUST,       // Metal:    next Metal hit +1, then clear
+    CURSE,      // Shadow:   cannot evolve
+    INSIGHT,    // Psychic:  second hit draws (player) / heals 2 (enemy)
+    BLIND,      // Light:    outgoing ability values −1
+    WITHER      // Undead:   −1 HP at turn open, then clear
 }
 
 /** Who a card / enemy ability can be aimed at. */

@@ -1,3 +1,8 @@
+Original prompt: Ok and create effects based on the elemental effect when I triggers burn effect, freeze effect, etc per element. Merge and deploy
+
+- August 3, 2026 Siege elemental status effects fully wired in `SiegeCombatEngine` to match the shared catalog fantasy: Burn/Poison end-round DoT; Poison heal-strip; Ice Slow with reapply→Stun freeze; Earth Stun; Electric Shock; Wind Disorient (+1 AP); Water Soak (+1 taken); Metal Rust (next Metal +1 then clear); Shadow Curse (blocks evolve); Psychic Insight (second hit draws/heals); Light Blind (−1 values); Undead Wither (turn-open −1 HP). Hand preview reflects Disorient/Blind/Curse. Docs updated; `adventure.js?v=53` tips + poison/wither playback.
+- Verification: `node --check adventure.js`; `SiegeElementalStatusEffectsTest` (10) + catalog/parity/regression suites green; full `Siege*Test` green.
+
 Original prompt: Instead of a help text button add a “?” question mark button next to the bell button that opens a help popup, add a fab navigation for help to quickly jump to sections. Merge and deploy
 
 - August 3, 2026 Production deploy of #636 (Help `?` popup + FAB). Merged as `389c7e82`; Deploy run [30837262964](https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/30837262964) green — Cloud Run ~4m, Firebase Hosting + Functions ~2.5m. Live `/home` serves `home.js?v=131` / `home.css?v=123` with `#hudHelpBtn` + `#helpModal` (no Help nav text); `/help` serves `help.css?v=2` / `help.js?v=2` with `#helpFab`. Editor `source: FIRESTORE` on Hosting and Cloud Run; `apiBaseUrl: ''`; `/api/game/options` 200.
