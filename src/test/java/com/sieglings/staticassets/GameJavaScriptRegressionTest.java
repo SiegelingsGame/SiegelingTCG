@@ -16,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class GameJavaScriptRegressionTest {
 
     private static final Path GAME_JS = Path.of("src/main/resources/static/js/game.js");
+    private static final Path ACTION_QUEUE_JS = Path.of("src/main/resources/static/js/action-queue.js");
     private static final Path HOME_JS = Path.of("src/main/resources/static/js/home.js");
     private static final Path HOME_HTML = Path.of("src/main/resources/static/home.html");
     private static final Path PLAY_HTML = Path.of("src/main/resources/static/play.html");
@@ -432,14 +433,38 @@ class GameJavaScriptRegressionTest {
         String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
         assertTrue(
                 homeMarkup.contains("style.css?v=219")
-                        && homeMarkup.contains("game.js?v=227")
+                        && homeMarkup.contains("game.js?v=228")
                         && homeMarkup.contains("card-binder-visual.js?v=20")
                         && homeMarkup.contains("home.js?v=133")
                         && playMarkup.contains("style.css?v=219")
-                        && playMarkup.contains("game.js?v=227")
+                        && playMarkup.contains("game.js?v=228")
                         && dashboardMarkup.contains("style.css?v=219")
                         && dashboardMarkup.contains("card-binder-visual.js?v=20"),
                 "Every surface must advance its cache pins with the complete painted-notch set."
+        );
+    }
+
+    @Test
+    void setupShieldPlaybackKeepsItsPersistentBadge() throws IOException {
+        String gameScript = readGameScript();
+        String actionQueueScript = Files.readString(ACTION_QUEUE_JS);
+        String playMarkup = Files.readString(PLAY_HTML);
+
+        assertTrue(
+                gameScript.contains("window.SieglingsBoardCellState")
+                        && gameScript.contains("gameState?.playerBoard")
+                        && gameScript.contains("gameState?.enemyBoard"),
+                "The action queue needs a live board-state bridge when it re-syncs a shield after playback."
+        );
+        assertTrue(
+                actionQueueScript.contains("shieldHp: h.nextShield")
+                        && actionQueueScript.contains("Number.isFinite(fallback) ? fallback")
+                        && actionQueueScript.contains("Number.isFinite(renderedShieldHp) ? renderedShieldHp : 0"),
+                "Shield playback must retain the server's final shield value instead of treating a missing bridge as zero."
+        );
+        assertTrue(
+                playMarkup.contains("action-queue.js?v=38"),
+                "The battle page must load the shield-persistence action queue instead of a cached pre-fix bundle."
         );
     }
 

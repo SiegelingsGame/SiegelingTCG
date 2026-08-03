@@ -936,6 +936,8 @@
                     out.push({
                         isPlayer, row: r, col: c,
                         amount: nextShield - prevShield,
+                        prevShield,
+                        nextShield,
                         element: normalizeElement(n.element || p.element),
                         name: n.name || p.name || '',
                         instanceId: String(n.instanceId || p.instanceId || n.id || p.id || '')
@@ -1441,12 +1443,19 @@
                 (_, i) => `<div class="shield-plate" data-plate-index="${i}"></div>`
             ).join('');
         }
-        resyncShieldFromState(isPlayer, row, col) {
+        resyncShieldFromState(isPlayer, row, col, fallbackShieldHp) {
             const getter = window.SieglingsBoardCellState?.getCell;
             const cell = getter ? getter(isPlayer, row, col) : null;
-            const shieldHp = Math.max(0, Number(cell?.shieldHp) || 0);
             const cellEl = findCellEl(isPlayer, row, col);
             const card = cellEl?.querySelector('.board-card');
+            const stateShieldHp = Number(cell?.shieldHp);
+            const fallback = Number(fallbackShieldHp);
+            const renderedShieldHp = Number(card?.querySelector('.shield-plates')?.dataset?.shield);
+            const shieldHp = Math.max(0,
+                Number.isFinite(stateShieldHp) ? stateShieldHp
+                    : Number.isFinite(fallback) ? fallback
+                        : Number.isFinite(renderedShieldHp) ? renderedShieldHp : 0
+            );
             if (!card) return shieldHp;
             this.syncShieldVisualsToHealth(card, {
                 displayShield: shieldHp,
@@ -2598,7 +2607,13 @@
                     amountSign: '+',
                     knightElement: knight,
                     elementColor: 'METAL',
-                    target: { isPlayer: h.isPlayer, row: h.row, col: h.col, element: 'METAL' },
+                    target: {
+                        isPlayer: h.isPlayer,
+                        row: h.row,
+                        col: h.col,
+                        element: 'METAL',
+                        shieldHp: h.nextShield
+                    },
                     gapAfterMs: BATTLE_GAP_MS
                 });
             };
@@ -3159,7 +3174,12 @@
                         '#a8b0ba', 30
                     );
                 }
-                this.resyncShieldFromState(action.target.isPlayer, action.target.row, action.target.col);
+                this.resyncShieldFromState(
+                    action.target.isPlayer,
+                    action.target.row,
+                    action.target.col,
+                    action.target.shieldHp
+                );
                 await sleep(t.impactMs);
                 const shieldGap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
                 await sleep(shieldGap);
