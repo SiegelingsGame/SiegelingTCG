@@ -8,16 +8,25 @@ package com.sieglings.adventure;
 /** Which team a combatant fights for. */
 enum Side { PLAYER, ENEMY }
 
-/** What a card / enemy ability does when resolved. */
+/**
+ * What a card / enemy ability does when resolved. Each value is the Siege
+ * translation of a battle-table effect key (see {@code AbilityEffectKeys} and
+ * the Siege column in {@code ABILITY_EFFECT_KEYS.md}) — a card should do the
+ * same thing here that its text promises on the board.
+ */
 enum Effect {
-    DAMAGE,     // deal value damage (through shield first)
-    HEAL,       // restore value HP up to max
-    SHIELD,     // grant value temporary shield HP
-    BUFF_ATK,   // grant target +value flat attack for the battle
-    BUFF_SPD,   // grant target +value speed for the battle
-    SLOW,       // apply the Slow status (freeze / speed_zero flavored)
-    SWAP,       // move to a new notch: swap positions with another Siegeling
-    EVOLVE      // evolution card: transform the owner into its next stage (this battle)
+    DAMAGE,       // damage       — deal value damage (through shield first)
+    HEAL,         // heal         — restore value HP up to max
+    SHIELD,       // shield       — temporary shield HP, gone at the start of your next turn
+    MAX_HP_BOOST, // health_boost — raise max HP for the battle and heal the same amount
+    BUFF_ATK,     // damage_boost — grant target +value flat attack for the battle
+    BUFF_SPD,     // speed_boost  — grant target +value speed for the battle
+    SLOW,         // slow/speed_zero — apply the Slow status
+    STUN,         // freeze       — the target skips its next action
+    DRAW,         // draw         — pull value cards into the hand
+    EXECUTE,      // destroy      — defeat the target outright (capped against elites/bosses)
+    SWAP,         // move_link    — move to a new notch: swap positions with another Siegeling
+    EVOLVE        // evolution card: transform the owner into its next stage (this battle)
 }
 
 /**

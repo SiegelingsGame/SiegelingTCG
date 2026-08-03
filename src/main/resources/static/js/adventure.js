@@ -661,9 +661,13 @@
       case 'DAMAGE': return '⚔ ' + spec.value + ' dmg · ' + spec.actionCost + ' AP';
       case 'HEAL': return '➕ heal ' + spec.value + ' · ' + spec.actionCost + ' AP';
       case 'SHIELD': return '🛡 shield ' + spec.value + ' · ' + spec.actionCost + ' AP';
+      case 'MAX_HP_BOOST': return '❤ +' + spec.value + ' max HP · ' + spec.actionCost + ' AP';
       case 'BUFF_ATK': return '↑ +' + spec.value + ' attack · ' + spec.actionCost + ' AP';
       case 'BUFF_SPD': return '↑ +' + spec.value + ' speed · ' + spec.actionCost + ' AP';
       case 'SLOW': return '❄ slow · ' + spec.actionCost + ' AP';
+      case 'STUN': return '💫 stun · ' + spec.actionCost + ' AP';
+      case 'DRAW': return '🃏 draw ' + spec.value + ' · ' + spec.actionCost + ' AP';
+      case 'EXECUTE': return '☠ destroy · ' + spec.actionCost + ' AP';
       case 'SWAP': return '⇄ swap notches · ' + spec.actionCost + ' AP';
       case 'EVOLVE': return '🌟 evolve · ' + spec.actionCost + ' AP';
       default: return spec.effect;
@@ -2879,8 +2883,13 @@
         flashSprite(ev.targetId, 'shielded');
         floatText(ev.targetId, '🛡+' + ev.amount, 'shield');
         return 400;
+      // Shields only hold until the shielded side's next turn, so their going
+      // away is a beat the player has to see rather than a silent stat drop.
+      case 'shieldExpired':
+        floatText(ev.targetId, '🛡 fades', 'status');
+        return 260;
       case 'buff':
-        showBanner(ev.kind === 'atk' ? 'The party gains +' + ev.amount + ' attack!' : '+' + ev.amount + ' speed!', 'you');
+        showBanner(ev.kind === 'atk' ? '+' + ev.amount + ' attack!' : '+' + ev.amount + ' speed!', 'you');
         return 480;
       case 'status': {
         var meta = STATUS_META[ev.status] || { icon: '', label: ev.status };
@@ -3270,11 +3279,15 @@
   var TARGET_ARROW_SVG_NS = 'http://www.w3.org/2000/svg';
   var DRAG_ARROW_PALETTES = {
     DAMAGE: { source: '#ffaa55', target: '#ff3344', glow: '#ff6644' },
+    EXECUTE: { source: '#ffaa55', target: '#ff3344', glow: '#ff6644' },
     HEAL: { source: '#a8ffd2', target: '#3ce08a', glow: '#5bffae' },
+    MAX_HP_BOOST: { source: '#a8ffd2', target: '#3ce08a', glow: '#5bffae' },
     SHIELD: { source: '#9adfff', target: '#76e6ff', glow: '#5cbcff' },
     BUFF_ATK: { source: '#9adfff', target: '#3ea6ff', glow: '#5cbcff' },
     BUFF_SPD: { source: '#9adfff', target: '#3ea6ff', glow: '#5cbcff' },
     SLOW: { source: '#dff0ff', target: '#7adfff', glow: '#a6edff' },
+    STUN: { source: '#ffe9a8', target: '#d9b25c', glow: '#ffd066' },
+    DRAW: { source: '#e2c2ff', target: '#9a55ff', glow: '#b985ff' },
     SWAP: { source: '#e2c2ff', target: '#9a55ff', glow: '#b985ff' },
     EVOLVE: { source: '#ffe9a8', target: '#ffd066', glow: '#ffe080' },
     default: { source: '#ffd28a', target: '#ff9a3c', glow: '#ffbd70' }
@@ -3599,11 +3612,15 @@
   }
 
   function effectClass(effect) {
-    if (effect === 'DAMAGE') return 'dmg';
-    if (effect === 'HEAL') return 'heal';
+    if (effect === 'DAMAGE' || effect === 'EXECUTE') return 'dmg';
+    if (effect === 'HEAL' || effect === 'MAX_HP_BOOST') return 'heal';
     if (effect === 'SHIELD') return 'shield';
     if (effect === 'EVOLVE') return 'evo';
     return 'buff';
+  }
+  /** "(all)" whenever a card sweeps its whole side, so the reach is on the face. */
+  function allSuffix(card) {
+    return (card.target === 'ALL_ENEMIES' || card.target === 'ALLY_ALL') ? ' (all)' : '';
   }
   function effectLabel(card) {
     switch (card.effect) {
@@ -3611,13 +3628,17 @@
         var boosted = (card.boostedValue != null && card.boostedValue > card.value)
           ? '<span class="pc-boost">' + card.boostedValue + '</span> <s>' + card.value + '</s>'
           : card.value;
-        return '⚔ ' + boosted + ' dmg' + (card.target === 'ALL_ENEMIES' ? ' (all)' : '');
+        return '⚔ ' + boosted + ' dmg' + allSuffix(card);
       }
-      case 'HEAL': return '➕ Heal ' + card.value + (card.target === 'ALLY_ALL' ? ' (all)' : '');
-      case 'SHIELD': return '🛡 Shield ' + card.value + (card.target === 'ALLY_ALL' ? ' (all)' : '');
-      case 'BUFF_ATK': return '↑ +' + card.value + ' attack (party)';
-      case 'BUFF_SPD': return '↑ +' + card.value + ' speed';
-      case 'SLOW': return '❄ Slow enemies';
+      case 'HEAL': return '➕ Heal ' + card.value + allSuffix(card);
+      case 'SHIELD': return '🛡 Shield ' + card.value + allSuffix(card);
+      case 'MAX_HP_BOOST': return '❤ +' + card.value + ' max HP' + allSuffix(card);
+      case 'BUFF_ATK': return '↑ +' + card.value + ' attack' + allSuffix(card);
+      case 'BUFF_SPD': return '↑ +' + card.value + ' speed' + allSuffix(card);
+      case 'SLOW': return '❄ Slow' + allSuffix(card);
+      case 'STUN': return '💫 Stun' + allSuffix(card);
+      case 'DRAW': return '🃏 Draw ' + card.value;
+      case 'EXECUTE': return '☠ Destroy';
       case 'SWAP': return '⇄ Swap notches';
       case 'EVOLVE': return '🌟 Evolve!';
       default: return card.effect;
