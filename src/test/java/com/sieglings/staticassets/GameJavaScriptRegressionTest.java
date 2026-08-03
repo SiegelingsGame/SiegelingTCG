@@ -290,6 +290,7 @@ class GameJavaScriptRegressionTest {
         String collection = extractFunction(homeScript, "function renderCollectionSnapshot(view)");
         String friends = extractFunction(homeScript, "function renderFriendsPanel(view)");
         String summary = extractFunction(homeScript, "function collectionSummary()");
+        String profile = extractFunction(homeScript, "function renderProfile()");
 
         assertTrue(
                 homeScript.contains("PROFILE_BATTLE_PREVIEW_MAX = 3")
@@ -320,11 +321,23 @@ class GameJavaScriptRegressionTest {
         assertTrue(
                 homeCss.contains(".battle-list-preview")
                         && homeCss.contains(".profile-social-panel")
-                        && homeCss.contains(".mini-card-row-art"),
+                        && homeCss.contains(".mini-card-row-art")
+                        && homeCss.contains(".profile-overview-stack")
+                        && homeCss.contains(".profile-main-grid-bottom"),
                 "Profile trim styles for battle preview, social shrink, and favorite card art must ship in home.css."
         );
         assertTrue(
-                homeMarkup.contains("home.js?v=123") && homeMarkup.contains("home.css?v=117"),
+                profile.contains("profile-main-grid-overview")
+                        && profile.contains("profile-overview-stack")
+                        && profile.indexOf("renderBattleRecordPanel(view)") < profile.indexOf("renderDeckSnapshot(view)")
+                        && profile.indexOf("renderDeckSnapshot(view)") < profile.indexOf("renderFriendsPanel(view)")
+                        && profile.indexOf("renderFriendsPanel(view)") < profile.indexOf("renderCollectionSnapshot(view)")
+                        && profile.contains("profile-main-grid-bottom")
+                        && profile.indexOf("renderBattleHistoryList(view)") < profile.indexOf("renderAchievementBadges(view)"),
+                "Season Snapshot, Loadout Shelf, and Social Table must share the overview rail, with matches and badges paired below."
+        );
+        assertTrue(
+                homeMarkup.contains("home.js?v=124") && homeMarkup.contains("home.css?v=119"),
                 "Cache-bust pins for the profile dashboard trim must advance on home.html."
         );
     }
@@ -352,9 +365,9 @@ class GameJavaScriptRegressionTest {
                 "Element-mode profile and friend avatars must fill a circular frame."
         );
         assertTrue(
-                homeMarkup.contains("home.css?v=117")
-                        && homeMarkup.contains("home.js?v=123")
-                        && dashboardMarkup.contains("home.css?v=117"),
+                homeMarkup.contains("home.css?v=119")
+                        && homeMarkup.contains("home.js?v=124")
+                        && dashboardMarkup.contains("home.css?v=119"),
                 "Profile icon CSS and JavaScript cache pins must advance together."
         );
     }
@@ -389,7 +402,7 @@ class GameJavaScriptRegressionTest {
                 homeMarkup.contains("style.css?v=217")
                         && homeMarkup.contains("game.js?v=220")
                         && homeMarkup.contains("card-binder-visual.js?v=20")
-                        && homeMarkup.contains("home.js?v=123")
+                        && homeMarkup.contains("home.js?v=124")
                         && playMarkup.contains("style.css?v=217")
                         && playMarkup.contains("game.js?v=220")
                         && dashboardMarkup.contains("style.css?v=217")

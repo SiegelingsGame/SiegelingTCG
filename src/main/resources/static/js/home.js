@@ -4759,18 +4759,18 @@
         body.innerHTML = `<div class="profile-dashboard" style="${profileThemeStyle(view.theme)}">
             ${renderProfileHero(view)}
             ${renderProfileStats(view)}
-            <div class="profile-main-grid">
-                ${renderBattleRecordPanel(view)}
-                ${renderCollectionSnapshot(view)}
-            </div>
-            <div class="profile-main-grid profile-main-grid-wide">
-                ${renderBattleHistoryList(view)}
-                <div class="profile-side-stack">
+            <div class="profile-main-grid profile-main-grid-overview">
+                <div class="profile-overview-stack">
+                    ${renderBattleRecordPanel(view)}
                     ${renderDeckSnapshot(view)}
                     ${renderFriendsPanel(view)}
                 </div>
+                ${renderCollectionSnapshot(view)}
             </div>
-            ${renderAchievementBadges(view)}
+            <div class="profile-main-grid profile-main-grid-bottom">
+                ${renderBattleHistoryList(view)}
+                ${renderAchievementBadges(view)}
+            </div>
         </div>`;
         renderEditProfileModalHost(view);
         renderBattleHistoryModalHost(view);

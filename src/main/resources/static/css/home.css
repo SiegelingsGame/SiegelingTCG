@@ -7135,8 +7135,14 @@ body.gacha-active {
     gap: 14px;
 }
 
-.profile-main-grid-wide {
-    grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.8fr);
+.profile-main-grid-bottom {
+    align-items: start;
+}
+
+.profile-overview-stack {
+    display: grid;
+    gap: 14px;
+    align-content: start;
 }
 
 .profile-panel {
@@ -7746,12 +7752,6 @@ body.gacha-active {
 .profile-lobby-main span {
     color: var(--text-dim);
     font-size: 11px;
-}
-
-.profile-side-stack {
-    display: grid;
-    gap: 14px;
-    align-content: start;
 }
 
 .friend-search-row {
@@ -8610,7 +8610,7 @@ body.gacha-active {
     .command-grid,
     .social-grid,
     .profile-main-grid,
-    .profile-main-grid-wide {
+    .profile-main-grid-bottom {
         grid-template-columns: 1fr;
     }
     .social-grid {
