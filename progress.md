@@ -1,3 +1,7 @@
+Original prompt: Merge and deploy
+
+- August 3, 2026 Production deploy of #640 (Keep damaged buildings block collect + interior repair notice). Merged as `7c116655`; Deploy run [30853153979](https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/30853153979) green — Cloud Run 4m15s, Firebase Hosting + Functions 2m18s. Live `/keep` serves `keep.css?v=52` / `keep.js?v=52` byte-identical to main, with `roomDamageNoticeMarkup` / `.interior-damage-card`. Editor `source: FIRESTORE` on Hosting and Cloud Run; `apiBaseUrl: ''`; `/api/game/options` 200; `/`, `/play`, `/siege`, `/home`, `/help`, `/keep` 200.
+
 Original prompt: In keep, when a building is destroyed you cannot collect from it until repaired. Going into the building should give a notice that it’s disabled until repaired with the repair timer
 
 - August 3, 2026 Damaged Keep production stations keep their stockpile but stay uncollectable until repaired. `KeepService` blocks woodlot/facility collect (and collect-all when only the damaged pile is ready) with a Rebuild… error; undamaged stations still pay out. Entering a damaged room replaces the collect/meter card with an `.interior-damage-card` notice (“Offline until repaired”) plus a live `data-live-repair-timer` clock and Open repair. Dock ready totals exclude damaged piles. Cache pins: `keep.css?v=52`, `keep.js?v=52`.
