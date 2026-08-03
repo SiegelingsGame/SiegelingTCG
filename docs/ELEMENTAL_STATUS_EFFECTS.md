@@ -230,33 +230,33 @@ then clear Wither.
 
 ## Siege mapping
 
-Siege still uses `StatusKind` with its own timing (chance on damage cards, round
-durations). `statusFor(Element)` reads this catalog:
+Siege uses `StatusKind` with its own timing (chance on damage cards, round
+durations). `statusFor(Element)` reads this catalog. **All rows below are wired
+in `SiegeCombatEngine`.**
 
-| Element | Siege `StatusKind` | Notes |
+| Element | Siege `StatusKind` | Siege contract |
 |---|---|---|
 | FIRE | `BURN` | End-of-round 1 dmg while active |
-| ICE | `SLOW` | −2 Speed for 2 rounds (freeze-at-3 is battle-table specific) |
-| EARTH | `STUN` | Skip next action (battle uses queue-bottom at 2) |
-| WIND | `DISORIENT` | Distinct from Electric |
-| ELECTRIC | `SHOCK` | Energy-spend pressure |
-| WATER | `SOAK` | |
-| METAL | `RUST` | |
-| POISON | `POISON` | End-of-round DoT today; heal-block is battle-table contract |
-| SHADOW | `CURSE` | |
-| PSYCHIC | `INSIGHT` | |
-| LIGHT | `BLIND` | |
-| UNDEAD | `WITHER` | |
+| ICE | `SLOW` | −2 Speed for 2 rounds; **reapply while Slow → also Stun** (freeze) |
+| EARTH | `STUN` | Skip next action |
+| WIND | `DISORIENT` | Owner's cards cost +1 AP while active |
+| ELECTRIC | `SHOCK` | Player: −1 party AP then clear; Enemy: next hit −2 dmg then clear |
+| WATER | `SOAK` | Incoming attacks deal +1 while soaked |
+| METAL | `RUST` | Next **Metal** hit +1, then clear Rust |
+| POISON | `POISON` | End-of-round 1 DoT; heals / max-HP surges clear Poison instead of restoring HP |
+| SHADOW | `CURSE` | Cannot evolve while Cursed |
+| PSYCHIC | `INSIGHT` | First hit marks; second hit → inflicter draws 1 (player) or heals 2 (enemy), then clear |
+| LIGHT | `BLIND` | Outgoing ability values −1 while blinded |
+| UNDEAD | `WITHER` | On owner's turn open: −1 current HP (min 1 left), then clear |
 
 Battle badge stacks and Siege round durations stay different cadences of the
 same fantasy.
 
 ---
 
-## Enabling the next status
+## Enabling a new status
 
-1. Set `battleEnabled = true` on the catalog row + tick/hooks in
-   `ElementalAfflictionService` (and payment / heal / queue seams as needed).
+1. Add/adjust catalog row + battle hooks in `ElementalAfflictionService` as needed.
 2. Badge art/label in `game.js` if missing.
-3. Siege: wire apply/tick in `SiegeCombatEngine` for that `StatusKind`.
+3. Siege: wire apply/tick in `SiegeCombatEngine` for that `StatusKind` + hand preview in `SiegeService`.
 4. Focused JUnit + `progress.md`.

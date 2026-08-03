@@ -1,6 +1,7 @@
 package com.sieglings.adventure;
 
 import com.sieglings.model.SieglingCard;
+import com.sieglings.model.enums.Element;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -24,9 +25,10 @@ import java.util.Random;
  *       {@link SiegeBattle#ACTIONS_PER_TURN} AP. Unused AP converts directly
  *       into SiegeKnight Ultimate Charge at the end of the turn.</li>
  *   <li><b>Elements</b>: no strengths or weaknesses — elements only carry status
- *       effects (Burn / Slow / Stun / Shock) applied by the chance written on
- *       each card. Damage is exactly the number written on the card, plus any
- *       explicit attack buff.</li>
+ *       effects from {@link SiegeContentService#statusFor} (Burn, Slow/Freeze,
+ *       Stun, Shock, Disorient, Poison, Soak, Rust, Curse, Insight, Blind,
+ *       Wither) applied by the chance written on each card. Damage is the
+ *       number written on the card, plus attack buffs and status riders.</li>
  *   <li><b>Positions</b>: Siegelings stand on notches. Enemies telegraph their
  *       next move against a notch; whoever stands there when it lands takes the
  *       hit, so notch-swap cards can dodge (or tank) a telegraphed blow.</li>
@@ -325,6 +327,12 @@ public class SiegeCombatEngine {
 
         expireShields(battle, Side.PLAYER);
 
+        // Wither (Undead): clamp HP as if max were lower, then clear — mirrors
+        // the battle-table Setup tick with Siege's turn-open cadence.
+        for (Combatant ally : battle.living(Side.PLAYER)) {
+            tickWither(battle, ally);
+        }
+
         // Shock: each shocked Siegeling drains 1 AP from the shared pool.
         int ap = SiegeBattle.ACTIONS_PER_TURN;
         // Boon (Vanguard Rush): +2 AP on the first round of each battle.
@@ -410,12 +418,16 @@ public class SiegeCombatEngine {
         }
 
         AbilitySpec spec = card.getSpec();
-        int cost = effectiveCost(battle, spec);
+        int cost = effectiveCost(battle, spec, attacker);
         if (battle.getActionPoints() < cost) {
             return PlayResult.fail("Not enough action points.");
         }
 
         if (spec.effect() == Effect.EVOLVE) {
+            // Curse (Shadow): cannot evolve while the badge remains.
+            if (attacker.has(StatusKind.CURSE)) {
+                return PlayResult.fail(attacker.getName() + " is cursed and cannot evolve.");
+            }
             // The evolution gauge must be filled first: 5 AP spent on this
             // Siegeling's own moves this battle.
             if (attacker.getApSpent() < SiegeBattle.EVOLVE_GAUGE) {
@@ -545,10 +557,11 @@ public class SiegeCombatEngine {
                 .orElse(List.of());
     }
 
-    /** 0-AP cards keep the turn open even at 0 AP. */
+    /** 0-AP cards keep the turn open even at 0 AP (after Disorient taxes). */
     private boolean hasPlayableFreeCard(SiegeBattle battle) {
         for (SiegeCard c : battle.getHand()) {
-            if (c.getSpec().actionCost() == 0 && attackerFor(battle, c) != null) return true;
+            Combatant owner = attackerFor(battle, c);
+            if (owner != null && effectiveCost(battle, c.getSpec(), owner) == 0) return true;
         }
         return false;
     }
@@ -573,9 +586,12 @@ public class SiegeCombatEngine {
                 "Ultimate unleashed (" + KNIGHT_ULT_DAMAGE + " dmg to all enemies)");
 
         StatusKind status = SiegeContentService.statusFor(knight.getElement());
+        AbilitySpec ultSpec = new AbilitySpec("knight-ult", "Knight Ultimate", knight.getElement(),
+                Effect.DAMAGE, KNIGHT_ULT_DAMAGE, TargetKind.ALL_ENEMIES, 0, "Knight Ultimate.");
         for (Combatant foe : new ArrayList<>(battle.living(Side.ENEMY))) {
             boolean wasAlive = foe.isAlive();
-            int dealt = foe.takeDamage(KNIGHT_ULT_DAMAGE);
+            int dmg = resolveAttackDamage(battle, knight, ultSpec, foe, KNIGHT_ULT_DAMAGE);
+            int dealt = foe.takeDamage(dmg);
             boolean killed = wasAlive && !foe.isAlive();
             battle.event("hit", "sourceId", knight.getId(), "targetId", foe.getId(),
                     "amount", dealt, "element", knight.getElement() == null ? null : knight.getElement().name(),
@@ -584,7 +600,7 @@ public class SiegeCombatEngine {
                     + (foe.isAlive() ? "" : " and is defeated!"));
             if (killed) battle.creditKill(knight.getId());
             if (foe.isAlive() && status != null) {
-                applyStatus(battle, foe, status);
+                applyStatus(battle, foe, status, knight, rng);
             }
         }
         checkEnd(run);
@@ -701,7 +717,7 @@ public class SiegeCombatEngine {
             case DAMAGE -> {
                 for (Combatant t : targets) {
                     boolean wasAlive = t.isAlive();
-                    int dmg = damageValue(attacker, spec);
+                    int dmg = resolveAttackDamage(battle, attacker, spec, t, damageValue(attacker, spec));
                     int dealt = t.takeDamage(dmg);
                     boolean killed = wasAlive && !t.isAlive();
                     battle.event("hit", "sourceId", attacker.getId(), "targetId", t.getId(),
@@ -711,20 +727,18 @@ public class SiegeCombatEngine {
                             + " takes " + dealt + (t.isAlive() ? "" : " and is defeated!"));
                     if (killed && t.getSide() == Side.ENEMY) battle.creditKill(attacker.getId());
                     if (t.isAlive()) {
-                        rollStatus(battle, spec, t, rng);
+                        rollStatus(battle, spec, t, attacker, rng);
                     }
                 }
             }
             case HEAL -> {
-                int amount = scaledMoveValue(attacker, spec.value());
+                int amount = effectValue(attacker, spec.value());
                 for (Combatant t : targets) {
-                    t.heal(amount);
-                    battle.event("heal", "sourceId", attacker.getId(), "targetId", t.getId(), "amount", amount);
-                    battle.log(attacker.getName() + " uses " + spec.name() + " → " + t.getName() + " heals " + amount + ".");
+                    applyHeal(battle, attacker, t, amount, spec.name());
                 }
             }
             case SHIELD -> {
-                int amount = scaledMoveValue(attacker, spec.value());
+                int amount = effectValue(attacker, spec.value());
                 for (Combatant t : targets) {
                     t.addShield(amount, shieldExpiryFor(battle, t));
                     battle.event("shield", "sourceId", attacker.getId(), "targetId", t.getId(), "amount", amount);
@@ -733,8 +747,17 @@ public class SiegeCombatEngine {
                 }
             }
             case MAX_HP_BOOST -> {
-                int amount = scaledMoveValue(attacker, spec.value());
+                int amount = effectValue(attacker, spec.value());
                 for (Combatant t : targets) {
+                    if (t.has(StatusKind.POISON)) {
+                        // Toxin/Poison: heals (including max-HP surge) strip the
+                        // badge instead of restoring HP.
+                        t.clearStatus(StatusKind.POISON);
+                        battle.event("status-consumed", "targetId", t.getId(), "status", "POISON");
+                        battle.log(attacker.getName() + " uses " + spec.name() + " → " + t.getName()
+                                + "'s toxin absorbs the surge.");
+                        continue;
+                    }
                     t.addBattleMaxHp(amount);
                     // Reported as a heal because that is what the player sees: the
                     // bar grows and fills by the same amount.
@@ -829,9 +852,10 @@ public class SiegeCombatEngine {
         return Math.max(1, (int) Math.round(target.getMaxHp() * EXECUTE_BOSS_FRACTION));
     }
 
-    /** Damage is the card's (level-scaled) value plus explicit attack buffs. */
+    /** Damage is the card's (level-scaled) value plus explicit attack buffs, after Blind. */
     private int damageValue(Combatant attacker, AbilitySpec spec) {
-        return Math.max(0, scaledMoveValue(attacker, spec.value()) + attacker.getAttackBuff());
+        int buff = attacker == null ? 0 : attacker.getAttackBuff();
+        return Math.max(0, effectValue(attacker, spec.value()) + buff);
     }
 
     /**
@@ -844,14 +868,96 @@ public class SiegeCombatEngine {
         return SiegeTuning.scaledMoveValue(base, attacker.getLevel());
     }
 
-    private void rollStatus(SiegeBattle battle, AbilitySpec spec, Combatant target, Random rng) {
+    /** Blind (Light): ability magnitudes drop by 1 while the badge remains. */
+    private int effectValue(Combatant attacker, int base) {
+        int v = scaledMoveValue(attacker, base);
+        if (attacker != null && attacker.has(StatusKind.BLIND)) {
+            v = Math.max(0, v - 1);
+        }
+        return v;
+    }
+
+    /**
+     * Soak (+1 taken) and Rust (next Metal hit +1 then clear) ride on resolved
+     * attack damage after the attacker's own modifiers.
+     */
+    private int resolveAttackDamage(SiegeBattle battle, Combatant attacker, AbilitySpec spec,
+                                    Combatant target, int baseDmg) {
+        int dmg = Math.max(0, baseDmg);
+        if (target.has(StatusKind.SOAK)) {
+            dmg += 1;
+        }
+        Element el = spec != null && spec.element() != null
+                ? spec.element()
+                : (attacker == null ? null : attacker.getElement());
+        if (target.has(StatusKind.RUST) && el == Element.METAL) {
+            dmg += 1;
+            target.clearStatus(StatusKind.RUST);
+            battle.event("status-consumed", "targetId", target.getId(), "status", "RUST");
+            battle.log(target.getName() + "'s rust flakes — the Metal strike bites deeper.");
+        }
+        return dmg;
+    }
+
+    /** Poison blocks healing; the heal amount clears the toxin instead. */
+    private void applyHeal(SiegeBattle battle, Combatant source, Combatant target, int amount, String moveName) {
+        if (target.has(StatusKind.POISON)) {
+            target.clearStatus(StatusKind.POISON);
+            battle.event("status-consumed", "targetId", target.getId(), "status", "POISON");
+            battle.log((source == null ? target.getName() : source.getName())
+                    + (moveName == null ? "" : " uses " + moveName + " → ")
+                    + target.getName() + "'s toxin absorbs the heal.");
+            return;
+        }
+        target.heal(amount);
+        battle.event("heal",
+                "sourceId", source == null ? target.getId() : source.getId(),
+                "targetId", target.getId(),
+                "amount", amount);
+        if (moveName != null && source != null) {
+            battle.log(source.getName() + " uses " + moveName + " → " + target.getName() + " heals " + amount + ".");
+        }
+    }
+
+    private void rollStatus(SiegeBattle battle, AbilitySpec spec, Combatant target, Combatant inflicter, Random rng) {
         if (spec.status() == null || spec.statusChance() <= 0) return;
         if (rng.nextInt(100) < spec.statusChance()) {
-            applyStatus(battle, target, spec.status());
+            applyStatus(battle, target, spec.status(), inflicter, rng);
         }
     }
 
     private void applyStatus(SiegeBattle battle, Combatant target, StatusKind status) {
+        applyStatus(battle, target, status, null, null);
+    }
+
+    private void applyStatus(SiegeBattle battle, Combatant target, StatusKind status,
+                             Combatant inflicter, Random rng) {
+        // Insight (Psychic): first hit marks; a second hit draws for the
+        // inflicter's side and clears the mark (Siege's stack-cap payoff).
+        if (status == StatusKind.INSIGHT && target.has(StatusKind.INSIGHT)) {
+            target.clearStatus(StatusKind.INSIGHT);
+            battle.event("status-consumed", "targetId", target.getId(), "status", "INSIGHT");
+            if (inflicter != null && inflicter.getSide() == Side.PLAYER && rng != null) {
+                int before = battle.getHand().size();
+                draw(battle, 1, rng);
+                int drawn = battle.getHand().size() - before;
+                if (drawn > 0) {
+                    battle.event("draw", "count", drawn, "reason", "INSIGHT");
+                    battle.log(inflicter.getName() + " reads the Insight and draws " + drawn + ".");
+                }
+            } else if (inflicter != null && inflicter.getSide() == Side.ENEMY) {
+                inflicter.heal(2);
+                battle.event("heal", "sourceId", inflicter.getId(), "targetId", inflicter.getId(), "amount", 2);
+                battle.log(inflicter.getName() + " reads the Insight and recovers 2.");
+            } else {
+                battle.log(target.getName() + "'s Insight clears.");
+            }
+            return;
+        }
+
+        // Ice Slow reapplication freezes (Stun) — Siege's stand-in for Chill→Freeze.
+        boolean freezeFromSlow = status == StatusKind.SLOW && target.has(StatusKind.SLOW);
+
         int rounds = switch (status) {
             case BURN, POISON -> SiegeBattle.BURN_ROUNDS;
             case SLOW -> SiegeBattle.SLOW_ROUNDS;
@@ -861,6 +967,25 @@ public class SiegeCombatEngine {
         target.applyStatus(status, rounds);
         battle.event("status", "targetId", target.getId(), "status", status.name());
         battle.log(target.getName() + " is " + statusVerb(status) + "!");
+
+        if (freezeFromSlow) {
+            target.applyStatus(StatusKind.STUN, 2);
+            battle.event("status", "targetId", target.getId(), "status", "STUN");
+            battle.log(target.getName() + " freezes solid!");
+        }
+    }
+
+    /** Wither (Undead): lose 1 current HP (as if max shrank), then clear. */
+    private void tickWither(SiegeBattle battle, Combatant c) {
+        if (c == null || !c.isAlive() || !c.has(StatusKind.WITHER)) return;
+        int before = c.getHp();
+        if (before > 1) {
+            c.setHp(before - 1);
+        }
+        c.clearStatus(StatusKind.WITHER);
+        battle.event("wither", "targetId", c.getId(), "amount", Math.max(0, before - c.getHp()));
+        battle.event("status-consumed", "targetId", c.getId(), "status", "WITHER");
+        battle.log(c.getName() + " withers" + (before > c.getHp() ? " (−1 HP)." : "."));
     }
 
     private String statusVerb(StatusKind status) {
@@ -900,6 +1025,9 @@ public class SiegeCombatEngine {
     private void resolveEnemyTurn(SiegeRun run, Random rng) {
         SiegeBattle battle = run.getBattle();
         expireShields(battle, Side.ENEMY);
+        for (Combatant foe : battle.living(Side.ENEMY)) {
+            tickWither(battle, foe);
+        }
         List<Combatant> foes = new ArrayList<>(battle.living(Side.ENEMY));
         foes.sort(Comparator.comparingInt(Combatant::effectiveSpeed).reversed());
 
@@ -936,13 +1064,21 @@ public class SiegeCombatEngine {
 
         switch (choice.effect()) {
             case HEAL -> {
-                foe.heal(choice.value());
-                battle.event("heal", "sourceId", foe.getId(), "targetId", foe.getId(), "amount", choice.value());
-                battle.log(foe.getName() + " uses " + choice.name() + " and recovers " + choice.value() + ".");
+                int amount = effectValue(foe, choice.value());
+                if (foe.has(StatusKind.POISON)) {
+                    foe.clearStatus(StatusKind.POISON);
+                    battle.event("status-consumed", "targetId", foe.getId(), "status", "POISON");
+                    battle.log(foe.getName() + "'s toxin absorbs the recover.");
+                } else {
+                    foe.heal(amount);
+                    battle.event("heal", "sourceId", foe.getId(), "targetId", foe.getId(), "amount", amount);
+                    battle.log(foe.getName() + " uses " + choice.name() + " and recovers " + amount + ".");
+                }
             }
             case SHIELD -> {
-                foe.addShield(choice.value(), shieldExpiryFor(battle, foe));
-                battle.event("shield", "sourceId", foe.getId(), "targetId", foe.getId(), "amount", choice.value());
+                int amount = effectValue(foe, choice.value());
+                foe.addShield(amount, shieldExpiryFor(battle, foe));
+                battle.event("shield", "sourceId", foe.getId(), "targetId", foe.getId(), "amount", amount);
                 battle.log(foe.getName() + " uses " + choice.name() + " and braces.");
             }
             case DAMAGE -> {
@@ -979,10 +1115,17 @@ public class SiegeCombatEngine {
      * (BOSS_AP_DISCOUNT) shaves 1 AP off every move during boss battles (min 0);
      * outside Battlegrounds no boons are active so the base cost is returned.
      */
-    private int effectiveCost(SiegeBattle battle, AbilitySpec spec) {
+    /**
+     * AP cost after Battlegrounds boons and Disorient (Wind): the owner's cards
+     * cost +1 AP while disoriented.
+     */
+    int effectiveCost(SiegeBattle battle, AbilitySpec spec, Combatant owner) {
         int cost = spec.actionCost();
         if (battle.getNodeType() == NodeType.BOSS && battle.hasBoon(SiegeBoon.BOSS_AP_DISCOUNT)) {
             cost = Math.max(0, cost - SiegeBoon.BOSS_AP_DISCOUNT_AMOUNT);
+        }
+        if (owner != null && !owner.isKnight() && owner.has(StatusKind.DISORIENT)) {
+            cost += 1;
         }
         return cost;
     }
@@ -1005,7 +1148,8 @@ public class SiegeCombatEngine {
 
     private void strikeAlly(SiegeBattle battle, Combatant foe, AbilitySpec choice, Combatant ally, int dmg, Random rng) {
         boolean wasAlive = ally.isAlive();
-        int dealt = ally.takeDamage(dmg);
+        int resolved = resolveAttackDamage(battle, foe, choice, ally, dmg);
+        int dealt = ally.takeDamage(resolved);
         battle.event("hit", "sourceId", foe.getId(), "targetId", ally.getId(), "amount", dealt,
                 "element", foe.getElement() == null ? null : foe.getElement().name(),
                 "ko", wasAlive && !ally.isAlive());
@@ -1016,7 +1160,7 @@ public class SiegeCombatEngine {
         } else {
             StatusKind status = SiegeContentService.statusFor(foe.getElement());
             if (status != null && rng.nextInt(100) < ENEMY_STATUS_CHANCE) {
-                applyStatus(battle, ally, status);
+                applyStatus(battle, ally, status, foe, rng);
             }
         }
     }
@@ -1025,7 +1169,8 @@ public class SiegeCombatEngine {
         Combatant knight = battle.knight();
         if (knight == null || !knight.isAlive()) return;
         boolean wasAlive = knight.isAlive();
-        int dealt = knight.takeDamage(dmg);
+        int resolved = resolveAttackDamage(battle, foe, choice, knight, dmg);
+        int dealt = knight.takeDamage(resolved);
         battle.event("hit", "sourceId", foe.getId(), "targetId", knight.getId(), "amount", dealt,
                 "element", foe.getElement() == null ? null : foe.getElement().name(),
                 "ko", wasAlive && !knight.isAlive());
@@ -1042,9 +1187,9 @@ public class SiegeCombatEngine {
         battle.log(fallen.getName() + "'s fall wounds " + knight.getName() + " for " + dealt + "!");
     }
 
-    /** A shocked enemy's next hit is blunted (its "lost AP"). */
+    /** A shocked enemy's next hit is blunted (its "lost AP"); Blind also softens it. */
     private int enemyDamage(SiegeBattle battle, Combatant foe, AbilitySpec spec) {
-        int dmg = spec.value();
+        int dmg = effectValue(foe, spec.value());
         if (foe.has(StatusKind.SHOCK)) {
             foe.clearStatus(StatusKind.SHOCK);
             dmg = Math.max(0, dmg - 2);

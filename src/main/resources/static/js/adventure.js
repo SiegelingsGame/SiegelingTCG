@@ -42,19 +42,18 @@
     PSYCHIC: '#c896ff', POISON: '#78dc50', LIGHT: '#fff0b0', NEUTRAL: '#95a5a6'
   };
   var STATUS_META = {
-    BURN: { icon: '🔥', label: 'Burn' },
-    SLOW: { icon: '❄️', label: 'Slow' },
-    STUN: { icon: '💫', label: 'Stun' },
-    SHOCK: { icon: '⚡', label: 'Shock' },
-    DISORIENT: { icon: '🌬️', label: 'Disorient' },
-    // Catalog-mapped extensions (shared with battle ElementalAfflictionCatalog)
-    POISON: { icon: '☠️', label: 'Poison' },
-    SOAK: { icon: '💧', label: 'Soak' },
-    RUST: { icon: '⚙️', label: 'Rust' },
-    CURSE: { icon: '🌑', label: 'Curse' },
-    INSIGHT: { icon: '👁️', label: 'Insight' },
-    BLIND: { icon: '✨', label: 'Blind' },
-    WITHER: { icon: '💀', label: 'Wither' }
+    BURN: { icon: '🔥', label: 'Burn', tip: '1 damage at end of round' },
+    SLOW: { icon: '❄️', label: 'Slow', tip: '−2 Speed; reapply freezes' },
+    STUN: { icon: '💫', label: 'Stun', tip: 'Skips next action' },
+    SHOCK: { icon: '⚡', label: 'Shock', tip: 'Drains AP / weakens next hit' },
+    DISORIENT: { icon: '🌬️', label: 'Disorient', tip: 'Cards cost +1 AP' },
+    POISON: { icon: '☠️', label: 'Poison', tip: 'End-round DoT; blocks heals' },
+    SOAK: { icon: '💧', label: 'Soak', tip: 'Takes +1 from attacks' },
+    RUST: { icon: '⚙️', label: 'Rust', tip: 'Next Metal hit +1, then clears' },
+    CURSE: { icon: '🌑', label: 'Curse', tip: 'Cannot evolve' },
+    INSIGHT: { icon: '👁️', label: 'Insight', tip: 'Second hit draws / pays off' },
+    BLIND: { icon: '✨', label: 'Blind', tip: 'Ability values −1' },
+    WITHER: { icon: '💀', label: 'Wither', tip: '−1 HP at turn start' }
   };
   var NODE_ICON = { BATTLE: '⚔️', ELITE: '🔺', REST: '🏕️', TREASURE: '💎', BROKER: '🐾', SMITH: '🔨', CARAVAN: '🐫', EVENT: '❔', BOSS: '👑' };
   var NODE_TINT = { BATTLE: '#8fa3bf', ELITE: '#ff6e6e', REST: '#7ee787', TREASURE: '#ffd066', BROKER: '#c896ff', BOSS: '#ff9a3c' };
@@ -2766,7 +2765,9 @@
       var buff = u.attackBuff > 0 ? '<span class="sp-buff">⚔+' + u.attackBuff + '</span>' : '';
       var statusChips = (u.statuses || []).map(function (s) {
         var meta = STATUS_META[s];
-        return meta ? '<span class="sp-status st-' + s + '" title="' + meta.label + '">' + meta.icon + '</span>' : '';
+        if (!meta) return '';
+        var tip = meta.tip ? (meta.label + ' — ' + meta.tip) : meta.label;
+        return '<span class="sp-status st-' + s + '" title="' + tip + '">' + meta.icon + '</span>';
       }).join('');
       var body = u.artUrl
         ? '<div class="sp-art"><img src="' + artAttr(u.artUrl) + '" alt="" draggable="false" ' +
@@ -2880,6 +2881,14 @@
         flashSprite(ev.targetId, 'hurt');
         floatText(ev.targetId, '-' + ev.amount + ' 🔥', 'dmg');
         return 420;
+      case 'poison':
+        flashSprite(ev.targetId, 'hurt');
+        floatText(ev.targetId, '-' + ev.amount + ' ☠️', 'dmg');
+        return 420;
+      case 'wither':
+        flashSprite(ev.targetId, 'hurt');
+        floatText(ev.targetId, (ev.amount ? ('-' + ev.amount + ' ') : '') + '💀', 'dmg');
+        return 400;
       case 'heal':
         flashSprite(ev.targetId, 'healed');
         floatText(ev.targetId, '+' + ev.amount, 'heal');

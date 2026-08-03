@@ -3525,24 +3525,32 @@ public class SiegeService {
                     ? (knightUnit != null ? knightUnit.isAlive() : !battle.living(Side.PLAYER).isEmpty())
                     : owner != null && owner.isAlive();
             boolean ownerReady = knightCard || owner == null || !owner.has(StatusKind.STUN);
-            boolean affordable = battle.getActionPoints() >= spec.actionCost();
+            Combatant swinging = knightCard ? knightUnit : owner;
+            int displayCost = engine.effectiveCost(battle, spec, swinging);
+            boolean affordable = battle.getActionPoints() >= displayCost;
             // Evolution cards also require the owner's gauge (5 AP of own moves).
             boolean gaugeOk = spec.effect() != Effect.EVOLVE
-                    || (owner != null && owner.getApSpent() >= SiegeBattle.EVOLVE_GAUGE);
+                    || (owner != null && owner.getApSpent() >= SiegeBattle.EVOLVE_GAUGE
+                    && !owner.has(StatusKind.CURSE));
             Map<String, Object> h = new LinkedHashMap<>();
             h.put("instanceId", card.getInstanceId());
             h.put("name", spec.name());
             h.put("element", spec.element().name());
             h.put("effect", spec.effect().name());
             h.put("value", spec.value());
-            if (spec.effect() == Effect.DAMAGE) {
-                // Attack buffs land on the Siegelings a boost card actually named,
-                // so the preview reads the buff of the unit that will swing.
-                Combatant swinging = knightCard ? knightUnit : owner;
-                h.put("boostedValue", spec.value() + (swinging == null ? 0 : swinging.getAttackBuff()));
+            if (spec.effect() == Effect.DAMAGE || spec.effect() == Effect.HEAL
+                    || spec.effect() == Effect.SHIELD || spec.effect() == Effect.MAX_HP_BOOST) {
+                // Attack buffs + Blind (Light −1) land on the unit that will act,
+                // so the hand preview matches the resolved number.
+                int preview = spec.value() + (spec.effect() == Effect.DAMAGE && swinging != null
+                        ? swinging.getAttackBuff() : 0);
+                if (swinging != null && swinging.has(StatusKind.BLIND)) {
+                    preview = Math.max(0, preview - 1);
+                }
+                h.put("boostedValue", preview);
             }
             h.put("target", spec.target().name());
-            h.put("actionCost", spec.actionCost());
+            h.put("actionCost", displayCost);
             h.put("description", spec.description());
             if (spec.status() != null && spec.statusChance() > 0) {
                 h.put("status", spec.status().name());
@@ -3554,6 +3562,9 @@ public class SiegeService {
             if (spec.effect() == Effect.EVOLVE && owner != null) {
                 h.put("gauge", Math.min(owner.getApSpent(), SiegeBattle.EVOLVE_GAUGE));
                 h.put("gaugeMax", SiegeBattle.EVOLVE_GAUGE);
+                if (owner.has(StatusKind.CURSE)) {
+                    h.put("blockedBy", "CURSE");
+                }
             }
             h.put("playable", playerTurn && ownerAlive && ownerReady && affordable && gaugeOk);
             hand.add(h);
