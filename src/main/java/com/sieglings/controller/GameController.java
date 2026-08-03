@@ -177,7 +177,10 @@ public class GameController {
         try {
             String roomId = req == null ? null : (String) req.get("roomId");
             String playerName = req == null ? null : (String) req.get("playerName");
-            GameService.StartOptions options = parseStartOptions(req, "deck_water_wind", "trainer06");
+            // Fallback deck must be one of the always-free main-element decks —
+            // Stormtide (Water/Wind) is now a locked deck for most accounts, so a
+            // join that omits its deck would be rejected by the unlock check.
+            GameService.StartOptions options = parseStartOptions(req, "deck_fire_earth", "trainer06");
             AccountUser user = accountService.findUser(authorizationHeader);
             validateStartOwnership(user, options);
             // Battle is a flat-power mode: SiegeKnight levels do not apply here. The
@@ -1654,12 +1657,28 @@ public class GameController {
             throw new IllegalArgumentException("You haven't unlocked that SiegeKnight yet. Pull it from a pack first.");
         }
         if (options.customDeckCards() == null || options.customDeckCards().isEmpty()) {
+            validatePremadeDeckUnlocked(user, options.playerDeckId());
             return;
         }
         if (user == null) {
             throw new IllegalArgumentException("Sign in to use custom decks.");
         }
         playerProgressionService.validateCustomDeckOwnership(user, options.customDeckCards());
+    }
+
+    /**
+     * Premade decks outside the free main-four (plus the player's starter element)
+     * have to be bought first. Guests are held to the free set — they have no
+     * starter element and nowhere to store a purchase.
+     */
+    private void validatePremadeDeckUnlocked(AccountUser user, String deckId) {
+        if (deckId == null || deckId.isBlank()) {
+            return;
+        }
+        if (!playerProgressionService.isPremadeDeckUnlockedForUser(user, deckId)) {
+            throw new IllegalArgumentException("That premade deck is locked. Unlock it for "
+                    + PlayerProgressionService.PREMADE_DECK_PRICE + " Siegecoins in Decks.");
+        }
     }
 
     private static String normalizeTrainerId(String trainerId) {

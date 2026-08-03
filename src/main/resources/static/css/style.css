@@ -10398,6 +10398,24 @@ body.placement-active .board-cell.legal {
     transform: translateY(-2px);
 }
 
+/* Premade decks the player hasn't unlocked: shown so the roster stays complete,
+   but not selectable — they're bought in Decks and the backend rejects them. */
+.deck-card.is-locked {
+    filter: grayscale(0.75);
+    cursor: not-allowed;
+}
+
+.deck-card.is-locked:hover {
+    transform: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    border-color: var(--deck-border, rgba(255, 255, 255, 0.08));
+}
+
+.deck-card.is-locked .deck-card-state {
+    color: #f6f8ff;
+    background: linear-gradient(180deg, #55607a, #2b3245);
+}
+
 .deck-card-spine {
     position: absolute;
     top: 0;

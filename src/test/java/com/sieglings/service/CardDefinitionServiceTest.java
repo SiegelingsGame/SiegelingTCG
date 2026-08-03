@@ -31,6 +31,38 @@ class CardDefinitionServiceTest {
     private final CardDefinitionService cardDefinitions = new CardDefinitionService();
 
     @Test
+    void deckOptionsLeadWithTheMainFourElements() {
+        List<CardDefinitionService.DeckOption> options = cardDefinitions.getDeckOptions();
+        List<Element> leadingSingletons = options.stream()
+                .filter(option -> option.elements().size() == 1)
+                .map(option -> option.elements().get(0))
+                .distinct()
+                .toList();
+
+        assertEquals(
+                List.of(Element.FIRE, Element.ICE, Element.EARTH, Element.WIND),
+                leadingSingletons.subList(0, 4),
+                "Fire, Ice, Earth, and Wind singleton decks must lead the list."
+        );
+        assertTrue(
+                options.stream().limit(4).allMatch(option -> option.elements().size() == 1
+                        && PlayerProgressionService.FREE_DECK_ELEMENTS.contains(option.elements().get(0))),
+                "The first four options should be the free main-four singletons, not mixed Fire decks."
+        );
+        List<Element> leadingElements = options.stream()
+                .map(option -> option.elements().get(0))
+                .distinct()
+                .toList();
+        assertIterableEquals(
+                LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER.stream()
+                        .filter(leadingElements::contains)
+                        .toList(),
+                leadingElements,
+                "Deck order follows the canonical roster order among leading elements."
+        );
+    }
+
+    @Test
     void everyPresetDeckUsesBalancedPresetComposition() {
         Map<String, SieglingCard> sieglingsById = cardDefinitions.getDeckBuilderCatalog().stream()
                 .filter(SieglingCard.class::isInstance)
