@@ -4,11 +4,14 @@ import com.sieglings.model.Ability;
 import com.sieglings.model.CardInstance;
 import com.sieglings.model.ElementalAfflictionCatalog;
 import com.sieglings.model.ElementalAfflictionDef;
+import com.sieglings.model.ElementalAfflictions;
 import com.sieglings.model.GameState;
 import com.sieglings.model.Player;
 import com.sieglings.model.enums.Element;
 import com.sieglings.model.enums.ElementalAffliction;
 import com.sieglings.model.enums.StatusEffect;
+import jakarta.annotation.PostConstruct;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -16,9 +19,22 @@ import java.util.List;
 /**
  * Battle-table runtime for elemental damage afflictions.
  * Design data: {@link ElementalAfflictionCatalog} / {@code docs/ELEMENTAL_STATUS_EFFECTS.md}.
+ * Master switch: {@code app.battle.elemental-afflictions-enabled} → {@link ElementalAfflictions}.
  */
 @Service
 public class ElementalAfflictionService {
+
+    @Value("${app.battle.elemental-afflictions-enabled:true}")
+    private boolean configuredEnabled = true;
+
+    @PostConstruct
+    void applyConfiguredToggle() {
+        ElementalAfflictions.setEnabled(configuredEnabled);
+    }
+
+    public boolean isEnabled() {
+        return ElementalAfflictions.isEnabled();
+    }
 
     /**
      * After elemental damage deals HP, apply that element's affliction badge and
@@ -31,7 +47,7 @@ public class ElementalAfflictionService {
             int hpDamageDealt,
             boolean inflicterIsPlayer
     ) {
-        if (state == null || target == null || !target.isAlive() || hpDamageDealt <= 0) {
+        if (!isEnabled() || state == null || target == null || !target.isAlive() || hpDamageDealt <= 0) {
             return;
         }
         ElementalAfflictionDef def = ElementalAfflictionCatalog.forElement(damageElement).orElse(null);
@@ -61,7 +77,7 @@ public class ElementalAfflictionService {
     }
 
     public void tickOwnerSetup(GameState state, boolean ownerSide) {
-        if (state == null) return;
+        if (!isEnabled() || state == null) return;
         for (int r = 0; r < 3; r++) {
             for (int c = 0; c < 3; c++) {
                 CardInstance ci = state.getAt(ownerSide, r, c);
@@ -75,30 +91,32 @@ public class ElementalAfflictionService {
     }
 
     public boolean hasCurse(CardInstance ci) {
-        return ci != null && ci.getAfflictionStacks(ElementalAffliction.CURSE) > 0;
+        return isEnabled() && ci != null && ci.getAfflictionStacks(ElementalAffliction.CURSE) > 0;
     }
 
     public boolean isChillFrozen(CardInstance ci) {
-        return ci != null && ci.getAfflictionStacks(ElementalAffliction.CHILL) >= 3;
+        return isEnabled() && ci != null && ci.getAfflictionStacks(ElementalAffliction.CHILL) >= 3;
     }
 
     public boolean isStaggeredToBack(CardInstance ci) {
-        return ci != null && ci.getAfflictionStacks(ElementalAffliction.STAGGER) >= 2;
+        return isEnabled() && ci != null && ci.getAfflictionStacks(ElementalAffliction.STAGGER) >= 2;
     }
 
     public int chillSpeedPenalty(CardInstance ci) {
-        return ci == null ? 0 : ci.getAfflictionStacks(ElementalAffliction.CHILL);
+        if (!isEnabled() || ci == null) return 0;
+        return ci.getAfflictionStacks(ElementalAffliction.CHILL);
     }
 
     public int soakBonus(CardInstance target) {
-        return target == null ? 0 : target.getAfflictionStacks(ElementalAffliction.SOAK);
+        if (!isEnabled() || target == null) return 0;
+        return target.getAfflictionStacks(ElementalAffliction.SOAK);
     }
 
     /**
      * Bonus damage from Rust when the hit is Metal; clears Rust after contributing.
      */
     public int rustBonusAndClear(GameState state, CardInstance target, Element damageElement) {
-        if (target == null || damageElement != Element.METAL) {
+        if (!isEnabled() || target == null || damageElement != Element.METAL) {
             return 0;
         }
         int rust = target.getAfflictionStacks(ElementalAffliction.RUST);
@@ -114,7 +132,7 @@ public class ElementalAfflictionService {
 
     /** Blind reduces outgoing ability values (floor 0; callers may enforce min 1 for damage). */
     public int applyBlindToValue(CardInstance source, int value) {
-        if (source == null || value <= 0) {
+        if (!isEnabled() || source == null || value <= 0) {
             return value;
         }
         int blind = source.getAfflictionStacks(ElementalAffliction.BLIND);
@@ -132,6 +150,11 @@ public class ElementalAfflictionService {
     public int applyHealWithToxin(GameState state, CardInstance target, int healAmount) {
         if (target == null || healAmount <= 0) {
             return 0;
+        }
+        if (!isEnabled()) {
+            int before = target.getCurrentHealth();
+            target.healDamage(healAmount);
+            return Math.max(0, target.getCurrentHealth() - before);
         }
         int toxin = target.getAfflictionStacks(ElementalAffliction.TOXIN);
         if (toxin <= 0) {
@@ -163,6 +186,9 @@ public class ElementalAfflictionService {
         }
         Ability ability = abilities.get(index);
         int cost = Math.max(0, ability.getRequiredEnergy());
+        if (!isEnabled()) {
+            return cost;
+        }
         int disorient = attacker.getAfflictionStacks(ElementalAffliction.DISORIENT);
         if (disorient <= 0 || abilities.isEmpty()) {
             return cost;
@@ -187,7 +213,8 @@ public class ElementalAfflictionService {
      * must afford {@code cost + shockStacks}.
      */
     public int shockSpendTax(CardInstance attacker) {
-        return attacker == null ? 0 : attacker.getAfflictionStacks(ElementalAffliction.SHOCK);
+        if (!isEnabled() || attacker == null) return 0;
+        return attacker.getAfflictionStacks(ElementalAffliction.SHOCK);
     }
 
     public static Element damageElementFor(CardInstance source, Element spellOrAbilityElement) {

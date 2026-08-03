@@ -1,3 +1,8 @@
+Original prompt: Ok make this a single toggle that we can turn off in the future if needed and Merge and deploy
+
+- August 3, 2026 Elemental afflictions master toggle: `app.battle.elemental-afflictions-enabled` (default `true`) gates the whole battle affliction system through `ElementalAfflictions.isEnabled()` — inflict, Setup ticks, Shock/Disorient costs, Soak/Rust/Blind/Toxin/Curse, and Chill speed. Flip the property to `false` to disable without removing the framework.
+- Verification: focused toggle-off test in `ElementalAfflictionServiceTest`; full suite green; then merge + production deploy.
+
 Original prompt: Update the game and make these active today
 
 - August 3, 2026 Elemental afflictions activated in battle: every non-neutral catalog row is now `battleEnabled`. Wiring covers inflict-on-HP-damage plus: Burn/Wither/Chill-thaw on owner Setup; Chill Speed penalty and Freeze-at-3 that lasts until Setup; Stagger×2 bottom-of-queue; Shock spend tax and Disorient lowest-cost bump in `BattleService.getAvailableAbilities`; Soak/+Rust on incoming hits (Rust Metal-only then clear); Toxin heal absorption; Blind outgoing value reduction; Insight draw-at-3 for the inflicter; Curse blocks claim and evolve (server + `game.js` highlights). Cache pin `game.js?v=225`.

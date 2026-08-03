@@ -3,6 +3,7 @@ package com.sieglings.service;
 import com.sieglings.model.Ability;
 import com.sieglings.model.CardInstance;
 import com.sieglings.model.ElementalAfflictionCatalog;
+import com.sieglings.model.ElementalAfflictions;
 import com.sieglings.model.GameState;
 import com.sieglings.model.Player;
 import com.sieglings.model.SieglingCard;
@@ -12,13 +13,12 @@ import com.sieglings.model.enums.ElementalAffliction;
 import com.sieglings.model.enums.Phase;
 import com.sieglings.model.enums.Rarity;
 import com.sieglings.model.enums.Row;
-import com.sieglings.model.enums.StatusEffect;
 import com.sieglings.model.enums.TargetType;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -35,6 +35,7 @@ class ElementalAfflictionServiceTest {
 
     @BeforeEach
     void wire() {
+        ElementalAfflictions.setEnabled(true);
         ReflectionTestUtils.setField(effectService, "elementalAfflictionService", afflictions);
         ReflectionTestUtils.setField(battleService, "effectService", effectService);
         ReflectionTestUtils.setField(battleService, "energyService", energyService);
@@ -43,6 +44,37 @@ class ElementalAfflictionServiceTest {
         ReflectionTestUtils.setField(gameService, "energyService", energyService);
         ReflectionTestUtils.setField(gameService, "placementService", new PlacementService());
         ReflectionTestUtils.setField(gameService, "effectService", effectService);
+    }
+
+    @AfterEach
+    void restoreToggle() {
+        ElementalAfflictions.setEnabled(true);
+    }
+
+    @Test
+    void masterToggleDisablesInflictAndPassiveTaxes() {
+        ElementalAfflictions.setEnabled(false);
+        GameState state = battleState();
+        CardInstance attacker = instance("ember", Element.FIRE, 1, 0, true);
+        CardInstance target = instance("frost", Element.ICE, 1, 1, false);
+        target.addAfflictionStacks(ElementalAffliction.SOAK, 3, 5);
+        target.addAfflictionStacks(ElementalAffliction.BURN, 2, 5);
+        state.setAt(true, 1, 0, attacker);
+        state.setAt(false, 1, 1, target);
+
+        effectService.resolveAbility(state,
+                Ability.damage("Ember Strike", "Deal 3", TargetType.SINGLE_ENEMY, null, 1, 3),
+                attacker, true, 1, 1);
+
+        // Weakness still applies; Soak tax and Burn inflict do not.
+        assertEquals(6, target.getCurrentHealth());
+        assertEquals(2, target.getAfflictionStacks(ElementalAffliction.BURN)); // pre-seeded, not increased
+        assertEquals(0, afflictions.soakBonus(target));
+        assertEquals(0, afflictions.shockSpendTax(attacker));
+
+        afflictions.tickOwnerSetup(state, false);
+        assertEquals(2, target.getAfflictionStacks(ElementalAffliction.BURN), "Setup ticks are off");
+        assertEquals(6, target.getCurrentHealth());
     }
 
     @Test

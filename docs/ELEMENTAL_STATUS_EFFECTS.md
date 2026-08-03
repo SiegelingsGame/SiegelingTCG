@@ -8,6 +8,11 @@ ride on damage of a given element.
 
 All non-neutral rows are `battleEnabled = true` and live in standard battle.
 
+**Master switch:** `app.battle.elemental-afflictions-enabled` in
+`application.properties` (default `true`). Set to `false` to disable inflict,
+Setup ticks, cost taxes, Soak/Rust/Blind/Toxin/Curse, and Chill speed — without
+deleting the framework. Runtime reads {@code ElementalAfflictions.isEnabled()}.
+
 ---
 
 ## Shared inflict rules

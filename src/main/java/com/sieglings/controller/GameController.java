@@ -1600,7 +1600,8 @@ public class GameController {
             ability.put("effectType", option.getAbility().getEffectType());
             int effectValue = option.getAbility().getEffectValue();
             // Blind is already reflected in resolution; surface the reduced value in the panel too.
-            if (attacker.getAfflictionStacks(ElementalAffliction.BLIND) > 0 && effectValue > 0) {
+            if (com.sieglings.model.ElementalAfflictions.isEnabled()
+                    && attacker.getAfflictionStacks(ElementalAffliction.BLIND) > 0 && effectValue > 0) {
                 effectValue = Math.max(0, effectValue - attacker.getAfflictionStacks(ElementalAffliction.BLIND));
                 if (AbilityEffectKeys.DAMAGE.equals(option.getAbility().getEffectType())) {
                     effectValue = Math.max(1, effectValue);
