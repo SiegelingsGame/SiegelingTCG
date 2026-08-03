@@ -404,11 +404,11 @@ class GameJavaScriptRegressionTest {
         String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
         assertTrue(
                 homeMarkup.contains("style.css?v=220")
-                        && homeMarkup.contains("game.js?v=227")
+                        && homeMarkup.contains("game.js?v=228")
                         && homeMarkup.contains("card-binder-visual.js?v=20")
                         && homeMarkup.contains("home.js?v=132")
                         && playMarkup.contains("style.css?v=220")
-                        && playMarkup.contains("game.js?v=227")
+                        && playMarkup.contains("game.js?v=228")
                         && dashboardMarkup.contains("style.css?v=220")
                         && dashboardMarkup.contains("card-binder-visual.js?v=20"),
                 "Every surface must advance its cache pins with the complete painted-notch set."
@@ -486,6 +486,49 @@ class GameJavaScriptRegressionTest {
         assertTrue(
                 styles.contains(".effect-key-modal") && styles.contains(".effect-key-row"),
                 "The effect key needs its modal and row styling."
+        );
+
+        // Speed Boost is a shoe, not a bolt: it used to be indistinguishable
+        // from Shock's electric bolt at board size.
+        assertFalse(
+                badgeArt.contains("sb-sp-bolt"),
+                "Speed Boost must use the shoe silhouette, not the old lightning bolt."
+        );
+        assertTrue(
+                badgeArt.contains("sb-sp-shoe"),
+                "Speed Boost must paint the shoe gradient."
+        );
+    }
+
+    /**
+     * Badge art is centred on (42,42) inside a disc of radius 34, so a glyph
+     * painting past that rim hangs off the coin. Only foreground art is held to
+     * this: the r=40 {@code .sb-pulse} halo and the {@code .sb-behind} starburst
+     * are drawn under the disc and are meant to bleed out.
+     */
+    @Test
+    void badgeGlyphsStayInsideTheirDisc() throws IOException {
+        String badgeArt = extractObjectLiteral(readGameScript(), "const STATUS_BADGE_SVG = {");
+        String foreground = badgeArt
+                .replaceAll("<circle[^>]*class=\"sb-pulse\"[^>]*/>", "")
+                .replaceAll("<circle cx=\"42\" cy=\"42\" r=\"34\"[^>]*/>", "")
+                .replaceAll("<g[^>]*class=\"[^\"]*sb-behind[^\"]*\"[^>]*>.*?</g>", "");
+
+        // Line endpoints and circle centres are exact, so they can be checked
+        // statically; curve control points are covered by the headless raster
+        // sweep, which measures the farthest painted pixel from the centre.
+        Matcher matcher = Pattern.compile("\\b(cx|cy|x1|y1|x2|y2)=\"(-?[\\d.]+)\"").matcher(foreground);
+        while (matcher.find()) {
+            double value = Double.parseDouble(matcher.group(2));
+            assertTrue(
+                    value >= 10 && value <= 74,
+                    "Badge " + matcher.group(1) + "=" + value + " falls outside the disc bounds (10..74)."
+            );
+        }
+
+        assertFalse(
+                badgeArt.contains("translate(60 60)"),
+                "The matchup arrow must sit inside the disc, not hang off the rim."
         );
     }
 
