@@ -16,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class GameJavaScriptRegressionTest {
 
     private static final Path GAME_JS = Path.of("src/main/resources/static/js/game.js");
+    private static final Path ACTION_QUEUE_JS = Path.of("src/main/resources/static/js/action-queue.js");
     private static final Path HOME_JS = Path.of("src/main/resources/static/js/home.js");
     private static final Path HOME_HTML = Path.of("src/main/resources/static/home.html");
     private static final Path PLAY_HTML = Path.of("src/main/resources/static/play.html");
@@ -156,6 +157,34 @@ class GameJavaScriptRegressionTest {
         assertFalse(
                 deckPreview.contains("desktop-deck-icon-face") || deckPreview.contains("getDeckCardMonogram"),
                 "The Deck tab must not fall back to the old monogram card design."
+        );
+    }
+
+    @Test
+    void battleLoadoutHidesLockedPremadeDecks() throws IOException {
+        String gameScript = readGameScript();
+        String visibleDecks = extractFunction(gameScript, "function getVisibleLoadoutDecks()");
+        String renderLoadout = extractFunction(gameScript, "function renderLoadoutOptions()");
+        String renderSwaps = extractFunction(gameScript, "function renderLoadoutSwaps()");
+        String lobbyWaiting = extractFunction(readHomeScript(), "function lobbyWaitingContext()");
+
+        assertTrue(
+                visibleDecks.contains("!isPremadeDeckLocked(deck)"),
+                "Battle loadout must expose a helper that filters out locked premade decks."
+        );
+        assertTrue(
+                renderLoadout.contains("getVisibleLoadoutDecks()")
+                        && !renderLoadout.contains("is-locked")
+                        && !renderLoadout.contains("Unlock for"),
+                "Choose Your Deck must only render unlocked presets, with no locked-tile UI."
+        );
+        assertTrue(
+                renderSwaps.contains("getVisibleLoadoutDecks()"),
+                "Review-step deck swap must also omit locked presets."
+        );
+        assertTrue(
+                lobbyWaiting.contains("decks.filter(deck => !isPremadeDeckLocked(deck))"),
+                "Social lobby battle deck picks must omit locked presets."
         );
     }
 
@@ -341,7 +370,7 @@ class GameJavaScriptRegressionTest {
                 "Season Snapshot, Loadout Shelf, and Social Table must share the overview rail, with matches and badges paired below."
         );
         assertTrue(
-                homeMarkup.contains("home.js?v=132") && homeMarkup.contains("home.css?v=124"),
+                homeMarkup.contains("home.js?v=133") && homeMarkup.contains("home.css?v=124"),
                 "Cache-bust pins for the profile dashboard trim must advance on home.html."
         );
     }
@@ -370,7 +399,7 @@ class GameJavaScriptRegressionTest {
         );
         assertTrue(
                 homeMarkup.contains("home.css?v=124")
-                        && homeMarkup.contains("home.js?v=132")
+                        && homeMarkup.contains("home.js?v=133")
                         && dashboardMarkup.contains("home.css?v=124"),
                 "Profile icon CSS and JavaScript cache pins must advance together."
         );
@@ -404,14 +433,38 @@ class GameJavaScriptRegressionTest {
         String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
         assertTrue(
                 homeMarkup.contains("style.css?v=220")
-                        && homeMarkup.contains("game.js?v=228")
+                        && homeMarkup.contains("game.js?v=229")
                         && homeMarkup.contains("card-binder-visual.js?v=20")
-                        && homeMarkup.contains("home.js?v=132")
+                        && homeMarkup.contains("home.js?v=133")
                         && playMarkup.contains("style.css?v=220")
-                        && playMarkup.contains("game.js?v=228")
+                        && playMarkup.contains("game.js?v=229")
                         && dashboardMarkup.contains("style.css?v=220")
                         && dashboardMarkup.contains("card-binder-visual.js?v=20"),
                 "Every surface must advance its cache pins with the complete painted-notch set."
+        );
+    }
+
+    @Test
+    void setupShieldPlaybackKeepsItsPersistentBadge() throws IOException {
+        String gameScript = readGameScript();
+        String actionQueueScript = Files.readString(ACTION_QUEUE_JS);
+        String playMarkup = Files.readString(PLAY_HTML);
+
+        assertTrue(
+                gameScript.contains("window.SieglingsBoardCellState")
+                        && gameScript.contains("gameState?.playerBoard")
+                        && gameScript.contains("gameState?.enemyBoard"),
+                "The action queue needs a live board-state bridge when it re-syncs a shield after playback."
+        );
+        assertTrue(
+                actionQueueScript.contains("shieldHp: h.nextShield")
+                        && actionQueueScript.contains("Number.isFinite(fallback) ? fallback")
+                        && actionQueueScript.contains("Number.isFinite(renderedShieldHp) ? renderedShieldHp : 0"),
+                "Shield playback must retain the server's final shield value instead of treating a missing bridge as zero."
+        );
+        assertTrue(
+                playMarkup.contains("action-queue.js?v=38"),
+                "The battle page must load the shield-persistence action queue instead of a cached pre-fix bundle."
         );
     }
 
