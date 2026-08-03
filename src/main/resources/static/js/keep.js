@@ -653,6 +653,10 @@
             await collectAllReady();
             return;
         }
+        if (isProductionStationDamaged(stationId)) {
+            showNotice('Rebuild this building before collecting from it.', 'Building disabled');
+            return;
+        }
         if (stationId === 'akhars_front') {
             if (projectedAkharsFrontAvailable() <= 0) return;
             const before = captureStorageSnapshot();
@@ -1194,8 +1198,12 @@
         const event = state.snapshot?.activeKeepEvent;
         if (!event) return;
         const remaining = keepEventRemaining();
-        text('keepEventTimer', formatDuration(remaining));
-        text('keepEventActivityTime', event.repairInProgress ? formatDuration(remaining) : 'Choose repair');
+        const clock = formatDuration(remaining);
+        text('keepEventTimer', clock);
+        text('keepEventActivityTime', event.repairInProgress ? clock : 'Choose repair');
+        document.querySelectorAll('[data-live-repair-timer]').forEach((node) => {
+            node.textContent = clock;
+        });
     }
 
     function updateLiveState() {
@@ -1236,9 +1244,10 @@
         if (collect) collect.disabled = totalReady <= 0 || !canCollectAnyStation() || state.busy;
         // Map Collect cue only when the Woodlot stockpile is full — partial stores
         // still show as growing piles and remain claimable from the dock button.
+        // Damaged Woodlots stay uncollectable, so the cue stays hidden too.
         const woodlotCapacity = number(state.snapshot.station?.storageCapacity);
         document.getElementById('productionReady')?.classList.toggle(
-            'hidden', woodlotCapacity <= 0 || available < woodlotCapacity);
+            'hidden', woodlotCapacity <= 0 || available < woodlotCapacity || isProductionStationDamaged('woodlot'));
         updateStockpileVisuals();
         renderConstruction();
         if (state.interior) renderInteriorConstruction();
@@ -1868,29 +1877,34 @@
     }
 
     function buildingMarkup(id) {
+        const damageNotice = roomDamageNoticeMarkup(id);
         if (id === 'woodlot') {
             const station = state.snapshot.station || {};
-            return `
-                <p class="panel-intro">The grove is cultivated with resident Siegelings. Fallen limbs and willing growth replace clear-cutting.</p>
-                <section class="detail-card">
+            const production = isProductionStationDamaged('woodlot')
+                ? damageNotice
+                : `<section class="detail-card">
                     <h3>${escapeHtml(String(projectedAvailable()))} timber ready</h3>
                     <div class="meter"><i data-live-woodlot-meter style="width:${woodlotFill()}%"></i></div>
                     <div class="cost-row"><span>${escapeHtml(formatRate(station.ratePerMinute))} per minute</span><strong>${escapeHtml(String(station.storageCapacity || 0))} storage${number(station.storageBonusPercent) ? ` · +${number(station.storageBonusPercent)}% local` : ''}</strong></div>
                     <div class="button-row"><button class="panel-button" type="button" data-collect-inline ${projectedAvailable() <= 0 ? 'disabled' : ''}>Collect timber</button><button class="panel-button secondary" type="button" data-open-panel="residents">Invite resident</button></div>
-                </section>
+                </section>`;
+            return `
+                <p class="panel-intro">The grove is cultivated with resident Siegelings. Fallen limbs and willing growth replace clear-cutting.</p>
+                ${production}
                 ${station.resident ? `<section class="detail-card"><span class="eyebrow">Current partner</span><h3>${escapeHtml(station.resident.name)}</h3><p>${escapeHtml(station.resident.affinityLabel || '')}. Invited residents remain available in decks and expeditions.</p></section>` : `<div class="empty-state">No resident has been invited. The Woodlot still produces normally.</div>`}
                 ${craftingMarkup('woodlot')}`;
         }
         if (id === 'archive') {
             const restored = Boolean(state.snapshot.visualState?.archiveRestored);
-            return restored
+            const body = restored
                 ? `<p class="panel-intro">Letters, artifacts, and translated memories are preserved with their disagreements intact.</p><section class="detail-card"><h3>${number(state.snapshot.lore?.length)} discoveries</h3><p>${number(state.snapshot.unreadLoreCount)} entries remain unread. Memorabilia displayed here also appears in the sanctuary scene.</p><div class="button-row"><button class="panel-button" type="button" data-open-panel="chronicle">Open Chronicle</button><button class="panel-button secondary" type="button" data-open-panel="conversations">Speak with visitors</button></div></section>`
                 : `<p class="panel-intro">A collapsed record hall lies beneath the eastern wall. Its stones protect letters from the Age Before Cards.</p>${projectsMarkup()}`;
+            return `${damageNotice}${body}`;
         }
-        if (id === 'enclave') return enclaveMarkup();
+        if (id === 'enclave') return `${damageNotice}${enclaveMarkup()}`;
         if (id === 'akhars_front') return akharsFrontMarkup();
         if (stationById(id)) return facilityInteriorMarkup(id);
-        return `<p class="panel-intro">The sanctuary is founded on Stewardship, Consent, and Shelter.</p>${rankCardMarkup()}${favoriteChooserMarkup()}<section class="detail-card"><h3>The Keeper's Charter</h3><p>No Siegeling will be compelled to labor or fight. The land will be repaired rather than consumed, and those hunted by Akhar may seek refuge here.</p><div class="button-row"><button class="panel-button" type="button" data-open-panel="chronicle">Read the charter</button></div></section>${themePickerMarkup()}${craftingMarkup('great_hall')}`;
+        return `${damageNotice}<p class="panel-intro">The sanctuary is founded on Stewardship, Consent, and Shelter.</p>${rankCardMarkup()}${favoriteChooserMarkup()}<section class="detail-card"><h3>The Keeper's Charter</h3><p>No Siegeling will be compelled to labor or fight. The land will be repaired rather than consumed, and those hunted by Akhar may seek refuge here.</p><div class="button-row"><button class="panel-button" type="button" data-open-panel="chronicle">Read the charter</button></div></section>${themePickerMarkup()}${craftingMarkup('great_hall')}`;
     }
 
     /** Spaces are collapsed to a grid of Siegeling buttons by default; opening one expands that
@@ -2198,12 +2212,43 @@
     function facilityInteriorMarkup(id) {
         const station = stationById(id) || {};
         const ready = projectedStationAvailable(station);
-        return `<p class="panel-intro">${facilityInteriorDescription(id)}</p>
-            <section class="detail-card"><h3>${ready} ${escapeHtml(station.resourceName || 'materials')} ready</h3>
+        const production = isProductionStationDamaged(id)
+            ? roomDamageNoticeMarkup(id)
+            : `<section class="detail-card"><h3>${ready} ${escapeHtml(station.resourceName || 'materials')} ready</h3>
             <div class="meter"><i data-station-meter="${escapeAttr(id)}" style="width:${stationFill(station)}%"></i></div>
             <div class="cost-row"><span>${escapeHtml(formatRate(station.ratePerMinute))} per minute</span><strong>${number(station.storageCapacity)} local storage${number(station.storageBonusPercent) ? ` · +${number(station.storageBonusPercent)}%` : ''}</strong></div>
-            <div class="button-row"><button class="panel-button" type="button" data-collect-station="${escapeAttr(id)}" ${ready <= 0 ? 'disabled' : ''}>Collect ${escapeHtml(station.resourceName || 'materials')}</button><button class="panel-button secondary" type="button" data-open-panel="residents" data-select-station="${escapeAttr(id)}">Assign resident</button></div></section>
+            <div class="button-row"><button class="panel-button" type="button" data-collect-station="${escapeAttr(id)}" ${ready <= 0 ? 'disabled' : ''}>Collect ${escapeHtml(station.resourceName || 'materials')}</button><button class="panel-button secondary" type="button" data-open-panel="residents" data-select-station="${escapeAttr(id)}">Assign resident</button></div></section>`;
+        return `<p class="panel-intro">${facilityInteriorDescription(id)}</p>
+            ${production}
             ${craftingMarkup(id)}`;
+    }
+
+    /** Active UPGRADE setback for a walkable room, if any. Decorations pause bonuses only. */
+    function roomDamageEvent(roomId) {
+        const event = state.snapshot?.activeKeepEvent;
+        if (!event || event.targetType !== 'UPGRADE' || !roomId) return null;
+        return event.targetId === roomId ? event : null;
+    }
+
+    function isProductionStationDamaged(stationId) {
+        return Boolean(roomDamageEvent(stationId));
+    }
+
+    /** Interior production card becomes a disabled notice with the live rebuild clock. */
+    function roomDamageNoticeMarkup(roomId) {
+        const event = roomDamageEvent(roomId);
+        if (!event) return '';
+        const remaining = keepEventRemaining();
+        const status = event.repairInProgress
+            ? 'Rebuild underway. Collection and production stay locked until it finishes.'
+            : 'This building is disabled until repaired. Collection and production stay locked.';
+        return `<section class="detail-card interior-damage-card" data-interior-damage="${escapeAttr(roomId)}">
+            <span class="eyebrow">Building disabled</span>
+            <h3>Offline until repaired</h3>
+            <p>${escapeHtml(status)}</p>
+            <div class="interior-damage-timer"><span>${event.repairInProgress ? 'Repair finishes in' : 'Repair timer'}</span><strong data-live-repair-timer>${escapeHtml(formatDuration(remaining))}</strong></div>
+            <div class="button-row"><button class="panel-button" type="button" data-open-keep-event>Open repair</button></div>
+        </section>`;
     }
 
     function craftingMarkup(roomId) {
@@ -2802,17 +2847,20 @@
         const intro = '<p class="panel-intro">Every workshop has its own resident slot. Matching elements increase output by 20%; Neutral residents lend a 5% bonus anywhere.</p>';
         if (!facilities.length) return `${intro}<div class="empty-state">Restore the Storehouse, then plant the Covenant Garden to open the Elemental Quarter.</div>${rewardsMarkup()}`;
         return `${intro}<div class="facility-grid">${facilities.map((station) => {
+            const damaged = isProductionStationDamaged(station.id);
             const ready = projectedStationAvailable(station);
-            const full = ready >= number(station.storageCapacity);
-            return `<section class="facility-card ${full ? 'is-full' : ''}">
+            const full = !damaged && ready >= number(station.storageCapacity);
+            return `<section class="facility-card ${full ? 'is-full' : ''} ${damaged ? 'is-damaged-station' : ''}">
                 <span class="facility-icon facility-${escapeAttr(station.id)}">${facilityIcon(station.id)}</span>
-                <span class="eyebrow">Level ${number(station.level)} · ${escapeHtml(formatRate(station.ratePerMinute))}/min</span>
+                <span class="eyebrow">Level ${number(station.level)} · ${escapeHtml(formatRate(station.ratePerMinute))}/min${damaged ? ' · Damaged' : ''}</span>
                 <h3>${escapeHtml(station.name)}</h3>
-                <p>${ready}/${number(station.storageCapacity)} ${escapeHtml(station.resourceName || 'materials')} ready${full ? ' · Storage full' : ''}${number(station.storageBonusPercent) ? ` · +${number(station.storageBonusPercent)}% local storage` : ''}</p>
+                <p>${damaged
+                    ? `Offline until repaired · ${escapeHtml(formatDuration(keepEventRemaining()))} remaining`
+                    : `${ready}/${number(station.storageCapacity)} ${escapeHtml(station.resourceName || 'materials')} ready${full ? ' · Storage full' : ''}${number(station.storageBonusPercent) ? ` · +${number(station.storageBonusPercent)}% local storage` : ''}`}</p>
                 <div class="meter"><i data-station-meter="${escapeAttr(station.id)}" style="width:${stationFill(station)}%"></i></div>
                 <small>Affinity: ${escapeHtml((station.affinityNames || []).join(', '))}</small>
                 <div class="facility-resident">${station.resident ? `${residentAvatarContent(station.resident)} <span><strong>${escapeHtml(station.resident.name)}</strong><small>${escapeHtml(station.resident.affinityLabel || '')}</small></span>` : '<span><strong>Open resident slot</strong><small>Production continues at base rate</small></span>'}</div>
-                <div class="button-row"><button class="panel-button" type="button" data-collect-station="${escapeAttr(station.id)}" ${ready <= 0 ? 'disabled' : ''}>Collect ${ready}</button><button class="panel-button secondary" type="button" data-open-panel="residents" data-select-station="${escapeAttr(station.id)}">Assign</button><button class="panel-button secondary" type="button" data-enter-facility="${escapeAttr(station.id)}">Enter & craft</button></div>
+                <div class="button-row"><button class="panel-button" type="button" data-collect-station="${escapeAttr(station.id)}" ${damaged || ready <= 0 ? 'disabled' : ''}>${damaged ? 'Disabled' : `Collect ${ready}`}</button><button class="panel-button secondary" type="button" data-open-panel="residents" data-select-station="${escapeAttr(station.id)}">Assign</button><button class="panel-button secondary" type="button" data-enter-facility="${escapeAttr(station.id)}">Enter & craft</button></div>
             </section>`;
         }).join('')}</div>${rewardsMarkup()}`;
     }
@@ -3712,10 +3760,13 @@
                 window.__KEEP_TEST_SNAPSHOT__ = clone(snapshot);
                 return Promise.resolve(snapshot);
             }
+            if (stationId !== 'all' && isProductionStationDamaged(stationId)) {
+                return Promise.reject(new Error('Rebuild this building before collecting from it.'));
+            }
             if (stationId === 'all') {
                 const grants = [];
                 for (const station of snapshot.stations || [snapshot.station]) {
-                    if (!station?.id) continue;
+                    if (!station?.id || isProductionStationDamaged(station.id)) continue;
                     const amount = projectedStationAvailable(station);
                     if (amount <= 0) continue;
                     if (station.id === 'woodlot') {
@@ -4135,8 +4186,10 @@
     }
 
     function projectedTotalReady() {
-        return (state.snapshot?.stations || [state.snapshot?.station]).reduce(
-            (sum, station) => sum + projectedStationAvailable(station), 0);
+        return (state.snapshot?.stations || [state.snapshot?.station]).reduce((sum, station) => {
+            if (!station?.id || isProductionStationDamaged(station.id)) return sum;
+            return sum + projectedStationAvailable(station);
+        }, 0);
     }
 
     /** True when at least one production point can pay into inventory (not just ready-on-pile). */
@@ -4144,7 +4197,7 @@
         const snapshot = state.snapshot;
         if (!snapshot) return false;
         for (const station of snapshot.stations || [snapshot.station]) {
-            if (!station?.id) continue;
+            if (!station?.id || isProductionStationDamaged(station.id)) continue;
             const ready = projectedStationAvailable(station);
             if (ready <= 0) continue;
             if (station.id === 'woodlot') {

@@ -1515,10 +1515,19 @@ public class KeepService {
         }
         if (grants.isEmpty()) {
             KeepState state = context.state();
-            boolean timberFull = timberInventoryCapacity(state) <= state.getTimber()
+            KeepEvent damage = eventCatalog.event(state.getActiveKeepEventId());
+            if (damage != null && KeepEventCatalog.TARGET_UPGRADE.equals(damage.targetType())
+                    && productionStationDamagedWithStores(state, context, damage.targetId())) {
+                throw new IllegalArgumentException("Rebuild "
+                        + damage.targetName()
+                        + " before collecting from it.");
+            }
+            boolean timberFull = !isDamagedTarget(state, KeepEventCatalog.TARGET_UPGRADE, "woodlot")
+                    && timberInventoryCapacity(state) <= state.getTimber()
                     && projectedWoodlotAvailable(state, context.residents(), context.now()) > 0;
             boolean materialsFull = FACILITIES.values().stream().anyMatch(definition -> {
                 if (facilityLevel(state, definition.id()) < 1) return false;
+                if (isDamagedTarget(state, KeepEventCatalog.TARGET_UPGRADE, definition.id())) return false;
                 int ready = projectedFacilityAvailable(state, context.residents(), definition.id(), context.now());
                 if (ready <= 0) return false;
                 int held = state.getMaterialInventory().getOrDefault(definition.resourceId(), 0);
@@ -1548,6 +1557,9 @@ public class KeepService {
         Map<String, Object> granted = tryCollectWoodlot(context);
         if (granted != null) return granted;
         KeepState state = context.state();
+        if (isDamagedTarget(state, KeepEventCatalog.TARGET_UPGRADE, "woodlot")) {
+            throw new IllegalArgumentException("Rebuild the Restorative Woodlot before collecting from it.");
+        }
         int room = Math.max(0, timberInventoryCapacity(state) - state.getTimber());
         throw new IllegalArgumentException(room <= 0
                 ? "Your timber store is full. Start a project before collecting more."
@@ -1556,6 +1568,8 @@ public class KeepService {
 
     private Map<String, Object> tryCollectWoodlot(Context context) {
         KeepState state = context.state();
+        // Damaged stations keep their stockpile but stay uncollectable until repaired.
+        if (isDamagedTarget(state, KeepEventCatalog.TARGET_UPGRADE, "woodlot")) return null;
         int room = Math.max(0, timberInventoryCapacity(state) - state.getTimber());
         int grant = Math.min(room, projectedWoodlotAvailable(state, context.residents(), context.now()));
         if (grant <= 0) return null;
@@ -1588,6 +1602,11 @@ public class KeepService {
         if (!FACILITIES.containsKey(id) || facilityLevel(state, id) < 1) {
             throw new IllegalArgumentException("Build that elemental facility before collecting from it.");
         }
+        if (isDamagedTarget(state, KeepEventCatalog.TARGET_UPGRADE, id)) {
+            KeepEvent damage = eventCatalog.event(state.getActiveKeepEventId());
+            String name = damage == null ? "that facility" : damage.targetName();
+            throw new IllegalArgumentException("Rebuild " + name + " before collecting from it.");
+        }
         FacilityDefinition definition = FACILITIES.get(id);
         String resourceId = definition.resourceId();
         int storedInventory = state.getMaterialInventory().getOrDefault(resourceId, 0);
@@ -1599,6 +1618,8 @@ public class KeepService {
 
     private Map<String, Object> tryCollectEssenceStation(KeepState state, Context context, String id) {
         if (!FACILITIES.containsKey(id) || facilityLevel(state, id) < 1) return null;
+        // Damaged stations keep their stockpile but stay uncollectable until repaired.
+        if (isDamagedTarget(state, KeepEventCatalog.TARGET_UPGRADE, id)) return null;
         FacilityDefinition definition = FACILITIES.get(id);
         String resourceId = definition.resourceId();
         int storedInventory = state.getMaterialInventory().getOrDefault(resourceId, 0);
@@ -3495,6 +3516,15 @@ public class KeepService {
     private boolean isDamagedTarget(KeepState state, String targetType, String targetId) {
         KeepEvent active = eventCatalog.event(state.getActiveKeepEventId());
         return active != null && active.targetType().equals(targetType) && active.targetId().equals(targetId);
+    }
+
+    /** True when a damaged production station still holds uncollected stores. */
+    private boolean productionStationDamagedWithStores(KeepState state, Context context, String stationId) {
+        if ("woodlot".equals(stationId)) {
+            return projectedWoodlotAvailable(state, context.residents(), context.now()) > 0;
+        }
+        if (!FACILITIES.containsKey(stationId) || facilityLevel(state, stationId) < 1) return false;
+        return projectedFacilityAvailable(state, context.residents(), stationId, context.now()) > 0;
     }
 
     private void clearKeepEvent(KeepState state) {
