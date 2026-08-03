@@ -160,6 +160,34 @@ class GameJavaScriptRegressionTest {
     }
 
     @Test
+    void battleLoadoutHidesLockedPremadeDecks() throws IOException {
+        String gameScript = readGameScript();
+        String visibleDecks = extractFunction(gameScript, "function getVisibleLoadoutDecks()");
+        String renderLoadout = extractFunction(gameScript, "function renderLoadoutOptions()");
+        String renderSwaps = extractFunction(gameScript, "function renderLoadoutSwaps()");
+        String lobbyWaiting = extractFunction(readHomeScript(), "function lobbyWaitingContext()");
+
+        assertTrue(
+                visibleDecks.contains("!isPremadeDeckLocked(deck)"),
+                "Battle loadout must expose a helper that filters out locked premade decks."
+        );
+        assertTrue(
+                renderLoadout.contains("getVisibleLoadoutDecks()")
+                        && !renderLoadout.contains("is-locked")
+                        && !renderLoadout.contains("Unlock for"),
+                "Choose Your Deck must only render unlocked presets, with no locked-tile UI."
+        );
+        assertTrue(
+                renderSwaps.contains("getVisibleLoadoutDecks()"),
+                "Review-step deck swap must also omit locked presets."
+        );
+        assertTrue(
+                lobbyWaiting.contains("decks.filter(deck => !isPremadeDeckLocked(deck))"),
+                "Social lobby battle deck picks must omit locked presets."
+        );
+    }
+
+    @Test
     void homePlayLoadoutUsesSelectedAndSavedDecks() throws IOException {
         String homeScript = readHomeScript();
         String selectedDeckId = extractFunction(homeScript, "function selectedDeckId()");
@@ -341,7 +369,7 @@ class GameJavaScriptRegressionTest {
                 "Season Snapshot, Loadout Shelf, and Social Table must share the overview rail, with matches and badges paired below."
         );
         assertTrue(
-                homeMarkup.contains("home.js?v=132") && homeMarkup.contains("home.css?v=124"),
+                homeMarkup.contains("home.js?v=133") && homeMarkup.contains("home.css?v=124"),
                 "Cache-bust pins for the profile dashboard trim must advance on home.html."
         );
     }
@@ -370,7 +398,7 @@ class GameJavaScriptRegressionTest {
         );
         assertTrue(
                 homeMarkup.contains("home.css?v=124")
-                        && homeMarkup.contains("home.js?v=132")
+                        && homeMarkup.contains("home.js?v=133")
                         && dashboardMarkup.contains("home.css?v=124"),
                 "Profile icon CSS and JavaScript cache pins must advance together."
         );
@@ -404,11 +432,11 @@ class GameJavaScriptRegressionTest {
         String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
         assertTrue(
                 homeMarkup.contains("style.css?v=219")
-                        && homeMarkup.contains("game.js?v=226")
+                        && homeMarkup.contains("game.js?v=227")
                         && homeMarkup.contains("card-binder-visual.js?v=20")
-                        && homeMarkup.contains("home.js?v=132")
+                        && homeMarkup.contains("home.js?v=133")
                         && playMarkup.contains("style.css?v=219")
-                        && playMarkup.contains("game.js?v=226")
+                        && playMarkup.contains("game.js?v=227")
                         && dashboardMarkup.contains("style.css?v=219")
                         && dashboardMarkup.contains("card-binder-visual.js?v=20"),
                 "Every surface must advance its cache pins with the complete painted-notch set."

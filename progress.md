@@ -1,3 +1,8 @@
+Original prompt: Locked presets should not appear in battle selection
+
+- August 3, 2026 Battle deck selection no longer lists locked premade presets. Play loadout grid + review swap use `getVisibleLoadoutDecks()`; social lobby deck `<select>` filters the same way. Unlock UI stays on the hub Decks page. Pins: `game.js?v=227`, `home.js?v=133`.
+- Verification: `node --check` on `game.js`/`home.js`; `GameJavaScriptRegressionTest#battleLoadoutHidesLockedPremadeDecks` (+ cache-pin updates for `v=227`/`v=133`). Headless Chromium (mocked `/api/game/options` + `/api/auth/me`, unlocked Fire/Earth/Wind only) at 390×844 and 1920×1080: `#deckOptions` shows exactly Blazing Core / Stone Garden / Gale Tokens — no Aquatic Overflow, Night Market, `is-locked`, or Unlock copy. Captures: `/opt/cursor/artifacts/screenshots/battle-loadout-no-locked-mobile.png`, `battle-loadout-no-locked-desktop.png`.
+
 Original prompt: Merge and deploy
 
 - August 3, 2026 Production deploy of #640 (Keep damaged buildings block collect + interior repair notice). Merged as `7c116655`; Deploy run [30853153979](https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/30853153979) green — Cloud Run 4m15s, Firebase Hosting + Functions 2m18s. Live `/keep` serves `keep.css?v=52` / `keep.js?v=52` byte-identical to main, with `roomDamageNoticeMarkup` / `.interior-damage-card`. Editor `source: FIRESTORE` on Hosting and Cloud Run; `apiBaseUrl: ''`; `/api/game/options` 200; `/`, `/play`, `/siege`, `/home`, `/help`, `/keep` 200.

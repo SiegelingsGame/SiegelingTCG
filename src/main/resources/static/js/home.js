@@ -9342,9 +9342,9 @@
         const trainers = state.options?.trainers || [];
         const selectedDeck = status?.players?.find(player => player.role === (isHost ? 'host' : 'guest'))?.deckId || selectedDeckId();
         const selectedTrainer = status?.players?.find(player => player.role === (isHost ? 'host' : 'guest'))?.trainerId || selectedTrainerId();
-        const deckOptions = decks.map(deck => {
-            const locked = isPremadeDeckLocked(deck);
-            return `<option value="${escapeAttr(deck.id)}" ${deck.id === selectedDeck ? 'selected' : ''}${locked ? ' disabled' : ''}>${escapeHtml(deck.name + (locked ? ' — Locked' : ''))}</option>`;
+        // Battle selection only lists unlocked presets; purchases stay on the Decks page.
+        const deckOptions = decks.filter(deck => !isPremadeDeckLocked(deck)).map(deck => {
+            return `<option value="${escapeAttr(deck.id)}" ${deck.id === selectedDeck ? 'selected' : ''}>${escapeHtml(deck.name)}</option>`;
         }).join('');
         const trainerOptions = trainers.map(trainer => {
             const owned = isTrainerOwned(trainer.id);
