@@ -782,6 +782,8 @@ public class SiegeService {
         m.put("maxHp", c.getMaxHp());
         m.put("hp", c.getHp());
         m.put("shield", c.getShield());
+        m.put("shieldExpiryRound", c.getShieldExpiryRound());
+        m.put("battleMaxHpBonus", c.getBattleMaxHpBonus());
         m.put("speed", c.getSpeed());
         m.put("baseSpeed", c.getBaseSpeed());
         m.put("baseMaxHp", c.getBaseMaxHp());
@@ -860,8 +862,12 @@ public class SiegeService {
         // rescales max HP from base — never compounds). HP is applied afterwards.
         c.setBaseMaxHp(intVal(m.get("baseMaxHp"), snapMaxHp));
         c.loadLeveling(intVal(m.get("xp"), 0));
+        // A health_boost widens max HP for the battle, so it has to be back in place
+        // before HP is applied or the snapshotted HP clamps down to the unboosted max.
+        c.setBattleMaxHpBonus(intVal(m.get("battleMaxHpBonus"), 0));
         c.setHp(snapHp);
         c.setShield(intVal(m.get("shield"), 0));
+        c.setShieldExpiryRound(intVal(m.get("shieldExpiryRound"), 0));
         c.setSpeed(intVal(m.get("speed"), baseSpeed));
         c.addAttackBuff(intVal(m.get("attackBuff"), 0));
         c.setPosition(intVal(m.get("position"), -1));
@@ -1112,7 +1118,7 @@ public class SiegeService {
         if (ambush) {
             // Ambush: enemies get the drop on you — extra shield, bite, and haste.
             for (Combatant foe : enemies) {
-                foe.setShield(foe.getShield() + 6);
+                foe.addShield(6, SiegeCombatEngine.BATTLE_START_SHIELD_EXPIRY);
                 foe.addAttackBuff(3);
                 foe.setSpeed(foe.getSpeed() + 6);
             }
@@ -3511,9 +3517,6 @@ public class SiegeService {
 
         List<Map<String, Object>> hand = new ArrayList<>();
         boolean playerTurn = battle.getPhase() == BattlePhase.PLAYER_INPUT;
-        // The damage boost is party-wide, so every living Siegeling shares the
-        // same bonus; surface it on damage cards so the boosted number is visible.
-        int partyAttackBuff = battle.living(Side.PLAYER).stream().mapToInt(Combatant::getAttackBuff).max().orElse(0);
         for (SiegeCard card : battle.getHand()) {
             AbilitySpec spec = card.getSpec();
             Combatant owner = battle.findCombatant(card.getOwnerId());
@@ -3533,7 +3536,10 @@ public class SiegeService {
             h.put("effect", spec.effect().name());
             h.put("value", spec.value());
             if (spec.effect() == Effect.DAMAGE) {
-                h.put("boostedValue", spec.value() + partyAttackBuff);
+                // Attack buffs land on the Siegelings a boost card actually named,
+                // so the preview reads the buff of the unit that will swing.
+                Combatant swinging = knightCard ? knightUnit : owner;
+                h.put("boostedValue", spec.value() + (swinging == null ? 0 : swinging.getAttackBuff()));
             }
             h.put("target", spec.target().name());
             h.put("actionCost", spec.actionCost());

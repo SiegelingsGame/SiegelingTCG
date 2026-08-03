@@ -27,3 +27,39 @@ These are the effect keys the rules engine currently understands.
 - `connected_allies_damage_boost`, `connected_allies_health_boost`, and `connected_allies_speed_boost` are source-based, so they should be used on board creatures rather than trainers or generic spells.
 - If you want a source creature to strengthen its linked network, these are the keys to use.
 - Current connected-allies logic follows the same reciprocal notch-link rules the board uses for normal connections.
+
+## What each key does in Siege / Adventure mode
+
+Siege runs the same cards through a different engine, so every key above also
+has a Siege translation. A card should do the thing its text promises in both
+modes; the mapping lives in `SiegeContentService.effectFor` /
+`targetFor`, and `SiegeCardEffectParityTest` pins it.
+
+| Key | Siege effect | Siege targeting |
+| --- | --- | --- |
+| `damage` | `DAMAGE` — value + 2, plus the caster's attack buff. | as written |
+| `player_damage` | `DAMAGE` — there is no opposing player, so it lands on the enemy line. | `ALL_ENEMIES` |
+| `draw` | `DRAW` — pulls that many cards (max 3) into the hand. | `SELF` |
+| `heal` | `HEAL` — value + 3. | as written |
+| `shield` | `SHIELD` — value + 3, **lapses when the shielded side opens its next turn** (the board clears shields at the end of the battle phase). | as written |
+| `health_boost` | `MAX_HP_BOOST` — raises max HP for the battle and heals the same amount, then drops when the battle ends. | as written |
+| `damage_boost` | `BUFF_ATK` — only the Siegelings the card named. | as written |
+| `speed_boost` | `BUFF_SPD` | as written |
+| `freeze` | `STUN` — skips the target's next action, matching "skips its turn" on the board. | as written |
+| `speed_zero` / `slow` | `SLOW` — the Slow status (Speed loss for 2 rounds). | as written |
+| `destroy` | `EXECUTE` — defeats the target outright; against an **elite or Siegelord** it deals 25% of max HP instead, and always costs at least 3 AP. | forced to `ENEMY_SINGLE` |
+| `move_link` | `SWAP` — trades notches with the chosen ally. | `ALLY_SINGLE` |
+| `connected_allies_*` | the matching effect above, applied to the **whole warband** — Siege has no board links, so the warband is the linked network. | `ALLY_ALL` |
+
+Targeting rules that hold regardless of the key:
+
+- Row/sweep board targets (`ROW_ENEMIES`, `ROW_SELECT_ENEMIES`, `ROW_ALLIES`, …)
+  collapse to `ALL_ENEMIES` / `ALLY_ALL`; Siege has no rows.
+- A card is always pointed at the side its effect belongs to. A damaging effect
+  can never resolve on your own warband, and a healing/shielding/buffing effect
+  can never resolve on the enemy line — including when an unregistered key falls
+  back to `DAMAGE`. (This is what made a `draw` card land as damage on its own
+  caster before the fallback was constrained.)
+- An unregistered key is matched by substring (`*_damage_boost`, `*draw*`,
+  `*shield*`, …) before falling back to `DAMAGE`, so a key authored in the live
+  dashboard behaves sensibly in Siege before it is added to the registry.

@@ -1,5 +1,6 @@
 package com.sieglings.adventure;
 
+import com.sieglings.model.AbilityEffectKeys;
 import com.sieglings.model.Card;
 import com.sieglings.model.Move;
 import com.sieglings.model.SieglingCard;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -390,8 +392,10 @@ public class SiegeContentService {
         if (knight.getActiveAbility() != null) {
             var a = knight.getActiveAbility();
             Effect effect = effectFor(a.getEffectType());
-            TargetKind target = effect == Effect.SWAP ? TargetKind.ALLY_SINGLE : targetFor(a.getTargetType());
-            int value = Math.max(3, a.getEffectValue() + 2);
+            TargetKind target = targetFor(a.getTargetType(), effect, a.getEffectType());
+            int value = effect == Effect.DRAW
+                    ? Math.min(MAX_DRAW_CARDS, Math.max(1, a.getEffectValue()))
+                    : Math.max(3, a.getEffectValue() + 2);
             StatusKind status = effect == Effect.DAMAGE ? statusFor(knight.getElement()) : null;
             return new AbilitySpec(kid, knight.getName() + ": " + a.getName(), knight.getElement(),
                     effect, value, target, 2, a.getDescription() == null ? "" : a.getDescription(),
@@ -468,10 +472,9 @@ public class SiegeContentService {
 
     private AbilitySpec toSpec(Move move) {
         Effect effect = effectFor(move.effectType());
-        // A notch-move card targets the ally it trades places with.
-        TargetKind target = effect == Effect.SWAP ? TargetKind.ALLY_SINGLE : targetFor(move.targetType());
+        TargetKind target = targetFor(move.targetType(), effect, move.effectType());
         int value = combatValue(move, effect);
-        int actionCost = actionCostFor(move.energyCost());
+        int actionCost = actionCostFor(move.energyCost(), effect);
         StatusKind status = effect == Effect.DAMAGE ? statusFor(move.element()) : null;
         return new AbilitySpec(move.id(), move.name(), move.element(), effect, value, target, actionCost,
                 move.description() == null ? "" : move.description(),
@@ -484,11 +487,26 @@ public class SiegeContentService {
         // against the larger HP pools used in Siege.
         return switch (effect) {
             case DAMAGE -> base + 2;
-            case HEAL, SHIELD -> base + 3;
-            case BUFF_ATK, BUFF_SPD -> Math.max(1, base);
-            case SLOW -> Math.max(1, base);
-            case SWAP, EVOLVE -> 0;
+            case HEAL, SHIELD, MAX_HP_BOOST -> base + 3;
+            case BUFF_ATK, BUFF_SPD, SLOW -> Math.max(1, base);
+            // A draw card's value is a card count, not a magnitude — a board card
+            // that says "draw 2" must not become "draw 5" here.
+            case DRAW -> Math.min(MAX_DRAW_CARDS, base);
+            case STUN, EXECUTE, SWAP, EVOLVE -> 0;
         };
+    }
+
+    /** Ceiling on cards a single draw card may pull; the hand is only 8 wide. */
+    static final int MAX_DRAW_CARDS = 3;
+    /** Floor on what an instant-defeat card costs, however cheap its board version is. */
+    static final int EXECUTE_MIN_AP = 3;
+
+    private int actionCostFor(int energyCost, Effect effect) {
+        int cost = actionCostFor(energyCost);
+        // A destroy card that happened to be printed at 0 energy would otherwise
+        // be a free kill every turn.
+        if (effect == Effect.EXECUTE) return Math.max(EXECUTE_MIN_AP, cost);
+        return cost;
     }
 
     private int actionCostFor(int energyCost) {
@@ -498,26 +516,105 @@ public class SiegeContentService {
         return 3;
     }
 
-    private Effect effectFor(String effectType) {
-        String key = effectType == null ? "" : effectType.toLowerCase();
-        if (key.contains("heal")) return Effect.HEAL;
-        if (key.contains("health_boost") || key.contains("shield")) return Effect.SHIELD;
-        if (key.contains("damage_boost")) return Effect.BUFF_ATK;
+    /**
+     * Translates a battle-table effect key into its Siege equivalent. Registered
+     * keys ({@link AbilityEffectKeys}) match exactly; the substring fallbacks below
+     * catch keys authored in the live dashboard that the registry hasn't caught up
+     * with yet, so a support card never silently degrades into an attack.
+     */
+    Effect effectFor(String effectType) {
+        String key = effectType == null ? "" : effectType.trim().toLowerCase(Locale.ROOT);
+        Effect exact = switch (key) {
+            case AbilityEffectKeys.DAMAGE, AbilityEffectKeys.PLAYER_DAMAGE -> Effect.DAMAGE;
+            case AbilityEffectKeys.DRAW -> Effect.DRAW;
+            case AbilityEffectKeys.HEAL -> Effect.HEAL;
+            case AbilityEffectKeys.SHIELD, AbilityEffectKeys.CONNECTED_ALLIES_SHIELD -> Effect.SHIELD;
+            case AbilityEffectKeys.HEALTH_BOOST, AbilityEffectKeys.CONNECTED_ALLIES_HEALTH_BOOST -> Effect.MAX_HP_BOOST;
+            case AbilityEffectKeys.DAMAGE_BOOST, AbilityEffectKeys.CONNECTED_ALLIES_DAMAGE_BOOST -> Effect.BUFF_ATK;
+            case AbilityEffectKeys.SPEED_BOOST, AbilityEffectKeys.CONNECTED_ALLIES_SPEED_BOOST -> Effect.BUFF_SPD;
+            // Freeze skips a turn on the board, so it stuns here; speed_zero/slow
+            // only take Speed away, which is what the Slow status does.
+            case AbilityEffectKeys.FREEZE -> Effect.STUN;
+            case AbilityEffectKeys.SPEED_ZERO, AbilityEffectKeys.SLOW, AbilityEffectKeys.CONNECTED_ALLIES_SLOW -> Effect.SLOW;
+            case AbilityEffectKeys.DESTROY -> Effect.EXECUTE;
+            case AbilityEffectKeys.MOVE_LINK -> Effect.SWAP;
+            default -> null;
+        };
+        if (exact != null) return exact;
+
+        // Fallbacks, longest/most specific first — "damage_boost" must not read as "damage".
+        if (key.contains("damage_boost") || key.contains("attack_boost")) return Effect.BUFF_ATK;
+        if (key.contains("health_boost") || key.contains("max_hp")) return Effect.MAX_HP_BOOST;
         if (key.contains("speed_boost")) return Effect.BUFF_SPD;
-        if (key.contains("freeze") || key.contains("speed_zero")) return Effect.SLOW;
-        if (key.contains("move_link") || key.contains("notch")) return Effect.SWAP;
+        if (key.contains("draw")) return Effect.DRAW;
+        if (key.contains("heal")) return Effect.HEAL;
+        if (key.contains("shield")) return Effect.SHIELD;
+        if (key.contains("destroy") || key.contains("execute")) return Effect.EXECUTE;
+        if (key.contains("freeze") || key.contains("stun")) return Effect.STUN;
+        if (key.contains("slow") || key.contains("speed_zero")) return Effect.SLOW;
+        if (key.contains("move_link") || key.contains("notch") || key.contains("swap")) return Effect.SWAP;
         return Effect.DAMAGE;
     }
 
-    private TargetKind targetFor(TargetType t) {
-        return switch (t) {
+    /** Effects that help whoever they land on. */
+    private static boolean isSupportive(Effect effect) {
+        return switch (effect) {
+            case HEAL, SHIELD, MAX_HP_BOOST, BUFF_ATK, BUFF_SPD, DRAW, EVOLVE -> true;
+            default -> false;
+        };
+    }
+
+    /** Effects that hurt whoever they land on. */
+    private static boolean isHostile(Effect effect) {
+        return effect == Effect.DAMAGE || effect == Effect.EXECUTE || effect == Effect.STUN;
+    }
+
+    TargetKind targetFor(TargetType t, Effect effect, String effectType) {
+        TargetKind base = switch (t) {
             case SINGLE_ENEMY -> TargetKind.ENEMY_SINGLE;
             case ALL_ENEMIES, ROW_ENEMIES, ROW_SELECT_ENEMIES, ENEMY_PLAYER -> TargetKind.ALL_ENEMIES;
             case SINGLE_ALLY -> TargetKind.ALLY_SINGLE;
             case ALL_ALLIES, ROW_ALLIES, ROW_SELECT_ALLIES -> TargetKind.ALLY_ALL;
-            case SELF -> TargetKind.SELF;
-            case PASSIVE -> TargetKind.SELF;
+            case SELF, PASSIVE -> TargetKind.SELF;
         };
+        // A connected-allies card is written as SELF on the board because it walks
+        // the source's notch links. Siege has no board links, so the warband IS the
+        // linked network and the card reaches all of it.
+        String key = effectType == null ? "" : effectType.trim().toLowerCase(Locale.ROOT);
+        if (key.contains("connected_allies")) base = TargetKind.ALLY_ALL;
+        return alignTarget(effect, base);
+    }
+
+    /**
+     * Keeps a card pointed at the side its effect belongs to. Board target types
+     * carry board meanings ({@code ENEMY_PLAYER} is the opposing player, {@code SELF}
+     * is the card doing the walking) that don't survive the trip intact, and an
+     * unregistered effect key falls back to DAMAGE — without this, a self-targeted
+     * draw card resolves as the caster hitting itself.
+     */
+    private static TargetKind alignTarget(Effect effect, TargetKind target) {
+        if (effect == Effect.DRAW || effect == Effect.EVOLVE) return TargetKind.SELF;
+        // A notch-move card targets the ally it trades places with.
+        if (effect == Effect.SWAP) return TargetKind.ALLY_SINGLE;
+        // Wiping a whole enemy line at once is not a thing Siege can survive.
+        if (effect == Effect.EXECUTE) return TargetKind.ENEMY_SINGLE;
+        if (isHostile(effect)) {
+            return switch (target) {
+                case ALLY_ALL -> TargetKind.ALL_ENEMIES;
+                case ALLY_SINGLE, SELF -> TargetKind.ENEMY_SINGLE;
+                default -> target;
+            };
+        }
+        if (isSupportive(effect)) {
+            return switch (target) {
+                case ALL_ENEMIES -> TargetKind.ALLY_ALL;
+                case ENEMY_SINGLE -> TargetKind.ALLY_SINGLE;
+                default -> target;
+            };
+        }
+        // SLOW stays where the card aimed it: freeze/speed_zero point at enemies,
+        // connected_allies_slow deliberately points at your own line.
+        return target;
     }
 
     // ---- Enemies --------------------------------------------------------
@@ -1255,9 +1352,12 @@ public class SiegeContentService {
 
     /** A strengthened copy of a card spec: +2 power, or cheaper for utility cards. */
     AbilitySpec upgradeSpec(AbilitySpec spec) {
-        boolean scaling = spec.effect() == Effect.DAMAGE || spec.effect() == Effect.HEAL || spec.effect() == Effect.SHIELD;
+        boolean scaling = spec.effect() == Effect.DAMAGE || spec.effect() == Effect.HEAL
+                || spec.effect() == Effect.SHIELD || spec.effect() == Effect.MAX_HP_BOOST;
         int value = scaling ? spec.value() + 2 : spec.value() + 1;
+        if (spec.effect() == Effect.DRAW) value = Math.min(MAX_DRAW_CARDS, value);
         int cost = scaling ? spec.actionCost() : Math.max(0, spec.actionCost() - 1);
+        if (spec.effect() == Effect.EXECUTE) cost = Math.max(EXECUTE_MIN_AP, cost);
         return new AbilitySpec(spec.id(), spec.name() + " +", spec.element(),
                 spec.effect(), value, spec.target(), cost, spec.description(),
                 spec.status(), spec.statusChance());

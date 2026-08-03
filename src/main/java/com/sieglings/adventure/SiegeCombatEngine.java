@@ -48,6 +48,18 @@ public class SiegeCombatEngine {
     static final int ENEMY_STATUS_CHANCE = 20;
     /** Knight Ultimate: heavy elemental sweep. */
     static final int KNIGHT_ULT_DAMAGE = 15;
+    /**
+     * Shields granted before round 1 (knight passive, carried items) lapse when
+     * the party opens round 2 — the same "until the beginning of your next turn"
+     * window every other shield gets, counted from the turn they were meant for.
+     */
+    static final int BATTLE_START_SHIELD_EXPIRY = 2;
+    /**
+     * A {@code destroy} card is an instant kill on the board. Elites and Siegelords
+     * are the run's whole difficulty curve, so against them it lands as a heavy hit
+     * instead: this fraction of their max HP.
+     */
+    static final double EXECUTE_BOSS_FRACTION = 0.25;
 
     // ---- Battle setup ---------------------------------------------------
 
@@ -67,6 +79,8 @@ public class SiegeCombatEngine {
         int pos = 0;
         for (Combatant ally : run.getParty()) {
             ally.setShield(0);
+            ally.setShieldExpiryRound(BATTLE_START_SHIELD_EXPIRY);
+            ally.setBattleMaxHpBonus(0);
             ally.setSpeed(ally.leveledBaseSpeed());
             ally.addAttackBuff(-ally.getAttackBuff());
             ally.clearStatuses();
@@ -96,6 +110,8 @@ public class SiegeCombatEngine {
         }
         if (knight != null) {
             knight.setShield(0);
+            knight.setShieldExpiryRound(BATTLE_START_SHIELD_EXPIRY);
+            knight.setBattleMaxHpBonus(0);
             knight.clearStatuses();
             knight.setPosition(-1);
             knight.setLeveledRecently(false);
@@ -105,6 +121,8 @@ public class SiegeCombatEngine {
         Combatant merc = run.getMercenary();
         if (merc != null) {
             merc.setShield(0);
+            merc.setShieldExpiryRound(BATTLE_START_SHIELD_EXPIRY);
+            merc.setBattleMaxHpBonus(0);
             merc.clearStatuses();
             merc.setApSpent(0);
             merc.setPosition(pos++);
@@ -197,6 +215,8 @@ public class SiegeCombatEngine {
         Combatant evolved = content.evolve(member, evo);
         evolved.setEvolvedFrom(member);
         evolved.setShield(member.getShield());
+        evolved.setShieldExpiryRound(member.getShieldExpiryRound());
+        evolved.addBattleMaxHp(member.getBattleMaxHpBonus());
         evolved.addAttackBuff(member.getAttackBuff());
         evolved.setItemId(member.getItemId());
 
@@ -284,8 +304,26 @@ public class SiegeCombatEngine {
         return total;
     }
 
+    /**
+     * Lapses shields that were meant for an earlier turn. Called as each side's
+     * turn opens, so "until the beginning of your next turn" is measured against
+     * the shielded unit's own side rather than the round as a whole.
+     */
+    private void expireShields(SiegeBattle battle, Side side) {
+        for (Combatant c : battle.living(side)) {
+            if (c.getShield() <= 0 || battle.getRoundNumber() < c.getShieldExpiryRound()) continue;
+            int lost = c.getShield();
+            c.setShield(0);
+            c.setShieldExpiryRound(0);
+            battle.event("shieldExpired", "targetId", c.getId(), "amount", lost);
+            battle.log(c.getName() + "'s shield fades.");
+        }
+    }
+
     private void openPlayerTurn(SiegeRun run, Random rng) {
         SiegeBattle battle = run.getBattle();
+
+        expireShields(battle, Side.PLAYER);
 
         // Shock: each shocked Siegeling drains 1 AP from the shared pool.
         int ap = SiegeBattle.ACTIONS_PER_TURN;
@@ -401,8 +439,10 @@ public class SiegeCombatEngine {
 
         battle.event("card", "sourceId", attacker.getId(), "name", spec.name(),
                 "element", spec.element() == null ? null : spec.element().name());
-        applyEffect(battle, attacker, spec, targets, rng);
+        // The card leaves the hand before it resolves, so a draw card refills the
+        // slot it just vacated instead of being blocked by its own presence.
         battle.getHand().remove(card);
+        applyEffect(battle, attacker, spec, targets, rng);
         battle.getDiscard().add(card);
         battle.setActionPoints(battle.getActionPoints() - cost);
 
@@ -452,6 +492,8 @@ public class SiegeCombatEngine {
         Combatant evolved = content.evolve(member, evo);
         evolved.setEvolvedFrom(member);
         evolved.setShield(member.getShield());
+        evolved.setShieldExpiryRound(member.getShieldExpiryRound());
+        evolved.addBattleMaxHp(member.getBattleMaxHpBonus());
         evolved.addAttackBuff(member.getAttackBuff());
         evolved.setItemId(member.getItemId());
 
@@ -689,17 +731,28 @@ public class SiegeCombatEngine {
             case SHIELD -> {
                 int amount = scaledMoveValue(attacker, spec.value());
                 for (Combatant t : targets) {
-                    t.setShield(t.getShield() + amount);
+                    t.addShield(amount, shieldExpiryFor(battle, t));
                     battle.event("shield", "sourceId", attacker.getId(), "targetId", t.getId(), "amount", amount);
-                    battle.log(attacker.getName() + " uses " + spec.name() + " → " + t.getName() + " gains " + amount + " shield.");
+                    battle.log(attacker.getName() + " uses " + spec.name() + " → " + t.getName() + " gains " + amount
+                            + " shield until its next turn.");
+                }
+            }
+            case MAX_HP_BOOST -> {
+                int amount = scaledMoveValue(attacker, spec.value());
+                for (Combatant t : targets) {
+                    t.addBattleMaxHp(amount);
+                    // Reported as a heal because that is what the player sees: the
+                    // bar grows and fills by the same amount.
+                    battle.event("heal", "sourceId", attacker.getId(), "targetId", t.getId(), "amount", amount);
+                    battle.log(attacker.getName() + " uses " + spec.name() + " → " + t.getName() + "'s max HP rises by "
+                            + amount + " for this battle.");
                 }
             }
             case BUFF_ATK -> {
-                // A damage boost strengthens the whole warband so it reliably
-                // applies to the party's shared turn.
-                for (Combatant ally : battle.living(Side.PLAYER)) ally.addAttackBuff(spec.value());
+                for (Combatant t : targets) t.addAttackBuff(spec.value());
                 battle.event("buff", "kind", "atk", "amount", spec.value());
-                battle.log(attacker.getName() + " uses " + spec.name() + " → the party gains +" + spec.value() + " attack.");
+                battle.log(attacker.getName() + " uses " + spec.name() + " → "
+                        + buffedNames(targets) + " gain +" + spec.value() + " attack.");
             }
             case BUFF_SPD -> {
                 for (Combatant t : targets) t.setSpeed(t.getSpeed() + spec.value());
@@ -710,7 +763,37 @@ public class SiegeCombatEngine {
                 for (Combatant t : targets) {
                     applyStatus(battle, t, StatusKind.SLOW);
                 }
-                battle.log(attacker.getName() + " uses " + spec.name() + " → enemies are slowed.");
+                battle.log(attacker.getName() + " uses " + spec.name() + " → " + buffedNames(targets) + " are slowed.");
+            }
+            case STUN -> {
+                // Freeze makes a board Siegling skip its turn; here it skips its action.
+                for (Combatant t : targets) {
+                    applyStatus(battle, t, StatusKind.STUN);
+                }
+                battle.log(attacker.getName() + " uses " + spec.name() + " → " + buffedNames(targets)
+                        + " will skip the next action.");
+            }
+            case DRAW -> {
+                int before = battle.getHand().size();
+                draw(battle, Math.max(1, spec.value()), rng);
+                int drawn = battle.getHand().size() - before;
+                battle.event("draw", "count", drawn);
+                battle.log(attacker.getName() + " uses " + spec.name() + " → draws " + drawn
+                        + (drawn == 1 ? " card." : " cards."));
+            }
+            case EXECUTE -> {
+                for (Combatant t : targets) {
+                    boolean wasAlive = t.isAlive();
+                    int dmg = executeDamage(battle, t);
+                    int dealt = t.takeDamage(dmg);
+                    boolean killed = wasAlive && !t.isAlive();
+                    battle.event("hit", "sourceId", attacker.getId(), "targetId", t.getId(),
+                            "amount", dealt, "element", spec.element() == null ? null : spec.element().name(),
+                            "ko", killed);
+                    battle.log(attacker.getName() + " uses " + spec.name() + " → " + t.getName()
+                            + (killed ? " is destroyed!" : " takes " + dealt + "."));
+                    if (killed && t.getSide() == Side.ENEMY) battle.creditKill(attacker.getId());
+                }
             }
             case SWAP -> {
                 // Move to a new notch: the owner trades places with the chosen ally.
@@ -722,6 +805,33 @@ public class SiegeCombatEngine {
                 battle.log(attacker.getName() + " uses " + spec.name() + " → swaps notches with " + other.getName() + ".");
             }
         }
+    }
+
+    /** "Rook, Ember and Vane" — reads better in the log than repeating the effect per unit. */
+    private String buffedNames(List<Combatant> targets) {
+        return targets.stream().map(Combatant::getName).distinct()
+                .reduce((a, b) -> a + ", " + b).orElse("no one");
+    }
+
+    /**
+     * The round a shield granted now should lapse on: the shielded unit's next
+     * turn. Both sides act inside the same round number, so that is always the
+     * round after this one.
+     */
+    private int shieldExpiryFor(SiegeBattle battle, Combatant target) {
+        return Math.max(1, battle.getRoundNumber()) + 1;
+    }
+
+    /**
+     * {@code destroy} kills outright, except against the encounters the run's
+     * difficulty is built on — an elite or Siegelord takes
+     * {@link #EXECUTE_BOSS_FRACTION} of its max HP instead.
+     */
+    private int executeDamage(SiegeBattle battle, Combatant target) {
+        NodeType type = battle.getNodeType();
+        boolean guarded = type == NodeType.ELITE || type == NodeType.BOSS;
+        if (!guarded) return target.getHp() + target.getShield();
+        return Math.max(1, (int) Math.round(target.getMaxHp() * EXECUTE_BOSS_FRACTION));
     }
 
     /** Damage is the card's (level-scaled) value plus explicit attack buffs. */
@@ -771,6 +881,7 @@ public class SiegeCombatEngine {
     /** Every living enemy executes its telegraphed intent, fastest first. */
     private void resolveEnemyTurn(SiegeRun run, Random rng) {
         SiegeBattle battle = run.getBattle();
+        expireShields(battle, Side.ENEMY);
         List<Combatant> foes = new ArrayList<>(battle.living(Side.ENEMY));
         foes.sort(Comparator.comparingInt(Combatant::effectiveSpeed).reversed());
 
@@ -812,7 +923,7 @@ public class SiegeCombatEngine {
                 battle.log(foe.getName() + " uses " + choice.name() + " and recovers " + choice.value() + ".");
             }
             case SHIELD -> {
-                foe.setShield(foe.getShield() + choice.value());
+                foe.addShield(choice.value(), shieldExpiryFor(battle, foe));
                 battle.event("shield", "sourceId", foe.getId(), "targetId", foe.getId(), "amount", choice.value());
                 battle.log(foe.getName() + " uses " + choice.name() + " and braces.");
             }
@@ -1009,6 +1120,8 @@ public class SiegeCombatEngine {
         }
         for (Combatant ally : run.getParty()) {
             ally.setShield(0);
+            ally.setShieldExpiryRound(0);
+            ally.setBattleMaxHpBonus(0);
             ally.setSpeed(ally.leveledBaseSpeed());
             ally.addAttackBuff(-ally.getAttackBuff());
             ally.clearStatuses();

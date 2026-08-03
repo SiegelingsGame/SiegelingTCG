@@ -27,9 +27,21 @@ class Combatant {
     private int maxHp;
     private int hp;
     private int shield;
+    /**
+     * Round at which {@link #shield} lapses. Shields are temporary on the board
+     * (the battle phase clears them) and temporary here: whatever is left when
+     * this unit's side opens the round is gone.
+     */
+    private int shieldExpiryRound;
     private int speed;                // base speed before status modifiers
     private int baseSpeed;
     private int attackBuff;           // flat bonus added to this unit's damage
+    /**
+     * Battle-scoped max-HP gain from {@code health_boost} cards. Kept apart from
+     * {@link #baseMaxHp} (which is run-permanent) so {@link #applyLevel()} can stay
+     * derived-from-base, and so the boost is dropped when the battle ends.
+     */
+    private int battleMaxHpBonus;
 
     // ---- Leveling (in-run progression; see SiegeTuning) -------------------
     private int level = 1;            // 1..SiegeTuning.MAX_LEVEL
@@ -102,6 +114,18 @@ class Combatant {
     void setHp(int hp) { this.hp = Math.max(0, Math.min(hp, maxHp)); }
     int getShield() { return shield; }
     void setShield(int shield) { this.shield = Math.max(0, shield); }
+    int getShieldExpiryRound() { return shieldExpiryRound; }
+    void setShieldExpiryRound(int round) { this.shieldExpiryRound = Math.max(0, round); }
+
+    /**
+     * Grants shield that lapses when this unit's side opens round
+     * {@code expiryRound}. A later grant never shortens an existing shield.
+     */
+    void addShield(int amount, int expiryRound) {
+        if (amount <= 0) return;
+        this.shield = Math.max(0, this.shield + amount);
+        this.shieldExpiryRound = Math.max(this.shieldExpiryRound, Math.max(0, expiryRound));
+    }
     int getSpeed() { return speed; }
     void setSpeed(int speed) { this.speed = Math.max(0, speed); }
     int getBaseSpeed() { return baseSpeed; }
@@ -188,6 +212,26 @@ class Combatant {
         applyLevel();
     }
 
+    int getBattleMaxHpBonus() { return battleMaxHpBonus; }
+
+    /**
+     * Battle-table {@code health_boost}: raises max HP and heals the same amount.
+     * {@link #applyLevel()} does the healing, since the boost widens the derived max.
+     */
+    void addBattleMaxHp(int amount) {
+        if (amount <= 0) return;
+        battleMaxHpBonus += amount;
+        applyLevel();
+    }
+
+    /** Drops any {@code health_boost} gain; the boost only ever lasts one battle. */
+    void setBattleMaxHpBonus(int amount) {
+        int next = Math.max(0, amount);
+        if (next == battleMaxHpBonus) return;
+        battleMaxHpBonus = next;
+        applyLevel();
+    }
+
     /**
      * Recomputes {@link #maxHp} (and the resting {@link #speed}) from the base
      * stats and the current level. Idempotent: always derived from base, never
@@ -196,9 +240,9 @@ class Combatant {
      */
     void applyLevel() {
         int oldMax = maxHp;
-        maxHp = Math.max(1, knight
+        maxHp = Math.max(1, (knight
                 ? SiegeTuning.scaledKnightMaxHp(baseMaxHp, level)
-                : SiegeTuning.scaledMaxHp(baseMaxHp, level));
+                : SiegeTuning.scaledMaxHp(baseMaxHp, level)) + battleMaxHpBonus);
         int delta = maxHp - oldMax;
         if (delta > 0) hp = Math.min(maxHp, hp + delta);
         else if (hp > maxHp) hp = maxHp;
