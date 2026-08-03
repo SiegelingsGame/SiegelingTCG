@@ -28,6 +28,9 @@ public class EffectService {
     @org.springframework.beans.factory.annotation.Autowired
     private MovesPoolService movesPoolService;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private ElementalAfflictionService elementalAfflictionService;
+
     /**
      * Spells/traps with {@code move_link} on a single enemy require an explicit empty destination cell
      * on that unit's board (no notch link required).
@@ -230,10 +233,17 @@ public class EffectService {
                         weaknessBonus = true;
                     }
 
+                    int hpBefore = target.getCurrentHealth();
                     target.takeRawDamage(damage);
+                    int hpDealt = Math.max(0, hpBefore - target.getCurrentHealth());
                     state.log(ability.getName() + " deals " + damage + " damage to " + target.getName()
                             + (weaknessBonus ? " (weakness +1)" : "")
                             + " (HP: " + target.getCurrentHealth() + ")");
+                    if (elementalAfflictionService != null) {
+                        Element damageElement = ElementalAfflictionService.damageElementFor(
+                                source, ability.getRequiredElement());
+                        elementalAfflictionService.tryInflictFromDamage(state, target, damageElement, hpDealt);
+                    }
                 }
                 case AbilityEffectKeys.HEAL -> {
                     target.healDamage(value);

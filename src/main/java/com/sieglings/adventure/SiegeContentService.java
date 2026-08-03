@@ -2,6 +2,8 @@ package com.sieglings.adventure;
 
 import com.sieglings.model.AbilityEffectKeys;
 import com.sieglings.model.Card;
+import com.sieglings.model.ElementalAfflictionCatalog;
+import com.sieglings.model.ElementalAfflictionDef;
 import com.sieglings.model.Move;
 import com.sieglings.model.SieglingCard;
 import com.sieglings.model.TrainerCard;
@@ -344,19 +346,19 @@ public class SiegeContentService {
     }
 
     /**
-     * Element → status mapping. Elements do NOT have rock-paper-scissors
-     * strengths or weaknesses; they only provide these status effects:
-     * Fire→Burn, Ice→Slow, Earth→Stun, Sky (Wind/Electric)→Shock.
+     * Element → status mapping from the shared
+     * {@link ElementalAfflictionCatalog}. Elements do NOT have rock-paper-scissors
+     * strengths or weaknesses here — only these status riders on damage cards.
      */
     static StatusKind statusFor(Element element) {
         if (element == null) return null;
-        return switch (element) {
-            case FIRE -> StatusKind.BURN;
-            case ICE -> StatusKind.SLOW;
-            case EARTH -> StatusKind.STUN;
-            case WIND, ELECTRIC -> StatusKind.SHOCK;
-            default -> null;
-        };
+        ElementalAfflictionDef def = ElementalAfflictionCatalog.forElement(element).orElse(null);
+        if (def == null || !def.hasSiegeMapping()) return null;
+        try {
+            return StatusKind.valueOf(def.siegeStatusKind());
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
     }
 
     /** Status application chance written on a damage card, by its AP cost. */

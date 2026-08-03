@@ -71,6 +71,9 @@ public class GameService {
     private EffectService effectService;
 
     @Autowired
+    private ElementalAfflictionService elementalAfflictionService;
+
+    @Autowired
     private AIService aiService;
 
     @Autowired
@@ -197,6 +200,10 @@ public class GameService {
         }
 
         state.setCurrentPhase(Phase.SETUP);
+        // Burn (and future Setup-tick afflictions) resolve as this side enters Setup.
+        if (elementalAfflictionService != null) {
+            elementalAfflictionService.tickOwnerSetup(state, isPlayerSide);
+        }
         energyService.recalculateEnergy(state);
         state.captureSieglingSetupPlacementBonusFromEnergy(isPlayerSide);
         return state;

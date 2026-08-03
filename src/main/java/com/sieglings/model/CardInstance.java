@@ -1,11 +1,14 @@
 package com.sieglings.model;
 
 import com.sieglings.model.enums.Element;
+import com.sieglings.model.enums.ElementalAffliction;
 import com.sieglings.model.enums.StatusEffect;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -26,6 +29,8 @@ public class CardInstance {
     /** Passive team-aura attack damage from allied Sieglings on the board (recomputed when the board changes). */
     private int auraDamageBoost;
     private Set<StatusEffect> statusEffects = new HashSet<>();
+    /** Stacking elemental damage afflictions (Burn, Chill, …) — see ElementalAfflictionCatalog. */
+    private Map<ElementalAffliction, Integer> afflictionStacks = new EnumMap<>(ElementalAffliction.class);
     private int boardRow;
     private int boardCol;
     private int placementOrder;
@@ -167,6 +172,47 @@ public class CardInstance {
             statusEffects.remove(StatusEffect.DAMAGE_BOOST);
         }
         currentHealth = Math.min(currentHealth, getEffectiveMaxHealth());
+    }
+
+    public int getAfflictionStacks(ElementalAffliction affliction) {
+        if (affliction == null) return 0;
+        return afflictionStacks.getOrDefault(affliction, 0);
+    }
+
+    public Map<ElementalAffliction, Integer> getAfflictionStacks() {
+        return afflictionStacks;
+    }
+
+    public void setAfflictionStacks(Map<ElementalAffliction, Integer> afflictionStacks) {
+        this.afflictionStacks = afflictionStacks != null
+                ? new EnumMap<>(afflictionStacks)
+                : new EnumMap<>(ElementalAffliction.class);
+        this.afflictionStacks.values().removeIf(v -> v == null || v <= 0);
+    }
+
+    /**
+     * Adds stacks up to the catalog cap. Returns the new stack count (0 if none applied).
+     */
+    public int addAfflictionStacks(ElementalAffliction affliction, int amount, int stackCap) {
+        if (affliction == null || amount <= 0) return getAfflictionStacks(affliction);
+        int cap = Math.max(1, stackCap);
+        int next = Math.min(cap, getAfflictionStacks(affliction) + amount);
+        if (next <= 0) {
+            afflictionStacks.remove(affliction);
+            return 0;
+        }
+        afflictionStacks.put(affliction, next);
+        return next;
+    }
+
+    public void clearAffliction(ElementalAffliction affliction) {
+        if (affliction != null) {
+            afflictionStacks.remove(affliction);
+        }
+    }
+
+    public void clearAllAfflictions() {
+        afflictionStacks.clear();
     }
 
     public void recordBattlePhaseSeen() {

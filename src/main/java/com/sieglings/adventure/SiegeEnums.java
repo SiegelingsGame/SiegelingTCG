@@ -32,12 +32,23 @@ enum Effect {
 /**
  * Elemental status effects. Elements have no rock-paper-scissors weakness
  * chart — they only carry these statuses, applied by chance written on cards.
+ * Identity is shared with battle-table {@code ElementalAfflictionCatalog};
+ * timing/numbers stay Siege-specific.
  */
 enum StatusKind {
-    BURN,   // Fire:  1 damage at the end of each round
-    SLOW,   // Ice:   -2 Speed for 2 rounds
-    STUN,   // Earth: skip the next action
-    SHOCK   // Sky:   party loses 1 AP next turn / enemy's next hit is weakened
+    BURN,       // Fire:   1 damage at the end of each round
+    SLOW,       // Ice:    -2 Speed for 2 rounds
+    STUN,       // Earth:  skip the next action
+    SHOCK,      // Electric: energy-spend pressure on the shocked unit
+    DISORIENT,  // Wind:   raise lowest ability cost (battle contract)
+    POISON,     // Poison: 1 damage at the end of each round (Burn-class DoT)
+    // Catalog-mapped placeholders — applied/shown; full mechanics land with battle enablement.
+    SOAK,
+    RUST,
+    CURSE,
+    INSIGHT,
+    BLIND,
+    WITHER
 }
 
 /** Who a card / enemy ability can be aimed at. */
