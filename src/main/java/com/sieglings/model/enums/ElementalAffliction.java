@@ -14,7 +14,7 @@ public enum ElementalAffliction {
     RUST,
     TOXIN,
     CURSE,
-    DAZE,
+    INSIGHT,
     BLIND,
     WITHER
 }

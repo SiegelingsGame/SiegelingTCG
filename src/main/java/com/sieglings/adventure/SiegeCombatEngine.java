@@ -855,7 +855,7 @@ public class SiegeCombatEngine {
         int rounds = switch (status) {
             case BURN, POISON -> SiegeBattle.BURN_ROUNDS;
             case SLOW -> SiegeBattle.SLOW_ROUNDS;
-            case STUN, SHOCK, DAZE, BLIND -> 2; // consumed on effect; duration is a safety net
+            case STUN, SHOCK, DISORIENT, INSIGHT, BLIND -> 2; // consumed on effect; duration is a safety net
             case SOAK, RUST, CURSE, WITHER -> SiegeBattle.SLOW_ROUNDS;
         };
         target.applyStatus(status, rounds);
@@ -869,11 +869,12 @@ public class SiegeCombatEngine {
             case SLOW -> "slowed";
             case STUN -> "stunned";
             case SHOCK -> "shocked";
+            case DISORIENT -> "disoriented";
             case POISON -> "poisoned";
             case SOAK -> "soaked";
             case RUST -> "rusting";
             case CURSE -> "cursed";
-            case DAZE -> "dazed";
+            case INSIGHT -> "marked with Insight";
             case BLIND -> "blinded";
             case WITHER -> "withering";
         };

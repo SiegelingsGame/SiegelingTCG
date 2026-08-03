@@ -46,12 +46,13 @@
     SLOW: { icon: '❄️', label: 'Slow' },
     STUN: { icon: '💫', label: 'Stun' },
     SHOCK: { icon: '⚡', label: 'Shock' },
+    DISORIENT: { icon: '🌬️', label: 'Disorient' },
     // Catalog-mapped extensions (shared with battle ElementalAfflictionCatalog)
     POISON: { icon: '☠️', label: 'Poison' },
     SOAK: { icon: '💧', label: 'Soak' },
     RUST: { icon: '⚙️', label: 'Rust' },
     CURSE: { icon: '🌑', label: 'Curse' },
-    DAZE: { icon: '🌀', label: 'Daze' },
+    INSIGHT: { icon: '👁️', label: 'Insight' },
     BLIND: { icon: '✨', label: 'Blind' },
     WITHER: { icon: '💀', label: 'Wither' }
   };

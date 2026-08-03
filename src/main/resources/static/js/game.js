@@ -519,7 +519,7 @@ const STATUS_BADGE_PALETTE = {
     RUST:         '#a0aab4',
     TOXIN:        '#78dc50',
     CURSE:        '#7832b4',
-    DAZE:         '#c896ff',
+    INSIGHT:      '#c896ff',
     BLIND:        '#fffac8',
     WITHER:       '#8c78a0'
 };
@@ -534,16 +534,16 @@ const STATUS_BADGE_LABEL = {
     WEAK: 'Weak to Attack',
     STRONG: 'Strong Against Enemy',
     BURN: 'Burn — flat damage per badge at next Setup',
-    CHILL: 'Chill — Speed reduced per badge',
-    STAGGER: 'Stagger — acts last / may skip',
-    DISORIENT: 'Disorient — abilities cost more energy',
-    SOAK: 'Soak — takes more from Ice/Electric',
-    SHOCK: 'Shock — drains energy at Setup',
-    RUST: 'Rust — takes extra damage from next hit',
-    TOXIN: 'Toxin — damage per badge at Setup',
-    CURSE: 'Curse — cannot be claimed this Setup',
-    DAZE: 'Daze — abilities cost more energy',
-    BLIND: 'Blind — next hit deals less damage',
+    CHILL: 'Chill — Slow per badge; Freeze at 3 until Setup',
+    STAGGER: 'Stagger — 2 stacks: bottom of battle queue',
+    DISORIENT: 'Disorient — raises cost of lowest-cost ability',
+    SOAK: 'Soak — attacks deal +1 damage per badge',
+    SHOCK: 'Shock — this card can spend 1 less energy per badge',
+    RUST: 'Rust — vulnerable to next Metal attack, then clears',
+    TOXIN: 'Toxin — cannot heal; heals remove Toxin stacks',
+    CURSE: 'Curse — cannot claim or evolve',
+    INSIGHT: 'Insight — at 3 stacks the inflicter draws and clears',
+    BLIND: 'Blind — ability values reduced per badge',
     WITHER: 'Wither — max HP reduced at Setup'
 };
 

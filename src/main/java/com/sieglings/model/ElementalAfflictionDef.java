@@ -25,12 +25,16 @@ public record ElementalAfflictionDef(
     public enum TickPhase {
         /** Resolve when the afflicted Siegeling's owner enters Setup. */
         OWNER_SETUP_START,
-        /** Resolve / modify behaviour when the unit acts in Battle. */
+        /** Resolve / modify behaviour when the unit acts or pays for an ability. */
         BATTLE_ACTION,
-        /** Passive while stacks remain (checked on hits or continuously). */
+        /** Passive while stacks remain (Speed, soak, claim blocks, etc.). */
         PERSISTENT,
-        /** Consume on the next damaging hit the unit takes. */
+        /** Checked when the unit takes an attack hit. */
         ON_HIT_TAKEN,
+        /** Intercepts heal resolution (Toxin). */
+        ON_HEAL,
+        /** Fires when stacks reach the cap (Insight draw, Ice freeze). */
+        ON_STACK_THRESHOLD,
         NONE
     }
 

@@ -36,16 +36,17 @@ enum Effect {
  * timing/numbers stay Siege-specific.
  */
 enum StatusKind {
-    BURN,    // Fire:   1 damage at the end of each round
-    SLOW,    // Ice:    -2 Speed for 2 rounds
-    STUN,    // Earth:  skip the next action
-    SHOCK,   // Wind/Electric: party loses 1 AP next turn / enemy's next hit is weakened
-    POISON,  // Poison: 1 damage at the end of each round (Burn-class DoT)
+    BURN,       // Fire:   1 damage at the end of each round
+    SLOW,       // Ice:    -2 Speed for 2 rounds
+    STUN,       // Earth:  skip the next action
+    SHOCK,      // Electric: energy-spend pressure on the shocked unit
+    DISORIENT,  // Wind:   raise lowest ability cost (battle contract)
+    POISON,     // Poison: 1 damage at the end of each round (Burn-class DoT)
     // Catalog-mapped placeholders — applied/shown; full mechanics land with battle enablement.
     SOAK,
     RUST,
     CURSE,
-    DAZE,
+    INSIGHT,
     BLIND,
     WITHER
 }
