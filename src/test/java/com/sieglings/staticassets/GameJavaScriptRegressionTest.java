@@ -432,13 +432,13 @@ class GameJavaScriptRegressionTest {
         String playMarkup = Files.readString(PLAY_HTML);
         String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
         assertTrue(
-                homeMarkup.contains("style.css?v=219")
-                        && homeMarkup.contains("game.js?v=228")
+                homeMarkup.contains("style.css?v=220")
+                        && homeMarkup.contains("game.js?v=229")
                         && homeMarkup.contains("card-binder-visual.js?v=20")
                         && homeMarkup.contains("home.js?v=133")
-                        && playMarkup.contains("style.css?v=219")
-                        && playMarkup.contains("game.js?v=228")
-                        && dashboardMarkup.contains("style.css?v=219")
+                        && playMarkup.contains("style.css?v=220")
+                        && playMarkup.contains("game.js?v=229")
+                        && dashboardMarkup.contains("style.css?v=220")
                         && dashboardMarkup.contains("card-binder-visual.js?v=20"),
                 "Every surface must advance its cache pins with the complete painted-notch set."
         );
@@ -482,6 +482,106 @@ class GameJavaScriptRegressionTest {
         assertFalse(
                 gameScript.contains("externalSocketElementMemory[memorySide] = Object.create(null)"),
                 "Board refreshes must not erase call wells activated earlier in the match."
+        );
+    }
+
+    @Test
+    void everyStatusEffectHasItsOwnBadgeArtAndKeyEntry() throws IOException {
+        String gameScript = readGameScript();
+        Set<String> statusKinds = Set.of(
+                "MAX_HEALTH", "HEALTH_BOOST", "DAMAGE_BOOST", "SPEED_BOOST",
+                "STRONG", "WEAK", "FREEZE", "SPEED_ZERO",
+                "BURN", "CHILL", "STAGGER", "DISORIENT", "SOAK", "SHOCK",
+                "RUST", "TOXIN", "CURSE", "INSIGHT", "BLIND", "WITHER"
+        );
+
+        String badgeArt = extractObjectLiteral(gameScript, "const STATUS_BADGE_SVG = {");
+        String effectKey = extractObjectLiteral(gameScript, "const STATUS_EFFECT_KEY = {");
+        for (String kind : statusKinds) {
+            assertTrue(
+                    badgeArt.contains("\n    " + kind + ": `<svg"),
+                    kind + " must ship its own badge silhouette instead of borrowing another status' art."
+            );
+            assertTrue(
+                    effectKey.contains("\n    " + kind + ": {"),
+                    kind + " must have a player-facing entry in the effect key."
+            );
+        }
+
+        // The old fallback painted every unmapped affliction with Burn's flame,
+        // so a Wind badge read as Fire on the board.
+        assertFalse(
+                gameScript.contains("STATUS_BADGE_SVG.BURN"),
+                "No status may fall back to Burn's flame; unmapped kinds use the neutral sigil."
+        );
+        assertTrue(
+                gameScript.contains("const STATUS_BADGE_SVG_GENERIC = ")
+                        && gameScript.contains("|| (STATUS_BADGE_PALETTE[kind] || STATUS_EFFECT_KEY[kind] ? STATUS_BADGE_SVG_GENERIC : null)"),
+                "Unmapped statuses must fall back to the element-neutral sigil."
+        );
+
+        assertTrue(
+                gameScript.contains("onclick=\"openEffectKey('${escapeHtmlAttribute(e.kind)}', event)\"")
+                        && gameScript.contains("onclick=\"openAllEffectsKey(event)\"")
+                        && gameScript.contains("function showAllEffectsKey(event)"),
+                "Card preview buff pills must open the effect explanation and the full effect key."
+        );
+
+        String playMarkup = Files.readString(PLAY_HTML);
+        assertTrue(
+                playMarkup.contains("id=\"effectKeyOverlay\"")
+                        && playMarkup.contains("id=\"btnEffectKeyAll\"")
+                        && playMarkup.contains("onclick=\"toggleEffectKeyView(event)\""),
+                "Play must host the effect key overlay with its All Effects toggle."
+        );
+
+        String styles = Files.readString(STYLE_CSS);
+        assertTrue(
+                styles.contains(".effect-key-modal") && styles.contains(".effect-key-row"),
+                "The effect key needs its modal and row styling."
+        );
+
+        // Speed Boost is a shoe, not a bolt: it used to be indistinguishable
+        // from Shock's electric bolt at board size.
+        assertFalse(
+                badgeArt.contains("sb-sp-bolt"),
+                "Speed Boost must use the shoe silhouette, not the old lightning bolt."
+        );
+        assertTrue(
+                badgeArt.contains("sb-sp-shoe"),
+                "Speed Boost must paint the shoe gradient."
+        );
+    }
+
+    /**
+     * Badge art is centred on (42,42) inside a disc of radius 34, so a glyph
+     * painting past that rim hangs off the coin. Only foreground art is held to
+     * this: the r=40 {@code .sb-pulse} halo and the {@code .sb-behind} starburst
+     * are drawn under the disc and are meant to bleed out.
+     */
+    @Test
+    void badgeGlyphsStayInsideTheirDisc() throws IOException {
+        String badgeArt = extractObjectLiteral(readGameScript(), "const STATUS_BADGE_SVG = {");
+        String foreground = badgeArt
+                .replaceAll("<circle[^>]*class=\"sb-pulse\"[^>]*/>", "")
+                .replaceAll("<circle cx=\"42\" cy=\"42\" r=\"34\"[^>]*/>", "")
+                .replaceAll("<g[^>]*class=\"[^\"]*sb-behind[^\"]*\"[^>]*>.*?</g>", "");
+
+        // Line endpoints and circle centres are exact, so they can be checked
+        // statically; curve control points are covered by the headless raster
+        // sweep, which measures the farthest painted pixel from the centre.
+        Matcher matcher = Pattern.compile("\\b(cx|cy|x1|y1|x2|y2)=\"(-?[\\d.]+)\"").matcher(foreground);
+        while (matcher.find()) {
+            double value = Double.parseDouble(matcher.group(2));
+            assertTrue(
+                    value >= 10 && value <= 74,
+                    "Badge " + matcher.group(1) + "=" + value + " falls outside the disc bounds (10..74)."
+            );
+        }
+
+        assertFalse(
+                badgeArt.contains("translate(60 60)"),
+                "The matchup arrow must sit inside the disc, not hang off the rim."
         );
     }
 
@@ -1588,6 +1688,31 @@ class GameJavaScriptRegressionTest {
 
     private static String readHomeScript() throws IOException {
         return Files.readString(HOME_JS);
+    }
+
+    /**
+     * Slices a top-level object literal by brace depth. Template-literal SVG art
+     * contains braces of its own, so a naive indexOf("};") would truncate.
+     */
+    private static String extractObjectLiteral(String source, String declaration) {
+        int start = source.indexOf(declaration);
+        assertTrue(start >= 0, "Could not find " + declaration);
+
+        int braceStart = start + declaration.length() - 1;
+        int depth = 0;
+        for (int i = braceStart; i < source.length(); i++) {
+            char current = source.charAt(i);
+            if (current == '{') {
+                depth++;
+            } else if (current == '}') {
+                depth--;
+                if (depth == 0) {
+                    return source.substring(braceStart, i + 1);
+                }
+            }
+        }
+
+        throw new AssertionError("Could not find end of " + declaration);
     }
 
     private static String extractFunction(String source, String signature) {

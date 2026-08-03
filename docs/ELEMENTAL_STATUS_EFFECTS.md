@@ -254,9 +254,27 @@ same fantasy.
 
 ---
 
+## Badge art and the in-game effect key
+
+Every affliction above ships a **unique** badge silhouette in `game.js`
+(`STATUS_BADGE_SVG`) — no status may reuse another's art, or the badge lies
+about which element inflicted it (Wind wearing Burn's flame reads as Fire).
+An unmapped kind falls back to `STATUS_BADGE_SVG_GENERIC`, an element-neutral
+sigil tinted from `STATUS_BADGE_PALETTE`, never to another status' glyph.
+
+Player-facing copy lives in one place: `STATUS_EFFECT_KEY` in `game.js`, which
+carries `name`, `group`, `element`, `cap`, a one-line `summary` (also the badge
+tooltip, derived into `STATUS_BADGE_LABEL`) and a full `detail` paragraph. The
+card preview renders each active status as a tappable pill; tapping opens the
+effect explanation modal (`#effectKeyOverlay`), whose **All Effects** button
+lists every buff, control status, matchup marker and affliction. The battle
+Energy Detail drawer links into the same key. Keep `detail` copy in sync with
+the contracts above.
+
 ## Enabling a new status
 
 1. Add/adjust catalog row + battle hooks in `ElementalAfflictionService` as needed.
-2. Badge art/label in `game.js` if missing.
+2. Unique badge art in `STATUS_BADGE_SVG` + a `STATUS_EFFECT_KEY` row (name,
+   group, element, cap, summary, detail) in `game.js`.
 3. Siege: wire apply/tick in `SiegeCombatEngine` for that `StatusKind` + hand preview in `SiegeService`.
 4. Focused JUnit + `progress.md`.
