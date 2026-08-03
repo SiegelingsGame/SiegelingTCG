@@ -31,6 +31,8 @@ class GameJavaScriptRegressionTest {
     private static final Path ADVENTURE_CSS = Path.of("src/main/resources/static/css/adventure.css");
     private static final Path ADVENTURE_JS = Path.of("src/main/resources/static/js/adventure.js");
     private static final Path ADVENTURE_HTML = Path.of("src/main/resources/static/adventure.html");
+    private static final Path SIEGE_MAPS_JS = Path.of("src/main/resources/static/js/siege-maps.js");
+    private static final Path BATTLE_MAP_DIR = Path.of("src/main/resources/static/img/maps");
 
     private static final Path LANDING_JS = Path.of("src/main/resources/static/js/landing.js");
 
@@ -1391,9 +1393,80 @@ class GameJavaScriptRegressionTest {
                 "Art bleeds under the notch and home indicator while controls stay inset by the safe area."
         );
         assertTrue(
-                adventureHtml.contains("/css/adventure.css?v=46"),
+                adventureHtml.contains("/css/adventure.css?v=49"),
                 "adventure.css must be cache-busted after the full-bleed location rework."
         );
+    }
+
+    @Test
+    void siegeBattleMapsStayStaticSmallAndOrientationMatched() throws IOException {
+        String adventureCss = Files.readString(ADVENTURE_CSS).replace("\r\n", "\n");
+        String adventureHtml = Files.readString(ADVENTURE_HTML);
+        String adventureJs = Files.readString(ADVENTURE_JS);
+        String mapCatalog = Files.readString(SIEGE_MAPS_JS);
+
+        assertTrue(
+                adventureHtml.indexOf("/js/siege-maps.js?v=3") < adventureHtml.indexOf("/js/adventure.js?v=49")
+                        && adventureHtml.contains("<div class=\"battle-map\" id=\"battleMap\" aria-hidden=\"true\"></div>"),
+                "The map catalog must load before adventure.js and the decorative layer must ship inside the stage."
+        );
+        assertTrue(
+                adventureCss.contains("background-image:var(--map-landscape)")
+                        && adventureCss.contains("@media (orientation: portrait){\n  .battle-map{ background-image:var(--map-portrait); }")
+                        && adventureCss.contains("background-size:cover")
+                        && adventureCss.contains("contain:paint"),
+                "One paint-contained map layer must switch compositions with the arena orientation."
+        );
+        assertTrue(
+                adventureCss.contains("flex-flow:row nowrap; gap:var(--arena-unit-gap)")
+                        && adventureCss.contains(".ally-line{ left:var(--arena-side-inset); right:auto; }")
+                        && adventureCss.contains(".foe-line{ right:var(--arena-side-inset); left:auto; flex-direction:row-reverse; }")
+                        && adventureCss.contains("--arena-unit-bottom-clearance"),
+                "Landscape allies and foes must occupy mirrored horizontal lanes between the top chrome and AP HUD."
+        );
+        assertTrue(
+                adventureJs.contains("function battleMapId(node)")
+                        && adventureJs.contains("pool[hashPick(node.id, pool.length)]")
+                        && adventureJs.contains("matchMedia('(orientation: landscape)').matches")
+                        && adventureJs.contains("'.svg?v=' + MAP_ASSET_V"),
+                "Map selection must be deterministic and preload only the current orientation's SVG."
+        );
+
+        String[] ids = {
+                "muster-field", "ash-road", "tourney-yard",
+                "moat-crossing", "rampart-breach", "gatehouse",
+                "keep-hall", "umbral-vault", "throne-of-the-siegelord"
+        };
+        Set<String> delivered = new LinkedHashSet<>();
+        try (var files = Files.list(BATTLE_MAP_DIR)) {
+            files.filter(path -> path.getFileName().toString().endsWith(".svg"))
+                    .forEach(path -> delivered.add(path.getFileName().toString()));
+        }
+        assertTrue(delivered.size() == 18, "Siege must deliver exactly nine landscape/portrait SVG pairs.");
+        assertTrue(mapCatalog.contains("bySegment") && mapCatalog.contains("boss"),
+                "The segment and boss map pools must ship with the compositions.");
+
+        for (String id : ids) {
+            for (String orientation : new String[] { "landscape", "portrait" }) {
+                String name = id + "-" + orientation + ".svg";
+                Path file = BATTLE_MAP_DIR.resolve(name);
+                assertTrue(delivered.contains(name), "Missing battle-map composition " + name);
+                assertTrue(Files.size(file) <= 5 * 1024, name + " exceeds the 5KB raw budget.");
+                String svg = Files.readString(file);
+                String viewBox = orientation.equals("landscape")
+                        ? "viewBox=\"0 0 1200 680\""
+                        : "viewBox=\"0 0 900 800\"";
+                assertTrue(svg.contains(viewBox), name + " has the wrong crop-safe composition ratio.");
+                assertFalse(svg.contains("<text") || svg.contains("<image") || svg.contains("@keyframes")
+                                || svg.contains("<animate") || svg.contains("feTurbulence")
+                                || svg.contains("feGaussianBlur"),
+                        name + " must remain decorative, self-contained, and free of continuous repaint effects.");
+                Matcher shapes = Pattern.compile("<(?:path|rect|circle|ellipse|g)\\b").matcher(svg);
+                int shapeCount = 0;
+                while (shapes.find()) shapeCount++;
+                assertTrue(shapeCount <= 45, name + " exceeds the 45-shape rendering budget.");
+            }
+        }
     }
 
     @Test
@@ -1404,8 +1477,8 @@ class GameJavaScriptRegressionTest {
         assertTrue(adventureHtml.contains("id=\"runMenuSave\"")
                         && adventureHtml.contains("id=\"runMenuRestart\"")
                         && adventureHtml.contains("id=\"runMenuQuit\"")
-                        && adventureHtml.contains("/css/adventure.css?v=46")
-                        && adventureHtml.contains("/js/adventure.js?v=45"),
+                        && adventureHtml.contains("/css/adventure.css?v=49")
+                        && adventureHtml.contains("/js/adventure.js?v=49"),
                 "The active-run menu and both cache-busted bundles must ship together.");
         String restartRun = extractFunction(adventureJs, "function restartRun(");
         assertTrue(adventureJs.contains("api('/api/siege/run/save'")

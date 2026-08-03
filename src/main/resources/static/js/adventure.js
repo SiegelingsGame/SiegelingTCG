@@ -1484,6 +1484,7 @@
 
   function renderMap() {
     showScreen('mapScreen');
+    clearBattleMap();
     var run = state.run;
     renderPartyStrip($('partyStrip'), run.party, run.knight);
     $('mapGold').textContent = '🪙 ' + (run.gold || 0) +
@@ -1625,6 +1626,13 @@
         scroll.scrollTop = Math.max(0, focusY - scroll.clientHeight * 0.6);
       }
     }, 30);
+
+    // Preload the next fight's map composition (orientation currently in effect)
+    // so entering battle doesn't flash the fallback gradient.
+    var nextFight = nodes.find(function (n) {
+      return n.reachable && (n.type === 'BATTLE' || n.type === 'ELITE' || n.type === 'BOSS');
+    });
+    if (nextFight) preloadBattleMap(nextFight);
   }
 
   function travelTo(nodeId) {
@@ -2517,10 +2525,82 @@
   }
 
   // ---- battle stage ----------------------------------------------------
+  var MAP_ASSET_V = '1';
+  var battleMapPreload = null;
+
+  /** Deterministic index into a pool from a node id (stable across reloads). */
+  function hashPick(id, n) {
+    var x = (Number(id) || 0) * 2654435761;
+    x = (x ^ (x >>> 16)) >>> 0;
+    return n ? (x % n) : 0;
+  }
+
+  function mapUrl(id, orient) {
+    return '/img/maps/' + id + '-' + orient + '.svg?v=' + MAP_ASSET_V;
+  }
+
+  /** Resolve a node to one stable arena id, shared by paint and preload. */
+  function battleMapId(node) {
+    var catalogs = window.SIEGE_MAPS;
+    if (!node || !catalogs) return null;
+    var segment = Math.max(0, Math.min(2, Math.floor((node.row || 0) / 8)));
+    if (node.type === 'BOSS') return (catalogs.boss || [])[segment] || null;
+    var pool = (catalogs.bySegment || [])[segment] || [];
+    return pool.length ? pool[hashPick(node.id, pool.length)] : null;
+  }
+
+  function clearBattleMap() {
+    var stage = $('battleStage');
+    if (stage) {
+      stage.style.removeProperty('--map-landscape');
+      stage.style.removeProperty('--map-portrait');
+    }
+    delete document.body.dataset.battleMap;
+    delete document.body.dataset.battleNode;
+    if (battleMapPreload && battleMapPreload.parentNode) {
+      battleMapPreload.parentNode.removeChild(battleMapPreload);
+      battleMapPreload = null;
+    }
+  }
+
+  /** Resolve and paint the illustrated battlefield for a map node. */
+  function applyBattleMap(node) {
+    var id = battleMapId(node);
+    if (!id) { clearBattleMap(); return; }
+
+    var stage = $('battleStage');
+    if (!stage) return;
+    stage.style.setProperty('--map-landscape', 'url("' + mapUrl(id, 'landscape') + '")');
+    stage.style.setProperty('--map-portrait', 'url("' + mapUrl(id, 'portrait') + '")');
+    document.body.dataset.battleMap = id;
+    document.body.dataset.battleNode = node.type || '';
+  }
+
+  /** Preload the composition matching current orientation for an upcoming fight. */
+  function preloadBattleMap(node) {
+    if (typeof document === 'undefined') return;
+    var id = battleMapId(node);
+    if (!id) return;
+    var land = matchMedia('(orientation: landscape)').matches;
+    var href = mapUrl(id, land ? 'landscape' : 'portrait');
+    if (battleMapPreload && battleMapPreload.getAttribute('href') === href) return;
+    if (battleMapPreload && battleMapPreload.parentNode) {
+      battleMapPreload.parentNode.removeChild(battleMapPreload);
+    }
+    battleMapPreload = document.createElement('link');
+    battleMapPreload.rel = 'preload';
+    battleMapPreload.as = 'image';
+    battleMapPreload.href = href;
+    document.head.appendChild(battleMapPreload);
+  }
+
   function renderBattle() {
     showScreen('battleScreen');
     var b = state.run.battle;
     if (!b) { renderMap(); return; }
+
+    var node = (state.run.map || []).find(function (n) { return n.id === state.run.currentNodeId; });
+    applyBattleMap(node);
 
     renderKnightPlate(b);
     renderSpeedTrack(b);

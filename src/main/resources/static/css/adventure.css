@@ -899,6 +899,28 @@ body[data-screen="rewardScreen"] .siege-screen{
     linear-gradient(180deg, #10141f 0%, #131a28 44%, #1a2130 60%, #232b3a 100%);
   transition:box-shadow .16s ease;
 }
+/* Illustrated battlefield — external SVG via CSS background-image,
+   switched by the same orientation media query the layout itself uses.
+   inset:0 bleeds past the landscape padding-inline so art reaches the glass.
+   paint containment keeps sprite bob + plate blur from invalidating the map. */
+.battle-map{
+  position:absolute; inset:0; z-index:0; pointer-events:none;
+  background-image:var(--map-landscape);
+  background-size:cover; background-position:center; background-repeat:no-repeat;
+  contain:paint; isolation:isolate;
+}
+.battle-map::after{
+  content:''; position:absolute; inset:0; pointer-events:none;
+  background:
+    linear-gradient(180deg, rgba(5,8,13,.28), transparent 28%, transparent 62%, rgba(5,8,13,.42)),
+    radial-gradient(ellipse at 50% 48%, transparent 40%, rgba(5,8,13,.34) 100%);
+}
+@media (orientation: portrait){
+  .battle-map{ background-image:var(--map-portrait); }
+}
+/* With real map art, dial the synthetic floor pool down (portrait) or hide it
+   (landscape — the SVG draws its own ground plane; .sp-shadow still plants units). */
+body[data-battle-map] .stage-ground{ opacity:.35; }
 /* A card is being dragged over the arena — glow the drop zone. */
 .battle-stage.drop-hover{box-shadow:inset 0 0 0 2px var(--accent), 0 0 22px rgba(255,154,60,.35);}
 .stage-ground{
@@ -907,6 +929,29 @@ body[data-screen="rewardScreen"] .siege-screen{
              radial-gradient(ellipse at 50% 10%, #2a3346 0%, #1b2231 45%, transparent 72%);
   border-radius:50%;
   pointer-events:none;
+}
+/* Elite/boss reuse segment maps with a CSS vignette on ::before
+   (::after is the drag scrim). Tint strength is tunable via --arena-tint. */
+.battle-stage::before{
+  content:''; position:absolute; inset:0; z-index:1; pointer-events:none;
+  opacity:0; transition:opacity .2s ease;
+  background:radial-gradient(120% 100% at 50% 50%, transparent 35%, rgba(120,20,30, calc(var(--arena-tint, .0))) 100%);
+}
+body[data-battle-node="ELITE"] .battle-stage::before{
+  opacity:1;
+  background:radial-gradient(120% 100% at 50% 50%, transparent 30%, rgba(140,24,36, var(--arena-tint, .38)) 100%);
+}
+body[data-battle-node="BOSS"] .battle-stage::before{
+  opacity:1;
+  background:radial-gradient(130% 110% at 50% 48%, transparent 28%, rgba(90,10,24, var(--arena-tint, .52)) 100%);
+}
+@media (prefers-reduced-motion: no-preference){
+  body[data-battle-node="BOSS"] .battle-stage::before{
+    animation:bossTintPulse 4.5s ease-in-out infinite;
+  }
+  @keyframes bossTintPulse{
+    50%{ opacity:.72; }
+  }
 }
 .foe-line,.ally-line{
   position:relative; display:flex; gap:4%; justify-content:center; align-items:flex-end;
@@ -1737,6 +1782,12 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
     --arena-log-w:148px;
     --arena-hand-h:150px;
     --playcard-w:94px;
+    --arena-tint:.42;                 /* elite/boss vignette strength on phone */
+    --arena-side-inset:max(10px,env(safe-area-inset-left,0px));
+    --arena-clash-half:clamp(24px,6vw,42px);
+    --arena-unit-gap:clamp(4px,1.2vw,10px);
+    --arena-unit-top-gap:88px;        /* below health/speed/ledger band */
+    --arena-unit-bottom-clearance:calc(var(--arena-hand-h) - 12px);
   }
   /* Full bleed needs the reading-column cap and the side gutters gone, or the
      "edge to edge" arena stops 400px short of each edge on a desktop. */
@@ -1783,18 +1834,28 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
       radial-gradient(1000px 360px at 50% -60px, rgba(255,154,60,.10), transparent 70%),
       linear-gradient(180deg, #0d1119 0%, #121826 46%, #18202f 62%, #202838 100%);
   }
-  /* Each side is a vertical formation that wraps in ranks toward its own OUTER
-     edge, so a bigger warband stacks a second rank flush with the screen edge
-     instead of creeping into the center gap. align-items/align-content place
-     the front rank hard against the far edge (left for allies, right for foes). */
+  /* Landscape map art draws its own ground plane; hide the synthetic ellipse. */
+  body[data-battle-map] .stage-ground{ display:none; }
+  /* Landscape formations advance horizontally toward the opposing side.
+     DOM slot 1 starts at its home edge, then slots 2/3 move inward. The lane is
+     vertically bounded below the health/speed band and above the hand/AP HUD,
+     so unit plates never hide under either overlay. */
   .foe-line,.ally-line{
-    min-height:0; height:100%; flex:0 1 auto; margin:0;
-    flex-direction:column; flex-wrap:wrap; gap:3%;
-    justify-content:center;
+    position:absolute;
+    top:calc(var(--arena-chrome-top) + var(--arena-unit-top-gap));
+    bottom:var(--arena-unit-bottom-clearance);
+    width:calc(50% - var(--arena-clash-half) - var(--arena-side-inset));
+    min-height:0; height:auto; flex:0 0 auto; margin:0;
+    flex-flow:row nowrap; gap:var(--arena-unit-gap);
+    align-items:center; align-content:normal; justify-content:flex-start;
   }
-  .ally-line{ align-items:flex-start; align-content:flex-start; }  /* hug the far LEFT */
-  .foe-line{ align-items:flex-end; align-content:flex-end; }       /* hug the far RIGHT */
-  .sprite{ width:calc(var(--arena-sprite-w) * var(--evo-scale,1)); max-width:calc(22vw * var(--evo-scale,1)); }
+  .ally-line{ left:var(--arena-side-inset); right:auto; }
+  .foe-line{ right:var(--arena-side-inset); left:auto; flex-direction:row-reverse; }
+  .sprite{
+    flex:0 1 calc(var(--arena-sprite-w) * var(--evo-scale,1)); min-width:0;
+    width:calc(var(--arena-sprite-w) * var(--evo-scale,1));
+    max-width:calc(22vw * var(--evo-scale,1));
+  }
   .sprite .sp-art{ height:calc(var(--arena-sprite-art) * var(--evo-scale,1)); }
   .sprite .sp-art img{ max-height:calc(var(--arena-sprite-art) * var(--evo-scale,1)); }
   .sprite .sp-art-fallback span{ font-size:calc(var(--arena-sprite-art) * 0.62 * var(--evo-scale,1)); }
@@ -1910,6 +1971,12 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
     --arena-log-w:clamp(168px, 17vw, 260px);
     --arena-hand-h:clamp(172px, 26vh, 240px);
     --playcard-w:clamp(104px, 9.5vw, 138px);
+    --arena-tint:.48;
+    --arena-side-inset:max(10px,6vw,env(safe-area-inset-left,0px));
+    --arena-clash-half:clamp(72px,8vw,180px);
+    --arena-unit-gap:clamp(8px,1.2vw,18px);
+    --arena-unit-top-gap:105px;
+    --arena-unit-bottom-clearance:var(--arena-hand-h);
   }
   /* The top bar keeps its normal touch targets here — only phones need it
      shaved down to 3px of padding. */
