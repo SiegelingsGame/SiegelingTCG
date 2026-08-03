@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Siege — Siegelings Adventure</title>
 <link rel="icon" href="/favicon.png">
-<link rel="stylesheet" href="/css/adventure.css?v=46">
+<link rel="stylesheet" href="/css/adventure.css?v=49">
 </head>
 <body>
 <!-- Enemy Siegelings are corrupted card art, so they need the same die-cut shade
@@ -273,6 +273,7 @@
       <div class="speed-track" id="speedTrack"></div>
     </div>
     <div class="battle-stage" id="battleStage">
+      <div class="battle-map" id="battleMap" aria-hidden="true"></div>
       <div class="stage-ground"></div>
       <div class="action-banner" id="actionBanner"></div>
       <div class="foe-line" id="enemyRow"></div>
@@ -605,6 +606,7 @@
 
   <div class="siege-toast hidden" id="siegeToast"></div>
 </div>
-<script src="/js/adventure.js?v=45"></script>
+<script src="/js/siege-maps.js?v=3"></script>
+<script src="/js/adventure.js?v=49"></script>
 </body>
 </html>
