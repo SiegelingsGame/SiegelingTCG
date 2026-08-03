@@ -160,6 +160,34 @@ class GameJavaScriptRegressionTest {
     }
 
     @Test
+    void battleLoadoutHidesLockedPremadeDecks() throws IOException {
+        String gameScript = readGameScript();
+        String visibleDecks = extractFunction(gameScript, "function getVisibleLoadoutDecks()");
+        String renderLoadout = extractFunction(gameScript, "function renderLoadoutOptions()");
+        String renderSwaps = extractFunction(gameScript, "function renderLoadoutSwaps()");
+        String lobbyWaiting = extractFunction(readHomeScript(), "function lobbyWaitingContext()");
+
+        assertTrue(
+                visibleDecks.contains("!isPremadeDeckLocked(deck)"),
+                "Battle loadout must expose a helper that filters out locked premade decks."
+        );
+        assertTrue(
+                renderLoadout.contains("getVisibleLoadoutDecks()")
+                        && !renderLoadout.contains("is-locked")
+                        && !renderLoadout.contains("Unlock for"),
+                "Choose Your Deck must only render unlocked presets, with no locked-tile UI."
+        );
+        assertTrue(
+                renderSwaps.contains("getVisibleLoadoutDecks()"),
+                "Review-step deck swap must also omit locked presets."
+        );
+        assertTrue(
+                lobbyWaiting.contains("decks.filter(deck => !isPremadeDeckLocked(deck))"),
+                "Social lobby battle deck picks must omit locked presets."
+        );
+    }
+
+    @Test
     void homePlayLoadoutUsesSelectedAndSavedDecks() throws IOException {
         String homeScript = readHomeScript();
         String selectedDeckId = extractFunction(homeScript, "function selectedDeckId()");
