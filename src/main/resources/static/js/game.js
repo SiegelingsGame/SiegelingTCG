@@ -8333,6 +8333,13 @@ function countBoardSieglings(board = gameState?.playerBoard || []) {
     return (board || []).reduce((count, row) => count + (row || []).filter(Boolean).length, 0);
 }
 
+function cellHasAffliction(cell, kind) {
+    const want = String(kind || '').toUpperCase();
+    if (!cell || !want) return false;
+    const rows = Array.isArray(cell.afflictions) ? cell.afflictions : [];
+    return rows.some((row) => String(row?.kind || '').toUpperCase() === want && Number(row?.stacks) > 0);
+}
+
 function getClaimableSieglings(board = gameState?.playerBoard || []) {
     if (!gameState || gameState.currentPhase !== 'SETUP' || gameState.activeSide !== 'PLAYER' || targetMode) {
         return [];
@@ -8341,7 +8348,8 @@ function getClaimableSieglings(board = gameState?.playerBoard || []) {
     for (let row = 0; row < 3; row++) {
         for (let col = 0; col < 3; col++) {
             const cell = board?.[row]?.[col];
-            if (cell && Number(cell.battlePhasesSeen || 0) > 0) {
+            // Curse blocks claim — mirror GameService.claimSiegling.
+            if (cell && Number(cell.battlePhasesSeen || 0) > 0 && !cellHasAffliction(cell, 'CURSE')) {
                 claimable.push([row, col]);
             }
         }
@@ -8360,7 +8368,8 @@ function getEvolutionPlacements(card, board = gameState?.playerBoard || []) {
             const cell = board?.[row]?.[col];
             if (cell
                 && cell.cardId === card.evolvesFromId
-                && Number(cell.battlePhasesSeen || 0) > 0) {
+                && Number(cell.battlePhasesSeen || 0) > 0
+                && !cellHasAffliction(cell, 'CURSE')) {
                 placements.push([row, col]);
             }
         }
@@ -8497,6 +8506,13 @@ function getHandCardLockReason(card) {
             return `Needs ${card.evolvesFromName || 'its base form'} on your board first.`;
         }
         if (getEvolutionPlacements(card).length === 0) {
+            const cursedBase = baseCells.some(([r, c]) => cellHasAffliction(
+                (gameState?.playerBoard || [])?.[r]?.[c],
+                'CURSE'
+            ));
+            if (cursedBase) {
+                return `${card.evolvesFromName || 'Base form'} is Cursed and cannot evolve.`;
+            }
             return `${card.evolvesFromName || 'Base form'} must complete a full battle phase in its current form before it can evolve.`;
         }
     }

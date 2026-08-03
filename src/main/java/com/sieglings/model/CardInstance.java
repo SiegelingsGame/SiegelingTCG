@@ -68,7 +68,9 @@ public class CardInstance {
         if (isSpeedZero()) {
             return 0;
         }
-        return Math.max(0, currentSpeed + trainerPassiveSpeedBuff);
+        // Chill badges (−1 Speed each) sit on afflictionStacks; cap handled by catalog.
+        int chill = getAfflictionStacks(ElementalAffliction.CHILL);
+        return Math.max(0, currentSpeed + trainerPassiveSpeedBuff - chill);
     }
 
     public int getEffectiveMaxHealth() {

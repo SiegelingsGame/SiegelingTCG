@@ -90,7 +90,7 @@ public class EffectService {
             return;
         }
 
-        applyEffect(state, ability, source, targets, destRow, destCol);
+        applyEffect(state, ability, source, isPlayerSource, targets, destRow, destCol);
     }
 
     private List<CardInstance> resolveTargets(GameState state, Ability ability, CardInstance source,
@@ -197,8 +197,8 @@ public class EffectService {
         return targets.stream().filter(t -> t != null && t.isAlive() && t.getElement() == el).toList();
     }
 
-    private void applyEffect(GameState state, Ability ability, CardInstance source, List<CardInstance> targets,
-                             int destRow, int destCol) {
+    private void applyEffect(GameState state, Ability ability, CardInstance source, boolean isPlayerSource,
+                             List<CardInstance> targets, int destRow, int destCol) {
         String effectType = ability.getEffectType();
         int value = ability.getEffectValue();
 
@@ -226,29 +226,66 @@ public class EffectService {
         for (CardInstance target : targets) {
             switch (effectType) {
                 case AbilityEffectKeys.DAMAGE -> {
+                    Element damageElement = ElementalAfflictionService.damageElementFor(
+                            source, ability.getRequiredElement());
                     int damage = value;
+                    if (elementalAfflictionService != null && source != null) {
+                        damage = elementalAfflictionService.applyBlindToValue(source, damage);
+                    }
+                    // Damaging abilities keep at least 1 after Blind unless the printed value was 0.
+                    if (value > 0) {
+                        damage = Math.max(1, damage);
+                    }
                     boolean weaknessBonus = false;
                     if (source != null && isWeakTo(source.getElement(), target.getElement())) {
                         damage += 1;
                         weaknessBonus = true;
                     }
+                    int soak = 0;
+                    int rust = 0;
+                    if (elementalAfflictionService != null) {
+                        soak = elementalAfflictionService.soakBonus(target);
+                        rust = elementalAfflictionService.rustBonusAndClear(state, target, damageElement);
+                        damage += soak + rust;
+                    }
 
                     int hpBefore = target.getCurrentHealth();
                     target.takeRawDamage(damage);
                     int hpDealt = Math.max(0, hpBefore - target.getCurrentHealth());
+                    String bonusBits = "";
+                    if (weaknessBonus) bonusBits += " (weakness +1)";
+                    if (soak > 0) bonusBits += " (soak +" + soak + ")";
+                    if (rust > 0) bonusBits += " (rust +" + rust + ")";
                     state.log(ability.getName() + " deals " + damage + " damage to " + target.getName()
-                            + (weaknessBonus ? " (weakness +1)" : "")
+                            + bonusBits
                             + " (HP: " + target.getCurrentHealth() + ")");
                     if (elementalAfflictionService != null) {
-                        Element damageElement = ElementalAfflictionService.damageElementFor(
-                                source, ability.getRequiredElement());
-                        elementalAfflictionService.tryInflictFromDamage(state, target, damageElement, hpDealt);
+                        elementalAfflictionService.tryInflictFromDamage(
+                                state, target, damageElement, hpDealt, isPlayerSource);
                     }
                 }
                 case AbilityEffectKeys.HEAL -> {
-                    target.healDamage(value);
-                    state.log(ability.getName() + " heals " + target.getName() + " for " + value
-                            + " (HP: " + target.getCurrentHealth() + ")");
+                    int healValue = value;
+                    if (elementalAfflictionService != null && source != null) {
+                        healValue = elementalAfflictionService.applyBlindToValue(source, healValue);
+                    }
+                    int toxinBefore = target.getAfflictionStacks(
+                            com.sieglings.model.enums.ElementalAffliction.TOXIN);
+                    int restored;
+                    if (elementalAfflictionService != null) {
+                        restored = elementalAfflictionService.applyHealWithToxin(state, target, healValue);
+                    } else {
+                        int before = target.getCurrentHealth();
+                        target.healDamage(healValue);
+                        restored = Math.max(0, target.getCurrentHealth() - before);
+                    }
+                    if (restored > 0) {
+                        state.log(ability.getName() + " heals " + target.getName() + " for " + restored
+                                + " (HP: " + target.getCurrentHealth() + ")");
+                    } else if (toxinBefore <= 0) {
+                        state.log(ability.getName() + " heals " + target.getName() + " for " + healValue
+                                + " (HP: " + target.getCurrentHealth() + ")");
+                    }
                 }
                 case AbilityEffectKeys.SHIELD -> {
                     target.addShield(Math.max(1, value));

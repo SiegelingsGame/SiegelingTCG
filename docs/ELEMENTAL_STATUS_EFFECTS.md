@@ -6,8 +6,7 @@ ride on damage of a given element.
 
 **Source of truth:** `com.sieglings.model.ElementalAfflictionCatalog`
 
-Only rows with `battleEnabled = true` inflict/tick in battle today (**Burn**).
-Every other row below is the locked design contract to implement next.
+All non-neutral rows are `battleEnabled = true` and live in standard battle.
 
 ---
 
@@ -45,24 +44,24 @@ DRAW → SETUP → BATTLE → (opponent DRAW → SETUP → BATTLE) → …
 | Element | Affliction | Cap | Battle live |
 |---|---|---|---|
 | FIRE | Burn | 5 | **yes** |
-| ICE | Chill | 3 | no |
-| EARTH | Stagger | 2 | no |
-| WIND | Disorient | 3 | no |
-| WATER | Soak | 5 | no |
-| ELECTRIC | Shock | 5 | no |
-| METAL | Rust | 3 | no |
-| POISON | Toxin | 5 | no |
-| SHADOW | Curse | 2 | no |
-| PSYCHIC | **Insight** | 3 | no |
-| LIGHT | Blind | 3 | no |
-| UNDEAD | Wither | 3 | no |
+| ICE | Chill | 3 | **yes** |
+| EARTH | Stagger | 2 | **yes** |
+| WIND | Disorient | 3 | **yes** |
+| WATER | Soak | 5 | **yes** |
+| ELECTRIC | Shock | 5 | **yes** |
+| METAL | Rust | 3 | **yes** |
+| POISON | Toxin | 5 | **yes** |
+| SHADOW | Curse | 2 | **yes** |
+| PSYCHIC | **Insight** | 3 | **yes** |
+| LIGHT | Blind | 3 | **yes** |
+| UNDEAD | Wither | 3 | **yes** |
 | NEUTRAL | — | — | — |
 
 ---
 
 ## Per-status battle contracts (step by step)
 
-### FIRE — Burn *(live)*
+### FIRE — Burn
 
 **Inflict:** Fire damage that deals HP → +1 Burn (cap 5).
 
@@ -215,12 +214,12 @@ Other elements’ attacks do **not** consume or benefit from Rust.
 
 ---
 
-### UNDEAD — Wither *(unchanged placeholder)*
+### UNDEAD — Wither
 
 **Inflict:** Undead damage → +1 Wither (cap 3).
 
-**Owner Setup:** −1 effective max HP per stack (HP clamped); clears at end of
-that Setup. Still a placeholder pending a dedicated pass.
+**Owner Setup:** clamp current HP as if max were −1 per stack (overflow lost),
+then clear Wither.
 
 ---
 

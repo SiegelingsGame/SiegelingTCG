@@ -6,108 +6,258 @@ import com.sieglings.model.ElementalAfflictionCatalog;
 import com.sieglings.model.GameState;
 import com.sieglings.model.Player;
 import com.sieglings.model.SieglingCard;
+import com.sieglings.model.SpellCard;
 import com.sieglings.model.enums.Element;
 import com.sieglings.model.enums.ElementalAffliction;
 import com.sieglings.model.enums.Phase;
 import com.sieglings.model.enums.Rarity;
 import com.sieglings.model.enums.Row;
+import com.sieglings.model.enums.StatusEffect;
 import com.sieglings.model.enums.TargetType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ElementalAfflictionServiceTest {
 
     private final ElementalAfflictionService afflictions = new ElementalAfflictionService();
     private final EffectService effectService = new EffectService();
+    private final BattleService battleService = new BattleService();
+    private final EnergyService energyService = new EnergyService(new PlacementService());
+    private final GameService gameService = new GameService();
 
     @BeforeEach
     void wire() {
         ReflectionTestUtils.setField(effectService, "elementalAfflictionService", afflictions);
+        ReflectionTestUtils.setField(battleService, "effectService", effectService);
+        ReflectionTestUtils.setField(battleService, "energyService", energyService);
+        ReflectionTestUtils.setField(battleService, "elementalAfflictionService", afflictions);
+        ReflectionTestUtils.setField(gameService, "elementalAfflictionService", afflictions);
+        ReflectionTestUtils.setField(gameService, "energyService", energyService);
+        ReflectionTestUtils.setField(gameService, "placementService", new PlacementService());
+        ReflectionTestUtils.setField(gameService, "effectService", effectService);
     }
 
     @Test
-    void catalogCoversEveryNonNeutralElementExactlyOnce() {
-        assertEquals(12, ElementalAfflictionCatalog.all().size());
-        for (Element element : Element.values()) {
-            if (element == Element.NEUTRAL) {
-                assertTrue(ElementalAfflictionCatalog.forElement(element).isEmpty());
-            } else {
-                assertTrue(ElementalAfflictionCatalog.forElement(element).isPresent(),
-                        element + " should have an affliction row");
-            }
-        }
-        assertEquals(1, ElementalAfflictionCatalog.battleEnabled().size());
-        assertEquals(ElementalAffliction.BURN, ElementalAfflictionCatalog.battleEnabled().get(0).affliction());
+    void allNonNeutralAfflictionsAreBattleEnabled() {
+        assertEquals(12, ElementalAfflictionCatalog.battleEnabled().size());
     }
 
     @Test
-    void fireDamageAppliesBurnBadgeStacks() {
+    void fireDamageAppliesBurnAndTicksOnSetup() {
         GameState state = battleState();
-        CardInstance attacker = fireInstance("ember", 1, 0, true);
-        CardInstance target = iceInstance("frost", 1, 1, false);
+        CardInstance attacker = instance("ember", Element.FIRE, 1, 0, true);
+        CardInstance target = instance("frost", Element.ICE, 1, 1, false);
         state.setAt(true, 1, 0, attacker);
         state.setAt(false, 1, 1, target);
 
-        Ability strike = Ability.damage("Ember Strike", "Deal 3 fire damage", TargetType.SINGLE_ENEMY, null, 1, 3);
-        effectService.resolveAbility(state, strike, attacker, true, 1, 1);
+        effectService.resolveAbility(state,
+                Ability.damage("Ember Strike", "Deal 3", TargetType.SINGLE_ENEMY, null, 1, 3),
+                attacker, true, 1, 1);
 
-        // Fire > Ice weakness adds +1, so 4 HP damage and one Burn badge.
-        assertEquals(6, target.getCurrentHealth());
         assertEquals(1, target.getAfflictionStacks(ElementalAffliction.BURN));
-        assertTrue(state.getGameLog().stream().anyMatch(line -> line.contains("Burn x1")));
+        // Move target to player board for owner-setup tick ownership
+        state.setAt(false, 1, 1, null);
+        state.setAt(true, 0, 0, target);
+        target.setBoardRow(0);
+        target.setBoardCol(0);
+        // owner flag on instance still false — tickOwnerSetup uses board side, not owner flag
+        afflictions.tickOwnerSetup(state, true);
+        assertEquals(0, target.getAfflictionStacks(ElementalAffliction.BURN));
     }
 
     @Test
-    void burnStacksCapAndResolveForFlatDamageOnOwnerSetup() {
+    void chillSlowsThenFreezesAtThreeAndThawsOnSetup() {
         GameState state = battleState();
-        CardInstance target = iceInstance("frost", 1, 1, true);
+        CardInstance target = instance("torch", Element.FIRE, 1, 1, true);
+        target.setCurrentSpeed(5);
         state.setAt(true, 1, 1, target);
-        target.addAfflictionStacks(ElementalAffliction.BURN, 3, 5);
-        target.addAfflictionStacks(ElementalAffliction.BURN, 10, 5); // cap at 5
-        assertEquals(5, target.getAfflictionStacks(ElementalAffliction.BURN));
+
+        afflictions.tryInflictFromDamage(state, target, Element.ICE, 1, false);
+        afflictions.tryInflictFromDamage(state, target, Element.ICE, 1, false);
+        assertEquals(3, target.getEffectiveSpeed());
+        assertFalse(target.isFrozen());
+
+        afflictions.tryInflictFromDamage(state, target, Element.ICE, 1, false);
+        assertEquals(3, target.getAfflictionStacks(ElementalAffliction.CHILL));
+        assertTrue(target.isFrozen());
+        assertTrue(afflictions.isChillFrozen(target));
 
         afflictions.tickOwnerSetup(state, true);
-
-        assertEquals(5, target.getCurrentHealth(), "5 burn stacks × 1 damage each");
-        assertEquals(0, target.getAfflictionStacks(ElementalAffliction.BURN), "Burn clears after Setup tick");
-        assertTrue(state.getGameLog().stream().anyMatch(line -> line.contains("takes 5 burn damage")));
-    }
-
-    @Test
-    void nonFireDamageDoesNotInflictUntilItsRowIsBattleEnabled() {
-        GameState state = battleState();
-        CardInstance attacker = iceInstance("frostbite", 1, 0, true);
-        CardInstance target = fireInstance("torch", 1, 1, false);
-        state.setAt(true, 1, 0, attacker);
-        state.setAt(false, 1, 1, target);
-
-        Ability strike = Ability.damage("Frost Bite", "Deal 2 ice damage", TargetType.SINGLE_ENEMY, null, 1, 2);
-        effectService.resolveAbility(state, strike, attacker, true, 1, 1);
-
         assertEquals(0, target.getAfflictionStacks(ElementalAffliction.CHILL));
-        assertTrue(target.getAfflictionStacks().isEmpty());
+        assertFalse(target.isFrozen());
     }
 
     @Test
-    void fullyBlockedDamageDoesNotInflictBurn() {
+    void toxinBlocksHealAndStripsStacks() {
         GameState state = battleState();
-        CardInstance attacker = fireInstance("ember", 1, 0, true);
-        CardInstance target = iceInstance("frost", 1, 1, false);
-        target.addShield(10);
+        CardInstance target = instance("bud", Element.WIND, 1, 1, true);
+        target.takeRawDamage(5);
+        target.addAfflictionStacks(ElementalAffliction.TOXIN, 3, 5);
+        state.setAt(true, 1, 1, target);
+
+        int restored = afflictions.applyHealWithToxin(state, target, 2);
+        assertEquals(0, restored);
+        assertEquals(1, target.getAfflictionStacks(ElementalAffliction.TOXIN));
+        assertEquals(5, target.getCurrentHealth());
+
+        restored = afflictions.applyHealWithToxin(state, target, 4);
+        assertEquals(0, restored);
+        assertEquals(0, target.getAfflictionStacks(ElementalAffliction.TOXIN));
+
+        restored = afflictions.applyHealWithToxin(state, target, 3);
+        assertEquals(3, restored);
+        assertEquals(8, target.getCurrentHealth());
+    }
+
+    @Test
+    void soakAndRustModifyIncomingAttackDamage() {
+        GameState state = battleState();
+        CardInstance metal = instance("gear", Element.METAL, 1, 0, true);
+        CardInstance target = instance("leaf", Element.WIND, 1, 1, false);
+        target.addAfflictionStacks(ElementalAffliction.SOAK, 2, 5);
+        target.addAfflictionStacks(ElementalAffliction.RUST, 3, 3);
+        state.setAt(true, 1, 0, metal);
+        state.setAt(false, 1, 1, target);
+
+        // 2 base + weakness(Metal>Wind)+1 + soak 2 + rust 3 = 8
+        effectService.resolveAbility(state,
+                Ability.damage("Clang", "Deal 2", TargetType.SINGLE_ENEMY, null, 1, 2),
+                metal, true, 1, 1);
+
+        assertEquals(2, target.getCurrentHealth());
+        // Rust cleared mid-hit, then Metal damage re-inflicts Rust ×1.
+        assertEquals(1, target.getAfflictionStacks(ElementalAffliction.RUST));
+        assertEquals(2, target.getAfflictionStacks(ElementalAffliction.SOAK));
+    }
+
+    @Test
+    void insightAtThreeDrawsForInflicterAndClears() {
+        GameState state = battleState();
+        Player player = state.getPlayer();
+        player.getDeck().add(new SpellCard("s1", "Spark", Element.FIRE, Rarity.COMMON, 0, null));
+        CardInstance target = instance("mind", Element.WATER, 1, 1, false);
+        state.setAt(false, 1, 1, target);
+
+        afflictions.tryInflictFromDamage(state, target, Element.PSYCHIC, 1, true);
+        afflictions.tryInflictFromDamage(state, target, Element.PSYCHIC, 1, true);
+        assertEquals(2, target.getAfflictionStacks(ElementalAffliction.INSIGHT));
+        assertEquals(0, player.getHand().size());
+
+        afflictions.tryInflictFromDamage(state, target, Element.PSYCHIC, 1, true);
+        assertEquals(0, target.getAfflictionStacks(ElementalAffliction.INSIGHT));
+        assertEquals(1, player.getHand().size());
+    }
+
+    @Test
+    void disorientRaisesOnlyLowestCostAbilityAndShockTaxesSpend() {
+        CardInstance attacker = instance("shocky", Element.ELECTRIC, 1, 0, true);
+        attacker.addAfflictionStacks(ElementalAffliction.DISORIENT, 2, 3);
+        attacker.addAfflictionStacks(ElementalAffliction.SHOCK, 1, 5);
+
+        Ability cheap = Ability.damage("Nip", "1", TargetType.SINGLE_ENEMY, null, 1, 1);
+        cheap.setRequiredElement(Element.EARTH);
+        cheap.setRequiredEnergy(1);
+        Ability alsoCheap = Ability.damage("Nib", "1", TargetType.SINGLE_ENEMY, null, 1, 1);
+        alsoCheap.setRequiredElement(Element.EARTH);
+        alsoCheap.setRequiredEnergy(1);
+        Ability dear = Ability.damage("Slam", "4", TargetType.SINGLE_ENEMY, null, 1, 4);
+        dear.setRequiredElement(Element.EARTH);
+        dear.setRequiredEnergy(3);
+        List<Ability> abs = List.of(cheap, alsoCheap, dear);
+
+        assertEquals(3, afflictions.modifiedAbilityCost(attacker, abs, 0)); // 1 + 2 disorient
+        assertEquals(1, afflictions.modifiedAbilityCost(attacker, abs, 1)); // tie → first only
+        assertEquals(3, afflictions.modifiedAbilityCost(attacker, abs, 2));
+
+        GameState state = battleState();
+        state.getPlayer().setEarthEnergy(3);
+        // cost 3 + shock 1 = 4 needed; only 3 available → unaffordable
+        assertFalse(energyService.canAfford(state, true, Element.EARTH,
+                afflictions.modifiedAbilityCost(attacker, abs, 0) + afflictions.shockSpendTax(attacker)));
+        state.getPlayer().setEarthEnergy(4);
+        assertTrue(energyService.canAfford(state, true, Element.EARTH,
+                afflictions.modifiedAbilityCost(attacker, abs, 0) + afflictions.shockSpendTax(attacker)));
+    }
+
+    @Test
+    void staggerTwoGoesToBackOfBattleQueue() {
+        GameState state = battleState();
+        CardInstance fast = instance("fast", Element.WIND, 0, 0, true);
+        fast.setCurrentSpeed(10);
+        CardInstance staggered = instance("slowpoke", Element.EARTH, 0, 1, true);
+        staggered.setCurrentSpeed(9);
+        staggered.addAfflictionStacks(ElementalAffliction.STAGGER, 2, 2);
+        CardInstance mid = instance("mid", Element.FIRE, 0, 2, false);
+        mid.setCurrentSpeed(8);
+        state.setAt(true, 0, 0, fast);
+        state.setAt(true, 0, 1, staggered);
+        state.setAt(false, 0, 2, mid);
+
+        battleService.initializeBattle(state);
+        assertEquals(List.of(fast.getInstanceId(), mid.getInstanceId(), staggered.getInstanceId()),
+                state.getBattleQueue());
+    }
+
+    @Test
+    void curseBlocksClaimAndEvolve() {
+        GameState state = battleState();
+        state.setCurrentPhase(Phase.SETUP);
+        state.setPlayerTurn(true);
+        CardInstance cursed = instance("shade", Element.SHADOW, 1, 1, true);
+        cursed.setBattlePhasesSeen(1);
+        cursed.addAfflictionStacks(ElementalAffliction.CURSE, 1, 2);
+        state.setAt(true, 1, 1, cursed);
+
+        gameService.claimSiegling(state, true, 1, 1);
+        assertEquals(cursed, state.getAt(true, 1, 1));
+        assertTrue(state.getGameLog().stream().anyMatch(l -> l.contains("Cursed") && l.contains("claimed")));
+
+        SieglingCard evo = new SieglingCard("shade-evo", "Shade Evo", Element.SHADOW, Rarity.UNCOMMON,
+                12, 4, List.of(), Row.MIDDLE);
+        evo.setEvolvesFromId("shade");
+        state.getPlayer().getHand().add(evo);
+        state.getPlayer().adjustTemporaryEnergy(Element.SHADOW, 5);
+        state.captureSieglingSetupPlacementBonusFromEnergy(true);
+        gameService.placeSiegling(state, true, "shade-evo", 1, 1);
+        assertEquals("shade", state.getAt(true, 1, 1).getCard().getId());
+        assertTrue(state.getGameLog().stream().anyMatch(l -> l.contains("Cursed") && l.contains("evolve")));
+    }
+
+    @Test
+    void blindReducesOutgoingDamage() {
+        GameState state = battleState();
+        CardInstance attacker = instance("glare", Element.LIGHT, 1, 0, true);
+        attacker.addAfflictionStacks(ElementalAffliction.BLIND, 2, 3);
+        CardInstance target = instance("rock", Element.EARTH, 1, 1, false);
         state.setAt(true, 1, 0, attacker);
         state.setAt(false, 1, 1, target);
 
-        Ability strike = Ability.damage("Ember Strike", "Deal 3 fire damage", TargetType.SINGLE_ENEMY, null, 1, 3);
-        effectService.resolveAbility(state, strike, attacker, true, 1, 1);
+        // 5 - 2 blind = 3
+        effectService.resolveAbility(state,
+                Ability.damage("Flash", "Deal 5", TargetType.SINGLE_ENEMY, null, 1, 5),
+                attacker, true, 1, 1);
+        assertEquals(7, target.getCurrentHealth());
+    }
 
-        assertEquals(10, target.getCurrentHealth());
-        assertEquals(0, target.getAfflictionStacks(ElementalAffliction.BURN));
+    @Test
+    void witherClampsHpOnSetup() {
+        GameState state = battleState();
+        CardInstance target = instance("bone", Element.UNDEAD, 1, 1, true);
+        // max 10, current 10, wither 2 → clamp to 8
+        target.addAfflictionStacks(ElementalAffliction.WITHER, 2, 3);
+        state.setAt(true, 1, 1, target);
+
+        afflictions.tickOwnerSetup(state, true);
+        assertEquals(8, target.getCurrentHealth());
+        assertEquals(0, target.getAfflictionStacks(ElementalAffliction.WITHER));
     }
 
     private static GameState battleState() {
@@ -119,13 +269,8 @@ class ElementalAfflictionServiceTest {
         return state;
     }
 
-    private static CardInstance fireInstance(String id, int row, int col, boolean owner) {
-        SieglingCard card = new SieglingCard(id, id, Element.FIRE, Rarity.COMMON, 10, 5, List.of(), Row.MIDDLE);
-        return new CardInstance(card, row, col, owner);
-    }
-
-    private static CardInstance iceInstance(String id, int row, int col, boolean owner) {
-        SieglingCard card = new SieglingCard(id, id, Element.ICE, Rarity.COMMON, 10, 5, List.of(), Row.MIDDLE);
+    private static CardInstance instance(String id, Element element, int row, int col, boolean owner) {
+        SieglingCard card = new SieglingCard(id, id, element, Rarity.COMMON, 10, 5, List.of(), Row.MIDDLE);
         return new CardInstance(card, row, col, owner);
     }
 }

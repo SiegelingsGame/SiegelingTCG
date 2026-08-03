@@ -52,15 +52,18 @@ public class BattleService {
     @Autowired
     private MatchHistoryService matchHistoryService;
 
+    @Autowired
+    private ElementalAfflictionService elementalAfflictionService;
+
     public void initializeBattle(GameState state) {
         state.log("=== BATTLE PHASE ===");
 
         List<CardInstance> allSieglings = new ArrayList<>();
         allSieglings.addAll(state.getBoardSieglings(true));
         allSieglings.addAll(state.getBoardSieglings(false));
-        allSieglings.sort(Comparator.comparingInt(CardInstance::getEffectiveSpeed).reversed());
-
-        List<String> queue = allSieglings.stream().map(CardInstance::getInstanceId).toList();
+        List<String> queue = orderBattleQueue(allSieglings).stream()
+                .map(CardInstance::getInstanceId)
+                .toList();
         state.setBattleQueue(new ArrayList<>(queue));
         state.setBattleCursor(0);
         state.setPendingBattleInstanceId(null);
@@ -84,9 +87,12 @@ public class BattleService {
                 continue;
             }
 
-            if (attacker.isFrozen()) {
+            if (attacker.isFrozen() || isChillFrozen(attacker)) {
                 logStatusLostTurn(state, attacker, StatusEffect.FREEZE);
-                attacker.getStatusEffects().remove(StatusEffect.FREEZE);
+                // Chill-freeze lasts until the owner's Setup thaw; ability FREEZE is one-action.
+                if (!isChillFrozen(attacker)) {
+                    attacker.getStatusEffects().remove(StatusEffect.FREEZE);
+                }
                 pauseAfterAction(state);
                 return;
             }
@@ -125,15 +131,44 @@ public class BattleService {
             return;
         }
 
-        List<String> remaining = new ArrayList<>(queue.subList(cursor, queue.size()));
-        remaining.sort(Comparator.comparingInt((String id) -> {
+        List<CardInstance> remaining = new ArrayList<>();
+        for (String id : queue.subList(cursor, queue.size())) {
             CardInstance ci = state.findByInstanceId(id);
-            return ci == null || !ci.isAlive() ? Integer.MIN_VALUE : ci.getEffectiveSpeed();
-        }).reversed());
-
-        for (int i = 0; i < remaining.size(); i++) {
-            queue.set(cursor + i, remaining.get(i));
+            if (ci != null) {
+                remaining.add(ci);
+            }
         }
+        List<String> ordered = orderBattleQueue(remaining).stream()
+                .map(CardInstance::getInstanceId)
+                .toList();
+
+        for (int i = 0; i < ordered.size(); i++) {
+            queue.set(cursor + i, ordered.get(i));
+        }
+    }
+
+    /** Speed order, then Stagger ×2+ units shoved to the back (stable among themselves). */
+    private List<CardInstance> orderBattleQueue(List<CardInstance> sieglings) {
+        List<CardInstance> sorted = new ArrayList<>(sieglings);
+        sorted.sort(Comparator.comparingInt(CardInstance::getEffectiveSpeed).reversed());
+        if (elementalAfflictionService == null) {
+            return sorted;
+        }
+        List<CardInstance> front = new ArrayList<>();
+        List<CardInstance> back = new ArrayList<>();
+        for (CardInstance ci : sorted) {
+            if (elementalAfflictionService.isStaggeredToBack(ci)) {
+                back.add(ci);
+            } else {
+                front.add(ci);
+            }
+        }
+        front.addAll(back);
+        return front;
+    }
+
+    private boolean isChillFrozen(CardInstance attacker) {
+        return elementalAfflictionService != null && elementalAfflictionService.isChillFrozen(attacker);
     }
 
     public CardInstance getPendingAttacker(GameState state) {
@@ -143,19 +178,27 @@ public class BattleService {
     public List<BattleAbilityOption> getAvailableAbilities(GameState state, CardInstance attacker) {
         List<Ability> battleAbilities = buildBattleAbilities(attacker);
         List<BattleAbilityOption> options = new ArrayList<>();
+        int shockTax = elementalAfflictionService == null
+                ? 0
+                : elementalAfflictionService.shockSpendTax(attacker);
 
         for (int i = 0; i < battleAbilities.size(); i++) {
             Ability ability = battleAbilities.get(i);
+            int cost = elementalAfflictionService == null
+                    ? ability.getRequiredEnergy()
+                    : elementalAfflictionService.modifiedAbilityCost(attacker, battleAbilities, i);
+            // Shock: card can only spend (pool - stacks) ⇒ must afford cost + shockTax.
+            int gatedCost = cost + Math.max(0, shockTax);
             boolean affordable = energyService.canAfford(
                     state,
                     attacker.isOwner(),
                     ability.getRequiredElement(),
-                    ability.getRequiredEnergy()
+                    gatedCost
             );
             if (affordable && isSelfMoveLink(ability)) {
                 affordable = effectService.hasValidMoveLinkDestination(state, attacker);
             }
-            options.add(new BattleAbilityOption(i, ability, ability.getRequiredElement(), ability.getRequiredEnergy(), affordable));
+            options.add(new BattleAbilityOption(i, ability, ability.getRequiredElement(), cost, affordable));
         }
 
         return options;
@@ -180,7 +223,7 @@ public class BattleService {
         if (attacker == null) {
             return null;
         }
-        if (attacker.isFrozen()) {
+        if (attacker.isFrozen() || isChillFrozen(attacker)) {
             return StatusEffect.FREEZE;
         }
         if (attacker.isSpeedZero()) {
@@ -211,11 +254,14 @@ public class BattleService {
         BattleAbilityOption choice = options.get(abilityIndex);
         if (!choice.isAffordable()) {
             Ability unavailableAbility = choice.getAbility();
+            int shockTax = elementalAfflictionService == null
+                    ? 0
+                    : elementalAfflictionService.shockSpendTax(attacker);
             boolean canPay = energyService.canAfford(
                     state,
                     attacker.isOwner(),
                     unavailableAbility.getRequiredElement(),
-                    unavailableAbility.getRequiredEnergy()
+                    choice.getRequiredEnergy() + Math.max(0, shockTax)
             );
             if (canPay && isSelfMoveLink(unavailableAbility)
                     && !effectService.hasValidMoveLinkDestination(state, attacker)) {
@@ -233,7 +279,11 @@ public class BattleService {
         state.log(attacker.getName() + " uses " + ability.getName() + ".");
 
         if (enemyBoardEmpty && AbilityEffectKeys.DAMAGE.equals(ability.getEffectType())) {
-            int directDamage = Math.max(1, ability.getEffectValue());
+            int directDamage = ability.getEffectValue();
+            if (elementalAfflictionService != null) {
+                directDamage = elementalAfflictionService.applyBlindToValue(attacker, directDamage);
+            }
+            directDamage = Math.max(1, directDamage);
             var opposingPlayer = attacker.isOwner() ? state.getEnemy() : state.getPlayer();
             opposingPlayer.takeDirectDamage(directDamage);
             state.log(opposingPlayer.getName() + " takes " + directDamage + " direct damage!");

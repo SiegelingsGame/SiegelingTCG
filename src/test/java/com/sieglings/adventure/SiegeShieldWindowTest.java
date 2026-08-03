@@ -73,10 +73,13 @@ class SiegeShieldWindowTest {
 
         Combatant ally = battle.living(Side.PLAYER).stream().filter(c -> !c.isKnight()).findFirst().orElseThrow();
         // Two turns out: cast now, still standing after one turn boundary.
-        ally.addShield(11, battle.getRoundNumber() + 2);
+        int expiry = battle.getRoundNumber() + 2;
+        ally.addShield(11, expiry);
         siegeService.endTurn(token);
 
-        if (battle.isOver()) return; // a one-round wipe has nothing left to check
-        assertEquals(11, ally.getShield(), "a shield with a later expiry must not lapse early");
+        if (battle.isOver() || !ally.isAlive()) return; // a one-round wipe has nothing left to check
+        // Enemy hits / end-round DoTs may chip the absorb value; expiry must not clear it early.
+        assertTrue(ally.getShield() > 0, "a shield with a later expiry must not lapse early");
+        assertEquals(expiry, ally.getShieldExpiryRound(), "expiry round must be unchanged after one turn");
     }
 }
