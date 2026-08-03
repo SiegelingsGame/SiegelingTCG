@@ -1,5 +1,6 @@
 Original prompt: Ok and create effects based on the elemental effect when I triggers burn effect, freeze effect, etc per element. Merge and deploy
 
+- August 3, 2026 Production deploy of #637 (Siege elemental status effects). Merged as `1ee78d6d`; Deploy run [30847140086](https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/30847140086) green. Live `/siege` serves `adventure.js?v=53` with status tips + poison/wither playback; editor `source: FIRESTORE` on Hosting and Cloud Run; `apiBaseUrl: ''`; `/`, `/play`, `/siege`, `/home`, `/help` 200.
 - August 3, 2026 Siege elemental status effects fully wired in `SiegeCombatEngine` to match the shared catalog fantasy: Burn/Poison end-round DoT; Poison heal-strip; Ice Slow with reapply→Stun freeze; Earth Stun; Electric Shock; Wind Disorient (+1 AP); Water Soak (+1 taken); Metal Rust (next Metal +1 then clear); Shadow Curse (blocks evolve); Psychic Insight (second hit draws/heals); Light Blind (−1 values); Undead Wither (turn-open −1 HP). Hand preview reflects Disorient/Blind/Curse. Docs updated; `adventure.js?v=53` tips + poison/wither playback.
 - Verification: `node --check adventure.js`; `SiegeElementalStatusEffectsTest` (10) + catalog/parity/regression suites green; full `Siege*Test` green.
 
