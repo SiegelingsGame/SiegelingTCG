@@ -1,3 +1,8 @@
+Original prompt: Ok update the chains damage to be compatible with the recent changes to main, incorporate new versions of these prs that are compatible
+
+- August 3, 2026 Rebased `chain_damage` (#626) onto current main so it shares the post-affliction `dealAbilityDamage` path (Blind/Soak/Rust/weakness/inflict) instead of the PR's pre-affliction damage body. Hits the picked target plus one-hop reciprocal notch links; auto-target picks the busiest hub. Frontend mirrors link expansion (`.chain-target`, arrows, spell/trainer hover rings). Dashboard/effect catalog + Siege fallback to `DAMAGE`. Pins: `game.js?v=226`, `style.css?v=219`, `card-dashboard.js?v=55`.
+- Verification: `node --check` on `game.js` / `card-dashboard.js`; `EffectServiceTest` chain cases + `GameJavaScriptRegressionTest` pin assertions.
+
 Original prompt: Ok and create effects based on the elemental effect when I triggers burn effect, freeze effect, etc per element. Merge and deploy
 
 - August 3, 2026 Production deploy of #637 (Siege elemental status effects). Merged as `1ee78d6d`; Deploy run [30847140086](https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/30847140086) green. Live `/siege` serves `adventure.js?v=53` with status tips + poison/wither playback; editor `source: FIRESTORE` on Hosting and Cloud Run; `apiBaseUrl: ''`; `/`, `/play`, `/siege`, `/home`, `/help` 200.

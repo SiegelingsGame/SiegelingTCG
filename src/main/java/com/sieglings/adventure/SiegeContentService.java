@@ -527,7 +527,7 @@ public class SiegeContentService {
     Effect effectFor(String effectType) {
         String key = effectType == null ? "" : effectType.trim().toLowerCase(Locale.ROOT);
         Effect exact = switch (key) {
-            case AbilityEffectKeys.DAMAGE, AbilityEffectKeys.PLAYER_DAMAGE -> Effect.DAMAGE;
+            case AbilityEffectKeys.DAMAGE, AbilityEffectKeys.CHAIN_DAMAGE, AbilityEffectKeys.PLAYER_DAMAGE -> Effect.DAMAGE;
             case AbilityEffectKeys.DRAW -> Effect.DRAW;
             case AbilityEffectKeys.HEAL -> Effect.HEAL;
             case AbilityEffectKeys.SHIELD, AbilityEffectKeys.CONNECTED_ALLIES_SHIELD -> Effect.SHIELD;
