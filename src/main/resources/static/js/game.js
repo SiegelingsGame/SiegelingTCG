@@ -525,28 +525,169 @@ const STATUS_BADGE_PALETTE = {
     WITHER:       '#8c78a0'
 };
 
-const STATUS_BADGE_LABEL = {
-    FREEZE: 'Frozen — cannot act',
-    SPEED_ZERO: 'Speed Zero — acts last',
-    HEALTH_BOOST: 'Shield',
-    MAX_HEALTH: 'Max Health Increased',
-    DAMAGE_BOOST: 'Damage Boost',
-    SPEED_BOOST: 'Speed Boost',
-    WEAK: 'Weak to Attack',
-    STRONG: 'Strong Against Enemy',
-    BURN: 'Burn — flat damage per badge at next Setup',
-    CHILL: 'Chill — Slow per badge; Freeze at 3 until Setup',
-    STAGGER: 'Stagger — 2 stacks: bottom of battle queue',
-    DISORIENT: 'Disorient — raises cost of lowest-cost ability',
-    SOAK: 'Soak — attacks deal +1 damage per badge',
-    SHOCK: 'Shock — this card can spend 1 less energy per badge',
-    RUST: 'Rust — vulnerable to next Metal attack, then clears',
-    TOXIN: 'Toxin — cannot heal; heals remove Toxin stacks',
-    CURSE: 'Curse — cannot claim or evolve',
-    INSIGHT: 'Insight — at 3 stacks the inflicter draws and clears',
-    BLIND: 'Blind — ability values reduced per badge',
-    WITHER: 'Wither — max HP reduced at Setup'
+// Single source of truth for every badge the battle table can show: the short
+// tooltip line, the long player-facing explanation behind the tappable pills,
+// and which section of the "All Effects" key the row belongs to. Affliction
+// copy mirrors docs/ELEMENTAL_STATUS_EFFECTS.md — update both together.
+const STATUS_EFFECT_KEY = {
+    MAX_HEALTH: {
+        name: 'Max HP Up',
+        group: 'buff',
+        summary: 'Max Health increased',
+        detail: 'Permanently raises this Siegeling\'s maximum Health for the rest of the match. Current HP rises with it when the boost is granted, so the extra points are immediately usable.'
+    },
+    HEALTH_BOOST: {
+        name: 'Shield',
+        group: 'buff',
+        summary: 'absorbs damage before HP',
+        detail: 'Temporary hit points layered over Health. Incoming damage eats the shield first and only spills into HP once the shield is gone. The badge clears as soon as the shield is fully spent.'
+    },
+    DAMAGE_BOOST: {
+        name: 'Damage Boost',
+        group: 'buff',
+        summary: 'abilities deal extra damage',
+        detail: 'Every damaging ability this Siegeling uses deals additional damage equal to the boost value shown on the badge.'
+    },
+    SPEED_BOOST: {
+        name: 'Speed Boost',
+        group: 'buff',
+        summary: 'acts earlier in the battle queue',
+        detail: 'Raises effective Speed by the amount shown. Battle order is sorted by Speed, so a boosted Siegeling acts before slower cards in the same Battle phase.'
+    },
+    STRONG: {
+        name: 'Strong',
+        group: 'matchup',
+        summary: 'element beats the defender',
+        detail: 'This Siegeling\'s element is strong against the highlighted target, so its attack deals +1 damage. Matchups: Fire > Ice > Wind > Earth > Fire; Water > Fire/Ice; Metal > Earth/Wind; Electric > Wind/Fire; Poison > Ice/Earth; Shadow > Psychic > Light > Undead > Shadow.'
+    },
+    WEAK: {
+        name: 'Weak',
+        group: 'matchup',
+        summary: 'takes extra damage from the attacker',
+        detail: 'The incoming attacker\'s element beats this Siegeling\'s element, so the hit lands for +1 damage.'
+    },
+    FREEZE: {
+        name: 'Frozen',
+        group: 'control',
+        summary: 'cannot act',
+        detail: 'A frozen Siegeling skips its action entirely. It thaws when its owner reaches their next Setup phase, clearing Freeze (and any Chill stacks that caused it).'
+    },
+    SPEED_ZERO: {
+        name: 'Stunned',
+        group: 'control',
+        summary: 'Speed set to zero, acts last',
+        detail: 'Effective Speed drops to 0, pushing this Siegeling to the very end of the battle queue for the phase.'
+    },
+    BURN: {
+        name: 'Burn',
+        group: 'affliction',
+        element: 'FIRE',
+        cap: 5,
+        summary: 'flat damage per badge at next Setup',
+        detail: 'Inflicted by Fire damage. At the start of the owner\'s next Setup phase the burning Siegeling takes 1 damage per stack, then every Burn stack clears.'
+    },
+    CHILL: {
+        name: 'Chill',
+        group: 'affliction',
+        element: 'ICE',
+        cap: 3,
+        summary: 'Slow per badge; Freeze at 3',
+        detail: 'Inflicted by Ice damage. At 1–2 stacks it slows the Siegeling by 1 effective Speed per stack. Reaching 3 stacks freezes it outright — no action until the owner\'s next Setup, which clears Freeze and Chill.'
+    },
+    STAGGER: {
+        name: 'Stagger',
+        group: 'affliction',
+        element: 'EARTH',
+        cap: 2,
+        summary: '2 stacks send it to the back of the queue',
+        detail: 'Inflicted by Earth damage. The first stack is a warning badge only. At 2 stacks the Siegeling is moved to the bottom of the battle queue and acts after everyone else that round.'
+    },
+    DISORIENT: {
+        name: 'Disorient',
+        group: 'affliction',
+        element: 'WIND',
+        cap: 3,
+        summary: 'raises the cost of its cheapest ability',
+        detail: 'Inflicted by Wind damage. The energy cost of this Siegeling\'s lowest-cost ability goes up by 1 per stack. When several abilities tie for cheapest, the first one in the card\'s ability order is taxed.'
+    },
+    SOAK: {
+        name: 'Soak',
+        group: 'affliction',
+        element: 'WATER',
+        cap: 5,
+        summary: 'attacks against it deal +1 per badge',
+        detail: 'Inflicted by Water damage. Every attack that hits this Siegeling deals +1 damage per stack. Stacks persist — they are not consumed by the hits they amplify.'
+    },
+    SHOCK: {
+        name: 'Shock',
+        group: 'affliction',
+        element: 'ELECTRIC',
+        cap: 5,
+        summary: 'can spend 1 less energy per badge',
+        detail: 'Inflicted by Electric damage. This card\'s personal spending cap for paying ability costs drops by 1 per stack. The owner\'s energy pool is untouched — only what this Siegeling may spend is limited.'
+    },
+    RUST: {
+        name: 'Rust',
+        group: 'affliction',
+        element: 'METAL',
+        cap: 3,
+        summary: 'next Metal attack hits harder, then clears',
+        detail: 'Inflicted by Metal damage. The next Metal attack against this Siegeling deals +1 damage per stack and then removes all Rust. Attacks of other elements neither benefit from nor consume it.'
+    },
+    TOXIN: {
+        name: 'Toxin',
+        group: 'affliction',
+        element: 'POISON',
+        cap: 5,
+        summary: 'cannot heal; heals burn off stacks instead',
+        detail: 'Inflicted by Poison damage. While any stack remains the Siegeling cannot gain HP. A heal removes 1 stack per point of healing instead of restoring Health; once Toxin hits 0, later heals work normally again.'
+    },
+    CURSE: {
+        name: 'Curse',
+        group: 'affliction',
+        element: 'SHADOW',
+        cap: 2,
+        summary: 'cannot be claimed or evolved',
+        detail: 'Inflicted by Shadow damage. While any stack remains the Siegeling cannot be claimed for temporary energy during Setup, and no evolution card may be placed onto it.'
+    },
+    INSIGHT: {
+        name: 'Insight',
+        group: 'affliction',
+        element: 'PSYCHIC',
+        cap: 3,
+        summary: 'at 3 stacks the inflicter draws',
+        detail: 'Inflicted by Psychic damage. Stacks 1–2 carry no penalty. When the third stack lands, the player who inflicted it draws a card and every Insight stack on the target is consumed.'
+    },
+    BLIND: {
+        name: 'Blind',
+        group: 'affliction',
+        element: 'LIGHT',
+        cap: 3,
+        summary: 'ability values reduced per badge',
+        detail: 'Inflicted by Light damage. The numbers on this Siegeling\'s abilities — damage, healing, shielding — are each reduced by 1 per stack when the ability resolves.'
+    },
+    WITHER: {
+        name: 'Wither',
+        group: 'affliction',
+        element: 'UNDEAD',
+        cap: 3,
+        summary: 'max HP reduced at Setup',
+        detail: 'Inflicted by Undead damage. At the owner\'s next Setup, current Health is clamped as if maximum HP were 1 lower per stack (the overflow is lost), then Wither clears.'
+    }
 };
+
+const STATUS_EFFECT_GROUPS = [
+    { id: 'buff', title: 'Buffs', blurb: 'Granted by abilities, spells and SiegeKnights.' },
+    { id: 'control', title: 'Control', blurb: 'Statuses that take a turn away.' },
+    { id: 'matchup', title: 'Elemental Matchup', blurb: 'Shown while targeting an attack.' },
+    { id: 'affliction', title: 'Elemental Afflictions', blurb: 'Stacking badges inflicted by elemental damage.' }
+];
+
+const STATUS_BADGE_LABEL = Object.keys(STATUS_EFFECT_KEY).reduce((acc, kind) => {
+    const info = STATUS_EFFECT_KEY[kind];
+    acc[kind] = info.summary ? `${info.name} — ${info.summary}` : info.name;
+    return acc;
+}, {});
 
 const STATUS_BADGE_SVG = {
     FREEZE: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-fz-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#dff6ff"/><stop offset="50%" stop-color="#5fb8e8"/><stop offset="100%" stop-color="#1a4a7a"/></radialGradient></defs><circle cx="42" cy="42" r="40" fill="#5fb8e8" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-fz-bg)" stroke="#dff6ff" stroke-width="2"/><g stroke="#fff" stroke-width="2.5" stroke-linecap="round" fill="none" class="sb-spin"><line x1="42" y1="20" x2="42" y2="64"/><line x1="22" y1="42" x2="62" y2="42"/><line x1="27" y1="27" x2="57" y2="57"/><line x1="57" y1="27" x2="27" y2="57"/><path d="M42 20 L37 26 M42 20 L47 26 M42 64 L37 58 M42 64 L47 58 M22 42 L28 37 M22 42 L28 47 M62 42 L56 37 M62 42 L56 47"/></g><circle cx="42" cy="42" r="3" fill="#fff"/></svg>`,
@@ -557,8 +698,31 @@ const STATUS_BADGE_SVG = {
     SPEED_BOOST: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-sp-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#dff8ff"/><stop offset="50%" stop-color="#3ad8ff"/><stop offset="100%" stop-color="#1a5a7a"/></radialGradient><linearGradient id="sb-sp-bolt" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#fff"/><stop offset="50%" stop-color="#fff8c0"/><stop offset="100%" stop-color="#7adfff"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#3ad8ff" opacity=".25" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-sp-bg)" stroke="#dff8ff" stroke-width="2"/><g stroke="#dff8ff" stroke-width="1.5" stroke-linecap="round" opacity=".5"><line x1="22" y1="32" x2="30" y2="32"/><line x1="20" y1="42" x2="32" y2="42"/><line x1="22" y1="52" x2="30" y2="52"/></g><path d="M48 18 L32 44 L42 44 L36 64 L56 36 L46 36 Z" fill="url(#sb-sp-bolt)" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" class="sb-flicker"/></svg>`,
     WEAK: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-wk-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#ffd0d8"/><stop offset="50%" stop-color="#a02038"/><stop offset="100%" stop-color="#3a0a18"/></radialGradient><linearGradient id="sb-wk-shield" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#ff6080"/><stop offset="100%" stop-color="#5a0a18"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#a02038" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-wk-bg)" stroke="#ffd0d8" stroke-width="2"/><g class="sb-floatdn"><path d="M42 22 L58 28 L58 44 C 58 54 50 60 42 64 C 34 60 26 54 26 44 L26 28 Z" fill="url(#sb-wk-shield)" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M42 24 L38 34 L44 38 L36 48 L46 52 L40 62" stroke="#fff8c0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g><g transform="translate(60 60)"><circle r="9" fill="#1a0a18" stroke="#ff6080" stroke-width="1.5"/><path d="M0 -4 L0 4 M-3 1 L0 4 L3 1" stroke="#ff6080" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g></svg>`,
     STRONG: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-st-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#fff4c0"/><stop offset="50%" stop-color="#e8a020"/><stop offset="100%" stop-color="#5a3a08"/></radialGradient><linearGradient id="sb-st-star" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#fff"/><stop offset="60%" stop-color="#ffe080"/><stop offset="100%" stop-color="#e8a020"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#ffd060" opacity=".3" class="sb-pulse"/><g class="sb-spin-rev" opacity=".55"><line x1="42" y1="6" x2="42" y2="14" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/><line x1="42" y1="70" x2="42" y2="78" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/><line x1="6" y1="42" x2="14" y2="42" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/><line x1="70" y1="42" x2="78" y2="42" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/></g><circle cx="42" cy="42" r="34" fill="url(#sb-st-bg)" stroke="#fff4c0" stroke-width="2"/><polygon points="42,20 47,35 63,35 50,44 55,60 42,51 29,60 34,44 21,35 37,35" fill="url(#sb-st-star)" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" class="sb-float"/><g transform="translate(60 60)"><circle r="9" fill="#3a2008" stroke="#ffe080" stroke-width="1.5"/><path d="M0 4 L0 -4 M-3 -1 L0 -4 L3 -1" stroke="#ffe080" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g></svg>`,
-    // Compact flame for Burn — other afflictions reuse this until they get unique art.
-    BURN: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-burn-bg" cx="50%" cy="40%" r="65%"><stop offset="0%" stop-color="#ffe0a0"/><stop offset="45%" stop-color="#ff501e"/><stop offset="100%" stop-color="#5a1208"/></radialGradient></defs><circle cx="42" cy="42" r="40" fill="#ff501e" opacity=".28" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-burn-bg)" stroke="#ffe0a0" stroke-width="2"/><path d="M42 18 C 48 28 56 32 56 44 C 56 54 50 62 42 66 C 34 62 28 54 28 44 C 28 36 34 30 38 26 C 36 34 40 38 44 36 C 42 30 42 24 42 18 Z" fill="#fff4c0" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" class="sb-flicker"/></svg>`
+    // --- Elemental afflictions: one silhouette per element so a badge is
+    // readable at 22px without reading the stack number or the tooltip. ---
+    BURN: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-burn-bg" cx="50%" cy="40%" r="65%"><stop offset="0%" stop-color="#ffe0a0"/><stop offset="45%" stop-color="#ff501e"/><stop offset="100%" stop-color="#5a1208"/></radialGradient></defs><circle cx="42" cy="42" r="40" fill="#ff501e" opacity=".28" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-burn-bg)" stroke="#ffe0a0" stroke-width="2"/><path d="M42 18 C 48 28 56 32 56 44 C 56 54 50 62 42 66 C 34 62 28 54 28 44 C 28 36 34 30 38 26 C 36 34 40 38 44 36 C 42 30 42 24 42 18 Z" fill="#fff4c0" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" class="sb-flicker"/></svg>`,
+    // Ice — frosted thermometer dropping, distinct from FREEZE's snowflake.
+    CHILL: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-chl-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#e4fbff"/><stop offset="50%" stop-color="#4fc4e8"/><stop offset="100%" stop-color="#123c60"/></radialGradient><linearGradient id="sb-chl-tube" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#bfe9f8"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#76e6ff" opacity=".28" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-chl-bg)" stroke="#e4fbff" stroke-width="2"/><g class="sb-float"><rect x="35" y="16" width="14" height="36" rx="7" fill="url(#sb-chl-tube)" stroke="#fff" stroke-width="2"/><circle cx="42" cy="58" r="11" fill="url(#sb-chl-tube)" stroke="#fff" stroke-width="2"/><circle cx="42" cy="58" r="6" fill="#2a8fc0"/><rect x="39" y="40" width="6" height="14" fill="#2a8fc0"/></g><g stroke="#ffffff" stroke-width="2" stroke-linecap="round" opacity=".9" class="sb-flicker"><line x1="20" y1="24" x2="30" y2="24"/><line x1="25" y1="19" x2="25" y2="29"/><line x1="21.5" y1="20.5" x2="28.5" y2="27.5"/><line x1="28.5" y1="20.5" x2="21.5" y2="27.5"/></g><g stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" opacity=".75"><line x1="56" y1="60" x2="64" y2="60"/><line x1="60" y1="56" x2="60" y2="64"/></g></svg>`,
+    // Earth — cracked slab with a rising dust puff.
+    STAGGER: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-stg-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#f0dcbe"/><stop offset="50%" stop-color="#b48c50"/><stop offset="100%" stop-color="#3c2a12"/></radialGradient><linearGradient id="sb-stg-rock" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#e6cfa8"/><stop offset="100%" stop-color="#8a6432"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#b48c50" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-stg-bg)" stroke="#f0dcbe" stroke-width="2"/><g class="sb-floatdn"><path d="M18 46 L34 40 L50 46 L66 40 L66 62 L18 62 Z" fill="url(#sb-stg-rock)" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M34 41 L30 52 L38 54 L33 62" stroke="#3c2a12" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M52 46 L56 55 L49 58" stroke="#3c2a12" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g><g fill="#fff4dc" opacity=".85" class="sb-flicker"><circle cx="28" cy="30" r="4.5"/><circle cx="40" cy="24" r="3.2"/><circle cx="53" cy="30" r="4"/></g></svg>`,
+    // Wind — spiral vortex; the badge the user saw wearing Burn's flame.
+    DISORIENT: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-dso-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#e6fff0"/><stop offset="50%" stop-color="#4cc87c"/><stop offset="100%" stop-color="#0c3a24"/></radialGradient></defs><circle cx="42" cy="42" r="40" fill="#96ffb4" opacity=".28" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-dso-bg)" stroke="#e6fff0" stroke-width="2"/><g class="sb-spin"><path d="M42 42 C 42 30 52 22 62 26 C 70 30 70 44 58 50 C 44 57 26 50 22 36 C 18 24 28 14 40 16" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/></g><g stroke="#e6fff0" stroke-width="2.4" stroke-linecap="round" opacity=".85" class="sb-flicker"><path d="M14 58 C 22 54 30 62 38 58" fill="none"/><path d="M48 68 C 56 64 62 70 68 66" fill="none"/></g><circle cx="42" cy="42" r="4" fill="#ffffff"/></svg>`,
+    // Water — droplet over a rippling pool.
+    SOAK: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-sk-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#d6ecff"/><stop offset="50%" stop-color="#3296ff"/><stop offset="100%" stop-color="#0a2c60"/></radialGradient><linearGradient id="sb-sk-drop" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#7ec4ff"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#3296ff" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-sk-bg)" stroke="#d6ecff" stroke-width="2"/><path d="M42 14 C 52 30 60 38 60 47 C 60 57 52 64 42 64 C 32 64 24 57 24 47 C 24 38 32 30 42 14 Z" fill="url(#sb-sk-drop)" stroke="#fff" stroke-width="2" stroke-linejoin="round" class="sb-float"/><path d="M30 50 C 34 46 38 54 42 50 C 46 46 50 54 54 50" fill="none" stroke="#2a72c8" stroke-width="2.6" stroke-linecap="round" class="sb-flicker"/><path d="M30 58 C 34 54 38 62 42 58 C 46 54 50 62 54 58" fill="none" stroke="#2a72c8" stroke-width="2.2" stroke-linecap="round" opacity=".7"/></svg>`,
+    // Electric — drained energy cell with a bolt cut through it.
+    SHOCK: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-shk-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#fffbd0"/><stop offset="50%" stop-color="#e8c81e"/><stop offset="100%" stop-color="#4a3a02"/></radialGradient></defs><circle cx="42" cy="42" r="40" fill="#ffe63c" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-shk-bg)" stroke="#fffbd0" stroke-width="2"/><g><rect x="24" y="26" width="34" height="34" rx="6" fill="#3a2f04" stroke="#fff" stroke-width="2.5"/><rect x="35" y="20" width="12" height="6" rx="2" fill="#fff"/><rect x="29" y="48" width="24" height="8" rx="2" fill="#ffe63c" opacity=".9"/><rect x="29" y="38" width="24" height="8" rx="2" fill="#ffe63c" opacity=".25"/><rect x="29" y="28" width="24" height="8" rx="2" fill="#ffe63c" opacity=".18"/></g><path d="M50 16 L30 44 L41 44 L34 70 L58 38 L46 38 Z" fill="#fffbd0" stroke="#fff" stroke-width="1.6" stroke-linejoin="round" class="sb-flicker"/></svg>`,
+    // Metal — corroding hex nut shedding flakes.
+    RUST: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-rst-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#e8eef4"/><stop offset="50%" stop-color="#8e9aa6"/><stop offset="100%" stop-color="#2c3540"/></radialGradient><linearGradient id="sb-rst-nut" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#e2e8ee"/><stop offset="55%" stop-color="#9aa6b2"/><stop offset="100%" stop-color="#a05a28"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#a0aab4" opacity=".28" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-rst-bg)" stroke="#e8eef4" stroke-width="2"/><polygon points="42,16 64,29 64,55 42,68 20,55 20,29" fill="url(#sb-rst-nut)" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><circle cx="42" cy="42" r="11" fill="#2c3540" stroke="#e8eef4" stroke-width="2"/><g fill="#b4501e" opacity=".92"><path d="M24 50 L32 46 L30 56 Z"/><path d="M52 26 L60 30 L52 34 Z"/><circle cx="56" cy="52" r="3.4"/><circle cx="30" cy="32" r="2.6"/></g><g fill="#c8641e" class="sb-floatdn"><circle cx="36" cy="72" r="2.6"/><circle cx="50" cy="74" r="2"/></g></svg>`,
+    // Poison — bubbling flask.
+    TOXIN: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-tox-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#e4ffd4"/><stop offset="50%" stop-color="#5aba38"/><stop offset="100%" stop-color="#0e3a08"/></radialGradient><linearGradient id="sb-tox-fl" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#ffffff" stop-opacity=".85"/><stop offset="55%" stop-color="#a8f078"/><stop offset="100%" stop-color="#3f9e22"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#78dc50" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-tox-bg)" stroke="#e4ffd4" stroke-width="2"/><path d="M36 16 L48 16 L48 34 L62 58 C 65 63 61 68 55 68 L29 68 C 23 68 19 63 22 58 L36 34 Z" fill="url(#sb-tox-fl)" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"/><path d="M27 52 L57 52 L62 58 C 65 63 61 68 55 68 L29 68 C 23 68 19 63 22 58 Z" fill="#2e8a16"/><g fill="#eaffd8" class="sb-float"><circle cx="36" cy="58" r="3.4"/><circle cx="47" cy="61" r="2.6"/><circle cx="42" cy="46" r="2.4" opacity=".8"/></g><rect x="33" y="12" width="18" height="6" rx="3" fill="#fff"/></svg>`,
+    // Shadow — sealed sigil eye behind a shadow crescent.
+    CURSE: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-crs-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#d8bcff"/><stop offset="50%" stop-color="#7832b4"/><stop offset="100%" stop-color="#1a0630"/></radialGradient></defs><circle cx="42" cy="42" r="40" fill="#7832b4" opacity=".32" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-crs-bg)" stroke="#d8bcff" stroke-width="2"/><g class="sb-spin-rev" opacity=".9"><polygon points="42,18 51,36 70,38 56,50 60,68 42,58 24,68 28,50 14,38 33,36" fill="none" stroke="#e0c8ff" stroke-width="2.2" stroke-linejoin="round"/></g><path d="M52 22 C 38 26 30 38 32 50 C 34 60 43 66 53 65 C 42 70 28 64 24 52 C 19 38 30 24 52 22 Z" fill="#1a0630" stroke="#e0c8ff" stroke-width="2" stroke-linejoin="round" class="sb-float"/><circle cx="42" cy="42" r="5" fill="#e0c8ff" class="sb-flicker"/></svg>`,
+    // Psychic — third eye with radiating awareness.
+    INSIGHT: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-ins-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#f0e0ff"/><stop offset="50%" stop-color="#a86cf0"/><stop offset="100%" stop-color="#2a0a50"/></radialGradient></defs><circle cx="42" cy="42" r="40" fill="#c896ff" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-ins-bg)" stroke="#f0e0ff" stroke-width="2"/><g class="sb-spin-rev" opacity=".7" stroke="#f0e0ff" stroke-width="2" stroke-linecap="round"><line x1="42" y1="8" x2="42" y2="16"/><line x1="42" y1="68" x2="42" y2="76"/><line x1="17" y1="17" x2="23" y2="23"/><line x1="61" y1="61" x2="67" y2="67"/><line x1="17" y1="67" x2="23" y2="61"/><line x1="61" y1="23" x2="67" y2="17"/></g><path d="M18 42 C 28 28 56 28 66 42 C 56 56 28 56 18 42 Z" fill="#fff" stroke="#2a0a50" stroke-width="2" stroke-linejoin="round"/><circle cx="42" cy="42" r="11" fill="#7a30d8"/><circle cx="42" cy="42" r="5" fill="#1a0430"/><circle cx="38" cy="38" r="2.4" fill="#fff" class="sb-flicker"/></svg>`,
+    // Light — eye struck out by a glare bar.
+    BLIND: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-bld-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#ffffff"/><stop offset="45%" stop-color="#f2e28c"/><stop offset="100%" stop-color="#5a5020"/></radialGradient></defs><circle cx="42" cy="42" r="40" fill="#fffac8" opacity=".32" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-bld-bg)" stroke="#ffffff" stroke-width="2"/><g class="sb-flicker" opacity=".75" stroke="#fffbe0" stroke-width="2.4" stroke-linecap="round"><line x1="42" y1="10" x2="42" y2="18"/><line x1="14" y1="42" x2="22" y2="42"/><line x1="70" y1="42" x2="62" y2="42"/><line x1="22" y1="22" x2="27" y2="27"/><line x1="62" y1="22" x2="57" y2="27"/></g><path d="M18 44 C 28 30 56 30 66 44 C 56 58 28 58 18 44 Z" fill="#fffdf0" stroke="#6a5c20" stroke-width="2" stroke-linejoin="round"/><circle cx="42" cy="44" r="10" fill="#8a7420"/><circle cx="42" cy="44" r="4.5" fill="#3a3008"/><line x1="20" y1="62" x2="64" y2="26" stroke="#3a3008" stroke-width="6" stroke-linecap="round"/><line x1="20" y1="62" x2="64" y2="26" stroke="#fffbe0" stroke-width="2.6" stroke-linecap="round"/></svg>`,
+    // Undead — cracked heart shrinking with a falling shard.
+    WITHER: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-wth-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#d8ccec"/><stop offset="50%" stop-color="#8c78a0"/><stop offset="100%" stop-color="#241a34"/></radialGradient><linearGradient id="sb-wth-heart" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#c8b4dc"/><stop offset="100%" stop-color="#4a3a60"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#8c78a0" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-wth-bg)" stroke="#d8ccec" stroke-width="2"/><path d="M42 64 C 25 52 19 42 19 33 C 19 26 24 22 30 22 C 35 22 39 25 42 30 C 45 25 49 22 54 22 C 60 22 65 26 65 33 C 65 42 59 52 42 64 Z" fill="url(#sb-wth-heart)" stroke="#e0d4f0" stroke-width="2" stroke-linejoin="round" class="sb-floatdn"/><path d="M42 28 L36 40 L46 44 L38 60" fill="none" stroke="#1c1228" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><g stroke="#e0d4f0" stroke-width="2.6" stroke-linecap="round" class="sb-flicker"><line x1="58" y1="52" x2="58" y2="66"/><path d="M53 60 L58 66 L63 60" fill="none" stroke-linejoin="round"/></g></svg>`
 };
 
 // Compact heart / bolt glyphs that replace the "HP:" / "SPD:" text labels on
@@ -589,10 +753,13 @@ function renderShieldChip(info) {
     return `<span class="stat-shield${stateClass}" title="${title}" data-shield-state="${info.state}" style="--shield-intact-pct:${info.intactPct}%"><span class="stat-shield-icon" aria-hidden="true"></span><span class="stat-shield-value">+${info.total}</span></span>`;
 }
 
+// Neutral fallback sigil. A future catalog row with no art must NOT borrow
+// another status' silhouette — a Wind badge wearing Burn's flame reads as Fire.
+const STATUS_BADGE_SVG_GENERIC = `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><circle cx="42" cy="42" r="40" fill="currentColor" opacity=".22" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="rgba(12,18,34,0.92)" stroke="currentColor" stroke-width="3"/><circle cx="42" cy="42" r="20" fill="none" stroke="currentColor" stroke-width="3" stroke-dasharray="7 6" class="sb-spin"/><circle cx="42" cy="42" r="6" fill="currentColor" class="sb-flicker"/></svg>`;
+
 function renderStatusBadge(kind, amount, options = {}) {
-    // Afflictions without unique art fall back to Burn's flame so every catalog
-    // row can still show a badge while designers paint the rest.
-    const svg = STATUS_BADGE_SVG[kind] || (STATUS_BADGE_PALETTE[kind] ? STATUS_BADGE_SVG.BURN : null);
+    const svg = STATUS_BADGE_SVG[kind]
+        || (STATUS_BADGE_PALETTE[kind] || STATUS_EFFECT_KEY[kind] ? STATUS_BADGE_SVG_GENERIC : null);
     if (!svg) return '';
     const color = STATUS_BADGE_PALETTE[kind] || '#fff';
     const label = STATUS_BADGE_LABEL[kind] || kind;
@@ -5027,6 +5194,142 @@ function closeTrainerAbilityPopup(event) {
     if (overlay) {
         overlay.classList.add('hidden');
     }
+}
+
+// Which single effect the key was opened from, so "All Effects" can offer a way
+// back to it instead of dead-ending on the full list.
+let effectKeyOriginKind = null;
+
+function effectKeyBadgeHtml(kind) {
+    const color = STATUS_BADGE_PALETTE[kind] || '#cbd5f5';
+    const svg = STATUS_BADGE_SVG[kind] || STATUS_BADGE_SVG_GENERIC;
+    return `<span class="effect-key-badge" style="--sb-color:${color}">${svg}</span>`;
+}
+
+function effectKeyMetaHtml(info) {
+    const bits = [];
+    if (info.element) {
+        bits.push(`<span class="effect-key-tag" style="--et:${getElementHex(info.element)}">${escapeHtml(formatElementLabel(info.element))} damage</span>`);
+    }
+    if (info.cap) {
+        bits.push(`<span class="effect-key-tag effect-key-tag--cap">Max ${info.cap} badge${info.cap === 1 ? '' : 's'}</span>`);
+    }
+    return bits.length ? `<div class="effect-key-meta">${bits.join('')}</div>` : '';
+}
+
+function openEffectKey(kind, event) {
+    if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+    }
+    const info = STATUS_EFFECT_KEY[kind];
+    if (!info) {
+        showAllEffectsKey(null);
+        return;
+    }
+    effectKeyOriginKind = kind;
+    const overlay = document.getElementById('effectKeyOverlay');
+    const kicker = document.getElementById('effectKeyKicker');
+    const title = document.getElementById('effectKeyTitle');
+    const body = document.getElementById('effectKeyBody');
+    const allBtn = document.getElementById('btnEffectKeyAll');
+    if (!overlay || !body) return;
+
+    const group = STATUS_EFFECT_GROUPS.find((g) => g.id === info.group);
+    if (kicker) kicker.textContent = group ? group.title : 'Status Effect';
+    if (title) title.textContent = info.name;
+    const color = STATUS_BADGE_PALETTE[kind] || '#cbd5f5';
+    body.innerHTML = `<div class="effect-key-single" style="--ek:${color}">`
+        + effectKeyBadgeHtml(kind)
+        + `<div class="effect-key-single-copy">`
+        + (info.summary ? `<div class="effect-key-summary">${escapeHtml(info.summary)}</div>` : '')
+        + effectKeyMetaHtml(info)
+        + `<p class="effect-key-detail">${escapeHtml(info.detail)}</p>`
+        + `</div></div>`;
+    if (allBtn) {
+        allBtn.textContent = 'All Effects';
+        allBtn.hidden = false;
+    }
+    overlay.classList.remove('hidden');
+}
+
+function showAllEffectsKey(event) {
+    if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+    }
+    const overlay = document.getElementById('effectKeyOverlay');
+    const kicker = document.getElementById('effectKeyKicker');
+    const title = document.getElementById('effectKeyTitle');
+    const body = document.getElementById('effectKeyBody');
+    const allBtn = document.getElementById('btnEffectKeyAll');
+    if (!overlay || !body) return;
+
+    if (kicker) kicker.textContent = 'Reference';
+    if (title) title.textContent = 'All Effects';
+
+    let html = '';
+    STATUS_EFFECT_GROUPS.forEach((group) => {
+        const kinds = Object.keys(STATUS_EFFECT_KEY).filter((k) => STATUS_EFFECT_KEY[k].group === group.id);
+        if (kinds.length === 0) return;
+        html += `<section class="effect-key-section">`;
+        html += `<div class="effect-key-heading">${escapeHtml(group.title)}<span class="effect-key-sub">${escapeHtml(group.blurb)}</span></div>`;
+        kinds.forEach((kind) => {
+            const info = STATUS_EFFECT_KEY[kind];
+            const color = STATUS_BADGE_PALETTE[kind] || '#cbd5f5';
+            html += `<div class="effect-key-row" style="--ek:${color}">`
+                + effectKeyBadgeHtml(kind)
+                + `<div class="effect-key-row-copy">`
+                + `<div class="effect-key-name">${escapeHtml(info.name)}`
+                + (info.element ? `<span class="effect-key-el" style="--et:${getElementHex(info.element)}">${escapeHtml(formatElementLabel(info.element))}</span>` : '')
+                + (info.cap ? `<span class="effect-key-cap">max ${info.cap}</span>` : '')
+                + `</div>`
+                + `<div class="effect-key-text">${escapeHtml(info.detail)}</div>`
+                + `</div></div>`;
+        });
+        html += `</section>`;
+    });
+    body.innerHTML = html;
+
+    if (allBtn) {
+        if (effectKeyOriginKind && STATUS_EFFECT_KEY[effectKeyOriginKind]) {
+            allBtn.hidden = false;
+            allBtn.textContent = `Back to ${STATUS_EFFECT_KEY[effectKeyOriginKind].name}`;
+        } else {
+            allBtn.hidden = true;
+        }
+    }
+    overlay.classList.remove('hidden');
+    body.scrollTop = 0;
+}
+
+// Entry point for the standalone "All Effects" affordances (preview pill, key
+// panel link) — no single effect to return to, so drop any stale origin.
+function openAllEffectsKey(event) {
+    effectKeyOriginKind = null;
+    showAllEffectsKey(event);
+}
+
+// The single footer button flips role depending on which view is showing.
+function toggleEffectKeyView(event) {
+    const body = document.getElementById('effectKeyBody');
+    const showingAll = !!body?.querySelector('.effect-key-section');
+    if (showingAll && effectKeyOriginKind) {
+        openEffectKey(effectKeyOriginKind, event);
+    } else {
+        showAllEffectsKey(event);
+    }
+}
+
+function closeEffectKey(event) {
+    if (event) {
+        event.stopPropagation();
+    }
+    const overlay = document.getElementById('effectKeyOverlay');
+    if (overlay) {
+        overlay.classList.add('hidden');
+    }
+    effectKeyOriginKind = null;
 }
 
 function openDashboardAccess() {
@@ -12705,6 +13008,14 @@ function renderElementKey() {
     html += `<div class="element-key-note">Strong attacker = weak defender. Other elements deal normal damage (no bonus yet).</div>`;
     html += `</section>`;
 
+    // Half 3 — jump into the status/affliction key without needing a card that
+    // happens to be carrying a badge.
+    html += `<section class="element-key-section">`;
+    html += `<div class="element-key-heading">Status Effects</div>`;
+    html += `<button type="button" class="element-key-link" onclick="openAllEffectsKey(event)">`
+        + `View all buffs &amp; afflictions</button>`;
+    html += `</section>`;
+
     panels.forEach((el) => {
         el.innerHTML = html;
     });
@@ -15586,7 +15897,9 @@ function renderBoardCardBuffsList(card) {
     const printedHp = Number(card.printedHealth);
     const maxHp = Number(card.maxHp);
     if (Number.isFinite(printedHp) && Number.isFinite(maxHp) && maxHp > printedHp) {
-        entries.push({ kind: 'HEALTH_BOOST', label: 'Max HP', amount: maxHp - printedHp });
+        // MAX_HEALTH, not HEALTH_BOOST: this is the permanent max-HP raise, and
+        // the pill has to match the green heart badge the board card shows.
+        entries.push({ kind: 'MAX_HEALTH', label: 'Max HP', amount: maxHp - printedHp });
     }
 
     if (has('FREEZE')) entries.push({ kind: 'FREEZE', label: 'Frozen' });
@@ -15614,10 +15927,16 @@ function renderBoardCardBuffsList(card) {
         const amount = (typeof e.amount === 'number' && e.amount > 0)
             ? `<span class="buff-pill-amount">${e.stackMode ? e.amount : `+${e.amount}`}</span>`
             : '';
-        const title = STATUS_BADGE_LABEL[e.kind] || e.label;
-        return `<span class="buff-pill" style="--bp:${color}" title="${escapeHtmlAttribute(title)}"><span class="buff-pill-label">${escapeHtml(e.label)}</span>${amount}</span>`;
+        const title = `${STATUS_BADGE_LABEL[e.kind] || e.label} — tap for details`;
+        return `<button type="button" class="buff-pill" style="--bp:${color}" title="${escapeHtmlAttribute(title)}"`
+            + ` onclick="openEffectKey('${escapeHtmlAttribute(e.kind)}', event)">`
+            + `<span class="buff-pill-icon" aria-hidden="true">${STATUS_BADGE_SVG[e.kind] || STATUS_BADGE_SVG_GENERIC}</span>`
+            + `<span class="buff-pill-label">${escapeHtml(e.label)}</span>${amount}</button>`;
     }).join('');
-    return `<div class="selected-copy-buffs" aria-label="Active buffs and debuffs">${items}</div>`;
+    return `<div class="selected-copy-buffs" aria-label="Active buffs and debuffs">${items}`
+        + `<button type="button" class="buff-pill buff-pill-all" title="Open the full status effect key"`
+        + ` onclick="openAllEffectsKey(event)"><span class="buff-pill-label">All Effects</span></button>`
+        + `</div>`;
 }
 
 function updateSelectedInfo(card, msg) {
@@ -16176,6 +16495,13 @@ document.addEventListener('keydown', (e) => {
         }
         if (isBattleTargetSelectionActive()) {
             cancelBattleTargetSelection();
+            return;
+        }
+        // The effect key sits on top of the card preview — one Escape should
+        // dismiss it without also clearing the selection behind it.
+        const effectKeyOverlay = document.getElementById('effectKeyOverlay');
+        if (effectKeyOverlay && !effectKeyOverlay.classList.contains('hidden')) {
+            closeEffectKey();
             return;
         }
         closeDrawer(true);
