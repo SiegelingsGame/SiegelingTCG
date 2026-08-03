@@ -648,19 +648,14 @@ public class SiegeCombatEngine {
         SiegeBattle battle = run.getBattle();
         if (battle == null || battle.isOver()) return;
 
-        // Burn: 1 damage at the end of each round.
+        // Burn / Poison: 1 damage at the end of each round while the status lasts.
         for (Combatant c : new ArrayList<>(battle.getCombatants())) {
-            if (c.isAlive() && c.has(StatusKind.BURN)) {
-                boolean wasAlive = c.isAlive();
-                c.takeDamage(1);
-                battle.event("burn", "targetId", c.getId(), "amount", 1, "ko", wasAlive && !c.isAlive());
-                battle.log(c.getName() + " burns for 1.");
-                if (!c.isAlive()) {
-                    battle.log(c.getName() + " succumbs to the flames!");
-                    if (c.getSide() == Side.PLAYER && !c.isKnight() && !maybeReviveOnFall(battle, c)) {
-                        hitKnightForKo(battle, c);
-                    }
-                }
+            if (!c.isAlive()) continue;
+            if (c.has(StatusKind.BURN)) {
+                applyEndRoundDot(battle, c, StatusKind.BURN, "burns for 1.", "succumbs to the flames!");
+            }
+            if (c.isAlive() && c.has(StatusKind.POISON)) {
+                applyEndRoundDot(battle, c, StatusKind.POISON, "takes 1 poison damage.", "succumbs to the toxin!");
             }
         }
         for (Combatant c : battle.getCombatants()) {
@@ -858,9 +853,10 @@ public class SiegeCombatEngine {
 
     private void applyStatus(SiegeBattle battle, Combatant target, StatusKind status) {
         int rounds = switch (status) {
-            case BURN -> SiegeBattle.BURN_ROUNDS;
+            case BURN, POISON -> SiegeBattle.BURN_ROUNDS;
             case SLOW -> SiegeBattle.SLOW_ROUNDS;
-            case STUN, SHOCK -> 2; // consumed on effect; duration is a safety net
+            case STUN, SHOCK, DAZE, BLIND -> 2; // consumed on effect; duration is a safety net
+            case SOAK, RUST, CURSE, WITHER -> SiegeBattle.SLOW_ROUNDS;
         };
         target.applyStatus(status, rounds);
         battle.event("status", "targetId", target.getId(), "status", status.name());
@@ -873,7 +869,28 @@ public class SiegeCombatEngine {
             case SLOW -> "slowed";
             case STUN -> "stunned";
             case SHOCK -> "shocked";
+            case POISON -> "poisoned";
+            case SOAK -> "soaked";
+            case RUST -> "rusting";
+            case CURSE -> "cursed";
+            case DAZE -> "dazed";
+            case BLIND -> "blinded";
+            case WITHER -> "withering";
         };
+    }
+
+    private void applyEndRoundDot(SiegeBattle battle, Combatant c, StatusKind kind, String tickLine, String koLine) {
+        boolean wasAlive = c.isAlive();
+        c.takeDamage(1);
+        String eventName = kind == StatusKind.POISON ? "poison" : "burn";
+        battle.event(eventName, "targetId", c.getId(), "amount", 1, "ko", wasAlive && !c.isAlive());
+        battle.log(c.getName() + " " + tickLine);
+        if (!c.isAlive()) {
+            battle.log(c.getName() + " " + koLine);
+            if (c.getSide() == Side.PLAYER && !c.isKnight() && !maybeReviveOnFall(battle, c)) {
+                hitKnightForKo(battle, c);
+            }
+        }
     }
 
     // ---- Enemy turn -------------------------------------------------------

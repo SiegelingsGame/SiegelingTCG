@@ -45,7 +45,15 @@
     BURN: { icon: '🔥', label: 'Burn' },
     SLOW: { icon: '❄️', label: 'Slow' },
     STUN: { icon: '💫', label: 'Stun' },
-    SHOCK: { icon: '⚡', label: 'Shock' }
+    SHOCK: { icon: '⚡', label: 'Shock' },
+    // Catalog-mapped extensions (shared with battle ElementalAfflictionCatalog)
+    POISON: { icon: '☠️', label: 'Poison' },
+    SOAK: { icon: '💧', label: 'Soak' },
+    RUST: { icon: '⚙️', label: 'Rust' },
+    CURSE: { icon: '🌑', label: 'Curse' },
+    DAZE: { icon: '🌀', label: 'Daze' },
+    BLIND: { icon: '✨', label: 'Blind' },
+    WITHER: { icon: '💀', label: 'Wither' }
   };
   var NODE_ICON = { BATTLE: '⚔️', ELITE: '🔺', REST: '🏕️', TREASURE: '💎', BROKER: '🐾', SMITH: '🔨', CARAVAN: '🐫', EVENT: '❔', BOSS: '👑' };
   var NODE_TINT = { BATTLE: '#8fa3bf', ELITE: '#ff6e6e', REST: '#7ee787', TREASURE: '#ffd066', BROKER: '#c896ff', BOSS: '#ff9a3c' };

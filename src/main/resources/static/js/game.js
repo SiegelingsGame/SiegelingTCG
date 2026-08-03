@@ -508,7 +508,20 @@ const STATUS_BADGE_PALETTE = {
     DAMAGE_BOOST: '#ff5544',
     SPEED_BOOST:  '#7adfff',
     WEAK:         '#ff6080',
-    STRONG:       '#ffd060'
+    STRONG:       '#ffd060',
+    // Elemental damage afflictions (see docs/ELEMENTAL_STATUS_EFFECTS.md)
+    BURN:         '#ff501e',
+    CHILL:        '#76e6ff',
+    STAGGER:      '#b48c50',
+    DISORIENT:    '#96ffb4',
+    SOAK:         '#3296ff',
+    SHOCK:        '#ffe63c',
+    RUST:         '#a0aab4',
+    TOXIN:        '#78dc50',
+    CURSE:        '#7832b4',
+    DAZE:         '#c896ff',
+    BLIND:        '#fffac8',
+    WITHER:       '#8c78a0'
 };
 
 const STATUS_BADGE_LABEL = {
@@ -519,7 +532,19 @@ const STATUS_BADGE_LABEL = {
     DAMAGE_BOOST: 'Damage Boost',
     SPEED_BOOST: 'Speed Boost',
     WEAK: 'Weak to Attack',
-    STRONG: 'Strong Against Enemy'
+    STRONG: 'Strong Against Enemy',
+    BURN: 'Burn — flat damage per badge at next Setup',
+    CHILL: 'Chill — Speed reduced per badge',
+    STAGGER: 'Stagger — acts last / may skip',
+    DISORIENT: 'Disorient — abilities cost more energy',
+    SOAK: 'Soak — takes more from Ice/Electric',
+    SHOCK: 'Shock — drains energy at Setup',
+    RUST: 'Rust — takes extra damage from next hit',
+    TOXIN: 'Toxin — damage per badge at Setup',
+    CURSE: 'Curse — cannot be claimed this Setup',
+    DAZE: 'Daze — abilities cost more energy',
+    BLIND: 'Blind — next hit deals less damage',
+    WITHER: 'Wither — max HP reduced at Setup'
 };
 
 const STATUS_BADGE_SVG = {
@@ -530,7 +555,9 @@ const STATUS_BADGE_SVG = {
     DAMAGE_BOOST: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-dmg-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#ffe0c0"/><stop offset="50%" stop-color="#ff6633"/><stop offset="100%" stop-color="#5a1a0a"/></radialGradient><linearGradient id="sb-dmg-sword" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#fff"/><stop offset="50%" stop-color="#ffd8a0"/><stop offset="100%" stop-color="#c87040"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#ff5533" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-dmg-bg)" stroke="#ffe0c0" stroke-width="2"/><g stroke="#fff" stroke-width="1.5" stroke-linejoin="round"><g transform="rotate(45 42 42)"><rect x="40.5" y="20" width="3" height="34" fill="url(#sb-dmg-sword)"/><polygon points="42,16 39,22 45,22" fill="#ffd8a0"/><rect x="36" y="54" width="12" height="3" fill="#5a1a0a"/><rect x="40" y="56" width="4" height="6" fill="#5a1a0a"/></g><g transform="rotate(-45 42 42)"><rect x="40.5" y="20" width="3" height="34" fill="url(#sb-dmg-sword)"/><polygon points="42,16 39,22 45,22" fill="#ffd8a0"/><rect x="36" y="54" width="12" height="3" fill="#5a1a0a"/><rect x="40" y="56" width="4" height="6" fill="#5a1a0a"/></g></g><circle cx="42" cy="42" r="4" fill="#fff8c0" class="sb-flicker"/></svg>`,
     SPEED_BOOST: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-sp-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#dff8ff"/><stop offset="50%" stop-color="#3ad8ff"/><stop offset="100%" stop-color="#1a5a7a"/></radialGradient><linearGradient id="sb-sp-bolt" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#fff"/><stop offset="50%" stop-color="#fff8c0"/><stop offset="100%" stop-color="#7adfff"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#3ad8ff" opacity=".25" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-sp-bg)" stroke="#dff8ff" stroke-width="2"/><g stroke="#dff8ff" stroke-width="1.5" stroke-linecap="round" opacity=".5"><line x1="22" y1="32" x2="30" y2="32"/><line x1="20" y1="42" x2="32" y2="42"/><line x1="22" y1="52" x2="30" y2="52"/></g><path d="M48 18 L32 44 L42 44 L36 64 L56 36 L46 36 Z" fill="url(#sb-sp-bolt)" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" class="sb-flicker"/></svg>`,
     WEAK: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-wk-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#ffd0d8"/><stop offset="50%" stop-color="#a02038"/><stop offset="100%" stop-color="#3a0a18"/></radialGradient><linearGradient id="sb-wk-shield" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#ff6080"/><stop offset="100%" stop-color="#5a0a18"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#a02038" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-wk-bg)" stroke="#ffd0d8" stroke-width="2"/><g class="sb-floatdn"><path d="M42 22 L58 28 L58 44 C 58 54 50 60 42 64 C 34 60 26 54 26 44 L26 28 Z" fill="url(#sb-wk-shield)" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M42 24 L38 34 L44 38 L36 48 L46 52 L40 62" stroke="#fff8c0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g><g transform="translate(60 60)"><circle r="9" fill="#1a0a18" stroke="#ff6080" stroke-width="1.5"/><path d="M0 -4 L0 4 M-3 1 L0 4 L3 1" stroke="#ff6080" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g></svg>`,
-    STRONG: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-st-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#fff4c0"/><stop offset="50%" stop-color="#e8a020"/><stop offset="100%" stop-color="#5a3a08"/></radialGradient><linearGradient id="sb-st-star" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#fff"/><stop offset="60%" stop-color="#ffe080"/><stop offset="100%" stop-color="#e8a020"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#ffd060" opacity=".3" class="sb-pulse"/><g class="sb-spin-rev" opacity=".55"><line x1="42" y1="6" x2="42" y2="14" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/><line x1="42" y1="70" x2="42" y2="78" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/><line x1="6" y1="42" x2="14" y2="42" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/><line x1="70" y1="42" x2="78" y2="42" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/></g><circle cx="42" cy="42" r="34" fill="url(#sb-st-bg)" stroke="#fff4c0" stroke-width="2"/><polygon points="42,20 47,35 63,35 50,44 55,60 42,51 29,60 34,44 21,35 37,35" fill="url(#sb-st-star)" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" class="sb-float"/><g transform="translate(60 60)"><circle r="9" fill="#3a2008" stroke="#ffe080" stroke-width="1.5"/><path d="M0 4 L0 -4 M-3 -1 L0 -4 L3 -1" stroke="#ffe080" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g></svg>`
+    STRONG: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-st-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#fff4c0"/><stop offset="50%" stop-color="#e8a020"/><stop offset="100%" stop-color="#5a3a08"/></radialGradient><linearGradient id="sb-st-star" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#fff"/><stop offset="60%" stop-color="#ffe080"/><stop offset="100%" stop-color="#e8a020"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#ffd060" opacity=".3" class="sb-pulse"/><g class="sb-spin-rev" opacity=".55"><line x1="42" y1="6" x2="42" y2="14" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/><line x1="42" y1="70" x2="42" y2="78" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/><line x1="6" y1="42" x2="14" y2="42" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/><line x1="70" y1="42" x2="78" y2="42" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/></g><circle cx="42" cy="42" r="34" fill="url(#sb-st-bg)" stroke="#fff4c0" stroke-width="2"/><polygon points="42,20 47,35 63,35 50,44 55,60 42,51 29,60 34,44 21,35 37,35" fill="url(#sb-st-star)" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" class="sb-float"/><g transform="translate(60 60)"><circle r="9" fill="#3a2008" stroke="#ffe080" stroke-width="1.5"/><path d="M0 4 L0 -4 M-3 -1 L0 -4 L3 -1" stroke="#ffe080" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g></svg>`,
+    // Compact flame for Burn — other afflictions reuse this until they get unique art.
+    BURN: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-burn-bg" cx="50%" cy="40%" r="65%"><stop offset="0%" stop-color="#ffe0a0"/><stop offset="45%" stop-color="#ff501e"/><stop offset="100%" stop-color="#5a1208"/></radialGradient></defs><circle cx="42" cy="42" r="40" fill="#ff501e" opacity=".28" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-burn-bg)" stroke="#ffe0a0" stroke-width="2"/><path d="M42 18 C 48 28 56 32 56 44 C 56 54 50 62 42 66 C 34 62 28 54 28 44 C 28 36 34 30 38 26 C 36 34 40 38 44 36 C 42 30 42 24 42 18 Z" fill="#fff4c0" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" class="sb-flicker"/></svg>`
 };
 
 // Compact heart / bolt glyphs that replace the "HP:" / "SPD:" text labels on
@@ -562,7 +589,9 @@ function renderShieldChip(info) {
 }
 
 function renderStatusBadge(kind, amount, options = {}) {
-    const svg = STATUS_BADGE_SVG[kind];
+    // Afflictions without unique art fall back to Burn's flame so every catalog
+    // row can still show a badge while designers paint the rest.
+    const svg = STATUS_BADGE_SVG[kind] || (STATUS_BADGE_PALETTE[kind] ? STATUS_BADGE_SVG.BURN : null);
     if (!svg) return '';
     const color = STATUS_BADGE_PALETTE[kind] || '#fff';
     const label = STATUS_BADGE_LABEL[kind] || kind;
@@ -570,9 +599,12 @@ function renderStatusBadge(kind, amount, options = {}) {
     const shieldStateText = kind === 'HEALTH_BOOST' && shieldState && shieldState !== 'intact'
         ? ` (${shieldState})`
         : '';
-    const tooltip = amount > 0 ? `${label} +${amount}${shieldStateText}` : `${label}${shieldStateText}`;
+    const stackMode = !!options.stackMode;
+    const tooltip = amount > 0
+        ? (stackMode ? `${label} ×${amount}${shieldStateText}` : `${label} +${amount}${shieldStateText}`)
+        : `${label}${shieldStateText}`;
     const numHtml = amount > 0
-        ? `<span class="sb-num" style="--sb-color:${color}">+${amount}</span>`
+        ? `<span class="sb-num" style="--sb-color:${color}">${stackMode ? amount : `+${amount}`}</span>`
         : '';
     const shieldAttr = shieldState ? ` data-shield-state="${shieldState}"` : '';
     return `<span class="sb-badge" style="--sb-color:${color}" title="${tooltip}" data-status="${kind}"${shieldAttr}>${svg}${numHtml}</span>`;
@@ -581,6 +613,7 @@ function renderStatusBadge(kind, amount, options = {}) {
 function renderStatusBadgesForCell(cell) {
     if (!cell) return '';
     const statuses = Array.isArray(cell.statuses) ? cell.statuses : [];
+    const afflictions = Array.isArray(cell.afflictions) ? cell.afflictions : [];
     const printedSpd = Number(cell.printedSpeed);
     const spd = Number(cell.spd);
     const dmgBoost = Number(cell.damageBoost) || 0;
@@ -593,6 +626,14 @@ function renderStatusBadgesForCell(cell) {
         seen.add(kind);
         items.push(renderStatusBadge(kind, amount, options));
     };
+
+    // Elemental damage badges (Burn stacks, etc.) — separate from ability statuses.
+    afflictions.forEach((row) => {
+        const kind = String(row?.kind || '').toUpperCase();
+        const stacks = Number(row?.stacks) || 0;
+        if (!kind || stacks <= 0) return;
+        push(kind, stacks, { stackMode: true });
+    });
 
     statuses.forEach((raw) => {
         const kind = String(raw || '').toUpperCase();
@@ -15342,11 +15383,25 @@ function renderBoardCardBuffsList(card) {
     if (has('WEAK')) entries.push({ kind: 'WEAK', label: 'Weak' });
     if (has('STRONG')) entries.push({ kind: 'STRONG', label: 'Strong' });
 
+    const afflictions = Array.isArray(card.afflictions) ? card.afflictions : [];
+    afflictions.forEach((row) => {
+        const kind = String(row?.kind || '').toUpperCase();
+        const stacks = Number(row?.stacks) || 0;
+        if (!kind || stacks <= 0) return;
+        const shortLabel = kind.charAt(0) + kind.slice(1).toLowerCase();
+        entries.push({
+            kind,
+            label: shortLabel,
+            amount: stacks,
+            stackMode: true
+        });
+    });
+
     if (entries.length === 0) return '';
     const items = entries.map((e) => {
         const color = STATUS_BADGE_PALETTE[e.kind] || '#cbd5f5';
         const amount = (typeof e.amount === 'number' && e.amount > 0)
-            ? `<span class="buff-pill-amount">+${e.amount}</span>`
+            ? `<span class="buff-pill-amount">${e.stackMode ? e.amount : `+${e.amount}`}</span>`
             : '';
         const title = STATUS_BADGE_LABEL[e.kind] || e.label;
         return `<span class="buff-pill" style="--bp:${color}" title="${escapeHtmlAttribute(title)}"><span class="buff-pill-label">${escapeHtml(e.label)}</span>${amount}</span>`;

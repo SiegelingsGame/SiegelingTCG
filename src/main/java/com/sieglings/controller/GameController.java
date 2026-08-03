@@ -13,6 +13,7 @@ import com.sieglings.model.SieglingCard;
 import com.sieglings.model.SpellCard;
 import com.sieglings.model.TrapCard;
 import com.sieglings.model.TrainerCard;
+import com.sieglings.model.enums.ElementalAffliction;
 import com.sieglings.model.enums.Phase;
 import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.MatchHistoryEntity;
@@ -1425,6 +1426,7 @@ public class GameController {
                 m.put("spd", ci.getEffectiveSpeed());
                 m.put("battlePhasesSeen", ci.getBattlePhasesSeen());
                 m.put("statuses", ci.getStatusEffects().stream().map(Enum::name).toList());
+                m.put("afflictions", serializeAfflictions(ci));
                 m.put("notches", serializeNotches(ci.getNotches()));
                 if (ci.getCard().isHolographic()) {
                     m.put("holographic", true);
@@ -1456,6 +1458,23 @@ public class GameController {
             ));
         }
         return serialized;
+    }
+
+    private List<Map<String, Object>> serializeAfflictions(CardInstance ci) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        if (ci == null || ci.getAfflictionStacks() == null) {
+            return out;
+        }
+        for (Map.Entry<ElementalAffliction, Integer> entry : ci.getAfflictionStacks().entrySet()) {
+            if (entry.getKey() == null || entry.getValue() == null || entry.getValue() <= 0) {
+                continue;
+            }
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("kind", entry.getKey().name());
+            row.put("stacks", entry.getValue());
+            out.add(row);
+        }
+        return out;
     }
 
     private String describeBoardDamageAbility(CardInstance ci, Ability ability) {
