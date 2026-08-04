@@ -2242,6 +2242,81 @@ body.card-drag-active #playerGrid {
     gap: 10px;
 }
 
+/* Two-page Card Preview tray: summary ↔ battle-action moves. */
+.selected-preview-pager {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 0;
+    height: 100%;
+}
+.selected-preview-pages {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;
+    scrollbar-width: none;
+}
+.selected-preview-pages::-webkit-scrollbar {
+    display: none;
+}
+.selected-preview-page {
+    flex: 0 0 100%;
+    width: 100%;
+    min-width: 100%;
+    max-width: 100%;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+}
+.selected-preview-page[data-selected-preview-page="moves"] .battle-selected-preview {
+    margin: 0;
+}
+.selected-preview-page[data-selected-preview-page="moves"] .battle-attacker {
+    margin-bottom: 6px;
+    font-size: 0.92em;
+}
+.selected-preview-pager-chrome {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex: 0 0 auto;
+}
+.selected-preview-dots {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.selected-preview-dot {
+    width: 7px;
+    height: 7px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.22);
+    cursor: pointer;
+}
+.selected-preview-dot.is-active {
+    background: var(--accent, #ffd700);
+    box-shadow: 0 0 0 2px rgba(255, 215, 0, 0.18);
+}
+.selected-preview-swipe-hint {
+    font-size: 0.68em;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.45);
+    white-space: nowrap;
+}
+
 .selected-preview-copy {
     font-size: 0.8em;
     line-height: 1.4;
@@ -13758,13 +13833,19 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 
     /* Card Preview drawer: only cover the bottom UI (action bar + hand) so
        the arena placement area stays visible. Backdrop hidden so taps on
-       the arena go through to place the selected card. */
+       the arena go through to place the selected card. When the two-page
+       summary/moves pager is present, grow taller so the battle-action page
+       can list moves without feeling clipped. */
     #drawerSelected {
         max-height: calc(var(--mobile-action-bar-height) + 168px);
         height: calc(var(--mobile-action-bar-height) + 168px);
         padding: 6px 10px 10px;
         padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
         overflow: hidden;
+    }
+    #drawerSelected:has(.selected-preview-pager) {
+        height: min(58vh, 420px);
+        max-height: min(58vh, 420px);
     }
     body:has(#drawerSelected.visible) .drawer-backdrop {
         opacity: 0;
@@ -13787,6 +13868,16 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         font-size: 0.78em;
         height: calc(100% - 26px);
         overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+    #drawerSelected .selected-preview-pager {
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+    #drawerSelected .selected-preview-pager-chrome {
+        padding-top: 2px;
     }
     /* Spell preview/confirm needs room for the action buttons, so let the
        drawer grow and the description scroll instead of clipping the controls. */
@@ -13798,6 +13889,7 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         height: auto;
         max-height: calc(72vh - 40px);
         overflow-y: auto;
+        display: block;
     }
     #drawerSelected:has(.selected-spell-confirm) .selected-card-panel {
         height: auto;
