@@ -513,7 +513,7 @@ const STATUS_BADGE_PALETTE = {
     // Elemental damage afflictions (see docs/ELEMENTAL_STATUS_EFFECTS.md)
     BURN:         '#ff501e',
     CHILL:        '#76e6ff',
-    STAGGER:      '#b48c50',
+    LEECH:        '#8fbd58',
     DISORIENT:    '#96ffb4',
     SOAK:         '#3296ff',
     SHOCK:        '#ffe63c',
@@ -594,13 +594,13 @@ const STATUS_EFFECT_KEY = {
         summary: 'Slow per badge; Freeze at 3',
         detail: 'Inflicted by Ice damage. At 1–2 stacks it slows the Siegeling by 1 effective Speed per stack. The 3rd stack spends every Chill badge to freeze it outright — the badges clear and the Frozen status takes over until the owner\'s next Setup.'
     },
-    STAGGER: {
-        name: 'Stagger',
+    LEECH: {
+        name: 'Leech',
         group: 'affliction',
         element: 'EARTH',
         cap: 2,
-        summary: '2 stacks send it to the back of the queue',
-        detail: 'Inflicted by Earth damage. The first stack is a warning badge only. At 2 stacks the Siegeling is moved to the bottom of the battle queue and acts after everyone else that round, then both stacks clear when that Battle ends.'
+        summary: 'second Earth hit heals its attacker',
+        detail: 'Inflicted by Earth HP damage. The first hit marks the defender. The second heals that hit\'s attacker for the actual HP damage dealt, then clears Leech. Toxin removes healing before HP is restored.'
     },
     DISORIENT: {
         name: 'Disorient',
@@ -705,8 +705,8 @@ const STATUS_BADGE_SVG = {
     BURN: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-burn-bg" cx="50%" cy="40%" r="65%"><stop offset="0%" stop-color="#ffe0a0"/><stop offset="45%" stop-color="#ff501e"/><stop offset="100%" stop-color="#5a1208"/></radialGradient></defs><circle cx="42" cy="42" r="40" fill="#ff501e" opacity=".28" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-burn-bg)" stroke="#ffe0a0" stroke-width="2"/><path d="M42 18 C 48 28 56 32 56 44 C 56 54 50 62 42 66 C 34 62 28 54 28 44 C 28 36 34 30 38 26 C 36 34 40 38 44 36 C 42 30 42 24 42 18 Z" fill="#fff4c0" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" class="sb-flicker"/></svg>`,
     // Ice — frosted thermometer dropping, distinct from FREEZE's snowflake.
     CHILL: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-chl-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#e4fbff"/><stop offset="50%" stop-color="#4fc4e8"/><stop offset="100%" stop-color="#123c60"/></radialGradient><linearGradient id="sb-chl-tube" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#bfe9f8"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#76e6ff" opacity=".28" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-chl-bg)" stroke="#e4fbff" stroke-width="2"/><g class="sb-float"><rect x="35" y="16" width="14" height="36" rx="7" fill="url(#sb-chl-tube)" stroke="#fff" stroke-width="2"/><circle cx="42" cy="58" r="11" fill="url(#sb-chl-tube)" stroke="#fff" stroke-width="2"/><circle cx="42" cy="58" r="6" fill="#2a8fc0"/><rect x="39" y="40" width="6" height="14" fill="#2a8fc0"/></g><g stroke="#ffffff" stroke-width="2" stroke-linecap="round" opacity=".9" class="sb-flicker"><line x1="20" y1="24" x2="30" y2="24"/><line x1="25" y1="19" x2="25" y2="29"/><line x1="21.5" y1="20.5" x2="28.5" y2="27.5"/><line x1="28.5" y1="20.5" x2="21.5" y2="27.5"/></g><g stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" opacity=".75"><line x1="56" y1="60" x2="64" y2="60"/><line x1="60" y1="56" x2="60" y2="64"/></g></svg>`,
-    // Earth — cracked slab with a rising dust puff.
-    STAGGER: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-stg-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#f0dcbe"/><stop offset="50%" stop-color="#b48c50"/><stop offset="100%" stop-color="#3c2a12"/></radialGradient><linearGradient id="sb-stg-rock" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#e6cfa8"/><stop offset="100%" stop-color="#8a6432"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#b48c50" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-stg-bg)" stroke="#f0dcbe" stroke-width="2"/><g class="sb-floatdn"><path d="M20 46 L34 40 L50 46 L64 41 L64 60 L20 60 Z" fill="url(#sb-stg-rock)" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M34 41 L30 51 L38 53 L33 60" stroke="#3c2a12" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M52 46 L56 54 L49 57" stroke="#3c2a12" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g><g fill="#fff4dc" opacity=".85" class="sb-flicker"><circle cx="28" cy="30" r="4.5"/><circle cx="40" cy="24" r="3.2"/><circle cx="53" cy="30" r="4"/></g></svg>`,
+    // Earth — restorative heart rooted into the ground.
+    LEECH: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-leech-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#e8ffc9"/><stop offset="52%" stop-color="#719b3d"/><stop offset="100%" stop-color="#273614"/></radialGradient><linearGradient id="sb-leech-heart" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#fff6d8"/><stop offset="100%" stop-color="#a9dd68"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#8fbd58" opacity=".28" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-leech-bg)" stroke="#e8ffc9" stroke-width="2"/><path d="M42 57 C28 48 24 40 24 33 C24 27 28 23 34 23 C38 23 41 25 42 29 C44 25 47 23 51 23 C57 23 61 27 61 33 C61 40 56 48 42 57Z" fill="url(#sb-leech-heart)" stroke="#fff" stroke-width="2" class="sb-float"/><path d="M42 58 C42 65 35 66 32 70 M42 58 C43 65 50 66 53 70" fill="none" stroke="#dfffb8" stroke-width="3" stroke-linecap="round"/></svg>`,
     // Wind — spiral vortex; the badge the user saw wearing Burn's flame.
     DISORIENT: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-dso-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#e6fff0"/><stop offset="50%" stop-color="#4cc87c"/><stop offset="100%" stop-color="#0c3a24"/></radialGradient></defs><circle cx="42" cy="42" r="40" fill="#96ffb4" opacity=".28" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-dso-bg)" stroke="#e6fff0" stroke-width="2"/><g class="sb-spin"><path d="M42 42 C 42 32 50 25 58 28 C 65 32 65 43 55 48 C 43 54 28 48 25 37 C 22 27 30 19 40 21" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/></g><g stroke="#e6fff0" stroke-width="2.4" stroke-linecap="round" opacity=".85" class="sb-flicker"><path d="M21 58 C 27 55 32 61 38 58" fill="none"/><path d="M46 64 C 52 61 56 66 61 62" fill="none"/></g><circle cx="42" cy="42" r="4" fill="#ffffff"/></svg>`,
     // Water — droplet over a rippling pool.

@@ -38,16 +38,17 @@ public class ElementalAfflictionService {
 
     /**
      * After elemental damage deals HP, apply that element's affliction badge and
-     * fire stack-threshold payoffs (Insight draw, Chill→Freeze).
+     * fire stack-threshold payoffs (Leech heal, Insight draw, Chill→Freeze).
      */
     public void tryInflictFromDamage(
             GameState state,
+            CardInstance attacker,
             CardInstance target,
             Element damageElement,
             int hpDamageDealt,
             boolean inflicterIsPlayer
     ) {
-        if (!isEnabled() || state == null || target == null || !target.isAlive() || hpDamageDealt <= 0) {
+        if (!isEnabled() || state == null || target == null || hpDamageDealt <= 0) {
             return;
         }
         ElementalAfflictionDef def = ElementalAfflictionCatalog.forElement(damageElement).orElse(null);
@@ -59,8 +60,17 @@ public class ElementalAfflictionService {
         if (def.affliction() == ElementalAffliction.CHILL && target.isChillFrozen()) {
             return;
         }
+        boolean lethalLeechPayoff = def.affliction() == ElementalAffliction.LEECH
+                && target.getAfflictionStacks(ElementalAffliction.LEECH) >= def.stackCap() - 1;
+        if (!target.isAlive() && !lethalLeechPayoff) {
+            return;
+        }
         int stacks = target.addAfflictionStacks(def.affliction(), def.stacksPerHit(), def.stackCap());
         if (stacks <= 0) {
+            return;
+        }
+        if (def.affliction() == ElementalAffliction.LEECH && stacks >= def.stackCap()) {
+            resolveLeechPayoff(state, attacker, target, hpDamageDealt);
             return;
         }
         state.log(target.getName() + " is afflicted with " + def.displayName()
@@ -80,9 +90,19 @@ public class ElementalAfflictionService {
     }
 
     /** Legacy overload — Insight draw goes to the non-owner of the target when unknown. */
+    public void tryInflictFromDamage(
+            GameState state,
+            CardInstance target,
+            Element damageElement,
+            int hpDamageDealt,
+            boolean inflicterIsPlayer
+    ) {
+        tryInflictFromDamage(state, null, target, damageElement, hpDamageDealt, inflicterIsPlayer);
+    }
+
     public void tryInflictFromDamage(GameState state, CardInstance target, Element damageElement, int hpDamageDealt) {
         boolean inflicterIsPlayer = target == null || !target.isOwner();
-        tryInflictFromDamage(state, target, damageElement, hpDamageDealt, inflicterIsPlayer);
+        tryInflictFromDamage(state, null, target, damageElement, hpDamageDealt, inflicterIsPlayer);
     }
 
     public void tickOwnerSetup(GameState state, boolean ownerSide) {
@@ -99,28 +119,12 @@ public class ElementalAfflictionService {
         state.removeDeadSieglings();
     }
 
-    /**
-     * End of Battle: spend the badges whose payoff already resolved this phase. Stagger's only
-     * effect is the queue demotion it buys at full stacks, and that demotion is scoped to the
-     * round it fired in — left standing, two Earth hits would bench a card for the whole match.
-     * Partial stacks stay: like Chill 1–2 they are still counting up to their threshold.
-     */
-    public void clearSpentBattleAfflictions(GameState state) {
-        if (!isEnabled() || state == null) return;
-        clearSpentStagger(state, state.getBoardSieglings(true));
-        clearSpentStagger(state, state.getBoardSieglings(false));
-    }
-
     public boolean hasCurse(CardInstance ci) {
         return isEnabled() && ci != null && ci.getAfflictionStacks(ElementalAffliction.CURSE) > 0;
     }
 
     public boolean isChillFrozen(CardInstance ci) {
         return isEnabled() && ci != null && ci.isChillFrozen();
-    }
-
-    public boolean isStaggeredToBack(CardInstance ci) {
-        return isEnabled() && ci != null && ci.getAfflictionStacks(ElementalAffliction.STAGGER) >= 2;
     }
 
     public int chillSpeedPenalty(CardInstance ci) {
@@ -245,6 +249,28 @@ public class ElementalAfflictionService {
         return spellOrAbilityElement;
     }
 
+    private void resolveLeechPayoff(
+            GameState state,
+            CardInstance attacker,
+            CardInstance target,
+            int hpDamageDealt
+    ) {
+        target.clearAffliction(ElementalAffliction.LEECH);
+        if (attacker == null) {
+            state.log("Leech is consumed on " + target.getName() + ", but there is no attacker to heal.");
+            return;
+        }
+
+        int restored = applyHealWithToxin(state, attacker, hpDamageDealt);
+        if (restored > 0) {
+            state.log(attacker.getName() + " leeches " + restored + " Health from " + target.getName()
+                    + " (HP: " + attacker.getCurrentHealth() + "/" + attacker.getEffectiveMaxHealth() + ").");
+        } else {
+            state.log("Leech is consumed on " + target.getName() + ", but " + attacker.getName()
+                    + " restores no Health.");
+        }
+    }
+
     private void resolveInsightPayoff(GameState state, CardInstance target, boolean inflicterIsPlayer) {
         Player actor = inflicterIsPlayer ? state.getPlayer() : state.getEnemy();
         target.clearAffliction(ElementalAffliction.INSIGHT);
@@ -253,16 +279,6 @@ public class ElementalAfflictionService {
         } else {
             state.log("Insight peaks on " + target.getName() + " — " + actor.getName()
                     + " would draw, but their deck is empty.");
-        }
-    }
-
-    private void clearSpentStagger(GameState state, List<CardInstance> sieglings) {
-        ElementalAfflictionDef def = ElementalAfflictionCatalog.forAffliction(ElementalAffliction.STAGGER).orElse(null);
-        if (def == null || !def.battleEnabled() || sieglings == null) return;
-        for (CardInstance ci : sieglings) {
-            if (ci == null || ci.getAfflictionStacks(ElementalAffliction.STAGGER) < def.stackCap()) continue;
-            ci.clearAffliction(ElementalAffliction.STAGGER);
-            state.log(ci.getName() + " recovers its footing (Stagger clears).");
         }
     }
 

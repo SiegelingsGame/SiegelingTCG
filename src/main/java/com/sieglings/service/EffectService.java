@@ -357,7 +357,7 @@ public class EffectService {
                 + " (HP: " + target.getCurrentHealth() + ")");
         if (elementalAfflictionService != null) {
             elementalAfflictionService.tryInflictFromDamage(
-                    state, target, damageElement, hpDealt, isPlayerSource);
+                    state, source, target, damageElement, hpDealt, isPlayerSource);
         }
     }
 

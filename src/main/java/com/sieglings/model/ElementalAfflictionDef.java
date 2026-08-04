@@ -33,7 +33,7 @@ public record ElementalAfflictionDef(
         ON_HIT_TAKEN,
         /** Intercepts heal resolution (Toxin). */
         ON_HEAL,
-        /** Fires when stacks reach the cap (Insight draw, Ice freeze). */
+        /** Fires when stacks reach the cap (Leech heal, Insight draw, Ice freeze). */
         ON_STACK_THRESHOLD,
         NONE
     }

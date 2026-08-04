@@ -689,9 +689,6 @@ public class GameService {
         if (state.getBattleCursor() < state.getBattleQueue().size()) return;
 
         clearTempEffects(state);
-        if (elementalAfflictionService != null) {
-            elementalAfflictionService.clearSpentBattleAfflictions(state);
-        }
         state.removeDeadSieglings();
         recalculateTrainerPassiveStatBuffs(state);
         effectService.recalculateBoardAuraDamageBoosts(state);

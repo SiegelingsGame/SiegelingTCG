@@ -10127,86 +10127,165 @@
         document.getElementById('viewProfileModal')?.classList.add('hidden');
     }
 
+    const GUIDE_AFFLICTIONS = [
+        { element: 'Fire', status: 'Burn', cap: 5, icon: '🔥', color: '#ff501e', copy: 'Owner Setup: 1 damage per stack, then clear.' },
+        { element: 'Ice', status: 'Chill', cap: 3, icon: '❄', color: '#76e6ff', copy: '−1 Speed each; at 3, Freeze until owner Setup.' },
+        { element: 'Earth', status: 'Leech', cap: 2, icon: '♥', color: '#8fbd58', copy: 'First hit marks; second hit heals its attacker for HP dealt, then clears.' },
+        { element: 'Wind', status: 'Disorient', cap: 3, icon: '↝', color: '#96ffb4', copy: 'Raises this card’s lowest-cost ability by 1 per stack.' },
+        { element: 'Water', status: 'Soak', cap: 5, icon: '◆', color: '#3296ff', copy: 'Incoming attacks deal +1 damage per stack.' },
+        { element: 'Electric', status: 'Shock', cap: 5, icon: 'ϟ', color: '#ffe63c', copy: 'This card can spend 1 less energy per stack.' },
+        { element: 'Metal', status: 'Rust', cap: 3, icon: '⚙', color: '#a0aab4', copy: 'Next Metal hit gains +1 per stack, then clears.' },
+        { element: 'Poison', status: 'Toxin', cap: 5, icon: '☠', color: '#78dc50', copy: 'Blocks healing; heal value removes stacks instead.' },
+        { element: 'Shadow', status: 'Curse', cap: 2, icon: '☾', color: '#9a63d6', copy: 'The marked Siegeling cannot be claimed or evolved.' },
+        { element: 'Psychic', status: 'Insight', cap: 3, icon: '◉', color: '#c896ff', copy: 'At 3, the inflicter draws 1 card and Insight clears.' },
+        { element: 'Light', status: 'Blind', cap: 3, icon: '✦', color: '#fff0b0', copy: 'Outgoing ability values fall by 1 per stack.' },
+        { element: 'Undead', status: 'Wither', cap: 3, icon: '♱', color: '#8c78a0', copy: 'Owner Setup: clamp HP by stacks, then clear.' }
+    ];
+
+    function renderGuideAfflictions() {
+        return `<div class="guide-affliction-grid">${GUIDE_AFFLICTIONS.map(item => `
+            <article class="guide-affliction-card" style="--guide-el:${item.color}">
+                <div class="guide-affliction-top">
+                    <span class="guide-affliction-icon" aria-hidden="true">${item.icon}</span>
+                    <span><small>${item.element}</small><strong>${item.status}</strong></span>
+                    <b title="Stack cap">${item.cap}</b>
+                </div>
+                <p>${item.copy}</p>
+            </article>`).join('')}</div>`;
+    }
+
+    function renderGuideElements() {
+        const rows = GUIDE_AFFLICTIONS.concat([
+            { element: 'Neutral', status: 'No affliction', icon: '◇', color: '#95a5a6' }
+        ]);
+        return `<div class="guide-element-grid">${rows.map(item => `
+            <div class="guide-element-card" style="--guide-el:${item.color}">
+                <span class="guide-element-icon" aria-hidden="true">${item.icon}</span>
+                <span><strong>${item.element}</strong><small>${item.status}</small></span>
+            </div>`).join('')}</div>`;
+    }
+
     const GUIDE_SECTIONS = [
         {
             id: 'arena',
-            label: 'The Arena',
-            title: 'Build links, wake sockets, command momentum',
-            html: `<p>Siegelings is a board-first card battle game. Place Siegelings during setup, connect matching notches, then spend the elemental energy those links create.</p>
-                <ol class="guide-list">
-                    <li><strong>Notches wake sockets.</strong> Each Siegeling has notches on its edges. When a notch lines up with an open socket on the board, it wakes and feeds your energy pool.</li>
-                    <li><strong>Matching links strengthen the network.</strong> Connecting notches of the same element between your Siegelings reinforces your board and unlocks stronger plays.</li>
-                    <li><strong>Deck choice and SiegeKnight timing shape the plan.</strong> Lead with the right deck, then time your SiegeKnight to swing momentum when the board is set.</li>
-                </ol>`
+            icon: '✦',
+            label: 'Start Here',
+            eyebrow: 'Quick reference',
+            title: 'Build a network. Spend its energy. Win the battle.',
+            summary: 'Standard Battle is a 3×3 tactical card fight where placement creates the resources your Siegelings use.',
+            html: `<div class="guide-stat-grid">
+                    <div class="guide-stat"><strong>50</strong><span>Player Health</span></div>
+                    <div class="guide-stat"><strong>3×3</strong><span>Your board half</span></div>
+                    <div class="guide-stat"><strong>5</strong><span>Siegelings max</span></div>
+                    <div class="guide-stat"><strong>+1</strong><span>Weakness damage</span></div>
+                </div>
+                <div class="guide-phase-strip" aria-label="Battle turn phases">
+                    <div class="guide-phase"><b>1</b><span><strong>Draw</strong><small>Refill your hand</small></span></div>
+                    <div class="guide-phase"><b>2</b><span><strong>Setup</strong><small>Place, claim, Strategy, Deception</small></span></div>
+                    <div class="guide-phase"><b>3</b><span><strong>Battle</strong><small>Act in Speed order</small></span></div>
+                </div>
+                <p class="guide-note"><strong>Win condition:</strong> reduce the opposing player from 50 Health to 0. Defeated Siegelings also deal rarity-based bounty damage to their owner.</p>`
         },
         {
             id: 'app',
-            label: 'Using the App',
-            title: 'Find your way around the binder hub',
-            html: `<ul class="guide-list">
-                    <li><strong>Home</strong> — your command hub with collection stats, daily leaderboards, and quick play.</li>
-                    <li><strong>Play</strong> — solo PVE and live 1v1 battles after a Social lobby fills.</li>
-                    <li><strong>Cards</strong> — guests browse the full catalog by default; signed-in players start on owned cards. Use the collection toggle in Filters to switch between owned-only and full-catalog views, then filter by element, type, rarity, and energy cost.</li>
-                    <li><strong>Decks</strong> — run premade decks right away; custom deckbuilding unlocks once your binder holds 30 owned copies. Save custom lists to your deck binder.</li>
-                    <li><strong>Social</strong> — create and join 1v1 lobbies, friends, messaging, and player profiles.</li>
-                    <li><strong>Shop</strong> — spend Siegecoins on packs. Opening a pack starts the gacha reveal; tap each card to flip it.</li>
-                    <li><strong>Profile</strong> — customize your avatar, favorite element, title, bio, and card back.</li>
-                    <li><strong>Options</strong> — this menu: the full guide, your shareable profile QR, and admin access.</li>
-                </ul>
-                <p class="guide-note">Earn <strong>Remnants</strong> from opening packs and winning matches, then craft specific cards from the Cards menu.</p>`
+            icon: '⌂',
+            label: 'Hub',
+            eyebrow: 'Where things live',
+            title: 'Use the hub as your command map',
+            summary: 'Your binder hub connects every part of the game, from deck prep to live matchmaking.',
+            html: `<div class="guide-route-grid">
+                    <div><strong>Home</strong><span>Stats, daily leaders, and quick play</span></div>
+                    <div><strong>Play</strong><span>Standard Battle against AI or players</span></div>
+                    <div><strong>Siege</strong><span>Level-driven solo expeditions</span></div>
+                    <div><strong>Cards</strong><span>Browse, filter, inspect, and craft</span></div>
+                    <div><strong>Decks</strong><span>Premade lists and custom builds</span></div>
+                    <div><strong>Keep</strong><span>Progression, collection, and rewards</span></div>
+                    <div><strong>Social</strong><span>Lobbies, friends, messages, profiles</span></div>
+                    <div><strong>Shop</strong><span>Spend Siegecoins and reveal packs</span></div>
+                </div>
+                <p class="guide-note">Earn <strong>Remnants</strong> from packs and match wins, then craft specific cards from the Cards screen. Your profile, gallery, sharing tools, and account controls live in Settings.</p>`
         },
         {
             id: 'modes',
-            label: 'Game Modes',
-            title: 'Battle now, Siege coming soon',
-            html: `<ul class="guide-list">
-                    <li><strong>Battle</strong> — the live mode on the Play table: solo PVE against the AI and live 1v1 PvP once a Social lobby fills. Battle is <em>flat power</em> — every SiegeKnight fights at its base ability values, so matches come down to your deck, your links, and your reads, not your account progress.</li>
-                    <li><strong>Siege</strong> (coming soon) — a roguelike run where your SiegeKnight levels matter. The XP you bank on the Cards screen powers up a knight's passive and active abilities, and those bonuses carry into every fight of the run.</li>
-                </ul>
-                <p class="guide-note">SiegeKnight leveling only affects Siege — it has no effect in Battle, so a fresh account and a maxed one stand on equal footing there. Level your knights now so they are ready when Siege opens.</p>`
+            icon: '⚔',
+            label: 'Modes',
+            eyebrow: 'Ways to play',
+            title: 'Battle and Siege are both live — with different progression rules',
+            summary: 'Pick the mode that matches the kind of challenge you want. Your deck matters in both; account progression only changes Siege power.',
+            html: `<div class="guide-mode-grid">
+                    <article class="guide-mode-card is-battle">
+                        <span class="guide-mode-state">Live · Solo + PvP</span>
+                        <h4>Battle</h4>
+                        <p>Standard 3×3 combat with the weakness chart active. SiegeKnights use flat base values, keeping new and veteran accounts on equal footing.</p>
+                    </article>
+                    <article class="guide-mode-card is-siege">
+                        <span class="guide-mode-state">Live · Solo expedition</span>
+                        <h4>Siege</h4>
+                        <p>A run-based mode where SiegeKnight levels and upgraded abilities matter. Siege does not use the Standard Battle weakness chart.</p>
+                    </article>
+                </div>
+                <p class="guide-note"><strong>Progression split:</strong> XP banked on the Cards screen powers SiegeKnight passives and actives in Siege only. It never increases their Battle values.</p>`
         },
         {
             id: 'elements',
-            label: 'Elemental Affinity',
-            title: 'Elements and how they connect',
-            html: `<p>Every Siegeling, spell, and trap belongs to an element. Notches carry an element too — matching the element of a notch to its neighbor forms a stronger link and a cleaner energy feed.</p>
-                <div class="guide-elements">
-                    <span class="guide-el" style="--gc:#f05b2f">Fire</span>
-                    <span class="guide-el" style="--gc:#3c8ed8">Water</span>
-                    <span class="guide-el" style="--gc:#7ad9e7">Ice</span>
-                    <span class="guide-el" style="--gc:#64c987">Wind</span>
-                    <span class="guide-el" style="--gc:#a7773d">Earth</span>
-                    <span class="guide-el" style="--gc:#6d4a9e">Shadow</span>
-                    <span class="guide-el" style="--gc:#f5cf3d">Electric</span>
-                    <span class="guide-el" style="--gc:#aeb5b8">Metal</span>
-                    <span class="guide-el" style="--gc:#9f7c73">Undead</span>
-                    <span class="guide-el" style="--gc:#db73b4">Psychic</span>
-                    <span class="guide-el" style="--gc:#95a5a6">Neutral</span>
-                </div>
-                <p class="guide-note">Lean into one or two elements so your notches line up and your energy pool stays focused, or splash for flexible answers at the cost of weaker links.</p>`
+            icon: '⬡',
+            label: 'Elements',
+            eyebrow: 'Affinity map',
+            title: 'Thirteen affinities, twelve damage riders',
+            summary: 'An attack’s element determines the affliction it builds. Neutral is the exception: it has no affliction.',
+            html: `${renderGuideElements()}
+                <p class="guide-note"><strong>Energy exception:</strong> Poison and Light attacks still apply Toxin and Blind, but those elements do not have dedicated energy pools. Their action cards use Neutral costs.</p>`
         },
         {
             id: 'energy',
-            label: 'Energy in Battle',
-            title: 'How energy is made and spent',
-            html: `<ol class="guide-list">
-                    <li><strong>Place a Siegeling.</strong> During setup and each turn you commit Siegelings to the board.</li>
-                    <li><strong>Notches wake sockets.</strong> A notch touching an open socket wakes it, generating elemental energy of that notch's element into your pool.</li>
-                    <li><strong>Matching links compound.</strong> When two Siegelings connect on a shared element, the link feeds energy more efficiently and reinforces both cards.</li>
-                    <li><strong>Spend energy.</strong> Energy in your pool pays for abilities, spells, and traps. Most cards cost a specific amount of a specific element — build the pool that matches your hand.</li>
-                </ol>
-                <p class="guide-note">Energy is generated by your board, not handed out for free — the better your notch network, the more you can spend each turn.</p>`
+            icon: '⌘',
+            label: 'Board & Energy',
+            eyebrow: 'Standard Battle',
+            title: 'Every placement shapes your energy network',
+            summary: 'The 3×3 board is both your formation and your resource engine. Read the notches before committing a card.',
+            html: `<div class="guide-board-layout">
+                    <div class="guide-mini-board" aria-label="Example three by three board">
+                        <span></span><span class="is-card el-water">W</span><span></span>
+                        <span class="is-card el-earth">E</span><span class="is-card el-fire">F</span><span class="is-card el-wind">W</span>
+                        <span></span><span class="is-card el-metal">M</span><span></span>
+                    </div>
+                    <ol class="guide-list is-compact">
+                        <li><strong>Place.</strong> Commit a Siegeling during Setup.</li>
+                        <li><strong>Connect.</strong> Reciprocal notches form links between neighbors.</li>
+                        <li><strong>Call.</strong> Open notches wake edge wells and add that element to your pool.</li>
+                        <li><strong>Spend.</strong> Pay ability, Strategy, and Deception costs from the pool.</li>
+                    </ol>
+                </div>
+                <div class="guide-energy-row" aria-label="Dedicated energy pools">
+                    <span style="--guide-el:#ff501e">F</span><span style="--guide-el:#76e6ff">I</span><span style="--guide-el:#8fbd58">E</span><span style="--guide-el:#96ffb4">W</span><span style="--guide-el:#3296ff">W</span><span style="--guide-el:#ffe63c">E</span><span style="--guide-el:#a0aab4">M</span><span style="--guide-el:#9a63d6">S</span><span style="--guide-el:#c896ff">P</span><span style="--guide-el:#8c78a0">U</span>
+                </div>
+                <p class="guide-note">The ten dedicated pools are Fire, Ice, Earth, Wind, Water, Electric, Metal, Shadow, Psychic, and Undead. Poison and Light action cards spend Neutral energy.</p>`
         },
         {
             id: 'spells-traps',
-            label: 'Strategies & Deceptions',
-            title: 'One-shot effects and reactive defense',
-            html: `<ul class="guide-list">
-                    <li><strong>Strategies</strong> are played from your hand for an immediate effect — damage, buffs, energy swings, or board control. They cost energy from your pool and resolve right away.</li>
-                    <li><strong>Deceptions</strong> are concealed ahead of time and spring when their condition is met (such as an opponent attacking or playing into them). Set them early, then let your opponent walk into the trigger.</li>
-                    <li><strong>Reactions</strong> — some cards require a specific reaction or combo to fire. Check a card's detail panel for its cost element, required reaction, and ability text.</li>
-                </ul>
-                <p class="guide-note">Hold a trap when you read an incoming play, and chain spells off a strong energy turn for a momentum swing.</p>`
+            icon: '▤',
+            label: 'Cards',
+            eyebrow: 'Card language',
+            title: 'Five roles, one board plan',
+            summary: 'The game’s current labels are Strategy and Deception. Older card data may still call those roles Spell and Trap internally.',
+            html: `<div class="guide-card-grid">
+                    <div class="guide-card-role"><span>Unit</span><strong>Siegeling</strong><p>Occupies a board space, forms links, and acts in Speed order.</p></div>
+                    <div class="guide-card-role"><span>Immediate</span><strong>Strategy</strong><p>Spend energy for damage, buffs, energy swings, or control.</p></div>
+                    <div class="guide-card-role"><span>Hidden</span><strong>Deception</strong><p>Set a condition, then reveal when the opponent triggers it.</p></div>
+                    <div class="guide-card-role"><span>Upgrade</span><strong>Evolution</strong><p>Advances an eligible Siegeling into its evolved form.</p></div>
+                    <div class="guide-card-role"><span>Commander</span><strong>SiegeKnight</strong><p>Brings passive and active abilities; leveling matters in Siege.</p></div>
+                </div>
+                <p class="guide-note"><strong>Deck shape:</strong> premade lists contain 40 cards — 20 Siegelings, 10 Strategies, and 10 Deceptions. Custom deckbuilding unlocks at 30 owned card copies.</p>`
+        },
+        {
+            id: 'afflictions',
+            icon: '◉',
+            label: 'Afflictions',
+            eyebrow: 'Elemental badges',
+            title: 'Know what every badge is building toward',
+            summary: 'Elemental HP hits add the matching badge up to its stack cap. Shields can prevent the hit—and therefore the affliction—from landing.',
+            html: `${renderGuideAfflictions()}
+                <p class="guide-note"><strong>Leech:</strong> the first Earth HP hit marks the defender. The second Earth HP hit heals that hit’s attacker for the actual HP damage dealt, then clears Leech. Toxin removes healing before HP is restored.</p>`
         }
     ];
 
@@ -10224,6 +10303,7 @@
         const body = document.getElementById('optionsBody');
         if (!body) return;
         const view = state.optionsView || 'menu';
+        body.classList.toggle('options-panel--guide', view === 'guide');
         if (view === 'menu') {
             body.innerHTML = `<div class="view-profile-modal-head">
                     <div><span class="eyebrow">Home</span><h2 id="optionsTitle">Settings</h2></div>
@@ -10232,7 +10312,7 @@
                 <div class="options-menu">
                     <button class="options-menu-item" type="button" data-options-view="guide">
                         <span class="options-menu-icon">&#128214;</span>
-                        <span><strong>Guide</strong><small>Arena, app, modes, elements, energy, spells &amp; traps</small></span>
+                        <span><strong>Guide</strong><small>Quick start, board, cards, elements, afflictions, modes &amp; hub</small></span>
                     </button>
                     <button class="options-menu-item" type="button" data-options-view="share">
                         <span class="options-menu-icon">&#128279;</span>
@@ -10264,13 +10344,20 @@
             const section = GUIDE_SECTIONS.find(s => s.id === activeId);
             body.innerHTML = `<div class="view-profile-modal-head">
                     <div><span class="eyebrow">Options</span><h2 id="optionsTitle">Guide</h2></div>
-                    <button class="ghost-btn compact-btn" type="button" data-options-view="menu">Back</button>
+                    <div class="guide-head-actions">
+                        <button class="ghost-btn compact-btn" type="button" data-options-help>Full Field Guide</button>
+                        <button class="ghost-btn compact-btn" type="button" data-options-view="menu">Back</button>
+                    </div>
                 </div>
                 <div class="guide-tabs">
-                    ${GUIDE_SECTIONS.map(s => `<button class="guide-tab${s.id === activeId ? ' active' : ''}" type="button" data-guide-tab="${s.id}">${escapeHtml(s.label)}</button>`).join('')}
+                    ${GUIDE_SECTIONS.map(s => `<button class="guide-tab${s.id === activeId ? ' active' : ''}" type="button" data-guide-tab="${s.id}"><span aria-hidden="true">${s.icon || '•'}</span><span>${escapeHtml(s.label)}</span></button>`).join('')}
                 </div>
                 <div class="guide-content">
-                    <h3>${escapeHtml(section.title)}</h3>
+                    <div class="guide-section-head">
+                        <span class="guide-section-icon" aria-hidden="true">${section.icon || '•'}</span>
+                        <div><span class="guide-section-eyebrow">${escapeHtml(section.eyebrow || 'Field guide')}</span><h3>${escapeHtml(section.title)}</h3></div>
+                    </div>
+                    <p class="guide-summary">${escapeHtml(section.summary || '')}</p>
                     ${section.html}
                 </div>`;
         } else if (view === 'gallery') {
@@ -10368,6 +10455,11 @@
 
     function handleOptionsClick(event) {
         if (event.target.closest('[data-options-close]')) { closeOptions(); return; }
+        if (event.target.closest('[data-options-help]')) {
+            closeOptions();
+            toggleHelpModal(true);
+            return;
+        }
         if (event.target.closest('[data-options-tour]')) {
             closeOptions();
             startOnboardingTour();

@@ -9,8 +9,8 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <meta name="description" content="Siegelings TCG field guide — card types, turn structure, energy, buffs, and elemental afflictions.">
-    <link rel="stylesheet" href="/css/help.css?v=2">
+    <meta name="description" content="Siegelings TCG field guide — Battle and Siege rules, card roles, energy, buffs, and elemental afflictions.">
+    <link rel="stylesheet" href="/css/help.css?v=3">
 </head>
 <body>
 <script>
@@ -63,7 +63,13 @@
         <header class="help-hero" id="top">
             <p class="help-kicker">Player reference</p>
             <h1>Field Guide</h1>
-            <p class="help-lede">How battles work — card types, energy links, temporary buffs, and the elemental afflictions that ride on damage.</p>
+            <p class="help-lede">A current reference for Standard Battle, Siege, card roles, energy links, temporary buffs, and every elemental affliction.</p>
+            <div class="help-quick-stats" aria-label="Standard Battle quick facts">
+                <span><strong>50</strong> Player Health</span>
+                <span><strong>3×3</strong> Board half</span>
+                <span><strong>5</strong> Siegelings max</span>
+                <span><strong>+1</strong> Weakness damage</span>
+            </div>
             <label class="help-search">
                 <span class="sr-only">Filter guide</span>
                 <input type="search" id="helpSearch" placeholder="Filter sections…" autocomplete="off">
@@ -92,7 +98,7 @@
             </ul>
         </section>
 
-        <section class="help-section" id="turn" data-help-keywords="draw setup battle claim place spell trap phase round">
+        <section class="help-section" id="turn" data-help-keywords="draw setup battle claim place strategy deception spell trap phase round">
             <h2>Turn loop</h2>
             <p>Each round cycles through three phases for the active player:</p>
             <ol class="help-steps">
@@ -102,7 +108,7 @@
                 </li>
                 <li>
                     <strong>Setup</strong>
-                    <span>Place at most one new Siegeling, cast spells and traps, and optionally <em>claim</em> surviving Sieglings for temporary energy. Elemental afflictions like Burn and Wither often resolve at the start of your Setup.</span>
+                    <span>Place at most one new Siegeling, play Strategies and Deceptions, and optionally <em>claim</em> surviving Siegelings for temporary energy. Elemental afflictions like Burn and Wither often resolve at the start of your Setup.</span>
                 </li>
                 <li>
                     <strong>Battle</strong>
@@ -111,7 +117,7 @@
             </ol>
         </section>
 
-        <section class="help-section" id="cards" data-help-keywords="siegling spell trap evolution siegeknight trainer precursor rarity deck">
+        <section class="help-section" id="cards" data-help-keywords="siegling strategy deception spell trap evolution siegeknight trainer precursor rarity deck">
             <h2>Card types</h2>
             <div class="help-type-grid">
                 <article class="help-type">
@@ -119,12 +125,12 @@
                     <p>Creatures you place on the board. They carry notches, Health, Speed, and battle abilities. Max 3 copies of a card in a deck; full evolution lines only.</p>
                 </article>
                 <article class="help-type">
-                    <h3>Spell</h3>
-                    <p>One-shot effects cast from hand during Setup (or when their timing allows). Paid with elemental energy from your links and sockets.</p>
+                    <h3>Strategy</h3>
+                    <p>Immediate effects played from hand during Setup (or when their timing allows). Older card data may call this role Spell.</p>
                 </article>
                 <article class="help-type">
-                    <h3>Trap</h3>
-                    <p>Reactive cards set for later. They fire when their condition is met — often during the opponent’s actions.</p>
+                    <h3>Deception</h3>
+                    <p>Reactive cards set face-down for later. They reveal when their condition is met—often during the opponent’s actions. Older data may call this role Trap.</p>
                 </article>
                 <article class="help-type">
                     <h3>Evolution</h3>
@@ -135,7 +141,7 @@
                     <p>Your trainer. Grants a passive plus an active or ultimate ability that shapes the whole match.</p>
                 </article>
             </div>
-            <p class="help-note">Standard premade decks are 40 cards: 20 Sieglings, 10 spells, 10 traps.</p>
+            <p class="help-note">Standard premade decks are 40 cards: 20 Siegelings, 10 Strategies, and 10 Deceptions. Custom deckbuilding unlocks at 30 owned card copies.</p>
         </section>
 
         <section class="help-section" id="board" data-help-keywords="notch link socket energy claim foundation network call well perimeter">
@@ -143,10 +149,11 @@
             <p>Colored dots on a Siegeling’s edges are <strong>notches</strong>. When two adjacent cards’ notches point at each other — a <em>reciprocal link</em> — they connect and generate elemental energy.</p>
             <ul class="help-list">
                 <li><strong>Sockets</strong> on the board perimeter can also anchor edge cells (left column LEFT, right column RIGHT, outer row TOP/BOTTOM).</li>
-                <li>Energy pays for spells, traps, and battle abilities. Matching the ability’s element costs matters.</li>
+                <li>Energy pays for Strategies, Deceptions, and battle abilities. Matching the card or ability cost matters.</li>
                 <li><strong>Claim</strong> (Setup): spend a surviving Siegeling’s presence for temporary energy. Units with <em>Curse</em> cannot be claimed.</li>
                 <li>Placement must stay legal on your half — foundation and network rules decide which cells light up as valid.</li>
             </ul>
+            <p class="help-note"><strong>Energy pools:</strong> Fire, Ice, Earth, Wind, Water, Electric, Metal, Shadow, Psychic, and Undead have dedicated pools. Poison and Light attacks still apply their afflictions, but their action cards use Neutral costs.</p>
         </section>
 
         <section class="help-section" id="buffs" data-help-keywords="shield damage boost speed boost freeze frozen weak strong max health temporary">
@@ -188,7 +195,7 @@
             </div>
         </section>
 
-        <section class="help-section" id="afflictions" data-help-keywords="burn chill stagger disorient soak shock rust toxin curse insight blind wither stack badge">
+        <section class="help-section" id="afflictions" data-help-keywords="burn chill leech disorient soak shock rust toxin curse insight blind wither stack badge">
             <h2>Elemental afflictions</h2>
             <p>When an elemental attack deals Health damage, it can add a stack of that element’s affliction. Badges show on the board card. Neutral damage does not inflict.</p>
             <p class="help-note">Stacks have caps. Some clear on a tick; others persist until cleansed or consumed by their own rule.</p>
@@ -237,9 +244,9 @@
                 </div>
                 <div class="aff-row" role="row" data-el="earth">
                     <span class="el-chip earth">Earth</span>
-                    <strong>Stagger</strong>
+                    <strong>Leech</strong>
                     <span>2</span>
-                    <p>1 stack: badge only. 2 stacks: bottom of the Battle queue.</p>
+                    <p>First Earth HP hit marks. The second heals that hit’s attacker for the actual HP damage dealt, then clears. Toxin can absorb the heal.</p>
                 </div>
                 <div class="aff-row" role="row" data-el="ice">
                     <span class="el-chip ice">Ice</span>
@@ -295,12 +302,17 @@
 
         <section class="help-section" id="siege" data-help-keywords="adventure expedition map warband gold rest camp boss elite ap end turn">
             <h2>Siege mode</h2>
-            <p><a href="/siege">Siege / Adventure</a> is a single-player expedition. Pick a SiegeKnight and starter warband, walk a branching map (battles, elites, rest camps, shops, events, boss), and fight AP-based card battles — drag a card from your hand onto the battlefield, then End Turn.</p>
-            <ul class="help-list">
-                <li>Rules run on the server; the client plays back presentation events.</li>
-                <li>Many battle afflictions and card effects have Siege counterparts (Burn-like DoTs, shields that last until your next turn, party-wide linked effects, and so on).</li>
-                <li>Earn gold, cards, and items as you climb toward the Siegelord.</li>
-            </ul>
+            <div class="help-mode-banner">
+                <span>Live · Solo expedition</span>
+                <strong>Levels matter here</strong>
+                <p>SiegeKnight XP upgrades passive and active abilities in Siege. Those bonuses never change Standard Battle values.</p>
+            </div>
+            <p><a href="/siege">Siege / Adventure</a> is a run-based expedition. Pick a SiegeKnight and starter warband, cross a branching map of battles, elites, rest camps, shops, events, and a boss, then fight AP-based card battles.</p>
+            <div class="help-siege-grid">
+                <div><strong>Build a run</strong><span>Earn gold, recruit cards, collect items, and improve the warband as you climb.</span></div>
+                <div><strong>Spend AP</strong><span>Play cards from a fresh hand, resolve their actions, and end the turn when your plan is set.</span></div>
+                <div><strong>Read Siege rules</strong><span>There is no elemental weakness chart in Siege. Its server-driven rules include shields and affliction counterparts, including Leech.</span></div>
+            </div>
         </section>
 
         <footer class="help-foot">

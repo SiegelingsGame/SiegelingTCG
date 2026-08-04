@@ -28,12 +28,11 @@ public final class ElementalAfflictionCatalog {
                         "−1 Speed per stack. At 3 stacks: stacks clear and the card is Frozen "
                                 + "until its owner's next Setup.",
                         ElementalAfflictionDef.TickPhase.ON_STACK_THRESHOLD,
-                        0, 3, 1, true, true, "SLOW"),
-                def(Element.EARTH, ElementalAffliction.STAGGER, "Stagger", "Stagger",
-                        "1 stack: no effect. 2 stacks: moved to the bottom of the battle queue, "
-                                + "then the stacks clear at the end of that Battle.",
-                        ElementalAfflictionDef.TickPhase.BATTLE_ACTION,
-                        0, 2, 1, true, true, "STUN"),
+                        0, 3, 1, false, true, "SLOW"),
+                def(Element.EARTH, ElementalAffliction.LEECH, "Leech", "Leech",
+                        "First hit marks. On the second hit, the attacker heals for HP damage dealt and Leech clears.",
+                        ElementalAfflictionDef.TickPhase.ON_STACK_THRESHOLD,
+                        0, 2, 1, true, true, "LEECH"),
                 def(Element.WIND, ElementalAffliction.DISORIENT, "Disorient", "Disorient",
                         "+1 energy cost on this card's lowest-cost ability per stack (ties: ability order).",
                         ElementalAfflictionDef.TickPhase.BATTLE_ACTION,
