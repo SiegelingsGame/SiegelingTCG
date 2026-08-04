@@ -789,10 +789,10 @@ class GameJavaScriptRegressionTest {
                 "The pager must scroll-snap horizontally, show page dots, and not fight drawer drag-to-close."
         );
         assertTrue(
-                styleCss.contains("#drawerSelected:has(.selected-preview-pager)")
-                        && styleCss.contains("var(--mobile-action-bar-height) + 186px")
-                        && !styleCss.contains("min(58vh, 420px)"),
-                "Card Preview with the pager must stay compact (action-bar + ~186px), not half the viewport."
+                !styleCss.contains("min(58vh, 420px)")
+                        && styleCss.contains("var(--mobile-action-bar-height) + 168px")
+                        && styleCss.contains("#drawerSelected .selected-preview-pager"),
+                "Card Preview with the pager must keep the compact action-bar tray height, not half the viewport."
         );
     }
 

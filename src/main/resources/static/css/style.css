@@ -13836,20 +13836,15 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 
     /* Card Preview drawer: only cover the bottom UI (action bar + hand) so
        the arena placement area stays visible. Backdrop hidden so taps on
-       the arena go through to place the selected card. The two-page pager
-       stays this compact height — summary fits, moves page scrolls inside. */
+       the arena go through to place the selected card. Keep this compact
+       even with the summary↔moves pager — do not grow toward half the
+       viewport or the summary page looks hollow. Moves scroll inside. */
     #drawerSelected {
         max-height: calc(var(--mobile-action-bar-height) + 168px);
         height: calc(var(--mobile-action-bar-height) + 168px);
         padding: 6px 10px 10px;
         padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
         overflow: hidden;
-    }
-    /* Pager chrome (dots + swipe hint) needs a few extra px; do not grow
-       toward half the viewport or the summary page looks hollow. */
-    #drawerSelected:has(.selected-preview-pager) {
-        height: calc(var(--mobile-action-bar-height) + 186px);
-        max-height: calc(var(--mobile-action-bar-height) + 186px);
     }
     body:has(#drawerSelected.visible) .drawer-backdrop {
         opacity: 0;
@@ -14518,10 +14513,6 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         max-height: calc(var(--mobile-action-bar-height) + 152px);
         height: calc(var(--mobile-action-bar-height) + 152px);
     }
-    #drawerSelected:has(.selected-preview-pager) {
-        height: calc(var(--mobile-action-bar-height) + 168px);
-        max-height: calc(var(--mobile-action-bar-height) + 168px);
-    }
 
     .game-log {
         max-height: 160px;
@@ -14615,10 +14606,6 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     #drawerSelected {
         max-height: calc(var(--mobile-action-bar-height) + 132px);
         height: calc(var(--mobile-action-bar-height) + 132px);
-    }
-    #drawerSelected:has(.selected-preview-pager) {
-        height: calc(var(--mobile-action-bar-height) + 148px);
-        max-height: calc(var(--mobile-action-bar-height) + 148px);
     }
 }
 
