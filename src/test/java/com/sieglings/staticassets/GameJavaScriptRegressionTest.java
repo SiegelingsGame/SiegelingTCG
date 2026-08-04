@@ -433,13 +433,13 @@ class GameJavaScriptRegressionTest {
         String playMarkup = Files.readString(PLAY_HTML);
         String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
         assertTrue(
-                homeMarkup.contains("style.css?v=223")
-                        && homeMarkup.contains("game.js?v=232")
+                homeMarkup.contains("style.css?v=224")
+                        && homeMarkup.contains("game.js?v=233")
                         && homeMarkup.contains("card-binder-visual.js?v=20")
                         && homeMarkup.contains("home.js?v=135")
-                        && playMarkup.contains("style.css?v=223")
-                        && playMarkup.contains("game.js?v=232")
-                        && dashboardMarkup.contains("style.css?v=223")
+                        && playMarkup.contains("style.css?v=224")
+                        && playMarkup.contains("game.js?v=233")
+                        && dashboardMarkup.contains("style.css?v=224")
                         && dashboardMarkup.contains("card-binder-visual.js?v=20"),
                 "Every surface must advance its cache pins with the complete painted-notch set."
         );
@@ -464,7 +464,7 @@ class GameJavaScriptRegressionTest {
                 "Shield playback must retain the server's final shield value instead of treating a missing bridge as zero."
         );
         assertTrue(
-                playMarkup.contains("action-queue.js?v=38"),
+                playMarkup.contains("action-queue.js?v=40"),
                 "The battle page must load the shield-persistence action queue instead of a cached pre-fix bundle."
         );
     }
@@ -533,6 +533,126 @@ class GameJavaScriptRegressionTest {
                         && dashboardMarkup.contains("home.css?v=125"),
                 "Guide JavaScript and shared visual CSS pins must advance together."
         );
+    }
+
+    @Test
+    void afflictionDamageBurnsAnElementalBorderInsteadOfFiringAProjectile() throws IOException {
+        String actionQueueScript = Files.readString(ACTION_QUEUE_JS);
+        String styles = Files.readString(STYLE_CSS);
+        String adventureScript = Files.readString(ADVENTURE_JS);
+        String adventureStyles = Files.readString(ADVENTURE_CSS);
+
+        assertTrue(
+                actionQueueScript.contains("function parseAfflictionTickFromLog")
+                        && actionQueueScript.contains("burn: 'BURN'")
+                        && actionQueueScript.contains("poison: 'TOXIN'")
+                        && actionQueueScript.contains("withers"),
+                "Burn/Toxin/Wither ticks must be recognised from the server's log wording."
+        );
+        assertTrue(
+                actionQueueScript.contains("splitAfflictionTicks(damageOnPlayer, afflictionTicksOnPlayer)")
+                        && actionQueueScript.contains("splitAfflictionTicks(damageOnEnemy, afflictionTicksOnEnemy)")
+                        && actionQueueScript.contains("kind: 'AFFLICTION'"),
+                "Affliction ticks must leave the damage diff before source resolution can invent an attacker."
+        );
+        assertTrue(
+                sliceBetween(actionQueueScript,
+                        "if (action.kind === 'AFFLICTION' && action.target)",
+                        "// 2a-status. STATUS_APPLY / STATUS_SKIP")
+                        .contains("spawnElementalBorder"),
+                "Nothing attacked the card, so an affliction tick plays its border and never a projectile."
+        );
+        assertTrue(
+                actionQueueScript.contains("POISON:   '#7ecb4d'")
+                        && actionQueueScript.contains("LIGHT:    '#ffe59a'"),
+                "Toxin and Blind need their elements in the queue's palette to colour their border."
+        );
+        assertTrue(
+                styles.contains(".sgl-element-border")
+                        && styles.contains("--sgl-border-color")
+                        && styles.contains("@keyframes sgl-border-ring"),
+                "The battle table must ship the element-coloured border."
+        );
+        assertTrue(
+                adventureScript.contains("elementBorder(ev.targetId, 'FIRE')")
+                        && adventureScript.contains("elementBorder(ev.targetId, 'POISON')")
+                        && adventureStyles.contains(".sp-aura .sp-aura-ring"),
+                "Siege status ticks light the same elemental border on the unit's sprite."
+        );
+    }
+
+    @Test
+    void projectilesAreReservedForAttacksAndEverythingElseGetsTheElementalBorder() throws IOException {
+        String actionQueueScript = Files.readString(ACTION_QUEUE_JS);
+        String gameScript = readGameScript();
+        String adventureScript = Files.readString(ADVENTURE_JS);
+
+        assertFalse(
+                actionQueueScript.contains("_getFallbackProjectileOrigin")
+                        || actionQueueScript.contains("attackBetween"),
+                "Damage with no attacker must never invent a projectile origin to fire from."
+        );
+
+        // Trap / aura / effect damage on a single cell.
+        assertTrue(
+                sliceBetween(actionQueueScript,
+                        "} else if (action.kind === 'ATTACK' && action.target) {",
+                        "} else if (action.kind === 'DESTROY'")
+                        .contains("spawnElementalBorder"),
+                "Sourceless cell damage (traps, auras, effect ticks) plays the elemental border."
+        );
+        // Status applications are auras and riders, not attacks.
+        String statusBranch = sliceBetween(actionQueueScript,
+                "if ((action.kind === 'STATUS_APPLY' || action.kind === 'STATUS_SKIP') && action.target) {",
+                "// 2a-heal. HEAL");
+        assertTrue(
+                statusBranch.contains("spawnElementalBorder") && !statusBranch.contains("attackCell"),
+                "A status landing must light the border instead of firing a projectile at the card."
+        );
+        // Healing is not an attack either.
+        String healBranch = sliceBetween(actionQueueScript,
+                "if (action.kind === 'HEAL' && action.target) {",
+                "// 2b. Direct attack on the enemy/player HP bar");
+        assertTrue(
+                healBranch.contains("spawnElementalBorder") && !healBranch.contains("attackCell"),
+                "Heals bloom a green border on the healed card rather than launching a projectile."
+        );
+        // Every surviving projectile call must be gated on an identified attacker.
+        assertTrue(
+                actionQueueScript.contains("if (action.source && window.SieglingsFx?.attackCell) {")
+                        && actionQueueScript.contains("action.kind === 'ATTACK' && action.source && action.target")
+                        && actionQueueScript.contains("action.source && action.target?.healthBar"),
+                "The remaining projectiles must all be attacks launched from a resolved source cell."
+        );
+
+        // Spells/traps have no board cell, so the queue asks the catalog what
+        // element they are instead of falling back to the caster's knight.
+        assertTrue(
+                gameScript.contains("window.SieglingsCardElements")
+                        && gameScript.contains("elementFor(name)"),
+                "game.js must expose a card/ability name to element lookup for effect damage."
+        );
+        assertTrue(
+                actionQueueScript.contains("function parseEffectCardFromLog")
+                        && actionQueueScript.contains("springs\\s+trap")
+                        && actionQueueScript.contains("effectElementForTarget(t.name"),
+                "Trap and spell damage must colour its border from the card's own element."
+        );
+
+        assertTrue(
+                adventureScript.contains("var STATUS_ELEMENT = {")
+                        && adventureScript.contains("elementBorder(ev.targetId, STATUS_ELEMENT[ev.status]"),
+                "Siege status applications light the inflicting element on the unit's border."
+        );
+    }
+
+    /** Slice a playback branch out of the queue so a test can assert on it alone. */
+    private static String sliceBetween(String source, String startMarker, String endMarker) {
+        int start = source.indexOf(startMarker);
+        int end = source.indexOf(endMarker, start + 1);
+        assertTrue(start >= 0 && end > start,
+                "Expected to find the block between \"" + startMarker + "\" and \"" + endMarker + "\".");
+        return source.substring(start, end);
     }
 
     @Test
@@ -1668,7 +1788,7 @@ class GameJavaScriptRegressionTest {
                 "Art bleeds under the notch and home indicator while controls stay inset by the safe area."
         );
         assertTrue(
-                adventureHtml.contains("/css/adventure.css?v=52"),
+                adventureHtml.contains("/css/adventure.css?v=53"),
                 "adventure.css must be cache-busted after the full-bleed location rework."
         );
     }
@@ -1681,7 +1801,7 @@ class GameJavaScriptRegressionTest {
         String mapCatalog = Files.readString(SIEGE_MAPS_JS);
 
         assertTrue(
-                adventureHtml.indexOf("/js/siege-maps.js?v=3") < adventureHtml.indexOf("/js/adventure.js?v=56")
+                adventureHtml.indexOf("/js/siege-maps.js?v=3") < adventureHtml.indexOf("/js/adventure.js?v=57")
                         && adventureHtml.contains("<div class=\"battle-map\" id=\"battleMap\" aria-hidden=\"true\"></div>"),
                 "The map catalog must load before adventure.js and the decorative layer must ship inside the stage."
         );
@@ -1753,8 +1873,8 @@ class GameJavaScriptRegressionTest {
         assertTrue(adventureHtml.contains("id=\"runMenuSave\"")
                         && adventureHtml.contains("id=\"runMenuRestart\"")
                         && adventureHtml.contains("id=\"runMenuQuit\"")
-                        && adventureHtml.contains("/css/adventure.css?v=52")
-                        && adventureHtml.contains("/js/adventure.js?v=56"),
+                        && adventureHtml.contains("/css/adventure.css?v=53")
+                        && adventureHtml.contains("/js/adventure.js?v=57"),
                 "The active-run menu and both cache-busted bundles must ship together.");
         String restartRun = extractFunction(adventureJs, "function restartRun(");
         assertTrue(adventureJs.contains("api('/api/siege/run/save'")

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Elemental border / projectile FX harness</title>
+<link rel="stylesheet" href="/css/style.css?v=222">
+<style>
+  body { background:#10131a; margin:0; }
+  .harness-grid { display:grid; grid-template-columns:repeat(3, 92px); gap:8px; padding:12px; }
+  .board-cell { width:92px; height:128px; position:relative; }
+  .board-card { width:100%; height:100%; border-radius:10px; background:#2a3140; color:#fff;
+                font:12px system-ui; display:flex; align-items:center; justify-content:center; }
+</style>
+</head>
+<body>
+<div id="enemyGrid" class="harness-grid"></div>
+<div id="playerGrid" class="harness-grid"></div>
+<script>
+  window.__fx = { calls: [] };
+  window.SieglingsFx = {
+    attackCell:      function () { window.__fx.calls.push({ fn: 'attackCell', args: [].slice.call(arguments) }); },
+    attackBetween:   function () { window.__fx.calls.push({ fn: 'attackBetween', args: [].slice.call(arguments) }); },
+    attackPoint:     function () { window.__fx.calls.push({ fn: 'attackPoint', args: [].slice.call(arguments) }); },
+    impactAt:        function () { window.__fx.calls.push({ fn: 'impactAt', args: [].slice.call(arguments) }); },
+    impactAtPoint:   function () { window.__fx.calls.push({ fn: 'impactAtPoint', args: [].slice.call(arguments) }); },
+    floatingDamage:  function () { window.__fx.calls.push({ fn: 'floatingDamage', args: [].slice.call(arguments) }); },
+    floatingText:    function () { window.__fx.calls.push({ fn: 'floatingText', args: [].slice.call(arguments) }); },
+    cameraShake:     function () {}
+  };
+  function buildGrid(id) {
+    var grid = document.getElementById(id);
+    for (var r = 0; r < 3; r++) {
+      for (var c = 0; c < 3; c++) {
+        var cell = document.createElement('div');
+        cell.className = 'board-cell';
+        cell.dataset.row = r; cell.dataset.col = c;
+        cell.innerHTML = '<div class="board-card">' + id[0] + r + c + '</div>';
+        grid.appendChild(cell);
+      }
+    }
+  }
+  buildGrid('enemyGrid'); buildGrid('playerGrid');
+
+  window.__mkBoard = function (cells) {
+    var board = [[null,null,null],[null,null,null],[null,null,null]];
+    cells.forEach(function (c) { board[c.row][c.col] = c; });
+    return board;
+  };
+</script>
+<script src="/js/action-queue.js?v=40"></script>
+</body>
+</html>

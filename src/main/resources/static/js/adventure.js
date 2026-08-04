@@ -56,6 +56,15 @@
     BLIND: { icon: '✨', label: 'Blind', tip: 'Ability values −1' },
     WITHER: { icon: '💀', label: 'Wither', tip: '−1 HP at turn start' }
   };
+  // Status → the element that inflicts it, mirroring
+  // ElementalAfflictionCatalog.java. Statuses arrive from auras and riders, not
+  // from something flying across the arena, so they light this element around
+  // the unit's border instead of firing a projectile.
+  var STATUS_ELEMENT = {
+    BURN: 'FIRE', SLOW: 'ICE', STUN: 'EARTH', SHOCK: 'ELECTRIC',
+    DISORIENT: 'WIND', POISON: 'POISON', SOAK: 'WATER', RUST: 'METAL',
+    CURSE: 'SHADOW', INSIGHT: 'PSYCHIC', BLIND: 'LIGHT', WITHER: 'UNDEAD'
+  };
   var NODE_ICON = { BATTLE: '⚔️', ELITE: '🔺', REST: '🏕️', TREASURE: '💎', BROKER: '🐾', SMITH: '🔨', CARAVAN: '🐫', EVENT: '❔', BOSS: '👑' };
   var NODE_TINT = { BATTLE: '#8fa3bf', ELITE: '#ff6e6e', REST: '#7ee787', TREASURE: '#ffd066', BROKER: '#c896ff', BOSS: '#ff9a3c' };
   var CAMP_ICON = { REST: '🔥', SHOP_CARD: '🃏', SHOP_HEAL: '🍲', SHOP_UPGRADE: '⚒️', SHOP_MENU: '🛒', BROKER: '🐾', BROKER_MENU: '♞' };
@@ -2883,14 +2892,17 @@
         });
         return 720;
       case 'burn':
+        elementBorder(ev.targetId, 'FIRE');
         flashSprite(ev.targetId, 'hurt');
         floatText(ev.targetId, '-' + ev.amount + ' 🔥', 'dmg');
         return 420;
       case 'poison':
+        elementBorder(ev.targetId, 'POISON');
         flashSprite(ev.targetId, 'hurt');
         floatText(ev.targetId, '-' + ev.amount + ' ☠️', 'dmg');
         return 420;
       case 'wither':
+        elementBorder(ev.targetId, 'UNDEAD');
         flashSprite(ev.targetId, 'hurt');
         floatText(ev.targetId, (ev.amount ? ('-' + ev.amount + ' ') : '') + '💀', 'dmg');
         return 400;
@@ -2916,6 +2928,7 @@
         return 480;
       case 'status': {
         var meta = STATUS_META[ev.status] || { icon: '', label: ev.status };
+        elementBorder(ev.targetId, STATUS_ELEMENT[ev.status] || ev.element || 'NEUTRAL');
         flashSprite(ev.targetId, 'statused');
         floatText(ev.targetId, meta.icon + ' ' + meta.label + '!', 'status');
         return 480;
@@ -2998,6 +3011,19 @@
     if (!node) return;
     node.classList.add(cls);
     setTimeout(function () { node.classList.remove(cls); }, 700);
+  }
+
+  // Status ticks and status applications have no attacker to launch a projectile
+  // from — projectiles are for attacks — so the element burns around the unit's
+  // border instead.
+  function elementBorder(id, element) {
+    var node = spriteOf(id);
+    if (!node) return;
+    var aura = el('div', 'sp-aura');
+    aura.style.setProperty('--aura', elColor(element));
+    aura.innerHTML = '<span class="sp-aura-ring"></span><span class="sp-aura-ring sp-aura-ring-outer"></span>';
+    node.appendChild(aura);
+    setTimeout(function () { aura.remove(); }, 820);
   }
 
   function floatText(id, text, cls) {
