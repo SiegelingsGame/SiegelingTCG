@@ -30,9 +30,10 @@ public final class ElementalAfflictionCatalog {
                         ElementalAfflictionDef.TickPhase.ON_STACK_THRESHOLD,
                         0, 3, 1, true, true, "SLOW"),
                 def(Element.EARTH, ElementalAffliction.STAGGER, "Stagger", "Stagger",
-                        "1 stack: no effect. 2 stacks: moved to the bottom of the battle queue.",
+                        "1 stack: no effect. 2 stacks: moved to the bottom of the battle queue, "
+                                + "then the stacks clear at the end of that Battle.",
                         ElementalAfflictionDef.TickPhase.BATTLE_ACTION,
-                        0, 2, 1, false, true, "STUN"),
+                        0, 2, 1, true, true, "STUN"),
                 def(Element.WIND, ElementalAffliction.DISORIENT, "Disorient", "Disorient",
                         "+1 energy cost on this card's lowest-cost ability per stack (ties: ability order).",
                         ElementalAfflictionDef.TickPhase.BATTLE_ACTION,

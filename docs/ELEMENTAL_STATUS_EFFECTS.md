@@ -165,6 +165,10 @@ Setup ticks unless those are later classified as attacks.
 **When:** when the 2nd stack is applied, and/or when Battle order is built while
 at 2 stacks — unit acts after everyone else that round.
 
+**Clear:** the demotion is what the badges buy, so at the **end of that Battle
+phase** a full 2-stack Stagger clears. A lone 1st stack persists — like Chill
+1–2 it is still counting up to its threshold.
+
 ---
 
 ### ICE — Chill

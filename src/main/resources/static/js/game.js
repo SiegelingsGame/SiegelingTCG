@@ -600,7 +600,7 @@ const STATUS_EFFECT_KEY = {
         element: 'EARTH',
         cap: 2,
         summary: '2 stacks send it to the back of the queue',
-        detail: 'Inflicted by Earth damage. The first stack is a warning badge only. At 2 stacks the Siegeling is moved to the bottom of the battle queue and acts after everyone else that round.'
+        detail: 'Inflicted by Earth damage. The first stack is a warning badge only. At 2 stacks the Siegeling is moved to the bottom of the battle queue and acts after everyone else that round, then both stacks clear when that Battle ends.'
     },
     DISORIENT: {
         name: 'Disorient',

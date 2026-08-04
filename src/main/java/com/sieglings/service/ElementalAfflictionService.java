@@ -99,6 +99,18 @@ public class ElementalAfflictionService {
         state.removeDeadSieglings();
     }
 
+    /**
+     * End of Battle: spend the badges whose payoff already resolved this phase. Stagger's only
+     * effect is the queue demotion it buys at full stacks, and that demotion is scoped to the
+     * round it fired in — left standing, two Earth hits would bench a card for the whole match.
+     * Partial stacks stay: like Chill 1–2 they are still counting up to their threshold.
+     */
+    public void clearSpentBattleAfflictions(GameState state) {
+        if (!isEnabled() || state == null) return;
+        clearSpentStagger(state, state.getBoardSieglings(true));
+        clearSpentStagger(state, state.getBoardSieglings(false));
+    }
+
     public boolean hasCurse(CardInstance ci) {
         return isEnabled() && ci != null && ci.getAfflictionStacks(ElementalAffliction.CURSE) > 0;
     }
@@ -241,6 +253,16 @@ public class ElementalAfflictionService {
         } else {
             state.log("Insight peaks on " + target.getName() + " — " + actor.getName()
                     + " would draw, but their deck is empty.");
+        }
+    }
+
+    private void clearSpentStagger(GameState state, List<CardInstance> sieglings) {
+        ElementalAfflictionDef def = ElementalAfflictionCatalog.forAffliction(ElementalAffliction.STAGGER).orElse(null);
+        if (def == null || !def.battleEnabled() || sieglings == null) return;
+        for (CardInstance ci : sieglings) {
+            if (ci == null || ci.getAfflictionStacks(ElementalAffliction.STAGGER) < def.stackCap()) continue;
+            ci.clearAffliction(ElementalAffliction.STAGGER);
+            state.log(ci.getName() + " recovers its footing (Stagger clears).");
         }
     }
 
