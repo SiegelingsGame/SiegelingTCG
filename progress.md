@@ -1,3 +1,7 @@
+Original prompt: Merge and deploy
+
+- August 4, 2026 Production deploy of #650 (Keep landscape mobile HUD overlap). Merged as `74391434`; Deploy run [30874381048](https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/30874381048) green — Cloud Run 03:18:40–03:23:07Z, Firebase Hosting + Functions 03:23:17–03:25:24Z. Live `/keep` serves `keep.css?v=53` / `keep.js?v=52` with the content-sized short-landscape header columns (`minmax(0, max-content) minmax(0, 1fr) minmax(0, max-content)`). Editor `source: FIRESTORE` on Hosting and Cloud Run; `apiBaseUrl: ''`; `/api/game/options` 200 (5 decks, 12 trainers); `/`, `/play`, `/siege`, `/home`, `/help`, `/keep` 200.
+
 Original prompt: Fix the hud on the landscape mobile orientation
 
 - August 4, 2026 Keep's short-landscape header no longer piles Battle / Siege on top of the Ready pill. The `@media (orientation: landscape) and (max-height: 600px)` block used equal `1fr` side columns, so when Materials hit four-digit `/capacity` text the action cluster overflowed left into the resource row (Ready `3580` sitting on Battle/Siege). Side columns are now content-sized (`max-content` / `1fr` / `max-content`), the resource bar can shrink (`min-width: 0`), pill labels hide at that density (icon + count stay; titles/aria-labels still name each pill), and brand subtitle drops so the name fits. Cache pin: `keep.css?v=53`.
