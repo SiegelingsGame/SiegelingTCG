@@ -8,6 +8,12 @@ const EFFECT_TYPES = [
     targetHints: ['SINGLE_ENEMY', 'ROW_ENEMIES', 'ROW_SELECT_ENEMIES', 'ALL_ENEMIES', 'ENEMY_PLAYER']
   },
   {
+    key: 'chain_damage',
+    label: 'Chain Damage',
+    description: 'Damages the picked target and every Siegling directly linked to it by an active notch link.',
+    targetHints: ['SINGLE_ENEMY', 'ROW_SELECT_ENEMIES', 'ALL_ENEMIES']
+  },
+  {
     key: 'player_damage',
     label: 'Player Damage',
     description: 'Deals direct damage to the opposing player.',
