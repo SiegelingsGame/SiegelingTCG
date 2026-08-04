@@ -2878,14 +2878,17 @@
         });
         return 720;
       case 'burn':
+        afflictionAura(ev.targetId, 'FIRE');
         flashSprite(ev.targetId, 'hurt');
         floatText(ev.targetId, '-' + ev.amount + ' 🔥', 'dmg');
         return 420;
       case 'poison':
+        afflictionAura(ev.targetId, 'POISON');
         flashSprite(ev.targetId, 'hurt');
         floatText(ev.targetId, '-' + ev.amount + ' ☠️', 'dmg');
         return 420;
       case 'wither':
+        afflictionAura(ev.targetId, 'UNDEAD');
         flashSprite(ev.targetId, 'hurt');
         floatText(ev.targetId, (ev.amount ? ('-' + ev.amount + ' ') : '') + '💀', 'dmg');
         return 400;
@@ -2993,6 +2996,18 @@
     if (!node) return;
     node.classList.add(cls);
     setTimeout(function () { node.classList.remove(cls); }, 700);
+  }
+
+  // Status ticks (burn, poison, wither) have no attacker to launch a projectile
+  // from, so the element burns around the unit's border instead.
+  function afflictionAura(id, element) {
+    var node = spriteOf(id);
+    if (!node) return;
+    var aura = el('div', 'sp-aura');
+    aura.style.setProperty('--aura', elColor(element));
+    aura.innerHTML = '<span class="sp-aura-ring"></span><span class="sp-aura-ring sp-aura-ring-outer"></span>';
+    node.appendChild(aura);
+    setTimeout(function () { aura.remove(); }, 820);
   }
 
   function floatText(id, text, cls) {

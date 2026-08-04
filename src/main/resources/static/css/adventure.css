@@ -1061,6 +1061,37 @@ body[data-battle-node="BOSS"] .battle-stage::before{
 .sp-float.status{color:#c896ff; font-size:14px; white-space:nowrap;}
 @keyframes floatup{to{transform:translate(-50%,-30px); opacity:0;}}
 
+/* Status-tick border (burn / poison / wither). Nothing fires at the unit — the
+   badge it already carries resolves — so the element lights up around the
+   sprite instead of a projectile arriving from off-screen. Colour comes in as
+   --aura from adventure.js's elColor(). */
+.sp-aura{position:absolute; inset:-6px 0 -2px; pointer-events:none; z-index:4;}
+.sp-aura .sp-aura-ring{
+  position:absolute; inset:0; border-radius:14px;
+  border:2px solid var(--aura,#fff); opacity:0;
+  box-shadow:0 0 16px var(--aura,#fff), inset 0 0 12px var(--aura,#fff);
+  animation:sp-aura-pulse .8s cubic-bezier(.2,.8,.3,1);
+}
+.sp-aura .sp-aura-ring-outer{
+  inset:-6px; border-radius:18px; border-width:1px; border-style:dashed;
+  box-shadow:0 0 20px var(--aura,#fff);
+  animation:sp-aura-flare .8s cubic-bezier(.2,.8,.3,1);
+}
+@keyframes sp-aura-pulse{
+  0%{opacity:0; transform:scale(1.14);}
+  25%{opacity:1; transform:scale(1);}
+  70%{opacity:.8; transform:scale(1.02);}
+  100%{opacity:0; transform:scale(1.05);}
+}
+@keyframes sp-aura-flare{
+  0%{opacity:0; transform:scale(.9) rotate(-4deg);}
+  35%{opacity:.7; transform:scale(1) rotate(0);}
+  100%{opacity:0; transform:scale(1.15) rotate(6deg);}
+}
+@media (prefers-reduced-motion: reduce){
+  .sp-aura .sp-aura-ring{animation-duration:.3s;}
+}
+
 /* status chips on the name plate */
 .sprite .sp-status{font-size:10px;}
 
