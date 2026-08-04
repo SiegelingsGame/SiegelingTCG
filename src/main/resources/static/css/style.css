@@ -13836,9 +13836,8 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 
     /* Card Preview drawer: only cover the bottom UI (action bar + hand) so
        the arena placement area stays visible. Backdrop hidden so taps on
-       the arena go through to place the selected card. When the two-page
-       summary/moves pager is present, grow taller so the battle-action page
-       can list moves without feeling clipped. */
+       the arena go through to place the selected card. The two-page pager
+       stays this compact height — summary fits, moves page scrolls inside. */
     #drawerSelected {
         max-height: calc(var(--mobile-action-bar-height) + 168px);
         height: calc(var(--mobile-action-bar-height) + 168px);
@@ -13846,9 +13845,11 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
         overflow: hidden;
     }
+    /* Pager chrome (dots + swipe hint) needs a few extra px; do not grow
+       toward half the viewport or the summary page looks hollow. */
     #drawerSelected:has(.selected-preview-pager) {
-        height: min(58vh, 420px);
-        max-height: min(58vh, 420px);
+        height: calc(var(--mobile-action-bar-height) + 186px);
+        max-height: calc(var(--mobile-action-bar-height) + 186px);
     }
     body:has(#drawerSelected.visible) .drawer-backdrop {
         opacity: 0;
@@ -13878,9 +13879,31 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     #drawerSelected .selected-preview-pager {
         flex: 1 1 auto;
         min-height: 0;
+        gap: 4px;
+    }
+    #drawerSelected .selected-preview-page {
+        height: 100%;
     }
     #drawerSelected .selected-preview-pager-chrome {
-        padding-top: 2px;
+        padding-top: 0;
+        min-height: 14px;
+    }
+    #drawerSelected .selected-preview-swipe-hint {
+        font-size: 0.62em;
+    }
+    /* Claim CTA is dense on phones — pull its padding down so it does not
+       shove the speed/detail lines into empty drawer chrome below. */
+    #drawerSelected .selected-claim-control {
+        margin-top: 4px;
+        gap: 4px;
+    }
+    #drawerSelected .selected-claim-btn {
+        padding: 7px 10px;
+        font-size: 0.86em;
+    }
+    #drawerSelected .selected-claim-note {
+        font-size: 0.78em;
+        line-height: 1.25;
     }
     /* Spell preview/confirm needs room for the action buttons, so let the
        drawer grow and the description scroll instead of clipping the controls. */
@@ -13909,7 +13932,9 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         flex-direction: row;
         align-items: flex-start;
         gap: 8px;
-        height: 100%;
+        /* Content-sized — stretching to 100% of a tall tray left a hollow band. */
+        height: auto;
+        max-height: 100%;
     }
     #drawerSelected .selected-preview-message {
         font-size: 0.72em;
@@ -13920,6 +13945,7 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         min-width: 0;
         font-size: 0.72em;
         line-height: 1.3;
+        text-align: left;
     }
     /* Card thumbnail: override .hand-card base min-width so it fits the
        compact panel. 76 × 122 px gives the standard 0.62 card ratio. */
@@ -14492,6 +14518,10 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         max-height: calc(var(--mobile-action-bar-height) + 152px);
         height: calc(var(--mobile-action-bar-height) + 152px);
     }
+    #drawerSelected:has(.selected-preview-pager) {
+        height: calc(var(--mobile-action-bar-height) + 168px);
+        max-height: calc(var(--mobile-action-bar-height) + 168px);
+    }
 
     .game-log {
         max-height: 160px;
@@ -14585,6 +14615,10 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     #drawerSelected {
         max-height: calc(var(--mobile-action-bar-height) + 132px);
         height: calc(var(--mobile-action-bar-height) + 132px);
+    }
+    #drawerSelected:has(.selected-preview-pager) {
+        height: calc(var(--mobile-action-bar-height) + 148px);
+        max-height: calc(var(--mobile-action-bar-height) + 148px);
     }
 }
 

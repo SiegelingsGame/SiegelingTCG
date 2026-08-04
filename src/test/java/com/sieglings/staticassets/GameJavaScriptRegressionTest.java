@@ -433,13 +433,13 @@ class GameJavaScriptRegressionTest {
         String playMarkup = Files.readString(PLAY_HTML);
         String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
         assertTrue(
-                homeMarkup.contains("style.css?v=221")
+                homeMarkup.contains("style.css?v=222")
                         && homeMarkup.contains("game.js?v=232")
                         && homeMarkup.contains("card-binder-visual.js?v=20")
                         && homeMarkup.contains("home.js?v=135")
-                        && playMarkup.contains("style.css?v=221")
+                        && playMarkup.contains("style.css?v=222")
                         && playMarkup.contains("game.js?v=232")
-                        && dashboardMarkup.contains("style.css?v=221")
+                        && dashboardMarkup.contains("style.css?v=222")
                         && dashboardMarkup.contains("card-binder-visual.js?v=20"),
                 "Every surface must advance its cache pins with the complete painted-notch set."
         );
@@ -787,6 +787,12 @@ class GameJavaScriptRegressionTest {
                         && styleCss.contains(".selected-preview-dot")
                         && gameScript.contains("target.closest('[data-selected-preview-pages]')"),
                 "The pager must scroll-snap horizontally, show page dots, and not fight drawer drag-to-close."
+        );
+        assertTrue(
+                styleCss.contains("#drawerSelected:has(.selected-preview-pager)")
+                        && styleCss.contains("var(--mobile-action-bar-height) + 186px")
+                        && !styleCss.contains("min(58vh, 420px)"),
+                "Card Preview with the pager must stay compact (action-bar + ~186px), not half the viewport."
         );
     }
 
