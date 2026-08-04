@@ -17005,42 +17005,44 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     .sgl-heal-cross .sgl-heal-particle { animation-duration: 0.3s !important; }
 }
 
-/* Elemental affliction border — Burn/Toxin/Wither ticks and the moment a badge
-   lands. Afflictions have no attacker to fire a projectile from, so the damage
-   reads as the element igniting around the card's perimeter: two rings snap in,
-   a wash of the element seeps inward, and motes burn along the border in a wave
-   that circles the card. Colour comes from --sgl-affliction-color, set per
-   element by action-queue.js. Fixed-positioned overlay, so a board re-render
-   mid-animation can't tear it down. */
-.sgl-affliction-aura {
+/* Elemental border — the house visual for anything that happens to a card
+   without a Siegling attacking it: affliction ticks (Burn/Toxin/Wither), badges
+   landing, trap and aura damage, status applications, heals. Projectiles are
+   reserved for actual attacks, so these read as the element igniting around the
+   card's perimeter instead: two rings snap in, a wash of the element seeps
+   inward, and motes burn along the border in a wave that circles the card.
+   Colour comes from --sgl-border-color, set per element by action-queue.js.
+   Fixed-positioned overlay, so a board re-render mid-animation can't tear it
+   down. */
+.sgl-element-border {
     pointer-events: none;
     z-index: 535;
     overflow: visible;
-    --sgl-affliction-color: #ffffff;
-    --sgl-affliction-soft: rgba(255, 255, 255, 0.3);
-    --sgl-affliction-glow: rgba(255, 255, 255, 0.7);
-    --sgl-affliction-ms: 900ms;
+    --sgl-border-color: #ffffff;
+    --sgl-border-soft: rgba(255, 255, 255, 0.3);
+    --sgl-border-glow: rgba(255, 255, 255, 0.7);
+    --sgl-border-ms: 900ms;
 }
-.sgl-affliction-ring {
+.sgl-border-ring {
     position: absolute;
     inset: -3px;
     border-radius: 12px;
-    border: 2px solid var(--sgl-affliction-color);
+    border: 2px solid var(--sgl-border-color);
     box-shadow:
-        0 0 16px var(--sgl-affliction-glow),
-        inset 0 0 14px var(--sgl-affliction-soft);
+        0 0 16px var(--sgl-border-glow),
+        inset 0 0 14px var(--sgl-border-soft);
     opacity: 0;
-    animation: sgl-affliction-ring var(--sgl-affliction-ms) cubic-bezier(0.2, 0.8, 0.3, 1);
+    animation: sgl-border-ring var(--sgl-border-ms) cubic-bezier(0.2, 0.8, 0.3, 1);
 }
-.sgl-affliction-ring-outer {
+.sgl-border-ring-outer {
     inset: -8px;
     border-radius: 15px;
     border-width: 1px;
     border-style: dashed;
-    box-shadow: 0 0 22px var(--sgl-affliction-soft);
-    animation: sgl-affliction-ring-outer var(--sgl-affliction-ms) cubic-bezier(0.2, 0.8, 0.3, 1);
+    box-shadow: 0 0 22px var(--sgl-border-soft);
+    animation: sgl-border-ring-outer var(--sgl-border-ms) cubic-bezier(0.2, 0.8, 0.3, 1);
 }
-.sgl-affliction-fill {
+.sgl-border-fill {
     position: absolute;
     inset: 0;
     border-radius: 10px;
@@ -17049,22 +17051,22 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     background: radial-gradient(
         ellipse at 50% 50%,
         transparent 38%,
-        var(--sgl-affliction-soft) 88%,
-        var(--sgl-affliction-glow) 100%
+        var(--sgl-border-soft) 88%,
+        var(--sgl-border-glow) 100%
     );
     opacity: 0;
-    animation: sgl-affliction-fill var(--sgl-affliction-ms) ease-out;
+    animation: sgl-border-fill var(--sgl-border-ms) ease-out;
 }
-.sgl-affliction-mote {
+.sgl-border-mote {
     position: absolute;
     border-radius: 50%;
-    background: radial-gradient(circle, #ffffff 0%, var(--sgl-affliction-color) 55%, transparent 100%);
-    box-shadow: 0 0 10px var(--sgl-affliction-color);
+    background: radial-gradient(circle, #ffffff 0%, var(--sgl-border-color) 55%, transparent 100%);
+    box-shadow: 0 0 10px var(--sgl-border-color);
     opacity: 0;
     transform: translate(-50%, -50%) scale(0.4);
-    animation: sgl-affliction-mote calc(var(--sgl-affliction-ms) * 0.7) ease-out;
+    animation: sgl-border-mote calc(var(--sgl-border-ms) * 0.7) ease-out;
 }
-.sgl-affliction-sigil {
+.sgl-border-sigil {
     position: absolute;
     left: 50%;
     top: -14px;
@@ -17072,26 +17074,26 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     line-height: 1;
     transform: translate(-50%, 0) scale(0.6);
     opacity: 0;
-    filter: drop-shadow(0 0 8px var(--sgl-affliction-color));
-    animation: sgl-affliction-sigil var(--sgl-affliction-ms) cubic-bezier(0.2, 0.8, 0.3, 1);
+    filter: drop-shadow(0 0 8px var(--sgl-border-color));
+    animation: sgl-border-sigil var(--sgl-border-ms) cubic-bezier(0.2, 0.8, 0.3, 1);
 }
-@keyframes sgl-affliction-ring {
+@keyframes sgl-border-ring {
     0%   { opacity: 0; transform: scale(1.16); filter: blur(4px); }
     22%  { opacity: 1; transform: scale(1);    filter: blur(0); }
     70%  { opacity: 0.85; transform: scale(1.02); }
     100% { opacity: 0; transform: scale(1.05); }
 }
-@keyframes sgl-affliction-ring-outer {
+@keyframes sgl-border-ring-outer {
     0%   { opacity: 0; transform: scale(0.9) rotate(-4deg); }
     35%  { opacity: 0.75; transform: scale(1) rotate(0deg); }
     100% { opacity: 0; transform: scale(1.14) rotate(6deg); }
 }
-@keyframes sgl-affliction-fill {
+@keyframes sgl-border-fill {
     0%   { opacity: 0; }
     30%  { opacity: 0.9; }
     100% { opacity: 0; }
 }
-@keyframes sgl-affliction-mote {
+@keyframes sgl-border-mote {
     0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
     30%  { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
     100% {
@@ -17102,18 +17104,18 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         ) scale(0.35);
     }
 }
-@keyframes sgl-affliction-sigil {
+@keyframes sgl-border-sigil {
     0%   { opacity: 0; transform: translate(-50%, 6px) scale(0.6); }
     28%  { opacity: 1; transform: translate(-50%, -6px) scale(1.1); }
     72%  { opacity: 1; transform: translate(-50%, -8px) scale(1); }
     100% { opacity: 0; transform: translate(-50%, -16px) scale(0.9); }
 }
 @media (prefers-reduced-motion: reduce) {
-    .sgl-affliction-aura .sgl-affliction-mote { display: none; }
-    .sgl-affliction-aura .sgl-affliction-ring,
-    .sgl-affliction-aura .sgl-affliction-ring-outer,
-    .sgl-affliction-aura .sgl-affliction-fill,
-    .sgl-affliction-aura .sgl-affliction-sigil { animation-duration: 0.3s !important; }
+    .sgl-element-border .sgl-border-mote { display: none; }
+    .sgl-element-border .sgl-border-ring,
+    .sgl-element-border .sgl-border-ring-outer,
+    .sgl-element-border .sgl-border-fill,
+    .sgl-element-border .sgl-border-sigil { animation-duration: 0.3s !important; }
 }
 
 /* Shield crumble — a grey shield that cracks and shatters into falling

@@ -527,10 +527,11 @@
         // element's border around the card so the badge reads as landing.
         const aura = target.afflictionAura || action?.afflictionAura;
         if (aura) {
-            spawnAfflictionAura(
-                target.isPlayer, target.row, target.col,
-                aura.element, aura.affliction, 900
-            );
+            spawnElementalBorder(target.isPlayer, target.row, target.col, {
+                element: aura.element,
+                variant: String(aura.affliction || 'effect').toLowerCase(),
+                durationMs: 900
+            });
         }
     }
 
@@ -650,7 +651,7 @@
     // Walk a point around the perimeter of the card box. t in [0,1) starts at the
     // top-left corner and travels clockwise; used to seed the border motes so
     // their staggered delays read as one wave circling the card.
-    function afflictionPerimeterPoint(t) {
+    function borderPerimeterPoint(t) {
         const p = ((t % 1) + 1) % 1;
         if (p < 0.25) return { x: (p / 0.25) * 100, y: 0 };
         if (p < 0.5)  return { x: 100, y: ((p - 0.25) / 0.25) * 100 };
@@ -658,34 +659,44 @@
         return { x: 0, y: 100 - ((p - 0.75) / 0.25) * 100 };
     }
 
-    // Element-colored border effect for affliction damage/application. Fixed
-    // positioned (like spawnHealCross) so a board re-render mid-animation can't
-    // tear it down.
-    function spawnAfflictionAura(isPlayer, row, col, element, affliction, durationMs) {
+    // The house visual for anything that happens to a card without a Siegling
+    // attacking it — affliction ticks, badges landing, trap/aura/effect damage,
+    // status applications, heals. Projectiles stay reserved for real attacks, so
+    // these light the element around the card's border instead. Fixed positioned
+    // (like spawnHealCross) so a board re-render mid-animation can't tear it down.
+    //
+    // options: { element, color, variant, durationMs, sigil }
+    //   element  element key ('FIRE') used for colour + sigil
+    //   color    explicit hex, overrides element (heals are green, not elemental)
+    //   variant  class suffix for per-cause styling hooks ('burn', 'effect', …)
+    function spawnElementalBorder(isPlayer, row, col, options) {
         const cellEl = findCellEl(isPlayer, row, col);
         if (!cellEl) return null;
         const rect = cellEl.getBoundingClientRect();
         if (!rect || rect.width <= 0 || rect.height <= 0) return null;
 
-        const hex = elementHex(element);
-        const total = Math.max(320, durationMs || 900);
+        const opts = options || {};
+        const hex = opts.color || elementHex(opts.element);
+        const total = Math.max(320, opts.durationMs || 900);
+        const variant = String(opts.variant || 'effect').toLowerCase();
+        const sigil = opts.sigil != null ? opts.sigil : elementSigil(opts.element);
         const overlay = document.createElement('div');
-        overlay.className = `sgl-affliction-aura sgl-affliction-${String(affliction || 'generic').toLowerCase()}`;
+        overlay.className = `sgl-element-border sgl-element-border-${variant}`;
         overlay.setAttribute('aria-hidden', 'true');
         overlay.style.position = 'fixed';
         overlay.style.left = `${rect.left}px`;
         overlay.style.top = `${rect.top}px`;
         overlay.style.width = `${rect.width}px`;
         overlay.style.height = `${rect.height}px`;
-        overlay.style.setProperty('--sgl-affliction-color', hex);
-        overlay.style.setProperty('--sgl-affliction-soft', hexWithAlpha(hex, 0.3));
-        overlay.style.setProperty('--sgl-affliction-glow', hexWithAlpha(hex, 0.72));
-        overlay.style.setProperty('--sgl-affliction-ms', `${total}ms`);
+        overlay.style.setProperty('--sgl-border-color', hex);
+        overlay.style.setProperty('--sgl-border-soft', hexWithAlpha(hex, 0.3));
+        overlay.style.setProperty('--sgl-border-glow', hexWithAlpha(hex, 0.72));
+        overlay.style.setProperty('--sgl-border-ms', `${total}ms`);
 
         const MOTE_COUNT = 12;
         const motes = [];
         for (let i = 0; i < MOTE_COUNT; i++) {
-            const at = afflictionPerimeterPoint(i / MOTE_COUNT);
+            const at = borderPerimeterPoint(i / MOTE_COUNT);
             // Push each mote a little away from the card centre so it burns on
             // the border line instead of drifting across the artwork.
             const dx = (at.x - 50) / 50;
@@ -693,7 +704,7 @@
             const size = 5 + Math.random() * 4;
             const delay = Math.round((i / MOTE_COUNT) * total * 0.45);
             motes.push(
-                `<span class="sgl-affliction-mote"
+                `<span class="sgl-border-mote"
                     style="left:${at.x}%;top:${at.y}%;width:${size}px;height:${size}px;
                            --m-dx:${(dx * 12).toFixed(1)}px;--m-dy:${(dy * 12 - 6).toFixed(1)}px;
                            animation-delay:${delay}ms"></span>`
@@ -701,11 +712,11 @@
         }
 
         overlay.innerHTML = `
-            <span class="sgl-affliction-ring"></span>
-            <span class="sgl-affliction-ring sgl-affliction-ring-outer"></span>
-            <span class="sgl-affliction-fill"></span>
+            <span class="sgl-border-ring"></span>
+            <span class="sgl-border-ring sgl-border-ring-outer"></span>
+            <span class="sgl-border-fill"></span>
             ${motes.join('')}
-            <span class="sgl-affliction-sigil">${elementSigil(element)}</span>
+            <span class="sgl-border-sigil">${sigil}</span>
         `;
         document.body.appendChild(overlay);
 
@@ -961,6 +972,27 @@
         if (m) return { target: m[1].trim(), amount: null, affliction: 'WITHER' };
         return null;
     }
+    // "<Player> casts Fireball!" / "<Player> springs trap Snare!" — the only
+    // place a spell or trap names itself. The damage line that follows names the
+    // *ability*, so both are fed to the catalog lookup below.
+    function parseEffectCardFromLog(line) {
+        const text = stripLogPrefix(line);
+        let m = text.match(/^(.+?)\s+springs\s+trap\s+(.+?)[!.]?$/i);
+        if (m) return { actor: m[1].trim(), name: m[2].trim(), kind: 'TRAP' };
+        m = text.match(/^(.+?)\s+casts\s+(.+?)[!.]?$/i);
+        if (m) return { actor: m[1].trim(), name: m[2].trim(), kind: 'SPELL' };
+        return null;
+    }
+    // Spells/traps/trainer actives have no board cell to read an element from, so
+    // ask game.js's catalog bridge what element the named card (or ability) is.
+    function effectElementForName(name) {
+        try {
+            return normalizeElement(window.SieglingsCardElements?.elementFor?.(name));
+        } catch (_) {
+            return null;
+        }
+    }
+
     // "<name> is afflicted with Burn (Burn x2)." — the badge landing alongside a
     // real hit, so it rides along with that attack's impact instead of becoming
     // its own action.
@@ -2051,31 +2083,6 @@
             }, 920);
         }
 
-        // Where to launch a "sourceless" projectile from when we can't
-        // identify the attacking cell (e.g. an AI counter-attack whose log
-        // line shape doesn't match the parser). Picks a point on the
-        // attacker's side of the board so the projectile still flies the
-        // right direction toward the target.
-        _getFallbackProjectileOrigin(attackerIsPlayer) {
-            const grid = document.getElementById(attackerIsPlayer ? 'playerGrid' : 'enemyGrid');
-            if (grid) {
-                const r = grid.getBoundingClientRect();
-                if (r && r.width > 0 && r.height > 0) {
-                    return {
-                        x: r.left + r.width / 2,
-                        // Top edge of player grid / bottom edge of enemy grid
-                        // so the projectile starts "near the line" and flies
-                        // across the board rather than from inside the grid.
-                        y: attackerIsPlayer ? r.top + r.height * 0.15 : r.top + r.height * 0.85
-                    };
-                }
-            }
-            return {
-                x: window.innerWidth / 2,
-                y: attackerIsPlayer ? window.innerHeight * 0.75 : window.innerHeight * 0.25
-            };
-        }
-
         enqueueAction(action) {
             if (!action) return;
             this.queue.push(action);
@@ -2243,6 +2250,27 @@
             };
             splitAfflictionTicks(damageOnPlayer, afflictionTicksOnPlayer);
             splitAfflictionTicks(damageOnEnemy, afflictionTicksOnEnemy);
+
+            // Trap / spell / trainer-active damage: no board cell fired it, so the
+            // knight's element is the only colour the queue could reach for. Ask
+            // the catalog what the named card actually is, so the border burns in
+            // the trap's own element rather than its owner's.
+            const effectCardLogs = newLogs.map(parseEffectCardFromLog).filter(Boolean);
+            const damageLogs = newLogs.map(parseDamageFromLog).filter(Boolean);
+            const effectElementForTarget = (name, amount) => {
+                const hit = damageLogs.find((d) =>
+                    namesMatch(d.target, name) && (!amount || d.amount === amount)
+                ) || damageLogs.find((d) => namesMatch(d.target, name));
+                // The damage line names the ability; fall back to the card named
+                // by the cast/spring line in this same batch.
+                const byAbility = hit ? effectElementForName(hit.abilityOrSource) : null;
+                if (byAbility) return byAbility;
+                for (const effect of effectCardLogs) {
+                    const byCard = effectElementForName(effect.name);
+                    if (byCard) return byCard;
+                }
+                return null;
+            };
 
             // Badges that landed on top of a real hit — the attack keeps its
             // projectile, and the element's border lights up on impact.
@@ -2427,7 +2455,9 @@
                     if (targetEntry.destroysTarget) {
                         targetEntry.pendingLethalKey = targetEntry.pendingHealthKey;
                     }
-                    const srcElement = normalizeElement(srcRef?.pending?.element || srcRef?.cell?.element) || sideKnight;
+                    const srcElement = normalizeElement(srcRef?.pending?.element || srcRef?.cell?.element)
+                        || (srcRef ? null : effectElementForTarget(t.name, Number(t.amount) || 0))
+                        || sideKnight;
                     const key = srcRef
                         ? `S:${srcRef.row}:${srcRef.col}:${srcRef.cell?.instanceId || srcRef.cell?.id || ''}`
                         : `N:${t.row}:${t.col}:${t.instanceId || ''}`;
@@ -3295,21 +3325,36 @@
                 await showCardDestroyedToast(this, action, targetLike || action, t);
             };
 
-            // 2a. Multi-target ATTACK — all projectiles fire simultaneously
-            // (no stagger). One coordinated impact + camera shake + per-target
-            // damage floater after the projectile duration.
-            if (action.kind === 'ATTACK' && Array.isArray(action.targets) && action.targets.length > 1
-                && action.source && window.SieglingsFx?.attackCell) {
+            // 2a. Multi-target damage. With an attacker, all projectiles fire
+            // simultaneously (no stagger); without one — a trap, an aura, a
+            // board-wide effect — every target lights its elemental border
+            // instead, since nothing crossed the board to reach them. Either way
+            // one coordinated impact + camera shake + per-target damage floater
+            // follows the lead-in.
+            if (action.kind === 'ATTACK' && Array.isArray(action.targets) && action.targets.length > 1) {
                 this.syncPendingLethalHolds();
-                for (const tgt of action.targets) {
-                    window.SieglingsFx.attackCell(
-                        action.source.isPlayer, action.source.row, action.source.col,
-                        tgt.isPlayer, tgt.row, tgt.col,
-                        attackFxElement(action),
-                        { duration: t.projectileMs }
-                    );
+                let leadInMs = t.projectileMs;
+                if (action.source && window.SieglingsFx?.attackCell) {
+                    for (const tgt of action.targets) {
+                        window.SieglingsFx.attackCell(
+                            action.source.isPlayer, action.source.row, action.source.col,
+                            tgt.isPlayer, tgt.row, tgt.col,
+                            attackFxElement(action),
+                            { duration: t.projectileMs }
+                        );
+                    }
+                } else {
+                    const borderMs = this.speed === 'fast' ? 520 : 950;
+                    for (const tgt of action.targets) {
+                        spawnElementalBorder(tgt.isPlayer, tgt.row, tgt.col, {
+                            element: attackFxElement(action),
+                            variant: 'effect',
+                            durationMs: borderMs
+                        });
+                    }
+                    leadInMs = Math.round(borderMs * 0.4);
                 }
-                await sleep(t.projectileMs);
+                await sleep(leadInMs);
 
                 const lethalTargets = action.targets.filter((tgt) => tgt.destroysTarget && tgt.ghostCell);
                 const survivingTargets = action.targets.filter((tgt) => !tgt.destroysTarget || !tgt.ghostCell);
@@ -3349,9 +3394,13 @@
                 const isLethalKill = action.destroysTarget && action.ghostCell;
                 if (isLethalKill) this.syncPendingLethalHolds();
                 const auraMs = this.speed === 'fast' ? 520 : 950;
-                spawnAfflictionAura(
+                spawnElementalBorder(
                     action.target.isPlayer, action.target.row, action.target.col,
-                    action.elementColor, action.affliction, auraMs
+                    {
+                        element: action.elementColor,
+                        variant: String(action.affliction || 'effect').toLowerCase(),
+                        durationMs: auraMs
+                    }
                 );
                 // Let the border catch before the HP drops so the two read as
                 // cause and effect rather than one flash.
@@ -3385,14 +3434,19 @@
             // that should read as status feedback rather than attacks.
             if ((action.kind === 'STATUS_APPLY' || action.kind === 'STATUS_SKIP') && action.target) {
                 const isSkip = action.kind === 'STATUS_SKIP';
-                if (!isSkip && action.source && window.SieglingsFx?.attackCell) {
-                    window.SieglingsFx.attackCell(
-                        action.source.isPlayer, action.source.row, action.source.col,
+                if (!isSkip) {
+                    // A status landing with no damage is an aura or a rider, not
+                    // an attack — the status's element lights the target's border.
+                    const borderMs = this.speed === 'fast' ? 460 : 820;
+                    spawnElementalBorder(
                         action.target.isPlayer, action.target.row, action.target.col,
-                        action.elementColor || action.knightElement,
-                        { duration: t.projectileMs }
+                        {
+                            element: action.elementColor || action.knightElement,
+                            variant: 'status',
+                            durationMs: borderMs
+                        }
                     );
-                    await sleep(t.projectileMs);
+                    await sleep(Math.round(borderMs * 0.4));
                 }
                 if (isSkip) {
                     pulseCard(
@@ -3420,19 +3474,17 @@
                 return;
             }
 
-            // 2a-heal. HEAL — green projectile (when there's an identified
-            // healer) and a glowing green "+" cross with outward particles on
-            // the target. Damage floater is replaced with a green "+N" gain.
+            // 2a-heal. HEAL — a green border blooming on the healed card, then a
+            // glowing green "+" cross with outward particles. Healing is not an
+            // attack, so it gets the border treatment rather than a projectile.
+            // Damage floater is replaced with a green "+N" gain.
             if (action.kind === 'HEAL' && action.target) {
-                if (action.source && window.SieglingsFx?.attackCell) {
-                    window.SieglingsFx.attackCell(
-                        action.source.isPlayer, action.source.row, action.source.col,
-                        action.target.isPlayer, action.target.row, action.target.col,
-                        'WIND',
-                        { duration: t.projectileMs }
-                    );
-                    await sleep(t.projectileMs);
-                }
+                const healBorderMs = this.speed === 'fast' ? 460 : 820;
+                spawnElementalBorder(
+                    action.target.isPlayer, action.target.row, action.target.col,
+                    { color: '#5eff8e', variant: 'heal', sigil: '✚', durationMs: healBorderMs }
+                );
+                await sleep(Math.round(healBorderMs * 0.35));
                 spawnHealCross(action.target.isPlayer, action.target.row, action.target.col, 1400);
                 if (action.amount && window.SieglingsFx?.floatingDamage) {
                     // floatingDamage formats as "-N"; use floatingText for "+N"
@@ -3614,22 +3666,25 @@
                 await sleep(gap);
                 return;
             } else if (action.kind === 'ATTACK' && action.target) {
+                // Damage with no attacker cell behind it — a trap, an aura, an
+                // effect tick, or an AI log line the parser couldn't pin to a
+                // card. Nothing crossed the board to get here, so the element
+                // burns around the target's border rather than a projectile
+                // flying in from a made-up origin.
                 const isLethalKill = action.destroysTarget && action.ghostCell;
                 if (isLethalKill) {
                     this.syncPendingLethalHolds();
                 }
-                const targetCellEl = findCellEl(action.target.isPlayer, action.target.row, action.target.col);
-                if (targetCellEl && window.SieglingsFx?.attackBetween) {
-                    const tr = targetCellEl.getBoundingClientRect();
-                    const origin = this._getFallbackProjectileOrigin(action.side === 'PLAYER');
-                    window.SieglingsFx.attackBetween(
-                        origin.x, origin.y,
-                        tr.left + tr.width / 2, tr.top + tr.height / 2,
-                        action.elementColor || action.knightElement,
-                        { duration: t.projectileMs }
-                    );
-                    await sleep(t.projectileMs);
-                }
+                const borderMs = this.speed === 'fast' ? 520 : 950;
+                spawnElementalBorder(
+                    action.target.isPlayer, action.target.row, action.target.col,
+                    {
+                        element: action.elementColor || action.knightElement,
+                        variant: 'effect',
+                        durationMs: borderMs
+                    }
+                );
+                await sleep(Math.round(borderMs * 0.4));
                 if (isLethalKill) {
                     const lethalTarget = {
                         isPlayer: action.target.isPlayer,

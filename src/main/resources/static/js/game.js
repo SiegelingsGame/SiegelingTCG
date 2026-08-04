@@ -16756,6 +16756,43 @@ window.SieglingsBoardCellState = {
     }
 };
 
+// Spells, traps and trainer actives never sit on the board, so the playback
+// queue cannot read their element off a cell the way it does for a Siegling's
+// ability — it only has the name the server logged. Expose a name → element
+// lookup over the loaded catalog so effect damage still lights the right
+// elemental border. Keyed by card name *and* ability name, because the damage
+// line names the ability while the cast/spring line names the card.
+window.SieglingsCardElements = (() => {
+    let cachedCatalog = null;
+    let index = null;
+    const rebuild = (catalog) => {
+        const map = new Map();
+        for (const card of catalog) {
+            const element = String(card?.element || '').toUpperCase();
+            if (!element) continue;
+            const cardName = String(card?.name || '').trim().toLowerCase();
+            const abilityName = String(card?.ability?.name || '').trim().toLowerCase();
+            // Card name wins: an ability name can be shared across cards.
+            if (abilityName && !map.has(abilityName)) map.set(abilityName, element);
+            if (cardName) map.set(cardName, element);
+        }
+        return map;
+    };
+    return {
+        elementFor(name) {
+            const want = String(name == null ? '' : name).trim().toLowerCase();
+            if (!want) return null;
+            const catalog = Array.isArray(gameOptions?.cardCatalog) ? gameOptions.cardCatalog : [];
+            if (!catalog.length) return null;
+            if (catalog !== cachedCatalog) {
+                cachedCatalog = catalog;
+                index = rebuild(catalog);
+            }
+            return index.get(want) || null;
+        }
+    };
+})();
+
 window.SieglingsCardShowcase = {
     renderShowcaseCard,
     scheduleFramedSummaryFit,
