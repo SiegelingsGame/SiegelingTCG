@@ -1,6 +1,7 @@
 Original prompt: Merge and deploy
 
-- August 4, 2026 Production deploy of #662 (Siege stuck drag cards + landscape log + safe-zone bleed). Squash-merged as `b3f85f95`. First Deploy run [30934404748](https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/30934404748) failed Cloud Run with `EXPIRED` during container build (~10m); Firebase Hosting was skipped. Retrying deploy via this push so Hosting can ship `adventure.css?v=52` / `adventure.js?v=56`.
+- August 4, 2026 Production deploy of #662 (Siege stuck drag cards + landscape log + safe-zone bleed). Squash-merged as `b3f85f95`. Deploy runs [30934404748](https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/30934404748) and retry [30935404396](https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/30935404396) both failed Cloud Run with `EXPIRED` during container build (~10–11m); Firebase Hosting was skipped both times, so live `/siege` still served `adventure.css?v=49` / `adventure.js?v=55`. Follow-up: Deploy workflow now retries Cloud Run once in-job and lets the Firebase Hosting job run even when Cloud Run fails (cancel still skips), so frontend pin bumps can ship through a backend builder outage.
+
 
 Original prompt: Occasionally cars will get stuck in siege, also in landscape fix the position of the log in the top right
 
