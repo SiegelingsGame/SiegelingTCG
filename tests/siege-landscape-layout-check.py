@@ -160,13 +160,16 @@ PROBE = r"""
     const bg = plateCs.backgroundColor || '';
     plateContrast = { bg, cx, cy, plateZ: plateCs.zIndex };
   }
+  const appCs = getComputedStyle(document.querySelector('.siege-app'));
   return {
     vw: window.innerWidth, vh: window.innerHeight,
     stagePos: getComputedStyle(stage).position,
     playcardW: getComputedStyle(document.querySelector('.playcard')).width,
     descShown: getComputedStyle(document.querySelector('.pc-desc')).display,
     spriteW: getComputedStyle(document.querySelector('.sprite')).width,
-    appMaxW: getComputedStyle(document.querySelector('.siege-app')).maxWidth,
+    appMaxW: appCs.maxWidth,
+    appPadL: parseFloat(appCs.paddingLeft) || 0,
+    appPadR: parseFloat(appCs.paddingRight) || 0,
     scrollW: document.documentElement.scrollWidth,
     scrollH: document.documentElement.scrollHeight,
     stage: r('battleStage'), plate: r('knightPlate'), log: r('battleLog'),
@@ -212,10 +215,16 @@ def assert_layout(name, w, h, landscape, m, failures):
 
     if landscape:
         check(m["stagePos"] == "absolute", "arena is not the full-bleed overlay")
-        check(m["stage"]["w"] >= m["vw"] - 40,
+        # Edge-to-edge: the stage must reach both glass edges (no safe-area
+        # pillar bars on the shell). Allow 2px for subpixel rounding.
+        check(m["stage"]["x"] <= 2 and m["stage"]["right"] >= m["vw"] - 2,
+              f"arena does not span the viewport horizontally: {m['stage']}")
+        check(m["stage"]["w"] >= m["vw"] - 4,
               f"arena width {m['stage']['w']} << viewport {m['vw']}")
         check(m["stage"]["h"] >= m["vh"] - 40,
               f"arena height {m['stage']['h']} << viewport {m['vh']}")
+        check(m.get("appPadL", 0) == 0 and m.get("appPadR", 0) == 0,
+              f"siege-app still has side padding: L={m.get('appPadL')} R={m.get('appPadR')}")
         for key in ("plate", "log", "hand", "endTurn", "hud", "track"):
             b = m[key]
             check(b["right"] <= m["vw"] + 1 and b["bottom"] <= m["vh"] + 1

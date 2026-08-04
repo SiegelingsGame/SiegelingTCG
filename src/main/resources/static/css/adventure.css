@@ -1787,21 +1787,24 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
     --arena-hand-h:150px;
     --playcard-w:94px;
     --arena-tint:.42;                 /* elite/boss vignette strength on phone */
-    --arena-side-inset:max(10px,env(safe-area-inset-left,0px));
+    /* Unit formations pull in from the notch/home-indicator; the arena art
+       itself still paints edge-to-edge (siege-app side padding is 0 below). */
+    --arena-side-inset-left:max(10px, env(safe-area-inset-left, 0px));
+    --arena-side-inset-right:max(10px, env(safe-area-inset-right, 0px));
     --arena-clash-half:clamp(24px,6vw,42px);
     --arena-unit-gap:clamp(4px,1.2vw,10px);
     --arena-unit-top-gap:88px;        /* below health/speed band */
     --arena-unit-bottom-clearance:calc(var(--arena-hand-h) - 12px);
   }
-  /* Full bleed needs the reading-column cap and the side gutters gone, or the
-     "edge to edge" arena stops 400px short of each edge on a desktop. */
+  /* Full bleed: drop the reading-column cap AND the safe-area side gutters.
+     Padding the shell by env(safe-area-inset-left/right) left black pillar
+     bars on notched phones (the map/art stopped short of the glass). The
+     arena stage now reaches both edges; interactive chrome keeps its own
+     safe-area padding so Menu / End Turn / plates stay clear of the notch. */
   body[data-screen="battleScreen"] .siege-app{
     max-width:none;
-    padding:
-      env(safe-area-inset-top, 0px)
-      max(8px, env(safe-area-inset-right, 0px))
-      0
-      max(8px, env(safe-area-inset-left, 0px));
+    width:100%;
+    padding:0;
   }
   body[data-screen="battleScreen"] .siege-title{ display:none; }
 
@@ -1831,7 +1834,9 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
   body[data-screen="battleScreen"] .battle-stage{
     position:absolute; inset:0; z-index:0;
     min-height:0; border:none; border-radius:0;
-    padding:0 max(10px,env(safe-area-inset-right,0px));
+    /* No side padding — the map/gradient must paint under the notch. Units
+       and chrome inset themselves via --arena-side-inset-* / safe-area. */
+    padding:0;
     flex-direction:row-reverse; align-items:stretch; justify-content:space-between;
     gap:0;
     background:
@@ -1848,13 +1853,18 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
     position:absolute;
     top:calc(var(--arena-chrome-top) + var(--arena-unit-top-gap));
     bottom:var(--arena-unit-bottom-clearance);
-    width:calc(50% - var(--arena-clash-half) - var(--arena-side-inset));
     min-height:0; height:auto; flex:0 0 auto; margin:0;
     flex-flow:row nowrap; gap:var(--arena-unit-gap);
     align-items:center; align-content:normal; justify-content:flex-start;
   }
-  .ally-line{ left:var(--arena-side-inset); right:auto; }
-  .foe-line{ right:var(--arena-side-inset); left:auto; flex-direction:row-reverse; }
+  .ally-line{
+    left:var(--arena-side-inset-left); right:auto;
+    width:calc(50% - var(--arena-clash-half) - var(--arena-side-inset-left));
+  }
+  .foe-line{
+    right:var(--arena-side-inset-right); left:auto; flex-direction:row-reverse;
+    width:calc(50% - var(--arena-clash-half) - var(--arena-side-inset-right));
+  }
   .sprite{
     flex:0 1 calc(var(--arena-sprite-w) * var(--evo-scale,1)); min-width:0;
     width:calc(var(--arena-sprite-w) * var(--evo-scale,1));
@@ -1992,7 +2002,11 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
     --arena-hand-h:clamp(172px, 26vh, 240px);
     --playcard-w:clamp(104px, 9.5vw, 138px);
     --arena-tint:.48;
-    --arena-side-inset:max(10px,6vw,env(safe-area-inset-left,0px));
+    /* On wide desktops, also pull formations in by a share of the width so
+       allies/foes don't sit ~1700px apart at the extreme edges. Safe-area
+       still wins on notched tablets. */
+    --arena-side-inset-left:max(10px, 6vw, env(safe-area-inset-left, 0px));
+    --arena-side-inset-right:max(10px, 6vw, env(safe-area-inset-right, 0px));
     --arena-clash-half:clamp(72px,8vw,180px);
     --arena-unit-gap:clamp(8px,1.2vw,18px);
     --arena-unit-top-gap:105px;
@@ -2003,17 +2017,9 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
   body[data-screen="battleScreen"] .siege-topbar{
     padding:9px max(14px,env(safe-area-inset-right,0px)) 7px max(14px,env(safe-area-inset-left,0px));
   }
-  body[data-screen="battleScreen"] .siege-app{
-    padding-left:max(12px, env(safe-area-inset-left, 0px));
-    padding-right:max(12px, env(safe-area-inset-right, 0px));
-  }
-  /* The background still bleeds to both edges, but the two formations pull in
-     off the extreme edges: on a 1920px screen, sides pinned to the glass sit
-     ~1700px apart and the fight reads as two unrelated corners. The inset is a
-     share of the width, so the proportion holds from 1024px to ultrawide. */
-  body[data-screen="battleScreen"] .battle-stage{
-    padding-inline:max(10px, 6vw, env(safe-area-inset-right,0px));
-  }
+  /* Keep the shell at padding:0 — do not reintroduce side gutters here.
+     Formations already inset via --arena-side-inset-*; the stage/map stay
+     edge-to-edge under the notch and past the home indicator. */
   .sprite .sp-plate{ padding:4px 9px 5px; margin-bottom:4px; }
   .sprite .sp-shade{ display:inline-block; }
   .sprite .sp-el{ font-size:11px; }

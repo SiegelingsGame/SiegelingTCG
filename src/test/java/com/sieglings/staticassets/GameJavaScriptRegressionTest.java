@@ -1668,7 +1668,7 @@ class GameJavaScriptRegressionTest {
                 "Art bleeds under the notch and home indicator while controls stay inset by the safe area."
         );
         assertTrue(
-                adventureHtml.contains("/css/adventure.css?v=49"),
+                adventureHtml.contains("/css/adventure.css?v=52"),
                 "adventure.css must be cache-busted after the full-bleed location rework."
         );
     }
@@ -1681,7 +1681,7 @@ class GameJavaScriptRegressionTest {
         String mapCatalog = Files.readString(SIEGE_MAPS_JS);
 
         assertTrue(
-                adventureHtml.indexOf("/js/siege-maps.js?v=3") < adventureHtml.indexOf("/js/adventure.js?v=55")
+                adventureHtml.indexOf("/js/siege-maps.js?v=3") < adventureHtml.indexOf("/js/adventure.js?v=56")
                         && adventureHtml.contains("<div class=\"battle-map\" id=\"battleMap\" aria-hidden=\"true\"></div>"),
                 "The map catalog must load before adventure.js and the decorative layer must ship inside the stage."
         );
@@ -1694,10 +1694,11 @@ class GameJavaScriptRegressionTest {
         );
         assertTrue(
                 adventureCss.contains("flex-flow:row nowrap; gap:var(--arena-unit-gap)")
-                        && adventureCss.contains(".ally-line{ left:var(--arena-side-inset); right:auto; }")
-                        && adventureCss.contains(".foe-line{ right:var(--arena-side-inset); left:auto; flex-direction:row-reverse; }")
-                        && adventureCss.contains("--arena-unit-bottom-clearance"),
-                "Landscape allies and foes must occupy mirrored horizontal lanes between the top chrome and AP HUD."
+                        && adventureCss.contains("left:var(--arena-side-inset-left); right:auto;")
+                        && adventureCss.contains("right:var(--arena-side-inset-right); left:auto; flex-direction:row-reverse;")
+                        && adventureCss.contains("--arena-unit-bottom-clearance")
+                        && adventureCss.contains("body[data-screen=\"battleScreen\"] .siege-app{\n    max-width:none;\n    width:100%;\n    padding:0;\n  }"),
+                "Landscape allies and foes must occupy mirrored horizontal lanes between the top chrome and AP HUD, with the arena shell padding-free so art reaches the glass under the notch."
         );
         assertTrue(
                 adventureJs.contains("function battleMapId(node)")
@@ -1752,8 +1753,8 @@ class GameJavaScriptRegressionTest {
         assertTrue(adventureHtml.contains("id=\"runMenuSave\"")
                         && adventureHtml.contains("id=\"runMenuRestart\"")
                         && adventureHtml.contains("id=\"runMenuQuit\"")
-                        && adventureHtml.contains("/css/adventure.css?v=49")
-                        && adventureHtml.contains("/js/adventure.js?v=55"),
+                        && adventureHtml.contains("/css/adventure.css?v=52")
+                        && adventureHtml.contains("/js/adventure.js?v=56"),
                 "The active-run menu and both cache-busted bundles must ship together.");
         String restartRun = extractFunction(adventureJs, "function restartRun(");
         assertTrue(adventureJs.contains("api('/api/siege/run/save'")
