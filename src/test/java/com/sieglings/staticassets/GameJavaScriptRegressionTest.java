@@ -370,7 +370,7 @@ class GameJavaScriptRegressionTest {
                 "Season Snapshot, Loadout Shelf, and Social Table must share the overview rail, with matches and badges paired below."
         );
         assertTrue(
-                homeMarkup.contains("home.js?v=133") && homeMarkup.contains("home.css?v=124"),
+                homeMarkup.contains("home.js?v=134") && homeMarkup.contains("home.css?v=124"),
                 "Cache-bust pins for the profile dashboard trim must advance on home.html."
         );
     }
@@ -399,7 +399,7 @@ class GameJavaScriptRegressionTest {
         );
         assertTrue(
                 homeMarkup.contains("home.css?v=124")
-                        && homeMarkup.contains("home.js?v=133")
+                        && homeMarkup.contains("home.js?v=134")
                         && dashboardMarkup.contains("home.css?v=124"),
                 "Profile icon CSS and JavaScript cache pins must advance together."
         );
@@ -435,7 +435,7 @@ class GameJavaScriptRegressionTest {
                 homeMarkup.contains("style.css?v=220")
                         && homeMarkup.contains("game.js?v=230")
                         && homeMarkup.contains("card-binder-visual.js?v=20")
-                        && homeMarkup.contains("home.js?v=133")
+                        && homeMarkup.contains("home.js?v=134")
                         && playMarkup.contains("style.css?v=220")
                         && playMarkup.contains("game.js?v=230")
                         && dashboardMarkup.contains("style.css?v=220")
@@ -704,8 +704,10 @@ class GameJavaScriptRegressionTest {
         assertTrue(
                 ownedDataLoading.contains("state.progression?.ownedCards")
                         && ownedDataLoading.contains("!state.profileSynced")
+                        && ownedDataLoading.contains("hasOwnedCards")
+                        && ownedDataLoading.contains("Object.keys(ownedCards)")
                         && !ownedDataLoading.contains("!state.profile;"),
-                "A cached identity without progression must keep the binder loading until ownedCards arrives."
+                "An empty or missing cached ownedCards map must keep the binder loading until sync confirms the collection."
         );
         assertTrue(
                 renderCards.contains("panelLoadingMarkup('Loading your card binder…')")

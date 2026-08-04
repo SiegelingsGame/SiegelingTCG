@@ -1885,14 +1885,24 @@
 
     // Signed in but the owned-cards/decks snapshot hasn't arrived yet this session
     // (and nothing usable was painted from cache). Older/partial cached profiles can
-    // identify the player without containing progression, so the ownedCards map is
-    // the reliable signal that the binder data is actually ready.
+    // identify the player without containing progression, and an empty cached
+    // ownedCards map is indistinguishable from "collection not loaded yet" — so
+    // only a cache that actually has owned cards may skip the loader before the
+    // first authoritative sync finishes. After sync, a present (even empty) map
+    // means the account truly owns nothing; a missing map stays in the loading
+    // state rather than flashing "0 owned cards".
     function ownedDataLoading() {
+        if (!state.token) return false;
         const ownedCards = state.progression?.ownedCards;
         const hasOwnedCardsSnapshot = Boolean(ownedCards)
             && typeof ownedCards === 'object'
             && !Array.isArray(ownedCards);
-        return Boolean(state.token) && !state.profileSynced && !hasOwnedCardsSnapshot;
+        const hasOwnedCards = hasOwnedCardsSnapshot
+            && Object.keys(ownedCards).some(id => Number(ownedCards[id]) > 0);
+        if (!state.profileSynced) {
+            return !hasOwnedCards;
+        }
+        return !hasOwnedCardsSnapshot;
     }
 
     function panelLoadingMarkup(label) {
