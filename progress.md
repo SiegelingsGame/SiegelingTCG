@@ -1,3 +1,8 @@
+Original prompt: Critical bug hunt (Keep claimReward gold-before-Keep)
+
+- August 4, 2026 `KeepService.claimReward` no longer mints Siegecoins / remnants / durable `keepRewardClaimIds` before the Keep document persists. The early `progressionStore.save` inside the mutate action left a split-write window: claim `weekly_order` (or any sanctuary reward that spends Keep materials / grants decorations), Keep Firestore write fails after progression save, reload restores unspent materials while gold and the claim marker remain — free payout and a stuck weekly order. Gold/remnants/claim-marker updates now queue on `context.afterKeepPersist` (same path as Collect / instant purchase / coin speed-ups). Supersedes still-open draft PRs #597 / #617 / #630 that never landed on main.
+- Verification: new `KeepServiceTest#weeklyOrderDoesNotCreditGoldWhenKeepSaveFails`; focused claim/split-write Keep tests green.
+
 Original prompt: Merge and deploy
 
 - August 4, 2026 Production deploy of #653 (Card Preview summary ↔ battle-moves swipe). Merged as `50f60b90`; Deploy run [30877029644](https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/30877029644) green — Cloud Run 04:13:19–04:17:17Z, Firebase Hosting + Functions 04:17:20–04:19:22Z. Live `/play` serves `game.js?v=231` / `style.css?v=221` with `selected-preview-pager`, `bindSelectedPreviewPager`, and `grid-auto-columns: 100%` scroll-snap pages. Editor `source: FIRESTORE` on Hosting and Cloud Run; `apiBaseUrl: ''`; `/api/game/options` 200 (5 decks, 127 cards, 12 trainers); `/`, `/play`, `/siege`, `/home`, `/cards`, `/shop`, `/help`, `/keep` 200.
