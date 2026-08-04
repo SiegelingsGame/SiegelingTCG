@@ -15114,8 +15114,10 @@ function bindSelectedPreviewPager(root) {
         }
         syncSelectedPreviewDrawerTitle(next);
         if (scroll) {
+            // Instant jump: smooth scrollTo fights scroll-snap inside the
+            // shrink-to-fit desktop drawer and can stall mid-page.
             const width = pages.clientWidth || 1;
-            pages.scrollTo({ left: next * width, behavior: 'smooth' });
+            pages.scrollLeft = next * width;
         }
     };
 

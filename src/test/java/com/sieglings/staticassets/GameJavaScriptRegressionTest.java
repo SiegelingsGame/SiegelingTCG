@@ -715,6 +715,7 @@ class GameJavaScriptRegressionTest {
         );
         assertTrue(
                 styleCss.contains(".selected-preview-pages")
+                        && styleCss.contains("grid-auto-columns: 100%")
                         && styleCss.contains("scroll-snap-type: x mandatory")
                         && styleCss.contains(".selected-preview-dot")
                         && gameScript.contains("target.closest('[data-selected-preview-pages]')"),

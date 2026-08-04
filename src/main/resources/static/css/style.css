@@ -2251,10 +2251,16 @@ body.card-drag-active #playerGrid {
     height: 100%;
 }
 .selected-preview-pages {
-    display: flex;
+    /* Grid columns lock each page to the scroller's own width — flex %
+       basis can collapse to content width in shrink-to-fit drawers and the
+       second page never scrolls into view. */
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 100%;
     flex: 1 1 auto;
     min-height: 0;
     width: 100%;
+    max-width: 100%;
     overflow-x: auto;
     overflow-y: hidden;
     scroll-snap-type: x mandatory;
@@ -2267,10 +2273,7 @@ body.card-drag-active #playerGrid {
     display: none;
 }
 .selected-preview-page {
-    flex: 0 0 100%;
-    width: 100%;
-    min-width: 100%;
-    max-width: 100%;
+    min-width: 0;
     min-height: 0;
     overflow-x: hidden;
     overflow-y: auto;
