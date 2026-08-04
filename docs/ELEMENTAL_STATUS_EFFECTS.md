@@ -22,6 +22,11 @@ deleting the framework. Runtime reads {@code ElementalAfflictions.isEnabled()}.
    `requiredElement`), add **1 stack** of that element's affliction (up to cap).
 2. Neutral damage never inflicts.
 3. Badges live on the target as `afflictions: [{ kind, stacks }]`.
+4. **Evolving does not cleanse.** An evolution is a new form of the same
+   fighter, so its stacks, its Chill freeze, `FREEZE`/`SPEED_ZERO`, and its
+   shield/damage buffs all ride across to the evolved instance
+   (`PlacementService.createPlacedInstance`). Curse still blocks evolving
+   outright, so a Cursed unit cannot even attempt it.
 
 ---
 
@@ -165,6 +170,10 @@ Setup ticks unless those are later classified as attacks.
 **When:** when the 2nd stack is applied, and/or when Battle order is built while
 at 2 stacks — unit acts after everyone else that round.
 
+**Clear:** the demotion is what the badges buy, so at the **end of that Battle
+phase** a full 2-stack Stagger clears. A lone 1st stack persists — like Chill
+1–2 it is still counting up to its threshold.
+
 ---
 
 ### ICE — Chill
@@ -174,11 +183,13 @@ at 2 stacks — unit acts after everyone else that round.
 | Stacks | Effect |
 |---|---|
 | 1–2 | **Slow:** −1 effective Speed per stack (affects Battle order) |
-| 3 | **Freeze:** unit cannot act; stays frozen until its **owner’s next Setup**, then Freeze/Chill clears |
+| 3 | **Freeze:** all Chill stacks clear immediately and the unit cannot act; it stays frozen until its **owner’s next Setup**, then Freeze clears |
 
-At 3 stacks the unit is frozen for the rest of the current Battle (skips its
-action) and through the opponent’s turn if needed, thawing when the owner
-enters Setup.
+The Chill badges are the countdown to the freeze, so they are spent the moment
+it fires — the card shows **Frozen**, not Chill ×3, and further Ice hits do not
+restack Chill underneath the Freeze. The unit is frozen for the rest of the
+current Battle (skips its action) and through the opponent’s turn if needed,
+thawing when the owner enters Setup.
 
 ---
 

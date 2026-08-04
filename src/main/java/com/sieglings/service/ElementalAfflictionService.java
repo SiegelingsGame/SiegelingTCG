@@ -54,6 +54,11 @@ public class ElementalAfflictionService {
         if (def == null || !def.battleEnabled()) {
             return;
         }
+        // A card already frozen by Chill has nothing left to count down to, so further Ice hits
+        // must not start a fresh badge stack underneath the Freeze.
+        if (def.affliction() == ElementalAffliction.CHILL && target.isChillFrozen()) {
+            return;
+        }
         int stacks = target.addAfflictionStacks(def.affliction(), def.stacksPerHit(), def.stackCap());
         if (stacks <= 0) {
             return;
@@ -62,6 +67,10 @@ public class ElementalAfflictionService {
                 + " (" + def.shortLabel() + " x" + stacks + ").");
 
         if (def.affliction() == ElementalAffliction.CHILL && stacks >= def.stackCap()) {
+            // The badges were the countdown to this moment — spend them, and let the Freeze
+            // status carry the state from here (same as Insight clearing on its draw payoff).
+            target.clearAffliction(ElementalAffliction.CHILL);
+            target.setChillFrozen(true);
             target.getStatusEffects().add(StatusEffect.FREEZE);
             state.log(target.getName() + " is Frozen by Chill!");
         }
@@ -90,12 +99,24 @@ public class ElementalAfflictionService {
         state.removeDeadSieglings();
     }
 
+    /**
+     * End of Battle: spend the badges whose payoff already resolved this phase. Stagger's only
+     * effect is the queue demotion it buys at full stacks, and that demotion is scoped to the
+     * round it fired in — left standing, two Earth hits would bench a card for the whole match.
+     * Partial stacks stay: like Chill 1–2 they are still counting up to their threshold.
+     */
+    public void clearSpentBattleAfflictions(GameState state) {
+        if (!isEnabled() || state == null) return;
+        clearSpentStagger(state, state.getBoardSieglings(true));
+        clearSpentStagger(state, state.getBoardSieglings(false));
+    }
+
     public boolean hasCurse(CardInstance ci) {
         return isEnabled() && ci != null && ci.getAfflictionStacks(ElementalAffliction.CURSE) > 0;
     }
 
     public boolean isChillFrozen(CardInstance ci) {
-        return isEnabled() && ci != null && ci.getAfflictionStacks(ElementalAffliction.CHILL) >= 3;
+        return isEnabled() && ci != null && ci.isChillFrozen();
     }
 
     public boolean isStaggeredToBack(CardInstance ci) {
@@ -235,6 +256,16 @@ public class ElementalAfflictionService {
         }
     }
 
+    private void clearSpentStagger(GameState state, List<CardInstance> sieglings) {
+        ElementalAfflictionDef def = ElementalAfflictionCatalog.forAffliction(ElementalAffliction.STAGGER).orElse(null);
+        if (def == null || !def.battleEnabled() || sieglings == null) return;
+        for (CardInstance ci : sieglings) {
+            if (ci == null || ci.getAfflictionStacks(ElementalAffliction.STAGGER) < def.stackCap()) continue;
+            ci.clearAffliction(ElementalAffliction.STAGGER);
+            state.log(ci.getName() + " recovers its footing (Stagger clears).");
+        }
+    }
+
     private void tickBurnOnSetup(GameState state, CardInstance ci) {
         ElementalAfflictionDef burn = ElementalAfflictionCatalog.forAffliction(ElementalAffliction.BURN).orElse(null);
         if (burn == null || !burn.battleEnabled()) return;
@@ -272,9 +303,13 @@ public class ElementalAfflictionService {
 
     private void thawChillOnSetup(GameState state, CardInstance ci) {
         int chill = ci.getAfflictionStacks(ElementalAffliction.CHILL);
-        if (chill <= 0) return;
+        boolean frozen = ci.isChillFrozen();
+        if (chill <= 0 && !frozen) return;
         ci.clearAffliction(ElementalAffliction.CHILL);
-        ci.getStatusEffects().remove(StatusEffect.FREEZE);
+        if (frozen) {
+            ci.setChillFrozen(false);
+            ci.getStatusEffects().remove(StatusEffect.FREEZE);
+        }
         state.log(ci.getName() + " thaws (Chill clears).");
     }
 }
