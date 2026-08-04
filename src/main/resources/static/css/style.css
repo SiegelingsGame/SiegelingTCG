@@ -15671,6 +15671,121 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         padding: 5px 6px;
     }
 
+    /* Phone landscape right rail is ~180–200px — a single flex row of
+       name + HP/SPD pills + status badges + "ACTING NOW" wraps into a
+       jammed pile. Give the topbar two rows: identity/state on top,
+       health + badges on their own full-width row underneath. */
+    body.battle-inline-dock .desktop-hand-battle-panel .battle-queue-topbar {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+            "title state"
+            "stats stats";
+        align-items: center;
+        column-gap: 6px;
+        row-gap: 4px;
+        margin-bottom: 4px;
+    }
+
+    body.battle-inline-dock .desktop-hand-battle-panel .battle-queue-card-title {
+        grid-area: title;
+        font-size: 0.88em;
+        line-height: 1.15;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    body.battle-inline-dock .desktop-hand-battle-panel .battle-queue-state {
+        grid-area: state;
+        margin-left: 0;
+        min-height: 22px;
+        padding: 3px 7px;
+        font-size: 0.56em;
+        letter-spacing: 0.06em;
+    }
+
+    body.battle-inline-dock .desktop-hand-battle-panel .battle-queue-card-stats {
+        grid-area: stats;
+        width: 100%;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 5px;
+        min-width: 0;
+    }
+
+    body.battle-inline-dock .desktop-hand-battle-panel .battle-queue-card-stats .card-stat-pills {
+        gap: 4px;
+    }
+
+    body.battle-inline-dock .desktop-hand-battle-panel .battle-queue-card-stats .card-stat-pill {
+        font-size: 0.7em;
+        padding: 2px 6px;
+    }
+
+    body.battle-inline-dock .desktop-hand-battle-panel .battle-queue-card-stats .status-icons {
+        gap: 3px;
+    }
+
+    body.battle-inline-dock .desktop-hand-battle-panel .battle-queue-card-stats .sb-badge {
+        width: 18px;
+        height: 18px;
+    }
+
+    /* Arena board: give HP pills + status badges a bit more room in the
+       short landscape cells so they stay readable instead of pinching into
+       the painted info panel. */
+    .board-card.arena-board-card .sb-badge {
+        width: 19px;
+        height: 19px;
+    }
+
+    .board-card.arena-board-card .sb-num {
+        min-width: 11px;
+        height: 11px;
+        font-size: 7.5px;
+    }
+
+    .board-card.arena-board-card .card-stat-pill {
+        font-size: 0.56em;
+        padding: 2px 5px;
+        gap: 2px;
+    }
+
+    .board-card.arena-board-card .arena-board-health .hp-bar,
+    .board-card.arena-board-card .hp-bar {
+        height: 6px;
+    }
+
+    .board-card.arena-board-card.element-frame .arena-board-badges {
+        bottom: calc(100% + 8px);
+    }
+
+    /* Left-rail preview: keep buff/status pills from stacking into a tall
+       scroll inside the narrow inspector. */
+    .landscape-preview .selected-copy-buffs {
+        justify-content: flex-start;
+        gap: 3px;
+        margin: 3px 0 4px;
+    }
+
+    .landscape-preview .buff-pill {
+        font-size: 0.62em;
+        padding: 2px 6px 2px 3px;
+        gap: 3px;
+    }
+
+    .landscape-preview .buff-pill-icon {
+        width: 13px;
+        height: 13px;
+    }
+
+    .landscape-preview .buff-pill-all {
+        font-size: 0.58em;
+        padding-left: 6px;
+    }
+
     /* Float preview replaced by sidebar inspector */
     .card-preview-float { display: none !important; }
 
@@ -15712,6 +15827,108 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     .mulligan-box {
         max-height: calc(100dvh - 20px);
         overflow-y: auto;
+    }
+
+    /* End-game SUMMARY: the portrait 520px column forces ~840px of stacked
+       content into a ~350px-tall landscape viewport (scroll + wasted side
+       gutters). Widen the box and lay Match Totals beside Rewards/Record
+       so the full summary + actions fit without scrolling. */
+    .game-over-overlay {
+        padding: 6px 10px;
+        align-items: center;
+    }
+
+    .game-over-box {
+        width: min(92vw, 860px);
+        max-width: min(92vw, 860px);
+        max-height: calc(100dvh - 12px);
+        padding: 12px 16px 10px;
+        overflow: hidden;
+        display: grid;
+        grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+        column-gap: 12px;
+        row-gap: 6px;
+        align-content: start;
+    }
+
+    .game-over-box > h2,
+    .game-over-box > #gameOverMsg,
+    .game-over-box > .game-over-subtext,
+    .game-over-box > .game-over-rematch-status,
+    .game-over-box > .game-over-actions {
+        grid-column: 1 / -1;
+    }
+
+    .game-over-box h2 {
+        font-size: 1.35em;
+        margin: 0 0 2px;
+        line-height: 1.1;
+    }
+
+    .game-over-box > #gameOverMsg {
+        margin: 0;
+        text-align: center;
+        font-size: 0.95em;
+        line-height: 1.25;
+    }
+
+    .game-over-subtext {
+        margin: 0;
+        font-size: 0.8rem;
+        line-height: 1.25;
+    }
+
+    .game-over-stats {
+        grid-column: 1;
+        grid-row: span 2;
+        margin: 0;
+        padding: 8px 10px;
+        font-size: 0.78rem;
+        line-height: 1.35;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .game-over-rewards,
+    .game-over-record {
+        grid-column: 2;
+        margin: 0;
+        padding: 8px 10px;
+        font-size: 0.78rem;
+        line-height: 1.35;
+        min-height: 0;
+    }
+
+    .game-over-stats h3,
+    .game-over-rewards h3,
+    .game-over-record h3 {
+        margin: 0 0 5px;
+        font-size: 0.68rem;
+    }
+
+    .game-over-stat-grid {
+        gap: 3px 10px;
+    }
+
+    .game-over-rewards-note {
+        margin: 6px 0 0;
+        font-size: 0.72rem;
+    }
+
+    .game-over-rematch-status {
+        margin: 2px 0 0;
+        font-size: 0.78rem;
+        min-height: 0;
+    }
+
+    .game-over-actions {
+        margin-top: 4px;
+        gap: 8px;
+    }
+
+    .game-over-actions .btn {
+        padding: 8px 14px;
+        font-size: 0.82em;
     }
 
     /* ── Play entry (welcome) screen ──
@@ -16472,6 +16689,46 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     /* Tighter grid gutters so two card columns still fit the slim rail */
     .hand-tray { padding: 3px 4px; }
     .hand-tray .hand-cards { gap: 4px; }
+
+    /* Classic phone landscape heights (~375–430px): keep the widened
+       end-game box fully on-screen with denser type/padding. */
+    .game-over-box {
+        padding: 8px 12px 8px;
+        row-gap: 4px;
+        column-gap: 10px;
+    }
+
+    .game-over-box h2 {
+        font-size: 1.15em;
+    }
+
+    .game-over-box > #gameOverMsg {
+        font-size: 0.85em;
+    }
+
+    .game-over-subtext {
+        font-size: 0.72rem;
+    }
+
+    .game-over-stats,
+    .game-over-rewards,
+    .game-over-record {
+        padding: 6px 8px;
+        font-size: 0.7rem;
+        line-height: 1.28;
+    }
+
+    .game-over-stats h3,
+    .game-over-rewards h3,
+    .game-over-record h3 {
+        margin: 0 0 3px;
+        font-size: 0.62rem;
+    }
+
+    .game-over-actions .btn {
+        padding: 6px 12px;
+        font-size: 0.74em;
+    }
 }
 
 /* ============================================================
