@@ -221,10 +221,19 @@ def assert_layout(name, w, h, landscape, m, failures):
             check(b["right"] <= m["vw"] + 1 and b["bottom"] <= m["vh"] + 1
                   and b["x"] >= -1 and b["y"] >= -1,
                   f"{key} outside viewport: {b}")
-        check(m["plate"]["right"] <= m["log"]["x"],
-              "knight plate overlaps the ledger pill")
-        check(m["track"]["right"] <= m["log"]["x"] + 1,
-              "speed track overlaps the ledger pill")
+        # Ledger chip sits in the topbar row (left of Menu), above the
+        # knight/speed band — so horizontal clearance vs plate/track is no
+        # longer required; they must not overlap vertically, and the chip
+        # must stay in the top chrome rather than floating mid-arena.
+        check(m["log"]["bottom"] <= m["plate"]["y"] + 2
+              or m["log"]["bottom"] <= m["track"]["y"] + 2,
+              "ledger pill overlaps the health/speed band")
+        check(m["log"]["y"] <= 18,
+              f"ledger pill not in top chrome band: y={m['log']['y']}")
+        check(m["log"]["right"] <= m["vw"] - 48,
+              "ledger pill collides with the Menu button corner")
+        check(m["hint"]["right"] <= m["log"]["x"] + 8,
+              "hint overlaps the ledger pill")
         check(m["hand"]["y"] >= m["plate"]["bottom"],
               "hand fan overlaps the knight plate")
         check(m["endTurn"]["y"] >= m["hint"]["bottom"],

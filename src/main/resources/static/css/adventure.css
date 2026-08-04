@@ -1779,14 +1779,18 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
     --arena-sprite-art:64px;
     --arena-name:10px;
     --arena-plate-w:min(244px,46vw);
-    --arena-log-w:148px;
+    /* Ledger chip lives in the topbar row left of Menu, so battle-top no
+       longer reserves a right gutter for it. Keep the pill narrow enough that
+       the centered hint (max ~40vw) and Menu still clear it on short phones. */
+    --arena-log-w:min(168px,28vw);
+    --arena-menu-clear:72px;          /* Menu button + gap the log must clear */
     --arena-hand-h:150px;
     --playcard-w:94px;
     --arena-tint:.42;                 /* elite/boss vignette strength on phone */
     --arena-side-inset:max(10px,env(safe-area-inset-left,0px));
     --arena-clash-half:clamp(24px,6vw,42px);
     --arena-unit-gap:clamp(4px,1.2vw,10px);
-    --arena-unit-top-gap:88px;        /* below health/speed/ledger band */
+    --arena-unit-top-gap:88px;        /* below health/speed band */
     --arena-unit-bottom-clearance:calc(var(--arena-hand-h) - 12px);
   }
   /* Full bleed needs the reading-column cap and the side gutters gone, or the
@@ -1870,12 +1874,12 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
      narrow left column, so the speed strip dropped down into the ally
      sprites (which hug the far LEFT). Lay them out horizontally instead:
      the life plate on the left, the speed race track stretched across the
-     rest of the top. The top-right corner is reserved for the ledger pill,
-     the top-center for the hint. */
+     rest of the top. The ledger chip now sits in the topbar row (left of
+     Menu), so battle-top can run to the right edge; the hint stays top-center. */
   .battle-top{
     position:absolute; top:var(--arena-chrome-top); z-index:14;
     left:max(6px,env(safe-area-inset-left,0px));
-    right:calc(var(--arena-log-w) + 14px);   /* clear the ledger pill's corner */
+    right:max(6px,env(safe-area-inset-right,0px));
     flex-direction:row; align-items:flex-start; gap:10px; margin:0; background:none;
   }
   .knight-plate{ flex:0 0 auto; width:var(--arena-plate-w); min-width:0; max-width:none; }
@@ -1885,27 +1889,38 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
   .speed-track{ flex:1 1 auto; align-self:flex-start; min-width:0; padding:5px 9px; }
   .track-first{ display:none; }
 
-  /* ---- Ledger: a clean compact pill, top-right ----
-     The old collapsed box crammed two truncated turn/round lines and read
-     as messy. Show one tidy line — the newest combat event — with a clear
-     "Ledger" affordance beneath it; the full history still opens on tap. */
+  /* ---- Ledger: compact chip in the topbar row, left of Menu ----
+     The previous absolute pill sat at --arena-chrome-top flush-right and
+     floated over the arena moon/art just under Menu — awkward on short
+     landscape phones. Park it in the same band as Menu instead: one truncated
+     combat line + an inline "ledger" affordance, clearing the Menu button. */
   .battle-log{
-    position:absolute; top:var(--arena-chrome-top); right:max(6px,env(safe-area-inset-right,0px)); z-index:15;
-    width:var(--arena-log-w); max-width:40vw; min-height:0; max-height:none; margin:0;
-    padding:7px 10px 6px; line-height:1.25;
-    background:rgba(10,14,21,.82); border:1px solid var(--border); border-radius:12px;
+    position:absolute;
+    top:4px;
+    right:calc(var(--arena-menu-clear) + max(6px, env(safe-area-inset-right, 0px)));
+    z-index:21;
+    width:var(--arena-log-w); max-width:min(42vw, 260px);
+    min-height:0; max-height:28px; margin:0;
+    padding:4px 10px 4px 10px; line-height:1.2;
+    display:flex; align-items:center; gap:8px;
+    background:rgba(10,14,21,.88); border:1px solid var(--border); border-radius:999px;
+    overflow:hidden;
   }
-  .battle-log .lg{ font-size:10.5px; }
+  .battle-log .lg{
+    font-size:10.5px; flex:1 1 auto; min-width:0;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
   .battle-log .lg:not(:first-child){ display:none; }   /* one clean line, not a stack */
   .battle-log .lg-more{
-    position:static; display:block; margin-top:4px; text-align:right;
-    font-size:11px; font-weight:800; color:var(--accent-2);
+    position:static; display:block; flex:0 0 auto; margin:0;
+    font-size:10px; font-weight:800; color:var(--accent-2); white-space:nowrap;
   }
 
-  /* Hint / turn banner floats top-center over the arena (no boxed row). */
+  /* Hint / turn banner floats top-center over the arena (no boxed row).
+     max-width leaves the right chrome free for the ledger chip + Menu. */
   .battle-hint{
     position:absolute; top:3px; left:50%; transform:translateX(-50%); z-index:16;
-    margin:0; min-height:0; font-size:12px; max-width:52vw;
+    margin:0; min-height:0; font-size:12px; max-width:40vw;
     text-shadow:0 1px 5px rgba(0,0,0,.95);
   }
 
@@ -1968,7 +1983,8 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
     --arena-sprite-art:clamp(76px, 19vh, 190px);
     --arena-name:12.5px;
     --arena-plate-w:clamp(210px, 20vw, 300px);
-    --arena-log-w:clamp(168px, 17vw, 260px);
+    --arena-log-w:clamp(180px, 18vw, 280px);
+    --arena-menu-clear:88px;
     --arena-hand-h:clamp(172px, 26vh, 240px);
     --playcard-w:clamp(104px, 9.5vw, 138px);
     --arena-tint:.48;
@@ -2003,10 +2019,10 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
   .knight-bag-btn{ font-size:12px; padding:5px 11px; }
   .speed-track{ padding:8px 13px; }
   .lane-label{ font-size:10.5px; width:52px; flex-basis:52px; }
-  .battle-log{ padding:9px 13px 8px; }
+  .battle-log{ top:10px; max-height:34px; padding:6px 14px; }
   .battle-log .lg{ font-size:12.5px; }
-  .battle-log .lg-more{ font-size:12px; }
-  .battle-hint{ top:12px; font-size:15px; max-width:46vw; }
+  .battle-log .lg-more{ font-size:11.5px; }
+  .battle-hint{ top:12px; font-size:15px; max-width:42vw; }
   /* Wide cards have room for the rules text again — the phone block hides it. */
   .playcard{ margin:0 -14px; padding:9px 11px; }
   .playcard .pc-desc{ display:block; }

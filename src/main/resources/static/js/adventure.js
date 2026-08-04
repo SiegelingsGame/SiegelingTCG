@@ -144,6 +144,10 @@
   function elColor(element) { return EL_COLOR[element] || '#95a5a6'; }
 
   function showScreen(id) {
+    // Leaving battle (or re-entering a fresh screen) must drop any in-flight
+    // drag ghost — hand re-renders destroy the source card and otherwise leave
+    // a stuck playcard floating over the arena.
+    if (id !== 'battleScreen') abandonActiveCardDrag();
     ['loadingScreen', 'resumeScreen', 'setupScreen', 'mapScreen', 'campScreen', 'cacheScreen', 'brokerScreen', 'smithScreen', 'caravanScreen', 'eventScreen', 'minigameScreen', 'interactionResultScreen', 'battleScreen', 'recruitScreen', 'rewardScreen', 'resultScreen'].forEach(function (s) {
       var node = $(s); if (node) node.classList.toggle('hidden', s !== id);
     });
@@ -3184,6 +3188,9 @@
 
   // ---- hand ------------------------------------------------------------
   function renderHand(b, over) {
+    // Replacing the hand DOM would orphan any in-flight drag ghost (pointer
+    // listeners lived on the destroyed card). Drop the drag first.
+    abandonActiveCardDrag();
     var hand = $('handRow');
     var wasDealt = hand.dataset.dealt === '1';
     var prevScrollLeft = hand.scrollLeft;
@@ -3293,8 +3300,13 @@
    *  drag) just brings the card into focus for a closer look. A ghost
    *  follows the pointer while dragging, and drop targets highlight so it's
    *  obvious where the card will land. Targeted cards also draw a curved
-   *  arrow from the card to the finger (snapping to a valid unit on hover). */
+   *  arrow from the card to the finger (snapping to a valid unit on hover).
+   *
+   *  activeCardDrag tracks the in-flight gesture at module scope so a hand
+   *  re-render, screen change, or lost pointer capture can always tear the
+   *  ghost down — otherwise a clone stays parked over the arena ("stuck card"). */
   var DRAG_THRESHOLD = 8;
+  var activeCardDrag = null;
   var TARGET_ARROW_SVG_NS = 'http://www.w3.org/2000/svg';
   var DRAG_ARROW_PALETTES = {
     DAMAGE: { source: '#ffaa55', target: '#ff3344', glow: '#ff6644' },
@@ -3485,11 +3497,33 @@
     }
   }
 
+  /** Tear down any in-flight card drag (ghost, arrow, hover rings). Safe to
+   *  call when idle — also sweeps orphan `.playcard-ghost` nodes left behind
+   *  if a prior cleanup was skipped (hand re-render / lost capture). */
+  function abandonActiveCardDrag() {
+    if (activeCardDrag && typeof activeCardDrag.cleanup === 'function') {
+      activeCardDrag.cleanup();
+    }
+    activeCardDrag = null;
+    Array.prototype.forEach.call(document.querySelectorAll('.playcard-ghost'), function (node) {
+      if (node.parentNode) node.parentNode.removeChild(node);
+    });
+    clearDragArrow();
+    document.body.classList.remove('siege-drag-active');
+    var stage = $('battleStage');
+    if (stage) stage.classList.remove('drop-hover');
+    Array.prototype.forEach.call(document.querySelectorAll('.sprite.targetable, .sprite.drop-hover'), function (n) {
+      n.classList.remove('targetable');
+      n.classList.remove('drop-hover');
+    });
+  }
+
   function setupCardDrag(cardEl, card) {
     var pointerId = null;
     var startX = 0, startY = 0, dragOffsetX = 0, dragOffsetY = 0;
     var dragging = false;
     var ghost = null;
+    var docBound = false;
 
     function canInteract() {
       var b = state.run && state.run.battle;
@@ -3528,6 +3562,7 @@
 
     function updateDropHover(clientX, clientY) {
       var stage = $('battleStage');
+      if (!stage) return;
       var hitEl = document.elementFromPoint(clientX, clientY);
       var overStage = Boolean(hitEl && stage.contains(hitEl));
       stage.classList.toggle('drop-hover', overStage);
@@ -3548,32 +3583,33 @@
       return alive && (wantsEnemy ? isEnemy : !isEnemy);
     }
 
+    function unbindDocListeners() {
+      if (!docBound) return;
+      document.removeEventListener('pointermove', onDocPointerMove, true);
+      document.removeEventListener('pointerup', onDocPointerUp, true);
+      document.removeEventListener('pointercancel', onDocPointerCancel, true);
+      docBound = false;
+    }
+
     function cleanup() {
+      unbindDocListeners();
       if (ghost && ghost.parentNode) ghost.parentNode.removeChild(ghost);
       ghost = null;
       clearDragArrow();
       document.body.classList.remove('siege-drag-active');
-      cardEl.classList.remove('playcard-dragsource');
+      if (cardEl && cardEl.classList) cardEl.classList.remove('playcard-dragsource');
       var stage = $('battleStage');
-      stage.classList.remove('drop-hover');
+      if (stage) stage.classList.remove('drop-hover');
       Array.prototype.forEach.call(document.querySelectorAll('.sprite.targetable, .sprite.drop-hover'), function (n) {
         n.classList.remove('targetable');
         n.classList.remove('drop-hover');
       });
       dragging = false;
       pointerId = null;
+      if (activeCardDrag && activeCardDrag.cardEl === cardEl) activeCardDrag = null;
     }
 
-    cardEl.addEventListener('pointerdown', function (event) {
-      if (event.pointerType === 'mouse' && event.button !== 0) return;
-      if (!canInteract() || !card.playable) return;
-      pointerId = event.pointerId;
-      startX = event.clientX; startY = event.clientY;
-      dragging = false;
-      if (cardEl.setPointerCapture) cardEl.setPointerCapture(pointerId);
-    });
-
-    cardEl.addEventListener('pointermove', function (event) {
+    function onDocPointerMove(event) {
       if (pointerId === null || event.pointerId !== pointerId) return;
       var dx = event.clientX - startX, dy = event.clientY - startY;
       if (!dragging) {
@@ -3585,19 +3621,23 @@
       event.preventDefault();
       moveGhost(event.clientX, event.clientY);
       updateDropHover(event.clientX, event.clientY);
-    });
+    }
 
     function finish(event) {
       if (pointerId === null || event.pointerId !== pointerId) return;
       var wasDragging = dragging;
       var dropX = event.clientX, dropY = event.clientY;
-      if (cardEl.hasPointerCapture && cardEl.hasPointerCapture(pointerId)) cardEl.releasePointerCapture(pointerId);
+      try {
+        if (cardEl.hasPointerCapture && cardEl.hasPointerCapture(pointerId)) {
+          cardEl.releasePointerCapture(pointerId);
+        }
+      } catch (err) { /* element may already be gone */ }
       cleanup();
       if (!wasDragging) { toggleCardFocus(card); return; }
       if (!canInteract() || !card.playable) return;
       var dropEl = document.elementFromPoint(dropX, dropY);
       var stage = $('battleStage');
-      if (!dropEl || !stage.contains(dropEl)) return; // dropped off the arena — cancel
+      if (!dropEl || !stage || !stage.contains(dropEl)) return; // dropped off the arena — cancel
       var b = state.run.battle;
       if (cardNeedsSpriteTarget(card, b)) {
         var spriteEl = dropEl.closest ? dropEl.closest('.sprite') : null;
@@ -3611,12 +3651,51 @@
       var soleEnemy = cardTargetsSingleEnemy(card) ? soleLivingEnemy(b) : null;
       playCard(card.instanceId, soleEnemy ? soleEnemy.id : null);
     }
-    cardEl.addEventListener('pointerup', finish);
-    cardEl.addEventListener('pointercancel', function (event) {
+
+    function onDocPointerUp(event) { finish(event); }
+    function onDocPointerCancel(event) {
       if (pointerId === null || event.pointerId !== pointerId) return;
       cleanup();
+    }
+
+    cardEl.addEventListener('pointerdown', function (event) {
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      if (!canInteract() || !card.playable) return;
+      // One drag at a time — drop any leftover session before starting.
+      abandonActiveCardDrag();
+      pointerId = event.pointerId;
+      startX = event.clientX; startY = event.clientY;
+      dragging = false;
+      activeCardDrag = { cardEl: cardEl, cleanup: cleanup };
+      // Document listeners survive the source card being destroyed mid-drag
+      // (hand re-render / capture loss), which is what left stuck ghosts.
+      if (!docBound) {
+        document.addEventListener('pointermove', onDocPointerMove, true);
+        document.addEventListener('pointerup', onDocPointerUp, true);
+        document.addEventListener('pointercancel', onDocPointerCancel, true);
+        docBound = true;
+      }
+      try {
+        if (cardEl.setPointerCapture) cardEl.setPointerCapture(pointerId);
+      } catch (err) { /* older WebViews can throw if the pointer already ended */ }
+    });
+
+    cardEl.addEventListener('lostpointercapture', function (event) {
+      if (pointerId === null || event.pointerId !== pointerId) return;
+      // Capture often drops when the hand re-renders and destroys the source
+      // card. If a ghost is already up, tear it down; if we haven't crossed
+      // the drag threshold yet, keep the document listeners so pointerup can
+      // still resolve the tap.
+      if (dragging) cleanup();
     });
   }
+
+  // Tabbing away / minimizing mid-drag also orphans the ghost on some phones.
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden') abandonActiveCardDrag();
+  });
+  window.addEventListener('blur', function () { abandonActiveCardDrag(); });
+  window.addEventListener('pagehide', function () { abandonActiveCardDrag(); });
 
   /** Groups the hand by owning Siegeling (left-to-right party order), Knight
    *  cards last; cards belonging to the same character always sit together. */
