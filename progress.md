@@ -1,3 +1,7 @@
+Original prompt: Merge and deploy
+
+- August 4, 2026 Production deploy of #657 (compact Card Preview tray). Merged as `6562f4c6`; Deploy run [30910989353](https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/30910989353) green — Cloud Run 12:51:37–12:56:09Z, Firebase Hosting + Functions 12:56:12–12:58:19Z. Live `/play` and `/home` serve `style.css?v=222` with the compact `#drawerSelected` action-bar heights (no `min(58vh, 420px)` pager override). Editor `source: FIRESTORE` on Hosting and Cloud Run; `apiBaseUrl: ''`; `/api/game/options` 200 (5 decks, 127 cards, 12 trainers); `/`, `/play`, `/siege`, `/home`, `/cards`, `/shop`, `/help`, `/keep` 200. **Pin note:** #658 had already shipped `style.css?v=222` for landscape badges, so the compact-tray CSS content shared that pin — bumping to `?v=223` immediately after so returning browsers cannot keep the pre-#657 sheet.
+
 Original prompt: A lot of wasted space on the card preview now, it was cleaner before for sure.
 
 - August 4, 2026 Card Preview tray is compact again after the swipe-pager change. Root cause: `#drawerSelected:has(.selected-preview-pager)` grew the mobile tray to `min(58vh, 420px)` so the summary page (122px card + copy) sat in a hollow half-screen sheet. Removed that override — the pager keeps the original action-bar + 168/152/132px heights — and tightened claim/pager chrome spacing plus content-sized `.selected-card-panel` so the summary packs the tray. Moves page still swipes and scrolls inside. Cache pin: `style.css?v=222` (play/home/card-dashboard).
