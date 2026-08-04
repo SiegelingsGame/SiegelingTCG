@@ -160,13 +160,16 @@ PROBE = r"""
     const bg = plateCs.backgroundColor || '';
     plateContrast = { bg, cx, cy, plateZ: plateCs.zIndex };
   }
+  const appCs = getComputedStyle(document.querySelector('.siege-app'));
   return {
     vw: window.innerWidth, vh: window.innerHeight,
     stagePos: getComputedStyle(stage).position,
     playcardW: getComputedStyle(document.querySelector('.playcard')).width,
     descShown: getComputedStyle(document.querySelector('.pc-desc')).display,
     spriteW: getComputedStyle(document.querySelector('.sprite')).width,
-    appMaxW: getComputedStyle(document.querySelector('.siege-app')).maxWidth,
+    appMaxW: appCs.maxWidth,
+    appPadL: parseFloat(appCs.paddingLeft) || 0,
+    appPadR: parseFloat(appCs.paddingRight) || 0,
     scrollW: document.documentElement.scrollWidth,
     scrollH: document.documentElement.scrollHeight,
     stage: r('battleStage'), plate: r('knightPlate'), log: r('battleLog'),
@@ -212,19 +215,34 @@ def assert_layout(name, w, h, landscape, m, failures):
 
     if landscape:
         check(m["stagePos"] == "absolute", "arena is not the full-bleed overlay")
-        check(m["stage"]["w"] >= m["vw"] - 40,
+        # Edge-to-edge: the stage must reach both glass edges (no safe-area
+        # pillar bars on the shell). Allow 2px for subpixel rounding.
+        check(m["stage"]["x"] <= 2 and m["stage"]["right"] >= m["vw"] - 2,
+              f"arena does not span the viewport horizontally: {m['stage']}")
+        check(m["stage"]["w"] >= m["vw"] - 4,
               f"arena width {m['stage']['w']} << viewport {m['vw']}")
         check(m["stage"]["h"] >= m["vh"] - 40,
               f"arena height {m['stage']['h']} << viewport {m['vh']}")
+        check(m.get("appPadL", 0) == 0 and m.get("appPadR", 0) == 0,
+              f"siege-app still has side padding: L={m.get('appPadL')} R={m.get('appPadR')}")
         for key in ("plate", "log", "hand", "endTurn", "hud", "track"):
             b = m[key]
             check(b["right"] <= m["vw"] + 1 and b["bottom"] <= m["vh"] + 1
                   and b["x"] >= -1 and b["y"] >= -1,
                   f"{key} outside viewport: {b}")
-        check(m["plate"]["right"] <= m["log"]["x"],
-              "knight plate overlaps the ledger pill")
-        check(m["track"]["right"] <= m["log"]["x"] + 1,
-              "speed track overlaps the ledger pill")
+        # Ledger chip sits in the topbar row (left of Menu), above the
+        # knight/speed band — so horizontal clearance vs plate/track is no
+        # longer required; they must not overlap vertically, and the chip
+        # must stay in the top chrome rather than floating mid-arena.
+        check(m["log"]["bottom"] <= m["plate"]["y"] + 2
+              or m["log"]["bottom"] <= m["track"]["y"] + 2,
+              "ledger pill overlaps the health/speed band")
+        check(m["log"]["y"] <= 18,
+              f"ledger pill not in top chrome band: y={m['log']['y']}")
+        check(m["log"]["right"] <= m["vw"] - 48,
+              "ledger pill collides with the Menu button corner")
+        check(m["hint"]["right"] <= m["log"]["x"] + 8,
+              "hint overlaps the ledger pill")
         check(m["hand"]["y"] >= m["plate"]["bottom"],
               "hand fan overlaps the knight plate")
         check(m["endTurn"]["y"] >= m["hint"]["bottom"],

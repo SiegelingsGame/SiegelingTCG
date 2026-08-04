@@ -1779,25 +1779,32 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
     --arena-sprite-art:64px;
     --arena-name:10px;
     --arena-plate-w:min(244px,46vw);
-    --arena-log-w:148px;
+    /* Ledger chip lives in the topbar row left of Menu, so battle-top no
+       longer reserves a right gutter for it. Keep the pill narrow enough that
+       the centered hint (max ~40vw) and Menu still clear it on short phones. */
+    --arena-log-w:min(168px,28vw);
+    --arena-menu-clear:72px;          /* Menu button + gap the log must clear */
     --arena-hand-h:150px;
     --playcard-w:94px;
     --arena-tint:.42;                 /* elite/boss vignette strength on phone */
-    --arena-side-inset:max(10px,env(safe-area-inset-left,0px));
+    /* Unit formations pull in from the notch/home-indicator; the arena art
+       itself still paints edge-to-edge (siege-app side padding is 0 below). */
+    --arena-side-inset-left:max(10px, env(safe-area-inset-left, 0px));
+    --arena-side-inset-right:max(10px, env(safe-area-inset-right, 0px));
     --arena-clash-half:clamp(24px,6vw,42px);
     --arena-unit-gap:clamp(4px,1.2vw,10px);
-    --arena-unit-top-gap:88px;        /* below health/speed/ledger band */
+    --arena-unit-top-gap:88px;        /* below health/speed band */
     --arena-unit-bottom-clearance:calc(var(--arena-hand-h) - 12px);
   }
-  /* Full bleed needs the reading-column cap and the side gutters gone, or the
-     "edge to edge" arena stops 400px short of each edge on a desktop. */
+  /* Full bleed: drop the reading-column cap AND the safe-area side gutters.
+     Padding the shell by env(safe-area-inset-left/right) left black pillar
+     bars on notched phones (the map/art stopped short of the glass). The
+     arena stage now reaches both edges; interactive chrome keeps its own
+     safe-area padding so Menu / End Turn / plates stay clear of the notch. */
   body[data-screen="battleScreen"] .siege-app{
     max-width:none;
-    padding:
-      env(safe-area-inset-top, 0px)
-      max(8px, env(safe-area-inset-right, 0px))
-      0
-      max(8px, env(safe-area-inset-left, 0px));
+    width:100%;
+    padding:0;
   }
   body[data-screen="battleScreen"] .siege-title{ display:none; }
 
@@ -1827,7 +1834,9 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
   body[data-screen="battleScreen"] .battle-stage{
     position:absolute; inset:0; z-index:0;
     min-height:0; border:none; border-radius:0;
-    padding:0 max(10px,env(safe-area-inset-right,0px));
+    /* No side padding — the map/gradient must paint under the notch. Units
+       and chrome inset themselves via --arena-side-inset-* / safe-area. */
+    padding:0;
     flex-direction:row-reverse; align-items:stretch; justify-content:space-between;
     gap:0;
     background:
@@ -1844,13 +1853,18 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
     position:absolute;
     top:calc(var(--arena-chrome-top) + var(--arena-unit-top-gap));
     bottom:var(--arena-unit-bottom-clearance);
-    width:calc(50% - var(--arena-clash-half) - var(--arena-side-inset));
     min-height:0; height:auto; flex:0 0 auto; margin:0;
     flex-flow:row nowrap; gap:var(--arena-unit-gap);
     align-items:center; align-content:normal; justify-content:flex-start;
   }
-  .ally-line{ left:var(--arena-side-inset); right:auto; }
-  .foe-line{ right:var(--arena-side-inset); left:auto; flex-direction:row-reverse; }
+  .ally-line{
+    left:var(--arena-side-inset-left); right:auto;
+    width:calc(50% - var(--arena-clash-half) - var(--arena-side-inset-left));
+  }
+  .foe-line{
+    right:var(--arena-side-inset-right); left:auto; flex-direction:row-reverse;
+    width:calc(50% - var(--arena-clash-half) - var(--arena-side-inset-right));
+  }
   .sprite{
     flex:0 1 calc(var(--arena-sprite-w) * var(--evo-scale,1)); min-width:0;
     width:calc(var(--arena-sprite-w) * var(--evo-scale,1));
@@ -1870,12 +1884,12 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
      narrow left column, so the speed strip dropped down into the ally
      sprites (which hug the far LEFT). Lay them out horizontally instead:
      the life plate on the left, the speed race track stretched across the
-     rest of the top. The top-right corner is reserved for the ledger pill,
-     the top-center for the hint. */
+     rest of the top. The ledger chip now sits in the topbar row (left of
+     Menu), so battle-top can run to the right edge; the hint stays top-center. */
   .battle-top{
     position:absolute; top:var(--arena-chrome-top); z-index:14;
     left:max(6px,env(safe-area-inset-left,0px));
-    right:calc(var(--arena-log-w) + 14px);   /* clear the ledger pill's corner */
+    right:max(6px,env(safe-area-inset-right,0px));
     flex-direction:row; align-items:flex-start; gap:10px; margin:0; background:none;
   }
   .knight-plate{ flex:0 0 auto; width:var(--arena-plate-w); min-width:0; max-width:none; }
@@ -1885,27 +1899,42 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
   .speed-track{ flex:1 1 auto; align-self:flex-start; min-width:0; padding:5px 9px; }
   .track-first{ display:none; }
 
-  /* ---- Ledger: a clean compact pill, top-right ----
-     The old collapsed box crammed two truncated turn/round lines and read
-     as messy. Show one tidy line — the newest combat event — with a clear
-     "Ledger" affordance beneath it; the full history still opens on tap. */
+  /* ---- Ledger: compact chip in the topbar row, left of Menu ----
+     The previous absolute pill sat at --arena-chrome-top flush-right and
+     floated over the arena moon/art just under Menu — awkward on short
+     landscape phones. Park it in the same band as Menu instead: one truncated
+     combat line + an inline "ledger" affordance, clearing the Menu button. */
   .battle-log{
-    position:absolute; top:var(--arena-chrome-top); right:max(6px,env(safe-area-inset-right,0px)); z-index:15;
-    width:var(--arena-log-w); max-width:40vw; min-height:0; max-height:none; margin:0;
-    padding:7px 10px 6px; line-height:1.25;
-    background:rgba(10,14,21,.82); border:1px solid var(--border); border-radius:12px;
+    position:absolute;
+    top:4px;
+    right:calc(var(--arena-menu-clear) + max(6px, env(safe-area-inset-right, 0px)));
+    z-index:21;
+    width:var(--arena-log-w); max-width:min(42vw, 260px);
+    min-height:0; max-height:28px; margin:0;
+    padding:4px 10px 4px 10px; line-height:1.2;
+    display:flex; align-items:center; gap:8px;
+    background:rgba(10,14,21,.88); border:1px solid var(--border); border-radius:999px;
+    overflow:hidden;
   }
-  .battle-log .lg{ font-size:10.5px; }
+  .battle-log .lg{
+    font-size:10.5px; flex:1 1 auto; min-width:0;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
   .battle-log .lg:not(:first-child){ display:none; }   /* one clean line, not a stack */
   .battle-log .lg-more{
-    position:static; display:block; margin-top:4px; text-align:right;
-    font-size:11px; font-weight:800; color:var(--accent-2);
+    position:static; display:block; flex:0 0 auto; margin:0;
+    font-size:10px; font-weight:800; color:var(--accent-2); white-space:nowrap;
   }
 
-  /* Hint / turn banner floats top-center over the arena (no boxed row). */
+  /* Hint / turn banner sits in the top chrome band between the left edge and
+     the ledger chip — not a centered 40vw box that can collide with the log
+     on short/narrow landscape phones (e.g. 667x375). */
   .battle-hint{
-    position:absolute; top:3px; left:50%; transform:translateX(-50%); z-index:16;
-    margin:0; min-height:0; font-size:12px; max-width:52vw;
+    position:absolute; top:3px; z-index:16;
+    left:max(8px, env(safe-area-inset-left, 0px));
+    right:calc(var(--arena-menu-clear) + var(--arena-log-w) + 12px);
+    transform:none; text-align:center;
+    margin:0; min-height:0; font-size:12px; max-width:none;
     text-shadow:0 1px 5px rgba(0,0,0,.95);
   }
 
@@ -1968,11 +1997,16 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
     --arena-sprite-art:clamp(76px, 19vh, 190px);
     --arena-name:12.5px;
     --arena-plate-w:clamp(210px, 20vw, 300px);
-    --arena-log-w:clamp(168px, 17vw, 260px);
+    --arena-log-w:clamp(180px, 18vw, 280px);
+    --arena-menu-clear:88px;
     --arena-hand-h:clamp(172px, 26vh, 240px);
     --playcard-w:clamp(104px, 9.5vw, 138px);
     --arena-tint:.48;
-    --arena-side-inset:max(10px,6vw,env(safe-area-inset-left,0px));
+    /* On wide desktops, also pull formations in by a share of the width so
+       allies/foes don't sit ~1700px apart at the extreme edges. Safe-area
+       still wins on notched tablets. */
+    --arena-side-inset-left:max(10px, 6vw, env(safe-area-inset-left, 0px));
+    --arena-side-inset-right:max(10px, 6vw, env(safe-area-inset-right, 0px));
     --arena-clash-half:clamp(72px,8vw,180px);
     --arena-unit-gap:clamp(8px,1.2vw,18px);
     --arena-unit-top-gap:105px;
@@ -1983,17 +2017,9 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
   body[data-screen="battleScreen"] .siege-topbar{
     padding:9px max(14px,env(safe-area-inset-right,0px)) 7px max(14px,env(safe-area-inset-left,0px));
   }
-  body[data-screen="battleScreen"] .siege-app{
-    padding-left:max(12px, env(safe-area-inset-left, 0px));
-    padding-right:max(12px, env(safe-area-inset-right, 0px));
-  }
-  /* The background still bleeds to both edges, but the two formations pull in
-     off the extreme edges: on a 1920px screen, sides pinned to the glass sit
-     ~1700px apart and the fight reads as two unrelated corners. The inset is a
-     share of the width, so the proportion holds from 1024px to ultrawide. */
-  body[data-screen="battleScreen"] .battle-stage{
-    padding-inline:max(10px, 6vw, env(safe-area-inset-right,0px));
-  }
+  /* Keep the shell at padding:0 — do not reintroduce side gutters here.
+     Formations already inset via --arena-side-inset-*; the stage/map stay
+     edge-to-edge under the notch and past the home indicator. */
   .sprite .sp-plate{ padding:4px 9px 5px; margin-bottom:4px; }
   .sprite .sp-shade{ display:inline-block; }
   .sprite .sp-el{ font-size:11px; }
@@ -2003,10 +2029,10 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
   .knight-bag-btn{ font-size:12px; padding:5px 11px; }
   .speed-track{ padding:8px 13px; }
   .lane-label{ font-size:10.5px; width:52px; flex-basis:52px; }
-  .battle-log{ padding:9px 13px 8px; }
+  .battle-log{ top:10px; max-height:34px; padding:6px 14px; }
   .battle-log .lg{ font-size:12.5px; }
-  .battle-log .lg-more{ font-size:12px; }
-  .battle-hint{ top:12px; font-size:15px; max-width:46vw; }
+  .battle-log .lg-more{ font-size:11.5px; }
+  .battle-hint{ top:12px; font-size:15px; }
   /* Wide cards have room for the rules text again — the phone block hides it. */
   .playcard{ margin:0 -14px; padding:9px 11px; }
   .playcard .pc-desc{ display:block; }
