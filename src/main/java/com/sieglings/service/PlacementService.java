@@ -133,12 +133,28 @@ public class PlacementService {
             evolved.addMaxHealthBoost(permanentHealthBoost);
             evolved.setCurrentHealth(Math.max(1, evolved.getEffectiveMaxHealth() - Math.max(0, damageTaken)));
             evolved.setPlacementOrder(existing.getPlacementOrder());
+            carryBadgesForward(existing, evolved);
             // New form: no same-turn chain evolve; must go through a full battle phase in this stage first.
             evolved.setBattlePhasesSeen(0);
             return evolved;
         }
 
         return new CardInstance(placedCard, row, col, owner);
+    }
+
+    /**
+     * An evolution is a new form of the same fighter, not a fresh card, so everything the board
+     * shows as a badge rides across: affliction stacks, the Chill freeze, Freeze/Speed-zero, and
+     * the shield and damage buffs the buff pills read from. Without this, evolving is a free
+     * full cleanse. Trainer-passive and aura buffs are deliberately not copied — the caller
+     * recomputes those for the whole board right after placement, so copying would double them.
+     */
+    private void carryBadgesForward(CardInstance from, CardInstance to) {
+        to.setAfflictionStacks(from.getAfflictionStacks());
+        to.setChillFrozen(from.isChillFrozen());
+        to.addShield(from.getTemporaryShield());
+        to.addDamageBuff(from.getTemporaryDamageBuff());
+        to.getStatusEffects().addAll(from.getStatusEffects());
     }
 
     private int getBoardRowDelta(Notch notch, boolean isPlayer) {

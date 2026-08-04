@@ -22,6 +22,11 @@ deleting the framework. Runtime reads {@code ElementalAfflictions.isEnabled()}.
    `requiredElement`), add **1 stack** of that element's affliction (up to cap).
 2. Neutral damage never inflicts.
 3. Badges live on the target as `afflictions: [{ kind, stacks }]`.
+4. **Evolving does not cleanse.** An evolution is a new form of the same
+   fighter, so its stacks, its Chill freeze, `FREEZE`/`SPEED_ZERO`, and its
+   shield/damage buffs all ride across to the evolved instance
+   (`PlacementService.createPlacedInstance`). Curse still blocks evolving
+   outright, so a Cursed unit cannot even attempt it.
 
 ---
 
