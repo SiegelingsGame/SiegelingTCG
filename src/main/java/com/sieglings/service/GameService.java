@@ -826,17 +826,22 @@ public class GameService {
 
     private void clearTempEffects(GameState state) {
         for (CardInstance ci : state.getBoardSieglings(true)) {
-            ci.clearTemporaryEffects();
-            ci.getStatusEffects().remove(StatusEffect.FREEZE);
-            ci.getStatusEffects().remove(StatusEffect.SPEED_ZERO);
-            ci.setCurrentSpeed(ci.getCard().getSpeed());
+            clearTempEffects(ci);
         }
         for (CardInstance ci : state.getBoardSieglings(false)) {
-            ci.clearTemporaryEffects();
-            ci.getStatusEffects().remove(StatusEffect.FREEZE);
-            ci.getStatusEffects().remove(StatusEffect.SPEED_ZERO);
-            ci.setCurrentSpeed(ci.getCard().getSpeed());
+            clearTempEffects(ci);
         }
+    }
+
+    private void clearTempEffects(CardInstance ci) {
+        ci.clearTemporaryEffects();
+        // Chill-freeze outlives the battle phase — it thaws at its owner's next Setup,
+        // and its Chill badges are already spent, so the status is all that's left of it.
+        if (!ci.isChillFrozen()) {
+            ci.getStatusEffects().remove(StatusEffect.FREEZE);
+        }
+        ci.getStatusEffects().remove(StatusEffect.SPEED_ZERO);
+        ci.setCurrentSpeed(ci.getCard().getSpeed());
     }
 
     private void clearTemporaryEnergyAdjustments(GameState state) {

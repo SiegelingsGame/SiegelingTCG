@@ -31,6 +31,12 @@ public class CardInstance {
     private Set<StatusEffect> statusEffects = new HashSet<>();
     /** Stacking elemental damage afflictions (Burn, Chill, …) — see ElementalAfflictionCatalog. */
     private Map<ElementalAffliction, Integer> afflictionStacks = new EnumMap<>(ElementalAffliction.class);
+    /**
+     * Chill reached its cap and consumed its stacks to freeze this card. The Chill badges are
+     * gone at that point, so this flag — not the stack count — is what keeps the Freeze alive
+     * until the owner's next Setup, and what tells the one-action ability Freeze apart from it.
+     */
+    private boolean chillFrozen;
     private int boardRow;
     private int boardCol;
     private int placementOrder;
@@ -217,7 +223,12 @@ public class CardInstance {
 
     public void clearAllAfflictions() {
         afflictionStacks.clear();
+        chillFrozen = false;
     }
+
+    public boolean isChillFrozen() { return chillFrozen; }
+
+    public void setChillFrozen(boolean chillFrozen) { this.chillFrozen = chillFrozen; }
 
     public void recordBattlePhaseSeen() {
         battlePhasesSeen++;

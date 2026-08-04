@@ -11,6 +11,7 @@ import com.sieglings.model.SpellCard;
 import com.sieglings.model.TrapCard;
 import com.sieglings.model.TrainerCard;
 import com.sieglings.model.enums.Element;
+import com.sieglings.model.enums.ElementalAffliction;
 import com.sieglings.model.enums.NotchDirection;
 import com.sieglings.model.enums.Phase;
 import com.sieglings.model.enums.Rarity;
@@ -558,6 +559,31 @@ class GameServiceTest {
 
         assertFalse(playerFrozen.getStatusEffects().contains(StatusEffect.FREEZE), "Player Sieglings should thaw after battle ends.");
         assertFalse(enemyFrozen.getStatusEffects().contains(StatusEffect.FREEZE), "Opponent Sieglings should thaw after battle ends.");
+    }
+
+    @Test
+    void chillFreezeOutlivesTheBattlePhaseWithoutItsBadges() throws Exception {
+        GameService gameService = new GameService();
+
+        GameState state = new GameState();
+        state.setPlayer(new Player("Player", true));
+        state.setEnemy(new Player("Enemy", false));
+        state.setCurrentPhase(Phase.BATTLE);
+
+        SieglingCard card = new SieglingCard("frosty", "Frosty", Element.ICE, Rarity.COMMON, 13, 6, List.of(), Row.FRONT);
+        CardInstance chillFrozen = new CardInstance(card, 0, 0, true);
+        // The stacks are already spent by the freeze they triggered — only the flag carries it.
+        chillFrozen.setChillFrozen(true);
+        chillFrozen.getStatusEffects().add(StatusEffect.FREEZE);
+        state.setAt(true, 0, 0, chillFrozen);
+
+        Method clearTempEffects = GameService.class.getDeclaredMethod("clearTempEffects", GameState.class);
+        clearTempEffects.setAccessible(true);
+        clearTempEffects.invoke(gameService, state);
+
+        assertTrue(chillFrozen.getStatusEffects().contains(StatusEffect.FREEZE),
+                "Chill-freeze must survive the end of battle and thaw at its owner's next Setup.");
+        assertEquals(0, chillFrozen.getAfflictionStacks(ElementalAffliction.CHILL));
     }
 
     @Test

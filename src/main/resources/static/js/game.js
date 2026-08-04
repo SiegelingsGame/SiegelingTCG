@@ -570,7 +570,7 @@ const STATUS_EFFECT_KEY = {
         name: 'Frozen',
         group: 'control',
         summary: 'cannot act',
-        detail: 'A frozen Siegeling skips its action entirely. It thaws when its owner reaches their next Setup phase, clearing Freeze (and any Chill stacks that caused it).'
+        detail: 'A frozen Siegeling skips its action entirely. Freeze from Chill thaws when its owner reaches their next Setup phase; Freeze from an ability lasts a single action.'
     },
     SPEED_ZERO: {
         name: 'Stunned',
@@ -592,7 +592,7 @@ const STATUS_EFFECT_KEY = {
         element: 'ICE',
         cap: 3,
         summary: 'Slow per badge; Freeze at 3',
-        detail: 'Inflicted by Ice damage. At 1–2 stacks it slows the Siegeling by 1 effective Speed per stack. Reaching 3 stacks freezes it outright — no action until the owner\'s next Setup, which clears Freeze and Chill.'
+        detail: 'Inflicted by Ice damage. At 1–2 stacks it slows the Siegeling by 1 effective Speed per stack. The 3rd stack spends every Chill badge to freeze it outright — the badges clear and the Frozen status takes over until the owner\'s next Setup.'
     },
     STAGGER: {
         name: 'Stagger',

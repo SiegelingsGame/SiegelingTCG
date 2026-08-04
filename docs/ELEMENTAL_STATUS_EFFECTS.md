@@ -174,11 +174,13 @@ at 2 stacks — unit acts after everyone else that round.
 | Stacks | Effect |
 |---|---|
 | 1–2 | **Slow:** −1 effective Speed per stack (affects Battle order) |
-| 3 | **Freeze:** unit cannot act; stays frozen until its **owner’s next Setup**, then Freeze/Chill clears |
+| 3 | **Freeze:** all Chill stacks clear immediately and the unit cannot act; it stays frozen until its **owner’s next Setup**, then Freeze clears |
 
-At 3 stacks the unit is frozen for the rest of the current Battle (skips its
-action) and through the opponent’s turn if needed, thawing when the owner
-enters Setup.
+The Chill badges are the countdown to the freeze, so they are spent the moment
+it fires — the card shows **Frozen**, not Chill ×3, and further Ice hits do not
+restack Chill underneath the Freeze. The unit is frozen for the rest of the
+current Battle (skips its action) and through the opponent’s turn if needed,
+thawing when the owner enters Setup.
 
 ---
 

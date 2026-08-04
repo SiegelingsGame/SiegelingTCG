@@ -25,9 +25,10 @@ public final class ElementalAfflictionCatalog {
                         ElementalAfflictionDef.TickPhase.OWNER_SETUP_START,
                         1, 5, 1, true, true, "BURN"),
                 def(Element.ICE, ElementalAffliction.CHILL, "Chill", "Chill",
-                        "−1 Speed per stack. At 3 stacks: Frozen until owner's next Setup, then clear.",
+                        "−1 Speed per stack. At 3 stacks: stacks clear and the card is Frozen "
+                                + "until its owner's next Setup.",
                         ElementalAfflictionDef.TickPhase.ON_STACK_THRESHOLD,
-                        0, 3, 1, false, true, "SLOW"),
+                        0, 3, 1, true, true, "SLOW"),
                 def(Element.EARTH, ElementalAffliction.STAGGER, "Stagger", "Stagger",
                         "1 stack: no effect. 2 stacks: moved to the bottom of the battle queue.",
                         ElementalAfflictionDef.TickPhase.BATTLE_ACTION,

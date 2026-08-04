@@ -54,6 +54,11 @@ public class ElementalAfflictionService {
         if (def == null || !def.battleEnabled()) {
             return;
         }
+        // A card already frozen by Chill has nothing left to count down to, so further Ice hits
+        // must not start a fresh badge stack underneath the Freeze.
+        if (def.affliction() == ElementalAffliction.CHILL && target.isChillFrozen()) {
+            return;
+        }
         int stacks = target.addAfflictionStacks(def.affliction(), def.stacksPerHit(), def.stackCap());
         if (stacks <= 0) {
             return;
@@ -62,6 +67,10 @@ public class ElementalAfflictionService {
                 + " (" + def.shortLabel() + " x" + stacks + ").");
 
         if (def.affliction() == ElementalAffliction.CHILL && stacks >= def.stackCap()) {
+            // The badges were the countdown to this moment — spend them, and let the Freeze
+            // status carry the state from here (same as Insight clearing on its draw payoff).
+            target.clearAffliction(ElementalAffliction.CHILL);
+            target.setChillFrozen(true);
             target.getStatusEffects().add(StatusEffect.FREEZE);
             state.log(target.getName() + " is Frozen by Chill!");
         }
@@ -95,7 +104,7 @@ public class ElementalAfflictionService {
     }
 
     public boolean isChillFrozen(CardInstance ci) {
-        return isEnabled() && ci != null && ci.getAfflictionStacks(ElementalAffliction.CHILL) >= 3;
+        return isEnabled() && ci != null && ci.isChillFrozen();
     }
 
     public boolean isStaggeredToBack(CardInstance ci) {
@@ -272,9 +281,13 @@ public class ElementalAfflictionService {
 
     private void thawChillOnSetup(GameState state, CardInstance ci) {
         int chill = ci.getAfflictionStacks(ElementalAffliction.CHILL);
-        if (chill <= 0) return;
+        boolean frozen = ci.isChillFrozen();
+        if (chill <= 0 && !frozen) return;
         ci.clearAffliction(ElementalAffliction.CHILL);
-        ci.getStatusEffects().remove(StatusEffect.FREEZE);
+        if (frozen) {
+            ci.setChillFrozen(false);
+            ci.getStatusEffects().remove(StatusEffect.FREEZE);
+        }
         state.log(ci.getName() + " thaws (Chill clears).");
     }
 }

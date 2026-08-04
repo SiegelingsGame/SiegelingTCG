@@ -118,13 +118,21 @@ class ElementalAfflictionServiceTest {
         assertFalse(target.isFrozen());
 
         afflictions.tryInflictFromDamage(state, target, Element.ICE, 1, false);
-        assertEquals(3, target.getAfflictionStacks(ElementalAffliction.CHILL));
+        // The badges are spent by the freeze they triggered — Frozen replaces Chill x3.
+        assertEquals(0, target.getAfflictionStacks(ElementalAffliction.CHILL));
         assertTrue(target.isFrozen());
+        assertTrue(afflictions.isChillFrozen(target));
+
+        // Ice hits on an already-frozen card must not start a fresh badge stack.
+        afflictions.tryInflictFromDamage(state, target, Element.ICE, 1, false);
+        assertEquals(0, target.getAfflictionStacks(ElementalAffliction.CHILL));
         assertTrue(afflictions.isChillFrozen(target));
 
         afflictions.tickOwnerSetup(state, true);
         assertEquals(0, target.getAfflictionStacks(ElementalAffliction.CHILL));
         assertFalse(target.isFrozen());
+        assertFalse(afflictions.isChillFrozen(target));
+        assertEquals(5, target.getEffectiveSpeed());
     }
 
     @Test
