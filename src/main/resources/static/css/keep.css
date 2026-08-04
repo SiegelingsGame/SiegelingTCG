@@ -3711,15 +3711,53 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
 }
 
 @media (orientation: landscape) and (max-height: 600px) {
-    .keep-header { min-height: calc(45px + var(--safe-top)); padding-block: calc(3px + var(--safe-top)) 3px; grid-template-columns: minmax(150px, 1fr) auto minmax(150px, 1fr); }
+    /* Short landscape phones used equal 1fr side columns, so Battle/Siege overflowed
+       left into the Ready pill whenever Materials hit four-digit /capacity text.
+       Size the brand/actions to their content and let the resource row take the rest. */
+    .keep-header {
+        min-height: calc(45px + var(--safe-top));
+        padding-block: calc(3px + var(--safe-top)) 3px;
+        grid-template-columns: minmax(0, max-content) minmax(0, 1fr) minmax(0, max-content);
+        gap: 6px;
+    }
+    .keep-brand { min-width: 0; max-width: min(180px, 26vw); }
     .keep-brand img { width: 32px; height: 32px; }
     .keep-brand strong { font-size: 13px; }
-    .keep-brand small { font-size: 7px; }
-    .keep-resource-bar { position: static; transform: none; grid-row: auto; grid-column: auto; }
+    .keep-brand small { display: none; }
+    .keep-resource-bar {
+        position: static;
+        transform: none;
+        grid-row: auto;
+        grid-column: auto;
+        min-width: 0;
+        justify-content: center;
+        gap: 4px;
+        overflow: hidden;
+    }
     .resource-pill,
-    .station-pill { min-width: 76px; border-radius: 10px; }
-    .header-link { display: inline-flex; min-height: 32px; padding: 7px 9px; }
-    .icon-button { min-height: 32px; width: 34px; }
+    .station-pill {
+        min-width: 0;
+        flex: 0 1 auto;
+        padding: 4px 7px 4px 22px;
+        border-radius: 10px;
+    }
+    /* Icon + count is enough at phone-landscape density; labels eat the width that
+       was colliding with Battle/Siege. Titles/aria-labels still name each pill. */
+    .resource-pill small,
+    .station-pill small { display: none; }
+    .resource-pill strong,
+    .station-pill strong { font-size: 11px; font-variant-numeric: tabular-nums; }
+    .construction-team-pill {
+        min-width: 0;
+        padding: 4px 8px 4px 8px;
+        column-gap: 6px;
+    }
+    .construction-team-pill .resource-icon { width: 13px; font-size: 12px; }
+    .resource-icon,
+    .pulse-dot { left: 7px; }
+    .keep-header-actions { flex-shrink: 0; gap: 3px; min-width: max-content; }
+    .header-link { display: inline-flex; min-height: 30px; padding: 6px 8px; font-size: 11px; }
+    .icon-button { min-height: 30px; width: 32px; font-size: 16px; }
     .scene-caption { top: 8px; width: 260px; }
     .scene-caption h1 { font-size: 18px; }
     .hall-hotspot { top: 5%; transform: translateX(-50%) scale(.78); transform-origin: top center; }
