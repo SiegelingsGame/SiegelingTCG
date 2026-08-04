@@ -19,7 +19,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.lang.reflect.Method;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -137,35 +136,6 @@ class ElementalAfflictionServiceTest {
     }
 
     @Test
-    void staggerClearsAfterTheBattleItBenchedTheCardIn() throws Exception {
-        GameState state = battleState();
-        CardInstance benched = instance("boulder", Element.EARTH, 1, 1, true);
-        CardInstance warned = instance("pebble", Element.EARTH, 1, 0, true);
-        state.setAt(true, 1, 1, benched);
-        state.setAt(true, 1, 0, warned);
-
-        afflictions.tryInflictFromDamage(state, benched, Element.EARTH, 1, false);
-        afflictions.tryInflictFromDamage(state, benched, Element.EARTH, 1, false);
-        afflictions.tryInflictFromDamage(state, warned, Element.EARTH, 1, false);
-        assertTrue(afflictions.isStaggeredToBack(benched));
-        assertFalse(afflictions.isStaggeredToBack(warned));
-
-        // Drive the real end-of-battle seam, not just the helper, so the wiring is covered too.
-        state.getBattleQueue().clear();
-        state.setBattleCursor(0);
-        Method completeBattleIfFinished =
-                GameService.class.getDeclaredMethod("completeBattleIfFinished", GameState.class);
-        completeBattleIfFinished.setAccessible(true);
-        completeBattleIfFinished.invoke(gameService, state);
-
-        // The demotion is spent, so the badges go with it — not a permanent bench.
-        assertEquals(0, benched.getAfflictionStacks(ElementalAffliction.STAGGER));
-        assertFalse(afflictions.isStaggeredToBack(benched));
-        // A lone first stack is still counting up to its threshold, so it stays.
-        assertEquals(1, warned.getAfflictionStacks(ElementalAffliction.STAGGER));
-    }
-
-    @Test
     void toxinBlocksHealAndStripsStacks() {
         GameState state = battleState();
         CardInstance target = instance("bud", Element.WIND, 1, 1, true);
@@ -258,22 +228,62 @@ class ElementalAfflictionServiceTest {
     }
 
     @Test
-    void staggerTwoGoesToBackOfBattleQueue() {
+    void leechSecondEarthHitHealsAttackerForHpDamageAndClears() {
         GameState state = battleState();
-        CardInstance fast = instance("fast", Element.WIND, 0, 0, true);
-        fast.setCurrentSpeed(10);
-        CardInstance staggered = instance("slowpoke", Element.EARTH, 0, 1, true);
-        staggered.setCurrentSpeed(9);
-        staggered.addAfflictionStacks(ElementalAffliction.STAGGER, 2, 2);
-        CardInstance mid = instance("mid", Element.FIRE, 0, 2, false);
-        mid.setCurrentSpeed(8);
-        state.setAt(true, 0, 0, fast);
-        state.setAt(true, 0, 1, staggered);
-        state.setAt(false, 0, 2, mid);
+        CardInstance attacker = instance("rootfang", Element.EARTH, 1, 0, true);
+        CardInstance target = instance("dummy", Element.EARTH, 1, 1, false);
+        attacker.takeRawDamage(6);
+        state.setAt(true, 1, 0, attacker);
+        state.setAt(false, 1, 1, target);
+        Ability hit = Ability.damage("Root Bite", "Deal 3", TargetType.SINGLE_ENEMY, null, 1, 3);
 
-        battleService.initializeBattle(state);
-        assertEquals(List.of(fast.getInstanceId(), mid.getInstanceId(), staggered.getInstanceId()),
-                state.getBattleQueue());
+        effectService.resolveAbility(state, hit, attacker, true, 1, 1);
+        assertEquals(1, target.getAfflictionStacks(ElementalAffliction.LEECH));
+        assertEquals(4, attacker.getCurrentHealth(), "first Earth hit only marks the target");
+
+        effectService.resolveAbility(state, hit, attacker, true, 1, 1);
+        assertEquals(0, target.getAfflictionStacks(ElementalAffliction.LEECH));
+        assertEquals(7, attacker.getCurrentHealth(), "second hit heals for the 3 HP dealt");
+    }
+
+    @Test
+    void leechSecondEarthHitUsesActualLethalDamage() {
+        GameState state = battleState();
+        CardInstance attacker = instance("rootfang", Element.EARTH, 1, 0, true);
+        CardInstance target = instance("dummy", Element.EARTH, 1, 1, false);
+        attacker.takeRawDamage(6);
+        target.takeRawDamage(8);
+        target.addAfflictionStacks(ElementalAffliction.LEECH, 1, 2);
+        state.setAt(true, 1, 0, attacker);
+        state.setAt(false, 1, 1, target);
+
+        effectService.resolveAbility(state,
+                Ability.damage("Root Bite", "Deal 3", TargetType.SINGLE_ENEMY, null, 1, 3),
+                attacker, true, 1, 1);
+
+        assertEquals(0, target.getCurrentHealth());
+        assertEquals(6, attacker.getCurrentHealth(), "only the target's remaining 2 HP may be leeched");
+        assertEquals(0, target.getAfflictionStacks(ElementalAffliction.LEECH));
+    }
+
+    @Test
+    void toxinAbsorbsLeechHealAndBothBadgesClear() {
+        GameState state = battleState();
+        CardInstance attacker = instance("rootfang", Element.EARTH, 1, 0, true);
+        CardInstance target = instance("dummy", Element.EARTH, 1, 1, false);
+        attacker.takeRawDamage(6);
+        attacker.addAfflictionStacks(ElementalAffliction.TOXIN, 2, 5);
+        target.addAfflictionStacks(ElementalAffliction.LEECH, 1, 2);
+        state.setAt(true, 1, 0, attacker);
+        state.setAt(false, 1, 1, target);
+
+        effectService.resolveAbility(state,
+                Ability.damage("Root Bite", "Deal 3", TargetType.SINGLE_ENEMY, null, 1, 3),
+                attacker, true, 1, 1);
+
+        assertEquals(4, attacker.getCurrentHealth(), "Toxin blocks all Leech healing");
+        assertEquals(0, attacker.getAfflictionStacks(ElementalAffliction.TOXIN));
+        assertEquals(0, target.getAfflictionStacks(ElementalAffliction.LEECH));
     }
 
     @Test

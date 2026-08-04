@@ -237,6 +237,30 @@ body {
     margin-bottom: 18px;
 }
 
+.help-quick-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(105px, 1fr));
+    gap: 9px;
+    max-width: 46rem;
+    margin: 0 0 18px;
+}
+
+.help-quick-stats span {
+    display: grid;
+    gap: 2px;
+    padding: 11px 12px;
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    background: linear-gradient(145deg, rgba(39, 64, 109, 0.42), rgba(22, 33, 62, 0.68));
+    color: var(--text-dim);
+    font-size: 0.72rem;
+}
+
+.help-quick-stats strong {
+    color: var(--accent);
+    font-size: 1.2rem;
+}
+
 .help-search input {
     width: min(100%, 360px);
     padding: 10px 14px;
@@ -399,6 +423,51 @@ body {
     border: 1px solid rgba(255, 215, 0, 0.18);
     max-width: 46rem;
 }
+
+.help-mode-banner {
+    display: grid;
+    gap: 5px;
+    max-width: 52rem;
+    margin: 0 0 16px;
+    padding: 16px;
+    border: 1px solid rgba(255, 215, 0, 0.24);
+    border-top: 3px solid var(--accent);
+    border-radius: 13px;
+    background:
+        radial-gradient(circle at 100% 0%, rgba(255, 215, 0, 0.12), transparent 42%),
+        rgba(22, 33, 62, 0.62);
+}
+
+.help-mode-banner > span {
+    color: var(--accent);
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.help-mode-banner > strong { font-size: 1.15rem; }
+.help-mode-banner p { margin: 0; color: var(--text-dim); font-size: 0.88rem; }
+
+.help-siege-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    max-width: 52rem;
+    margin-top: 15px;
+}
+
+.help-siege-grid > div {
+    padding: 13px;
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    background: rgba(22, 33, 62, 0.5);
+}
+
+.help-siege-grid strong,
+.help-siege-grid span { display: block; }
+.help-siege-grid strong { margin-bottom: 5px; color: var(--accent); }
+.help-siege-grid span { color: var(--text-dim); font-size: 0.82rem; line-height: 1.45; }
 
 .help-glossary {
     display: flex;
@@ -689,10 +758,13 @@ body.help-embed .help-chip-nav {
     .gloss-row {
         grid-template-columns: 1fr;
     }
+
+    .help-siege-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 430px) {
     .help-brand small { display: none; }
     .help-hero h1 { font-size: 1.85rem; }
     .help-type-grid { grid-template-columns: 1fr; }
+    .help-quick-stats { grid-template-columns: repeat(2, 1fr); }
 }

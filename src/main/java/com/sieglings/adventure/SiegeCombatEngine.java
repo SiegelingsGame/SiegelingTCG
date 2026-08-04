@@ -591,7 +591,9 @@ public class SiegeCombatEngine {
         for (Combatant foe : new ArrayList<>(battle.living(Side.ENEMY))) {
             boolean wasAlive = foe.isAlive();
             int dmg = resolveAttackDamage(battle, knight, ultSpec, foe, KNIGHT_ULT_DAMAGE);
+            int hpBefore = foe.getHp();
             int dealt = foe.takeDamage(dmg);
+            int hpDealt = Math.max(0, hpBefore - foe.getHp());
             boolean killed = wasAlive && !foe.isAlive();
             battle.event("hit", "sourceId", knight.getId(), "targetId", foe.getId(),
                     "amount", dealt, "element", knight.getElement() == null ? null : knight.getElement().name(),
@@ -599,8 +601,8 @@ public class SiegeCombatEngine {
             battle.log(run.getKnightName() + "'s Ultimate → " + foe.getName() + " takes " + dealt
                     + (foe.isAlive() ? "" : " and is defeated!"));
             if (killed) battle.creditKill(knight.getId());
-            if (foe.isAlive() && status != null) {
-                applyStatus(battle, foe, status, knight, rng);
+            if (status != null) {
+                applyStatus(battle, foe, status, knight, rng, hpDealt);
             }
         }
         checkEnd(run);
@@ -718,7 +720,9 @@ public class SiegeCombatEngine {
                 for (Combatant t : targets) {
                     boolean wasAlive = t.isAlive();
                     int dmg = resolveAttackDamage(battle, attacker, spec, t, damageValue(attacker, spec));
+                    int hpBefore = t.getHp();
                     int dealt = t.takeDamage(dmg);
+                    int hpDealt = Math.max(0, hpBefore - t.getHp());
                     boolean killed = wasAlive && !t.isAlive();
                     battle.event("hit", "sourceId", attacker.getId(), "targetId", t.getId(),
                             "amount", dealt, "element", spec.element() == null ? null : spec.element().name(),
@@ -726,9 +730,7 @@ public class SiegeCombatEngine {
                     battle.log(attacker.getName() + " uses " + spec.name() + " → " + t.getName()
                             + " takes " + dealt + (t.isAlive() ? "" : " and is defeated!"));
                     if (killed && t.getSide() == Side.ENEMY) battle.creditKill(attacker.getId());
-                    if (t.isAlive()) {
-                        rollStatus(battle, spec, t, attacker, rng);
-                    }
+                    rollStatus(battle, spec, t, attacker, rng, hpDealt);
                 }
             }
             case HEAL -> {
@@ -919,10 +921,11 @@ public class SiegeCombatEngine {
         }
     }
 
-    private void rollStatus(SiegeBattle battle, AbilitySpec spec, Combatant target, Combatant inflicter, Random rng) {
+    private void rollStatus(SiegeBattle battle, AbilitySpec spec, Combatant target, Combatant inflicter,
+                            Random rng, int hpDamageDealt) {
         if (spec.status() == null || spec.statusChance() <= 0) return;
         if (rng.nextInt(100) < spec.statusChance()) {
-            applyStatus(battle, target, spec.status(), inflicter, rng);
+            applyStatus(battle, target, spec.status(), inflicter, rng, hpDamageDealt);
         }
     }
 
@@ -932,6 +935,22 @@ public class SiegeCombatEngine {
 
     private void applyStatus(SiegeBattle battle, Combatant target, StatusKind status,
                              Combatant inflicter, Random rng) {
+        applyStatus(battle, target, status, inflicter, rng, 0);
+    }
+
+    private void applyStatus(SiegeBattle battle, Combatant target, StatusKind status,
+                             Combatant inflicter, Random rng, int hpDamageDealt) {
+        if (status == StatusKind.LEECH && hpDamageDealt <= 0) {
+            return;
+        }
+        boolean lethalLeechPayoff = status == StatusKind.LEECH && target.has(StatusKind.LEECH);
+        if (!target.isAlive() && !lethalLeechPayoff) {
+            return;
+        }
+        if (lethalLeechPayoff) {
+            resolveLeechPayoff(battle, target, inflicter, hpDamageDealt);
+            return;
+        }
         // Insight (Psychic): first hit marks; a second hit draws for the
         // inflicter's side and clears the mark (Siege's stack-cap payoff).
         if (status == StatusKind.INSIGHT && target.has(StatusKind.INSIGHT)) {
@@ -961,7 +980,7 @@ public class SiegeCombatEngine {
         int rounds = switch (status) {
             case BURN, POISON -> SiegeBattle.BURN_ROUNDS;
             case SLOW -> SiegeBattle.SLOW_ROUNDS;
-            case STUN, SHOCK, DISORIENT, INSIGHT, BLIND -> 2; // consumed on effect; duration is a safety net
+            case STUN, LEECH, SHOCK, DISORIENT, INSIGHT, BLIND -> 2; // consumed on effect; duration is a safety net
             case SOAK, RUST, CURSE, WITHER -> SiegeBattle.SLOW_ROUNDS;
         };
         target.applyStatus(status, rounds);
@@ -972,6 +991,36 @@ public class SiegeCombatEngine {
             target.applyStatus(StatusKind.STUN, 2);
             battle.event("status", "targetId", target.getId(), "status", "STUN");
             battle.log(target.getName() + " freezes solid!");
+        }
+    }
+
+    private void resolveLeechPayoff(
+            SiegeBattle battle,
+            Combatant target,
+            Combatant inflicter,
+            int hpDamageDealt
+    ) {
+        target.clearStatus(StatusKind.LEECH);
+        battle.event("status-consumed", "targetId", target.getId(), "status", "LEECH");
+        if (inflicter == null || hpDamageDealt <= 0) {
+            battle.log(target.getName() + "'s Leech clears without healing an attacker.");
+            return;
+        }
+        if (inflicter.has(StatusKind.POISON)) {
+            inflicter.clearStatus(StatusKind.POISON);
+            battle.event("status-consumed", "targetId", inflicter.getId(), "status", "POISON");
+            battle.log(inflicter.getName() + " triggers Leech, but toxin absorbs the heal.");
+            return;
+        }
+
+        int before = inflicter.getHp();
+        inflicter.heal(hpDamageDealt);
+        int restored = Math.max(0, inflicter.getHp() - before);
+        if (restored > 0) {
+            battle.event("heal", "sourceId", inflicter.getId(), "targetId", inflicter.getId(), "amount", restored);
+            battle.log(inflicter.getName() + " leeches " + restored + " Health from " + target.getName() + ".");
+        } else {
+            battle.log(inflicter.getName() + " triggers Leech, but is already at full Health.");
         }
     }
 
@@ -993,6 +1042,7 @@ public class SiegeCombatEngine {
             case BURN -> "burning";
             case SLOW -> "slowed";
             case STUN -> "stunned";
+            case LEECH -> "marked with Leech";
             case SHOCK -> "shocked";
             case DISORIENT -> "disoriented";
             case POISON -> "poisoned";
@@ -1149,19 +1199,20 @@ public class SiegeCombatEngine {
     private void strikeAlly(SiegeBattle battle, Combatant foe, AbilitySpec choice, Combatant ally, int dmg, Random rng) {
         boolean wasAlive = ally.isAlive();
         int resolved = resolveAttackDamage(battle, foe, choice, ally, dmg);
+        int hpBefore = ally.getHp();
         int dealt = ally.takeDamage(resolved);
+        int hpDealt = Math.max(0, hpBefore - ally.getHp());
         battle.event("hit", "sourceId", foe.getId(), "targetId", ally.getId(), "amount", dealt,
                 "element", foe.getElement() == null ? null : foe.getElement().name(),
                 "ko", wasAlive && !ally.isAlive());
         battle.log(foe.getName() + " uses " + choice.name() + " → " + ally.getName()
                 + " takes " + dealt + (ally.isAlive() ? "" : " and falls!"));
+        StatusKind status = SiegeContentService.statusFor(foe.getElement());
+        if (status != null && rng.nextInt(100) < ENEMY_STATUS_CHANCE) {
+            applyStatus(battle, ally, status, foe, rng, hpDealt);
+        }
         if (!ally.isAlive()) {
             if (!maybeReviveOnFall(battle, ally)) hitKnightForKo(battle, ally);
-        } else {
-            StatusKind status = SiegeContentService.statusFor(foe.getElement());
-            if (status != null && rng.nextInt(100) < ENEMY_STATUS_CHANCE) {
-                applyStatus(battle, ally, status, foe, rng);
-            }
         }
     }
 

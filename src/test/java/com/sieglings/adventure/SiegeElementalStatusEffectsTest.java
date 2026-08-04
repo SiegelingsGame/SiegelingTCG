@@ -154,6 +154,22 @@ class SiegeElementalStatusEffectsTest {
     }
 
     @Test
+    void leechSecondEarthHitHealsForDamageDealtAndClears() {
+        Fixture f = fixture();
+        f.ally.setHp(48);
+        AbilitySpec hit = new AbilitySpec("root-bite", "Root Bite", Element.EARTH, Effect.DAMAGE, 5,
+                TargetKind.ENEMY_SINGLE, 1, "Hit.", StatusKind.LEECH, 100);
+
+        apply(f.battle, f.ally, hit, List.of(f.foe));
+        assertTrue(f.foe.has(StatusKind.LEECH));
+        assertEquals(48, f.ally.getHp(), "first Earth hit only marks");
+
+        apply(f.battle, f.ally, hit, List.of(f.foe));
+        assertFalse(f.foe.has(StatusKind.LEECH));
+        assertEquals(53, f.ally.getHp(), "second hit restores the 5 HP dealt");
+    }
+
+    @Test
     void insightSecondHitDrawsForPlayer() {
         Fixture f = fixture();
         AbilitySpec filler = new AbilitySpec("f", "Filler", Element.PSYCHIC, Effect.DAMAGE, 3,

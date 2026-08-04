@@ -45,6 +45,7 @@
     BURN: { icon: '🔥', label: 'Burn', tip: '1 damage at end of round' },
     SLOW: { icon: '❄️', label: 'Slow', tip: '−2 Speed; reapply freezes' },
     STUN: { icon: '💫', label: 'Stun', tip: 'Skips next action' },
+    LEECH: { icon: '💚', label: 'Leech', tip: 'Second hit heals attacker for damage dealt' },
     SHOCK: { icon: '⚡', label: 'Shock', tip: 'Drains AP / weakens next hit' },
     DISORIENT: { icon: '🌬️', label: 'Disorient', tip: 'Cards cost +1 AP' },
     POISON: { icon: '☠️', label: 'Poison', tip: 'End-round DoT; blocks heals' },

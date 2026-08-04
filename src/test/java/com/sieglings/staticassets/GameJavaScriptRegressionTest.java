@@ -20,6 +20,7 @@ class GameJavaScriptRegressionTest {
     private static final Path HOME_JS = Path.of("src/main/resources/static/js/home.js");
     private static final Path HOME_HTML = Path.of("src/main/resources/static/home.html");
     private static final Path PLAY_HTML = Path.of("src/main/resources/static/play.html");
+    private static final Path HELP_HTML = Path.of("src/main/resources/static/help.html");
     private static final Path CARD_DASHBOARD_HTML = Path.of("src/main/resources/static/card-dashboard.html");
     private static final Path CARD_BINDER_VISUAL_JS = Path.of("src/main/resources/static/js/card-binder-visual.js");
     private static final Path NOTCH_IMAGE_DIR = Path.of("src/main/resources/static/img/notches");
@@ -370,7 +371,7 @@ class GameJavaScriptRegressionTest {
                 "Season Snapshot, Loadout Shelf, and Social Table must share the overview rail, with matches and badges paired below."
         );
         assertTrue(
-                homeMarkup.contains("home.js?v=134") && homeMarkup.contains("home.css?v=124"),
+                homeMarkup.contains("home.js?v=135") && homeMarkup.contains("home.css?v=125"),
                 "Cache-bust pins for the profile dashboard trim must advance on home.html."
         );
     }
@@ -398,9 +399,9 @@ class GameJavaScriptRegressionTest {
                 "Element-mode profile and friend avatars must fill a circular frame."
         );
         assertTrue(
-                homeMarkup.contains("home.css?v=124")
-                        && homeMarkup.contains("home.js?v=134")
-                        && dashboardMarkup.contains("home.css?v=124"),
+                homeMarkup.contains("home.css?v=125")
+                        && homeMarkup.contains("home.js?v=135")
+                        && dashboardMarkup.contains("home.css?v=125"),
                 "Profile icon CSS and JavaScript cache pins must advance together."
         );
     }
@@ -433,11 +434,11 @@ class GameJavaScriptRegressionTest {
         String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
         assertTrue(
                 homeMarkup.contains("style.css?v=221")
-                        && homeMarkup.contains("game.js?v=231")
+                        && homeMarkup.contains("game.js?v=232")
                         && homeMarkup.contains("card-binder-visual.js?v=20")
-                        && homeMarkup.contains("home.js?v=134")
+                        && homeMarkup.contains("home.js?v=135")
                         && playMarkup.contains("style.css?v=221")
-                        && playMarkup.contains("game.js?v=231")
+                        && playMarkup.contains("game.js?v=232")
                         && dashboardMarkup.contains("style.css?v=221")
                         && dashboardMarkup.contains("card-binder-visual.js?v=20"),
                 "Every surface must advance its cache pins with the complete painted-notch set."
@@ -469,6 +470,72 @@ class GameJavaScriptRegressionTest {
     }
 
     @Test
+    void earthAfflictionRendersAsLeechInsteadOfStagger() throws IOException {
+        String gameScript = readGameScript();
+        String helpMarkup = Files.readString(HELP_HTML);
+
+        assertTrue(
+                gameScript.contains("LEECH:        '#8fbd58'")
+                        && gameScript.contains("LEECH: {")
+                        && gameScript.contains("name: 'Leech'")
+                        && gameScript.contains("second Earth hit heals its attacker")
+                        && gameScript.contains("id=\"sb-leech-bg\"")
+                        && helpMarkup.contains("<strong>Leech</strong>")
+                        && helpMarkup.contains("actual HP damage dealt, then clears"),
+                "Earth's badge, effect key, dedicated art, and help copy must all describe Leech."
+        );
+        assertFalse(
+                gameScript.contains("STAGGER:") || helpMarkup.contains("<strong>Stagger</strong>"),
+                "The retired queue-demotion badge must not return."
+        );
+    }
+
+    @Test
+    void settingsGuideAndFieldGuideShipCurrentRulesAndVisualReferences() throws IOException {
+        String homeScript = readHomeScript();
+        String homeCss = Files.readString(Path.of("src/main/resources/static/css/home.css"));
+        String homeMarkup = Files.readString(HOME_HTML);
+        String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
+        String helpMarkup = Files.readString(HELP_HTML);
+
+        assertTrue(
+                homeScript.contains("const GUIDE_AFFLICTIONS")
+                        && homeScript.contains("element: 'Earth', status: 'Leech', cap: 2")
+                        && homeScript.contains("element: 'Poison', status: 'Toxin', cap: 5")
+                        && homeScript.contains("element: 'Light', status: 'Blind', cap: 3")
+                        && homeScript.contains("Battle and Siege are both live")
+                        && homeScript.contains("Siege does not use the Standard Battle weakness chart")
+                        && homeScript.contains("data-options-help")
+                        && !homeScript.contains("<strong>Siege</strong> (coming soon)"),
+                "Settings Guide must cover every affinity, describe both live modes, and link to the full guide."
+        );
+        assertTrue(
+                homeCss.contains(".options-panel.options-panel--guide")
+                        && homeCss.contains(".guide-stat-grid")
+                        && homeCss.contains(".guide-affliction-grid")
+                        && homeCss.contains(".guide-mode-grid")
+                        && homeCss.contains("@media (max-width: 620px)"),
+                "The Settings Guide must ship its visual reference layouts and compact breakpoint."
+        );
+        assertTrue(
+                helpMarkup.contains("<h3>Strategy</h3>")
+                        && helpMarkup.contains("<h3>Deception</h3>")
+                        && helpMarkup.contains("Poison and Light attacks still apply their afflictions")
+                        && helpMarkup.contains("There is no elemental weakness chart in Siege")
+                        && helpMarkup.contains("/css/help.css?v=3")
+                        && !helpMarkup.contains("<h3>Spell</h3>")
+                        && !helpMarkup.contains("<h3>Trap</h3>"),
+                "The full Field Guide must use current card labels, energy exceptions, Siege rules, and fresh visuals."
+        );
+        assertTrue(
+                homeMarkup.contains("home.css?v=125")
+                        && homeMarkup.contains("home.js?v=135")
+                        && dashboardMarkup.contains("home.css?v=125"),
+                "Guide JavaScript and shared visual CSS pins must advance together."
+        );
+    }
+
+    @Test
     void callWellsRemainVisibleWithoutAConnectedSiegling() throws IOException {
         String gameScript = readGameScript();
         assertTrue(
@@ -491,7 +558,7 @@ class GameJavaScriptRegressionTest {
         Set<String> statusKinds = Set.of(
                 "MAX_HEALTH", "HEALTH_BOOST", "DAMAGE_BOOST", "SPEED_BOOST",
                 "STRONG", "WEAK", "FREEZE", "SPEED_ZERO",
-                "BURN", "CHILL", "STAGGER", "DISORIENT", "SOAK", "SHOCK",
+                "BURN", "CHILL", "LEECH", "DISORIENT", "SOAK", "SHOCK",
                 "RUST", "TOXIN", "CURSE", "INSIGHT", "BLIND", "WITHER"
         );
 
@@ -1608,7 +1675,7 @@ class GameJavaScriptRegressionTest {
         String mapCatalog = Files.readString(SIEGE_MAPS_JS);
 
         assertTrue(
-                adventureHtml.indexOf("/js/siege-maps.js?v=3") < adventureHtml.indexOf("/js/adventure.js?v=53")
+                adventureHtml.indexOf("/js/siege-maps.js?v=3") < adventureHtml.indexOf("/js/adventure.js?v=55")
                         && adventureHtml.contains("<div class=\"battle-map\" id=\"battleMap\" aria-hidden=\"true\"></div>"),
                 "The map catalog must load before adventure.js and the decorative layer must ship inside the stage."
         );
@@ -1680,7 +1747,7 @@ class GameJavaScriptRegressionTest {
                         && adventureHtml.contains("id=\"runMenuRestart\"")
                         && adventureHtml.contains("id=\"runMenuQuit\"")
                         && adventureHtml.contains("/css/adventure.css?v=49")
-                        && adventureHtml.contains("/js/adventure.js?v=53"),
+                        && adventureHtml.contains("/js/adventure.js?v=55"),
                 "The active-run menu and both cache-busted bundles must ship together.");
         String restartRun = extractFunction(adventureJs, "function restartRun(");
         assertTrue(adventureJs.contains("api('/api/siege/run/save'")

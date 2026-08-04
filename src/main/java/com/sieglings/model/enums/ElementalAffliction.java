@@ -7,7 +7,7 @@ package com.sieglings.model.enums;
 public enum ElementalAffliction {
     BURN,
     CHILL,
-    STAGGER,
+    LEECH,
     DISORIENT,
     SOAK,
     SHOCK,

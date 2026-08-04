@@ -147,24 +147,11 @@ public class BattleService {
         }
     }
 
-    /** Speed order, then Stagger ×2+ units shoved to the back (stable among themselves). */
+    /** Battle order is descending effective Speed. */
     private List<CardInstance> orderBattleQueue(List<CardInstance> sieglings) {
         List<CardInstance> sorted = new ArrayList<>(sieglings);
         sorted.sort(Comparator.comparingInt(CardInstance::getEffectiveSpeed).reversed());
-        if (elementalAfflictionService == null) {
-            return sorted;
-        }
-        List<CardInstance> front = new ArrayList<>();
-        List<CardInstance> back = new ArrayList<>();
-        for (CardInstance ci : sorted) {
-            if (elementalAfflictionService.isStaggeredToBack(ci)) {
-                back.add(ci);
-            } else {
-                front.add(ci);
-            }
-        }
-        front.addAll(back);
-        return front;
+        return sorted;
     }
 
     private boolean isChillFrozen(CardInstance attacker) {

@@ -45,7 +45,7 @@ DRAW → SETUP → BATTLE → (opponent DRAW → SETUP → BATTLE) → …
 | **Battle queue build** | Battle phase starts / order built | Earth (2 stacks → bottom); Ice slow |
 | **Paying for an ability** | Unit tries to use an ability | Shock (spend cap); Wind (lowest-cost +1); Blind (effect values) |
 | **On hit taken** | Unit takes attack damage | Soak (+dmg); Rust (only from Metal, then clear) |
-| **On reaching stack cap** | Stack count hits threshold mid-inflict | Ice (3 → freeze); Insight (3 → opponent draws & clear) |
+| **On reaching stack cap** | Stack count hits threshold mid-inflict | Leech (2 → attacker heals & clear); Ice (3 → freeze); Insight (3 → opponent draws & clear) |
 
 ---
 
@@ -55,7 +55,7 @@ DRAW → SETUP → BATTLE → (opponent DRAW → SETUP → BATTLE) → …
 |---|---|---|---|
 | FIRE | Burn | 5 | **yes** |
 | ICE | Chill | 3 | **yes** |
-| EARTH | Stagger | 2 | **yes** |
+| EARTH | Leech | 2 | **yes** |
 | WIND | Disorient | 3 | **yes** |
 | WATER | Soak | 5 | **yes** |
 | ELECTRIC | Shock | 5 | **yes** |
@@ -158,17 +158,17 @@ Setup ticks unless those are later classified as attacks.
 
 ---
 
-### EARTH — Stagger
+### EARTH — Leech
 
-**Inflict:** Earth damage that deals HP → +1 Stagger (cap 2).
+**Inflict:** Earth damage that deals HP → +1 Leech (cap 2).
 
 | Stacks | Effect |
 |---|---|
-| 1 | **Nothing** (badge only) |
-| 2 | This Siegeling is moved to the **bottom of the battle queue** |
+| 1 | The target is marked; no immediate effect |
+| 2 | The attacker heals for the **actual HP damage dealt** by this hit, then all Leech clears |
 
-**When:** when the 2nd stack is applied, and/or when Battle order is built while
-at 2 stacks — unit acts after everyone else that round.
+The second-hit heal is capped by the attacker’s missing Health, is blocked by
+Toxin like any other heal, and still uses the actual HP removed by a lethal hit.
 
 **Clear:** the demotion is what the badges buy, so at the **end of that Battle
 phase** a full 2-stack Stagger clears. A lone 1st stack persists — like Chill
@@ -249,7 +249,7 @@ in `SiegeCombatEngine`.**
 |---|---|---|
 | FIRE | `BURN` | End-of-round 1 dmg while active |
 | ICE | `SLOW` | −2 Speed for 2 rounds; **reapply while Slow → also Stun** (freeze) |
-| EARTH | `STUN` | Skip next action |
+| EARTH | `LEECH` | First hit marks; second hit heals the attacker for HP damage dealt, then clear |
 | WIND | `DISORIENT` | Owner's cards cost +1 AP while active |
 | ELECTRIC | `SHOCK` | Player: −1 party AP then clear; Enemy: next hit −2 dmg then clear |
 | WATER | `SOAK` | Incoming attacks deal +1 while soaked |

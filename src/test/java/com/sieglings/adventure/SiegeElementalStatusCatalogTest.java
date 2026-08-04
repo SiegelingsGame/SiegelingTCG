@@ -15,7 +15,7 @@ class SiegeElementalStatusCatalogTest {
     void statusForMatchesSharedCatalogRows() {
         assertEquals(StatusKind.BURN, SiegeContentService.statusFor(Element.FIRE));
         assertEquals(StatusKind.SLOW, SiegeContentService.statusFor(Element.ICE));
-        assertEquals(StatusKind.STUN, SiegeContentService.statusFor(Element.EARTH));
+        assertEquals(StatusKind.LEECH, SiegeContentService.statusFor(Element.EARTH));
         assertEquals(StatusKind.DISORIENT, SiegeContentService.statusFor(Element.WIND));
         assertEquals(StatusKind.SHOCK, SiegeContentService.statusFor(Element.ELECTRIC));
         assertEquals(StatusKind.POISON, SiegeContentService.statusFor(Element.POISON));
