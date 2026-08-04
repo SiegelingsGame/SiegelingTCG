@@ -15046,19 +15046,27 @@ function getSelectedCardBattlePreviewMeta(card) {
     return parts.join(' | ');
 }
 
-function renderSelectedCardBattlePreview(card) {
+function renderSelectedCardBattlePreview(card, options = {}) {
     const elementClass = String(card?.element || 'neutral').toLowerCase();
     const abilities = getSelectedCardBattlePreviewAbilities(card);
-    const lockReason = getHandCardLockReason(card);
+    const boardCard = isBoardPreviewCard(card);
+    const lockReason = boardCard ? '' : getHandCardLockReason(card);
     const fallback = card?.type === 'SIEGLING'
         ? 'Basic strike only. No printed battle ability is available for this Siegeling.'
         : 'No printed ability text is available for this card.';
+    const intro = options.introHtml
+        || (boardCard
+            ? `<div class="battle-attacker"><strong>Battle moves.</strong> Every printed action this Siegeling can queue once battle starts.</div>`
+            : `<div class="battle-attacker"><strong>Battle View — selected card.</strong> Simulate the moves and effects this hand card could use once it is in play.</div>`);
+    const label = boardCard
+        ? (boardCardOwnershipLabel(card) === 'Your' ? 'Your board' : 'Enemy board')
+        : 'Selected';
 
     let html = '<div class="battle-standby-preview battle-selected-preview">';
-    html += '<div class="battle-attacker"><strong>Battle View — selected card.</strong> Simulate the moves and effects this hand card could use once it is in play.</div>';
+    html += intro;
     html += `<article class="battle-standby-card battle-selected-card ${elementClass}">`;
     html += '<div class="battle-standby-card-head">';
-    html += `<div><div class="battle-standby-selected-label">Selected</div><div class="battle-standby-card-name">${escapeHtml(card?.name || 'Card')}</div><div class="battle-standby-card-meta">${escapeHtml(getSelectedCardBattlePreviewMeta(card))}</div></div>`;
+    html += `<div><div class="battle-standby-selected-label">${escapeHtml(label)}</div><div class="battle-standby-card-name">${escapeHtml(card?.name || 'Card')}</div><div class="battle-standby-card-meta">${escapeHtml(getSelectedCardBattlePreviewMeta(card))}</div></div>`;
     html += `<div class="battle-standby-order">${escapeHtml(String(card?.type || 'Card'))}</div>`;
     html += '</div>';
     if (lockReason) {
@@ -15068,6 +15076,67 @@ function renderSelectedCardBattlePreview(card) {
     html += '</article>';
     html += '</div>';
     return html;
+}
+
+function renderSelectedPreviewMovesPage(card) {
+    return renderSelectedCardBattlePreview(card, {
+        introHtml: '<div class="battle-attacker"><strong>Battle Action.</strong> Swipe back for the card summary.</div>'
+    });
+}
+
+function syncSelectedPreviewDrawerTitle(pageIndex = 0) {
+    const title = document.querySelector('#drawerSelected > h3');
+    if (!title) return;
+    title.textContent = pageIndex >= 1 ? 'Battle Action' : 'Card Preview';
+}
+
+function bindSelectedPreviewPager(root) {
+    const pager = root?.querySelector?.('[data-selected-preview-pager]');
+    const pages = pager?.querySelector?.('[data-selected-preview-pages]');
+    if (!pager || !pages) return;
+
+    const dots = Array.from(pager.querySelectorAll('[data-page-dot]'));
+    const hint = pager.querySelector('.selected-preview-swipe-hint');
+    const pageCount = Math.max(1, pages.querySelectorAll('[data-selected-preview-page]').length);
+    let activeIndex = 0;
+
+    const setActive = (index, { scroll = false } = {}) => {
+        const next = Math.max(0, Math.min(pageCount - 1, Number(index) || 0));
+        activeIndex = next;
+        dots.forEach((dot) => {
+            const on = Number(dot.dataset.pageDot) === next;
+            dot.classList.toggle('is-active', on);
+            dot.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
+        pager.dataset.activePage = String(next);
+        if (hint) {
+            hint.textContent = next >= 1 ? 'Swipe for summary' : 'Swipe for moves';
+        }
+        syncSelectedPreviewDrawerTitle(next);
+        if (scroll) {
+            // Instant jump: smooth scrollTo fights scroll-snap inside the
+            // shrink-to-fit desktop drawer and can stall mid-page.
+            const width = pages.clientWidth || 1;
+            pages.scrollLeft = next * width;
+        }
+    };
+
+    const syncFromScroll = () => {
+        const width = pages.clientWidth || 1;
+        setActive(Math.round(pages.scrollLeft / width));
+    };
+
+    pages.addEventListener('scroll', syncFromScroll, { passive: true });
+    dots.forEach((dot) => {
+        dot.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setActive(dot.dataset.pageDot, { scroll: true });
+        });
+    });
+    // Fresh card always opens on the summary page.
+    setActive(0);
+    pages.scrollLeft = 0;
 }
 
 function renderStandbyBattleAbilityPreview() {
@@ -15944,6 +16013,7 @@ function updateSelectedInfo(card, msg) {
     const el = document.getElementById('selectedCardInfo');
     if (!card && !msg) {
         el.innerHTML = 'Select a hand card or click a Siegeling on either board to preview it here.';
+        syncSelectedPreviewDrawerTitle(0);
         return;
     }
 
@@ -15957,22 +16027,27 @@ function updateSelectedInfo(card, msg) {
     }
     if (card) {
         const lockReason = isBoardPreviewCard(card) ? '' : getHandCardLockReason(card);
-        html += `<div class="selected-card-panel">`;
-        html += renderShowcaseCard(card, {
+        const spellConfirm = mobileSpellPreviewPending && isActionCard(card) && !lockReason
+            ? renderSpellPreviewConfirmation(card)
+            : '';
+        // Two swipe pages: summary (card art + copy) and battle-action moves.
+        // Spell confirm stays on page 1 so the cast buttons never hide behind a swipe.
+        let summary = `<div class="selected-card-panel">`;
+        summary += renderShowcaseCard(card, {
             cardClass: 'selected-preview-card',
             artVariant: 'selected'
         });
-        html += `<div class="selected-preview-copy">`;
+        summary += `<div class="selected-preview-copy">`;
         if (lockReason) {
-            html += `<span style="color:var(--accent)">${escapeHtml(lockReason)}</span>`;
+            summary += `<span style="color:var(--accent)">${escapeHtml(lockReason)}</span>`;
         } else if (isBoardPreviewCard(card)) {
             const own = boardCardOwnershipLabel(card);
             const phases = Number(card.battlePhasesSeen || 0);
-            html += `<span style="color:var(--accent)">${escapeHtml(own)} Siegeling — ${card.hp}/${card.maxHp} HP · Speed ${card.spd ?? card.speed ?? '?'} · ${phases} battle phase(s).</span>`;
-            html += renderBoardCardBuffsList(card);
-            html += renderPreviewClaimControl(card);
+            summary += `<span style="color:var(--accent)">${escapeHtml(own)} Siegeling — ${card.hp}/${card.maxHp} HP · Speed ${card.spd ?? card.speed ?? '?'} · ${phases} battle phase(s).</span>`;
+            summary += renderBoardCardBuffsList(card);
+            summary += renderPreviewClaimControl(card);
         } else if (card.type === 'SIEGLING') {
-            html += card.evolvesFromName
+            summary += card.evolvesFromName
                 ? `<span style="color:var(--accent)">After ${card.evolvesFromName} completes a full battle phase in that form, place this on it to evolve.</span>`
                 : gameState.playerPlacementUsed
                 ? `<span style="color:var(--accent)">${escapeHtml(sieglingPlacementLockMessage())}</span>`
@@ -15981,23 +16056,34 @@ function updateSelectedInfo(card, msg) {
         // Stat line and ability/move details in the right panel (body hidden inside compact card).
         const statLine = getCardSummaryStatLine(card);
         if (statLine) {
-            html += `<div class="selected-copy-stats">${escapeHtml(statLine)}</div>`;
+            summary += `<div class="selected-copy-stats">${escapeHtml(statLine)}</div>`;
         }
         getCardPreviewEntries(card).forEach(entry => {
             if (entry.html) {
-                html += `<div class="selected-copy-detail">${entry.html}</div>`;
+                summary += `<div class="selected-copy-detail">${entry.html}</div>`;
             } else {
-                html += `<div class="selected-copy-detail">${escapeHtml(entry.text)}</div>`;
+                summary += `<div class="selected-copy-detail">${escapeHtml(entry.text)}</div>`;
             }
         });
-        if (mobileSpellPreviewPending && isActionCard(card) && !lockReason) {
-            html += renderSpellPreviewConfirmation(card);
-        }
+        summary += spellConfirm;
+        summary += `</div></div>`;
+
+        html += `<div class="selected-preview-pager" data-selected-preview-pager data-active-page="0">`;
+        html += `<div class="selected-preview-pages" data-selected-preview-pages role="region" aria-label="Card preview pages">`;
+        html += `<section class="selected-preview-page" data-selected-preview-page="summary" aria-label="Card summary">${summary}</section>`;
+        html += `<section class="selected-preview-page" data-selected-preview-page="moves" aria-label="Battle moves">${renderSelectedPreviewMovesPage(card)}</section>`;
         html += `</div>`;
+        html += `<div class="selected-preview-pager-chrome">`;
+        html += `<div class="selected-preview-dots" role="tablist" aria-label="Preview pages">`;
+        html += `<button type="button" class="selected-preview-dot is-active" data-page-dot="0" role="tab" aria-selected="true" aria-label="Card summary"></button>`;
+        html += `<button type="button" class="selected-preview-dot" data-page-dot="1" role="tab" aria-selected="false" aria-label="Battle moves"></button>`;
         html += `</div>`;
+        html += `<span class="selected-preview-swipe-hint">Swipe for moves</span>`;
+        html += `</div></div>`;
     }
 
     el.innerHTML = html;
+    bindSelectedPreviewPager(el);
     scheduleFramedSummaryFit();
 }
 
@@ -16652,6 +16738,9 @@ syncDesktopInspectTabUi();
         if (!target || !target.closest) return;
         const drawer = target.closest('.drawer.visible');
         if (!drawer) return;
+        // Horizontal card-preview pager owns left/right swipes — don't steal
+        // those gestures for the vertical drag-to-close.
+        if (target.closest('[data-selected-preview-pages]')) return;
         // Start a drag from the grip/header always; from scrollable content only when at the top.
         const fromGrip = !!target.closest('.drawer-handle, .drawer > h3');
         if (!fromGrip && drawer.scrollTop > 0) return;

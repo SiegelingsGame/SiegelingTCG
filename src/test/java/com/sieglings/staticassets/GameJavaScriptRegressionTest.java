@@ -432,13 +432,13 @@ class GameJavaScriptRegressionTest {
         String playMarkup = Files.readString(PLAY_HTML);
         String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
         assertTrue(
-                homeMarkup.contains("style.css?v=220")
-                        && homeMarkup.contains("game.js?v=230")
+                homeMarkup.contains("style.css?v=221")
+                        && homeMarkup.contains("game.js?v=231")
                         && homeMarkup.contains("card-binder-visual.js?v=20")
                         && homeMarkup.contains("home.js?v=134")
-                        && playMarkup.contains("style.css?v=220")
-                        && playMarkup.contains("game.js?v=230")
-                        && dashboardMarkup.contains("style.css?v=220")
+                        && playMarkup.contains("style.css?v=221")
+                        && playMarkup.contains("game.js?v=231")
+                        && dashboardMarkup.contains("style.css?v=221")
                         && dashboardMarkup.contains("card-binder-visual.js?v=20"),
                 "Every surface must advance its cache pins with the complete painted-notch set."
         );
@@ -692,6 +692,34 @@ class GameJavaScriptRegressionTest {
                         && extractFunction(homeScript, "async function fetchGameOptions()").contains("if (!state.token)")
                         && extractFunction(homeScript, "async function submitAuth(mode)").contains("await refreshLiveCatalog()"),
                 "Signed-in binder loads must not reuse the guest gameOptions cache."
+        );
+    }
+
+    @Test
+    void cardPreviewDrawerSwipesBetweenSummaryAndBattleMoves() throws IOException {
+        String gameScript = readGameScript();
+        String styleCss = Files.readString(Path.of("src/main/resources/static/css/style.css"));
+        String updateSelectedInfo = extractFunction(gameScript, "function updateSelectedInfo(card, msg)");
+        String bindPager = extractFunction(gameScript, "function bindSelectedPreviewPager(root)");
+        String movesPage = extractFunction(gameScript, "function renderSelectedPreviewMovesPage(card)");
+
+        assertTrue(
+                updateSelectedInfo.contains("selected-preview-pager")
+                        && updateSelectedInfo.contains("data-selected-preview-page=\"summary\"")
+                        && updateSelectedInfo.contains("data-selected-preview-page=\"moves\"")
+                        && updateSelectedInfo.contains("bindSelectedPreviewPager(el)")
+                        && movesPage.contains("renderSelectedCardBattlePreview(card")
+                        && bindPager.contains("syncSelectedPreviewDrawerTitle")
+                        && bindPager.contains("Swipe for moves"),
+                "Selecting a card must open a two-page Card Preview pager: summary plus battle-action moves."
+        );
+        assertTrue(
+                styleCss.contains(".selected-preview-pages")
+                        && styleCss.contains("grid-auto-columns: 100%")
+                        && styleCss.contains("scroll-snap-type: x mandatory")
+                        && styleCss.contains(".selected-preview-dot")
+                        && gameScript.contains("target.closest('[data-selected-preview-pages]')"),
+                "The pager must scroll-snap horizontally, show page dots, and not fight drawer drag-to-close."
         );
     }
 
