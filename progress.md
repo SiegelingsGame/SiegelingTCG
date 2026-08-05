@@ -1,7 +1,7 @@
 Original prompt: Create a connected ally heal effect that does not increase max health
 
 - August 5, 2026 Added effect key `connected_allies_heal`: restores current HP on directly linked allied Sieglings without raising max Health (unlike `connected_allies_health_boost`). Wired through `AbilityEffectKeys` / `Ability.connectedAlliesHeal` / `EffectService.applyConnectedAlliesHeal` (Blind + Toxin-aware, same heal log phrasing as `heal` for action-queue playback), Spring + Firebase Function editor catalogs (label "Connected Allies Heal", `SELF`), dashboard auto-descriptions, `game.js` heal arrow kind, and Siege `HEAL` / `ALLY_ALL` parity. Cache pins: `game.js?v=234`, `card-dashboard.js?v=56`.
-- Verification: new `EffectServiceTest#connectedAlliesHealRestoresCurrentHealthWithoutRaisingMax` (linked allies heal, max HP unchanged, source/indirect/unlinked untouched); `SiegeCardEffectParityTest` asserts `HEAL` + `ALLY_ALL`; `FunctionsEditorMetadataParityTest` keeps Function catalog in lockstep with `AbilityEffectKeys`. Focused + full Maven suite and `node --check` on touched JS run after the change.
+- Verification: new `EffectServiceTest#connectedAlliesHealRestoresCurrentHealthWithoutRaisingMax` (linked allies heal, max HP unchanged, source/indirect/unlinked untouched); `SiegeCardEffectParityTest` asserts `HEAL` + `ALLY_ALL`; `FunctionsEditorMetadataParityTest` keeps Function catalog in lockstep with `AbilityEffectKeys`. `node --check` clean on `game.js`, `card-dashboard.js`, `functions/editorMetadata.js`. Full `./mvnw test` **465/465 green** (up from 464).
 
 Original prompt: Not seeing chain attacks in dashboard
 
