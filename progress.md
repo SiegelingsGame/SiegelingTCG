@@ -1,7 +1,7 @@
 Original prompt: Critical bug hunt (mission panel blanking on rollover persist)
 
 - August 5, 2026 `GET /api/missions/daily` still failed the whole snapshot when Firestore rejected the day/week rollover write inside `loadProgress`. All three mission tabs share that one payload, so a Cloud Run / Firestore hiccup on the first request after midnight (or ISO week roll) blanked Daily/Weekly/Lifetime for the player. Same class of bug as Keep's "don't fail a read on a best-effort side-effect write." Fix: `persistRollover` catches and logs; `DailyMissionController.daily` returns `{"error":"Missions are temporarily unavailable."}` for unexpected `RuntimeException`s instead of a bare 500; `homeDailyMissions` length-checks `featured` before falling through to `missions` (`[] || missions` never falls through). Cache pin `home.js?v=137`. Prior open DRAFT/OPEN PRs #586/#585 never landed this on `main`.
-- Verification: `DailyMissionServiceTest#snapshotStillServesWhenRolloverPersistFails`; `GameJavaScriptRegressionTest#emptyFeaturedMissionsFallThroughToFullDailyList`; `node --check` on `home.js`; focused `./mvnw -q -Dtest=DailyMissionServiceTest,GameJavaScriptRegressionTest test`.
+- Verification: `DailyMissionServiceTest#snapshotStillServesWhenRolloverPersistFails` (WARN logged, snapshot still served); `GameJavaScriptRegressionTest#emptyFeaturedMissionsFallThroughToFullDailyList`; `node --check` clean on `home.js`; focused `./mvnw -q -Dtest=DailyMissionServiceTest,GameJavaScriptRegressionTest test` **green**.
 
 Original prompt: Merge and deploy
 
