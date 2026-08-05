@@ -80,6 +80,12 @@ const EFFECT_TYPES = [
     targetHints: ['SELF']
   },
   {
+    key: 'connected_allies_heal',
+    label: 'Connected Allies Heal',
+    description: 'Restores current health on directly linked allied Sieglings without raising max health.',
+    targetHints: ['SELF']
+  },
+  {
     key: 'connected_allies_shield',
     label: 'Connected Allies Shield',
     description: 'Grants temporary shield health to directly linked allied Sieglings.',

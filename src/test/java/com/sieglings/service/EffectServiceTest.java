@@ -268,6 +268,71 @@ class EffectServiceTest {
     }
 
     @Test
+    void connectedAlliesHealRestoresCurrentHealthWithoutRaisingMax() {
+        GameState state = new GameState();
+        state.setPlayer(new Player("Player", true));
+        state.setEnemy(new Player("AI", false));
+        state.setCurrentPhase(Phase.BATTLE);
+
+        CardInstance source = instance("source", List.of(
+                new Notch(NotchDirection.LEFT, Element.EARTH),
+                new Notch(NotchDirection.RIGHT, Element.EARTH)
+        ), 1, 1);
+        source.setPlacementOrder(1);
+        state.setAt(true, 1, 1, source);
+
+        CardInstance linkedLeft = instance("linked-left", List.of(
+                new Notch(NotchDirection.RIGHT, Element.EARTH),
+                new Notch(NotchDirection.TOP, Element.EARTH)
+        ), 1, 0);
+        linkedLeft.setPlacementOrder(2);
+        linkedLeft.takeRawDamage(5);
+        state.setAt(true, 1, 0, linkedLeft);
+
+        CardInstance linkedRight = instance("linked-right", List.of(
+                new Notch(NotchDirection.LEFT, Element.EARTH)
+        ), 1, 2);
+        linkedRight.setPlacementOrder(3);
+        linkedRight.takeRawDamage(5);
+        state.setAt(true, 1, 2, linkedRight);
+
+        CardInstance isolated = instance("isolated", List.of(
+                new Notch(NotchDirection.TOP, Element.EARTH)
+        ), 0, 2);
+        isolated.setPlacementOrder(4);
+        isolated.takeRawDamage(5);
+        state.setAt(true, 0, 2, isolated);
+
+        CardInstance chained = instance("chained", List.of(
+                new Notch(NotchDirection.BOTTOM, Element.EARTH)
+        ), 0, 0);
+        chained.setPlacementOrder(5);
+        chained.takeRawDamage(5);
+        state.setAt(true, 0, 0, chained);
+
+        Ability mend = Ability.connectedAlliesHeal(
+                "Charge Mend",
+                "Heal connected allies for 3",
+                3
+        );
+
+        effectService.resolveAbility(state, mend, source, true, source.getBoardRow(), source.getBoardCol());
+
+        assertEquals(10, source.getCurrentHealth(), "Source card should not heal itself.");
+        assertEquals(10, source.getEffectiveMaxHealth(), "Source max Health stays unchanged.");
+        assertEquals(8, linkedLeft.getCurrentHealth(), "Linked ally should restore current HP.");
+        assertEquals(10, linkedLeft.getEffectiveMaxHealth(), "Linked ally max Health must not rise.");
+        assertEquals(8, linkedRight.getCurrentHealth(), "Linked ally should restore current HP.");
+        assertEquals(10, linkedRight.getEffectiveMaxHealth(), "Linked ally max Health must not rise.");
+        assertEquals(5, chained.getCurrentHealth(), "Indirect chain allies should stay damaged.");
+        assertEquals(10, chained.getEffectiveMaxHealth(), "Indirect chain max Health stays unchanged.");
+        assertEquals(5, isolated.getCurrentHealth(), "Unlinked ally should stay damaged.");
+        assertEquals(10, isolated.getEffectiveMaxHealth(), "Unlinked ally max Health stays unchanged.");
+        assertTrue(state.getGameLog().stream().anyMatch(line -> line.contains("heals linked-left for 3")),
+                "Heal log should use the standard heal phrasing for playback.");
+    }
+
+    @Test
     void connectedAlliesDamageBoostOnlyAffectsLinkedAllies() {
         GameState state = new GameState();
         state.setPlayer(new Player("Player", true));

@@ -37,9 +37,10 @@ to classpath JSON; **on prod**, `GET /api/cards/editor` must report
 - **Effects** must use registered effect keys (`ABILITY_EFFECT_KEYS.md`,
   `model/AbilityEffectKeys.java`): `damage`, `player_damage`, `heal`, `freeze`,
   `speed_zero`, `damage_boost`, `health_boost`, `speed_boost`,
-  `connected_allies_{damage,health,speed}_boost` (SELF-target, buffs directly
-  linked allies only), `destroy`, `move_link`. A new mechanic needs a new key
-  implemented in `EffectService` first (see `game-rules` skill).
+  `connected_allies_{damage,health,speed}_boost`, `connected_allies_heal`
+  (SELF-target; heal restores current HP without raising max Health),
+  `destroy`, `move_link`. A new mechanic needs a new key implemented in
+  `EffectService` first (see `game-rules` skill).
 - **New card**: add the full definition to `siegling-overrides.json` (or via
   dashboard for live). Evolution lines must be complete — deck construction
   requires whole lines (`CardDefinitionServiceTest` enforces).

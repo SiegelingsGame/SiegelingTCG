@@ -3224,6 +3224,8 @@
                 return `Connected allies gain ${signedValue} Attack Damage`;
             case "connected_allies_health_boost":
                 return `Connected allies gain ${signedValue} max HP`;
+            case "connected_allies_heal":
+                return `Heal connected allies for ${value}`;
             case "connected_allies_shield":
                 return `Connected allies gain ${signedValue} Shield`;
             case "connected_allies_slow":
@@ -5666,6 +5668,8 @@
                 return `Connected allies gain ${signedValue} Attack Damage`;
             case "connected_allies_health_boost":
                 return `Connected allies gain ${signedValue} max HP`;
+            case "connected_allies_heal":
+                return `Heal connected allies for ${value}`;
             case "connected_allies_shield":
                 return `Connected allies gain ${signedValue} Shield`;
             case "connected_allies_slow":

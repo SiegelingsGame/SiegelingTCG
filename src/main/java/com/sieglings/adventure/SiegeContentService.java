@@ -529,7 +529,7 @@ public class SiegeContentService {
         Effect exact = switch (key) {
             case AbilityEffectKeys.DAMAGE, AbilityEffectKeys.CHAIN_DAMAGE, AbilityEffectKeys.PLAYER_DAMAGE -> Effect.DAMAGE;
             case AbilityEffectKeys.DRAW -> Effect.DRAW;
-            case AbilityEffectKeys.HEAL -> Effect.HEAL;
+            case AbilityEffectKeys.HEAL, AbilityEffectKeys.CONNECTED_ALLIES_HEAL -> Effect.HEAL;
             case AbilityEffectKeys.SHIELD, AbilityEffectKeys.CONNECTED_ALLIES_SHIELD -> Effect.SHIELD;
             case AbilityEffectKeys.HEALTH_BOOST, AbilityEffectKeys.CONNECTED_ALLIES_HEALTH_BOOST -> Effect.MAX_HP_BOOST;
             case AbilityEffectKeys.DAMAGE_BOOST, AbilityEffectKeys.CONNECTED_ALLIES_DAMAGE_BOOST -> Effect.BUFF_ATK;
