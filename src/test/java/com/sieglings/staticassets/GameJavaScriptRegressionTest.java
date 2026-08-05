@@ -371,7 +371,7 @@ class GameJavaScriptRegressionTest {
                 "Season Snapshot, Loadout Shelf, and Social Table must share the overview rail, with matches and badges paired below."
         );
         assertTrue(
-                homeMarkup.contains("home.js?v=136") && homeMarkup.contains("home.css?v=125"),
+                homeMarkup.contains("home.js?v=137") && homeMarkup.contains("home.css?v=125"),
                 "Cache-bust pins for the profile dashboard trim must advance on home.html."
         );
     }
@@ -400,7 +400,7 @@ class GameJavaScriptRegressionTest {
         );
         assertTrue(
                 homeMarkup.contains("home.css?v=125")
-                        && homeMarkup.contains("home.js?v=136")
+                        && homeMarkup.contains("home.js?v=137")
                         && dashboardMarkup.contains("home.css?v=125"),
                 "Profile icon CSS and JavaScript cache pins must advance together."
         );
@@ -436,7 +436,7 @@ class GameJavaScriptRegressionTest {
                 homeMarkup.contains("style.css?v=224")
                         && homeMarkup.contains("game.js?v=234")
                         && homeMarkup.contains("card-binder-visual.js?v=20")
-                        && homeMarkup.contains("home.js?v=136")
+                        && homeMarkup.contains("home.js?v=137")
                         && playMarkup.contains("style.css?v=224")
                         && playMarkup.contains("game.js?v=234")
                         && dashboardMarkup.contains("style.css?v=224")
@@ -529,7 +529,7 @@ class GameJavaScriptRegressionTest {
         );
         assertTrue(
                 homeMarkup.contains("home.css?v=125")
-                        && homeMarkup.contains("home.js?v=136")
+                        && homeMarkup.contains("home.js?v=137")
                         && dashboardMarkup.contains("home.css?v=125"),
                 "Guide JavaScript and shared visual CSS pins must advance together."
         );
@@ -968,6 +968,23 @@ class GameJavaScriptRegressionTest {
                         && renderDecks.contains("if (!hasCardCatalog(state.options) || ownedDataLoading())"),
                 "An empty card catalog means the payload never arrived, so the binder and deck grids "
                         + "must show their loading status rather than an authoritative empty state."
+        );
+    }
+
+    @Test
+    void emptyFeaturedMissionsFallThroughToFullDailyList() throws IOException {
+        String homeScript = readHomeScript();
+        String homeMarkup = Files.readString(HOME_HTML);
+        String homeDailyMissions = extractFunction(homeScript, "function homeDailyMissions()");
+
+        assertTrue(
+                homeDailyMissions.contains("featured && featured.length ? featured : all"),
+                "An empty featured array is truthy in JS and must not blank the Daily tab "
+                        + "when the full missions snapshot is present."
+        );
+        assertTrue(
+                homeMarkup.contains("home.js?v=137"),
+                "Mission featured-fallback fix must bump the home.js cache pin."
         );
     }
 
