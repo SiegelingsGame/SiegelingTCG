@@ -214,6 +214,10 @@ public class EffectService {
             applyConnectedAlliesHealthBoost(state, ability, source, Math.max(1, value));
             return;
         }
+        if (AbilityEffectKeys.CONNECTED_ALLIES_HEAL.equals(effectType)) {
+            applyConnectedAlliesHeal(state, ability, source, Math.max(1, value));
+            return;
+        }
         if (AbilityEffectKeys.CONNECTED_ALLIES_SHIELD.equals(effectType)) {
             applyConnectedAlliesShield(state, ability, source, Math.max(1, value));
             return;
@@ -494,6 +498,47 @@ public class EffectService {
             state.log(ability.getName() + " raises " + ally.getName() + "'s max Health by " + value
                     + " through a direct link"
                     + " (HP: " + ally.getCurrentHealth() + "/" + ally.getEffectiveMaxHealth() + ")");
+        }
+    }
+
+    /**
+     * Restores current HP on directly linked allies only — never raises max Health.
+     * Log wording matches {@code heal} so action-queue heal playback can parse it.
+     */
+    private void applyConnectedAlliesHeal(GameState state, Ability ability, CardInstance source, int value) {
+        if (source == null) {
+            state.log(ability.getName() + " has no source card to trace connected allies.");
+            return;
+        }
+
+        List<CardInstance> connectedAllies = placementService.getDirectlyConnectedAllies(state, source);
+        if (connectedAllies.isEmpty()) {
+            state.log(ability.getName() + " found no directly linked allies.");
+            return;
+        }
+
+        for (CardInstance ally : connectedAllies) {
+            int healValue = value;
+            if (elementalAfflictionService != null) {
+                healValue = elementalAfflictionService.applyBlindToValue(source, healValue);
+            }
+            int toxinBefore = ally.getAfflictionStacks(
+                    com.sieglings.model.enums.ElementalAffliction.TOXIN);
+            int restored;
+            if (elementalAfflictionService != null) {
+                restored = elementalAfflictionService.applyHealWithToxin(state, ally, healValue);
+            } else {
+                int before = ally.getCurrentHealth();
+                ally.healDamage(healValue);
+                restored = Math.max(0, ally.getCurrentHealth() - before);
+            }
+            if (restored > 0) {
+                state.log(ability.getName() + " heals " + ally.getName() + " for " + restored
+                        + " (HP: " + ally.getCurrentHealth() + ")");
+            } else if (toxinBefore <= 0) {
+                state.log(ability.getName() + " heals " + ally.getName() + " for " + healValue
+                        + " (HP: " + ally.getCurrentHealth() + ")");
+            }
         }
     }
 

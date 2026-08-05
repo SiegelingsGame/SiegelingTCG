@@ -18,6 +18,7 @@ These are the effect keys the rules engine currently understands.
 | `health_boost` | Adds temporary max Health and heals by the same amount. | `SINGLE_ALLY`, `ALL_ALLIES`, `ROW_ALLIES`, `PASSIVE` |
 | `connected_allies_damage_boost` | Gives attack damage to every allied Siegling connected to the source card through active reciprocal links. The source card itself is not buffed. | `SELF` |
 | `connected_allies_health_boost` | Gives max Health to every allied Siegling connected to the source card through active reciprocal links. The source card itself is not buffed. | `SELF` |
+| `connected_allies_heal` | Restores current Health (up to max) on every allied Siegling connected to the source card through active reciprocal links. Does **not** raise max Health. The source card itself is not healed. | `SELF` |
 | `connected_allies_speed_boost` | Gives Speed to every allied Siegling connected to the source card through active reciprocal links. The source card itself is not buffed. | `SELF` |
 | `speed_boost` | Adds temporary Speed. | `SINGLE_ALLY`, `ALL_ALLIES`, `ROW_ALLIES`, `PASSIVE` |
 | `destroy` | Defeats the resolved target immediately. | `SINGLE_ENEMY` |
@@ -36,7 +37,8 @@ These are the effect keys the rules engine currently understands.
   cells (`.board-cell.chain-target` in `style.css`) and fans targeting arrows to every victim.
   When no target is supplied (AI turns), auto-target picks the enemy carrying the most links, ties
   going to the lowest current health. In Siege (no notch board) it resolves as single-target `DAMAGE`.
-- `connected_allies_damage_boost`, `connected_allies_health_boost`, and `connected_allies_speed_boost` are source-based, so they should be used on board creatures rather than trainers or generic spells.
+- `connected_allies_damage_boost`, `connected_allies_health_boost`, `connected_allies_heal`, and `connected_allies_speed_boost` are source-based, so they should be used on board creatures rather than trainers or generic spells.
+- Prefer `connected_allies_heal` when the intent is to restore missing HP; `connected_allies_health_boost` permanently raises max Health (and current HP by the same amount).
 - If you want a source creature to strengthen its linked network, these are the keys to use.
 - Current connected-allies logic follows the same reciprocal notch-link rules the board uses for normal connections.
 
@@ -53,7 +55,7 @@ modes; the mapping lives in `SiegeContentService.effectFor` /
 | `chain_damage` | `DAMAGE` — Siege has no notch links, so it lands as a normal attack. | as written |
 | `player_damage` | `DAMAGE` — there is no opposing player, so it lands on the enemy line. | `ALL_ENEMIES` |
 | `draw` | `DRAW` — pulls that many cards (max 3) into the hand. | `SELF` |
-| `heal` | `HEAL` — value + 3. | as written |
+| `heal` / `connected_allies_heal` | `HEAL` — value + 3. | as written / `ALLY_ALL` for connected-allies |
 | `shield` | `SHIELD` — value + 3, **lapses when the shielded side opens its next turn** (the board clears shields at the end of the battle phase). | as written |
 | `health_boost` | `MAX_HP_BOOST` — raises max HP for the battle and heals the same amount, then drops when the battle ends. | as written |
 | `damage_boost` | `BUFF_ATK` — only the Siegelings the card named. | as written |

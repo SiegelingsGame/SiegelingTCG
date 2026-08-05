@@ -58,6 +58,7 @@ class SiegeCardEffectParityTest {
 
         assertEquals(Effect.BUFF_ATK, effect("connected_allies_damage_boost"));
         assertEquals(Effect.MAX_HP_BOOST, effect("connected_allies_health_boost"));
+        assertEquals(Effect.HEAL, effect("connected_allies_heal"));
         assertEquals(Effect.SHIELD, effect("connected_allies_shield"));
         assertEquals(Effect.BUFF_SPD, effect("connected_allies_speed_boost"));
         assertEquals(Effect.SLOW, effect("connected_allies_slow"));
@@ -69,6 +70,7 @@ class SiegeCardEffectParityTest {
         // Siege has no links, so the warband is the linked network.
         assertEquals(TargetKind.ALLY_ALL, target("connected_allies_damage_boost", TargetType.SELF));
         assertEquals(TargetKind.ALLY_ALL, target("connected_allies_health_boost", TargetType.SELF));
+        assertEquals(TargetKind.ALLY_ALL, target("connected_allies_heal", TargetType.SELF));
         assertEquals(TargetKind.ALLY_ALL, target("connected_allies_shield", TargetType.SELF));
         assertEquals(TargetKind.ALLY_ALL, target("connected_allies_speed_boost", TargetType.SELF));
         assertEquals(TargetKind.ALLY_ALL, target("connected_allies_slow", TargetType.SELF));

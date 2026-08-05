@@ -358,6 +358,7 @@ const EFFECT_KIND_MAP = {
     speed_boost: 'buff',
     connected_allies_damage_boost: 'buff',
     connected_allies_health_boost: 'buff',
+    connected_allies_heal: 'heal',
     connected_allies_shield: 'buff',
     connected_allies_slow: 'freeze',
     connected_allies_speed_boost: 'buff',
