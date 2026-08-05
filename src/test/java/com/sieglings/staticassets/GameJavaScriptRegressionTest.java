@@ -371,7 +371,7 @@ class GameJavaScriptRegressionTest {
                 "Season Snapshot, Loadout Shelf, and Social Table must share the overview rail, with matches and badges paired below."
         );
         assertTrue(
-                homeMarkup.contains("home.js?v=135") && homeMarkup.contains("home.css?v=125"),
+                homeMarkup.contains("home.js?v=136") && homeMarkup.contains("home.css?v=125"),
                 "Cache-bust pins for the profile dashboard trim must advance on home.html."
         );
     }
@@ -400,7 +400,7 @@ class GameJavaScriptRegressionTest {
         );
         assertTrue(
                 homeMarkup.contains("home.css?v=125")
-                        && homeMarkup.contains("home.js?v=135")
+                        && homeMarkup.contains("home.js?v=136")
                         && dashboardMarkup.contains("home.css?v=125"),
                 "Profile icon CSS and JavaScript cache pins must advance together."
         );
@@ -436,7 +436,7 @@ class GameJavaScriptRegressionTest {
                 homeMarkup.contains("style.css?v=224")
                         && homeMarkup.contains("game.js?v=234")
                         && homeMarkup.contains("card-binder-visual.js?v=20")
-                        && homeMarkup.contains("home.js?v=135")
+                        && homeMarkup.contains("home.js?v=136")
                         && playMarkup.contains("style.css?v=224")
                         && playMarkup.contains("game.js?v=234")
                         && dashboardMarkup.contains("style.css?v=224")
@@ -529,7 +529,7 @@ class GameJavaScriptRegressionTest {
         );
         assertTrue(
                 homeMarkup.contains("home.css?v=125")
-                        && homeMarkup.contains("home.js?v=135")
+                        && homeMarkup.contains("home.js?v=136")
                         && dashboardMarkup.contains("home.css?v=125"),
                 "Guide JavaScript and shared visual CSS pins must advance together."
         );
@@ -935,6 +935,39 @@ class GameJavaScriptRegressionTest {
                         && renderCards.contains("grid.setAttribute('aria-busy', 'true')")
                         && renderCards.contains("allCount.textContent = 'Loading cards…'"),
                 "The binder load race must show a visible and accessible loading status instead of zero owned cards."
+        );
+    }
+
+    /**
+     * A failed /api/game/options used to hand applyGameOptions null, which installed
+     * an empty-but-truthy catalog over the cached one. Every owned card then filtered
+     * away and the binder reported "0 owned cards" to a player whose collection was
+     * sitting in localStorage — the signed-in path is the exposed one, because it
+     * skips the cache on the way out and so had nothing to fall back to.
+     */
+    @Test
+    void failedCatalogFetchNeverEmptiesTheBinder() throws IOException {
+        String homeScript = readHomeScript();
+        String applyGameOptions = extractFunction(homeScript, "function applyGameOptions(options)");
+        String fetchGameOptions = extractFunction(homeScript, "async function fetchGameOptions()");
+        String renderCards = extractFunction(homeScript, "function renderCards()");
+        String renderDecks = extractFunction(homeScript, "function renderDecks()");
+
+        assertTrue(
+                homeScript.contains("function hasCardCatalog(options)")
+                        && applyGameOptions.contains("if (!hasCardCatalog(options) && hasCardCatalog(state.options)) return;"),
+                "A catalog-less options payload must not replace a populated catalog."
+        );
+        assertTrue(
+                fetchGameOptions.contains("return readCache(cacheKey, STATIC_CACHE_TTL_MS);"),
+                "A failed options fetch must fall back to the cached catalog for this identity, "
+                        + "not resolve null — signed-in loads skip the cache on the way out."
+        );
+        assertTrue(
+                renderCards.contains("if (!hasCardCatalog(state.options) || ownedDataLoading())")
+                        && renderDecks.contains("if (!hasCardCatalog(state.options) || ownedDataLoading())"),
+                "An empty card catalog means the payload never arrived, so the binder and deck grids "
+                        + "must show their loading status rather than an authoritative empty state."
         );
     }
 
