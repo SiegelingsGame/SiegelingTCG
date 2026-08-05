@@ -1918,8 +1918,11 @@
         if (!grid) return;
         const allCount = document.getElementById('allCardCount');
         // Catalog not loaded yet, or owned cards still loading for a signed-in
-        // player — show explicit progress instead of a blank/empty panel.
-        if (!state.options || ownedDataLoading()) {
+        // player — show explicit progress instead of a blank/empty panel. An
+        // options object with no cards counts as "not loaded": the game always has
+        // a catalog, so an empty one means the fetch failed, and rendering it would
+        // filter every owned card away into "0 owned cards".
+        if (!hasCardCatalog(state.options) || ownedDataLoading()) {
             grid.setAttribute('aria-busy', 'true');
             grid.innerHTML = panelLoadingMarkup('Loading your card binder…');
             if (allCount) allCount.textContent = 'Loading cards…';
@@ -3251,8 +3254,10 @@
         const grid = document.getElementById('deckGrid');
         if (!grid) return;
         // Catalog or owned decks still loading — show a spinner instead of an
-        // empty grid that would imply the player has no decks.
-        if (!state.options || ownedDataLoading()) {
+        // empty grid that would imply the player has no decks. An empty card
+        // catalog means the options payload never arrived, so its deck list is
+        // empty for the same reason.
+        if (!hasCardCatalog(state.options) || ownedDataLoading()) {
             grid.innerHTML = panelLoadingMarkup('Loading your decks…');
             renderSavedDecks();
             return;
@@ -8184,11 +8189,28 @@
             if (cached) return cached;
         }
         const data = await fetchJson('/api/game/options');
-        if (data) writeCache(cacheKey, data);
-        return data;
+        if (data) {
+            writeCache(cacheKey, data);
+            return data;
+        }
+        // The request failed — offline, a cold-start timeout, or aborted because the
+        // player reloaded while it was in flight. Signed-in loads skip the cache above
+        // (so they never serve the guest catalog), which left this path returning null
+        // and handing applyGameOptions an empty catalog. Fall back to the last good
+        // snapshot for this identity instead.
+        return readCache(cacheKey, STATIC_CACHE_TTL_MS);
     }
 
+    function hasCardCatalog(options) {
+        return Array.isArray(options?.cardCatalog) && options.cardCatalog.length > 0;
+    }
+
+    // A failed fetch must never replace a populated catalog with an empty one.
+    // state.options stays truthy either way, so every consumer — the binder above
+    // all — reads the empty catalog as "loaded" and reports that the player owns
+    // nothing, over a collection that is sitting right there in the cache.
     function applyGameOptions(options) {
+        if (!hasCardCatalog(options) && hasCardCatalog(state.options)) return;
         const next = options || { decks: [], trainers: [], cardCatalog: [], liveElements: [] };
         state.options = next;
         state.catalogVersion = Number(next.catalogVersion) || 0;
