@@ -1,7 +1,7 @@
 Original prompt: critical bug investigation
 
 - August 6, 2026 Mission panel still blanked when day/week rollover persist failed. `DailyMissionService.loadProgress` still called `progressStore.save` inside the snapshot read; a Firestore hiccup threw out of `GET /api/missions/daily` and blanked all three mission tabs (controller only caught `IllegalArgumentException`). Separately, `homeDailyMissions` used `featured || missions`, and empty `featured: []` is truthy in JS. Made rollover persist best-effort (`persistRollover`), returned a client-handled error envelope for unexpected snapshot failures, and length-checked featured before falling through. Cache pin `home.js?v=139`. Same fix previously opened as #674 / #586 / #585 and remained unmerged; verified still broken on `origin/main` before re-applying.
-- Verification: `DailyMissionServiceTest#snapshotStillServesWhenRolloverPersistFails`; `GameJavaScriptRegressionTest#emptyFeaturedMissionsFallThroughToFullDailyList`; focused `./mvnw -q -Dtest=DailyMissionServiceTest,GameJavaScriptRegressionTest test`; `node --check` on `home.js`.
+- Verification: `node --check` clean on `home.js`. `DailyMissionServiceTest#snapshotStillServesWhenRolloverPersistFails` and `GameJavaScriptRegressionTest#emptyFeaturedMissionsFallThroughToFullDailyList` green via `./mvnw -q -Dtest=DailyMissionServiceTest,GameJavaScriptRegressionTest test`.
 
 Original prompt: fix the programming so Siegling size bands translate to larger sizes on bigger screens, desktops, etc.
 
