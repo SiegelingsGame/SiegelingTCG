@@ -9293,16 +9293,20 @@ body.gacha-active {
         border-radius: 0;
         border: 0;
     }
-    /* Full-screen takeover on phones: the modal owns the viewport so the
-       chat reads like a native messaging screen. */
+    /* A popup card, not a takeover: the hub page stays visible behind the
+       backdrop so Friends reads as an overlay you dismiss, not a screen you
+       navigated to. Height is capped well under the viewport and the panel
+       clears the docked HUD at the bottom. */
     .friends-modal {
-        padding: 0;
+        align-content: center;
+        padding: calc(12px + env(safe-area-inset-top, 0px)) 10px calc(12px + var(--device-safe-bottom, env(safe-area-inset-bottom, 0px)));
     }
     .friends-panel {
         width: 100%;
-        height: 100dvh;
-        max-height: none;
-        border-radius: 0;
+        height: min(74dvh, 620px);
+        max-height: calc(100dvh - 120px);
+        border-radius: 16px;
+        box-shadow: 0 28px 80px rgba(0, 0, 0, 0.66);
     }
     .friends-body {
         -webkit-overflow-scrolling: touch;
