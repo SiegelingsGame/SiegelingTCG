@@ -2750,9 +2750,15 @@
 
     function homeDailyMissions() {
         const snapshot = state.dailyMissions;
+        // `featured` is a filtered view of `missions`, so an empty one still has to
+        // fall through to the full list — `[] || missions` would not, because an
+        // empty array is truthy, and the Daily tab would read as "no objectives"
+        // while holding a full snapshot.
+        const featured = snapshot?.featured;
+        const all = snapshot?.missions;
         const list = state.showAllMissions
-            ? (snapshot?.missions || [])
-            : (snapshot?.featured || snapshot?.missions || []);
+            ? (all || [])
+            : ((featured && featured.length ? featured : all) || []);
         if (list.length) {
             return list.map(mission => ({
                 ...mission,
@@ -2761,7 +2767,7 @@
             }));
         }
         if (!state.profile?.authenticated) {
-            return (snapshot?.featured || []).map(mission => ({
+            return (featured && featured.length ? featured : []).map(mission => ({
                 ...mission,
                 iconMarkup: mission.coinIcon,
                 icon: mission.coinIcon ? coinIconMarkup() : mission.icon,
