@@ -999,8 +999,18 @@ const SPELL_TRAP_FRAME_CLASS = {
     EARTH: 'frame-spell-earth',
     ICE: 'frame-spell-ice',
     WIND: 'frame-spell-wind',
+    WATER: 'frame-spell-water',
+    ELECTRIC: 'frame-spell-electric',
+    METAL: 'frame-spell-metal',
+    PSYCHIC: 'frame-spell-psychic',
     NEUTRAL: 'frame-spell-neutral'
 };
+
+// Spell/trap templates whose info panel is a pale wash, so panel type has to
+// invert to dark ink (see getCompactSummaryInkPalette and the matching
+// .card-summary-row rule in style.css). Neutral is deliberately absent: it
+// moved to the black template and takes the default light-on-dark ink.
+const PALE_SPELL_TRAP_FRAMES = new Set(['WATER', 'ELECTRIC', 'METAL', 'PSYCHIC']);
 
 function hasElementFrame(element) {
     return Boolean(ELEMENT_FRAME_CLASS[String(element || '').toUpperCase()]);
@@ -3520,8 +3530,22 @@ function getCompactEffectLabel(kind) {
     }
 }
 
-function getCompactSummaryInkPalette(element) {
+// Dark type with a light halo, for the spell/trap templates whose info panel
+// is a pale wash instead of the usual dark band.
+const PALE_PANEL_INK_PALETTE = {
+    ink: '#1b2231',
+    strong: '#8a4b06',
+    muted: '#3d4658',
+    shadow: 'rgba(255, 255, 255, 0.85)'
+};
+
+function getCompactSummaryInkPalette(element, card) {
     const normalized = String(element || 'NEUTRAL').toUpperCase();
+    // Element alone cannot decide this: a metal Siegling keeps the dark painted
+    // creature frame while a metal spell sits on the pale grey template.
+    if (isSpellTrapCard(card) && PALE_SPELL_TRAP_FRAMES.has(normalized)) {
+        return PALE_PANEL_INK_PALETTE;
+    }
     switch (normalized) {
         case 'FIRE':
             return { ink: '#a8f4ff', strong: '#fff7b0', muted: '#dafbff', shadow: 'rgba(5, 18, 28, 0.94)' };
@@ -3547,17 +3571,13 @@ function getCompactSummaryInkPalette(element) {
             return { ink: '#ffb8df', strong: '#fff4b7', muted: '#ffe0ef', shadow: 'rgba(25, 4, 15, 0.9)' };
         case 'LIGHT':
             return { ink: '#83efff', strong: '#fff8b8', muted: '#d8fbff', shadow: 'rgba(2, 19, 28, 0.92)' };
-        // Neutral spells/traps sit on the pale grey template, so their panel
-        // ink inverts: dark type with a light halo instead of light on dark.
-        case 'NEUTRAL':
-            return { ink: '#1b2231', strong: '#8a4b06', muted: '#3d4658', shadow: 'rgba(255, 255, 255, 0.85)' };
         default:
             return { ink: '#e8f1ff', strong: '#fff0a8', muted: '#cfdcff', shadow: 'rgba(2, 8, 18, 0.92)' };
     }
 }
 
-function getCompactSummaryInkStyle(element) {
-    const palette = getCompactSummaryInkPalette(element);
+function getCompactSummaryInkStyle(element, card) {
+    const palette = getCompactSummaryInkPalette(element, card);
     return [
         `--summary-ink:${palette.ink}`,
         `--summary-strong:${palette.strong}`,
@@ -3756,7 +3776,7 @@ function renderCompactCardSummary(card, options = {}) {
     if (rows.length === 0) {
         return '';
     }
-    return `<div class="card-summary-list" style="${escapeHtmlAttribute(getCompactSummaryInkStyle(card.element))}">${rows.join('')}</div>`;
+    return `<div class="card-summary-list" style="${escapeHtmlAttribute(getCompactSummaryInkStyle(card.element, card))}">${rows.join('')}</div>`;
 }
 
 // Binder/collection variant of the painted-frame info panel: the card's
@@ -3765,7 +3785,7 @@ function renderCompactCardSummary(card, options = {}) {
 // the text to the panel.
 function renderCompactDescriptionSummary(card, descriptionText) {
     const description = String(descriptionText || card?.description || '').trim() || 'Description coming soon.';
-    return `<div class="card-summary-list card-summary-description-list" style="${escapeHtmlAttribute(getCompactSummaryInkStyle(card.element))}" title="${escapeHtmlAttribute(description)}">`
+    return `<div class="card-summary-list card-summary-description-list" style="${escapeHtmlAttribute(getCompactSummaryInkStyle(card.element, card))}" title="${escapeHtmlAttribute(description)}">`
         + `<div class="card-summary-description">${escapeHtml(description)}</div>`
         + '</div>';
 }

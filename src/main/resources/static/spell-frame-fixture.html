@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Spell / trap frame fixture</title>
+<link rel="stylesheet" href="/css/style.css?v=225">
+<style>
+  body { margin:0; padding:16px; background:#0b0f18; font-family:system-ui, sans-serif; }
+  #stage { display:flex; flex-wrap:wrap; gap:14px; }
+  figure { margin:0; width:240px; }
+  figcaption { color:#cfdcff; font-size:12px; text-align:center; padding-top:6px; }
+  #stage .hand-card { width:240px; max-width:none; min-width:0; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script src="/js/game.js"></script>
+<script>
+// One card per SPELL_TRAP_FRAME_CLASS element so a frame swap can be eyeballed
+// (and the art-window/panel alignment measured) without booting the backend.
+var ELEMENTS = ['FIRE', 'EARTH', 'ICE', 'WIND', 'WATER', 'ELECTRIC', 'METAL', 'PSYCHIC', 'NEUTRAL'];
+var stage = document.getElementById('stage');
+stage.innerHTML = ELEMENTS.map(function (element, i) {
+  var card = {
+    id: 'fixture-' + element.toLowerCase(),
+    name: element.charAt(0) + element.slice(1).toLowerCase() + ' Gambit',
+    type: i % 2 === 0 ? 'SPELL' : 'TRAP',
+    element: element,
+    rarity: 'RARE',
+    costElement: element,
+    costAmount: 2,
+    description: 'Sample copy for panel legibility.',
+    abilities: [{ name: 'Surge', description: 'Deal 3 damage to one enemy Siegling.' }]
+  };
+  return '<figure>'
+    + window.SieglingsCardShowcase.renderShowcaseCard(card, { artVariant: 'preview' })
+    + '<figcaption>' + element + ' / ' + card.type + '</figcaption></figure>';
+}).join('');
+</script>
+</body>
+</html>
