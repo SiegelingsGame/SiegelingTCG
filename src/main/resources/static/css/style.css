@@ -8564,6 +8564,22 @@ body.placement-active .board-cell.legal {
     --spell-trap-frame-url: url('/img/frames/frame-spell-wind.png');
 }
 
+.hand-card.spell-trap-frame.frame-spell-water {
+    --spell-trap-frame-url: url('/img/frames/frame-spell-water.png');
+}
+
+.hand-card.spell-trap-frame.frame-spell-electric {
+    --spell-trap-frame-url: url('/img/frames/frame-spell-electric.png');
+}
+
+.hand-card.spell-trap-frame.frame-spell-metal {
+    --spell-trap-frame-url: url('/img/frames/frame-spell-metal.png');
+}
+
+.hand-card.spell-trap-frame.frame-spell-psychic {
+    --spell-trap-frame-url: url('/img/frames/frame-spell-psychic.png');
+}
+
 .hand-card.spell-trap-frame.frame-spell-neutral {
     --spell-trap-frame-url: url('/img/frames/frame-spell-neutral.png');
 }
@@ -8673,10 +8689,16 @@ body.placement-active .board-cell.legal {
         0 0 4px rgba(0, 0, 0, 0.72);
 }
 
-/* The neutral template's info panel is pale grey, so its panel type inverts
-   (see the NEUTRAL branch of getCompactSummaryInkPalette in game.js). */
-.hand-card.spell-trap-frame.frame-spell-neutral .card-summary-row,
-.hand-card.spell-trap-frame.frame-spell-neutral .card-summary-description {
+/* These templates carry a pale wash info panel, so their panel type inverts
+   (see PALE_SPELL_TRAP_FRAMES / getCompactSummaryInkPalette in game.js). */
+.hand-card.spell-trap-frame.frame-spell-water .card-summary-row,
+.hand-card.spell-trap-frame.frame-spell-water .card-summary-description,
+.hand-card.spell-trap-frame.frame-spell-electric .card-summary-row,
+.hand-card.spell-trap-frame.frame-spell-electric .card-summary-description,
+.hand-card.spell-trap-frame.frame-spell-metal .card-summary-row,
+.hand-card.spell-trap-frame.frame-spell-metal .card-summary-description,
+.hand-card.spell-trap-frame.frame-spell-psychic .card-summary-row,
+.hand-card.spell-trap-frame.frame-spell-psychic .card-summary-description {
     color: #1b2231;
     text-shadow:
         0 1px 1px rgba(255, 255, 255, 0.85),
