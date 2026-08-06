@@ -21,6 +21,20 @@
     --safe-right: env(safe-area-inset-right, 0px);
     --safe-bottom: env(safe-area-inset-bottom, 0px);
     --safe-left: env(safe-area-inset-left, 0px);
+    /* World residents grow with the desktop canvas before their SMALL / MEDIUM /
+       LARGE / GIGANTIC multiplier is applied. The caps keep Gigantic residents
+       inside the room stage on ultrawide displays; the phone breakpoint below
+       continues to use its deliberately compact dimensions. */
+    --keep-resident-avatar-box: clamp(54px, 5.625vw, 90px);
+    --keep-resident-cutout-width: clamp(78px, 8.125vw, 130px);
+    --keep-resident-cutout-height: clamp(96px, 10vw, 160px);
+    --keep-enclave-cutout-width: clamp(72px, 7.5vw, 120px);
+    --keep-enclave-cutout-height: clamp(92px, 9.58vw, 153px);
+    --keep-worker-avatar-box: clamp(42px, 4.375vw, 70px);
+    --keep-worker-cutout-width: clamp(58px, 6vw, 96px);
+    --keep-worker-cutout-height: clamp(72px, 7.5vw, 120px);
+    --keep-exterior-cutout-width: clamp(30px, 2.5vw, 40px);
+    --keep-exterior-cutout-height: clamp(38px, 3.25vw, 52px);
     font-family: "Segoe UI", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
@@ -481,8 +495,8 @@ button.resource-pill:focus-visible {
    still reflects the resident's size band. Horizontal wandering is removed on the grounds
    so the deliberate gaps cannot close during mismatched animation phases. */
 .exterior-enclave-residents b {
-    width: min(calc(30px * var(--cutout-scale)), 15%);
-    height: calc(38px * var(--cutout-scale));
+    width: min(calc(var(--keep-exterior-cutout-width) * var(--cutout-scale)), 15%);
+    height: calc(var(--keep-exterior-cutout-height) * var(--cutout-scale));
     bottom: 8%;
     transform: translateX(-50%);
     animation-name: enclave-exterior-bob;
@@ -1057,8 +1071,8 @@ button.resource-pill:focus-visible {
     animation: worker-bob 2.4s ease-in-out infinite;
 }
 .resident-worker > span {
-    width: calc(42px * var(--cutout-scale));
-    height: calc(42px * var(--cutout-scale));
+    width: calc(var(--keep-worker-avatar-box) * var(--cutout-scale));
+    height: calc(var(--keep-worker-avatar-box) * var(--cutout-scale));
     display: flex;
     align-items: flex-end;
     justify-content: center;
@@ -1072,8 +1086,8 @@ button.resource-pill:focus-visible {
     font-weight: 900;
 }
 .resident-worker > span.has-overlay-art {
-    width: calc(58px * var(--cutout-scale));
-    height: calc(72px * var(--cutout-scale));
+    width: calc(var(--keep-worker-cutout-width) * var(--cutout-scale));
+    height: calc(var(--keep-worker-cutout-height) * var(--cutout-scale));
     overflow: visible;
     border: 0;
     border-radius: 0;
@@ -2301,8 +2315,8 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
 /* Honored favorite stands by the hearth so the hall visual matches the starred chooser below. */
 .hall-favorite-resident { position: absolute; left: 50%; bottom: 27%; z-index: 4; display: grid; justify-items: center; gap: 4px; transform: translateX(-50%); filter: drop-shadow(0 8px 10px rgba(0, 0, 0, .45)); }
 .hall-favorite-resident > span {
-    width: calc(54px * var(--cutout-scale));
-    height: calc(54px * var(--cutout-scale));
+    width: calc(var(--keep-resident-avatar-box) * var(--cutout-scale));
+    height: calc(var(--keep-resident-avatar-box) * var(--cutout-scale));
     display: flex;
     align-items: flex-end;
     justify-content: center;
@@ -2317,8 +2331,8 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     animation: worker-bob 2.4s ease-in-out infinite;
 }
 .hall-favorite-resident > span.has-overlay-art {
-    width: calc(78px * var(--cutout-scale));
-    height: calc(96px * var(--cutout-scale));
+    width: calc(var(--keep-resident-cutout-width) * var(--cutout-scale));
+    height: calc(var(--keep-resident-cutout-height) * var(--cutout-scale));
     overflow: visible;
     border: 0;
     border-radius: 0;
@@ -2373,8 +2387,8 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
 .lodge-logs { position: absolute; left: 12%; bottom: 14%; width: 22%; height: 18%; background: radial-gradient(circle at 18% 78%, #d8a86b 0 9%, #8a5c33 9% 13%, transparent 13.5%), radial-gradient(circle at 46% 78%, #d8a86b 0 9%, #8a5c33 9% 13%, transparent 13.5%), radial-gradient(circle at 74% 78%, #d8a86b 0 9%, #8a5c33 9% 13%, transparent 13.5%), radial-gradient(circle at 32% 46%, #d8a86b 0 9%, #8a5c33 9% 13%, transparent 13.5%), radial-gradient(circle at 60% 46%, #d8a86b 0 9%, #8a5c33 9% 13%, transparent 13.5%); filter: drop-shadow(0 6px 4px rgba(10, 8, 5, .35)); }
 .lodge-resident { position: absolute; left: 60%; bottom: 26%; display: grid; justify-items: center; gap: 4px; filter: drop-shadow(0 8px 10px rgba(0, 0, 0, .45)); }
 .lodge-resident > span {
-    width: calc(54px * var(--cutout-scale));
-    height: calc(54px * var(--cutout-scale));
+    width: calc(var(--keep-resident-avatar-box) * var(--cutout-scale));
+    height: calc(var(--keep-resident-avatar-box) * var(--cutout-scale));
     display: flex;
     align-items: flex-end;
     justify-content: center;
@@ -2389,8 +2403,8 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     animation: worker-bob 2.4s ease-in-out infinite;
 }
 .lodge-resident > span.has-overlay-art {
-    width: calc(78px * var(--cutout-scale));
-    height: calc(96px * var(--cutout-scale));
+    width: calc(var(--keep-resident-cutout-width) * var(--cutout-scale));
+    height: calc(var(--keep-resident-cutout-height) * var(--cutout-scale));
     overflow: visible;
     border: 0;
     border-radius: 0;
@@ -2677,7 +2691,7 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
 .enclave-nest { position: absolute; bottom: 12%; width: 20%; height: 14%; border-radius: 50%; background: repeating-linear-gradient(12deg, #9a774c 0 4px, #6d5135 4px 7px); }
 .enclave-nest.nest-one { left: 12%; }
 .enclave-nest.nest-two { right: 12%; }
-.enclave-interior-residents b { position: absolute; z-index: 5; bottom: 11%; width: calc(72px * var(--cutout-scale)); height: calc(92px * var(--cutout-scale)); display: none; align-items: flex-end; justify-content: center; filter: drop-shadow(0 8px 7px rgba(0, 0, 0, .45)); animation: enclave-wander 3.4s ease-in-out infinite; }
+.enclave-interior-residents b { position: absolute; z-index: 5; bottom: 11%; width: calc(var(--keep-enclave-cutout-width) * var(--cutout-scale)); height: calc(var(--keep-enclave-cutout-height) * var(--cutout-scale)); display: none; align-items: flex-end; justify-content: center; filter: drop-shadow(0 8px 7px rgba(0, 0, 0, .45)); animation: enclave-wander 3.4s ease-in-out infinite; }
 .enclave-interior-residents b[data-size="LARGE"] { z-index: 6; }
 .enclave-interior-residents b[data-size="GIGANTIC"] { z-index: 7; }
 .enclave-interior-residents b.has-resident { display: flex; }
@@ -2688,8 +2702,8 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
 .enclave-interior-residents b:nth-child(5) { right: 8%; bottom: 18%; animation-delay: -2.8s; }
 .facility-room-resident { position: absolute; right: 8%; bottom: 10%; display: grid; justify-items: center; gap: 4px; filter: drop-shadow(0 8px 10px rgba(0, 0, 0, .45)); }
 .facility-room-resident > span {
-    width: calc(54px * var(--cutout-scale));
-    height: calc(54px * var(--cutout-scale));
+    width: calc(var(--keep-resident-avatar-box) * var(--cutout-scale));
+    height: calc(var(--keep-resident-avatar-box) * var(--cutout-scale));
     display: flex;
     align-items: flex-end;
     justify-content: center;
@@ -2703,8 +2717,8 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     animation: worker-bob 2.4s ease-in-out infinite;
 }
 .facility-room-resident > span.has-overlay-art {
-    width: calc(78px * var(--cutout-scale));
-    height: calc(96px * var(--cutout-scale));
+    width: calc(var(--keep-resident-cutout-width) * var(--cutout-scale));
+    height: calc(var(--keep-resident-cutout-height) * var(--cutout-scale));
     overflow: visible;
     border: 0;
     border-radius: 0;
