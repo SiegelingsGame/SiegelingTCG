@@ -3158,22 +3158,11 @@
         refs.abilityRequiredReactionField.classList.toggle("hidden", isActionAbility);
 
         if (isActionAbility) {
-            const autoDescription = buildAutoAbilityDescription(ability);
-            const previousAutoDescription = refs.abilityDescriptionInput.dataset.autoDescription || "";
-            const currentDescription = ability.description || "";
-            if (!autoDescription) {
-                if (currentDescription === previousAutoDescription) {
-                    ability.description = "";
-                }
-                refs.abilityDescriptionInput.dataset.autoDescription = "";
-            } else {
-                if (!currentDescription.trim() || currentDescription === previousAutoDescription) {
-                    ability.description = autoDescription;
-                }
-                refs.abilityDescriptionInput.dataset.autoDescription = autoDescription;
-            }
-        } else {
-            refs.abilityDescriptionInput.dataset.autoDescription = "";
+            ability.description = resolveAutoDescription(
+                ability.description,
+                (overrides) => buildAutoAbilityDescription({ ...ability, ...overrides }),
+                `ability:${toNumber(ability.requiredEnergy, 0)}`
+            );
         }
 
         setInputValue(refs.abilityNameInput, ability.name);
@@ -3243,6 +3232,22 @@
                     isPassive: true
                 });
         }
+    }
+
+    /**
+     * An active resolves on the targets the designer picked, so it reads like a Siegling move — the
+     * SiegeKnight's own element must not leak into the blurb the way it does for a passive aura.
+     */
+    function buildAutoTrainerActiveDescription(ability) {
+        return buildAutoMoveDescription({
+            targetType: ability?.targetType || "",
+            targetElement: "",
+            targetRow: ability?.targetRow || "",
+            effectType: ability?.effectType || "",
+            effectValue: ability?.effectValue,
+            energyCost: ability?.requiredEnergy,
+            isPassive: false
+        });
     }
 
     function trainerPassiveTargetScope(ability, trainer) {
@@ -3805,27 +3810,18 @@
     }
 
     function syncTrainerAbilityAutoDescription(kind, ability, refsForAbility) {
-        if (kind !== "passive" || !ability || !refsForAbility.descriptionInput) {
-            if (refsForAbility.descriptionInput) {
-                refsForAbility.descriptionInput.dataset.autoDescription = "";
-            }
+        if (!ability || !refsForAbility.descriptionInput) {
             return;
         }
         const trainer = getSelectedTrainer();
-        const generated = buildAutoTrainerPassiveDescription(ability, trainer);
-        const previousGenerated = refsForAbility.descriptionInput.dataset.autoDescription || "";
-        const current = ability.description || "";
-        if (!generated) {
-            refsForAbility.descriptionInput.dataset.autoDescription = "";
-            if (current === previousGenerated) {
-                ability.description = "";
-            }
-            return;
-        }
-        refsForAbility.descriptionInput.dataset.autoDescription = generated;
-        if (!current.trim() || current === previousGenerated) {
-            ability.description = generated;
-        }
+        const energy = toNumber(ability.requiredEnergy, 0);
+        const generate = kind === "passive"
+            ? (overrides) => buildAutoTrainerPassiveDescription({ ...ability, ...overrides }, trainer)
+            : (overrides) => buildAutoTrainerActiveDescription({ ...ability, ...overrides });
+        const cacheKey = kind === "passive"
+            ? `trainerPassive:${trainer?.element || ""}:${energy}`
+            : `trainerActive:${energy}`;
+        ability.description = resolveAutoDescription(ability.description, generate, cacheKey);
     }
 
     function renderTrainerSummary() {
@@ -5292,6 +5288,7 @@
         state.metadata = payload.metadata
             ? { cardTypes: ["SIEGLING", "SPELL", "TRAP"], trainers: [], deckRules: {}, ...payload.metadata }
             : state.metadata;
+        resetAutoDescriptionSignatureCache();
         state.filePath = payload.filePath || "";
         state.source = payload.source || "PROJECT_FILE";
         state.canSaveToProjectFile = Boolean(payload.canSaveToProjectFile);
@@ -5554,8 +5551,8 @@
         };
     }
 
-    function buildMoveDraftAutoDescription() {
-        return buildAutoMoveDescription({
+    function readMoveDraftAutoDescriptionFields() {
+        return {
             targetType: String(refs.moveDraftTargetSelect?.value || "SINGLE_ENEMY").trim(),
             targetElement: String(refs.moveDraftTargetElementSelect?.value || "").trim(),
             targetRow: String(refs.moveDraftTargetRowSelect?.value || "").trim(),
@@ -5563,26 +5560,21 @@
             effectValue: refs.moveDraftEffectValueInput?.value,
             energyCost: refs.moveDraftEnergyInput?.value,
             isPassive: refs.moveDraftPassiveSelect?.value === "true"
-        });
+        };
     }
 
     function syncMoveDraftAutoDescription() {
         if (!refs.moveDraftDescInput) {
             return;
         }
-        const generated = buildMoveDraftAutoDescription();
-        const previousGenerated = refs.moveDraftDescInput.dataset.autoDescription || "";
-        const current = refs.moveDraftDescInput.value || "";
-        if (!generated) {
-            refs.moveDraftDescInput.dataset.autoDescription = "";
-            if (current === previousGenerated) {
-                setInputValue(refs.moveDraftDescInput, "");
-            }
-            return;
-        }
-        refs.moveDraftDescInput.dataset.autoDescription = generated;
-        if (!current.trim() || current === previousGenerated) {
-            setInputValue(refs.moveDraftDescInput, generated);
+        const fields = readMoveDraftAutoDescriptionFields();
+        const next = resolveAutoDescription(
+            refs.moveDraftDescInput.value,
+            (overrides) => buildAutoMoveDescription({ ...fields, ...overrides }),
+            `move:${fields.targetElement}:${toNumber(fields.energyCost, 0)}`
+        );
+        if (next !== refs.moveDraftDescInput.value) {
+            setInputValue(refs.moveDraftDescInput, next);
         }
     }
 
@@ -5626,6 +5618,84 @@
 
     function moveIdConflicts(candidate, editingOriginalId) {
         return state.movesPool.some((m) => m.id === candidate && m.id !== editingOriginalId);
+    }
+
+    // Counts drive singular/plural wording ("1 card" vs "2 cards"), so both forms get sampled when
+    // we ask what a blurb could have looked like. The digit folding below covers every other value.
+    const AUTO_DESCRIPTION_SAMPLE_VALUES = [1, 2];
+
+    // Signature sets are pure functions of the metadata plus the few fields the sweep holds fixed,
+    // so they are memoised per caller-supplied key — renderAll runs on every keystroke.
+    const autoDescriptionSignatureCache = new Map();
+
+    function resetAutoDescriptionSignatureCache() {
+        autoDescriptionSignatureCache.clear();
+    }
+
+    /**
+     * Generated blurbs are recognised by shape rather than by an exact string: digits fold away so
+     * an Effect Value edit never strands the sentence, and case/spacing noise is dropped.
+     */
+    function autoDescriptionSignature(text) {
+        return String(text || "").toLowerCase().replace(/\d+/g, "#").replace(/\s+/g, " ").trim();
+    }
+
+    /**
+     * Every blurb the generator could write for this skill across the target/effect/row/passive
+     * combinations a designer can reach. Membership is what marks stored text as dashboard-owned,
+     * so retargeting or reassigning an effect keeps rewriting it instead of leaving a description
+     * of the old skill behind. This is deliberately independent of any "last generated" DOM state —
+     * that vanishes on reload and when you switch records, which is how stale text used to stick.
+     */
+    function autoDescriptionSignatures(generate, cacheKey) {
+        const cached = autoDescriptionSignatureCache.get(cacheKey);
+        if (cached) {
+            return cached;
+        }
+        const targetTypes = state.metadata?.targetTypes || [];
+        const effectKeys = (state.metadata?.effectTypes || []).map((effect) => effect.key);
+        const rows = state.metadata?.rows || [];
+        const signatures = new Set();
+        targetTypes.forEach((targetType) => {
+            const rowOptions = getTargetRule(targetType).requiresRow && rows.length > 0 ? rows : [""];
+            effectKeys.forEach((effectType) => {
+                rowOptions.forEach((targetRow) => {
+                    AUTO_DESCRIPTION_SAMPLE_VALUES.forEach((effectValue) => {
+                        [false, true].forEach((isPassive) => {
+                            // Moves carry `isPassive`, abilities carry `passive`; feed both shapes.
+                            const text = generate({ targetType, effectType, targetRow, effectValue, isPassive, passive: isPassive });
+                            if (text) {
+                                signatures.add(autoDescriptionSignature(text));
+                            }
+                        });
+                    });
+                });
+            });
+        });
+        autoDescriptionSignatureCache.set(cacheKey, signatures);
+        return signatures;
+    }
+
+    /**
+     * Returns the description a skill should carry now. `generate` takes field overrides so we can
+     * ask what the blurb would have read under settings the designer has already moved away from;
+     * anything hand-written matches no generated shape and is returned untouched. `cacheKey` must
+     * name every generator input the sweep does not vary (energy cost, source element, and so on).
+     */
+    function resolveAutoDescription(currentDescription, generate, cacheKey) {
+        const current = String(currentDescription || "");
+        const generated = generate({});
+        if (generated && current.trim() === generated.trim()) {
+            return current;
+        }
+        if (!current.trim()) {
+            return generated;
+        }
+        if (!autoDescriptionSignatures(generate, cacheKey).has(autoDescriptionSignature(current))) {
+            return current;
+        }
+        // Generated-but-now-unmapped combos clear out: stale text would describe the wrong skill.
+        return generated;
     }
 
     function buildAutoMoveDescription(move) {
