@@ -1323,6 +1323,16 @@ class GameJavaScriptRegressionTest {
     void everyRoomThatDrawsAResidentAtWorldScaleHonoursItsSizeBand() throws IOException {
         String keepCss = Files.readString(KEEP_CSS);
 
+        for (String responsiveBase : new String[] {
+                "--keep-resident-cutout-width: clamp(", "--keep-resident-cutout-height: clamp(",
+                "--keep-enclave-cutout-width: clamp(", "--keep-enclave-cutout-height: clamp(",
+                "--keep-worker-cutout-width: clamp(", "--keep-worker-cutout-height: clamp(" }) {
+            assertTrue(
+                    keepCss.contains(responsiveBase),
+                    responsiveBase + " must grow world residents with the desktop viewport."
+            );
+        }
+
         for (String holder : new String[] {
                 ".enclave-residents b", ".enclave-interior-residents b",
                 ".resident-worker > span", ".lodge-resident > span", ".hall-favorite-resident > span",
@@ -1516,7 +1526,7 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=53")
+                        && keepHtml.contains("/css/keep.css?v=54")
                         && keepHtml.contains("/js/keep.js?v=52")
                         && keepHtml.contains("id=\"hallFavoriteResident\"")
                         && keepHtml.contains("id=\"productionReady\"")
@@ -1652,15 +1662,15 @@ class GameJavaScriptRegressionTest {
         assertTrue(
                 keepCss.contains(".lodge-resident > span[data-size=\"GIGANTIC\"]")
                         && keepCss.contains(".facility-room-resident > span[data-size=\"GIGANTIC\"]")
-                        && keepCss.contains("width: calc(78px * var(--cutout-scale))")
-                        && keepCss.contains("height: calc(96px * var(--cutout-scale))")
+                        && keepCss.contains("width: calc(var(--keep-resident-cutout-width) * var(--cutout-scale))")
+                        && keepCss.contains("height: calc(var(--keep-resident-cutout-height) * var(--cutout-scale))")
                         && keepCss.contains("width: calc(62px * var(--cutout-scale))")
                         && keepCss.contains("height: calc(78px * var(--cutout-scale))")
                         && keepJs.contains("node.dataset.size = residentSize(resident)"),
                 "The size band must scale resident cutouts in the Woodlot and every staffed workshop interior at desktop and phone layouts."
         );
         assertTrue(
-                keepCss.contains("width: min(calc(30px * var(--cutout-scale)), 15%)")
+                keepCss.contains("width: min(calc(var(--keep-exterior-cutout-width) * var(--cutout-scale)), 15%)")
                         && keepCss.contains("animation-name: enclave-exterior-bob")
                         && keepCss.contains(".exterior-enclave-residents b:nth-child(1) { left: 10%; }")
                         && keepCss.contains(".exterior-enclave-residents b:nth-child(5) { left: 90%;")
