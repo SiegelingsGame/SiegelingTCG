@@ -2948,6 +2948,315 @@ select.search-input { color-scheme: dark; }
     cursor: not-allowed;
 }
 
+.hub-deck-card.is-purchasing {
+    border-color: color-mix(in srgb, var(--deck-accent, var(--accent)) 75%, #ffffff);
+    animation: deck-purchase-pulse 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes deck-purchase-pulse {
+    from { box-shadow: 0 0 0 rgba(255, 255, 255, 0); }
+    to { box-shadow: 0 0 0 2px color-mix(in srgb, var(--deck-accent, var(--accent)) 38%, transparent), 0 0 26px color-mix(in srgb, var(--deck-accent, var(--accent)) 32%, transparent); }
+}
+
+/* Premade-deck purchase celebration. The same lightweight DOM particles take
+   on different silhouettes per element, avoiding video/canvas work while still
+   giving each deck family its own unlock language. */
+.deck-unlock-celebration {
+    position: fixed;
+    z-index: 5200;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    padding: max(20px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+    color: #fff;
+    isolation: isolate;
+    animation: deck-unlock-scene 3.6s ease both;
+}
+
+.deck-unlock-backdrop {
+    position: absolute;
+    z-index: -3;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background:
+        radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--unlock-accent) 35%, transparent), transparent 46%),
+        linear-gradient(180deg, rgba(3, 7, 18, 0.9), rgba(1, 4, 12, 0.98));
+    cursor: default;
+}
+
+.deck-unlock-radiance {
+    position: absolute;
+    z-index: -2;
+    width: min(116vw, 900px);
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: repeating-conic-gradient(from 0deg, transparent 0 8deg, color-mix(in srgb, var(--unlock-glow) 15%, transparent) 8deg 10deg, transparent 10deg 18deg);
+    filter: blur(1px);
+    opacity: 0;
+    animation: deck-unlock-rays 2.8s cubic-bezier(.16, .78, .2, 1) 0.2s both;
+}
+
+.deck-unlock-particles {
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.deck-unlock-particles i {
+    position: absolute;
+    left: var(--particle-x);
+    bottom: -8%;
+    color: var(--unlock-glow);
+    font-style: normal;
+    font-size: calc(12px * var(--particle-scale));
+    text-shadow: 0 0 12px var(--unlock-accent), 0 0 24px var(--unlock-glow);
+    opacity: 0;
+    animation: deck-unlock-particle-rise 2.5s cubic-bezier(.18, .55, .28, 1) var(--particle-delay) both;
+}
+
+.deck-unlock-stage {
+    display: grid;
+    width: min(100%, 440px);
+    justify-items: center;
+    text-align: center;
+    filter: drop-shadow(0 18px 36px rgba(0, 0, 0, 0.62));
+    animation: deck-unlock-copy-in 0.75s cubic-bezier(.15, .85, .25, 1) 0.35s both;
+}
+
+.deck-unlock-kicker {
+    margin-bottom: 12px;
+    color: var(--unlock-glow);
+    font-size: clamp(11px, 2.8vw, 14px);
+    font-weight: 950;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    text-shadow: 0 0 18px var(--unlock-accent);
+}
+
+.deck-unlock-card {
+    position: relative;
+    width: clamp(142px, 39vw, 210px);
+    aspect-ratio: 0.68;
+    margin: 2px 0 16px;
+    border: 2px solid color-mix(in srgb, var(--unlock-glow) 72%, #ffffff);
+    border-radius: 15px;
+    background: #071226;
+    box-shadow: 0 0 0 5px rgba(4, 9, 20, 0.86), 0 0 0 7px color-mix(in srgb, var(--unlock-accent) 62%, transparent), 0 0 38px var(--unlock-accent), 0 26px 60px rgba(0, 0, 0, 0.66);
+    transform-style: preserve-3d;
+    animation: deck-unlock-card-enter 1s cubic-bezier(.12, .82, .2, 1.1) both;
+}
+
+.deck-unlock-card::after {
+    content: "";
+    position: absolute;
+    z-index: 4;
+    inset: -2px;
+    border-radius: inherit;
+    background: linear-gradient(110deg, transparent 25%, color-mix(in srgb, var(--unlock-glow) 72%, #ffffff) 46%, transparent 66%);
+    mix-blend-mode: screen;
+    opacity: 0;
+    transform: translateX(-120%);
+    animation: deck-unlock-sheen 1.05s ease 0.75s both;
+}
+
+.deck-unlock-card-art {
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    background-image: var(--unlock-deck-art), radial-gradient(circle, var(--unlock-accent), #071226 68%);
+    background-position: center;
+    background-size: cover;
+}
+
+.deck-unlock-ring {
+    position: absolute;
+    z-index: -1;
+    inset: -34px;
+    border-radius: 50%;
+    background: conic-gradient(from 0deg, transparent, var(--unlock-accent), var(--unlock-glow), transparent 42%, var(--unlock-secondary), transparent 75%);
+    filter: blur(8px);
+    opacity: 0.7;
+    animation: deck-unlock-ring-spin 2.2s linear both;
+}
+
+.deck-unlock-element-icon {
+    position: absolute;
+    z-index: 5;
+    top: 50%;
+    left: 50%;
+    width: 34%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: 50%;
+    box-shadow: 0 0 0 3px rgba(5, 10, 24, 0.9), 0 0 26px 8px var(--unlock-accent);
+    transform: translate(-50%, -50%) scale(0);
+    animation: deck-unlock-icon-bloom 0.65s cubic-bezier(.12, .85, .2, 1.2) 0.64s both;
+}
+
+.deck-unlock-stage h2 {
+    margin: 0;
+    color: #fff8df;
+    font-size: clamp(28px, 8vw, 44px);
+    line-height: 1;
+    text-shadow: 0 0 24px var(--unlock-accent), 0 4px 0 rgba(0, 0, 0, 0.45);
+}
+
+.deck-unlock-stage p {
+    max-width: 360px;
+    margin: 10px 0 15px;
+    color: rgba(246, 249, 255, 0.82);
+    font-size: clamp(13px, 3.5vw, 16px);
+    line-height: 1.45;
+}
+
+.deck-unlock-continue {
+    min-width: 142px;
+    min-height: 44px;
+    margin: 0;
+    border-color: color-mix(in srgb, var(--unlock-glow) 72%, #ffffff);
+    background: linear-gradient(135deg, var(--unlock-accent), var(--unlock-secondary));
+    box-shadow: 0 0 22px color-mix(in srgb, var(--unlock-accent) 45%, transparent);
+}
+
+.deck-unlock-celebration[data-element="water"] .deck-unlock-particles i {
+    width: calc(9px * var(--particle-scale));
+    height: calc(9px * var(--particle-scale));
+    border: 1.5px solid var(--unlock-glow);
+    border-radius: 50%;
+    color: transparent;
+}
+
+.deck-unlock-celebration[data-element="wind"] .deck-unlock-particles i {
+    width: calc(38px * var(--particle-scale));
+    height: 2px;
+    border-radius: 999px;
+    color: transparent;
+    background: linear-gradient(90deg, transparent, var(--unlock-glow));
+    animation-name: deck-unlock-particle-sweep;
+}
+
+.deck-unlock-celebration[data-element="earth"] .deck-unlock-particles i {
+    width: calc(10px * var(--particle-scale));
+    height: calc(16px * var(--particle-scale));
+    border-radius: 90% 0 90% 0;
+    color: transparent;
+    background: linear-gradient(135deg, var(--unlock-glow), var(--unlock-accent));
+}
+
+.deck-unlock-celebration[data-element="ice"] .deck-unlock-particles i {
+    width: calc(10px * var(--particle-scale));
+    height: calc(18px * var(--particle-scale));
+    color: transparent;
+    background: linear-gradient(180deg, #ffffff, var(--unlock-accent));
+    clip-path: polygon(50% 0, 100% 70%, 50% 100%, 0 70%);
+}
+
+.deck-unlock-celebration[data-element="electric"] .deck-unlock-particles i {
+    animation-name: deck-unlock-particle-spark;
+}
+
+.deck-unlock-celebration[data-element="shadow"] .deck-unlock-particles i,
+.deck-unlock-celebration[data-element="undead"] .deck-unlock-particles i,
+.deck-unlock-celebration[data-element="psychic"] .deck-unlock-particles i {
+    filter: blur(1px);
+    animation-name: deck-unlock-particle-wisp;
+}
+
+@keyframes deck-unlock-scene {
+    0% { opacity: 0; }
+    8%, 88% { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+@keyframes deck-unlock-rays {
+    0% { opacity: 0; transform: scale(0.35) rotate(-16deg); }
+    35% { opacity: 0.9; }
+    100% { opacity: 0.22; transform: scale(1.05) rotate(18deg); }
+}
+
+@keyframes deck-unlock-card-enter {
+    0% { opacity: 0; transform: translateY(52px) scale(0.55) rotateY(110deg); }
+    62% { opacity: 1; transform: translateY(-7px) scale(1.04) rotateY(-7deg); }
+    100% { opacity: 1; transform: translateY(0) scale(1) rotateY(0); }
+}
+
+@keyframes deck-unlock-copy-in {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes deck-unlock-icon-bloom {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(0) rotate(-45deg); }
+    72% { opacity: 1; transform: translate(-50%, -50%) scale(1.15) rotate(6deg); }
+    100% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0); }
+}
+
+@keyframes deck-unlock-ring-spin {
+    from { transform: rotate(0deg) scale(0.45); opacity: 0; }
+    25% { opacity: 0.8; }
+    to { transform: rotate(220deg) scale(1.08); opacity: 0.2; }
+}
+
+@keyframes deck-unlock-sheen {
+    0%, 18% { opacity: 0; transform: translateX(-120%); }
+    40% { opacity: 0.9; }
+    70%, 100% { opacity: 0; transform: translateX(120%); }
+}
+
+@keyframes deck-unlock-particle-rise {
+    0% { opacity: 0; transform: translate3d(0, 0, 0) scale(0.5); }
+    18% { opacity: 0.9; }
+    100% { opacity: 0; transform: translate3d(var(--particle-drift), -112vh, 0) scale(1.35) rotate(190deg); }
+}
+
+@keyframes deck-unlock-particle-sweep {
+    0% { opacity: 0; transform: translate3d(-42vw, -10vh, 0) rotate(-12deg); }
+    22% { opacity: 0.85; }
+    100% { opacity: 0; transform: translate3d(70vw, -96vh, 0) rotate(12deg); }
+}
+
+@keyframes deck-unlock-particle-spark {
+    0% { opacity: 0; transform: translate(0, 0) scale(0.4); }
+    20% { opacity: 1; transform: translate(10px, -20vh) scale(1.25); }
+    42% { transform: translate(-12px, -44vh) scale(0.8); }
+    64% { transform: translate(16px, -67vh) scale(1.4); }
+    100% { opacity: 0; transform: translate(-8px, -112vh) scale(0.5); }
+}
+
+@keyframes deck-unlock-particle-wisp {
+    0% { opacity: 0; transform: translate(0, 0) scale(0.45); }
+    25% { opacity: 0.8; }
+    55% { transform: translate(28px, -56vh) scale(1.3); }
+    100% { opacity: 0; transform: translate(-22px, -110vh) scale(1.7); }
+}
+
+@media (max-height: 650px) {
+    .deck-unlock-card { width: min(128px, 27vh); margin-bottom: 10px; }
+    .deck-unlock-kicker { margin-bottom: 8px; }
+    .deck-unlock-stage p { margin: 7px 0 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .hub-deck-card.is-purchasing,
+    .deck-unlock-celebration,
+    .deck-unlock-radiance,
+    .deck-unlock-stage,
+    .deck-unlock-card,
+    .deck-unlock-card::after,
+    .deck-unlock-ring,
+    .deck-unlock-element-icon {
+        animation: none;
+    }
+    .deck-unlock-particles { display: none; }
+}
+
 .hub-deck-card .deck-card-name {
     margin-top: 0;
     color: #fff6da;

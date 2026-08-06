@@ -935,6 +935,8 @@ public class CardDefinitionService {
         card.setCardArtMode(definition.cardArtMode());
         card.setCardArtOffsetX(definition.cardArtOffsetX());
         card.setCardArtOffsetY(definition.cardArtOffsetY());
+        card.setCardArtOffsetXPct(definition.cardArtOffsetXPct());
+        card.setCardArtOffsetYPct(definition.cardArtOffsetYPct());
         card.setCardArtScale(definition.cardArtScale());
         card.setCardArtRotation(definition.cardArtRotation());
         card.setHolographic(definition.holographic() != null && definition.holographic());

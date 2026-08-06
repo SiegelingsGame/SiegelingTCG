@@ -190,6 +190,44 @@ class GameJavaScriptRegressionTest {
     }
 
     @Test
+    void premadeDeckPurchaseUnlocksLiveStateBeforeElementalCelebration() throws IOException {
+        String homeScript = readHomeScript();
+        String homeMarkup = Files.readString(HOME_HTML);
+        String homeCss = Files.readString(Path.of("src/main/resources/static/css/home.css"));
+        String purchaseDeck = extractFunction(homeScript, "async function purchaseDeck(deckId)");
+        String mergeUnlock = extractFunction(homeScript, "function progressionWithUnlockedDeck(progression, deckId)");
+        String renderCelebration = extractFunction(homeScript, "function renderDeckUnlockCelebration()");
+
+        assertTrue(
+                purchaseDeck.contains("state.deckPurchasePendingId = deck.id")
+                        && purchaseDeck.contains("applyProgressionUpdate(progressionWithUnlockedDeck(data.progression, deck.id))")
+                        && purchaseDeck.contains("startDeckUnlockCelebration(deck)"),
+                "A deck purchase must show in-flight feedback, publish the unlock to shared state, then celebrate it."
+        );
+        assertTrue(
+                mergeUnlock.contains("purchasedDeckIds:")
+                        && mergeUnlock.contains("unlockedDeckIds:")
+                        && mergeUnlock.contains("[deckId]"),
+                "The successful purchase must immediately add the deck to both client unlock lists, even with a stale response."
+        );
+        assertTrue(
+                homeMarkup.contains("id=\"deckUnlockCelebrationHost\"")
+                        && renderCelebration.contains("role=\"dialog\"")
+                        && renderCelebration.contains("deckUnlockTheme(primary)")
+                        && renderCelebration.contains("notchIconPath(primary)"),
+                "Home must render an accessible element-themed celebration using the purchased deck's painted sigil."
+        );
+        assertTrue(
+                homeCss.contains(".deck-unlock-celebration[data-element=\"water\"]")
+                        && homeCss.contains(".deck-unlock-celebration[data-element=\"wind\"]")
+                        && homeCss.contains(".deck-unlock-celebration[data-element=\"earth\"]")
+                        && homeCss.contains(".deck-unlock-celebration[data-element=\"ice\"]")
+                        && homeCss.contains("@media (prefers-reduced-motion: reduce)"),
+                "Water, Wind, Earth and Ice need distinct particle silhouettes with a reduced-motion fallback."
+        );
+    }
+
+    @Test
     void homePlayLoadoutUsesSelectedAndSavedDecks() throws IOException {
         String homeScript = readHomeScript();
         String selectedDeckId = extractFunction(homeScript, "function selectedDeckId()");
@@ -371,7 +409,7 @@ class GameJavaScriptRegressionTest {
                 "Season Snapshot, Loadout Shelf, and Social Table must share the overview rail, with matches and badges paired below."
         );
         assertTrue(
-                homeMarkup.contains("home.js?v=136") && homeMarkup.contains("home.css?v=125"),
+                homeMarkup.contains("home.js?v=138") && homeMarkup.contains("home.css?v=126"),
                 "Cache-bust pins for the profile dashboard trim must advance on home.html."
         );
     }
@@ -399,9 +437,9 @@ class GameJavaScriptRegressionTest {
                 "Element-mode profile and friend avatars must fill a circular frame."
         );
         assertTrue(
-                homeMarkup.contains("home.css?v=125")
-                        && homeMarkup.contains("home.js?v=136")
-                        && dashboardMarkup.contains("home.css?v=125"),
+                homeMarkup.contains("home.css?v=126")
+                        && homeMarkup.contains("home.js?v=138")
+                        && dashboardMarkup.contains("home.css?v=126"),
                 "Profile icon CSS and JavaScript cache pins must advance together."
         );
     }
@@ -433,13 +471,14 @@ class GameJavaScriptRegressionTest {
         String playMarkup = Files.readString(PLAY_HTML);
         String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
         assertTrue(
-                homeMarkup.contains("style.css?v=224")
-                        && homeMarkup.contains("game.js?v=234")
+                homeMarkup.contains("style.css?v=226")
+                        && homeMarkup.contains("game.js?v=236")
                         && homeMarkup.contains("card-binder-visual.js?v=20")
-                        && homeMarkup.contains("home.js?v=136")
-                        && playMarkup.contains("style.css?v=224")
-                        && playMarkup.contains("game.js?v=234")
-                        && dashboardMarkup.contains("style.css?v=224")
+                        && homeMarkup.contains("home.js?v=138")
+                        && playMarkup.contains("style.css?v=226")
+                        && playMarkup.contains("game.js?v=236")
+                        && dashboardMarkup.contains("style.css?v=226")
+                        && dashboardMarkup.contains("game.js?v=236")
                         && dashboardMarkup.contains("card-binder-visual.js?v=20"),
                 "Every surface must advance its cache pins with the complete painted-notch set."
         );
@@ -528,9 +567,9 @@ class GameJavaScriptRegressionTest {
                 "The full Field Guide must use current card labels, energy exceptions, Siege rules, and fresh visuals."
         );
         assertTrue(
-                homeMarkup.contains("home.css?v=125")
-                        && homeMarkup.contains("home.js?v=136")
-                        && dashboardMarkup.contains("home.css?v=125"),
+                homeMarkup.contains("home.css?v=126")
+                        && homeMarkup.contains("home.js?v=138")
+                        && dashboardMarkup.contains("home.css?v=126"),
                 "Guide JavaScript and shared visual CSS pins must advance together."
         );
     }
@@ -1213,6 +1252,27 @@ class GameJavaScriptRegressionTest {
         assertTrue(
                 loadoutPreview.contains("renderLoadoutCommanderArt(trainer)"),
                 "The selected loadout Commander section must use the real-art renderer."
+        );
+    }
+
+    @Test
+    void siegeKnightCardShieldsDoNotRenderElementalEmblems() throws IOException {
+        String homeScript = readHomeScript();
+        String gameScript = readGameScript();
+        String style = Files.readString(STYLE_CSS);
+        String binderCard = extractFunction(homeScript, "function renderKnightBinderCard(");
+        String loadout = extractFunction(gameScript, "function renderLoadoutOptions(");
+        String hudCard = extractFunction(gameScript, "function knightHudOverlayCardInnerHtml(");
+
+        assertFalse(
+                binderCard.contains("knight-shield-element")
+                        || loadout.contains("knight-shield-element")
+                        || hudCard.contains("knight-shield-element"),
+                "Binder, loadout, and battle HUD cards must leave the painted shield center empty."
+        );
+        assertFalse(
+                style.contains("--knight-element-icon") || style.contains(".knight-shield-element"),
+                "Shared card CSS must not reintroduce an elemental image over the painted shield."
         );
     }
 
