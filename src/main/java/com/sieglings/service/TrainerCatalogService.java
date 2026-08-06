@@ -420,6 +420,8 @@ public class TrainerCatalogService {
                         normalizeCardArtMode(definition.cardArtMode()),
                         definition.cardArtOffsetX(),
                         definition.cardArtOffsetY(),
+                        definition.cardArtOffsetXPct(),
+                        definition.cardArtOffsetYPct(),
                         definition.cardArtScale(),
                         definition.cardArtRotation(),
                         definition.holographic(),
@@ -499,6 +501,8 @@ public class TrainerCatalogService {
                 null,
                 null,
                 null,
+                null,
+                null,
                 null
         );
     }
@@ -525,6 +529,8 @@ public class TrainerCatalogService {
                 toAbilityDefinition(activeAbility),
                 cardArtUrl,
                 "FULL_CARD",
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -601,6 +607,8 @@ public class TrainerCatalogService {
             String cardArtMode,
             Double cardArtOffsetX,
             Double cardArtOffsetY,
+            Double cardArtOffsetXPct,
+            Double cardArtOffsetYPct,
             Double cardArtScale,
             Double cardArtRotation,
             Boolean holographic,
@@ -612,7 +620,7 @@ public class TrainerCatalogService {
                                  ManualSieglingCatalog.ManualAbilityDefinition passiveAbility,
                                  ManualSieglingCatalog.ManualAbilityDefinition activeAbility) {
             this(id, name, element, rarity, tier, active, oncePerGame, passiveAbility, activeAbility,
-                    null, null, null, null, null, null, null, null, null);
+                    null, null, null, null, null, null, null, null, null, null, null);
         }
     }
 }

@@ -992,35 +992,6 @@ body:has(.welcome-overlay.visible) .safe-hp-strip {
     background-repeat: no-repeat;
 }
 
-.hud-knight-art-card .knight-shield-element {
-    position: absolute;
-    z-index: 5;
-    left: 43.2%;
-    top: 12.1%;
-    width: 11.2%;
-    aspect-ratio: 1;
-    display: grid;
-    place-items: center;
-    border-radius: 10%;
-    color: var(--knight-color);
-    background:
-        radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.18), transparent 58%),
-        var(--knight-element-icon);
-    background-size: 100% 100%, 82% 82%;
-    background-position: center;
-    background-repeat: no-repeat;
-    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.7));
-}
-
-.hud-knight-art-card .knight-shield-element .deck-sigil {
-    width: 86%;
-    height: 86%;
-}
-
-.hud-knight-art-card .knight-shield-element[style*="element-icon"] .deck-sigil {
-    opacity: 0;
-}
-
 .hud-knight-card.has-knight-art .hud-knight-info {
     padding: 8px;
 }
@@ -11601,10 +11572,6 @@ body.placement-active .board-cell.legal {
     object-position: center;
 }
 
-.knight-card.knight-overlay-art .knight-shield-element .deck-sigil {
-    opacity: 0;
-}
-
 .knight-card.has-knight-back .knight-card-portrait {
     position: absolute;
     z-index: 1;
@@ -11630,36 +11597,6 @@ body.placement-active .board-cell.legal {
     background-image: var(--knight-card-template, url('/img/knights/siegeknight-card-template.png'));
     background-size: 100% 100%;
     background-repeat: no-repeat;
-}
-
-.knight-shield-element {
-    position: absolute;
-    z-index: 5;
-    left: 43.2%;
-    top: 12.1%;
-    width: 11.2%;
-    aspect-ratio: 1;
-    display: grid;
-    place-items: center;
-    border-radius: 10%;
-    color: var(--knight-color);
-    background:
-        radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.18), transparent 58%),
-        var(--knight-element-icon);
-    background-size: 100% 100%, 82% 82%;
-    background-position: center;
-    background-repeat: no-repeat;
-    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.7));
-}
-
-.knight-shield-element .deck-sigil {
-    width: 86%;
-    height: 86%;
-}
-
-.knight-shield-element[style*="element-icon"] .deck-sigil,
-.knight-card.has-knight-back .knight-shield-element .deck-sigil {
-    opacity: 0;
 }
 
 .knight-card.has-knight-back .knight-card-body,

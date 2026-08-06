@@ -257,6 +257,41 @@ class CardDefinitionServiceTest {
     }
 
     @Test
+    void trainerArtCropKeepsDashboardPercentageOffsetsInGameCatalog() {
+        CardDefinitionService service = serviceWithTrainerDefinitions(List.of(
+                new TrainerCatalogService.TrainerDefinition(
+                        "isaac-tesla",
+                        "Isaac Tesla",
+                        Element.ELECTRIC,
+                        Rarity.COMMON,
+                        "Raider",
+                        true,
+                        false,
+                        null,
+                        null,
+                        "https://example.test/isaac-tesla.png",
+                        "OVERLAY",
+                        -12.0,
+                        8.0,
+                        4.5,
+                        -7.25,
+                        1.43,
+                        0.0,
+                        false,
+                        false,
+                        null
+                )
+        ));
+
+        var trainer = service.getTrainerById("isaac-tesla");
+
+        assertEquals(4.5, trainer.getCardArtOffsetXPct());
+        assertEquals(-7.25, trainer.getCardArtOffsetYPct());
+        assertEquals(1.43, trainer.getCardArtScale());
+        assertEquals("OVERLAY", trainer.getCardArtMode());
+    }
+
+    @Test
     void customDeckResolvesEditorCopySuffixesOnCardIds() {
         List<String> seedIds = cardDefinitions.getDeckBuilderCatalog().stream()
                 .map(Card::getId)

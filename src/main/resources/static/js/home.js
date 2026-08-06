@@ -494,6 +494,8 @@
         lobbyBusy: false,
         packReveal: null,
         packOpeningPending: null,
+        deckPurchasePendingId: '',
+        deckUnlockCelebration: null,
         progressionRecoveryPending: false,
         dailyOfferPurchasePending: null,
         packOpeningDismissedKey: '',
@@ -533,6 +535,7 @@
 
     let liveCatalogRefreshPromise = null;
     let gachaParticleField = null;
+    let deckUnlockCelebrationTimer = null;
 
     function setHudMinimized(minimized) {
         document.body.classList.toggle('hud-minimized', minimized);
@@ -1405,6 +1408,11 @@
         document.getElementById('deckPreviewModal')?.addEventListener('click', (event) => {
             if (event.target === event.currentTarget) closeDeckPreview();
         });
+        document.getElementById('deckUnlockCelebrationHost')?.addEventListener('click', (event) => {
+            if (event.target.closest('[data-dismiss-deck-unlock]')) {
+                dismissDeckUnlockCelebration();
+            }
+        });
         document.getElementById('matchReviewOverlay')?.addEventListener('click', closeMatchReview);
         document.querySelectorAll('[data-match-review-close]').forEach(btn => btn.addEventListener('click', closeMatchReview));
         document.addEventListener('keydown', (event) => {
@@ -1413,6 +1421,7 @@
                 closeDeckPreview();
                 closeMatchReview();
                 closeAchievementDetail();
+                dismissDeckUnlockCelebration();
             }
         });
         document.querySelectorAll('[data-home-focus]').forEach((btn) => {
@@ -1697,6 +1706,7 @@
         safeRender(renderStarterGate);
         safeRender(renderCards);
         safeRender(renderDecks);
+        safeRender(renderDeckUnlockCelebration);
         safeRender(renderDeckBuilderPage);
         safeRender(renderHomeDashboard);
         safeRender(renderShop);
@@ -2198,24 +2208,19 @@
         const backStyle = typeof siegeknightCardBackStyle === 'function'
             ? siegeknightCardBackStyle()
             : "--knight-card-back:url('/img/knights/card-back-siegeknight.png');--knight-card-template:url('/img/knights/siegeknight-card-template.png')";
-        const iconPath = (typeof ELEMENT_KEY_ICON_PATHS !== 'undefined'
-            && ELEMENT_KEY_ICON_PATHS[String(card.element || '').toUpperCase()]) || '';
-        const elementIconStyle = iconPath ? `--knight-element-icon:url('${iconPath}');` : '';
         const holoClass = card.holographic ? ' is-holographic' : '';
         const holoOverlay = card.holographic ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
         if (window.SieglingsCardBinderVisual?.usesKnightOverlayArt?.(card)) {
-            return `<div class="knight-card knight-full-card-art knight-overlay-art knight-binder-card${extraClassAttr} rarity-frame-${escapeAttr(rarityClass)} el-${escapeAttr(elClass)}${holoClass}" style="--knight-color:${elHex};--knight-glow:${elHex}5c;${backStyle};${elementIconStyle}" role="img" aria-label="${escapeAttr(card.name || 'SiegeKnight card')}">
+            return `<div class="knight-card knight-full-card-art knight-overlay-art knight-binder-card${extraClassAttr} rarity-frame-${escapeAttr(rarityClass)} el-${escapeAttr(elClass)}${holoClass}" style="--knight-color:${elHex};--knight-glow:${elHex}5c;${backStyle}" role="img" aria-label="${escapeAttr(card.name || 'SiegeKnight card')}">
                 ${window.SieglingsCardBinderVisual.renderKnightOverlayArtWindow(card)}
                 <div class="knight-card-template" aria-hidden="true"></div>
-                <div class="knight-shield-element" aria-label="${escapeAttr(format(card.element))}"></div>
                 ${holoOverlay}
                 <div class="knight-card-body">${renderKnightBinderCardBody(card, options)}</div>
             </div>`;
         }
-        return `<div class="knight-card has-knight-back knight-binder-card${extraClassAttr} rarity-frame-${escapeAttr(rarityClass)} el-${escapeAttr(elClass)}${holoClass}" style="--knight-color:${elHex};--knight-glow:${elHex}5c;${backStyle};${elementIconStyle}">
+        return `<div class="knight-card has-knight-back knight-binder-card${extraClassAttr} rarity-frame-${escapeAttr(rarityClass)} el-${escapeAttr(elClass)}${holoClass}" style="--knight-color:${elHex};--knight-glow:${elHex}5c;${backStyle}">
             <div class="knight-card-portrait has-knight-back" aria-hidden="true"></div>
             <div class="knight-card-template" aria-hidden="true"></div>
-            <div class="knight-shield-element" aria-label="${escapeAttr(format(card.element))}"></div>
             ${holoOverlay}
             <div class="knight-card-body">${renderKnightBinderCardBody(card, options)}</div>
         </div>`;
@@ -3324,9 +3329,111 @@
         return !(deck.elements || []).every(element => free.has(String(element).toUpperCase()));
     }
 
+    const DECK_UNLOCK_THEMES = {
+        FIRE: { label: 'Emberbound', motif: 'Flame', particle: '&#10022;', accent: '#ff6a22', glow: '#ffc04a' },
+        ICE: { label: 'Frostforged', motif: 'Crystal', particle: '&#10052;', accent: '#66d8ff', glow: '#d9f8ff' },
+        EARTH: { label: 'Rootsworn', motif: 'Stone', particle: '&#10070;', accent: '#9dca57', glow: '#e6c865' },
+        WIND: { label: 'Galeborn', motif: 'Current', particle: '&#8767;', accent: '#48e0c2', glow: '#c2fff3' },
+        WATER: { label: 'Tidecalled', motif: 'Wave', particle: '&#9675;', accent: '#35bfff', glow: '#8dfff1' },
+        ELECTRIC: { label: 'Stormcharged', motif: 'Lightning', particle: '&#9889;', accent: '#55d8ff', glow: '#fff45c' },
+        METAL: { label: 'Ironsealed', motif: 'Spark', particle: '&#10022;', accent: '#b8c8d8', glow: '#fff1b0' },
+        POISON: { label: 'Venommarked', motif: 'Spore', particle: '&#9679;', accent: '#a8e34b', glow: '#d8ff76' },
+        UNDEAD: { label: 'Soulbound', motif: 'Wisp', particle: '&#9674;', accent: '#a7e8db', glow: '#e2fff6' },
+        PSYCHIC: { label: 'Mindwoven', motif: 'Orbit', particle: '&#10023;', accent: '#d77cff', glow: '#ffd1ff' },
+        SHADOW: { label: 'Umbral', motif: 'Shade', particle: '&#10022;', accent: '#9c74e8', glow: '#d9baff' },
+        LIGHT: { label: 'Radiant', motif: 'Ray', particle: '&#10022;', accent: '#ffd45f', glow: '#fff8cf' },
+        NEUTRAL: { label: 'Sigilbound', motif: 'Rune', particle: '&#9671;', accent: '#b9c3d3', glow: '#f4f7ff' }
+    };
+
+    function deckUnlockTheme(element) {
+        return DECK_UNLOCK_THEMES[String(element || 'NEUTRAL').toUpperCase()] || DECK_UNLOCK_THEMES.NEUTRAL;
+    }
+
+    // A successful purchase response is authoritative even if a rolling deploy or
+    // stale serializer returns the old derived unlockedDeckIds array. Add the deck
+    // to both durable client lists before the first repaint so the tile, lobby and
+    // Play-page cache all agree immediately; the next profile sync still replaces
+    // this snapshot with the persisted server state.
+    function progressionWithUnlockedDeck(progression, deckId) {
+        const base = progression && typeof progression === 'object'
+            ? progression
+            : (state.progression || {});
+        const union = (...lists) => Array.from(new Set(lists.flat().filter(Boolean).map(String)));
+        return {
+            ...base,
+            purchasedDeckIds: union(state.progression?.purchasedDeckIds || [], base.purchasedDeckIds || [], [deckId]),
+            unlockedDeckIds: union(state.progression?.unlockedDeckIds || [], base.unlockedDeckIds || [], [deckId])
+        };
+    }
+
+    function dismissDeckUnlockCelebration() {
+        if (deckUnlockCelebrationTimer) {
+            window.clearTimeout(deckUnlockCelebrationTimer);
+            deckUnlockCelebrationTimer = null;
+        }
+        state.deckUnlockCelebration = null;
+        const host = document.getElementById('deckUnlockCelebrationHost');
+        if (host) {
+            host.innerHTML = '';
+            delete host.dataset.unlockToken;
+        }
+    }
+
+    function startDeckUnlockCelebration(deck) {
+        if (!deck) return;
+        if (deckUnlockCelebrationTimer) window.clearTimeout(deckUnlockCelebrationTimer);
+        state.deckUnlockCelebration = {
+            deckId: deck.id,
+            token: `${deck.id}-${Date.now()}`
+        };
+        render();
+        deckUnlockCelebrationTimer = window.setTimeout(dismissDeckUnlockCelebration, 3600);
+    }
+
+    function renderDeckUnlockCelebration() {
+        const host = document.getElementById('deckUnlockCelebrationHost');
+        if (!host) return;
+        const celebration = state.deckUnlockCelebration;
+        if (!celebration) {
+            if (host.innerHTML) host.innerHTML = '';
+            delete host.dataset.unlockToken;
+            return;
+        }
+        if (host.dataset.unlockToken === celebration.token) return;
+        const deck = findPremadeDeck(celebration.deckId);
+        if (!deck) return dismissDeckUnlockCelebration();
+        const primary = String(deck.elements?.[0] || 'NEUTRAL').toUpperCase();
+        const secondary = String(deck.elements?.[1] || primary).toUpperCase();
+        const theme = deckUnlockTheme(primary);
+        const visual = deckAssetForElements(deck.elements);
+        const particles = Array.from({ length: 22 }, (_, index) =>
+            `<i style="--particle-x:${(index * 47 + 11) % 100}%;--particle-drift:${((index * 29) % 61) - 30}px;--particle-delay:${-(index % 8) * 0.18}s;--particle-scale:${0.62 + (index % 5) * 0.14}">${theme.particle}</i>`
+        ).join('');
+        const icon = notchIconPath(primary);
+        const artStyle = visual?.back ? `--unlock-deck-art:url('${escapeAttr(visual.back)}');` : '';
+        host.dataset.unlockToken = celebration.token;
+        host.innerHTML = `<section class="deck-unlock-celebration" data-element="${escapeAttr(primary.toLowerCase())}" role="dialog" aria-modal="true" aria-labelledby="deckUnlockTitle" style="--unlock-accent:${theme.accent};--unlock-glow:${theme.glow};--unlock-secondary:${elementColor(secondary)};${artStyle}">
+            <button class="deck-unlock-backdrop" type="button" data-dismiss-deck-unlock aria-label="Skip deck unlock animation"></button>
+            <div class="deck-unlock-radiance" aria-hidden="true"></div>
+            <div class="deck-unlock-particles" aria-hidden="true">${particles}</div>
+            <div class="deck-unlock-stage">
+                <span class="deck-unlock-kicker">${escapeHtml(theme.label)} deck unlocked</span>
+                <div class="deck-unlock-card" aria-hidden="true">
+                    <span class="deck-unlock-ring"></span>
+                    <span class="deck-unlock-card-art"></span>
+                    ${icon ? `<img class="deck-unlock-element-icon" src="${escapeAttr(icon)}" alt="">` : ''}
+                </div>
+                <h2 id="deckUnlockTitle">${escapeHtml(deck.name)}</h2>
+                <p>${escapeHtml(theme.motif)} energy has answered. This premade deck is ready for battle.</p>
+                <button class="primary-btn deck-unlock-continue" type="button" data-dismiss-deck-unlock>Continue</button>
+            </div>
+        </section>`;
+    }
+
     function renderPremadeDeckTile(deck) {
         const locked = isPremadeDeckLocked(deck);
         const isSelected = !locked && state.selectedDeckId === deck.id;
+        const purchasing = locked && state.deckPurchasePendingId === deck.id;
         const primary = deck.elements?.[0] || 'FIRE';
         const accent = elementColor(primary);
         const elementLabels = deck.elements.map(format).join(' / ');
@@ -3336,10 +3443,10 @@
         const affordable = Number(state.progression?.gold || 0) >= price;
         const unlockRow = locked
             ? `<div class="deck-card-actions deck-unlock-row">
-                <button class="primary-btn deck-unlock-btn" type="button" data-unlock-deck="${escapeAttr(deck.id)}"${affordable ? '' : ' disabled'}>Unlock ${price} Coin</button>
+                <button class="primary-btn deck-unlock-btn" type="button" data-unlock-deck="${escapeAttr(deck.id)}"${affordable && !purchasing ? '' : ' disabled'}>${purchasing ? 'Unlocking&hellip;' : `Unlock ${price} Coin`}</button>
             </div>`
             : '';
-        return `<article class="deck-tile hub-deck-card deck-tile--clickable${isSelected ? ' is-selected' : ''}${locked ? ' is-locked' : ''}${visual ? ' has-deck-art' : ''}" data-preview-deck="${escapeAttr(deck.id)}" role="button" tabindex="0" aria-selected="${isSelected}" style="--deck-accent:${accent};--deck-bg:${deckGradient(deck.elements)}${artStyle}">
+        return `<article class="deck-tile hub-deck-card deck-tile--clickable${isSelected ? ' is-selected' : ''}${locked ? ' is-locked' : ''}${purchasing ? ' is-purchasing' : ''}${visual ? ' has-deck-art' : ''}" data-preview-deck="${escapeAttr(deck.id)}" role="button" tabindex="0" aria-selected="${isSelected}" style="--deck-accent:${accent};--deck-bg:${deckGradient(deck.elements)}${artStyle}">
             <span class="deck-card-state">${locked ? 'Locked' : 'Premade'}</span>
             <div class="deck-card-body">
                 <strong class="deck-card-name">${escapeHtml(deck.name)}</strong>
@@ -7702,15 +7809,30 @@
     async function purchaseDeck(deckId) {
         if (!state.profile?.authenticated) return openAuth();
         const deck = findPremadeDeck(deckId);
-        if (!deck || !isPremadeDeckLocked(deck)) return;
+        if (!deck || !isPremadeDeckLocked(deck) || state.deckPurchasePendingId) return;
         const price = premadeDeckPrice();
         if (!confirm(`Unlock ${deck.name} for ${price} Siegecoins?`)) return;
-        const data = await fetchJson('/api/shop/purchase-deck', { method: 'POST', body: JSON.stringify({ deckId }) });
-        if (data?.error) return alert(data.error);
-        // Keep shared sieglingsAuthProfile in sync so Play loadout sees the unlock.
-        applyProgressionUpdate(data.progression);
+        state.deckPurchasePendingId = deck.id;
+        renderDecks();
+        let data;
+        try {
+            data = await fetchJson('/api/shop/purchase-deck', { method: 'POST', body: JSON.stringify({ deckId }) });
+        } catch (error) {
+            console.error(error);
+            data = { error: 'The deck could not be unlocked. Please try again.' };
+        } finally {
+            state.deckPurchasePendingId = '';
+        }
+        if (data?.error || !data) {
+            renderDecks();
+            return alert(data?.error || 'The deck could not be unlocked. Please try again.');
+        }
+        // Update both the live state and the cross-page profile cache before the
+        // celebration starts. This makes Decks, Social and Play see the purchase
+        // immediately, even if this response carries a stale derived unlock list.
+        applyProgressionUpdate(progressionWithUnlockedDeck(data.progression, deck.id));
         state.selectedDeckId = deck.id;
-        render();
+        startDeckUnlockCelebration(deck);
     }
 
     async function craftSelectedCard(cardId) {

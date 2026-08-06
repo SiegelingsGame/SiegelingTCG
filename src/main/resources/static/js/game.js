@@ -10507,8 +10507,6 @@ function renderLoadoutOptions() {
         // SiegeKnight levels do not apply in Battle, so the loadout no longer shows a
         // level badge. The level data still arrives from the backend and the progression
         // logic stays intact for the upcoming Siege roguelike mode.
-        const elementIconPath = ELEMENT_KEY_ICON_PATHS[String(trainer.element || '').toUpperCase()] || '';
-        const elementIconStyle = elementIconPath ? `--knight-element-icon:url('${elementIconPath}');` : '';
         const levelBadge = '';
         let topRibbon = '';
         if (trainer.id === selectedTrainerId) {
@@ -10547,23 +10545,21 @@ function renderLoadoutOptions() {
             // does not load that module.
             const holoClass = cardShowsPlayerHolographic(trainer) ? ' is-holographic' : '';
             const holoOverlay = cardShowsPlayerHolographic(trainer) ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
-            return `<button type="button" class="knight-card knight-full-card-art knight-overlay-art${holoClass}${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" data-trainer-id="${escapeHtmlAttribute(trainer.id)}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)};${siegeknightCardBackStyle()};${elementIconStyle}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
+            return `<button type="button" class="knight-card knight-full-card-art knight-overlay-art${holoClass}${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" data-trainer-id="${escapeHtmlAttribute(trainer.id)}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)};${siegeknightCardBackStyle()}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
                 ${topRibbon}
                 ${levelBadge}
                 <div class="knight-overlay-art-window"><img class="knight-overlay-art-img" ${webpImgAttrs(fullCardArtUrl)} alt="" loading="eager" decoding="async"${knightArtStyleAttr(trainer)}></div>
                 <div class="knight-card-template" aria-hidden="true"></div>
-                <div class="knight-shield-element" aria-label="${escapeHtmlAttribute(formatElementLabel(trainer.element))}">${getElementSigil(trainer.element)}</div>
                 ${holoOverlay}
                 ${knightCardBody}
             </button>`;
         }
-        return `<button type="button" class="knight-card has-knight-back${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" data-trainer-id="${escapeHtmlAttribute(trainer.id)}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)};${siegeknightCardBackStyle()};${elementIconStyle}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
+        return `<button type="button" class="knight-card has-knight-back${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" data-trainer-id="${escapeHtmlAttribute(trainer.id)}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)};${siegeknightCardBackStyle()}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
             ${topRibbon}
             ${levelBadge}
             <div class="knight-card-sigil">${sigil}</div>
             <div class="knight-card-portrait has-knight-back" aria-hidden="true"></div>
             <div class="knight-card-template" aria-hidden="true"></div>
-            <div class="knight-shield-element" aria-label="${escapeHtmlAttribute(formatElementLabel(trainer.element))}">${getElementSigil(trainer.element)}</div>
             ${knightCardBody}
         </button>`;
     }).join('');
@@ -12399,16 +12395,10 @@ function knightHudCardInnerHtml(trainer) {
 function knightHudOverlayCardInnerHtml(trainer, url) {
     const element = String(trainer?.element || 'NEUTRAL').toUpperCase();
     const elementHex = getElementHex(element);
-    const elementLabel = formatElementLabel(element);
-    const elementIconPath = ELEMENT_KEY_ICON_PATHS[element] || '';
     const cardStyle = `--knight-color:${elementHex};--knight-glow:${hexToRgba(elementHex, 0.36)};${siegeknightCardBackStyle()}`;
-    const shieldStyle = elementIconPath
-        ? ` style="--knight-element-icon:url('${escapeHtmlAttribute(elementIconPath)}')"`
-        : '';
     return `<span class="hud-knight-art-card hud-knight-art-overlay" role="img" aria-label="${escapeHtmlAttribute(trainer?.name || 'SiegeKnight card')}" style="${escapeHtmlAttribute(cardStyle)}">
         <span class="knight-overlay-art-window"><img class="knight-overlay-art-img" ${webpImgAttrs(url)} alt="" loading="lazy"${knightArtStyleAttr(trainer)}></span>
         <span class="knight-card-template" aria-hidden="true"></span>
-        <span class="knight-shield-element" aria-label="${escapeHtmlAttribute(elementLabel)}"${shieldStyle}>${getElementSigil(element)}</span>
     </span>`;
 }
 
