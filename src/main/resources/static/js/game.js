@@ -7505,6 +7505,9 @@ function bindAuthStorageSync() {
 }
 
 function renderPlayHubAuth() {
+    // Coins / friends badges in the play HUD ride the same account snapshot
+    // (play-hud.js is only present on play.html).
+    window.SieglingsPlayHud?.syncAuth();
     const pill = document.querySelector('.play-hub-pill');
     if (!pill) {
         return;
