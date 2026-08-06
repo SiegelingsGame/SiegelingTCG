@@ -409,7 +409,7 @@ class GameJavaScriptRegressionTest {
                 "Season Snapshot, Loadout Shelf, and Social Table must share the overview rail, with matches and badges paired below."
         );
         assertTrue(
-                homeMarkup.contains("home.js?v=138") && homeMarkup.contains("home.css?v=126"),
+                homeMarkup.contains("home.js?v=138") && homeMarkup.contains("home.css?v=127"),
                 "Cache-bust pins for the profile dashboard trim must advance on home.html."
         );
     }
@@ -437,9 +437,9 @@ class GameJavaScriptRegressionTest {
                 "Element-mode profile and friend avatars must fill a circular frame."
         );
         assertTrue(
-                homeMarkup.contains("home.css?v=126")
+                homeMarkup.contains("home.css?v=127")
                         && homeMarkup.contains("home.js?v=138")
-                        && dashboardMarkup.contains("home.css?v=126"),
+                        && dashboardMarkup.contains("home.css?v=127"),
                 "Profile icon CSS and JavaScript cache pins must advance together."
         );
     }
@@ -471,14 +471,14 @@ class GameJavaScriptRegressionTest {
         String playMarkup = Files.readString(PLAY_HTML);
         String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
         assertTrue(
-                homeMarkup.contains("style.css?v=226")
-                        && homeMarkup.contains("game.js?v=236")
+                homeMarkup.contains("style.css?v=228")
+                        && homeMarkup.contains("game.js?v=237")
                         && homeMarkup.contains("card-binder-visual.js?v=20")
                         && homeMarkup.contains("home.js?v=138")
-                        && playMarkup.contains("style.css?v=226")
-                        && playMarkup.contains("game.js?v=236")
-                        && dashboardMarkup.contains("style.css?v=226")
-                        && dashboardMarkup.contains("game.js?v=236")
+                        && playMarkup.contains("style.css?v=228")
+                        && playMarkup.contains("game.js?v=237")
+                        && dashboardMarkup.contains("style.css?v=228")
+                        && dashboardMarkup.contains("game.js?v=237")
                         && dashboardMarkup.contains("card-binder-visual.js?v=20"),
                 "Every surface must advance its cache pins with the complete painted-notch set."
         );
@@ -567,9 +567,9 @@ class GameJavaScriptRegressionTest {
                 "The full Field Guide must use current card labels, energy exceptions, Siege rules, and fresh visuals."
         );
         assertTrue(
-                homeMarkup.contains("home.css?v=126")
+                homeMarkup.contains("home.css?v=127")
                         && homeMarkup.contains("home.js?v=138")
-                        && dashboardMarkup.contains("home.css?v=126"),
+                        && dashboardMarkup.contains("home.css?v=127"),
                 "Guide JavaScript and shared visual CSS pins must advance together."
         );
     }
