@@ -1,7 +1,7 @@
 Original prompt: critical bug investigation
 
 - August 7, 2026 Play HUD / Play auth refresh could wipe a signed-in player's shared `sieglingsAuthProfile` cache when `/api/profile/friends*` or `/api/auth/me` omitted `progression` after an isolated Firestore read failure. Home then treated the account as progression-missing and locked the hub behind the starter gate. `play-hud.js` `applyProfileResponse` and `game.js` `syncAuthProfileNow` now keep the prior same-user progression when the response omits it, and only cache the merged snapshot. Cache pins: `game.js?v=238`, `play-hud.js?v=2`.
-- Verification: `node --check` on `play-hud.js` and `game.js`; focused `GameJavaScriptRegressionTest#playAuthProfileMergesPreserveProgressionWhenOmitted` plus pin assertions.
+- Verification: `node --check` clean on `play-hud.js` and `game.js`. `GameJavaScriptRegressionTest` **59/59 green**, including `playAuthProfileMergesPreserveProgressionWhenOmitted` and the advanced `game.js?v=238` / `play-hud.js?v=2` pin assertions.
 
 Original prompt: Merge and deploy
 
