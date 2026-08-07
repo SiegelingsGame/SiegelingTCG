@@ -342,10 +342,18 @@
 
     // Every friend endpoint answers with the full profile payload, so a single
     // assignment keeps the whole page (welcome card, coins, badges) in step.
+    // buildProfileResponse omits progression when that isolated Firestore read
+    // fails — never let that wipe the live snapshot or the shared
+    // sieglingsAuthProfile cache. Home treats a missing progression as starter-
+    // gate lockout for an otherwise signed-in account.
     function applyProfileResponse(data) {
         if (!data || data.error || typeof authState === 'undefined') return false;
-        authState.profile = data;
-        if (typeof saveCachedAuthProfile === 'function') saveCachedAuthProfile(data);
+        const previous = authState.profile;
+        const sameUser = previous?.user?.id && previous.user.id === data.user?.id;
+        const progression = data.progression || (sameUser ? previous.progression : null);
+        const merged = progression && !data.progression ? { ...data, progression } : data;
+        authState.profile = merged;
+        if (typeof saveCachedAuthProfile === 'function') saveCachedAuthProfile(merged);
         if (typeof renderWelcomeAuth === 'function') {
             renderWelcomeAuth();
         } else {

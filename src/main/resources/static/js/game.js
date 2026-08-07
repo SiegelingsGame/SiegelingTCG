@@ -8384,10 +8384,18 @@ async function syncAuthProfileNow(silent = false) {
         saveAuthToken(COOKIE_SESSION_VALUE);
     }
 
-    authState.profile = data;
+    // /api/auth/me omits progression when that isolated Firestore read fails.
+    // Keep the prior same-user snapshot so Play does not write a progression-
+    // less authenticated profile into the shared sieglingsAuthProfile cache
+    // (Home would then treat the account as starter-gate locked).
+    const previous = authState.profile;
+    const sameUser = previous?.user?.id && previous.user.id === data.user?.id;
+    const progression = data.progression || (sameUser ? previous.progression : null);
+    const merged = progression && !data.progression ? { ...data, progression } : data;
+    authState.profile = merged;
     authState.error = '';
     authState.profileResolved = true;
-    saveCachedAuthProfile(data);
+    saveCachedAuthProfile(merged);
     renderWelcomeAuth();
     renderSavedDecks();
     hydrateSavedPlayerName();
