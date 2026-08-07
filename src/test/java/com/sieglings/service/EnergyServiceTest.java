@@ -1,6 +1,7 @@
 package com.sieglings.service;
 
 import com.sieglings.model.Ability;
+import com.sieglings.model.AbilityEffectKeys;
 import com.sieglings.model.Card;
 import com.sieglings.model.CardInstance;
 import com.sieglings.model.GameState;
@@ -460,6 +461,111 @@ class EnergyServiceTest {
         assertEquals(1, b.comboPoints().size());
         assertEquals("FIRE+ICE", b.comboPoints().get(0).signature());
         assertEquals(2, b.comboPoints().get(0).size());
+    }
+
+    // ---- energy_boost: energy without a connection --------------------------
+
+    @Test
+    void energyBoostPassiveGeneratesWithoutAnyLinkOrSocket() {
+        MovesPoolService pool = newMovesPool();
+        EnergyService service = new EnergyService(placementService, pool);
+        GameState state = playerStateWithEnergyBoost(pool, "boost-self", Element.FIRE, null, 2);
+
+        EnergyService.EnergyBreakdown b = service.getBreakdown(state, true);
+
+        assertEquals(2, b.fireTotal());
+        assertEquals(0, b.fireInternal(), "Passive energy is not a link.");
+        assertEquals(0, b.fireExternal(), "Passive energy is not a call well.");
+        assertEquals(2, b.passiveEnergyFor(Element.FIRE));
+
+        service.recalculateEnergy(state);
+        assertEquals(2, state.getPlayer().getFireEnergy());
+    }
+
+    @Test
+    void energyBoostGeneratesTheSelectedEnergyTypeNotTheCardElement() {
+        MovesPoolService pool = newMovesPool();
+        EnergyService service = new EnergyService(placementService, pool);
+        GameState state = playerStateWithEnergyBoost(pool, "boost-water", Element.FIRE, Element.WATER, 1);
+
+        EnergyService.EnergyBreakdown b = service.getBreakdown(state, true);
+
+        assertEquals(1, b.waterTotal());
+        assertEquals(0, b.fireTotal(), "The chosen energy type wins over the card's own element.");
+    }
+
+    @Test
+    void energyBoostStopsWhenTheCardLeavesTheBoard() {
+        MovesPoolService pool = newMovesPool();
+        EnergyService service = new EnergyService(placementService, pool);
+        GameState state = playerStateWithEnergyBoost(pool, "boost-gone", Element.ICE, null, 3);
+
+        assertEquals(3, service.getBreakdown(state, true).iceTotal());
+
+        state.getAt(true, 1, 1).setCurrentHealth(0);
+        state.removeDeadSieglings();
+        service.recalculateEnergy(state);
+
+        assertEquals(0, service.getBreakdown(state, true).iceTotal());
+        assertEquals(0, state.getPlayer().getIceEnergy());
+    }
+
+    @Test
+    void energyBoostGeneratesNothingForElementsWithoutAPool() {
+        MovesPoolService pool = newMovesPool();
+        EnergyService service = new EnergyService(placementService, pool);
+        GameState state = playerStateWithEnergyBoost(pool, "boost-light", Element.FIRE, Element.LIGHT, 2);
+
+        EnergyService.EnergyBreakdown b = service.getBreakdown(state, true);
+
+        assertTrue(b.passiveEnergy().isEmpty(), "Light has no pool to pay into.");
+        assertEquals(0, b.fireTotal(), "A poolless pick must not quietly fall back to the card's element.");
+    }
+
+    @Test
+    void energyBoostOnlyFeedsItsOwnSide() {
+        MovesPoolService pool = newMovesPool();
+        EnergyService service = new EnergyService(placementService, pool);
+        GameState state = playerStateWithEnergyBoost(pool, "boost-side", Element.FIRE, null, 2);
+
+        service.recalculateEnergy(state);
+
+        assertEquals(2, state.getPlayer().getFireEnergy());
+        assertEquals(0, state.getEnemy().getFireEnergy());
+    }
+
+    private MovesPoolService newMovesPool() {
+        return new MovesPoolService(new com.fasterxml.jackson.databind.ObjectMapper(), null);
+    }
+
+    /** A lone mid-board Siegling: no neighbour to link with and no outer notch to reach a socket. */
+    private GameState playerStateWithEnergyBoost(MovesPoolService pool, String cardId,
+                                                 Element cardElement, Element energyElement, int value) {
+        String moveId = "test:" + cardId + ":energy-boost";
+        pool.registerLegacyManualMove(moveId, new ManualSieglingCatalog.ManualAbilityDefinition(
+                "Energy Boost",
+                "Passively generates energy",
+                TargetType.PASSIVE,
+                energyElement,
+                null,
+                0,
+                AbilityEffectKeys.ENERGY_BOOST,
+                value,
+                true,
+                null,
+                0,
+                null
+        ), cardElement);
+
+        SieglingCard card = new SieglingCard(cardId, "Boost " + cardId, cardElement, Rarity.COMMON, 10, 1,
+                List.of(new Notch(NotchDirection.TOP, cardElement)), Row.MIDDLE);
+        card.setMoveIds(List.of(moveId));
+
+        GameState state = new GameState();
+        state.setPlayer(new Player("Player", true));
+        state.setEnemy(new Player("AI Opponent", false));
+        state.setAt(true, 1, 1, new CardInstance(card.copy(), 1, 1, true));
+        return state;
     }
 
     private GameState enemyStateWithCard(SieglingCard card, int row, int col) {

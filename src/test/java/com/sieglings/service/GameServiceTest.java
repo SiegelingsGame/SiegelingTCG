@@ -109,6 +109,41 @@ class GameServiceTest {
     }
 
     @Test
+    void placedEnergyBoostPassiveFeedsThePoolAndSurvivesTheNextDraw() throws Exception {
+        GameService gameService = new GameService();
+        PlacementService placementService = new PlacementService();
+        MovesPoolService pool = new MovesPoolService(new com.fasterxml.jackson.databind.ObjectMapper(), null);
+        setField(gameService, "energyService", new EnergyService(placementService, pool));
+        setField(gameService, "placementService", placementService);
+        setField(gameService, "effectService", new EffectService());
+
+        Player player = new Player("Player", true);
+        Player enemy = new Player("Enemy", false);
+        GameState state = new GameState();
+        state.setPlayer(player);
+        state.setEnemy(enemy);
+        state.setCurrentPhase(Phase.SETUP);
+        state.setPlayerTurn(true);
+
+        // The shipped pool move: passive, 1 Fire energy, no notch link and no socket involved.
+        SieglingCard card = new SieglingCard("wellspring", "Wellspring", Element.FIRE, Rarity.COMMON, 10, 3,
+                List.of(new Notch(NotchDirection.TOP, Element.FIRE)), Row.MIDDLE);
+        card.setMoveIds(List.of("fire-energy-boost"));
+        player.getHand().add(card);
+
+        gameService.placeSiegling(state, true, "wellspring", 1, 1);
+
+        assertEquals(1, player.getFireEnergy(), "The passive should pay into the pool as soon as the card lands.");
+
+        // The Draw phase clears claim-style temporary energy; a board passive must outlive it.
+        state.setCurrentPhase(Phase.DRAW);
+        gameService.draw(state, true);
+
+        assertEquals(1, player.getFireEnergy());
+        assertEquals(0, enemy.getFireEnergy());
+    }
+
+    @Test
     void evolutionLogSaysBaseEvolvedToNewForm() throws Exception {
         GameService gameService = new GameService();
         PlacementService placementService = new PlacementService();

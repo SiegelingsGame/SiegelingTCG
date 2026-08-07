@@ -2960,6 +2960,9 @@
       case 'draw':
         state.dealAnimation = true;
         return 120;
+      case 'actionPoints':
+        showBanner('⚡ +' + ev.amount + ' AP this turn', 'you');
+        return 520;
       case 'apCharge':
         showBanner('Unused AP → +' + ev.amount + ' Ultimate Charge', 'you');
         apChargeAnimation(ev.amount, ev.total);

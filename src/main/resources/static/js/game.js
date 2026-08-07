@@ -356,6 +356,7 @@ const EFFECT_KIND_MAP = {
     damage_boost: 'buff',
     health_boost: 'buff',
     speed_boost: 'buff',
+    energy_boost: 'buff',
     connected_allies_damage_boost: 'buff',
     connected_allies_health_boost: 'buff',
     connected_allies_heal: 'heal',
@@ -11989,11 +11990,19 @@ function renderEnergy(containerId, playerData) {
     el.innerHTML = html;
 }
 
-function formatBreakdown(internal, external) {
+function formatBreakdown(internal, external, passive = 0) {
     const parts = [];
     if (internal > 0) parts.push(`${internal} internal`);
     if (external > 0) parts.push(`${external} external`);
+    // energy_boost passives generate without a link, so they read as their own source.
+    if (passive > 0) parts.push(`${passive} passive`);
     return parts.length > 0 ? parts.join(' + ') : '0';
+}
+
+function getPassiveEnergyAmount(playerData, key) {
+    const map = playerData?.passiveEnergy;
+    if (!map) return 0;
+    return Number(map[String(key).toUpperCase()] || 0);
 }
 
 function energyDetailElementRows(playerData) {
@@ -12003,9 +12012,12 @@ function energyDetailElementRows(playerData) {
         if (total <= 0) continue;
         const intl = playerData[`${key}Internal`];
         const ext = playerData[`${key}External`];
+        const passive = getPassiveEnergyAmount(playerData, key);
         let sub = '';
         if (typeof intl === 'number' && typeof ext === 'number') {
-            sub = ` — ${formatBreakdown(intl, ext)}`;
+            sub = ` — ${formatBreakdown(intl, ext, passive)}`;
+        } else if (passive > 0) {
+            sub = ` — ${passive} passive`;
         }
         rows.push(`<div class="energy-detail-row"><span>${label}</span><span>${total}${sub}</span></div>`);
     }

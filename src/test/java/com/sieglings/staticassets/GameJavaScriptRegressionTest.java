@@ -472,13 +472,13 @@ class GameJavaScriptRegressionTest {
         String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
         assertTrue(
                 homeMarkup.contains("style.css?v=228")
-                        && homeMarkup.contains("game.js?v=237")
+                        && homeMarkup.contains("game.js?v=238")
                         && homeMarkup.contains("card-binder-visual.js?v=20")
                         && homeMarkup.contains("home.js?v=138")
                         && playMarkup.contains("style.css?v=228")
-                        && playMarkup.contains("game.js?v=237")
+                        && playMarkup.contains("game.js?v=238")
                         && dashboardMarkup.contains("style.css?v=228")
-                        && dashboardMarkup.contains("game.js?v=237")
+                        && dashboardMarkup.contains("game.js?v=238")
                         && dashboardMarkup.contains("card-binder-visual.js?v=20"),
                 "Every surface must advance its cache pins with the complete painted-notch set."
         );
@@ -1904,7 +1904,7 @@ class GameJavaScriptRegressionTest {
         String mapCatalog = Files.readString(SIEGE_MAPS_JS);
 
         assertTrue(
-                adventureHtml.indexOf("/js/siege-maps.js?v=3") < adventureHtml.indexOf("/js/adventure.js?v=57")
+                adventureHtml.indexOf("/js/siege-maps.js?v=3") < adventureHtml.indexOf("/js/adventure.js?v=58")
                         && adventureHtml.contains("<div class=\"battle-map\" id=\"battleMap\" aria-hidden=\"true\"></div>"),
                 "The map catalog must load before adventure.js and the decorative layer must ship inside the stage."
         );
@@ -1977,7 +1977,7 @@ class GameJavaScriptRegressionTest {
                         && adventureHtml.contains("id=\"runMenuRestart\"")
                         && adventureHtml.contains("id=\"runMenuQuit\"")
                         && adventureHtml.contains("/css/adventure.css?v=53")
-                        && adventureHtml.contains("/js/adventure.js?v=57"),
+                        && adventureHtml.contains("/js/adventure.js?v=58"),
                 "The active-run menu and both cache-busted bundles must ship together.");
         String restartRun = extractFunction(adventureJs, "function restartRun(");
         assertTrue(adventureJs.contains("api('/api/siege/run/save'")

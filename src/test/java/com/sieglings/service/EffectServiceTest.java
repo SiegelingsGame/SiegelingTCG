@@ -1025,6 +1025,39 @@ class EffectServiceTest {
         );
     }
 
+    @Test
+    void activeEnergyBoostBanksSpendableEnergyForTheCaster() {
+        GameState state = battleState();
+        CardInstance source = instance("well-tender", Element.WATER, 1, 1, true);
+        state.setAt(true, 1, 1, source);
+
+        Ability charge = new Ability("Charge", "Generate 2 water energy",
+                TargetType.SELF, null, 0, AbilityEffectKeys.ENERGY_BOOST, 2, false);
+
+        effectService.resolveAbility(state, charge, source, true, -1, -1);
+
+        // Spendable immediately: trainer actives deliberately skip the energy recalculation.
+        assertEquals(2, state.getPlayer().getWaterEnergy());
+        assertEquals(2, state.getPlayer().getTemporaryEnergyAdjustment(Element.WATER));
+        assertEquals(0, state.getEnemy().getWaterEnergy());
+    }
+
+    @Test
+    void activeEnergyBoostUsesTheChosenEnergyTypeOverTheSourceElement() {
+        GameState state = battleState();
+        CardInstance source = instance("conduit", Element.FIRE, 1, 1, true);
+        state.setAt(true, 1, 1, source);
+
+        Ability charge = new Ability("Conduct", "Generate 1 electric energy",
+                TargetType.SELF, null, 0, AbilityEffectKeys.ENERGY_BOOST, 1, false);
+        charge.setTargetElement(Element.ELECTRIC);
+
+        effectService.resolveAbility(state, charge, source, true, -1, -1);
+
+        assertEquals(1, state.getPlayer().getElectricEnergy());
+        assertEquals(0, state.getPlayer().getFireEnergy());
+    }
+
     private GameState battleState() {
         GameState state = new GameState();
         state.setPlayer(new Player("Player", true));

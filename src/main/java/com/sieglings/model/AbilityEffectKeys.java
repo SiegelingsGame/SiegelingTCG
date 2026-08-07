@@ -23,6 +23,8 @@ public final class AbilityEffectKeys {
     public static final String CONNECTED_ALLIES_HEAL = "connected_allies_heal";
     public static final String CONNECTED_ALLIES_SHIELD = "connected_allies_shield";
     public static final String SPEED_BOOST = "speed_boost";
+    /** Generates elemental energy with no notch link or socket required. */
+    public static final String ENERGY_BOOST = "energy_boost";
     public static final String CONNECTED_ALLIES_SLOW = "connected_allies_slow";
     public static final String CONNECTED_ALLIES_SPEED_BOOST = "connected_allies_speed_boost";
     public static final String DESTROY = "destroy";
@@ -45,6 +47,7 @@ public final class AbilityEffectKeys {
             CONNECTED_ALLIES_HEAL,
             CONNECTED_ALLIES_SHIELD,
             SPEED_BOOST,
+            ENERGY_BOOST,
             CONNECTED_ALLIES_SLOW,
             CONNECTED_ALLIES_SPEED_BOOST,
             DESTROY,

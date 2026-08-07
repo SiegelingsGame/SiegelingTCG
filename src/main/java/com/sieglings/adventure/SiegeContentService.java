@@ -494,12 +494,16 @@ public class SiegeContentService {
             // A draw card's value is a card count, not a magnitude — a board card
             // that says "draw 2" must not become "draw 5" here.
             case DRAW -> Math.min(MAX_DRAW_CARDS, base);
+            // AP is scarce (3 a turn) — a board card that generates 2 energy must not hand out 5 AP.
+            case GAIN_AP -> Math.min(MAX_AP_GAIN, base);
             case STUN, EXECUTE, SWAP, EVOLVE -> 0;
         };
     }
 
     /** Ceiling on cards a single draw card may pull; the hand is only 8 wide. */
     static final int MAX_DRAW_CARDS = 3;
+    /** Ceiling on AP a single energy card may add; a turn only starts with 3. */
+    static final int MAX_AP_GAIN = 2;
     /** Floor on what an instant-defeat card costs, however cheap its board version is. */
     static final int EXECUTE_MIN_AP = 3;
 
@@ -529,6 +533,8 @@ public class SiegeContentService {
         Effect exact = switch (key) {
             case AbilityEffectKeys.DAMAGE, AbilityEffectKeys.CHAIN_DAMAGE, AbilityEffectKeys.PLAYER_DAMAGE -> Effect.DAMAGE;
             case AbilityEffectKeys.DRAW -> Effect.DRAW;
+            // Siege has no elemental pools; AP is the resource a card would be paying for.
+            case AbilityEffectKeys.ENERGY_BOOST -> Effect.GAIN_AP;
             case AbilityEffectKeys.HEAL, AbilityEffectKeys.CONNECTED_ALLIES_HEAL -> Effect.HEAL;
             case AbilityEffectKeys.SHIELD, AbilityEffectKeys.CONNECTED_ALLIES_SHIELD -> Effect.SHIELD;
             case AbilityEffectKeys.HEALTH_BOOST, AbilityEffectKeys.CONNECTED_ALLIES_HEALTH_BOOST -> Effect.MAX_HP_BOOST;
@@ -549,6 +555,7 @@ public class SiegeContentService {
         if (key.contains("health_boost") || key.contains("max_hp")) return Effect.MAX_HP_BOOST;
         if (key.contains("speed_boost")) return Effect.BUFF_SPD;
         if (key.contains("draw")) return Effect.DRAW;
+        if (key.contains("energy")) return Effect.GAIN_AP;
         if (key.contains("heal")) return Effect.HEAL;
         if (key.contains("shield")) return Effect.SHIELD;
         if (key.contains("destroy") || key.contains("execute")) return Effect.EXECUTE;
@@ -561,7 +568,7 @@ public class SiegeContentService {
     /** Effects that help whoever they land on. */
     private static boolean isSupportive(Effect effect) {
         return switch (effect) {
-            case HEAL, SHIELD, MAX_HP_BOOST, BUFF_ATK, BUFF_SPD, DRAW, EVOLVE -> true;
+            case HEAL, SHIELD, MAX_HP_BOOST, BUFF_ATK, BUFF_SPD, DRAW, GAIN_AP, EVOLVE -> true;
             default -> false;
         };
     }
@@ -595,7 +602,8 @@ public class SiegeContentService {
      * draw card resolves as the caster hitting itself.
      */
     private static TargetKind alignTarget(Effect effect, TargetKind target) {
-        if (effect == Effect.DRAW || effect == Effect.EVOLVE) return TargetKind.SELF;
+        // Drawing, evolving, and topping up AP all act on the caster's own side.
+        if (effect == Effect.DRAW || effect == Effect.EVOLVE || effect == Effect.GAIN_AP) return TargetKind.SELF;
         // A notch-move card targets the ally it trades places with.
         if (effect == Effect.SWAP) return TargetKind.ALLY_SINGLE;
         // Wiping a whole enemy line at once is not a thing Siege can survive.

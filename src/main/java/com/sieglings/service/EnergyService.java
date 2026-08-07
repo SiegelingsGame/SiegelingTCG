@@ -1,9 +1,13 @@
 package com.sieglings.service;
 
+import com.sieglings.model.Ability;
+import com.sieglings.model.AbilityEffectKeys;
 import com.sieglings.model.CardInstance;
 import com.sieglings.model.GameState;
 import com.sieglings.model.Notch;
+import com.sieglings.model.SieglingCard;
 import com.sieglings.model.SpellCard;
+import com.sieglings.model.TrainerCard;
 import com.sieglings.model.TrapCard;
 import com.sieglings.model.enums.Element;
 import com.sieglings.model.enums.NotchDirection;
@@ -11,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -21,18 +26,31 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Calculates energy from linked notches and persistent perimeter call wells.
+ * Calculates energy from linked notches, persistent perimeter call wells, and
+ * {@code energy_boost} passives.
  * Linked pairs grant connection energy once per connection.
  * A dedicated outer socket becomes a call well the first time an elemental
  * notch touches it and contributes one baseline energy for the rest of the match.
+ * An {@code energy_boost} passive generates its energy from the card itself, so it
+ * needs neither a link nor a socket.
  */
 @Service
 public class EnergyService {
 
     private final PlacementService placementService;
 
+    /** Null when a non-Spring caller builds the service with links/sockets only. */
+    private MovesPoolService movesPoolService;
+
+    /** Board passives are unreadable without the moves pool, so link/socket energy is all this form sees. */
     public EnergyService(PlacementService placementService) {
         this.placementService = placementService;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public EnergyService(PlacementService placementService, MovesPoolService movesPoolService) {
+        this.placementService = placementService;
+        this.movesPoolService = movesPoolService;
     }
 
     public record ComboPoint(
@@ -89,8 +107,14 @@ public class EnergyService {
             int comboFourCount,
             List<ComboPoint> comboPoints,
             List<NexusPoint> nexusPoints,
-            boolean mistActive
-    ) {}
+            boolean mistActive,
+            /** Link-free energy from {@code energy_boost} passives, already folded into the totals. */
+            Map<Element, Integer> passiveEnergy
+    ) {
+        public int passiveEnergyFor(Element element) {
+            return element == null ? 0 : passiveEnergy.getOrDefault(element, 0);
+        }
+    }
 
     public void recalculateEnergy(GameState state) {
         EnergyBreakdown playerEnergy = analyze(state, true);
@@ -184,6 +208,32 @@ public class EnergyService {
                 case "PSYCHIC" -> consumeEnergy(player, Element.PSYCHIC, 1);
             }
             remaining--;
+        }
+    }
+
+    /**
+     * Banks link-free energy on a side's pool immediately and records it as a temporary
+     * adjustment so the next board recalculation preserves it. Trainer actives deliberately
+     * skip the recalculation, so the pool has to be touched directly here for the energy to
+     * be spendable in the same phase. Cleared at that side's next Draw, like a claim.
+     */
+    public static void grantTemporaryEnergy(com.sieglings.model.Player player, Element element, int amount) {
+        if (player == null || !hasEnergyPool(element) || amount <= 0) {
+            return;
+        }
+        player.adjustTemporaryEnergy(element, amount);
+        switch (element) {
+            case FIRE -> player.setFireEnergy(player.getFireEnergy() + amount);
+            case EARTH -> player.setEarthEnergy(player.getEarthEnergy() + amount);
+            case WIND -> player.setWindEnergy(player.getWindEnergy() + amount);
+            case WATER -> player.setWaterEnergy(player.getWaterEnergy() + amount);
+            case ICE -> player.setIceEnergy(player.getIceEnergy() + amount);
+            case SHADOW -> player.setShadowEnergy(player.getShadowEnergy() + amount);
+            case ELECTRIC -> player.setElectricEnergy(player.getElectricEnergy() + amount);
+            case METAL -> player.setMetalEnergy(player.getMetalEnergy() + amount);
+            case UNDEAD -> player.setUndeadEnergy(player.getUndeadEnergy() + amount);
+            case PSYCHIC -> player.setPsychicEnergy(player.getPsychicEnergy() + amount);
+            case POISON, LIGHT, NEUTRAL -> { /* no pools — filtered by hasEnergyPool */ }
         }
     }
 
@@ -352,6 +402,8 @@ public class EnergyService {
             }
         }
 
+        Map<Element, Integer> passiveEnergy = collectPassiveEnergy(state, isPlayer);
+
         for (Element element : callWells.values()) {
             switch (element) {
                 case FIRE -> fireExternal++;
@@ -387,34 +439,34 @@ public class EnergyService {
                 point.elements().contains(Element.FIRE) && point.elements().contains(Element.WATER));
 
         return new EnergyBreakdown(
-                fireInternal + fireExternal,
+                fireInternal + fireExternal + passiveEnergy.getOrDefault(Element.FIRE, 0),
                 fireInternal,
                 fireExternal,
-                earthInternal + earthExternal,
+                earthInternal + earthExternal + passiveEnergy.getOrDefault(Element.EARTH, 0),
                 earthInternal,
                 earthExternal,
-                windInternal + windExternal,
+                windInternal + windExternal + passiveEnergy.getOrDefault(Element.WIND, 0),
                 windInternal,
                 windExternal,
-                waterInternal + waterExternal,
+                waterInternal + waterExternal + passiveEnergy.getOrDefault(Element.WATER, 0),
                 waterInternal,
                 waterExternal,
-                iceInternal + iceExternal,
+                iceInternal + iceExternal + passiveEnergy.getOrDefault(Element.ICE, 0),
                 iceInternal,
                 iceExternal,
-                shadowInternal + shadowExternal,
+                shadowInternal + shadowExternal + passiveEnergy.getOrDefault(Element.SHADOW, 0),
                 shadowInternal,
                 shadowExternal,
-                electricInternal + electricExternal,
+                electricInternal + electricExternal + passiveEnergy.getOrDefault(Element.ELECTRIC, 0),
                 electricInternal,
                 electricExternal,
-                metalInternal + metalExternal,
+                metalInternal + metalExternal + passiveEnergy.getOrDefault(Element.METAL, 0),
                 metalInternal,
                 metalExternal,
-                undeadInternal + undeadExternal,
+                undeadInternal + undeadExternal + passiveEnergy.getOrDefault(Element.UNDEAD, 0),
                 undeadInternal,
                 undeadExternal,
-                psychicInternal + psychicExternal,
+                psychicInternal + psychicExternal + passiveEnergy.getOrDefault(Element.PSYCHIC, 0),
                 psychicInternal,
                 psychicExternal,
                 comboTwoCount,
@@ -422,8 +474,91 @@ public class EnergyService {
                 comboFourCount,
                 comboPoints,
                 nexusPoints,
-                mistActive
+                mistActive,
+                Map.copyOf(passiveEnergy)
         );
+    }
+
+    /**
+     * Link-free energy generated by {@code energy_boost} passives: live board Sieglings
+     * and the side's SiegeKnight. Recomputed from the board on every energy pass, so the
+     * grant appears the moment the card lands and disappears when it leaves.
+     */
+    private Map<Element, Integer> collectPassiveEnergy(GameState state, boolean isPlayer) {
+        Map<Element, Integer> totals = new EnumMap<>(Element.class);
+
+        for (CardInstance ci : state.getBoardSieglings(isPlayer)) {
+            if (ci == null || !ci.isAlive()) {
+                continue;
+            }
+            for (Ability ability : printedAbilities(ci.getCard())) {
+                if (!isEnergyBoostPassive(ability)) {
+                    continue;
+                }
+                addPassiveEnergy(totals, resolveEnergyElement(ability, ci.getElement()), ability.getEffectValue());
+            }
+        }
+
+        TrainerCard trainer = (isPlayer ? state.getPlayer() : state.getEnemy()).getActiveTrainer();
+        Ability trainerPassive = trainer == null ? null : trainer.getAbility();
+        if (isEnergyBoostPassive(trainerPassive)) {
+            addPassiveEnergy(totals, resolveEnergyElement(trainerPassive, trainer.getElement()),
+                    trainerPassive.getEffectValue());
+        }
+
+        return totals;
+    }
+
+    private List<Ability> printedAbilities(SieglingCard card) {
+        if (movesPoolService == null || card == null || !card.hasMoveLoadout()) {
+            return List.of();
+        }
+        return movesPoolService.resolvePrintedAbilities(card);
+    }
+
+    private static boolean isEnergyBoostPassive(Ability ability) {
+        return ability != null
+                && ability.isPassive()
+                && AbilityEffectKeys.ENERGY_BOOST.equals(ability.getEffectType());
+    }
+
+    private void addPassiveEnergy(Map<Element, Integer> totals, Element element, int value) {
+        if (element == null || value <= 0) {
+            return;
+        }
+        totals.merge(element, value, Integer::sum);
+    }
+
+    /**
+     * The energy type an {@code energy_boost} generates: the element chosen on the ability,
+     * falling back to the card's own element. Elements without a pool (Poison, Light, Neutral)
+     * generate nothing rather than silently paying into another element's pool.
+     */
+    public static Element resolveEnergyElement(Ability ability, Element sourceElement) {
+        if (ability == null) {
+            return null;
+        }
+        Element chosen = ability.getTargetElement();
+        if (hasEnergyPool(chosen)) {
+            return chosen;
+        }
+        if (chosen != null && chosen != Element.NEUTRAL) {
+            // An explicit poolless pick (Poison/Light) is a design mistake, not a request
+            // to fall back to the card's element — generate nothing so it is visible.
+            return null;
+        }
+        return hasEnergyPool(sourceElement) ? sourceElement : null;
+    }
+
+    /** True for elements that have a spendable energy pool on the battle table. */
+    public static boolean hasEnergyPool(Element element) {
+        if (element == null) {
+            return false;
+        }
+        return switch (element) {
+            case FIRE, EARTH, WIND, WATER, ICE, SHADOW, ELECTRIC, METAL, UNDEAD, PSYCHIC -> true;
+            case POISON, LIGHT, NEUTRAL -> false;
+        };
     }
 
     private void addReciprocalNexusContributions(Map<String, List<Element>> pointContributions,
