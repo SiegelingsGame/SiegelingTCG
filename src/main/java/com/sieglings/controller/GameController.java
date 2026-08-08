@@ -1158,6 +1158,16 @@ public class GameController {
         Map<String, Object> passiveEnergy = new LinkedHashMap<>();
         energy.passiveEnergy().forEach((element, amount) -> passiveEnergy.put(element.name(), amount));
         info.put("passiveEnergy", passiveEnergy);
+        // Overcharge: the live surge from an active energy buff, plus what is queued for the
+        // side's next turn. The HUD lights up on `overcharged`.
+        Map<String, Object> overchargeEnergy = new LinkedHashMap<>();
+        player.getOverchargeEnergyTotals().forEach((element, amount) -> overchargeEnergy.put(element.name(), amount));
+        info.put("overchargeEnergy", overchargeEnergy);
+        info.put("overcharged", player.isOvercharged());
+        Map<String, Object> pendingOverchargeEnergy = new LinkedHashMap<>();
+        player.getPendingOverchargeEnergyTotals()
+                .forEach((element, amount) -> pendingOverchargeEnergy.put(element.name(), amount));
+        info.put("pendingOverchargeEnergy", pendingOverchargeEnergy);
         info.put("comboTwoCount", energy.comboTwoCount());
         info.put("comboThreeCount", energy.comboThreeCount());
         info.put("comboFourCount", energy.comboFourCount());

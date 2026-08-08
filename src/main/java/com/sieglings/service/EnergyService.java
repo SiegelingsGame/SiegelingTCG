@@ -212,42 +212,34 @@ public class EnergyService {
     }
 
     /**
-     * Banks link-free energy on a side's pool immediately and records it as a temporary
-     * adjustment so the next board recalculation preserves it. Trainer actives deliberately
-     * skip the recalculation, so the pool has to be touched directly here for the energy to
-     * be spendable in the same phase. Cleared at that side's next Draw, like a claim.
+     * Banks an active energy buff. It does not land now: it goes live when this side opens
+     * its next turn and rides the pool through that Setup and Battle phase.
      */
-    public static void grantTemporaryEnergy(com.sieglings.model.Player player, Element element, int amount) {
+    public static void grantOverchargeEnergy(com.sieglings.model.Player player, Element element, int amount) {
         if (player == null || !hasEnergyPool(element) || amount <= 0) {
             return;
         }
-        player.adjustTemporaryEnergy(element, amount);
-        switch (element) {
-            case FIRE -> player.setFireEnergy(player.getFireEnergy() + amount);
-            case EARTH -> player.setEarthEnergy(player.getEarthEnergy() + amount);
-            case WIND -> player.setWindEnergy(player.getWindEnergy() + amount);
-            case WATER -> player.setWaterEnergy(player.getWaterEnergy() + amount);
-            case ICE -> player.setIceEnergy(player.getIceEnergy() + amount);
-            case SHADOW -> player.setShadowEnergy(player.getShadowEnergy() + amount);
-            case ELECTRIC -> player.setElectricEnergy(player.getElectricEnergy() + amount);
-            case METAL -> player.setMetalEnergy(player.getMetalEnergy() + amount);
-            case UNDEAD -> player.setUndeadEnergy(player.getUndeadEnergy() + amount);
-            case PSYCHIC -> player.setPsychicEnergy(player.getPsychicEnergy() + amount);
-            case POISON, LIGHT, NEUTRAL -> { /* no pools — filtered by hasEnergyPool */ }
-        }
+        player.addPendingOverchargeEnergy(element, amount);
     }
 
     private void applyEnergyTotals(com.sieglings.model.Player player, EnergyBreakdown breakdown) {
-        player.setFireEnergy(Math.max(0, breakdown.fireTotal() + player.getTemporaryEnergyAdjustment(Element.FIRE)));
-        player.setEarthEnergy(Math.max(0, breakdown.earthTotal() + player.getTemporaryEnergyAdjustment(Element.EARTH)));
-        player.setWindEnergy(Math.max(0, breakdown.windTotal() + player.getTemporaryEnergyAdjustment(Element.WIND)));
-        player.setWaterEnergy(Math.max(0, breakdown.waterTotal() + player.getTemporaryEnergyAdjustment(Element.WATER)));
-        player.setIceEnergy(Math.max(0, breakdown.iceTotal() + player.getTemporaryEnergyAdjustment(Element.ICE)));
-        player.setShadowEnergy(Math.max(0, breakdown.shadowTotal() + player.getTemporaryEnergyAdjustment(Element.SHADOW)));
-        player.setElectricEnergy(Math.max(0, breakdown.electricTotal() + player.getTemporaryEnergyAdjustment(Element.ELECTRIC)));
-        player.setMetalEnergy(Math.max(0, breakdown.metalTotal() + player.getTemporaryEnergyAdjustment(Element.METAL)));
-        player.setUndeadEnergy(Math.max(0, breakdown.undeadTotal() + player.getTemporaryEnergyAdjustment(Element.UNDEAD)));
-        player.setPsychicEnergy(Math.max(0, breakdown.psychicTotal() + player.getTemporaryEnergyAdjustment(Element.PSYCHIC)));
+        player.setFireEnergy(poolFor(player, breakdown.fireTotal(), Element.FIRE));
+        player.setEarthEnergy(poolFor(player, breakdown.earthTotal(), Element.EARTH));
+        player.setWindEnergy(poolFor(player, breakdown.windTotal(), Element.WIND));
+        player.setWaterEnergy(poolFor(player, breakdown.waterTotal(), Element.WATER));
+        player.setIceEnergy(poolFor(player, breakdown.iceTotal(), Element.ICE));
+        player.setShadowEnergy(poolFor(player, breakdown.shadowTotal(), Element.SHADOW));
+        player.setElectricEnergy(poolFor(player, breakdown.electricTotal(), Element.ELECTRIC));
+        player.setMetalEnergy(poolFor(player, breakdown.metalTotal(), Element.METAL));
+        player.setUndeadEnergy(poolFor(player, breakdown.undeadTotal(), Element.UNDEAD));
+        player.setPsychicEnergy(poolFor(player, breakdown.psychicTotal(), Element.PSYCHIC));
+    }
+
+    /** Board energy, plus claim-style temporary energy, plus any live overcharge. */
+    private int poolFor(com.sieglings.model.Player player, int boardTotal, Element element) {
+        return Math.max(0, boardTotal
+                + player.getTemporaryEnergyAdjustment(element)
+                + player.getOverchargeEnergy(element));
     }
 
     private void consumeEnergy(com.sieglings.model.Player player, Element element, int amount) {

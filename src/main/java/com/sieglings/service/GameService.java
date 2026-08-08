@@ -190,6 +190,16 @@ public class GameService {
 
         Player actor = getSidePlayer(state, isPlayerSide);
         actor.clearTemporaryEnergyAdjustments();
+        // An active energy buff is banked when it resolves and goes live here, so it covers
+        // exactly this side's next Setup and Battle phase; last turn's overcharge expires now.
+        boolean wasOvercharged = actor.isOvercharged();
+        actor.promotePendingOverchargeEnergy();
+        if (actor.isOvercharged()) {
+            state.log(sideName(state, isPlayerSide) + " is overcharged: "
+                    + describeOvercharge(actor) + " this Setup and Battle phase.");
+        } else if (wasOvercharged) {
+            state.log(sideName(state, isPlayerSide) + "'s overcharge fades.");
+        }
         state.resetPlacementsForTurn(isPlayerSide);
 
         Card drawn = actor.drawCard();
@@ -967,6 +977,14 @@ public class GameService {
 
     private String sideName(GameState state, boolean isPlayerSide) {
         return getSidePlayer(state, isPlayerSide).getName();
+    }
+
+    /** e.g. {@code "+2 fire, +1 water"} — used in the overcharge log line. */
+    private String describeOvercharge(Player player) {
+        return player.getOverchargeEnergyTotals().entrySet().stream()
+                .filter(entry -> entry.getValue() != null && entry.getValue() > 0)
+                .map(entry -> "+" + entry.getValue() + " " + entry.getKey().name().toLowerCase())
+                .collect(java.util.stream.Collectors.joining(", "));
     }
 
     private Card findInHand(Player player, String cardId) {

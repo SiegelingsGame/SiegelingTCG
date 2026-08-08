@@ -37,6 +37,10 @@ public class Player {
     private int psychicEnergy;
     private boolean mistActive;
     private final Map<Element, Integer> temporaryEnergyAdjustments = new EnumMap<>(Element.class);
+    /** Energy from an active {@code energy_boost}, waiting for this side's next Setup phase. */
+    private final Map<Element, Integer> pendingOverchargeEnergy = new EnumMap<>(Element.class);
+    /** Live overcharge: rides on top of the pool through this side's Setup and Battle phase. */
+    private final Map<Element, Integer> overchargeEnergy = new EnumMap<>(Element.class);
 
     /** Counts for the current match; persisted to match_history for registered users. */
     private int spellsCastThisMatch;
@@ -131,6 +135,44 @@ public class Player {
 
     public void clearTemporaryEnergyAdjustments() {
         temporaryEnergyAdjustments.clear();
+    }
+
+    /** Queues an active energy buff; it goes live when this side opens its next turn. */
+    public void addPendingOverchargeEnergy(Element element, int amount) {
+        if (element == null || amount <= 0) {
+            return;
+        }
+        pendingOverchargeEnergy.merge(element, amount, Integer::sum);
+    }
+
+    /**
+     * Turn boundary for overcharge: whatever was live has now had its Setup and Battle
+     * phase and expires, and anything banked since then takes its place for this turn.
+     */
+    public void promotePendingOverchargeEnergy() {
+        overchargeEnergy.clear();
+        overchargeEnergy.putAll(pendingOverchargeEnergy);
+        pendingOverchargeEnergy.clear();
+    }
+
+    public int getOverchargeEnergy(Element element) {
+        if (element == null) {
+            return 0;
+        }
+        return overchargeEnergy.getOrDefault(element, 0);
+    }
+
+    public Map<Element, Integer> getOverchargeEnergyTotals() {
+        return Collections.unmodifiableMap(overchargeEnergy);
+    }
+
+    public Map<Element, Integer> getPendingOverchargeEnergyTotals() {
+        return Collections.unmodifiableMap(pendingOverchargeEnergy);
+    }
+
+    /** True while an active energy buff is riding on this side's pool. */
+    public boolean isOvercharged() {
+        return overchargeEnergy.values().stream().anyMatch(amount -> amount != null && amount > 0);
     }
 
     /** Sum of all element pool totals (used for Siegling setup placement budget snapshot). */

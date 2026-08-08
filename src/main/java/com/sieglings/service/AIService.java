@@ -44,6 +44,14 @@ public class AIService {
             state.log("AI draws a card. (Hand: " + state.getEnemy().getHand().size() + ")");
         }
 
+        // The AI runs its own draw phase instead of going through GameService.draw, so the
+        // overcharge turn boundary has to be mirrored here or a banked energy buff on the
+        // AI's side would never go live.
+        state.getEnemy().promotePendingOverchargeEnergy();
+        if (state.getEnemy().isOvercharged()) {
+            state.log("AI is overcharged this Setup and Battle phase.");
+        }
+
         energyService.recalculateEnergy(state);
         state.captureSieglingSetupPlacementBonusFromEnergy(false);
 

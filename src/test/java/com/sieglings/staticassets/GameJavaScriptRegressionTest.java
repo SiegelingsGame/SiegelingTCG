@@ -471,14 +471,14 @@ class GameJavaScriptRegressionTest {
         String playMarkup = Files.readString(PLAY_HTML);
         String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
         assertTrue(
-                homeMarkup.contains("style.css?v=228")
-                        && homeMarkup.contains("game.js?v=238")
+                homeMarkup.contains("style.css?v=229")
+                        && homeMarkup.contains("game.js?v=239")
                         && homeMarkup.contains("card-binder-visual.js?v=20")
                         && homeMarkup.contains("home.js?v=138")
-                        && playMarkup.contains("style.css?v=228")
-                        && playMarkup.contains("game.js?v=238")
-                        && dashboardMarkup.contains("style.css?v=228")
-                        && dashboardMarkup.contains("game.js?v=238")
+                        && playMarkup.contains("style.css?v=229")
+                        && playMarkup.contains("game.js?v=239")
+                        && dashboardMarkup.contains("style.css?v=229")
+                        && dashboardMarkup.contains("game.js?v=239")
                         && dashboardMarkup.contains("card-binder-visual.js?v=20"),
                 "Every surface must advance its cache pins with the complete painted-notch set."
         );
@@ -2040,6 +2040,56 @@ class GameJavaScriptRegressionTest {
         }
 
         throw new AssertionError("Could not find end of " + declaration);
+    }
+
+    /**
+     * An overcharge — the surge an active energy buff puts on a side's pool for its next
+     * Setup and Battle phase — must never be a silent number change. The energy view and
+     * the portrait HUD's energy number both have to say the pool is running hot.
+     */
+    @Test
+    void overchargedEnergyIsAnnouncedInTheEnergyViewAndThePortraitHud() throws IOException {
+        String gameScript = Files.readString(GAME_JS);
+        String styleCss = Files.readString(STYLE_CSS);
+        String playMarkup = Files.readString(PLAY_HTML);
+
+        String panel = extractFunction(gameScript, "function renderEnergyDetailPanel()");
+        assertTrue(
+                panel.contains("energyDetailOverchargeBlock(p)")
+                        && panel.contains("energyDetailOverchargeBlock(e)")
+                        && panel.contains("classList.toggle('is-overcharged', anyOvercharged)"),
+                "The energy view must render the overcharge banner for both sides and flag the panel."
+        );
+
+        String rows = extractFunction(gameScript, "function energyDetailElementRows(playerData)");
+        assertTrue(
+                rows.contains("getOverchargeEnergyAmount(playerData, key)")
+                        && rows.contains("is-overcharged"),
+                "Overcharged element rows must be marked so the breakdown explains the bigger pool."
+        );
+
+        String hudSide = extractFunction(gameScript, "function updateMobileHudSide(label, playerData, ids)");
+        assertTrue(
+                hudSide.contains("syncOverchargeCue(ids.energyId, playerData)"),
+                "The portrait HUD energy number must pick up the overcharge cue."
+        );
+
+        assertTrue(
+                styleCss.contains(".energy-overcharge-banner")
+                        && styleCss.contains(".energy-detail-row.is-overcharged")
+                        && styleCss.contains(".m-counts strong.is-overcharged")
+                        && styleCss.contains("@keyframes overcharge-pulse"),
+                "The energy view and portrait HUD both need the overcharge styling."
+        );
+        assertTrue(
+                styleCss.contains("@media (prefers-reduced-motion: reduce) {\n    .energy-overcharge-banner,\n"
+                        + "    .m-counts strong.is-overcharged {\n        animation: none;\n    }\n}"),
+                "The overcharge pulse must stop for players who ask for reduced motion."
+        );
+        assertTrue(
+                playMarkup.contains("style.css?v=229") && playMarkup.contains("game.js?v=239"),
+                "The overcharge cue ships only if both cache pins advance together."
+        );
     }
 
     private static String extractFunction(String source, String signature) {

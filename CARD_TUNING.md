@@ -139,8 +139,9 @@ type; drop it and the card generates its own element.
 ```
 
 The pool carries the energy for as long as the Siegling is alive on the board. Written with
-`"passive": false` (and a `SELF` target) the same key becomes a one-shot action that banks the
-energy until that side's next draw.
+`"passive": false` (and a `SELF` target) the same key becomes an active energy buff: the energy
+is banked when the card resolves and applies on that player's **next Setup and Battle phase**,
+where the HUD shows them as overcharged.
 
 ## Notes
 

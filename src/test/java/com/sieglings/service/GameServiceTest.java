@@ -144,6 +144,85 @@ class GameServiceTest {
     }
 
     @Test
+    void activeEnergyBuffAppliesOnTheNextSetupAndBattlePhaseThenExpires() throws Exception {
+        GameService gameService = new GameService();
+        PlacementService placementService = new PlacementService();
+        EnergyService energyService = new EnergyService(placementService);
+        EffectService effectService = new EffectService();
+        setField(gameService, "energyService", energyService);
+        setField(gameService, "placementService", placementService);
+        setField(gameService, "effectService", effectService);
+
+        Player player = new Player("Player", true);
+        Player enemy = new Player("Enemy", false);
+        GameState state = new GameState();
+        state.setPlayer(player);
+        state.setEnemy(enemy);
+        state.setCurrentPhase(Phase.BATTLE);
+        state.setPlayerTurn(true);
+
+        SieglingCard card = new SieglingCard("dynamo", "Dynamo", Element.ELECTRIC, Rarity.COMMON, 10, 3,
+                List.of(), Row.MIDDLE);
+        CardInstance source = new CardInstance(card, 1, 1, true);
+        state.setAt(true, 1, 1, source);
+
+        Ability charge = new Ability("Overcharge", "Generate 2 electric energy",
+                TargetType.SELF, null, 0, AbilityEffectKeys.ENERGY_BOOST, 2, false);
+        effectService.resolveAbility(state, charge, source, true, -1, -1);
+
+        // Used during battle: nothing changes for the rest of this phase.
+        energyService.recalculateEnergy(state);
+        assertEquals(0, player.getElectricEnergy());
+        assertFalse(player.isOvercharged());
+
+        // The player's next turn opens: the buff goes live for this Setup...
+        state.setCurrentPhase(Phase.DRAW);
+        gameService.draw(state, true);
+        assertTrue(player.isOvercharged());
+        assertEquals(2, player.getElectricEnergy());
+        assertEquals(0, enemy.getElectricEnergy());
+
+        // ...and survives the full energy restore that opens the Battle phase.
+        state.setCurrentPhase(Phase.BATTLE);
+        energyService.recalculateEnergy(state);
+        assertEquals(2, player.getElectricEnergy());
+
+        // The turn after that, it is spent and gone.
+        state.setCurrentPhase(Phase.DRAW);
+        gameService.draw(state, true);
+        assertFalse(player.isOvercharged());
+        assertEquals(0, player.getElectricEnergy());
+    }
+
+    @Test
+    void spendingOverchargedEnergyStaysSpentForTheRestOfTheTurn() throws Exception {
+        GameService gameService = new GameService();
+        PlacementService placementService = new PlacementService();
+        EnergyService energyService = new EnergyService(placementService);
+        setField(gameService, "energyService", energyService);
+        setField(gameService, "placementService", placementService);
+        setField(gameService, "effectService", new EffectService());
+
+        Player player = new Player("Player", true);
+        GameState state = new GameState();
+        state.setPlayer(player);
+        state.setEnemy(new Player("Enemy", false));
+        state.setCurrentPhase(Phase.DRAW);
+        state.setPlayerTurn(true);
+
+        player.addPendingOverchargeEnergy(Element.FIRE, 3);
+        gameService.draw(state, true);
+        assertEquals(3, player.getFireEnergy());
+
+        energyService.spendEnergy(state, true, Element.FIRE, 2);
+        assertEquals(1, player.getFireEnergy());
+
+        // The Battle-phase restore must not refund the spend, only keep the surge.
+        energyService.recalculateEnergy(state);
+        assertEquals(1, player.getFireEnergy());
+    }
+
+    @Test
     void evolutionLogSaysBaseEvolvedToNewForm() throws Exception {
         GameService gameService = new GameService();
         PlacementService placementService = new PlacementService();
@@ -334,6 +413,31 @@ class GameServiceTest {
         assertEquals(50, player.getHealth(), "AI should not cast after spending its last setup action.");
         assertTrue(enemy.getHand().contains(spell), "AI spell should remain in hand.");
         assertFalse(enemy.getDiscard().contains(spell), "AI spell should not be discarded.");
+    }
+
+    @Test
+    void aiOverchargeGoesLiveOnItsOwnDrawPhase() throws Exception {
+        AIService aiService = new AIService();
+        PlacementService placementService = new PlacementService();
+        setField(aiService, "placementService", placementService);
+        setField(aiService, "energyService", new EnergyService(placementService));
+        setField(aiService, "effectService", new EffectService());
+
+        Player player = new Player("Player", true);
+        Player enemy = new Player("Enemy", false);
+        GameState state = new GameState();
+        state.setPlayer(player);
+        state.setEnemy(enemy);
+
+        enemy.addPendingOverchargeEnergy(Element.FIRE, 2);
+        assertFalse(enemy.isOvercharged());
+
+        // The AI runs its own draw phase; the buff must still land for its Setup and Battle.
+        aiService.executeAITurn(state);
+
+        assertTrue(enemy.isOvercharged());
+        assertEquals(2, enemy.getFireEnergy());
+        assertEquals(0, player.getFireEnergy());
     }
 
     @Test

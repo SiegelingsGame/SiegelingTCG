@@ -1026,7 +1026,7 @@ class EffectServiceTest {
     }
 
     @Test
-    void activeEnergyBoostBanksSpendableEnergyForTheCaster() {
+    void activeEnergyBoostBanksAnOverchargeForTheCastersNextTurn() {
         GameState state = battleState();
         CardInstance source = instance("well-tender", Element.WATER, 1, 1, true);
         state.setAt(true, 1, 1, source);
@@ -1036,10 +1036,16 @@ class EffectServiceTest {
 
         effectService.resolveAbility(state, charge, source, true, -1, -1);
 
-        // Spendable immediately: trainer actives deliberately skip the energy recalculation.
-        assertEquals(2, state.getPlayer().getWaterEnergy());
-        assertEquals(2, state.getPlayer().getTemporaryEnergyAdjustment(Element.WATER));
-        assertEquals(0, state.getEnemy().getWaterEnergy());
+        // Banked, not live: it applies on the caster's next Setup and Battle phase.
+        assertEquals(2, state.getPlayer().getPendingOverchargeEnergyTotals().get(Element.WATER));
+        assertFalse(state.getPlayer().isOvercharged());
+        assertEquals(0, state.getPlayer().getOverchargeEnergy(Element.WATER));
+        assertTrue(state.getEnemy().getPendingOverchargeEnergyTotals().isEmpty());
+
+        state.getPlayer().promotePendingOverchargeEnergy();
+
+        assertTrue(state.getPlayer().isOvercharged());
+        assertEquals(2, state.getPlayer().getOverchargeEnergy(Element.WATER));
     }
 
     @Test
@@ -1053,9 +1059,10 @@ class EffectServiceTest {
         charge.setTargetElement(Element.ELECTRIC);
 
         effectService.resolveAbility(state, charge, source, true, -1, -1);
+        state.getPlayer().promotePendingOverchargeEnergy();
 
-        assertEquals(1, state.getPlayer().getElectricEnergy());
-        assertEquals(0, state.getPlayer().getFireEnergy());
+        assertEquals(1, state.getPlayer().getOverchargeEnergy(Element.ELECTRIC));
+        assertEquals(0, state.getPlayer().getOverchargeEnergy(Element.FIRE));
     }
 
     private GameState battleState() {
