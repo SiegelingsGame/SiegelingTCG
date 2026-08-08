@@ -12023,13 +12023,6 @@ function getOverchargeTotal(playerData) {
     return ENERGY_ORDER.reduce((sum, [key]) => sum + getOverchargeEnergyAmount(playerData, key), 0);
 }
 
-function getPendingOverchargeTotal(playerData) {
-    return ENERGY_ORDER.reduce(
-        (sum, [key]) => sum + getEnergyMapAmount(playerData?.pendingOverchargeEnergy, key),
-        0
-    );
-}
-
 function energyDetailElementRows(playerData) {
     const rows = [];
     for (const [key, label] of ENERGY_ORDER) {
@@ -12053,28 +12046,19 @@ function energyDetailElementRows(playerData) {
         : '<div class="energy-detail-muted">No elemental energy</div>';
 }
 
-/** Surge banner for the energy view: live overcharge now, or the buff waiting on the next turn. */
+/** Surge banner for the energy view while an active energy buff is running. */
 function energyDetailOverchargeBlock(playerData) {
-    const live = getOverchargeTotal(playerData);
-    if (live > 0 || isSideOvercharged(playerData)) {
-        const parts = ENERGY_ORDER
-            .filter(([key]) => getOverchargeEnergyAmount(playerData, key) > 0)
-            .map(([key, label]) => `+${getOverchargeEnergyAmount(playerData, key)} ${label}`);
-        return `<div class="energy-overcharge-banner" role="status">
-            <span class="energy-overcharge-spark" aria-hidden="true"></span>
-            <span class="energy-overcharge-text">Overcharged${parts.length > 0 ? ` — ${escapeHtml(parts.join(', '))}` : ''}</span>
-            <span class="energy-overcharge-note">Lasts through this Setup and Battle phase</span>
-        </div>`;
+    if (!isSideOvercharged(playerData)) {
+        return '';
     }
-    const pending = getPendingOverchargeTotal(playerData);
-    if (pending > 0) {
-        return `<div class="energy-overcharge-banner is-pending" role="status">
-            <span class="energy-overcharge-spark" aria-hidden="true"></span>
-            <span class="energy-overcharge-text">Charging — +${pending} energy</span>
-            <span class="energy-overcharge-note">Applies on the next Setup and Battle phase</span>
-        </div>`;
-    }
-    return '';
+    const parts = ENERGY_ORDER
+        .filter(([key]) => getOverchargeEnergyAmount(playerData, key) > 0)
+        .map(([key, label]) => `+${getOverchargeEnergyAmount(playerData, key)} ${label}`);
+    return `<div class="energy-overcharge-banner" role="status">
+        <span class="energy-overcharge-spark" aria-hidden="true"></span>
+        <span class="energy-overcharge-text">Overcharged${parts.length > 0 ? ` — ${escapeHtml(parts.join(', '))}` : ''}</span>
+        <span class="energy-overcharge-note">Lasts through Setup — fades when the battle phase begins</span>
+    </div>`;
 }
 
 function energyDetailComboBlock(playerData) {
@@ -12396,7 +12380,7 @@ function syncOverchargeCue(elementId, playerData) {
     el.classList.toggle('is-overcharged', overcharged);
     const total = getOverchargeTotal(playerData);
     if (overcharged) {
-        el.title = `Overcharged${total > 0 ? ` (+${total})` : ''} — extra energy this Setup and Battle phase`;
+        el.title = `Overcharged${total > 0 ? ` (+${total})` : ''} — extra energy until the battle phase begins`;
     } else {
         el.removeAttribute('title');
     }

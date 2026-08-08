@@ -37,9 +37,10 @@ public class Player {
     private int psychicEnergy;
     private boolean mistActive;
     private final Map<Element, Integer> temporaryEnergyAdjustments = new EnumMap<>(Element.class);
-    /** Energy from an active {@code energy_boost}, waiting for this side's next Setup phase. */
-    private final Map<Element, Integer> pendingOverchargeEnergy = new EnumMap<>(Element.class);
-    /** Live overcharge: rides on top of the pool through this side's Setup and Battle phase. */
+    /**
+     * Energy from an active {@code energy_boost}. Live from the moment the card resolves,
+     * through the owner's next Setup phase, and dropped as the Battle phase opens.
+     */
     private final Map<Element, Integer> overchargeEnergy = new EnumMap<>(Element.class);
 
     /** Counts for the current match; persisted to match_history for registered users. */
@@ -137,22 +138,17 @@ public class Player {
         temporaryEnergyAdjustments.clear();
     }
 
-    /** Queues an active energy buff; it goes live when this side opens its next turn. */
-    public void addPendingOverchargeEnergy(Element element, int amount) {
+    /** Turns on an active energy buff. It counts from right now. */
+    public void addOverchargeEnergy(Element element, int amount) {
         if (element == null || amount <= 0) {
             return;
         }
-        pendingOverchargeEnergy.merge(element, amount, Integer::sum);
+        overchargeEnergy.merge(element, amount, Integer::sum);
     }
 
-    /**
-     * Turn boundary for overcharge: whatever was live has now had its Setup and Battle
-     * phase and expires, and anything banked since then takes its place for this turn.
-     */
-    public void promotePendingOverchargeEnergy() {
+    /** The Battle phase opening is where an overcharge always ends. */
+    public void clearOverchargeEnergy() {
         overchargeEnergy.clear();
-        overchargeEnergy.putAll(pendingOverchargeEnergy);
-        pendingOverchargeEnergy.clear();
     }
 
     public int getOverchargeEnergy(Element element) {
@@ -164,10 +160,6 @@ public class Player {
 
     public Map<Element, Integer> getOverchargeEnergyTotals() {
         return Collections.unmodifiableMap(overchargeEnergy);
-    }
-
-    public Map<Element, Integer> getPendingOverchargeEnergyTotals() {
-        return Collections.unmodifiableMap(pendingOverchargeEnergy);
     }
 
     /** True while an active energy buff is riding on this side's pool. */

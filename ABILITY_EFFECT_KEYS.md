@@ -21,7 +21,7 @@ These are the effect keys the rules engine currently understands.
 | `connected_allies_heal` | Restores current Health (up to max) on every allied Siegling connected to the source card through active reciprocal links. Does **not** raise max Health. The source card itself is not healed. | `SELF` |
 | `connected_allies_speed_boost` | Gives Speed to every allied Siegling connected to the source card through active reciprocal links. The source card itself is not buffed. | `SELF` |
 | `speed_boost` | Adds temporary Speed. | `SINGLE_ALLY`, `ALL_ALLIES`, `ROW_ALLIES`, `PASSIVE` |
-| `energy_boost` | Generates elemental energy with **no notch link and no socket**. The energy type is the ability's `targetElement`; leave it unset and the card generates its own element. Passive = continuous while on board; active = an overcharge that applies on the owner's next Setup and Battle phase. | `PASSIVE` (continuous), `SELF` (active buff) |
+| `energy_boost` | Generates elemental energy with **no notch link and no socket**. The energy type is the ability's `targetElement`; leave it unset and the card generates its own element. Passive = continuous while on board; active = an immediate overcharge that lasts through the owner's next Setup phase and fades before the Battle phase. | `PASSIVE` (continuous), `SELF` (active buff) |
 | `destroy` | Defeats the resolved target immediately. | `SINGLE_ENEMY` |
 | `move_link` | On a Siegling (`SELF`), moves to an adjacent empty notch-projected cell only if the moved Siegling would still have an active reciprocal notch connection there; otherwise it returns `No Valid Notches`. On a **spell or trap** with `SINGLE_ENEMY`, the caster picks the enemy’s square **and** an empty destination square on that enemy board (no link required). | `SELF`, `SINGLE_ENEMY` (spells/traps) |
 
@@ -43,14 +43,16 @@ These are the effect keys the rules engine currently understands.
   pass: the owner's pool carries `effectValue` extra energy of the chosen type for as long as the
   card is alive on the board, and it vanishes when the card leaves. Because the engine keeps it
   applied, `BattleService` never offers it as a battle action. Written **non-passive** it is an
-  *active energy buff*: resolving it banks an **overcharge** that goes live when that side opens
-  its next turn and rides the pool through that Setup **and** Battle phase, then expires at the
-  following Draw — usable on Siegling moves, spells, traps, and trainer actives. A SiegeKnight's
+  *active energy buff*: resolving it **overcharges** that side immediately (the energy is
+  spendable in the phase it was used in), the surge rides through that side's next Setup phase,
+  and it is dropped as the Battle phase opens — so an active buff pays for placements and casts,
+  never for attacks. Usable on Siegling moves, spells, traps, and trainer actives. A SiegeKnight's
   passive can carry the continuous form too, granting to that side every turn.
 - While an overcharge is live the side is **overcharged**, and the UI says so: the energy view
   shows a surge banner (and marks the boosted element rows), and the portrait HUD's energy number
-  glows. Energy banked but not yet live renders as a muted "Charging" banner instead. The
-  serialized player carries `overcharged`, `overchargeEnergy`, and `pendingOverchargeEnergy`.
+  glows. `GameService.startBattlePhase` is the single expiry point, so however late in the round a
+  buff is used it always ends at the same place. The serialized player carries `overcharged` and
+  `overchargeEnergy`.
   Elements with no pool (Poison, Light, Neutral) generate nothing; picking one is treated as a
   design error rather than silently falling back.
 - `connected_allies_damage_boost`, `connected_allies_health_boost`, `connected_allies_heal`, and `connected_allies_speed_boost` are source-based, so they should be used on board creatures rather than trainers or generic spells.

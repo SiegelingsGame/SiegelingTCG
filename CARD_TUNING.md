@@ -138,10 +138,11 @@ type; drop it and the card generates its own element.
 }
 ```
 
-The pool carries the energy for as long as the Siegling is alive on the board. Written with
-`"passive": false` (and a `SELF` target) the same key becomes an active energy buff: the energy
-is banked when the card resolves and applies on that player's **next Setup and Battle phase**,
-where the HUD shows them as overcharged.
+The pool carries the energy for as long as the Siegling is alive on the board, from the moment it
+lands. Written with `"passive": false` (and a `SELF` target) the same key becomes an active energy
+buff: the energy arrives **immediately**, lasts through that player's next **Setup phase**, and
+fades before the Battle phase starts — so it pays for placements and casts, not attacks. The HUD
+shows the player as overcharged while it runs.
 
 ## Notes
 

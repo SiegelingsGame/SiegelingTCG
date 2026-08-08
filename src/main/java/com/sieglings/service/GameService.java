@@ -190,15 +190,11 @@ public class GameService {
 
         Player actor = getSidePlayer(state, isPlayerSide);
         actor.clearTemporaryEnergyAdjustments();
-        // An active energy buff is banked when it resolves and goes live here, so it covers
-        // exactly this side's next Setup and Battle phase; last turn's overcharge expires now.
-        boolean wasOvercharged = actor.isOvercharged();
-        actor.promotePendingOverchargeEnergy();
+        // An overcharge started during the last battle phase carries into this setup; say so,
+        // because the pool is bigger than the board explains.
         if (actor.isOvercharged()) {
             state.log(sideName(state, isPlayerSide) + " is overcharged: "
-                    + describeOvercharge(actor) + " this Setup and Battle phase.");
-        } else if (wasOvercharged) {
-            state.log(sideName(state, isPlayerSide) + "'s overcharge fades.");
+                    + describeOvercharge(actor) + " through this Setup phase.");
         }
         state.resetPlacementsForTurn(isPlayerSide);
 
@@ -747,6 +743,13 @@ public class GameService {
 
     private void startBattlePhase(GameState state) {
         state.setCurrentPhase(Phase.BATTLE);
+        // Active energy buffs run out here: they power setup, not the fight. Dropping them
+        // before the restore is what makes the pool read true for the whole battle phase.
+        boolean overchargeEnded = state.getPlayer().isOvercharged() || state.getEnemy().isOvercharged();
+        energyService.clearOvercharge(state);
+        if (overchargeEnded) {
+            state.log("Overcharge fades as the battle phase begins.");
+        }
         // Full energy restore at start of battle phase
         energyService.recalculateEnergy(state);
         state.log("Both setup turns are complete. Entering battle phase. Energy restored!");

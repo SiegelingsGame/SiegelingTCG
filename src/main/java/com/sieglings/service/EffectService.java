@@ -488,9 +488,9 @@ public class EffectService {
 
     /**
      * Active {@code energy_boost} (a battle move, spell, trap, or trainer active): the caster's
-     * side banks an overcharge that goes live on its next Setup phase and lasts through that
-     * Battle phase. The passive form is continuous instead and is recomputed by
-     * {@link EnergyService}, so it never comes through here.
+     * side is overcharged from this moment, through its next Setup phase, until the Battle phase
+     * opens. The passive form is continuous instead and is recomputed by {@link EnergyService},
+     * so it never comes through here.
      */
     private void applyEnergyBoostEffect(GameState state, Ability ability, CardInstance source, boolean isPlayerSource) {
         var actor = isPlayerSource ? state.getPlayer() : state.getEnemy();
@@ -503,8 +503,8 @@ public class EffectService {
             return;
         }
         EnergyService.grantOverchargeEnergy(actor, element, value);
-        state.log(ability.getName() + " charges " + actor.getName() + " with " + value + " "
-                + element.name().toLowerCase() + " energy for their next Setup and Battle phase.");
+        state.log(ability.getName() + " overcharges " + actor.getName() + " with " + value + " "
+                + element.name().toLowerCase() + " energy until the battle phase begins.");
     }
 
     private void applyConnectedAlliesHealthBoost(GameState state, Ability ability, CardInstance source, int value) {

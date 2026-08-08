@@ -6751,23 +6751,6 @@ body.tablet-portrait-dock .ab-btn {
     color: var(--text-dim);
 }
 
-/* Queued, not live yet: same shape, no glow or pulse. */
-.energy-overcharge-banner.is-pending {
-    border-color: rgba(255, 230, 60, 0.22);
-    background: rgba(255, 230, 60, 0.06);
-    box-shadow: none;
-    animation: none;
-}
-
-.energy-overcharge-banner.is-pending .energy-overcharge-text {
-    color: var(--text-dim);
-}
-
-.energy-overcharge-banner.is-pending .energy-overcharge-spark {
-    background: rgba(255, 230, 60, 0.45);
-    box-shadow: none;
-}
-
 .energy-detail-row.is-overcharged {
     color: var(--electric);
     border-bottom-color: rgba(255, 230, 60, 0.3);

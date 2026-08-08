@@ -471,14 +471,14 @@ class GameJavaScriptRegressionTest {
         String playMarkup = Files.readString(PLAY_HTML);
         String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
         assertTrue(
-                homeMarkup.contains("style.css?v=229")
-                        && homeMarkup.contains("game.js?v=239")
+                homeMarkup.contains("style.css?v=230")
+                        && homeMarkup.contains("game.js?v=240")
                         && homeMarkup.contains("card-binder-visual.js?v=20")
                         && homeMarkup.contains("home.js?v=138")
-                        && playMarkup.contains("style.css?v=229")
-                        && playMarkup.contains("game.js?v=239")
-                        && dashboardMarkup.contains("style.css?v=229")
-                        && dashboardMarkup.contains("game.js?v=239")
+                        && playMarkup.contains("style.css?v=230")
+                        && playMarkup.contains("game.js?v=240")
+                        && dashboardMarkup.contains("style.css?v=230")
+                        && dashboardMarkup.contains("game.js?v=240")
                         && dashboardMarkup.contains("card-binder-visual.js?v=20"),
                 "Every surface must advance its cache pins with the complete painted-notch set."
         );
@@ -2087,7 +2087,7 @@ class GameJavaScriptRegressionTest {
                 "The overcharge pulse must stop for players who ask for reduced motion."
         );
         assertTrue(
-                playMarkup.contains("style.css?v=229") && playMarkup.contains("game.js?v=239"),
+                playMarkup.contains("style.css?v=230") && playMarkup.contains("game.js?v=240"),
                 "The overcharge cue ships only if both cache pins advance together."
         );
     }

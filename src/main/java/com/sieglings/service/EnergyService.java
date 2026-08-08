@@ -212,14 +212,41 @@ public class EnergyService {
     }
 
     /**
-     * Banks an active energy buff. It does not land now: it goes live when this side opens
-     * its next turn and rides the pool through that Setup and Battle phase.
+     * Turns on an active energy buff. The energy is spendable immediately — trainer actives
+     * deliberately skip the energy recalculation, so the pool is topped up here as well as
+     * recorded — and rides the pool through the owner's next Setup phase.
+     * {@link #clearOvercharge} drops it as the Battle phase opens.
      */
     public static void grantOverchargeEnergy(com.sieglings.model.Player player, Element element, int amount) {
         if (player == null || !hasEnergyPool(element) || amount <= 0) {
             return;
         }
-        player.addPendingOverchargeEnergy(element, amount);
+        player.addOverchargeEnergy(element, amount);
+        switch (element) {
+            case FIRE -> player.setFireEnergy(player.getFireEnergy() + amount);
+            case EARTH -> player.setEarthEnergy(player.getEarthEnergy() + amount);
+            case WIND -> player.setWindEnergy(player.getWindEnergy() + amount);
+            case WATER -> player.setWaterEnergy(player.getWaterEnergy() + amount);
+            case ICE -> player.setIceEnergy(player.getIceEnergy() + amount);
+            case SHADOW -> player.setShadowEnergy(player.getShadowEnergy() + amount);
+            case ELECTRIC -> player.setElectricEnergy(player.getElectricEnergy() + amount);
+            case METAL -> player.setMetalEnergy(player.getMetalEnergy() + amount);
+            case UNDEAD -> player.setUndeadEnergy(player.getUndeadEnergy() + amount);
+            case PSYCHIC -> player.setPsychicEnergy(player.getPsychicEnergy() + amount);
+            case POISON, LIGHT, NEUTRAL -> { /* no pools — filtered by hasEnergyPool */ }
+        }
+    }
+
+    /**
+     * Ends every live overcharge. Called as the Battle phase opens, which is the one place
+     * an active energy buff always expires however late in the round it was used.
+     */
+    public void clearOvercharge(GameState state) {
+        if (state == null) {
+            return;
+        }
+        state.getPlayer().clearOverchargeEnergy();
+        state.getEnemy().clearOverchargeEnergy();
     }
 
     private void applyEnergyTotals(com.sieglings.model.Player player, EnergyBreakdown breakdown) {
