@@ -291,6 +291,7 @@ public class CardOverrideEditorService {
                 effect(AbilityEffectKeys.CONNECTED_ALLIES_HEAL, "Connected Allies Heal", "Restores current health on directly linked allied Sieglings without raising max health.", List.of("SELF")),
                 effect(AbilityEffectKeys.CONNECTED_ALLIES_SHIELD, "Connected Allies Shield", "Grants temporary shield health to directly linked allied Sieglings.", List.of("SELF")),
                 effect(AbilityEffectKeys.SPEED_BOOST, "Speed Boost", "Adds temporary speed.", List.of("SINGLE_ALLY", "ALL_ALLIES", "ROW_ALLIES", "ROW_SELECT_ALLIES", "PASSIVE")),
+                effect(AbilityEffectKeys.ENERGY_BOOST, "Energy Boost", "Generates energy of the chosen target element with no notch link or socket needed. As a passive it pays out every turn the card is on the board; as an action it banks the energy until the caster's next draw.", List.of("PASSIVE", "SELF")),
                 effect(AbilityEffectKeys.CONNECTED_ALLIES_SLOW, "Connected Allies Slow", "Reduces directly linked allied Sieglings' Speed by the effect value for the turn.", List.of("SELF")),
                 effect(AbilityEffectKeys.CONNECTED_ALLIES_SPEED_BOOST, "Connected Allies Speed Boost", "Gives directly linked allied Sieglings extra speed.", List.of("SELF")),
                 effect(AbilityEffectKeys.DESTROY, "Destroy", "Defeats the resolved target immediately.", List.of("SINGLE_ENEMY", "ROW_SELECT_ENEMIES")),

@@ -21,6 +21,7 @@ These are the effect keys the rules engine currently understands.
 | `connected_allies_heal` | Restores current Health (up to max) on every allied Siegling connected to the source card through active reciprocal links. Does **not** raise max Health. The source card itself is not healed. | `SELF` |
 | `connected_allies_speed_boost` | Gives Speed to every allied Siegling connected to the source card through active reciprocal links. The source card itself is not buffed. | `SELF` |
 | `speed_boost` | Adds temporary Speed. | `SINGLE_ALLY`, `ALL_ALLIES`, `ROW_ALLIES`, `PASSIVE` |
+| `energy_boost` | Generates elemental energy with **no notch link and no socket**. The energy type is the ability's `targetElement`; leave it unset and the card generates its own element. Passive = continuous while on board; active = an immediate overcharge that lasts through the owner's next Setup phase and fades before the Battle phase. | `PASSIVE` (continuous), `SELF` (active buff) |
 | `destroy` | Defeats the resolved target immediately. | `SINGLE_ENEMY` |
 | `move_link` | On a Siegling (`SELF`), moves to an adjacent empty notch-projected cell only if the moved Siegling would still have an active reciprocal notch connection there; otherwise it returns `No Valid Notches`. On a **spell or trap** with `SINGLE_ENEMY`, the caster picks the enemy’s square **and** an empty destination square on that enemy board (no link required). | `SELF`, `SINGLE_ENEMY` (spells/traps) |
 
@@ -37,6 +38,23 @@ These are the effect keys the rules engine currently understands.
   cells (`.board-cell.chain-target` in `style.css`) and fans targeting arrows to every victim.
   When no target is supplied (AI turns), auto-target picks the enemy carrying the most links, ties
   going to the lowest current health. In Siege (no notch board) it resolves as single-target `DAMAGE`.
+- `energy_boost` is the one energy source that ignores the board's wiring. Written **passive**
+  (`passive: true`, usually `PASSIVE` target) it is recomputed by `EnergyService` on every energy
+  pass: the owner's pool carries `effectValue` extra energy of the chosen type for as long as the
+  card is alive on the board, and it vanishes when the card leaves. Because the engine keeps it
+  applied, `BattleService` never offers it as a battle action. Written **non-passive** it is an
+  *active energy buff*: resolving it **overcharges** that side immediately (the energy is
+  spendable in the phase it was used in), the surge rides through that side's next Setup phase,
+  and it is dropped as the Battle phase opens — so an active buff pays for placements and casts,
+  never for attacks. Usable on Siegling moves, spells, traps, and trainer actives. A SiegeKnight's
+  passive can carry the continuous form too, granting to that side every turn.
+- While an overcharge is live the side is **overcharged**, and the UI says so: the energy view
+  shows a surge banner (and marks the boosted element rows), and the portrait HUD's energy number
+  glows. `GameService.startBattlePhase` is the single expiry point, so however late in the round a
+  buff is used it always ends at the same place. The serialized player carries `overcharged` and
+  `overchargeEnergy`.
+  Elements with no pool (Poison, Light, Neutral) generate nothing; picking one is treated as a
+  design error rather than silently falling back.
 - `connected_allies_damage_boost`, `connected_allies_health_boost`, `connected_allies_heal`, and `connected_allies_speed_boost` are source-based, so they should be used on board creatures rather than trainers or generic spells.
 - Prefer `connected_allies_heal` when the intent is to restore missing HP; `connected_allies_health_boost` permanently raises max Health (and current HP by the same amount).
 - If you want a source creature to strengthen its linked network, these are the keys to use.
@@ -55,6 +73,7 @@ modes; the mapping lives in `SiegeContentService.effectFor` /
 | `chain_damage` | `DAMAGE` — Siege has no notch links, so it lands as a normal attack. | as written |
 | `player_damage` | `DAMAGE` — there is no opposing player, so it lands on the enemy line. | `ALL_ENEMIES` |
 | `draw` | `DRAW` — pulls that many cards (max 3) into the hand. | `SELF` |
+| `energy_boost` | `GAIN_AP` — Siege has no elemental pools, so the energy becomes AP for the current turn (max 2). Passive versions never become Siege cards at all. | `SELF` |
 | `heal` / `connected_allies_heal` | `HEAL` — value + 3. | as written / `ALLY_ALL` for connected-allies |
 | `shield` | `SHIELD` — value + 3, **lapses when the shielded side opens its next turn** (the board clears shields at the end of the battle phase). | as written |
 | `health_boost` | `MAX_HP_BOOST` — raises max HP for the battle and heals the same amount, then drops when the battle ends. | as written |

@@ -44,6 +44,10 @@ public class AIService {
             state.log("AI draws a card. (Hand: " + state.getEnemy().getHand().size() + ")");
         }
 
+        if (state.getEnemy().isOvercharged()) {
+            state.log("AI is overcharged through this Setup phase.");
+        }
+
         energyService.recalculateEnergy(state);
         state.captureSieglingSetupPlacementBonusFromEnergy(false);
 

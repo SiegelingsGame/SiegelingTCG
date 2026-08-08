@@ -1153,6 +1153,16 @@ public class GameController {
         info.put("shadowExternal", energy.shadowExternal());
         info.put("electricInternal", energy.electricInternal());
         info.put("electricExternal", energy.electricExternal());
+        // Link-free energy from energy_boost passives, keyed by element name so the energy
+        // panel can show why a pool is bigger than its links and sockets explain.
+        Map<String, Object> passiveEnergy = new LinkedHashMap<>();
+        energy.passiveEnergy().forEach((element, amount) -> passiveEnergy.put(element.name(), amount));
+        info.put("passiveEnergy", passiveEnergy);
+        // Overcharge: the live surge from an active energy buff, which the HUD lights up on.
+        Map<String, Object> overchargeEnergy = new LinkedHashMap<>();
+        player.getOverchargeEnergyTotals().forEach((element, amount) -> overchargeEnergy.put(element.name(), amount));
+        info.put("overchargeEnergy", overchargeEnergy);
+        info.put("overcharged", player.isOvercharged());
         info.put("comboTwoCount", energy.comboTwoCount());
         info.put("comboThreeCount", energy.comboThreeCount());
         info.put("comboFourCount", energy.comboFourCount());

@@ -801,6 +801,12 @@ public class SiegeCombatEngine {
                 battle.log(attacker.getName() + " uses " + spec.name() + " → draws " + drawn
                         + (drawn == 1 ? " card." : " cards."));
             }
+            case GAIN_AP -> {
+                int gained = Math.max(1, spec.value());
+                battle.setActionPoints(battle.getActionPoints() + gained);
+                battle.event("actionPoints", "amount", gained, "total", battle.getActionPoints());
+                battle.log(attacker.getName() + " uses " + spec.name() + " → +" + gained + " AP this turn.");
+            }
             case EXECUTE -> {
                 for (Combatant t : targets) {
                     boolean wasAlive = t.isAlive();

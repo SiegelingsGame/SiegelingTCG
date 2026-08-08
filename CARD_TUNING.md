@@ -116,6 +116,34 @@ Use `abilities` when you want a Siegling to have a full custom battle loadout wi
 }
 ```
 
+## Energy-Generating Passives
+
+`energy_boost` makes energy without a notch link or a socket. `targetElement` picks the energy
+type; drop it and the card generates its own element.
+
+```json
+{
+  "id": "staticap",
+  "abilities": [
+    {
+      "name": "Energy Boost",
+      "description": "Passively generates 2 Electric energy each turn",
+      "targetType": "PASSIVE",
+      "targetElement": "ELECTRIC",
+      "effectType": "energy_boost",
+      "effectValue": 2,
+      "passive": true
+    }
+  ]
+}
+```
+
+The pool carries the energy for as long as the Siegling is alive on the board, from the moment it
+lands. Written with `"passive": false` (and a `SELF` target) the same key becomes an active energy
+buff: the energy arrives **immediately**, lasts through that player's next **Setup phase**, and
+fades before the Battle phase starts — so it pays for placements and casts, not attacks. The HUD
+shows the player as overcharged while it runs.
+
 ## Notes
 
 - Use the existing card `id` to override a current Siegling.

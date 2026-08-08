@@ -401,6 +401,23 @@
       "requiredReaction": null
     },
     {
+      "id": "fire-energy-boost",
+      "name": "Energy Boost",
+      "element": "FIRE",
+      "category": "UTILITY",
+      "targetType": "PASSIVE",
+      "targetElement": "FIRE",
+      "targetRow": null,
+      "targetCount": 0,
+      "effectType": "energy_boost",
+      "effectValue": 1,
+      "energyCost": 0,
+      "description": "Passively generates 1 Fire energy each turn",
+      "isPassive": true,
+      "requiredElement": null,
+      "requiredReaction": null
+    },
+    {
       "id": "earth-pebble",
       "name": "Pebble",
       "element": "EARTH",
@@ -798,6 +815,23 @@
       "description": "Connected allies gain +2 max HP",
       "isPassive": false,
       "requiredElement": "EARTH",
+      "requiredReaction": null
+    },
+    {
+      "id": "earth-energy-boost",
+      "name": "Energy Boost",
+      "element": "EARTH",
+      "category": "UTILITY",
+      "targetType": "PASSIVE",
+      "targetElement": "EARTH",
+      "targetRow": null,
+      "targetCount": 0,
+      "effectType": "energy_boost",
+      "effectValue": 1,
+      "energyCost": 0,
+      "description": "Passively generates 1 Earth energy each turn",
+      "isPassive": true,
+      "requiredElement": null,
       "requiredReaction": null
     },
     {
@@ -1201,6 +1235,23 @@
       "requiredReaction": null
     },
     {
+      "id": "wind-energy-boost",
+      "name": "Energy Boost",
+      "element": "WIND",
+      "category": "UTILITY",
+      "targetType": "PASSIVE",
+      "targetElement": "WIND",
+      "targetRow": null,
+      "targetCount": 0,
+      "effectType": "energy_boost",
+      "effectValue": 1,
+      "energyCost": 0,
+      "description": "Passively generates 1 Wind energy each turn",
+      "isPassive": true,
+      "requiredElement": null,
+      "requiredReaction": null
+    },
+    {
       "id": "ice-snowball",
       "name": "Snowball",
       "element": "ICE",
@@ -1596,6 +1647,23 @@
       "effectValue": 1,
       "energyCost": 0,
       "description": "Passively gains +1 Attack Damage",
+      "isPassive": true,
+      "requiredElement": null,
+      "requiredReaction": null
+    },
+    {
+      "id": "ice-energy-boost",
+      "name": "Energy Boost",
+      "element": "ICE",
+      "category": "UTILITY",
+      "targetType": "PASSIVE",
+      "targetElement": "ICE",
+      "targetRow": null,
+      "targetCount": 0,
+      "effectType": "energy_boost",
+      "effectValue": 1,
+      "energyCost": 0,
+      "description": "Passively generates 1 Ice energy each turn",
       "isPassive": true,
       "requiredElement": null,
       "requiredReaction": null

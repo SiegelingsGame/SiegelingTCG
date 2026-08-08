@@ -6683,6 +6683,12 @@ body.tablet-portrait-dock .ab-btn {
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
+/* Breakdowns run long once passive and overcharge join links and sockets; keep the
+   wrapped remainder hugging the value column instead of drifting under the label. */
+.energy-detail-row > span:last-child {
+    text-align: right;
+}
+
 .energy-detail-muted {
     font-size: 0.68rem;
     color: var(--text-dim);
@@ -6701,6 +6707,73 @@ body.tablet-portrait-dock .ab-btn {
     margin-top: 8px;
     font-size: 0.68rem;
     color: var(--water);
+}
+
+/* ============================================================
+   OVERCHARGE — an active energy buff riding the pool for this
+   side's Setup and Battle phase. Surfaced in the energy view and
+   on the portrait HUD's energy number so the surge is not silent.
+   ============================================================ */
+.energy-overcharge-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 6px;
+    margin: 2px 0 8px;
+    padding: 5px 8px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 230, 60, 0.42);
+    background: linear-gradient(90deg, rgba(255, 230, 60, 0.16), rgba(255, 215, 0, 0.05));
+    box-shadow: 0 0 12px rgba(255, 230, 60, 0.18);
+    animation: overcharge-pulse 1.8s ease-in-out infinite;
+}
+
+.energy-overcharge-spark {
+    width: 7px;
+    height: 7px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: var(--electric);
+    box-shadow: 0 0 8px var(--electric);
+}
+
+.energy-overcharge-text {
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--electric);
+}
+
+.energy-overcharge-note {
+    flex: 1 1 100%;
+    font-size: 0.62rem;
+    color: var(--text-dim);
+}
+
+.energy-detail-row.is-overcharged {
+    color: var(--electric);
+    border-bottom-color: rgba(255, 230, 60, 0.3);
+    text-shadow: 0 0 8px rgba(255, 230, 60, 0.35);
+}
+
+/* The portrait HUD's energy number — same surge language, sized for a 0.62em stat row. */
+.m-counts strong.is-overcharged {
+    color: var(--electric);
+    text-shadow: 0 0 6px rgba(255, 230, 60, 0.75);
+    animation: overcharge-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes overcharge-pulse {
+    0%, 100% { filter: brightness(1); }
+    50% { filter: brightness(1.35); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .energy-overcharge-banner,
+    .m-counts strong.is-overcharged {
+        animation: none;
+    }
 }
 
 .external-energy-point {

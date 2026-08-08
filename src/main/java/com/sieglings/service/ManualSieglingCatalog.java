@@ -448,6 +448,9 @@ final class ManualSieglingCatalog {
         if (definition.targetType() != null) {
             ability.setTargetType(definition.targetType());
         }
+        if (definition.targetElement() != null) {
+            ability.setTargetElement(definition.targetElement());
+        }
         if (definition.targetRow() != null) {
             ability.setTargetRow(definition.targetRow());
         }
@@ -835,6 +838,7 @@ final class ManualSieglingCatalog {
                 ability.getName(),
                 ability.getDescription(),
                 ability.getTargetType(),
+                ability.getTargetElement(),
                 ability.getTargetRow(),
                 ability.getTargetCount(),
                 ability.getEffectType(),
@@ -945,6 +949,8 @@ final class ManualSieglingCatalog {
             String name,
             String description,
             TargetType targetType,
+            /** Element filter for targets, and the energy type an {@code energy_boost} generates. */
+            Element targetElement,
             Row targetRow,
             Integer targetCount,
             String effectType,

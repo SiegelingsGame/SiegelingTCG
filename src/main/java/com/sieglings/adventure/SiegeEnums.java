@@ -24,6 +24,7 @@ enum Effect {
     SLOW,         // slow/speed_zero — apply the Slow status
     STUN,         // freeze       — the target skips its next action
     DRAW,         // draw         — pull value cards into the hand
+    GAIN_AP,      // energy_boost — AP is Siege's energy, so the turn gets value more of it
     EXECUTE,      // destroy      — defeat the target outright (capped against elites/bosses)
     SWAP,         // move_link    — move to a new notch: swap positions with another Siegeling
     EVOLVE        // evolution card: transform the owner into its next stage (this battle)

@@ -356,6 +356,7 @@ const EFFECT_KIND_MAP = {
     damage_boost: 'buff',
     health_boost: 'buff',
     speed_boost: 'buff',
+    energy_boost: 'buff',
     connected_allies_damage_boost: 'buff',
     connected_allies_health_boost: 'buff',
     connected_allies_heal: 'heal',
@@ -11989,11 +11990,37 @@ function renderEnergy(containerId, playerData) {
     el.innerHTML = html;
 }
 
-function formatBreakdown(internal, external) {
+function formatBreakdown(internal, external, passive = 0, overcharge = 0) {
     const parts = [];
     if (internal > 0) parts.push(`${internal} internal`);
     if (external > 0) parts.push(`${external} external`);
+    // energy_boost passives generate without a link, so they read as their own source.
+    if (passive > 0) parts.push(`${passive} passive`);
+    if (overcharge > 0) parts.push(`${overcharge} overcharge`);
     return parts.length > 0 ? parts.join(' + ') : '0';
+}
+
+function getEnergyMapAmount(map, key) {
+    if (!map) return 0;
+    return Number(map[String(key).toUpperCase()] || 0);
+}
+
+function getPassiveEnergyAmount(playerData, key) {
+    return getEnergyMapAmount(playerData?.passiveEnergy, key);
+}
+
+function getOverchargeEnergyAmount(playerData, key) {
+    return getEnergyMapAmount(playerData?.overchargeEnergy, key);
+}
+
+function isSideOvercharged(playerData) {
+    if (!playerData) return false;
+    if (typeof playerData.overcharged === 'boolean') return playerData.overcharged;
+    return ENERGY_ORDER.some(([key]) => getOverchargeEnergyAmount(playerData, key) > 0);
+}
+
+function getOverchargeTotal(playerData) {
+    return ENERGY_ORDER.reduce((sum, [key]) => sum + getOverchargeEnergyAmount(playerData, key), 0);
 }
 
 function energyDetailElementRows(playerData) {
@@ -12003,15 +12030,35 @@ function energyDetailElementRows(playerData) {
         if (total <= 0) continue;
         const intl = playerData[`${key}Internal`];
         const ext = playerData[`${key}External`];
+        const passive = getPassiveEnergyAmount(playerData, key);
+        const overcharge = getOverchargeEnergyAmount(playerData, key);
         let sub = '';
         if (typeof intl === 'number' && typeof ext === 'number') {
-            sub = ` — ${formatBreakdown(intl, ext)}`;
+            sub = ` — ${formatBreakdown(intl, ext, passive, overcharge)}`;
+        } else if (passive > 0 || overcharge > 0) {
+            sub = ` — ${formatBreakdown(0, 0, passive, overcharge)}`;
         }
-        rows.push(`<div class="energy-detail-row"><span>${label}</span><span>${total}${sub}</span></div>`);
+        const overchargeClass = overcharge > 0 ? ' is-overcharged' : '';
+        rows.push(`<div class="energy-detail-row${overchargeClass}"><span>${label}</span><span>${total}${sub}</span></div>`);
     }
     return rows.length > 0
         ? rows.join('')
         : '<div class="energy-detail-muted">No elemental energy</div>';
+}
+
+/** Surge banner for the energy view while an active energy buff is running. */
+function energyDetailOverchargeBlock(playerData) {
+    if (!isSideOvercharged(playerData)) {
+        return '';
+    }
+    const parts = ENERGY_ORDER
+        .filter(([key]) => getOverchargeEnergyAmount(playerData, key) > 0)
+        .map(([key, label]) => `+${getOverchargeEnergyAmount(playerData, key)} ${label}`);
+    return `<div class="energy-overcharge-banner" role="status">
+        <span class="energy-overcharge-spark" aria-hidden="true"></span>
+        <span class="energy-overcharge-text">Overcharged${parts.length > 0 ? ` — ${escapeHtml(parts.join(', '))}` : ''}</span>
+        <span class="energy-overcharge-note">Lasts through Setup — fades when the battle phase begins</span>
+    </div>`;
 }
 
 function energyDetailComboBlock(playerData) {
@@ -12057,6 +12104,7 @@ function renderEnergyDetailPanel() {
     html += '<div class="energy-detail-section">';
     html += `<div class="energy-detail-h2">${escapeHtml(gameState.playerName || 'You')}</div>`;
     html += `<div class="energy-detail-hp">${pHealth} HP</div>`;
+    html += energyDetailOverchargeBlock(p);
     html += energyDetailElementRows(p);
     html += '<div class="energy-detail-subh">Combos</div>';
     html += energyDetailComboBlock(p);
@@ -12070,6 +12118,7 @@ function renderEnergyDetailPanel() {
     html += '<div class="energy-detail-section">';
     html += `<div class="energy-detail-h2">${enemyTitle}</div>`;
     html += `<div class="energy-detail-hp">${eHealth} HP</div>`;
+    html += energyDetailOverchargeBlock(e);
     html += energyDetailElementRows(e);
     html += '<div class="energy-detail-subh">Combos</div>';
     html += energyDetailComboBlock(e);
@@ -12081,8 +12130,10 @@ function renderEnergyDetailPanel() {
     html += '</div>';
     html += '</div>';
 
+    const anyOvercharged = isSideOvercharged(p) || isSideOvercharged(e);
     panels.forEach((panel) => {
         panel.innerHTML = html;
+        panel.classList.toggle('is-overcharged', anyOvercharged);
     });
 }
 
@@ -12318,6 +12369,23 @@ function updateMobileHud(state) {
     updateSafeAreaHpStrip(state);
 }
 
+/**
+ * Lights the portrait HUD's energy number while an active energy buff is riding that
+ * side's pool. The title carries the same information for anyone who can't see the glow.
+ */
+function syncOverchargeCue(elementId, playerData) {
+    const el = elementId ? document.getElementById(elementId) : null;
+    if (!el) return;
+    const overcharged = isSideOvercharged(playerData);
+    el.classList.toggle('is-overcharged', overcharged);
+    const total = getOverchargeTotal(playerData);
+    if (overcharged) {
+        el.title = `Overcharged${total > 0 ? ` (+${total})` : ''} — extra energy until the battle phase begins`;
+    } else {
+        el.removeAttribute('title');
+    }
+}
+
 function updateMobileHudSide(label, playerData, ids) {
     const health = getDisplayedSideHealth(!!ids.isPlayer, playerData?.health ?? 0);
     const pct = Math.max(0, Math.min(100, Math.round((health / 50) * 100)));
@@ -12331,6 +12399,7 @@ function updateMobileHudSide(label, playerData, ids) {
     setTextIfExists(ids.handId, handSize);
     setTextIfExists(ids.deckId, deckSize);
     setTextIfExists(ids.energyId, energyTotal);
+    syncOverchargeCue(ids.energyId, playerData);
     setTextIfExists(ids.statHealthId, health);
     setTextIfExists(ids.statHandId, handSize);
     setTextIfExists(ids.statDeckId, deckSize);
