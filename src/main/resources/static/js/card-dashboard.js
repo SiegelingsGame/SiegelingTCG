@@ -3212,7 +3212,7 @@
             case "slow":
                 return `${scope} lose ${value} Speed`;
             case "energy_boost":
-                return buildEnergyBoostDescription(value, ability?.targetElement || trainer?.element || "", Boolean(ability?.passive));
+                return buildEnergyBoostDescription(value, ability?.targetElement || trainer?.element || "", Boolean(ability?.passive), ability?.targetType);
             case "connected_allies_damage_boost":
                 return `Connected allies gain ${signedValue} Attack Damage`;
             case "connected_allies_health_boost":
@@ -5751,7 +5751,7 @@
             case "connected_allies_speed_boost":
                 return `Connected allies gain ${signedValue} Speed`;
             case "energy_boost":
-                return buildEnergyBoostDescription(value, targetElement, isPassive);
+                return buildEnergyBoostDescription(value, targetElement, isPassive, targetType);
             case "destroy":
                 return buildDestroyMoveDescription(targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow);
             case "move_link":
@@ -5762,17 +5762,43 @@
     }
 
     /**
-     * Energy generation reads by its energy type, not by a target: the card makes energy out of
-     * nothing, so "all/every ally" phrasing would be misleading. An unset type means the card's
-     * own element, which the blurb leaves implicit.
+     * Energy generation reads by its energy type rather than by what it does to a target — the
+     * card makes energy out of nothing. But an unset type follows whichever card the ability
+     * names, so a targeted boost has to say whose element it takes.
      */
-    function buildEnergyBoostDescription(value, targetElement, isPassive) {
+    function buildEnergyBoostDescription(value, targetElement, isPassive, targetType) {
         const chosen = String(targetElement || "").trim();
-        const elementText = chosen && chosen !== "ALL" ? `${formatEnumLabel(chosen)} ` : "";
         const amount = Math.max(1, value);
+        if (chosen && chosen !== "ALL") {
+            const elementText = `${formatEnumLabel(chosen)} `;
+            return isPassive
+                ? `Passively generates ${amount} ${elementText}energy each turn`
+                : `Generate ${amount} ${elementText}energy`;
+        }
+        const source = energyBoostElementSource(targetType, isPassive);
         return isPassive
-            ? `Passively generates ${amount} ${elementText}energy each turn`
-            : `Generate ${amount} ${elementText}energy`;
+            ? `Passively generates ${amount} energy of ${source} each turn`
+            : `Generate ${amount} energy of ${source}`;
+    }
+
+    /**
+     * Whose element an unset ("Card element") energy type follows, per target shape. A passive
+     * runs every turn with nobody to pick for it, so only board-wide shapes can name allies —
+     * matching how EnergyService resolves a continuously-applied boost.
+     */
+    function energyBoostElementSource(targetType, isPassive) {
+        switch (String(targetType || "").trim()) {
+            case "SINGLE_ALLY":
+                return isPassive ? "this card's element" : "1 ally's element";
+            case "ALL_ALLIES":
+                return "each ally's element";
+            case "ROW_ALLIES":
+                return "each ally in the row's element";
+            case "ROW_SELECT_ALLIES":
+                return "each ally in the selected row's element";
+            default:
+                return "this card's element";
+        }
     }
 
     function selectedRowTargetPhrase(sideLabel, elementPrefix) {

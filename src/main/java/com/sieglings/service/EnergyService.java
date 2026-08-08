@@ -514,18 +514,62 @@ public class EnergyService {
                 if (!isEnergyBoostPassive(ability)) {
                     continue;
                 }
-                addPassiveEnergy(totals, resolveEnergyElement(ability, ci.getElement()), ability.getEffectValue());
+                addPassiveEnergyFor(state, totals, ability, ci, isPlayer);
             }
         }
 
         TrainerCard trainer = (isPlayer ? state.getPlayer() : state.getEnemy()).getActiveTrainer();
         Ability trainerPassive = trainer == null ? null : trainer.getAbility();
         if (isEnergyBoostPassive(trainerPassive)) {
-            addPassiveEnergy(totals, resolveEnergyElement(trainerPassive, trainer.getElement()),
-                    trainerPassive.getEffectValue());
+            addPassiveEnergyFor(state, totals, trainerPassive, null, isPlayer, trainer.getElement());
         }
 
         return totals;
+    }
+
+    private void addPassiveEnergyFor(GameState state, Map<Element, Integer> totals,
+                                     Ability ability, CardInstance source, boolean isPlayer) {
+        addPassiveEnergyFor(state, totals, ability, source, isPlayer, source.getElement());
+    }
+
+    /**
+     * A passive aimed at allies reads each ally it names, so with no energy type chosen it
+     * generates every named ally's own element. Aimed at itself (the usual PASSIVE/SELF form)
+     * it falls back to the card carrying it.
+     */
+    private void addPassiveEnergyFor(GameState state, Map<Element, Integer> totals, Ability ability,
+                                     CardInstance source, boolean isPlayer, Element fallbackElement) {
+        List<CardInstance> named = passiveTargets(state, ability, source, isPlayer);
+        if (named.isEmpty()) {
+            addPassiveEnergy(totals, resolveEnergyElement(ability, fallbackElement), ability.getEffectValue());
+            return;
+        }
+        for (CardInstance target : named) {
+            addPassiveEnergy(totals, resolveEnergyElement(ability, target.getElement()), ability.getEffectValue());
+        }
+    }
+
+    /**
+     * Cards a continuously-applied passive names. Only board-wide shapes can be resolved without
+     * a player choice — {@code SINGLE_ALLY} has nobody to pick it every turn, so it stays on the
+     * carrier like {@code PASSIVE}/{@code SELF}.
+     */
+    private List<CardInstance> passiveTargets(GameState state, Ability ability,
+                                              CardInstance source, boolean isPlayer) {
+        if (ability.getTargetType() == null) {
+            return List.of();
+        }
+        return switch (ability.getTargetType()) {
+            case ALL_ALLIES -> state.getBoardSieglings(isPlayer).stream()
+                    .filter(ci -> ci != null && ci.isAlive())
+                    .toList();
+            case ROW_ALLIES -> ability.getTargetRow() == null ? List.of()
+                    : state.getBoardSieglings(isPlayer).stream()
+                            .filter(ci -> ci != null && ci.isAlive()
+                                    && ci.getBoardRow() == ability.getTargetRow().getIndex())
+                            .toList();
+            default -> List.of();
+        };
     }
 
     private List<Ability> printedAbilities(SieglingCard card) {
