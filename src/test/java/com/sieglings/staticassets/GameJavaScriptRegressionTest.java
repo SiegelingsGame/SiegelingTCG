@@ -198,7 +198,7 @@ class GameJavaScriptRegressionTest {
         String openJoin = extractFunction(playHud, "async function openJoinWithCode()");
 
         assertTrue(
-                playMarkup.contains("play-hud.js?v=2"),
+                playMarkup.contains("play-hud.js?v=3"),
                 "Play must cache-bust play-hud.js after the Join With Code forfeit fix."
         );
         assertTrue(
@@ -503,15 +503,49 @@ class GameJavaScriptRegressionTest {
         String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
         assertTrue(
                 homeMarkup.contains("style.css?v=228")
-                        && homeMarkup.contains("game.js?v=237")
+                        && homeMarkup.contains("game.js?v=238")
                         && homeMarkup.contains("card-binder-visual.js?v=20")
                         && homeMarkup.contains("home.js?v=138")
                         && playMarkup.contains("style.css?v=228")
-                        && playMarkup.contains("game.js?v=237")
+                        && playMarkup.contains("game.js?v=238")
+                        && playMarkup.contains("play-hud.js?v=3")
                         && dashboardMarkup.contains("style.css?v=228")
-                        && dashboardMarkup.contains("game.js?v=237")
+                        && dashboardMarkup.contains("game.js?v=238")
                         && dashboardMarkup.contains("card-binder-visual.js?v=20"),
                 "Every surface must advance its cache pins with the complete painted-notch set."
+        );
+    }
+
+    /**
+     * Friend actions and /api/auth/me reuse buildProfileResponse, which omits
+     * progression when that isolated Firestore read fails. Play must keep the
+     * prior same-user progression in both live state and the shared
+     * sieglingsAuthProfile cache — otherwise Home treats the signed-in account
+     * as starter-gate locked after a Play friend accept or profile refresh.
+     */
+    @Test
+    void playAuthProfileMergesPreserveProgressionWhenOmitted() throws IOException {
+        String playHudScript = Files.readString(Path.of("src/main/resources/static/js/play-hud.js"));
+        String gameScript = readGameScript();
+        String applyProfile = extractFunction(playHudScript, "function applyProfileResponse(data)");
+        String syncAuth = extractFunction(gameScript, "async function syncAuthProfileNow(silent = false)");
+
+        assertTrue(
+                applyProfile.contains("previous.progression")
+                        && applyProfile.contains("!data.progression")
+                        && applyProfile.contains("saveCachedAuthProfile(merged)"),
+                "Play HUD friend responses must merge a missing progression onto the prior same-user snapshot before caching."
+        );
+        assertTrue(
+                syncAuth.contains("previous.progression")
+                        && syncAuth.contains("!data.progression")
+                        && syncAuth.contains("saveCachedAuthProfile(merged)"),
+                "Play /api/auth/me refresh must not overwrite sieglingsAuthProfile with a progression-less authenticated body."
+        );
+        assertFalse(
+                applyProfile.contains("saveCachedAuthProfile(data)")
+                        || syncAuth.contains("saveCachedAuthProfile(data)"),
+                "Progression-less profile payloads must not be written straight into the shared auth cache."
         );
     }
 
