@@ -190,6 +190,37 @@ class GameJavaScriptRegressionTest {
     }
 
     @Test
+    void playHudJoinWithCodeForfeitsActiveMatchBeforeClearingLocalSession() throws IOException {
+        Path playHudJs = Path.of("src/main/resources/static/js/play-hud.js");
+        String playHud = Files.readString(playHudJs);
+        String playMarkup = Files.readString(PLAY_HTML);
+        String abandon = extractFunction(playHud, "async function abandonActiveMatchForJoinCode()");
+        String openJoin = extractFunction(playHud, "async function openJoinWithCode()");
+
+        assertTrue(
+                playMarkup.contains("play-hud.js?v=2"),
+                "Play must cache-bust play-hud.js after the Join With Code forfeit fix."
+        );
+        assertTrue(
+                openJoin.contains("await abandonActiveMatchForJoinCode()")
+                        && openJoin.contains("openLoadoutSelector"),
+                "Join With Code must abandon the live match before openLoadoutSelector clears local session state."
+        );
+        assertTrue(
+                abandon.contains("/api/match/forfeit")
+                        && abandon.contains("/api/game/forfeit")
+                        && abandon.contains("X-Player-Token")
+                        && abandon.contains("X-Solo-Token")
+                        && abandon.contains("wins by forfeit"),
+                "Leaving via Join With Code must forfeit online and solo matches server-side, matching Quit Match."
+        );
+        assertFalse(
+                abandon.contains("openLoadoutSelector"),
+                "The abandon helper must not clear the local session itself; forfeit first, then open the loadout."
+        );
+    }
+
+    @Test
     void premadeDeckPurchaseUnlocksLiveStateBeforeElementalCelebration() throws IOException {
         String homeScript = readHomeScript();
         String homeMarkup = Files.readString(HOME_HTML);

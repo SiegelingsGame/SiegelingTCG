@@ -1782,7 +1782,16 @@ public class SiegeService {
 
     /** Applies battle outcome; a win off a boss row queues reward choices. */
     Map<String, Object> continueRun(String token, String authorizationHeader) {
-        SiegeRun run = require(token);
+        // Serialize per-run: a timeout retry / double Claim Rewards click otherwise
+        // re-enters while the first call is still granting gold/XP and double-pays.
+        Session session = requireSession(token);
+        synchronized (session) {
+            session.lastSeen = Instant.now();
+            return continueRunLocked(session.run, authorizationHeader);
+        }
+    }
+
+    private Map<String, Object> continueRunLocked(SiegeRun run, String authorizationHeader) {
         SiegeBattle battle = run.getBattle();
         if (battle == null) return serialize(run);
         if (battle.getPhase() == BattlePhase.WON) {
@@ -2016,29 +2025,33 @@ public class SiegeService {
      * existing continue behaviour; a later loss extracts nothing.
      */
     Map<String, Object> extract(String token, String authorizationHeader) {
-        SiegeRun run = require(token);
-        if (run.getMode() != RunMode.ENDLESS) {
-            throw new IllegalArgumentException("Only Endless expeditions bank a team mid-run.");
+        Session session = requireSession(token);
+        synchronized (session) {
+            session.lastSeen = Instant.now();
+            SiegeRun run = session.run;
+            if (run.getMode() != RunMode.ENDLESS) {
+                throw new IllegalArgumentException("Only Endless expeditions bank a team mid-run.");
+            }
+            if (run.getStatus() != RunStatus.ACTIVE) {
+                throw new IllegalArgumentException("This expedition has already ended.");
+            }
+            if (run.getBattle() != null) {
+                throw new IllegalArgumentException("Finish the battle before extracting your team.");
+            }
+            if (run.getBossKills() < 1) {
+                throw new IllegalArgumentException("Defeat at least one boss before extracting your team.");
+            }
+            double multiplier = Math.max(1, run.getLoop() + 1);
+            run.setStatus(RunStatus.WON);
+            run.setMercenary(null);
+            run.getMercCards().clear();
+            run.setLastReward("Team extracted after " + run.getBossKills() + " boss(es) — banked for Battlegrounds. End rewards ×"
+                    + (long) multiplier + ".");
+            grantEndRewards(run, authorizationHeader, multiplier);
+            extractTeam(run, authorizationHeader);
+            checkpoint(run); // status != ACTIVE, so this clears the saved checkpoint
+            return serialize(run);
         }
-        if (run.getStatus() != RunStatus.ACTIVE) {
-            throw new IllegalArgumentException("This expedition has already ended.");
-        }
-        if (run.getBattle() != null) {
-            throw new IllegalArgumentException("Finish the battle before extracting your team.");
-        }
-        if (run.getBossKills() < 1) {
-            throw new IllegalArgumentException("Defeat at least one boss before extracting your team.");
-        }
-        double multiplier = Math.max(1, run.getLoop() + 1);
-        run.setStatus(RunStatus.WON);
-        run.setMercenary(null);
-        run.getMercCards().clear();
-        run.setLastReward("Team extracted after " + run.getBossKills() + " boss(es) — banked for Battlegrounds. End rewards ×"
-                + (long) multiplier + ".");
-        grantEndRewards(run, authorizationHeader, multiplier);
-        extractTeam(run, authorizationHeader);
-        checkpoint(run); // status != ACTIVE, so this clears the saved checkpoint
-        return serialize(run);
     }
 
     /**
@@ -3690,7 +3703,27 @@ public class SiegeService {
     // ---- Helpers --------------------------------------------------------
 
     private SiegeRun require(String token) {
-        return lookup(token).orElseThrow(() -> new IllegalArgumentException("Run not found. Start a new expedition."));
+        return requireSession(token).run;
+    }
+
+    private Session requireSession(String token) {
+        if (token == null) {
+            throw new IllegalArgumentException("Run not found. Start a new expedition.");
+        }
+        Session session = runs.get(token);
+        if (session == null) {
+            Optional<SiegeRun> restored = checkpoints.load(token).flatMap(snap -> restoreRun(token, snap));
+            if (restored.isEmpty()) {
+                throw new IllegalArgumentException("Run not found. Start a new expedition.");
+            }
+            session = new Session(restored.get());
+            Session raced = runs.putIfAbsent(token, session);
+            if (raced != null) {
+                session = raced;
+            }
+        }
+        session.lastSeen = Instant.now();
+        return session;
     }
 
     private String generateToken() {

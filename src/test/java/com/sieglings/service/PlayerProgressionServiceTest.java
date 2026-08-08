@@ -388,6 +388,37 @@ class PlayerProgressionServiceTest {
     }
 
     @Test
+    void shopWritePathsShareTheProgressionLockWithPackOpens() throws Exception {
+        // PlayerProgressionStore.save is a full-document Firestore set. Pack opens
+        // already serialize on a per-user stripe; deck unlock / craft / title paths
+        // must use the same lock or a concurrent pack open can overwrite them (and
+        // vice versa), dropping cards or purchasedDeckIds.
+        String source = java.nio.file.Files.readString(
+                java.nio.file.Path.of("src/main/java/com/sieglings/service/PlayerProgressionService.java"));
+        assertTrue(source.contains("progressionWriteLocks"), "Per-user progression write stripes must exist.");
+        for (String signature : java.util.List.of(
+                "public PlayerProgressionEntity chooseStarterPack(",
+                "public PlayerProgressionEntity completeTutorial(",
+                "public PlayerProgressionEntity openPack(AccountUser user, String packId, String requestId)",
+                "public PlayerProgressionEntity openPacks(AccountUser user, String packId, int count, String requestId)",
+                "public PlayerProgressionEntity purchaseDeck(",
+                "public PlayerProgressionEntity purchaseDailyOffer(",
+                "public PlayerProgressionEntity purchaseHolographicFinish(",
+                "public PlayerProgressionEntity craftCard(",
+                "public PlayerProgressionEntity purchaseTitle(",
+                "public PlayerProgressionEntity buyTrainerXp(",
+                "public void awardMatchGold(")) {
+            int idx = source.indexOf(signature);
+            assertTrue(idx >= 0, "Could not find " + signature);
+            String window = source.substring(idx, Math.min(source.length(), idx + 280));
+            assertTrue(
+                    window.contains("synchronized (progressionWriteLock"),
+                    signature + " must enter synchronized (progressionWriteLock(...)) before mutating progression."
+            );
+        }
+    }
+
+    @Test
     void freeDeckPurchaseNeverChargesAndShortCoinsAreRejected() throws Exception {
         FakeProgressionStore store = new FakeProgressionStore();
         PlayerProgressionEntity progression = new PlayerProgressionEntity();
