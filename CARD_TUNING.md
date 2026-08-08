@@ -119,7 +119,9 @@ Use `abilities` when you want a Siegling to have a full custom battle loadout wi
 ## Energy-Generating Passives
 
 `energy_boost` makes energy without a notch link or a socket. `targetElement` picks the energy
-type; drop it and the card generates its own element.
+type; drop it and the energy follows whichever card the ability names — point it at an ally and it
+generates *that ally's* element (once per named card), or leave it on `PASSIVE`/`SELF` and it
+generates the carrier's own element.
 
 ```json
 {

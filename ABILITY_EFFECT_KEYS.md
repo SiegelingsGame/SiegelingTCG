@@ -21,7 +21,7 @@ These are the effect keys the rules engine currently understands.
 | `connected_allies_heal` | Restores current Health (up to max) on every allied Siegling connected to the source card through active reciprocal links. Does **not** raise max Health. The source card itself is not healed. | `SELF` |
 | `connected_allies_speed_boost` | Gives Speed to every allied Siegling connected to the source card through active reciprocal links. The source card itself is not buffed. | `SELF` |
 | `speed_boost` | Adds temporary Speed. | `SINGLE_ALLY`, `ALL_ALLIES`, `ROW_ALLIES`, `PASSIVE` |
-| `energy_boost` | Generates elemental energy with **no notch link and no socket**. The energy type is the ability's `targetElement`; leave it unset and the card generates its own element. Passive = continuous while on board; active = an immediate overcharge that lasts through the owner's next Setup phase and fades before the Battle phase. | `PASSIVE` (continuous), `SELF` (active buff) |
+| `energy_boost` | Generates elemental energy with **no notch link and no socket**. The energy type is the ability's `targetElement`; leave it unset and it follows whichever card the ability names — the targeted card, or the card carrying it when it names none. Passive = continuous while on board; active = an immediate overcharge that lasts through the owner's next Setup phase and fades before the Battle phase. | `PASSIVE`, `SELF`, `SINGLE_ALLY`, `ALL_ALLIES`, `ROW_ALLIES`, `ROW_SELECT_ALLIES` |
 | `destroy` | Defeats the resolved target immediately. | `SINGLE_ENEMY` |
 | `move_link` | On a Siegling (`SELF`), moves to an adjacent empty notch-projected cell only if the moved Siegling would still have an active reciprocal notch connection there; otherwise it returns `No Valid Notches`. On a **spell or trap** with `SINGLE_ENEMY`, the caster picks the enemy’s square **and** an empty destination square on that enemy board (no link required). | `SELF`, `SINGLE_ENEMY` (spells/traps) |
 
@@ -55,6 +55,13 @@ These are the effect keys the rules engine currently understands.
   `overchargeEnergy`.
   Elements with no pool (Poison, Light, Neutral) generate nothing; picking one is treated as a
   design error rather than silently falling back.
+- **Whose element it generates.** With `targetElement` unset, the boost reads the card the ability
+  names: aim it at an ally and it generates *that ally's* element, once per named card
+  (`ALL_ALLIES` on a Fire + Ice + Earth board generates one of each). `SELF`/`PASSIVE` name the
+  carrier, so those keep generating the source's element. A continuous passive can only resolve
+  board-wide shapes without a player choice, so `SINGLE_ALLY` on a passive stays on the carrier.
+  An explicitly picked `targetElement` always wins — and it is the *energy type*, never a target
+  filter, so it does not restrict which cards the ability names.
 - `connected_allies_damage_boost`, `connected_allies_health_boost`, `connected_allies_heal`, and `connected_allies_speed_boost` are source-based, so they should be used on board creatures rather than trainers or generic spells.
 - Prefer `connected_allies_heal` when the intent is to restore missing HP; `connected_allies_health_boost` permanently raises max Health (and current HP by the same amount).
 - If you want a source creature to strengthen its linked network, these are the keys to use.

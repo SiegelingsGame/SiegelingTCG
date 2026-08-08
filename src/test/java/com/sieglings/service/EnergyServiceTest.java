@@ -534,6 +534,48 @@ class EnergyServiceTest {
         assertEquals(0, state.getEnemy().getFireEnergy());
     }
 
+    @Test
+    void energyBoostPassiveAimedAtAlliesGeneratesEachAllysElement() {
+        MovesPoolService pool = newMovesPool();
+        EnergyService service = new EnergyService(placementService, pool);
+
+        String moveId = "test:choir:energy-boost";
+        pool.registerLegacyManualMove(moveId, new ManualSieglingCatalog.ManualAbilityDefinition(
+                "Choir",
+                "Passively generates energy from every ally",
+                TargetType.ALL_ALLIES,
+                null,
+                null,
+                0,
+                AbilityEffectKeys.ENERGY_BOOST,
+                1,
+                true,
+                null,
+                0,
+                null
+        ), Element.FIRE);
+
+        SieglingCard carrier = new SieglingCard("choir", "Choir", Element.FIRE, Rarity.COMMON, 10, 1,
+                List.of(new Notch(NotchDirection.TOP, Element.FIRE)), Row.MIDDLE);
+        carrier.setMoveIds(List.of(moveId));
+        SieglingCard iceAlly = new SieglingCard("frost", "Frost", Element.ICE, Rarity.COMMON, 10, 1,
+                List.of(new Notch(NotchDirection.TOP, Element.ICE)), Row.MIDDLE);
+
+        GameState state = new GameState();
+        state.setPlayer(new Player("Player", true));
+        state.setEnemy(new Player("AI Opponent", false));
+        state.setAt(true, 1, 1, new CardInstance(carrier.copy(), 1, 1, true));
+        state.setAt(true, 1, 0, new CardInstance(iceAlly.copy(), 1, 0, true));
+
+        EnergyService.EnergyBreakdown b = service.getBreakdown(state, true);
+
+        // One grant per named ally, each of that ally's own element.
+        assertEquals(1, b.passiveEnergyFor(Element.FIRE));
+        assertEquals(1, b.passiveEnergyFor(Element.ICE));
+        assertEquals(1, b.fireTotal());
+        assertEquals(1, b.iceTotal());
+    }
+
     private MovesPoolService newMovesPool() {
         return new MovesPoolService(new com.fasterxml.jackson.databind.ObjectMapper(), null);
     }

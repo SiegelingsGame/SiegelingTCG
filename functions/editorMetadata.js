@@ -100,8 +100,8 @@ const EFFECT_TYPES = [
   {
     key: 'energy_boost',
     label: 'Energy Boost',
-    description: 'Generates energy of the chosen target element with no notch link or socket needed. As a passive it pays out every turn the card is on the board; as an action it banks the energy until the caster\'s next draw.',
-    targetHints: ['PASSIVE', 'SELF']
+    description: 'Generates energy with no notch link or socket needed. Pick the energy type, or leave it on Card element to generate the element of whichever card the ability names — the targeted card when it points at one, otherwise the card carrying it. Passive pays out every turn the card is on the board; an action overcharges the owner until the battle phase begins.',
+    targetHints: ['PASSIVE', 'SELF', 'SINGLE_ALLY', 'ALL_ALLIES', 'ROW_ALLIES', 'ROW_SELECT_ALLIES']
   },
   {
     key: 'connected_allies_slow',

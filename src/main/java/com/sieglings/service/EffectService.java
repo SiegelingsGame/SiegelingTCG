@@ -77,7 +77,10 @@ public class EffectService {
         }
 
         if (AbilityEffectKeys.ENERGY_BOOST.equals(ability.getEffectType())) {
-            applyEnergyBoostEffect(state, ability, source, isPlayerSource);
+            // Targets are resolved unfiltered on purpose: on this key `targetElement` names the
+            // energy type, not a target filter, so filterExplicitTargetElement must not run.
+            applyEnergyBoostEffect(state, ability, source, isPlayerSource,
+                    resolveTargets(state, ability, source, isPlayerSource, targetRow, targetCol));
             return;
         }
 
@@ -492,12 +495,38 @@ public class EffectService {
      * opens. The passive form is continuous instead and is recomputed by {@link EnergyService},
      * so it never comes through here.
      */
-    private void applyEnergyBoostEffect(GameState state, Ability ability, CardInstance source, boolean isPlayerSource) {
+    private void applyEnergyBoostEffect(GameState state, Ability ability, CardInstance source,
+                                        boolean isPlayerSource, List<CardInstance> targets) {
         var actor = isPlayerSource ? state.getPlayer() : state.getEnemy();
+        int value = Math.max(1, ability.getEffectValue());
+
+        // Pointed at cards, the boost reads each card it names: with no energy type chosen it
+        // generates that card's own element, once per card. A SELF ability resolves to the source
+        // through this same path, so it keeps generating the source's element.
+        if (targets != null && !targets.isEmpty()) {
+            boolean grantedAny = false;
+            for (CardInstance target : targets) {
+                Element element = EnergyService.resolveEnergyElement(ability, target.getElement());
+                if (element == null) {
+                    state.log(ability.getName() + " finds no energy type on " + target.getName() + ".");
+                    continue;
+                }
+                EnergyService.grantOverchargeEnergy(actor, element, value);
+                grantedAny = true;
+                state.log(ability.getName() + " overcharges " + actor.getName() + " with " + value + " "
+                        + element.name().toLowerCase() + " energy from " + target.getName()
+                        + " until the battle phase begins.");
+            }
+            if (grantedAny) {
+                return;
+            }
+            // Every named card was poolless; fall through to the source so the card still does
+            // something rather than silently fizzling.
+        }
+
         Element sourceElement = source != null ? source.getElement()
                 : (actor.getActiveTrainer() != null ? actor.getActiveTrainer().getElement() : null);
         Element element = EnergyService.resolveEnergyElement(ability, sourceElement);
-        int value = Math.max(1, ability.getEffectValue());
         if (element == null) {
             state.log(ability.getName() + " has no energy type to generate.");
             return;
