@@ -563,6 +563,91 @@
         queue.releasePendingLethalHold(pendingKey);
     }
 
+    /**
+     * Chain damage playback. The effect is about the links, so it has to read as
+     * one strike that ricochets: the projectile crosses the board to the card the
+     * ability actually targeted, lands, and only then do arcs jump from that card
+     * to each Siegling wired to it. (The generic multi-target barrage fires
+     * everything from the attacker at once, which hid the link entirely.)
+     *
+     * Victims killed by a hop keep their card on screen until every hop is done —
+     * a dead primary is still the origin the arcs bounce from — so the impact and
+     * the destruction animation are split across the sequence.
+     * @returns the lethal victims, in hop order, awaiting their destroy toast.
+     */
+    async function playChainAttack(queue, action, t, elColor) {
+        const fxElement = attackFxElement(action);
+        const casterFxColor = elementHex(fxElement);
+        const borderMs = queue.getSpeed() === 'fast' ? 520 : 950;
+        const lethalTargets = [];
+        queue.syncPendingLethalHolds();
+
+        const playHop = async (origin, victims) => {
+            if (!victims.length) return;
+            let leadInMs = t.projectileMs;
+            if (origin && window.SieglingsFx?.attackCell) {
+                for (const tgt of victims) {
+                    window.SieglingsFx.attackCell(
+                        origin.isPlayer, origin.row, origin.col,
+                        tgt.isPlayer, tgt.row, tgt.col,
+                        fxElement,
+                        { duration: t.projectileMs }
+                    );
+                }
+            } else {
+                // Sourceless chain (trap / spell / trainer active): nothing crossed
+                // the board to reach the primary, so it ignites its own border. The
+                // arcs off it still fly, because those really do travel the links.
+                for (const tgt of victims) {
+                    spawnElementalBorder(tgt.isPlayer, tgt.row, tgt.col, {
+                        element: fxElement,
+                        variant: 'effect',
+                        durationMs: borderMs
+                    });
+                }
+                leadInMs = Math.round(borderMs * 0.4);
+            }
+            await sleep(leadInMs);
+
+            const surviving = [];
+            for (const tgt of victims) {
+                if (tgt.destroysTarget && tgt.ghostCell) {
+                    queue.applyLethalImpactHealth(tgt.pendingLethalKey || tgt.pendingHealthKey, tgt);
+                    lethalTargets.push(tgt);
+                } else {
+                    surviving.push(tgt);
+                }
+            }
+            queue.applyPendingImpactHealthForTargets(surviving);
+            for (const tgt of victims) {
+                applyAttackImpactVfx(queue, action, tgt, casterFxColor);
+            }
+            if (window.SieglingsFx?.cameraShake) {
+                const hopDamage = victims.reduce((sum, tt) => sum + (Number(tt.amount) || 0), 0);
+                window.SieglingsFx.cameraShake(
+                    Math.min(16, 6 + Math.round(hopDamage * 0.35)), t.impactMs
+                );
+            }
+            await sleep(t.impactMs);
+            if (surviving.length) queue.releasePendingHealthForTargets(surviving);
+        };
+
+        for (const step of action.chainSteps) {
+            await playHop(action.source, [step.primary]);
+            await playHop(step.primary, step.links);
+        }
+
+        for (const tgt of lethalTargets) {
+            const cardToDestroy = queue.getHeldBoardCard(tgt.isPlayer, tgt.row, tgt.col)
+                || findCellEl(tgt.isPlayer, tgt.row, tgt.col)?.querySelector('.board-card');
+            if (cardToDestroy) {
+                await destroyBoardCard(cardToDestroy, elColor, 520);
+            }
+            queue.releasePendingLethalHold(tgt.pendingLethalKey || tgt.pendingHealthKey);
+        }
+        return lethalTargets;
+    }
+
     function buildCardDestroyedToast(sourceAction, target) {
         const ghost = target?.ghostCell || sourceAction?.ghostCell;
         const name = target?.name || ghost?.name || sourceAction?.actorName || 'Card';
@@ -1004,6 +1089,21 @@
         if (!AFFLICTION_PROFILES[affliction]) return null;
         const stacks = Number((m[3].match(/x\s*(\d+)/i) || [])[1]) || 1;
         return { target: m[1].trim(), affliction, stacks };
+    }
+    // Chain damage announces its shape before the damage lines land:
+    //   "<Ability> arcs through <Primary>'s links to 2 connected Sieglings!"
+    //   "<Ability> finds no links on <Primary>."
+    // The named card is the one the projectile strikes first — every other
+    // victim of that ability in the same batch is a bounce off it. Board diffs
+    // arrive in row/col order, so this is the only way playback can tell the
+    // struck target from the cards the arc jumped to.
+    function parseChainArcFromLog(line) {
+        const text = stripLogPrefix(line);
+        let m = text.match(/^(.+?)\s+arcs\s+through\s+(.+?)'s\s+links\s+to\s+(\d+)\s+connected\s+Siegling/i);
+        if (m) return { ability: m[1].trim(), primary: m[2].trim(), links: parseInt(m[3], 10) };
+        m = text.match(/^(.+?)\s+finds\s+no\s+links\s+on\s+(.+?)[.!]?$/i);
+        if (m) return { ability: m[1].trim(), primary: m[2].trim(), links: 0 };
+        return null;
     }
     function parseClaimFromLog(line) {
         const text = stripLogPrefix(line);
@@ -2272,6 +2372,46 @@
                 return null;
             };
 
+            // Chain damage hop structure for this batch, keyed off the arc log
+            // lines. A target only counts as a chain primary when the same
+            // ability is also logged as damaging it, so an unrelated attack on a
+            // same-named card elsewhere in the batch can't hijack the ordering.
+            const chainArcs = newLogs.map(parseChainArcFromLog).filter(Boolean);
+            const damagedByAbility = (ability, name) => damageLogs.some((d) =>
+                namesMatch(d.abilityOrSource, ability) && namesMatch(d.target, name)
+            );
+            // Notch links reach one step in any of the eight directions, so a
+            // bounce victim always sits in a cell touching its primary.
+            const touchesCell = (a, b) => a.isPlayer === b.isPlayer
+                && Math.max(Math.abs(a.row - b.row), Math.abs(a.col - b.col)) === 1;
+            /**
+             * Split a damage group into [{ primary, links }] hops, or null when it
+             * isn't a chain — which is also how a multi-primary chain gets pulled
+             * back apart from the flat, row/col-ordered damage list.
+             */
+            const buildChainSteps = (groupTargets) => {
+                if (!chainArcs.length || groupTargets.length < 2) return null;
+                const steps = [];
+                for (const arc of chainArcs) {
+                    const primary = groupTargets.find((tt) =>
+                        namesMatch(tt.name, arc.primary)
+                        && damagedByAbility(arc.ability, tt.name)
+                        && !steps.some((s) => s.primary === tt)
+                    );
+                    if (primary) steps.push({ ability: arc.ability, primary, links: [] });
+                }
+                if (!steps.length) return null;
+                for (const tt of groupTargets) {
+                    if (steps.some((s) => s.primary === tt)) continue;
+                    const owner = steps.find((s) =>
+                        touchesCell(s.primary, tt) && damagedByAbility(s.ability, tt.name)
+                    );
+                    if (owner) owner.links.push(tt);
+                    else return null; // a victim this chain can't explain — play it as a barrage
+                }
+                return steps.some((s) => s.links.length) ? steps : null;
+            };
+
             // Badges that landed on top of a real hit — the attack keeps its
             // projectile, and the element's border lights up on impact.
             const afflictionApplyLogs = newLogs.map(parseAfflictionApplyFromLog).filter(Boolean);
@@ -2685,6 +2825,23 @@
                     .filter((tt) => Number(tt.amount) > 0)
                     .map((tt) => `${Number(tt.amount)} damage to ${tt.name || defenderLabel}`)
                     .join(' and ');
+                const actionTargets = targets.map((tt) => ({
+                    isPlayer: tt.isPlayer, row: tt.row, col: tt.col,
+                    element: tt.element || srcElement,
+                    name: tt.name,
+                    amount: tt.amount,
+                    shieldBroken: tt.shieldBroken,
+                    hpLoss: tt.hpLoss,
+                    destroysTarget: tt.destroysTarget,
+                    ghostCell: tt.ghostCell,
+                    pendingHealthKey: tt.pendingHealthKey,
+                    pendingLethalKey: tt.pendingLethalKey,
+                    statuses: tt.statuses && tt.statuses.length ? tt.statuses.slice() : null,
+                    afflictionAura: tt.afflictionAura || null
+                }));
+                // Chain hops reference the same objects the barrage path uses, so
+                // pending health/lethal keys stay shared between both playbacks.
+                const chainSteps = buildChainSteps(actionTargets);
                 this.enqueueAction({
                     kind: 'ATTACK',
                     side,
@@ -2698,20 +2855,8 @@
                     knightElement: knight,
                     elementColor: srcElement,
                     source: sourcePayload,
-                    targets: targets.map((tt) => ({
-                        isPlayer: tt.isPlayer, row: tt.row, col: tt.col,
-                        element: tt.element || srcElement,
-                        name: tt.name,
-                        amount: tt.amount,
-                        shieldBroken: tt.shieldBroken,
-                        hpLoss: tt.hpLoss,
-                        destroysTarget: tt.destroysTarget,
-                        ghostCell: tt.ghostCell,
-                        pendingHealthKey: tt.pendingHealthKey,
-                        pendingLethalKey: tt.pendingLethalKey,
-                        statuses: tt.statuses && tt.statuses.length ? tt.statuses.slice() : null,
-                        afflictionAura: tt.afflictionAura || null
-                    })),
+                    targets: actionTargets,
+                    chainSteps,
                     gapAfterMs: BATTLE_GAP_MS
                 });
             };
@@ -3324,6 +3469,19 @@
             const showDeferredDestroyToast = async (targetLike) => {
                 await showCardDestroyedToast(this, action, targetLike || action, t);
             };
+
+            // 2a-chain. Chain damage strikes its target first, then bounces from
+            // that card along its links — see playChainAttack.
+            if (action.kind === 'ATTACK' && Array.isArray(action.chainSteps) && action.chainSteps.length) {
+                const lethalTargets = await playChainAttack(this, action, t, elColor);
+                await showDeferredAttackToast();
+                for (const tgt of lethalTargets) {
+                    await showDeferredDestroyToast(tgt);
+                }
+                const chainGap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
+                await sleep(chainGap);
+                return;
+            }
 
             // 2a. Multi-target damage. With an attacker, all projectiles fire
             // simultaneously (no stagger); without one — a trap, an aura, a

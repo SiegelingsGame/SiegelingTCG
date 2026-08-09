@@ -503,7 +503,7 @@ class GameJavaScriptRegressionTest {
                 "Shield playback must retain the server's final shield value instead of treating a missing bridge as zero."
         );
         assertTrue(
-                playMarkup.contains("action-queue.js?v=40"),
+                playMarkup.contains("action-queue.js?v=41"),
                 "The battle page must load the shield-persistence action queue instead of a cached pre-fix bundle."
         );
     }
@@ -682,6 +682,62 @@ class GameJavaScriptRegressionTest {
                 adventureScript.contains("var STATUS_ELEMENT = {")
                         && adventureScript.contains("elementBorder(ev.targetId, STATUS_ELEMENT[ev.status]"),
                 "Siege status applications light the inflicting element on the unit's border."
+        );
+    }
+
+    /**
+     * Chain damage has to read as a ricochet: the projectile strikes the Siegling the
+     * ability targeted, and only once that hit lands do the arcs leave that card for
+     * everything wired to it. Playing every victim as one simultaneous barrage — the
+     * generic multi-target path — made a chain indistinguishable from an AoE and hid
+     * the links the effect is entirely about.
+     */
+    @Test
+    void chainDamageStrikesItsTargetBeforeArcingToTheLinkedSieglings() throws IOException {
+        String actionQueueScript = Files.readString(ACTION_QUEUE_JS);
+        String effectService = Files.readString(
+                Path.of("src/main/java/com/sieglings/service/EffectService.java"));
+
+        // The board diff arrives in row/col order, so the arc log lines are the only
+        // thing that identifies which victim was actually targeted.
+        assertTrue(
+                actionQueueScript.contains("function parseChainArcFromLog")
+                        && actionQueueScript.contains("\\s+arcs\\s+through\\s+")
+                        && actionQueueScript.contains("\\s+finds\\s+no\\s+links\\s+on\\s+"),
+                "The queue must recognise the chain arc log lines to tell the struck target from the bounces."
+        );
+        assertTrue(
+                effectService.contains("\" arcs through \"")
+                        && effectService.contains("\" finds no links on \""),
+                "EffectService must keep the chain log wording the playback parser is coupled to."
+        );
+
+        String chainPlayback = sliceBetween(actionQueueScript,
+                "async function playChainAttack(",
+                "function buildCardDestroyedToast(");
+        assertTrue(
+                chainPlayback.contains("await playHop(action.source, [step.primary]);")
+                        && chainPlayback.contains("await playHop(step.primary, step.links);"),
+                "Chain playback must fire attacker to primary first, then primary to its links."
+        );
+        // A victim killed by its hop stays on screen until every arc has left it —
+        // otherwise the bounce would originate from an already-empty cell.
+        assertTrue(
+                chainPlayback.contains("queue.applyLethalImpactHealth(")
+                        && chainPlayback.indexOf("destroyBoardCard(")
+                                > chainPlayback.indexOf("for (const step of action.chainSteps)"),
+                "A lethal chain victim must keep its card until the hops finish, then come apart."
+        );
+
+        assertTrue(
+                actionQueueScript.indexOf("action.kind === 'ATTACK' && Array.isArray(action.chainSteps)")
+                        < actionQueueScript.indexOf("action.kind === 'ATTACK' && Array.isArray(action.targets) && action.targets.length > 1"),
+                "The chain branch must be reached before the generic simultaneous barrage."
+        );
+        assertTrue(
+                actionQueueScript.contains("const chainSteps = buildChainSteps(actionTargets);")
+                        && actionQueueScript.contains("chainSteps,"),
+                "Multi-target attacks must carry their chain hop structure into playback."
         );
     }
 
