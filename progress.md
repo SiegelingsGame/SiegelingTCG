@@ -1,7 +1,7 @@
 Original prompt: critical bug hunt (cron)
 
 - August 9, 2026 Critical fix for active `energy_boost` overcharge spends. `#684` records spends as negative temporary adjustments so a mid-setup recalculation cannot refund them, but temporary debt survives into Battle while overcharge is cleared in `startBattlePhase` before the full restore. Spending the surge on a Setup cast therefore left a debt that stole board-link energy for the fight (board 2 fire + overcharge 2, spend 2 → Battle restored 0 instead of 2). `EnergyService.consumeEnergy` now drains `Player.consumeOverchargeEnergy` first and only books the remainder as temporary debt.
-- Verification: focused `GameServiceTest` — new `spendingOverchargeDoesNotStealBoardEnergyWhenBattleBegins` plus the existing overcharge spend/recalculate case; then the broader energy/game service suites. See the PR for the exact counts.
+- Verification: `./mvnw -Dtest=GameServiceTest,EffectServiceTest,EnergyServiceTest,BattleServiceTest test` → **82/82 green**. Headline case `spendingOverchargeDoesNotStealBoardEnergyWhenBattleBegins` drives board links (2 fire) + overcharge (+2) + spend (2) through reflective `startBattlePhase` and asserts Battle still has 2 fire with no temporary debt; existing overcharge spend/recalculate / fade / AI / claim-temp cases stay green.
 
 Original prompt: When energy boost targets another card with the card element selected make sure it adds energy of the target cards type
 
