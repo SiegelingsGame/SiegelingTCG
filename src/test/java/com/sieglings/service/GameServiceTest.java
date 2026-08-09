@@ -218,10 +218,83 @@ class GameServiceTest {
 
         energyService.spendEnergy(state, true, Element.FIRE, 2);
         assertEquals(1, player.getFireEnergy());
+        assertEquals(1, player.getOverchargeEnergy(Element.FIRE),
+                "Spends must drain the overcharge ledger, not only the live pool.");
 
         // A later recalculation must not refund the spend, only keep the surge.
         energyService.recalculateEnergy(state);
         assertEquals(1, player.getFireEnergy());
+    }
+
+    /**
+     * Spending an overcharge during Setup must not leave temporary debt that steals board
+     * energy when the surge fades at Battle. Concrete trigger: board has 2 fire from links,
+     * active boost grants +2, player spends those 2 on a cast, Battle opens — board fire must
+     * still read 2 (the spent surge is gone; the links are not).
+     */
+    @Test
+    void spendingOverchargeDoesNotStealBoardEnergyWhenBattleBegins() throws Exception {
+        GameService gameService = newGameServiceWithBattleStack();
+        EnergyService energyService = getField(gameService, "energyService");
+
+        GameState state = new GameState();
+        Player player = new Player("Player", true);
+        state.setPlayer(player);
+        state.setEnemy(new Player("Enemy", false));
+        state.setCurrentPhase(Phase.SETUP);
+        state.setPlayerTurn(true);
+
+        SieglingCard rooted = new SieglingCard(
+                "rooted-fire",
+                "Rooted Fire",
+                Element.FIRE,
+                Rarity.COMMON,
+                10,
+                1,
+                List.of(
+                        new Notch(NotchDirection.TOP, Element.FIRE),
+                        new Notch(NotchDirection.BOTTOM, Element.FIRE)
+                ),
+                Row.BACK
+        );
+        SieglingCard linked = new SieglingCard(
+                "linked-fire",
+                "Linked Fire",
+                Element.FIRE,
+                Rarity.COMMON,
+                10,
+                1,
+                List.of(new Notch(NotchDirection.BOTTOM, Element.FIRE)),
+                Row.MIDDLE
+        );
+        CardInstance rootInstance = new CardInstance(rooted.copy(), 0, 0, true);
+        rootInstance.setPlacementOrder(1);
+        rootInstance.setBattlePhasesSeen(1);
+        CardInstance linkedInstance = new CardInstance(linked.copy(), 1, 0, true);
+        linkedInstance.setPlacementOrder(2);
+        linkedInstance.setBattlePhasesSeen(1);
+        state.setAt(true, 0, 0, rootInstance);
+        state.setAt(true, 1, 0, linkedInstance);
+
+        energyService.recalculateEnergy(state);
+        assertEquals(2, player.getFireEnergy(), "Board links should supply 2 fire before the surge.");
+
+        EnergyService.grantOverchargeEnergy(player, Element.FIRE, 2);
+        assertEquals(4, player.getFireEnergy());
+
+        energyService.spendEnergy(state, true, Element.FIRE, 2);
+        assertEquals(2, player.getFireEnergy());
+        assertFalse(player.isOvercharged(), "The spent surge should be fully consumed.");
+        assertEquals(0, player.getTemporaryEnergyAdjustment(Element.FIRE),
+                "Spending only overcharge must not book claim-style temporary debt.");
+
+        Method startBattlePhase = GameService.class.getDeclaredMethod("startBattlePhase", GameState.class);
+        startBattlePhase.setAccessible(true);
+        startBattlePhase.invoke(gameService, state);
+
+        assertEquals(Phase.BATTLE, state.getCurrentPhase());
+        assertEquals(2, player.getFireEnergy(),
+                "Battle restore must keep board link energy after a spent overcharge fades.");
     }
 
     @Test
