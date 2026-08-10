@@ -508,6 +508,7 @@
         achievementCategory: '',
         leaderboardTab: 'wins',
         leaderboardPeriod: 'daily',
+        leaderboardsRetrying: false,
         dailyMissions: null,
         dailyMissionsError: '',
         showAllMissions: false,
@@ -1474,8 +1475,7 @@
         applyGameOptions(options);
         applyShopPacksPayload(packs);
         state.creatureDescriptions = indexCreatureDescriptions(descriptions);
-        state.leaderboards = leaderboards || null;
-        state.leaderboardsError = leaderboards?.error || '';
+        applyLeaderboardsPayload(leaderboards);
         if (dailyMissions && !dailyMissions.error) {
             state.dailyMissions = dailyMissions;
             state.dailyMissionsError = '';
@@ -2636,6 +2636,27 @@
         bindHomeDashboardActions(el);
     }
 
+    // A failed fetch returns { error } — a truthy object. Storing that as the
+    // payload made "the request failed" indistinguishable from "nobody has
+    // scored yet", so a cold-start blip rendered as an empty board that never
+    // recovered. Only a real payload becomes state; the error stays separate.
+    function applyLeaderboardsPayload(payload) {
+        const failed = !payload || Boolean(payload.error);
+        state.leaderboards = failed ? null : payload;
+        state.leaderboardsError = payload?.error || (payload ? '' : 'Leaderboards are unavailable right now.');
+    }
+
+    async function retryLeaderboards() {
+        if (state.leaderboardsRetrying) return;
+        state.leaderboardsRetrying = true;
+        renderHomeDashboard();
+        const data = await fetchJson('/api/leaderboards');
+        state.leaderboardsRetrying = false;
+        applyLeaderboardsPayload(data);
+        if (state.leaderboards) writeCache('leaderboards', state.leaderboards);
+        renderHomeDashboard();
+    }
+
     function leaderboardBoardsForPeriod(period) {
         const activePeriod = LEADERBOARD_PERIODS.some(([id]) => id === period) ? period : 'daily';
         const periods = state.leaderboards?.periods;
@@ -2685,13 +2706,31 @@
                 ${tabs.map(([id, label]) => `<button class="home-lb-tab${activeTab === id ? ' active' : ''}" type="button" data-home-lb="${escapeAttr(id)}" role="tab" aria-selected="${activeTab === id}">${escapeHtml(label)}</button>`).join('')}
             </div>
             <div class="home-lb-list">
-                ${state.leaderboardsError && !state.leaderboards ? `<div class="home-empty-emblem">${escapeHtml(state.leaderboardsError)}</div>` : ''}
-                ${activeRows.length ? activeRows.slice(0, 6).map(row => {
-                    const value = activeTab === 'pvpWinRate' && row.detail ? row.detail : row.value;
-                    return `<div class="home-lb-row"><strong>#${escapeHtml(row.rank)}</strong><span>${escapeHtml(row.displayName || 'Player')}</span><em>${escapeHtml(value ?? '')}</em></div>`;
-                }).join('') : '<div class="home-empty-emblem">No leaderboard results yet.</div>'}
+                ${leaderboardListMarkup(activeRows, activeTab)}
             </div>
         </article>`;
+    }
+
+    function leaderboardListMarkup(rows, activeTab) {
+        if (state.leaderboardsRetrying) {
+            return '<div class="home-empty-emblem">Loading leaderboards…</div>';
+        }
+        // "Couldn't load" and "nobody has scored" are different answers and the
+        // player can act on the first one, so the failed state offers a retry
+        // instead of quietly claiming the board is empty.
+        if (!state.leaderboards) {
+            return `<div class="home-lb-error">
+                <span>${escapeHtml(state.leaderboardsError || 'Leaderboards are unavailable right now.')}</span>
+                <button class="ghost-btn compact-btn" type="button" data-home-lb-retry>Retry</button>
+            </div>`;
+        }
+        if (!rows.length) {
+            return '<div class="home-empty-emblem">No leaderboard results yet.</div>';
+        }
+        return rows.slice(0, 6).map(row => {
+            const value = activeTab === 'pvpWinRate' && row.detail ? row.detail : row.value;
+            return `<div class="home-lb-row"><strong>#${escapeHtml(row.rank)}</strong><span>${escapeHtml(row.displayName || 'Player')}</span><em>${escapeHtml(value ?? '')}</em></div>`;
+        }).join('');
     }
 
     function formatDateTime(value) {
@@ -3253,6 +3292,9 @@
             state.leaderboardTab = btn.dataset.homeLb || 'wins';
             renderHomeDashboard();
         }));
+        root.querySelector('[data-home-lb-retry]')?.addEventListener('click', () => {
+            void retryLeaderboards();
+        });
     }
 
     function renderDecks() {

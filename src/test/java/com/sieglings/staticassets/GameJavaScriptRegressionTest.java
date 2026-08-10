@@ -409,7 +409,7 @@ class GameJavaScriptRegressionTest {
                 "Season Snapshot, Loadout Shelf, and Social Table must share the overview rail, with matches and badges paired below."
         );
         assertTrue(
-                homeMarkup.contains("home.js?v=138") && homeMarkup.contains("home.css?v=127"),
+                homeMarkup.contains("home.js?v=139") && homeMarkup.contains("home.css?v=128"),
                 "Cache-bust pins for the profile dashboard trim must advance on home.html."
         );
     }
@@ -437,9 +437,9 @@ class GameJavaScriptRegressionTest {
                 "Element-mode profile and friend avatars must fill a circular frame."
         );
         assertTrue(
-                homeMarkup.contains("home.css?v=127")
-                        && homeMarkup.contains("home.js?v=138")
-                        && dashboardMarkup.contains("home.css?v=127"),
+                homeMarkup.contains("home.css?v=128")
+                        && homeMarkup.contains("home.js?v=139")
+                        && dashboardMarkup.contains("home.css?v=128"),
                 "Profile icon CSS and JavaScript cache pins must advance together."
         );
     }
@@ -474,7 +474,7 @@ class GameJavaScriptRegressionTest {
                 homeMarkup.contains("style.css?v=230")
                         && homeMarkup.contains("game.js?v=240")
                         && homeMarkup.contains("card-binder-visual.js?v=20")
-                        && homeMarkup.contains("home.js?v=138")
+                        && homeMarkup.contains("home.js?v=139")
                         && playMarkup.contains("style.css?v=230")
                         && playMarkup.contains("game.js?v=240")
                         && dashboardMarkup.contains("style.css?v=230")
@@ -567,9 +567,9 @@ class GameJavaScriptRegressionTest {
                 "The full Field Guide must use current card labels, energy exceptions, Siege rules, and fresh visuals."
         );
         assertTrue(
-                homeMarkup.contains("home.css?v=127")
-                        && homeMarkup.contains("home.js?v=138")
-                        && dashboardMarkup.contains("home.css?v=127"),
+                homeMarkup.contains("home.css?v=128")
+                        && homeMarkup.contains("home.js?v=139")
+                        && dashboardMarkup.contains("home.css?v=128"),
                 "Guide JavaScript and shared visual CSS pins must advance together."
         );
     }
@@ -1631,6 +1631,37 @@ class GameJavaScriptRegressionTest {
                 keepJs.contains("if (state.interior) renderInterior();")
                         && keepJs.contains("else openPanel('projects');"),
                 "Buying time from inside a building must leave the player in the room, not throw them into the Projects panel."
+        );
+    }
+
+    @Test
+    void leaderboardPanelSeparatesAFailedFetchFromAnEmptyBoard() throws IOException {
+        String homeJs = Files.readString(HOME_JS);
+
+        assertTrue(
+                homeJs.contains("function applyLeaderboardsPayload(")
+                        && homeJs.contains("state.leaderboards = failed ? null : payload;")
+                        && !homeJs.contains("state.leaderboards = leaderboards || null;"),
+                "A { error } response must not be stored as the leaderboard payload, or a failed fetch renders as an empty board."
+        );
+        assertTrue(
+                homeJs.contains("function retryLeaderboards(")
+                        && homeJs.contains("data-home-lb-retry")
+                        && homeJs.contains("class=\"home-lb-error\""),
+                "The failed state needs its own markup and a retry, so a cold-start blip is recoverable without reloading the hub."
+        );
+    }
+
+    @Test
+    void notificationPanelClearsTheTopSafeArea() throws IOException {
+        String homeCss = Files.readString(Path.of("src/main/resources/static/css/home.css"));
+
+        // The panel is bottom-anchored and grows upward, so its max-height is what
+        // decides whether a full list runs under the clock and the Dynamic Island.
+        assertTrue(
+                homeCss.contains("max-height: calc(100dvh - 240px - env(safe-area-inset-bottom, 0px) - env(safe-area-inset-top, 0px));")
+                        && !homeCss.contains("max-height: calc(100vh - 240px - env(safe-area-inset-bottom, 0px));"),
+                "The notification panel's ceiling must subtract the top safe-area inset, not just the bottom one."
         );
     }
 
