@@ -409,7 +409,7 @@ class GameJavaScriptRegressionTest {
                 "Season Snapshot, Loadout Shelf, and Social Table must share the overview rail, with matches and badges paired below."
         );
         assertTrue(
-                homeMarkup.contains("home.js?v=139") && homeMarkup.contains("home.css?v=128"),
+                homeMarkup.contains("home.js?v=140") && homeMarkup.contains("home.css?v=129"),
                 "Cache-bust pins for the profile dashboard trim must advance on home.html."
         );
     }
@@ -437,9 +437,9 @@ class GameJavaScriptRegressionTest {
                 "Element-mode profile and friend avatars must fill a circular frame."
         );
         assertTrue(
-                homeMarkup.contains("home.css?v=128")
-                        && homeMarkup.contains("home.js?v=139")
-                        && dashboardMarkup.contains("home.css?v=128"),
+                homeMarkup.contains("home.css?v=129")
+                        && homeMarkup.contains("home.js?v=140")
+                        && dashboardMarkup.contains("home.css?v=129"),
                 "Profile icon CSS and JavaScript cache pins must advance together."
         );
     }
@@ -474,7 +474,7 @@ class GameJavaScriptRegressionTest {
                 homeMarkup.contains("style.css?v=230")
                         && homeMarkup.contains("game.js?v=240")
                         && homeMarkup.contains("card-binder-visual.js?v=20")
-                        && homeMarkup.contains("home.js?v=139")
+                        && homeMarkup.contains("home.js?v=140")
                         && playMarkup.contains("style.css?v=230")
                         && playMarkup.contains("game.js?v=240")
                         && dashboardMarkup.contains("style.css?v=230")
@@ -567,9 +567,9 @@ class GameJavaScriptRegressionTest {
                 "The full Field Guide must use current card labels, energy exceptions, Siege rules, and fresh visuals."
         );
         assertTrue(
-                homeMarkup.contains("home.css?v=128")
-                        && homeMarkup.contains("home.js?v=139")
-                        && dashboardMarkup.contains("home.css?v=128"),
+                homeMarkup.contains("home.css?v=129")
+                        && homeMarkup.contains("home.js?v=140")
+                        && dashboardMarkup.contains("home.css?v=129"),
                 "Guide JavaScript and shared visual CSS pins must advance together."
         );
     }
@@ -1659,9 +1659,34 @@ class GameJavaScriptRegressionTest {
         // The panel is bottom-anchored and grows upward, so its max-height is what
         // decides whether a full list runs under the clock and the Dynamic Island.
         assertTrue(
-                homeCss.contains("max-height: calc(100dvh - 240px - env(safe-area-inset-bottom, 0px) - env(safe-area-inset-top, 0px));")
+                homeCss.contains("max-height: calc(100dvh - var(--hud-clearance) - env(safe-area-inset-top, 0px) - 40px);")
                         && !homeCss.contains("max-height: calc(100vh - 240px - env(safe-area-inset-bottom, 0px));"),
                 "The notification panel's ceiling must subtract the top safe-area inset, not just the bottom one."
+        );
+    }
+
+    @Test
+    void popupsAnchorAboveTheDockedHudFromOneMeasuredClearance() throws IOException {
+        String homeCss = Files.readString(Path.of("src/main/resources/static/css/home.css"));
+        String homeJs = Files.readString(HOME_JS);
+
+        assertTrue(
+                homeCss.contains("--hud-clearance: calc(var(--bottom-hud-height, 205px) + 8px);"),
+                "Popups need one shared clearance token derived from the measured HUD height."
+        );
+        // Constants stood in for the HUD's height and were all shorter than it
+        // actually is, so each of these popups overlapped the dock.
+        assertTrue(
+                !homeCss.contains("bottom: calc(200px + env(safe-area-inset-bottom, 0px));")
+                        && !homeCss.contains("padding: 10px 10px calc(194px + env(safe-area-inset-bottom, 0px));")
+                        && !homeCss.contains("var(--bottom-hud-height, 170px)"),
+                "No popup may guess the docked HUD's height with a constant."
+        );
+        assertTrue(
+                homeJs.contains("function observeBottomHud(")
+                        && homeJs.contains("new window.ResizeObserver(() => measureBottomHud()).observe(nav)")
+                        && homeJs.contains("observeBottomHud();"),
+                "The HUD grows when signing in adds action buttons, and no resize event fires — the nav itself must be observed or every anchored popup drifts back under it."
         );
     }
 
