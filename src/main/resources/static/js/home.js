@@ -563,6 +563,16 @@
         }
     }
 
+    // The explicit call sites only cover the height changes we thought to name.
+    // The nav also grows when signing in adds action buttons, when a badge
+    // appears, or when a webfont lands — and a stale measurement puts every
+    // popup anchored to it back under the HUD. Watch the element instead.
+    function observeBottomHud() {
+        const nav = document.querySelector('.home-nav');
+        if (!nav || typeof window.ResizeObserver !== 'function') return;
+        new window.ResizeObserver(() => measureBottomHud()).observe(nav);
+    }
+
     function openFriendsModal() {
         document.getElementById('friendsModal')?.classList.remove('hidden');
         state.activeChatPeer = null;
@@ -1197,10 +1207,11 @@
         };
         window.addEventListener('orientationchange', handleOrientationArtChange);
         window.matchMedia?.('(orientation: portrait)')?.addEventListener?.('change', handleOrientationArtChange);
-        // Keep the docked-HUD height measurement current for the tray anchor.
+        // Keep the docked-HUD height measurement current for every popup anchored to it.
         window.addEventListener('resize', measureBottomHud);
         window.addEventListener('orientationchange', measureBottomHud);
         measureBottomHud();
+        observeBottomHud();
         // Only show the top loading bar when there's nothing cached to paint yet;
         // otherwise the page is already populated and the refresh is silent.
         setHubLoading(!state.options);

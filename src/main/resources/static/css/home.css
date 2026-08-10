@@ -9141,10 +9141,10 @@ body.gacha-active {
 
     .profile-modal {
         align-items: start;
-        padding: 12px 10px calc(16px + env(safe-area-inset-bottom, 0px));
+        padding: 12px 10px calc(4px + var(--hud-clearance));
     }
     .profile-edit-panel {
-        max-height: calc(100dvh - 28px - env(safe-area-inset-bottom, 0px));
+        max-height: calc(100dvh - var(--hud-clearance) - 16px);
     }
 }
 
@@ -9205,6 +9205,16 @@ body.gacha-active {
         height: 100dvh;
         min-height: 0;
         overflow: hidden;
+    }
+    /* One clearance for every popup that shares the screen with the docked HUD.
+       --bottom-hud-height is measured from the nav itself (JS), so it already
+       carries the nav's own bottom safe-area padding — never add the inset on
+       top of it. The fallback matches a signed-out four-row HUD and only
+       applies for the frame before the first measurement; the nav grows past it
+       once a session's extra action buttons appear, which is exactly why the
+       measured value has to drive this rather than a constant. */
+    :root {
+        --hud-clearance: calc(var(--bottom-hud-height, 205px) + 8px);
     }
     .home-nav {
         position: fixed;
@@ -9297,19 +9307,20 @@ body.gacha-active {
     .notif-panel {
         top: auto;
         right: 10px;
-        bottom: calc(200px + env(safe-area-inset-bottom, 0px));
+        /* Sit above the HUD's top edge rather than 200px off the bottom: that
+           constant was shorter than the nav is in practice, so the list ran
+           under it. */
+        bottom: var(--hud-clearance);
         left: 10px;
         width: auto;
         /* The panel is anchored to the docked HUD and grows upward, so this
            ceiling is the only thing keeping a full list out of the status bar.
-           The 240px kept the top edge 40px down the screen, which the clock and
-           the Dynamic Island sit inside of; the top inset has to come off as
-           well so that 40px is measured from the bottom of the safe area rather
-           than from the bottom of the display. dvh rather than vh: when browser
-           chrome is visible vh is the taller number, which would put the top
-           edge back under the inset. */
-        max-height: calc(100vh - 240px - env(safe-area-inset-bottom, 0px) - env(safe-area-inset-top, 0px));
-        max-height: calc(100dvh - 240px - env(safe-area-inset-bottom, 0px) - env(safe-area-inset-top, 0px));
+           Subtracting the top inset is what keeps that 40px gap measured from
+           the bottom of the safe area rather than the bottom of the display.
+           dvh rather than vh: when browser chrome is visible vh is the taller
+           number, which would put the top edge back under the inset. */
+        max-height: calc(100vh - var(--hud-clearance) - env(safe-area-inset-top, 0px) - 40px);
+        max-height: calc(100dvh - var(--hud-clearance) - env(safe-area-inset-top, 0px) - 40px);
     }
     .help-modal {
         padding: 0;
@@ -9327,12 +9338,18 @@ body.gacha-active {
        clears the docked HUD at the bottom. */
     .friends-modal {
         align-content: center;
-        padding: calc(12px + env(safe-area-inset-top, 0px)) 10px calc(12px + var(--device-safe-bottom, env(safe-area-inset-bottom, 0px)));
+        /* The old bottom padding cleared the home indicator but not the HUD, so
+           the centred card overlapped it by ~90px. The clearance already covers
+           the inset, so it replaces that term rather than stacking with it. */
+        padding: calc(12px + env(safe-area-inset-top, 0px)) 10px calc(12px + var(--hud-clearance));
     }
     .friends-panel {
         width: 100%;
         height: min(74dvh, 620px);
-        max-height: calc(100dvh - 120px);
+        /* Padding shrinks the flex box, but max-height is resolved against the
+           viewport, so it needs the same clearance or a tall card overflows the
+           padding it was supposed to respect. */
+        max-height: calc(100dvh - var(--hud-clearance) - env(safe-area-inset-top, 0px) - 40px);
         border-radius: 16px;
         box-shadow: 0 28px 80px rgba(0, 0, 0, 0.66);
     }
@@ -9350,14 +9367,13 @@ body.gacha-active {
     .detail-panel {
         top: auto;
         right: 10px;
-        /* Sit 8px above the docked HUD's top (the yellow accent line). The HUD
-           height is measured into --bottom-hud-height by JS; 170px is a safe
-           fallback before the first measurement. */
-        bottom: calc(var(--bottom-hud-height, 170px) + 8px);
+        /* Sit above the docked HUD's top (the yellow accent line) via the
+           shared clearance, so trays and popups can never drift apart. */
+        bottom: var(--hud-clearance);
         left: 10px;
         width: auto;
-        max-height: calc(100vh - var(--bottom-hud-height, 170px) - env(safe-area-inset-top, 0px) - 84px);
-        max-height: calc(100dvh - var(--bottom-hud-height, 170px) - env(safe-area-inset-top, 0px) - 84px);
+        max-height: calc(100vh - var(--hud-clearance) - env(safe-area-inset-top, 0px) - 76px);
+        max-height: calc(100dvh - var(--hud-clearance) - env(safe-area-inset-top, 0px) - 76px);
         transform: translateY(0);
         background:
             linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 40%),
@@ -9373,7 +9389,7 @@ body.gacha-active {
        the screen — the panel scrolls internally instead. */
     .detail-panel {
         top: calc(env(safe-area-inset-top, 0px) + 64px);
-        bottom: calc(var(--bottom-hud-height, 170px) + 8px);
+        bottom: var(--hud-clearance);
         max-height: none;
     }
     .tray-backdrop {
@@ -9628,11 +9644,17 @@ body.gacha-active {
     }
     .shop-card-preview-modal {
         align-items: end;
-        padding: 10px 10px calc(194px + env(safe-area-inset-bottom, 0px));
+        /* 194px was a stand-in for the HUD; the measured height replaces both it
+           and the inset, which the measurement already includes. */
+        padding: 10px 10px var(--hud-clearance);
     }
     .shop-card-preview-panel {
-        max-height: calc(100dvh - 216px - env(safe-area-inset-bottom, 0px));
+        max-height: calc(100dvh - var(--hud-clearance) - env(safe-area-inset-top, 0px) - 24px);
         padding: 12px;
+    }
+    .shop-purchase-confirm-modal {
+        align-items: center;
+        padding: 18px 18px calc(18px + var(--hud-clearance));
     }
     .shop-card-preview-layout {
         grid-template-columns: 1fr;
