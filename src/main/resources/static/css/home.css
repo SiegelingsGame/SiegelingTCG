@@ -4153,6 +4153,25 @@ select.search-input { color-scheme: dark; }
     white-space: nowrap;
 }
 
+.home-lb-error {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 14px;
+    border: 1px solid rgba(255, 138, 138, 0.34);
+    border-radius: 8px;
+    background: rgba(255, 90, 90, 0.07);
+}
+
+.home-lb-error span {
+    min-width: 0;
+    flex: 1 1 180px;
+    color: #f3d9d9;
+    font-weight: 800;
+}
+
 .command-panel-head {
     display: flex;
     align-items: flex-start;
@@ -9281,7 +9300,16 @@ body.gacha-active {
         bottom: calc(200px + env(safe-area-inset-bottom, 0px));
         left: 10px;
         width: auto;
-        max-height: calc(100vh - 240px - env(safe-area-inset-bottom, 0px));
+        /* The panel is anchored to the docked HUD and grows upward, so this
+           ceiling is the only thing keeping a full list out of the status bar.
+           The 240px kept the top edge 40px down the screen, which the clock and
+           the Dynamic Island sit inside of; the top inset has to come off as
+           well so that 40px is measured from the bottom of the safe area rather
+           than from the bottom of the display. dvh rather than vh: when browser
+           chrome is visible vh is the taller number, which would put the top
+           edge back under the inset. */
+        max-height: calc(100vh - 240px - env(safe-area-inset-bottom, 0px) - env(safe-area-inset-top, 0px));
+        max-height: calc(100dvh - 240px - env(safe-area-inset-bottom, 0px) - env(safe-area-inset-top, 0px));
     }
     .help-modal {
         padding: 0;

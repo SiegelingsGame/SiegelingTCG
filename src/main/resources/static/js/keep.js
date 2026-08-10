@@ -1308,12 +1308,13 @@
 
         const activeTeams = activeConstructionList().length;
         const teamCapacity = Math.max(1, number(snapshot.constructionSlots) || 1);
-        text('constructionTeamAmount', `${activeTeams}/${teamCapacity}`);
+        // Reads as a stock of idle crews: full at rest, counting down as projects claim them.
+        const availableTeams = Math.max(0, teamCapacity - activeTeams);
+        text('constructionTeamAmount', `${availableTeams}/${teamCapacity}`);
         const constructionPill = document.querySelector('.construction-team-pill');
         if (constructionPill) {
-            const available = Math.max(0, teamCapacity - activeTeams);
-            constructionPill.setAttribute('aria-label', `Open construction projects: ${activeTeams} active, ${available} available`);
-            constructionPill.title = `${activeTeams} active · ${available} available`;
+            constructionPill.setAttribute('aria-label', `Open construction projects: ${availableTeams} of ${teamCapacity} teams free, ${activeTeams} building`);
+            constructionPill.title = `${availableTeams} free · ${activeTeams} building`;
         }
     }
 

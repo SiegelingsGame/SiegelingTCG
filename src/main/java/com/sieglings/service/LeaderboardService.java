@@ -3,6 +3,8 @@ package com.sieglings.service;
 import com.sieglings.persistence.entity.MatchHistoryEntity;
 import com.sieglings.persistence.firestore.MatchHistoryStore;
 import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -24,6 +26,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 @Service
 public class LeaderboardService {
+
+    private static final Logger logger = LoggerFactory.getLogger(LeaderboardService.class);
 
     public static final String BOARD_WINS = "wins";
     public static final String BOARD_MATCHES_PLAYED = "matchesPlayed";
@@ -106,7 +110,18 @@ public class LeaderboardService {
 
     private synchronized void refreshIfStale(Instant now) {
         if (snapshot.get() == null || isStale(lastRefresh, now, refreshTtlMs)) {
-            refreshSnapshot();
+            try {
+                refreshSnapshot();
+            } catch (RuntimeException ex) {
+                // A Firestore blip should cost freshness, not the whole board. Every
+                // read past the TTL used to rebuild and propagate the failure, so one
+                // bad scan turned a populated leaderboard into a 500 for every player.
+                // Keep serving the last good snapshot and let the next read retry.
+                if (snapshot.get() == null) {
+                    throw ex;
+                }
+                logger.warn("Leaderboard refresh failed; serving the snapshot built at {}.", lastRefresh, ex);
+            }
         }
     }
 
@@ -188,7 +203,10 @@ public class LeaderboardService {
 
     private Map<String, List<Map<String, Object>>> buildBoards(List<MatchHistoryEntity> matches) {
         Map<String, List<Map<String, Object>>> boards = new LinkedHashMap<>();
-        boards.put(BOARD_WINS, buildCountBoard(matches, m -> "WIN".equalsIgnoreCase(m.getResult()) ? 1L : 0L, false));
+        // A wins board whose #1 has zero wins is noise, not a ranking: playing a
+        // match you lost should not put you on it. Matches played keeps its zero
+        // floor because every counted match contributes at least 1 by definition.
+        boards.put(BOARD_WINS, buildCountBoard(matches, m -> "WIN".equalsIgnoreCase(m.getResult()) ? 1L : 0L, true));
         boards.put(BOARD_MATCHES_PLAYED, buildCountBoard(matches, m -> 1L, false));
         boards.put(BOARD_SPELLS_CAST, buildCountBoard(matches, m -> (long) m.getSpellsCast(), true));
         boards.put(BOARD_TRAPS_SPRUNG, buildCountBoard(matches, m -> (long) m.getTrapsSprung(), true));
