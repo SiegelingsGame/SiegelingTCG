@@ -472,13 +472,13 @@ class GameJavaScriptRegressionTest {
         String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
         assertTrue(
                 homeMarkup.contains("style.css?v=230")
-                        && homeMarkup.contains("game.js?v=240")
+                        && homeMarkup.contains("game.js?v=241")
                         && homeMarkup.contains("card-binder-visual.js?v=20")
                         && homeMarkup.contains("home.js?v=138")
                         && playMarkup.contains("style.css?v=230")
-                        && playMarkup.contains("game.js?v=240")
+                        && playMarkup.contains("game.js?v=241")
                         && dashboardMarkup.contains("style.css?v=230")
-                        && dashboardMarkup.contains("game.js?v=240")
+                        && dashboardMarkup.contains("game.js?v=241")
                         && dashboardMarkup.contains("card-binder-visual.js?v=20"),
                 "Every surface must advance its cache pins with the complete painted-notch set."
         );
@@ -2143,8 +2143,37 @@ class GameJavaScriptRegressionTest {
                 "The overcharge pulse must stop for players who ask for reduced motion."
         );
         assertTrue(
-                playMarkup.contains("style.css?v=230") && playMarkup.contains("game.js?v=240"),
+                playMarkup.contains("style.css?v=230") && playMarkup.contains("game.js?v=241"),
                 "The overcharge cue ships only if both cache pins advance together."
+        );
+    }
+
+    @Test
+    void mulliganLeaveMatchForfeitsStartedOnlineGames() throws IOException {
+        String gameScript = readGameScript();
+        String playMarkup = Files.readString(PLAY_HTML);
+        String leaveOnlineMatch = extractFunction(gameScript, "async function leaveOnlineMatch(");
+
+        assertTrue(
+                playMarkup.contains("onclick=\"leaveOnlineMatch()\"")
+                        && playMarkup.contains("id=\"mulliganWaitActions\""),
+                "The mulligan wait UI must keep exposing Leave match."
+        );
+        assertTrue(
+                leaveOnlineMatch.contains("/api/match/forfeit")
+                        && leaveOnlineMatch.contains("wins by forfeit")
+                        && leaveOnlineMatch.indexOf("/api/match/forfeit")
+                        < leaveOnlineMatch.indexOf("openLoadoutSelector()"),
+                "Leave match during an active multiplayer game must forfeit before clearing local session."
+        );
+        assertTrue(
+                leaveOnlineMatch.contains("gameState?.multiplayer")
+                        && leaveOnlineMatch.contains("/api/match/close"),
+                "Unstarted lobby teardown may still close; started matches must take the forfeit branch first."
+        );
+        assertTrue(
+                playMarkup.contains("game.js?v=241"),
+                "Play must load the forfeiting leaveOnlineMatch bundle."
         );
     }
 

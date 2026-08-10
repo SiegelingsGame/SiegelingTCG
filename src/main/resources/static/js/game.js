@@ -6963,6 +6963,40 @@ async function closeUnfilledLobby(message = '') {
 
 async function leaveOnlineMatch() {
     const session = multiplayerSession;
+    // Mulligan "Leave match" runs after the match has already started. /api/match/close
+    // is a host-only lobby teardown with no started-match guard — host leave deletes the
+    // room without a forfeit, and guest leave gets "Only the host…" then still cleared
+    // local state, leaving the host stranded until Quit awards the absentee. Forfeit
+    // first (same contract as Quit Match / Join With Code), then return to loadout.
+    if (gameState?.multiplayer && session?.roomId && session?.playerToken) {
+        if (!window.confirm('Leave this match? Your opponent will be notified and wins by forfeit.')) {
+            return;
+        }
+        try {
+            const data = await fetchJson(apiUrls('/api/match/forfeit'), {
+                method: 'POST',
+                headers: getAuthHeaders({
+                    'Content-Type': 'application/json',
+                    'X-Room-Id': session.roomId,
+                    'X-Player-Token': session.playerToken
+                })
+            });
+            if (!data || data.error) {
+                window.alert(data?.error || 'Could not leave the match.');
+                return;
+            }
+        } catch (e) {
+            console.warn(e);
+            window.alert('Could not leave the match.');
+            return;
+        }
+        clearMultiplayerSession();
+        gameState = null;
+        mulliganSelectedIndices.clear();
+        mulliganHandSig = '';
+        openLoadoutSelector();
+        return;
+    }
     if (session?.roomId && session?.playerToken) {
         try {
             await fetchJson(apiUrls('/api/match/close'), {
