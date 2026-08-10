@@ -1635,6 +1635,23 @@ class GameJavaScriptRegressionTest {
     }
 
     @Test
+    void keepTeamsPillCountsDownFromFullCapacity() throws IOException {
+        String keepHtml = Files.readString(KEEP_HTML);
+        String keepJs = Files.readString(KEEP_JS);
+
+        assertTrue(
+                keepJs.contains("const availableTeams = Math.max(0, teamCapacity - activeTeams);")
+                        && keepJs.contains("text('constructionTeamAmount', `${availableTeams}/${teamCapacity}`);")
+                        && !keepJs.contains("text('constructionTeamAmount', `${activeTeams}/${teamCapacity}`);"),
+                "The Teams pill reads as idle crews on hand: it starts full and drops as projects claim teams."
+        );
+        assertTrue(
+                keepHtml.contains("id=\"constructionTeamAmount\">1/1<"),
+                "The pre-snapshot placeholder must match the free-teams reading, not the old active-teams one."
+        );
+    }
+
+    @Test
     void keepBuildingsAndRoomsUseLayeredPaperTreatments() throws IOException {
         String keepHtml = Files.readString(KEEP_HTML);
         String keepCss = Files.readString(KEEP_CSS);
@@ -1643,7 +1660,7 @@ class GameJavaScriptRegressionTest {
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
                         && keepHtml.contains("/css/keep.css?v=54")
-                        && keepHtml.contains("/js/keep.js?v=52")
+                        && keepHtml.contains("/js/keep.js?v=53")
                         && keepHtml.contains("id=\"hallFavoriteResident\"")
                         && keepHtml.contains("id=\"productionReady\"")
                         && keepHtml.contains("id=\"collectOverlay\"")
