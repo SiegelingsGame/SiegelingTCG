@@ -51,6 +51,7 @@ let hoveredHandIndex = null;
 let hoveredBoardCard = null;
 /** Persisted board selection for live preview / drawer ({ isPlayer, row, col, instanceId }). */
 let arenaSelection = null;
+let lastActingPreviewInstanceId = null;
 /** Cached overlay structure fingerprint per side; skips link/nexus rebuild when board topology is unchanged. */
 const boardOverlayFingerprints = { player: '', enemy: '' };
 let pendingClaimTarget = null;
@@ -72,6 +73,10 @@ let handAutoScrollFrame = null;
 let handAutoScrollDirection = 0;
 let handAutoScrollAxis = null;
 let handSelectorScaleFrame = null;
+// Fixed number of hand slots the desktop hand selector sizes itself around, so
+// a card keeps the same footprint whether the player holds two or nine. Matches
+// the opening hand plus the first few draws; anything past it scrolls.
+const HAND_SELECTOR_DESKTOP_CARD_SLOTS = 6;
 let previewCardScaleFrame = null;
 let framedSummaryFitFrame = null;
 let siegeKnightCardFitFrame = null;
@@ -5695,7 +5700,58 @@ function getFocusedPreviewCard() {
     }
     const hand = gameState?.player?.hand;
     const hoveredCard = hoveredHandIndex != null && hand ? hand[hoveredHandIndex] : null;
-    return hoveredCard || selectedCard || null;
+    if (hoveredCard) {
+        return hoveredCard;
+    }
+    // Battle docks the hand away, so whatever card was selected back in Setup is
+    // stale — the Siegeling that is actually acting is what the preview is for.
+    const actingCell = getActingPreviewCell();
+    if (actingCell) {
+        return boardCellToPreviewCard(actingCell);
+    }
+    if (isHandHiddenForPhase()) {
+        return null;
+    }
+    return selectedCard || null;
+}
+
+/**
+ * Board cell for the Siegeling the battle queue is on. Falls back to the last
+ * actor while the opponent resolves its own action (the server only hands us a
+ * pendingBattle for our side), so the preview holds steady between actors
+ * instead of flicking back to a hand card.
+ */
+function getActingPreviewCell() {
+    if (!gameState || !isHandHiddenForPhase()) {
+        return null;
+    }
+    const pendingId = gameState.pendingBattle?.instanceId;
+    if (pendingId) {
+        return findBoardCellByInstanceId(pendingId);
+    }
+    return lastActingPreviewInstanceId
+        ? findBoardCellByInstanceId(lastActingPreviewInstanceId)
+        : null;
+}
+
+/**
+ * Hand the preview back to the queue whenever it advances to a new actor. A
+ * board card the player clicked mid-battle still wins until that happens;
+ * without this an arena selection made during Setup would pin the preview to a
+ * bystander for the whole battle phase.
+ */
+function syncActingPreviewFocus() {
+    if (!isHandHiddenForPhase()) {
+        lastActingPreviewInstanceId = null;
+        return;
+    }
+    const pendingId = gameState?.pendingBattle?.instanceId || null;
+    if (!pendingId || pendingId === lastActingPreviewInstanceId) {
+        return;
+    }
+    lastActingPreviewInstanceId = pendingId;
+    clearArenaSelection();
+    hoveredBoardCard = null;
 }
 
 // Distinct, value-adding hints for whatever card is currently focused. Each
@@ -6243,9 +6299,15 @@ function renderDesktopCardPreviewPanel() {
         return;
     }
 
-    const focusedCard = getFocusedPreviewCard() || gameState?.player?.hand?.[0] || null;
+    // The first hand card is only a sensible default while the hand is on
+    // screen; during battle it is an arbitrary card the player cannot act on.
+    const focusedCard = getFocusedPreviewCard()
+        || (isHandHiddenForPhase() ? null : gameState?.player?.hand?.[0])
+        || null;
     if (!focusedCard) {
-        panel.innerHTML = '<div class="desktop-empty-state">Hover or click a Siegeling on either board, or select a hand card, to inspect it here.</div>';
+        panel.innerHTML = isHandHiddenForPhase()
+            ? '<div class="desktop-empty-state">The acting Siegeling shows here as the battle queue advances. Click any card on either board to inspect it instead.</div>'
+            : '<div class="desktop-empty-state">Hover or click a Siegeling on either board, or select a hand card, to inspect it here.</div>';
         return;
     }
 
@@ -11951,6 +12013,7 @@ function getBoardCellMarkers(board, markers) {
 function render() {
     if (gameState) {
         pruneInvalidArenaSelection();
+        syncActingPreviewFocus();
         // Warm the art cache before the innerHTML rebuild below tears down
         // the current <img> elements, so the recreated ones paint instantly.
         preloadBattleArt();
@@ -14324,7 +14387,12 @@ function syncDesktopHandSelectorCardScale() {
         return;
     }
 
-    const visibleCards = Math.max(1, handCards.querySelectorAll('.hand-card').length || 5);
+    // Desktop holds one card size for the whole match. Dividing the rail by the
+    // live hand count made every card grow or shrink each time a card was drawn,
+    // played, or discarded; the rail scrolls past the reference row instead.
+    const visibleCards = isDesktopSidebarLayout()
+        ? HAND_SELECTOR_DESKTOP_CARD_SLOTS
+        : Math.max(1, handCards.querySelectorAll('.hand-card').length || 5);
     const root = document.documentElement;
 
     if (isVerticalHand) {
