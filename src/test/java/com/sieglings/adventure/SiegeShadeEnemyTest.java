@@ -156,16 +156,28 @@ class SiegeShadeEnemyTest {
         }
     }
 
-    /** Bosses are named antagonists; they take the cutout but keep their own title. */
+    /**
+     * Bosses are named antagonists; they take the cutout but keep their own title.
+     * Only the boss itself — a boss encounter is a squad, and the minions escorting
+     * it are ordinary corrupted Siegelings like any other foe.
+     */
     @Test
     void bossesKeepTheirTitleButStillGetArt() {
         useCatalog(catalogWithArt(true));
         for (long seed = 1; seed <= 8; seed++) {
-            for (Combatant boss : content.generateEnemies(NodeType.BOSS, 6, 2, 0, new Random(seed),
-                    List.of(Element.SHADOW, Element.FIRE))) {
-                assertNotNull(boss.getArtUrl(), "a boss should not be the one fight without art");
-                assertFalse(boss.getName().startsWith("Shade of "),
-                        "bosses keep their own name, got " + boss.getName());
+            List<Combatant> squad = content.generateEnemies(NodeType.BOSS, 6, 2, 0, new Random(seed),
+                    List.of(Element.SHADOW, Element.FIRE));
+            for (Combatant foe : squad) {
+                assertNotNull(foe.getArtUrl(), "a boss fight should not be the one fight without art");
+            }
+            Combatant boss = squad.getFirst();
+            assertTrue(boss.isLeader(), "the boss leads its own squad");
+            assertFalse(boss.getName().startsWith("Shade of "),
+                    "bosses keep their own name, got " + boss.getName());
+            for (Combatant minion : squad.subList(1, squad.size())) {
+                assertFalse(minion.isLeader());
+                assertTrue(minion.getName().startsWith("Shade of "),
+                        "a boss's escorts are ordinary shades, got " + minion.getName());
             }
         }
     }

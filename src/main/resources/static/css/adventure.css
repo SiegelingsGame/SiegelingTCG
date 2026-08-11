@@ -1048,6 +1048,15 @@ body[data-battle-node="BOSS"] .battle-stage::before{
 .sprite .sp-shade{display:inline-block; font-size:9px; font-weight:800; line-height:1; padding:2px 4px;
   border-radius:4px; background:#2e1b4d; color:#d8a2ff; margin-right:4px; vertical-align:middle;
   letter-spacing:.4px; text-transform:uppercase;}
+/* Every encounter is a squad of 2–3, so the boss/elite its minions escort gets a
+   lit plate to read as the headline foe. Deliberately NOT a size bump: sprite
+   height is the card's authored band (--sprite-scale), and a leader already draws
+   from a later evolution stage, so overriding it here would shrink a GIGANTIC
+   boss to spite its escorts. */
+.sprite.enemy.leader .sp-plate{
+  border-color:rgba(255,154,60,.55); box-shadow:0 0 10px rgba(255,154,60,.22);
+}
+.sprite.enemy.leader .sp-name{color:#ffd9ab;}
 .sprite .sp-xpbar{height:3px; border-radius:2px; background:#0c1017; margin-top:3px; overflow:hidden;}
 .sprite .sp-xpfill{height:100%; background:linear-gradient(90deg,#5b8def,#8ab4ff); transition:width .35s;}
 .sprite .sp-tags{display:flex; gap:6px; justify-content:center; font-size:10px; color:var(--dim); margin-top:3px;}

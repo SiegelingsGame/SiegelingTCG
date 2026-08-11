@@ -794,6 +794,7 @@ public class SiegeService {
         m.put("position", c.getPosition());
         m.put("sourceCardId", c.getSourceCardId());
         m.put("artCardId", c.getArtCardId());
+        m.put("leader", c.isLeader());
         m.put("itemId", c.getItemId());
         m.put("apSpent", c.getApSpent());
         // Battle evolutions are battle-scoped: without the pre-evolution form the
@@ -879,6 +880,9 @@ public class SiegeService {
         c.setShadeOf(m.get("shadeOf") == null ? null : String.valueOf(m.get("shadeOf")));
         // Same reason, for size: a resumed boss without this shrinks back to stage-1 art.
         c.setArtCardId(m.get("artCardId") == null ? null : String.valueOf(m.get("artCardId")));
+        // And for the squad badge: a resumed boss would otherwise read as one of its
+        // own minions.
+        c.setLeader(Boolean.TRUE.equals(m.get("leader")));
         if (m.get("itemId") != null) c.setItemId(String.valueOf(m.get("itemId")));
         c.setApSpent(intVal(m.get("apSpent"), 0));
         if (m.get("evolvedFrom") instanceof Map) {
@@ -3696,6 +3700,9 @@ public class SiegeService {
             }
         }
         if (includeAbilities) {
+            // The squad's headline foe (boss/elite) — the client badges it so it reads
+            // apart from the minions escorting it.
+            m.put("leader", c.isLeader());
             // Full ability specs so the detail popup can show what enemies do.
             m.put("abilities", serializeSpecs(c.getAbilities()));
             AbilitySpec intent = c.getIntent();

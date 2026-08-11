@@ -2771,8 +2771,12 @@
     units.forEach(function (u, idx) {
       var isThreatened = side === 'ally' && u.alive &&
         (targeted.indexOf(u.position) >= 0 || b.sweepIncoming);
+      // Encounters are squads of 2–3; the boss/elite its minions escort is badged
+      // so the headline foe reads apart from them. Height stays the authored size
+      // band below — a leader is already drawn from a later evolution stage.
       var sp = el('div', 'sprite ' + side + ' ' + elClass(u.element) +
         (u.alive ? '' : ' dead') + (u.id === b.leadId ? ' lead' : '') +
+        (side === 'enemy' && u.leader ? ' leader' : '') +
         (isThreatened ? ' threatened' : ''));
       sp.dataset.id = u.id; sp.dataset.side = u.side;
       sp.style.setProperty('--idle-delay', (idx * 0.45) + 's');

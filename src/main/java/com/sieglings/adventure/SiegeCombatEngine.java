@@ -46,8 +46,12 @@ public class SiegeCombatEngine {
     static final String KNIGHT_OWNER_PREFIX = "knight-";
     /** Damage the Knight suffers whenever one of the Siegelings is knocked out. */
     static final int KNIGHT_KO_DAMAGE = 5;
-    /** Chance an enemy's elemental attack applies its status. */
-    static final int ENEMY_STATUS_CHANCE = 20;
+    /**
+     * Chance an enemy's elemental attack applies its status. Rolled per hit, so it
+     * was lowered from 20 when encounters grew to squads of 2–3 — otherwise the
+     * extra attackers would raise status uptime (Stun especially) by half again.
+     */
+    static final int ENEMY_STATUS_CHANCE = 14;
     /** Knight Ultimate: heavy elemental sweep. */
     static final int KNIGHT_ULT_DAMAGE = 15;
     /**
