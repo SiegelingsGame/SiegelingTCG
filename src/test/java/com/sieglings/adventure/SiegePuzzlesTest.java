@@ -25,6 +25,9 @@ class SiegePuzzlesTest {
             for (int[] ep : board.endpoints) {
                 assertTrue(inBounds(ep[0], ep[1]) && inBounds(ep[2], ep[3]), "endpoint out of bounds");
                 assertFalse(ep[0] == ep[2] && ep[1] == ep[3], "endpoints must be distinct cells");
+                int distance = Math.abs(ep[0] - ep[2]) + Math.abs(ep[1] - ep[3]);
+                assertTrue(distance >= SiegePuzzles.LINE_MIN_ENDPOINT_DISTANCE,
+                        "generated endpoints must leave room for at least one path tile");
             }
             assertTrue(solvable(board), "generateLine must always yield a solvable board (seed run " + i + ")");
         }
@@ -63,6 +66,23 @@ class SiegePuzzlesTest {
         List<List<int[]>> missing = new ArrayList<>();
         missing.add(List.of(new int[]{0, 0}, new int[]{0, 1}, new int[]{0, 2}));
         assertFalse(SiegePuzzles.validateLine(board, missing), "every colour must be connected");
+    }
+
+    @Test
+    void validationStillAcceptsAnAlreadyActiveAdjacentPairBoard() {
+        SiegePuzzles.LineBoard board = new SiegePuzzles.LineBoard();
+        board.endpoints.add(new int[]{0, 0, 3, 0});
+        board.endpoints.add(new int[]{4, 0, 4, 1});
+        board.endpoints.add(new int[]{3, 3, 4, 2});
+
+        List<List<int[]>> solution = List.of(
+                List.of(new int[]{0, 0}, new int[]{1, 0}, new int[]{2, 0}, new int[]{3, 0}),
+                List.of(new int[]{4, 0}, new int[]{4, 1}),
+                List.of(new int[]{3, 3}, new int[]{4, 3}, new int[]{4, 2})
+        );
+
+        assertTrue(SiegePuzzles.validateLine(board, solution),
+                "Legacy boards already in progress should remain completable after generation rules tighten.");
     }
 
     // ---- RPS -------------------------------------------------------------
@@ -128,9 +148,20 @@ class SiegePuzzlesTest {
         int[][] dirs = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
         for (int[] d : dirs) {
             int nr = r + d[0], nc = c + d[1];
-            if (inBounds(nr, nc) && used[nr][nc] == -1 && dfs(board, color, nr, nc, tr, tc, used)) return true;
+            if (inBounds(nr, nc) && used[nr][nc] == -1
+                    && !isOtherColorEndpoint(board, color, nr, nc)
+                    && dfs(board, color, nr, nc, tr, tc, used)) return true;
         }
         used[r][c] = -1;
+        return false;
+    }
+
+    private static boolean isOtherColorEndpoint(SiegePuzzles.LineBoard board, int color, int r, int c) {
+        for (int other = 0; other < board.colors(); other++) {
+            if (other == color) continue;
+            int[] ep = board.endpoints.get(other);
+            if ((ep[0] == r && ep[1] == c) || (ep[2] == r && ep[3] == c)) return true;
+        }
         return false;
     }
 }
