@@ -298,6 +298,20 @@ body[data-screen="mapScreen"] #mapScreen{
 .um-card-eff{font-size:11.5px; color:var(--accent-2); margin-top:2px; font-weight:650;}
 .um-status{color:#c896ff; margin-left:6px;}
 .um-card-desc{font-size:11px; color:var(--faint); margin-top:3px; line-height:1.35;}
+/* Live buffs / afflictions / carried item for a unit. */
+.um-fx-list{display:flex; flex-direction:column; gap:6px;}
+.um-fx{display:flex; gap:9px; align-items:flex-start; background:rgba(0,0,0,.22); border:1px solid var(--border); border-left:3px solid var(--dim); border-radius:10px; padding:7px 10px;}
+.um-fx.good{border-left-color:var(--good); background:rgba(126,231,135,.09);}
+.um-fx.bad{border-left-color:var(--bad); background:rgba(255,110,110,.09);}
+.um-fx.item{border-left-color:var(--accent); background:rgba(255,154,60,.08);}
+.um-fx-icon{flex:0 0 auto; font-size:15px; line-height:1.25;}
+.um-fx-body{min-width:0;}
+.um-fx-name{font-weight:700; font-size:12.5px;}
+.um-fx.good .um-fx-name{color:var(--good);}
+.um-fx.bad .um-fx-name{color:#ffa8a8;}
+.um-fx.item .um-fx-name{color:#ffd066;}
+.um-fx-note{font-size:11px; color:var(--faint); margin-top:2px; line-height:1.35;}
+.um-fx-empty{font-size:11.5px; color:var(--faint);}
 
 /* Sticky action bar: must sit ABOVE the scrolling card grid so a Siegeling
    sprite can never cover (or steal taps from) the Begin/Approve button. */

@@ -1,0 +1,411 @@
+{
+  "results": {
+    "phone/ally-buffed": {
+      "hidden": false,
+      "titles": [
+        "Status & effects",
+        "Cards & abilities"
+      ],
+      "rows": [
+        {
+          "tone": "good",
+          "icon": "🛡",
+          "name": "Shield 6",
+          "note": "Absorbs the next 6 damage before HP. Lapses when round 4 opens."
+        },
+        {
+          "tone": "good",
+          "icon": "⚔",
+          "name": "Attack +2",
+          "note": "Added to the damage of its moves."
+        },
+        {
+          "tone": "good",
+          "icon": "⚡",
+          "name": "Speed +3",
+          "note": "Resting Speed 10, now 13."
+        },
+        {
+          "tone": "bad",
+          "icon": "❄️",
+          "name": "Slow · 2 rounds",
+          "note": "−2 Speed; reapply freezes"
+        },
+        {
+          "tone": "bad",
+          "icon": "☠️",
+          "name": "Poison",
+          "note": "End-round DoT; blocks heals"
+        },
+        {
+          "tone": "bad",
+          "icon": "💫",
+          "name": "Stun",
+          "note": "Skips next action"
+        },
+        {
+          "tone": "item",
+          "icon": "🔥",
+          "name": "Ember Charm",
+          "note": "+2 attack"
+        }
+      ],
+      "empty": null,
+      "overflowX": 0,
+      "fitsViewport": true
+    },
+    "phone/ally-clean": {
+      "hidden": false,
+      "titles": [
+        "Status & effects",
+        "Cards & abilities"
+      ],
+      "rows": [],
+      "empty": "No buffs or status effects right now.",
+      "overflowX": 0,
+      "fitsViewport": true
+    },
+    "phone/enemy-all-statuses": {
+      "hidden": false,
+      "titles": [
+        "Status & effects",
+        "Cards & abilities"
+      ],
+      "rows": [
+        {
+          "tone": "bad",
+          "icon": "🔥",
+          "name": "Burn",
+          "note": "1 damage at end of round"
+        },
+        {
+          "tone": "bad",
+          "icon": "❄️",
+          "name": "Slow · 2 rounds",
+          "note": "−2 Speed; reapply freezes"
+        },
+        {
+          "tone": "bad",
+          "icon": "💫",
+          "name": "Stun",
+          "note": "Skips next action"
+        },
+        {
+          "tone": "bad",
+          "icon": "💚",
+          "name": "Leech",
+          "note": "Second hit heals attacker for damage dealt"
+        },
+        {
+          "tone": "bad",
+          "icon": "⚡",
+          "name": "Shock",
+          "note": "Drains AP / weakens next hit"
+        },
+        {
+          "tone": "bad",
+          "icon": "🌬️",
+          "name": "Disorient",
+          "note": "Cards cost +1 AP"
+        },
+        {
+          "tone": "bad",
+          "icon": "☠️",
+          "name": "Poison",
+          "note": "End-round DoT; blocks heals"
+        },
+        {
+          "tone": "bad",
+          "icon": "💧",
+          "name": "Soak · 2 rounds",
+          "note": "Takes +1 from attacks"
+        },
+        {
+          "tone": "bad",
+          "icon": "⚙️",
+          "name": "Rust · 2 rounds",
+          "note": "Next Metal hit +1, then clears"
+        },
+        {
+          "tone": "bad",
+          "icon": "🌑",
+          "name": "Curse · 2 rounds",
+          "note": "Cannot evolve"
+        },
+        {
+          "tone": "bad",
+          "icon": "👁️",
+          "name": "Insight",
+          "note": "Second hit draws / pays off"
+        },
+        {
+          "tone": "bad",
+          "icon": "✨",
+          "name": "Blind",
+          "note": "Ability values −1"
+        },
+        {
+          "tone": "bad",
+          "icon": "💀",
+          "name": "Wither · 2 rounds",
+          "note": "−1 HP at turn start"
+        }
+      ],
+      "empty": null,
+      "overflowX": 0,
+      "fitsViewport": true
+    },
+    "phone/legacy-payload": {
+      "hidden": false,
+      "titles": [
+        "Status & effects",
+        "No cards"
+      ],
+      "rows": [
+        {
+          "tone": "good",
+          "icon": "🛡",
+          "name": "Shield 6",
+          "note": "Absorbs the next 6 damage before HP."
+        },
+        {
+          "tone": "good",
+          "icon": "⚔",
+          "name": "Attack +2",
+          "note": "Added to the damage of its moves."
+        },
+        {
+          "tone": "bad",
+          "icon": "❄️",
+          "name": "Slow",
+          "note": "−2 Speed; reapply freezes"
+        },
+        {
+          "tone": "bad",
+          "icon": "☠️",
+          "name": "Poison",
+          "note": "End-round DoT; blocks heals"
+        },
+        {
+          "tone": "bad",
+          "icon": "💫",
+          "name": "Stun",
+          "note": "Skips next action"
+        },
+        {
+          "tone": "item",
+          "icon": "🔥",
+          "name": "Ember Charm",
+          "note": "+2 attack"
+        }
+      ],
+      "empty": null,
+      "overflowX": 0,
+      "fitsViewport": true
+    },
+    "desktop/ally-buffed": {
+      "hidden": false,
+      "titles": [
+        "Status & effects",
+        "Cards & abilities"
+      ],
+      "rows": [
+        {
+          "tone": "good",
+          "icon": "🛡",
+          "name": "Shield 6",
+          "note": "Absorbs the next 6 damage before HP. Lapses when round 4 opens."
+        },
+        {
+          "tone": "good",
+          "icon": "⚔",
+          "name": "Attack +2",
+          "note": "Added to the damage of its moves."
+        },
+        {
+          "tone": "good",
+          "icon": "⚡",
+          "name": "Speed +3",
+          "note": "Resting Speed 10, now 13."
+        },
+        {
+          "tone": "bad",
+          "icon": "❄️",
+          "name": "Slow · 2 rounds",
+          "note": "−2 Speed; reapply freezes"
+        },
+        {
+          "tone": "bad",
+          "icon": "☠️",
+          "name": "Poison",
+          "note": "End-round DoT; blocks heals"
+        },
+        {
+          "tone": "bad",
+          "icon": "💫",
+          "name": "Stun",
+          "note": "Skips next action"
+        },
+        {
+          "tone": "item",
+          "icon": "🔥",
+          "name": "Ember Charm",
+          "note": "+2 attack"
+        }
+      ],
+      "empty": null,
+      "overflowX": 0,
+      "fitsViewport": true
+    },
+    "desktop/ally-clean": {
+      "hidden": false,
+      "titles": [
+        "Status & effects",
+        "Cards & abilities"
+      ],
+      "rows": [],
+      "empty": "No buffs or status effects right now.",
+      "overflowX": 0,
+      "fitsViewport": true
+    },
+    "desktop/enemy-all-statuses": {
+      "hidden": false,
+      "titles": [
+        "Status & effects",
+        "Cards & abilities"
+      ],
+      "rows": [
+        {
+          "tone": "bad",
+          "icon": "🔥",
+          "name": "Burn",
+          "note": "1 damage at end of round"
+        },
+        {
+          "tone": "bad",
+          "icon": "❄️",
+          "name": "Slow · 2 rounds",
+          "note": "−2 Speed; reapply freezes"
+        },
+        {
+          "tone": "bad",
+          "icon": "💫",
+          "name": "Stun",
+          "note": "Skips next action"
+        },
+        {
+          "tone": "bad",
+          "icon": "💚",
+          "name": "Leech",
+          "note": "Second hit heals attacker for damage dealt"
+        },
+        {
+          "tone": "bad",
+          "icon": "⚡",
+          "name": "Shock",
+          "note": "Drains AP / weakens next hit"
+        },
+        {
+          "tone": "bad",
+          "icon": "🌬️",
+          "name": "Disorient",
+          "note": "Cards cost +1 AP"
+        },
+        {
+          "tone": "bad",
+          "icon": "☠️",
+          "name": "Poison",
+          "note": "End-round DoT; blocks heals"
+        },
+        {
+          "tone": "bad",
+          "icon": "💧",
+          "name": "Soak · 2 rounds",
+          "note": "Takes +1 from attacks"
+        },
+        {
+          "tone": "bad",
+          "icon": "⚙️",
+          "name": "Rust · 2 rounds",
+          "note": "Next Metal hit +1, then clears"
+        },
+        {
+          "tone": "bad",
+          "icon": "🌑",
+          "name": "Curse · 2 rounds",
+          "note": "Cannot evolve"
+        },
+        {
+          "tone": "bad",
+          "icon": "👁️",
+          "name": "Insight",
+          "note": "Second hit draws / pays off"
+        },
+        {
+          "tone": "bad",
+          "icon": "✨",
+          "name": "Blind",
+          "note": "Ability values −1"
+        },
+        {
+          "tone": "bad",
+          "icon": "💀",
+          "name": "Wither · 2 rounds",
+          "note": "−1 HP at turn start"
+        }
+      ],
+      "empty": null,
+      "overflowX": 0,
+      "fitsViewport": true
+    },
+    "desktop/legacy-payload": {
+      "hidden": false,
+      "titles": [
+        "Status & effects",
+        "No cards"
+      ],
+      "rows": [
+        {
+          "tone": "good",
+          "icon": "🛡",
+          "name": "Shield 6",
+          "note": "Absorbs the next 6 damage before HP."
+        },
+        {
+          "tone": "good",
+          "icon": "⚔",
+          "name": "Attack +2",
+          "note": "Added to the damage of its moves."
+        },
+        {
+          "tone": "bad",
+          "icon": "❄️",
+          "name": "Slow",
+          "note": "−2 Speed; reapply freezes"
+        },
+        {
+          "tone": "bad",
+          "icon": "☠️",
+          "name": "Poison",
+          "note": "End-round DoT; blocks heals"
+        },
+        {
+          "tone": "bad",
+          "icon": "💫",
+          "name": "Stun",
+          "note": "Skips next action"
+        },
+        {
+          "tone": "item",
+          "icon": "🔥",
+          "name": "Ember Charm",
+          "note": "+2 attack"
+        }
+      ],
+      "empty": null,
+      "overflowX": 0,
+      "fitsViewport": true
+    }
+  },
+  "errors": []
+}

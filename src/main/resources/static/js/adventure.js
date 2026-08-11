@@ -41,20 +41,24 @@
     SHADOW: '#9a63d6', ELECTRIC: '#ffe63c', METAL: '#a0aab4', UNDEAD: '#8c78a0',
     PSYCHIC: '#c896ff', POISON: '#78dc50', LIGHT: '#fff0b0', NEUTRAL: '#95a5a6'
   };
+  // `timed` marks the statuses that run a real countdown, so only those print
+  // their rounds remaining in the unit detail popup. BURN/POISON carry a
+  // battle-long duration and the rest are consumed by the next action, where
+  // SiegeCombatEngine's 2-round safety net would read as a promise it can't keep.
   var STATUS_META = {
     BURN: { icon: '🔥', label: 'Burn', tip: '1 damage at end of round' },
-    SLOW: { icon: '❄️', label: 'Slow', tip: '−2 Speed; reapply freezes' },
+    SLOW: { icon: '❄️', label: 'Slow', timed: true, tip: '−2 Speed; reapply freezes' },
     STUN: { icon: '💫', label: 'Stun', tip: 'Skips next action' },
     LEECH: { icon: '💚', label: 'Leech', tip: 'Second hit heals attacker for damage dealt' },
     SHOCK: { icon: '⚡', label: 'Shock', tip: 'Drains AP / weakens next hit' },
     DISORIENT: { icon: '🌬️', label: 'Disorient', tip: 'Cards cost +1 AP' },
     POISON: { icon: '☠️', label: 'Poison', tip: 'End-round DoT; blocks heals' },
-    SOAK: { icon: '💧', label: 'Soak', tip: 'Takes +1 from attacks' },
-    RUST: { icon: '⚙️', label: 'Rust', tip: 'Next Metal hit +1, then clears' },
-    CURSE: { icon: '🌑', label: 'Curse', tip: 'Cannot evolve' },
+    SOAK: { icon: '💧', label: 'Soak', timed: true, tip: 'Takes +1 from attacks' },
+    RUST: { icon: '⚙️', label: 'Rust', timed: true, tip: 'Next Metal hit +1, then clears' },
+    CURSE: { icon: '🌑', label: 'Curse', timed: true, tip: 'Cannot evolve' },
     INSIGHT: { icon: '👁️', label: 'Insight', tip: 'Second hit draws / pays off' },
     BLIND: { icon: '✨', label: 'Blind', tip: 'Ability values −1' },
-    WITHER: { icon: '💀', label: 'Wither', tip: '−1 HP at turn start' }
+    WITHER: { icon: '💀', label: 'Wither', timed: true, tip: '−1 HP at turn start' }
   };
   // Status → the element that inflicts it, mirroring
   // ElementalAfflictionCatalog.java. Statuses arrive from auras and riders, not
@@ -1350,6 +1354,51 @@
   }
 
   // ---- unit detail modal (cards + abilities) ---------------------------
+  /**
+   * Live buffs, afflictions, and carried gear for the detail popup: buffs
+   * first, then what is working against the unit. Every StatusKind in
+   * STATUS_META is an affliction carried by the unit it sits on (LEECH and
+   * INSIGHT are marks that pay off for whoever hit it), so statuses are always
+   * the "bad" tone. Battle-only fields are simply absent outside battle, so the
+   * out-of-battle party chips can call this too.
+   */
+  function unitEffects(u) {
+    if (!u) return [];
+    var rows = [];
+    if (u.shield > 0) {
+      var lapse = u.shieldExpiryRound > 0
+        ? ' Lapses when round ' + u.shieldExpiryRound + ' opens.'
+        : '';
+      rows.push({ tone: 'good', icon: '🛡', label: 'Shield ' + u.shield,
+        note: 'Absorbs the next ' + u.shield + ' damage before HP.' + lapse });
+    }
+    if (u.attackBuff > 0) {
+      rows.push({ tone: 'good', icon: '⚔', label: 'Attack +' + u.attackBuff,
+        note: 'Added to the damage of its moves.' });
+    }
+    if (u.restingSpeed != null && u.speed > u.restingSpeed) {
+      rows.push({ tone: 'good', icon: '⚡', label: 'Speed +' + (u.speed - u.restingSpeed),
+        note: 'Resting Speed ' + u.restingSpeed + ', now ' + u.speed + '.' });
+    }
+    // statusDetails carries rounds remaining; fall back to the bare name list
+    // when the state predates that field.
+    var details = (u.statusDetails && u.statusDetails.length)
+      ? u.statusDetails
+      : (u.statuses || []).map(function (s) { return { kind: s }; });
+    details.forEach(function (d) {
+      var meta = STATUS_META[d.kind];
+      if (!meta) return;
+      var label = meta.label;
+      if (meta.timed && d.rounds > 0) label += ' · ' + d.rounds + (d.rounds === 1 ? ' round' : ' rounds');
+      rows.push({ tone: 'bad', icon: meta.icon, label: label, note: meta.tip || '' });
+    });
+    if (u.item) {
+      rows.push({ tone: 'item', icon: u.item.icon || '🎒', label: u.item.name,
+        note: u.item.effect || u.item.desc || '' });
+    }
+    return rows;
+  }
+
   function showUnitModal(u) {
     var body = $('unitModalBody');
     var art = u.artUrl
@@ -1366,10 +1415,28 @@
         (spec.description ? '<div class="um-card-desc">' + esc(spec.description) + '</div>' : '') +
         '</div></div>';
     }).join('');
+    var fx = (u.effects || []).map(function (f) {
+      return '<div class="um-fx ' + (f.tone || 'good') + '">' +
+        '<span class="um-fx-icon">' + (f.icon || '') + '</span>' +
+        '<div class="um-fx-body"><div class="um-fx-name">' + esc(f.label) + '</div>' +
+        (f.note ? '<div class="um-fx-note">' + esc(f.note) + '</div>' : '') +
+        '</div></div>';
+    }).join('');
+    // The empty note only shows where an absence is meaningful (in battle);
+    // elsewhere the section stays out of the way entirely.
+    var fxBlock = '';
+    if (fx) {
+      fxBlock = '<div class="um-cards-title">Status &amp; effects</div>' +
+        '<div class="um-fx-list">' + fx + '</div>';
+    } else if (u.effectsEmpty) {
+      fxBlock = '<div class="um-cards-title">Status &amp; effects</div>' +
+        '<div class="um-fx-empty">' + esc(u.effectsEmpty) + '</div>';
+    }
     body.innerHTML =
       '<div class="um-head ' + elClass(u.element) + '">' + art +
       '<div><div class="um-name">' + icon(u.element) + ' ' + esc(u.name) + '</div>' +
       (u.subtitle ? '<div class="um-sub">' + esc(u.subtitle) + '</div>' : '') + '</div></div>' +
+      fxBlock +
       '<div class="um-cards-title">' + (u.cards && u.cards.length ? 'Cards & abilities' : 'No cards') + '</div>' +
       '<div class="um-cards">' + cards + '</div>';
     $('unitModal').classList.remove('hidden');
@@ -1721,6 +1788,7 @@
         showUnitModal({
           name: p.name, element: p.element, artUrl: p.artUrl,
           subtitle: 'HP ' + p.hp + '/' + p.maxHp + ' · ⚡ ' + p.speed,
+          effects: unitEffects(p),
           cards: p.cards || []
         });
       });
@@ -1749,6 +1817,7 @@
         showUnitModal({
           name: p.name, element: p.element, artUrl: p.artUrl,
           subtitle: 'HP ' + p.hp + '/' + p.maxHp + ' · ⚡ ' + p.speed,
+          effects: unitEffects(p),
           cards: p.cards || []
         });
       });
@@ -2284,7 +2353,13 @@
       if (occ.endpoint) {
         var start = path[0];
         if (start[0] === r && start[1] === c) return;     // can't loop to own start
-        path.push([r, c]); repaintLine(st); updateLineStatus(st); return;
+        // Reaching the twin completes this colour, so stop following the
+        // pointer here: on touch screens a finger commonly drifts into the next
+        // cell before pointerup, which would otherwise extend a finished path
+        // past its rune and quietly make the puzzle incomplete again.
+        path.push([r, c]);
+        st.drawing = null;
+        repaintLine(st); updateLineStatus(st); return;
       }
       return;
     }
@@ -3808,6 +3883,8 @@
       showUnitModal({
         name: u.name, element: u.element, artUrl: u.artUrl,
         subtitle: 'Enemy · HP ' + u.hp + '/' + u.maxHp + ' · ⚡ ' + u.speed + intentNote,
+        effects: unitEffects(u),
+        effectsEmpty: 'No buffs or status effects right now.',
         cards: u.abilities || []
       });
       return;
@@ -3819,9 +3896,13 @@
       evoNote = u.evoReady ? ' · 🌟 Evolution ready' + target
         : ' · 🌟 Gauge ' + u.evoGauge + '/' + u.evoGaugeMax + target;
     }
+    // Buffs and statuses live on the battlefield copy — the party member row
+    // only carries the card list.
     showUnitModal({
       name: u.name, element: u.element, artUrl: u.artUrl,
       subtitle: 'HP ' + u.hp + '/' + u.maxHp + ' · ⚡ ' + u.speed + evoNote,
+      effects: unitEffects(u),
+      effectsEmpty: 'No buffs or status effects right now.',
       cards: member ? (member.cards || []) : []
     });
   }

@@ -3648,8 +3648,12 @@ public class SiegeService {
         m.put("hp", c.getHp());
         m.put("maxHp", c.getMaxHp());
         m.put("shield", c.getShield());
+        m.put("shieldExpiryRound", c.getShieldExpiryRound());
         m.put("speed", c.getSpeed());
         m.put("effectiveSpeed", c.effectiveSpeed());
+        // The speed this unit rests at (level milestones folded in). The detail
+        // popup diffs it against the live speed to name temporary speed buffs.
+        m.put("restingSpeed", c.leveledBaseSpeed());
         m.put("attackBuff", c.getAttackBuff());
         // Leveling (drives the level badge + XP bar on the unit chip).
         m.put("level", c.getLevel());
@@ -3667,8 +3671,19 @@ public class SiegeService {
         m.put("shadeOf", c.getShadeOf());
         m.put("position", c.getPosition());
         List<String> statuses = new ArrayList<>();
-        for (StatusKind s : c.getStatuses().keySet()) statuses.add(s.name());
+        List<Map<String, Object>> statusDetails = new ArrayList<>();
+        for (Map.Entry<StatusKind, Integer> e : c.getStatuses().entrySet()) {
+            statuses.add(e.getKey().name());
+            Map<String, Object> sd = new LinkedHashMap<>();
+            sd.put("kind", e.getKey().name());
+            sd.put("rounds", e.getValue());
+            statusDetails.add(sd);
+        }
         m.put("statuses", statuses);
+        // Rounds remaining per status, so the detail popup can say how long a
+        // counted affliction still bites. The client only prints it for the
+        // statuses that actually run a clock (see STATUS_META.timed).
+        m.put("statusDetails", statusDetails);
         // How far along an evolution line the unit currently stands. Derived from the
         // catalog stage of its source card: a Siegeling recruited at stage 2/3 reports that
         // stage before any battle evolution, and playing an EVOLVE card rewrites
