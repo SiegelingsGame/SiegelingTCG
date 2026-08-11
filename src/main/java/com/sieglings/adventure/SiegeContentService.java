@@ -719,6 +719,11 @@ public class SiegeContentService {
                     element, Side.ENEMY, hp, speed,
                     shade.map(SieglingCard::getCardArtUrl).orElse(null));
             if (bossTitle == null) shade.map(SieglingCard::getName).ifPresent(foe::setShadeOf);
+            // Sizing only (Combatant#artCardId): shadeStage above already escalates the
+            // silhouette with the encounter, and this is what carries that stage to the
+            // client. Bosses need it most and are the one case with no shadeOf to fall
+            // back on, so it is set regardless of bossTitle.
+            shade.map(SieglingCard::getId).ifPresent(foe::setArtCardId);
             foe.getAbilities().addAll(abilities);
             enemies.add(foe);
         }
@@ -817,6 +822,7 @@ public class SiegeContentService {
                     SiegeTuning.OPENING_FIGHT_HP, SiegeTuning.OPENING_FIGHT_SPEED,
                     shade.map(SieglingCard::getCardArtUrl).orElse(null));
             shade.map(SieglingCard::getName).ifPresent(foe::setShadeOf);
+            shade.map(SieglingCard::getId).ifPresent(foe::setArtCardId);
             int dmg = SiegeTuning.OPENING_FIGHT_DAMAGE;
             foe.getAbilities().add(new AbilitySpec("ea-strike", "Strike", element, Effect.DAMAGE, dmg,
                     TargetKind.ENEMY_SINGLE, 0, "Deals " + dmg + " damage to one Siegeling."));
@@ -1120,6 +1126,9 @@ public class SiegeContentService {
         Combatant merc = new Combatant("merc-" + s.getId(), s.getName() + " (Merc)", s.getElement(),
                 Side.PLAYER, hp, Math.max(4, s.getSpeed()) + 3, s.getCardArtUrl());
         // No sourceCardId: mercs don't get evolution cards; they're already elite.
+        // artCardId still points at the card, so a merc hired off a stage-2/3 Siegeling
+        // stands as tall as one — sizing reads it, evolution lookups don't.
+        merc.setArtCardId(s.getId());
         return merc;
     }
 

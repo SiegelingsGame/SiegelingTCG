@@ -961,15 +961,31 @@ body[data-battle-node="BOSS"] .battle-stage::before{
 .ally-line{margin-top:6px;}
 
 /* character sprite (overlay cutout standing on the field).
-   --evo-scale grows the footprint and art 1.5× per evolution stage, so evolved
-   forms always read as bigger than the base Siegeling they came from. */
-.sprite{position:relative; width:calc(120px * var(--evo-scale,1)); max-width:calc(26vw * var(--evo-scale,1)); text-align:center; cursor:default;}
+   --sprite-scale grows the footprint and the art together, so a Siegeling's
+   physical size reads off the battlefield the way it does in the Keep. It comes
+   from the card's authored size band (dashboard field, served per unit by
+   SiegeService#sizeBandOf) rather than from evolution depth: depth is only one of
+   the inputs SieglingSize#defaultFor uses, and a designer can pin the band for a
+   card that is big without being far along a line. Evolving mid-battle still grows
+   the sprite, because the evolved card carries the larger band.
+   The ratios are keep.css's resident bands (.84/1/1.24/1.62) renormalised so SMALL
+   is 1.0 — identical proportions to the Keep, anchored so the common small
+   Siegeling keeps the size it has today instead of shrinking. */
+.sprite{position:relative; --sprite-scale:1; width:calc(120px * var(--sprite-scale,1)); max-width:calc(26vw * var(--sprite-scale,1)); text-align:center; cursor:default;}
+.sprite[data-size="MEDIUM"]{--sprite-scale:1.19;}
+.sprite[data-size="LARGE"]{--sprite-scale:1.48;}
+.sprite[data-size="GIGANTIC"]{--sprite-scale:1.93;}
 .sprite .sp-art{
-  position:relative; height:calc(110px * var(--evo-scale,1)); display:flex; align-items:flex-end; justify-content:center;
+  position:relative; height:calc(110px * var(--sprite-scale,1)); display:flex; align-items:flex-end; justify-content:center;
   animation:idlebob 3.2s ease-in-out infinite; animation-delay:var(--idle-delay,0s);
   filter:drop-shadow(0 10px 12px rgba(0,0,0,.45));
 }
-.sprite .sp-art img{max-height:calc(110px * var(--evo-scale,1)); max-width:100%; object-fit:contain; pointer-events:none; user-select:none;}
+/* height:100% (not max-height alone) is what makes the scale actually reach the
+   art: with a cap only, an upload shorter than the scaled box renders at its
+   intrinsic size, so a stage-3 sprite came out the same height as a stage-1 one
+   whenever the source PNG was small. object-fit:contain keeps it undistorted —
+   the box grows, the creature fills it, the aspect ratio never changes. */
+.sprite .sp-art img{height:100%; max-height:calc(110px * var(--sprite-scale,1)); max-width:100%; object-fit:contain; pointer-events:none; user-select:none;}
 .sprite.enemy .sp-art img{transform:scaleX(-1);}
 /* Siege foes are corrupted Siegelings — the server hands them real card art
    (SiegeContentService#shadeCard) and this crushes it to the violet-black
@@ -989,7 +1005,7 @@ body[data-battle-node="BOSS"] .battle-stage::before{
   .sprite.enemy .sp-art img{ filter:url("#paper-siegling-shadow"); }
 }
 .sprite .sp-art-fallback span{
-  font-size:calc(56px * var(--evo-scale,1)); opacity:.8;
+  font-size:calc(56px * var(--sprite-scale,1)); opacity:.8;
   filter:drop-shadow(0 0 14px var(--el));
 }
 /* No art on the card the shade was drawn from (or an empty catalog): the glyph
@@ -1449,10 +1465,10 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
   .track-first{display:none;}
 
   .battle-stage{min-height:236px; padding:8px 4px 4px;}
-  .sprite{width:calc(86px * var(--evo-scale,1));}
-  .sprite .sp-art{height:calc(64px * var(--evo-scale,1));}
-  .sprite .sp-art img{max-height:calc(64px * var(--evo-scale,1));}
-  .sprite .sp-art-fallback span{font-size:calc(38px * var(--evo-scale,1));}
+  .sprite{width:calc(86px * var(--sprite-scale,1));}
+  .sprite .sp-art{height:calc(64px * var(--sprite-scale,1));}
+  .sprite .sp-art img{max-height:calc(64px * var(--sprite-scale,1));}
+  .sprite .sp-art-fallback span{font-size:calc(38px * var(--sprite-scale,1));}
   .sprite .sp-plate{padding:3px 5px 4px;}
   .sprite .sp-name{font-size:10px;}
   /* The plate is barely wider than the sprite here, and badge + creature name
@@ -1526,9 +1542,9 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
 @media (min-width:900px){
   /* Larger screens: widen the battlefield, bigger sprites */
   .battle-stage{min-height:400px;}
-  .sprite{width:calc(150px * var(--evo-scale,1));}
-  .sprite .sp-art{height:calc(130px * var(--evo-scale,1));}
-  .sprite .sp-art img{max-height:calc(130px * var(--evo-scale,1));}
+  .sprite{width:calc(150px * var(--sprite-scale,1));}
+  .sprite .sp-art{height:calc(130px * var(--sprite-scale,1));}
+  .sprite .sp-art img{max-height:calc(130px * var(--sprite-scale,1));}
 }
 
 /* ---------- v8: results, endless, cache games ---------- */
@@ -1897,13 +1913,13 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
     width:calc(50% - var(--arena-clash-half) - var(--arena-side-inset-right));
   }
   .sprite{
-    flex:0 1 calc(var(--arena-sprite-w) * var(--evo-scale,1)); min-width:0;
-    width:calc(var(--arena-sprite-w) * var(--evo-scale,1));
-    max-width:calc(22vw * var(--evo-scale,1));
+    flex:0 1 calc(var(--arena-sprite-w) * var(--sprite-scale,1)); min-width:0;
+    width:calc(var(--arena-sprite-w) * var(--sprite-scale,1));
+    max-width:calc(22vw * var(--sprite-scale,1));
   }
-  .sprite .sp-art{ height:calc(var(--arena-sprite-art) * var(--evo-scale,1)); }
-  .sprite .sp-art img{ max-height:calc(var(--arena-sprite-art) * var(--evo-scale,1)); }
-  .sprite .sp-art-fallback span{ font-size:calc(var(--arena-sprite-art) * 0.62 * var(--evo-scale,1)); }
+  .sprite .sp-art{ height:calc(var(--arena-sprite-art) * var(--sprite-scale,1)); }
+  .sprite .sp-art img{ max-height:calc(var(--arena-sprite-art) * var(--sprite-scale,1)); }
+  .sprite .sp-art-fallback span{ font-size:calc(var(--arena-sprite-art) * 0.62 * var(--sprite-scale,1)); }
   .sprite .sp-plate{ padding:2px 6px 3px; margin-bottom:2px; }
   .sprite .sp-name{ font-size:var(--arena-name); }
   /* Phone-sized plates cannot hold the badge and the creature's name; the

@@ -2772,8 +2772,11 @@
         (isThreatened ? ' threatened' : ''));
       sp.dataset.id = u.id; sp.dataset.side = u.side;
       sp.style.setProperty('--idle-delay', (idx * 0.45) + 's');
-      // Evolved forms stand taller: 1.5× more space and art size per evolution stage.
-      if (u.evoStage > 0) sp.style.setProperty('--evo-scale', Math.pow(1.5, u.evoStage));
+      // Physical size is the card's authored band (SiegeService#sizeBandOf), the same
+      // field keep.js sizes residents by — adventure.css maps it to --sprite-scale.
+      // Deriving it here from evolution depth is what made a stage-3 boss and a rented
+      // stage-3 merc stand as short as a starter.
+      if (u.size) sp.dataset.size = u.size;
       var pct = Math.max(0, Math.round(100 * u.hp / Math.max(1, u.maxHp)));
       var shield = u.shield > 0 ? '<span class="sp-shield">🛡' + u.shield + '</span>' : '';
       var buff = u.attackBuff > 0 ? '<span class="sp-buff">⚔+' + u.attackBuff + '</span>' : '';

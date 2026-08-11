@@ -170,6 +170,57 @@ class SiegeShadeEnemyTest {
         }
     }
 
+    /**
+     * A shade must say which card it is wearing, not just wear it. The client sizes
+     * sprites by evolution stage and SiegeService reads that stage off
+     * {@link Combatant#getDisplayCardId()}; with nothing there, every foe reported
+     * stage 1 and a boss drawn from a stage-3 Siegeling stood no taller than a sapling.
+     */
+    @Test
+    void shadesCarryTheCardTheirArtCameFrom() {
+        useCatalog(catalogWithArt(true));
+        for (long seed = 1; seed <= 12; seed++) {
+            List<Combatant> foes = new ArrayList<>(battle(NodeType.BATTLE, 3, seed));
+            foes.addAll(content.generateEnemies(NodeType.ELITE, 5, 2, 1, new Random(seed),
+                    List.of(Element.WATER, Element.METAL)));
+            // Bosses keep their own title and so have no shadeOf to fall back on —
+            // the one case where a missing id was invisible until the sprite rendered.
+            foes.addAll(content.generateEnemies(NodeType.BOSS, 6, 2, 0, new Random(seed),
+                    List.of(Element.SHADOW, Element.FIRE)));
+            foes.addAll(content.generateOpeningEnemies(new Random(seed), List.of(Element.FIRE, Element.ICE)));
+            for (Combatant foe : foes) {
+                String artId = foe.getArtCardId();
+                assertNotNull(artId, "a foe wearing card art must name that card: " + foe.getName());
+                assertEquals(artId, foe.getDisplayCardId(),
+                        "foes carry no sourceCardId, so sizing has to fall to the art card");
+                SieglingCard card = content.findAnySiegling(artId).orElse(null);
+                assertNotNull(card, "artCardId must resolve in the catalog: " + artId);
+                assertEquals(foe.getArtUrl(), card.getCardArtUrl(),
+                        "the card the foe is sized from must be the card it is drawn from");
+            }
+        }
+    }
+
+    /**
+     * Mercs are hired at full strength off a real card, and a merc rented from a
+     * stage-3 Siegeling should stand like one. Sizing reads artCardId; evolution
+     * lookups read sourceCardId, which stays null so mercs are still unevolvable.
+     */
+    @Test
+    void mercsAreSizedFromTheirCardWithoutBecomingEvolvable() {
+        List<Card> cards = catalogWithArt(true);
+        useCatalog(cards);
+        SieglingCard card = null;
+        for (Card c : cards) {
+            if (c instanceof SieglingCard s) { card = s; break; }
+        }
+        assertNotNull(card, "the catalog should hold at least one Siegeling");
+        Combatant merc = content.toMercCombatant(card);
+        assertNull(merc.getSourceCardId(), "mercs must not be offered evolution cards");
+        assertEquals(card.getId(), merc.getArtCardId());
+        assertEquals(card.getId(), merc.getDisplayCardId(), "a merc is sized from its own card");
+    }
+
     /** Which creature turns up varies — a fixed cast would be as flat as one silhouette. */
     @Test
     void differentRunsMeetDifferentShades() {
