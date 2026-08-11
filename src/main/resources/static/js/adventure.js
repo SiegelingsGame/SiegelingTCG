@@ -2284,7 +2284,11 @@
       if (occ.endpoint) {
         var start = path[0];
         if (start[0] === r && start[1] === c) return;     // can't loop to own start
-        path.push([r, c]); repaintLine(st); updateLineStatus(st); return;
+        // Reaching the twin completes this colour immediately. Pointer drift
+        // after the endpoint must not extend a valid path into another cell.
+        path.push([r, c]);
+        st.drawing = null;
+        repaintLine(st); updateLineStatus(st); return;
       }
       return;
     }

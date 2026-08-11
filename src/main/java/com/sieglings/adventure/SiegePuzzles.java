@@ -20,6 +20,8 @@ final class SiegePuzzles {
     // ==== LINE (line-connect) ==============================================
 
     static final int LINE_SIZE = 5;
+    /** Endpoints need at least one drawable grid cell between them. */
+    static final int LINE_MIN_ENDPOINT_DISTANCE = 2;
 
     /**
      * A 5×5 line-connect board. Only the coloured endpoint pairs are ever sent to the
@@ -35,6 +37,8 @@ final class SiegePuzzles {
     /**
      * Builds a solvable board by carving non-overlapping self-avoiding paths on a fresh
      * grid (each occupies its own cells), then exposing only the two ends of each path.
+     * Each accepted path has an interior tile and non-adjacent endpoints, so a colour
+     * never spawns as a zero-length connection between neighboring runes.
      * Because the carved paths themselves form a valid non-crossing connection, at least
      * one solution always exists (coverage need not be full — spare cells are allowed).
      */
@@ -47,18 +51,22 @@ final class SiegePuzzles {
             boolean ok = true;
             for (int c = 0; c < colors; c++) {
                 List<int[]> path = carveLinePath(owner, c, rng);
-                if (path.size() < 2) { ok = false; break; }
+                if (path.size() < 3) { ok = false; break; }
                 int[] a = path.get(0);
                 int[] b = path.get(path.size() - 1);
+                if (Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) < LINE_MIN_ENDPOINT_DISTANCE) {
+                    ok = false;
+                    break;
+                }
                 board.endpoints.add(new int[]{a[0], a[1], b[0], b[1]});
             }
             if (ok && board.colors() == colors) return board;
         }
-        // Fallback (statistically never reached): two trivial adjacent pairs.
+        // Fallback (statistically never reached): three separated straight pairs.
         LineBoard board = new LineBoard();
-        board.endpoints.add(new int[]{0, 0, 0, 1});
-        board.endpoints.add(new int[]{4, 3, 4, 4});
-        board.endpoints.add(new int[]{2, 0, 2, 1});
+        board.endpoints.add(new int[]{0, 0, 0, 2});
+        board.endpoints.add(new int[]{4, 2, 4, 4});
+        board.endpoints.add(new int[]{2, 0, 2, 2});
         return board;
     }
 
