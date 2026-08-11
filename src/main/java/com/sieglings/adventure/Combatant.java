@@ -85,6 +85,13 @@ class Combatant {
     /** Active elemental statuses → rounds remaining (BURN uses a battle-long duration). */
     private final Map<StatusKind, Integer> statuses = new EnumMap<>(StatusKind.class);
 
+    /**
+     * Enemy-only: this unit is the boss/elite the rest of the squad escorts. Every
+     * encounter fields 2–3 foes, so the client needs this to tell the headline foe
+     * apart from its minions.
+     */
+    private boolean leader;
+
     /** Enemy-only: 1–3 abilities chosen by simple AI. Empty for player units. */
     private final List<AbilitySpec> abilities = new ArrayList<>();
     /** Enemy-only: the pre-declared next action shown to the player as a telegraph. */
@@ -151,6 +158,8 @@ class Combatant {
     void setArtCardId(String artCardId) { this.artCardId = artCardId; }
     /** The card this unit's silhouette should be sized from: its own card, else the art's. */
     String getDisplayCardId() { return sourceCardId != null ? sourceCardId : artCardId; }
+    boolean isLeader() { return leader; }
+    void setLeader(boolean leader) { this.leader = leader; }
     String getItemId() { return itemId; }
     void setItemId(String itemId) { this.itemId = itemId; }
     Combatant getEvolvedFrom() { return evolvedFrom; }
