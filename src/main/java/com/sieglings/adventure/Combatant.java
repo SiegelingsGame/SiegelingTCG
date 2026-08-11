@@ -65,6 +65,15 @@ class Combatant {
      * prefix alone eats the plate and every foe truncates to "Shade of Shell…".
      */
     private String shadeOf;
+    /**
+     * Card the sprite art was drawn from, when that card is NOT {@link #sourceCardId}.
+     * Appearance only — it drives the evolution-stage sprite scale and nothing else.
+     * Shades and mercs are built from a real catalog Siegeling but deliberately carry
+     * no sourceCardId (foes have no evolution chain; mercs must not be offered
+     * evolution cards), and without this a shade of a stage-3 Siegeling renders at
+     * stage-1 size — a Siegelord boss the same height as the sapling it ate.
+     */
+    private String artCardId;
     /** Battle-scoped: the form this unit evolved from (evolution reverts after battle). */
     private Combatant evolvedFrom;
     /** Battle-scoped evolution gauge: AP spent on this unit's own moves. */
@@ -138,6 +147,10 @@ class Combatant {
     void setSourceCardId(String sourceCardId) { this.sourceCardId = sourceCardId; }
     String getShadeOf() { return shadeOf; }
     void setShadeOf(String shadeOf) { this.shadeOf = shadeOf; }
+    String getArtCardId() { return artCardId; }
+    void setArtCardId(String artCardId) { this.artCardId = artCardId; }
+    /** The card this unit's silhouette should be sized from: its own card, else the art's. */
+    String getDisplayCardId() { return sourceCardId != null ? sourceCardId : artCardId; }
     String getItemId() { return itemId; }
     void setItemId(String itemId) { this.itemId = itemId; }
     Combatant getEvolvedFrom() { return evolvedFrom; }

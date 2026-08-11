@@ -4,6 +4,7 @@ import com.sieglings.model.Card;
 import com.sieglings.model.SieglingCard;
 import com.sieglings.model.TrainerCard;
 import com.sieglings.model.enums.Element;
+import com.sieglings.model.enums.SieglingSize;
 import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.PlayerProgressionEntity;
 import com.sieglings.persistence.firestore.PlayerProgressionStore;
@@ -792,6 +793,7 @@ public class SiegeService {
         m.put("attackBuff", c.getAttackBuff());
         m.put("position", c.getPosition());
         m.put("sourceCardId", c.getSourceCardId());
+        m.put("artCardId", c.getArtCardId());
         m.put("itemId", c.getItemId());
         m.put("apSpent", c.getApSpent());
         // Battle evolutions are battle-scoped: without the pre-evolution form the
@@ -875,6 +877,8 @@ public class SiegeService {
         // Without this a run resumed mid-battle keeps the shade's art and "Shade of X"
         // name but loses the badge, so the same foe renders differently after a reload.
         c.setShadeOf(m.get("shadeOf") == null ? null : String.valueOf(m.get("shadeOf")));
+        // Same reason, for size: a resumed boss without this shrinks back to stage-1 art.
+        c.setArtCardId(m.get("artCardId") == null ? null : String.valueOf(m.get("artCardId")));
         if (m.get("itemId") != null) c.setItemId(String.valueOf(m.get("itemId")));
         c.setApSpent(intVal(m.get("apSpent"), 0));
         if (m.get("evolvedFrom") instanceof Map) {
@@ -3610,6 +3614,20 @@ public class SiegeService {
         return out;
     }
 
+    /**
+     * The authored physical size band of the card a unit is drawn from, or null when it
+     * is not a Siegeling at all (the SiegeKnight). Unset bands fall back to the
+     * rarity/evolution-depth default, the same call {@code KeepService} makes — the
+     * catalog normally fills this in at load, so the fallback only covers cards that
+     * arrived straight from a Firestore override.
+     */
+    private String sizeBandOf(Combatant c) {
+        return content.findAnySiegling(c.getDisplayCardId())
+                .map(card -> (card.getSize() != null ? card.getSize()
+                        : SieglingSize.defaultFor(card.getRarity(), content.stageOf(card) - 1)).name())
+                .orElse(null);
+    }
+
     /** Adds the SiegeKnight's leveling fields (badge + XP bar) to a serialized knight map. */
     private void putKnightLeveling(Map<String, Object> knight, Combatant unit) {
         knight.put("level", unit.getLevel());
@@ -3651,14 +3669,21 @@ public class SiegeService {
         List<String> statuses = new ArrayList<>();
         for (StatusKind s : c.getStatuses().keySet()) statuses.add(s.name());
         m.put("statuses", statuses);
-        // Evolution depth for sprite scaling (client grows the sprite 1.5× per stage).
-        // Derived from the catalog stage of the unit's current source card: a Siegeling
-        // recruited at stage 2/3 reports that stage even before any battle evolution, and
-        // playing an EVOLVE card rewrites sourceCardId to the evolved card (SiegeContentService#evolve),
-        // so stageOf already folds in battle evolutions — walking the evolvedFrom chain on
-        // top of it would double-count. Non-Siegelings (knights, enemies, mercs) stay at 0.
-        int evoStage = content.findAnySiegling(c.getSourceCardId()).map(content::stageOf).orElse(1) - 1;
+        // How far along an evolution line the unit currently stands. Derived from the
+        // catalog stage of its source card: a Siegeling recruited at stage 2/3 reports that
+        // stage before any battle evolution, and playing an EVOLVE card rewrites
+        // sourceCardId to the evolved card (SiegeContentService#evolve), so stageOf already
+        // folds in battle evolutions — walking the evolvedFrom chain on top would double-count.
+        int evoStage = content.findAnySiegling(c.getDisplayCardId()).map(content::stageOf).orElse(1) - 1;
         m.put("evoStage", evoStage);
+        // Sprite size, though, is the authored band — NOT the depth above. Depth is only one
+        // of the inputs SieglingSize#defaultFor uses, and a designer can pin the band per card
+        // in the dashboard, so a stage-1 bruiser marked LARGE has to stand like one (the
+        // reported Kilokong merc). Resolved exactly as KeepService resolves its residents,
+        // so a Siegeling reads at the same relative scale in the Keep and on the battlefield.
+        // Both fields read the display card, so shades and mercs — which carry no
+        // sourceCardId on purpose — are sized from the art they actually wear.
+        m.put("size", sizeBandOf(c));
         // Evolution gauge for player Siegelings (AP spent on own moves this battle).
         if (c.getSide() == Side.PLAYER && !c.isKnight()) {
             boolean hasEvolution = content.evolutionOf(c.getSourceCardId()).isPresent();
