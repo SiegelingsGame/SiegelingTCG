@@ -600,8 +600,17 @@ public class SiegeService {
     }
 
     Map<String, Object> state(String token) {
-        return lookup(token).map(this::serialize)
-                .orElseThrow(() -> new IllegalArgumentException("Run not found. Start a new expedition."));
+        return state(token, null);
+    }
+
+    Map<String, Object> state(String token, String authorizationHeader) {
+        return lookup(token).map(run -> {
+            // Finished runs drop their checkpoint, so a transient progression save
+            // failure must be retried while the in-memory session still holds the
+            // spoils — otherwise the player permanently loses Siegecoins/Remnants.
+            maybeRetryEndRewards(run, authorizationHeader);
+            return serialize(run);
+        }).orElseThrow(() -> new IllegalArgumentException("Run not found. Start a new expedition."));
     }
 
     /** Player chose "start over" on the resume prompt: drop the run and its checkpoint for good. */
@@ -1792,7 +1801,10 @@ public class SiegeService {
     Map<String, Object> continueRun(String token, String authorizationHeader) {
         SiegeRun run = require(token);
         SiegeBattle battle = run.getBattle();
-        if (battle == null) return serialize(run);
+        if (battle == null) {
+            maybeRetryEndRewards(run, authorizationHeader);
+            return serialize(run);
+        }
         if (battle.getPhase() == BattlePhase.WON) {
             SiegeNode node = run.currentNode();
             if (node != null) node.setCleared(true);
@@ -1939,24 +1951,42 @@ public class SiegeService {
      */
     private void grantEndRewards(SiegeRun run, String authorizationHeader, double rewardMultiplier) {
         if (run.isEndRewardsGranted()) return;
-        double mult = Math.max(1.0, rewardMultiplier);
-        // Battlegrounds tiers scale the end payout on top of any loop multiplier.
-        if (run.isBattlegrounds()) mult *= SiegeTuning.bgTierRewardMult(run.getBgTier());
         boolean won = run.getStatus() == RunStatus.WON;
-        int coins = (int) Math.round((15 + run.getNodesCleared() * 3 + run.getBossKills() * 20
-                + (won ? 60 : 0) + (int) Math.min(200, run.getScore() / 40)) * mult);
-        int remnants = (int) Math.round((10 + run.getNodesCleared() * 2 + run.getBossKills() * 10 + (won ? 40 : 0)) * mult);
-        Card cardPrize = (won || run.getLoop() >= 1) ? content.randomCollectionCard(rng).orElse(null) : null;
 
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("gold", coins);
-        out.put("remnants", remnants);
-        out.put("multiplier", mult);
-        out.put("card", cardPrize == null ? null : Map.of(
-                "id", cardPrize.getId(), "name", cardPrize.getName(),
-                "element", cardPrize.getElement().name(), "rarity", cardPrize.getRarity().name()));
-        // Battlegrounds triples the end-of-run score payout, further scaled by tier.
-        out.put("score", run.isBattlegrounds() ? SiegeTuning.bgScore(run.getScore(), run.getBgTier()) : run.getScore());
+        // Reuse a previously computed spoils map on retry so a failed Firestore write
+        // cannot swap the card prize (or the coin/remnant totals) the player already saw.
+        Map<String, Object> out = run.getEndRewards();
+        int coins;
+        int remnants;
+        double mult;
+        Card cardPrize;
+        if (out != null && out.get("gold") instanceof Number) {
+            coins = ((Number) out.get("gold")).intValue();
+            remnants = out.get("remnants") instanceof Number ? ((Number) out.get("remnants")).intValue() : 0;
+            mult = out.get("multiplier") instanceof Number ? ((Number) out.get("multiplier")).doubleValue() : 1.0;
+            cardPrize = null;
+            Object cardObj = out.get("card");
+            if (cardObj instanceof Map<?, ?> cardMap && cardMap.get("id") != null) {
+                cardPrize = content.findCollectionCard(String.valueOf(cardMap.get("id"))).orElse(null);
+            }
+        } else {
+            mult = Math.max(1.0, rewardMultiplier);
+            // Battlegrounds tiers scale the end payout on top of any loop multiplier.
+            if (run.isBattlegrounds()) mult *= SiegeTuning.bgTierRewardMult(run.getBgTier());
+            coins = (int) Math.round((15 + run.getNodesCleared() * 3 + run.getBossKills() * 20
+                    + (won ? 60 : 0) + (int) Math.min(200, run.getScore() / 40)) * mult);
+            remnants = (int) Math.round((10 + run.getNodesCleared() * 2 + run.getBossKills() * 10 + (won ? 40 : 0)) * mult);
+            cardPrize = (won || run.getLoop() >= 1) ? content.randomCollectionCard(rng).orElse(null) : null;
+            out = new LinkedHashMap<>();
+            out.put("gold", coins);
+            out.put("remnants", remnants);
+            out.put("multiplier", mult);
+            out.put("card", cardPrize == null ? null : Map.of(
+                    "id", cardPrize.getId(), "name", cardPrize.getName(),
+                    "element", cardPrize.getElement().name(), "rarity", cardPrize.getRarity().name()));
+            // Battlegrounds triples the end-of-run score payout, further scaled by tier.
+            out.put("score", run.isBattlegrounds() ? SiegeTuning.bgScore(run.getScore(), run.getBgTier()) : run.getScore());
+        }
 
         AccountUser user = null;
         try {
@@ -2007,13 +2037,26 @@ public class SiegeService {
                     }
                 }
             } catch (Exception ignored) {
-                // payout is best-effort; the run outcome stands either way
+                // Keep endRewardsGranted false so state/continue can retry the bank.
             }
         }
         out.put("claimed", claimed);
-        out.put("guestPreview", !claimed);
+        // Only true guests are a preview; a signed-in failed save must stay retryable.
+        out.put("guestPreview", user == null);
         run.setEndRewards(out);
-        run.setEndRewardsGranted(true);
+        // Guests have nowhere to bank — seal the preview. Authenticated payouts seal
+        // only after the progression write succeeds, or a blip permanently eats spoils.
+        if (claimed || user == null) {
+            run.setEndRewardsGranted(true);
+        }
+    }
+
+    /** Retries a failed authenticated end-reward bank while the finished run is still in memory. */
+    private void maybeRetryEndRewards(SiegeRun run, String authorizationHeader) {
+        if (run == null || run.isEndRewardsGranted()) return;
+        if (run.getStatus() != RunStatus.WON && run.getStatus() != RunStatus.LOST) return;
+        if (authorizationHeader == null || authorizationHeader.isBlank()) return;
+        grantEndRewards(run, authorizationHeader, 1.0);
     }
 
     // ---- Extraction (bank a leveled team as a veteran team) ---------------

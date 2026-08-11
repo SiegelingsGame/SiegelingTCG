@@ -25,7 +25,7 @@ class AdventureLinePuzzleJavaScriptTest {
 
     @Test
     void endpointLockShipsWithAFreshCachePin() throws IOException {
-        assertTrue(Files.readString(ADVENTURE_HTML).contains("/js/adventure.js?v=60"),
+        assertTrue(Files.readString(ADVENTURE_HTML).contains("/js/adventure.js?v=61"),
                 "The endpoint-lock client fix must ship under a fresh Adventure bundle URL.");
     }
 

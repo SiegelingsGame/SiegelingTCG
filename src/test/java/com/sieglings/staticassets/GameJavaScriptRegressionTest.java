@@ -2033,7 +2033,7 @@ class GameJavaScriptRegressionTest {
         String mapCatalog = Files.readString(SIEGE_MAPS_JS);
 
         assertTrue(
-                adventureHtml.indexOf("/js/siege-maps.js?v=3") < adventureHtml.indexOf("/js/adventure.js?v=60")
+                adventureHtml.indexOf("/js/siege-maps.js?v=3") < adventureHtml.indexOf("/js/adventure.js?v=61")
                         && adventureHtml.contains("<div class=\"battle-map\" id=\"battleMap\" aria-hidden=\"true\"></div>"),
                 "The map catalog must load before adventure.js and the decorative layer must ship inside the stage."
         );
@@ -2106,7 +2106,7 @@ class GameJavaScriptRegressionTest {
                         && adventureHtml.contains("id=\"runMenuRestart\"")
                         && adventureHtml.contains("id=\"runMenuQuit\"")
                         && adventureHtml.contains("/css/adventure.css?v=55")
-                        && adventureHtml.contains("/js/adventure.js?v=60"),
+                        && adventureHtml.contains("/js/adventure.js?v=61"),
                 "The active-run menu and both cache-busted bundles must ship together.");
         String restartRun = extractFunction(adventureJs, "function restartRun(");
         assertTrue(adventureJs.contains("api('/api/siege/run/save'")

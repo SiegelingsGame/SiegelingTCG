@@ -1218,6 +1218,15 @@ public class SiegeContentService {
         return Optional.of(catalog.get(rng.nextInt(catalog.size())));
     }
 
+    /** Looks up a collection card by id so a failed end-reward claim can retry the same prize. */
+    Optional<Card> findCollectionCard(String cardId) {
+        if (cardId == null || cardId.isBlank()) return Optional.empty();
+        for (Card card : cardDefs.getDeckBuilderCatalog()) {
+            if (cardId.equals(card.getId())) return Optional.of(card);
+        }
+        return Optional.empty();
+    }
+
     Map<String, KnightPassive> classOverrides() { return classOverrides; }
 
     // ---- Event nodes (data-driven) ----------------------------------------

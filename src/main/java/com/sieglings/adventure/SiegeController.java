@@ -108,8 +108,10 @@ public class SiegeController {
     }
 
     @GetMapping("/api/siege/state")
-    public Map<String, Object> state(@RequestParam("token") String token) {
-        return siege.state(token);
+    public Map<String, Object> state(
+            @RequestParam("token") String token,
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+        return siege.state(token, authorizationHeader);
     }
 
     /** Player declined the resume prompt: discard the saved run for good. */
