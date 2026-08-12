@@ -65,9 +65,17 @@ let phaseTransitionTimer = null;
 let phaseTransitionResolve = null;
 let coinFlipDismissedRoomId = null;
 let handTouchGesture = null;
-/** @type {null | { handIndex: number, pointerId: number, startX: number, startY: number, active: boolean, ghost: HTMLElement | null, sourceEl: HTMLElement | null }} */
+/** @type {null | { handIndex: number, pointerId: number, startX: number, startY: number, active: boolean, ghost: HTMLElement | null, sourceEl: HTMLElement | null, captureEl: HTMLElement | null }} */
 let cardDragSession = null;
 let cardDragSuppressClickUntil = 0;
+// A placement POST is in flight. The hand still shows the card until the server
+// answers, so without this guard a second tap/drop fires a duplicate `place`
+// that the server rejects — leaving the client with a dead selection and a card
+// that looks stuck in hand while its twin is already on the board.
+let placementRequestInFlight = false;
+// Hand slot committed to the server but not yet confirmed; hidden from the hand
+// for the duration so the card cannot be picked up twice.
+let pendingHandRemovalIndex = null;
 const CARD_DRAG_THRESHOLD_PX = 10;
 let handAutoScrollFrame = null;
 let handAutoScrollDirection = 0;
@@ -9418,6 +9426,9 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
 
     const prevState = gameState;
     gameState = data;
+    // Server state is authoritative for the hand; any optimistic slot hide is
+    // superseded by it (whether the action landed or was rejected).
+    pendingHandRemovalIndex = null;
     if (gameState?.gameOver && gameState.multiplayer && multiplayerSession?.roomId) {
         const status = await fetchRoomStatus();
         if (status && !status.error) {
@@ -11736,12 +11747,43 @@ async function endTurn() {
 }
 
 async function placeCard(row, col) {
-    if (!selectedCard) return;
+    if (!selectedCard || placementRequestInFlight) return;
+    placementRequestInFlight = true;
     window.SieglingsSounds?.play('place');
-    const data = await api('place', 'POST', { cardId: selectedCard.id, row, col });
-    if (!data) return;
-    closeCardPreviewSurfaces();
-    resetInteractionState();
+    // Drop the card out of the hand immediately. The server is authoritative and
+    // its response replaces this state wholesale, but on a slow connection the
+    // optimistic removal is what stops the player from re-dropping a card that
+    // is already on its way to the board.
+    const pendingCardId = selectedCard.id;
+    applyOptimisticHandRemoval(selectedHandIndex);
+    try {
+        const data = await api('place', 'POST', { cardId: pendingCardId, row, col });
+        if (data) {
+            closeCardPreviewSurfaces();
+        }
+    } finally {
+        placementRequestInFlight = false;
+        // A successful call already replaced the hand from server state; a
+        // failed one must put the optimistically hidden card back. Either way
+        // the player ends up with a live hand and no stale selection, so a
+        // rejected placement can never wedge the UI.
+        pendingHandRemovalIndex = null;
+        resetInteractionState();
+    }
+}
+
+/**
+ * Hide a hand slot that has been committed to the server but not yet confirmed.
+ * Tracked by slot index rather than card id because hand cards carry definition
+ * ids, so three copies of a Siegling all share one id. The flag is cleared by
+ * the next authoritative state, which is what actually removes the card.
+ */
+function applyOptimisticHandRemoval(handIndex) {
+    pendingHandRemovalIndex = Number.isInteger(handIndex) ? handIndex : null;
+    selectedCard = null;
+    selectedHandIndex = null;
+    clearTargetMode();
+    render();
 }
 
 async function claimBoardCard(row, col) {
@@ -14192,6 +14234,9 @@ function renderHand() {
     const hand = gameState.player.hand;
     for (let handIndex = 0; handIndex < hand.length; handIndex++) {
         const card = hand[handIndex];
+        if (handIndex === pendingHandRemovalIndex) {
+            continue;
+        }
         const elemClass = card.element.toLowerCase();
         const isSelected = selectedHandIndex === handIndex;
         const lockReason = getHandCardLockReason(card);
@@ -14457,6 +14502,9 @@ function canHandCardDragPlace(handIndex) {
     if (!gameState || gameState.currentPhase !== 'SETUP' || gameState.activeSide !== 'PLAYER' || targetMode) {
         return false;
     }
+    if (placementRequestInFlight || handIndex === pendingHandRemovalIndex) {
+        return false;
+    }
     const card = gameState.player.hand?.[handIndex];
     if (!card || card.type !== 'SIEGLING') {
         return false;
@@ -14562,6 +14610,12 @@ function activateCardDragSession() {
     if (activeDrawer === 'selected') {
         closeDrawer(true);
     }
+    // Selecting the card re-renders the hand, which destroys the element that
+    // pointerdown captured. WebKit answers an implicit capture release on a
+    // removed node with pointercancel, which would abort the drag the instant
+    // it starts. Hand the capture back first — the drag tracks pointer events
+    // on document, so it does not need capture to keep working.
+    releaseCardDragPointerCapture();
     ensureHandCardSelectedForDrag(handIndex);
     // Selection re-renders the hand and normally defers its responsive sizing
     // to the next animation frame. Resolve that sizing before measuring the
@@ -14629,12 +14683,32 @@ function activateCardDragSession() {
     updateHandLiftLayer();
 }
 
+function releaseCardDragPointerCapture() {
+    const captureEl = cardDragSession?.captureEl;
+    if (!captureEl || cardDragSession.pointerId == null) {
+        return;
+    }
+    try {
+        if (captureEl.hasPointerCapture?.(cardDragSession.pointerId)) {
+            captureEl.releasePointerCapture(cardDragSession.pointerId);
+        }
+    } catch (_) {
+        /* capture already gone */
+    }
+    cardDragSession.captureEl = null;
+}
+
 function cleanupCardDragSession() {
     if (!cardDragSession) {
         return;
     }
+    releaseCardDragPointerCapture();
     cardDragSession.sourceEl?.classList?.remove('is-drag-source');
     cardDragSession.ghost?.remove();
+    // Sweep any ghost the session lost track of (interrupted gesture, a second
+    // pointer starting a new session) so a dragged card can never be left
+    // floating over the hand after the drag ends.
+    document.querySelectorAll('.card-drag-ghost').forEach((el) => el.remove());
     const layer = document.getElementById('handLiftLayer');
     if (layer && !layer.querySelector('.lifted-card-clone')) {
         layer.innerHTML = '';
@@ -14673,13 +14747,25 @@ function handleHandCardPointerDown(event, handIndex) {
         startY: event.clientY,
         active: false,
         ghost: null,
-        sourceEl: event.currentTarget
+        sourceEl: event.currentTarget,
+        captureEl: null
     };
     try {
         event.currentTarget.setPointerCapture(event.pointerId);
+        cardDragSession.captureEl = event.currentTarget;
     } catch (_) {
         /* ignore */
     }
+}
+
+// A cancelled gesture is not a drop. iOS Safari fires pointercancel whenever it
+// takes the touch over for its own scrolling/zoom handling, and treating that
+// as a drop placed cards the player never released.
+function handleCardDragPointerCancel(event) {
+    if (!cardDragSession || event.pointerId !== cardDragSession.pointerId) {
+        return;
+    }
+    cleanupCardDragSession();
 }
 
 function handleCardDragPointerMove(event) {
@@ -14710,15 +14796,15 @@ function handleCardDragPointerEnd(event) {
 
     if (wasActive) {
         const targetCell = findLegalPlacementCellAt(event.clientX, event.clientY);
-        if (targetCell) {
-            const row = Number(targetCell.dataset.row);
-            const col = Number(targetCell.dataset.col);
-            if (Number.isInteger(row) && Number.isInteger(col)) {
-                ensureHandCardSelectedForDrag(handIndex);
-                placeCard(row, col);
-            }
-        }
+        const row = targetCell ? Number(targetCell.dataset.row) : NaN;
+        const col = targetCell ? Number(targetCell.dataset.col) : NaN;
+        // Tear the drag down before submitting: placeCard re-renders the hand,
+        // and an active session would keep the drag ghost pinned over it.
         cleanupCardDragSession();
+        if (Number.isInteger(row) && Number.isInteger(col)) {
+            ensureHandCardSelectedForDrag(handIndex);
+            placeCard(row, col);
+        }
         event.preventDefault();
         return;
     }
@@ -16873,7 +16959,7 @@ syncDesktopInspectTabUi();
 (function setupCardDragPointerListeners() {
     document.addEventListener('pointermove', handleCardDragPointerMove, { passive: false });
     document.addEventListener('pointerup', handleCardDragPointerEnd);
-    document.addEventListener('pointercancel', handleCardDragPointerEnd);
+    document.addEventListener('pointercancel', handleCardDragPointerCancel);
 })();
 
 // Drag-to-close for every slide-up drawer tray (Card Preview, Element Key, Hints, Log, Battle).
