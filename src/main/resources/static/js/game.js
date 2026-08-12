@@ -5091,6 +5091,26 @@ function closeCardPreviewSurfaces() {
     }
 }
 
+/**
+ * True while the opponent (AI or the other player) owns the initiative, so no
+ * local input may reach the server. The backend rejects these actions anyway;
+ * the point here is that the controls must not *look* live while the other side
+ * is thinking — a Knight tap or a card drop that silently no-ops reads as a bug.
+ */
+function isOpponentControlLocked() {
+    if (!gameState || gameState.gameOver) {
+        return false;
+    }
+    const phase = gameState.currentPhase;
+    if (phase === 'MULLIGAN') {
+        return false;
+    }
+    if (phase === 'BATTLE') {
+        return gameState.battleWaitingOn === 'ENEMY';
+    }
+    return gameState.activeSide !== 'PLAYER';
+}
+
 function getTrainerAbilityLockReason(trainer = gameState?.player?.trainer) {
     if (!gameState || !trainer?.active) {
         return 'No active SiegeKnight ability is available right now.';
@@ -5212,7 +5232,7 @@ function renderTrainerAbilityPopup() {
 }
 function openTrainerAbilityPopup() {
     const trainer = gameState?.player?.trainer;
-    if (!trainer) {
+    if (!trainer || isOpponentControlLocked()) {
         return;
     }
     const overlay = document.getElementById('trainerAbilityOverlay');
@@ -11570,6 +11590,9 @@ function collectBuilderElements() {
 }
 
 async function playerDraw() {
+    if (isOpponentControlLocked()) {
+        return;
+    }
     const data = await api('draw');
     if (data) {
         window.SieglingsSounds?.play('draw');
@@ -11747,7 +11770,7 @@ async function endTurn() {
 }
 
 async function placeCard(row, col) {
-    if (!selectedCard || placementRequestInFlight) return;
+    if (!selectedCard || placementRequestInFlight || isOpponentControlLocked()) return;
     placementRequestInFlight = true;
     window.SieglingsSounds?.play('place');
     // Drop the card out of the hand immediately. The server is authoritative and
@@ -11919,7 +11942,8 @@ function renderDomLegacy() {
     } else {
         resetDrawButton();
     }
-    btnDraw.disabled = over || opponentSetupTurn || !playerActive || (phase !== 'DRAW' && !drawButtonActsAsEndTurn);
+    btnDraw.disabled = over || opponentSetupTurn || !playerActive || isOpponentControlLocked()
+        || (phase !== 'DRAW' && !drawButtonActsAsEndTurn);
     if (btnEndTurn) {
         btnEndTurn.textContent = playerActive ? 'End Turn' : 'Opponents Turn';
     }
@@ -11995,13 +12019,16 @@ function renderDomLegacy() {
         const trainer = gameState.player.trainer;
         const hasTrainer = Boolean(trainer);
         const canUse = canUseTrainerAbility(trainer);
+        const oppLocked = isOpponentControlLocked();
         btnTrainerAbility.classList.toggle('hidden', !hasTrainer);
-        btnTrainerAbility.disabled = !hasTrainer;
-        btnTrainerAbility.classList.toggle('ab-ability-ready', canUse);
+        btnTrainerAbility.disabled = !hasTrainer || oppLocked;
+        btnTrainerAbility.classList.toggle('ab-ability-ready', canUse && !oppLocked);
         btnTrainerAbility.innerHTML = trainer?.tier === 'SiegeLord' ? '&#9876; Lord' : '&#9876; Knight';
-        btnTrainerAbility.title = trainer
-            ? `${trainer.name}${trainer.active?.name ? `: ${trainer.active.name}` : ''}${canUse ? '' : ' (details only)'}`
-            : 'No SiegeKnight selected';
+        btnTrainerAbility.title = !trainer
+            ? 'No SiegeKnight selected'
+            : oppLocked
+                ? `${trainer.name} — wait for your turn`
+                : `${trainer.name}${trainer.active?.name ? `: ${trainer.active.name}` : ''}${canUse ? '' : ' (details only)'}`;
     }
     renderTrainerAbilityPopup();
     renderClaimPopup();
@@ -15809,6 +15836,11 @@ function abilityHasAvailableTarget(ability) {
 }
 
 function getSelectedLegalPlacements() {
+    // No legal cells while the opponent holds initiative — this is what kills
+    // both the click-to-place highlights and the drag-drop landing zones.
+    if (isOpponentControlLocked()) {
+        return [];
+    }
     const evolutionCardSelected = Boolean(selectedCard?.evolvesFromId);
     if (isPlacementBudgetLockedForCard(selectedCard) || (countBoardSieglings() >= 5 && !evolutionCardSelected)) {
         return [];
@@ -15937,7 +15969,7 @@ function selectCard(handIndexOrCardId) {
  * by the desktop single-tap path and the mobile confirm button.
  */
 function activateActionCard(card) {
-    if (!card) {
+    if (!card || isOpponentControlLocked()) {
         return;
     }
     const targetSide = getAbilityTargetSide(card.ability);

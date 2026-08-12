@@ -593,6 +593,15 @@
                         fxElement,
                         { duration: t.projectileMs }
                     );
+                    // A chain is the one attack that is also about the card it
+                    // travels through, so each victim burns the element on its
+                    // border as the bolt lands — the projectile shows the path,
+                    // the border shows the card conducting it.
+                    spawnElementalBorder(tgt.isPlayer, tgt.row, tgt.col, {
+                        element: fxElement,
+                        variant: 'chain',
+                        durationMs: borderMs
+                    });
                 }
             } else {
                 // Sourceless chain (trap / spell / trainer active): nothing crossed
@@ -1012,6 +1021,20 @@
     function findCellByAbilityName(board, abilityName) {
         const ability = String(abilityName || '').trim().toLowerCase();
         if (!ability) return null;
+        // Board cells carry their own ability list (GameController serializes it),
+        // so an exact ability match names the attacker outright. This is what
+        // keeps a projectile flying when the "<Card> uses <Ability>." line is
+        // missing from the batch — without it the attack silently degrades to the
+        // sourceless border playback reserved for traps and auras.
+        for (let r = 0; r < 3; r++) {
+            for (let c = 0; c < 3; c++) {
+                const cell = board?.[r]?.[c];
+                const owns = (cell?.abilities || []).some(
+                    (ab) => String(ab?.name || '').trim().toLowerCase() === ability
+                );
+                if (owns) return { row: r, col: c, cell };
+            }
+        }
         const matches = [];
         for (let r = 0; r < 3; r++) {
             for (let c = 0; c < 3; c++) {
@@ -1358,11 +1381,15 @@
     // Best-effort extraction of "X uses Y" / "X plays Y" lines for ABILITY/PLAY toasts.
     function parseAbilityFromLog(line) {
         const text = stripLogPrefix(line);
-        let m = text.match(/^(.+?)\s+uses\s+(.+?)\.?$/i);
+        // Trailing punctuation varies by log site ("uses Ember." / "uses Ember!"),
+        // and the name has to come back clean — a stray "!" makes the ability-name
+        // comparison in resolveAttackerFromLogs miss and costs the attack its
+        // projectile.
+        let m = text.match(/^(.+?)\s+uses\s+(.+?)[.!]?$/i);
         if (m) return { kind: 'ABILITY', actor: m[1].trim(), name: m[2].trim() };
-        m = text.match(/^(.+?)\s+plays\s+(.+?)\.?$/i);
+        m = text.match(/^(.+?)\s+plays\s+(.+?)[.!]?$/i);
         if (m) return { kind: 'PLAY', actor: m[1].trim(), name: m[2].trim() };
-        m = text.match(/^(.+?)\s+activates\s+(.+?)\.?$/i);
+        m = text.match(/^(.+?)\s+activates\s+(.+?)[.!]?$/i);
         if (m) return { kind: 'ABILITY', actor: m[1].trim(), name: m[2].trim() };
         return null;
     }

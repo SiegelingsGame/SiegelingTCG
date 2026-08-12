@@ -472,13 +472,13 @@ class GameJavaScriptRegressionTest {
         String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
         assertTrue(
                 homeMarkup.contains("style.css?v=230")
-                        && homeMarkup.contains("game.js?v=240")
+                        && homeMarkup.contains("game.js?v=243")
                         && homeMarkup.contains("card-binder-visual.js?v=20")
                         && homeMarkup.contains("home.js?v=140")
                         && playMarkup.contains("style.css?v=230")
-                        && playMarkup.contains("game.js?v=240")
+                        && playMarkup.contains("game.js?v=243")
                         && dashboardMarkup.contains("style.css?v=230")
-                        && dashboardMarkup.contains("game.js?v=240")
+                        && dashboardMarkup.contains("game.js?v=243")
                         && dashboardMarkup.contains("card-binder-visual.js?v=20"),
                 "Every surface must advance its cache pins with the complete painted-notch set."
         );
@@ -503,7 +503,7 @@ class GameJavaScriptRegressionTest {
                 "Shield playback must retain the server's final shield value instead of treating a missing bridge as zero."
         );
         assertTrue(
-                playMarkup.contains("action-queue.js?v=41"),
+                playMarkup.contains("action-queue.js?v=42"),
                 "The battle page must load the shield-persistence action queue instead of a cached pre-fix bundle."
         );
     }
@@ -2216,7 +2216,7 @@ class GameJavaScriptRegressionTest {
                 "The overcharge pulse must stop for players who ask for reduced motion."
         );
         assertTrue(
-                playMarkup.contains("style.css?v=230") && playMarkup.contains("game.js?v=240"),
+                playMarkup.contains("style.css?v=230") && playMarkup.contains("game.js?v=243"),
                 "The overcharge cue ships only if both cache pins advance together."
         );
     }
