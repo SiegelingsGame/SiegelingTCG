@@ -9018,7 +9018,24 @@ function getSpellPlayRequirementLockReason(card) {
     return '';
 }
 
+/**
+ * Why this hand card cannot be played right now, or '' when it can.
+ *
+ * Wrapped so one card's lock check can never abort renderHand: the hand is
+ * built as a single string and only assigned at the end, so a throw here used
+ * to leave the entire hand frozen on its previous contents — cards the player
+ * had already played stayed on screen.
+ */
 function getHandCardLockReason(card) {
+    try {
+        return computeHandCardLockReason(card);
+    } catch (e) {
+        console.error('Hand card lock check failed; treating as playable:', e);
+        return '';
+    }
+}
+
+function computeHandCardLockReason(card) {
     if (!gameState || !card) {
         return '';
     }
@@ -9071,10 +9088,10 @@ function getHandCardLockReason(card) {
             return `Needs ${card.evolvesFromName || 'its base form'} on your board first.`;
         }
         if (getEvolutionPlacements(card).length === 0) {
-            const cursedBase = baseCells.some(([r, c]) => cellHasAffliction(
-                (gameState?.playerBoard || [])?.[r]?.[c],
-                'CURSE'
-            ));
+            // getEvolutionBaseCells yields board cells, not [row, col] pairs —
+            // destructuring them as pairs threw out of renderHand and froze the
+            // whole hand on its previous contents.
+            const cursedBase = baseCells.some((cell) => cellHasAffliction(cell, 'CURSE'));
             if (cursedBase) {
                 return `${card.evolvesFromName || 'Base form'} is Cursed and cannot evolve.`;
             }
