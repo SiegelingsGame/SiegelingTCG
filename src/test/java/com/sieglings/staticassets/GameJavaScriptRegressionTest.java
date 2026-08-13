@@ -472,13 +472,13 @@ class GameJavaScriptRegressionTest {
         String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
         assertTrue(
                 homeMarkup.contains("style.css?v=230")
-                        && homeMarkup.contains("game.js?v=240")
+                        && gameJsPin(homeMarkup) >= 240
                         && homeMarkup.contains("card-binder-visual.js?v=20")
                         && homeMarkup.contains("home.js?v=140")
                         && playMarkup.contains("style.css?v=230")
-                        && playMarkup.contains("game.js?v=240")
+                        && gameJsPin(playMarkup) >= 240
                         && dashboardMarkup.contains("style.css?v=230")
-                        && dashboardMarkup.contains("game.js?v=240")
+                        && gameJsPin(dashboardMarkup) >= 240
                         && dashboardMarkup.contains("card-binder-visual.js?v=20"),
                 "Every surface must advance its cache pins with the complete painted-notch set."
         );
@@ -2216,9 +2216,54 @@ class GameJavaScriptRegressionTest {
                 "The overcharge pulse must stop for players who ask for reduced motion."
         );
         assertTrue(
-                playMarkup.contains("style.css?v=230") && playMarkup.contains("game.js?v=240"),
+                playMarkup.contains("style.css?v=230") && gameJsPin(playMarkup) >= 240,
                 "The overcharge cue ships only if both cache pins advance together."
         );
+    }
+
+    /**
+     * `getEvolutionBaseCells` returns board cells, not [row, col] pairs. Destructuring
+     * them as pairs threw a TypeError out of the hand lock check, and because the hand
+     * is built as one string and assigned only at the end, that throw left the entire
+     * hand frozen on its previous contents - a card the player had just played onto its
+     * precursor stayed on screen. The lock check is also wrapped so no future throw in
+     * it can freeze the hand again.
+     */
+    @Test
+    void evolutionLockCheckReadsBaseCellsAsCellsAndCannotFreezeTheHand() throws IOException {
+        String source = Files.readString(GAME_JS);
+
+        String baseCells = extractFunction(source, "function getEvolutionBaseCells(");
+        assertTrue(
+                baseCells.contains("cells.push(cell)"),
+                "getEvolutionBaseCells is expected to yield board cells; update the callers below if that changes."
+        );
+
+        String lockReason = extractFunction(source, "function computeHandCardLockReason(");
+        assertFalse(
+                lockReason.contains("baseCells.some(([r, c])"),
+                "Evolution base cells are cell objects, not [row, col] pairs - destructuring them throws out of renderHand."
+        );
+        assertTrue(
+                lockReason.contains("baseCells.some((cell) => cellHasAffliction(cell, 'CURSE'))"),
+                "The cursed-base check must read the cell it was handed."
+        );
+
+        String guarded = extractFunction(source, "function getHandCardLockReason(");
+        assertTrue(
+                guarded.contains("computeHandCardLockReason(card)") && guarded.contains("catch"),
+                "One card's lock check must never abort renderHand and strand the hand on stale markup."
+        );
+    }
+
+    /**
+     * The pin only ever moves forward, so cache-pin guards assert a floor rather than an
+     * exact number - pinning the exact version made every later, unrelated bump red.
+     */
+    private static int gameJsPin(String markup) {
+        Matcher matcher = Pattern.compile("game\\.js\\?v=(\\d+)").matcher(markup);
+        assertTrue(matcher.find(), "Markup does not load game.js with a cache pin.");
+        return Integer.parseInt(matcher.group(1));
     }
 
     private static String extractFunction(String source, String signature) {
