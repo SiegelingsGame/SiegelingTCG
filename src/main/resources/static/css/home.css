@@ -1399,6 +1399,20 @@ body.help-modal-open {
     font-weight: 700;
 }
 
+/* Dashboard panels are short: the browser-panel padding would make the
+   leaderboard taller while loading than it is once its rows land. */
+.panel-loading.compact {
+    gap: 10px;
+    padding: 20px 12px;
+    font-size: 0.9rem;
+}
+
+.panel-loading.compact .panel-loading-spinner {
+    width: 26px;
+    height: 26px;
+    border-width: 2px;
+}
+
 .panel-loading-spinner {
     width: 40px;
     height: 40px;

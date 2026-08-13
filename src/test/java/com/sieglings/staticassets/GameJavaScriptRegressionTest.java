@@ -409,7 +409,7 @@ class GameJavaScriptRegressionTest {
                 "Season Snapshot, Loadout Shelf, and Social Table must share the overview rail, with matches and badges paired below."
         );
         assertTrue(
-                homeMarkup.contains("home.js?v=141") && homeMarkup.contains("home.css?v=129"),
+                homeMarkup.contains("home.js?v=142") && homeMarkup.contains("home.css?v=130"),
                 "Cache-bust pins for the profile dashboard trim must advance on home.html."
         );
     }
@@ -437,9 +437,9 @@ class GameJavaScriptRegressionTest {
                 "Element-mode profile and friend avatars must fill a circular frame."
         );
         assertTrue(
-                homeMarkup.contains("home.css?v=129")
-                        && homeMarkup.contains("home.js?v=141")
-                        && dashboardMarkup.contains("home.css?v=129"),
+                homeMarkup.contains("home.css?v=130")
+                        && homeMarkup.contains("home.js?v=142")
+                        && dashboardMarkup.contains("home.css?v=130"),
                 "Profile icon CSS and JavaScript cache pins must advance together."
         );
     }
@@ -474,7 +474,7 @@ class GameJavaScriptRegressionTest {
                 homeMarkup.contains("style.css?v=230")
                         && gameJsPin(homeMarkup) >= 240
                         && homeMarkup.contains("card-binder-visual.js?v=20")
-                        && homeMarkup.contains("home.js?v=141")
+                        && homeMarkup.contains("home.js?v=142")
                         && playMarkup.contains("style.css?v=230")
                         && gameJsPin(playMarkup) >= 240
                         && dashboardMarkup.contains("style.css?v=230")
@@ -567,9 +567,9 @@ class GameJavaScriptRegressionTest {
                 "The full Field Guide must use current card labels, energy exceptions, Siege rules, and fresh visuals."
         );
         assertTrue(
-                homeMarkup.contains("home.css?v=129")
-                        && homeMarkup.contains("home.js?v=141")
-                        && dashboardMarkup.contains("home.css?v=129"),
+                homeMarkup.contains("home.css?v=130")
+                        && homeMarkup.contains("home.js?v=142")
+                        && dashboardMarkup.contains("home.css?v=130"),
                 "Guide JavaScript and shared visual CSS pins must advance together."
         );
     }
@@ -1666,12 +1666,26 @@ class GameJavaScriptRegressionTest {
                 "The pre-fetch state must render as loading, not as a failed fetch."
         );
         assertTrue(
-                homeJs.contains("const leaderboardsLoad = fetchCachedJson('leaderboards'"),
+                homeJs.contains("const leaderboardsLoad = loadLeaderboardsWithRetry()"),
                 "Leaderboards must settle on their own promise, so a sibling hub fetch cannot strand the panel loading."
         );
         assertTrue(
                 homeJs.contains("readCache('leaderboards', LEADERBOARD_CACHE_TTL_MS)"),
                 "A cached board within its TTL should paint on the first frame instead of a loading emblem."
+        );
+        // A warming Cloud Run instance recovers in seconds, and the only thing the
+        // Retry button did was ask again — so the load makes those attempts itself.
+        assertTrue(
+                homeJs.contains("const LEADERBOARD_RETRY_DELAYS_MS = [")
+                        && homeJs.contains("async function loadLeaderboardsWithRetry()")
+                        && homeJs.contains("const leaderboardsLoad = loadLeaderboardsWithRetry()"),
+                "A cold-start failure must retry on its own before the panel asks the player to click Retry."
+        );
+        assertTrue(
+                homeJs.contains("panelLoadingMarkup('Loading leaderboards…', true)")
+                        && Files.readString(Path.of("src/main/resources/static/css/home.css"))
+                                .contains(".panel-loading.compact"),
+                "The leaderboard's waiting state needs the shared spinner markup and its compact sizing."
         );
     }
 

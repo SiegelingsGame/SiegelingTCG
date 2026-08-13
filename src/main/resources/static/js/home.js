@@ -1484,7 +1484,7 @@
         // Leaderboards settle on their own promise: a slow catalog fetch must not
         // hold the panel in its loading state, and a sibling that rejects must not
         // strand it there forever (Promise.all would skip the apply below).
-        const leaderboardsLoad = fetchCachedJson('leaderboards', '/api/leaderboards', LEADERBOARD_CACHE_TTL_MS)
+        const leaderboardsLoad = loadLeaderboardsWithRetry()
             .then((data) => {
                 applyLeaderboardsPayload(data);
                 renderHomeDashboard();
@@ -1939,8 +1939,10 @@
         return !hasOwnedCardsSnapshot;
     }
 
-    function panelLoadingMarkup(label) {
-        return `<div class="panel-loading" role="status" aria-live="polite">
+    // compact trims the 64px browser-panel padding for small dashboard panels,
+    // which would otherwise grow taller while loading than they are with content.
+    function panelLoadingMarkup(label, compact = false) {
+        return `<div class="panel-loading${compact ? ' compact' : ''}" role="status" aria-live="polite">
             <span class="panel-loading-spinner" aria-hidden="true"></span>
             <strong>${escapeHtml(label)}</strong>
             <span class="panel-loading-bar" aria-hidden="true"><span></span></span>
@@ -2671,6 +2673,23 @@
         state.leaderboardsError = payload?.error || (payload ? '' : 'Leaderboards are unavailable right now.');
     }
 
+    // A cold Cloud Run instance answers "warming up" for its first few seconds,
+    // and the only thing the Retry button did was ask again a moment later. Make
+    // those attempts on the player's behalf — the panel stays in its loading
+    // state throughout, so the button is now a last resort, not the happy path.
+    const LEADERBOARD_RETRY_DELAYS_MS = [2500, 6000];
+
+    async function loadLeaderboardsWithRetry() {
+        let data = await fetchCachedJson('leaderboards', '/api/leaderboards', LEADERBOARD_CACHE_TTL_MS);
+        for (const delayMs of LEADERBOARD_RETRY_DELAYS_MS) {
+            if (data && !data.error) break;
+            await new Promise((resolve) => window.setTimeout(resolve, delayMs));
+            data = await fetchJson('/api/leaderboards');
+            if (data && !data.error) writeCache('leaderboards', data);
+        }
+        return data;
+    }
+
     async function retryLeaderboards() {
         if (state.leaderboardsRetrying) return;
         state.leaderboardsRetrying = true;
@@ -2738,7 +2757,7 @@
 
     function leaderboardListMarkup(rows, activeTab) {
         if (state.leaderboardsRetrying || state.leaderboardsLoading) {
-            return '<div class="home-empty-emblem">Loading leaderboards…</div>';
+            return panelLoadingMarkup('Loading leaderboards…', true);
         }
         // "Couldn't load" and "nobody has scored" are different answers and the
         // player can act on the first one, so the failed state offers a retry
