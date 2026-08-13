@@ -1115,6 +1115,30 @@ body {
 .phase-transition-banner.visible {
     opacity: 1;
     transform: translateY(-50%) scale(1);
+    /* The announcement gates input while it holds — without this the banner is
+       decoration over an already-live board and dock. */
+    pointer-events: auto;
+}
+
+/* Sits directly under the banner and swallows taps on the board, the hand and
+   the battle dock for the banner's hold. */
+.phase-transition-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 859;
+    background: rgba(2, 5, 12, 0.42);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.28s ease;
+}
+
+.phase-transition-scrim.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.phase-transition-scrim.hidden {
+    display: none;
 }
 
 .phase-transition-banner-inner {

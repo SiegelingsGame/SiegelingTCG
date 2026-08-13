@@ -150,13 +150,23 @@ should keep updating live, since the queue's pending-state layer
 - Bump `?v=` on `style.css` and `game.js` / `action-queue.js` in **both**
   `play.html` and `home.html` (convention #1 in `CLAUDE.md`).
 
-### Step 4 — Make phase-banner ordering deterministic
-Replace the `phaseTransitionQueued` latch with an explicit rule: the PHASE
-action is always enqueued **first** for the batch in which `phaseChanged` is
-true, before placements and damage. Drop the `force` parameter from
-`enqueuePhaseTransitionAction` and the trailing call at
-`action-queue.js:3216`, so the solo-AI path and the setup→battle path produce
-the same sequence: `PHASE → placements → damage → THINK/CHAT`.
+### Step 4 — WITHDRAWN: phase-banner ordering is already correct
+**This step was based on a misreading of D6 and was not implemented.** On a
+closer read of `action-queue.js:2302-2311`, the per-path ordering is deliberate
+and temporally right, not arbitrary:
+
+- `setupToBattle` enqueues `placements → PHASE → damage`. Those placements are
+  the ones made *during the SETUP phase that just ended*, so showing them
+  before the BATTLE announcement is the correct chronology. Enqueuing PHASE
+  first — what this step originally proposed — would announce BATTLE and only
+  then replay the previous phase's placements, which is worse.
+- `soloAiEndFlow` enqueues the banner after the AI's placements, damage and
+  THINK/CHAT beats, which likewise matches the order those things happened in.
+
+The `phaseTransitionQueued` latch is load-bearing rather than a smell: three
+call sites can reach `enqueuePhaseTransitionAction` for one batch, and the
+latch is what keeps a single banner per diff. D6 stands only as an
+observation that the two paths differ, not as a defect to fix.
 
 ### Step 5 — Route the turn toast through the queue
 Change `maybeNotifyTurnChange` (`game.js:9476`) to enqueue a `TURN` action
@@ -186,13 +196,21 @@ Per the standard bar in `CLAUDE.md`:
 - `node --check src/main/resources/static/js/game.js` and `action-queue.js`.
 - `./mvnw -q test` — expected untouched, but run because `game.js` behaviour is
   asserted indirectly by nothing server-side; this is a regression guard only.
-- Headless Chromium at **390x844** and **1920x1080**, solo vs AI, instrumented
-  to record a timeline of: `phaseTransitionBanner` gaining `.visible`, the
-  battle dock's first `ACTING NOW` render, and the first enabled ability
-  button. **Assertion: banner `.visible` timestamp precedes the ability-button
-  timestamp, and the banner has been removed before any ability button becomes
-  enabled.** This is the assertion that actually encodes the bug — a
-  page-loads check would not catch it.
+- Headless Chromium at **390x844** and **1920x1080**, driving the page's own
+  `api()` + `render()` with a **real server-captured BATTLE state** (one
+  carrying `pendingBattle`, i.e. an acting Siegeling) and the **real**
+  `ActionQueue`. The probe lands that state three times: with the queue idle,
+  with a real `PHASE` action mid-flight, and after playback drains.
+  **Assertion: zero `.battle-ability-btn` in the DOM while the queue is busy or
+  the banner is up, and the dock back to `Acting Now` afterwards.**
+
+  A first attempt at a naive "play a real match and time the events" harness
+  was discarded: on the round-1 `SETUP -> BATTLE` transition the endturn
+  response carries **no** `pendingBattle` (the dock has nothing to paint until
+  auto-advance fires `/battle`, which is already gated on `isProcessing()`), so
+  that path passes even on the broken build. The defect needs a state that
+  carries the phase flip *and* the next acting Siegeling together — which is
+  what the probe above lands directly.
 - Re-run `tests/mobile-overlap/` if the scrim or dock CSS shifts tile geometry.
 - Append a dated `progress.md` entry with the timeline evidence.
 

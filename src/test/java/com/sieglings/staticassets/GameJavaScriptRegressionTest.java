@@ -471,13 +471,13 @@ class GameJavaScriptRegressionTest {
         String playMarkup = Files.readString(PLAY_HTML);
         String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
         assertTrue(
-                homeMarkup.contains("style.css?v=230")
+                styleCssPin(homeMarkup) >= 230
                         && gameJsPin(homeMarkup) >= 240
                         && homeMarkup.contains("card-binder-visual.js?v=20")
                         && homeMarkup.contains("home.js?v=140")
-                        && playMarkup.contains("style.css?v=230")
+                        && styleCssPin(playMarkup) >= 230
                         && gameJsPin(playMarkup) >= 240
-                        && dashboardMarkup.contains("style.css?v=230")
+                        && styleCssPin(dashboardMarkup) >= 230
                         && gameJsPin(dashboardMarkup) >= 240
                         && dashboardMarkup.contains("card-binder-visual.js?v=20"),
                 "Every surface must advance its cache pins with the complete painted-notch set."
@@ -503,7 +503,7 @@ class GameJavaScriptRegressionTest {
                 "Shield playback must retain the server's final shield value instead of treating a missing bridge as zero."
         );
         assertTrue(
-                playMarkup.contains("action-queue.js?v=42"),
+                actionQueuePin(playMarkup) >= 42,
                 "The battle page must load the shield-persistence action queue instead of a cached pre-fix bundle."
         );
     }
@@ -2216,7 +2216,7 @@ class GameJavaScriptRegressionTest {
                 "The overcharge pulse must stop for players who ask for reduced motion."
         );
         assertTrue(
-                playMarkup.contains("style.css?v=230") && gameJsPin(playMarkup) >= 240,
+                styleCssPin(playMarkup) >= 230 && gameJsPin(playMarkup) >= 240,
                 "The overcharge cue ships only if both cache pins advance together."
         );
     }
@@ -2261,8 +2261,22 @@ class GameJavaScriptRegressionTest {
      * exact number - pinning the exact version made every later, unrelated bump red.
      */
     private static int gameJsPin(String markup) {
-        Matcher matcher = Pattern.compile("game\\.js\\?v=(\\d+)").matcher(markup);
-        assertTrue(matcher.find(), "Markup does not load game.js with a cache pin.");
+        return assetPin(markup, "game\\.js");
+    }
+
+    private static int styleCssPin(String markup) {
+        return assetPin(markup, "style\\.css");
+    }
+
+    private static int actionQueuePin(String markup) {
+        return assetPin(markup, "action-queue\\.js");
+    }
+
+    // Cache pins only ever move forward, so assert a floor rather than an exact
+    // value — a literal pin turns every unrelated asset edit into a red test.
+    private static int assetPin(String markup, String assetPattern) {
+        Matcher matcher = Pattern.compile(assetPattern + "\\?v=(\\d+)").matcher(markup);
+        assertTrue(matcher.find(), "Markup does not load " + assetPattern + " with a cache pin.");
         return Integer.parseInt(matcher.group(1));
     }
 
