@@ -1,8 +1,11 @@
 package com.sieglings.service;
 
+import com.sieglings.controller.LeaderboardController;
 import com.sieglings.persistence.entity.MatchHistoryEntity;
 import com.sieglings.persistence.firestore.MatchHistoryStore;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 
 import java.lang.reflect.Field;
 import java.time.Instant;
@@ -163,6 +166,61 @@ class LeaderboardServiceTest {
 
         assertEquals(1, allTime.get(LeaderboardService.BOARD_WINS).size());
         assertEquals("Roc", allTime.get(LeaderboardService.BOARD_WINS).get(0).get("displayName"));
+    }
+
+    @Test
+    void coldInstanceAnswersWarmingInsteadOfABareServerError() throws Exception {
+        // No snapshot yet and the scan fails: the hub used to render Spring's
+        // "Internal Server Error" in the leaderboard banner. Say it is warming.
+        StubMatchHistoryStore store = new StubMatchHistoryStore(List.of());
+        store.failing = true;
+        LeaderboardService service = serviceBackedBy(store);
+        LeaderboardController controller = new LeaderboardController();
+        Field field = LeaderboardController.class.getDeclaredField("leaderboardService");
+        field.setAccessible(true);
+        field.set(controller, service);
+
+        ResponseEntity<Map<String, Object>> response = controller.getLeaderboards(null);
+
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, response.getStatusCode());
+        assertEquals(Boolean.TRUE, response.getBody().get("warming"));
+        assertTrue(String.valueOf(response.getBody().get("error")).contains("warming up"));
+    }
+
+    @Test
+    void startupWarmUpRetriesUntilTheScanSucceeds() throws Exception {
+        // A single swallowed boot attempt left the instance with no snapshot, so
+        // every read threw until one request happened to rebuild it.
+        StubMatchHistoryStore store = new StubMatchHistoryStore(List.of(
+                match("roc", "Roc", Instant.parse("2020-03-04T12:00:00Z"), "WIN", "SOLO", 0, 0, 0)
+        ));
+        store.failing = true;
+        LeaderboardService service = serviceBackedBy(store);
+
+        service.warmOnStartup();
+        Thread.sleep(200L);
+        store.failing = false;
+        // Second warm attempt fires 5s in; poll rather than sleeping the full delay.
+        long deadline = System.currentTimeMillis() + 20_000L;
+        Map<String, List<Map<String, Object>>> allTime = Map.of();
+        while (System.currentTimeMillis() < deadline && allTime.isEmpty()) {
+            Thread.sleep(250L);
+            try {
+                allTime = service.boardsForPeriod(rawSnapshot(service), LeaderboardService.PERIOD_ALL_TIME);
+            } catch (RuntimeException retry) {
+                allTime = Map.of();
+            }
+        }
+
+        assertFalse(allTime.isEmpty());
+        assertEquals("Roc", allTime.get(LeaderboardService.BOARD_WINS).get(0).get("displayName"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> rawSnapshot(LeaderboardService service) throws Exception {
+        Field field = LeaderboardService.class.getDeclaredField("snapshot");
+        field.setAccessible(true);
+        return ((java.util.concurrent.atomic.AtomicReference<Map<String, Object>>) field.get(service)).get();
     }
 
     private static LeaderboardService serviceBackedBy(MatchHistoryStore store) throws Exception {

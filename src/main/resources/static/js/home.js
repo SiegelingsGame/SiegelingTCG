@@ -509,6 +509,12 @@
         leaderboardTab: 'wins',
         leaderboardPeriod: 'daily',
         leaderboardsRetrying: false,
+        leaderboards: null,
+        leaderboardsError: '',
+        // The panel paints before loadAll() has fetched anything, so "not asked
+        // yet" has to be its own state. Treated as failed, a 25s cold start
+        // showed every player a retry banner for a board that was still loading.
+        leaderboardsLoading: true,
         dailyMissions: null,
         dailyMissionsError: '',
         showAllMissions: false,
@@ -1475,18 +1481,25 @@
     }
 
     async function loadAll() {
-        const [options, packs, descriptions, profile, leaderboards, dailyMissions] = await Promise.all([
+        // Leaderboards settle on their own promise: a slow catalog fetch must not
+        // hold the panel in its loading state, and a sibling that rejects must not
+        // strand it there forever (Promise.all would skip the apply below).
+        const leaderboardsLoad = fetchCachedJson('leaderboards', '/api/leaderboards', LEADERBOARD_CACHE_TTL_MS)
+            .then((data) => {
+                applyLeaderboardsPayload(data);
+                renderHomeDashboard();
+            });
+        const [options, packs, descriptions, profile, dailyMissions] = await Promise.all([
             fetchGameOptions(),
             fetchCachedJson('shopPacks', '/api/shop/packs', PACK_CACHE_TTL_MS, isValidShopPacksPayload),
             fetchCachedJson('creatureDescriptions', '/assets/creature-descriptions.json', STATIC_CACHE_TTL_MS),
             syncProfile(),
-            fetchCachedJson('leaderboards', '/api/leaderboards', LEADERBOARD_CACHE_TTL_MS),
             loadDailyMissions()
         ]);
+        await leaderboardsLoad;
         applyGameOptions(options);
         applyShopPacksPayload(packs);
         state.creatureDescriptions = indexCreatureDescriptions(descriptions);
-        applyLeaderboardsPayload(leaderboards);
         if (dailyMissions && !dailyMissions.error) {
             state.dailyMissions = dailyMissions;
             state.dailyMissionsError = '';
@@ -2653,6 +2666,7 @@
     // recovered. Only a real payload becomes state; the error stays separate.
     function applyLeaderboardsPayload(payload) {
         const failed = !payload || Boolean(payload.error);
+        state.leaderboardsLoading = false;
         state.leaderboards = failed ? null : payload;
         state.leaderboardsError = payload?.error || (payload ? '' : 'Leaderboards are unavailable right now.');
     }
@@ -2723,7 +2737,7 @@
     }
 
     function leaderboardListMarkup(rows, activeTab) {
-        if (state.leaderboardsRetrying) {
+        if (state.leaderboardsRetrying || state.leaderboardsLoading) {
             return '<div class="home-empty-emblem">Loading leaderboards…</div>';
         }
         // "Couldn't load" and "nobody has scored" are different answers and the
@@ -8405,6 +8419,10 @@
         if (descriptions) {
             state.creatureDescriptions = indexCreatureDescriptions(descriptions);
         }
+        // Paint the last board within its TTL instead of a loading emblem; the
+        // fetch in loadAll() replaces it as soon as it lands.
+        const leaderboards = readCache('leaderboards', LEADERBOARD_CACHE_TTL_MS);
+        if (leaderboards && !leaderboards.error) applyLeaderboardsPayload(leaderboards);
         if (state.options && !state.selectedCardId) {
             state.selectedCardId = state.options.cardCatalog?.[0]?.id || null;
         }

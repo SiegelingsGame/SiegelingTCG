@@ -409,7 +409,7 @@ class GameJavaScriptRegressionTest {
                 "Season Snapshot, Loadout Shelf, and Social Table must share the overview rail, with matches and badges paired below."
         );
         assertTrue(
-                homeMarkup.contains("home.js?v=140") && homeMarkup.contains("home.css?v=129"),
+                homeMarkup.contains("home.js?v=141") && homeMarkup.contains("home.css?v=129"),
                 "Cache-bust pins for the profile dashboard trim must advance on home.html."
         );
     }
@@ -438,7 +438,7 @@ class GameJavaScriptRegressionTest {
         );
         assertTrue(
                 homeMarkup.contains("home.css?v=129")
-                        && homeMarkup.contains("home.js?v=140")
+                        && homeMarkup.contains("home.js?v=141")
                         && dashboardMarkup.contains("home.css?v=129"),
                 "Profile icon CSS and JavaScript cache pins must advance together."
         );
@@ -474,7 +474,7 @@ class GameJavaScriptRegressionTest {
                 homeMarkup.contains("style.css?v=230")
                         && gameJsPin(homeMarkup) >= 240
                         && homeMarkup.contains("card-binder-visual.js?v=20")
-                        && homeMarkup.contains("home.js?v=140")
+                        && homeMarkup.contains("home.js?v=141")
                         && playMarkup.contains("style.css?v=230")
                         && gameJsPin(playMarkup) >= 240
                         && dashboardMarkup.contains("style.css?v=230")
@@ -568,7 +568,7 @@ class GameJavaScriptRegressionTest {
         );
         assertTrue(
                 homeMarkup.contains("home.css?v=129")
-                        && homeMarkup.contains("home.js?v=140")
+                        && homeMarkup.contains("home.js?v=141")
                         && dashboardMarkup.contains("home.css?v=129"),
                 "Guide JavaScript and shared visual CSS pins must advance together."
         );
@@ -1649,6 +1649,29 @@ class GameJavaScriptRegressionTest {
                         && homeJs.contains("data-home-lb-retry")
                         && homeJs.contains("class=\"home-lb-error\""),
                 "The failed state needs its own markup and a retry, so a cold-start blip is recoverable without reloading the hub."
+        );
+    }
+
+    @Test
+    void leaderboardPanelShowsLoadingBeforeTheFirstFetchLands() throws IOException {
+        String homeJs = Files.readString(HOME_JS);
+
+        // The dashboard paints before loadAll() has asked for anything, so an
+        // unset payload is not a failure: a 25s cold start used to greet every
+        // player with the retry banner for a board that was still on its way.
+        assertTrue(
+                homeJs.contains("leaderboardsLoading: true,")
+                        && homeJs.contains("state.leaderboardsRetrying || state.leaderboardsLoading")
+                        && homeJs.contains("state.leaderboardsLoading = false;"),
+                "The pre-fetch state must render as loading, not as a failed fetch."
+        );
+        assertTrue(
+                homeJs.contains("const leaderboardsLoad = fetchCachedJson('leaderboards'"),
+                "Leaderboards must settle on their own promise, so a sibling hub fetch cannot strand the panel loading."
+        );
+        assertTrue(
+                homeJs.contains("readCache('leaderboards', LEADERBOARD_CACHE_TTL_MS)"),
+                "A cached board within its TTL should paint on the first frame instead of a loading emblem."
         );
     }
 
