@@ -503,7 +503,7 @@ class GameJavaScriptRegressionTest {
                 "Shield playback must retain the server's final shield value instead of treating a missing bridge as zero."
         );
         assertTrue(
-                playMarkup.contains("action-queue.js?v=41"),
+                playMarkup.contains("action-queue.js?v=42"),
                 "The battle page must load the shield-persistence action queue instead of a cached pre-fix bundle."
         );
     }
