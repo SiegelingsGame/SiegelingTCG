@@ -67,13 +67,40 @@ public class LeaderboardService {
     private final AtomicReference<Map<String, Object>> snapshot = new AtomicReference<>();
     private volatile Instant lastRefresh;
 
+    // Boot on Cloud Run races the first Firestore call: the initial scan can blow
+    // the store's op timeout, and a single swallowed attempt left the instance with
+    // no snapshot at all, so every read until one succeeded threw. Retry off the
+    // startup thread (never blocking boot) until a snapshot exists.
+    private static final long[] WARM_RETRY_DELAYS_MS = { 0L, 5_000L, 20_000L, 60_000L };
+
     @PostConstruct
     public void warmOnStartup() {
-        try {
-            refreshSnapshot();
-        } catch (RuntimeException ignored) {
-            // Firestore may not be reachable at boot; the scheduled cron will retry.
+        Thread warmer = new Thread(this::warmWithRetries, "leaderboard-warmup");
+        warmer.setDaemon(true);
+        warmer.start();
+    }
+
+    private void warmWithRetries() {
+        for (long delayMs : WARM_RETRY_DELAYS_MS) {
+            if (delayMs > 0) {
+                try {
+                    Thread.sleep(delayMs);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+            if (snapshot.get() != null) {
+                return;
+            }
+            try {
+                refreshSnapshot();
+                return;
+            } catch (RuntimeException ex) {
+                logger.warn("Leaderboard warm-up attempt failed; retrying.", ex);
+            }
         }
+        logger.warn("Leaderboard warm-up gave up; the first read past the TTL will rebuild.");
     }
 
     @Scheduled(cron = "${app.leaderboard.refresh-cron:0 0 7 * * *}")
