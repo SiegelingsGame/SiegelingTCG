@@ -4791,8 +4791,23 @@ function resolvePhaseTransitionBanner() {
     }
 }
 
+// The scrim is what makes the banner a beat rather than decoration: it blocks
+// taps on the board and the battle dock for as long as the banner holds.
+function setPhaseTransitionScrimVisible(visible) {
+    const scrim = document.getElementById('phaseTransitionScrim');
+    if (!scrim) return;
+    if (visible) {
+        scrim.classList.remove('hidden');
+        requestAnimationFrame(() => scrim.classList.add('visible'));
+    } else {
+        scrim.classList.remove('visible');
+        scrim.classList.add('hidden');
+    }
+}
+
 function hidePhaseTransitionBanner() {
     const banner = document.getElementById('phaseTransitionBanner');
+    setPhaseTransitionScrimVisible(false);
     if (!banner) return;
     if (phaseTransitionTimer) {
         clearTimeout(phaseTransitionTimer);
@@ -4824,6 +4839,7 @@ function showPhaseTransitionBanner(phase, activeSide, durationMs = 2000) {
     kicker.textContent = getPhaseTransitionKicker(phase, activeSide);
     title.textContent = formatPhaseLabel(phase);
     banner.classList.remove('hidden');
+    setPhaseTransitionScrimVisible(true);
     window.SieglingsSounds?.play('phase', 0.5);
     requestAnimationFrame(() => banner.classList.add('visible'));
 
@@ -4831,6 +4847,7 @@ function showPhaseTransitionBanner(phase, activeSide, durationMs = 2000) {
         phaseTransitionResolve = resolve;
         phaseTransitionTimer = setTimeout(() => {
             banner.classList.remove('visible');
+            setPhaseTransitionScrimVisible(false);
             phaseTransitionTimer = setTimeout(() => {
                 banner.classList.add('hidden');
                 phaseTransitionTimer = null;
@@ -4841,8 +4858,15 @@ function showPhaseTransitionBanner(phase, activeSide, durationMs = 2000) {
     });
 }
 
+// True while a phase banner is on screen and still holding its beat. The action
+// queue reads this as half of its "presentation is busy" gate.
+function isPhaseTransitionBannerActive() {
+    return phaseTransitionTimer != null || phaseTransitionResolve != null;
+}
+
 window.showPhaseTransitionBanner = showPhaseTransitionBanner;
 window.hidePhaseTransitionBanner = hidePhaseTransitionBanner;
+window.isPhaseTransitionBannerActive = isPhaseTransitionBannerActive;
 
 function showTurnChangeToast(state) {
     if (!state || state.gameOver) {
@@ -4903,7 +4927,17 @@ function maybeNotifyTurnChange(prevState, nextState) {
     if (nextState.currentPhase !== 'SETUP') {
         return;
     }
-    showTurnChangeToast(nextState);
+    const onIdle = window.SieglingsActionQueue?.onIdle;
+    if (typeof onIdle !== 'function') {
+        showTurnChangeToast(nextState);
+        return;
+    }
+    window.SieglingsActionQueue.onIdle().then(() => {
+        // A newer snapshot may have landed while playback drained; announcing a
+        // turn the player has already moved past would be worse than silence.
+        if (gameState !== nextState) return;
+        showTurnChangeToast(nextState);
+    });
 }
 
 function applyStartedMultiplayerState(data) {
@@ -9342,6 +9376,7 @@ function scheduleBattleAutoAdvance() {
     }, BATTLE_AUTO_ADVANCE_DELAY_MS);
 }
 window.scheduleBattleAutoAdvance = scheduleBattleAutoAdvance;
+window.renderBattlePanel = renderBattlePanel;
 
 // Surface a server/application error to the player as an on-screen toast, so
 // failed actions give visible feedback instead of only a console message.
@@ -9474,9 +9509,6 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
         }
     }
     if (endpoint !== 'new' && prevState) {
-        if (!playbackContext?.soloAiEndTurn) {
-            maybeNotifyTurnChange(prevState, data);
-        }
         // The animation/diff layer must never block the state update below. If
         // it throws, the new gameState would otherwise never render and the
         // interaction state never resets, freezing the client on the previous
@@ -9489,6 +9521,13 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
             }
         } catch (e) {
             console.error('Battle animation queue failed; continuing without it:', e);
+        }
+        // Announced only once the batch we just enqueued has played, so "your
+        // turn" lands after the previous turn's damage and phase banner rather
+        // than on top of them. Deliberately after enqueueFromStateDiff: asking
+        // for idle before the actions exist would resolve immediately.
+        if (!playbackContext?.soloAiEndTurn) {
+            maybeNotifyTurnChange(prevState, data);
         }
     }
     try {
@@ -9778,6 +9817,7 @@ function openLoadoutSelector() {
     resolvePhaseTransitionBanner();
     document.getElementById('phaseTransitionBanner')?.classList.add('hidden');
     document.getElementById('phaseTransitionBanner')?.classList.remove('visible');
+    setPhaseTransitionScrimVisible(false);
     welcomeDismissed = true;
     resetGameOverOverlayState();
     if (!gameOptions) {
@@ -15539,6 +15579,29 @@ function renderBattlePanel() {
             </div>`;
         return `<div class="${shellClass}">${headerHtml}${bodyHtml}</div>`;
     };
+
+    // The acting Siegeling's move buttons must not appear before the phase
+    // banner that introduces them. render() paints from authoritative state the
+    // instant it lands, so this panel — and only this panel — waits on the
+    // presentation clock; the board, HP bars and hand keep updating live
+    // because the queue's pending-state layer is built around render() running.
+    // Targeting is exempt: it is player-driven, so playback is never mid-flight.
+    const presentationBusy = Boolean(window.SieglingsActionQueue?.isPresentationBusy?.())
+        && !isBattleTargetSelectionActive();
+
+    // Hold the actionable panels in standby while playback runs. Scoped to the
+    // drawer and hand docks on purpose: the left inspector is only rewritten
+    // below when the landscape dock is in use, so writing standby into it here
+    // would strand "Queue is resolving" on that rail after playback ends.
+    if (pending && presentationBusy) {
+        const holdHtml = buildQueueShell(
+            'Resolving',
+            'waiting',
+            '<div class="battle-attacker"><strong>Queue is resolving.</strong> The next available Siegeling will surface here in speed order.</div><div class="battle-hint">Stay ready. When your next acting Siegeling arrives, this panel flips into queue mode automatically.</div>'
+        );
+        setPanelHtml([...drawerPanels, handPanel].filter(Boolean), holdHtml);
+        return;
+    }
 
     if (!pending) {
         let standbyHtml;

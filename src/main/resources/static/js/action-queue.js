@@ -1545,6 +1545,10 @@
         constructor() {
             this.queue = [];
             this.processing = false;
+            // Resolvers waiting on the queue to go idle (see onIdle). The queue
+            // is the single authority on "presentation is busy" — game.js reads
+            // it rather than keeping its own timers, so there is one clock.
+            this._idleWaiters = [];
             this.toasts = new ToastRenderer();
             this.activeToast = null;
             this.thinkingNode = null;
@@ -1600,6 +1604,42 @@
             }
         }
         isProcessing() { return this.processing; }
+
+        // Single write path for `processing`, so the body class and anything
+        // awaiting idle can never drift from the queue's real state.
+        _setProcessing(value) {
+            const next = Boolean(value);
+            if (this.processing === next) return;
+            this.processing = next;
+            document.body?.classList.toggle('sgl-playback-active', next);
+            if (!next) {
+                const waiters = this._idleWaiters;
+                this._idleWaiters = [];
+                for (const resolve of waiters) {
+                    try { resolve(); } catch (_) {}
+                }
+            }
+        }
+
+        // Resolves once playback has drained. Callers use this instead of
+        // polling `isProcessing()` on a timer.
+        onIdle() {
+            if (!this.processing) return Promise.resolve();
+            return new Promise((resolve) => this._idleWaiters.push(resolve));
+        }
+
+        // True while a phase banner is on screen and still holding. game.js owns
+        // the banner element, so it owns the answer.
+        isPhaseBannerActive() {
+            return Boolean(window.isPhaseTransitionBannerActive?.());
+        }
+
+        // The gate every interactive surface should consult: playback is mid-flight
+        // or a phase banner is still announcing.
+        isPresentationBusy() {
+            return this.processing || this.isPhaseBannerActive();
+        }
+
         clear() {
             this.queue = [];
             if (this.activeToast) { this.activeToast.dismiss(); this.activeToast = null; }
@@ -1607,7 +1647,7 @@
             if (typeof window.hidePhaseTransitionBanner === 'function') {
                 window.hidePhaseTransitionBanner();
             }
-            this.processing = false;
+            this._setProcessing(false);
             this.markOpponentThinking(false);
             this.revealAllPendingPlacements();
             this.revealAllPendingMoves();
@@ -3222,14 +3262,10 @@
             // A fast player can draw and immediately end setup while the Draw
             // Phase banner is still resolving. Start this flow only after the
             // previous playback batch has cleared so its banner/toasts cannot
-            // overlap the end-turn and AI-thinking beats.
-            const idleDeadline = Date.now() + 15000;
-            while (this.processing && Date.now() < idleDeadline) {
-                await sleep(50);
-            }
-            if (typeof window.hidePhaseTransitionBanner === 'function') {
-                window.hidePhaseTransitionBanner();
-            }
+            // overlap the end-turn and AI-thinking beats. The PHASE action
+            // awaits its own banner, so an idle queue means the banner has
+            // already finished — no need to cut it short.
+            await this.onIdle();
             if (this.activeToast) {
                 this.activeToast.dismiss();
                 this.activeToast = null;
@@ -3334,7 +3370,7 @@
 
         _kick() {
             if (this.processing) return;
-            this.processing = true;
+            this._setProcessing(true);
             // Do not block the current callstack
             Promise.resolve().then(() => this._drain());
         }
@@ -3346,7 +3382,7 @@
                     await this._playAction(action);
                 }
             } finally {
-                this.processing = false;
+                this._setProcessing(false);
                 if (this.opponentThinking) this.markOpponentThinking(false);
                 // Defensive: never leave a card permanently hidden because no
                 // PLAY action was queued for it, and never leave a heal/status
@@ -3356,6 +3392,13 @@
                 this.settleAllPendingHealth();
                 this.settleAllPendingDirectHealth();
                 this.settleAllPendingStatuses();
+                // The battle dock held itself in standby for the duration of
+                // playback; bring the acting Siegeling's moves up now that the
+                // last banner has cleared. Runs unconditionally so the dock can
+                // never be stranded in standby by a dropped or throwing action.
+                if (typeof window.renderBattlePanel === 'function') {
+                    try { window.renderBattlePanel(); } catch (_) {}
+                }
                 if (typeof window.scheduleBattleAutoAdvance === 'function') {
                     window.scheduleBattleAutoAdvance();
                 }
@@ -3979,6 +4022,9 @@
         getSpeed: () => queue.getSpeed(),
         clear: () => queue.clear(),
         isProcessing: () => queue.isProcessing(),
+        isPresentationBusy: () => queue.isPresentationBusy(),
+        isPhaseBannerActive: () => queue.isPhaseBannerActive(),
+        onIdle: () => queue.onIdle(),
         markOpponentThinking: (a, s) => queue.markOpponentThinking(a, s),
         syncPendingPlacements: () => queue.syncPendingPlacements(),
         syncPendingDirectHealth: () => queue.syncPendingDirectHealth(),
