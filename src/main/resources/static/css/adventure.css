@@ -333,6 +333,12 @@ body[data-screen="mapScreen"] #mapScreen{
 .party-chip .phpfill{height:100%; background:linear-gradient(90deg,var(--good),#4fbf67);}
 .party-chip .phptext{font-size:11px; color:var(--dim); margin-top:3px;}
 .party-chip .pbuff{color:var(--accent); font-weight:700;}
+/* Mercenary under contract: travels in the strip with the warband, gold-trimmed
+   so it never reads as a permanent member the player is levelling. */
+.party-chip.merc{border-left-color:#ffd066;}
+.party-chip .pmerc{display:inline-block; font-size:9px; font-weight:800; line-height:1; padding:2px 4px;
+  border-radius:4px; background:#3a2f14; color:#ffd066; margin-right:4px; vertical-align:middle;
+  letter-spacing:.4px; text-transform:uppercase;}
 /* Leveling: badge + thin XP bar under the HP bar. */
 .plvl{display:inline-block; font-size:10px; font-weight:800; line-height:1; padding:2px 4px; border-radius:4px;
   background:#22304a; color:#cfe0ff; vertical-align:middle;}
@@ -554,6 +560,14 @@ body[data-screen="rewardScreen"] .siege-screen{
   font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 .location-siegling:hover,.location-siegling:focus-visible{outline:none; filter:drop-shadow(0 10px 6px rgba(0,0,0,.65)) drop-shadow(0 0 12px var(--el,#fff));}
+/* A rental stands at the stops with the warband, so it needs to be readable as
+   a temporary hand at a glance — gold trim and a badge above the nameplate. */
+.location-siegling.merc span{border-color:rgba(255,208,102,.7); box-shadow:0 0 10px rgba(255,208,102,.3);}
+.location-siegling .loc-merc{
+  position:absolute; left:50%; bottom:19px; translate:-50% 0; padding:2px 7px;
+  border-radius:999px; background:#3a2f14; color:#ffd066; font-size:8px; font-weight:800;
+  font-style:normal; letter-spacing:.5px; text-transform:uppercase; white-space:nowrap;
+}
 @keyframes location-idle{0%,100%{transform:translateY(0) rotate(-.5deg)}50%{transform:translateY(-7px) rotate(.5deg)}}
 .location-npc{
   position:absolute; z-index:3; right:32%; bottom:39%; width:104px; height:150px;

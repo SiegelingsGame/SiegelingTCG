@@ -3430,6 +3430,22 @@ public class SiegeService {
         }
         m.put("party", party);
 
+        // A rental under contract travels with the warband, so it stands with them
+        // at every stop until its battle ends. It is kept out of "party" on purpose:
+        // that list drives equipping, evolving and smith scrapping, none of which a
+        // merc is eligible for. The UI appends this entry for display only.
+        Combatant mercUnit = run.getMercenary();
+        if (mercUnit != null) {
+            Map<String, Object> mm = serializeCombatant(mercUnit, false);
+            List<AbilitySpec> mercSpecs = new ArrayList<>();
+            for (SiegeCard card : run.getMercCards()) mercSpecs.add(card.getSpec());
+            mm.put("cards", serializeSpecs(mercSpecs));
+            mm.put("merc", true);
+            m.put("mercenary", mm);
+        } else {
+            m.put("mercenary", null);
+        }
+
         // Deck list (indices) — powers the Smith scrap picker.
         List<Map<String, Object>> deckList = new ArrayList<>();
         List<SiegeCard> templates = run.getDeckTemplates();
