@@ -157,7 +157,7 @@
     // Leaving battle (or re-entering a fresh screen) must drop any in-flight
     // drag ghost — hand re-renders destroy the source card and otherwise leave
     // a stuck playcard floating over the arena.
-    if (id !== 'battleScreen') abandonActiveCardDrag();
+    if (id !== 'battleScreen') { abandonActiveCardDrag(); toggleHandSheet(false); }
     ['loadingScreen', 'resumeScreen', 'setupScreen', 'mapScreen', 'campScreen', 'cacheScreen', 'brokerScreen', 'smithScreen', 'caravanScreen', 'eventScreen', 'minigameScreen', 'interactionResultScreen', 'battleScreen', 'recruitScreen', 'rewardScreen', 'resultScreen'].forEach(function (s) {
       var node = $(s); if (node) node.classList.toggle('hidden', s !== id);
     });
@@ -559,6 +559,12 @@
     $('inventoryBtn').addEventListener('click', function () { openInventory(); });
     var extractBtn = $('extractBtn');
     if (extractBtn) extractBtn.addEventListener('click', extractTeam);
+    $('deckCounts').addEventListener('click', function () { toggleHandSheet(); });
+    $('handSheetClose').addEventListener('click', function () { toggleHandSheet(false); });
+    $('handSheet').addEventListener('click', function (e) { if (e.target === $('handSheet')) toggleHandSheet(false); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !$('handSheet').classList.contains('hidden')) toggleHandSheet(false);
+    });
     $('invClose').addEventListener('click', function () { $('invOverlay').classList.add('hidden'); });
     $('invOverlay').addEventListener('click', function (e) { if (e.target === $('invOverlay')) $('invOverlay').classList.add('hidden'); });
     $('smithLeaveBtn').addEventListener('click', function () { simplePost('/api/siege/smith/leave'); });
@@ -2753,6 +2759,9 @@
     syncBattleActionButtons();
 
     if (!state.deferBattleHandRender) renderHand(b, over);
+    // The sheet mirrors the hand, so it has to follow every draw/play/end turn
+    // — and it must not outlive the battle it belongs to.
+    if (!$('handSheet').classList.contains('hidden')) toggleHandSheet(!over);
     updateHint(b, over);
   }
 
@@ -3333,6 +3342,99 @@
   }
 
   // ---- hand ------------------------------------------------------------
+  /** Card face shared by the fanned hand and the hand sheet, so the two can
+   *  never drift apart — the sheet is meant to be the same card, read larger. */
+  function playCardClass(card) {
+    return 'playcard ' + elClass(card.element) +
+      (card.effect === 'EVOLVE' ? ' evo-card' : '') +
+      (card.playable ? '' : ' unplayable') +
+      (card.instanceId === state.selectedCardId ? ' selected' : '');
+  }
+
+  function playCardMarkup(card) {
+    var statusLine = '';
+    if (card.status && card.statusChance) {
+      var meta = STATUS_META[card.status] || { icon: '', label: card.status };
+      statusLine = '<div class="pc-status">' + meta.icon + ' ' + card.statusChance + '% ' + meta.label + '</div>';
+    }
+    // A locked evolution card shows its gauge instead of the description.
+    var gaugeLine = '';
+    if (card.effect === 'EVOLVE' && card.gauge != null && card.gauge < card.gaugeMax) {
+      gaugeLine = '<div class="pc-gauge"><div class="pc-gaugefill" style="width:' +
+        Math.round(100 * card.gauge / Math.max(1, card.gaugeMax)) + '%"></div>' +
+        '<span>🌟 ' + card.gauge + '/' + card.gaugeMax + ' AP</span></div>';
+    }
+    return '<div class="pc-cost' + (card.actionCost === 0 ? ' free' : '') + '">' + card.actionCost + '</div>' +
+      '<div class="pc-name">' + esc(card.name) + '</div>' +
+      '<div class="pc-owner">' + icon(card.element) + ' ' + esc(card.ownerName) + '</div>' +
+      '<div class="pc-eff ' + effectClass(card.effect) + '">' + effectLabel(card) + '</div>' +
+      statusLine + gaugeLine +
+      '<div class="pc-desc">' + esc(card.description || '') + '</div>';
+  }
+
+  // ---- hand sheet ---------------------------------------------------------
+  /** The fan only ever shows a few cards, and on phones it hides descriptions
+   *  outright. The sheet is the "read my whole hand" view: every card at full
+   *  size, and tapping one brings it to the middle of the fan ready to drag. */
+  function toggleHandSheet(open) {
+    var sheet = $('handSheet');
+    if (!sheet) return;
+    if (open == null) open = sheet.classList.contains('hidden');
+    var b = state.run && state.run.battle;
+    if (open && (!b || b.phase === 'WON' || b.phase === 'LOST')) open = false;
+    sheet.classList.toggle('hidden', !open);
+    var btn = $('deckCounts');
+    if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) renderHandSheet(b);
+  }
+
+  function renderHandSheet(b) {
+    b = b || (state.run && state.run.battle);
+    var grid = $('handSheetGrid');
+    if (!grid || !b) return;
+    var cards = sortHandByOwner(b);
+    var sub = $('handSheetSub');
+    if (sub) {
+      sub.textContent = cards.length + (cards.length === 1 ? ' card' : ' cards') +
+        ' · ' + b.actionPoints + '/' + (b.maxActionPoints || 5) + ' AP';
+    }
+    grid.innerHTML = '';
+    if (!cards.length) {
+      grid.appendChild(el('div', 'hand-sheet-empty', 'Your hand is empty — end the turn to draw.'));
+      return;
+    }
+    cards.forEach(function (card) {
+      var c = el('div', playCardClass(card));
+      c.dataset.owner = card.ownerId;
+      c.innerHTML = playCardMarkup(card);
+      c.addEventListener('click', function () {
+        toggleHandSheet(false);
+        focusHandCard(card.instanceId);
+      });
+      grid.appendChild(c);
+    });
+  }
+
+  /** Picking a card in the sheet hands it back to the fan focused — the same
+   *  state tapping it in the fan gives it — and scrolls it to the middle so it
+   *  is under the thumb, ready to drag out. (A hand that fits on screen does
+   *  not scroll at all; then the focus highlight is the whole cue.) */
+  function focusHandCard(instanceId) {
+    var b = state.run && state.run.battle;
+    if (!b || b.phase !== 'PLAYER_INPUT') return;
+    var sorted = sortHandByOwner(b);
+    var index = -1;
+    sorted.forEach(function (card, i) { if (card.instanceId === instanceId) index = i; });
+    if (index < 0) return;
+    state.selectedCardId = instanceId;
+    renderBattle();
+    var hand = $('handRow');
+    var node = hand ? hand.querySelectorAll('.playcard')[index] : null;
+    if (!node) return;
+    hand.scrollLeft = node.offsetLeft + (node.offsetWidth / 2) - (hand.clientWidth / 2);
+    layoutHandFan(hand);
+  }
+
   function renderHand(b, over) {
     // Replacing the hand DOM would orphan any in-flight drag ghost (pointer
     // listeners lived on the destroyed card). Drop the drag first.
@@ -3356,30 +3458,12 @@
     state.dealAnimation = false;
     var prevOwner = null;
     sorted.forEach(function (card, i) {
-      var effCls = effectClass(card.effect);
       var groupStart = i > 0 && card.ownerId !== prevOwner;
       prevOwner = card.ownerId;
-      var c = el('div', 'playcard ' + elClass(card.element) + (card.effect === 'EVOLVE' ? ' evo-card' : '') + (card.playable ? '' : ' unplayable') + (card.instanceId === state.selectedCardId ? ' selected' : '') + (deal ? ' dealt' : '') + (groupStart ? ' group-start' : ''));
+      var c = el('div', playCardClass(card) + (deal ? ' dealt' : '') + (groupStart ? ' group-start' : ''));
       c.dataset.owner = card.ownerId;
       if (deal) c.style.setProperty('--deal-i', i);
-      var statusLine = '';
-      if (card.status && card.statusChance) {
-        var meta = STATUS_META[card.status] || { icon: '', label: card.status };
-        statusLine = '<div class="pc-status">' + meta.icon + ' ' + card.statusChance + '% ' + meta.label + '</div>';
-      }
-      // A locked evolution card shows its gauge instead of the description.
-      var gaugeLine = '';
-      if (card.effect === 'EVOLVE' && card.gauge != null && card.gauge < card.gaugeMax) {
-        gaugeLine = '<div class="pc-gauge"><div class="pc-gaugefill" style="width:' +
-          Math.round(100 * card.gauge / Math.max(1, card.gaugeMax)) + '%"></div>' +
-          '<span>🌟 ' + card.gauge + '/' + card.gaugeMax + ' AP</span></div>';
-      }
-      c.innerHTML = '<div class="pc-cost' + (card.actionCost === 0 ? ' free' : '') + '">' + card.actionCost + '</div>' +
-        '<div class="pc-name">' + esc(card.name) + '</div>' +
-        '<div class="pc-owner">' + icon(card.element) + ' ' + esc(card.ownerName) + '</div>' +
-        '<div class="pc-eff ' + effCls + '">' + effectLabel(card) + '</div>' +
-        statusLine + gaugeLine +
-        '<div class="pc-desc">' + esc(card.description || '') + '</div>';
+      c.innerHTML = playCardMarkup(card);
       setupCardDrag(c, card);
       hand.appendChild(c);
     });
@@ -4261,6 +4345,18 @@
         cardLine +
         '<div class="result-claim' + (er.claimed ? ' ok' : '') + '">' + note + '</div>');
       extras.appendChild(box);
+
+      // Siegelings met on the path are now pickable at warband select. Only
+      // first-time unlocks are listed — a re-found Siegeling says nothing.
+      var unlocked = er.unlockedSieglings || [];
+      if (unlocked.length) {
+        extras.appendChild(el('div', 'result-unlocks',
+          '<h3>🔓 New starter Siegelings</h3>' +
+          '<div class="unlock-chips">' + unlocked.map(function (name) {
+            return '<span class="extract-chip">' + esc(name) + '</span>';
+          }).join('') + '</div>' +
+          '<div class="extract-note">Pick them at warband select on your next expedition.</div>'));
+      }
     }
 
     // Team extraction: the leveled team was banked for Battlegrounds.

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Siege — Siegelings Adventure</title>
 <link rel="icon" href="/favicon.png">
-<link rel="stylesheet" href="/css/adventure.css?v=58">
+<link rel="stylesheet" href="/css/adventure.css?v=60">
 </head>
 <body>
 <!-- Enemy Siegelings are corrupted card art, so they need the same die-cut shade
@@ -282,10 +282,20 @@
       <div class="ledger-body" id="ledgerBody"></div>
     </div>
     <div class="battle-hint" id="battleHint"></div>
+    <div class="unit-modal hand-sheet hidden" id="handSheet" role="dialog" aria-modal="true" aria-labelledby="handSheetTitle">
+      <div class="unit-modal-card hand-sheet-card">
+        <div class="hand-sheet-head">
+          <span id="handSheetTitle">✋ Your hand</span>
+          <span class="hand-sheet-sub" id="handSheetSub"></span>
+          <button class="unit-modal-close" id="handSheetClose" type="button" aria-label="Close">✕</button>
+        </div>
+        <div class="hand-sheet-grid" id="handSheetGrid"></div>
+      </div>
+    </div>
     <div class="hand-fan" id="handRow"></div>
     <div class="battle-hud" id="battleHud">
       <div class="ap-display" id="apDisplay"></div>
-      <div class="deck-counts" id="deckCounts"></div>
+      <button class="deck-counts" id="deckCounts" type="button" aria-haspopup="dialog" aria-expanded="false" title="View the cards in your hand"></button>
       <button class="siege-btn ult hidden" id="knightUltBtn" type="button">⚡ Ultimate</button>
       <button class="siege-btn" id="endTurnBtn" type="button">End Turn</button>
     </div>
@@ -604,6 +614,6 @@
   <div class="siege-toast hidden" id="siegeToast"></div>
 </div>
 <script src="/js/siege-maps.js?v=3"></script>
-<script src="/js/adventure.js?v=64"></script>
+<script src="/js/adventure.js?v=65"></script>
 </body>
 </html>
