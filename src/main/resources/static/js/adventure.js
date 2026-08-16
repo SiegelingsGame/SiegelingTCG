@@ -2797,9 +2797,11 @@
       // Encounters are squads of 2–3; the boss/elite its minions escort is badged
       // so the headline foe reads apart from them. Height stays the authored size
       // band below — a leader is already drawn from a later evolution stage.
+      var isMerc = /\s\(Merc\)$/.test(u.name || '');
       var sp = el('div', 'sprite ' + side + ' ' + elClass(u.element) +
         (u.alive ? '' : ' dead') + (u.id === b.leadId ? ' lead' : '') +
         (side === 'enemy' && u.leader ? ' leader' : '') +
+        (isMerc ? ' merc' : '') +
         (isThreatened ? ' threatened' : ''));
       sp.dataset.id = u.id; sp.dataset.side = u.side;
       sp.style.setProperty('--idle-delay', (idx * 0.45) + 's');
@@ -2848,9 +2850,14 @@
       // A foe's full name is "Shade of X". Spelling that out on the plate leaves
       // no room for X at phone sizes, so the prefix becomes a badge (like the
       // ally level badge) and the creature keeps the readable half of the line.
+      // A rental's server name is "X (Merc)" (SiegeContentService#toMercCombatant),
+      // and spelling that out leaves no room for X on a four-unit line. Same
+      // treatment as the shade prefix: badge the role, keep the creature.
       var plateName = u.shadeOf
         ? '<span class="sp-shade">Shade</span>' + esc(u.shadeOf)
-        : esc(u.name);
+        : isMerc
+          ? '<span class="sp-merc">Merc</span>' + esc(u.name.replace(/\s\(Merc\)$/, ''))
+          : esc(u.name);
       sp.innerHTML =
         '<div class="sp-plate">' +
           '<div class="sp-name">' + levelBadge + plateName + ' <span class="sp-el">' + icon(u.element) + '</span></div>' +

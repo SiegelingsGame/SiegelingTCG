@@ -977,7 +977,12 @@ body[data-battle-node="BOSS"] .battle-stage::before{
    The ratios are keep.css's resident bands (.84/1/1.24/1.62) renormalised so SMALL
    is 1.0 — identical proportions to the Keep, anchored so the common small
    Siegeling keeps the size it has today instead of shrinking. */
-.sprite{position:relative; --sprite-scale:1; width:calc(120px * var(--sprite-scale,1)); max-width:calc(26vw * var(--sprite-scale,1)); text-align:center; cursor:default;}
+/* min-width:0 is load-bearing, not tidiness: the name plate sets a min-content
+   width (the name line is nowrap), so without it a flex item refuses to shrink
+   past its own name and a four-unit line — warband of 3 plus a hired merc —
+   pushes the outermost plate outside the overflow:hidden stage. */
+.sprite{position:relative; --sprite-scale:1; flex:0 1 auto; min-width:0;
+  width:calc(120px * var(--sprite-scale,1)); max-width:calc(26vw * var(--sprite-scale,1)); text-align:center; cursor:default;}
 .sprite[data-size="MEDIUM"]{--sprite-scale:1.19;}
 .sprite[data-size="LARGE"]{--sprite-scale:1.48;}
 .sprite[data-size="GIGANTIC"]{--sprite-scale:1.93;}
@@ -1054,6 +1059,15 @@ body[data-battle-node="BOSS"] .battle-stage::before{
 .sprite .sp-shade{display:inline-block; font-size:9px; font-weight:800; line-height:1; padding:2px 4px;
   border-radius:4px; background:#2e1b4d; color:#d8a2ff; margin-right:4px; vertical-align:middle;
   letter-spacing:.4px; text-transform:uppercase;}
+/* A rented Siegeling's "(Merc)" suffix, badged for the same reason as the shade
+   prefix: it is a role, and on a four-unit line it costs the creature its name. */
+.sprite .sp-merc{display:inline-block; font-size:9px; font-weight:800; line-height:1; padding:2px 4px;
+  border-radius:4px; background:#3a2f14; color:#ffd066; margin-right:4px; vertical-align:middle;
+  letter-spacing:.4px; text-transform:uppercase;}
+/* Phone plates hide the badge (it costs the name the room it needs), so the
+   rental has to stay distinguishable from a permanent warband member without
+   spending any width at all. */
+.sprite.merc .sp-plate{border-color:rgba(255,208,102,.5); box-shadow:0 0 9px rgba(255,208,102,.18);}
 /* Every encounter is a squad of 2–3, so the boss/elite its minions escort gets a
    lit plate to read as the headline foe. Deliberately NOT a size bump: sprite
    height is the card's authored band (--sprite-scale), and a leader already draws
@@ -1065,7 +1079,12 @@ body[data-battle-node="BOSS"] .battle-stage::before{
 .sprite.enemy.leader .sp-name{color:#ffd9ab;}
 .sprite .sp-xpbar{height:3px; border-radius:2px; background:#0c1017; margin-top:3px; overflow:hidden;}
 .sprite .sp-xpfill{height:100%; background:linear-gradient(90deg,#5b8def,#8ab4ff); transition:width .35s;}
-.sprite .sp-tags{display:flex; gap:6px; justify-content:center; font-size:10px; color:var(--dim); margin-top:3px;}
+/* Wraps rather than spills: hp + shield + attack buff + status chips is more
+   than a narrow plate can hold on one line, and this row has no ellipsis to
+   fall back on, so a fourth unit on the line used to write it over its
+   neighbour instead of stacking it. */
+.sprite .sp-tags{display:flex; flex-wrap:wrap; column-gap:5px; row-gap:2px; justify-content:center;
+  min-width:0; font-size:10px; color:var(--dim); margin-top:3px;}
 .sprite .sp-shield{color:var(--shield); font-weight:700;}
 .sprite .sp-buff{color:var(--accent); font-weight:700;}
 
@@ -1489,7 +1508,7 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
   /* The plate is barely wider than the sprite here, and badge + creature name
      does not fit: the name is the half worth keeping, since the violet cutout
      already says the foe is a shade. */
-  .sprite .sp-shade{display:none;}
+  .sprite .sp-shade,.sprite .sp-merc{display:none;}
   .foe-line,.ally-line{min-height:112px;}
 
   .battle-log{max-height:38px; min-height:24px; font-size:11px; padding:4px 10px; margin-top:6px;}
@@ -1939,7 +1958,7 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
   .sprite .sp-name{ font-size:var(--arena-name); }
   /* Phone-sized plates cannot hold the badge and the creature's name; the
      min-height:601px block below puts it back for tablet/desktop. */
-  .sprite .sp-shade{ display:none; }
+  .sprite .sp-shade,.sprite .sp-merc{ display:none; }
 
   /* ---- Health + speed stretch across the top as one slim band ----
      Old layout stacked the knight/life plate ABOVE the speed strip in a
@@ -2083,7 +2102,7 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
      Formations already inset via --arena-side-inset-*; the stage/map stay
      edge-to-edge under the notch and past the home indicator. */
   .sprite .sp-plate{ padding:4px 9px 5px; margin-bottom:4px; }
-  .sprite .sp-shade{ display:inline-block; }
+  .sprite .sp-shade,.sprite .sp-merc{ display:inline-block; }
   .sprite .sp-el{ font-size:11px; }
   .sprite .sp-tags{ font-size:11px; }
   .knight-plate{ padding:7px 11px 8px; }
