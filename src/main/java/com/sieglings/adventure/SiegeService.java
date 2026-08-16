@@ -620,17 +620,31 @@ public class SiegeService {
         return serialize(run);
     }
 
-    /** Finds the active account-owned expedition, letting a new device recover its token safely. */
+    /**
+     * Every active account-owned run, letting a new device recover its token safely.
+     * There is one save per {@link RunSlot}, so a player can hold an expedition and a
+     * Battlegrounds march at once; {@code runs} carries them all and {@code run} keeps
+     * the single-run shape older clients read (the expedition, or the only save there is).
+     */
     Map<String, Object> activeRun(String authorizationHeader) {
         AccountUser user = resolveUser(authorizationHeader);
         if (user == null || user.getId() == null || user.getId().isBlank()) return Map.of();
-        Optional<Map<String, Object>> snapshot = checkpoints.loadForUser(user.getId());
-        if (snapshot.isEmpty()) return Map.of();
-        String savedToken = str(snapshot.get().get("token"));
-        if (savedToken.isBlank()) return Map.of();
-        Optional<SiegeRun> restored = lookup(savedToken);
-        if (restored.isEmpty() || !user.getId().equals(restored.get().getOwnerId())) return Map.of();
-        return Map.of("run", serialize(restored.get()));
+        List<Map<String, Object>> found = new ArrayList<>();
+        checkpoints.loadAllForUser(user.getId()).forEach((slot, snapshot) -> {
+            String savedToken = str(snapshot.get("token"));
+            if (savedToken.isBlank()) return;
+            Optional<SiegeRun> restored = lookup(savedToken);
+            if (restored.isEmpty() || !user.getId().equals(restored.get().getOwnerId())) return;
+            Map<String, Object> serialized = new LinkedHashMap<>(serialize(restored.get()));
+            serialized.put("slot", slot.name());
+            serialized.put("slotLabel", slot.label());
+            found.add(serialized);
+        });
+        if (found.isEmpty()) return Map.of();
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("runs", found);
+        out.put("run", found.getFirst());
+        return out;
     }
 
     /** Player chose "start over" on the resume prompt: drop the run and its checkpoint for good. */
@@ -639,7 +653,7 @@ public class SiegeService {
         SiegeRun run = lookup(token).orElse(null);
         runs.remove(token);
         checkpoints.delete(token);
-        if (run != null) checkpoints.deleteForUser(run.getOwnerId(), run.getToken());
+        if (run != null) checkpoints.deleteForUser(run.getOwnerId(), RunSlot.of(run.getMode()), run.getToken());
     }
 
     /** Player explicitly requested a durable checkpoint from the run menu. */
@@ -680,7 +694,7 @@ public class SiegeService {
     private void checkpoint(SiegeRun run) {
         if (run.getStatus() != RunStatus.ACTIVE) {
             checkpoints.delete(run.getToken());
-            checkpoints.deleteForUser(run.getOwnerId(), run.getToken());
+            checkpoints.deleteForUser(run.getOwnerId(), RunSlot.of(run.getMode()), run.getToken());
             run.setCheckpointSaved(false);
             return;
         }
@@ -695,7 +709,7 @@ public class SiegeService {
         Map<String, Object> snapshot = snapshotRun(run);
         boolean tokenSaved = checkpoints.save(run.getToken(), snapshot);
         boolean accountSaved = run.getOwnerId() == null || run.getOwnerId().isBlank()
-                || checkpoints.saveForUser(run.getOwnerId(), snapshot);
+                || checkpoints.saveForUser(run.getOwnerId(), RunSlot.of(run.getMode()), snapshot);
         // For signed-in players the account checkpoint is the authoritative
         // cross-device save. Guests continue to use the token checkpoint.
         return run.getOwnerId() == null || run.getOwnerId().isBlank() ? tokenSaved : accountSaved;
@@ -2375,7 +2389,7 @@ public class SiegeService {
     }
 
     /** Rebuilds one party Combatant from its veteran snapshot at its extracted level/xp/stats/item. */
-    private static Combatant rebuildMemberCombatant(Map<String, Object> snap, int slot) {
+    private Combatant rebuildMemberCombatant(Map<String, Object> snap, int slot) {
         String sourceCardId = str(snap.get("sourceCardId"));
         String name = str(snap.get("name"));
         Element element = parseElement(snap.get("element"));
@@ -2384,7 +2398,11 @@ public class SiegeService {
         int baseSpeed = intOf(snap.get("baseSpeed"), intOf(snap.get("speed"), 5));
         int xp = intOf(snap.get("xp"), 0);
         String id = "ally-" + slot + "-" + sourceCardId;
-        Combatant c = new Combatant(id, name, element, Side.PLAYER, Math.max(1, baseMaxHp), Math.max(1, baseSpeed), null);
+        // Veteran snapshots store stats, not art: without resolving it back from the
+        // catalog every Battlegrounds Siegeling fought as an element glyph instead of
+        // its cutout, on the battlefield, the party rail and the resume prompt alike.
+        Combatant c = new Combatant(id, name, element, Side.PLAYER, Math.max(1, baseMaxHp),
+                Math.max(1, baseSpeed), sieglingArtUrl(sourceCardId));
         c.setSourceCardId(sourceCardId);
         c.setPosition(slot);
         c.setItemId(str(snap.get("itemId")));
@@ -2393,14 +2411,14 @@ public class SiegeService {
     }
 
     /** Rebuilds the veteran knight Combatant from its snapshot (persistent HP unit, no notch). */
-    private static Combatant rebuildKnightCombatant(Map<String, Object> snap) {
+    private Combatant rebuildKnightCombatant(Map<String, Object> snap) {
         String name = str(snap.get("knightName"));
         Element element = parseElement(snap.get("element"));
         int maxHp = intOf(snap.get("maxHp"), 1);
         int baseMaxHp = intOf(snap.get("baseMaxHp"), maxHp);
         int xp = intOf(snap.get("xp"), 0);
         Combatant knight = new Combatant("knight-unit", name, element, Side.PLAYER,
-                Math.max(1, baseMaxHp), 5, null, true);
+                Math.max(1, baseMaxHp), 5, knightArtUrl(str(snap.get("knightId"))), true);
         knight.loadLeveling(xp);
         return knight;
     }
@@ -3231,6 +3249,10 @@ public class SiegeService {
         m.put("deckSize", run.getDeckTemplates().size());
         m.put("gold", run.getGold());
         m.put("mode", run.getMode().name());
+        // Which account save this run occupies — the client labels the HUD and the
+        // resume prompt from it, so the two modes never read as the same save.
+        m.put("slot", RunSlot.of(run.getMode()).name());
+        m.put("slotLabel", RunSlot.of(run.getMode()).label());
         m.put("score", run.getScore());
         m.put("loop", run.getLoop());
         m.put("partyMax", content.partyMax());
@@ -3386,7 +3408,8 @@ public class SiegeService {
             knight.put("unitId", run.getKnightUnit().getId());
             knight.put("hp", run.getKnightUnit().getHp());
             knight.put("maxHp", run.getKnightUnit().getMaxHp());
-            knight.put("artUrl", run.getKnightUnit().getArtUrl());
+            knight.put("artUrl", run.getKnightUnit().getArtUrl() != null
+                    ? run.getKnightUnit().getArtUrl() : knightArtUrl(run.getKnightId()));
             knight.put("alive", run.getKnightUnit().isAlive());
             putKnightLeveling(knight, run.getKnightUnit());
         }
@@ -3529,7 +3552,8 @@ public class SiegeService {
             knight.put("id", knightUnit.getId());
             knight.put("hp", knightUnit.getHp());
             knight.put("maxHp", knightUnit.getMaxHp());
-            knight.put("artUrl", knightUnit.getArtUrl());
+            knight.put("artUrl", knightUnit.getArtUrl() != null
+                    ? knightUnit.getArtUrl() : knightArtUrl(run.getKnightId()));
             putKnightLeveling(knight, knightUnit);
         }
         knight.put("charge", battle.getKnightCharge());
@@ -3688,6 +3712,34 @@ public class SiegeService {
         knight.put("leveledThisBattle", unit.isLeveledRecently());
     }
 
+    /**
+     * Card art for a Siegeling id, or null when the catalog has none. Null-safe on
+     * {@code content} because the Battlegrounds rebuild is exercised by pure,
+     * Firestore-free tests that construct this service without Spring.
+     */
+    private String sieglingArtUrl(String sieglingId) {
+        if (content == null) return null;
+        return content.findAnySiegling(sieglingId).map(SieglingCard::getCardArtUrl).orElse(null);
+    }
+
+    /** Card art for a SiegeKnight id, or null when the catalog has none. */
+    private String knightArtUrl(String knightId) {
+        if (content == null) return null;
+        return content.findKnight(knightId).map(TrainerCard::getCardArtUrl).orElse(null);
+    }
+
+    /**
+     * The art a unit is drawn with, falling back to the card it is drawn from. The
+     * fallback is what makes an already-saved Battlegrounds run render: its combatants
+     * were persisted with no art at all, and every surface that shows a unit — the
+     * battlefield sprite, the party rail, the resume prompt — reads this one field.
+     */
+    private String artUrlOf(Combatant c) {
+        if (c.getArtUrl() != null && !c.getArtUrl().isBlank()) return c.getArtUrl();
+        if (c.isKnight()) return null;
+        return sieglingArtUrl(c.getDisplayCardId());
+    }
+
     private Map<String, Object> serializeCombatant(Combatant c, boolean includeAbilities) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", c.getId());
@@ -3714,7 +3766,7 @@ public class SiegeService {
         m.put("itemId", c.getItemId());
         m.put("item", c.getItemId() == null ? null : serializeItem(content.findItem(c.getItemId())));
         m.put("alive", c.isAlive());
-        m.put("artUrl", c.getArtUrl());
+        m.put("artUrl", artUrlOf(c));
         m.put("shadeOf", c.getShadeOf());
         m.put("position", c.getPosition());
         List<String> statuses = new ArrayList<>();
