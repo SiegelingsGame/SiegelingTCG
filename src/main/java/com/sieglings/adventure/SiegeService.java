@@ -3653,8 +3653,10 @@ public class SiegeService {
         m.put("maxHp", c.getMaxHp());
         m.put("shield", c.getShield());
         m.put("speed", c.getSpeed());
+        m.put("baseSpeed", c.getBaseSpeed());
         m.put("effectiveSpeed", c.effectiveSpeed());
         m.put("attackBuff", c.getAttackBuff());
+        m.put("maxHpBonus", c.getBattleMaxHpBonus());
         // Leveling (drives the level badge + XP bar on the unit chip).
         m.put("level", c.getLevel());
         m.put("xp", c.getXp());
@@ -3673,6 +3675,9 @@ public class SiegeService {
         List<String> statuses = new ArrayList<>();
         for (StatusKind s : c.getStatuses().keySet()) statuses.add(s.name());
         m.put("statuses", statuses);
+        Map<String, Integer> statusRounds = new LinkedHashMap<>();
+        c.getStatuses().forEach((status, rounds) -> statusRounds.put(status.name(), rounds));
+        m.put("statusRounds", statusRounds);
         // How far along an evolution line the unit currently stands. Derived from the
         // catalog stage of its source card: a Siegeling recruited at stage 2/3 reports that
         // stage before any battle evolution, and playing an EVOLVE card rewrites

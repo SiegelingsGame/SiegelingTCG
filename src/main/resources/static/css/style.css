@@ -1208,6 +1208,62 @@ body {
         inset 0 0 34px rgba(255, 94, 58, 0.14);
 }
 
+/* Brief card reveal for draw abilities. The individual cards use the exact
+   rendered hand-card markup, then fly into the player's hand/counter. */
+.draw-ability-reveal {
+    position: fixed;
+    inset: 0;
+    z-index: 900;
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 180ms ease;
+}
+.draw-ability-reveal.hidden { display: none; }
+.draw-ability-reveal.visible { opacity: 1; }
+.draw-ability-reveal::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, rgba(34, 111, 255, .24), rgba(4, 9, 23, .6) 67%);
+    backdrop-filter: blur(2px);
+}
+.draw-ability-reveal-copy {
+    position: absolute;
+    top: calc(50% - min(24vw, 154px));
+    z-index: 1;
+    display: grid;
+    gap: 3px;
+    text-align: center;
+    color: #e8f4ff;
+    text-shadow: 0 2px 14px #071020;
+}
+.draw-ability-reveal-kicker { color: #8dcaff; font-size: .67rem; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; }
+.draw-ability-reveal-copy strong { font-size: clamp(1rem, 3.5vw, 1.45rem); }
+.draw-ability-reveal-cards { position: relative; z-index: 1; display: flex; justify-content: center; align-items: center; min-height: min(38vw, 228px); }
+.draw-ability-reveal-cards .hand-card {
+    width: min(19vw, 132px);
+    min-width: min(19vw, 132px);
+    margin-left: -18px;
+    pointer-events: none;
+    filter: drop-shadow(0 14px 19px rgba(0,0,0,.55));
+    transform: translateY(14px) scale(.82);
+    opacity: 0;
+    transition: transform 440ms cubic-bezier(.18,.88,.25,1), opacity 180ms ease, filter 260ms ease;
+}
+.draw-ability-reveal.visible .hand-card { transform: translateY(0) scale(1); opacity: 1; }
+.draw-ability-reveal.visible .hand-card:nth-child(2) { transition-delay: 80ms; }
+.draw-ability-reveal.visible .hand-card:nth-child(3) { transition-delay: 140ms; }
+.draw-ability-reveal.visible .hand-card:nth-child(n+4) { transition-delay: 180ms; }
+.draw-ability-reveal.flying .draw-ability-reveal-copy { opacity: 0; transition: opacity 120ms ease; }
+.draw-ability-reveal.flying .hand-card { transform: translate(var(--draw-fly-x), var(--draw-fly-y)) scale(.34); opacity: 0; filter: drop-shadow(0 5px 8px rgba(0,0,0,.25)); transition: transform 420ms cubic-bezier(.35,.05,.7,.35), opacity 360ms ease, filter 300ms ease; }
+
+@media (max-width: 600px) {
+    .draw-ability-reveal-cards .hand-card { width: min(28vw, 116px); min-width: min(28vw, 116px); margin-left: -13px; }
+    .draw-ability-reveal-copy { top: calc(50% - min(34vw, 142px)); }
+}
+
 @media (max-width: 900px) {
     .phase-transition-banner {
         top: 50%;

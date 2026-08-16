@@ -121,6 +121,20 @@ class SiegeElementalStatusEffectsTest {
     }
 
     @Test
+    void blindAlsoReducesAttackAndSpeedBuffValues() {
+        Fixture f = fixture();
+        f.ally.applyStatus(StatusKind.BLIND, 2);
+        AbilitySpec attack = new AbilitySpec("warcry", "Warcry", Element.LIGHT, Effect.BUFF_ATK, 3,
+                TargetKind.SELF, 1, "Buff.");
+        AbilitySpec speed = new AbilitySpec("haste", "Haste", Element.LIGHT, Effect.BUFF_SPD, 3,
+                TargetKind.SELF, 1, "Buff.");
+        apply(f.battle, f.ally, attack, List.of(f.ally));
+        apply(f.battle, f.ally, speed, List.of(f.ally));
+        assertEquals(2, f.ally.getAttackBuff());
+        assertEquals(12, f.ally.getSpeed());
+    }
+
+    @Test
     void poisonBlocksHealAndClears() {
         Fixture f = fixture();
         f.ally.setHp(40);
@@ -154,19 +168,15 @@ class SiegeElementalStatusEffectsTest {
     }
 
     @Test
-    void leechSecondEarthHitHealsForDamageDealtAndClears() {
+    void leechHealsForDamageDealtOnTheTriggeringEarthHit() {
         Fixture f = fixture();
         f.ally.setHp(48);
         AbilitySpec hit = new AbilitySpec("root-bite", "Root Bite", Element.EARTH, Effect.DAMAGE, 5,
                 TargetKind.ENEMY_SINGLE, 1, "Hit.", StatusKind.LEECH, 100);
 
         apply(f.battle, f.ally, hit, List.of(f.foe));
-        assertTrue(f.foe.has(StatusKind.LEECH));
-        assertEquals(48, f.ally.getHp(), "first Earth hit only marks");
-
-        apply(f.battle, f.ally, hit, List.of(f.foe));
         assertFalse(f.foe.has(StatusKind.LEECH));
-        assertEquals(53, f.ally.getHp(), "second hit restores the 5 HP dealt");
+        assertEquals(53, f.ally.getHp(), "Leech restores the HP damage from the hit that triggered it");
     }
 
     @Test

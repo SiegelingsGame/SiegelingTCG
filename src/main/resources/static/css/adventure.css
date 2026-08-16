@@ -291,6 +291,12 @@ body[data-screen="mapScreen"] #mapScreen{
 .um-name{font-size:18px; font-weight:800;}
 .um-sub{font-size:12px; color:var(--dim); margin-top:4px; line-height:1.4;}
 .um-cards-title{font-size:11px; letter-spacing:1.2px; text-transform:uppercase; color:var(--faint); margin:12px 0 8px; font-weight:700;}
+.um-effects{display:flex; flex-wrap:wrap; gap:7px;}
+.um-effect{display:flex; flex-direction:column; gap:2px; min-width:126px; flex:1 1 126px; border:1px solid var(--border); border-radius:9px; padding:7px 9px; background:rgba(0,0,0,.18);}
+.um-effect b{font-size:12px; line-height:1.15;}
+.um-effect small{font-size:10px; line-height:1.25; color:var(--faint);}
+.um-effect.is-positive{border-color:rgba(91,219,142,.55); background:rgba(47,154,93,.12); color:#9df0ba;}
+.um-effect.is-negative{border-color:rgba(255,120,120,.48); background:rgba(170,59,66,.12); color:#ffb0b0;}
 .um-cards{display:flex; flex-direction:column; gap:8px;}
 .um-card{display:flex; gap:10px; align-items:flex-start; background:rgba(0,0,0,.22); border:1px solid var(--border); border-left:3px solid var(--el); border-radius:10px; padding:8px 10px;}
 .um-cost{flex:0 0 22px; width:22px;height:22px; border-radius:50%; background:radial-gradient(circle at 35% 30%, #ffc37a, var(--accent)); color:#1a1206; font-weight:800; font-size:12px; display:flex; align-items:center; justify-content:center;}

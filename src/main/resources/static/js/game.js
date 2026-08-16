@@ -63,6 +63,8 @@ let phaseTransitionTimer = null;
 // down — a never-resolved await here would wedge the battle action queue and
 // freeze the game (auto-advance is gated on the queue being idle).
 let phaseTransitionResolve = null;
+let drawAbilityRevealTimer = null;
+let drawAbilityRevealRun = 0;
 let coinFlipDismissedRoomId = null;
 let handTouchGesture = null;
 /** @type {null | { handIndex: number, pointerId: number, startX: number, startY: number, active: boolean, ghost: HTMLElement | null, sourceEl: HTMLElement | null, captureEl: HTMLElement | null }} */
@@ -9497,6 +9499,7 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
     }
 
     const prevState = gameState;
+    const drawAbilityUsed = didRequestUsePlayerDrawAbility(endpoint, body, prevState);
     gameState = data;
     // Server state is authoritative for the hand; any optimistic slot hide is
     // superseded by it (whether the action landed or was rejected).
@@ -9541,7 +9544,102 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
         }
         throw e;
     }
+    if (drawAbilityUsed) {
+        showDrawAbilityReveal(prevState, data);
+    }
     return data;
+}
+
+function isDrawAbility(ability) {
+    const effect = String(ability?.effectType || ability?.effect || '').trim().toUpperCase();
+    return effect === 'DRAW';
+}
+
+// Only ability-originated draws use the reveal. The regular draw-phase button
+// intentionally remains quick, so turns do not feel delayed.
+function didRequestUsePlayerDrawAbility(endpoint, body, state) {
+    if (!state || !body) return false;
+    if (endpoint === 'cast') {
+        return isDrawAbility((state.player?.hand || []).find((card) => card.id === body.cardId)?.ability);
+    }
+    if (endpoint === 'battle/action') {
+        return isDrawAbility((state.pendingBattle?.abilities || []).find((ability) => ability.index === body.abilityIndex));
+    }
+    if (endpoint === 'trainer') {
+        return isDrawAbility(state.player?.trainer?.active);
+    }
+    return false;
+}
+
+function getNewDrawnHandIndices(previousState, nextState) {
+    const priorCounts = new Map();
+    (previousState?.player?.hand || []).forEach((card) => {
+        priorCounts.set(card.id, (priorCounts.get(card.id) || 0) + 1);
+    });
+    const drawn = [];
+    (nextState?.player?.hand || []).forEach((card, index) => {
+        const count = priorCounts.get(card.id) || 0;
+        if (count > 0) priorCounts.set(card.id, count - 1);
+        else drawn.push(index);
+    });
+    return drawn;
+}
+
+function showDrawAbilityReveal(previousState, nextState) {
+    const drawnIndices = getNewDrawnHandIndices(previousState, nextState);
+    if (drawnIndices.length === 0) return;
+    const reveal = document.getElementById('drawAbilityReveal');
+    const cards = document.getElementById('drawAbilityRevealCards');
+    const title = document.getElementById('drawAbilityRevealTitle');
+    if (!reveal || !cards || !title) return;
+    const run = ++drawAbilityRevealRun;
+    if (drawAbilityRevealTimer) clearTimeout(drawAbilityRevealTimer);
+
+    const hand = document.getElementById('playerHand');
+    const cardNodes = drawnIndices.map((index) => hand?.querySelector(`.hand-card[data-hand-index="${index}"]`)).filter(Boolean);
+    if (cardNodes.length === 0) return;
+    cards.replaceChildren(...cardNodes.map((card) => {
+        const copy = card.cloneNode(true);
+        copy.removeAttribute('onclick');
+        copy.removeAttribute('onpointerdown');
+        copy.removeAttribute('ontouchstart');
+        copy.removeAttribute('ontouchmove');
+        copy.removeAttribute('ontouchend');
+        copy.classList.remove('selected', 'opponent-turn');
+        return copy;
+    }));
+    const count = cardNodes.length;
+    title.textContent = `${count} card${count === 1 ? '' : 's'} drawn`;
+    reveal.className = 'draw-ability-reveal';
+    requestAnimationFrame(() => reveal.classList.add('visible'));
+
+    // Aim at the real hand when it is open. During battle, the hand is tucked
+    // away, so use the player hand counter as an honest, visible destination.
+    const destination = !hand?.classList.contains('hidden')
+        ? hand.getBoundingClientRect()
+        : document.getElementById('mobilePlayerHandSize')?.getBoundingClientRect()
+            || document.getElementById('playerDeckSize')?.getBoundingClientRect();
+    const targetX = destination ? destination.left + destination.width / 2 : window.innerWidth / 2;
+    const targetY = destination ? destination.top + destination.height / 2 : window.innerHeight - 34;
+    const revealCenterX = window.innerWidth / 2;
+    const revealCenterY = window.innerHeight / 2;
+    cards.querySelectorAll('.hand-card').forEach((card, index) => {
+        const spread = (index - (count - 1) / 2) * 18;
+        card.style.setProperty('--draw-fly-x', `${targetX - revealCenterX + spread}px`);
+        card.style.setProperty('--draw-fly-y', `${targetY - revealCenterY}px`);
+    });
+    drawAbilityRevealTimer = setTimeout(() => {
+        if (run === drawAbilityRevealRun) reveal.classList.add('flying');
+    }, 720);
+    setTimeout(() => {
+        if (run !== drawAbilityRevealRun) return;
+        reveal.classList.remove('visible', 'flying');
+        drawAbilityRevealTimer = setTimeout(() => {
+            if (run !== drawAbilityRevealRun) return;
+            reveal.classList.add('hidden');
+            drawAbilityRevealTimer = null;
+        }, 260);
+    }, 1250);
 }
 
 async function fetchJson(urlOrUrls, options = {}, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS) {
