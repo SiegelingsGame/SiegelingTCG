@@ -73,6 +73,9 @@ class SiegeRunSaveTest {
         assertEquals("player/with-a-safe-id", checkpoints.savedUserId);
         assertEquals("account-save", checkpoints.accountSnapshot.get("token"));
         assertEquals("player/with-a-safe-id", checkpoints.accountSnapshot.get("ownerId"));
+        // A standard expedition lands in the expedition slot; Battlegrounds has its own,
+        // so starting one mode no longer discards the other mode's save.
+        assertEquals(RunSlot.EXPEDITION, checkpoints.savedSlot);
     }
 
     private static void setField(Object target, String name, Object value) throws Exception {
@@ -96,6 +99,7 @@ class SiegeRunSaveTest {
         private String savedToken;
         private Map<String, Object> savedSnapshot;
         private String savedUserId;
+        private RunSlot savedSlot;
         private Map<String, Object> accountSnapshot;
         private int saveCount;
 
@@ -108,8 +112,9 @@ class SiegeRunSaveTest {
         }
 
         @Override
-        boolean saveForUser(String userId, Map<String, Object> snapshot) {
+        boolean saveForUser(String userId, RunSlot slot, Map<String, Object> snapshot) {
             savedUserId = userId;
+            savedSlot = slot;
             accountSnapshot = snapshot;
             return true;
         }

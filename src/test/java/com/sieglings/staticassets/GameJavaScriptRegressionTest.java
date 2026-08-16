@@ -2182,8 +2182,14 @@ class GameJavaScriptRegressionTest {
         assertTrue(adventureJs.contains("api('/api/siege/run/save'")
                         && adventureJs.contains("if (!run.checkpoint) throw new Error")
                         && restartRun.contains("api('/api/siege/run/abandon'")
-                        && restartRun.indexOf("api('/api/siege/run/abandon'") < restartRun.indexOf("setToken(null); state.run = null"),
+                        && restartRun.indexOf("api('/api/siege/run/abandon'") < restartRun.indexOf("state.run = null"),
                 "Save/Quit must require a durable checkpoint and Restart must abandon server state before clearing local state.");
+        // The resume prompt can abandon the OTHER mode's save, so the device token is
+        // only cleared when it is the one that was just dropped, and what remains is
+        // re-read rather than assumed gone.
+        assertTrue(restartRun.contains("if (t === token()) setToken(null);")
+                        && restartRun.contains("resumeOrRoster()"),
+                "Abandoning one save must not clear a token pointing at the other mode's run.");
         assertFalse(adventureJs.contains("resetPageScroll"),
                 "The menu port must not revive the stale PR's superseded map-scroll implementation.");
     }
@@ -2191,12 +2197,20 @@ class GameJavaScriptRegressionTest {
     @Test
     void siegeBootPrefersTheSignedInAccountsExpeditionAcrossDevices() throws IOException {
         String adventureJs = Files.readString(ADVENTURE_JS);
-        String boot = extractFunction(adventureJs, "function boot()");
+        String resume = extractFunction(adventureJs, "function resumeOrRoster()");
 
-        assertTrue(boot.contains("api('/api/siege/run/active')")
-                        && boot.contains("setToken(active.run.token)")
-                        && boot.contains("bootFromLocalToken()"),
+        assertTrue(extractFunction(adventureJs, "function boot()").contains("resumeOrRoster()")
+                        && resume.contains("api('/api/siege/run/active')")
+                        && resume.contains("bootFromLocalToken"),
                 "Signed-in players must resume their account checkpoint before a device-local token, with guest fallback.");
+        // An account holds one save per mode, so the boot check reads the whole list —
+        // taking only `run` would hide whichever mode was not saved last.
+        assertTrue(resume.contains("active.runs")
+                        && resume.contains("renderResumePrompt(saves)"),
+                "The boot check must offer every saved mode, not just the most recent run.");
+        assertTrue(adventureJs.contains("function runSlotBadgeText(run)")
+                        && adventureJs.contains("run.slot === 'BATTLEGROUNDS'"),
+                "Siege and Battlegrounds must be labelled apart wherever a run is shown.");
     }
 
     @Test

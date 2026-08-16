@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Siege — Siegelings Adventure</title>
 <link rel="icon" href="/favicon.png">
-<link rel="stylesheet" href="/css/adventure.css?v=57">
+<link rel="stylesheet" href="/css/adventure.css?v=58">
 </head>
 <body>
 <!-- Enemy Siegelings are corrupted card art, so they need the same die-cut shade
@@ -65,18 +65,12 @@
   <!-- Resume prompt: shown at boot when a saved expedition is detected. -->
   <section class="siege-screen hidden" id="resumeScreen">
     <h1>Welcome Back</h1>
-    <p class="siege-sub" id="resumeNote">An expedition is already in progress.</p>
-    <div class="resume-summary">
-      <div class="party-strip" id="resumeParty"></div>
-      <div class="resume-meta">
-        <span class="gold-chip" id="resumeGold">🪙 0</span>
-        <span id="resumeFloor"></span>
-        <span id="resumeBattle" class="resume-battle-chip hidden">⚔ Battle in progress</span>
-      </div>
-    </div>
+    <p class="siege-sub" id="resumeNote">A run is already in progress.</p>
+    <!-- One card per save slot: an expedition and a Battlegrounds march can be
+         held at the same time, so this list is built by renderResumePrompt. -->
+    <div id="resumeSaves"></div>
     <div class="resume-actions">
-      <button class="siege-btn primary" id="resumeContinueBtn" type="button">Continue Expedition ▸</button>
-      <button class="siege-btn" id="resumeRestartBtn" type="button">Start Over</button>
+      <button class="siege-btn" id="resumeFreshBtn" type="button">Start a new run</button>
     </div>
   </section>
 
@@ -155,6 +149,9 @@
     <div class="map-bottom">
       <div class="map-reward" id="mapReward"></div>
       <div class="map-meta">
+        <!-- Mode badge first, then the same chips in the same order in both modes:
+             the HUD reads identically for Siege and Battlegrounds. -->
+        <span class="run-slot-badge siege" id="mapMode">🏳️ Siege Expedition</span>
         <span class="gold-chip" id="mapGold">🪙 0</span>
         <span id="mapDeckCount"></span>
         <button class="siege-btn map-inv-btn" id="inventoryBtn" type="button">🎒 Items</button>
@@ -607,6 +604,6 @@
   <div class="siege-toast hidden" id="siegeToast"></div>
 </div>
 <script src="/js/siege-maps.js?v=3"></script>
-<script src="/js/adventure.js?v=63"></script>
+<script src="/js/adventure.js?v=64"></script>
 </body>
 </html>
