@@ -103,7 +103,10 @@ public class SiegeService {
             m.put("moveCount", content.moveCount(s));
             m.put("artUrl", s.getCardArtUrl());
             m.put("evolves", evolvesFrom.contains(s.getId()));
-            m.put("expeditionStarter", content.isExpeditionStarter(s, startersConfigured));
+            // Catalog starters plus anything this account found on an expedition.
+            m.put("expeditionStarter", content.isExpeditionStarter(s, startersConfigured)
+                    || (progression != null && progressionService != null
+                        && progressionService.isSiegeSieglingUnlocked(progression, s.getId())));
             m.put("moves", serializeSpecs(content.moveSpecs(s)));
             siegelings.add(m);
         }
@@ -332,6 +335,52 @@ public class SiegeService {
         return user;
     }
 
+    /**
+     * Records a Siegeling this run has met. Banked as a permanent starter unlock
+     * when the run ends (see {@link #bankSieglingDiscoveries}); nothing is
+     * granted mid-run, so a run that is abandoned or lost keeps its finds unbanked.
+     */
+    private void noteDiscovery(SiegeRun run, String cardId) {
+        if (run != null && cardId != null && !cardId.isBlank()) {
+            run.getDiscoveredSieglingIds().add(cardId);
+        }
+    }
+
+    /**
+     * Turns this run's discoveries into permanent starter unlocks. Finding any
+     * form earns its whole line, so each id is resolved to its stage-1 base —
+     * that is the card warband select can actually offer — and the found form is
+     * banked alongside it so the collection reflects what was actually met.
+     *
+     * @return display names of the Siegelings newly unlocked, for the run summary
+     */
+    private List<String> bankSieglingDiscoveries(PlayerProgressionEntity progression, SiegeRun run) {
+        if (progression == null || progressionService == null || run.getDiscoveredSieglingIds().isEmpty()) {
+            return List.of();
+        }
+        java.util.LinkedHashSet<String> ids = new java.util.LinkedHashSet<>();
+        for (String found : run.getDiscoveredSieglingIds()) {
+            String base = content.baseFormId(found);
+            if (base != null && !base.isBlank()) ids.add(base);
+            ids.add(found);
+        }
+        // Unlocks are stored normalized (lower-case), so resolve display names
+        // from the ids we passed in rather than from what comes back.
+        Map<String, String> pickableNames = new LinkedHashMap<>();
+        for (String id : ids) {
+            content.findSiegling(id).ifPresent(s ->
+                    pickableNames.put(id.toLowerCase(java.util.Locale.ROOT), s.getName()));
+        }
+        List<String> names = new ArrayList<>();
+        for (String id : progressionService.unlockSiegeSieglings(progression, ids)) {
+            // Only stage-1 bases become pickable, so they are the only unlock
+            // worth announcing; an evolution is banked quietly.
+            String name = pickableNames.get(id);
+            if (name != null) names.add(name);
+        }
+        return names;
+    }
+
     private PlayerProgressionEntity loadProgression(AccountUser user) {
         if (progressionService == null || user == null) {
             return null;
@@ -405,6 +454,7 @@ public class SiegeService {
             applyJoinBonus(run, member);
             run.getParty().add(member);
             run.getDeckTemplates().addAll(content.deckCardsFor(s, member.getId()));
+            noteDiscovery(run, s.getId());
             slot++;
         }
         // The SiegeKnight contributes one card to the shared deck.
@@ -550,6 +600,7 @@ public class SiegeService {
             applyJoinBonus(run, member);
             run.getParty().add(member);
             run.getDeckTemplates().addAll(content.deckCardsFor(s, member.getId()));
+            noteDiscovery(run, s.getId());
             int stage = content.stageOf(s);
             String stageNote = stage >= 3 ? " A STAGE 3 joins the cause!" : stage == 2 ? " A stage 2 — lucky!" : "";
             String prior = run.getLastReward();
@@ -748,6 +799,7 @@ public class SiegeService {
             party.add(p);
         }
         s.put("party", party);
+        s.put("discoveredSieglings", new ArrayList<>(run.getDiscoveredSieglingIds()));
         s.put("inventory", new ArrayList<>(run.getInventory()));
         s.put("knightBag", new ArrayList<>(run.getKnightBag()));
         List<Map<String, Object>> deck = new ArrayList<>();
@@ -1020,6 +1072,13 @@ public class SiegeService {
             if (s.get("inventory") instanceof List) {
                 for (Object it : (List<Object>) s.get("inventory")) run.getInventory().add(String.valueOf(it));
             }
+            // Resuming must not forget what the run already found — those unlocks
+            // are only banked when it ends.
+            if (s.get("discoveredSieglings") instanceof List) {
+                for (Object it : (List<Object>) s.get("discoveredSieglings")) {
+                    run.getDiscoveredSieglingIds().add(String.valueOf(it));
+                }
+            }
             if (s.get("knightBag") instanceof List) {
                 for (Object it : (List<Object>) s.get("knightBag")) run.getKnightBag().add(String.valueOf(it));
             }
@@ -1265,6 +1324,7 @@ public class SiegeService {
             applyJoinBonus(run, member);
             run.getParty().add(member);
             run.getDeckTemplates().addAll(content.deckCardsFor(s, member.getId()));
+            noteDiscovery(run, s.getId());
             run.setLastReward(s.getName() + " joins the warband — " + leaving.getName() + " returns to the broker.");
             queueRecruitReveal(run, s, member);
         } else {
@@ -1273,6 +1333,7 @@ public class SiegeService {
             applyJoinBonus(run, member);
             run.getParty().add(member);
             run.getDeckTemplates().addAll(content.deckCardsFor(s, member.getId()));
+            noteDiscovery(run, s.getId());
             run.setLastReward(s.getName() + " joined the warband!");
             queueRecruitReveal(run, s, member);
         }
@@ -1419,6 +1480,7 @@ public class SiegeService {
                     applyJoinBonus(run, member);
                     run.getParty().add(member);
                     run.getDeckTemplates().addAll(content.deckCardsFor(s, member.getId()));
+                    noteDiscovery(run, s.getId());
                     run.setLastReward(s.getName() + " joined the warband!");
                     queueRecruitReveal(run, s, member);
                 });
@@ -2026,6 +2088,11 @@ public class SiegeService {
                 progression.setSiegeBossKills(progression.getSiegeBossKills() + Math.max(0, run.getBossKills()));
                 progression.setSiegeNodesCleared(progression.getSiegeNodesCleared() + Math.max(0, run.getNodesCleared()));
                 progression.setSiegeBestScore(Math.max(progression.getSiegeBestScore(), (int) Math.max(0L, run.getScore())));
+                // Siegelings met on the run become permanent starter picks. Banked
+                // here (not at the moment of the find) so they are earned by
+                // finishing the expedition, win or lose.
+                List<String> unlockedNames = bankSieglingDiscoveries(progression, run);
+                out.put("unlockedSieglings", unlockedNames);
                 // Battlegrounds: award Warmarks (per boss + win bonus) and unlock the next tier on a first clear.
                 if (run.isBattlegrounds()) {
                     int tier = run.getBgTier();
@@ -3046,6 +3113,7 @@ public class SiegeService {
                 applyJoinBonus(run, member);
                 run.getParty().add(member);
                 run.getDeckTemplates().addAll(content.deckCardsFor(s, member.getId()));
+                noteDiscovery(run, s.getId());
                 run.setLastReward(s.getName() + " joined the warband!");
                 queueRecruitReveal(run, s, member);
             });

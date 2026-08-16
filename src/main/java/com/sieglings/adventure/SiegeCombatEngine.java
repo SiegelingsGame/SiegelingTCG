@@ -218,6 +218,8 @@ public class SiegeCombatEngine {
         Combatant member = battle.findCombatant(memberId);
         if (member == null || member.getSide() != Side.PLAYER || member.isKnight()) return member;
 
+        // Evolving is a discovery too: reaching a higher stage earns that line.
+        run.getDiscoveredSieglingIds().add(evo.getId());
         Combatant evolved = content.evolve(member, evo);
         evolved.setEvolvedFrom(member);
         evolved.setShield(member.getShield());
@@ -505,6 +507,8 @@ public class SiegeCombatEngine {
         SieglingCard evo = content.findAnySiegling(evoId).orElse(null);
         if (evo == null) return PlayResult.fail("That evolution no longer exists.");
 
+        // Evolving is a discovery too: reaching a higher stage earns that line.
+        run.getDiscoveredSieglingIds().add(evo.getId());
         Combatant evolved = content.evolve(member, evo);
         evolved.setEvolvedFrom(member);
         evolved.setShield(member.getShield());

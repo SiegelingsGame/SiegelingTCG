@@ -4262,6 +4262,18 @@
         cardLine +
         '<div class="result-claim' + (er.claimed ? ' ok' : '') + '">' + note + '</div>');
       extras.appendChild(box);
+
+      // Siegelings met on the path are now pickable at warband select. Only
+      // first-time unlocks are listed — a re-found Siegeling says nothing.
+      var unlocked = er.unlockedSieglings || [];
+      if (unlocked.length) {
+        extras.appendChild(el('div', 'result-unlocks',
+          '<h3>🔓 New starter Siegelings</h3>' +
+          '<div class="unlock-chips">' + unlocked.map(function (name) {
+            return '<span class="extract-chip">' + esc(name) + '</span>';
+          }).join('') + '</div>' +
+          '<div class="extract-note">Pick them at warband select on your next expedition.</div>'));
+      }
     }
 
     // Team extraction: the leveled team was banked for Battlegrounds.

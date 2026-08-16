@@ -25,7 +25,11 @@ class AdventureLinePuzzleJavaScriptTest {
 
     @Test
     void endpointLockShipsWithAFreshCachePin() throws IOException {
-        assertTrue(Files.readString(ADVENTURE_HTML).contains("/js/adventure.js?v=60"),
+        // A floor, not an exact pin: the pin only moves forward, and a literal
+        // value made every later unrelated bundle bump fail this guard.
+        java.util.regex.Matcher pin = java.util.regex.Pattern.compile("adventure\\.js\\?v=(\\d+)")
+                .matcher(Files.readString(ADVENTURE_HTML));
+        assertTrue(pin.find() && Integer.parseInt(pin.group(1)) >= 60,
                 "The endpoint-lock client fix must ship under a fresh Adventure bundle URL.");
     }
 

@@ -1644,6 +1644,13 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
 .result-extract .extract-chips{display:flex; gap:6px; flex-wrap:wrap; justify-content:center;}
 .result-extract .extract-chip{background:var(--chip,#1c2433); border:1px solid var(--border); border-radius:999px; padding:3px 10px; font-size:12px;}
 .result-extract .extract-note{margin-top:10px; font-size:12px; color:var(--dim);}
+/* Starter unlocks earned on the run — same card as extraction, green because it
+   is a permanent account gain rather than this run's banked team. */
+.result-unlocks{background:var(--panel); border:1px solid var(--good); border-radius:12px; padding:14px 18px; margin:14px auto; max-width:360px;}
+.result-unlocks h3{margin:0 0 8px; font-size:15px; color:var(--good);}
+.result-unlocks .unlock-chips{display:flex; gap:6px; flex-wrap:wrap; justify-content:center;}
+.result-unlocks .extract-chip{background:var(--chip,#1c2433); border:1px solid rgba(126,231,135,.4); border-radius:999px; padding:3px 10px; font-size:12px;}
+.result-unlocks .extract-note{margin-top:10px; font-size:12px; color:var(--dim);}
 .map-extract-btn{padding:5px 12px; font-size:13px;}
 .endless-slots{margin:14px 0 4px; text-align:center;}
 .endless-title{font-size:13px; color:var(--accent-2); margin-bottom:8px; font-weight:650;}
