@@ -40,7 +40,7 @@ enum StatusKind {
     BURN,       // Fire:     1 damage at the end of each round
     SLOW,       // Ice:      -2 Speed for 2 rounds; reapply freezes (Stun)
     STUN,       // Freeze:   skip the next action
-    LEECH,      // Earth:    second hit heals the attacker for HP damage dealt
+    LEECH,      // Earth:    heals the attacker for HP damage dealt when it triggers
     SHOCK,      // Electric: −1 party AP (player) / next hit −2 (enemy)
     DISORIENT,  // Wind:     owner's cards cost +1 AP
     POISON,     // Poison:   end-round DoT; heals clear the toxin instead

@@ -773,15 +773,17 @@ public class SiegeCombatEngine {
                 }
             }
             case BUFF_ATK -> {
-                for (Combatant t : targets) t.addAttackBuff(spec.value());
-                battle.event("buff", "kind", "atk", "amount", spec.value());
+                int amount = effectValue(attacker, spec.value());
+                for (Combatant t : targets) t.addAttackBuff(amount);
+                battle.event("buff", "kind", "atk", "amount", amount);
                 battle.log(attacker.getName() + " uses " + spec.name() + " → "
-                        + buffedNames(targets) + " gain +" + spec.value() + " attack.");
+                        + buffedNames(targets) + " gain +" + amount + " attack.");
             }
             case BUFF_SPD -> {
-                for (Combatant t : targets) t.setSpeed(t.getSpeed() + spec.value());
-                battle.event("buff", "kind", "spd", "amount", spec.value());
-                battle.log(attacker.getName() + " uses " + spec.name() + " → +" + spec.value() + " speed.");
+                int amount = effectValue(attacker, spec.value());
+                for (Combatant t : targets) t.setSpeed(t.getSpeed() + amount);
+                battle.event("buff", "kind", "spd", "amount", amount);
+                battle.log(attacker.getName() + " uses " + spec.name() + " → +" + amount + " speed.");
             }
             case SLOW -> {
                 for (Combatant t : targets) {
@@ -953,12 +955,15 @@ public class SiegeCombatEngine {
         if (status == StatusKind.LEECH && hpDamageDealt <= 0) {
             return;
         }
-        boolean lethalLeechPayoff = status == StatusKind.LEECH && target.has(StatusKind.LEECH);
-        if (!target.isAlive() && !lethalLeechPayoff) {
+        // Leech is a life-steal rider, not a delayed debuff. It resolves from the
+        // actual HP damage of the strike that applied it so the card's owner sees
+        // their Health recover immediately (and cannot lose the payoff because the
+        // target died or the round ended before a second hit).
+        if (status == StatusKind.LEECH) {
+            resolveLeechPayoff(battle, target, inflicter, hpDamageDealt);
             return;
         }
-        if (lethalLeechPayoff) {
-            resolveLeechPayoff(battle, target, inflicter, hpDamageDealt);
+        if (!target.isAlive()) {
             return;
         }
         // Insight (Psychic): first hit marks; a second hit draws for the
@@ -990,7 +995,7 @@ public class SiegeCombatEngine {
         int rounds = switch (status) {
             case BURN, POISON -> SiegeBattle.BURN_ROUNDS;
             case SLOW -> SiegeBattle.SLOW_ROUNDS;
-            case STUN, LEECH, SHOCK, DISORIENT, INSIGHT, BLIND -> 2; // consumed on effect; duration is a safety net
+            case STUN, LEECH, SHOCK, DISORIENT, INSIGHT, BLIND -> 2; // Leech returns above; duration keeps the switch exhaustive
             case SOAK, RUST, CURSE, WITHER -> SiegeBattle.SLOW_ROUNDS;
         };
         target.applyStatus(status, rounds);
@@ -1052,7 +1057,7 @@ public class SiegeCombatEngine {
             case BURN -> "burning";
             case SLOW -> "slowed";
             case STUN -> "stunned";
-            case LEECH -> "marked with Leech";
+            case LEECH -> "leeched";
             case SHOCK -> "shocked";
             case DISORIENT -> "disoriented";
             case POISON -> "poisoned";

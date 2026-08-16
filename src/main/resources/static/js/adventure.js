@@ -45,7 +45,7 @@
     BURN: { icon: '🔥', label: 'Burn', tip: '1 damage at end of round' },
     SLOW: { icon: '❄️', label: 'Slow', tip: '−2 Speed; reapply freezes' },
     STUN: { icon: '💫', label: 'Stun', tip: 'Skips next action' },
-    LEECH: { icon: '💚', label: 'Leech', tip: 'Second hit heals attacker for damage dealt' },
+    LEECH: { icon: '💚', label: 'Leech', tip: 'Heals the attacker for HP damage dealt' },
     SHOCK: { icon: '⚡', label: 'Shock', tip: 'Drains AP / weakens next hit' },
     DISORIENT: { icon: '🌬️', label: 'Disorient', tip: 'Cards cost +1 AP' },
     POISON: { icon: '☠️', label: 'Poison', tip: 'End-round DoT; blocks heals' },
@@ -61,7 +61,7 @@
   // from something flying across the arena, so they light this element around
   // the unit's border instead of firing a projectile.
   var STATUS_ELEMENT = {
-    BURN: 'FIRE', SLOW: 'ICE', STUN: 'EARTH', SHOCK: 'ELECTRIC',
+    BURN: 'FIRE', SLOW: 'ICE', STUN: 'EARTH', LEECH: 'EARTH', SHOCK: 'ELECTRIC',
     DISORIENT: 'WIND', POISON: 'POISON', SOAK: 'WATER', RUST: 'METAL',
     CURSE: 'SHADOW', INSIGHT: 'PSYCHIC', BLIND: 'LIGHT', WITHER: 'UNDEAD'
   };
@@ -1366,10 +1366,16 @@
         (spec.description ? '<div class="um-card-desc">' + esc(spec.description) + '</div>' : '') +
         '</div></div>';
     }).join('');
+    var effects = (u.effects || []).map(function (effect) {
+      return '<span class="um-effect ' + (effect.negative ? 'is-negative' : 'is-positive') + '">' +
+        '<b>' + (effect.icon || '✦') + ' ' + esc(effect.label) + '</b>' +
+        (effect.detail ? '<small>' + esc(effect.detail) + '</small>' : '') + '</span>';
+    }).join('');
     body.innerHTML =
       '<div class="um-head ' + elClass(u.element) + '">' + art +
       '<div><div class="um-name">' + icon(u.element) + ' ' + esc(u.name) + '</div>' +
       (u.subtitle ? '<div class="um-sub">' + esc(u.subtitle) + '</div>' : '') + '</div></div>' +
+      (effects ? '<div class="um-cards-title">Active effects</div><div class="um-effects">' + effects + '</div>' : '') +
       '<div class="um-cards-title">' + (u.cards && u.cards.length ? 'Cards & abilities' : 'No cards') + '</div>' +
       '<div class="um-cards">' + cards + '</div>';
     $('unitModal').classList.remove('hidden');
@@ -3809,6 +3815,21 @@
   }
 
   /** Cards, abilities, and evolution info for any battlefield unit (allies AND enemies). */
+  function battleUnitEffects(u) {
+    var effects = [];
+    if (Number(u.shield) > 0) effects.push({ icon: '🛡', label: '+' + u.shield + ' Shield', detail: 'Absorbs damage until the unit\'s next turn', negative: false });
+    if (Number(u.attackBuff) > 0) effects.push({ icon: '⚔', label: '+' + u.attackBuff + ' Attack', detail: 'Battle damage bonus', negative: false });
+    if (Number(u.baseSpeed) > 0 && Number(u.speed) > Number(u.baseSpeed)) effects.push({ icon: '⚡', label: '+' + (u.speed - u.baseSpeed) + ' Speed', detail: 'Battle speed bonus', negative: false });
+    if (Number(u.maxHpBonus) > 0) effects.push({ icon: '❤', label: '+' + u.maxHpBonus + ' Max Health', detail: 'Battle health bonus', negative: false });
+    (u.statuses || []).forEach(function (status) {
+      var meta = STATUS_META[status];
+      if (!meta) return;
+      var rounds = Number((u.statusRounds || {})[status]);
+      effects.push({ icon: meta.icon, label: meta.label, detail: meta.tip + (rounds > 0 ? ' · ' + rounds + ' round' + (rounds === 1 ? '' : 's') : ''), negative: true });
+    });
+    return effects;
+  }
+
   function showBattleUnitDetails(u) {
     var run = state.run;
     if (u.side === 'ENEMY') {
@@ -3816,7 +3837,7 @@
       showUnitModal({
         name: u.name, element: u.element, artUrl: u.artUrl,
         subtitle: 'Enemy · HP ' + u.hp + '/' + u.maxHp + ' · ⚡ ' + u.speed + intentNote,
-        cards: u.abilities || []
+        cards: u.abilities || [], effects: battleUnitEffects(u)
       });
       return;
     }
@@ -3830,7 +3851,7 @@
     showUnitModal({
       name: u.name, element: u.element, artUrl: u.artUrl,
       subtitle: 'HP ' + u.hp + '/' + u.maxHp + ' · ⚡ ' + u.speed + evoNote,
-      cards: member ? (member.cards || []) : []
+      cards: member ? (member.cards || []) : [], effects: battleUnitEffects(u)
     });
   }
 
