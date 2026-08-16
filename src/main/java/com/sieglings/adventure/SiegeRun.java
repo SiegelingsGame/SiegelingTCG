@@ -12,6 +12,8 @@ import java.util.List;
  */
 class SiegeRun {
     private final String token;
+    /** Account that owns this run; blank only for legacy/guest expeditions. */
+    private String ownerId = "";
 
     // SiegeKnight (run leader — provides a deck card + a battle-start passive).
     private String knightId;
@@ -139,6 +141,8 @@ class SiegeRun {
     }
 
     String getToken() { return token; }
+    String getOwnerId() { return ownerId; }
+    void setOwnerId(String ownerId) { this.ownerId = ownerId == null ? "" : ownerId; }
 
     String getKnightId() { return knightId; }
     void setKnightId(String knightId) { this.knightId = knightId; }

@@ -1,6 +1,7 @@
 /* Siege — Siegelings Adventure roguelike client.
  * Talks to /api/siege/**. All rules run server-side; this file renders state
- * and submits actions. Run is addressed by an opaque token in localStorage.
+ * and submits actions. Signed-in runs resolve through the account checkpoint;
+ * localStorage retains only a device fallback token for guest/legacy runs.
  *
  * Screens: setup (paged: mode -> knight -> warband) -> branching map (SVG DAG) ->
  * battle stage / interactive rest camp / cache dig minigame → rewards → result.
@@ -380,6 +381,22 @@
     window.addEventListener('resize', onMapOrientationFlip);
     window.addEventListener('orientationchange', onMapOrientationFlip);
     wireStaticButtons();
+    // Prefer the account checkpoint over this device's old token so phone and
+    // desktop always resume the same signed-in expedition. Guests retain the
+    // local token fallback, and a transient account lookup failure does not
+    // hide a run already open on this device.
+    api('/api/siege/run/active').then(function (active) {
+      if (active && active.run && active.run.status === 'ACTIVE') {
+        state.run = active.run;
+        setToken(active.run.token);
+        renderResumePrompt(active.run);
+        return;
+      }
+      bootFromLocalToken();
+    }).catch(bootFromLocalToken);
+  }
+
+  function bootFromLocalToken() {
     var t = token();
     if (t) {
       showScreen('loadingScreen');

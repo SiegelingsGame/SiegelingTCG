@@ -2072,7 +2072,7 @@ class GameJavaScriptRegressionTest {
         String mapCatalog = Files.readString(SIEGE_MAPS_JS);
 
         assertTrue(
-                adventureHtml.indexOf("/js/siege-maps.js?v=3") < adventureHtml.indexOf("/js/adventure.js?v=61")
+                adventureHtml.indexOf("/js/siege-maps.js?v=3") < adventureHtml.indexOf("/js/adventure.js?v=62")
                         && adventureHtml.contains("<div class=\"battle-map\" id=\"battleMap\" aria-hidden=\"true\"></div>"),
                 "The map catalog must load before adventure.js and the decorative layer must ship inside the stage."
         );
@@ -2145,7 +2145,7 @@ class GameJavaScriptRegressionTest {
                         && adventureHtml.contains("id=\"runMenuRestart\"")
                         && adventureHtml.contains("id=\"runMenuQuit\"")
                         && adventureHtml.contains("/css/adventure.css?v=56")
-                        && adventureHtml.contains("/js/adventure.js?v=61"),
+                        && adventureHtml.contains("/js/adventure.js?v=62"),
                 "The active-run menu and both cache-busted bundles must ship together.");
         String restartRun = extractFunction(adventureJs, "function restartRun(");
         assertTrue(adventureJs.contains("api('/api/siege/run/save'")
@@ -2155,6 +2155,17 @@ class GameJavaScriptRegressionTest {
                 "Save/Quit must require a durable checkpoint and Restart must abandon server state before clearing local state.");
         assertFalse(adventureJs.contains("resetPageScroll"),
                 "The menu port must not revive the stale PR's superseded map-scroll implementation.");
+    }
+
+    @Test
+    void siegeBootPrefersTheSignedInAccountsExpeditionAcrossDevices() throws IOException {
+        String adventureJs = Files.readString(ADVENTURE_JS);
+        String boot = extractFunction(adventureJs, "function boot()");
+
+        assertTrue(boot.contains("api('/api/siege/run/active')")
+                        && boot.contains("setToken(active.run.token)")
+                        && boot.contains("bootFromLocalToken()"),
+                "Signed-in players must resume their account checkpoint before a device-local token, with guest fallback.");
     }
 
     @Test
