@@ -2400,13 +2400,52 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
   .location-overlay .camp-actions{min-width:96px;}
   .location-overlay .camp-actions .siege-btn{padding:7px 10px; font-size:11px;}
 
-  /* Rewards: the same flat row, so a 4-option spread (card/card/upgrade plus an
-     item sigil) still fits between the header and the bottom of the screen. */
-  .epiphany-screen{overflow:hidden;}
+  /* Rewards: landscape is wide and short, so the column stack of
+     header → recap → cards → skip cannot fit vertically — the recap either
+     scrolls away or gets hidden entirely. Split the screen sideways instead:
+     the narrow left rail carries the title and the full leveling recap (which
+     scrolls on its own), and the choice cards keep the wide right side as a
+     single flat row, so a 4-option spread still fits without a fold. */
+  .epiphany-screen{
+    display:grid; overflow:hidden;
+    grid-template-columns:minmax(196px,29%) minmax(0,1fr);
+    grid-template-rows:auto minmax(0,1fr) auto;
+    grid-template-areas:
+      "head  cards"
+      "recap cards"
+      "recap actions";
+    column-gap:12px; row-gap:4px;
+    padding:
+      calc(env(safe-area-inset-top, 0px) + 30px)
+      max(10px, env(safe-area-inset-right, 0px))
+      calc(6px + env(safe-area-inset-bottom, 0px))
+      max(10px, env(safe-area-inset-left, 0px));
+  }
+  .epiphany-header{
+    grid-area:head; margin:0; max-width:none; text-align:left;
+  }
+  .epiphany-header .location-kicker{display:block; font-size:9px;}
+  .epiphany-header h1{font-size:17px; line-height:1.15;}
+  /* The subtitle and sparkle are pure flourish; the recap needs their rows. */
+  .epiphany-header p,.epiphany-header::after{display:none;}
+  /* Beats the two short-viewport queries above, which shrink the recap behind a
+     scrollbar (or drop it) to buy height the side rail no longer needs. */
+  .epiphany-screen .xp-recap{
+    grid-area:recap; display:block; margin:4px 0 0; padding:8px 9px;
+    max-height:none; min-height:0; overflow:auto; align-self:stretch;
+  }
+  .epiphany-screen .xp-recap-kicker{display:none;}
+  .epiphany-screen .xp-recap-head{margin-bottom:5px;}
+  .epiphany-screen .xp-recap-head h2{font-size:12px;}
+  .epiphany-screen .xp-recap-total{font-size:10px; padding:2px 7px;}
+  .epiphany-screen .xp-recap-list{gap:4px;}
+  .epiphany-screen .xp-recap-row{padding:4px 7px; font-size:11px;}
+  .epiphany-screen .reward-actions{grid-area:actions; margin:0; padding-top:5px;}
   .epiphany-screen .reward-grid{
+    grid-area:cards; align-self:stretch;
     display:grid; grid-template-columns:none; grid-auto-flow:column;
     grid-auto-columns:minmax(0,1fr); gap:8px; padding:0; overflow:visible;
-    width:100%; justify-content:stretch;
+    width:100%; min-height:0; justify-content:stretch;
   }
   .epiphany-screen .reward-card{
     min-height:0; height:100%; padding:8px 9px; border-radius:12px; scroll-snap-align:none;
