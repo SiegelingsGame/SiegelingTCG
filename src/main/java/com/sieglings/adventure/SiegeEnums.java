@@ -79,6 +79,33 @@ enum KnightPassive { SHIELD, ATTACK, SPEED, HEALTH, LOOT, MARSHAL }
  */
 enum RunMode { STANDARD, ENDLESS, BATTLEGROUNDS }
 
+/**
+ * Which account save a run occupies. Every mode gets its own slot so a player can
+ * hold one expedition and one Battlegrounds march at the same time — a single
+ * account checkpoint meant starting either mode silently threw the other away.
+ * STANDARD and ENDLESS share the EXPEDITION slot: both are "the expedition", and
+ * the client offers them as one save.
+ */
+enum RunSlot {
+    EXPEDITION("siege", "Siege Expedition"),
+    BATTLEGROUNDS("bg", "Battlegrounds");
+
+    private final String suffix;
+    private final String label;
+
+    RunSlot(String suffix, String label) {
+        this.suffix = suffix;
+        this.label = label;
+    }
+
+    String suffix() { return suffix; }
+    String label() { return label; }
+
+    static RunSlot of(RunMode mode) {
+        return mode == RunMode.BATTLEGROUNDS ? BATTLEGROUNDS : EXPEDITION;
+    }
+}
+
 /** Battle turn phase driving what the client may submit. */
 enum BattlePhase { PLAYER_INPUT, ENEMY_RESOLVING, WON, LOST }
 

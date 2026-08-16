@@ -5,6 +5,8 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -25,11 +27,12 @@ class AdventureLinePuzzleJavaScriptTest {
 
     @Test
     void endpointLockShipsWithAFreshCachePin() throws IOException {
-        // A floor, not an exact pin: the pin only moves forward, and a literal
-        // value made every later unrelated bundle bump fail this guard.
-        java.util.regex.Matcher pin = java.util.regex.Pattern.compile("adventure\\.js\\?v=(\\d+)")
+        // Cache pins only move forward, so this is a floor: pinning the exact version
+        // made every later, unrelated Adventure bump red.
+        Matcher pin = Pattern.compile("/js/adventure\\.js\\?v=(\\d+)")
                 .matcher(Files.readString(ADVENTURE_HTML));
-        assertTrue(pin.find() && Integer.parseInt(pin.group(1)) >= 60,
+        assertTrue(pin.find(), "adventure.html must load adventure.js with a cache pin.");
+        assertTrue(Integer.parseInt(pin.group(1)) >= 60,
                 "The endpoint-lock client fix must ship under a fresh Adventure bundle URL.");
     }
 

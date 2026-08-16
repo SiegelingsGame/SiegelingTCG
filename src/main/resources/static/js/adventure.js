@@ -385,11 +385,18 @@
     // desktop always resume the same signed-in expedition. Guests retain the
     // local token fallback, and a transient account lookup failure does not
     // hide a run already open on this device.
+    resumeOrRoster();
+  }
+
+  /** Boot check, also re-run after abandoning one save: show what is still saved. */
+  function resumeOrRoster() {
     api('/api/siege/run/active').then(function (active) {
-      if (active && active.run && active.run.status === 'ACTIVE') {
-        state.run = active.run;
-        setToken(active.run.token);
-        renderResumePrompt(active.run);
+      // One save per mode: the account can hold an expedition and a Battlegrounds
+      // march at once, so take the whole list and let the player choose.
+      var saves = (active && active.runs ? active.runs : (active && active.run ? [active.run] : []))
+        .filter(function (r) { return r && r.status === 'ACTIVE'; });
+      if (saves.length) {
+        renderResumePrompt(saves);
         return;
       }
       bootFromLocalToken();
@@ -402,8 +409,7 @@
       showScreen('loadingScreen');
       if ($('bootLoadStatus')) $('bootLoadStatus').textContent = 'Checking saved expedition...';
       api('/api/siege/state?token=' + encodeURIComponent(t)).then(function (run) {
-        state.run = run;
-        if (run.status === 'ACTIVE') { renderResumePrompt(run); }
+        if (run.status === 'ACTIVE') { renderResumePrompt([run]); }
         else { setToken(null); loadRoster(); }
       }).catch(function () { setToken(null); loadRoster(); });
     } else {
@@ -411,25 +417,74 @@
     }
   }
 
-  /** A saved expedition was found: ask whether to continue it or start fresh,
-   *  showing exactly where it left off (party HP, gold, floor, mid-battle). */
-  function renderResumePrompt(run) {
+  /** Mode label shared by the map HUD and the resume prompt, so both name a run alike. */
+  function runSlotBadgeText(run) {
+    var bg = run.slot === 'BATTLEGROUNDS' || run.battlegrounds;
+    var tier = ['I', 'II', 'III', 'IV', 'V'][(run.bgTier || 1) - 1] || run.bgTier;
+    return bg ? '⚔️ Battlegrounds · Tier ' + tier
+      : '🏳️ Siege' + (run.mode === 'ENDLESS' ? ' · Endless' : ' Expedition');
+  }
+
+  /** The badge a run wears wherever a save has to be told apart from the other mode. */
+  function runSlotBadge(run) {
+    var bg = run.slot === 'BATTLEGROUNDS' || run.battlegrounds;
+    return '<span class="run-slot-badge ' + (bg ? 'bg' : 'siege') + '">' +
+      runSlotBadgeText(run) + '</span>';
+  }
+
+  /** Saved runs were found: one card per save, since the two modes are kept apart. */
+  function renderResumePrompt(saves) {
     showScreen('resumeScreen');
     updateRunMenu(false);
-    var node = (run.map || []).find(function (n) { return n.id === run.currentNodeId; });
-    var floor = node ? (node.row + 1) : 1;
-    $('resumeFloor').textContent = '📍 Floor ' + floor;
-    $('resumeGold').textContent = '🪙 ' + (run.gold || 0);
-    var battleChip = $('resumeBattle');
-    if (run.battle) {
-      battleChip.classList.remove('hidden');
-      battleChip.textContent = '⚔ Battle in progress · Round ' + (run.battle.roundNumber || 1);
-      $('resumeNote').textContent = 'You closed the app mid-battle — pick up right where you left off.';
-    } else {
-      battleChip.classList.add('hidden');
-      $('resumeNote').textContent = 'An expedition is already in progress.';
-    }
-    renderPartyStrip($('resumeParty'), run.party || [], run.knight);
+    // The last save the player touched is the one they most likely want back, and
+    // it is the token this device already holds.
+    var here = token();
+    saves = saves.slice().sort(function (a, b) {
+      return (b.token === here ? 1 : 0) - (a.token === here ? 1 : 0);
+    });
+    $('resumeNote').textContent = saves.length > 1
+      ? 'You have a run saved in each mode — pick up either one.'
+      : (saves[0].battle
+        ? 'You closed the app mid-battle — pick up right where you left off.'
+        : 'A run is already in progress.');
+
+    var host = $('resumeSaves');
+    host.innerHTML = '';
+    saves.forEach(function (run) {
+      var node = (run.map || []).find(function (n) { return n.id === run.currentNodeId; });
+      var floor = node ? (node.row + 1) : 1;
+      var bg = run.slot === 'BATTLEGROUNDS' || run.battlegrounds;
+      var card = el('div', 'resume-summary resume-save' + (bg ? ' bg' : ' siege'));
+      var strip = el('div', 'party-strip');
+      var meta = el('div', 'resume-meta');
+      meta.innerHTML = '<span class="gold-chip">🪙 ' + (run.gold || 0) + '</span>' +
+        '<span>📍 Floor ' + floor + '</span>' +
+        (run.battle
+          ? '<span class="resume-battle-chip">⚔ Battle in progress · Round ' +
+            (run.battle.roundNumber || 1) + '</span>'
+          : '');
+      var head = el('div', 'resume-save-head', runSlotBadge(run));
+      var actions = el('div', 'resume-save-actions');
+      var go = el('button', 'siege-btn primary', 'Continue ▸');
+      go.type = 'button';
+      go.addEventListener('click', function () {
+        state.run = run;
+        setToken(run.token);
+        renderRun();
+      });
+      var drop = el('button', 'siege-btn', 'Start Over');
+      drop.type = 'button';
+      drop.addEventListener('click', function () { restartRun(run.token); });
+      actions.appendChild(go);
+      actions.appendChild(drop);
+
+      card.appendChild(head);
+      card.appendChild(strip);
+      card.appendChild(meta);
+      card.appendChild(actions);
+      host.appendChild(card);
+      renderPartyStrip(strip, run.party || [], run.knight);
+    });
   }
 
   function loadRoster() {
@@ -591,8 +646,13 @@
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && !$('runMenu').classList.contains('hidden')) closeRunMenu();
     });
-    $('resumeContinueBtn').addEventListener('click', function () { renderRun(); });
-    $('resumeRestartBtn').addEventListener('click', restartRun);
+    // Per-save Continue/Start Over buttons are built by renderResumePrompt; this
+    // one starts a run in whichever mode has no save yet.
+    $('resumeFreshBtn').addEventListener('click', function () {
+      state.run = null; state.party = []; state.knightId = null;
+      setToken(null);
+      loadRoster();
+    });
   }
 
   function updateRunMenu(show) {
@@ -639,15 +699,19 @@
       .then(function () { state.busy = false; setRunMenuBusy(false); });
   }
 
-  function restartRun() {
+  function restartRun(explicitToken) {
     if (state.busy || !confirm('Start over? Your current expedition, gold, and party will be lost.')) return;
-    var t = token();
+    var t = typeof explicitToken === 'string' && explicitToken ? explicitToken : token();
     state.busy = true;
     setRunMenuBusy(true, 'Restarting expedition...');
     api('/api/siege/run/abandon', { method: 'POST', body: { token: t } })
       .then(function () {
-        setToken(null); state.run = null; state.party = []; state.knightId = null;
-        closeRunMenu(false); loadRoster();
+        if (t === token()) setToken(null);
+        state.run = null; state.party = []; state.knightId = null;
+        closeRunMenu(false);
+        // The other mode's save survives an abandon, so go back through the boot
+        // check rather than straight to the roster.
+        resumeOrRoster();
       })
       .catch(function (e) { $('runMenuStatus').textContent = e.message; toast(e.message); })
       .then(function () { state.busy = false; setRunMenuBusy(false); });
@@ -1542,9 +1606,16 @@
     clearBattleMap();
     var run = state.run;
     renderPartyStrip($('partyStrip'), run.party, run.knight);
+    // The mode lives in its own badge — the same badge the resume prompt uses — so
+    // Siege and Battlegrounds share one HUD shape instead of Battlegrounds smuggling
+    // its tier and boon count into the gold chip.
+    var modeChip = $('mapMode');
+    var isBg = run.slot === 'BATTLEGROUNDS' || run.battlegrounds;
+    modeChip.className = 'run-slot-badge ' + (isBg ? 'bg' : 'siege');
+    modeChip.innerHTML = runSlotBadgeText(run);
     $('mapGold').textContent = '🪙 ' + (run.gold || 0) +
       (run.mode === 'ENDLESS' ? '  ·  ★ ' + (run.score || 0) + '  ·  🔁 ' + ((run.loop || 0) + 1) : '') +
-      (run.battlegrounds ? '  ·  ⚔️ BG Tier ' + (['I','II','III','IV','V'][(run.bgTier || 1) - 1] || run.bgTier) + '  ·  🎁 ' + (run.boons || []).length + ' boon' : '');
+      (isBg ? '  ·  🎁 ' + (run.boons || []).length + ' boon' : '');
     $('mapReward').textContent = '';
     $('mapReward').classList.add('hidden');
     $('mapDeckCount').textContent = '🃏 ' + (run.deckSize || '—') + (run.checkpoint ? '  ·  💾 saved' : '');
@@ -1717,7 +1788,12 @@
     if (knight && knight.hp != null) {
       var kchip = el('div', 'party-chip knight-chip ' + elClass(knight.element));
       var kpct = Math.max(0, Math.round(100 * knight.hp / Math.max(1, knight.maxHp)));
-      kchip.innerHTML = '<div class="pthumb pthumb-fallback">🛡️</div>' +
+      // The knight has card art like anyone else — the shield glyph is the fallback
+      // for a trainer the catalog has no art for, not the default.
+      var kthumb = knight.artUrl
+        ? '<div class="pthumb" style="background-image:url(\'' + artCss(knight.artUrl) + '\')"></div>'
+        : '<div class="pthumb pthumb-fallback">🛡️</div>';
+      kchip.innerHTML = kthumb +
         '<div class="pbody">' +
         '<div class="pname">' + partyLevelBadge(knight) + esc(knight.name) + '</div>' +
         '<div class="phpbar"><div class="phpfill" style="width:' + kpct + '%"></div></div>' +
@@ -2806,9 +2882,11 @@
       // Encounters are squads of 2–3; the boss/elite its minions escort is badged
       // so the headline foe reads apart from them. Height stays the authored size
       // band below — a leader is already drawn from a later evolution stage.
+      var isMerc = /\s\(Merc\)$/.test(u.name || '');
       var sp = el('div', 'sprite ' + side + ' ' + elClass(u.element) +
         (u.alive ? '' : ' dead') + (u.id === b.leadId ? ' lead' : '') +
         (side === 'enemy' && u.leader ? ' leader' : '') +
+        (isMerc ? ' merc' : '') +
         (isThreatened ? ' threatened' : ''));
       sp.dataset.id = u.id; sp.dataset.side = u.side;
       sp.style.setProperty('--idle-delay', (idx * 0.45) + 's');
@@ -2857,9 +2935,14 @@
       // A foe's full name is "Shade of X". Spelling that out on the plate leaves
       // no room for X at phone sizes, so the prefix becomes a badge (like the
       // ally level badge) and the creature keeps the readable half of the line.
+      // A rental's server name is "X (Merc)" (SiegeContentService#toMercCombatant),
+      // and spelling that out leaves no room for X on a four-unit line. Same
+      // treatment as the shade prefix: badge the role, keep the creature.
       var plateName = u.shadeOf
         ? '<span class="sp-shade">Shade</span>' + esc(u.shadeOf)
-        : esc(u.name);
+        : isMerc
+          ? '<span class="sp-merc">Merc</span>' + esc(u.name.replace(/\s\(Merc\)$/, ''))
+          : esc(u.name);
       sp.innerHTML =
         '<div class="sp-plate">' +
           '<div class="sp-name">' + levelBadge + plateName + ' <span class="sp-el">' + icon(u.element) + '</span></div>' +

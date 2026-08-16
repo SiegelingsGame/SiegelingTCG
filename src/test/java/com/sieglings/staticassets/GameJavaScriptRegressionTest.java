@@ -2059,8 +2059,39 @@ class GameJavaScriptRegressionTest {
                 "Art bleeds under the notch and home indicator while controls stay inset by the safe area."
         );
         assertTrue(
-                assetPin(adventureHtml, "adventure\\.css") >= 56,
+                adventureCssPin(adventureHtml) >= 56,
                 "adventure.css must be cache-busted after the full-bleed location rework."
+        );
+    }
+
+    /**
+     * A hired mercenary makes a fourth body on .ally-line (warband caps at 3). The
+     * plates used to keep their min-content width when the sprites shrank, so the
+     * stat row painted over the neighbouring unit and the outermost plate was pushed
+     * outside the overflow:hidden stage — clipped HP in portrait, overlapping plates
+     * in landscape. tests/siege-merc-party-layout-check.cjs measures the result; these
+     * pin the three declarations it depends on.
+     */
+    @Test
+    void siegeUnitPlatesSurviveAFourthUnitOnTheLine() throws IOException {
+        String adventureCss = Files.readString(ADVENTURE_CSS).replace("\r\n", "\n");
+        String adventureJs = Files.readString(ADVENTURE_JS);
+
+        assertTrue(
+                adventureCss.contains(".sprite{position:relative; --sprite-scale:1; flex:0 1 auto; min-width:0;"),
+                "A sprite must be allowed to shrink past its own name plate, or a four-unit "
+                        + "line overflows the arena."
+        );
+        assertTrue(
+                adventureCss.contains(".sprite .sp-tags{display:flex; flex-wrap:wrap;"),
+                "The stat row has no ellipsis to fall back on, so it must wrap rather than "
+                        + "spill over the next unit."
+        );
+        assertTrue(
+                adventureJs.contains("<span class=\"sp-merc\">Merc</span>")
+                        && adventureCss.contains(".sprite.merc .sp-plate{"),
+                "A rental badges its role and tints its plate instead of spending plate width "
+                        + "on a \" (Merc)\" suffix."
         );
     }
 
@@ -2073,7 +2104,6 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(
                 adventureHtml.indexOf("/js/siege-maps.js?v=3") < adventureHtml.indexOf("/js/adventure.js?v=")
-                        && assetPin(adventureHtml, "adventure\\.js") >= 62
                         && adventureHtml.contains("<div class=\"battle-map\" id=\"battleMap\" aria-hidden=\"true\"></div>"),
                 "The map catalog must load before adventure.js and the decorative layer must ship inside the stage."
         );
@@ -2145,15 +2175,21 @@ class GameJavaScriptRegressionTest {
         assertTrue(adventureHtml.contains("id=\"runMenuSave\"")
                         && adventureHtml.contains("id=\"runMenuRestart\"")
                         && adventureHtml.contains("id=\"runMenuQuit\"")
-                        && assetPin(adventureHtml, "adventure\\.css") >= 56
-                        && assetPin(adventureHtml, "adventure\\.js") >= 62,
+                        && adventureCssPin(adventureHtml) >= 56
+                        && adventureJsPin(adventureHtml) >= 62,
                 "The active-run menu and both cache-busted bundles must ship together.");
         String restartRun = extractFunction(adventureJs, "function restartRun(");
         assertTrue(adventureJs.contains("api('/api/siege/run/save'")
                         && adventureJs.contains("if (!run.checkpoint) throw new Error")
                         && restartRun.contains("api('/api/siege/run/abandon'")
-                        && restartRun.indexOf("api('/api/siege/run/abandon'") < restartRun.indexOf("setToken(null); state.run = null"),
+                        && restartRun.indexOf("api('/api/siege/run/abandon'") < restartRun.indexOf("state.run = null"),
                 "Save/Quit must require a durable checkpoint and Restart must abandon server state before clearing local state.");
+        // The resume prompt can abandon the OTHER mode's save, so the device token is
+        // only cleared when it is the one that was just dropped, and what remains is
+        // re-read rather than assumed gone.
+        assertTrue(restartRun.contains("if (t === token()) setToken(null);")
+                        && restartRun.contains("resumeOrRoster()"),
+                "Abandoning one save must not clear a token pointing at the other mode's run.");
         assertFalse(adventureJs.contains("resetPageScroll"),
                 "The menu port must not revive the stale PR's superseded map-scroll implementation.");
     }
@@ -2161,12 +2197,20 @@ class GameJavaScriptRegressionTest {
     @Test
     void siegeBootPrefersTheSignedInAccountsExpeditionAcrossDevices() throws IOException {
         String adventureJs = Files.readString(ADVENTURE_JS);
-        String boot = extractFunction(adventureJs, "function boot()");
+        String resume = extractFunction(adventureJs, "function resumeOrRoster()");
 
-        assertTrue(boot.contains("api('/api/siege/run/active')")
-                        && boot.contains("setToken(active.run.token)")
-                        && boot.contains("bootFromLocalToken()"),
+        assertTrue(extractFunction(adventureJs, "function boot()").contains("resumeOrRoster()")
+                        && resume.contains("api('/api/siege/run/active')")
+                        && resume.contains("bootFromLocalToken"),
                 "Signed-in players must resume their account checkpoint before a device-local token, with guest fallback.");
+        // An account holds one save per mode, so the boot check reads the whole list —
+        // taking only `run` would hide whichever mode was not saved last.
+        assertTrue(resume.contains("active.runs")
+                        && resume.contains("renderResumePrompt(saves)"),
+                "The boot check must offer every saved mode, not just the most recent run.");
+        assertTrue(adventureJs.contains("function runSlotBadgeText(run)")
+                        && adventureJs.contains("run.slot === 'BATTLEGROUNDS'"),
+                "Siege and Battlegrounds must be labelled apart wherever a run is shown.");
     }
 
     @Test
@@ -2321,6 +2365,14 @@ class GameJavaScriptRegressionTest {
 
     private static int actionQueuePin(String markup) {
         return assetPin(markup, "action-queue\\.js");
+    }
+
+    private static int adventureJsPin(String markup) {
+        return assetPin(markup, "adventure\\.js");
+    }
+
+    private static int adventureCssPin(String markup) {
+        return assetPin(markup, "adventure\\.css");
     }
 
     // Cache pins only ever move forward, so assert a floor rather than an exact

@@ -1373,13 +1373,26 @@ public class SiegeContentService {
         return out;
     }
 
-    /** Random move previews from an evolved form — powers the client card-morph FX. */
-    List<Map<String, Object>> previewMovesFor(SieglingCard evo, int count, Random rng) {
+    /**
+     * Rewrites the evolved unit's move cards that are already in hand into moves of its new
+     * stage, and returns previews of what each became. The client's morph FX flips those cards
+     * to the new art, so the underlying cards have to change with them — otherwise the next
+     * render pulls the untouched precursor cards straight back.
+     *
+     * <p>Evolution cards are left alone: the next stage's unlock is dealt from the deck.
+     * Instance ids are preserved so the morph animation keeps the same DOM nodes.</p>
+     */
+    List<Map<String, Object>> upgradeHandCards(SieglingCard evo, String ownerId,
+                                               List<SiegeCard> hand, Random rng) {
         List<Move> moves = playableMoves(evo);
-        if (moves.isEmpty() || count <= 0) return List.of();
+        if (moves.isEmpty()) return List.of();
         List<Map<String, Object>> out = new ArrayList<>();
-        for (int i = 0; i < count; i++) {
-            out.add(specToPreviewMap(toSpec(moves.get(rng.nextInt(moves.size())))));
+        for (int i = 0; i < hand.size(); i++) {
+            SiegeCard card = hand.get(i);
+            if (!ownerId.equals(card.getOwnerId()) || card.getSpec().effect() == Effect.EVOLVE) continue;
+            AbilitySpec spec = toSpec(moves.get(rng.nextInt(moves.size())));
+            hand.set(i, new SiegeCard(card.getInstanceId(), ownerId, spec));
+            out.add(specToPreviewMap(spec));
         }
         return out;
     }
