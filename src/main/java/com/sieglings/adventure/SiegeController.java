@@ -108,8 +108,17 @@ public class SiegeController {
     }
 
     @GetMapping("/api/siege/state")
-    public Map<String, Object> state(@RequestParam("token") String token) {
-        return siege.state(token);
+    public Map<String, Object> state(
+            @RequestParam("token") String token,
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+        return siege.state(token, authorizationHeader);
+    }
+
+    /** Resolves the signed-in account's active checkpoint, regardless of device-local token. */
+    @GetMapping("/api/siege/run/active")
+    public Map<String, Object> activeRun(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+        return siege.activeRun(authorizationHeader);
     }
 
     /** Player declined the resume prompt: discard the saved run for good. */

@@ -381,6 +381,7 @@ public class SiegeService {
         purgeStale();
         String token = generateToken();
         SiegeRun run = new SiegeRun(token);
+        run.setOwnerId(user == null ? "" : user.getId());
 
         run.setKnightId(knight.getId());
         run.setKnightName(knight.getName());
@@ -604,11 +605,41 @@ public class SiegeService {
                 .orElseThrow(() -> new IllegalArgumentException("Run not found. Start a new expedition."));
     }
 
+    /**
+     * Account-aware state lookup. This also adopts an existing device-local
+     * checkpoint the first time its signed-in owner opens it after this change.
+     */
+    Map<String, Object> state(String token, String authorizationHeader) {
+        SiegeRun run = lookup(token)
+                .orElseThrow(() -> new IllegalArgumentException("Run not found. Start a new expedition."));
+        AccountUser user = resolveUser(authorizationHeader);
+        if (user != null && user.getId() != null && !user.getId().isBlank() && run.getOwnerId().isBlank()) {
+            run.setOwnerId(user.getId());
+            run.setCheckpointSaved(saveCheckpoint(run));
+        }
+        return serialize(run);
+    }
+
+    /** Finds the active account-owned expedition, letting a new device recover its token safely. */
+    Map<String, Object> activeRun(String authorizationHeader) {
+        AccountUser user = resolveUser(authorizationHeader);
+        if (user == null || user.getId() == null || user.getId().isBlank()) return Map.of();
+        Optional<Map<String, Object>> snapshot = checkpoints.loadForUser(user.getId());
+        if (snapshot.isEmpty()) return Map.of();
+        String savedToken = str(snapshot.get().get("token"));
+        if (savedToken.isBlank()) return Map.of();
+        Optional<SiegeRun> restored = lookup(savedToken);
+        if (restored.isEmpty() || !user.getId().equals(restored.get().getOwnerId())) return Map.of();
+        return Map.of("run", serialize(restored.get()));
+    }
+
     /** Player chose "start over" on the resume prompt: drop the run and its checkpoint for good. */
     void abandonRun(String token) {
         if (token == null) return;
+        SiegeRun run = lookup(token).orElse(null);
         runs.remove(token);
         checkpoints.delete(token);
+        if (run != null) checkpoints.deleteForUser(run.getOwnerId(), run.getToken());
     }
 
     /** Player explicitly requested a durable checkpoint from the run menu. */
@@ -628,7 +659,7 @@ public class SiegeService {
         if (!run.getPendingRewards().isEmpty()) {
             throw new IllegalArgumentException("Choose your spoils before saving.");
         }
-        run.setCheckpointSaved(checkpoints.save(run.getToken(), snapshotRun(run)));
+        run.setCheckpointSaved(saveCheckpoint(run));
         return serialize(run);
     }
 
@@ -649,6 +680,7 @@ public class SiegeService {
     private void checkpoint(SiegeRun run) {
         if (run.getStatus() != RunStatus.ACTIVE) {
             checkpoints.delete(run.getToken());
+            checkpoints.deleteForUser(run.getOwnerId(), run.getToken());
             run.setCheckpointSaved(false);
             return;
         }
@@ -656,12 +688,24 @@ public class SiegeService {
         boolean safe = !battleOver && !run.isInCamp() && !run.isInCache() && !run.isInBroker()
                 && !run.isInMinigame() && run.getPendingRewards().isEmpty();
         if (!safe) return;
-        run.setCheckpointSaved(checkpoints.save(run.getToken(), snapshotRun(run)));
+        run.setCheckpointSaved(saveCheckpoint(run));
+    }
+
+    private boolean saveCheckpoint(SiegeRun run) {
+        Map<String, Object> snapshot = snapshotRun(run);
+        boolean tokenSaved = checkpoints.save(run.getToken(), snapshot);
+        boolean accountSaved = run.getOwnerId() == null || run.getOwnerId().isBlank()
+                || checkpoints.saveForUser(run.getOwnerId(), snapshot);
+        // For signed-in players the account checkpoint is the authoritative
+        // cross-device save. Guests continue to use the token checkpoint.
+        return run.getOwnerId() == null || run.getOwnerId().isBlank() ? tokenSaved : accountSaved;
     }
 
     private Map<String, Object> snapshotRun(SiegeRun run) {
         Map<String, Object> s = new LinkedHashMap<>();
         s.put("version", 1);
+        s.put("token", run.getToken());
+        s.put("ownerId", run.getOwnerId());
         s.put("knightId", run.getKnightId());
         s.put("gold", run.getGold());
         s.put("mode", run.getMode().name());
@@ -930,6 +974,7 @@ public class SiegeService {
             TrainerCard knight = content.findKnight(String.valueOf(s.get("knightId"))).orElse(null);
             if (knight == null) return Optional.empty();
             SiegeRun run = new SiegeRun(token);
+            run.setOwnerId(str(s.get("ownerId")));
             run.setKnightId(knight.getId());
             run.setKnightName(knight.getName());
             run.setKnightElement(knight.getElement());

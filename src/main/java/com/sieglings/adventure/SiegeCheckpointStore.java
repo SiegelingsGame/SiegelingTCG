@@ -8,6 +8,8 @@ import org.springframework.stereotype.Component;
 
 import java.util.Map;
 import java.util.Optional;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -59,6 +61,16 @@ public class SiegeCheckpointStore {
         }
     }
 
+    /** The account index is the cross-device entrypoint; its snapshot still carries the opaque run token. */
+    Optional<Map<String, Object>> loadForUser(String userId) {
+        return load(accountDocumentId(userId));
+    }
+
+    boolean saveForUser(String userId, Map<String, Object> snapshot) {
+        String documentId = accountDocumentId(userId);
+        return documentId != null && save(documentId, snapshot);
+    }
+
     /** Removes a finished run's checkpoint. */
     void delete(String token) {
         if (token == null || token.isBlank()) return;
@@ -68,6 +80,32 @@ public class SiegeCheckpointStore {
         } catch (Exception ex) {
             warnOnce(ex);
         }
+    }
+
+    /**
+     * Removes the account pointer only when it still points at this run. An old
+     * device finishing a superseded run must not erase a newer expedition.
+     */
+    void deleteForUser(String userId, String token) {
+        String documentId = accountDocumentId(userId);
+        if (documentId == null || token == null || token.isBlank()) return;
+        try {
+            var reference = client.requireFirestore().collection(COLLECTION).document(documentId);
+            DocumentSnapshot doc = reference.get().get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            if (doc.exists() && token.equals(doc.getString("token"))) {
+                reference.delete().get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            }
+        } catch (Exception ex) {
+            warnOnce(ex);
+        }
+    }
+
+    private static String accountDocumentId(String userId) {
+        if (userId == null || userId.isBlank()) return null;
+        // Firestore document IDs cannot include a slash. Encoding also keeps
+        // account identifiers out of visible document paths.
+        return "account-" + Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(userId.getBytes(StandardCharsets.UTF_8));
     }
 
     private void warnOnce(Exception ex) {
