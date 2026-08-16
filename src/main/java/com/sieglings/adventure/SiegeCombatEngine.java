@@ -538,7 +538,7 @@ public class SiegeCombatEngine {
             battle.log("The path to " + next.getName() + " opens — its Evolution card joins the deck.");
         });
         battle.event("cardUpdate", "targetId", evolved.getId(), "previewMoves",
-                previewMovesFor(battle, evolved, rng));
+                upgradeHandCards(battle, evolved, rng));
         Collections.shuffle(battle.getDeck(), rng);
         return PlayResult.okay();
     }
@@ -551,13 +551,16 @@ public class SiegeCombatEngine {
             return;
         }
         battle.event("cardUpdate", "targetId", ownerId, "previewMoves",
-                previewMovesFor(battle, owner, rng));
+                upgradeHandCards(battle, owner, rng));
     }
 
-    private List<Map<String, Object>> previewMovesFor(SiegeBattle battle, Combatant owner, Random rng) {
-        int owned = (int) battle.getHand().stream().filter(c -> c.getOwnerId().equals(owner.getId())).count();
+    /**
+     * Swaps the evolved unit's in-hand move cards for its new stage's moves and returns the
+     * previews the client morphs to, so the animated flip and the real hand agree.
+     */
+    private List<Map<String, Object>> upgradeHandCards(SiegeBattle battle, Combatant owner, Random rng) {
         return content.findAnySiegling(owner.getSourceCardId())
-                .map(evo -> content.previewMovesFor(evo, Math.max(1, owned), rng))
+                .map(evo -> content.upgradeHandCards(evo, owner.getId(), battle.getHand(), rng))
                 .orElse(List.of());
     }
 
