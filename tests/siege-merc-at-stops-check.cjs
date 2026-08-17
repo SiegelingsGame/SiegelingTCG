@@ -197,14 +197,17 @@ function probe(hostSel) {
       `mapScroll=${worst.mapScrollH}px`);
     check(worst.chips.length === 5, `worst case is knight + 3 warband + merc (got ${worst.chips.length})`);
     if (vp.portrait) {
-      check(!overflows(worst), 'portrait: the full team fits with no horizontal scroll');
-      check(worst.chips.every(c => c.inView), 'portrait: every chip is in view without scrolling');
+      // The strip wrapped to two rows for one release and was reverted: it made
+      // the HUD 181px deep and clipped names to "Ge…". It is a single swipeable
+      // row again, so the requirement here is that the merc is *reachable* and
+      // named, not that all five chips are on screen at once — the HUD's depth
+      // and the Items button live in tests/siege-map-hud-portrait-check.cjs.
       const names = worst.chips.map(c => c.visibleName);
       console.log('   visible names: ' + names.join(' | '));
-      // A chip whose name is ellipsised to nothing identifies no one — that is
-      // what made the first wrap attempt worse than the scroll it replaced.
       check(names.every(n => n && n.length >= 4 && !/^\W*$/.test(n)),
         `portrait: every chip still names its unit (got ${JSON.stringify(names)})`);
+      check(worst.chips.every(c => c.rendered),
+        'portrait: every chip is laid out inside the strip, not collapsed');
       check(worst.mapScrollH >= 280,
         `portrait: the map keeps its 280px floor (got ${worst.mapScrollH}px)`);
     } else {

@@ -375,8 +375,11 @@
     if (mapOrientTimer) clearTimeout(mapOrientTimer);
     mapOrientTimer = setTimeout(function () {
       if (document.body.dataset.screen !== 'mapScreen') return;
-      if (isPhoneLandscape() === mapLayoutLand) return; // axis unchanged — nothing to redo
-      renderMap();
+      if (isPhoneLandscape() !== mapLayoutLand) { renderMap(); return; }
+      // Same axis, new viewport: the geometry still holds but the scroll extents
+      // do not, so re-centre on the current node instead of leaving the player
+      // parked past the end of the map.
+      if (mapFocusScroll) mapFocusScroll();
     }, 150);
   }
 
@@ -1612,6 +1615,9 @@
   // Remembers the axis the last renderMap() drew, so a rotation can detect the
   // flip and re-render (SVG geometry is baked at render time, not responsive).
   var mapLayoutLand = null;
+  // Re-scrolls the map to the run's current node using the geometry the last
+  // renderMap() baked. Set by renderMap; a no-op before the first map render.
+  var mapFocusScroll = null;
 
   function renderMap() {
     showScreen('mapScreen');
@@ -1752,18 +1758,24 @@
     });
 
     // Keep the action in view: scroll to the current position (or the start).
-    var scroll = $('mapScroll');
+    // Remembered as a closure rather than run once, because a rotation that does
+    // not flip the axis still changes the scroll extents — leaving the old
+    // offset stranded (blank space below the map, the top out of reach).
     var focus = nodes.find(function (n) { return n.current; });
-    setTimeout(function () {
-      if (land) {
+    var focusPt = focus ? pos(focus) : null;
+    mapFocusScroll = function () {
+      var scroll = $('mapScroll');
+      if (!scroll) return;
+      if (mapLayoutLand) {
         // Horizontal scroll: lead ~60% into the viewport; no current node → far left (start).
-        var focusX = focus ? pos(focus).x : 0;
-        scroll.scrollLeft = Math.max(0, focusX - scroll.clientWidth * 0.6);
+        scroll.scrollLeft = Math.max(0, (focusPt ? focusPt.x : 0) - scroll.clientWidth * 0.6);
+        scroll.scrollTop = 0;
       } else {
-        var focusY = focus ? pos(focus).y : height;
-        scroll.scrollTop = Math.max(0, focusY - scroll.clientHeight * 0.6);
+        scroll.scrollTop = Math.max(0, (focusPt ? focusPt.y : height) - scroll.clientHeight * 0.6);
+        scroll.scrollLeft = Math.max(0, (width - scroll.clientWidth) / 2);
       }
-    }, 30);
+    };
+    setTimeout(mapFocusScroll, 30);
 
     // Preload the next fight's map composition (orientation currently in effect)
     // so entering battle doesn't flash the fallback gradient.

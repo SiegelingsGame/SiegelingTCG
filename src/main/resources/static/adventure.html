@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Siege — Siegelings Adventure</title>
 <link rel="icon" href="/favicon.png">
-<link rel="stylesheet" href="/css/adventure.css?v=63">
+<link rel="stylesheet" href="/css/adventure.css?v=65">
 </head>
 <body>
 <!-- Enemy Siegelings are corrupted card art, so they need the same die-cut shade
@@ -51,6 +51,12 @@
   <header class="siege-topbar">
     <a class="siege-back" href="/play" title="Back to Play">◄ Play</a>
     <div class="siege-title">SIEGE <span>Adventure Expedition</span></div>
+    <!-- Which expedition this is belongs with the run's identity, not with its
+         resources: it lives in the top bar (shown on the map screen only) so the
+         HUD row below the map is left for gold, deck, Items and the hint.
+         renderMap() rewrites this element's className, so CSS targets it by
+         position and id, never by an extra class. -->
+    <span class="run-slot-badge siege" id="mapMode">🏳️ Siege Expedition</span>
     <button class="siege-abandon hidden" id="runMenuBtn" type="button" aria-haspopup="dialog" aria-controls="runMenu" aria-expanded="false">Menu</button>
   </header>
 
@@ -149,9 +155,9 @@
     <div class="map-bottom">
       <div class="map-reward" id="mapReward"></div>
       <div class="map-meta">
-        <!-- Mode badge first, then the same chips in the same order in both modes:
-             the HUD reads identically for Siege and Battlegrounds. -->
-        <span class="run-slot-badge siege" id="mapMode">🏳️ Siege Expedition</span>
+        <!-- Same chips in the same order in both modes so the HUD reads
+             identically for Siege and Battlegrounds; the mode badge itself sits
+             in the top bar. -->
         <span class="gold-chip" id="mapGold">🪙 0</span>
         <span id="mapDeckCount"></span>
         <button class="siege-btn map-inv-btn" id="inventoryBtn" type="button">🎒 Items</button>
@@ -614,6 +620,6 @@
   <div class="siege-toast hidden" id="siegeToast"></div>
 </div>
 <script src="/js/siege-maps.js?v=3"></script>
-<script src="/js/adventure.js?v=67"></script>
+<script src="/js/adventure.js?v=68"></script>
 </body>
 </html>
