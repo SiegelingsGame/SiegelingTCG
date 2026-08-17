@@ -3,11 +3,14 @@
   --text:#e8ecf3; --dim:#9aa6b8; --faint:#6b7688;
   --accent:#ff9a3c; --accent-2:#3ea6ff; --good:#7ee787; --bad:#ff6e6e; --shield:#76e6ff;
   --radius:12px;
-  --playcard-w:128px;
+  --playcard-w:140px;
   /* Cards are a fixed size, never content-sized: a long description used to
      make its card taller than its neighbours, which broke the fan's arc and
-     read as "this card is bigger/better". Overflowing text clamps instead. */
-  --playcard-h:152px;
+     read as "this card is bigger/better". Overflowing text clamps instead.
+     The box stays portrait-rectangular (~1:1.4, like a real card) because a
+     near-square card had no room for a wrapped name plus its effect line —
+     the text ran off the bottom edge. */
+  --playcard-h:196px;
 }
 *{box-sizing:border-box;}
 html{
@@ -1339,7 +1342,7 @@ body[data-battle-node="BOSS"] .battle-stage::before{
    our own pointer handling in adventure.js — see setupCardDrag(). */
 .hand-fan{
   display:flex; justify-content:flex-start; align-items:flex-end;
-  min-height:184px; margin-top:4px; padding:26px calc(50% - (var(--playcard-w) / 2)) 10px;
+  min-height:232px; margin-top:4px; padding:26px calc(50% - (var(--playcard-w) / 2)) 10px;
   position:relative;
   overflow-x:auto; overflow-y:hidden;
   scroll-snap-type:x proximity;
@@ -1381,6 +1384,11 @@ body[data-battle-node="BOSS"] .battle-stage::before{
 .playcard.unplayable{opacity:.4; cursor:not-allowed;}
 /* Focused (tapped, not dragged) — a closer look, not an armed target. */
 .playcard.selected{outline:2px solid var(--accent); transform:rotate(0deg) translateY(-18px) scale(1.06); z-index:7;}
+/* Held (pointer down, before the drag threshold) — cards overlap by a
+   negative margin, so a pressed card was still partly hidden under its
+   neighbour. Lift it above the fan the same way a tap does, so you can see
+   the whole card you are about to drag. */
+.playcard.playcard-pressed{transform:rotate(0deg) translateY(-18px) scale(1.06); z-index:8;}
 /* The card left behind in the fan while its ghost is being dragged. */
 .playcard.playcard-dragsource{opacity:.35;}
 /* Floating clone that follows the pointer while dragging a card to the arena. */
@@ -1423,9 +1431,22 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
 .playcard .pc-status{font-size:10px; color:#c896ff; margin-top:3px; font-weight:650;}
 .playcard .pc-name,.playcard .pc-owner,.playcard .pc-eff,
 .playcard .pc-status,.playcard .pc-gauge{flex:0 0 auto;}
-.playcard .pc-name{font-weight:700; font-size:12.5px; line-height:1.2;}
-.playcard .pc-owner{font-size:10px; color:var(--faint); margin-top:2px;}
-.playcard .pc-eff{font-size:11px; margin-top:6px; font-weight:650;}
+/* Every fixed row is line-clamped: an unclamped name (long Siegeling +
+   ability pair) grew tall enough to push the effect line past the bottom
+   edge, and .playcard keeps overflow visible for the AP badge, so the text
+   spilled onto the board instead of being cut. */
+.playcard .pc-name{
+  font-weight:700; font-size:12.5px; line-height:1.2;
+  overflow:hidden; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;
+}
+.playcard .pc-owner{
+  font-size:10px; color:var(--faint); margin-top:2px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.playcard .pc-eff{
+  font-size:11px; margin-top:6px; font-weight:650; line-height:1.25;
+  overflow:hidden; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;
+}
 .playcard .pc-eff.dmg{color:#ff8a6a;} .playcard .pc-eff.heal{color:var(--good);} .playcard .pc-eff.buff{color:var(--accent-2);} .playcard .pc-eff.shield{color:var(--shield);}
 .playcard .pc-eff.evo{color:#ffd066;}
 /* Evolution cards glow gold so they stand out in the fan */
@@ -1625,11 +1646,11 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
 
   /* No description row at this size, so the card is name/owner/effect plus
      room for an optional status or evolution-gauge line. */
-  :root{--playcard-w:104px; --playcard-h:104px;}
+  :root{--playcard-w:112px; --playcard-h:152px;}
   /* Tall enough to contain a card plus the upward fan arc (HAND_FAN_MAX_LIFT):
      with the arc lifting edge cards UP, the lowest card hugs the small bottom
      padding just above the hud and nothing is clipped top or bottom. */
-  .hand-fan{min-height:158px; padding:16px calc(50% - (var(--playcard-w) / 2)) 6px; margin-top:0;}
+  .hand-fan{min-height:206px; padding:16px calc(50% - (var(--playcard-w) / 2)) 6px; margin-top:0;}
   .playcard{margin:0 -20px; padding:7px 8px;}
   .playcard .pc-desc{display:none;}
   .battle-hint{font-size:11.5px; min-height:16px; margin-top:2px;}
@@ -1965,9 +1986,9 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
        the centered hint (max ~40vw) and Menu still clear it on short phones. */
     --arena-log-w:min(168px,28vw);
     --arena-menu-clear:72px;          /* Menu button + gap the log must clear */
-    --arena-hand-h:150px;
-    --playcard-w:94px;
-    --playcard-h:98px;
+    --arena-hand-h:170px;
+    --playcard-w:100px;
+    --playcard-h:128px;
     --arena-tint:.42;                 /* elite/boss vignette strength on phone */
     /* Unit formations pull in from the notch/home-indicator; the arena art
        itself still paints edge-to-edge (siege-app side padding is 0 below). */
@@ -2181,11 +2202,12 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
     --arena-plate-w:clamp(210px, 20vw, 300px);
     --arena-log-w:clamp(180px, 18vw, 280px);
     --arena-menu-clear:88px;
-    --arena-hand-h:clamp(172px, 26vh, 240px);
-    --playcard-w:clamp(104px, 9.5vw, 138px);
+    --arena-hand-h:clamp(212px, 32vh, 300px);
+    --playcard-w:clamp(116px, 10.5vw, 152px);
     /* Descriptions come back at this size (see the .pc-desc rule below), so
-       the card needs the taller box to hold the clamped copy. */
-    --playcard-h:clamp(132px, 19vh, 170px);
+       the card needs the taller box to hold the clamped copy — roughly a
+       1:1.4 card rectangle, sized off the width so it stays proportional. */
+    --playcard-h:clamp(166px, 25vh, 216px);
     --arena-tint:.48;
     /* On wide desktops, also pull formations in by a share of the width so
        allies/foes don't sit ~1700px apart at the extreme edges. Safe-area

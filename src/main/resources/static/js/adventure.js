@@ -4000,7 +4000,10 @@
       ghost = null;
       clearDragArrow();
       document.body.classList.remove('siege-drag-active');
-      if (cardEl && cardEl.classList) cardEl.classList.remove('playcard-dragsource');
+      if (cardEl && cardEl.classList) {
+        cardEl.classList.remove('playcard-dragsource');
+        cardEl.classList.remove('playcard-pressed');
+      }
       var stage = $('battleStage');
       if (stage) stage.classList.remove('drop-hover');
       Array.prototype.forEach.call(document.querySelectorAll('.sprite.targetable, .sprite.drop-hover'), function (n) {
@@ -4069,6 +4072,10 @@
       pointerId = event.pointerId;
       startX = event.clientX; startY = event.clientY;
       dragging = false;
+      // Held cards sit above their overlapping neighbours immediately, before
+      // the drag threshold — the same lift a tap gives, so what you grabbed is
+      // fully visible.
+      cardEl.classList.add('playcard-pressed');
       activeCardDrag = { cardEl: cardEl, cleanup: cleanup };
       // Document listeners survive the source card being destroyed mid-drag
       // (hand re-render / capture loss), which is what left stuck ghosts.
