@@ -32,8 +32,11 @@ const ART = 'data:image/svg+xml;utf8,' + encodeURIComponent(
   '<ellipse cx="60" cy="100" rx="48" ry="96" fill="#7fd0a0"/></svg>');
 
 const VIEWPORTS = [
-  { name: 'phone-portrait-390x844', width: 390, height: 844 },
-  { name: 'desktop-1920x1080',      width: 1920, height: 1080 }
+  { name: 'phone-portrait-390x844',  width: 390,  height: 844,  portrait: true },
+  { name: 'phone-portrait-360x740',  width: 360,  height: 740,  portrait: true },
+  // Landscape keeps the horizontal scroll on purpose — no spare height there.
+  { name: 'phone-landscape-844x390', width: 844,  height: 390 },
+  { name: 'desktop-1920x1080',       width: 1920, height: 1080 }
 ];
 
 function member(id, name, el, hp, maxHp) {
@@ -67,6 +70,11 @@ const FULL_PARTY = run({
   mercenary: null,
   party: PARTY.concat([member('a3', 'Purseus', 'WIND', 80, 80)])
 });
+// The worst case the HUD has to hold: a full warband, the knight, and a rental.
+const FULL_PLUS_MERC = run({
+  mercenary: MERC,
+  party: PARTY.concat([member('a3', 'Purseus', 'WIND', 80, 80)])
+});
 const AT_CAMP  = run({ mercenary: MERC, camp: { options: [], note: 'The fire burns low.' } });
 const NO_MERC  = run({ mercenary: null, camp: { options: [], note: 'The fire burns low.' } });
 
@@ -94,10 +102,23 @@ function probe(hostSel) {
     // (inside the scroll extent) and "visible without scrolling" are different
     // questions and the test asks them separately.
     scrollW: host.scrollWidth, clientW: host.clientWidth,
+    mapScrollH: (() => { const ms = document.querySelector('.map-scroll');
+      return ms ? Math.round(ms.getBoundingClientRect().height) : null; })(),
     chips: Array.from(host.children).map(n => {
       const b = box(n);
       return {
         text: (n.textContent || '').replace(/\s+/g, ' ').trim(),
+        // textContent still includes display:none badges, so read the name from
+        // the nodes that are actually painted.
+        visibleName: (() => {
+          const nm = n.querySelector('.pname') || n.querySelector('span');
+          if (!nm) return (n.textContent || '').trim();
+          return Array.from(nm.childNodes).filter(c =>
+            c.nodeType === 3 || (c.nodeType === 1 && getComputedStyle(c).display !== 'none'
+              && !c.classList.contains('pmerc') && !c.classList.contains('plvl')
+              && !c.classList.contains('pinfo'))
+          ).map(c => (c.textContent || '')).join('').replace(/\s+/g, ' ').trim();
+        })(),
         merc: n.classList.contains('merc'),
         badge: !!n.querySelector('.pmerc, .loc-merc'),
         rendered: b.w > 0 && b.h > 0,
@@ -139,7 +160,8 @@ function probe(hostSel) {
     const m = await page.evaluate(probe, hostSel);
     if (shot) await page.screenshot({ path: path.join(OUT, shot + '.png') });
     await page.close();
-    return { chips: (m && m.chips) || [], scrollW: m && m.scrollW, clientW: m && m.clientW, errors };
+    return { chips: (m && m.chips) || [], scrollW: m && m.scrollW, clientW: m && m.clientW,
+             mapScrollH: m && m.mapScrollH, errors };
   }
 
   for (const vp of VIEWPORTS) {
@@ -163,16 +185,32 @@ function probe(hostSel) {
     check(mapMerc[0] && !/\(Merc\)/.test(mapMerc[0].text),
       'the raw "(Merc)" server suffix is badged, not spelled out');
 
-    // 1b. Baseline: the strip already scrolls with a full 3-strong warband and
-    // no merc, so any horizontal overflow here predates the merc rather than
-    // being introduced by it. Reported, not asserted against.
-    const full = await screenOf(vp, FULL_PARTY, '#partyStrip', vp.name + '-map-full-no-merc');
+    // 1b. The strip used to scroll horizontally with chips sized to their own
+    // text, so a full warband already had members off-screen before any merc
+    // existed. On portrait phones it now wraps instead: the worst case — full
+    // 3-strong warband + knight + merc, five chips — must fit with no overflow
+    // and every chip in view, while the map keeps its floor of usable height.
+    const worst = await screenOf(vp, FULL_PLUS_MERC, '#partyStrip', vp.name + '-map-full-plus-merc');
     const overflows = m => m.scrollW > m.clientW + 1;
-    console.log(`   strip overflow: full warband, no merc = ${overflows(full)} ` +
-      `(${full.scrollW}/${full.clientW}px, ${full.chips.length} chips)` +
-      `  |  2 + merc = ${overflows(map)} (${map.scrollW}/${map.clientW}px)`);
-    check(map.chips.length <= full.chips.length || !overflows(full) || overflows(map),
-      'merc chip overflow is the strip\'s existing scroll behaviour, not a new clip');
+    console.log(`   worst case (${worst.chips.length} chips): ` +
+      `${worst.scrollW}/${worst.clientW}px overflow=${overflows(worst)} ` +
+      `mapScroll=${worst.mapScrollH}px`);
+    check(worst.chips.length === 5, `worst case is knight + 3 warband + merc (got ${worst.chips.length})`);
+    if (vp.portrait) {
+      check(!overflows(worst), 'portrait: the full team fits with no horizontal scroll');
+      check(worst.chips.every(c => c.inView), 'portrait: every chip is in view without scrolling');
+      const names = worst.chips.map(c => c.visibleName);
+      console.log('   visible names: ' + names.join(' | '));
+      // A chip whose name is ellipsised to nothing identifies no one — that is
+      // what made the first wrap attempt worse than the scroll it replaced.
+      check(names.every(n => n && n.length >= 4 && !/^\W*$/.test(n)),
+        `portrait: every chip still names its unit (got ${JSON.stringify(names)})`);
+      check(worst.mapScrollH >= 280,
+        `portrait: the map keeps its 280px floor (got ${worst.mapScrollH}px)`);
+    } else {
+      check(overflows(worst) || worst.chips.every(c => c.inView),
+        'non-portrait: the strip either scrolls as before or fits');
+    }
 
     // 2. Illustrated stop — a different renderer, same requirement.
     const camp = await screenOf(vp, AT_CAMP, '#campParty', vp.name + '-camp');
