@@ -59,6 +59,11 @@ button{font-family:inherit;}
 .siege-back:hover{color:var(--text);}
 .siege-title{font-weight:800; letter-spacing:2px; font-size:18px;}
 .siege-title span{display:block; font-size:11px; letter-spacing:1px; color:var(--faint); font-weight:600;}
+/* The run's mode badge rides in the top bar, and only while the map is up —
+   every other screen either has no run yet or names itself in its own header.
+   Placed between the title and the Menu button so it never displaces either. */
+.siege-topbar #mapMode{margin-left:auto; margin-right:10px;}
+body:not([data-screen="mapScreen"]) .siege-topbar #mapMode{display:none;}
 .siege-abandon{background:transparent; border:1px solid var(--border); color:var(--dim); border-radius:20px; padding:6px 14px; cursor:pointer; font-size:12px;}
 .siege-abandon:hover{color:var(--bad); border-color:var(--bad);}
 
@@ -843,6 +848,7 @@ body[data-screen="rewardScreen"] .siege-screen{
 .map-bottom .map-meta{margin-bottom:0;}
 .map-scroll{
   position:relative; overflow:auto; flex:1 1 auto; min-height:280px;
+  display:flex;
   border:1px solid var(--border); border-radius:14px;
   background:
     radial-gradient(700px 340px at 50% 0%, rgba(255,154,60,.07), transparent 70%),
@@ -852,7 +858,11 @@ body[data-screen="rewardScreen"] .siege-screen{
     #0a0d13;
   -webkit-overflow-scrolling:touch;
 }
-#mapSvg{display:block; margin:0 auto;}
+/* Flex + auto margins centre the map on both axes when it is smaller than the
+   scroll box (rotating to a taller viewport used to leave it stuck at the top
+   with dead space below), while auto margins — unlike align-items:center —
+   never make the overflowing start edge unreachable. */
+#mapSvg{display:block; flex:0 0 auto; margin:auto;}
 .map-edge{fill:none; stroke:#2c3547; stroke-width:2.5; stroke-dasharray:5 6; opacity:.8;}
 .map-edge.walked{stroke:var(--accent); stroke-dasharray:none; opacity:.9;}
 .map-edge.open{stroke:var(--accent-2); stroke-dasharray:4 4; opacity:1; animation:edgeflow 1.2s linear infinite;}
@@ -2257,7 +2267,6 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
      and clipping a lane node would make it unreachable; tuned lane spacing
      keeps the common 3-4 lane maps scroll-free. */
   .map-scroll{ min-height:0; overflow-x:auto; overflow-y:auto; }
-  #mapSvg{ margin:auto 0; }
   .map-bottom{ padding:4px 0 6px; }
   .map-reward{ margin-bottom:2px; font-size:11px; }
   .map-meta{ gap:8px; font-size:11px; margin-bottom:0; flex-wrap:wrap; }
@@ -2354,52 +2363,57 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
 /* Portrait phones are too narrow to show every option at once, so the choice
    rows become swipeable carousels. Landscape has the width to lay them out
    flat and is handled at the bottom of this file instead. */
-/* Portrait phones: the map HUD strip scrolled horizontally while its chips sized
-   to their own text (128-179px each, ~800px of content in a 370px strip), so a
-   full warband already had members parked off-screen with nothing on screen to
-   hint they were there — hiring a merc only pushed the last one further out of
-   reach. The map screen has the vertical room (.map-scroll floors at 280px and
-   sits far above it), so the strip wraps to a second row and the chips share the
-   width three to a row instead: knight, warband and merc all visible at once,
-   no scrolling. Landscape deliberately keeps the scroll — its short viewport has
-   no spare height to give a second row. */
+/* Portrait phones: the map HUD is the only chrome under a full-height map, so
+   it has to stay one or two shallow rows. Wrapping the party strip to a second
+   row (three chips wide) was tried and rejected in play: it stole most of the
+   HUD height, stacked the team into a block that read as a wall, and squeezed
+   the chips so hard that names clipped. The strip is a single row that scrolls
+   horizontally instead — the team is swipeable, the chips keep readable names
+   and their level badge, and the HUD stays shallow enough that the resource row
+   below it (including the Items button) stays on screen. */
 @media (max-width:640px) and (orientation:portrait){
   .map-bottom .party-strip{
-    flex-wrap:wrap; overflow-x:visible; gap:5px; justify-content:center;
+    flex-wrap:nowrap; overflow-x:auto; gap:6px; margin:5px 0 0; padding-bottom:2px;
+    /* Horizontal swipe belongs to the strip; the page itself must not pan. */
+    touch-action:pan-x; -webkit-overflow-scrolling:touch; scrollbar-width:none;
   }
+  .map-bottom .party-strip::-webkit-scrollbar{display:none; height:0;}
   .map-bottom .party-chip{
-    /* Three to a row: a third of the strip, less the gap each chip shares. */
-    flex:1 1 calc(33.333% - 4px); min-width:0; max-width:calc(33.333% - 4px);
-    padding:5px 7px; gap:7px;
+    /* Sized so a third chip is half-visible at 390px: the cut-off edge is what
+       tells the player the strip keeps going. */
+    flex:0 0 auto; min-width:126px; max-width:150px; padding:5px 7px; gap:7px;
   }
   .map-bottom .party-chip .pthumb{width:34px; height:34px; flex-basis:34px;}
   .map-bottom .party-chip .pname{font-size:11px;}
   .map-bottom .party-chip .phptext{font-size:10px;}
-  /* The body is now the narrow part, so every line has to clip itself rather
-     than force the chip wider than its third. */
   .map-bottom .party-chip .pname,
   .map-bottom .party-chip .phptext{
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
   }
-  /* At a third of the strip the name line is ~77px, and the level badge plus
-     the ⓘ glyph ate enough of it to leave "Ge…". Which Siegeling it is matters
-     more at a glance than its level, so on this strip only the badge and the
-     glyph give way: the level still shows on the resume card, in landscape, on
-     desktop and in the chip's own detail modal, and the XP bar underneath
-     already reads as progression. The Merc badge stays — it is this chip's
-     identity, not a stat. */
-  .map-bottom .party-chip .plvl,
+  /* The ⓘ glyph opens a modal the whole chip already opens, so it is the one
+     thing on the narrow chip that can go without losing information. */
   .map-bottom .party-chip .pinfo{display:none;}
-  /* The Merc badge cannot give way for the same reason, and inline it left
-     "MERC …" with no creature at all. A merc carries no XP bar, so its chip has
-     a spare row: the badge stacks above the name and takes that slack, leaving
-     the name the full line. (The bare text node becomes an anonymous flex item,
-     which is why this works without touching the markup.) */
-  .map-bottom .party-chip.merc .pname{
-    display:flex; flex-direction:column; align-items:flex-start; gap:1px;
-    line-height:1.15;
+
+  /* The resource row was a single nowrap line: mode badge + gold + deck/save
+     count + Items + Extract + hint overflowed a 370px row, pushing the Items
+     button off the right edge with no way to reach it. It wraps now, and the
+     hint takes its own line so the buttons keep a full row to themselves. */
+  .map-meta{flex-wrap:wrap; gap:5px 7px; font-size:11px;}
+  /* Wrapping alone was not enough: these chips run 90-220px at full size, so
+     each claimed a line of its own. Shrunk, gold pairs with the deck/save count
+     and the buttons and hint land on the next line. */
+  .map-meta .gold-chip{font-size:10px; padding:2px 7px;}
+  /* The top bar carries the mode badge on this screen; a phone has no room for
+     it beside the two-line title, and the badge already names the run. */
+  body[data-screen="mapScreen"] .siege-title{display:none;}
+  .siege-topbar #mapMode{
+    font-size:9.5px; padding:2px 8px; letter-spacing:.2px;
+    max-width:60vw; overflow:hidden; text-overflow:ellipsis; margin-left:auto;
   }
-  .map-bottom .party-chip.merc .pmerc{margin-right:0;}
+  /* Let the deck/save chip wrap as a unit — broken over two lines it doubled
+     the row height for one line of text. */
+  .map-meta #mapDeckCount{white-space:nowrap;}
+  .map-inv-btn, .map-extract-btn{padding:4px 10px; font-size:12px;}
 }
 
 @media (max-width:760px) and (orientation:portrait){
