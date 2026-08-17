@@ -54,9 +54,22 @@ const RUN = {
           member('a3', 'Spoutyl', 'WATER', 107, 107)],
   mercenary: MERC,
   knight: { id: 'k1', name: 'Ser Airek', element: 'EARTH', hp: 48, maxHp: 48, artUrl: ART },
-  map: [{ id: 'n1', type: 'CAMP', row: 0, col: 0, reachable: false, visited: true, next: ['n2'] },
-        { id: 'n2', type: 'BATTLE', row: 1, col: 0, reachable: true, visited: false, next: [] }],
-  currentNodeId: 'n1', inventory: [], knightBag: [], deckList: [], items: []
+  // Deep enough (8 rows, 4 lanes) that the map overflows in both orientations —
+  // a short map would hide the rotation bug this guards.
+  map: (() => {
+    const out = [];
+    for (let row = 0; row < 8; row++) {
+      for (let col = 0; col < (row % 2 ? 3 : 4); col++) {
+        const id = `n${row}-${col}`;
+        out.push({ id, label: 'Skirmish', type: row === 7 ? 'BOSS' : 'BATTLE', row, col,
+                   cleared: row < 3, current: row === 3 && col === 1,
+                   reachable: row === 4, visited: row < 3,
+                   next: row === 7 ? [] : [`n${row + 1}-0`] });
+      }
+    }
+    return out;
+  })(),
+  currentNodeId: 'n3-1', inventory: [], knightBag: [], deckList: [], items: []
 };
 
 function serve() {
@@ -94,9 +107,13 @@ function probe() {
         && !c.classList.contains('pinfo'))
     ).map(c => c.textContent || '').join('').replace(/\s+/g, ' ').trim();
   };
+  const mode = document.getElementById('mapMode');
   return {
     vw, vh,
     pageOverflow: document.documentElement.scrollWidth > vw + 1,
+    mode: { inTopbar: !!mode.closest('.siege-topbar'), inMeta: !!mode.closest('.map-meta'),
+            text: (mode.textContent || '').trim(), box: box(mode),
+            shown: mode.getBoundingClientRect().width > 0 },
     strip: { box: box(strip), scrollW: strip.scrollWidth, clientW: strip.clientWidth,
              rows: new Set(Array.from(strip.children)
                .map(n => Math.round(n.getBoundingClientRect().top))).size },
@@ -111,6 +128,27 @@ function probe() {
              return !!el && (el === inv || inv.contains(el)); })() },
     bottomH: box(bottom).h,
     mapScrollH: box(mapScroll).h,
+    mapScrollTop: box(mapScroll).top,
+    // Rotation used to strand the old scroll offset: dead space below the map
+    // with its top out of reach. Read the gaps the SVG leaves inside its scroll
+    // box, and whether the run's current node is on screen.
+    map: (() => {
+      const svg = document.getElementById('mapSvg');
+      const sb = mapScroll.getBoundingClientRect();
+      const gb = svg.getBoundingClientRect();
+      const cur = document.querySelector('.map-node-g.current');
+      const cb = cur && cur.getBoundingClientRect();
+      return {
+        svgW: Math.round(gb.width), svgH: Math.round(gb.height),
+        boxW: Math.round(sb.width), boxH: Math.round(sb.height),
+        gapTop: Math.round(gb.top - sb.top), gapBottom: Math.round(sb.bottom - gb.bottom),
+        gapLeft: Math.round(gb.left - sb.left), gapRight: Math.round(sb.right - gb.right),
+        scrollTop: Math.round(mapScroll.scrollTop), scrollLeft: Math.round(mapScroll.scrollLeft),
+        scrollH: mapScroll.scrollHeight, scrollW: mapScroll.scrollWidth,
+        currentInView: !!cb && cb.bottom > sb.top && cb.top < sb.bottom
+                             && cb.right > sb.left && cb.left < sb.right
+      };
+    })(),
     chips: Array.from(strip.children).map(n => ({
       name: visibleName(n), merc: n.classList.contains('merc'), box: box(n),
       inView: (() => { const b = n.getBoundingClientRect();
@@ -163,6 +201,11 @@ function probe() {
       `hittable=${m.inv.hitAtCenter}`);
 
     check(errors.length === 0, `page errors: ${errors.slice(0, 2).join(' | ')}`);
+    // The expedition type reads at the top with the run's identity, not down in
+    // the resource row where it was crowding the buttons off the line.
+    check(m.mode.inTopbar && !m.mode.inMeta, 'the mode badge sits in the top bar, not the HUD row');
+    check(m.mode.shown && m.mode.box.bottom < m.mapScrollTop + 1,
+      'the mode badge is visible above the map');
     check(m.chips.length === 5, `knight + 3 warband + merc on the strip (got ${m.chips.length})`);
     check(!m.pageOverflow, 'the page itself never scrolls horizontally');
     // 1. The reported bug: the Items button must be on screen and tappable.
@@ -198,6 +241,43 @@ function probe() {
       check(scrolled.left > 0, 'portrait: the strip actually scrolls');
       check(scrolled.lastInView, 'portrait: swiping to the end brings the last chip fully into view');
     }
+
+    // --- Rotation: portrait -> landscape -> portrait, and back to a taller
+    // portrait. Each stop must land on the current node with no stranded scroll
+    // offset, and a map smaller than its box must sit centred rather than
+    // leaving dead space at one end.
+    const rotations = [
+      { w: vp.height, h: vp.width, label: 'rotated' },
+      { w: vp.width, h: vp.height, label: 'back' },
+      { w: vp.width, h: Math.round(vp.height * 1.2), label: 'taller' }
+    ];
+    for (const r of rotations) {
+      await page.setViewportSize({ width: r.w, height: r.h });
+      await page.waitForTimeout(450); // 150ms flip debounce + the 30ms scroll tick
+      const after = await page.evaluate(probe);
+      const mm = after.map;
+      console.log(`   ${r.label} ${r.w}x${r.h}: svg ${mm.svgW}x${mm.svgH} in ${mm.boxW}x${mm.boxH} ` +
+        `gaps T${mm.gapTop}/B${mm.gapBottom} L${mm.gapLeft}/R${mm.gapRight} ` +
+        `scroll=${mm.scrollLeft},${mm.scrollTop} current=${mm.currentInView}`);
+      const rc = (cond, msg) => { if (!cond) failures.push(`[${vp.name} -> ${r.label} ${r.w}x${r.h}] ${msg}`); };
+      rc(mm.currentInView, 'the current node is on screen after the rotation');
+      rc(after.inv.fullyInViewport && after.inv.hitAtCenter, 'the Items button survives the rotation');
+      rc(!after.pageOverflow, 'the page does not scroll horizontally after the rotation');
+      // A map shorter than its box is centred, not pinned to one edge with the
+      // slack dumped at the other — that slack is the reported "blank space".
+      if (mm.svgH < mm.boxH - 2) {
+        rc(Math.abs(mm.gapTop - mm.gapBottom) <= 2,
+          `dead space is not centred (top ${mm.gapTop}px vs bottom ${mm.gapBottom}px)`);
+      } else {
+        rc(mm.gapTop <= 1 && mm.scrollTop + mm.boxH <= mm.scrollH + 2,
+          `the taller-than-box map leaves a ${mm.gapTop}px gap at the top`);
+      }
+      if (mm.svgW < mm.boxW - 2) {
+        rc(Math.abs(mm.gapLeft - mm.gapRight) <= 2,
+          `dead space is not centred (left ${mm.gapLeft}px vs right ${mm.gapRight}px)`);
+      }
+    }
+    await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.close();
   }
 

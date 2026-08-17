@@ -59,6 +59,11 @@ button{font-family:inherit;}
 .siege-back:hover{color:var(--text);}
 .siege-title{font-weight:800; letter-spacing:2px; font-size:18px;}
 .siege-title span{display:block; font-size:11px; letter-spacing:1px; color:var(--faint); font-weight:600;}
+/* The run's mode badge rides in the top bar, and only while the map is up —
+   every other screen either has no run yet or names itself in its own header.
+   Placed between the title and the Menu button so it never displaces either. */
+.siege-topbar #mapMode{margin-left:auto; margin-right:10px;}
+body:not([data-screen="mapScreen"]) .siege-topbar #mapMode{display:none;}
 .siege-abandon{background:transparent; border:1px solid var(--border); color:var(--dim); border-radius:20px; padding:6px 14px; cursor:pointer; font-size:12px;}
 .siege-abandon:hover{color:var(--bad); border-color:var(--bad);}
 
@@ -843,6 +848,7 @@ body[data-screen="rewardScreen"] .siege-screen{
 .map-bottom .map-meta{margin-bottom:0;}
 .map-scroll{
   position:relative; overflow:auto; flex:1 1 auto; min-height:280px;
+  display:flex;
   border:1px solid var(--border); border-radius:14px;
   background:
     radial-gradient(700px 340px at 50% 0%, rgba(255,154,60,.07), transparent 70%),
@@ -852,7 +858,11 @@ body[data-screen="rewardScreen"] .siege-screen{
     #0a0d13;
   -webkit-overflow-scrolling:touch;
 }
-#mapSvg{display:block; margin:0 auto;}
+/* Flex + auto margins centre the map on both axes when it is smaller than the
+   scroll box (rotating to a taller viewport used to leave it stuck at the top
+   with dead space below), while auto margins — unlike align-items:center —
+   never make the overflowing start edge unreachable. */
+#mapSvg{display:block; flex:0 0 auto; margin:auto;}
 .map-edge{fill:none; stroke:#2c3547; stroke-width:2.5; stroke-dasharray:5 6; opacity:.8;}
 .map-edge.walked{stroke:var(--accent); stroke-dasharray:none; opacity:.9;}
 .map-edge.open{stroke:var(--accent-2); stroke-dasharray:4 4; opacity:1; animation:edgeflow 1.2s linear infinite;}
@@ -2257,7 +2267,6 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
      and clipping a lane node would make it unreachable; tuned lane spacing
      keeps the common 3-4 lane maps scroll-free. */
   .map-scroll{ min-height:0; overflow-x:auto; overflow-y:auto; }
-  #mapSvg{ margin:auto 0; }
   .map-bottom{ padding:4px 0 6px; }
   .map-reward{ margin-bottom:2px; font-size:11px; }
   .map-meta{ gap:8px; font-size:11px; margin-bottom:0; flex-wrap:wrap; }
@@ -2390,15 +2399,17 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
      button off the right edge with no way to reach it. It wraps now, and the
      hint takes its own line so the buttons keep a full row to themselves. */
   .map-meta{flex-wrap:wrap; gap:5px 7px; font-size:11px;}
-  /* Wrapping alone was not enough: the mode badge and the gold chip are ~212px
-     and ~221px at their full size, so each claimed a line of its own and the
-     HUD grew four rows deep. Shrunk, they pair on one line and everything else
-     — deck/save count, Items, Extract, hint — lands on the next. */
-  .map-meta .run-slot-badge{
-    font-size:9px; padding:2px 7px; letter-spacing:.2px; max-width:52%;
-    overflow:hidden; text-overflow:ellipsis;
-  }
+  /* Wrapping alone was not enough: these chips run 90-220px at full size, so
+     each claimed a line of its own. Shrunk, gold pairs with the deck/save count
+     and the buttons and hint land on the next line. */
   .map-meta .gold-chip{font-size:10px; padding:2px 7px;}
+  /* The top bar carries the mode badge on this screen; a phone has no room for
+     it beside the two-line title, and the badge already names the run. */
+  body[data-screen="mapScreen"] .siege-title{display:none;}
+  .siege-topbar #mapMode{
+    font-size:9.5px; padding:2px 8px; letter-spacing:.2px;
+    max-width:60vw; overflow:hidden; text-overflow:ellipsis; margin-left:auto;
+  }
   /* Let the deck/save chip wrap as a unit — broken over two lines it doubled
      the row height for one line of text. */
   .map-meta #mapDeckCount{white-space:nowrap;}
