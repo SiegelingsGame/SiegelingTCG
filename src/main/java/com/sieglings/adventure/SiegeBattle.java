@@ -127,6 +127,13 @@ class SiegeBattle {
         }
     }
 
+    /**
+     * Event keys naming a combatant whose vitals this event changes. Deliberately
+     * excludes {@code sourceId}: an attacker's own HP moves on its own event
+     * (leech, recoil), and stamping it here would leak that change into the hit.
+     */
+    private static final String[] VITAL_KEYS = { "targetId", "aId", "bId" };
+
     /** Records a presentation event for client playback (varargs key/value pairs). */
     void event(String type, Object... kv) {
         Map<String, Object> e = new LinkedHashMap<>();
@@ -134,6 +141,28 @@ class SiegeBattle {
         for (int i = 0; i + 1 < kv.length; i += 2) {
             e.put(String.valueOf(kv[i]), kv[i + 1]);
         }
+        // The whole turn resolves server-side before the client sees anything, so
+        // the run state it renders from already holds post-turn HP — bars snapped
+        // to their end value before the first projectile even flew. Stamping each
+        // event with its targets' vitals *as of this moment* lets the client hold
+        // the old numbers and step them forward exactly when the hit, tick or heal
+        // lands on screen.
+        List<Map<String, Object>> vitals = new ArrayList<>();
+        for (String key : VITAL_KEYS) {
+            if (!(e.get(key) instanceof String id)) continue;
+            for (Combatant c : combatants) {
+                if (!c.getId().equals(id)) continue;
+                Map<String, Object> v = new LinkedHashMap<>();
+                v.put("id", c.getId());
+                v.put("hp", c.getHp());
+                v.put("maxHp", c.getMaxHp());
+                v.put("shield", c.getShield());
+                v.put("alive", c.isAlive());
+                vitals.add(v);
+                break;
+            }
+        }
+        if (!vitals.isEmpty()) e.put("vitals", vitals);
         events.add(e);
         if (events.size() > 80) {
             events.remove(0);

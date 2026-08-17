@@ -30,7 +30,10 @@
     pendingKnightUnlock: null,
     campMenu: null,
     deferBattleHandRender: false,
-    runMenuReturnFocus: null
+    runMenuReturnFocus: null,
+    // Vitals held during event playback (id -> {hp,maxHp,shield,alive}), or null
+    // when not playing back. See heldVitals().
+    vitals: null
   };
 
   var EL_ICON = {
@@ -483,7 +486,7 @@
       card.appendChild(meta);
       card.appendChild(actions);
       host.appendChild(card);
-      renderPartyStrip(strip, run.party || [], run.knight);
+      renderPartyStrip(strip, displayParty(run), run.knight);
     });
   }
 
@@ -1558,17 +1561,26 @@
     var events = run && run.battle && run.battle.events ? run.battle.events : [];
     var hadBattleDom = state.run && state.run.battle && !$('battleScreen').classList.contains('hidden');
     var enteringBattle = run && run.battle && !(state.run && state.run.battle);
+    // Grabbed before state.run is replaced: these are the numbers the player is
+    // currently looking at, and the ones the playback has to start from.
+    var priorVitals = hadBattleDom ? captureVitals(state.run) : null;
     state.run = run;
     if (events.length && (hadBattleDom || enteringBattle)) {
       state.busy = true;
+      state.vitals = priorVitals;
       state.deferBattleHandRender = events.some(function (ev) {
         return ev && (ev.type === 'discardHand' || ev.type === 'draw');
       });
       renderRun();
       state.deferBattleHandRender = false;
-      playEvents(events, function () { renderRun(); afterRunApplied(run); });
+      playEvents(events, function () {
+        state.vitals = null;
+        renderRun();
+        afterRunApplied(run);
+      });
       return;
     }
+    state.vitals = null;
     renderRun();
     afterRunApplied(run);
   }
@@ -1605,7 +1617,7 @@
     showScreen('mapScreen');
     clearBattleMap();
     var run = state.run;
-    renderPartyStrip($('partyStrip'), run.party, run.knight);
+    renderPartyStrip($('partyStrip'), displayParty(run), run.knight);
     // The mode lives in its own badge — the same badge the resume prompt uses — so
     // Siege and Battlegrounds share one HUD shape instead of Battlegrounds smuggling
     // its tier and boon count into the gold chip.
@@ -1783,6 +1795,23 @@
     return '<div class="pxpbar" title="' + title + '"><div class="pxpfill" style="width:' + pct + '%"></div></div>';
   }
 
+  /**
+   * The warband as it should be *seen*: the party plus any mercenary currently
+   * under contract. A rental travels with the team and fights the next battle,
+   * so it stands at the stops with everyone else until it departs. run.party
+   * stays merc-free — it drives equip/evolve/scrap, which a merc can't use.
+   */
+  function displayParty(run) {
+    var list = (run && run.party ? run.party : []).slice();
+    if (run && run.mercenary) list.push(run.mercenary);
+    return list;
+  }
+
+  /** Strips a rental's server-side "X (Merc)" suffix for display. */
+  function partyDisplayName(p) {
+    return String(p.name || '').replace(/\s\(Merc\)$/, '');
+  }
+
   function renderPartyStrip(host, party, knight) {
     host.innerHTML = '';
     if (knight && knight.hp != null) {
@@ -1810,22 +1839,28 @@
       host.appendChild(kchip);
     }
     party.forEach(function (p) {
-      var chip = el('div', 'party-chip ' + elClass(p.element) + (p.alive ? '' : ' dead'));
+      var chip = el('div', 'party-chip ' + elClass(p.element) + (p.alive ? '' : ' dead') + (p.merc ? ' merc' : ''));
       var pct = Math.max(0, Math.round(100 * p.hp / Math.max(1, p.maxHp)));
       var thumb = p.artUrl
         ? '<div class="pthumb" style="background-image:url(\'' + artCss(p.artUrl) + '\')"></div>'
         : '<div class="pthumb pthumb-fallback">' + icon(p.element) + '</div>';
+      // A merc's level/XP are the rental's, not the run's — badge the contract
+      // instead so it never reads as a warband member the player is growing.
+      var nameLine = p.merc
+        ? '<span class="pmerc">Merc</span>' + esc(partyDisplayName(p))
+        : partyLevelBadge(p) + esc(p.name);
       chip.innerHTML = thumb +
         '<div class="pbody">' +
-        '<div class="pname">' + partyLevelBadge(p) + esc(p.name) + ' <span class="pinfo">ⓘ</span></div>' +
+        '<div class="pname">' + nameLine + ' <span class="pinfo">ⓘ</span></div>' +
         '<div class="phpbar"><div class="phpfill" style="width:' + pct + '%"></div></div>' +
-        partyXpBar(p) +
+        (p.merc ? '' : partyXpBar(p)) +
         '<div class="phptext">' + p.hp + '/' + p.maxHp + ' · ⚡' + p.speed + '</div>' +
         '</div>';
       chip.addEventListener('click', function () {
         showUnitModal({
-          name: p.name, element: p.element, artUrl: p.artUrl,
-          subtitle: 'HP ' + p.hp + '/' + p.maxHp + ' · ⚡ ' + p.speed,
+          name: partyDisplayName(p), element: p.element, artUrl: p.artUrl,
+          subtitle: (p.merc ? 'Mercenary — leaves after the next battle · ' : '') +
+            'HP ' + p.hp + '/' + p.maxHp + ' · ⚡ ' + p.speed,
           cards: p.cards || []
         });
       });
@@ -1843,17 +1878,21 @@
     if (!host) return;
     host.innerHTML = '';
     (party || []).filter(function (p) { return p.alive; }).forEach(function (p, i) {
-      var fig = el('button', 'location-siegling ' + elClass(p.element));
+      var fig = el('button', 'location-siegling ' + elClass(p.element) + (p.merc ? ' merc' : ''));
       fig.type = 'button';
       fig.style.setProperty('--fig-i', i);
-      fig.setAttribute('aria-label', 'View ' + (p.name || 'Siegeling'));
-      fig.innerHTML = p.artUrl
-        ? '<img src="' + artAttr(p.artUrl) + '" alt=""><span>' + esc(p.name) + '</span>'
-        : '<b>' + icon(p.element) + '</b><span>' + esc(p.name) + '</span>';
+      var label = partyDisplayName(p) || 'Siegeling';
+      fig.setAttribute('aria-label', 'View ' + label + (p.merc ? ' (mercenary)' : ''));
+      var caption = '<span>' + esc(label) + '</span>' +
+        (p.merc ? '<em class="loc-merc">Merc</em>' : '');
+      fig.innerHTML = (p.artUrl
+        ? '<img src="' + artAttr(p.artUrl) + '" alt="">'
+        : '<b>' + icon(p.element) + '</b>') + caption;
       fig.addEventListener('click', function () {
         showUnitModal({
-          name: p.name, element: p.element, artUrl: p.artUrl,
-          subtitle: 'HP ' + p.hp + '/' + p.maxHp + ' · ⚡ ' + p.speed,
+          name: label, element: p.element, artUrl: p.artUrl,
+          subtitle: (p.merc ? 'Mercenary — leaves after the next battle · ' : '') +
+            'HP ' + p.hp + '/' + p.maxHp + ' · ⚡ ' + p.speed,
           cards: p.cards || []
         });
       });
@@ -1926,7 +1965,7 @@
     $('campLeaveBtn').textContent = state.campMenu ? 'Back to Camp' : 'Break Camp';
     $('campScreen').classList.toggle('camp-menu-open', !!state.campMenu);
 
-    renderLocationParty('campParty', run.party);
+    renderLocationParty('campParty', displayParty(run));
 
     var grid = $('campGrid'); grid.innerHTML = '';
     if (inShop || inBroker) {
@@ -1972,7 +2011,7 @@
     showScreen('cacheScreen');
     var run = state.run;
     var c = run.cache;
-    renderLocationParty('cacheParty', run.party);
+    renderLocationParty('cacheParty', displayParty(run));
     var isDig = !c.game || c.game === 'DIG';
     $('cacheDigBtn').classList.toggle('hidden', !isDig);
     $('cacheTakeBtn').classList.toggle('hidden', !isDig);
@@ -2034,7 +2073,7 @@
     var run = state.run;
     var b = run.broker;
     $('brokerGold').textContent = '🪙 ' + (run.gold || 0);
-    renderLocationParty('brokerParty', run.party);
+    renderLocationParty('brokerParty', displayParty(run));
 
     var grid = $('brokerGrid'); grid.innerHTML = '';
     (b.offers || []).forEach(function (offer) {
@@ -2132,7 +2171,7 @@
     smithScrapMode = false;
     var run = state.run, sm = run.smith;
     $('smithGold').textContent = '🪙 ' + (run.gold || 0);
-    renderLocationParty('smithParty', run.party);
+    renderLocationParty('smithParty', displayParty(run));
     var grid = $('smithGrid'); grid.innerHTML = '';
     (sm.options || []).forEach(function (o, i) {
       var detail = smithUpgradeDetail(o);
@@ -2197,7 +2236,7 @@
     showScreen('caravanScreen');
     var run = state.run, cv = run.caravan;
     $('caravanGold').textContent = '🪙 ' + (run.gold || 0);
-    renderLocationParty('caravanParty', run.party);
+    renderLocationParty('caravanParty', displayParty(run));
     var grid = $('caravanGrid'); grid.innerHTML = '';
     (cv.options || []).forEach(function (o) {
       var icon = o.kind === 'SHOP_ITEM' ? (o.item ? o.item.icon : '📦') : o.kind === 'SHOP_HEAL' ? '🍲' : '🃏';
@@ -2216,7 +2255,7 @@
   function renderEvent() {
     showScreen('eventScreen');
     var run = state.run, ev = run.event;
-    renderLocationParty('eventParty', run.party);
+    renderLocationParty('eventParty', displayParty(run));
     $('eventIcon').textContent = ev.icon || '❔';
     $('eventTitle').textContent = ev.title || 'Event';
     $('eventPrompt').textContent = ev.prompt || '';
@@ -2795,7 +2834,7 @@
 
   function renderKnightPlate(b) {
     var host = $('knightPlate');
-    var k = b.knight;
+    var k = heldVitals(b.knight);
     if (!k || k.hp == null) { host.classList.add('hidden'); return; }
     host.classList.remove('hidden');
     host.className = 'knight-plate ' + elClass(k.element) + (k.hp <= 0 ? ' dead' : '');
@@ -2876,7 +2915,10 @@
   function renderSpriteLine(host, units, side, b) {
     host.innerHTML = '';
     var targeted = b.targetedPositions || [];
-    units.forEach(function (u, idx) {
+    units.forEach(function (raw, idx) {
+      // While events are playing, HP/shield read from the pre-turn snapshot;
+      // each event steps its own targets forward as its effect lands.
+      var u = heldVitals(raw);
       var isThreatened = side === 'ally' && u.alive &&
         (targeted.indexOf(u.position) >= 0 || b.sweepIncoming);
       // Encounters are squads of 2–3; the boss/elite its minions escort is badged
@@ -2956,7 +2998,7 @@
         (isThreatened ? '<div class="sp-target-ring"><span class="sp-target-x">▼</span></div>' : '') +
         '<div class="sp-shadow"></div>' +
         notch;
-      sp.addEventListener('click', function () { onUnitClick(u); });
+      sp.addEventListener('click', function () { onUnitClick(raw); });
       host.appendChild(sp);
     });
   }
@@ -2972,13 +3014,110 @@
     return '⚔' + intent.value + ' → ' + who;
   }
 
+  // ---- held vitals during playback ---------------------------------------
+  /*
+   * The server resolves an entire turn before replying, so state.run already
+   * carries post-turn HP while the events describing that turn are still
+   * waiting to play. Rendering it directly snapped every bar to its end value
+   * before the first projectile flew. During playback the sprites instead read
+   * from state.vitals — the numbers as they stood *before* the turn — and each
+   * event steps its own targets forward at the moment its effect lands.
+   */
+
+  /** Snapshot of every combatant's vitals in a run's live battle, or null. */
+  function captureVitals(run) {
+    var b = run && run.battle;
+    if (!b) return null;
+    var map = {};
+    (b.allies || []).concat(b.enemies || [], b.knight ? [b.knight] : [])
+      .forEach(function (u) {
+        if (!u || !u.id) return;
+        map[u.id] = {
+          hp: u.hp, maxHp: u.maxHp,
+          shield: u.shield || 0,
+          alive: u.alive != null ? u.alive : u.hp > 0
+        };
+      });
+    return map;
+  }
+
+  /**
+   * The unit as it should read on screen right now: the live server unit, with
+   * its vitals swapped for the held ones while playback is running.
+   */
+  function heldVitals(u) {
+    var h = u && state.vitals ? state.vitals[u.id] : null;
+    if (!h) return u;
+    var out = {};
+    for (var k in u) { if (Object.prototype.hasOwnProperty.call(u, k)) out[k] = u[k]; }
+    out.hp = h.hp; out.maxHp = h.maxHp; out.shield = h.shield; out.alive = h.alive;
+    return out;
+  }
+
+  /**
+   * Repaints one unit's HP/shield in place. A full renderBattle() here would
+   * rebuild the sprite DOM and orphan the projectile, aura and float that are
+   * mid-flight — the very effects this number is supposed to be following.
+   */
+  function repaintVitals(id) {
+    var v = state.vitals && state.vitals[id];
+    if (!v) return;
+    var pct = Math.max(0, Math.round(100 * v.hp / Math.max(1, v.maxHp)));
+    var b = state.run && state.run.battle;
+    if (b && b.knight && b.knight.id === id) {
+      var plate = $('knightPlate');
+      if (!plate || plate.classList.contains('hidden')) return;
+      var kfill = plate.querySelector('.kp-hpfill');
+      if (kfill) kfill.style.width = pct + '%';
+      var ktext = plate.querySelector('.kp-hp');
+      if (ktext) ktext.textContent = v.hp + '/' + v.maxHp;
+      plate.classList.toggle('dead', v.hp <= 0);
+      return;
+    }
+    var node = spriteOf(id);
+    if (!node) return;
+    var fill = node.querySelector('.sp-hpfill');
+    if (fill) fill.style.width = pct + '%';
+    var text = node.querySelector('.sp-hp');
+    if (text) text.textContent = v.hp + '/' + v.maxHp;
+    var chip = node.querySelector('.sp-shield');
+    if (v.shield > 0) {
+      if (chip) chip.textContent = '🛡' + v.shield;
+      else {
+        var tags = node.querySelector('.sp-tags');
+        if (tags && text) tags.insertBefore(el('span', 'sp-shield', '🛡' + v.shield), text.nextSibling);
+      }
+    } else if (chip) {
+      chip.remove();
+    }
+    // The KO pose trails the hurt flash so the unit is seen taking the blow
+    // before it drops; impact() does the same for hits it animates itself.
+    if (!v.alive) setTimeout(function () { node.classList.add('dead'); }, 460);
+  }
+
+  /** Steps the held vitals forward to this event's stamped values. */
+  function commitVitals(ev) {
+    if (!state.vitals || !ev || !ev.vitals) return;
+    ev.vitals.forEach(function (v) {
+      if (!v || !v.id) return;
+      state.vitals[v.id] = { hp: v.hp, maxHp: v.maxHp, shield: v.shield, alive: v.alive };
+      repaintVitals(v.id);
+    });
+  }
+
+  /** commitVitals after a beat, so the effect that causes it reads first. */
+  function commitVitalsAfter(ev, ms) {
+    setTimeout(function () { commitVitals(ev); }, ms);
+  }
+
   // ---- event playback (projectiles + action moments) --------------------
   function playEvents(events, done) {
     state.busy = true;
     syncBattleActionButtons();
     var stage = $('battleStage');
-    // Compress long sequences so playback stays snappy.
-    var scale = events.length > 10 ? 10 / events.length : 1;
+    // Compress long sequences so playback stays snappy, but never past half
+    // speed — beyond that the compounding cut leaves nothing readable.
+    var scale = events.length > 12 ? Math.max(0.5, 12 / events.length) : 1;
     var i = 0;
 
     function step() {
@@ -2991,10 +3130,26 @@
       }
       var ev = events[i++];
       var wait = playEvent(ev, stage) * scale;
-      setTimeout(step, Math.max(60, wait));
+      setTimeout(step, Math.max(EVENT_MIN_MS[ev.type] || 60, wait));
     }
     step();
   }
+
+  /*
+   * Floor per event type: how long that event's own animation actually needs
+   * before the next one may start. Compression used to cut a hit to under the
+   * 340ms its projectile spends crossing the stage, so the following event —
+   * and its HP change — landed while the orb was still in flight.
+   */
+  var EVENT_MIN_MS = {
+    hit: 560, burn: 380, poison: 380, wither: 380,
+    heal: 360, revive: 480, shield: 340, shieldExpired: 240,
+    status: 360, stunned: 360, knightHit: 360,
+    round: 620, card: 380, enemyAct: 440, ultimate: 560, whiff: 440,
+    swap: 460, evolve: 760, cardUpdate: 560,
+    reshuffle: 560, discardHand: 380, apCharge: 500, actionPoints: 380,
+    buff: 380, gaugeReady: 380
+  };
 
   function playEvent(ev, stage) {
     switch (ev.type) {
@@ -3012,42 +3167,54 @@
       case 'ultimate':
         showBanner('⚡ ' + ev.name + '!', 'you', ev.element);
         return 800;
+      // The bar drops in the projectile's arrival callback, never before: the
+      // orb has to be seen striking before the number it caused moves.
       case 'hit':
         fireProjectile(stage, ev.sourceId, ev.targetId, ev.element, function () {
           impact(ev.targetId, ev.amount, ev.ko);
+          commitVitals(ev);
         });
         return 720;
+      // Ticks have no projectile — the element burns around the unit instead,
+      // so the HP follows the aura catching rather than leading it.
       case 'burn':
         elementBorder(ev.targetId, 'FIRE');
         flashSprite(ev.targetId, 'hurt');
         floatText(ev.targetId, '-' + ev.amount + ' 🔥', 'dmg');
+        commitVitalsAfter(ev, 200);
         return 420;
       case 'poison':
         elementBorder(ev.targetId, 'POISON');
         flashSprite(ev.targetId, 'hurt');
         floatText(ev.targetId, '-' + ev.amount + ' ☠️', 'dmg');
+        commitVitalsAfter(ev, 200);
         return 420;
       case 'wither':
         elementBorder(ev.targetId, 'UNDEAD');
         flashSprite(ev.targetId, 'hurt');
         floatText(ev.targetId, (ev.amount ? ('-' + ev.amount + ' ') : '') + '💀', 'dmg');
+        commitVitalsAfter(ev, 200);
         return 400;
       case 'heal':
         flashSprite(ev.targetId, 'healed');
         floatText(ev.targetId, '+' + ev.amount, 'heal');
+        commitVitalsAfter(ev, 180);
         return 420;
       case 'revive':
         flashSprite(ev.targetId, 'healed');
         floatText(ev.targetId, '📜 Back!', 'heal');
+        commitVitalsAfter(ev, 260);
         return 650;
       case 'shield':
         flashSprite(ev.targetId, 'shielded');
         floatText(ev.targetId, '🛡+' + ev.amount, 'shield');
+        commitVitalsAfter(ev, 180);
         return 400;
       // Shields only hold until the shielded side's next turn, so their going
       // away is a beat the player has to see rather than a silent stat drop.
       case 'shieldExpired':
         floatText(ev.targetId, '🛡 fades', 'status');
+        commitVitalsAfter(ev, 160);
         return 260;
       case 'buff':
         showBanner(ev.kind === 'atk' ? '+' + ev.amount + ' attack!' : '+' + ev.amount + ' speed!', 'you');
@@ -3057,17 +3224,22 @@
         elementBorder(ev.targetId, STATUS_ELEMENT[ev.status] || ev.element || 'NEUTRAL');
         flashSprite(ev.targetId, 'statused');
         floatText(ev.targetId, meta.icon + ' ' + meta.label + '!', 'status');
+        commitVitalsAfter(ev, 200);
         return 480;
       }
       case 'swap':
+        commitVitals(ev);
         flashSprite(ev.aId, 'swapping');
         flashSprite(ev.bId, 'swapping');
         showBanner(nameOf(ev.aId) + ' ⇄ ' + nameOf(ev.bId) + ' swap notches', 'you');
         return 550;
+      // Evolution rewrites max HP, so the new bar belongs to the new form —
+      // it lands with the transformation flash, not ahead of the banner.
       case 'evolve':
         showBanner('🌟 ' + ev.from + ' evolves into ' + ev.to + '!', 'you', ev.element);
         flashSprite(ev.targetId, 'evolving');
         floatText(ev.targetId, '🌟 EVOLVED!', 'status');
+        commitVitalsAfter(ev, 380);
         return 1000;
       case 'cardUpdate':
         refreshHandCards(ev.targetId, ev.previewMoves);
@@ -3102,6 +3274,7 @@
         return 480;
       case 'knightHit':
         floatKnight('-' + ev.amount);
+        commitVitalsAfter(ev, 180);
         return 450;
       case 'charge':
         floatKnight('+' + ev.amount + ' ⚡');
