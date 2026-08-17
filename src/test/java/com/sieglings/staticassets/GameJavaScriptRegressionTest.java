@@ -717,8 +717,9 @@ class GameJavaScriptRegressionTest {
                 "function buildCardDestroyedToast(");
         assertTrue(
                 chainPlayback.contains("await playHop(action.source, [step.primary]);")
-                        && chainPlayback.contains("await playHop(step.primary, step.links);"),
-                "Chain playback must fire attacker to primary first, then primary to its links."
+                        && chainPlayback.contains("for (const link of step.links) {")
+                        && chainPlayback.contains("await playHop(step.primary, [link], ARC_SPEED_SCALE);"),
+                "Chain playback must fire attacker to primary first, then arc to each link one at a time."
         );
         // A victim killed by its hop stays on screen until every arc has left it —
         // otherwise the bounce would originate from an already-empty cell.

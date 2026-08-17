@@ -582,16 +582,23 @@
         const lethalTargets = [];
         queue.syncPendingLethalHolds();
 
-        const playHop = async (origin, victims) => {
+        // Arcs off the primary are quicker than the opening strike: they read as
+        // one continuous shock travelling the links rather than N separate attacks.
+        const ARC_SPEED_SCALE = 0.55;
+
+        const playHop = async (origin, victims, speedScale) => {
             if (!victims.length) return;
-            let leadInMs = t.projectileMs;
+            const scale = speedScale || 1;
+            const projectileMs = Math.max(90, Math.round(t.projectileMs * scale));
+            const impactMs = Math.max(70, Math.round(t.impactMs * scale));
+            let leadInMs = projectileMs;
             if (origin && window.SieglingsFx?.attackCell) {
                 for (const tgt of victims) {
                     window.SieglingsFx.attackCell(
                         origin.isPlayer, origin.row, origin.col,
                         tgt.isPlayer, tgt.row, tgt.col,
                         fxElement,
-                        { duration: t.projectileMs }
+                        { duration: projectileMs }
                     );
                     // A chain is the one attack that is also about the card it
                     // travels through, so each victim burns the element on its
@@ -634,16 +641,21 @@
             if (window.SieglingsFx?.cameraShake) {
                 const hopDamage = victims.reduce((sum, tt) => sum + (Number(tt.amount) || 0), 0);
                 window.SieglingsFx.cameraShake(
-                    Math.min(16, 6 + Math.round(hopDamage * 0.35)), t.impactMs
+                    Math.min(16, 6 + Math.round(hopDamage * 0.35)), impactMs
                 );
             }
-            await sleep(t.impactMs);
+            await sleep(impactMs);
             if (surviving.length) queue.releasePendingHealthForTargets(surviving);
         };
 
         for (const step of action.chainSteps) {
+            // Initial target lands first and alone; the shock then jumps to each
+            // connected Siegling one at a time, so the arc order is readable
+            // instead of every link flashing on the same frame.
             await playHop(action.source, [step.primary]);
-            await playHop(step.primary, step.links);
+            for (const link of step.links) {
+                await playHop(step.primary, [link], ARC_SPEED_SCALE);
+            }
         }
 
         for (const tgt of lethalTargets) {
