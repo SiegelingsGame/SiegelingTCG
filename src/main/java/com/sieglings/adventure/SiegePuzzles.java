@@ -204,6 +204,7 @@ final class SiegePuzzles {
         final boolean[] matched = new boolean[MATCH_PAIRS * 2];
         int misses;
         int pairsFound;
+        int pendingFlip = -1; // first face-up tile, awaiting the player's second tap
         int[] lastFlip;        // {a, b} indices of the most recent flip, or null
         boolean lastFlipMatched;
     }
