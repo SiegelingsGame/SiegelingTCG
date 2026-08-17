@@ -4508,9 +4508,13 @@ body.battle-phase-active .battlefield::after {
         width: 100%;
         height: auto;
         min-height: 0;
-        max-height: min(42vh, 300px);
+        /* Hard cap: a Siegling with five abilities used to grow this dock past
+           40% of the screen, which squeezed the arena until the two board
+           halves ran into each other. The list scrolls inside instead. */
+        max-height: min(34vh, 260px);
         overflow-y: auto;
         overflow-x: hidden;
+        overscroll-behavior: contain;
         padding: 10px 12px;
         border-radius: 16px 16px 0 0;
     }

@@ -717,8 +717,9 @@ class GameJavaScriptRegressionTest {
                 "function buildCardDestroyedToast(");
         assertTrue(
                 chainPlayback.contains("await playHop(action.source, [step.primary]);")
-                        && chainPlayback.contains("await playHop(step.primary, step.links);"),
-                "Chain playback must fire attacker to primary first, then primary to its links."
+                        && chainPlayback.contains("for (const link of step.links) {")
+                        && chainPlayback.contains("await playHop(step.primary, [link], ARC_SPEED_SCALE);"),
+                "Chain playback must fire attacker to primary first, then arc to each link one at a time."
         );
         // A victim killed by its hop stays on screen until every arc has left it —
         // otherwise the bounce would originate from an already-empty cell.
@@ -738,6 +739,31 @@ class GameJavaScriptRegressionTest {
                 actionQueueScript.contains("const chainSteps = buildChainSteps(actionTargets);")
                         && actionQueueScript.contains("chainSteps,"),
                 "Multi-target attacks must carry their chain hop structure into playback."
+        );
+    }
+
+    /**
+     * Chain attribution is matched by target name against the damage log lines, and
+     * EffectService appends several trailing groups before the HP one — "(weakness +1)
+     * (soak +2) (rust +1) (HP: 6)". A parser that strips only the last group reads the
+     * target as "Sundile (weakness +1)", no victim matches, buildChainSteps bails, and
+     * the whole chain silently degrades to a barrage fired from the attacker. Any
+     * weakness hit — which is most chains — was enough to trigger it.
+     */
+    @Test
+    void damageLogParserStripsEveryTrailingAnnotationFromTheTargetName() throws IOException {
+        String actionQueueScript = Files.readString(ACTION_QUEUE_JS);
+        assertTrue(
+                actionQueueScript.contains(
+                        "/^(.+?)\\s+deals\\s+(\\d+)\\s+damage\\s+to\\s+(.+?)(?:\\s*\\([^)]*\\))*\\.?$/i"),
+                "The damage log parser must strip ALL trailing parentheticals, not just one."
+        );
+        String effectService = Files.readString(
+                Path.of("src/main/java/com/sieglings/service/EffectService.java"));
+        assertTrue(
+                effectService.contains("\" (weakness +1)\"")
+                        && effectService.contains("\" (HP: \""),
+                "EffectService must keep emitting the annotated damage wording the parser strips."
         );
     }
 
