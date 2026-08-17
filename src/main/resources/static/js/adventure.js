@@ -2294,7 +2294,6 @@
   var LINE_COLORS = ['#e34b5a', '#3d9bff', '#37c46b', '#f0b429'];
   var RPS_META = { ROCK: { icon: '✊', label: 'Rock' }, PAPER: { icon: '✋', label: 'Paper' }, SCISSORS: { icon: '✌️', label: 'Scissors' } };
   var mgLine = null;
-  var mgMatchSel = null;
   var mgRevealTimer = null;
 
   function renderMinigame() {
@@ -2522,7 +2521,8 @@
 
   // ---- MATCH (memory pairs) --------------------------------------------
   function renderMatch(mg, body, actions) {
-    var revealing = mg.flip && !mg.flip.matched;
+    var flip = mg.flip;
+    var resolving = flip && flip.b != null && !flip.matched;
     $('mgStatus').textContent = 'Pairs ' + (mg.pairsFound || 0) + '/' + (mg.totalPairs || 8) +
       ' · Misses ' + (mg.misses || 0) + '/' + (mg.maxMisses || 5);
     var grid = el('div', 'mg-match-grid');
@@ -2531,16 +2531,17 @@
       var tile = el('button', 'mg-tile');
       var sym = null;
       if (cell.matched) { tile.classList.add('matched', 'up'); sym = cell.symbol; }
-      else if (revealing && cell.index === mg.flip.a) { tile.classList.add('up'); sym = mg.flip.symbolA; }
-      else if (revealing && cell.index === mg.flip.b) { tile.classList.add('up'); sym = mg.flip.symbolB; }
-      else if (mgMatchSel === cell.index) tile.classList.add('sel');
+      else if (flip && cell.index === flip.a) { tile.classList.add('up'); sym = flip.symbolA; }
+      else if (flip && cell.index === flip.b) { tile.classList.add('up'); sym = flip.symbolB; }
       tile.textContent = sym || '';
-      if (!cell.matched && !revealing) tile.addEventListener('click', function () { matchTap(cell.index); });
+      if (!cell.matched && !resolving && !(flip && cell.index === flip.a)) {
+        tile.addEventListener('click', function () { matchTap(cell.index); });
+      }
       grid.appendChild(tile);
     });
     body.appendChild(grid);
     body.appendChild(el('div', 'mg-note', 'Flip two tiles. A matching pair pays gold and stays up.'));
-    if (revealing) {
+    if (resolving) {
       clearTimeout(mgRevealTimer);
       mgRevealTimer = setTimeout(function () {
         if (state.run && state.run.minigame && state.run.minigame.type === 'MATCH' && state.run.minigame.flip) {
@@ -2552,10 +2553,7 @@
   }
   function matchTap(index) {
     if (state.busy) return;
-    if (mgMatchSel === null) { mgMatchSel = index; renderMinigame(); return; }
-    if (mgMatchSel === index) { mgMatchSel = null; renderMinigame(); return; }
-    var a = mgMatchSel; mgMatchSel = null;
-    minigameAction('/api/siege/minigame/match', { a: a, b: index });
+    minigameAction('/api/siege/minigame/match', { a: index });
   }
 
   /** #rrggbb + alpha → rgba() string for translucent path fills. */

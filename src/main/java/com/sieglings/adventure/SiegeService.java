@@ -1785,20 +1785,32 @@ public class SiegeService {
         return serialize(run);
     }
 
-    /** MATCH: flip two tiles; a pair pays gold and stays up. Ends at 5 misses or all pairs. */
-    Map<String, Object> minigameMatchFlip(String token, int a, int b) {
+    /** MATCH: reveal each tap immediately; resolve the pair after the second tile. */
+    Map<String, Object> minigameMatchFlip(String token, int index) {
         SiegeRun run = require(token);
         if (!run.isInMinigame() || !"MATCH".equals(run.getMinigameType())) {
             throw new IllegalArgumentException("There are no tiles to flip here.");
         }
         SiegePuzzles.MatchBoard board = (SiegePuzzles.MatchBoard) run.getMinigameState();
         int n = board.symbols.size();
-        if (a < 0 || b < 0 || a >= n || b >= n || a == b) {
-            throw new IllegalArgumentException("Pick two different face-down tiles.");
+        if (index < 0 || index >= n) {
+            throw new IllegalArgumentException("Pick a face-down tile.");
         }
-        if (board.matched[a] || board.matched[b]) {
+        if (board.matched[index]) {
             throw new IllegalArgumentException("That tile is already face-up.");
         }
+        if (board.pendingFlip < 0) {
+            board.pendingFlip = index;
+            board.lastFlip = new int[]{index};
+            board.lastFlipMatched = false;
+            return serialize(run);
+        }
+        if (board.pendingFlip == index) {
+            throw new IllegalArgumentException("Pick a different face-down tile.");
+        }
+        int a = board.pendingFlip;
+        int b = index;
+        board.pendingFlip = -1;
         board.lastFlip = new int[]{a, b};
         boolean isPair = board.symbols.get(a).equals(board.symbols.get(b));
         board.lastFlipMatched = isPair;
@@ -1899,9 +1911,11 @@ public class SiegeService {
             if (board.lastFlip != null) {
                 Map<String, Object> flip = new LinkedHashMap<>();
                 flip.put("a", board.lastFlip[0]);
-                flip.put("b", board.lastFlip[1]);
                 flip.put("symbolA", board.symbols.get(board.lastFlip[0]));
-                flip.put("symbolB", board.symbols.get(board.lastFlip[1]));
+                if (board.lastFlip.length > 1) {
+                    flip.put("b", board.lastFlip[1]);
+                    flip.put("symbolB", board.symbols.get(board.lastFlip[1]));
+                }
                 flip.put("matched", board.lastFlipMatched);
                 m.put("flip", flip);
             }

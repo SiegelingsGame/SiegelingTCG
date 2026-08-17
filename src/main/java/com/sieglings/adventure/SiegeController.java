@@ -275,10 +275,10 @@ public class SiegeController {
         return siege.minigameRpsThrow(str(body.get("token")), str(body.get("choice")));
     }
 
-    /** MATCH puzzle: flip two tiles: body { token, a, b }. */
+    /** MATCH puzzle: reveal one tile per tap: body { token, a }. */
     @PostMapping("/api/siege/minigame/match")
     public Map<String, Object> minigameMatch(@RequestBody Map<String, Object> body) {
-        return siege.minigameMatchFlip(str(body.get("token")), intOf(body.get("a")), intOf(body.get("b")));
+        return siege.minigameMatchFlip(str(body.get("token")), intOf(body.get("a")));
     }
 
     /** Give up on the active puzzle for a small consolation: body { token }. */
