@@ -1107,6 +1107,25 @@ public class SiegeContentService {
         return stage;
     }
 
+    /**
+     * Walks an evolution chain down to its stage-1 root. Finding a Siegeling at
+     * any stage earns its whole line, and warband select only ever lists stage-1
+     * cards, so the root is the id that actually becomes pickable. Returns the
+     * id unchanged when it is already a root or is not in the catalog.
+     */
+    String baseFormId(String cardId) {
+        String id = cardId;
+        int guard = 0;
+        while (id != null && guard++ < 6) {
+            String from = findAnySiegling(id).map(SieglingCard::getEvolvesFromId).orElse(null);
+            if (from == null || from.isBlank()) {
+                return id;
+            }
+            id = from;
+        }
+        return id;
+    }
+
     private List<SieglingCard> sieglingsAtStage(int stage) {
         List<SieglingCard> out = new ArrayList<>();
         for (Card card : cardDefs.getDeckBuilderCatalog()) {

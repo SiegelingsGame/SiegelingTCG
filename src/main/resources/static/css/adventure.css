@@ -4,6 +4,10 @@
   --accent:#ff9a3c; --accent-2:#3ea6ff; --good:#7ee787; --bad:#ff6e6e; --shield:#76e6ff;
   --radius:12px;
   --playcard-w:128px;
+  /* Cards are a fixed size, never content-sized: a long description used to
+     make its card taller than its neighbours, which broke the fan's arc and
+     read as "this card is bigger/better". Overflowing text clamps instead. */
+  --playcard-h:152px;
 }
 *{box-sizing:border-box;}
 html{
@@ -1277,7 +1281,54 @@ body[data-battle-node="BOSS"] .battle-stage::before{
 .ap-pip{width:20px;height:20px;border-radius:50%; border:2px solid var(--accent);}
 .ap-pip.full{background:var(--accent); box-shadow:0 0 8px rgba(255,154,60,.7);}
 .ap-label{font-size:12px; color:var(--dim); margin-right:4px;}
-.deck-counts{font-size:12px; color:var(--faint);}
+/* Also the button that opens the hand sheet — the fan only shows a few cards
+   at a time, so this is how you read the whole hand on any screen size. */
+.deck-counts{
+  font-size:12px; color:var(--faint); font-family:inherit;
+  border:1px solid var(--border); background:rgba(12,16,23,.55);
+  border-radius:999px; padding:5px 11px; cursor:pointer; white-space:nowrap;
+}
+.deck-counts:hover,.deck-counts[aria-expanded="true"]{color:var(--text); border-color:var(--accent);}
+
+/* ---------- Hand sheet (full hand, opened from the deck counter) ---------- */
+.hand-sheet{z-index:120; padding:14px;}
+.hand-sheet-card{
+  width:min(760px,94vw); max-height:min(78dvh,620px);
+  display:flex; flex-direction:column; padding:14px;
+}
+.hand-sheet-head{display:flex; align-items:center; gap:9px; margin-bottom:10px; font-size:14px; font-weight:800;}
+.hand-sheet-head .unit-modal-close{position:static; margin-left:auto; flex:0 0 auto;}
+.hand-sheet-sub{font-size:11px; font-weight:600; color:var(--faint);}
+.hand-sheet-grid{
+  flex:1 1 auto; min-height:0; overflow:auto;
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(126px,1fr));
+  gap:12px 10px; padding:6px 3px 3px;
+}
+/* Cards here are laid out by the grid, not the fan: no negative margins, no
+   arc transform, and the description is always shown (the phone breakpoints
+   hide it in the fan, where there is no room for it). */
+.hand-sheet-grid .playcard{
+  width:100%; height:176px; margin:0; transform:none; cursor:pointer;
+  scroll-snap-align:none; padding:9px 10px;
+}
+.hand-sheet-grid .playcard:hover{transform:translateY(-4px);}
+.hand-sheet-grid .playcard .pc-desc{display:-webkit-box; -webkit-line-clamp:5; font-size:10.5px;}
+/* Grid gaps are tighter than the fan's overlap, so the cost badge sits nearly
+   inside the card here — the title indents to clear it instead of running
+   underneath it. */
+.hand-sheet-grid .playcard .pc-cost{top:-8px; left:-4px;}
+.hand-sheet-grid .playcard .pc-name{padding-left:20px; min-height:1.2em;}
+.hand-sheet-empty{grid-column:1/-1; text-align:center; color:var(--faint); font-size:13px; padding:26px 0;}
+/* Short landscape: trade card height for columns so a full hand still reads
+   in two rows instead of one tall scrolling column. */
+@media (orientation:landscape) and (max-height:600px){
+  .hand-sheet{padding:8px;}
+  .hand-sheet-card{width:min(940px,96vw); max-height:92dvh; padding:10px 11px;}
+  .hand-sheet-head{margin-bottom:6px; font-size:13px;}
+  .hand-sheet-grid{grid-template-columns:repeat(auto-fill,minmax(114px,1fr)); gap:8px; padding:5px 3px 2px;}
+  .hand-sheet-grid .playcard{height:142px; padding:8px 9px;}
+  .hand-sheet-grid .playcard .pc-desc{-webkit-line-clamp:3;}
+}
 
 /* ---------- Fanned hand (horizontally scrollable "wheel") ----------
    The hand can hold more cards than fit on one screen, so it scrolls: swipe
@@ -1299,7 +1350,12 @@ body[data-battle-node="BOSS"] .battle-stage::before{
 .hand-fan::-webkit-scrollbar{display:none; height:0;}
 .playcard{
   width:var(--playcard-w);
+  height:var(--playcard-h);
   flex:0 0 auto;
+  /* Column flex + a clamped description is what keeps every card the same
+     size however much text it carries (see --playcard-h). Overflow stays
+     visible — the AP cost badge is deliberately hung outside the corner. */
+  display:flex; flex-direction:column;
   scroll-snap-align:center;
   /* Plain fallback first; browsers that don't parse color-mix() ignore the
      tinted declaration below and keep this one. */
@@ -1365,6 +1421,8 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
 .playcard .pc-cost{position:absolute; top:-9px; left:-9px; width:26px;height:26px; border-radius:50%; background:radial-gradient(circle at 35% 30%, #ffc37a, var(--accent)); color:#1a1206; font-weight:800; font-size:13px; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,.5); z-index:2;}
 .playcard .pc-cost.free{background:radial-gradient(circle at 35% 30%, #b7f0c0, var(--good)); color:#0c2412;}
 .playcard .pc-status{font-size:10px; color:#c896ff; margin-top:3px; font-weight:650;}
+.playcard .pc-name,.playcard .pc-owner,.playcard .pc-eff,
+.playcard .pc-status,.playcard .pc-gauge{flex:0 0 auto;}
 .playcard .pc-name{font-weight:700; font-size:12.5px; line-height:1.2;}
 .playcard .pc-owner{font-size:10px; color:var(--faint); margin-top:2px;}
 .playcard .pc-eff{font-size:11px; margin-top:6px; font-weight:650;}
@@ -1412,7 +1470,13 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
 .knight-plate.kp-charge-pop .kp-chargebar{box-shadow:0 0 14px rgba(255,230,60,.9);}
 .playcard .pc-eff .pc-boost{color:var(--good); font-weight:800;}
 .playcard .pc-eff s{opacity:.55; font-weight:500; margin-left:2px;}
-.playcard .pc-desc{font-size:10px; color:var(--faint); margin-top:4px; line-height:1.3; max-height:40px; overflow:hidden;}
+/* The one elastic row: it absorbs whatever height the fixed card has left and
+   clamps the overflow, so card height never tracks description length. */
+.playcard .pc-desc{
+  font-size:10px; color:var(--faint); margin-top:4px; line-height:1.3;
+  flex:1 1 auto; min-height:0; overflow:hidden;
+  display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;
+}
 
 .battle-endwrap{display:flex; flex-direction:column; align-items:center; gap:12px; padding:16px 0;}
 .battle-endtitle{font-size:26px; font-weight:900; letter-spacing:1px;}
@@ -1559,7 +1623,9 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
   .deck-counts{font-size:11px; white-space:nowrap;}
   .siege-btn{padding:10px 14px; font-size:13px;}
 
-  :root{--playcard-w:104px;}
+  /* No description row at this size, so the card is name/owner/effect plus
+     room for an optional status or evolution-gauge line. */
+  :root{--playcard-w:104px; --playcard-h:104px;}
   /* Tall enough to contain a card plus the upward fan arc (HAND_FAN_MAX_LIFT):
      with the arc lifting edge cards UP, the lowest card hugs the small bottom
      padding just above the hud and nothing is clipped top or bottom. */
@@ -1624,6 +1690,13 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
 .result-extract .extract-chips{display:flex; gap:6px; flex-wrap:wrap; justify-content:center;}
 .result-extract .extract-chip{background:var(--chip,#1c2433); border:1px solid var(--border); border-radius:999px; padding:3px 10px; font-size:12px;}
 .result-extract .extract-note{margin-top:10px; font-size:12px; color:var(--dim);}
+/* Starter unlocks earned on the run — same card as extraction, green because it
+   is a permanent account gain rather than this run's banked team. */
+.result-unlocks{background:var(--panel); border:1px solid var(--good); border-radius:12px; padding:14px 18px; margin:14px auto; max-width:360px;}
+.result-unlocks h3{margin:0 0 8px; font-size:15px; color:var(--good);}
+.result-unlocks .unlock-chips{display:flex; gap:6px; flex-wrap:wrap; justify-content:center;}
+.result-unlocks .extract-chip{background:var(--chip,#1c2433); border:1px solid rgba(126,231,135,.4); border-radius:999px; padding:3px 10px; font-size:12px;}
+.result-unlocks .extract-note{margin-top:10px; font-size:12px; color:var(--dim);}
 .map-extract-btn{padding:5px 12px; font-size:13px;}
 .endless-slots{margin:14px 0 4px; text-align:center;}
 .endless-title{font-size:13px; color:var(--accent-2); margin-bottom:8px; font-weight:650;}
@@ -1894,6 +1967,7 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
     --arena-menu-clear:72px;          /* Menu button + gap the log must clear */
     --arena-hand-h:150px;
     --playcard-w:94px;
+    --playcard-h:98px;
     --arena-tint:.42;                 /* elite/boss vignette strength on phone */
     /* Unit formations pull in from the notch/home-indicator; the arena art
        itself still paints edge-to-edge (siege-app side padding is 0 below). */
@@ -2109,6 +2183,9 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
     --arena-menu-clear:88px;
     --arena-hand-h:clamp(172px, 26vh, 240px);
     --playcard-w:clamp(104px, 9.5vw, 138px);
+    /* Descriptions come back at this size (see the .pc-desc rule below), so
+       the card needs the taller box to hold the clamped copy. */
+    --playcard-h:clamp(132px, 19vh, 170px);
     --arena-tint:.48;
     /* On wide desktops, also pull formations in by a share of the width so
        allies/foes don't sit ~1700px apart at the extreme edges. Safe-area
@@ -2446,13 +2523,52 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
   .location-overlay .camp-actions{min-width:96px;}
   .location-overlay .camp-actions .siege-btn{padding:7px 10px; font-size:11px;}
 
-  /* Rewards: the same flat row, so a 4-option spread (card/card/upgrade plus an
-     item sigil) still fits between the header and the bottom of the screen. */
-  .epiphany-screen{overflow:hidden;}
+  /* Rewards: landscape is wide and short, so the column stack of
+     header → recap → cards → skip cannot fit vertically — the recap either
+     scrolls away or gets hidden entirely. Split the screen sideways instead:
+     the narrow left rail carries the title and the full leveling recap (which
+     scrolls on its own), and the choice cards keep the wide right side as a
+     single flat row, so a 4-option spread still fits without a fold. */
+  .epiphany-screen{
+    display:grid; overflow:hidden;
+    grid-template-columns:minmax(196px,29%) minmax(0,1fr);
+    grid-template-rows:auto minmax(0,1fr) auto;
+    grid-template-areas:
+      "head  cards"
+      "recap cards"
+      "recap actions";
+    column-gap:12px; row-gap:4px;
+    padding:
+      calc(env(safe-area-inset-top, 0px) + 30px)
+      max(10px, env(safe-area-inset-right, 0px))
+      calc(6px + env(safe-area-inset-bottom, 0px))
+      max(10px, env(safe-area-inset-left, 0px));
+  }
+  .epiphany-header{
+    grid-area:head; margin:0; max-width:none; text-align:left;
+  }
+  .epiphany-header .location-kicker{display:block; font-size:9px;}
+  .epiphany-header h1{font-size:17px; line-height:1.15;}
+  /* The subtitle and sparkle are pure flourish; the recap needs their rows. */
+  .epiphany-header p,.epiphany-header::after{display:none;}
+  /* Beats the two short-viewport queries above, which shrink the recap behind a
+     scrollbar (or drop it) to buy height the side rail no longer needs. */
+  .epiphany-screen .xp-recap{
+    grid-area:recap; display:block; margin:4px 0 0; padding:8px 9px;
+    max-height:none; min-height:0; overflow:auto; align-self:stretch;
+  }
+  .epiphany-screen .xp-recap-kicker{display:none;}
+  .epiphany-screen .xp-recap-head{margin-bottom:5px;}
+  .epiphany-screen .xp-recap-head h2{font-size:12px;}
+  .epiphany-screen .xp-recap-total{font-size:10px; padding:2px 7px;}
+  .epiphany-screen .xp-recap-list{gap:4px;}
+  .epiphany-screen .xp-recap-row{padding:4px 7px; font-size:11px;}
+  .epiphany-screen .reward-actions{grid-area:actions; margin:0; padding-top:5px;}
   .epiphany-screen .reward-grid{
+    grid-area:cards; align-self:stretch;
     display:grid; grid-template-columns:none; grid-auto-flow:column;
     grid-auto-columns:minmax(0,1fr); gap:8px; padding:0; overflow:visible;
-    width:100%; justify-content:stretch;
+    width:100%; min-height:0; justify-content:stretch;
   }
   .epiphany-screen .reward-card{
     min-height:0; height:100%; padding:8px 9px; border-radius:12px; scroll-snap-align:none;
