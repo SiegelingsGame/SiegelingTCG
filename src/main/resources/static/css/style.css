@@ -14906,15 +14906,23 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         font-weight: 700;
     }
 
+    /* On phones the nav is the loadout's bottom HUD: a full-bleed opaque bar
+       pinned to the bottom of the scroll area. Back sits inside that bar next
+       to Start instead of floating on its own row over the panel behind it. */
     .loadout-nav {
         display: grid;
         grid-template-columns: minmax(96px, 0.4fr) minmax(0, 1fr);
         align-items: stretch;
-        gap: 8px;
-        padding: 10px 0;
+        gap: 8px 10px;
+        margin-inline: calc(-1 * var(--loadout-padding));
+        padding: 10px var(--loadout-padding) calc(10px + env(safe-area-inset-bottom, 0px));
+        background: linear-gradient(180deg, #172746 0%, #0f1930 100%);
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 -10px 24px rgba(3, 8, 18, 0.55);
     }
 
     .loadout-nav .loadout-summary {
+        grid-row: 1;
         grid-column: 1 / -1;
         min-width: 0;
         width: 100%;
@@ -14923,6 +14931,7 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 
     .loadout-nav .loadout-back-btn,
     .loadout-nav .loadout-start-btn {
+        grid-row: 2;
         width: 100%;
         min-width: 0;
         padding: 13px 14px;
