@@ -742,6 +742,31 @@ class GameJavaScriptRegressionTest {
         );
     }
 
+    /**
+     * Chain attribution is matched by target name against the damage log lines, and
+     * EffectService appends several trailing groups before the HP one — "(weakness +1)
+     * (soak +2) (rust +1) (HP: 6)". A parser that strips only the last group reads the
+     * target as "Sundile (weakness +1)", no victim matches, buildChainSteps bails, and
+     * the whole chain silently degrades to a barrage fired from the attacker. Any
+     * weakness hit — which is most chains — was enough to trigger it.
+     */
+    @Test
+    void damageLogParserStripsEveryTrailingAnnotationFromTheTargetName() throws IOException {
+        String actionQueueScript = Files.readString(ACTION_QUEUE_JS);
+        assertTrue(
+                actionQueueScript.contains(
+                        "/^(.+?)\\s+deals\\s+(\\d+)\\s+damage\\s+to\\s+(.+?)(?:\\s*\\([^)]*\\))*\\.?$/i"),
+                "The damage log parser must strip ALL trailing parentheticals, not just one."
+        );
+        String effectService = Files.readString(
+                Path.of("src/main/java/com/sieglings/service/EffectService.java"));
+        assertTrue(
+                effectService.contains("\" (weakness +1)\"")
+                        && effectService.contains("\" (HP: \""),
+                "EffectService must keep emitting the annotated damage wording the parser strips."
+        );
+    }
+
     /** Slice a playback branch out of the queue so a test can assert on it alone. */
     private static String sliceBetween(String source, String startMarker, String endMarker) {
         int start = source.indexOf(startMarker);

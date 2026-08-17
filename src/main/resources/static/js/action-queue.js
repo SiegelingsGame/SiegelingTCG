@@ -1423,9 +1423,14 @@
     // Server lines look like "Embers deals 3 damage to Pylme (HP: 10)" — the
     // trailing "(HP: N)" is informational and must not become part of the
     // target name or attribution against the board state will fail.
+    // EffectService can append SEVERAL trailing groups before the HP one —
+    // "(weakness +1) (soak +2) (rust +1) (HP: 6)" — so every trailing
+    // parenthetical is stripped, not just the last. Matching only one left the
+    // target named "Sundile (weakness +1)", which silently broke chain-attack
+    // attribution (it fell back to a barrage fired from the attacker).
     function parseDamageFromLog(line) {
         const text = stripLogPrefix(line);
-        const m = text.match(/^(.+?)\s+deals\s+(\d+)\s+damage\s+to\s+(.+?)(?:\s*\([^)]*\))?\.?$/i);
+        const m = text.match(/^(.+?)\s+deals\s+(\d+)\s+damage\s+to\s+(.+?)(?:\s*\([^)]*\))*\.?$/i);
         if (!m) return null;
         return {
             abilityOrSource: m[1].trim(),
@@ -1436,7 +1441,7 @@
 
     function parseSiegeBountyFromLog(line) {
         const text = stripLogPrefix(line);
-        const m = text.match(/^(.+?)'s\s+bounty\s+deals\s+(\d+)\s+damage\s+to\s+(.+?)(?:\s*\([^)]*\))?[.!]?$/i);
+        const m = text.match(/^(.+?)'s\s+bounty\s+deals\s+(\d+)\s+damage\s+to\s+(.+?)(?:\s*\([^)]*\))*[.!]?$/i);
         if (!m) return null;
         return {
             source: m[1].trim(),
