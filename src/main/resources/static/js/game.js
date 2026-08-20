@@ -9596,19 +9596,24 @@ function showDrawAbilityReveal(previousState, nextState) {
     if (drawAbilityRevealTimer) clearTimeout(drawAbilityRevealTimer);
 
     const hand = document.getElementById('playerHand');
-    const cardNodes = drawnIndices.map((index) => hand?.querySelector(`.hand-card[data-hand-index="${index}"]`)).filter(Boolean);
-    if (cardNodes.length === 0) return;
-    cards.replaceChildren(...cardNodes.map((card) => {
-        const copy = card.cloneNode(true);
-        copy.removeAttribute('onclick');
-        copy.removeAttribute('onpointerdown');
-        copy.removeAttribute('ontouchstart');
-        copy.removeAttribute('ontouchmove');
-        copy.removeAttribute('ontouchend');
-        copy.classList.remove('selected', 'opponent-turn');
-        return copy;
-    }));
-    const count = cardNodes.length;
+    // Render the reveal from the drawn cards in state, not from the hand DOM:
+    // battle-phase and SiegeKnight draws happen while the hand tray is in queue
+    // mode, so the matching .hand-card nodes may not exist and the reveal would
+    // silently never appear.
+    const drawnCards = drawnIndices
+        .map((index) => nextState?.player?.hand?.[index])
+        .filter(Boolean);
+    if (drawnCards.length === 0) return;
+    const markup = drawnCards
+        .map((card) => renderShowcaseCard(card, { cardClass: 'draw-reveal-card', compactSummary: true, bodyMode: 'summary' }))
+        .filter(Boolean)
+        .join('');
+    if (!markup) return;
+    cards.innerHTML = markup;
+    const count = drawnCards.length;
+    // Cards sit side by side with real spacing; only a wide fan needs to tuck
+    // in, so shrink/overlap scales with the count instead of a fixed offset.
+    cards.dataset.count = String(Math.min(count, 6));
     title.textContent = `${count} card${count === 1 ? '' : 's'} drawn`;
     reveal.className = 'draw-ability-reveal';
     requestAnimationFrame(() => reveal.classList.add('visible'));
@@ -9628,9 +9633,14 @@ function showDrawAbilityReveal(previousState, nextState) {
         card.style.setProperty('--draw-fly-x', `${targetX - revealCenterX + spread}px`);
         card.style.setProperty('--draw-fly-y', `${targetY - revealCenterY}px`);
     });
+    // The last card finishes its entrance around 620ms in; hold a full second of
+    // still, fully-readable cards after that before they fly into the hand.
+    const ENTRANCE_MS = 620;
+    const HOLD_MS = 1000;
+    const FLY_MS = 460;
     drawAbilityRevealTimer = setTimeout(() => {
         if (run === drawAbilityRevealRun) reveal.classList.add('flying');
-    }, 720);
+    }, ENTRANCE_MS + HOLD_MS);
     setTimeout(() => {
         if (run !== drawAbilityRevealRun) return;
         reveal.classList.remove('visible', 'flying');
@@ -9639,7 +9649,7 @@ function showDrawAbilityReveal(previousState, nextState) {
             reveal.classList.add('hidden');
             drawAbilityRevealTimer = null;
         }, 260);
-    }, 1250);
+    }, ENTRANCE_MS + HOLD_MS + FLY_MS);
 }
 
 async function fetchJson(urlOrUrls, options = {}, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS) {

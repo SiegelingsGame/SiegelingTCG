@@ -1229,9 +1229,11 @@ body {
     background: radial-gradient(ellipse at center, rgba(34, 111, 255, .24), rgba(4, 9, 23, .6) 67%);
     backdrop-filter: blur(2px);
 }
+/* Copy sits above the cards in normal flow — the cards decide their own height,
+   so a tall fan can never be clipped by a fixed reveal band. */
+.draw-ability-reveal { grid-auto-flow: row; align-content: center; gap: clamp(10px, 2.4vh, 20px); padding: 0 12px; }
 .draw-ability-reveal-copy {
-    position: absolute;
-    top: calc(50% - min(24vw, 154px));
+    position: relative;
     z-index: 1;
     display: grid;
     gap: 3px;
@@ -1241,17 +1243,31 @@ body {
 }
 .draw-ability-reveal-kicker { color: #8dcaff; font-size: .67rem; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; }
 .draw-ability-reveal-copy strong { font-size: clamp(1rem, 3.5vw, 1.45rem); }
-.draw-ability-reveal-cards { position: relative; z-index: 1; display: flex; justify-content: center; align-items: center; min-height: min(38vw, 228px); }
+.draw-ability-reveal-cards {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    justify-content: center;
+    align-items: stretch;
+    gap: var(--draw-reveal-gap, 12px);
+    max-width: min(100%, 940px);
+}
 .draw-ability-reveal-cards .hand-card {
-    width: min(19vw, 132px);
-    min-width: min(19vw, 132px);
-    margin-left: -18px;
+    width: var(--draw-reveal-card-width, min(24vw, 168px));
+    min-width: var(--draw-reveal-card-width, min(24vw, 168px));
+    max-width: var(--draw-reveal-card-width, min(24vw, 168px));
+    height: auto;
+    margin: 0;
     pointer-events: none;
     filter: drop-shadow(0 14px 19px rgba(0,0,0,.55));
     transform: translateY(14px) scale(.82);
     opacity: 0;
     transition: transform 440ms cubic-bezier(.18,.88,.25,1), opacity 180ms ease, filter 260ms ease;
 }
+/* Wider fans tuck in rather than run off a phone screen. */
+.draw-ability-reveal-cards[data-count="4"] { --draw-reveal-card-width: min(21vw, 148px); --draw-reveal-gap: 9px; }
+.draw-ability-reveal-cards[data-count="5"] { --draw-reveal-card-width: min(18vw, 132px); --draw-reveal-gap: 7px; }
+.draw-ability-reveal-cards[data-count="6"] { --draw-reveal-card-width: min(15vw, 118px); --draw-reveal-gap: 6px; }
 .draw-ability-reveal.visible .hand-card { transform: translateY(0) scale(1); opacity: 1; }
 .draw-ability-reveal.visible .hand-card:nth-child(2) { transition-delay: 80ms; }
 .draw-ability-reveal.visible .hand-card:nth-child(3) { transition-delay: 140ms; }
@@ -1260,8 +1276,10 @@ body {
 .draw-ability-reveal.flying .hand-card { transform: translate(var(--draw-fly-x), var(--draw-fly-y)) scale(.34); opacity: 0; filter: drop-shadow(0 5px 8px rgba(0,0,0,.25)); transition: transform 420ms cubic-bezier(.35,.05,.7,.35), opacity 360ms ease, filter 300ms ease; }
 
 @media (max-width: 600px) {
-    .draw-ability-reveal-cards .hand-card { width: min(28vw, 116px); min-width: min(28vw, 116px); margin-left: -13px; }
-    .draw-ability-reveal-copy { top: calc(50% - min(34vw, 142px)); }
+    .draw-ability-reveal-cards { --draw-reveal-card-width: min(29vw, 132px); --draw-reveal-gap: 8px; }
+    .draw-ability-reveal-cards[data-count="4"] { --draw-reveal-card-width: min(22vw, 108px); --draw-reveal-gap: 6px; }
+    .draw-ability-reveal-cards[data-count="5"] { --draw-reveal-card-width: min(18vw, 92px); --draw-reveal-gap: 5px; }
+    .draw-ability-reveal-cards[data-count="6"] { --draw-reveal-card-width: min(15vw, 80px); --draw-reveal-gap: 4px; }
 }
 
 @media (max-width: 900px) {
