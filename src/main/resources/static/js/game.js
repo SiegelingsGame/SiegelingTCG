@@ -6678,7 +6678,7 @@ function fitFramedSummaryList(list) {
 
     const isDesktopPreview = card.classList.contains('desktop-preview-card');
     const isMulligan = card.classList.contains('mulligan-showcase');
-    const isHandTray = Boolean(card.closest('#playerHand'));
+    const isHandTray = Boolean(card.closest('#playerHand, #drawAbilityRevealCards'));
     const minPx = isMulligan ? 7 : isHandTray ? 6 : 8;
     const maxPx = isDesktopPreview ? 15 : isMulligan ? 11.5 : isHandTray ? 8 : 12;
     // The list is a flex child with overflow:hidden, so it can shrink and
@@ -9607,22 +9607,25 @@ function showDrawAbilityReveal(previousState, nextState) {
     // Same template as the hand selector, so a card looks identical in the
     // reveal and in the hand it lands in.
     const markup = drawnCards.map((card) => {
-        const face = renderHandCardFace(card);
+        const face = renderHandCardFace(card, { summaryBody: true });
         const elemClass = String(card.element || 'NEUTRAL').toLowerCase();
         return `<div class="hand-card ${elemClass} ${cardTypeClass(card)}${face.faceClass}">${face.html}</div>`;
     }).join('');
     if (!markup) return;
     cards.innerHTML = markup;
-    // Framed cards size their title/summary text by measurement, exactly as the
-    // hand selector does after it renders.
-    scheduleFramedSummaryFit();
     const count = drawnCards.length;
     // Cards sit side by side with real spacing; only a wide fan needs to tuck
     // in, so shrink/overlap scales with the count instead of a fixed offset.
     cards.dataset.count = String(Math.min(count, 6));
     title.textContent = `${count} card${count === 1 ? '' : 's'} drawn`;
     reveal.className = 'draw-ability-reveal';
-    requestAnimationFrame(() => reveal.classList.add('visible'));
+    requestAnimationFrame(() => {
+        reveal.classList.add('visible');
+        // Framed cards size their title and summary text by measurement, as the
+        // hand does after it renders — but only once the reveal is off
+        // `display:none`, or every box measures zero and the fit is skipped.
+        fitFramedSummaryText(cards);
+    });
 
     // Aim at the real hand when it is open. During battle, the hand is tucked
     // away, so use the player hand counter as an honest, visible destination.
@@ -14397,6 +14400,10 @@ function hasOppositeNotch(notches, direction) {
  */
 function renderHandCardFace(card, options = {}) {
     const lockReason = options.lockReason || '';
+    // The hand tray hides the card body (its cards are too small to read), so it
+    // renders the verbose flavor block. Surfaces that show the body — the draw
+    // reveal — ask for the compact summary that fits a frame's info panel.
+    const summaryBody = Boolean(options.summaryBody);
     const fallbackArtLabel = card.type === 'SIEGLING'
         ? formatElementLabel(card.element)
         : `${formatElementLabel(card.element)} ${card.type}`.trim();
@@ -14433,8 +14440,8 @@ function renderHandCardFace(card, options = {}) {
         html += renderCardStatPills(card, { mode: 'hand' });
     }
     html += `<div class="hand-card-body">`;
-    if (isSpellTrapCard(card) && handFrameClass) {
-        html += renderCompactCardSummary(card, { abilityLimit: 3, omitCostEvolution: true });
+    if (summaryBody || (isSpellTrapCard(card) && handFrameClass)) {
+        html += renderCompactCardSummary(card, { abilityLimit: summaryBody ? 1 : 3, omitCostEvolution: true });
     } else {
         html += renderCardAbilitiesFlavorSection(card);
         if (card.type === 'TRAP' && card.trapBucketElement) {

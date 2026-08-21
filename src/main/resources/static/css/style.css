@@ -1267,6 +1267,71 @@ body {
     opacity: 0;
     transition: transform 440ms cubic-bezier(.18,.88,.25,1), opacity 180ms ease, filter 260ms ease;
 }
+/* The reveal is big enough to read, so unlike the hand tray it shows the card's
+   summary text — seated in the frame's info panel directly under the HP/SPD
+   pills (which the shared hand template positions at 75%). */
+#drawAbilityRevealCards .hand-card.element-frame:not(.spell-trap-frame) .hand-card-body {
+    position: absolute;
+    left: 11.5%;
+    right: 11.5%;
+    /* Directly under the shared template's pill row (75% -> 83.1%), inside the
+       frame's painted info panel. */
+    top: 83.4%;
+    bottom: 7.4%;
+    width: auto;
+    min-height: 0;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 1px;
+    padding: 0;
+    overflow: hidden;
+}
+/* Unframed cards have no painted panel to sit in, so their face is a flex
+   column: the art takes the slack and the stats/summary keep their room instead
+   of being pushed off the bottom (the hand tray's 104px art floor would). */
+#drawAbilityRevealCards .hand-card:not(.element-frame):not(.spell-trap-frame) .hand-card-shell {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    width: 100%;
+    gap: 2px;
+}
+#drawAbilityRevealCards .hand-card:not(.element-frame):not(.spell-trap-frame) .card-art-hand {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 3px;
+}
+#drawAbilityRevealCards .hand-card:not(.element-frame):not(.spell-trap-frame) .hand-card-body {
+    flex: 0 0 auto;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* Spell/trap frames already position their body into the painted box (with
+   !important offsets), but only where the body is absolute — the hand hides it,
+   so that comes from the showcase surfaces. Supply it here. */
+#drawAbilityRevealCards .hand-card.spell-trap-frame .hand-card-body {
+    position: absolute;
+    width: auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 1px;
+    padding: 0;
+    overflow: hidden;
+}
+
+#drawAbilityRevealCards .hand-card .card-detail,
+#drawAbilityRevealCards .hand-card .card-cost {
+    margin: 0;
+    font-size: 0.5em;
+    line-height: 1.08;
+    text-align: center;
+}
+
 /* Wider fans tuck in rather than run off a phone screen. */
 .draw-ability-reveal-cards[data-count="4"] { --draw-reveal-card-width: min(21vw, 148px); --draw-reveal-gap: 9px; }
 .draw-ability-reveal-cards[data-count="5"] { --draw-reveal-card-width: min(18vw, 132px); --draw-reveal-gap: 7px; }
@@ -2490,7 +2555,7 @@ body:has(.welcome-overlay.visible) .safe-hp-strip {
 :is(.hand-tray, .card-drag-ghost, #drawAbilityRevealCards) .card-ability-area { display: none; }
 :is(.hand-tray, .card-drag-ghost, #drawAbilityRevealCards) .card-info-panel { padding: 2px 3px; }
 :is(.hand-tray, .card-drag-ghost, #drawAbilityRevealCards) .card-info-panel .card-stat-row { font-size: 0.6em; }
-:is(.hand-tray, .card-drag-ghost, #drawAbilityRevealCards) .hand-card-body { display: none; }
+:is(.hand-tray, .card-drag-ghost) .hand-card-body { display: none; }
 :is(.hand-tray, .card-drag-ghost, #drawAbilityRevealCards) .card-stat-pills {
     display: flex;
     margin-top: 2px;
