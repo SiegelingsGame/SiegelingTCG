@@ -1299,14 +1299,21 @@ body {
     gap: 2px;
 }
 #drawAbilityRevealCards .hand-card:not(.element-frame):not(.spell-trap-frame) .card-art-hand {
+    /* Takes the slack, but never collapses to a sliver: the creature art is the
+       point of the reveal, so it keeps at least half the card. */
     flex: 1 1 auto;
-    min-height: 0;
+    min-height: 46%;
     padding: 3px;
 }
 #drawAbilityRevealCards .hand-card:not(.element-frame):not(.spell-trap-frame) .hand-card-body {
     flex: 0 0 auto;
     min-height: 0;
     overflow: hidden;
+}
+/* Unframed cards are outside the framed-summary fitter's reach, so pin a size
+   that fits the two lines the strip has room for. */
+#drawAbilityRevealCards .hand-card:not(.element-frame):not(.spell-trap-frame) .card-summary-list {
+    font-size: 6px;
 }
 
 /* Spell/trap frames already position their body into the painted box (with
