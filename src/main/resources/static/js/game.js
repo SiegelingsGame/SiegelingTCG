@@ -6605,7 +6605,7 @@ function fitCardFrameTitle(title) {
     const card = title.closest('.hand-card');
     const computed = window.getComputedStyle(title);
     const maxPx = parseFloat(computed.fontSize) || (title.closest('.desktop-preview-card') ? 15 : 13);
-    const minPx = card?.closest('#playerHand, .hand-lift-layer')
+    const minPx = card?.closest('#playerHand, .hand-lift-layer, #drawAbilityRevealCards')
         ? 6
         : title.closest('.mulligan-showcase')
         ? 7
@@ -9604,12 +9604,18 @@ function showDrawAbilityReveal(previousState, nextState) {
         .map((index) => nextState?.player?.hand?.[index])
         .filter(Boolean);
     if (drawnCards.length === 0) return;
-    const markup = drawnCards
-        .map((card) => renderShowcaseCard(card, { cardClass: 'draw-reveal-card', compactSummary: true, bodyMode: 'summary' }))
-        .filter(Boolean)
-        .join('');
+    // Same template as the hand selector, so a card looks identical in the
+    // reveal and in the hand it lands in.
+    const markup = drawnCards.map((card) => {
+        const face = renderHandCardFace(card);
+        const elemClass = String(card.element || 'NEUTRAL').toLowerCase();
+        return `<div class="hand-card ${elemClass} ${cardTypeClass(card)}${face.faceClass}">${face.html}</div>`;
+    }).join('');
     if (!markup) return;
     cards.innerHTML = markup;
+    // Framed cards size their title/summary text by measurement, exactly as the
+    // hand selector does after it renders.
+    scheduleFramedSummaryFit();
     const count = drawnCards.length;
     // Cards sit side by side with real spacing; only a wide fan needs to tuck
     // in, so shrink/overlap scales with the count instead of a fixed offset.
@@ -14383,6 +14389,77 @@ function hasOppositeNotch(notches, direction) {
     return notches.some(n => n.direction === opposite);
 }
 
+/**
+ * The hand-selector card face — everything inside the `.hand-card` wrapper, plus
+ * the wrapper classes that face needs. Shared so any surface that shows a hand
+ * card (the hand selector, the draw-ability reveal) renders the identical
+ * template rather than a lookalike.
+ */
+function renderHandCardFace(card, options = {}) {
+    const lockReason = options.lockReason || '';
+    const fallbackArtLabel = card.type === 'SIEGLING'
+        ? formatElementLabel(card.element)
+        : `${formatElementLabel(card.element)} ${card.type}`.trim();
+    const handFrameClass = cardFrameClass(card);
+    // Holographic full-card art replaces the framed hand face with the
+    // complete painted card (frame + notches + stats baked/overlaid by the
+    // binder renderer). Keep the .hand-card wrapper so the drag/click
+    // handlers, lock states, and sizing all stay intact.
+    const holoFace = renderHolographicFullArtFace(card, {
+        descriptionText: card.description || card.ability?.description || ''
+    });
+    const faceClass = `${handFrameClass}${holographicCardClass(card)}${holoFace ? ' has-holo-full-art' : ''}`;
+    if (holoFace) {
+        return { faceClass, html: holoFace };
+    }
+
+    let html = '';
+    if (card.type === 'SIEGLING') {
+        html += renderHandNotches(card.notches);
+    }
+    html += `<div class="hand-card-shell">`;
+    if (isSpellTrapCard(card) && handFrameClass) {
+        html += renderCardCornerChips(card);
+    }
+    html += `<div class="hand-card-header">`;
+    html += `<div class="card-title">${escapeHtml(card.name)}</div>`;
+    const handLabel = card.type === 'SIEGLING'
+        ? `SIEGELING / ${formatElementLabel(card.element)}`
+        : `${card.type} / ${card.rarity}`;
+    html += `<div class="card-label">${escapeHtml(handLabel)}</div>`;
+    html += `</div>`;
+    html += renderCardArt(card, 'hand', fallbackArtLabel);
+    if (card.type === 'SIEGLING') {
+        html += renderCardStatPills(card, { mode: 'hand' });
+    }
+    html += `<div class="hand-card-body">`;
+    if (isSpellTrapCard(card) && handFrameClass) {
+        html += renderCompactCardSummary(card, { abilityLimit: 3, omitCostEvolution: true });
+    } else {
+        html += renderCardAbilitiesFlavorSection(card);
+        if (card.type === 'TRAP' && card.trapBucketElement) {
+            html += `<div class="card-cost">Can Trigger when opponent has ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)} Energy</div>`;
+        } else if (card.costElement) {
+            html += `<div class="card-cost">Play Cost: ${card.costAmount} ${formatElementLabel(card.costElement)}</div>`;
+        } else if (card.requiredComboSize) {
+            html += `<div class="card-cost">Combo: ${card.requiredComboSignature ? card.requiredComboSignature.replaceAll('+', ' / ') : `${card.requiredComboSize}-element combo`}</div>`;
+        }
+        if (card.requiredReaction) {
+            html += `<div class="card-cost">Requires: ${escapeHtml(card.requiredReaction)}</div>`;
+        }
+        if (card.evolvesFromName) {
+            html += `<div class="card-cost">Evolution: ${escapeHtml(card.evolvesFromName)}</div>`;
+        }
+    }
+    if (lockReason) {
+        html += `<div class="card-cost interaction-lock-copy">${escapeHtml(lockReason)}</div>`;
+    }
+    html += `</div>`; /* body */
+    html += `</div>`; /* shell */
+    html += holographicCardOverlay(card);
+    return { faceClass, html };
+}
+
 function renderHand() {
     const container = document.getElementById('playerHand');
     const handTray = document.getElementById('handTray');
@@ -14450,67 +14527,9 @@ function renderHand() {
             : '';
         const hoverEvents = `onmouseenter="handleHandCardPointerEnter(event, ${handIndex})" onmouseleave="handleHandCardPointerLeave(${handIndex})"`;
         const touchEvents = `ontouchstart="handleHandCardTouchStart(event, ${handIndex})" ontouchmove="handleHandCardTouchMove(event, ${handIndex})" ontouchend="handleHandCardTouchEnd(event, ${handIndex})"`;
-        const fallbackArtLabel = card.type === 'SIEGLING'
-            ? formatElementLabel(card.element)
-            : `${formatElementLabel(card.element)} ${card.type}`.trim();
-        const handFrameClass = cardFrameClass(card);
-        // Holographic full-card art replaces the framed hand face with the
-        // complete painted card (frame + notches + stats baked/overlaid by the
-        // binder renderer). Keep the .hand-card wrapper so the drag/click
-        // handlers, lock states, and sizing all stay intact.
-        const holoFace = renderHolographicFullArtFace(card, {
-            descriptionText: card.description || card.ability?.description || ''
-        });
-        const holoFaceClass = holoFace ? ' has-holo-full-art' : '';
-        html += `<div class="hand-card ${elemClass} ${cardTypeClass(card)}${interactionClass}${handFrameClass}${holographicCardClass(card)}${holoFaceClass}" data-card-id="${escapeHtml(card.id)}" data-hand-index="${handIndex}" ${onclick} ${pointerEvents} ${hoverEvents} ${touchEvents}>`;
-        if (holoFace) {
-            html += holoFace;
-            html += `</div>`; /* card */
-            continue;
-        }
-        if (card.type === 'SIEGLING') {
-            html += renderHandNotches(card.notches);
-        }
-        html += `<div class="hand-card-shell">`;
-        if (isSpellTrapCard(card) && handFrameClass) {
-            html += renderCardCornerChips(card);
-        }
-        html += `<div class="hand-card-header">`;
-        html += `<div class="card-title">${escapeHtml(card.name)}</div>`;
-        const handLabel = card.type === 'SIEGLING'
-            ? `SIEGELING / ${formatElementLabel(card.element)}`
-            : `${card.type} / ${card.rarity}`;
-        html += `<div class="card-label">${escapeHtml(handLabel)}</div>`;
-        html += `</div>`;
-        html += renderCardArt(card, 'hand', fallbackArtLabel);
-        if (card.type === 'SIEGLING') {
-            html += renderCardStatPills(card, { mode: 'hand' });
-        }
-        html += `<div class="hand-card-body">`;
-        if (isSpellTrapCard(card) && handFrameClass) {
-            html += renderCompactCardSummary(card, { abilityLimit: 3, omitCostEvolution: true });
-        } else {
-            html += renderCardAbilitiesFlavorSection(card);
-            if (card.type === 'TRAP' && card.trapBucketElement) {
-                html += `<div class="card-cost">Can Trigger when opponent has ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)} Energy</div>`;
-            } else if (card.costElement) {
-                html += `<div class="card-cost">Play Cost: ${card.costAmount} ${formatElementLabel(card.costElement)}</div>`;
-            } else if (card.requiredComboSize) {
-                html += `<div class="card-cost">Combo: ${card.requiredComboSignature ? card.requiredComboSignature.replaceAll('+', ' / ') : `${card.requiredComboSize}-element combo`}</div>`;
-            }
-            if (card.requiredReaction) {
-                html += `<div class="card-cost">Requires: ${escapeHtml(card.requiredReaction)}</div>`;
-            }
-            if (card.evolvesFromName) {
-                html += `<div class="card-cost">Evolution: ${escapeHtml(card.evolvesFromName)}</div>`;
-            }
-        }
-        if (lockReason) {
-            html += `<div class="card-cost interaction-lock-copy">${escapeHtml(lockReason)}</div>`;
-        }
-        html += `</div>`; /* body */
-        html += `</div>`; /* shell */
-        html += holographicCardOverlay(card);
+        const face = renderHandCardFace(card, { lockReason });
+        html += `<div class="hand-card ${elemClass} ${cardTypeClass(card)}${interactionClass}${face.faceClass}" data-card-id="${escapeHtml(card.id)}" data-hand-index="${handIndex}" ${onclick} ${pointerEvents} ${hoverEvents} ${touchEvents}>`;
+        html += face.html;
         html += `</div>`; /* card */
     }
 

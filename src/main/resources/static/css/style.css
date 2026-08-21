@@ -1258,6 +1258,9 @@ body {
     max-width: var(--draw-reveal-card-width, min(24vw, 168px));
     height: auto;
     margin: 0;
+    /* Same inner padding scale the hand tray uses, so an unframed card's
+       interior lines up with the hand it came from. */
+    padding: var(--draw-reveal-card-padding, 4px);
     pointer-events: none;
     filter: drop-shadow(0 14px 19px rgba(0,0,0,.55));
     transform: translateY(14px) scale(.82);
@@ -2484,21 +2487,21 @@ body:has(.welcome-overlay.visible) .safe-hp-strip {
 }
 
 /* Hide verbose info in hand tray — show only name + element label */
-:is(.hand-tray, .card-drag-ghost) .card-ability-area { display: none; }
-:is(.hand-tray, .card-drag-ghost) .card-info-panel { padding: 2px 3px; }
-:is(.hand-tray, .card-drag-ghost) .card-info-panel .card-stat-row { font-size: 0.6em; }
-:is(.hand-tray, .card-drag-ghost) .hand-card-body { display: none; }
-:is(.hand-tray, .card-drag-ghost) .card-stat-pills {
+:is(.hand-tray, .card-drag-ghost, #drawAbilityRevealCards) .card-ability-area { display: none; }
+:is(.hand-tray, .card-drag-ghost, #drawAbilityRevealCards) .card-info-panel { padding: 2px 3px; }
+:is(.hand-tray, .card-drag-ghost, #drawAbilityRevealCards) .card-info-panel .card-stat-row { font-size: 0.6em; }
+:is(.hand-tray, .card-drag-ghost, #drawAbilityRevealCards) .hand-card-body { display: none; }
+:is(.hand-tray, .card-drag-ghost, #drawAbilityRevealCards) .card-stat-pills {
     display: flex;
     margin-top: 2px;
 }
-:is(.hand-tray, .card-drag-ghost) .card-stat-pill {
+:is(.hand-tray, .card-drag-ghost, #drawAbilityRevealCards) .card-stat-pill {
     font-size: 0.52em;
     padding: 2px 4px;
 }
-:is(.hand-tray, .card-drag-ghost) .card-label { font-size: 0.62em; }
-:is(.hand-tray, .card-drag-ghost) .card-title { font-size: 0.82em; line-height: 1.12; }
-:is(.hand-tray, .card-drag-ghost) .card-art-hand { min-height: 104px; padding: 4px; border-radius: 10px; }
+:is(.hand-tray, .card-drag-ghost, #drawAbilityRevealCards) .card-label { font-size: 0.62em; }
+:is(.hand-tray, .card-drag-ghost, #drawAbilityRevealCards) .card-title { font-size: 0.82em; line-height: 1.12; }
+:is(.hand-tray, .card-drag-ghost, #drawAbilityRevealCards) .card-art-hand { min-height: 104px; padding: 4px; border-radius: 10px; }
 
 .hand-card.is-lift-source {
     opacity: 0.06;
@@ -8498,7 +8501,7 @@ body.placement-active .board-cell.legal {
 
 /* Hand tray cards use the same painted element templates as board cards,
    but keep their compact tray layout and hover behavior. */
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame {
     padding: 0;
     border: none;
     border-radius: 0;
@@ -8506,27 +8509,27 @@ body.placement-active .board-cell.legal {
     box-shadow: none;
 }
 
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame::before {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame::before {
     display: none;
 }
 
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame.frame-fire {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame.frame-fire {
     background: url('/img/frames/frame-fire-common.png') center / 100% 100% no-repeat;
 }
 
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame.frame-earth {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame.frame-earth {
     background: url('/img/frames/frame-earth-common.png') center / 100% 100% no-repeat;
 }
 
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame.frame-ice {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame.frame-ice {
     background: url('/img/frames/frame-ice-common.png') center / 100% 100% no-repeat;
 }
 
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame.frame-wind {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame.frame-wind {
     background: url('/img/frames/frame-wind-common.png') center / 100% 100% no-repeat;
 }
 
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .hand-card-shell {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .hand-card-shell {
     position: absolute;
     inset: 0;
     display: block;
@@ -8535,7 +8538,7 @@ body.placement-active .board-cell.legal {
     padding: 0;
 }
 
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .hand-card-header {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .hand-card-header {
     position: absolute;
     left: 13%;
     right: 13%;
@@ -8546,7 +8549,7 @@ body.placement-active .board-cell.legal {
     gap: 0;
 }
 
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .card-title {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .card-title {
     color: #ffffff;
     font-size: 0.72em;
     font-weight: 900;
@@ -8563,15 +8566,15 @@ body.placement-active .board-cell.legal {
 }
 
 /* Tray cards are too small for corner chips — hide them there. */
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .card-corner-chip {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .card-corner-chip {
     display: none;
 }
 
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .card-label {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .card-label {
     display: none;
 }
 
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .card-art-hand {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .card-art-hand {
     position: absolute;
     left: 9.8%;
     top: 10%;
@@ -8585,12 +8588,12 @@ body.placement-active .board-cell.legal {
     box-shadow: none;
 }
 
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .card-art-hand.card-art-fallback::before,
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .card-art-hand.card-art-fallback span {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .card-art-hand.card-art-fallback::before,
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .card-art-hand.card-art-fallback span {
     display: none;
 }
 
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .card-stat-pills {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .card-stat-pills {
     position: absolute;
     left: 11.5%;
     right: 11.5%;
@@ -8601,7 +8604,7 @@ body.placement-active .board-cell.legal {
     gap: 0.18em;
 }
 
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .card-stat-pill {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .card-stat-pill {
     min-width: 0;
     padding: 1px 2px;
     background: rgba(0, 0, 0, 0.3);
@@ -8610,31 +8613,31 @@ body.placement-active .board-cell.legal {
     line-height: 1.1;
 }
 
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .hand-notches {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .hand-notches {
     inset: 0;
 }
 
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .notch-dot {
     width: 10.4%;
     height: auto;
     aspect-ratio: 1 / 1;
     border-width: 1px;
 }
 
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot:not([style*="--notch-icon"]) {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .notch-dot:not([style*="--notch-icon"]) {
     background: transparent;
     border-color: transparent;
     box-shadow: none;
 }
 
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot.notch-TOP_LEFT     { left: 7.8%;  top: 5.7%;  }
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot.notch-TOP          { left: 50%;   top: 5.6%;  }
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot.notch-TOP_RIGHT    { left: 91.8%; top: 5.7%;  }
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot.notch-LEFT         { left: 7.7%;  top: 50%;   }
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot.notch-RIGHT        { left: 91.9%; top: 50%;   }
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot.notch-BOTTOM_LEFT  { left: 7.6%;  top: 94.1%; }
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot.notch-BOTTOM       { left: 49.5%; top: 94.3%; }
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot.notch-BOTTOM_RIGHT { left: 91.7%; top: 94.2%; }
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .notch-dot.notch-TOP_LEFT     { left: 7.8%;  top: 5.7%;  }
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .notch-dot.notch-TOP          { left: 50%;   top: 5.6%;  }
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .notch-dot.notch-TOP_RIGHT    { left: 91.8%; top: 5.7%;  }
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .notch-dot.notch-LEFT         { left: 7.7%;  top: 50%;   }
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .notch-dot.notch-RIGHT        { left: 91.9%; top: 50%;   }
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .notch-dot.notch-BOTTOM_LEFT  { left: 7.6%;  top: 94.1%; }
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .notch-dot.notch-BOTTOM       { left: 49.5%; top: 94.3%; }
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .notch-dot.notch-BOTTOM_RIGHT { left: 91.7%; top: 94.2%; }
 
 /* Showcase previews share the painted frame, with copy constrained to the
    template's bottom info panel. */
