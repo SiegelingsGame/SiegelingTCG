@@ -465,8 +465,11 @@ public class SiegeService {
         seedStartingKnightBag(run);
 
         run.getMap().addAll(content.generateMap(rng));
+        // Drop the previous expedition in this account slot so a leftover phone
+        // session cannot keep checkpointing the abandoned token over the new save.
+        evictSupersededAccountRun(run.getOwnerId(), RunSlot.of(run.getMode()));
         runs.put(token, new Session(run));
-        checkpoint(run);
+        run.setCheckpointSaved(saveCheckpoint(run, true));
         return serialize(run);
     }
 
@@ -753,17 +756,62 @@ public class SiegeService {
         boolean safe = !battleOver && !run.isInCamp() && !run.isInCache() && !run.isInBroker()
                 && !run.isInMinigame() && run.getPendingRewards().isEmpty();
         if (!safe) return;
-        run.setCheckpointSaved(saveCheckpoint(run));
+        run.setCheckpointSaved(saveCheckpoint(run, false));
+    }
+
+    /**
+     * Removes the previous account save for this slot from memory and Firestore
+     * so {@link #newRun} can take the pointer. {@link #deleteForUser} already
+     * refuses to erase a pointer that has moved on; this is the matching start
+     * path: the old token must not stay live beside the new one.
+     */
+    private void evictSupersededAccountRun(String ownerId, RunSlot slot) {
+        if (ownerId == null || ownerId.isBlank() || slot == null || checkpoints == null) {
+            return;
+        }
+        checkpoints.loadForUser(ownerId, slot).ifPresent(previous -> {
+            String oldToken = str(previous.get("token"));
+            if (oldToken == null || oldToken.isBlank()) {
+                return;
+            }
+            runs.remove(oldToken);
+            checkpoints.delete(oldToken);
+            checkpoints.deleteForUser(ownerId, slot, oldToken);
+        });
     }
 
     private boolean saveCheckpoint(SiegeRun run) {
+        return saveCheckpoint(run, false);
+    }
+
+    /**
+     * @param replaceAccountSlot when true, this run is allowed to take the
+     *        account pointer (a fresh {@link #newRun}). Ordinary checkpoints
+     *        must not steal a pointer that already names a different token —
+     *        that is how a leftover device tab erased a newer expedition.
+     */
+    private boolean saveCheckpoint(SiegeRun run, boolean replaceAccountSlot) {
         Map<String, Object> snapshot = snapshotRun(run);
         boolean tokenSaved = checkpoints.save(run.getToken(), snapshot);
-        boolean accountSaved = run.getOwnerId() == null || run.getOwnerId().isBlank()
-                || checkpoints.saveForUser(run.getOwnerId(), RunSlot.of(run.getMode()), snapshot);
+        if (run.getOwnerId() == null || run.getOwnerId().isBlank()) {
+            return tokenSaved;
+        }
+        RunSlot slot = RunSlot.of(run.getMode());
+        if (!replaceAccountSlot) {
+            Optional<Map<String, Object>> existing = checkpoints.loadForUser(run.getOwnerId(), slot);
+            if (existing.isPresent()) {
+                String existingToken = str(existing.get().get("token"));
+                if (existingToken != null && !existingToken.isBlank() && !existingToken.equals(run.getToken())) {
+                    // Token snapshot may still update for the leftover client;
+                    // the account resume pointer stays with the newer run.
+                    return tokenSaved;
+                }
+            }
+        }
+        boolean accountSaved = checkpoints.saveForUser(run.getOwnerId(), slot, snapshot);
         // For signed-in players the account checkpoint is the authoritative
         // cross-device save. Guests continue to use the token checkpoint.
-        return run.getOwnerId() == null || run.getOwnerId().isBlank() ? tokenSaved : accountSaved;
+        return accountSaved;
     }
 
     private Map<String, Object> snapshotRun(SiegeRun run) {
