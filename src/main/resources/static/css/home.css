@@ -6075,7 +6075,10 @@ body.starter-onboarding-active .starter-gate h1 {
     gap: 6px;
 }
 
-.deck-builder-card-quickstats span {
+/* Direct children only: the cost pill nests emblem <span>s, and the generic
+   descendant form gave each token the pill's padding (a 12px token measured
+   20px wide). */
+.deck-builder-card-quickstats > span {
     display: inline-flex;
     align-items: baseline;
     gap: 5px;
@@ -6095,6 +6098,37 @@ body.starter-onboarding-active .starter-gate h1 {
 
 .deck-builder-card-quickstats b {
     font-size: 13px;
+}
+
+/* Cost reads as notch emblems, one per energy, matching how the cost is shown
+   on the card face itself. The count is capped in JS so the row cannot wrap
+   and grow the hero, pushing the add stepper off screen. */
+.builder-cost-emblems {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 2px;
+}
+
+/* style.css's .energy-token carries an 18px box and a 2px border; both width
+   and min-width have to be reset or the token stays full size in the pill. */
+.builder-cost-emblems .energy-token {
+    width: 12px;
+    height: 12px;
+    min-width: 12px;
+    max-width: 12px;
+    margin: 0;
+    border-width: 1px;
+    border-radius: 50%;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.38);
+    background: var(--notch-icon, none), var(--notch, #8a96a8);
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.builder-cost-overflow {
+    margin-left: 1px;
 }
 
 .deck-builder-card-tabs {

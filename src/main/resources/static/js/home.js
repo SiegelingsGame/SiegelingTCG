@@ -4160,7 +4160,7 @@
                         ${card.type === 'SIEGLING'
                             ? `<span><small>HP</small><b>${card.health ?? '-'}</b></span><span><small>SPD</small><b>${card.speed ?? '-'}</b></span>`
                             : ''}
-                        <span><small>Cost</small><b>${cost}</b></span>
+                        <span class="deck-builder-cost-pill"><small>Cost</small>${renderBuilderCostEmblems(cost, costElement)}</span>
                         <span><small>Owned</small><b>${ownedCount(card.id)}</b></span>
                     </div>
                     <div class="builder-stepper deck-builder-preview-actions">
@@ -4173,8 +4173,20 @@
             <nav class="deck-builder-card-tabs" role="tablist" aria-label="Card details">
                 ${tabs.map(tab => `<button type="button" role="tab" class="deck-builder-card-tab${tab.id === cardTab ? ' is-active' : ''}" data-builder-card-tab="${tab.id}" aria-selected="${tab.id === cardTab}">${escapeHtml(tab.label)}</button>`).join('')}
             </nav>
-            <div class="deck-builder-card-tabpanel" role="tabpanel">${renderBuilderCardTabBody(card, cardTab, { cost, costElement })}</div>
+            <div class="deck-builder-card-tabpanel" role="tabpanel">${renderBuilderCardTabBody(card, cardTab)}</div>
         </div>`;
+    }
+
+    const BUILDER_COST_EMBLEM_CAP = 5;
+
+    function renderBuilderCostEmblems(cost, element) {
+        const amount = Number(cost);
+        if (!Number.isFinite(amount) || amount <= 0) return '<b>Free</b>';
+        const normalized = String(element || 'NEUTRAL').toLowerCase();
+        const shown = Math.min(amount, BUILDER_COST_EMBLEM_CAP);
+        const token = `<span class="energy-token notch-token token-${escapeAttr(normalized)}" style="${notchIconStyle(element || 'NEUTRAL')}"></span>`;
+        const overflow = amount > shown ? `<b class="builder-cost-overflow">+${amount - shown}</b>` : '';
+        return `<span class="builder-cost-emblems" aria-label="Cost ${amount} ${escapeAttr(format(element || 'NEUTRAL'))} energy">${token.repeat(shown)}${overflow}</span>`;
     }
 
     function builderCardTabsFor(card) {
@@ -4191,7 +4203,7 @@
         return available.includes(state.builderCardTab) ? state.builderCardTab : 'card';
     }
 
-    function renderBuilderCardTabBody(card, tab, { cost, costElement }) {
+    function renderBuilderCardTabBody(card, tab) {
         if (tab === 'evo') return renderBuilderRecommendations(card);
         if (tab === 'moves') {
             const abilities = card.abilities || (card.ability ? [card.ability] : []);
@@ -4199,17 +4211,13 @@
                 ${abilities.length ? `<div class="deck-builder-preview-abilities detail-abilities">${abilities.map(a => `<div class="detail-ability-row"><strong>${escapeHtml(a.name || 'Ability')}</strong><p>${escapeHtml(a.description || '')}</p></div>`).join('')}</div>` : ''}`;
         }
         const flavorText = creatureDescriptionFor(card);
-        return `<div class="detail-cost-block">
-                <span class="detail-cost-label">Energy cost</span>
-                ${renderBinderCardEnergyCost(cost, costElement)}
-            </div>
-            ${flavorText ? `<p class="deck-builder-preview-flavor">${escapeHtml(flavorText)}</p>` : ''}
-            <div class="detail-grid">
-                ${card.type === 'SIEGLING' ? `<div><span>Health</span><strong>${card.health ?? '-'}</strong></div>
+        const stats = card.type === 'SIEGLING'
+            ? `<div><span>Health</span><strong>${card.health ?? '-'}</strong></div>
                 <div><span>Speed</span><strong>${card.speed ?? '-'}</strong></div>
-                <div><span>Evolution</span><strong>${escapeHtml(card.evolvesFromName || card.evolvesFromId || 'Base')}</strong></div>` : ''}
-                ${card.type !== 'SIEGLING' ? `<div><span>Cost</span><strong>${card.costAmount ?? 0} ${format(card.costElement || card.element)}</strong></div>` : ''}
-            </div>`;
+                <div><span>Evolution</span><strong>${escapeHtml(card.evolvesFromName || card.evolvesFromId || 'Base')}</strong></div>`
+            : '';
+        return `${flavorText ? `<p class="deck-builder-preview-flavor">${escapeHtml(flavorText)}</p>` : ''}
+            ${stats ? `<div class="detail-grid">${stats}</div>` : ''}`;
     }
 
     function builderAddLabel(cardId) {
