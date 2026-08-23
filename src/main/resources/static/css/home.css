@@ -5827,11 +5827,13 @@ body.starter-onboarding-active .starter-gate h1 {
     pointer-events: none;
 }
 
-/* The cutout is a transparent-background illustration, so it is framed to fill
-   the tile. Notch art is a complete badge and must not be cropped. */
+/* Show the whole cutout rather than cropping into it: the illustration has a
+   transparent background, so letterboxing it costs nothing visually and keeps
+   the creature recognisable at 36px. */
 .builder-card-mark .card-row-thumb-art {
-    object-fit: cover;
-    object-position: center top;
+    object-fit: contain;
+    object-position: center;
+    transform: none;
 }
 
 .builder-card-mark .card-row-thumb-notch {
@@ -6042,13 +6044,32 @@ body.starter-onboarding-active .starter-gate h1 {
     margin: 0;
 }
 
-.deck-builder-card-hero .detail-card-preview .binder-card-art {
-    height: clamp(84px, 20vw, 120px);
+/* The card's stat/cost/description body is content-sized, so in the hero's
+   narrow column it forced a 120x326 sliver instead of a card shape. Everything
+   in it is already beside the art (the quickstat pills) or one tab away
+   (Overview), so the hero keeps just the frame, notches and illustration. */
+.deck-builder-card-hero .detail-card-preview .binder-card-body {
+    display: none;
 }
 
-.deck-builder-card-hero .detail-card-preview .binder-card-description {
-    -webkit-line-clamp: 2;
-    font-size: 10px;
+.deck-builder-card-hero .detail-card-preview .binder-card-art {
+    height: clamp(96px, 26vw, 132px);
+}
+
+.deck-builder-card-hero .detail-card-preview .binder-card-header {
+    min-height: 0;
+}
+
+/* OVERLAY cutouts carry the designer's card-window framing (most sit around
+   scale 1.67). At hero size that painted the creature 40px into the identity
+   column beside it, so the hero fits the art to the card instead. Scoped to
+   the hero: the full-size card face elsewhere keeps its authored framing. */
+/* !important because renderBinderCardPreview writes the framing as an inline
+   transform, which no stylesheet rule can outrank otherwise. */
+.deck-builder-card-hero .detail-card-preview .binder-card-overlay-art-card,
+.deck-builder-card-hero .detail-card-preview .binder-card-custom-art {
+    transform: none !important;
+    object-fit: contain;
 }
 
 .deck-builder-card-identity {
