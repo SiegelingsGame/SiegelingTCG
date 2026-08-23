@@ -296,6 +296,32 @@
         return `<span class="binder-card-fallback-element">${escapeHtml(format(normalized).slice(0, 1) || '?')}</span>`;
     }
 
+    // Row-sized thumbnail for list surfaces (the deck builder's binder/deck
+    // rows). Sieglings show their cutout illustration so the row reads as the
+    // creature rather than a wall of identical element badges; Strategies and
+    // Deceptions have no creature art, so they get their notch art instead.
+    // Element stays legible from the row's accent colour and its type/element
+    // caption, so the element badge is only the last-resort fallback.
+    function renderCardRowThumb(card) {
+        const type = normalizeCardType(card);
+        if (type === 'SPELL' || type === 'TRAP') {
+            const notchPath = notchIconPath(card?.element);
+            if (notchPath) {
+                return `<img class="card-row-thumb-notch" src="${escapeAttr(preferWebp(notchPath))}" alt="" loading="lazy" data-img-fallback="${escapeAttr(notchPath)}" onerror="sgWebpFallback(this)">`;
+            }
+            return renderElementIcon(card?.element);
+        }
+        const artUrl = String(card?.cardArtUrl || '').trim();
+        const mode = normalizeArtMode(card?.cardArtMode);
+        // OVERLAY and REPLACE are both the creature illustration; FULL_CARD is
+        // a whole pre-composited card face and would read as an unrecognisable
+        // crop at this size.
+        if (artUrl && (mode === 'OVERLAY' || mode === 'REPLACE')) {
+            return renderCustomArtImage('card-row-thumb-art', artUrl, card);
+        }
+        return renderElementIcon(card?.element);
+    }
+
     function renderBinderCardArt(card) {
         const artUrl = String(card?.cardArtUrl || '').trim();
         const mode = normalizeArtMode(card?.cardArtMode);
@@ -592,7 +618,9 @@
         renderBinderCardShell,
         renderBinderCardArt,
         renderBinderCardOverlay,
+        renderCardRowThumb,
         renderElementIcon,
+        notchIconPath,
         elementColor,
         usesFramedCardTemplate,
         usesFullCardArt,
