@@ -317,7 +317,16 @@
         // a whole pre-composited card face and would read as an unrecognisable
         // crop at this size.
         if (artUrl && (mode === 'OVERLAY' || mode === 'REPLACE')) {
-            return renderCustomArtImage('card-row-thumb-art', artUrl, card);
+            // Deliberately not renderCustomArtImage: the designer's art
+            // transform frames the illustration inside the card's tall art
+            // window, and most cards carry a scale around 1.7. Replaying that
+            // on a 36px square crops the thumbnail down to the middle of the
+            // creature, so the row shows the whole cutout instead.
+            const preferred = preferWebp(artUrl);
+            const fallbackAttrs = preferred !== artUrl
+                ? ` data-img-fallback="${escapeAttr(artUrl)}" onerror="sgWebpFallback(this)"`
+                : '';
+            return `<img class="card-row-thumb-art" src="${escapeAttr(preferred)}" alt="" loading="lazy"${fallbackAttrs}>`;
         }
         return renderElementIcon(card?.element);
     }
