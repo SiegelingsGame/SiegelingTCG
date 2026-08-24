@@ -34,6 +34,8 @@ public class PlayerProgressionEntity {
     private List<String> holographicCardIds = new ArrayList<>();
     /** SiegeKnight ids unlocked for expedition warband selection (gold purchase). */
     private List<String> siegeUnlockedKnights = new ArrayList<>();
+    /** Siegeling card ids unlocked as expedition starters by finding them on a run. */
+    private List<String> siegeUnlockedSieglings = new ArrayList<>();
     /** Lifetime Siege / Adventure expedition stats, powering siege achievements and titles. */
     private int siegeRuns;
     private int siegeWins;
@@ -118,6 +120,10 @@ public class PlayerProgressionEntity {
     public List<String> getSiegeUnlockedKnights() { return siegeUnlockedKnights; }
     public void setSiegeUnlockedKnights(List<String> siegeUnlockedKnights) {
         this.siegeUnlockedKnights = siegeUnlockedKnights == null ? new ArrayList<>() : new ArrayList<>(siegeUnlockedKnights);
+    }
+    public List<String> getSiegeUnlockedSieglings() { return siegeUnlockedSieglings; }
+    public void setSiegeUnlockedSieglings(List<String> siegeUnlockedSieglings) {
+        this.siegeUnlockedSieglings = siegeUnlockedSieglings == null ? new ArrayList<>() : new ArrayList<>(siegeUnlockedSieglings);
     }
     public int getSiegeRuns() { return siegeRuns; }
     public void setSiegeRuns(int siegeRuns) { this.siegeRuns = Math.max(0, siegeRuns); }

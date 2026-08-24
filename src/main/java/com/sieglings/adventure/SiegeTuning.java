@@ -144,13 +144,20 @@ final class SiegeTuning {
     // usual party-size/floor scaling in SiegeContentService#generateEnemies, which
     // is anchored on these numbers. Values sit mid-band of what a solo warband
     // used to roll at floor 1, so the opening feels unchanged for a solo start.
+    //
+    // The opener is a pair because every Siege encounter is now a squad of 2–3
+    // (SiegeContentService#generateEnemies) and the first fight should teach the
+    // real shape of a battle. Its difficulty is unchanged: the per-foe numbers are
+    // the old single foe's split across two bodies and then raised ~15% for the
+    // focus-fire decay a squad pays (see the budget note in generateEnemies), so
+    // 2x17 HP / 2x3 damage lands on the same yardstick as one 30 HP / 5 damage foe.
 
     /** Foes in the opening fight. */
-    static final int OPENING_FIGHT_FOES = 1;
+    static final int OPENING_FIGHT_FOES = 2;
     /** Max HP of each opening-fight foe. */
-    static final int OPENING_FIGHT_HP = 30;
+    static final int OPENING_FIGHT_HP = 17;
     /** Damage of the opening foe's single attack. */
-    static final int OPENING_FIGHT_DAMAGE = 5;
+    static final int OPENING_FIGHT_DAMAGE = 3;
     /** Speed of each opening-fight foe (decides who acts first). */
     static final int OPENING_FIGHT_SPEED = 8;
 

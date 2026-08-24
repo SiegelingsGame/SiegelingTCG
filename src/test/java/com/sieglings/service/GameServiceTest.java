@@ -109,6 +109,195 @@ class GameServiceTest {
     }
 
     @Test
+    void placedEnergyBoostPassiveFeedsThePoolAndSurvivesTheNextDraw() throws Exception {
+        GameService gameService = new GameService();
+        PlacementService placementService = new PlacementService();
+        MovesPoolService pool = new MovesPoolService(new com.fasterxml.jackson.databind.ObjectMapper(), null);
+        setField(gameService, "energyService", new EnergyService(placementService, pool));
+        setField(gameService, "placementService", placementService);
+        setField(gameService, "effectService", new EffectService());
+
+        Player player = new Player("Player", true);
+        Player enemy = new Player("Enemy", false);
+        GameState state = new GameState();
+        state.setPlayer(player);
+        state.setEnemy(enemy);
+        state.setCurrentPhase(Phase.SETUP);
+        state.setPlayerTurn(true);
+
+        // The shipped pool move: passive, 1 Fire energy, no notch link and no socket involved.
+        SieglingCard card = new SieglingCard("wellspring", "Wellspring", Element.FIRE, Rarity.COMMON, 10, 3,
+                List.of(new Notch(NotchDirection.TOP, Element.FIRE)), Row.MIDDLE);
+        card.setMoveIds(List.of("fire-energy-boost"));
+        player.getHand().add(card);
+
+        gameService.placeSiegling(state, true, "wellspring", 1, 1);
+
+        assertEquals(1, player.getFireEnergy(), "The passive should pay into the pool as soon as the card lands.");
+
+        // The Draw phase clears claim-style temporary energy; a board passive must outlive it.
+        state.setCurrentPhase(Phase.DRAW);
+        gameService.draw(state, true);
+
+        assertEquals(1, player.getFireEnergy());
+        assertEquals(0, enemy.getFireEnergy());
+    }
+
+    /**
+     * An active energy buff is immediate, rides through the owner's Setup phase, and is gone
+     * before the fight: the whole point is that it pays for placements, not for attacks.
+     */
+    @Test
+    void activeEnergyBuffIsImmediateAndFadesWhenTheBattlePhaseBegins() throws Exception {
+        GameService gameService = newGameServiceWithBattleStack();
+        EnergyService energyService = getField(gameService, "energyService");
+        EffectService effectService = getField(gameService, "effectService");
+
+        Player player = new Player("Player", true);
+        Player enemy = new Player("Enemy", false);
+        GameState state = new GameState();
+        state.setPlayer(player);
+        state.setEnemy(enemy);
+        state.setCurrentPhase(Phase.SETUP);
+        state.setPlayerTurn(true);
+
+        SieglingCard card = new SieglingCard("dynamo", "Dynamo", Element.ELECTRIC, Rarity.COMMON, 10, 3,
+                List.of(), Row.MIDDLE);
+        CardInstance source = new CardInstance(card, 1, 1, true);
+        state.setAt(true, 1, 1, source);
+
+        Ability charge = new Ability("Overcharge", "Generate 2 electric energy",
+                TargetType.SELF, null, 0, AbilityEffectKeys.ENERGY_BOOST, 2, false);
+        effectService.resolveAbility(state, charge, source, true, -1, -1);
+
+        // Immediate: spendable in the setup phase it was used in, before any recalculation.
+        assertTrue(player.isOvercharged());
+        assertEquals(2, player.getElectricEnergy());
+        assertEquals(0, enemy.getElectricEnergy());
+
+        // Still there after a mid-setup recalculation (placing a card triggers one).
+        energyService.recalculateEnergy(state);
+        assertEquals(2, player.getElectricEnergy());
+
+        // Carries through the owner's next Setup phase.
+        state.setCurrentPhase(Phase.DRAW);
+        gameService.draw(state, true);
+        assertTrue(player.isOvercharged());
+        assertEquals(2, player.getElectricEnergy());
+
+        // ...and is gone the moment the battle phase opens.
+        state.setSetupTurnsTakenThisRound(1);
+        gameService.endTurn(state, true);
+
+        assertEquals(Phase.BATTLE, state.getCurrentPhase());
+        assertFalse(player.isOvercharged());
+        assertEquals(0, player.getElectricEnergy());
+        assertTrue(state.getGameLog().stream()
+                .anyMatch(line -> line.contains("Overcharge fades as the battle phase begins")));
+    }
+
+    @Test
+    void spendingOverchargedEnergyStaysSpentForTheRestOfTheTurn() throws Exception {
+        GameService gameService = new GameService();
+        PlacementService placementService = new PlacementService();
+        EnergyService energyService = new EnergyService(placementService);
+        setField(gameService, "energyService", energyService);
+        setField(gameService, "placementService", placementService);
+        setField(gameService, "effectService", new EffectService());
+
+        Player player = new Player("Player", true);
+        GameState state = new GameState();
+        state.setPlayer(player);
+        state.setEnemy(new Player("Enemy", false));
+        state.setCurrentPhase(Phase.DRAW);
+        state.setPlayerTurn(true);
+
+        EnergyService.grantOverchargeEnergy(player, Element.FIRE, 3);
+        gameService.draw(state, true);
+        assertEquals(3, player.getFireEnergy());
+
+        energyService.spendEnergy(state, true, Element.FIRE, 2);
+        assertEquals(1, player.getFireEnergy());
+        assertEquals(1, player.getOverchargeEnergy(Element.FIRE),
+                "Spends must drain the overcharge ledger, not only the live pool.");
+
+        // A later recalculation must not refund the spend, only keep the surge.
+        energyService.recalculateEnergy(state);
+        assertEquals(1, player.getFireEnergy());
+    }
+
+    /**
+     * Spending an overcharge during Setup must not leave temporary debt that steals board
+     * energy when the surge fades at Battle. Concrete trigger: board has 2 fire from links,
+     * active boost grants +2, player spends those 2 on a cast, Battle opens — board fire must
+     * still read 2 (the spent surge is gone; the links are not).
+     */
+    @Test
+    void spendingOverchargeDoesNotStealBoardEnergyWhenBattleBegins() throws Exception {
+        GameService gameService = newGameServiceWithBattleStack();
+        EnergyService energyService = getField(gameService, "energyService");
+
+        GameState state = new GameState();
+        Player player = new Player("Player", true);
+        state.setPlayer(player);
+        state.setEnemy(new Player("Enemy", false));
+        state.setCurrentPhase(Phase.SETUP);
+        state.setPlayerTurn(true);
+
+        SieglingCard rooted = new SieglingCard(
+                "rooted-fire",
+                "Rooted Fire",
+                Element.FIRE,
+                Rarity.COMMON,
+                10,
+                1,
+                List.of(
+                        new Notch(NotchDirection.TOP, Element.FIRE),
+                        new Notch(NotchDirection.BOTTOM, Element.FIRE)
+                ),
+                Row.BACK
+        );
+        SieglingCard linked = new SieglingCard(
+                "linked-fire",
+                "Linked Fire",
+                Element.FIRE,
+                Rarity.COMMON,
+                10,
+                1,
+                List.of(new Notch(NotchDirection.BOTTOM, Element.FIRE)),
+                Row.MIDDLE
+        );
+        CardInstance rootInstance = new CardInstance(rooted.copy(), 0, 0, true);
+        rootInstance.setPlacementOrder(1);
+        rootInstance.setBattlePhasesSeen(1);
+        CardInstance linkedInstance = new CardInstance(linked.copy(), 1, 0, true);
+        linkedInstance.setPlacementOrder(2);
+        linkedInstance.setBattlePhasesSeen(1);
+        state.setAt(true, 0, 0, rootInstance);
+        state.setAt(true, 1, 0, linkedInstance);
+
+        energyService.recalculateEnergy(state);
+        assertEquals(2, player.getFireEnergy(), "Board links should supply 2 fire before the surge.");
+
+        EnergyService.grantOverchargeEnergy(player, Element.FIRE, 2);
+        assertEquals(4, player.getFireEnergy());
+
+        energyService.spendEnergy(state, true, Element.FIRE, 2);
+        assertEquals(2, player.getFireEnergy());
+        assertFalse(player.isOvercharged(), "The spent surge should be fully consumed.");
+        assertEquals(0, player.getTemporaryEnergyAdjustment(Element.FIRE),
+                "Spending only overcharge must not book claim-style temporary debt.");
+
+        Method startBattlePhase = GameService.class.getDeclaredMethod("startBattlePhase", GameState.class);
+        startBattlePhase.setAccessible(true);
+        startBattlePhase.invoke(gameService, state);
+
+        assertEquals(Phase.BATTLE, state.getCurrentPhase());
+        assertEquals(2, player.getFireEnergy(),
+                "Battle restore must keep board link energy after a spent overcharge fades.");
+    }
+
+    @Test
     void evolutionLogSaysBaseEvolvedToNewForm() throws Exception {
         GameService gameService = new GameService();
         PlacementService placementService = new PlacementService();
@@ -299,6 +488,31 @@ class GameServiceTest {
         assertEquals(50, player.getHealth(), "AI should not cast after spending its last setup action.");
         assertTrue(enemy.getHand().contains(spell), "AI spell should remain in hand.");
         assertFalse(enemy.getDiscard().contains(spell), "AI spell should not be discarded.");
+    }
+
+    @Test
+    void aiOverchargeSurvivesItsOwnDrawAndSetupPhase() throws Exception {
+        AIService aiService = new AIService();
+        PlacementService placementService = new PlacementService();
+        setField(aiService, "placementService", placementService);
+        setField(aiService, "energyService", new EnergyService(placementService));
+        setField(aiService, "effectService", new EffectService());
+
+        Player player = new Player("Player", true);
+        Player enemy = new Player("Enemy", false);
+        GameState state = new GameState();
+        state.setPlayer(player);
+        state.setEnemy(enemy);
+
+        EnergyService.grantOverchargeEnergy(enemy, Element.FIRE, 2);
+
+        // The AI runs its own draw phase instead of GameService.draw; the surge must ride
+        // through it rather than being wiped by the AI's own energy recalculation.
+        aiService.executeAITurn(state);
+
+        assertTrue(enemy.isOvercharged());
+        assertEquals(2, enemy.getFireEnergy());
+        assertEquals(0, player.getFireEnergy());
     }
 
     @Test
@@ -631,6 +845,31 @@ class GameServiceTest {
         assertEquals(Phase.BATTLE, state.getCurrentPhase());
         CardInstance onBoard = state.getAt(true, 1, 1);
         assertEquals(2, onBoard.getTemporaryShield(), "Shield should persist when battle phase begins.");
+    }
+
+    /** A GameService wired far enough to run a setup turn all the way into the battle phase. */
+    private GameService newGameServiceWithBattleStack() throws Exception {
+        GameService gameService = new GameService();
+        EffectService effectService = new EffectService();
+        PlacementService placementService = new PlacementService();
+        EnergyService energyService = new EnergyService(placementService);
+        BattleService battleService = new BattleService();
+        setField(battleService, "effectService", effectService);
+        setField(battleService, "energyService", energyService);
+        setField(battleService, "movesPoolService",
+                new MovesPoolService(new com.fasterxml.jackson.databind.ObjectMapper(), null));
+        setField(gameService, "effectService", effectService);
+        setField(gameService, "battleService", battleService);
+        setField(gameService, "energyService", energyService);
+        setField(gameService, "placementService", placementService);
+        return gameService;
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T getField(Object target, String fieldName) throws Exception {
+        Field field = target.getClass().getDeclaredField(fieldName);
+        field.setAccessible(true);
+        return (T) field.get(target);
     }
 
     private void setField(Object target, String fieldName, Object value) throws Exception {

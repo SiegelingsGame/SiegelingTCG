@@ -1,6 +1,7 @@
 /* Siege — Siegelings Adventure roguelike client.
  * Talks to /api/siege/**. All rules run server-side; this file renders state
- * and submits actions. Run is addressed by an opaque token in localStorage.
+ * and submits actions. Signed-in runs resolve through the account checkpoint;
+ * localStorage retains only a device fallback token for guest/legacy runs.
  *
  * Screens: setup (paged: mode -> knight -> warband) -> branching map (SVG DAG) ->
  * battle stage / interactive rest camp / cache dig minigame → rewards → result.
@@ -29,7 +30,10 @@
     pendingKnightUnlock: null,
     campMenu: null,
     deferBattleHandRender: false,
-    runMenuReturnFocus: null
+    runMenuReturnFocus: null,
+    // Vitals held during event playback (id -> {hp,maxHp,shield,alive}), or null
+    // when not playing back. See heldVitals().
+    vitals: null
   };
 
   var EL_ICON = {
@@ -45,7 +49,7 @@
     BURN: { icon: '🔥', label: 'Burn', tip: '1 damage at end of round' },
     SLOW: { icon: '❄️', label: 'Slow', tip: '−2 Speed; reapply freezes' },
     STUN: { icon: '💫', label: 'Stun', tip: 'Skips next action' },
-    LEECH: { icon: '💚', label: 'Leech', tip: 'Second hit heals attacker for damage dealt' },
+    LEECH: { icon: '💚', label: 'Leech', tip: 'Heals the attacker for HP damage dealt' },
     SHOCK: { icon: '⚡', label: 'Shock', tip: 'Drains AP / weakens next hit' },
     DISORIENT: { icon: '🌬️', label: 'Disorient', tip: 'Cards cost +1 AP' },
     POISON: { icon: '☠️', label: 'Poison', tip: 'End-round DoT; blocks heals' },
@@ -61,12 +65,31 @@
   // from something flying across the arena, so they light this element around
   // the unit's border instead of firing a projectile.
   var STATUS_ELEMENT = {
-    BURN: 'FIRE', SLOW: 'ICE', STUN: 'EARTH', SHOCK: 'ELECTRIC',
+    BURN: 'FIRE', SLOW: 'ICE', STUN: 'EARTH', LEECH: 'EARTH', SHOCK: 'ELECTRIC',
     DISORIENT: 'WIND', POISON: 'POISON', SOAK: 'WATER', RUST: 'METAL',
     CURSE: 'SHADOW', INSIGHT: 'PSYCHIC', BLIND: 'LIGHT', WITHER: 'UNDEAD'
   };
   var NODE_ICON = { BATTLE: '⚔️', ELITE: '🔺', REST: '🏕️', TREASURE: '💎', BROKER: '🐾', SMITH: '🔨', CARAVAN: '🐫', EVENT: '❔', BOSS: '👑' };
   var NODE_TINT = { BATTLE: '#8fa3bf', ELITE: '#ff6e6e', REST: '#7ee787', TREASURE: '#ffd066', BROKER: '#c896ff', BOSS: '#ff9a3c' };
+  // One line per emblem, shown in the map key (🗝️ Key on the map HUD). Kept
+  // beside NODE_ICON so a new node type is obvious when it has no entry here.
+  var NODE_LEGEND = [
+    ['BATTLE', 'Skirmish', 'A standard fight. Win for XP, gold and a reward pick.'],
+    ['ELITE', 'Elite siege', 'A harder fight with a richer reward — and real risk.'],
+    ['REST', 'Rest camp', 'Heal the warband, upgrade a card or shop the camp stock.'],
+    ['TREASURE', 'Cache', 'Dig for loot. Digging deeper pays more and wakes trouble.'],
+    ['EVENT', 'Event', 'An encounter with a choice; outcomes vary.'],
+    ['BROKER', 'Broker', 'Recruit or hire an extra Siegeling for the run.'],
+    ['SMITH', 'Smith', 'Forge and upgrade gear for the warband.'],
+    ['CARAVAN', 'Caravan', 'Trade goods and buy items with run gold.'],
+    ['BOSS', 'Siegelord', 'The stage boss. Clearing it ends the stage.']
+  ];
+  var NODE_STATE_LEGEND = [
+    ['current', 'Where you stand', 'Your warband is here now.'],
+    ['reachable', 'Open path', 'Pulsing ring — tap to travel there next.'],
+    ['cleared', 'Cleared', 'Marked ✓ and dimmed; already resolved.'],
+    ['locked', 'Not connected', 'Dim, no ring — no route there from here.']
+  ];
   var CAMP_ICON = { REST: '🔥', SHOP_CARD: '🃏', SHOP_HEAL: '🍲', SHOP_UPGRADE: '⚒️', SHOP_MENU: '🛒', BROKER: '🐾', BROKER_MENU: '♞' };
   var PASSIVE_META = {
     SHIELD: { icon: '🛡', name: 'Bulwark' },
@@ -156,7 +179,7 @@
     // Leaving battle (or re-entering a fresh screen) must drop any in-flight
     // drag ghost — hand re-renders destroy the source card and otherwise leave
     // a stuck playcard floating over the arena.
-    if (id !== 'battleScreen') abandonActiveCardDrag();
+    if (id !== 'battleScreen') { abandonActiveCardDrag(); toggleHandSheet(false); }
     ['loadingScreen', 'resumeScreen', 'setupScreen', 'mapScreen', 'campScreen', 'cacheScreen', 'brokerScreen', 'smithScreen', 'caravanScreen', 'eventScreen', 'minigameScreen', 'interactionResultScreen', 'battleScreen', 'recruitScreen', 'rewardScreen', 'resultScreen'].forEach(function (s) {
       var node = $(s); if (node) node.classList.toggle('hidden', s !== id);
     });
@@ -371,8 +394,11 @@
     if (mapOrientTimer) clearTimeout(mapOrientTimer);
     mapOrientTimer = setTimeout(function () {
       if (document.body.dataset.screen !== 'mapScreen') return;
-      if (isPhoneLandscape() === mapLayoutLand) return; // axis unchanged — nothing to redo
-      renderMap();
+      if (isPhoneLandscape() !== mapLayoutLand) { renderMap(); return; }
+      // Same axis, new viewport: the geometry still holds but the scroll extents
+      // do not, so re-centre on the current node instead of leaving the player
+      // parked past the end of the map.
+      if (mapFocusScroll) mapFocusScroll();
     }, 150);
   }
 
@@ -380,13 +406,35 @@
     window.addEventListener('resize', onMapOrientationFlip);
     window.addEventListener('orientationchange', onMapOrientationFlip);
     wireStaticButtons();
+    // Prefer the account checkpoint over this device's old token so phone and
+    // desktop always resume the same signed-in expedition. Guests retain the
+    // local token fallback, and a transient account lookup failure does not
+    // hide a run already open on this device.
+    resumeOrRoster();
+  }
+
+  /** Boot check, also re-run after abandoning one save: show what is still saved. */
+  function resumeOrRoster() {
+    api('/api/siege/run/active').then(function (active) {
+      // One save per mode: the account can hold an expedition and a Battlegrounds
+      // march at once, so take the whole list and let the player choose.
+      var saves = (active && active.runs ? active.runs : (active && active.run ? [active.run] : []))
+        .filter(function (r) { return r && r.status === 'ACTIVE'; });
+      if (saves.length) {
+        renderResumePrompt(saves);
+        return;
+      }
+      bootFromLocalToken();
+    }).catch(bootFromLocalToken);
+  }
+
+  function bootFromLocalToken() {
     var t = token();
     if (t) {
       showScreen('loadingScreen');
       if ($('bootLoadStatus')) $('bootLoadStatus').textContent = 'Checking saved expedition...';
       api('/api/siege/state?token=' + encodeURIComponent(t)).then(function (run) {
-        state.run = run;
-        if (run.status === 'ACTIVE') { renderResumePrompt(run); }
+        if (run.status === 'ACTIVE') { renderResumePrompt([run]); }
         else { setToken(null); loadRoster(); }
       }).catch(function () { setToken(null); loadRoster(); });
     } else {
@@ -394,25 +442,74 @@
     }
   }
 
-  /** A saved expedition was found: ask whether to continue it or start fresh,
-   *  showing exactly where it left off (party HP, gold, floor, mid-battle). */
-  function renderResumePrompt(run) {
+  /** Mode label shared by the map HUD and the resume prompt, so both name a run alike. */
+  function runSlotBadgeText(run) {
+    var bg = run.slot === 'BATTLEGROUNDS' || run.battlegrounds;
+    var tier = ['I', 'II', 'III', 'IV', 'V'][(run.bgTier || 1) - 1] || run.bgTier;
+    return bg ? '⚔️ Battlegrounds · Tier ' + tier
+      : '🏳️ Siege' + (run.mode === 'ENDLESS' ? ' · Endless' : ' Expedition');
+  }
+
+  /** The badge a run wears wherever a save has to be told apart from the other mode. */
+  function runSlotBadge(run) {
+    var bg = run.slot === 'BATTLEGROUNDS' || run.battlegrounds;
+    return '<span class="run-slot-badge ' + (bg ? 'bg' : 'siege') + '">' +
+      runSlotBadgeText(run) + '</span>';
+  }
+
+  /** Saved runs were found: one card per save, since the two modes are kept apart. */
+  function renderResumePrompt(saves) {
     showScreen('resumeScreen');
     updateRunMenu(false);
-    var node = (run.map || []).find(function (n) { return n.id === run.currentNodeId; });
-    var floor = node ? (node.row + 1) : 1;
-    $('resumeFloor').textContent = '📍 Floor ' + floor;
-    $('resumeGold').textContent = '🪙 ' + (run.gold || 0);
-    var battleChip = $('resumeBattle');
-    if (run.battle) {
-      battleChip.classList.remove('hidden');
-      battleChip.textContent = '⚔ Battle in progress · Round ' + (run.battle.roundNumber || 1);
-      $('resumeNote').textContent = 'You closed the app mid-battle — pick up right where you left off.';
-    } else {
-      battleChip.classList.add('hidden');
-      $('resumeNote').textContent = 'An expedition is already in progress.';
-    }
-    renderPartyStrip($('resumeParty'), run.party || [], run.knight);
+    // The last save the player touched is the one they most likely want back, and
+    // it is the token this device already holds.
+    var here = token();
+    saves = saves.slice().sort(function (a, b) {
+      return (b.token === here ? 1 : 0) - (a.token === here ? 1 : 0);
+    });
+    $('resumeNote').textContent = saves.length > 1
+      ? 'You have a run saved in each mode — pick up either one.'
+      : (saves[0].battle
+        ? 'You closed the app mid-battle — pick up right where you left off.'
+        : 'A run is already in progress.');
+
+    var host = $('resumeSaves');
+    host.innerHTML = '';
+    saves.forEach(function (run) {
+      var node = (run.map || []).find(function (n) { return n.id === run.currentNodeId; });
+      var floor = node ? (node.row + 1) : 1;
+      var bg = run.slot === 'BATTLEGROUNDS' || run.battlegrounds;
+      var card = el('div', 'resume-summary resume-save' + (bg ? ' bg' : ' siege'));
+      var strip = el('div', 'party-strip');
+      var meta = el('div', 'resume-meta');
+      meta.innerHTML = '<span class="gold-chip">🪙 ' + (run.gold || 0) + '</span>' +
+        '<span>📍 Floor ' + floor + '</span>' +
+        (run.battle
+          ? '<span class="resume-battle-chip">⚔ Battle in progress · Round ' +
+            (run.battle.roundNumber || 1) + '</span>'
+          : '');
+      var head = el('div', 'resume-save-head', runSlotBadge(run));
+      var actions = el('div', 'resume-save-actions');
+      var go = el('button', 'siege-btn primary', 'Continue ▸');
+      go.type = 'button';
+      go.addEventListener('click', function () {
+        state.run = run;
+        setToken(run.token);
+        renderRun();
+      });
+      var drop = el('button', 'siege-btn', 'Start Over');
+      drop.type = 'button';
+      drop.addEventListener('click', function () { restartRun(run.token); });
+      actions.appendChild(go);
+      actions.appendChild(drop);
+
+      card.appendChild(head);
+      card.appendChild(strip);
+      card.appendChild(meta);
+      card.appendChild(actions);
+      host.appendChild(card);
+      renderPartyStrip(strip, displayParty(run), run.knight);
+    });
   }
 
   function loadRoster() {
@@ -487,6 +584,15 @@
     $('inventoryBtn').addEventListener('click', function () { openInventory(); });
     var extractBtn = $('extractBtn');
     if (extractBtn) extractBtn.addEventListener('click', extractTeam);
+    $('deckCounts').addEventListener('click', function () { toggleHandSheet(); });
+    $('handSheetClose').addEventListener('click', function () { toggleHandSheet(false); });
+    $('handSheet').addEventListener('click', function (e) { if (e.target === $('handSheet')) toggleHandSheet(false); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !$('handSheet').classList.contains('hidden')) toggleHandSheet(false);
+    });
+    $('mapKeyBtn').addEventListener('click', function () { openLegend(); });
+    $('legendClose').addEventListener('click', function () { $('legendOverlay').classList.add('hidden'); });
+    $('legendOverlay').addEventListener('click', function (e) { if (e.target === $('legendOverlay')) $('legendOverlay').classList.add('hidden'); });
     $('invClose').addEventListener('click', function () { $('invOverlay').classList.add('hidden'); });
     $('invOverlay').addEventListener('click', function (e) { if (e.target === $('invOverlay')) $('invOverlay').classList.add('hidden'); });
     $('smithLeaveBtn').addEventListener('click', function () { simplePost('/api/siege/smith/leave'); });
@@ -568,8 +674,13 @@
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && !$('runMenu').classList.contains('hidden')) closeRunMenu();
     });
-    $('resumeContinueBtn').addEventListener('click', function () { renderRun(); });
-    $('resumeRestartBtn').addEventListener('click', restartRun);
+    // Per-save Continue/Start Over buttons are built by renderResumePrompt; this
+    // one starts a run in whichever mode has no save yet.
+    $('resumeFreshBtn').addEventListener('click', function () {
+      state.run = null; state.party = []; state.knightId = null;
+      setToken(null);
+      loadRoster();
+    });
   }
 
   function updateRunMenu(show) {
@@ -616,15 +727,19 @@
       .then(function () { state.busy = false; setRunMenuBusy(false); });
   }
 
-  function restartRun() {
+  function restartRun(explicitToken) {
     if (state.busy || !confirm('Start over? Your current expedition, gold, and party will be lost.')) return;
-    var t = token();
+    var t = typeof explicitToken === 'string' && explicitToken ? explicitToken : token();
     state.busy = true;
     setRunMenuBusy(true, 'Restarting expedition...');
     api('/api/siege/run/abandon', { method: 'POST', body: { token: t } })
       .then(function () {
-        setToken(null); state.run = null; state.party = []; state.knightId = null;
-        closeRunMenu(false); loadRoster();
+        if (t === token()) setToken(null);
+        state.run = null; state.party = []; state.knightId = null;
+        closeRunMenu(false);
+        // The other mode's save survives an abandon, so go back through the boot
+        // check rather than straight to the roster.
+        resumeOrRoster();
       })
       .catch(function (e) { $('runMenuStatus').textContent = e.message; toast(e.message); })
       .then(function () { state.busy = false; setRunMenuBusy(false); });
@@ -1366,10 +1481,16 @@
         (spec.description ? '<div class="um-card-desc">' + esc(spec.description) + '</div>' : '') +
         '</div></div>';
     }).join('');
+    var effects = (u.effects || []).map(function (effect) {
+      return '<span class="um-effect ' + (effect.negative ? 'is-negative' : 'is-positive') + '">' +
+        '<b>' + (effect.icon || '✦') + ' ' + esc(effect.label) + '</b>' +
+        (effect.detail ? '<small>' + esc(effect.detail) + '</small>' : '') + '</span>';
+    }).join('');
     body.innerHTML =
       '<div class="um-head ' + elClass(u.element) + '">' + art +
       '<div><div class="um-name">' + icon(u.element) + ' ' + esc(u.name) + '</div>' +
       (u.subtitle ? '<div class="um-sub">' + esc(u.subtitle) + '</div>' : '') + '</div></div>' +
+      (effects ? '<div class="um-cards-title">Active effects</div><div class="um-effects">' + effects + '</div>' : '') +
       '<div class="um-cards-title">' + (u.cards && u.cards.length ? 'Cards & abilities' : 'No cards') + '</div>' +
       '<div class="um-cards">' + cards + '</div>';
     $('unitModal').classList.remove('hidden');
@@ -1465,17 +1586,26 @@
     var events = run && run.battle && run.battle.events ? run.battle.events : [];
     var hadBattleDom = state.run && state.run.battle && !$('battleScreen').classList.contains('hidden');
     var enteringBattle = run && run.battle && !(state.run && state.run.battle);
+    // Grabbed before state.run is replaced: these are the numbers the player is
+    // currently looking at, and the ones the playback has to start from.
+    var priorVitals = hadBattleDom ? captureVitals(state.run) : null;
     state.run = run;
     if (events.length && (hadBattleDom || enteringBattle)) {
       state.busy = true;
+      state.vitals = priorVitals;
       state.deferBattleHandRender = events.some(function (ev) {
         return ev && (ev.type === 'discardHand' || ev.type === 'draw');
       });
       renderRun();
       state.deferBattleHandRender = false;
-      playEvents(events, function () { renderRun(); afterRunApplied(run); });
+      playEvents(events, function () {
+        state.vitals = null;
+        renderRun();
+        afterRunApplied(run);
+      });
       return;
     }
+    state.vitals = null;
     renderRun();
     afterRunApplied(run);
   }
@@ -1495,7 +1625,10 @@
   // landPad / landLaneGap tighten the lane (cross) axis in phone landscape so a
   // 3-4 lane map fits the short scroll height without vertical scrolling; the
   // depth axis keeps rowGap and scrolls horizontally as intended.
-  var MAP = { colGap: 96, rowGap: 104, pad: 56, r: 24, landPad: 40, landLaneGap: 60 };
+  // landLaneGap must clear a node's radius plus its label (drawn at r+18 and
+  // ~11px tall) before the next lane's halo begins, or landscape labels print
+  // over the circles below them. The full-bleed landscape map has the height.
+  var MAP = { colGap: 96, rowGap: 104, pad: 56, r: 24, landPad: 44, landLaneGap: 78 };
 
   // Phone landscape is too short to stack the depth axis vertically, so there
   // the map is transposed to flow left→right (start left, boss right). This
@@ -1507,15 +1640,25 @@
   // Remembers the axis the last renderMap() drew, so a rotation can detect the
   // flip and re-render (SVG geometry is baked at render time, not responsive).
   var mapLayoutLand = null;
+  // Re-scrolls the map to the run's current node using the geometry the last
+  // renderMap() baked. Set by renderMap; a no-op before the first map render.
+  var mapFocusScroll = null;
 
   function renderMap() {
     showScreen('mapScreen');
     clearBattleMap();
     var run = state.run;
-    renderPartyStrip($('partyStrip'), run.party, run.knight);
+    renderPartyStrip($('partyStrip'), displayParty(run), run.knight);
+    // The mode lives in its own badge — the same badge the resume prompt uses — so
+    // Siege and Battlegrounds share one HUD shape instead of Battlegrounds smuggling
+    // its tier and boon count into the gold chip.
+    var modeChip = $('mapMode');
+    var isBg = run.slot === 'BATTLEGROUNDS' || run.battlegrounds;
+    modeChip.className = 'run-slot-badge ' + (isBg ? 'bg' : 'siege');
+    modeChip.innerHTML = runSlotBadgeText(run);
     $('mapGold').textContent = '🪙 ' + (run.gold || 0) +
       (run.mode === 'ENDLESS' ? '  ·  ★ ' + (run.score || 0) + '  ·  🔁 ' + ((run.loop || 0) + 1) : '') +
-      (run.battlegrounds ? '  ·  ⚔️ BG Tier ' + (['I','II','III','IV','V'][(run.bgTier || 1) - 1] || run.bgTier) + '  ·  🎁 ' + (run.boons || []).length + ' boon' : '');
+      (isBg ? '  ·  🎁 ' + (run.boons || []).length + ' boon' : '');
     $('mapReward').textContent = '';
     $('mapReward').classList.add('hidden');
     $('mapDeckCount').textContent = '🃏 ' + (run.deckSize || '—') + (run.checkpoint ? '  ·  💾 saved' : '');
@@ -1640,18 +1783,24 @@
     });
 
     // Keep the action in view: scroll to the current position (or the start).
-    var scroll = $('mapScroll');
+    // Remembered as a closure rather than run once, because a rotation that does
+    // not flip the axis still changes the scroll extents — leaving the old
+    // offset stranded (blank space below the map, the top out of reach).
     var focus = nodes.find(function (n) { return n.current; });
-    setTimeout(function () {
-      if (land) {
+    var focusPt = focus ? pos(focus) : null;
+    mapFocusScroll = function () {
+      var scroll = $('mapScroll');
+      if (!scroll) return;
+      if (mapLayoutLand) {
         // Horizontal scroll: lead ~60% into the viewport; no current node → far left (start).
-        var focusX = focus ? pos(focus).x : 0;
-        scroll.scrollLeft = Math.max(0, focusX - scroll.clientWidth * 0.6);
+        scroll.scrollLeft = Math.max(0, (focusPt ? focusPt.x : 0) - scroll.clientWidth * 0.6);
+        scroll.scrollTop = 0;
       } else {
-        var focusY = focus ? pos(focus).y : height;
-        scroll.scrollTop = Math.max(0, focusY - scroll.clientHeight * 0.6);
+        scroll.scrollTop = Math.max(0, (focusPt ? focusPt.y : height) - scroll.clientHeight * 0.6);
+        scroll.scrollLeft = Math.max(0, (width - scroll.clientWidth) / 2);
       }
-    }, 30);
+    };
+    setTimeout(mapFocusScroll, 30);
 
     // Preload the next fight's map composition (orientation currently in effect)
     // so entering battle doesn't flash the fallback gradient.
@@ -1683,12 +1832,34 @@
     return '<div class="pxpbar" title="' + title + '"><div class="pxpfill" style="width:' + pct + '%"></div></div>';
   }
 
+  /**
+   * The warband as it should be *seen*: the party plus any mercenary currently
+   * under contract. A rental travels with the team and fights the next battle,
+   * so it stands at the stops with everyone else until it departs. run.party
+   * stays merc-free — it drives equip/evolve/scrap, which a merc can't use.
+   */
+  function displayParty(run) {
+    var list = (run && run.party ? run.party : []).slice();
+    if (run && run.mercenary) list.push(run.mercenary);
+    return list;
+  }
+
+  /** Strips a rental's server-side "X (Merc)" suffix for display. */
+  function partyDisplayName(p) {
+    return String(p.name || '').replace(/\s\(Merc\)$/, '');
+  }
+
   function renderPartyStrip(host, party, knight) {
     host.innerHTML = '';
     if (knight && knight.hp != null) {
       var kchip = el('div', 'party-chip knight-chip ' + elClass(knight.element));
       var kpct = Math.max(0, Math.round(100 * knight.hp / Math.max(1, knight.maxHp)));
-      kchip.innerHTML = '<div class="pthumb pthumb-fallback">🛡️</div>' +
+      // The knight has card art like anyone else — the shield glyph is the fallback
+      // for a trainer the catalog has no art for, not the default.
+      var kthumb = knight.artUrl
+        ? '<div class="pthumb" style="background-image:url(\'' + artCss(knight.artUrl) + '\')"></div>'
+        : '<div class="pthumb pthumb-fallback">🛡️</div>';
+      kchip.innerHTML = kthumb +
         '<div class="pbody">' +
         '<div class="pname">' + partyLevelBadge(knight) + esc(knight.name) + '</div>' +
         '<div class="phpbar"><div class="phpfill" style="width:' + kpct + '%"></div></div>' +
@@ -1705,22 +1876,28 @@
       host.appendChild(kchip);
     }
     party.forEach(function (p) {
-      var chip = el('div', 'party-chip ' + elClass(p.element) + (p.alive ? '' : ' dead'));
+      var chip = el('div', 'party-chip ' + elClass(p.element) + (p.alive ? '' : ' dead') + (p.merc ? ' merc' : ''));
       var pct = Math.max(0, Math.round(100 * p.hp / Math.max(1, p.maxHp)));
       var thumb = p.artUrl
         ? '<div class="pthumb" style="background-image:url(\'' + artCss(p.artUrl) + '\')"></div>'
         : '<div class="pthumb pthumb-fallback">' + icon(p.element) + '</div>';
+      // A merc's level/XP are the rental's, not the run's — badge the contract
+      // instead so it never reads as a warband member the player is growing.
+      var nameLine = p.merc
+        ? '<span class="pmerc">Merc</span>' + esc(partyDisplayName(p))
+        : partyLevelBadge(p) + esc(p.name);
       chip.innerHTML = thumb +
         '<div class="pbody">' +
-        '<div class="pname">' + partyLevelBadge(p) + esc(p.name) + ' <span class="pinfo">ⓘ</span></div>' +
+        '<div class="pname">' + nameLine + ' <span class="pinfo">ⓘ</span></div>' +
         '<div class="phpbar"><div class="phpfill" style="width:' + pct + '%"></div></div>' +
-        partyXpBar(p) +
+        (p.merc ? '' : partyXpBar(p)) +
         '<div class="phptext">' + p.hp + '/' + p.maxHp + ' · ⚡' + p.speed + '</div>' +
         '</div>';
       chip.addEventListener('click', function () {
         showUnitModal({
-          name: p.name, element: p.element, artUrl: p.artUrl,
-          subtitle: 'HP ' + p.hp + '/' + p.maxHp + ' · ⚡ ' + p.speed,
+          name: partyDisplayName(p), element: p.element, artUrl: p.artUrl,
+          subtitle: (p.merc ? 'Mercenary — leaves after the next battle · ' : '') +
+            'HP ' + p.hp + '/' + p.maxHp + ' · ⚡ ' + p.speed,
           cards: p.cards || []
         });
       });
@@ -1738,17 +1915,21 @@
     if (!host) return;
     host.innerHTML = '';
     (party || []).filter(function (p) { return p.alive; }).forEach(function (p, i) {
-      var fig = el('button', 'location-siegling ' + elClass(p.element));
+      var fig = el('button', 'location-siegling ' + elClass(p.element) + (p.merc ? ' merc' : ''));
       fig.type = 'button';
       fig.style.setProperty('--fig-i', i);
-      fig.setAttribute('aria-label', 'View ' + (p.name || 'Siegeling'));
-      fig.innerHTML = p.artUrl
-        ? '<img src="' + artAttr(p.artUrl) + '" alt=""><span>' + esc(p.name) + '</span>'
-        : '<b>' + icon(p.element) + '</b><span>' + esc(p.name) + '</span>';
+      var label = partyDisplayName(p) || 'Siegeling';
+      fig.setAttribute('aria-label', 'View ' + label + (p.merc ? ' (mercenary)' : ''));
+      var caption = '<span>' + esc(label) + '</span>' +
+        (p.merc ? '<em class="loc-merc">Merc</em>' : '');
+      fig.innerHTML = (p.artUrl
+        ? '<img src="' + artAttr(p.artUrl) + '" alt="">'
+        : '<b>' + icon(p.element) + '</b>') + caption;
       fig.addEventListener('click', function () {
         showUnitModal({
-          name: p.name, element: p.element, artUrl: p.artUrl,
-          subtitle: 'HP ' + p.hp + '/' + p.maxHp + ' · ⚡ ' + p.speed,
+          name: label, element: p.element, artUrl: p.artUrl,
+          subtitle: (p.merc ? 'Mercenary — leaves after the next battle · ' : '') +
+            'HP ' + p.hp + '/' + p.maxHp + ' · ⚡ ' + p.speed,
           cards: p.cards || []
         });
       });
@@ -1821,7 +2002,7 @@
     $('campLeaveBtn').textContent = state.campMenu ? 'Back to Camp' : 'Break Camp';
     $('campScreen').classList.toggle('camp-menu-open', !!state.campMenu);
 
-    renderLocationParty('campParty', run.party);
+    renderLocationParty('campParty', displayParty(run));
 
     var grid = $('campGrid'); grid.innerHTML = '';
     if (inShop || inBroker) {
@@ -1867,7 +2048,7 @@
     showScreen('cacheScreen');
     var run = state.run;
     var c = run.cache;
-    renderLocationParty('cacheParty', run.party);
+    renderLocationParty('cacheParty', displayParty(run));
     var isDig = !c.game || c.game === 'DIG';
     $('cacheDigBtn').classList.toggle('hidden', !isDig);
     $('cacheTakeBtn').classList.toggle('hidden', !isDig);
@@ -1929,7 +2110,7 @@
     var run = state.run;
     var b = run.broker;
     $('brokerGold').textContent = '🪙 ' + (run.gold || 0);
-    renderLocationParty('brokerParty', run.party);
+    renderLocationParty('brokerParty', displayParty(run));
 
     var grid = $('brokerGrid'); grid.innerHTML = '';
     (b.offers || []).forEach(function (offer) {
@@ -2027,7 +2208,7 @@
     smithScrapMode = false;
     var run = state.run, sm = run.smith;
     $('smithGold').textContent = '🪙 ' + (run.gold || 0);
-    renderLocationParty('smithParty', run.party);
+    renderLocationParty('smithParty', displayParty(run));
     var grid = $('smithGrid'); grid.innerHTML = '';
     (sm.options || []).forEach(function (o, i) {
       var detail = smithUpgradeDetail(o);
@@ -2092,7 +2273,7 @@
     showScreen('caravanScreen');
     var run = state.run, cv = run.caravan;
     $('caravanGold').textContent = '🪙 ' + (run.gold || 0);
-    renderLocationParty('caravanParty', run.party);
+    renderLocationParty('caravanParty', displayParty(run));
     var grid = $('caravanGrid'); grid.innerHTML = '';
     (cv.options || []).forEach(function (o) {
       var icon = o.kind === 'SHOP_ITEM' ? (o.item ? o.item.icon : '📦') : o.kind === 'SHOP_HEAL' ? '🍲' : '🃏';
@@ -2111,7 +2292,7 @@
   function renderEvent() {
     showScreen('eventScreen');
     var run = state.run, ev = run.event;
-    renderLocationParty('eventParty', run.party);
+    renderLocationParty('eventParty', displayParty(run));
     $('eventIcon').textContent = ev.icon || '❔';
     $('eventTitle').textContent = ev.title || 'Event';
     $('eventPrompt').textContent = ev.prompt || '';
@@ -2138,7 +2319,6 @@
   var LINE_COLORS = ['#e34b5a', '#3d9bff', '#37c46b', '#f0b429'];
   var RPS_META = { ROCK: { icon: '✊', label: 'Rock' }, PAPER: { icon: '✋', label: 'Paper' }, SCISSORS: { icon: '✌️', label: 'Scissors' } };
   var mgLine = null;
-  var mgMatchSel = null;
   var mgRevealTimer = null;
 
   function renderMinigame() {
@@ -2284,7 +2464,11 @@
       if (occ.endpoint) {
         var start = path[0];
         if (start[0] === r && start[1] === c) return;     // can't loop to own start
-        path.push([r, c]); repaintLine(st); updateLineStatus(st); return;
+        // Reaching the twin completes this colour immediately. Pointer drift
+        // after the endpoint must not extend a valid path into another cell.
+        path.push([r, c]);
+        st.drawing = null;
+        repaintLine(st); updateLineStatus(st); return;
       }
       return;
     }
@@ -2362,7 +2546,8 @@
 
   // ---- MATCH (memory pairs) --------------------------------------------
   function renderMatch(mg, body, actions) {
-    var revealing = mg.flip && !mg.flip.matched;
+    var flip = mg.flip;
+    var resolving = flip && flip.b != null && !flip.matched;
     $('mgStatus').textContent = 'Pairs ' + (mg.pairsFound || 0) + '/' + (mg.totalPairs || 8) +
       ' · Misses ' + (mg.misses || 0) + '/' + (mg.maxMisses || 5);
     var grid = el('div', 'mg-match-grid');
@@ -2371,16 +2556,17 @@
       var tile = el('button', 'mg-tile');
       var sym = null;
       if (cell.matched) { tile.classList.add('matched', 'up'); sym = cell.symbol; }
-      else if (revealing && cell.index === mg.flip.a) { tile.classList.add('up'); sym = mg.flip.symbolA; }
-      else if (revealing && cell.index === mg.flip.b) { tile.classList.add('up'); sym = mg.flip.symbolB; }
-      else if (mgMatchSel === cell.index) tile.classList.add('sel');
+      else if (flip && cell.index === flip.a) { tile.classList.add('up'); sym = flip.symbolA; }
+      else if (flip && cell.index === flip.b) { tile.classList.add('up'); sym = flip.symbolB; }
       tile.textContent = sym || '';
-      if (!cell.matched && !revealing) tile.addEventListener('click', function () { matchTap(cell.index); });
+      if (!cell.matched && !resolving && !(flip && cell.index === flip.a)) {
+        tile.addEventListener('click', function () { matchTap(cell.index); });
+      }
       grid.appendChild(tile);
     });
     body.appendChild(grid);
     body.appendChild(el('div', 'mg-note', 'Flip two tiles. A matching pair pays gold and stays up.'));
-    if (revealing) {
+    if (resolving) {
       clearTimeout(mgRevealTimer);
       mgRevealTimer = setTimeout(function () {
         if (state.run && state.run.minigame && state.run.minigame.type === 'MATCH' && state.run.minigame.flip) {
@@ -2392,10 +2578,7 @@
   }
   function matchTap(index) {
     if (state.busy) return;
-    if (mgMatchSel === null) { mgMatchSel = index; renderMinigame(); return; }
-    if (mgMatchSel === index) { mgMatchSel = null; renderMinigame(); return; }
-    var a = mgMatchSel; mgMatchSel = null;
-    minigameAction('/api/siege/minigame/match', { a: a, b: index });
+    minigameAction('/api/siege/minigame/match', { a: index });
   }
 
   /** #rrggbb + alpha → rgba() string for translucent path fills. */
@@ -2406,6 +2589,24 @@
   }
 
   // ---- Inventory --------------------------------------------------------
+  function openLegend() {
+    var nodes = $('legendNodes');
+    nodes.innerHTML = NODE_LEGEND.map(function (row) {
+      return '<div class="legend-row">' +
+        '<span class="legend-mark" style="--node-tint:' + (NODE_TINT[row[0]] || '#8fa3bf') + '">' +
+          (NODE_ICON[row[0]] || '•') + '</span>' +
+        '<span class="legend-copy"><b>' + esc(row[1]) + '</b><i>' + esc(row[2]) + '</i></span>' +
+      '</div>';
+    }).join('');
+    $('legendStates').innerHTML = NODE_STATE_LEGEND.map(function (row) {
+      return '<div class="legend-row">' +
+        '<span class="legend-mark state-' + row[0] + '">' + (row[0] === 'cleared' ? '✓' : '●') + '</span>' +
+        '<span class="legend-copy"><b>' + esc(row[1]) + '</b><i>' + esc(row[2]) + '</i></span>' +
+      '</div>';
+    }).join('');
+    $('legendOverlay').classList.remove('hidden');
+  }
+
   function openInventory() { $('invOverlay').classList.remove('hidden'); renderInventory(); }
   function knightBagItems(run) { return run.knightBag || []; }
   function findKnightItem(run, itemId) {
@@ -2650,6 +2851,9 @@
     syncBattleActionButtons();
 
     if (!state.deferBattleHandRender) renderHand(b, over);
+    // The sheet mirrors the hand, so it has to follow every draw/play/end turn
+    // — and it must not outlive the battle it belongs to.
+    if (!$('handSheet').classList.contains('hidden')) toggleHandSheet(!over);
     updateHint(b, over);
   }
 
@@ -2683,7 +2887,7 @@
 
   function renderKnightPlate(b) {
     var host = $('knightPlate');
-    var k = b.knight;
+    var k = heldVitals(b.knight);
     if (!k || k.hp == null) { host.classList.add('hidden'); return; }
     host.classList.remove('hidden');
     host.className = 'knight-plate ' + elClass(k.element) + (k.hp <= 0 ? ' dead' : '');
@@ -2764,16 +2968,28 @@
   function renderSpriteLine(host, units, side, b) {
     host.innerHTML = '';
     var targeted = b.targetedPositions || [];
-    units.forEach(function (u, idx) {
+    units.forEach(function (raw, idx) {
+      // While events are playing, HP/shield read from the pre-turn snapshot;
+      // each event steps its own targets forward as its effect lands.
+      var u = heldVitals(raw);
       var isThreatened = side === 'ally' && u.alive &&
         (targeted.indexOf(u.position) >= 0 || b.sweepIncoming);
+      // Encounters are squads of 2–3; the boss/elite its minions escort is badged
+      // so the headline foe reads apart from them. Height stays the authored size
+      // band below — a leader is already drawn from a later evolution stage.
+      var isMerc = /\s\(Merc\)$/.test(u.name || '');
       var sp = el('div', 'sprite ' + side + ' ' + elClass(u.element) +
         (u.alive ? '' : ' dead') + (u.id === b.leadId ? ' lead' : '') +
+        (side === 'enemy' && u.leader ? ' leader' : '') +
+        (isMerc ? ' merc' : '') +
         (isThreatened ? ' threatened' : ''));
       sp.dataset.id = u.id; sp.dataset.side = u.side;
       sp.style.setProperty('--idle-delay', (idx * 0.45) + 's');
-      // Evolved forms stand taller: 1.5× more space and art size per evolution stage.
-      if (u.evoStage > 0) sp.style.setProperty('--evo-scale', Math.pow(1.5, u.evoStage));
+      // Physical size is the card's authored band (SiegeService#sizeBandOf), the same
+      // field keep.js sizes residents by — adventure.css maps it to --sprite-scale.
+      // Deriving it here from evolution depth is what made a stage-3 boss and a rented
+      // stage-3 merc stand as short as a starter.
+      if (u.size) sp.dataset.size = u.size;
       var pct = Math.max(0, Math.round(100 * u.hp / Math.max(1, u.maxHp)));
       var shield = u.shield > 0 ? '<span class="sp-shield">🛡' + u.shield + '</span>' : '';
       var buff = u.attackBuff > 0 ? '<span class="sp-buff">⚔+' + u.attackBuff + '</span>' : '';
@@ -2814,9 +3030,14 @@
       // A foe's full name is "Shade of X". Spelling that out on the plate leaves
       // no room for X at phone sizes, so the prefix becomes a badge (like the
       // ally level badge) and the creature keeps the readable half of the line.
+      // A rental's server name is "X (Merc)" (SiegeContentService#toMercCombatant),
+      // and spelling that out leaves no room for X on a four-unit line. Same
+      // treatment as the shade prefix: badge the role, keep the creature.
       var plateName = u.shadeOf
         ? '<span class="sp-shade">Shade</span>' + esc(u.shadeOf)
-        : esc(u.name);
+        : isMerc
+          ? '<span class="sp-merc">Merc</span>' + esc(u.name.replace(/\s\(Merc\)$/, ''))
+          : esc(u.name);
       sp.innerHTML =
         '<div class="sp-plate">' +
           '<div class="sp-name">' + levelBadge + plateName + ' <span class="sp-el">' + icon(u.element) + '</span></div>' +
@@ -2830,7 +3051,7 @@
         (isThreatened ? '<div class="sp-target-ring"><span class="sp-target-x">▼</span></div>' : '') +
         '<div class="sp-shadow"></div>' +
         notch;
-      sp.addEventListener('click', function () { onUnitClick(u); });
+      sp.addEventListener('click', function () { onUnitClick(raw); });
       host.appendChild(sp);
     });
   }
@@ -2846,13 +3067,110 @@
     return '⚔' + intent.value + ' → ' + who;
   }
 
+  // ---- held vitals during playback ---------------------------------------
+  /*
+   * The server resolves an entire turn before replying, so state.run already
+   * carries post-turn HP while the events describing that turn are still
+   * waiting to play. Rendering it directly snapped every bar to its end value
+   * before the first projectile flew. During playback the sprites instead read
+   * from state.vitals — the numbers as they stood *before* the turn — and each
+   * event steps its own targets forward at the moment its effect lands.
+   */
+
+  /** Snapshot of every combatant's vitals in a run's live battle, or null. */
+  function captureVitals(run) {
+    var b = run && run.battle;
+    if (!b) return null;
+    var map = {};
+    (b.allies || []).concat(b.enemies || [], b.knight ? [b.knight] : [])
+      .forEach(function (u) {
+        if (!u || !u.id) return;
+        map[u.id] = {
+          hp: u.hp, maxHp: u.maxHp,
+          shield: u.shield || 0,
+          alive: u.alive != null ? u.alive : u.hp > 0
+        };
+      });
+    return map;
+  }
+
+  /**
+   * The unit as it should read on screen right now: the live server unit, with
+   * its vitals swapped for the held ones while playback is running.
+   */
+  function heldVitals(u) {
+    var h = u && state.vitals ? state.vitals[u.id] : null;
+    if (!h) return u;
+    var out = {};
+    for (var k in u) { if (Object.prototype.hasOwnProperty.call(u, k)) out[k] = u[k]; }
+    out.hp = h.hp; out.maxHp = h.maxHp; out.shield = h.shield; out.alive = h.alive;
+    return out;
+  }
+
+  /**
+   * Repaints one unit's HP/shield in place. A full renderBattle() here would
+   * rebuild the sprite DOM and orphan the projectile, aura and float that are
+   * mid-flight — the very effects this number is supposed to be following.
+   */
+  function repaintVitals(id) {
+    var v = state.vitals && state.vitals[id];
+    if (!v) return;
+    var pct = Math.max(0, Math.round(100 * v.hp / Math.max(1, v.maxHp)));
+    var b = state.run && state.run.battle;
+    if (b && b.knight && b.knight.id === id) {
+      var plate = $('knightPlate');
+      if (!plate || plate.classList.contains('hidden')) return;
+      var kfill = plate.querySelector('.kp-hpfill');
+      if (kfill) kfill.style.width = pct + '%';
+      var ktext = plate.querySelector('.kp-hp');
+      if (ktext) ktext.textContent = v.hp + '/' + v.maxHp;
+      plate.classList.toggle('dead', v.hp <= 0);
+      return;
+    }
+    var node = spriteOf(id);
+    if (!node) return;
+    var fill = node.querySelector('.sp-hpfill');
+    if (fill) fill.style.width = pct + '%';
+    var text = node.querySelector('.sp-hp');
+    if (text) text.textContent = v.hp + '/' + v.maxHp;
+    var chip = node.querySelector('.sp-shield');
+    if (v.shield > 0) {
+      if (chip) chip.textContent = '🛡' + v.shield;
+      else {
+        var tags = node.querySelector('.sp-tags');
+        if (tags && text) tags.insertBefore(el('span', 'sp-shield', '🛡' + v.shield), text.nextSibling);
+      }
+    } else if (chip) {
+      chip.remove();
+    }
+    // The KO pose trails the hurt flash so the unit is seen taking the blow
+    // before it drops; impact() does the same for hits it animates itself.
+    if (!v.alive) setTimeout(function () { node.classList.add('dead'); }, 460);
+  }
+
+  /** Steps the held vitals forward to this event's stamped values. */
+  function commitVitals(ev) {
+    if (!state.vitals || !ev || !ev.vitals) return;
+    ev.vitals.forEach(function (v) {
+      if (!v || !v.id) return;
+      state.vitals[v.id] = { hp: v.hp, maxHp: v.maxHp, shield: v.shield, alive: v.alive };
+      repaintVitals(v.id);
+    });
+  }
+
+  /** commitVitals after a beat, so the effect that causes it reads first. */
+  function commitVitalsAfter(ev, ms) {
+    setTimeout(function () { commitVitals(ev); }, ms);
+  }
+
   // ---- event playback (projectiles + action moments) --------------------
   function playEvents(events, done) {
     state.busy = true;
     syncBattleActionButtons();
     var stage = $('battleStage');
-    // Compress long sequences so playback stays snappy.
-    var scale = events.length > 10 ? 10 / events.length : 1;
+    // Compress long sequences so playback stays snappy, but never past half
+    // speed — beyond that the compounding cut leaves nothing readable.
+    var scale = events.length > 12 ? Math.max(0.5, 12 / events.length) : 1;
     var i = 0;
 
     function step() {
@@ -2865,10 +3183,26 @@
       }
       var ev = events[i++];
       var wait = playEvent(ev, stage) * scale;
-      setTimeout(step, Math.max(60, wait));
+      setTimeout(step, Math.max(EVENT_MIN_MS[ev.type] || 60, wait));
     }
     step();
   }
+
+  /*
+   * Floor per event type: how long that event's own animation actually needs
+   * before the next one may start. Compression used to cut a hit to under the
+   * 340ms its projectile spends crossing the stage, so the following event —
+   * and its HP change — landed while the orb was still in flight.
+   */
+  var EVENT_MIN_MS = {
+    hit: 560, burn: 380, poison: 380, wither: 380,
+    heal: 360, revive: 480, shield: 340, shieldExpired: 240,
+    status: 360, stunned: 360, knightHit: 360,
+    round: 620, card: 380, enemyAct: 440, ultimate: 560, whiff: 440,
+    swap: 460, evolve: 760, cardUpdate: 560,
+    reshuffle: 560, discardHand: 380, apCharge: 500, actionPoints: 380,
+    buff: 380, gaugeReady: 380
+  };
 
   function playEvent(ev, stage) {
     switch (ev.type) {
@@ -2886,42 +3220,54 @@
       case 'ultimate':
         showBanner('⚡ ' + ev.name + '!', 'you', ev.element);
         return 800;
+      // The bar drops in the projectile's arrival callback, never before: the
+      // orb has to be seen striking before the number it caused moves.
       case 'hit':
         fireProjectile(stage, ev.sourceId, ev.targetId, ev.element, function () {
           impact(ev.targetId, ev.amount, ev.ko);
+          commitVitals(ev);
         });
         return 720;
+      // Ticks have no projectile — the element burns around the unit instead,
+      // so the HP follows the aura catching rather than leading it.
       case 'burn':
         elementBorder(ev.targetId, 'FIRE');
         flashSprite(ev.targetId, 'hurt');
         floatText(ev.targetId, '-' + ev.amount + ' 🔥', 'dmg');
+        commitVitalsAfter(ev, 200);
         return 420;
       case 'poison':
         elementBorder(ev.targetId, 'POISON');
         flashSprite(ev.targetId, 'hurt');
         floatText(ev.targetId, '-' + ev.amount + ' ☠️', 'dmg');
+        commitVitalsAfter(ev, 200);
         return 420;
       case 'wither':
         elementBorder(ev.targetId, 'UNDEAD');
         flashSprite(ev.targetId, 'hurt');
         floatText(ev.targetId, (ev.amount ? ('-' + ev.amount + ' ') : '') + '💀', 'dmg');
+        commitVitalsAfter(ev, 200);
         return 400;
       case 'heal':
         flashSprite(ev.targetId, 'healed');
         floatText(ev.targetId, '+' + ev.amount, 'heal');
+        commitVitalsAfter(ev, 180);
         return 420;
       case 'revive':
         flashSprite(ev.targetId, 'healed');
         floatText(ev.targetId, '📜 Back!', 'heal');
+        commitVitalsAfter(ev, 260);
         return 650;
       case 'shield':
         flashSprite(ev.targetId, 'shielded');
         floatText(ev.targetId, '🛡+' + ev.amount, 'shield');
+        commitVitalsAfter(ev, 180);
         return 400;
       // Shields only hold until the shielded side's next turn, so their going
       // away is a beat the player has to see rather than a silent stat drop.
       case 'shieldExpired':
         floatText(ev.targetId, '🛡 fades', 'status');
+        commitVitalsAfter(ev, 160);
         return 260;
       case 'buff':
         showBanner(ev.kind === 'atk' ? '+' + ev.amount + ' attack!' : '+' + ev.amount + ' speed!', 'you');
@@ -2931,17 +3277,22 @@
         elementBorder(ev.targetId, STATUS_ELEMENT[ev.status] || ev.element || 'NEUTRAL');
         flashSprite(ev.targetId, 'statused');
         floatText(ev.targetId, meta.icon + ' ' + meta.label + '!', 'status');
+        commitVitalsAfter(ev, 200);
         return 480;
       }
       case 'swap':
+        commitVitals(ev);
         flashSprite(ev.aId, 'swapping');
         flashSprite(ev.bId, 'swapping');
         showBanner(nameOf(ev.aId) + ' ⇄ ' + nameOf(ev.bId) + ' swap notches', 'you');
         return 550;
+      // Evolution rewrites max HP, so the new bar belongs to the new form —
+      // it lands with the transformation flash, not ahead of the banner.
       case 'evolve':
         showBanner('🌟 ' + ev.from + ' evolves into ' + ev.to + '!', 'you', ev.element);
         flashSprite(ev.targetId, 'evolving');
         floatText(ev.targetId, '🌟 EVOLVED!', 'status');
+        commitVitalsAfter(ev, 380);
         return 1000;
       case 'cardUpdate':
         refreshHandCards(ev.targetId, ev.previewMoves);
@@ -2960,6 +3311,9 @@
       case 'draw':
         state.dealAnimation = true;
         return 120;
+      case 'actionPoints':
+        showBanner('⚡ +' + ev.amount + ' AP this turn', 'you');
+        return 520;
       case 'apCharge':
         showBanner('Unused AP → +' + ev.amount + ' Ultimate Charge', 'you');
         apChargeAnimation(ev.amount, ev.total);
@@ -2973,6 +3327,7 @@
         return 480;
       case 'knightHit':
         floatKnight('-' + ev.amount);
+        commitVitalsAfter(ev, 180);
         return 450;
       case 'charge':
         floatKnight('+' + ev.amount + ' ⚡');
@@ -3213,6 +3568,99 @@
   }
 
   // ---- hand ------------------------------------------------------------
+  /** Card face shared by the fanned hand and the hand sheet, so the two can
+   *  never drift apart — the sheet is meant to be the same card, read larger. */
+  function playCardClass(card) {
+    return 'playcard ' + elClass(card.element) +
+      (card.effect === 'EVOLVE' ? ' evo-card' : '') +
+      (card.playable ? '' : ' unplayable') +
+      (card.instanceId === state.selectedCardId ? ' selected' : '');
+  }
+
+  function playCardMarkup(card) {
+    var statusLine = '';
+    if (card.status && card.statusChance) {
+      var meta = STATUS_META[card.status] || { icon: '', label: card.status };
+      statusLine = '<div class="pc-status">' + meta.icon + ' ' + card.statusChance + '% ' + meta.label + '</div>';
+    }
+    // A locked evolution card shows its gauge instead of the description.
+    var gaugeLine = '';
+    if (card.effect === 'EVOLVE' && card.gauge != null && card.gauge < card.gaugeMax) {
+      gaugeLine = '<div class="pc-gauge"><div class="pc-gaugefill" style="width:' +
+        Math.round(100 * card.gauge / Math.max(1, card.gaugeMax)) + '%"></div>' +
+        '<span>🌟 ' + card.gauge + '/' + card.gaugeMax + ' AP</span></div>';
+    }
+    return '<div class="pc-cost' + (card.actionCost === 0 ? ' free' : '') + '">' + card.actionCost + '</div>' +
+      '<div class="pc-name">' + esc(card.name) + '</div>' +
+      '<div class="pc-owner">' + icon(card.element) + ' ' + esc(card.ownerName) + '</div>' +
+      '<div class="pc-eff ' + effectClass(card.effect) + '">' + effectLabel(card) + '</div>' +
+      statusLine + gaugeLine +
+      '<div class="pc-desc">' + esc(card.description || '') + '</div>';
+  }
+
+  // ---- hand sheet ---------------------------------------------------------
+  /** The fan only ever shows a few cards, and on phones it hides descriptions
+   *  outright. The sheet is the "read my whole hand" view: every card at full
+   *  size, and tapping one brings it to the middle of the fan ready to drag. */
+  function toggleHandSheet(open) {
+    var sheet = $('handSheet');
+    if (!sheet) return;
+    if (open == null) open = sheet.classList.contains('hidden');
+    var b = state.run && state.run.battle;
+    if (open && (!b || b.phase === 'WON' || b.phase === 'LOST')) open = false;
+    sheet.classList.toggle('hidden', !open);
+    var btn = $('deckCounts');
+    if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) renderHandSheet(b);
+  }
+
+  function renderHandSheet(b) {
+    b = b || (state.run && state.run.battle);
+    var grid = $('handSheetGrid');
+    if (!grid || !b) return;
+    var cards = sortHandByOwner(b);
+    var sub = $('handSheetSub');
+    if (sub) {
+      sub.textContent = cards.length + (cards.length === 1 ? ' card' : ' cards') +
+        ' · ' + b.actionPoints + '/' + (b.maxActionPoints || 5) + ' AP';
+    }
+    grid.innerHTML = '';
+    if (!cards.length) {
+      grid.appendChild(el('div', 'hand-sheet-empty', 'Your hand is empty — end the turn to draw.'));
+      return;
+    }
+    cards.forEach(function (card) {
+      var c = el('div', playCardClass(card));
+      c.dataset.owner = card.ownerId;
+      c.innerHTML = playCardMarkup(card);
+      c.addEventListener('click', function () {
+        toggleHandSheet(false);
+        focusHandCard(card.instanceId);
+      });
+      grid.appendChild(c);
+    });
+  }
+
+  /** Picking a card in the sheet hands it back to the fan focused — the same
+   *  state tapping it in the fan gives it — and scrolls it to the middle so it
+   *  is under the thumb, ready to drag out. (A hand that fits on screen does
+   *  not scroll at all; then the focus highlight is the whole cue.) */
+  function focusHandCard(instanceId) {
+    var b = state.run && state.run.battle;
+    if (!b || b.phase !== 'PLAYER_INPUT') return;
+    var sorted = sortHandByOwner(b);
+    var index = -1;
+    sorted.forEach(function (card, i) { if (card.instanceId === instanceId) index = i; });
+    if (index < 0) return;
+    state.selectedCardId = instanceId;
+    renderBattle();
+    var hand = $('handRow');
+    var node = hand ? hand.querySelectorAll('.playcard')[index] : null;
+    if (!node) return;
+    hand.scrollLeft = node.offsetLeft + (node.offsetWidth / 2) - (hand.clientWidth / 2);
+    layoutHandFan(hand);
+  }
+
   function renderHand(b, over) {
     // Replacing the hand DOM would orphan any in-flight drag ghost (pointer
     // listeners lived on the destroyed card). Drop the drag first.
@@ -3236,30 +3684,12 @@
     state.dealAnimation = false;
     var prevOwner = null;
     sorted.forEach(function (card, i) {
-      var effCls = effectClass(card.effect);
       var groupStart = i > 0 && card.ownerId !== prevOwner;
       prevOwner = card.ownerId;
-      var c = el('div', 'playcard ' + elClass(card.element) + (card.effect === 'EVOLVE' ? ' evo-card' : '') + (card.playable ? '' : ' unplayable') + (card.instanceId === state.selectedCardId ? ' selected' : '') + (deal ? ' dealt' : '') + (groupStart ? ' group-start' : ''));
+      var c = el('div', playCardClass(card) + (deal ? ' dealt' : '') + (groupStart ? ' group-start' : ''));
       c.dataset.owner = card.ownerId;
       if (deal) c.style.setProperty('--deal-i', i);
-      var statusLine = '';
-      if (card.status && card.statusChance) {
-        var meta = STATUS_META[card.status] || { icon: '', label: card.status };
-        statusLine = '<div class="pc-status">' + meta.icon + ' ' + card.statusChance + '% ' + meta.label + '</div>';
-      }
-      // A locked evolution card shows its gauge instead of the description.
-      var gaugeLine = '';
-      if (card.effect === 'EVOLVE' && card.gauge != null && card.gauge < card.gaugeMax) {
-        gaugeLine = '<div class="pc-gauge"><div class="pc-gaugefill" style="width:' +
-          Math.round(100 * card.gauge / Math.max(1, card.gaugeMax)) + '%"></div>' +
-          '<span>🌟 ' + card.gauge + '/' + card.gaugeMax + ' AP</span></div>';
-      }
-      c.innerHTML = '<div class="pc-cost' + (card.actionCost === 0 ? ' free' : '') + '">' + card.actionCost + '</div>' +
-        '<div class="pc-name">' + esc(card.name) + '</div>' +
-        '<div class="pc-owner">' + icon(card.element) + ' ' + esc(card.ownerName) + '</div>' +
-        '<div class="pc-eff ' + effCls + '">' + effectLabel(card) + '</div>' +
-        statusLine + gaugeLine +
-        '<div class="pc-desc">' + esc(card.description || '') + '</div>';
+      c.innerHTML = playCardMarkup(card);
       setupCardDrag(c, card);
       hand.appendChild(c);
     });
@@ -3623,7 +4053,10 @@
       ghost = null;
       clearDragArrow();
       document.body.classList.remove('siege-drag-active');
-      if (cardEl && cardEl.classList) cardEl.classList.remove('playcard-dragsource');
+      if (cardEl && cardEl.classList) {
+        cardEl.classList.remove('playcard-dragsource');
+        cardEl.classList.remove('playcard-pressed');
+      }
       var stage = $('battleStage');
       if (stage) stage.classList.remove('drop-hover');
       Array.prototype.forEach.call(document.querySelectorAll('.sprite.targetable, .sprite.drop-hover'), function (n) {
@@ -3692,6 +4125,10 @@
       pointerId = event.pointerId;
       startX = event.clientX; startY = event.clientY;
       dragging = false;
+      // Held cards sit above their overlapping neighbours immediately, before
+      // the drag threshold — the same lift a tap gives, so what you grabbed is
+      // fully visible.
+      cardEl.classList.add('playcard-pressed');
       activeCardDrag = { cardEl: cardEl, cleanup: cleanup };
       // Document listeners survive the source card being destroyed mid-drag
       // (hand re-render / capture loss), which is what left stuck ghosts.
@@ -3795,6 +4232,21 @@
   }
 
   /** Cards, abilities, and evolution info for any battlefield unit (allies AND enemies). */
+  function battleUnitEffects(u) {
+    var effects = [];
+    if (Number(u.shield) > 0) effects.push({ icon: '🛡', label: '+' + u.shield + ' Shield', detail: 'Absorbs damage until the unit\'s next turn', negative: false });
+    if (Number(u.attackBuff) > 0) effects.push({ icon: '⚔', label: '+' + u.attackBuff + ' Attack', detail: 'Battle damage bonus', negative: false });
+    if (Number(u.baseSpeed) > 0 && Number(u.speed) > Number(u.baseSpeed)) effects.push({ icon: '⚡', label: '+' + (u.speed - u.baseSpeed) + ' Speed', detail: 'Battle speed bonus', negative: false });
+    if (Number(u.maxHpBonus) > 0) effects.push({ icon: '❤', label: '+' + u.maxHpBonus + ' Max Health', detail: 'Battle health bonus', negative: false });
+    (u.statuses || []).forEach(function (status) {
+      var meta = STATUS_META[status];
+      if (!meta) return;
+      var rounds = Number((u.statusRounds || {})[status]);
+      effects.push({ icon: meta.icon, label: meta.label, detail: meta.tip + (rounds > 0 ? ' · ' + rounds + ' round' + (rounds === 1 ? '' : 's') : ''), negative: true });
+    });
+    return effects;
+  }
+
   function showBattleUnitDetails(u) {
     var run = state.run;
     if (u.side === 'ENEMY') {
@@ -3802,7 +4254,7 @@
       showUnitModal({
         name: u.name, element: u.element, artUrl: u.artUrl,
         subtitle: 'Enemy · HP ' + u.hp + '/' + u.maxHp + ' · ⚡ ' + u.speed + intentNote,
-        cards: u.abilities || []
+        cards: u.abilities || [], effects: battleUnitEffects(u)
       });
       return;
     }
@@ -3816,7 +4268,7 @@
     showUnitModal({
       name: u.name, element: u.element, artUrl: u.artUrl,
       subtitle: 'HP ' + u.hp + '/' + u.maxHp + ' · ⚡ ' + u.speed + evoNote,
-      cards: member ? (member.cards || []) : []
+      cards: member ? (member.cards || []) : [], effects: battleUnitEffects(u)
     });
   }
 
@@ -4126,6 +4578,18 @@
         cardLine +
         '<div class="result-claim' + (er.claimed ? ' ok' : '') + '">' + note + '</div>');
       extras.appendChild(box);
+
+      // Siegelings met on the path are now pickable at warband select. Only
+      // first-time unlocks are listed — a re-found Siegeling says nothing.
+      var unlocked = er.unlockedSieglings || [];
+      if (unlocked.length) {
+        extras.appendChild(el('div', 'result-unlocks',
+          '<h3>🔓 New starter Siegelings</h3>' +
+          '<div class="unlock-chips">' + unlocked.map(function (name) {
+            return '<span class="extract-chip">' + esc(name) + '</span>';
+          }).join('') + '</div>' +
+          '<div class="extract-note">Pick them at warband select on your next expedition.</div>'));
+      }
     }
 
     // Team extraction: the leveled team was banked for Battlegrounds.

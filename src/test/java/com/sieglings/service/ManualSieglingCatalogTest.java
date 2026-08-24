@@ -27,6 +27,23 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ManualSieglingCatalogTest {
 
+    /**
+     * Rarity does not track evolution depth reliably — Generoot is a stage-3 form printed at
+     * RARE, and while rarity alone decided the band it stood on the battlefield at the same
+     * height as the stage-1 starters beside it.
+     */
+    @Test
+    void aLateStageFormIsNeverSizedBelowItsEvolutionDepth() {
+        assertEquals(SieglingSize.LARGE, SieglingSize.defaultFor(Rarity.RARE, 2),
+                "a stage-3 rare draws at its depth band, not its rarity band");
+        assertEquals(SieglingSize.MEDIUM, SieglingSize.defaultFor(Rarity.COMMON, 1),
+                "a stage-2 common draws bigger than its stage-1 precursor");
+        assertEquals(SieglingSize.MEDIUM, SieglingSize.defaultFor(Rarity.RARE, 0),
+                "rarity still lifts a base form above its depth band");
+        assertEquals(SieglingSize.GIGANTIC, SieglingSize.defaultFor(Rarity.LEGENDARY, 0),
+                "legendaries stay gigantic wherever they sit in a line");
+    }
+
     @Test
     void holographicFullCardArtRoundTripsWithoutReplacingSiegeArt() throws Exception {
         SieglingCard generated = GeneratedCreatureCatalog.createGeneratedForElement(Element.FIRE).get(0);
@@ -92,8 +109,14 @@ class ManualSieglingCatalogTest {
 
         List<SieglingCard> defaulted = ManualSieglingCatalog.applyOverrides(Element.FIRE, generated, List.of(), pool);
         for (SieglingCard card : defaulted) {
-            assertEquals(SieglingSize.defaultFor(card.getRarity(), 0), card.getSize(),
-                    card.getId() + " should take the size band its rarity implies");
+            // Evolution depth can push a card above its rarity band (a stage-3 form is never
+            // drawn smaller than its precursor), so the rarity band is the floor, not the value.
+            assertTrue(card.getSize().ordinal() >= SieglingSize.defaultFor(card.getRarity(), 0).ordinal(),
+                    card.getId() + " should be at least the size band its rarity implies");
+            if (card.getEvolvesFromId() == null) {
+                assertEquals(SieglingSize.defaultFor(card.getRarity(), 0), card.getSize(),
+                        card.getId() + " is a base form and should take its rarity band exactly");
+            }
         }
         assertTrue(defaulted.stream().anyMatch(card -> card.getRarity() == Rarity.LEGENDARY),
                 "the fire roster should contain a legendary to prove the gigantic default");
@@ -167,6 +190,7 @@ class ManualSieglingCatalogTest {
                         "Capacitor Bash",
                         "Deal 3 damage to 1 enemy",
                         TargetType.SINGLE_ENEMY,
+                        null,
                         null,
                         1,
                         "damage",
@@ -303,6 +327,7 @@ class ManualSieglingCatalogTest {
                                 "Deal 2 damage to 1 enemy",
                                 TargetType.SINGLE_ENEMY,
                                 null,
+                                null,
                                 1,
                                 "damage",
                                 2,
@@ -315,6 +340,7 @@ class ManualSieglingCatalogTest {
                                 "Volt Burst",
                                 "Deal 5 damage to 1 enemy",
                                 TargetType.SINGLE_ENEMY,
+                                null,
                                 null,
                                 1,
                                 "damage",
@@ -376,6 +402,7 @@ class ManualSieglingCatalogTest {
                         "Edited Ember Bolt",
                         "Deal 7 damage to 1 enemy",
                         TargetType.SINGLE_ENEMY,
+                        null,
                         null,
                         1,
                         "damage",
@@ -443,6 +470,7 @@ class ManualSieglingCatalogTest {
                         "Deal 3 damage to 1 enemy",
                         TargetType.SINGLE_ENEMY,
                         null,
+                        null,
                         1,
                         "damage",
                         3,
@@ -497,6 +525,7 @@ class ManualSieglingCatalogTest {
                         "Edited Stone Collapse",
                         "Deal 9 damage to 1 enemy if the opponent has 4 Earth energy",
                         TargetType.SINGLE_ENEMY,
+                        null,
                         null,
                         1,
                         "damage",
@@ -561,6 +590,7 @@ class ManualSieglingCatalogTest {
                         "Deal 5 damage to 1 enemy if the opponent has 3 Earth energy",
                         TargetType.SINGLE_ENEMY,
                         null,
+                        null,
                         1,
                         "damage",
                         5,
@@ -615,6 +645,7 @@ class ManualSieglingCatalogTest {
                         "Legacy Ember Pulse",
                         "Deal 4 damage to 1 enemy",
                         TargetType.SINGLE_ENEMY,
+                        null,
                         null,
                         1,
                         "damage",

@@ -26,6 +26,9 @@ public class AIService {
     @Autowired
     private EffectService effectService;
 
+    @Autowired(required = false)
+    private ElementalAfflictionService elementalAfflictionService;
+
     private final Random random = new Random();
 
     /**
@@ -44,10 +47,20 @@ public class AIService {
             state.log("AI draws a card. (Hand: " + state.getEnemy().getHand().size() + ")");
         }
 
+        if (state.getEnemy().isOvercharged()) {
+            state.log("AI is overcharged through this Setup phase.");
+        }
+
+        state.setCurrentPhase(Phase.SETUP);
+        // Same ordering as GameService.draw: Setup-tick afflictions (Burn, Wither, Chill thaw)
+        // resolve before energy is recalculated, so a card that burns to death stops feeding links.
+        if (elementalAfflictionService != null) {
+            elementalAfflictionService.tickOwnerSetup(state, false);
+        }
+
         energyService.recalculateEnergy(state);
         state.captureSieglingSetupPlacementBonusFromEnergy(false);
 
-        state.setCurrentPhase(Phase.SETUP);
         state.log("AI Setup phase.");
         // Setup phase: try to place Sieglings and cast spells
         aiPlaceSieglings(state);

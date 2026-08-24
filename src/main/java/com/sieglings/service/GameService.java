@@ -190,6 +190,12 @@ public class GameService {
 
         Player actor = getSidePlayer(state, isPlayerSide);
         actor.clearTemporaryEnergyAdjustments();
+        // An overcharge started during the last battle phase carries into this setup; say so,
+        // because the pool is bigger than the board explains.
+        if (actor.isOvercharged()) {
+            state.log(sideName(state, isPlayerSide) + " is overcharged: "
+                    + describeOvercharge(actor) + " through this Setup phase.");
+        }
         state.resetPlacementsForTurn(isPlayerSide);
 
         Card drawn = actor.drawCard();
@@ -737,6 +743,13 @@ public class GameService {
 
     private void startBattlePhase(GameState state) {
         state.setCurrentPhase(Phase.BATTLE);
+        // Active energy buffs run out here: they power setup, not the fight. Dropping them
+        // before the restore is what makes the pool read true for the whole battle phase.
+        boolean overchargeEnded = state.getPlayer().isOvercharged() || state.getEnemy().isOvercharged();
+        energyService.clearOvercharge(state);
+        if (overchargeEnded) {
+            state.log("Overcharge fades as the battle phase begins.");
+        }
         // Full energy restore at start of battle phase
         energyService.recalculateEnergy(state);
         state.log("Both setup turns are complete. Entering battle phase. Energy restored!");
@@ -967,6 +980,14 @@ public class GameService {
 
     private String sideName(GameState state, boolean isPlayerSide) {
         return getSidePlayer(state, isPlayerSide).getName();
+    }
+
+    /** e.g. {@code "+2 fire, +1 water"} — used in the overcharge log line. */
+    private String describeOvercharge(Player player) {
+        return player.getOverchargeEnergyTotals().entrySet().stream()
+                .filter(entry -> entry.getValue() != null && entry.getValue() > 0)
+                .map(entry -> "+" + entry.getValue() + " " + entry.getKey().name().toLowerCase())
+                .collect(java.util.stream.Collectors.joining(", "));
     }
 
     private Card findInHand(Player player, String cardId) {

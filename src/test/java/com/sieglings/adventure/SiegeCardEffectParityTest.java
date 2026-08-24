@@ -55,6 +55,10 @@ class SiegeCardEffectParityTest {
         assertEquals(Effect.SLOW, effect("slow"));
         assertEquals(Effect.EXECUTE, effect("destroy"));
         assertEquals(Effect.SWAP, effect("move_link"));
+        // Siege has no elemental pools, so generated energy becomes the resource it would buy: AP.
+        assertEquals(Effect.GAIN_AP, effect("energy_boost"));
+        assertEquals(TargetKind.SELF, target("energy_boost", TargetType.PASSIVE));
+        assertEquals(TargetKind.SELF, target("energy_boost", TargetType.SINGLE_ENEMY));
 
         assertEquals(Effect.BUFF_ATK, effect("connected_allies_damage_boost"));
         assertEquals(Effect.MAX_HP_BOOST, effect("connected_allies_health_boost"));
@@ -216,6 +220,20 @@ class SiegeCardEffectParityTest {
         assertEquals(2, f.battle.getHand().size());
         assertEquals(2, f.battle.getDeck().size());
         assertEquals(hpBefore, f.ally.getHp(), "a draw card must never damage its own caster");
+    }
+
+    @Test
+    void energyBoostAddsActionPointsInsteadOfHittingItsOwner() {
+        Fixture f = fixture(NodeType.BATTLE);
+        AbilitySpec spec = new AbilitySpec("energy_boost", "Energy Boost", Element.WATER, Effect.GAIN_AP, 2,
+                TargetKind.SELF, 1, "Generate 2 energy.");
+
+        int apBefore = f.battle.getActionPoints();
+        int hpBefore = f.ally.getHp();
+        apply(f.battle, f.ally, spec, List.of(f.ally));
+
+        assertEquals(apBefore + 2, f.battle.getActionPoints());
+        assertEquals(hpBefore, f.ally.getHp(), "an energy card must never damage its own caster");
     }
 
     @Test

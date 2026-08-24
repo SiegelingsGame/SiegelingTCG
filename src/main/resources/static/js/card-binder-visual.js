@@ -296,6 +296,41 @@
         return `<span class="binder-card-fallback-element">${escapeHtml(format(normalized).slice(0, 1) || '?')}</span>`;
     }
 
+    // Row-sized thumbnail for list surfaces (the deck builder's binder/deck
+    // rows). Sieglings show their cutout illustration so the row reads as the
+    // creature rather than a wall of identical element badges; Strategies and
+    // Deceptions have no creature art, so they get their notch art instead.
+    // Element stays legible from the row's accent colour and its type/element
+    // caption, so the element badge is only the last-resort fallback.
+    function renderCardRowThumb(card) {
+        const type = normalizeCardType(card);
+        if (type === 'SPELL' || type === 'TRAP') {
+            const notchPath = notchIconPath(card?.element);
+            if (notchPath) {
+                return `<img class="card-row-thumb-notch" src="${escapeAttr(preferWebp(notchPath))}" alt="" loading="lazy" data-img-fallback="${escapeAttr(notchPath)}" onerror="sgWebpFallback(this)">`;
+            }
+            return renderElementIcon(card?.element);
+        }
+        const artUrl = String(card?.cardArtUrl || '').trim();
+        const mode = normalizeArtMode(card?.cardArtMode);
+        // OVERLAY and REPLACE are both the creature illustration; FULL_CARD is
+        // a whole pre-composited card face and would read as an unrecognisable
+        // crop at this size.
+        if (artUrl && (mode === 'OVERLAY' || mode === 'REPLACE')) {
+            // Deliberately not renderCustomArtImage: the designer's art
+            // transform frames the illustration inside the card's tall art
+            // window, and most cards carry a scale around 1.7. Replaying that
+            // on a 36px square crops the thumbnail down to the middle of the
+            // creature, so the row shows the whole cutout instead.
+            const preferred = preferWebp(artUrl);
+            const fallbackAttrs = preferred !== artUrl
+                ? ` data-img-fallback="${escapeAttr(artUrl)}" onerror="sgWebpFallback(this)"`
+                : '';
+            return `<img class="card-row-thumb-art" src="${escapeAttr(preferred)}" alt="" loading="lazy"${fallbackAttrs}>`;
+        }
+        return renderElementIcon(card?.element);
+    }
+
     function renderBinderCardArt(card) {
         const artUrl = String(card?.cardArtUrl || '').trim();
         const mode = normalizeArtMode(card?.cardArtMode);
@@ -592,7 +627,9 @@
         renderBinderCardShell,
         renderBinderCardArt,
         renderBinderCardOverlay,
+        renderCardRowThumb,
         renderElementIcon,
+        notchIconPath,
         elementColor,
         usesFramedCardTemplate,
         usesFullCardArt,

@@ -14,6 +14,8 @@ import com.sieglings.persistence.entity.PlayerProgressionEntity;
 import com.sieglings.persistence.firestore.DailyMissionProgressStore;
 import com.sieglings.persistence.firestore.PlayerProgressionStore;
 import com.sieglings.persistence.firestore.RewardClaimStore;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
@@ -36,6 +38,8 @@ import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 public class DailyMissionService {
+
+    private static final Logger logger = LoggerFactory.getLogger(DailyMissionService.class);
 
     /** Flat Siegecoin reward granted once per calendar day just for logging in. */
     public static final int DAILY_LOGIN_REWARD = 100;
@@ -488,9 +492,26 @@ public class DailyMissionService {
         });
         if (applyRollover(progress)) {
             progress.setUpdatedAt(Instant.now());
-            progressStore.save(progress);
+            persistRollover(progress);
         }
         return progress;
+    }
+
+    /**
+     * The rollover write is a side effect of reading on the first request of a new
+     * period, so a Firestore hiccup here must not fail the caller. Losing the write
+     * only means the next request re-applies the same reset — the in-memory
+     * progress is already correct, and the next claim persists it. Letting the
+     * exception escape instead took the whole mission panel down (all three tabs
+     * render from this one snapshot) for a write the reader never asked for.
+     */
+    private void persistRollover(DailyMissionProgressEntity progress) {
+        try {
+            progressStore.save(progress);
+        } catch (RuntimeException ex) {
+            logger.warn("Could not persist mission rollover for {}; serving the reset snapshot anyway.",
+                    progress.getUserId(), ex);
+        }
     }
 
     /**

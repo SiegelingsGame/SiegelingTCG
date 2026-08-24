@@ -331,7 +331,7 @@ public class MovesPoolService {
                 el,
                 MoveCategory.STANDARD,
                 tt,
-                null,
+                def.targetElement(),
                 def.targetRow(),
                 targetCount,
                 effectType,
