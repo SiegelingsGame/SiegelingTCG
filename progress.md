@@ -1765,3 +1765,14 @@ Verified with `node --check` on `home.js` and a headless-Chromium check at 390x8
 serving the statics over `python3 -m http.server`: with no API responses the deck
 grid reads "Loading your decks…" and `#decksSection .builder-browser` reports
 `isVisible() === false` (it was `true` before the change).
+
+## 2026-08-24 — Hide premade heading while decks load
+
+Follow-up: the "PREMADE / Official battle decks" heading still labelled an empty
+row during the deck load. `renderDecks` now also toggles that row head with
+`setPremadeHeadVisible()`, so a loading Decks page shows only the page title and
+the spinner. `home.js` cache-bust bumped to v148.
+
+Verified headless at 390x844 with no API responses: `#decksSection` visible text
+is "DECKS | Premade and custom decks | Loading your decks…", with both the premade
+row head and the custom block reporting `isVisible() === false`.

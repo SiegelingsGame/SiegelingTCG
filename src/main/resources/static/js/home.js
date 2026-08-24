@@ -3363,10 +3363,12 @@
             // and saved tiles would open a builder with no catalog — so the whole
             // custom block stays hidden until the data lands.
             setCustomDeckBlockVisible(false);
+            setPremadeHeadVisible(false);
             renderSavedDecks();
             return;
         }
         setCustomDeckBlockVisible(true);
+        setPremadeHeadVisible(true);
         grid.innerHTML = (state.options?.decks || []).map(renderPremadeDeckTile).join('');
         grid.querySelectorAll('[data-preview-deck]').forEach(tile => {
             const select = () => {
@@ -3567,6 +3569,13 @@
     function setCustomDeckBlockVisible(visible) {
         const block = document.querySelector('#decksSection .builder-browser');
         if (block) block.classList.toggle('hidden', !visible);
+    }
+
+    // The premade heading labels a row that has nothing in it yet, so it hides
+    // with the rest of the chrome and the spinner stands alone.
+    function setPremadeHeadVisible(visible) {
+        const head = document.querySelector('#decksSection .decks-browser-block:not(.builder-browser) .decks-row-head');
+        if (head) head.classList.toggle('hidden', !visible);
     }
 
     function renderSavedDecks() {
