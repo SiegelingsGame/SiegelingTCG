@@ -1025,6 +1025,135 @@ class EffectServiceTest {
         );
     }
 
+    @Test
+    void activeEnergyBoostOverchargesTheCasterImmediately() {
+        GameState state = battleState();
+        CardInstance source = instance("well-tender", Element.WATER, 1, 1, true);
+        state.setAt(true, 1, 1, source);
+
+        Ability charge = new Ability("Charge", "Generate 2 water energy",
+                TargetType.SELF, null, 0, AbilityEffectKeys.ENERGY_BOOST, 2, false);
+
+        effectService.resolveAbility(state, charge, source, true, -1, -1);
+
+        // Spendable right away — trainer actives never trigger an energy recalculation.
+        assertTrue(state.getPlayer().isOvercharged());
+        assertEquals(2, state.getPlayer().getOverchargeEnergy(Element.WATER));
+        assertEquals(2, state.getPlayer().getWaterEnergy());
+        assertFalse(state.getEnemy().isOvercharged());
+        assertEquals(0, state.getEnemy().getWaterEnergy());
+    }
+
+    @Test
+    void energyBoostAimedAtAnAllyGeneratesThatAllysElement() {
+        GameState state = battleState();
+        CardInstance source = instance("conduit", Element.FIRE, 1, 1, true);
+        CardInstance ally = instance("frostling", Element.ICE, 2, 0, true);
+        state.setAt(true, 1, 1, source);
+        state.setAt(true, 2, 0, ally);
+
+        // No energy type picked ("Card element"), so it follows the card it names.
+        Ability tap = new Ability("Tap", "Generate energy from 1 ally",
+                TargetType.SINGLE_ALLY, null, 1, AbilityEffectKeys.ENERGY_BOOST, 2, false);
+
+        effectService.resolveAbility(state, tap, source, true, 2, 0);
+
+        assertEquals(2, state.getPlayer().getIceEnergy(), "The targeted ally's element is what it generates.");
+        assertEquals(0, state.getPlayer().getFireEnergy(), "The source's own element must not be used.");
+    }
+
+    @Test
+    void energyBoostAimedAtAlliesGeneratesEachAllysElement() {
+        GameState state = battleState();
+        CardInstance source = instance("dynamo", Element.FIRE, 1, 1, true);
+        CardInstance ice = instance("frostling", Element.ICE, 2, 0, true);
+        CardInstance earth = instance("boulder", Element.EARTH, 2, 1, true);
+        state.setAt(true, 1, 1, source);
+        state.setAt(true, 2, 0, ice);
+        state.setAt(true, 2, 1, earth);
+
+        Ability surge = new Ability("Surge", "Generate energy from every ally",
+                TargetType.ALL_ALLIES, null, 0, AbilityEffectKeys.ENERGY_BOOST, 1, false);
+
+        effectService.resolveAbility(state, surge, source, true, -1, -1);
+
+        // One grant per named card, each of that card's own element — the source included,
+        // because ALL_ALLIES names it too.
+        assertEquals(1, state.getPlayer().getIceEnergy());
+        assertEquals(1, state.getPlayer().getEarthEnergy());
+        assertEquals(1, state.getPlayer().getFireEnergy());
+    }
+
+    @Test
+    void anExplicitEnergyTypeStillWinsOverTheTargetedCardsElement() {
+        GameState state = battleState();
+        CardInstance source = instance("conduit", Element.FIRE, 1, 1, true);
+        CardInstance ally = instance("frostling", Element.ICE, 2, 0, true);
+        state.setAt(true, 1, 1, source);
+        state.setAt(true, 2, 0, ally);
+
+        Ability tap = new Ability("Tap", "Generate 2 water energy",
+                TargetType.SINGLE_ALLY, null, 1, AbilityEffectKeys.ENERGY_BOOST, 2, false);
+        tap.setTargetElement(Element.WATER);
+
+        effectService.resolveAbility(state, tap, source, true, 2, 0);
+
+        assertEquals(2, state.getPlayer().getWaterEnergy());
+        assertEquals(0, state.getPlayer().getIceEnergy(), "A picked energy type is not a target filter.");
+    }
+
+    @Test
+    void aPickedEnergyTypeDoesNotFilterWhichCardsAnEnergyBoostNames() {
+        GameState state = battleState();
+        CardInstance source = instance("dynamo", Element.FIRE, 1, 1, true);
+        CardInstance ice = instance("frostling", Element.ICE, 2, 0, true);
+        state.setAt(true, 1, 1, source);
+        state.setAt(true, 2, 0, ice);
+
+        Ability surge = new Ability("Surge", "Generate 1 water energy per ally",
+                TargetType.ALL_ALLIES, null, 0, AbilityEffectKeys.ENERGY_BOOST, 1, false);
+        surge.setTargetElement(Element.WATER);
+
+        effectService.resolveAbility(state, surge, source, true, -1, -1);
+
+        // Both allies are named even though neither is Water; the element is the energy type.
+        assertEquals(2, state.getPlayer().getWaterEnergy());
+    }
+
+    @Test
+    void energyBoostOnASelfTargetStillGeneratesTheSourcesElement() {
+        GameState state = battleState();
+        CardInstance source = instance("emberpup", Element.FIRE, 1, 1, true);
+        CardInstance ally = instance("frostling", Element.ICE, 2, 0, true);
+        state.setAt(true, 1, 1, source);
+        state.setAt(true, 2, 0, ally);
+
+        Ability charge = new Ability("Charge", "Generate 2 energy",
+                TargetType.SELF, null, 0, AbilityEffectKeys.ENERGY_BOOST, 2, false);
+
+        effectService.resolveAbility(state, charge, source, true, -1, -1);
+
+        assertEquals(2, state.getPlayer().getFireEnergy());
+        assertEquals(0, state.getPlayer().getIceEnergy());
+    }
+
+    @Test
+    void activeEnergyBoostUsesTheChosenEnergyTypeOverTheSourceElement() {
+        GameState state = battleState();
+        CardInstance source = instance("conduit", Element.FIRE, 1, 1, true);
+        state.setAt(true, 1, 1, source);
+
+        Ability charge = new Ability("Conduct", "Generate 1 electric energy",
+                TargetType.SELF, null, 0, AbilityEffectKeys.ENERGY_BOOST, 1, false);
+        charge.setTargetElement(Element.ELECTRIC);
+
+        effectService.resolveAbility(state, charge, source, true, -1, -1);
+
+        assertEquals(1, state.getPlayer().getOverchargeEnergy(Element.ELECTRIC));
+        assertEquals(0, state.getPlayer().getOverchargeEnergy(Element.FIRE));
+        assertEquals(1, state.getPlayer().getElectricEnergy());
+    }
+
     private GameState battleState() {
         GameState state = new GameState();
         state.setPlayer(new Player("Player", true));

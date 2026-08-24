@@ -67,6 +67,18 @@ public class Ability {
         return new Ability(name, desc, target, row, 0, effectType, value, true);
     }
 
+    /**
+     * Passive energy generation: the owner's pool gains {@code value} energy of
+     * {@code energyElement} every turn while the card is on the board, with no notch
+     * link or socket involved. A null element means "use the source card's element".
+     */
+    public static Ability passiveEnergyBoost(String name, String desc, Element energyElement, int value) {
+        Ability ability = new Ability(name, desc, TargetType.PASSIVE, null, 0,
+                AbilityEffectKeys.ENERGY_BOOST, value, true);
+        ability.setTargetElement(energyElement);
+        return ability;
+    }
+
     public static Ability connectedAlliesHealthBoost(String name, String desc, int value) {
         return new Ability(name, desc, TargetType.SELF, null, 0, AbilityEffectKeys.CONNECTED_ALLIES_HEALTH_BOOST, value, false);
     }

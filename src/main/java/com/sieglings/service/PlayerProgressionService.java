@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -825,6 +826,42 @@ public class PlayerProgressionService {
         List<String> unlocked = new ArrayList<>(progression.getSiegeUnlockedKnights());
         unlocked.add(id);
         progression.setSiegeUnlockedKnights(unlocked);
+    }
+
+    public boolean isSiegeSieglingUnlocked(PlayerProgressionEntity progression, String cardId) {
+        if (progression == null || cardId == null || cardId.isBlank()) {
+            return false;
+        }
+        String id = normalizeTrainerId(cardId);
+        return progression.getSiegeUnlockedSieglings().stream()
+                .anyMatch(stored -> id.equals(normalizeTrainerId(stored)));
+    }
+
+    /**
+     * Banks Siegelings found on an expedition as permanent starter unlocks.
+     * Ids already unlocked are skipped rather than rejected — a run routinely
+     * re-finds cards you own, and that is not an error.
+     *
+     * @return the ids newly added, in the order supplied (empty when nothing is new)
+     */
+    public List<String> unlockSiegeSieglings(PlayerProgressionEntity progression, Collection<String> cardIds) {
+        if (progression == null || cardIds == null || cardIds.isEmpty()) {
+            return List.of();
+        }
+        List<String> unlocked = new ArrayList<>(progression.getSiegeUnlockedSieglings());
+        List<String> added = new ArrayList<>();
+        for (String cardId : cardIds) {
+            if (cardId == null || cardId.isBlank() || isSiegeSieglingUnlocked(progression, cardId)) {
+                continue;
+            }
+            String id = normalizeTrainerId(cardId);
+            unlocked.add(id);
+            added.add(id);
+        }
+        if (!added.isEmpty()) {
+            progression.setSiegeUnlockedSieglings(unlocked);
+        }
+        return added;
     }
 
     private String normalizeTrainerId(String trainerId) {

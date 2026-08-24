@@ -213,6 +213,7 @@ class BattleServiceTest {
                 "Set 1 enemy's Speed to 0",
                 TargetType.SINGLE_ENEMY,
                 null,
+                null,
                 1,
                 AbilityEffectKeys.SPEED_ZERO,
                 1,
@@ -226,6 +227,7 @@ class BattleServiceTest {
                 "Pylme Strike",
                 "Deal 1 damage to 1 enemy",
                 TargetType.SINGLE_ENEMY,
+                null,
                 null,
                 1,
                 AbilityEffectKeys.DAMAGE,
@@ -281,6 +283,7 @@ class BattleServiceTest {
                 "Connected allies gain +1 Speed",
                 TargetType.SELF,
                 null,
+                null,
                 0,
                 "connected_allies_speed_boost",
                 1,
@@ -293,6 +296,7 @@ class BattleServiceTest {
                 "Volt Crash",
                 "Deal 5 damage to 1 enemy",
                 TargetType.SINGLE_ENEMY,
+                null,
                 null,
                 1,
                 "damage",
@@ -327,6 +331,91 @@ class BattleServiceTest {
     }
 
     @Test
+    void energyBoostPassiveIsNeverOfferedAsABattleAction() throws Exception {
+        BattleService battleService = createBattleService();
+        MovesPoolService pool = getField(battleService, "movesPoolService");
+
+        String passiveId = "test:wellspring:passive";
+        String attackId = "test:wellspring:attack";
+        pool.registerLegacyManualMove(passiveId, new ManualSieglingCatalog.ManualAbilityDefinition(
+                "Energy Boost",
+                "Passively generates 1 Water energy each turn",
+                TargetType.PASSIVE,
+                Element.WATER,
+                null,
+                0,
+                AbilityEffectKeys.ENERGY_BOOST,
+                1,
+                true,
+                null,
+                0,
+                null
+        ), Element.WATER);
+        pool.registerLegacyManualMove(attackId, new ManualSieglingCatalog.ManualAbilityDefinition(
+                "Tide Jab",
+                "Deal 3 damage to 1 enemy",
+                TargetType.SINGLE_ENEMY,
+                null,
+                null,
+                1,
+                AbilityEffectKeys.DAMAGE,
+                3,
+                false,
+                null,
+                0,
+                null
+        ), Element.WATER);
+
+        SieglingCard card = new SieglingCard("wellspring", "Wellspring", Element.WATER, Rarity.COMMON, 12, 4, List.of(), Row.FRONT);
+        card.setMoveIds(List.of(passiveId, attackId));
+
+        GameState state = new GameState();
+        state.setPlayer(new Player("Player", true));
+        state.setEnemy(new Player("AI", false));
+
+        List<BattleAbilityOption> options = battleService.getAvailableAbilities(
+                state, new CardInstance(card, 1, 1, true));
+
+        assertEquals(1, options.size(), "EnergyService keeps the passive applied; it must not also cost a turn.");
+        assertEquals("Tide Jab", options.get(0).getAbility().getName());
+    }
+
+    @Test
+    void loadoutOfOnlyAutoAppliedPassivesStillLeavesABattleAction() throws Exception {
+        BattleService battleService = createBattleService();
+        MovesPoolService pool = getField(battleService, "movesPoolService");
+
+        String passiveId = "test:fountain:passive";
+        pool.registerLegacyManualMove(passiveId, new ManualSieglingCatalog.ManualAbilityDefinition(
+                "Energy Boost",
+                "Passively generates 1 Water energy each turn",
+                TargetType.PASSIVE,
+                Element.WATER,
+                null,
+                0,
+                AbilityEffectKeys.ENERGY_BOOST,
+                1,
+                true,
+                null,
+                0,
+                null
+        ), Element.WATER);
+
+        SieglingCard card = new SieglingCard("fountain", "Fountain", Element.WATER, Rarity.COMMON, 12, 4, List.of(), Row.FRONT);
+        card.setMoveIds(List.of(passiveId));
+
+        GameState state = new GameState();
+        state.setPlayer(new Player("Player", true));
+        state.setEnemy(new Player("AI", false));
+
+        List<BattleAbilityOption> options = battleService.getAvailableAbilities(
+                state, new CardInstance(card, 1, 1, true));
+
+        assertFalse(options.isEmpty(), "A passive-only loadout must fall back to generated battle options.");
+        assertTrue(options.stream().noneMatch(o -> "Energy Boost".equals(o.getAbility().getName())));
+    }
+
+    @Test
     void rowSelectEnemyMoveLoadoutRemainsExplicitBattleTarget() throws Exception {
         BattleService battleService = new BattleService();
         setField(battleService, "effectService", new EffectService());
@@ -339,6 +428,7 @@ class BattleServiceTest {
                 "Tornadus",
                 "Deal 3 damage to the selected enemy row",
                 TargetType.ROW_SELECT_ENEMIES,
+                null,
                 null,
                 0,
                 "damage",
@@ -379,6 +469,7 @@ class BattleServiceTest {
                 "Drift",
                 "Move to an open linked point",
                 TargetType.SELF,
+                null,
                 null,
                 1,
                 AbilityEffectKeys.MOVE_LINK,

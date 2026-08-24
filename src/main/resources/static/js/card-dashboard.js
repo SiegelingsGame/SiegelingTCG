@@ -867,6 +867,8 @@
             renderMoveDraftLivePanels();
         });
         refs.moveDraftEffectSelect?.addEventListener("change", () => {
+            // energy_boost turns the element select into the energy-type picker.
+            syncMoveDraftTargetElementUi();
             syncMoveDraftAutoDescription();
             renderMoveDraftLivePanels();
         });
@@ -3209,6 +3211,8 @@
                 return `${scope} ${gainVerb} ${signedValue} Speed`;
             case "slow":
                 return `${scope} lose ${value} Speed`;
+            case "energy_boost":
+                return buildEnergyBoostDescription(value, ability?.targetElement || trainer?.element || "", Boolean(ability?.passive), ability?.targetType);
             case "connected_allies_damage_boost":
                 return `Connected allies gain ${signedValue} Attack Damage`;
             case "connected_allies_health_boost":
@@ -5746,12 +5750,54 @@
                 return `Connected allies lose ${value} Speed`;
             case "connected_allies_speed_boost":
                 return `Connected allies gain ${signedValue} Speed`;
+            case "energy_boost":
+                return buildEnergyBoostDescription(value, targetElement, isPassive, targetType);
             case "destroy":
                 return buildDestroyMoveDescription(targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow);
             case "move_link":
                 return `Move to an open linked point (${Math.max(0, toNumber(move?.energyCost, 0))} Cost)`;
             default:
                 return "";
+        }
+    }
+
+    /**
+     * Energy generation reads by its energy type rather than by what it does to a target — the
+     * card makes energy out of nothing. But an unset type follows whichever card the ability
+     * names, so a targeted boost has to say whose element it takes.
+     */
+    function buildEnergyBoostDescription(value, targetElement, isPassive, targetType) {
+        const chosen = String(targetElement || "").trim();
+        const amount = Math.max(1, value);
+        if (chosen && chosen !== "ALL") {
+            const elementText = `${formatEnumLabel(chosen)} `;
+            return isPassive
+                ? `Passively generates ${amount} ${elementText}energy each turn`
+                : `Generate ${amount} ${elementText}energy`;
+        }
+        const source = energyBoostElementSource(targetType, isPassive);
+        return isPassive
+            ? `Passively generates ${amount} energy of ${source} each turn`
+            : `Generate ${amount} energy of ${source}`;
+    }
+
+    /**
+     * Whose element an unset ("Card element") energy type follows, per target shape. A passive
+     * runs every turn with nobody to pick for it, so only board-wide shapes can name allies —
+     * matching how EnergyService resolves a continuously-applied boost.
+     */
+    function energyBoostElementSource(targetType, isPassive) {
+        switch (String(targetType || "").trim()) {
+            case "SINGLE_ALLY":
+                return isPassive ? "this card's element" : "1 ally's element";
+            case "ALL_ALLIES":
+                return "each ally's element";
+            case "ROW_ALLIES":
+                return "each ally in the row's element";
+            case "ROW_SELECT_ALLIES":
+                return "each ally in the selected row's element";
+            default:
+                return "this card's element";
         }
     }
 
@@ -6597,6 +6643,10 @@
         refs.moveDraftTargetRowWrap.classList.toggle("hidden", !rule.requiresRow);
     }
 
+    function isEnergyBoostDraft() {
+        return String(refs.moveDraftEffectSelect?.value || "").trim() === "energy_boost";
+    }
+
     function populateMoveDraftTargetElementOptions() {
         if (!refs.moveDraftTargetElementSelect) {
             return;
@@ -6604,8 +6654,11 @@
         const elements = state.metadata?.elements || [];
         const options = ["ALL", ...elements];
         const prev = String(refs.moveDraftTargetElementSelect.value || "ALL").trim() || "ALL";
+        // On an energy card this select is the energy type, so the "no pick" row has to say
+        // what leaving it unset actually does: generate the card's own element.
+        const unsetLabel = isEnergyBoostDraft() ? "Card element" : "All";
         const markup = options.map((v) => {
-            const label = v === "ALL" ? "All" : formatEnumLabel(v);
+            const label = v === "ALL" ? unsetLabel : formatEnumLabel(v);
             const sel = v === prev ? " selected" : "";
             return `<option value="${escapeHtml(v)}"${sel}>${escapeHtml(label)}</option>`;
         }).join("");
@@ -6622,7 +6675,18 @@
         const passive = refs.moveDraftPassiveSelect.value === "true";
         const tt = String(refs.moveDraftTargetSelect.value || "").trim();
         const supportsElementFilter = tt.includes("ALLY") || tt.includes("ENEMY");
-        refs.moveDraftTargetElementWrap.classList.toggle("hidden", !(passive && supportsElementFilter));
+        // energy_boost reuses this select to pick the energy type, so it is offered on every
+        // target type — including PASSIVE, which has no targets to filter at all.
+        const energyBoost = isEnergyBoostDraft();
+        const label = refs.moveDraftTargetElementWrap.querySelector("span");
+        if (label) {
+            label.textContent = energyBoost ? "Energy type" : "Target element";
+        }
+        populateMoveDraftTargetElementOptions();
+        refs.moveDraftTargetElementWrap.classList.toggle(
+            "hidden",
+            !(energyBoost || (passive && supportsElementFilter))
+        );
     }
 
     function onMoveDraftPassiveChange() {

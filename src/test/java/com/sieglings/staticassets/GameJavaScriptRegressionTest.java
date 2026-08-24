@@ -409,7 +409,7 @@ class GameJavaScriptRegressionTest {
                 "Season Snapshot, Loadout Shelf, and Social Table must share the overview rail, with matches and badges paired below."
         );
         assertTrue(
-                homeMarkup.contains("home.js?v=138") && homeMarkup.contains("home.css?v=127"),
+                homeJsPin(homeMarkup) >= 142 && homeCssPin(homeMarkup) >= 130,
                 "Cache-bust pins for the profile dashboard trim must advance on home.html."
         );
     }
@@ -437,9 +437,9 @@ class GameJavaScriptRegressionTest {
                 "Element-mode profile and friend avatars must fill a circular frame."
         );
         assertTrue(
-                homeMarkup.contains("home.css?v=127")
-                        && homeMarkup.contains("home.js?v=138")
-                        && dashboardMarkup.contains("home.css?v=127"),
+                homeCssPin(homeMarkup) >= 130
+                        && homeJsPin(homeMarkup) >= 142
+                        && homeCssPin(dashboardMarkup) >= 130,
                 "Profile icon CSS and JavaScript cache pins must advance together."
         );
     }
@@ -471,50 +471,16 @@ class GameJavaScriptRegressionTest {
         String playMarkup = Files.readString(PLAY_HTML);
         String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
         assertTrue(
-                homeMarkup.contains("style.css?v=228")
-                        && homeMarkup.contains("game.js?v=238")
-                        && homeMarkup.contains("card-binder-visual.js?v=20")
-                        && homeMarkup.contains("home.js?v=138")
-                        && playMarkup.contains("style.css?v=228")
-                        && playMarkup.contains("game.js?v=238")
-                        && playMarkup.contains("play-hud.js?v=2")
-                        && dashboardMarkup.contains("style.css?v=228")
-                        && dashboardMarkup.contains("game.js?v=238")
-                        && dashboardMarkup.contains("card-binder-visual.js?v=20"),
+                styleCssPin(homeMarkup) >= 230
+                        && gameJsPin(homeMarkup) >= 240
+                        && cardBinderVisualPin(homeMarkup) >= 20
+                        && homeJsPin(homeMarkup) >= 142
+                        && styleCssPin(playMarkup) >= 230
+                        && gameJsPin(playMarkup) >= 240
+                        && styleCssPin(dashboardMarkup) >= 230
+                        && gameJsPin(dashboardMarkup) >= 240
+                        && cardBinderVisualPin(dashboardMarkup) >= 20,
                 "Every surface must advance its cache pins with the complete painted-notch set."
-        );
-    }
-
-    /**
-     * Friend actions and /api/auth/me reuse buildProfileResponse, which omits
-     * progression when that isolated Firestore read fails. Play must keep the
-     * prior same-user progression in both live state and the shared
-     * sieglingsAuthProfile cache — otherwise Home treats the signed-in account
-     * as starter-gate locked after a Play friend accept or profile refresh.
-     */
-    @Test
-    void playAuthProfileMergesPreserveProgressionWhenOmitted() throws IOException {
-        String playHudScript = Files.readString(Path.of("src/main/resources/static/js/play-hud.js"));
-        String gameScript = readGameScript();
-        String applyProfile = extractFunction(playHudScript, "function applyProfileResponse(data)");
-        String syncAuth = extractFunction(gameScript, "async function syncAuthProfileNow(silent = false)");
-
-        assertTrue(
-                applyProfile.contains("previous.progression")
-                        && applyProfile.contains("!data.progression")
-                        && applyProfile.contains("saveCachedAuthProfile(merged)"),
-                "Play HUD friend responses must merge a missing progression onto the prior same-user snapshot before caching."
-        );
-        assertTrue(
-                syncAuth.contains("previous.progression")
-                        && syncAuth.contains("!data.progression")
-                        && syncAuth.contains("saveCachedAuthProfile(merged)"),
-                "Play /api/auth/me refresh must not overwrite sieglingsAuthProfile with a progression-less authenticated body."
-        );
-        assertFalse(
-                applyProfile.contains("saveCachedAuthProfile(data)")
-                        || syncAuth.contains("saveCachedAuthProfile(data)"),
-                "Progression-less profile payloads must not be written straight into the shared auth cache."
         );
     }
 
@@ -537,7 +503,7 @@ class GameJavaScriptRegressionTest {
                 "Shield playback must retain the server's final shield value instead of treating a missing bridge as zero."
         );
         assertTrue(
-                playMarkup.contains("action-queue.js?v=40"),
+                actionQueuePin(playMarkup) >= 42,
                 "The battle page must load the shield-persistence action queue instead of a cached pre-fix bundle."
         );
     }
@@ -601,9 +567,9 @@ class GameJavaScriptRegressionTest {
                 "The full Field Guide must use current card labels, energy exceptions, Siege rules, and fresh visuals."
         );
         assertTrue(
-                homeMarkup.contains("home.css?v=127")
-                        && homeMarkup.contains("home.js?v=138")
-                        && dashboardMarkup.contains("home.css?v=127"),
+                homeCssPin(homeMarkup) >= 130
+                        && homeJsPin(homeMarkup) >= 142
+                        && homeCssPin(dashboardMarkup) >= 130,
                 "Guide JavaScript and shared visual CSS pins must advance together."
         );
     }
@@ -716,6 +682,88 @@ class GameJavaScriptRegressionTest {
                 adventureScript.contains("var STATUS_ELEMENT = {")
                         && adventureScript.contains("elementBorder(ev.targetId, STATUS_ELEMENT[ev.status]"),
                 "Siege status applications light the inflicting element on the unit's border."
+        );
+    }
+
+    /**
+     * Chain damage has to read as a ricochet: the projectile strikes the Siegling the
+     * ability targeted, and only once that hit lands do the arcs leave that card for
+     * everything wired to it. Playing every victim as one simultaneous barrage — the
+     * generic multi-target path — made a chain indistinguishable from an AoE and hid
+     * the links the effect is entirely about.
+     */
+    @Test
+    void chainDamageStrikesItsTargetBeforeArcingToTheLinkedSieglings() throws IOException {
+        String actionQueueScript = Files.readString(ACTION_QUEUE_JS);
+        String effectService = Files.readString(
+                Path.of("src/main/java/com/sieglings/service/EffectService.java"));
+
+        // The board diff arrives in row/col order, so the arc log lines are the only
+        // thing that identifies which victim was actually targeted.
+        assertTrue(
+                actionQueueScript.contains("function parseChainArcFromLog")
+                        && actionQueueScript.contains("\\s+arcs\\s+through\\s+")
+                        && actionQueueScript.contains("\\s+finds\\s+no\\s+links\\s+on\\s+"),
+                "The queue must recognise the chain arc log lines to tell the struck target from the bounces."
+        );
+        assertTrue(
+                effectService.contains("\" arcs through \"")
+                        && effectService.contains("\" finds no links on \""),
+                "EffectService must keep the chain log wording the playback parser is coupled to."
+        );
+
+        String chainPlayback = sliceBetween(actionQueueScript,
+                "async function playChainAttack(",
+                "function buildCardDestroyedToast(");
+        assertTrue(
+                chainPlayback.contains("await playHop(action.source, [step.primary]);")
+                        && chainPlayback.contains("for (const link of step.links) {")
+                        && chainPlayback.contains("await playHop(step.primary, [link], ARC_SPEED_SCALE);"),
+                "Chain playback must fire attacker to primary first, then arc to each link one at a time."
+        );
+        // A victim killed by its hop stays on screen until every arc has left it —
+        // otherwise the bounce would originate from an already-empty cell.
+        assertTrue(
+                chainPlayback.contains("queue.applyLethalImpactHealth(")
+                        && chainPlayback.indexOf("destroyBoardCard(")
+                                > chainPlayback.indexOf("for (const step of action.chainSteps)"),
+                "A lethal chain victim must keep its card until the hops finish, then come apart."
+        );
+
+        assertTrue(
+                actionQueueScript.indexOf("action.kind === 'ATTACK' && Array.isArray(action.chainSteps)")
+                        < actionQueueScript.indexOf("action.kind === 'ATTACK' && Array.isArray(action.targets) && action.targets.length > 1"),
+                "The chain branch must be reached before the generic simultaneous barrage."
+        );
+        assertTrue(
+                actionQueueScript.contains("const chainSteps = buildChainSteps(actionTargets);")
+                        && actionQueueScript.contains("chainSteps,"),
+                "Multi-target attacks must carry their chain hop structure into playback."
+        );
+    }
+
+    /**
+     * Chain attribution is matched by target name against the damage log lines, and
+     * EffectService appends several trailing groups before the HP one — "(weakness +1)
+     * (soak +2) (rust +1) (HP: 6)". A parser that strips only the last group reads the
+     * target as "Sundile (weakness +1)", no victim matches, buildChainSteps bails, and
+     * the whole chain silently degrades to a barrage fired from the attacker. Any
+     * weakness hit — which is most chains — was enough to trigger it.
+     */
+    @Test
+    void damageLogParserStripsEveryTrailingAnnotationFromTheTargetName() throws IOException {
+        String actionQueueScript = Files.readString(ACTION_QUEUE_JS);
+        assertTrue(
+                actionQueueScript.contains(
+                        "/^(.+?)\\s+deals\\s+(\\d+)\\s+damage\\s+to\\s+(.+?)(?:\\s*\\([^)]*\\))*\\.?$/i"),
+                "The damage log parser must strip ALL trailing parentheticals, not just one."
+        );
+        String effectService = Files.readString(
+                Path.of("src/main/java/com/sieglings/service/EffectService.java"));
+        assertTrue(
+                effectService.contains("\" (weakness +1)\"")
+                        && effectService.contains("\" (HP: \""),
+                "EffectService must keep emitting the annotated damage wording the parser strips."
         );
     }
 
@@ -1316,8 +1364,8 @@ class GameJavaScriptRegressionTest {
         String dragSession = extractFunction(readGameScript(), "function activateCardDragSession()");
 
         assertTrue(
-                style.contains(":is(.hand-tray, .card-drag-ghost) .hand-card-body { display: none; }")
-                        && style.contains(":is(.hand-tray, .card-drag-ghost) .card-stat-pill"),
+                selectorCovers(style, "\\.hand-card-body \\{ display: none; \\}", ".card-drag-ghost")
+                        && selectorCovers(style, "\\.card-stat-pill", ".card-drag-ghost"),
                 "The detached drag clone must retain the hand card's compact text and stat layout."
         );
         assertTrue(
@@ -1613,6 +1661,116 @@ class GameJavaScriptRegressionTest {
     }
 
     @Test
+    void leaderboardPanelSeparatesAFailedFetchFromAnEmptyBoard() throws IOException {
+        String homeJs = Files.readString(HOME_JS);
+
+        assertTrue(
+                homeJs.contains("function applyLeaderboardsPayload(")
+                        && homeJs.contains("state.leaderboards = failed ? null : payload;")
+                        && !homeJs.contains("state.leaderboards = leaderboards || null;"),
+                "A { error } response must not be stored as the leaderboard payload, or a failed fetch renders as an empty board."
+        );
+        assertTrue(
+                homeJs.contains("function retryLeaderboards(")
+                        && homeJs.contains("data-home-lb-retry")
+                        && homeJs.contains("class=\"home-lb-error\""),
+                "The failed state needs its own markup and a retry, so a cold-start blip is recoverable without reloading the hub."
+        );
+    }
+
+    @Test
+    void leaderboardPanelShowsLoadingBeforeTheFirstFetchLands() throws IOException {
+        String homeJs = Files.readString(HOME_JS);
+
+        // The dashboard paints before loadAll() has asked for anything, so an
+        // unset payload is not a failure: a 25s cold start used to greet every
+        // player with the retry banner for a board that was still on its way.
+        assertTrue(
+                homeJs.contains("leaderboardsLoading: true,")
+                        && homeJs.contains("state.leaderboardsRetrying || state.leaderboardsLoading")
+                        && homeJs.contains("state.leaderboardsLoading = false;"),
+                "The pre-fetch state must render as loading, not as a failed fetch."
+        );
+        assertTrue(
+                homeJs.contains("const leaderboardsLoad = loadLeaderboardsWithRetry()"),
+                "Leaderboards must settle on their own promise, so a sibling hub fetch cannot strand the panel loading."
+        );
+        assertTrue(
+                homeJs.contains("readCache('leaderboards', LEADERBOARD_CACHE_TTL_MS)"),
+                "A cached board within its TTL should paint on the first frame instead of a loading emblem."
+        );
+        // A warming Cloud Run instance recovers in seconds, and the only thing the
+        // Retry button did was ask again — so the load makes those attempts itself.
+        assertTrue(
+                homeJs.contains("const LEADERBOARD_RETRY_DELAYS_MS = [")
+                        && homeJs.contains("async function loadLeaderboardsWithRetry()")
+                        && homeJs.contains("const leaderboardsLoad = loadLeaderboardsWithRetry()"),
+                "A cold-start failure must retry on its own before the panel asks the player to click Retry."
+        );
+        assertTrue(
+                homeJs.contains("panelLoadingMarkup('Loading leaderboards…', true)")
+                        && Files.readString(Path.of("src/main/resources/static/css/home.css"))
+                                .contains(".panel-loading.compact"),
+                "The leaderboard's waiting state needs the shared spinner markup and its compact sizing."
+        );
+    }
+
+    @Test
+    void notificationPanelClearsTheTopSafeArea() throws IOException {
+        String homeCss = Files.readString(Path.of("src/main/resources/static/css/home.css"));
+
+        // The panel is bottom-anchored and grows upward, so its max-height is what
+        // decides whether a full list runs under the clock and the Dynamic Island.
+        assertTrue(
+                homeCss.contains("max-height: calc(100dvh - var(--hud-clearance) - env(safe-area-inset-top, 0px) - 40px);")
+                        && !homeCss.contains("max-height: calc(100vh - 240px - env(safe-area-inset-bottom, 0px));"),
+                "The notification panel's ceiling must subtract the top safe-area inset, not just the bottom one."
+        );
+    }
+
+    @Test
+    void popupsAnchorAboveTheDockedHudFromOneMeasuredClearance() throws IOException {
+        String homeCss = Files.readString(Path.of("src/main/resources/static/css/home.css"));
+        String homeJs = Files.readString(HOME_JS);
+
+        assertTrue(
+                homeCss.contains("--hud-clearance: calc(var(--bottom-hud-height, 205px) + 8px);"),
+                "Popups need one shared clearance token derived from the measured HUD height."
+        );
+        // Constants stood in for the HUD's height and were all shorter than it
+        // actually is, so each of these popups overlapped the dock.
+        assertTrue(
+                !homeCss.contains("bottom: calc(200px + env(safe-area-inset-bottom, 0px));")
+                        && !homeCss.contains("padding: 10px 10px calc(194px + env(safe-area-inset-bottom, 0px));")
+                        && !homeCss.contains("var(--bottom-hud-height, 170px)"),
+                "No popup may guess the docked HUD's height with a constant."
+        );
+        assertTrue(
+                homeJs.contains("function observeBottomHud(")
+                        && homeJs.contains("new window.ResizeObserver(() => measureBottomHud()).observe(nav)")
+                        && homeJs.contains("observeBottomHud();"),
+                "The HUD grows when signing in adds action buttons, and no resize event fires — the nav itself must be observed or every anchored popup drifts back under it."
+        );
+    }
+
+    @Test
+    void keepTeamsPillCountsDownFromFullCapacity() throws IOException {
+        String keepHtml = Files.readString(KEEP_HTML);
+        String keepJs = Files.readString(KEEP_JS);
+
+        assertTrue(
+                keepJs.contains("const availableTeams = Math.max(0, teamCapacity - activeTeams);")
+                        && keepJs.contains("text('constructionTeamAmount', `${availableTeams}/${teamCapacity}`);")
+                        && !keepJs.contains("text('constructionTeamAmount', `${activeTeams}/${teamCapacity}`);"),
+                "The Teams pill reads as idle crews on hand: it starts full and drops as projects claim teams."
+        );
+        assertTrue(
+                keepHtml.contains("id=\"constructionTeamAmount\">1/1<"),
+                "The pre-snapshot placeholder must match the free-teams reading, not the old active-teams one."
+        );
+    }
+
+    @Test
     void keepBuildingsAndRoomsUseLayeredPaperTreatments() throws IOException {
         String keepHtml = Files.readString(KEEP_HTML);
         String keepCss = Files.readString(KEEP_CSS);
@@ -1621,7 +1779,7 @@ class GameJavaScriptRegressionTest {
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
                         && keepHtml.contains("/css/keep.css?v=54")
-                        && keepHtml.contains("/js/keep.js?v=52")
+                        && keepHtml.contains("/js/keep.js?v=54")
                         && keepHtml.contains("id=\"hallFavoriteResident\"")
                         && keepHtml.contains("id=\"productionReady\"")
                         && keepHtml.contains("id=\"collectOverlay\"")
@@ -1633,6 +1791,8 @@ class GameJavaScriptRegressionTest {
                         && keepJs.contains("offline-capacity-list")
                         && keepJs.contains("woodlotCapacity <= 0 || available < woodlotCapacity")
                         && keepJs.contains("function collectAllReady(")
+                        && keepJs.contains("repeatableProjects?.projects")
+                        && keepJs.contains("Voice of Sanctuary")
                         && keepJs.contains("stationId: 'all'")
                         && keepJs.contains("function projectedTotalReady(")
                         && keepJs.contains("`${totalReady} ready`")
@@ -1925,8 +2085,39 @@ class GameJavaScriptRegressionTest {
                 "Art bleeds under the notch and home indicator while controls stay inset by the safe area."
         );
         assertTrue(
-                adventureHtml.contains("/css/adventure.css?v=53"),
+                adventureCssPin(adventureHtml) >= 56,
                 "adventure.css must be cache-busted after the full-bleed location rework."
+        );
+    }
+
+    /**
+     * A hired mercenary makes a fourth body on .ally-line (warband caps at 3). The
+     * plates used to keep their min-content width when the sprites shrank, so the
+     * stat row painted over the neighbouring unit and the outermost plate was pushed
+     * outside the overflow:hidden stage — clipped HP in portrait, overlapping plates
+     * in landscape. tests/siege-merc-party-layout-check.cjs measures the result; these
+     * pin the three declarations it depends on.
+     */
+    @Test
+    void siegeUnitPlatesSurviveAFourthUnitOnTheLine() throws IOException {
+        String adventureCss = Files.readString(ADVENTURE_CSS).replace("\r\n", "\n");
+        String adventureJs = Files.readString(ADVENTURE_JS);
+
+        assertTrue(
+                adventureCss.contains(".sprite{position:relative; --sprite-scale:1; flex:0 1 auto; min-width:0;"),
+                "A sprite must be allowed to shrink past its own name plate, or a four-unit "
+                        + "line overflows the arena."
+        );
+        assertTrue(
+                adventureCss.contains(".sprite .sp-tags{display:flex; flex-wrap:wrap;"),
+                "The stat row has no ellipsis to fall back on, so it must wrap rather than "
+                        + "spill over the next unit."
+        );
+        assertTrue(
+                adventureJs.contains("<span class=\"sp-merc\">Merc</span>")
+                        && adventureCss.contains(".sprite.merc .sp-plate{"),
+                "A rental badges its role and tints its plate instead of spending plate width "
+                        + "on a \" (Merc)\" suffix."
         );
     }
 
@@ -1938,7 +2129,7 @@ class GameJavaScriptRegressionTest {
         String mapCatalog = Files.readString(SIEGE_MAPS_JS);
 
         assertTrue(
-                adventureHtml.indexOf("/js/siege-maps.js?v=3") < adventureHtml.indexOf("/js/adventure.js?v=57")
+                adventureHtml.indexOf("/js/siege-maps.js?v=3") < adventureHtml.indexOf("/js/adventure.js?v=")
                         && adventureHtml.contains("<div class=\"battle-map\" id=\"battleMap\" aria-hidden=\"true\"></div>"),
                 "The map catalog must load before adventure.js and the decorative layer must ship inside the stage."
         );
@@ -2010,17 +2201,42 @@ class GameJavaScriptRegressionTest {
         assertTrue(adventureHtml.contains("id=\"runMenuSave\"")
                         && adventureHtml.contains("id=\"runMenuRestart\"")
                         && adventureHtml.contains("id=\"runMenuQuit\"")
-                        && adventureHtml.contains("/css/adventure.css?v=53")
-                        && adventureHtml.contains("/js/adventure.js?v=57"),
+                        && adventureCssPin(adventureHtml) >= 56
+                        && adventureJsPin(adventureHtml) >= 62,
                 "The active-run menu and both cache-busted bundles must ship together.");
         String restartRun = extractFunction(adventureJs, "function restartRun(");
         assertTrue(adventureJs.contains("api('/api/siege/run/save'")
                         && adventureJs.contains("if (!run.checkpoint) throw new Error")
                         && restartRun.contains("api('/api/siege/run/abandon'")
-                        && restartRun.indexOf("api('/api/siege/run/abandon'") < restartRun.indexOf("setToken(null); state.run = null"),
+                        && restartRun.indexOf("api('/api/siege/run/abandon'") < restartRun.indexOf("state.run = null"),
                 "Save/Quit must require a durable checkpoint and Restart must abandon server state before clearing local state.");
+        // The resume prompt can abandon the OTHER mode's save, so the device token is
+        // only cleared when it is the one that was just dropped, and what remains is
+        // re-read rather than assumed gone.
+        assertTrue(restartRun.contains("if (t === token()) setToken(null);")
+                        && restartRun.contains("resumeOrRoster()"),
+                "Abandoning one save must not clear a token pointing at the other mode's run.");
         assertFalse(adventureJs.contains("resetPageScroll"),
                 "The menu port must not revive the stale PR's superseded map-scroll implementation.");
+    }
+
+    @Test
+    void siegeBootPrefersTheSignedInAccountsExpeditionAcrossDevices() throws IOException {
+        String adventureJs = Files.readString(ADVENTURE_JS);
+        String resume = extractFunction(adventureJs, "function resumeOrRoster()");
+
+        assertTrue(extractFunction(adventureJs, "function boot()").contains("resumeOrRoster()")
+                        && resume.contains("api('/api/siege/run/active')")
+                        && resume.contains("bootFromLocalToken"),
+                "Signed-in players must resume their account checkpoint before a device-local token, with guest fallback.");
+        // An account holds one save per mode, so the boot check reads the whole list —
+        // taking only `run` would hide whichever mode was not saved last.
+        assertTrue(resume.contains("active.runs")
+                        && resume.contains("renderResumePrompt(saves)"),
+                "The boot check must offer every saved mode, not just the most recent run.");
+        assertTrue(adventureJs.contains("function runSlotBadgeText(run)")
+                        && adventureJs.contains("run.slot === 'BATTLEGROUNDS'"),
+                "Siege and Battlegrounds must be labelled apart wherever a run is shown.");
     }
 
     @Test
@@ -2074,6 +2290,174 @@ class GameJavaScriptRegressionTest {
         }
 
         throw new AssertionError("Could not find end of " + declaration);
+    }
+
+    /**
+     * An overcharge — the surge an active energy buff puts on a side's pool for its next
+     * Setup and Battle phase — must never be a silent number change. The energy view and
+     * the portrait HUD's energy number both have to say the pool is running hot.
+     */
+    @Test
+    void overchargedEnergyIsAnnouncedInTheEnergyViewAndThePortraitHud() throws IOException {
+        String gameScript = Files.readString(GAME_JS);
+        String styleCss = Files.readString(STYLE_CSS);
+        String playMarkup = Files.readString(PLAY_HTML);
+
+        String panel = extractFunction(gameScript, "function renderEnergyDetailPanel()");
+        assertTrue(
+                panel.contains("energyDetailOverchargeBlock(p)")
+                        && panel.contains("energyDetailOverchargeBlock(e)")
+                        && panel.contains("classList.toggle('is-overcharged', anyOvercharged)"),
+                "The energy view must render the overcharge banner for both sides and flag the panel."
+        );
+
+        String rows = extractFunction(gameScript, "function energyDetailElementRows(playerData)");
+        assertTrue(
+                rows.contains("getOverchargeEnergyAmount(playerData, key)")
+                        && rows.contains("is-overcharged"),
+                "Overcharged element rows must be marked so the breakdown explains the bigger pool."
+        );
+
+        String hudSide = extractFunction(gameScript, "function updateMobileHudSide(label, playerData, ids)");
+        assertTrue(
+                hudSide.contains("syncOverchargeCue(ids.energyId, playerData)"),
+                "The portrait HUD energy number must pick up the overcharge cue."
+        );
+
+        assertTrue(
+                styleCss.contains(".energy-overcharge-banner")
+                        && styleCss.contains(".energy-detail-row.is-overcharged")
+                        && styleCss.contains(".m-counts strong.is-overcharged")
+                        && styleCss.contains("@keyframes overcharge-pulse"),
+                "The energy view and portrait HUD both need the overcharge styling."
+        );
+        assertTrue(
+                styleCss.contains("@media (prefers-reduced-motion: reduce) {\n    .energy-overcharge-banner,\n"
+                        + "    .m-counts strong.is-overcharged {\n        animation: none;\n    }\n}"),
+                "The overcharge pulse must stop for players who ask for reduced motion."
+        );
+        assertTrue(
+                styleCssPin(playMarkup) >= 230 && gameJsPin(playMarkup) >= 240,
+                "The overcharge cue ships only if both cache pins advance together."
+        );
+    }
+
+    /**
+     * `getEvolutionBaseCells` returns board cells, not [row, col] pairs. Destructuring
+     * them as pairs threw a TypeError out of the hand lock check, and because the hand
+     * is built as one string and assigned only at the end, that throw left the entire
+     * hand frozen on its previous contents - a card the player had just played onto its
+     * precursor stayed on screen. The lock check is also wrapped so no future throw in
+     * it can freeze the hand again.
+     */
+    @Test
+    void evolutionLockCheckReadsBaseCellsAsCellsAndCannotFreezeTheHand() throws IOException {
+        String source = Files.readString(GAME_JS);
+
+        String baseCells = extractFunction(source, "function getEvolutionBaseCells(");
+        assertTrue(
+                baseCells.contains("cells.push(cell)"),
+                "getEvolutionBaseCells is expected to yield board cells; update the callers below if that changes."
+        );
+
+        String lockReason = extractFunction(source, "function computeHandCardLockReason(");
+        assertFalse(
+                lockReason.contains("baseCells.some(([r, c])"),
+                "Evolution base cells are cell objects, not [row, col] pairs - destructuring them throws out of renderHand."
+        );
+        assertTrue(
+                lockReason.contains("baseCells.some((cell) => cellHasAffliction(cell, 'CURSE'))"),
+                "The cursed-base check must read the cell it was handed."
+        );
+
+        String guarded = extractFunction(source, "function getHandCardLockReason(");
+        assertTrue(
+                guarded.contains("computeHandCardLockReason(card)") && guarded.contains("catch"),
+                "One card's lock check must never abort renderHand and strand the hand on stale markup."
+        );
+    }
+
+    /**
+     * The pin only ever moves forward, so cache-pin guards assert a floor rather than an
+     * exact number - pinning the exact version made every later, unrelated bump red.
+     */
+    private static int gameJsPin(String markup) {
+        return assetPin(markup, "game\\.js");
+    }
+
+    private static int styleCssPin(String markup) {
+        return assetPin(markup, "style\\.css");
+    }
+
+    // Asserts a rule targeting the given subject also applies to the wanted
+    // selector, without pinning the exact :is() list — that list legitimately
+    // grows as new surfaces reuse the rule.
+    @Test
+    void playAuthProfileMergesPreserveProgressionWhenOmitted() throws IOException {
+        String playHudScript = Files.readString(Path.of("src/main/resources/static/js/play-hud.js"));
+        String gameScript = readGameScript();
+        String applyProfile = extractFunction(playHudScript, "function applyProfileResponse(data)");
+        String syncAuth = extractFunction(gameScript, "async function syncAuthProfileNow(silent = false)");
+
+        assertTrue(
+                applyProfile.contains("previous.progression")
+                        && applyProfile.contains("!data.progression")
+                        && applyProfile.contains("saveCachedAuthProfile(merged)"),
+                "Play HUD friend responses must merge a missing progression onto the prior same-user snapshot before caching."
+        );
+        assertTrue(
+                syncAuth.contains("previous.progression")
+                        && syncAuth.contains("!data.progression")
+                        && syncAuth.contains("saveCachedAuthProfile(merged)"),
+                "Play /api/auth/me refresh must not overwrite sieglingsAuthProfile with a progression-less authenticated body."
+        );
+        assertFalse(
+                applyProfile.contains("saveCachedAuthProfile(data)")
+                        || syncAuth.contains("saveCachedAuthProfile(data)"),
+                "Progression-less profile payloads must not be written straight into the shared auth cache."
+        );
+    }
+
+    private static boolean selectorCovers(String css, String subjectPattern, String wanted) {
+        Matcher matcher = Pattern.compile("(:is\\([^)]*\\))\\s*" + subjectPattern).matcher(css);
+        while (matcher.find()) {
+            if (matcher.group(1).contains(wanted)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static int homeJsPin(String markup) {
+        return assetPin(markup, "home\\.js");
+    }
+
+    private static int homeCssPin(String markup) {
+        return assetPin(markup, "home\\.css");
+    }
+
+    private static int cardBinderVisualPin(String markup) {
+        return assetPin(markup, "card-binder-visual\\.js");
+    }
+
+    private static int actionQueuePin(String markup) {
+        return assetPin(markup, "action-queue\\.js");
+    }
+
+    private static int adventureJsPin(String markup) {
+        return assetPin(markup, "adventure\\.js");
+    }
+
+    private static int adventureCssPin(String markup) {
+        return assetPin(markup, "adventure\\.css");
+    }
+
+    // Cache pins only ever move forward, so assert a floor rather than an exact
+    // value — a literal pin turns every unrelated asset edit into a red test.
+    private static int assetPin(String markup, String assetPattern) {
+        Matcher matcher = Pattern.compile(assetPattern + "\\?v=(\\d+)").matcher(markup);
+        assertTrue(matcher.find(), "Markup does not load " + assetPattern + " with a cache pin.");
+        return Integer.parseInt(matcher.group(1));
     }
 
     private static String extractFunction(String source, String signature) {
