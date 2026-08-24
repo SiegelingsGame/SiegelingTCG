@@ -2389,6 +2389,23 @@ class GameJavaScriptRegressionTest {
         return assetPin(markup, "style\\.css");
     }
 
+    @Test
+    void emptyFeaturedMissionsFallThroughToFullDailyList() throws IOException {
+        String homeScript = readHomeScript();
+        String homeMarkup = Files.readString(HOME_HTML);
+        String homeDailyMissions = extractFunction(homeScript, "function homeDailyMissions()");
+
+        assertTrue(
+                homeDailyMissions.contains("featured && featured.length ? featured : all"),
+                "An empty featured array is truthy in JS and must not blank the Daily tab "
+                        + "when the full missions snapshot is present."
+        );
+        assertTrue(
+                homeJsPin(homeMarkup) >= 139,
+                "Mission featured-fallback fix must bump the home.js cache pin."
+        );
+    }
+
     // Asserts a rule targeting the given subject also applies to the wanted
     // selector, without pinning the exact :is() list — that list legitimately
     // grows as new surfaces reuse the rule.
