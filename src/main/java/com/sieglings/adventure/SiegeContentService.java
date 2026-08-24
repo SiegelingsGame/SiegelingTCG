@@ -1107,6 +1107,25 @@ public class SiegeContentService {
         return stage;
     }
 
+    /**
+     * Walks an evolution chain down to its stage-1 root. Finding a Siegeling at
+     * any stage earns its whole line, and warband select only ever lists stage-1
+     * cards, so the root is the id that actually becomes pickable. Returns the
+     * id unchanged when it is already a root or is not in the catalog.
+     */
+    String baseFormId(String cardId) {
+        String id = cardId;
+        int guard = 0;
+        while (id != null && guard++ < 6) {
+            String from = findAnySiegling(id).map(SieglingCard::getEvolvesFromId).orElse(null);
+            if (from == null || from.isBlank()) {
+                return id;
+            }
+            id = from;
+        }
+        return id;
+    }
+
     private List<SieglingCard> sieglingsAtStage(int stage) {
         List<SieglingCard> out = new ArrayList<>();
         for (Card card : cardDefs.getDeckBuilderCatalog()) {
@@ -1363,13 +1382,26 @@ public class SiegeContentService {
         return out;
     }
 
-    /** Random move previews from an evolved form — powers the client card-morph FX. */
-    List<Map<String, Object>> previewMovesFor(SieglingCard evo, int count, Random rng) {
+    /**
+     * Rewrites the evolved unit's move cards that are already in hand into moves of its new
+     * stage, and returns previews of what each became. The client's morph FX flips those cards
+     * to the new art, so the underlying cards have to change with them — otherwise the next
+     * render pulls the untouched precursor cards straight back.
+     *
+     * <p>Evolution cards are left alone: the next stage's unlock is dealt from the deck.
+     * Instance ids are preserved so the morph animation keeps the same DOM nodes.</p>
+     */
+    List<Map<String, Object>> upgradeHandCards(SieglingCard evo, String ownerId,
+                                               List<SiegeCard> hand, Random rng) {
         List<Move> moves = playableMoves(evo);
-        if (moves.isEmpty() || count <= 0) return List.of();
+        if (moves.isEmpty()) return List.of();
         List<Map<String, Object>> out = new ArrayList<>();
-        for (int i = 0; i < count; i++) {
-            out.add(specToPreviewMap(toSpec(moves.get(rng.nextInt(moves.size())))));
+        for (int i = 0; i < hand.size(); i++) {
+            SiegeCard card = hand.get(i);
+            if (!ownerId.equals(card.getOwnerId()) || card.getSpec().effect() == Effect.EVOLVE) continue;
+            AbilitySpec spec = toSpec(moves.get(rng.nextInt(moves.size())));
+            hand.set(i, new SiegeCard(card.getInstanceId(), ownerId, spec));
+            out.add(specToPreviewMap(spec));
         }
         return out;
     }

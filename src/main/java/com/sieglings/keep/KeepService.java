@@ -105,6 +105,10 @@ public class KeepService {
     private static final int KEEPER_MATERIAL_COLLECT_XP = 15;
     private static final int KEEPER_PROJECT_XP = 40;
     private static final int KEEPER_QUEST_XP = 50;
+    /** Voices are a meaningful act of stewardship, not just flavor between rewards. */
+    private static final int KEEPER_VOICE_XP = 25;
+    private static final int KEEPER_DAILY_COMMISSION_XP = 35;
+    private static final int KEEPER_WEEKLY_COMMISSION_XP = 120;
     private static final int KEEPER_RESOURCE_XP_DAILY_CAP = 150;
     private static final int KEEPER_LEVELS_PER_CHAPTER = 5;
     /** Decoration granted at specific Keeper Levels (owned outright, placeable once its room is built). */
@@ -578,6 +582,7 @@ public class KeepService {
             String followupConversationId = activateConsequenceFollowup(state, consequenceFlag);
             recordKeepStats(context.progression(), p -> p.setKeepConversationsCompleted(p.getKeepConversationsCompleted() + 1));
             advanceEnclaveTasks(state, context.residents(), "CONVERSATION");
+            int voiceXp = awardKeeperXp(state, KEEPER_VOICE_XP);
 
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("npcId", conversation.npcId());
@@ -597,6 +602,7 @@ public class KeepService {
             result.put("badChoice", badChoice);
             result.put("consequenceFlag", consequenceFlag);
             result.put("followupConversationId", followupConversationId);
+            result.put("keeperXpAwarded", voiceXp);
             return Map.of("dialogueResult", result);
         });
     }
@@ -907,6 +913,24 @@ public class KeepService {
                 int totalLevels = totalBuildLevels(state);
                 gold = (int) Math.round((90 + totalLevels * 20) * boost);
                 remnants = (int) Math.round((15 + totalLevels * 5) * boost);
+            } else if ("daily_stewardship".equals(id)) {
+                String day = dayKey(context.now());
+                claimKey = "daily_stewardship:" + day;
+                if (state.getTimber() < 5) throw new IllegalArgumentException("Gather 5 timber for today's stewardship round.");
+                state.setTimber(state.getTimber() - 5);
+                gold = 15;
+                remnants = 5;
+            } else if ("weekly_restoration".equals(id)) {
+                String week = weekKey(context.now());
+                claimKey = "weekly_restoration:" + week;
+                Map<String, Integer> requirements = weeklyRestorationRequirements(state, week);
+                if (state.getTimber() < 20 || requirements.isEmpty() || !hasMaterials(state, requirements)) {
+                    throw new IllegalArgumentException("Prepare this week's restoration supplies first.");
+                }
+                state.setTimber(state.getTimber() - 20);
+                orderCosts = requirements;
+                gold = 55;
+                remnants = 20;
             } else if (id.startsWith("enclave_task:") || id.startsWith("enclave_mission:")) {
                 // "enclave_mission:<residentId>" is the pre-rapport client's id; it still resolves
                 // to the resident's first task so a cached page claims something sensible.
@@ -985,7 +1009,10 @@ public class KeepService {
             });
             // Completing a quest is itself a progression beat; claiming the battlepass
             // payout is not (that XP is what earned the level in the first place).
-            int questXp = id.startsWith("keeper_level:") ? 0 : awardKeeperXp(state, KEEPER_QUEST_XP);
+            int questXp = id.startsWith("keeper_level:") ? 0
+                    : "daily_stewardship".equals(id) ? awardKeeperXp(state, KEEPER_DAILY_COMMISSION_XP)
+                    : "weekly_restoration".equals(id) ? awardKeeperXp(state, KEEPER_WEEKLY_COMMISSION_XP)
+                    : awardKeeperXp(state, KEEPER_QUEST_XP);
             Map<String, Object> reward = new LinkedHashMap<>();
             reward.put("id", id);
             reward.put("gold", gold);
@@ -2344,6 +2371,41 @@ public class KeepService {
         return out;
     }
 
+    /** A lighter, distinct weekly job that lets every established workshop contribute to repair. */
+    private Map<String, Integer> weeklyRestorationRequirements(KeepState state, String week) {
+        List<FacilityDefinition> built = FACILITIES.values().stream()
+                .filter(definition -> facilityLevel(state, definition.id()) >= 1).toList();
+        if (built.isEmpty()) return Map.of();
+        FacilityDefinition selected = built.get(Math.floorMod((week + ":restoration").hashCode(), built.size()));
+        return Map.of(selected.resourceId(), 4 + facilityLevel(state, selected.id()));
+    }
+
+    private Map<String, Object> repeatableKeeperProjects(KeepState state, PlayerProgressionEntity progression,
+                                                           Instant now) {
+        String day = dayKey(now);
+        String week = weekKey(now);
+        boolean dailyClaimed = progression.getKeepRewardClaimIds().contains("daily_stewardship:" + day);
+        boolean weeklyClaimed = progression.getKeepRewardClaimIds().contains("weekly_restoration:" + week);
+        Map<String, Integer> weeklyRequirements = weeklyRestorationRequirements(state, week);
+        List<Map<String, Object>> projects = new ArrayList<>();
+        projects.add(Map.of(
+                "id", "daily_stewardship", "cadence", "Daily stewardship", "name", "Walk the Grounds",
+                "description", "Spend 5 timber replacing worn ties, clearing paths, and tending the sanctuary.",
+                "claimed", dailyClaimed, "canClaim", !dailyClaimed && state.getTimber() >= 5,
+                "requirements", List.of(Map.of("id", "timber", "name", "Timber", "amount", 5, "have", state.getTimber())),
+                "reward", Map.of("xp", KEEPER_DAILY_COMMISSION_XP, "gold", 15, "remnants", 5)));
+        List<Map<String, Object>> weeklyNeeds = weeklyRequirements.entrySet().stream().map(entry -> Map.<String, Object>of(
+                "id", entry.getKey(), "name", materialName(entry.getKey()), "amount", entry.getValue(),
+                "have", state.getMaterialInventory().getOrDefault(entry.getKey(), 0))).toList();
+        projects.add(Map.of(
+                "id", "weekly_restoration", "cadence", "Weekly restoration", "name", "Mend What Endures",
+                "description", "Bring 20 timber and the requested workshop supply to strengthen the keep for the coming week.",
+                "claimed", weeklyClaimed, "canClaim", !weeklyClaimed && state.getTimber() >= 20 && hasMaterials(state, weeklyRequirements),
+                "requirements", weeklyNeeds, "timberCost", 20,
+                "reward", Map.of("xp", KEEPER_WEEKLY_COMMISSION_XP, "gold", 55, "remnants", 20)));
+        return Map.of("projects", projects);
+    }
+
     private Map<String, Object> weeklyOrder(KeepState state, PlayerProgressionEntity progression,
                                             List<Resident> residents, Instant now) {
         boolean unlocked = facilityLevel(state, "kitchen") >= 1;
@@ -3055,6 +3117,7 @@ public class KeepService {
         out.put("milestones", milestones(state, progression, now));
         out.put("weeklyTribute", weeklyTribute(state, progression, residents, now));
         out.put("weeklyOrder", weeklyOrder(state, progression, residents, now));
+        out.put("repeatableProjects", repeatableKeeperProjects(state, progression, now));
         if (offlineReport != null && !offlineReport.isEmpty()) out.put("offlineReport", offlineReport);
         out.put("keeper", keeperBlock(state, progression, now));
         out.put("progressionReady", progression.getStarterPackId() != null);

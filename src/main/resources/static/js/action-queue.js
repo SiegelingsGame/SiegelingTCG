@@ -582,17 +582,33 @@
         const lethalTargets = [];
         queue.syncPendingLethalHolds();
 
-        const playHop = async (origin, victims) => {
+        // Arcs off the primary are quicker than the opening strike: they read as
+        // one continuous shock travelling the links rather than N separate attacks.
+        const ARC_SPEED_SCALE = 0.55;
+
+        const playHop = async (origin, victims, speedScale) => {
             if (!victims.length) return;
-            let leadInMs = t.projectileMs;
+            const scale = speedScale || 1;
+            const projectileMs = Math.max(90, Math.round(t.projectileMs * scale));
+            const impactMs = Math.max(70, Math.round(t.impactMs * scale));
+            let leadInMs = projectileMs;
             if (origin && window.SieglingsFx?.attackCell) {
                 for (const tgt of victims) {
                     window.SieglingsFx.attackCell(
                         origin.isPlayer, origin.row, origin.col,
                         tgt.isPlayer, tgt.row, tgt.col,
                         fxElement,
-                        { duration: t.projectileMs }
+                        { duration: projectileMs }
                     );
+                    // A chain is the one attack that is also about the card it
+                    // travels through, so each victim burns the element on its
+                    // border as the bolt lands — the projectile shows the path,
+                    // the border shows the card conducting it.
+                    spawnElementalBorder(tgt.isPlayer, tgt.row, tgt.col, {
+                        element: fxElement,
+                        variant: 'chain',
+                        durationMs: borderMs
+                    });
                 }
             } else {
                 // Sourceless chain (trap / spell / trainer active): nothing crossed
@@ -625,16 +641,21 @@
             if (window.SieglingsFx?.cameraShake) {
                 const hopDamage = victims.reduce((sum, tt) => sum + (Number(tt.amount) || 0), 0);
                 window.SieglingsFx.cameraShake(
-                    Math.min(16, 6 + Math.round(hopDamage * 0.35)), t.impactMs
+                    Math.min(16, 6 + Math.round(hopDamage * 0.35)), impactMs
                 );
             }
-            await sleep(t.impactMs);
+            await sleep(impactMs);
             if (surviving.length) queue.releasePendingHealthForTargets(surviving);
         };
 
         for (const step of action.chainSteps) {
+            // Initial target lands first and alone; the shock then jumps to each
+            // connected Siegling one at a time, so the arc order is readable
+            // instead of every link flashing on the same frame.
             await playHop(action.source, [step.primary]);
-            await playHop(step.primary, step.links);
+            for (const link of step.links) {
+                await playHop(step.primary, [link], ARC_SPEED_SCALE);
+            }
         }
 
         for (const tgt of lethalTargets) {
@@ -1012,6 +1033,20 @@
     function findCellByAbilityName(board, abilityName) {
         const ability = String(abilityName || '').trim().toLowerCase();
         if (!ability) return null;
+        // Board cells carry their own ability list (GameController serializes it),
+        // so an exact ability match names the attacker outright. This is what
+        // keeps a projectile flying when the "<Card> uses <Ability>." line is
+        // missing from the batch — without it the attack silently degrades to the
+        // sourceless border playback reserved for traps and auras.
+        for (let r = 0; r < 3; r++) {
+            for (let c = 0; c < 3; c++) {
+                const cell = board?.[r]?.[c];
+                const owns = (cell?.abilities || []).some(
+                    (ab) => String(ab?.name || '').trim().toLowerCase() === ability
+                );
+                if (owns) return { row: r, col: c, cell };
+            }
+        }
         const matches = [];
         for (let r = 0; r < 3; r++) {
             for (let c = 0; c < 3; c++) {
@@ -1358,11 +1393,15 @@
     // Best-effort extraction of "X uses Y" / "X plays Y" lines for ABILITY/PLAY toasts.
     function parseAbilityFromLog(line) {
         const text = stripLogPrefix(line);
-        let m = text.match(/^(.+?)\s+uses\s+(.+?)\.?$/i);
+        // Trailing punctuation varies by log site ("uses Ember." / "uses Ember!"),
+        // and the name has to come back clean — a stray "!" makes the ability-name
+        // comparison in resolveAttackerFromLogs miss and costs the attack its
+        // projectile.
+        let m = text.match(/^(.+?)\s+uses\s+(.+?)[.!]?$/i);
         if (m) return { kind: 'ABILITY', actor: m[1].trim(), name: m[2].trim() };
-        m = text.match(/^(.+?)\s+plays\s+(.+?)\.?$/i);
+        m = text.match(/^(.+?)\s+plays\s+(.+?)[.!]?$/i);
         if (m) return { kind: 'PLAY', actor: m[1].trim(), name: m[2].trim() };
-        m = text.match(/^(.+?)\s+activates\s+(.+?)\.?$/i);
+        m = text.match(/^(.+?)\s+activates\s+(.+?)[.!]?$/i);
         if (m) return { kind: 'ABILITY', actor: m[1].trim(), name: m[2].trim() };
         return null;
     }
@@ -1384,9 +1423,14 @@
     // Server lines look like "Embers deals 3 damage to Pylme (HP: 10)" — the
     // trailing "(HP: N)" is informational and must not become part of the
     // target name or attribution against the board state will fail.
+    // EffectService can append SEVERAL trailing groups before the HP one —
+    // "(weakness +1) (soak +2) (rust +1) (HP: 6)" — so every trailing
+    // parenthetical is stripped, not just the last. Matching only one left the
+    // target named "Sundile (weakness +1)", which silently broke chain-attack
+    // attribution (it fell back to a barrage fired from the attacker).
     function parseDamageFromLog(line) {
         const text = stripLogPrefix(line);
-        const m = text.match(/^(.+?)\s+deals\s+(\d+)\s+damage\s+to\s+(.+?)(?:\s*\([^)]*\))?\.?$/i);
+        const m = text.match(/^(.+?)\s+deals\s+(\d+)\s+damage\s+to\s+(.+?)(?:\s*\([^)]*\))*\.?$/i);
         if (!m) return null;
         return {
             abilityOrSource: m[1].trim(),
@@ -1397,7 +1441,7 @@
 
     function parseSiegeBountyFromLog(line) {
         const text = stripLogPrefix(line);
-        const m = text.match(/^(.+?)'s\s+bounty\s+deals\s+(\d+)\s+damage\s+to\s+(.+?)(?:\s*\([^)]*\))?[.!]?$/i);
+        const m = text.match(/^(.+?)'s\s+bounty\s+deals\s+(\d+)\s+damage\s+to\s+(.+?)(?:\s*\([^)]*\))*[.!]?$/i);
         if (!m) return null;
         return {
             source: m[1].trim(),
@@ -1518,6 +1562,10 @@
         constructor() {
             this.queue = [];
             this.processing = false;
+            // Resolvers waiting on the queue to go idle (see onIdle). The queue
+            // is the single authority on "presentation is busy" — game.js reads
+            // it rather than keeping its own timers, so there is one clock.
+            this._idleWaiters = [];
             this.toasts = new ToastRenderer();
             this.activeToast = null;
             this.thinkingNode = null;
@@ -1573,6 +1621,42 @@
             }
         }
         isProcessing() { return this.processing; }
+
+        // Single write path for `processing`, so the body class and anything
+        // awaiting idle can never drift from the queue's real state.
+        _setProcessing(value) {
+            const next = Boolean(value);
+            if (this.processing === next) return;
+            this.processing = next;
+            document.body?.classList.toggle('sgl-playback-active', next);
+            if (!next) {
+                const waiters = this._idleWaiters;
+                this._idleWaiters = [];
+                for (const resolve of waiters) {
+                    try { resolve(); } catch (_) {}
+                }
+            }
+        }
+
+        // Resolves once playback has drained. Callers use this instead of
+        // polling `isProcessing()` on a timer.
+        onIdle() {
+            if (!this.processing) return Promise.resolve();
+            return new Promise((resolve) => this._idleWaiters.push(resolve));
+        }
+
+        // True while a phase banner is on screen and still holding. game.js owns
+        // the banner element, so it owns the answer.
+        isPhaseBannerActive() {
+            return Boolean(window.isPhaseTransitionBannerActive?.());
+        }
+
+        // The gate every interactive surface should consult: playback is mid-flight
+        // or a phase banner is still announcing.
+        isPresentationBusy() {
+            return this.processing || this.isPhaseBannerActive();
+        }
+
         clear() {
             this.queue = [];
             if (this.activeToast) { this.activeToast.dismiss(); this.activeToast = null; }
@@ -1580,7 +1664,7 @@
             if (typeof window.hidePhaseTransitionBanner === 'function') {
                 window.hidePhaseTransitionBanner();
             }
-            this.processing = false;
+            this._setProcessing(false);
             this.markOpponentThinking(false);
             this.revealAllPendingPlacements();
             this.revealAllPendingMoves();
@@ -3195,14 +3279,10 @@
             // A fast player can draw and immediately end setup while the Draw
             // Phase banner is still resolving. Start this flow only after the
             // previous playback batch has cleared so its banner/toasts cannot
-            // overlap the end-turn and AI-thinking beats.
-            const idleDeadline = Date.now() + 15000;
-            while (this.processing && Date.now() < idleDeadline) {
-                await sleep(50);
-            }
-            if (typeof window.hidePhaseTransitionBanner === 'function') {
-                window.hidePhaseTransitionBanner();
-            }
+            // overlap the end-turn and AI-thinking beats. The PHASE action
+            // awaits its own banner, so an idle queue means the banner has
+            // already finished — no need to cut it short.
+            await this.onIdle();
             if (this.activeToast) {
                 this.activeToast.dismiss();
                 this.activeToast = null;
@@ -3307,7 +3387,7 @@
 
         _kick() {
             if (this.processing) return;
-            this.processing = true;
+            this._setProcessing(true);
             // Do not block the current callstack
             Promise.resolve().then(() => this._drain());
         }
@@ -3319,7 +3399,7 @@
                     await this._playAction(action);
                 }
             } finally {
-                this.processing = false;
+                this._setProcessing(false);
                 if (this.opponentThinking) this.markOpponentThinking(false);
                 // Defensive: never leave a card permanently hidden because no
                 // PLAY action was queued for it, and never leave a heal/status
@@ -3329,6 +3409,13 @@
                 this.settleAllPendingHealth();
                 this.settleAllPendingDirectHealth();
                 this.settleAllPendingStatuses();
+                // The battle dock held itself in standby for the duration of
+                // playback; bring the acting Siegeling's moves up now that the
+                // last banner has cleared. Runs unconditionally so the dock can
+                // never be stranded in standby by a dropped or throwing action.
+                if (typeof window.renderBattlePanel === 'function') {
+                    try { window.renderBattlePanel(); } catch (_) {}
+                }
                 if (typeof window.scheduleBattleAutoAdvance === 'function') {
                     window.scheduleBattleAutoAdvance();
                 }
@@ -3952,6 +4039,9 @@
         getSpeed: () => queue.getSpeed(),
         clear: () => queue.clear(),
         isProcessing: () => queue.isProcessing(),
+        isPresentationBusy: () => queue.isPresentationBusy(),
+        isPhaseBannerActive: () => queue.isPhaseBannerActive(),
+        onIdle: () => queue.onIdle(),
         markOpponentThinking: (a, s) => queue.markOpponentThinking(a, s),
         syncPendingPlacements: () => queue.syncPendingPlacements(),
         syncPendingDirectHealth: () => queue.syncPendingDirectHealth(),

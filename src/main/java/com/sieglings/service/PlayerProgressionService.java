@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -59,7 +60,14 @@ public class PlayerProgressionService {
     public record TrainerGrantOutcome(String trainerId, String trainerName, String element, String rarity, String tier,
                                       boolean newlyOwned, boolean leveledUp, int level, int points, int pointsForNext) {}
 
-    private final Object[] packOpenLocks = createLockStripes();
+    /**
+     * Per-user stripes for every progression document write. Pack opens historically
+     * owned this lock; deck unlocks / crafts / titles must share it too because
+     * {@link PlayerProgressionStore#save} is a full-document Firestore {@code set}
+     * — concurrent read-modify-writes otherwise lose whichever mutation finishes last
+     * (e.g. opening a pack while unlocking a premade deck drops the pack cards).
+     */
+    private final Object[] progressionWriteLocks = createLockStripes();
 
     @Autowired
     private PlayerProgressionStore store;
@@ -84,10 +92,15 @@ public class PlayerProgressionService {
         return locks;
     }
 
-    private Object packOpenLock(AccountUser user) {
-        String userId = user == null ? "" : String.valueOf(user.getId());
-        return packOpenLocks[Math.floorMod(userId.hashCode(), packOpenLocks.length)];
+    private Object progressionWriteLock(AccountUser user) {
+        return progressionWriteLock(user == null ? null : user.getId());
     }
+
+    private Object progressionWriteLock(String userId) {
+        String key = userId == null ? "" : String.valueOf(userId);
+        return progressionWriteLocks[Math.floorMod(key.hashCode(), progressionWriteLocks.length)];
+    }
+
 
     public PlayerProgressionEntity getOrCreate(AccountUser user) {
         PlayerProgressionEntity progression = store.findByUserId(user.getId()).orElseGet(() -> {
@@ -142,30 +155,32 @@ public class PlayerProgressionService {
     }
 
     public PlayerProgressionEntity chooseStarterPack(AccountUser user, String packId) {
-        PlayerProgressionEntity progression = getOrCreate(user);
-        if (progression.getStarterPackId() != null && !progression.getStarterPackId().isBlank()) {
-            if (progression.getStarterPackId().equals(packId)) {
-                return progression;
+        synchronized (progressionWriteLock(user)) {
+            PlayerProgressionEntity progression = getOrCreate(user);
+            if (progression.getStarterPackId() != null && !progression.getStarterPackId().isBlank()) {
+                if (progression.getStarterPackId().equals(packId)) {
+                    return progression;
+                }
+                throw new IllegalArgumentException("Starter pack has already been chosen.");
             }
-            throw new IllegalArgumentException("Starter pack has already been chosen.");
+            PackCatalogService.PackOpenResult result = packCatalogService.openPack(packId, true);
+            List<CardGrantOutcome> outcomes = grantCardsWithCap(progression, result.cards());
+            grantRemnants(progression, PACK_OPEN_REMNANTS);
+            progression.setStarterPackId(result.pack().id());
+            // Grant the SiegeKnight matching the player's starting element for free.
+            TrainerGrantOutcome trainerOutcome = null;
+            TrainerCard starterTrainer = starterTrainerForPack(result.pack().id());
+            if (starterTrainer != null) {
+                progression.setTrainerLevels(new LinkedHashMap<>());
+                progression.setTrainerPoints(new LinkedHashMap<>());
+                trainerOutcome = grantTrainer(progression, starterTrainer);
+            }
+            addPackHistory(progression, result, outcomes, trainerOutcome, 0, "STARTER", null);
+            progression.setUpdatedAt(Instant.now());
+            PlayerProgressionEntity saved = store.save(progression);
+            recordPackOpenedAsync(saved.getUserId());
+            return saved;
         }
-        PackCatalogService.PackOpenResult result = packCatalogService.openPack(packId, true);
-        List<CardGrantOutcome> outcomes = grantCardsWithCap(progression, result.cards());
-        grantRemnants(progression, PACK_OPEN_REMNANTS);
-        progression.setStarterPackId(result.pack().id());
-        // Grant the SiegeKnight matching the player's starting element for free.
-        TrainerGrantOutcome trainerOutcome = null;
-        TrainerCard starterTrainer = starterTrainerForPack(result.pack().id());
-        if (starterTrainer != null) {
-            progression.setTrainerLevels(new LinkedHashMap<>());
-            progression.setTrainerPoints(new LinkedHashMap<>());
-            trainerOutcome = grantTrainer(progression, starterTrainer);
-        }
-        addPackHistory(progression, result, outcomes, trainerOutcome, 0, "STARTER", null);
-        progression.setUpdatedAt(Instant.now());
-        PlayerProgressionEntity saved = store.save(progression);
-        recordPackOpenedAsync(saved.getUserId());
-        return saved;
     }
 
     /**
@@ -174,24 +189,26 @@ public class PlayerProgressionService {
      * flag so it can only ever be claimed once per account.
      */
     public PlayerProgressionEntity completeTutorial(AccountUser user) {
-        PlayerProgressionEntity progression = getOrCreate(user);
-        if (progression.isTutorialCompleted()) {
-            throw new IllegalArgumentException("Tutorial rewards have already been claimed.");
+        synchronized (progressionWriteLock(user)) {
+            PlayerProgressionEntity progression = getOrCreate(user);
+            if (progression.isTutorialCompleted()) {
+                throw new IllegalArgumentException("Tutorial rewards have already been claimed.");
+            }
+            String packId = progression.getStarterPackId();
+            if (packId == null || packId.isBlank()) {
+                throw new IllegalArgumentException("Choose a starter pack before claiming the tutorial reward.");
+            }
+            PackCatalogService.PackOpenResult result = packCatalogService.openPack(packId, true);
+            List<CardGrantOutcome> outcomes = grantCardsWithCap(progression, result.cards());
+            grantRemnants(progression, PACK_OPEN_REMNANTS);
+            progression.setGold(progression.getGold() + TUTORIAL_GOLD_REWARD);
+            progression.setTutorialCompleted(true);
+            addPackHistory(progression, result, outcomes, null, 0, "TUTORIAL", null);
+            progression.setUpdatedAt(Instant.now());
+            PlayerProgressionEntity saved = store.save(progression);
+            recordPackOpenedAsync(saved.getUserId());
+            return saved;
         }
-        String packId = progression.getStarterPackId();
-        if (packId == null || packId.isBlank()) {
-            throw new IllegalArgumentException("Choose a starter pack before claiming the tutorial reward.");
-        }
-        PackCatalogService.PackOpenResult result = packCatalogService.openPack(packId, true);
-        List<CardGrantOutcome> outcomes = grantCardsWithCap(progression, result.cards());
-        grantRemnants(progression, PACK_OPEN_REMNANTS);
-        progression.setGold(progression.getGold() + TUTORIAL_GOLD_REWARD);
-        progression.setTutorialCompleted(true);
-        addPackHistory(progression, result, outcomes, null, 0, "TUTORIAL", null);
-        progression.setUpdatedAt(Instant.now());
-        PlayerProgressionEntity saved = store.save(progression);
-        recordPackOpenedAsync(saved.getUserId());
-        return saved;
     }
 
     public PlayerProgressionEntity openPack(AccountUser user, String packId) {
@@ -199,7 +216,7 @@ public class PlayerProgressionService {
     }
 
     public PlayerProgressionEntity openPack(AccountUser user, String packId, String requestId) {
-        synchronized (packOpenLock(user)) {
+        synchronized (progressionWriteLock(user)) {
             return openPackInternal(user, packId, normalizePackOpenRequestId(requestId));
         }
     }
@@ -247,7 +264,7 @@ public class PlayerProgressionService {
     }
 
     public PlayerProgressionEntity openPacks(AccountUser user, String packId, int count, String requestId) {
-        synchronized (packOpenLock(user)) {
+        synchronized (progressionWriteLock(user)) {
             return openPacksInternal(user, packId, count, normalizePackOpenRequestId(requestId));
         }
     }
@@ -357,126 +374,136 @@ public class PlayerProgressionService {
     }
 
     public PlayerProgressionEntity purchaseDeck(AccountUser user, String deckId) {
-        PlayerProgressionEntity progression = getOrCreate(user);
-        CardDefinitionService.DeckOption deck = cardDefinitionService.getDeckOption(deckId)
-                .orElseThrow(() -> new IllegalArgumentException("Deck not found."));
-        if (progression.getPurchasedDeckIds().contains(deck.id()) || isFreePremadeDeck(progression, deck)) {
-            return progression;
+        synchronized (progressionWriteLock(user)) {
+            PlayerProgressionEntity progression = getOrCreate(user);
+            CardDefinitionService.DeckOption deck = cardDefinitionService.getDeckOption(deckId)
+                    .orElseThrow(() -> new IllegalArgumentException("Deck not found."));
+            if (progression.getPurchasedDeckIds().contains(deck.id()) || isFreePremadeDeck(progression, deck)) {
+                return progression;
+            }
+            if (progression.getGold() < PREMADE_DECK_PRICE) {
+                throw new IllegalArgumentException("Not enough Siegecoins for that premade deck.");
+            }
+            progression.setGold(progression.getGold() - PREMADE_DECK_PRICE);
+            List<String> purchased = new ArrayList<>(progression.getPurchasedDeckIds());
+            purchased.add(deck.id());
+            progression.setPurchasedDeckIds(purchased);
+            progression.setUpdatedAt(Instant.now());
+            return store.save(progression);
         }
-        if (progression.getGold() < PREMADE_DECK_PRICE) {
-            throw new IllegalArgumentException("Not enough Siegecoins for that premade deck.");
-        }
-        progression.setGold(progression.getGold() - PREMADE_DECK_PRICE);
-        List<String> purchased = new ArrayList<>(progression.getPurchasedDeckIds());
-        purchased.add(deck.id());
-        progression.setPurchasedDeckIds(purchased);
-        progression.setUpdatedAt(Instant.now());
-        return store.save(progression);
     }
 
     public PlayerProgressionEntity purchaseDailyOffer(AccountUser user, String offerId) {
-        PlayerProgressionEntity progression = getOrCreate(user);
-        if (progression.getStarterPackId() == null || progression.getStarterPackId().isBlank()) {
-            throw new IllegalArgumentException("Choose a starter pack before buying daily cards.");
+        synchronized (progressionWriteLock(user)) {
+            PlayerProgressionEntity progression = getOrCreate(user);
+            if (progression.getStarterPackId() == null || progression.getStarterPackId().isBlank()) {
+                throw new IllegalArgumentException("Choose a starter pack before buying daily cards.");
+            }
+            PackCatalogService.DailyCardOffer offer = packCatalogService.findDailyOffer(offerId)
+                    .orElseThrow(() -> new IllegalArgumentException("Daily card offer not found."));
+            if (progression.getPurchasedDailyOfferIds().contains(offer.id())) {
+                return progression;
+            }
+            if (progression.getGold() < offer.price()) {
+                throw new IllegalArgumentException("Not enough Siegecoins for that daily card.");
+            }
+            progression.setGold(progression.getGold() - offer.price());
+            // SiegeKnight offers unlock/level the trainer; everything else is a
+            // normal card grant.
+            if (offer.card() instanceof TrainerCard trainer) {
+                grantTrainer(progression, trainer);
+            } else {
+                grantCardsWithCap(progression, List.of(offer.card()));
+            }
+            List<String> purchased = new ArrayList<>(progression.getPurchasedDailyOfferIds());
+            purchased.add(0, offer.id());
+            progression.setPurchasedDailyOfferIds(purchased.stream().limit(90).toList());
+            progression.setUpdatedAt(Instant.now());
+            return store.save(progression);
         }
-        PackCatalogService.DailyCardOffer offer = packCatalogService.findDailyOffer(offerId)
-                .orElseThrow(() -> new IllegalArgumentException("Daily card offer not found."));
-        if (progression.getPurchasedDailyOfferIds().contains(offer.id())) {
-            return progression;
-        }
-        if (progression.getGold() < offer.price()) {
-            throw new IllegalArgumentException("Not enough Siegecoins for that daily card.");
-        }
-        progression.setGold(progression.getGold() - offer.price());
-        // SiegeKnight offers unlock/level the trainer; everything else is a
-        // normal card grant.
-        if (offer.card() instanceof TrainerCard trainer) {
-            grantTrainer(progression, trainer);
-        } else {
-            grantCardsWithCap(progression, List.of(offer.card()));
-        }
-        List<String> purchased = new ArrayList<>(progression.getPurchasedDailyOfferIds());
-        purchased.add(0, offer.id());
-        progression.setPurchasedDailyOfferIds(purchased.stream().limit(90).toList());
-        progression.setUpdatedAt(Instant.now());
-        return store.save(progression);
     }
 
     public PlayerProgressionEntity purchaseHolographicFinish(AccountUser user, String cardId) {
-        PlayerProgressionEntity progression = getOrCreate(user);
-        if (progression.getStarterPackId() == null || progression.getStarterPackId().isBlank()) {
-            throw new IllegalArgumentException("Choose a starter pack before upgrading cards.");
+        synchronized (progressionWriteLock(user)) {
+            PlayerProgressionEntity progression = getOrCreate(user);
+            if (progression.getStarterPackId() == null || progression.getStarterPackId().isBlank()) {
+                throw new IllegalArgumentException("Choose a starter pack before upgrading cards.");
+            }
+            String normalizedId = normalizeCardId(cardId);
+            if (!ownsHolographicTarget(progression, normalizedId)) {
+                throw new IllegalArgumentException("You must own this card before applying a holographic finish.");
+            }
+            if (hasHolographicFinish(progression, normalizedId)) {
+                throw new IllegalArgumentException("This card already has a holographic finish.");
+            }
+            Card card = findHolographicTarget(normalizedId);
+            if (card.isHolographic()) {
+                throw new IllegalArgumentException("This card already ships with a holographic finish.");
+            }
+            int cost = holographicCost(card);
+            if (progression.getRemnants() < cost) {
+                throw new IllegalArgumentException("Not enough Remnants for a holographic finish on " + card.getName() + ".");
+            }
+            progression.setRemnants(progression.getRemnants() - cost);
+            List<String> holographicIds = new ArrayList<>(
+                    progression.getHolographicCardIds() == null ? List.of() : progression.getHolographicCardIds());
+            holographicIds.add(normalizedId);
+            progression.setHolographicCardIds(holographicIds);
+            progression.setUpdatedAt(Instant.now());
+            return store.save(progression);
         }
-        String normalizedId = normalizeCardId(cardId);
-        if (!ownsHolographicTarget(progression, normalizedId)) {
-            throw new IllegalArgumentException("You must own this card before applying a holographic finish.");
-        }
-        if (hasHolographicFinish(progression, normalizedId)) {
-            throw new IllegalArgumentException("This card already has a holographic finish.");
-        }
-        Card card = findHolographicTarget(normalizedId);
-        if (card.isHolographic()) {
-            throw new IllegalArgumentException("This card already ships with a holographic finish.");
-        }
-        int cost = holographicCost(card);
-        if (progression.getRemnants() < cost) {
-            throw new IllegalArgumentException("Not enough Remnants for a holographic finish on " + card.getName() + ".");
-        }
-        progression.setRemnants(progression.getRemnants() - cost);
-        List<String> holographicIds = new ArrayList<>(
-                progression.getHolographicCardIds() == null ? List.of() : progression.getHolographicCardIds());
-        holographicIds.add(normalizedId);
-        progression.setHolographicCardIds(holographicIds);
-        progression.setUpdatedAt(Instant.now());
-        return store.save(progression);
     }
 
     public PlayerProgressionEntity craftCard(AccountUser user, String cardId) {
-        PlayerProgressionEntity progression = getOrCreate(user);
-        if (progression.getStarterPackId() == null || progression.getStarterPackId().isBlank()) {
-            throw new IllegalArgumentException("Choose a starter pack before crafting cards.");
+        synchronized (progressionWriteLock(user)) {
+            PlayerProgressionEntity progression = getOrCreate(user);
+            if (progression.getStarterPackId() == null || progression.getStarterPackId().isBlank()) {
+                throw new IllegalArgumentException("Choose a starter pack before crafting cards.");
+            }
+            Card card = findCraftableCard(cardId);
+            int cost = craftCost(card);
+            if (progression.getRemnants() < cost) {
+                throw new IllegalArgumentException("Not enough Remnants to craft " + card.getName() + ".");
+            }
+            int owned = progression.getOwnedCards().getOrDefault(card.getId(), 0);
+            if (owned >= cardDefinitionService.getDeckBuilderMaxCopies()) {
+                throw new IllegalArgumentException("You already own the maximum copies of " + card.getName() + ".");
+            }
+            progression.setRemnants(progression.getRemnants() - cost);
+            grantCardsWithCap(progression, List.of(card));
+            progression.setCraftCount(progression.getCraftCount() + 1);
+            progression.setUpdatedAt(Instant.now());
+            return store.save(progression);
         }
-        Card card = findCraftableCard(cardId);
-        int cost = craftCost(card);
-        if (progression.getRemnants() < cost) {
-            throw new IllegalArgumentException("Not enough Remnants to craft " + card.getName() + ".");
-        }
-        int owned = progression.getOwnedCards().getOrDefault(card.getId(), 0);
-        if (owned >= cardDefinitionService.getDeckBuilderMaxCopies()) {
-            throw new IllegalArgumentException("You already own the maximum copies of " + card.getName() + ".");
-        }
-        progression.setRemnants(progression.getRemnants() - cost);
-        grantCardsWithCap(progression, List.of(card));
-        progression.setCraftCount(progression.getCraftCount() + 1);
-        progression.setUpdatedAt(Instant.now());
-        return store.save(progression);
     }
 
     public void awardMatchGold(MatchHistoryEntity history) {
         if (history == null || history.getUserId() == null || history.getId() == null) {
             return;
         }
-        PlayerProgressionEntity progression = store.findByUserId(history.getUserId()).orElseGet(() -> {
-            PlayerProgressionEntity created = new PlayerProgressionEntity();
-            created.setUserId(history.getUserId());
-            created.setGold(STARTING_GOLD);
-            return created;
-        });
-        if (progression.getRewardedMatchIds().contains(history.getId())) {
-            return;
-        }
-        int reward = calculateMatchReward(progression, history);
-        progression.setGold(progression.getGold() + reward);
-        if (reward > 0) {
-            progression.setRemnants(progression.getRemnants() + calculateMatchRemnants(history));
-        }
-        List<String> rewarded = new ArrayList<>(progression.getRewardedMatchIds());
-        rewarded.add(history.getId());
-        progression.setRewardedMatchIds(rewarded);
-        progression.setUpdatedAt(Instant.now());
-        store.save(progression);
-        if (dailyMissionService != null) {
-            dailyMissionService.recordMatch(history, reward);
+        synchronized (progressionWriteLock(history.getUserId())) {
+            PlayerProgressionEntity progression = store.findByUserId(history.getUserId()).orElseGet(() -> {
+                PlayerProgressionEntity created = new PlayerProgressionEntity();
+                created.setUserId(history.getUserId());
+                created.setGold(STARTING_GOLD);
+                return created;
+            });
+            if (progression.getRewardedMatchIds().contains(history.getId())) {
+                return;
+            }
+            int reward = calculateMatchReward(progression, history);
+            progression.setGold(progression.getGold() + reward);
+            if (reward > 0) {
+                progression.setRemnants(progression.getRemnants() + calculateMatchRemnants(history));
+            }
+            List<String> rewarded = new ArrayList<>(progression.getRewardedMatchIds());
+            rewarded.add(history.getId());
+            progression.setRewardedMatchIds(rewarded);
+            progression.setUpdatedAt(Instant.now());
+            store.save(progression);
+            if (dailyMissionService != null) {
+                dailyMissionService.recordMatch(history, reward);
+            }
         }
     }
 
@@ -628,10 +655,12 @@ public class PlayerProgressionService {
         if (playerTitleService == null) {
             throw new IllegalStateException("Title purchases are unavailable.");
         }
-        PlayerProgressionEntity progression = getOrCreate(user);
-        progression = playerTitleService.applyTitlePurchase(user, progression, titleId);
-        progression.setUpdatedAt(Instant.now());
-        return store.save(progression);
+        synchronized (progressionWriteLock(user)) {
+            PlayerProgressionEntity progression = getOrCreate(user);
+            progression = playerTitleService.applyTitlePurchase(user, progression, titleId);
+            progression.setUpdatedAt(Instant.now());
+            return store.save(progression);
+        }
     }
 
     private int ownedTotal(PlayerProgressionEntity progression) {
@@ -745,40 +774,42 @@ public class PlayerProgressionService {
     }
 
     public PlayerProgressionEntity buyTrainerXp(AccountUser user, String trainerId) {
-        PlayerProgressionEntity progression = getOrCreate(user);
-        if (progression.getStarterPackId() == null || progression.getStarterPackId().isBlank()) {
-            throw new IllegalArgumentException("Choose a starter pack before buying knight XP.");
-        }
-        String id = normalizeTrainerId(trainerId);
-        if (id == null || !progression.getTrainerLevels().containsKey(id)) {
-            throw new IllegalArgumentException("You don't own that SiegeKnight.");
-        }
-        int level = Math.max(1, progression.getTrainerLevels().get(id));
-        if (level >= TRAINER_MAX_LEVEL) {
-            throw new IllegalArgumentException("This SiegeKnight is already at max level.");
-        }
-        int cost = trainerXpCoinCost(level);
-        if (progression.getGold() < cost) {
-            throw new IllegalArgumentException("Not enough Siegecoins for knight XP.");
-        }
-        progression.setGold(progression.getGold() - cost);
+        synchronized (progressionWriteLock(user)) {
+            PlayerProgressionEntity progression = getOrCreate(user);
+            if (progression.getStarterPackId() == null || progression.getStarterPackId().isBlank()) {
+                throw new IllegalArgumentException("Choose a starter pack before buying knight XP.");
+            }
+            String id = normalizeTrainerId(trainerId);
+            if (id == null || !progression.getTrainerLevels().containsKey(id)) {
+                throw new IllegalArgumentException("You don't own that SiegeKnight.");
+            }
+            int level = Math.max(1, progression.getTrainerLevels().get(id));
+            if (level >= TRAINER_MAX_LEVEL) {
+                throw new IllegalArgumentException("This SiegeKnight is already at max level.");
+            }
+            int cost = trainerXpCoinCost(level);
+            if (progression.getGold() < cost) {
+                throw new IllegalArgumentException("Not enough Siegecoins for knight XP.");
+            }
+            progression.setGold(progression.getGold() - cost);
 
-        Map<String, Integer> levels = new LinkedHashMap<>(progression.getTrainerLevels());
-        Map<String, Integer> points = new LinkedHashMap<>(progression.getTrainerPoints());
-        int progress = Math.max(0, points.getOrDefault(id, 0)) + TRAINER_DUP_POINTS;
-        while (level < TRAINER_MAX_LEVEL && progress >= pointsForNextLevel(level)) {
-            progress -= pointsForNextLevel(level);
-            level++;
+            Map<String, Integer> levels = new LinkedHashMap<>(progression.getTrainerLevels());
+            Map<String, Integer> points = new LinkedHashMap<>(progression.getTrainerPoints());
+            int progress = Math.max(0, points.getOrDefault(id, 0)) + TRAINER_DUP_POINTS;
+            while (level < TRAINER_MAX_LEVEL && progress >= pointsForNextLevel(level)) {
+                progress -= pointsForNextLevel(level);
+                level++;
+            }
+            if (level >= TRAINER_MAX_LEVEL) {
+                progress = 0;
+            }
+            levels.put(id, level);
+            points.put(id, progress);
+            progression.setTrainerLevels(levels);
+            progression.setTrainerPoints(points);
+            progression.setUpdatedAt(Instant.now());
+            return store.save(progression);
         }
-        if (level >= TRAINER_MAX_LEVEL) {
-            progress = 0;
-        }
-        levels.put(id, level);
-        points.put(id, progress);
-        progression.setTrainerLevels(levels);
-        progression.setTrainerPoints(points);
-        progression.setUpdatedAt(Instant.now());
-        return store.save(progression);
     }
 
     public boolean ownsTrainer(AccountUser user, String trainerId) {
@@ -825,6 +856,42 @@ public class PlayerProgressionService {
         List<String> unlocked = new ArrayList<>(progression.getSiegeUnlockedKnights());
         unlocked.add(id);
         progression.setSiegeUnlockedKnights(unlocked);
+    }
+
+    public boolean isSiegeSieglingUnlocked(PlayerProgressionEntity progression, String cardId) {
+        if (progression == null || cardId == null || cardId.isBlank()) {
+            return false;
+        }
+        String id = normalizeTrainerId(cardId);
+        return progression.getSiegeUnlockedSieglings().stream()
+                .anyMatch(stored -> id.equals(normalizeTrainerId(stored)));
+    }
+
+    /**
+     * Banks Siegelings found on an expedition as permanent starter unlocks.
+     * Ids already unlocked are skipped rather than rejected — a run routinely
+     * re-finds cards you own, and that is not an error.
+     *
+     * @return the ids newly added, in the order supplied (empty when nothing is new)
+     */
+    public List<String> unlockSiegeSieglings(PlayerProgressionEntity progression, Collection<String> cardIds) {
+        if (progression == null || cardIds == null || cardIds.isEmpty()) {
+            return List.of();
+        }
+        List<String> unlocked = new ArrayList<>(progression.getSiegeUnlockedSieglings());
+        List<String> added = new ArrayList<>();
+        for (String cardId : cardIds) {
+            if (cardId == null || cardId.isBlank() || isSiegeSieglingUnlocked(progression, cardId)) {
+                continue;
+            }
+            String id = normalizeTrainerId(cardId);
+            unlocked.add(id);
+            added.add(id);
+        }
+        if (!added.isEmpty()) {
+            progression.setSiegeUnlockedSieglings(unlocked);
+        }
+        return added;
     }
 
     private String normalizeTrainerId(String trainerId) {

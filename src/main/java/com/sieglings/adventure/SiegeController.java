@@ -114,6 +114,13 @@ public class SiegeController {
         return siege.state(token, authorizationHeader);
     }
 
+    /** Resolves the signed-in account's active checkpoint, regardless of device-local token. */
+    @GetMapping("/api/siege/run/active")
+    public Map<String, Object> activeRun(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+        return siege.activeRun(authorizationHeader);
+    }
+
     /** Player declined the resume prompt: discard the saved run for good. */
     @PostMapping("/api/siege/run/abandon")
     public Map<String, Object> abandonRun(@RequestBody Map<String, Object> body) {
@@ -268,10 +275,10 @@ public class SiegeController {
         return siege.minigameRpsThrow(str(body.get("token")), str(body.get("choice")));
     }
 
-    /** MATCH puzzle: flip two tiles: body { token, a, b }. */
+    /** MATCH puzzle: reveal one tile per tap: body { token, a }. */
     @PostMapping("/api/siege/minigame/match")
     public Map<String, Object> minigameMatch(@RequestBody Map<String, Object> body) {
-        return siege.minigameMatchFlip(str(body.get("token")), intOf(body.get("a")), intOf(body.get("b")));
+        return siege.minigameMatchFlip(str(body.get("token")), intOf(body.get("a")));
     }
 
     /** Give up on the active puzzle for a small consolation: body { token }. */

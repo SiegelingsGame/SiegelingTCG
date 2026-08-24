@@ -409,7 +409,7 @@ class GameJavaScriptRegressionTest {
                 "Season Snapshot, Loadout Shelf, and Social Table must share the overview rail, with matches and badges paired below."
         );
         assertTrue(
-                homeMarkup.contains("home.js?v=140") && homeMarkup.contains("home.css?v=129"),
+                homeJsPin(homeMarkup) >= 142 && homeCssPin(homeMarkup) >= 130,
                 "Cache-bust pins for the profile dashboard trim must advance on home.html."
         );
     }
@@ -437,9 +437,9 @@ class GameJavaScriptRegressionTest {
                 "Element-mode profile and friend avatars must fill a circular frame."
         );
         assertTrue(
-                homeMarkup.contains("home.css?v=129")
-                        && homeMarkup.contains("home.js?v=140")
-                        && dashboardMarkup.contains("home.css?v=129"),
+                homeCssPin(homeMarkup) >= 130
+                        && homeJsPin(homeMarkup) >= 142
+                        && homeCssPin(dashboardMarkup) >= 130,
                 "Profile icon CSS and JavaScript cache pins must advance together."
         );
     }
@@ -471,15 +471,15 @@ class GameJavaScriptRegressionTest {
         String playMarkup = Files.readString(PLAY_HTML);
         String dashboardMarkup = Files.readString(CARD_DASHBOARD_HTML);
         assertTrue(
-                homeMarkup.contains("style.css?v=230")
-                        && homeMarkup.contains("game.js?v=240")
-                        && homeMarkup.contains("card-binder-visual.js?v=20")
-                        && homeMarkup.contains("home.js?v=140")
-                        && playMarkup.contains("style.css?v=230")
-                        && playMarkup.contains("game.js?v=240")
-                        && dashboardMarkup.contains("style.css?v=230")
-                        && dashboardMarkup.contains("game.js?v=240")
-                        && dashboardMarkup.contains("card-binder-visual.js?v=20"),
+                styleCssPin(homeMarkup) >= 230
+                        && gameJsPin(homeMarkup) >= 240
+                        && cardBinderVisualPin(homeMarkup) >= 20
+                        && homeJsPin(homeMarkup) >= 142
+                        && styleCssPin(playMarkup) >= 230
+                        && gameJsPin(playMarkup) >= 240
+                        && styleCssPin(dashboardMarkup) >= 230
+                        && gameJsPin(dashboardMarkup) >= 240
+                        && cardBinderVisualPin(dashboardMarkup) >= 20,
                 "Every surface must advance its cache pins with the complete painted-notch set."
         );
     }
@@ -503,7 +503,7 @@ class GameJavaScriptRegressionTest {
                 "Shield playback must retain the server's final shield value instead of treating a missing bridge as zero."
         );
         assertTrue(
-                playMarkup.contains("action-queue.js?v=41"),
+                actionQueuePin(playMarkup) >= 42,
                 "The battle page must load the shield-persistence action queue instead of a cached pre-fix bundle."
         );
     }
@@ -567,9 +567,9 @@ class GameJavaScriptRegressionTest {
                 "The full Field Guide must use current card labels, energy exceptions, Siege rules, and fresh visuals."
         );
         assertTrue(
-                homeMarkup.contains("home.css?v=129")
-                        && homeMarkup.contains("home.js?v=140")
-                        && dashboardMarkup.contains("home.css?v=129"),
+                homeCssPin(homeMarkup) >= 130
+                        && homeJsPin(homeMarkup) >= 142
+                        && homeCssPin(dashboardMarkup) >= 130,
                 "Guide JavaScript and shared visual CSS pins must advance together."
         );
     }
@@ -717,8 +717,9 @@ class GameJavaScriptRegressionTest {
                 "function buildCardDestroyedToast(");
         assertTrue(
                 chainPlayback.contains("await playHop(action.source, [step.primary]);")
-                        && chainPlayback.contains("await playHop(step.primary, step.links);"),
-                "Chain playback must fire attacker to primary first, then primary to its links."
+                        && chainPlayback.contains("for (const link of step.links) {")
+                        && chainPlayback.contains("await playHop(step.primary, [link], ARC_SPEED_SCALE);"),
+                "Chain playback must fire attacker to primary first, then arc to each link one at a time."
         );
         // A victim killed by its hop stays on screen until every arc has left it —
         // otherwise the bounce would originate from an already-empty cell.
@@ -738,6 +739,31 @@ class GameJavaScriptRegressionTest {
                 actionQueueScript.contains("const chainSteps = buildChainSteps(actionTargets);")
                         && actionQueueScript.contains("chainSteps,"),
                 "Multi-target attacks must carry their chain hop structure into playback."
+        );
+    }
+
+    /**
+     * Chain attribution is matched by target name against the damage log lines, and
+     * EffectService appends several trailing groups before the HP one — "(weakness +1)
+     * (soak +2) (rust +1) (HP: 6)". A parser that strips only the last group reads the
+     * target as "Sundile (weakness +1)", no victim matches, buildChainSteps bails, and
+     * the whole chain silently degrades to a barrage fired from the attacker. Any
+     * weakness hit — which is most chains — was enough to trigger it.
+     */
+    @Test
+    void damageLogParserStripsEveryTrailingAnnotationFromTheTargetName() throws IOException {
+        String actionQueueScript = Files.readString(ACTION_QUEUE_JS);
+        assertTrue(
+                actionQueueScript.contains(
+                        "/^(.+?)\\s+deals\\s+(\\d+)\\s+damage\\s+to\\s+(.+?)(?:\\s*\\([^)]*\\))*\\.?$/i"),
+                "The damage log parser must strip ALL trailing parentheticals, not just one."
+        );
+        String effectService = Files.readString(
+                Path.of("src/main/java/com/sieglings/service/EffectService.java"));
+        assertTrue(
+                effectService.contains("\" (weakness +1)\"")
+                        && effectService.contains("\" (HP: \""),
+                "EffectService must keep emitting the annotated damage wording the parser strips."
         );
     }
 
@@ -1338,8 +1364,8 @@ class GameJavaScriptRegressionTest {
         String dragSession = extractFunction(readGameScript(), "function activateCardDragSession()");
 
         assertTrue(
-                style.contains(":is(.hand-tray, .card-drag-ghost) .hand-card-body { display: none; }")
-                        && style.contains(":is(.hand-tray, .card-drag-ghost) .card-stat-pill"),
+                selectorCovers(style, "\\.hand-card-body \\{ display: none; \\}", ".card-drag-ghost")
+                        && selectorCovers(style, "\\.card-stat-pill", ".card-drag-ghost"),
                 "The detached drag clone must retain the hand card's compact text and stat layout."
         );
         assertTrue(
@@ -1653,6 +1679,43 @@ class GameJavaScriptRegressionTest {
     }
 
     @Test
+    void leaderboardPanelShowsLoadingBeforeTheFirstFetchLands() throws IOException {
+        String homeJs = Files.readString(HOME_JS);
+
+        // The dashboard paints before loadAll() has asked for anything, so an
+        // unset payload is not a failure: a 25s cold start used to greet every
+        // player with the retry banner for a board that was still on its way.
+        assertTrue(
+                homeJs.contains("leaderboardsLoading: true,")
+                        && homeJs.contains("state.leaderboardsRetrying || state.leaderboardsLoading")
+                        && homeJs.contains("state.leaderboardsLoading = false;"),
+                "The pre-fetch state must render as loading, not as a failed fetch."
+        );
+        assertTrue(
+                homeJs.contains("const leaderboardsLoad = loadLeaderboardsWithRetry()"),
+                "Leaderboards must settle on their own promise, so a sibling hub fetch cannot strand the panel loading."
+        );
+        assertTrue(
+                homeJs.contains("readCache('leaderboards', LEADERBOARD_CACHE_TTL_MS)"),
+                "A cached board within its TTL should paint on the first frame instead of a loading emblem."
+        );
+        // A warming Cloud Run instance recovers in seconds, and the only thing the
+        // Retry button did was ask again — so the load makes those attempts itself.
+        assertTrue(
+                homeJs.contains("const LEADERBOARD_RETRY_DELAYS_MS = [")
+                        && homeJs.contains("async function loadLeaderboardsWithRetry()")
+                        && homeJs.contains("const leaderboardsLoad = loadLeaderboardsWithRetry()"),
+                "A cold-start failure must retry on its own before the panel asks the player to click Retry."
+        );
+        assertTrue(
+                homeJs.contains("panelLoadingMarkup('Loading leaderboards…', true)")
+                        && Files.readString(Path.of("src/main/resources/static/css/home.css"))
+                                .contains(".panel-loading.compact"),
+                "The leaderboard's waiting state needs the shared spinner markup and its compact sizing."
+        );
+    }
+
+    @Test
     void notificationPanelClearsTheTopSafeArea() throws IOException {
         String homeCss = Files.readString(Path.of("src/main/resources/static/css/home.css"));
 
@@ -1716,7 +1779,7 @@ class GameJavaScriptRegressionTest {
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
                         && keepHtml.contains("/css/keep.css?v=54")
-                        && keepHtml.contains("/js/keep.js?v=53")
+                        && keepHtml.contains("/js/keep.js?v=54")
                         && keepHtml.contains("id=\"hallFavoriteResident\"")
                         && keepHtml.contains("id=\"productionReady\"")
                         && keepHtml.contains("id=\"collectOverlay\"")
@@ -1728,6 +1791,8 @@ class GameJavaScriptRegressionTest {
                         && keepJs.contains("offline-capacity-list")
                         && keepJs.contains("woodlotCapacity <= 0 || available < woodlotCapacity")
                         && keepJs.contains("function collectAllReady(")
+                        && keepJs.contains("repeatableProjects?.projects")
+                        && keepJs.contains("Voice of Sanctuary")
                         && keepJs.contains("stationId: 'all'")
                         && keepJs.contains("function projectedTotalReady(")
                         && keepJs.contains("`${totalReady} ready`")
@@ -2020,8 +2085,39 @@ class GameJavaScriptRegressionTest {
                 "Art bleeds under the notch and home indicator while controls stay inset by the safe area."
         );
         assertTrue(
-                adventureHtml.contains("/css/adventure.css?v=55"),
+                adventureCssPin(adventureHtml) >= 56,
                 "adventure.css must be cache-busted after the full-bleed location rework."
+        );
+    }
+
+    /**
+     * A hired mercenary makes a fourth body on .ally-line (warband caps at 3). The
+     * plates used to keep their min-content width when the sprites shrank, so the
+     * stat row painted over the neighbouring unit and the outermost plate was pushed
+     * outside the overflow:hidden stage — clipped HP in portrait, overlapping plates
+     * in landscape. tests/siege-merc-party-layout-check.cjs measures the result; these
+     * pin the three declarations it depends on.
+     */
+    @Test
+    void siegeUnitPlatesSurviveAFourthUnitOnTheLine() throws IOException {
+        String adventureCss = Files.readString(ADVENTURE_CSS).replace("\r\n", "\n");
+        String adventureJs = Files.readString(ADVENTURE_JS);
+
+        assertTrue(
+                adventureCss.contains(".sprite{position:relative; --sprite-scale:1; flex:0 1 auto; min-width:0;"),
+                "A sprite must be allowed to shrink past its own name plate, or a four-unit "
+                        + "line overflows the arena."
+        );
+        assertTrue(
+                adventureCss.contains(".sprite .sp-tags{display:flex; flex-wrap:wrap;"),
+                "The stat row has no ellipsis to fall back on, so it must wrap rather than "
+                        + "spill over the next unit."
+        );
+        assertTrue(
+                adventureJs.contains("<span class=\"sp-merc\">Merc</span>")
+                        && adventureCss.contains(".sprite.merc .sp-plate{"),
+                "A rental badges its role and tints its plate instead of spending plate width "
+                        + "on a \" (Merc)\" suffix."
         );
     }
 
@@ -2033,7 +2129,7 @@ class GameJavaScriptRegressionTest {
         String mapCatalog = Files.readString(SIEGE_MAPS_JS);
 
         assertTrue(
-                adventureHtml.indexOf("/js/siege-maps.js?v=3") < adventureHtml.indexOf("/js/adventure.js?v=61")
+                adventureHtml.indexOf("/js/siege-maps.js?v=3") < adventureHtml.indexOf("/js/adventure.js?v=")
                         && adventureHtml.contains("<div class=\"battle-map\" id=\"battleMap\" aria-hidden=\"true\"></div>"),
                 "The map catalog must load before adventure.js and the decorative layer must ship inside the stage."
         );
@@ -2105,17 +2201,42 @@ class GameJavaScriptRegressionTest {
         assertTrue(adventureHtml.contains("id=\"runMenuSave\"")
                         && adventureHtml.contains("id=\"runMenuRestart\"")
                         && adventureHtml.contains("id=\"runMenuQuit\"")
-                        && adventureHtml.contains("/css/adventure.css?v=55")
-                        && adventureHtml.contains("/js/adventure.js?v=61"),
+                        && adventureCssPin(adventureHtml) >= 56
+                        && adventureJsPin(adventureHtml) >= 62,
                 "The active-run menu and both cache-busted bundles must ship together.");
         String restartRun = extractFunction(adventureJs, "function restartRun(");
         assertTrue(adventureJs.contains("api('/api/siege/run/save'")
                         && adventureJs.contains("if (!run.checkpoint) throw new Error")
                         && restartRun.contains("api('/api/siege/run/abandon'")
-                        && restartRun.indexOf("api('/api/siege/run/abandon'") < restartRun.indexOf("setToken(null); state.run = null"),
+                        && restartRun.indexOf("api('/api/siege/run/abandon'") < restartRun.indexOf("state.run = null"),
                 "Save/Quit must require a durable checkpoint and Restart must abandon server state before clearing local state.");
+        // The resume prompt can abandon the OTHER mode's save, so the device token is
+        // only cleared when it is the one that was just dropped, and what remains is
+        // re-read rather than assumed gone.
+        assertTrue(restartRun.contains("if (t === token()) setToken(null);")
+                        && restartRun.contains("resumeOrRoster()"),
+                "Abandoning one save must not clear a token pointing at the other mode's run.");
         assertFalse(adventureJs.contains("resetPageScroll"),
                 "The menu port must not revive the stale PR's superseded map-scroll implementation.");
+    }
+
+    @Test
+    void siegeBootPrefersTheSignedInAccountsExpeditionAcrossDevices() throws IOException {
+        String adventureJs = Files.readString(ADVENTURE_JS);
+        String resume = extractFunction(adventureJs, "function resumeOrRoster()");
+
+        assertTrue(extractFunction(adventureJs, "function boot()").contains("resumeOrRoster()")
+                        && resume.contains("api('/api/siege/run/active')")
+                        && resume.contains("bootFromLocalToken"),
+                "Signed-in players must resume their account checkpoint before a device-local token, with guest fallback.");
+        // An account holds one save per mode, so the boot check reads the whole list —
+        // taking only `run` would hide whichever mode was not saved last.
+        assertTrue(resume.contains("active.runs")
+                        && resume.contains("renderResumePrompt(saves)"),
+                "The boot check must offer every saved mode, not just the most recent run.");
+        assertTrue(adventureJs.contains("function runSlotBadgeText(run)")
+                        && adventureJs.contains("run.slot === 'BATTLEGROUNDS'"),
+                "Siege and Battlegrounds must be labelled apart wherever a run is shown.");
     }
 
     @Test
@@ -2216,9 +2337,187 @@ class GameJavaScriptRegressionTest {
                 "The overcharge pulse must stop for players who ask for reduced motion."
         );
         assertTrue(
-                playMarkup.contains("style.css?v=230") && playMarkup.contains("game.js?v=240"),
+                styleCssPin(playMarkup) >= 230 && gameJsPin(playMarkup) >= 240,
                 "The overcharge cue ships only if both cache pins advance together."
         );
+    }
+
+    /**
+     * `getEvolutionBaseCells` returns board cells, not [row, col] pairs. Destructuring
+     * them as pairs threw a TypeError out of the hand lock check, and because the hand
+     * is built as one string and assigned only at the end, that throw left the entire
+     * hand frozen on its previous contents - a card the player had just played onto its
+     * precursor stayed on screen. The lock check is also wrapped so no future throw in
+     * it can freeze the hand again.
+     */
+    @Test
+    void evolutionLockCheckReadsBaseCellsAsCellsAndCannotFreezeTheHand() throws IOException {
+        String source = Files.readString(GAME_JS);
+
+        String baseCells = extractFunction(source, "function getEvolutionBaseCells(");
+        assertTrue(
+                baseCells.contains("cells.push(cell)"),
+                "getEvolutionBaseCells is expected to yield board cells; update the callers below if that changes."
+        );
+
+        String lockReason = extractFunction(source, "function computeHandCardLockReason(");
+        assertFalse(
+                lockReason.contains("baseCells.some(([r, c])"),
+                "Evolution base cells are cell objects, not [row, col] pairs - destructuring them throws out of renderHand."
+        );
+        assertTrue(
+                lockReason.contains("baseCells.some((cell) => cellHasAffliction(cell, 'CURSE'))"),
+                "The cursed-base check must read the cell it was handed."
+        );
+
+        String guarded = extractFunction(source, "function getHandCardLockReason(");
+        assertTrue(
+                guarded.contains("computeHandCardLockReason(card)") && guarded.contains("catch"),
+                "One card's lock check must never abort renderHand and strand the hand on stale markup."
+        );
+    }
+
+    /**
+     * The pin only ever moves forward, so cache-pin guards assert a floor rather than an
+     * exact number - pinning the exact version made every later, unrelated bump red.
+     */
+    private static int gameJsPin(String markup) {
+        return assetPin(markup, "game\\.js");
+    }
+
+    private static int styleCssPin(String markup) {
+        return assetPin(markup, "style\\.css");
+    }
+
+    // Asserts a rule targeting the given subject also applies to the wanted
+    // selector, without pinning the exact :is() list — that list legitimately
+    // grows as new surfaces reuse the rule.
+    @Test
+    void mulliganLeaveMatchForfeitsStartedOnlineGames() throws IOException {
+        String gameScript = readGameScript();
+        String playMarkup = Files.readString(PLAY_HTML);
+        String leaveOnlineMatch = extractFunction(gameScript, "async function leaveOnlineMatch(");
+
+        assertTrue(
+                playMarkup.contains("onclick=\"leaveOnlineMatch()\"")
+                        && playMarkup.contains("id=\"mulliganWaitActions\""),
+                "The mulligan wait UI must keep exposing Leave match."
+        );
+        assertTrue(
+                leaveOnlineMatch.contains("/api/match/forfeit")
+                        && leaveOnlineMatch.contains("wins by forfeit")
+                        && leaveOnlineMatch.indexOf("/api/match/forfeit")
+                        < leaveOnlineMatch.indexOf("openLoadoutSelector()"),
+                "Leave match during an active multiplayer game must forfeit before clearing local session."
+        );
+        assertTrue(
+                leaveOnlineMatch.contains("gameState?.multiplayer")
+                        && leaveOnlineMatch.contains("/api/match/close"),
+                "Unstarted lobby teardown may still close; started matches must take the forfeit branch first."
+        );
+        assertTrue(
+                gameJsPin(playMarkup) >= 241,
+                "Play must load the forfeiting leaveOnlineMatch bundle."
+        );
+    }
+
+    @Test
+    void playAuthProfileMergesPreserveProgressionWhenOmitted() throws IOException {
+        String playHudScript = Files.readString(Path.of("src/main/resources/static/js/play-hud.js"));
+        String gameScript = readGameScript();
+        String applyProfile = extractFunction(playHudScript, "function applyProfileResponse(data)");
+        String syncAuth = extractFunction(gameScript, "async function syncAuthProfileNow(silent = false)");
+
+        assertTrue(
+                applyProfile.contains("previous.progression")
+                        && applyProfile.contains("!data.progression")
+                        && applyProfile.contains("saveCachedAuthProfile(merged)"),
+                "Play HUD friend responses must merge a missing progression onto the prior same-user snapshot before caching."
+        );
+        assertTrue(
+                syncAuth.contains("previous.progression")
+                        && syncAuth.contains("!data.progression")
+                        && syncAuth.contains("saveCachedAuthProfile(merged)"),
+                "Play /api/auth/me refresh must not overwrite sieglingsAuthProfile with a progression-less authenticated body."
+        );
+        assertFalse(
+                applyProfile.contains("saveCachedAuthProfile(data)")
+                        || syncAuth.contains("saveCachedAuthProfile(data)"),
+                "Progression-less profile payloads must not be written straight into the shared auth cache."
+        );
+    }
+
+    @Test
+    void playHudJoinWithCodeForfeitsActiveMatchBeforeClearingLocalSession() throws IOException {
+        Path playHudJs = Path.of("src/main/resources/static/js/play-hud.js");
+        String playHud = Files.readString(playHudJs);
+        String playMarkup = Files.readString(PLAY_HTML);
+        String abandon = extractFunction(playHud, "async function abandonActiveMatchForJoinCode()");
+        String openJoin = extractFunction(playHud, "async function openJoinWithCode()");
+
+        assertTrue(
+                assetPin(playMarkup, "play-hud\\.js") >= 3,
+                "Play must cache-bust play-hud.js after the Join With Code forfeit fix."
+        );
+        assertTrue(
+                openJoin.contains("await abandonActiveMatchForJoinCode()")
+                        && openJoin.contains("openLoadoutSelector"),
+                "Join With Code must abandon the live match before openLoadoutSelector clears local session state."
+        );
+        assertTrue(
+                abandon.contains("/api/match/forfeit")
+                        && abandon.contains("/api/game/forfeit")
+                        && abandon.contains("X-Player-Token")
+                        && abandon.contains("X-Solo-Token")
+                        && abandon.contains("wins by forfeit"),
+                "Leaving via Join With Code must forfeit online and solo matches server-side, matching Quit Match."
+        );
+        assertFalse(
+                abandon.contains("openLoadoutSelector"),
+                "The abandon helper must not clear the local session itself; forfeit first, then open the loadout."
+        );
+    }
+
+    private static boolean selectorCovers(String css, String subjectPattern, String wanted) {
+        Matcher matcher = Pattern.compile("(:is\\([^)]*\\))\\s*" + subjectPattern).matcher(css);
+        while (matcher.find()) {
+            if (matcher.group(1).contains(wanted)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static int homeJsPin(String markup) {
+        return assetPin(markup, "home\\.js");
+    }
+
+    private static int homeCssPin(String markup) {
+        return assetPin(markup, "home\\.css");
+    }
+
+    private static int cardBinderVisualPin(String markup) {
+        return assetPin(markup, "card-binder-visual\\.js");
+    }
+
+    private static int actionQueuePin(String markup) {
+        return assetPin(markup, "action-queue\\.js");
+    }
+
+    private static int adventureJsPin(String markup) {
+        return assetPin(markup, "adventure\\.js");
+    }
+
+    private static int adventureCssPin(String markup) {
+        return assetPin(markup, "adventure\\.css");
+    }
+
+    // Cache pins only ever move forward, so assert a floor rather than an exact
+    // value — a literal pin turns every unrelated asset edit into a red test.
+    private static int assetPin(String markup, String assetPattern) {
+        Matcher matcher = Pattern.compile(assetPattern + "\\?v=(\\d+)").matcher(markup);
+        assertTrue(matcher.find(), "Markup does not load " + assetPattern + " with a cache pin.");
+        return Integer.parseInt(matcher.group(1));
     }
 
     private static String extractFunction(String source, String signature) {

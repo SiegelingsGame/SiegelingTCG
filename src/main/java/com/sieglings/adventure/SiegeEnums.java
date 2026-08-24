@@ -40,7 +40,7 @@ enum StatusKind {
     BURN,       // Fire:     1 damage at the end of each round
     SLOW,       // Ice:      -2 Speed for 2 rounds; reapply freezes (Stun)
     STUN,       // Freeze:   skip the next action
-    LEECH,      // Earth:    second hit heals the attacker for HP damage dealt
+    LEECH,      // Earth:    heals the attacker for HP damage dealt when it triggers
     SHOCK,      // Electric: −1 party AP (player) / next hit −2 (enemy)
     DISORIENT,  // Wind:     owner's cards cost +1 AP
     POISON,     // Poison:   end-round DoT; heals clear the toxin instead
@@ -78,6 +78,33 @@ enum KnightPassive { SHIELD, ATTACK, SPEED, HEALTH, LOOT, MARSHAL }
  * veterans for greater rewards (higher difficulty, gold/score multipliers).
  */
 enum RunMode { STANDARD, ENDLESS, BATTLEGROUNDS }
+
+/**
+ * Which account save a run occupies. Every mode gets its own slot so a player can
+ * hold one expedition and one Battlegrounds march at the same time — a single
+ * account checkpoint meant starting either mode silently threw the other away.
+ * STANDARD and ENDLESS share the EXPEDITION slot: both are "the expedition", and
+ * the client offers them as one save.
+ */
+enum RunSlot {
+    EXPEDITION("siege", "Siege Expedition"),
+    BATTLEGROUNDS("bg", "Battlegrounds");
+
+    private final String suffix;
+    private final String label;
+
+    RunSlot(String suffix, String label) {
+        this.suffix = suffix;
+        this.label = label;
+    }
+
+    String suffix() { return suffix; }
+    String label() { return label; }
+
+    static RunSlot of(RunMode mode) {
+        return mode == RunMode.BATTLEGROUNDS ? BATTLEGROUNDS : EXPEDITION;
+    }
+}
 
 /** Battle turn phase driving what the client may submit. */
 enum BattlePhase { PLAYER_INPUT, ENEMY_RESOLVING, WON, LOST }

@@ -12,6 +12,8 @@ import java.util.List;
  */
 class SiegeRun {
     private final String token;
+    /** Account that owns this run; blank only for legacy/guest expeditions. */
+    private String ownerId = "";
 
     // SiegeKnight (run leader — provides a deck card + a battle-start passive).
     private String knightId;
@@ -99,6 +101,14 @@ class SiegeRun {
     /** A just-joined Siegeling awaiting its gacha-style reveal (null when none). */
     private java.util.Map<String, Object> pendingRecruit;
 
+    /**
+     * Every Siegeling catalog card this run has met — recruits, broker hires, and
+     * the forms they evolve into. Banked as permanent starter unlocks when the run
+     * ends (see SiegeService#bankSieglingDiscoveries), so it must survive a
+     * resume: insertion-ordered and carried in the run snapshot.
+     */
+    private final java.util.Set<String> discoveredSieglingIds = new java.util.LinkedHashSet<>();
+
     /** Unequipped items carried by the warband (equipped items live on Combatants). */
     private final List<String> inventory = new ArrayList<>();
     /** Consumables carried by the SiegeKnight (revive cards, potions, etc.). */
@@ -139,6 +149,8 @@ class SiegeRun {
     }
 
     String getToken() { return token; }
+    String getOwnerId() { return ownerId; }
+    void setOwnerId(String ownerId) { this.ownerId = ownerId == null ? "" : ownerId; }
 
     String getKnightId() { return knightId; }
     void setKnightId(String knightId) { this.knightId = knightId; }
@@ -216,6 +228,7 @@ class SiegeRun {
     boolean isAwaitingBoonPick() { return awaitingBoonPick; }
     void setAwaitingBoonPick(boolean awaitingBoonPick) { this.awaitingBoonPick = awaitingBoonPick; }
     List<String> getSourceTeamIds() { return sourceTeamIds; }
+    java.util.Set<String> getDiscoveredSieglingIds() { return discoveredSieglingIds; }
     java.util.Map<String, Object> getBossReveal() { return bossReveal; }
     void setBossReveal(java.util.Map<String, Object> bossReveal) { this.bossReveal = bossReveal; }
     long getScore() { return score; }

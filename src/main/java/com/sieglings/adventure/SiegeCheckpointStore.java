@@ -6,8 +6,11 @@ import com.sieglings.persistence.firestore.FirestoreUserDataClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -59,6 +62,30 @@ public class SiegeCheckpointStore {
         }
     }
 
+    /**
+     * The account index is the cross-device entrypoint; its snapshot still carries the
+     * opaque run token. There is one index per {@link RunSlot}, so an expedition and a
+     * Battlegrounds march are saved side by side instead of overwriting each other —
+     * starting one used to silently discard the other.
+     */
+    Optional<Map<String, Object>> loadForUser(String userId, RunSlot slot) {
+        return load(accountDocumentId(userId, slot));
+    }
+
+    /** Every slot this account has a save in, in slot order. */
+    Map<RunSlot, Map<String, Object>> loadAllForUser(String userId) {
+        Map<RunSlot, Map<String, Object>> out = new LinkedHashMap<>();
+        for (RunSlot slot : RunSlot.values()) {
+            loadForUser(userId, slot).ifPresent(snapshot -> out.put(slot, snapshot));
+        }
+        return out;
+    }
+
+    boolean saveForUser(String userId, RunSlot slot, Map<String, Object> snapshot) {
+        String documentId = accountDocumentId(userId, slot);
+        return documentId != null && save(documentId, snapshot);
+    }
+
     /** Removes a finished run's checkpoint. */
     void delete(String token) {
         if (token == null || token.isBlank()) return;
@@ -68,6 +95,35 @@ public class SiegeCheckpointStore {
         } catch (Exception ex) {
             warnOnce(ex);
         }
+    }
+
+    /**
+     * Removes the account pointer only when it still points at this run. An old
+     * device finishing a superseded run must not erase a newer expedition.
+     */
+    void deleteForUser(String userId, RunSlot slot, String token) {
+        String documentId = accountDocumentId(userId, slot);
+        if (documentId == null || token == null || token.isBlank()) return;
+        try {
+            var reference = client.requireFirestore().collection(COLLECTION).document(documentId);
+            DocumentSnapshot doc = reference.get().get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            if (doc.exists() && token.equals(doc.getString("token"))) {
+                reference.delete().get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            }
+        } catch (Exception ex) {
+            warnOnce(ex);
+        }
+    }
+
+    private static String accountDocumentId(String userId, RunSlot slot) {
+        if (userId == null || userId.isBlank()) return null;
+        // Firestore document IDs cannot include a slash. Encoding also keeps
+        // account identifiers out of visible document paths. The EXPEDITION slot
+        // keeps the original unsuffixed id so saves written before slots existed
+        // still resume.
+        String base = "account-" + Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(userId.getBytes(StandardCharsets.UTF_8));
+        return slot == null || slot == RunSlot.EXPEDITION ? base : base + "-" + slot.suffix();
     }
 
     private void warnOnce(Exception ex) {
