@@ -3,6 +3,8 @@ package com.sieglings.controller;
 import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.service.AccountService;
 import com.sieglings.service.DailyMissionService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -15,6 +17,8 @@ import java.util.Map;
 
 @RestController
 public class DailyMissionController {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(DailyMissionController.class);
 
     @Autowired
     private AccountService accountService;
@@ -33,6 +37,15 @@ public class DailyMissionController {
         } catch (IllegalArgumentException ex) {
             Map<String, Object> error = new LinkedHashMap<>();
             error.put("error", ex.getMessage());
+            return error;
+        } catch (RuntimeException ex) {
+            // All three mission tabs render from this one snapshot, so a store
+            // failure here blanks the whole panel. A bare 500 reaches the client
+            // as "Internal Server Error"; give the player something they can act
+            // on and keep the cause in the logs.
+            LOGGER.error("Failed to build the daily mission snapshot", ex);
+            Map<String, Object> error = new LinkedHashMap<>();
+            error.put("error", "Missions are temporarily unavailable.");
             return error;
         }
     }

@@ -104,9 +104,7 @@ public class SiegeService {
             m.put("artUrl", s.getCardArtUrl());
             m.put("evolves", evolvesFrom.contains(s.getId()));
             // Catalog starters plus anything this account found on an expedition.
-            m.put("expeditionStarter", content.isExpeditionStarter(s, startersConfigured)
-                    || (progression != null && progressionService != null
-                        && progressionService.isSiegeSieglingUnlocked(progression, s.getId())));
+            m.put("expeditionStarter", isSieglingSelectable(s, startersConfigured, progression));
             m.put("moves", serializeSpecs(content.moveSpecs(s)));
             siegelings.add(m);
         }
@@ -388,6 +386,21 @@ public class SiegeService {
         return progressionService.getOrCreate(user);
     }
 
+    /**
+     * Warband-select and {@link #newRun} must share this gate. Roster already
+     * treated an account unlock as a starter; starting the run used to consult
+     * only the catalog flag, so a Siegeling found on a prior expedition showed
+     * as pickable and then 400'd.
+     */
+    private boolean isSieglingSelectable(SieglingCard s, boolean startersConfigured,
+                                         PlayerProgressionEntity progression) {
+        if (content.isExpeditionStarter(s, startersConfigured)) {
+            return true;
+        }
+        return progression != null && progressionService != null
+                && progressionService.isSiegeSieglingUnlocked(progression, s.getId());
+    }
+
     private boolean isKnightSelectable(TrainerCard knight, AccountUser user, PlayerProgressionEntity progression) {
         if (content.isExpeditionKnightStarter(knight)) {
             return true;
@@ -426,6 +439,7 @@ public class SiegeService {
         if (!isKnightSelectable(knight, user, progression)) {
             throw new IllegalArgumentException(knight.getName() + " is locked — unlock them with Siegecoins first.");
         }
+        boolean startersConfigured = content.expeditionStartersConfigured();
 
         purgeStale();
         String token = generateToken();
@@ -447,7 +461,7 @@ public class SiegeService {
         for (String id : sieglingIds) {
             SieglingCard s = (mode == RunMode.ENDLESS ? content.findAnySiegling(id) : content.findSiegling(id))
                     .orElseThrow(() -> new IllegalArgumentException("Unknown Siegeling: " + id));
-            if (!content.isExpeditionStarter(s)) {
+            if (!isSieglingSelectable(s, startersConfigured, progression)) {
                 throw new IllegalArgumentException(s.getName() + " is locked — find them on the expedition path first.");
             }
             Combatant member = content.toPartyCombatant(s, slot);

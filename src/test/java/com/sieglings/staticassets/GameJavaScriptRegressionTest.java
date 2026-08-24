@@ -409,7 +409,7 @@ class GameJavaScriptRegressionTest {
                 "Season Snapshot, Loadout Shelf, and Social Table must share the overview rail, with matches and badges paired below."
         );
         assertTrue(
-                homeMarkup.contains("home.js?v=142") && homeMarkup.contains("home.css?v=130"),
+                homeJsPin(homeMarkup) >= 142 && homeCssPin(homeMarkup) >= 130,
                 "Cache-bust pins for the profile dashboard trim must advance on home.html."
         );
     }
@@ -437,9 +437,9 @@ class GameJavaScriptRegressionTest {
                 "Element-mode profile and friend avatars must fill a circular frame."
         );
         assertTrue(
-                homeMarkup.contains("home.css?v=130")
-                        && homeMarkup.contains("home.js?v=142")
-                        && dashboardMarkup.contains("home.css?v=130"),
+                homeCssPin(homeMarkup) >= 130
+                        && homeJsPin(homeMarkup) >= 142
+                        && homeCssPin(dashboardMarkup) >= 130,
                 "Profile icon CSS and JavaScript cache pins must advance together."
         );
     }
@@ -473,13 +473,13 @@ class GameJavaScriptRegressionTest {
         assertTrue(
                 styleCssPin(homeMarkup) >= 230
                         && gameJsPin(homeMarkup) >= 240
-                        && homeMarkup.contains("card-binder-visual.js?v=20")
-                        && homeMarkup.contains("home.js?v=142")
+                        && cardBinderVisualPin(homeMarkup) >= 20
+                        && homeJsPin(homeMarkup) >= 142
                         && styleCssPin(playMarkup) >= 230
                         && gameJsPin(playMarkup) >= 240
                         && styleCssPin(dashboardMarkup) >= 230
                         && gameJsPin(dashboardMarkup) >= 240
-                        && dashboardMarkup.contains("card-binder-visual.js?v=20"),
+                        && cardBinderVisualPin(dashboardMarkup) >= 20,
                 "Every surface must advance its cache pins with the complete painted-notch set."
         );
     }
@@ -567,9 +567,9 @@ class GameJavaScriptRegressionTest {
                 "The full Field Guide must use current card labels, energy exceptions, Siege rules, and fresh visuals."
         );
         assertTrue(
-                homeMarkup.contains("home.css?v=130")
-                        && homeMarkup.contains("home.js?v=142")
-                        && dashboardMarkup.contains("home.css?v=130"),
+                homeCssPin(homeMarkup) >= 130
+                        && homeJsPin(homeMarkup) >= 142
+                        && homeCssPin(dashboardMarkup) >= 130,
                 "Guide JavaScript and shared visual CSS pins must advance together."
         );
     }
@@ -1364,8 +1364,8 @@ class GameJavaScriptRegressionTest {
         String dragSession = extractFunction(readGameScript(), "function activateCardDragSession()");
 
         assertTrue(
-                style.contains(":is(.hand-tray, .card-drag-ghost) .hand-card-body { display: none; }")
-                        && style.contains(":is(.hand-tray, .card-drag-ghost) .card-stat-pill"),
+                selectorCovers(style, "\\.hand-card-body \\{ display: none; \\}", ".card-drag-ghost")
+                        && selectorCovers(style, "\\.card-stat-pill", ".card-drag-ghost"),
                 "The detached drag clone must retain the hand card's compact text and stat layout."
         );
         assertTrue(
@@ -2387,6 +2387,86 @@ class GameJavaScriptRegressionTest {
 
     private static int styleCssPin(String markup) {
         return assetPin(markup, "style\\.css");
+    }
+
+    // Asserts a rule targeting the given subject also applies to the wanted
+    // selector, without pinning the exact :is() list — that list legitimately
+    // grows as new surfaces reuse the rule.
+    @Test
+    void mulliganLeaveMatchForfeitsStartedOnlineGames() throws IOException {
+        String gameScript = readGameScript();
+        String playMarkup = Files.readString(PLAY_HTML);
+        String leaveOnlineMatch = extractFunction(gameScript, "async function leaveOnlineMatch(");
+
+        assertTrue(
+                playMarkup.contains("onclick=\"leaveOnlineMatch()\"")
+                        && playMarkup.contains("id=\"mulliganWaitActions\""),
+                "The mulligan wait UI must keep exposing Leave match."
+        );
+        assertTrue(
+                leaveOnlineMatch.contains("/api/match/forfeit")
+                        && leaveOnlineMatch.contains("wins by forfeit")
+                        && leaveOnlineMatch.indexOf("/api/match/forfeit")
+                        < leaveOnlineMatch.indexOf("openLoadoutSelector()"),
+                "Leave match during an active multiplayer game must forfeit before clearing local session."
+        );
+        assertTrue(
+                leaveOnlineMatch.contains("gameState?.multiplayer")
+                        && leaveOnlineMatch.contains("/api/match/close"),
+                "Unstarted lobby teardown may still close; started matches must take the forfeit branch first."
+        );
+        assertTrue(
+                gameJsPin(playMarkup) >= 241,
+                "Play must load the forfeiting leaveOnlineMatch bundle."
+        );
+    }
+
+    @Test
+    void playAuthProfileMergesPreserveProgressionWhenOmitted() throws IOException {
+        String playHudScript = Files.readString(Path.of("src/main/resources/static/js/play-hud.js"));
+        String gameScript = readGameScript();
+        String applyProfile = extractFunction(playHudScript, "function applyProfileResponse(data)");
+        String syncAuth = extractFunction(gameScript, "async function syncAuthProfileNow(silent = false)");
+
+        assertTrue(
+                applyProfile.contains("previous.progression")
+                        && applyProfile.contains("!data.progression")
+                        && applyProfile.contains("saveCachedAuthProfile(merged)"),
+                "Play HUD friend responses must merge a missing progression onto the prior same-user snapshot before caching."
+        );
+        assertTrue(
+                syncAuth.contains("previous.progression")
+                        && syncAuth.contains("!data.progression")
+                        && syncAuth.contains("saveCachedAuthProfile(merged)"),
+                "Play /api/auth/me refresh must not overwrite sieglingsAuthProfile with a progression-less authenticated body."
+        );
+        assertFalse(
+                applyProfile.contains("saveCachedAuthProfile(data)")
+                        || syncAuth.contains("saveCachedAuthProfile(data)"),
+                "Progression-less profile payloads must not be written straight into the shared auth cache."
+        );
+    }
+
+    private static boolean selectorCovers(String css, String subjectPattern, String wanted) {
+        Matcher matcher = Pattern.compile("(:is\\([^)]*\\))\\s*" + subjectPattern).matcher(css);
+        while (matcher.find()) {
+            if (matcher.group(1).contains(wanted)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static int homeJsPin(String markup) {
+        return assetPin(markup, "home\\.js");
+    }
+
+    private static int homeCssPin(String markup) {
+        return assetPin(markup, "home\\.css");
+    }
+
+    private static int cardBinderVisualPin(String markup) {
+        return assetPin(markup, "card-binder-visual\\.js");
     }
 
     private static int actionQueuePin(String markup) {
