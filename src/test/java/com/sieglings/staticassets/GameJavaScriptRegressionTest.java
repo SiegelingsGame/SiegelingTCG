@@ -2604,6 +2604,11 @@ class GameJavaScriptRegressionTest {
                 "The active loadout must not keep pointing at a deleted deck.");
         assertTrue(deleteSavedDeck.contains("state.savedDeckNotice = data?.error"),
                 "A failed delete must surface the server's reason on the decks screen.");
+        // game.js renders the Play page's saved-deck list from this same cache.
+        assertTrue(deleteSavedDeck.contains("saveCachedAuthProfile(data)")
+                        && extractFunction(homeScript, "async function saveCustomDeck()").contains("saveCachedAuthProfile(data)"),
+                "Saving and deleting must both refresh the shared profile cache, "
+                        + "or the change is lost on the next load and on the Play page.");
     }
 
     private static String extractFunction(String source, String signature) {

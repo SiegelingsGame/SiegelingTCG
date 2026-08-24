@@ -3698,6 +3698,9 @@
         }
         state.profile = data;
         state.progression = data.progression || state.progression;
+        // The saved-deck list is served to the Play page out of this cache, so a
+        // delete that only touches in-memory state comes back on the next load.
+        saveCachedAuthProfile(data);
         // The active loadout cannot point at a deck that no longer exists, or the
         // next Play tap starts a match against a missing deck id.
         if (state.selectedDeckId === deckId) state.selectedDeckId = '';
@@ -8370,6 +8373,7 @@
         clearBuilderIssue(false);
         state.profile = data;
         state.progression = data.progression;
+        saveCachedAuthProfile(data);
         state.editingSavedDeckId = '';
         renderProfile();
         renderDecks();
