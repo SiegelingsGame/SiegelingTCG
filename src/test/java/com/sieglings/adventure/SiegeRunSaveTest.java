@@ -57,6 +57,27 @@ class SiegeRunSaveTest {
         assertEquals(0, checkpoints.saveCount, "WON battles must never be written by explicit Save");
     }
 
+    @SuppressWarnings("unchecked")
+    @Test
+    void signedInRunAlsoWritesTheAccountResumeCheckpoint() throws Exception {
+        SiegeService service = new SiegeService();
+        RecordingCheckpointStore checkpoints = new RecordingCheckpointStore();
+        setField(service, "checkpoints", checkpoints);
+        setField(service, "content", new SiegeContentService());
+        SiegeRun run = new SiegeRun("account-save");
+        run.setOwnerId("player/with-a-safe-id");
+        addRun(service, run);
+
+        service.saveRun("account-save");
+
+        assertEquals("player/with-a-safe-id", checkpoints.savedUserId);
+        assertEquals("account-save", checkpoints.accountSnapshot.get("token"));
+        assertEquals("player/with-a-safe-id", checkpoints.accountSnapshot.get("ownerId"));
+        // A standard expedition lands in the expedition slot; Battlegrounds has its own,
+        // so starting one mode no longer discards the other mode's save.
+        assertEquals(RunSlot.EXPEDITION, checkpoints.savedSlot);
+    }
+
     private static void setField(Object target, String name, Object value) throws Exception {
         Field field = target.getClass().getDeclaredField(name);
         field.setAccessible(true);
@@ -77,6 +98,9 @@ class SiegeRunSaveTest {
     private static final class RecordingCheckpointStore extends SiegeCheckpointStore {
         private String savedToken;
         private Map<String, Object> savedSnapshot;
+        private String savedUserId;
+        private RunSlot savedSlot;
+        private Map<String, Object> accountSnapshot;
         private int saveCount;
 
         @Override
@@ -84,6 +108,14 @@ class SiegeRunSaveTest {
             savedToken = token;
             savedSnapshot = snapshot;
             saveCount++;
+            return true;
+        }
+
+        @Override
+        boolean saveForUser(String userId, RunSlot slot, Map<String, Object> snapshot) {
+            savedUserId = userId;
+            savedSlot = slot;
+            accountSnapshot = snapshot;
             return true;
         }
     }

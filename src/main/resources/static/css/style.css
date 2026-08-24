@@ -49,7 +49,9 @@
     --success: #2ecc71;
     --highlight: rgba(255, 215, 0, 0.24);
     --mobile-action-bar-height: 86px;
-    --mobile-hub-nav-height: 156px;
+    /* Height of the docked mobile hub nav (brand row + 8 tabs + two action
+       rows). Page content pads clear of it, so it must track the real dock. */
+    --mobile-hub-nav-height: 200px;
     --device-safe-top: env(safe-area-inset-top, 0px);
     --device-safe-right: env(safe-area-inset-right, 0px);
     --device-safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -217,15 +219,548 @@ body {
 }
 
 .play-hub-pill {
+    /* The label is the player's display name (up to 20 chars), so cap it —
+       otherwise a long name pushes the action cluster out of the bar. */
+    max-width: 190px;
+    overflow: hidden;
     color: var(--accent);
     border-color: rgba(255, 215, 0, 0.4);
     background: rgba(255, 215, 0, 0.1);
+}
+
+/* ── Play HUD extras: coins, bell, help, friends ──────────────────────────
+   Mirrors the hub HUD (home.css) so the two navs read as one system, but
+   under play-scoped class names: play.html loads style.css only, and home.html
+   loads BOTH sheets — sharing the hub's class names here would leak these
+   rules into the hub nav. */
+.play-hub-icons {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+}
+
+.play-hub-icon-btn {
+    position: relative;
+    width: 36px;
+    height: 36px;
+    display: inline-grid;
+    place-items: center;
+    flex: 0 0 auto;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+    color: #ffe9a0;
+    cursor: pointer;
+}
+
+.play-hub-help-btn {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.play-hub-icon-btn:hover,
+.play-hub-icon-btn.active {
+    border-color: rgba(255, 215, 0, 0.62);
+    background: rgba(255, 215, 0, 0.12);
+}
+
+.play-hub-coins {
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border: 1px solid rgba(255, 215, 0, 0.42);
+    border-radius: 999px;
+    background: rgba(255, 215, 0, 0.1);
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 900;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.play-hub-coin-icon {
+    width: 20px;
+    height: 20px;
+    flex: 0 0 auto;
+    object-fit: contain;
+}
+
+.play-hub-coins small {
+    color: rgba(255, 233, 160, 0.78);
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.play-hub-actions .play-hub-ghost {
+    gap: 6px;
+    position: relative;
+}
+
+.play-hub-btn-icon {
+    flex: 0 0 auto;
+}
+
+.play-hud-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    min-width: 17px;
+    height: 17px;
+    display: inline-grid;
+    place-items: center;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #ff7b4f, #d6332b);
+    box-shadow: 0 0 0 2px rgba(10, 16, 32, 0.9);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 950;
+    line-height: 1;
+}
+
+.play-hud-badge.hidden {
+    display: none;
+}
+
+.play-hud-compact {
+    min-height: 30px;
+    padding: 5px 10px;
+    font-size: 12px;
+}
+
+.play-hud-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex: 0 0 auto;
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.play-hud-panel-head strong {
+    color: #fff7d9;
+    font-size: 14px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.play-hud-eyebrow {
+    display: block;
+    color: var(--accent);
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+/* Notification tray: anchored under the bell on desktop, docked above the
+   mobile HUD (see the 767 block). */
+.play-hud-notif-panel {
+    position: fixed;
+    top: 70px;
+    left: 18px;
+    z-index: 1100;
+    width: min(360px, calc(100vw - 28px));
+    max-height: min(60vh, 480px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid rgba(255, 215, 0, 0.34);
+    border-radius: 12px;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 40%),
+        #0b1124;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+}
+
+.play-hud-notif-panel.hidden {
+    display: none;
+}
+
+.play-hud-notif-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: grid;
+    align-content: start;
+    gap: 8px;
+    padding: 12px 14px;
+    overflow-y: auto;
+}
+
+.play-hud-notif-row {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 9px 10px;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.play-hud-notif-row.is-unread {
+    border-color: rgba(255, 215, 0, 0.4);
+    background: rgba(255, 215, 0, 0.06);
+}
+
+.play-hud-notif-row strong {
+    display: block;
+    color: var(--text);
+    font-size: 13px;
+}
+
+.play-hud-notif-row p {
+    margin: 3px 0 0;
+    color: var(--text-dim);
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.play-hud-notif-head-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 3px;
+    color: var(--text-dim);
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.play-hud-notif-type {
+    color: var(--accent);
+}
+
+.play-hud-empty {
+    color: var(--text-dim);
+    font-size: 12px;
+    line-height: 1.5;
+    text-align: center;
+    padding: 18px 10px;
+}
+
+/* Shared shell for the Field Guide and Friends popups. */
+.play-hud-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 2200;
+    display: grid;
+    place-items: center;
+    padding: calc(12px + env(safe-area-inset-top, 0px)) 14px calc(14px + env(safe-area-inset-bottom, 0px));
+}
+
+.play-hud-modal.hidden {
+    display: none;
+}
+
+.play-hud-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(4, 8, 18, 0.72);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+}
+
+.play-hud-modal-panel {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    border: 1px solid rgba(255, 215, 0, 0.38);
+    border-radius: 16px;
+    background: #0b1224;
+    box-shadow: 0 28px 80px rgba(0, 0, 0, 0.65);
+}
+
+.play-hud-help-panel {
+    width: min(920px, 100%);
+    height: min(88dvh, 760px);
+}
+
+.play-hud-help-frame {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    border: 0;
+    background: #0c1224;
+}
+
+.play-hud-friends-panel {
+    width: min(520px, 100%);
+    height: min(78dvh, 640px);
+}
+
+.play-hud-head-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.play-hud-friends-view,
+.play-hud-chat-view {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 14px 14px;
+    overflow-y: auto;
+}
+
+.play-hud-friends-view.hidden,
+.play-hud-chat-view.hidden {
+    display: none;
+}
+
+.play-hud-input {
+    width: 100%;
+    min-height: 38px;
+    padding: 8px 11px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 13px;
+}
+
+.play-hud-add-row {
+    display: flex;
+    gap: 8px;
+    flex: 0 0 auto;
+    border: 1px solid rgba(255, 215, 0, 0.32);
+    border-radius: 12px;
+    padding: 10px;
+    background: rgba(255, 215, 0, 0.05);
+}
+
+.play-hud-add-row.hidden {
+    display: none;
+}
+
+.play-hud-friend-message {
+    color: var(--text-dim);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.play-hud-friend-message:empty {
+    display: none;
+}
+
+.play-hud-friend-message.error {
+    color: #ff9f8a;
+}
+
+.play-hud-friend-message.success {
+    color: #7fe0a4;
+}
+
+.play-hud-requests {
+    display: grid;
+    gap: 8px;
+    flex: 0 0 auto;
+    border: 1px solid rgba(255, 215, 0, 0.3);
+    border-radius: 12px;
+    padding: 10px;
+    background: rgba(255, 215, 0, 0.04);
+}
+
+.play-hud-requests.hidden {
+    display: none;
+}
+
+.play-hud-list-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex: 0 0 auto;
+}
+
+.play-hud-soft-pill {
+    padding: 3px 10px;
+    border: 1px solid rgba(120, 200, 255, 0.36);
+    border-radius: 999px;
+    color: #9fd7ff;
+    font-size: 11px;
+    font-weight: 900;
+}
+
+.play-hud-friend-list,
+.play-hud-request-list {
+    display: grid;
+    gap: 8px;
+    align-content: start;
+}
+
+.play-hud-friend-tile,
+.play-hud-request-tile {
+    display: grid;
+    gap: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 12px;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.play-hud-friend-main {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.play-hud-friend-avatar {
+    width: 38px;
+    height: 38px;
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    border-radius: 11px;
+    background: linear-gradient(135deg, var(--accent), #f2a23a);
+    color: #14203c;
+    font-size: 16px;
+    font-weight: 950;
+}
+
+.play-hud-friend-copy {
+    min-width: 0;
+}
+
+.play-hud-friend-copy strong {
+    display: block;
+    color: var(--text);
+    font-size: 14px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.play-hud-friend-copy span {
+    display: block;
+    color: var(--text-dim);
+    font-size: 11px;
+    font-weight: 800;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.play-hud-friend-actions,
+.play-hud-request-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.play-hud-chat-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 0 0 auto;
+}
+
+.play-hud-chat-log {
+    flex: 1 1 auto;
+    min-height: 120px;
+    display: grid;
+    align-content: start;
+    gap: 8px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.play-hud-chat-bubble {
+    max-width: 82%;
+    border-radius: 12px;
+    padding: 8px 10px;
+    background: rgba(255, 255, 255, 0.05);
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.play-hud-chat-bubble.mine {
+    justify-self: end;
+    background: rgba(255, 215, 0, 0.12);
+}
+
+.play-hud-chat-bubble small {
+    display: block;
+    margin-bottom: 3px;
+    color: var(--text-dim);
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.play-hud-chat-send {
+    display: flex;
+    gap: 8px;
+    flex: 0 0 auto;
+}
+
+.play-hub-label-short {
+    display: none;
+}
+
+/* Six action controls next to the eight-tab rail stop fitting a 62px bar well
+   before the tablet breakpoints, so shorten the two longest labels and drop the
+   coin word here rather than letting the nav overflow. The threshold has margin
+   for a long display name in the profile pill. */
+@media (max-width: 1760px) {
+    .play-hub-brand {
+        min-width: 0;
+    }
+    .play-hub-label-full {
+        display: none;
+    }
+    .play-hub-label-short {
+        display: inline;
+    }
+    .play-hub-coins small {
+        display: none;
+    }
+    .play-hub-btn-icon {
+        display: none;
+    }
+    .play-hub-tabs a {
+        padding-inline: 9px;
+    }
+    .play-hub-actions {
+        gap: 7px;
+    }
 }
 
 @media (max-width: 1180px) {
     .play-hub-nav {
         gap: 10px;
         padding-inline: 14px;
+    }
+    /* Tablet portrait cannot fit the eight-tab rail and the action cluster on
+       one line, so the tabs wrap onto their own row rather than overflowing
+       the bar. Phones (<=767px) redefine the nav as a docked grid below. */
+    .play-hub-nav {
+        flex-wrap: wrap;
+        row-gap: 8px;
+    }
+    .play-hub-tabs {
+        order: 4;
+        flex: 1 0 100%;
+        justify-content: center;
+    }
+    .play-hub-actions {
+        justify-content: flex-end;
     }
     .play-hub-brand {
         min-width: 0;
@@ -245,6 +780,26 @@ body {
     .play-hub-pill {
         padding-inline: 9px;
         font-size: 12px;
+    }
+    /* Six action controls plus the tab rail get tight here: the coin pill drops
+       its word and the bell/help cluster narrows so nothing wraps out of the
+       fixed-height bar. */
+    .play-hub-coins {
+        padding-inline: 9px;
+        font-size: 12px;
+    }
+    .play-hub-coins small {
+        display: none;
+    }
+    .play-hub-icons {
+        gap: 6px;
+    }
+    .play-hub-icon-btn {
+        width: 32px;
+        height: 32px;
+    }
+    .play-hub-btn-icon {
+        display: none;
     }
 }
 
@@ -319,12 +874,64 @@ body {
         gap: 7px;
         order: 3;
     }
+    /* Play takes the middle of the first row on the phone dock — it is the
+       primary action and the thumb rests there. Desktop keeps DOM order. */
+    #playHubCoins { order: 1; }
+    #playHubPlayBtn { order: 2; }
+    #playHubLobbiesBtn { order: 3; }
+    #playHubJoinCodeBtn { order: 4; }
+    #playHubFriendsBtn { order: 5; }
+    .play-hub-actions .play-hub-pill { order: 6; }
     .play-hub-ghost,
     .play-hub-primary,
-    .play-hub-pill {
+    .play-hub-pill,
+    .play-hub-coins {
         min-height: 36px;
         padding: 7px 5px;
         font-size: 11px;
+    }
+    /* The docked HUD centers the brand row, so the bell + help cluster tucks
+       into the free top-left corner (same treatment as the hub HUD). */
+    .play-hub-coins {
+        justify-content: center;
+        gap: 5px;
+    }
+    .play-hub-coin-icon {
+        width: 18px;
+        height: 18px;
+    }
+    .play-hub-coins small {
+        display: none;
+    }
+    .play-hub-icons {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        z-index: 2;
+    }
+    .play-hub-btn-icon {
+        display: none;
+    }
+    .play-hud-notif-panel {
+        top: auto;
+        right: 10px;
+        bottom: calc(var(--mobile-hub-nav-height, 168px) + 12px + env(safe-area-inset-bottom, 0px));
+        left: 10px;
+        width: auto;
+        max-height: calc(100dvh - var(--mobile-hub-nav-height, 168px) - 80px);
+    }
+    .play-hud-modal {
+        padding: calc(10px + env(safe-area-inset-top, 0px)) 10px calc(10px + env(safe-area-inset-bottom, 0px));
+    }
+    /* Field Guide keeps the full-screen reading surface; Friends stays a
+       centered popup card so the table is still visible behind it. */
+    .play-hud-help-panel {
+        width: 100%;
+        height: 100%;
+    }
+    .play-hud-friends-panel {
+        width: 100%;
+        height: min(76dvh, 620px);
     }
     body.gameplay-active .play-hub-nav {
         display: none;
@@ -508,6 +1115,30 @@ body {
 .phase-transition-banner.visible {
     opacity: 1;
     transform: translateY(-50%) scale(1);
+    /* The announcement gates input while it holds — without this the banner is
+       decoration over an already-live board and dock. */
+    pointer-events: auto;
+}
+
+/* Sits directly under the banner and swallows taps on the board, the hand and
+   the battle dock for the banner's hold. */
+.phase-transition-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 859;
+    background: rgba(2, 5, 12, 0.42);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.28s ease;
+}
+
+.phase-transition-scrim.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.phase-transition-scrim.hidden {
+    display: none;
 }
 
 .phase-transition-banner-inner {
@@ -575,6 +1206,155 @@ body {
         0 18px 44px rgba(0, 0, 0, 0.28),
         inset 0 0 0 1px rgba(255, 255, 255, 0.04),
         inset 0 0 34px rgba(255, 94, 58, 0.14);
+}
+
+/* Brief card reveal for draw abilities. The individual cards use the exact
+   rendered hand-card markup, then fly into the player's hand/counter. */
+.draw-ability-reveal {
+    position: fixed;
+    inset: 0;
+    z-index: 900;
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 180ms ease;
+}
+.draw-ability-reveal.hidden { display: none; }
+.draw-ability-reveal.visible { opacity: 1; }
+.draw-ability-reveal::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, rgba(34, 111, 255, .24), rgba(4, 9, 23, .6) 67%);
+    backdrop-filter: blur(2px);
+}
+/* Copy sits above the cards in normal flow — the cards decide their own height,
+   so a tall fan can never be clipped by a fixed reveal band. */
+.draw-ability-reveal { grid-auto-flow: row; align-content: center; gap: clamp(10px, 2.4vh, 20px); padding: 0 12px; }
+.draw-ability-reveal-copy {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    gap: 3px;
+    text-align: center;
+    color: #e8f4ff;
+    text-shadow: 0 2px 14px #071020;
+}
+.draw-ability-reveal-kicker { color: #8dcaff; font-size: .67rem; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; }
+.draw-ability-reveal-copy strong { font-size: clamp(1rem, 3.5vw, 1.45rem); }
+.draw-ability-reveal-cards {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    justify-content: center;
+    align-items: stretch;
+    gap: var(--draw-reveal-gap, 12px);
+    max-width: min(100%, 940px);
+}
+.draw-ability-reveal-cards .hand-card {
+    width: var(--draw-reveal-card-width, min(24vw, 168px));
+    min-width: var(--draw-reveal-card-width, min(24vw, 168px));
+    max-width: var(--draw-reveal-card-width, min(24vw, 168px));
+    height: auto;
+    margin: 0;
+    /* Same inner padding scale the hand tray uses, so an unframed card's
+       interior lines up with the hand it came from. */
+    padding: var(--draw-reveal-card-padding, 4px);
+    pointer-events: none;
+    filter: drop-shadow(0 14px 19px rgba(0,0,0,.55));
+    transform: translateY(14px) scale(.82);
+    opacity: 0;
+    transition: transform 440ms cubic-bezier(.18,.88,.25,1), opacity 180ms ease, filter 260ms ease;
+}
+/* The reveal is big enough to read, so unlike the hand tray it shows the card's
+   summary text — seated in the frame's info panel directly under the HP/SPD
+   pills (which the shared hand template positions at 75%). */
+#drawAbilityRevealCards .hand-card.element-frame:not(.spell-trap-frame) .hand-card-body {
+    position: absolute;
+    left: 11.5%;
+    right: 11.5%;
+    /* Directly under the shared template's pill row (75% -> 83.1%), inside the
+       frame's painted info panel. */
+    top: 83.4%;
+    bottom: 7.4%;
+    width: auto;
+    min-height: 0;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 1px;
+    padding: 0;
+    overflow: hidden;
+}
+/* Unframed cards have no painted panel to sit in, so their face is a flex
+   column: the art takes the slack and the stats/summary keep their room instead
+   of being pushed off the bottom (the hand tray's 104px art floor would). */
+#drawAbilityRevealCards .hand-card:not(.element-frame):not(.spell-trap-frame) .hand-card-shell {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    width: 100%;
+    gap: 2px;
+}
+#drawAbilityRevealCards .hand-card:not(.element-frame):not(.spell-trap-frame) .card-art-hand {
+    /* Takes the slack, but never collapses to a sliver: the creature art is the
+       point of the reveal, so it keeps at least half the card. */
+    flex: 1 1 auto;
+    min-height: 46%;
+    padding: 3px;
+}
+#drawAbilityRevealCards .hand-card:not(.element-frame):not(.spell-trap-frame) .hand-card-body {
+    flex: 0 0 auto;
+    min-height: 0;
+    overflow: hidden;
+}
+/* Unframed cards are outside the framed-summary fitter's reach, so pin a size
+   that fits the two lines the strip has room for. */
+#drawAbilityRevealCards .hand-card:not(.element-frame):not(.spell-trap-frame) .card-summary-list {
+    font-size: 6px;
+}
+
+/* Spell/trap frames already position their body into the painted box (with
+   !important offsets), but only where the body is absolute — the hand hides it,
+   so that comes from the showcase surfaces. Supply it here. */
+#drawAbilityRevealCards .hand-card.spell-trap-frame .hand-card-body {
+    position: absolute;
+    width: auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 1px;
+    padding: 0;
+    overflow: hidden;
+}
+
+#drawAbilityRevealCards .hand-card .card-detail,
+#drawAbilityRevealCards .hand-card .card-cost {
+    margin: 0;
+    font-size: 0.5em;
+    line-height: 1.08;
+    text-align: center;
+}
+
+/* Wider fans tuck in rather than run off a phone screen. */
+.draw-ability-reveal-cards[data-count="4"] { --draw-reveal-card-width: min(21vw, 148px); --draw-reveal-gap: 9px; }
+.draw-ability-reveal-cards[data-count="5"] { --draw-reveal-card-width: min(18vw, 132px); --draw-reveal-gap: 7px; }
+.draw-ability-reveal-cards[data-count="6"] { --draw-reveal-card-width: min(15vw, 118px); --draw-reveal-gap: 6px; }
+.draw-ability-reveal.visible .hand-card { transform: translateY(0) scale(1); opacity: 1; }
+.draw-ability-reveal.visible .hand-card:nth-child(2) { transition-delay: 80ms; }
+.draw-ability-reveal.visible .hand-card:nth-child(3) { transition-delay: 140ms; }
+.draw-ability-reveal.visible .hand-card:nth-child(n+4) { transition-delay: 180ms; }
+.draw-ability-reveal.flying .draw-ability-reveal-copy { opacity: 0; transition: opacity 120ms ease; }
+.draw-ability-reveal.flying .hand-card { transform: translate(var(--draw-fly-x), var(--draw-fly-y)) scale(.34); opacity: 0; filter: drop-shadow(0 5px 8px rgba(0,0,0,.25)); transition: transform 420ms cubic-bezier(.35,.05,.7,.35), opacity 360ms ease, filter 300ms ease; }
+
+@media (max-width: 600px) {
+    .draw-ability-reveal-cards { --draw-reveal-card-width: min(29vw, 132px); --draw-reveal-gap: 8px; }
+    .draw-ability-reveal-cards[data-count="4"] { --draw-reveal-card-width: min(22vw, 108px); --draw-reveal-gap: 6px; }
+    .draw-ability-reveal-cards[data-count="5"] { --draw-reveal-card-width: min(18vw, 92px); --draw-reveal-gap: 5px; }
+    .draw-ability-reveal-cards[data-count="6"] { --draw-reveal-card-width: min(15vw, 80px); --draw-reveal-gap: 4px; }
 }
 
 @media (max-width: 900px) {
@@ -1779,21 +2559,21 @@ body:has(.welcome-overlay.visible) .safe-hp-strip {
 }
 
 /* Hide verbose info in hand tray — show only name + element label */
-:is(.hand-tray, .card-drag-ghost) .card-ability-area { display: none; }
-:is(.hand-tray, .card-drag-ghost) .card-info-panel { padding: 2px 3px; }
-:is(.hand-tray, .card-drag-ghost) .card-info-panel .card-stat-row { font-size: 0.6em; }
+:is(.hand-tray, .card-drag-ghost, #drawAbilityRevealCards) .card-ability-area { display: none; }
+:is(.hand-tray, .card-drag-ghost, #drawAbilityRevealCards) .card-info-panel { padding: 2px 3px; }
+:is(.hand-tray, .card-drag-ghost, #drawAbilityRevealCards) .card-info-panel .card-stat-row { font-size: 0.6em; }
 :is(.hand-tray, .card-drag-ghost) .hand-card-body { display: none; }
-:is(.hand-tray, .card-drag-ghost) .card-stat-pills {
+:is(.hand-tray, .card-drag-ghost, #drawAbilityRevealCards) .card-stat-pills {
     display: flex;
     margin-top: 2px;
 }
-:is(.hand-tray, .card-drag-ghost) .card-stat-pill {
+:is(.hand-tray, .card-drag-ghost, #drawAbilityRevealCards) .card-stat-pill {
     font-size: 0.52em;
     padding: 2px 4px;
 }
-:is(.hand-tray, .card-drag-ghost) .card-label { font-size: 0.62em; }
-:is(.hand-tray, .card-drag-ghost) .card-title { font-size: 0.82em; line-height: 1.12; }
-:is(.hand-tray, .card-drag-ghost) .card-art-hand { min-height: 104px; padding: 4px; border-radius: 10px; }
+:is(.hand-tray, .card-drag-ghost, #drawAbilityRevealCards) .card-label { font-size: 0.62em; }
+:is(.hand-tray, .card-drag-ghost, #drawAbilityRevealCards) .card-title { font-size: 0.82em; line-height: 1.12; }
+:is(.hand-tray, .card-drag-ghost, #drawAbilityRevealCards) .card-art-hand { min-height: 104px; padding: 4px; border-radius: 10px; }
 
 .hand-card.is-lift-source {
     opacity: 0.06;
@@ -3821,9 +4601,13 @@ body.battle-phase-active .battlefield::after {
         width: 100%;
         height: auto;
         min-height: 0;
-        max-height: min(42vh, 300px);
+        /* Hard cap: a Siegling with five abilities used to grow this dock past
+           40% of the screen, which squeezed the arena until the two board
+           halves ran into each other. The list scrolls inside instead. */
+        max-height: min(34vh, 260px);
         overflow-y: auto;
         overflow-x: hidden;
+        overscroll-behavior: contain;
         padding: 10px 12px;
         border-radius: 16px 16px 0 0;
     }
@@ -6076,6 +6860,12 @@ body.tablet-portrait-dock .ab-btn {
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
+/* Breakdowns run long once passive and overcharge join links and sockets; keep the
+   wrapped remainder hugging the value column instead of drifting under the label. */
+.energy-detail-row > span:last-child {
+    text-align: right;
+}
+
 .energy-detail-muted {
     font-size: 0.68rem;
     color: var(--text-dim);
@@ -6094,6 +6884,73 @@ body.tablet-portrait-dock .ab-btn {
     margin-top: 8px;
     font-size: 0.68rem;
     color: var(--water);
+}
+
+/* ============================================================
+   OVERCHARGE — an active energy buff riding the pool for this
+   side's Setup and Battle phase. Surfaced in the energy view and
+   on the portrait HUD's energy number so the surge is not silent.
+   ============================================================ */
+.energy-overcharge-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 6px;
+    margin: 2px 0 8px;
+    padding: 5px 8px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 230, 60, 0.42);
+    background: linear-gradient(90deg, rgba(255, 230, 60, 0.16), rgba(255, 215, 0, 0.05));
+    box-shadow: 0 0 12px rgba(255, 230, 60, 0.18);
+    animation: overcharge-pulse 1.8s ease-in-out infinite;
+}
+
+.energy-overcharge-spark {
+    width: 7px;
+    height: 7px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: var(--electric);
+    box-shadow: 0 0 8px var(--electric);
+}
+
+.energy-overcharge-text {
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--electric);
+}
+
+.energy-overcharge-note {
+    flex: 1 1 100%;
+    font-size: 0.62rem;
+    color: var(--text-dim);
+}
+
+.energy-detail-row.is-overcharged {
+    color: var(--electric);
+    border-bottom-color: rgba(255, 230, 60, 0.3);
+    text-shadow: 0 0 8px rgba(255, 230, 60, 0.35);
+}
+
+/* The portrait HUD's energy number — same surge language, sized for a 0.62em stat row. */
+.m-counts strong.is-overcharged {
+    color: var(--electric);
+    text-shadow: 0 0 6px rgba(255, 230, 60, 0.75);
+    animation: overcharge-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes overcharge-pulse {
+    0%, 100% { filter: brightness(1); }
+    50% { filter: brightness(1.35); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .energy-overcharge-banner,
+    .m-counts strong.is-overcharged {
+        animation: none;
+    }
 }
 
 .external-energy-point {
@@ -7716,7 +8573,7 @@ body.placement-active .board-cell.legal {
 
 /* Hand tray cards use the same painted element templates as board cards,
    but keep their compact tray layout and hover behavior. */
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame {
     padding: 0;
     border: none;
     border-radius: 0;
@@ -7724,27 +8581,27 @@ body.placement-active .board-cell.legal {
     box-shadow: none;
 }
 
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame::before {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame::before {
     display: none;
 }
 
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame.frame-fire {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame.frame-fire {
     background: url('/img/frames/frame-fire-common.png') center / 100% 100% no-repeat;
 }
 
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame.frame-earth {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame.frame-earth {
     background: url('/img/frames/frame-earth-common.png') center / 100% 100% no-repeat;
 }
 
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame.frame-ice {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame.frame-ice {
     background: url('/img/frames/frame-ice-common.png') center / 100% 100% no-repeat;
 }
 
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame.frame-wind {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame.frame-wind {
     background: url('/img/frames/frame-wind-common.png') center / 100% 100% no-repeat;
 }
 
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .hand-card-shell {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .hand-card-shell {
     position: absolute;
     inset: 0;
     display: block;
@@ -7753,7 +8610,7 @@ body.placement-active .board-cell.legal {
     padding: 0;
 }
 
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .hand-card-header {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .hand-card-header {
     position: absolute;
     left: 13%;
     right: 13%;
@@ -7764,7 +8621,7 @@ body.placement-active .board-cell.legal {
     gap: 0;
 }
 
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .card-title {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .card-title {
     color: #ffffff;
     font-size: 0.72em;
     font-weight: 900;
@@ -7781,15 +8638,15 @@ body.placement-active .board-cell.legal {
 }
 
 /* Tray cards are too small for corner chips — hide them there. */
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .card-corner-chip {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .card-corner-chip {
     display: none;
 }
 
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .card-label {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .card-label {
     display: none;
 }
 
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .card-art-hand {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .card-art-hand {
     position: absolute;
     left: 9.8%;
     top: 10%;
@@ -7803,12 +8660,12 @@ body.placement-active .board-cell.legal {
     box-shadow: none;
 }
 
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .card-art-hand.card-art-fallback::before,
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .card-art-hand.card-art-fallback span {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .card-art-hand.card-art-fallback::before,
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .card-art-hand.card-art-fallback span {
     display: none;
 }
 
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .card-stat-pills {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .card-stat-pills {
     position: absolute;
     left: 11.5%;
     right: 11.5%;
@@ -7819,7 +8676,7 @@ body.placement-active .board-cell.legal {
     gap: 0.18em;
 }
 
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .card-stat-pill {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .card-stat-pill {
     min-width: 0;
     padding: 1px 2px;
     background: rgba(0, 0, 0, 0.3);
@@ -7828,31 +8685,31 @@ body.placement-active .board-cell.legal {
     line-height: 1.1;
 }
 
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .hand-notches {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .hand-notches {
     inset: 0;
 }
 
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .notch-dot {
     width: 10.4%;
     height: auto;
     aspect-ratio: 1 / 1;
     border-width: 1px;
 }
 
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot:not([style*="--notch-icon"]) {
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .notch-dot:not([style*="--notch-icon"]) {
     background: transparent;
     border-color: transparent;
     box-shadow: none;
 }
 
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot.notch-TOP_LEFT     { left: 7.8%;  top: 5.7%;  }
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot.notch-TOP          { left: 50%;   top: 5.6%;  }
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot.notch-TOP_RIGHT    { left: 91.8%; top: 5.7%;  }
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot.notch-LEFT         { left: 7.7%;  top: 50%;   }
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot.notch-RIGHT        { left: 91.9%; top: 50%;   }
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot.notch-BOTTOM_LEFT  { left: 7.6%;  top: 94.1%; }
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot.notch-BOTTOM       { left: 49.5%; top: 94.3%; }
-:is(#playerHand, .hand-lift-layer) .hand-card.element-frame .notch-dot.notch-BOTTOM_RIGHT { left: 91.7%; top: 94.2%; }
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .notch-dot.notch-TOP_LEFT     { left: 7.8%;  top: 5.7%;  }
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .notch-dot.notch-TOP          { left: 50%;   top: 5.6%;  }
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .notch-dot.notch-TOP_RIGHT    { left: 91.8%; top: 5.7%;  }
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .notch-dot.notch-LEFT         { left: 7.7%;  top: 50%;   }
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .notch-dot.notch-RIGHT        { left: 91.9%; top: 50%;   }
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .notch-dot.notch-BOTTOM_LEFT  { left: 7.6%;  top: 94.1%; }
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .notch-dot.notch-BOTTOM       { left: 49.5%; top: 94.3%; }
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .notch-dot.notch-BOTTOM_RIGHT { left: 91.7%; top: 94.2%; }
 
 /* Showcase previews share the painted frame, with copy constrained to the
    template's bottom info panel. */
@@ -14146,15 +15003,23 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         font-weight: 700;
     }
 
+    /* On phones the nav is the loadout's bottom HUD: a full-bleed opaque bar
+       pinned to the bottom of the scroll area. Back sits inside that bar next
+       to Start instead of floating on its own row over the panel behind it. */
     .loadout-nav {
         display: grid;
         grid-template-columns: minmax(96px, 0.4fr) minmax(0, 1fr);
         align-items: stretch;
-        gap: 8px;
-        padding: 10px 0;
+        gap: 8px 10px;
+        margin-inline: calc(-1 * var(--loadout-padding));
+        padding: 10px var(--loadout-padding) calc(10px + env(safe-area-inset-bottom, 0px));
+        background: linear-gradient(180deg, #172746 0%, #0f1930 100%);
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 -10px 24px rgba(3, 8, 18, 0.55);
     }
 
     .loadout-nav .loadout-summary {
+        grid-row: 1;
         grid-column: 1 / -1;
         min-width: 0;
         width: 100%;
@@ -14163,6 +15028,7 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 
     .loadout-nav .loadout-back-btn,
     .loadout-nav .loadout-start-btn {
+        grid-row: 2;
         width: 100%;
         min-width: 0;
         padding: 13px 14px;

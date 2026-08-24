@@ -4,6 +4,7 @@ import com.sieglings.model.Card;
 import com.sieglings.model.SieglingCard;
 import com.sieglings.model.TrainerCard;
 import com.sieglings.model.enums.Element;
+import com.sieglings.model.enums.SieglingSize;
 import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.PlayerProgressionEntity;
 import com.sieglings.persistence.firestore.PlayerProgressionStore;
@@ -102,7 +103,10 @@ public class SiegeService {
             m.put("moveCount", content.moveCount(s));
             m.put("artUrl", s.getCardArtUrl());
             m.put("evolves", evolvesFrom.contains(s.getId()));
-            m.put("expeditionStarter", content.isExpeditionStarter(s, startersConfigured));
+            // Catalog starters plus anything this account found on an expedition.
+            m.put("expeditionStarter", content.isExpeditionStarter(s, startersConfigured)
+                    || (progression != null && progressionService != null
+                        && progressionService.isSiegeSieglingUnlocked(progression, s.getId())));
             m.put("moves", serializeSpecs(content.moveSpecs(s)));
             siegelings.add(m);
         }
@@ -331,6 +335,52 @@ public class SiegeService {
         return user;
     }
 
+    /**
+     * Records a Siegeling this run has met. Banked as a permanent starter unlock
+     * when the run ends (see {@link #bankSieglingDiscoveries}); nothing is
+     * granted mid-run, so a run that is abandoned or lost keeps its finds unbanked.
+     */
+    private void noteDiscovery(SiegeRun run, String cardId) {
+        if (run != null && cardId != null && !cardId.isBlank()) {
+            run.getDiscoveredSieglingIds().add(cardId);
+        }
+    }
+
+    /**
+     * Turns this run's discoveries into permanent starter unlocks. Finding any
+     * form earns its whole line, so each id is resolved to its stage-1 base —
+     * that is the card warband select can actually offer — and the found form is
+     * banked alongside it so the collection reflects what was actually met.
+     *
+     * @return display names of the Siegelings newly unlocked, for the run summary
+     */
+    private List<String> bankSieglingDiscoveries(PlayerProgressionEntity progression, SiegeRun run) {
+        if (progression == null || progressionService == null || run.getDiscoveredSieglingIds().isEmpty()) {
+            return List.of();
+        }
+        java.util.LinkedHashSet<String> ids = new java.util.LinkedHashSet<>();
+        for (String found : run.getDiscoveredSieglingIds()) {
+            String base = content.baseFormId(found);
+            if (base != null && !base.isBlank()) ids.add(base);
+            ids.add(found);
+        }
+        // Unlocks are stored normalized (lower-case), so resolve display names
+        // from the ids we passed in rather than from what comes back.
+        Map<String, String> pickableNames = new LinkedHashMap<>();
+        for (String id : ids) {
+            content.findSiegling(id).ifPresent(s ->
+                    pickableNames.put(id.toLowerCase(java.util.Locale.ROOT), s.getName()));
+        }
+        List<String> names = new ArrayList<>();
+        for (String id : progressionService.unlockSiegeSieglings(progression, ids)) {
+            // Only stage-1 bases become pickable, so they are the only unlock
+            // worth announcing; an evolution is banked quietly.
+            String name = pickableNames.get(id);
+            if (name != null) names.add(name);
+        }
+        return names;
+    }
+
     private PlayerProgressionEntity loadProgression(AccountUser user) {
         if (progressionService == null || user == null) {
             return null;
@@ -380,6 +430,7 @@ public class SiegeService {
         purgeStale();
         String token = generateToken();
         SiegeRun run = new SiegeRun(token);
+        run.setOwnerId(user == null ? "" : user.getId());
 
         run.setKnightId(knight.getId());
         run.setKnightName(knight.getName());
@@ -403,6 +454,7 @@ public class SiegeService {
             applyJoinBonus(run, member);
             run.getParty().add(member);
             run.getDeckTemplates().addAll(content.deckCardsFor(s, member.getId()));
+            noteDiscovery(run, s.getId());
             slot++;
         }
         // The SiegeKnight contributes one card to the shared deck.
@@ -548,6 +600,7 @@ public class SiegeService {
             applyJoinBonus(run, member);
             run.getParty().add(member);
             run.getDeckTemplates().addAll(content.deckCardsFor(s, member.getId()));
+            noteDiscovery(run, s.getId());
             int stage = content.stageOf(s);
             String stageNote = stage >= 3 ? " A STAGE 3 joins the cause!" : stage == 2 ? " A stage 2 — lucky!" : "";
             String prior = run.getLastReward();
@@ -603,11 +656,55 @@ public class SiegeService {
                 .orElseThrow(() -> new IllegalArgumentException("Run not found. Start a new expedition."));
     }
 
+    /**
+     * Account-aware state lookup. This also adopts an existing device-local
+     * checkpoint the first time its signed-in owner opens it after this change.
+     */
+    Map<String, Object> state(String token, String authorizationHeader) {
+        SiegeRun run = lookup(token)
+                .orElseThrow(() -> new IllegalArgumentException("Run not found. Start a new expedition."));
+        AccountUser user = resolveUser(authorizationHeader);
+        if (user != null && user.getId() != null && !user.getId().isBlank() && run.getOwnerId().isBlank()) {
+            run.setOwnerId(user.getId());
+            run.setCheckpointSaved(saveCheckpoint(run));
+        }
+        return serialize(run);
+    }
+
+    /**
+     * Every active account-owned run, letting a new device recover its token safely.
+     * There is one save per {@link RunSlot}, so a player can hold an expedition and a
+     * Battlegrounds march at once; {@code runs} carries them all and {@code run} keeps
+     * the single-run shape older clients read (the expedition, or the only save there is).
+     */
+    Map<String, Object> activeRun(String authorizationHeader) {
+        AccountUser user = resolveUser(authorizationHeader);
+        if (user == null || user.getId() == null || user.getId().isBlank()) return Map.of();
+        List<Map<String, Object>> found = new ArrayList<>();
+        checkpoints.loadAllForUser(user.getId()).forEach((slot, snapshot) -> {
+            String savedToken = str(snapshot.get("token"));
+            if (savedToken.isBlank()) return;
+            Optional<SiegeRun> restored = lookup(savedToken);
+            if (restored.isEmpty() || !user.getId().equals(restored.get().getOwnerId())) return;
+            Map<String, Object> serialized = new LinkedHashMap<>(serialize(restored.get()));
+            serialized.put("slot", slot.name());
+            serialized.put("slotLabel", slot.label());
+            found.add(serialized);
+        });
+        if (found.isEmpty()) return Map.of();
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("runs", found);
+        out.put("run", found.getFirst());
+        return out;
+    }
+
     /** Player chose "start over" on the resume prompt: drop the run and its checkpoint for good. */
     void abandonRun(String token) {
         if (token == null) return;
+        SiegeRun run = lookup(token).orElse(null);
         runs.remove(token);
         checkpoints.delete(token);
+        if (run != null) checkpoints.deleteForUser(run.getOwnerId(), RunSlot.of(run.getMode()), run.getToken());
     }
 
     /** Player explicitly requested a durable checkpoint from the run menu. */
@@ -627,7 +724,7 @@ public class SiegeService {
         if (!run.getPendingRewards().isEmpty()) {
             throw new IllegalArgumentException("Choose your spoils before saving.");
         }
-        run.setCheckpointSaved(checkpoints.save(run.getToken(), snapshotRun(run)));
+        run.setCheckpointSaved(saveCheckpoint(run));
         return serialize(run);
     }
 
@@ -648,6 +745,7 @@ public class SiegeService {
     private void checkpoint(SiegeRun run) {
         if (run.getStatus() != RunStatus.ACTIVE) {
             checkpoints.delete(run.getToken());
+            checkpoints.deleteForUser(run.getOwnerId(), RunSlot.of(run.getMode()), run.getToken());
             run.setCheckpointSaved(false);
             return;
         }
@@ -655,12 +753,24 @@ public class SiegeService {
         boolean safe = !battleOver && !run.isInCamp() && !run.isInCache() && !run.isInBroker()
                 && !run.isInMinigame() && run.getPendingRewards().isEmpty();
         if (!safe) return;
-        run.setCheckpointSaved(checkpoints.save(run.getToken(), snapshotRun(run)));
+        run.setCheckpointSaved(saveCheckpoint(run));
+    }
+
+    private boolean saveCheckpoint(SiegeRun run) {
+        Map<String, Object> snapshot = snapshotRun(run);
+        boolean tokenSaved = checkpoints.save(run.getToken(), snapshot);
+        boolean accountSaved = run.getOwnerId() == null || run.getOwnerId().isBlank()
+                || checkpoints.saveForUser(run.getOwnerId(), RunSlot.of(run.getMode()), snapshot);
+        // For signed-in players the account checkpoint is the authoritative
+        // cross-device save. Guests continue to use the token checkpoint.
+        return run.getOwnerId() == null || run.getOwnerId().isBlank() ? tokenSaved : accountSaved;
     }
 
     private Map<String, Object> snapshotRun(SiegeRun run) {
         Map<String, Object> s = new LinkedHashMap<>();
         s.put("version", 1);
+        s.put("token", run.getToken());
+        s.put("ownerId", run.getOwnerId());
         s.put("knightId", run.getKnightId());
         s.put("gold", run.getGold());
         s.put("mode", run.getMode().name());
@@ -703,6 +813,7 @@ public class SiegeService {
             party.add(p);
         }
         s.put("party", party);
+        s.put("discoveredSieglings", new ArrayList<>(run.getDiscoveredSieglingIds()));
         s.put("inventory", new ArrayList<>(run.getInventory()));
         s.put("knightBag", new ArrayList<>(run.getKnightBag()));
         List<Map<String, Object>> deck = new ArrayList<>();
@@ -792,6 +903,8 @@ public class SiegeService {
         m.put("attackBuff", c.getAttackBuff());
         m.put("position", c.getPosition());
         m.put("sourceCardId", c.getSourceCardId());
+        m.put("artCardId", c.getArtCardId());
+        m.put("leader", c.isLeader());
         m.put("itemId", c.getItemId());
         m.put("apSpent", c.getApSpent());
         // Battle evolutions are battle-scoped: without the pre-evolution form the
@@ -875,6 +988,11 @@ public class SiegeService {
         // Without this a run resumed mid-battle keeps the shade's art and "Shade of X"
         // name but loses the badge, so the same foe renders differently after a reload.
         c.setShadeOf(m.get("shadeOf") == null ? null : String.valueOf(m.get("shadeOf")));
+        // Same reason, for size: a resumed boss without this shrinks back to stage-1 art.
+        c.setArtCardId(m.get("artCardId") == null ? null : String.valueOf(m.get("artCardId")));
+        // And for the squad badge: a resumed boss would otherwise read as one of its
+        // own minions.
+        c.setLeader(Boolean.TRUE.equals(m.get("leader")));
         if (m.get("itemId") != null) c.setItemId(String.valueOf(m.get("itemId")));
         c.setApSpent(intVal(m.get("apSpent"), 0));
         if (m.get("evolvedFrom") instanceof Map) {
@@ -922,6 +1040,7 @@ public class SiegeService {
             TrainerCard knight = content.findKnight(String.valueOf(s.get("knightId"))).orElse(null);
             if (knight == null) return Optional.empty();
             SiegeRun run = new SiegeRun(token);
+            run.setOwnerId(str(s.get("ownerId")));
             run.setKnightId(knight.getId());
             run.setKnightName(knight.getName());
             run.setKnightElement(knight.getElement());
@@ -966,6 +1085,13 @@ public class SiegeService {
             run.setCurrentNodeId(intVal(s.get("currentNodeId"), -1));
             if (s.get("inventory") instanceof List) {
                 for (Object it : (List<Object>) s.get("inventory")) run.getInventory().add(String.valueOf(it));
+            }
+            // Resuming must not forget what the run already found — those unlocks
+            // are only banked when it ends.
+            if (s.get("discoveredSieglings") instanceof List) {
+                for (Object it : (List<Object>) s.get("discoveredSieglings")) {
+                    run.getDiscoveredSieglingIds().add(String.valueOf(it));
+                }
             }
             if (s.get("knightBag") instanceof List) {
                 for (Object it : (List<Object>) s.get("knightBag")) run.getKnightBag().add(String.valueOf(it));
@@ -1212,6 +1338,7 @@ public class SiegeService {
             applyJoinBonus(run, member);
             run.getParty().add(member);
             run.getDeckTemplates().addAll(content.deckCardsFor(s, member.getId()));
+            noteDiscovery(run, s.getId());
             run.setLastReward(s.getName() + " joins the warband — " + leaving.getName() + " returns to the broker.");
             queueRecruitReveal(run, s, member);
         } else {
@@ -1220,6 +1347,7 @@ public class SiegeService {
             applyJoinBonus(run, member);
             run.getParty().add(member);
             run.getDeckTemplates().addAll(content.deckCardsFor(s, member.getId()));
+            noteDiscovery(run, s.getId());
             run.setLastReward(s.getName() + " joined the warband!");
             queueRecruitReveal(run, s, member);
         }
@@ -1366,6 +1494,7 @@ public class SiegeService {
                     applyJoinBonus(run, member);
                     run.getParty().add(member);
                     run.getDeckTemplates().addAll(content.deckCardsFor(s, member.getId()));
+                    noteDiscovery(run, s.getId());
                     run.setLastReward(s.getName() + " joined the warband!");
                     queueRecruitReveal(run, s, member);
                 });
@@ -1656,20 +1785,32 @@ public class SiegeService {
         return serialize(run);
     }
 
-    /** MATCH: flip two tiles; a pair pays gold and stays up. Ends at 5 misses or all pairs. */
-    Map<String, Object> minigameMatchFlip(String token, int a, int b) {
+    /** MATCH: reveal each tap immediately; resolve the pair after the second tile. */
+    Map<String, Object> minigameMatchFlip(String token, int index) {
         SiegeRun run = require(token);
         if (!run.isInMinigame() || !"MATCH".equals(run.getMinigameType())) {
             throw new IllegalArgumentException("There are no tiles to flip here.");
         }
         SiegePuzzles.MatchBoard board = (SiegePuzzles.MatchBoard) run.getMinigameState();
         int n = board.symbols.size();
-        if (a < 0 || b < 0 || a >= n || b >= n || a == b) {
-            throw new IllegalArgumentException("Pick two different face-down tiles.");
+        if (index < 0 || index >= n) {
+            throw new IllegalArgumentException("Pick a face-down tile.");
         }
-        if (board.matched[a] || board.matched[b]) {
+        if (board.matched[index]) {
             throw new IllegalArgumentException("That tile is already face-up.");
         }
+        if (board.pendingFlip < 0) {
+            board.pendingFlip = index;
+            board.lastFlip = new int[]{index};
+            board.lastFlipMatched = false;
+            return serialize(run);
+        }
+        if (board.pendingFlip == index) {
+            throw new IllegalArgumentException("Pick a different face-down tile.");
+        }
+        int a = board.pendingFlip;
+        int b = index;
+        board.pendingFlip = -1;
         board.lastFlip = new int[]{a, b};
         boolean isPair = board.symbols.get(a).equals(board.symbols.get(b));
         board.lastFlipMatched = isPair;
@@ -1770,9 +1911,11 @@ public class SiegeService {
             if (board.lastFlip != null) {
                 Map<String, Object> flip = new LinkedHashMap<>();
                 flip.put("a", board.lastFlip[0]);
-                flip.put("b", board.lastFlip[1]);
                 flip.put("symbolA", board.symbols.get(board.lastFlip[0]));
-                flip.put("symbolB", board.symbols.get(board.lastFlip[1]));
+                if (board.lastFlip.length > 1) {
+                    flip.put("b", board.lastFlip[1]);
+                    flip.put("symbolB", board.symbols.get(board.lastFlip[1]));
+                }
                 flip.put("matched", board.lastFlipMatched);
                 m.put("flip", flip);
             }
@@ -1973,6 +2116,11 @@ public class SiegeService {
                 progression.setSiegeBossKills(progression.getSiegeBossKills() + Math.max(0, run.getBossKills()));
                 progression.setSiegeNodesCleared(progression.getSiegeNodesCleared() + Math.max(0, run.getNodesCleared()));
                 progression.setSiegeBestScore(Math.max(progression.getSiegeBestScore(), (int) Math.max(0L, run.getScore())));
+                // Siegelings met on the run become permanent starter picks. Banked
+                // here (not at the moment of the find) so they are earned by
+                // finishing the expedition, win or lose.
+                List<String> unlockedNames = bankSieglingDiscoveries(progression, run);
+                out.put("unlockedSieglings", unlockedNames);
                 // Battlegrounds: award Warmarks (per boss + win bonus) and unlock the next tier on a first clear.
                 if (run.isBattlegrounds()) {
                     int tier = run.getBgTier();
@@ -2322,7 +2470,7 @@ public class SiegeService {
     }
 
     /** Rebuilds one party Combatant from its veteran snapshot at its extracted level/xp/stats/item. */
-    private static Combatant rebuildMemberCombatant(Map<String, Object> snap, int slot) {
+    private Combatant rebuildMemberCombatant(Map<String, Object> snap, int slot) {
         String sourceCardId = str(snap.get("sourceCardId"));
         String name = str(snap.get("name"));
         Element element = parseElement(snap.get("element"));
@@ -2331,7 +2479,11 @@ public class SiegeService {
         int baseSpeed = intOf(snap.get("baseSpeed"), intOf(snap.get("speed"), 5));
         int xp = intOf(snap.get("xp"), 0);
         String id = "ally-" + slot + "-" + sourceCardId;
-        Combatant c = new Combatant(id, name, element, Side.PLAYER, Math.max(1, baseMaxHp), Math.max(1, baseSpeed), null);
+        // Veteran snapshots store stats, not art: without resolving it back from the
+        // catalog every Battlegrounds Siegeling fought as an element glyph instead of
+        // its cutout, on the battlefield, the party rail and the resume prompt alike.
+        Combatant c = new Combatant(id, name, element, Side.PLAYER, Math.max(1, baseMaxHp),
+                Math.max(1, baseSpeed), sieglingArtUrl(sourceCardId));
         c.setSourceCardId(sourceCardId);
         c.setPosition(slot);
         c.setItemId(str(snap.get("itemId")));
@@ -2340,14 +2492,14 @@ public class SiegeService {
     }
 
     /** Rebuilds the veteran knight Combatant from its snapshot (persistent HP unit, no notch). */
-    private static Combatant rebuildKnightCombatant(Map<String, Object> snap) {
+    private Combatant rebuildKnightCombatant(Map<String, Object> snap) {
         String name = str(snap.get("knightName"));
         Element element = parseElement(snap.get("element"));
         int maxHp = intOf(snap.get("maxHp"), 1);
         int baseMaxHp = intOf(snap.get("baseMaxHp"), maxHp);
         int xp = intOf(snap.get("xp"), 0);
         Combatant knight = new Combatant("knight-unit", name, element, Side.PLAYER,
-                Math.max(1, baseMaxHp), 5, null, true);
+                Math.max(1, baseMaxHp), 5, knightArtUrl(str(snap.get("knightId"))), true);
         knight.loadLeveling(xp);
         return knight;
     }
@@ -2993,6 +3145,7 @@ public class SiegeService {
                 applyJoinBonus(run, member);
                 run.getParty().add(member);
                 run.getDeckTemplates().addAll(content.deckCardsFor(s, member.getId()));
+                noteDiscovery(run, s.getId());
                 run.setLastReward(s.getName() + " joined the warband!");
                 queueRecruitReveal(run, s, member);
             });
@@ -3178,6 +3331,10 @@ public class SiegeService {
         m.put("deckSize", run.getDeckTemplates().size());
         m.put("gold", run.getGold());
         m.put("mode", run.getMode().name());
+        // Which account save this run occupies — the client labels the HUD and the
+        // resume prompt from it, so the two modes never read as the same save.
+        m.put("slot", RunSlot.of(run.getMode()).name());
+        m.put("slotLabel", RunSlot.of(run.getMode()).label());
         m.put("score", run.getScore());
         m.put("loop", run.getLoop());
         m.put("partyMax", content.partyMax());
@@ -3333,7 +3490,8 @@ public class SiegeService {
             knight.put("unitId", run.getKnightUnit().getId());
             knight.put("hp", run.getKnightUnit().getHp());
             knight.put("maxHp", run.getKnightUnit().getMaxHp());
-            knight.put("artUrl", run.getKnightUnit().getArtUrl());
+            knight.put("artUrl", run.getKnightUnit().getArtUrl() != null
+                    ? run.getKnightUnit().getArtUrl() : knightArtUrl(run.getKnightId()));
             knight.put("alive", run.getKnightUnit().isAlive());
             putKnightLeveling(knight, run.getKnightUnit());
         }
@@ -3353,6 +3511,22 @@ public class SiegeService {
             party.add(pm);
         }
         m.put("party", party);
+
+        // A rental under contract travels with the warband, so it stands with them
+        // at every stop until its battle ends. It is kept out of "party" on purpose:
+        // that list drives equipping, evolving and smith scrapping, none of which a
+        // merc is eligible for. The UI appends this entry for display only.
+        Combatant mercUnit = run.getMercenary();
+        if (mercUnit != null) {
+            Map<String, Object> mm = serializeCombatant(mercUnit, false);
+            List<AbilitySpec> mercSpecs = new ArrayList<>();
+            for (SiegeCard card : run.getMercCards()) mercSpecs.add(card.getSpec());
+            mm.put("cards", serializeSpecs(mercSpecs));
+            mm.put("merc", true);
+            m.put("mercenary", mm);
+        } else {
+            m.put("mercenary", null);
+        }
 
         // Deck list (indices) — powers the Smith scrap picker.
         List<Map<String, Object>> deckList = new ArrayList<>();
@@ -3476,7 +3650,8 @@ public class SiegeService {
             knight.put("id", knightUnit.getId());
             knight.put("hp", knightUnit.getHp());
             knight.put("maxHp", knightUnit.getMaxHp());
-            knight.put("artUrl", knightUnit.getArtUrl());
+            knight.put("artUrl", knightUnit.getArtUrl() != null
+                    ? knightUnit.getArtUrl() : knightArtUrl(run.getKnightId()));
             putKnightLeveling(knight, knightUnit);
         }
         knight.put("charge", battle.getKnightCharge());
@@ -3610,6 +3785,20 @@ public class SiegeService {
         return out;
     }
 
+    /**
+     * The authored physical size band of the card a unit is drawn from, or null when it
+     * is not a Siegeling at all (the SiegeKnight). Unset bands fall back to the
+     * rarity/evolution-depth default, the same call {@code KeepService} makes — the
+     * catalog normally fills this in at load, so the fallback only covers cards that
+     * arrived straight from a Firestore override.
+     */
+    private String sizeBandOf(Combatant c) {
+        return content.findAnySiegling(c.getDisplayCardId())
+                .map(card -> (card.getSize() != null ? card.getSize()
+                        : SieglingSize.defaultFor(card.getRarity(), content.stageOf(card) - 1)).name())
+                .orElse(null);
+    }
+
     /** Adds the SiegeKnight's leveling fields (badge + XP bar) to a serialized knight map. */
     private void putKnightLeveling(Map<String, Object> knight, Combatant unit) {
         knight.put("level", unit.getLevel());
@@ -3619,6 +3808,34 @@ public class SiegeService {
         knight.put("xpSpan", unit.getLevel() >= SiegeTuning.MAX_LEVEL ? 0
                 : SiegeTuning.xpForLevel(unit.getLevel() + 1) - SiegeTuning.xpForLevel(unit.getLevel()));
         knight.put("leveledThisBattle", unit.isLeveledRecently());
+    }
+
+    /**
+     * Card art for a Siegeling id, or null when the catalog has none. Null-safe on
+     * {@code content} because the Battlegrounds rebuild is exercised by pure,
+     * Firestore-free tests that construct this service without Spring.
+     */
+    private String sieglingArtUrl(String sieglingId) {
+        if (content == null) return null;
+        return content.findAnySiegling(sieglingId).map(SieglingCard::getCardArtUrl).orElse(null);
+    }
+
+    /** Card art for a SiegeKnight id, or null when the catalog has none. */
+    private String knightArtUrl(String knightId) {
+        if (content == null) return null;
+        return content.findKnight(knightId).map(TrainerCard::getCardArtUrl).orElse(null);
+    }
+
+    /**
+     * The art a unit is drawn with, falling back to the card it is drawn from. The
+     * fallback is what makes an already-saved Battlegrounds run render: its combatants
+     * were persisted with no art at all, and every surface that shows a unit — the
+     * battlefield sprite, the party rail, the resume prompt — reads this one field.
+     */
+    private String artUrlOf(Combatant c) {
+        if (c.getArtUrl() != null && !c.getArtUrl().isBlank()) return c.getArtUrl();
+        if (c.isKnight()) return null;
+        return sieglingArtUrl(c.getDisplayCardId());
     }
 
     private Map<String, Object> serializeCombatant(Combatant c, boolean includeAbilities) {
@@ -3631,8 +3848,10 @@ public class SiegeService {
         m.put("maxHp", c.getMaxHp());
         m.put("shield", c.getShield());
         m.put("speed", c.getSpeed());
+        m.put("baseSpeed", c.getBaseSpeed());
         m.put("effectiveSpeed", c.effectiveSpeed());
         m.put("attackBuff", c.getAttackBuff());
+        m.put("maxHpBonus", c.getBattleMaxHpBonus());
         // Leveling (drives the level badge + XP bar on the unit chip).
         m.put("level", c.getLevel());
         m.put("xp", c.getXp());
@@ -3645,20 +3864,30 @@ public class SiegeService {
         m.put("itemId", c.getItemId());
         m.put("item", c.getItemId() == null ? null : serializeItem(content.findItem(c.getItemId())));
         m.put("alive", c.isAlive());
-        m.put("artUrl", c.getArtUrl());
+        m.put("artUrl", artUrlOf(c));
         m.put("shadeOf", c.getShadeOf());
         m.put("position", c.getPosition());
         List<String> statuses = new ArrayList<>();
         for (StatusKind s : c.getStatuses().keySet()) statuses.add(s.name());
         m.put("statuses", statuses);
-        // Evolution depth for sprite scaling (client grows the sprite 1.5× per stage).
-        // Derived from the catalog stage of the unit's current source card: a Siegeling
-        // recruited at stage 2/3 reports that stage even before any battle evolution, and
-        // playing an EVOLVE card rewrites sourceCardId to the evolved card (SiegeContentService#evolve),
-        // so stageOf already folds in battle evolutions — walking the evolvedFrom chain on
-        // top of it would double-count. Non-Siegelings (knights, enemies, mercs) stay at 0.
-        int evoStage = content.findAnySiegling(c.getSourceCardId()).map(content::stageOf).orElse(1) - 1;
+        Map<String, Integer> statusRounds = new LinkedHashMap<>();
+        c.getStatuses().forEach((status, rounds) -> statusRounds.put(status.name(), rounds));
+        m.put("statusRounds", statusRounds);
+        // How far along an evolution line the unit currently stands. Derived from the
+        // catalog stage of its source card: a Siegeling recruited at stage 2/3 reports that
+        // stage before any battle evolution, and playing an EVOLVE card rewrites
+        // sourceCardId to the evolved card (SiegeContentService#evolve), so stageOf already
+        // folds in battle evolutions — walking the evolvedFrom chain on top would double-count.
+        int evoStage = content.findAnySiegling(c.getDisplayCardId()).map(content::stageOf).orElse(1) - 1;
         m.put("evoStage", evoStage);
+        // Sprite size, though, is the authored band — NOT the depth above. Depth is only one
+        // of the inputs SieglingSize#defaultFor uses, and a designer can pin the band per card
+        // in the dashboard, so a stage-1 bruiser marked LARGE has to stand like one (the
+        // reported Kilokong merc). Resolved exactly as KeepService resolves its residents,
+        // so a Siegeling reads at the same relative scale in the Keep and on the battlefield.
+        // Both fields read the display card, so shades and mercs — which carry no
+        // sourceCardId on purpose — are sized from the art they actually wear.
+        m.put("size", sizeBandOf(c));
         // Evolution gauge for player Siegelings (AP spent on own moves this battle).
         if (c.getSide() == Side.PLAYER && !c.isKnight()) {
             boolean hasEvolution = content.evolutionOf(c.getSourceCardId()).isPresent();
@@ -3671,6 +3900,9 @@ public class SiegeService {
             }
         }
         if (includeAbilities) {
+            // The squad's headline foe (boss/elite) — the client badges it so it reads
+            // apart from the minions escorting it.
+            m.put("leader", c.isLeader());
             // Full ability specs so the detail popup can show what enemies do.
             m.put("abilities", serializeSpecs(c.getAbilities()));
             AbilitySpec intent = c.getIntent();

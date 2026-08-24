@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Siege — Siegelings Adventure</title>
 <link rel="icon" href="/favicon.png">
-<link rel="stylesheet" href="/css/adventure.css?v=53">
+<link rel="stylesheet" href="/css/adventure.css?v=66">
 </head>
 <body>
 <!-- Enemy Siegelings are corrupted card art, so they need the same die-cut shade
@@ -51,6 +51,12 @@
   <header class="siege-topbar">
     <a class="siege-back" href="/play" title="Back to Play">◄ Play</a>
     <div class="siege-title">SIEGE <span>Adventure Expedition</span></div>
+    <!-- Which expedition this is belongs with the run's identity, not with its
+         resources: it lives in the top bar (shown on the map screen only) so the
+         HUD row below the map is left for gold, deck, Items and the hint.
+         renderMap() rewrites this element's className, so CSS targets it by
+         position and id, never by an extra class. -->
+    <span class="run-slot-badge siege" id="mapMode">🏳️ Siege Expedition</span>
     <button class="siege-abandon hidden" id="runMenuBtn" type="button" aria-haspopup="dialog" aria-controls="runMenu" aria-expanded="false">Menu</button>
   </header>
 
@@ -65,18 +71,12 @@
   <!-- Resume prompt: shown at boot when a saved expedition is detected. -->
   <section class="siege-screen hidden" id="resumeScreen">
     <h1>Welcome Back</h1>
-    <p class="siege-sub" id="resumeNote">An expedition is already in progress.</p>
-    <div class="resume-summary">
-      <div class="party-strip" id="resumeParty"></div>
-      <div class="resume-meta">
-        <span class="gold-chip" id="resumeGold">🪙 0</span>
-        <span id="resumeFloor"></span>
-        <span id="resumeBattle" class="resume-battle-chip hidden">⚔ Battle in progress</span>
-      </div>
-    </div>
+    <p class="siege-sub" id="resumeNote">A run is already in progress.</p>
+    <!-- One card per save slot: an expedition and a Battlegrounds march can be
+         held at the same time, so this list is built by renderResumePrompt. -->
+    <div id="resumeSaves"></div>
     <div class="resume-actions">
-      <button class="siege-btn primary" id="resumeContinueBtn" type="button">Continue Expedition ▸</button>
-      <button class="siege-btn" id="resumeRestartBtn" type="button">Start Over</button>
+      <button class="siege-btn" id="resumeFreshBtn" type="button">Start a new run</button>
     </div>
   </section>
 
@@ -155,9 +155,13 @@
     <div class="map-bottom">
       <div class="map-reward" id="mapReward"></div>
       <div class="map-meta">
+        <!-- Same chips in the same order in both modes so the HUD reads
+             identically for Siege and Battlegrounds; the mode badge itself sits
+             in the top bar. -->
         <span class="gold-chip" id="mapGold">🪙 0</span>
         <span id="mapDeckCount"></span>
         <button class="siege-btn map-inv-btn" id="inventoryBtn" type="button">🎒 Items</button>
+        <button class="siege-btn map-key-btn" id="mapKeyBtn" type="button">🗝️ Key</button>
         <button class="siege-btn map-extract-btn hidden" id="extractBtn" type="button">⤴ Extract team</button>
         <span class="map-hint" id="mapHint">Choose your path</span>
       </div>
@@ -285,10 +289,20 @@
       <div class="ledger-body" id="ledgerBody"></div>
     </div>
     <div class="battle-hint" id="battleHint"></div>
+    <div class="unit-modal hand-sheet hidden" id="handSheet" role="dialog" aria-modal="true" aria-labelledby="handSheetTitle">
+      <div class="unit-modal-card hand-sheet-card">
+        <div class="hand-sheet-head">
+          <span id="handSheetTitle">✋ Your hand</span>
+          <span class="hand-sheet-sub" id="handSheetSub"></span>
+          <button class="unit-modal-close" id="handSheetClose" type="button" aria-label="Close">✕</button>
+        </div>
+        <div class="hand-sheet-grid" id="handSheetGrid"></div>
+      </div>
+    </div>
     <div class="hand-fan" id="handRow"></div>
     <div class="battle-hud" id="battleHud">
       <div class="ap-display" id="apDisplay"></div>
-      <div class="deck-counts" id="deckCounts"></div>
+      <button class="deck-counts" id="deckCounts" type="button" aria-haspopup="dialog" aria-expanded="false" title="View the cards in your hand"></button>
       <button class="siege-btn ult hidden" id="knightUltBtn" type="button">⚡ Ultimate</button>
       <button class="siege-btn" id="endTurnBtn" type="button">End Turn</button>
     </div>
@@ -390,6 +404,19 @@
         <div class="inv-party" id="invParty"></div>
         <h3 class="inv-subhead">Backpack</h3>
         <div class="inv-bag" id="invBag"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Map key: what each node emblem on the expedition map means. -->
+  <div class="inv-overlay hidden" id="legendOverlay">
+    <div class="inv-panel legend-panel">
+      <div class="inv-head"><span>🗝️ Map key</span><button class="unit-modal-close" id="legendClose" type="button">✕</button></div>
+      <div class="inv-body">
+        <h3 class="inv-subhead">Node emblems</h3>
+        <div class="legend-list" id="legendNodes"></div>
+        <h3 class="inv-subhead">Node state</h3>
+        <div class="legend-list" id="legendStates"></div>
       </div>
     </div>
   </div>
@@ -607,6 +634,6 @@
   <div class="siege-toast hidden" id="siegeToast"></div>
 </div>
 <script src="/js/siege-maps.js?v=3"></script>
-<script src="/js/adventure.js?v=57"></script>
+<script src="/js/adventure.js?v=69"></script>
 </body>
 </html>

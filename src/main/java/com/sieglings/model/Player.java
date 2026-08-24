@@ -37,6 +37,11 @@ public class Player {
     private int psychicEnergy;
     private boolean mistActive;
     private final Map<Element, Integer> temporaryEnergyAdjustments = new EnumMap<>(Element.class);
+    /**
+     * Energy from an active {@code energy_boost}. Live from the moment the card resolves,
+     * through the owner's next Setup phase, and dropped as the Battle phase opens.
+     */
+    private final Map<Element, Integer> overchargeEnergy = new EnumMap<>(Element.class);
 
     /** Counts for the current match; persisted to match_history for registered users. */
     private int spellsCastThisMatch;
@@ -131,6 +136,35 @@ public class Player {
 
     public void clearTemporaryEnergyAdjustments() {
         temporaryEnergyAdjustments.clear();
+    }
+
+    /** Turns on an active energy buff. It counts from right now. */
+    public void addOverchargeEnergy(Element element, int amount) {
+        if (element == null || amount <= 0) {
+            return;
+        }
+        overchargeEnergy.merge(element, amount, Integer::sum);
+    }
+
+    /** The Battle phase opening is where an overcharge always ends. */
+    public void clearOverchargeEnergy() {
+        overchargeEnergy.clear();
+    }
+
+    public int getOverchargeEnergy(Element element) {
+        if (element == null) {
+            return 0;
+        }
+        return overchargeEnergy.getOrDefault(element, 0);
+    }
+
+    public Map<Element, Integer> getOverchargeEnergyTotals() {
+        return Collections.unmodifiableMap(overchargeEnergy);
+    }
+
+    /** True while an active energy buff is riding on this side's pool. */
+    public boolean isOvercharged() {
+        return overchargeEnergy.values().stream().anyMatch(amount -> amount != null && amount > 0);
     }
 
     /** Sum of all element pool totals (used for Siegling setup placement budget snapshot). */

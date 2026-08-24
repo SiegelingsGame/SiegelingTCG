@@ -455,6 +455,9 @@
         builderTypeFilter: 'ALL',
         builderRarityFilter: 'ALL',
         builderSort: 'owned-desc',
+        builderTab: 'binder',
+        builderCardTab: 'card',
+        builderDeckSettingsOpen: false,
         builderVisibleLimit: 0,
         builderRenderTimer: null,
         notifications: [],
@@ -508,6 +511,13 @@
         achievementCategory: '',
         leaderboardTab: 'wins',
         leaderboardPeriod: 'daily',
+        leaderboardsRetrying: false,
+        leaderboards: null,
+        leaderboardsError: '',
+        // The panel paints before loadAll() has fetched anything, so "not asked
+        // yet" has to be its own state. Treated as failed, a 25s cold start
+        // showed every player a retry banner for a board that was still loading.
+        leaderboardsLoading: true,
         dailyMissions: null,
         dailyMissionsError: '',
         showAllMissions: false,
@@ -560,6 +570,16 @@
         if (height > 0) {
             document.documentElement.style.setProperty('--bottom-hud-height', `${height}px`);
         }
+    }
+
+    // The explicit call sites only cover the height changes we thought to name.
+    // The nav also grows when signing in adds action buttons, when a badge
+    // appears, or when a webfont lands — and a stale measurement puts every
+    // popup anchored to it back under the HUD. Watch the element instead.
+    function observeBottomHud() {
+        const nav = document.querySelector('.home-nav');
+        if (!nav || typeof window.ResizeObserver !== 'function') return;
+        new window.ResizeObserver(() => measureBottomHud()).observe(nav);
     }
 
     function openFriendsModal() {
@@ -1196,10 +1216,11 @@
         };
         window.addEventListener('orientationchange', handleOrientationArtChange);
         window.matchMedia?.('(orientation: portrait)')?.addEventListener?.('change', handleOrientationArtChange);
-        // Keep the docked-HUD height measurement current for the tray anchor.
+        // Keep the docked-HUD height measurement current for every popup anchored to it.
         window.addEventListener('resize', measureBottomHud);
         window.addEventListener('orientationchange', measureBottomHud);
         measureBottomHud();
+        observeBottomHud();
         // Only show the top loading bar when there's nothing cached to paint yet;
         // otherwise the page is already populated and the refresh is silent.
         setHubLoading(!state.options);
@@ -1463,19 +1484,25 @@
     }
 
     async function loadAll() {
-        const [options, packs, descriptions, profile, leaderboards, dailyMissions] = await Promise.all([
+        // Leaderboards settle on their own promise: a slow catalog fetch must not
+        // hold the panel in its loading state, and a sibling that rejects must not
+        // strand it there forever (Promise.all would skip the apply below).
+        const leaderboardsLoad = loadLeaderboardsWithRetry()
+            .then((data) => {
+                applyLeaderboardsPayload(data);
+                renderHomeDashboard();
+            });
+        const [options, packs, descriptions, profile, dailyMissions] = await Promise.all([
             fetchGameOptions(),
             fetchCachedJson('shopPacks', '/api/shop/packs', PACK_CACHE_TTL_MS, isValidShopPacksPayload),
             fetchCachedJson('creatureDescriptions', '/assets/creature-descriptions.json', STATIC_CACHE_TTL_MS),
             syncProfile(),
-            fetchCachedJson('leaderboards', '/api/leaderboards', LEADERBOARD_CACHE_TTL_MS),
             loadDailyMissions()
         ]);
+        await leaderboardsLoad;
         applyGameOptions(options);
         applyShopPacksPayload(packs);
         state.creatureDescriptions = indexCreatureDescriptions(descriptions);
-        state.leaderboards = leaderboards || null;
-        state.leaderboardsError = leaderboards?.error || '';
         if (dailyMissions && !dailyMissions.error) {
             state.dailyMissions = dailyMissions;
             state.dailyMissionsError = '';
@@ -1915,8 +1942,10 @@
         return !hasOwnedCardsSnapshot;
     }
 
-    function panelLoadingMarkup(label) {
-        return `<div class="panel-loading" role="status" aria-live="polite">
+    // compact trims the 64px browser-panel padding for small dashboard panels,
+    // which would otherwise grow taller while loading than they are with content.
+    function panelLoadingMarkup(label, compact = false) {
+        return `<div class="panel-loading${compact ? ' compact' : ''}" role="status" aria-live="polite">
             <span class="panel-loading-spinner" aria-hidden="true"></span>
             <strong>${escapeHtml(label)}</strong>
             <span class="panel-loading-bar" aria-hidden="true"><span></span></span>
@@ -2636,6 +2665,45 @@
         bindHomeDashboardActions(el);
     }
 
+    // A failed fetch returns { error } — a truthy object. Storing that as the
+    // payload made "the request failed" indistinguishable from "nobody has
+    // scored yet", so a cold-start blip rendered as an empty board that never
+    // recovered. Only a real payload becomes state; the error stays separate.
+    function applyLeaderboardsPayload(payload) {
+        const failed = !payload || Boolean(payload.error);
+        state.leaderboardsLoading = false;
+        state.leaderboards = failed ? null : payload;
+        state.leaderboardsError = payload?.error || (payload ? '' : 'Leaderboards are unavailable right now.');
+    }
+
+    // A cold Cloud Run instance answers "warming up" for its first few seconds,
+    // and the only thing the Retry button did was ask again a moment later. Make
+    // those attempts on the player's behalf — the panel stays in its loading
+    // state throughout, so the button is now a last resort, not the happy path.
+    const LEADERBOARD_RETRY_DELAYS_MS = [2500, 6000];
+
+    async function loadLeaderboardsWithRetry() {
+        let data = await fetchCachedJson('leaderboards', '/api/leaderboards', LEADERBOARD_CACHE_TTL_MS);
+        for (const delayMs of LEADERBOARD_RETRY_DELAYS_MS) {
+            if (data && !data.error) break;
+            await new Promise((resolve) => window.setTimeout(resolve, delayMs));
+            data = await fetchJson('/api/leaderboards');
+            if (data && !data.error) writeCache('leaderboards', data);
+        }
+        return data;
+    }
+
+    async function retryLeaderboards() {
+        if (state.leaderboardsRetrying) return;
+        state.leaderboardsRetrying = true;
+        renderHomeDashboard();
+        const data = await fetchJson('/api/leaderboards');
+        state.leaderboardsRetrying = false;
+        applyLeaderboardsPayload(data);
+        if (state.leaderboards) writeCache('leaderboards', state.leaderboards);
+        renderHomeDashboard();
+    }
+
     function leaderboardBoardsForPeriod(period) {
         const activePeriod = LEADERBOARD_PERIODS.some(([id]) => id === period) ? period : 'daily';
         const periods = state.leaderboards?.periods;
@@ -2685,13 +2753,31 @@
                 ${tabs.map(([id, label]) => `<button class="home-lb-tab${activeTab === id ? ' active' : ''}" type="button" data-home-lb="${escapeAttr(id)}" role="tab" aria-selected="${activeTab === id}">${escapeHtml(label)}</button>`).join('')}
             </div>
             <div class="home-lb-list">
-                ${state.leaderboardsError && !state.leaderboards ? `<div class="home-empty-emblem">${escapeHtml(state.leaderboardsError)}</div>` : ''}
-                ${activeRows.length ? activeRows.slice(0, 6).map(row => {
-                    const value = activeTab === 'pvpWinRate' && row.detail ? row.detail : row.value;
-                    return `<div class="home-lb-row"><strong>#${escapeHtml(row.rank)}</strong><span>${escapeHtml(row.displayName || 'Player')}</span><em>${escapeHtml(value ?? '')}</em></div>`;
-                }).join('') : '<div class="home-empty-emblem">No leaderboard results yet.</div>'}
+                ${leaderboardListMarkup(activeRows, activeTab)}
             </div>
         </article>`;
+    }
+
+    function leaderboardListMarkup(rows, activeTab) {
+        if (state.leaderboardsRetrying || state.leaderboardsLoading) {
+            return panelLoadingMarkup('Loading leaderboards…', true);
+        }
+        // "Couldn't load" and "nobody has scored" are different answers and the
+        // player can act on the first one, so the failed state offers a retry
+        // instead of quietly claiming the board is empty.
+        if (!state.leaderboards) {
+            return `<div class="home-lb-error">
+                <span>${escapeHtml(state.leaderboardsError || 'Leaderboards are unavailable right now.')}</span>
+                <button class="ghost-btn compact-btn" type="button" data-home-lb-retry>Retry</button>
+            </div>`;
+        }
+        if (!rows.length) {
+            return '<div class="home-empty-emblem">No leaderboard results yet.</div>';
+        }
+        return rows.slice(0, 6).map(row => {
+            const value = activeTab === 'pvpWinRate' && row.detail ? row.detail : row.value;
+            return `<div class="home-lb-row"><strong>#${escapeHtml(row.rank)}</strong><span>${escapeHtml(row.displayName || 'Player')}</span><em>${escapeHtml(value ?? '')}</em></div>`;
+        }).join('');
     }
 
     function formatDateTime(value) {
@@ -3259,6 +3345,9 @@
             state.leaderboardTab = btn.dataset.homeLb || 'wins';
             renderHomeDashboard();
         }));
+        root.querySelector('[data-home-lb-retry]')?.addEventListener('click', () => {
+            void retryLeaderboards();
+        });
     }
 
     function renderDecks() {
@@ -3572,6 +3661,9 @@
             state.builderCounts = {};
             state.builderPreviewCardId = null;
             state.editingSavedDeckId = '';
+            state.builderTab = 'binder';
+            state.builderCardTab = 'card';
+            state.builderDeckSettingsOpen = false;
             resetBuilderVisibleLimit();
             localStorage.setItem('sieglingsBuilderDeckName', 'Custom Binder Deck');
         }
@@ -3764,30 +3856,29 @@
             page.innerHTML = '<div class="unlock-card"><strong>Catalog loading</strong><span>Your binder will appear here once card data is ready.</span></div>';
             return;
         }
-        page.innerHTML = `<div class="deck-builder-layout" style="--builder-accent:${elementColor(primaryElement)}">
-            <section class="deck-builder-binder deck-builder-workbench">
+        const scroll = captureBuilderScroll();
+        const activeTab = builderActiveTab();
+        page.innerHTML = `<div class="deck-builder-layout" data-builder-tab-active="${activeTab}" style="--builder-accent:${elementColor(primaryElement)}">
+            <nav class="deck-builder-tabs" role="tablist" aria-label="Deck builder sections">
+                <button type="button" role="tab" class="deck-builder-tab${activeTab === 'binder' ? ' is-active' : ''}" data-builder-tab="binder" aria-selected="${activeTab === 'binder'}">Binder<span class="deck-builder-tab-badge">${catalogCards.length}</span></button>
+                <button type="button" role="tab" class="deck-builder-tab${activeTab === 'deck' ? ' is-active' : ''}" data-builder-tab="deck" aria-selected="${activeTab === 'deck'}">Deck<span class="deck-builder-tab-badge${total >= 30 ? ' is-complete' : ''}">${total}/30</span></button>
+                <button type="button" role="tab" class="deck-builder-tab${activeTab === 'card' ? ' is-active' : ''}" data-builder-tab="card" aria-selected="${activeTab === 'card'}">Card${previewCard ? `<span class="deck-builder-tab-badge">${escapeHtml(shortBuilderName(previewCard.name))}</span>` : ''}</button>
+            </nav>
+            <section class="deck-builder-binder deck-builder-workbench" data-builder-pane="binder">
                 <div class="section-head decks-row-head">
                     <div><span class="eyebrow">Binder</span><h2>Your owned cards</h2></div>
                     <span>${mobileBuilder && catalogCards.length ? `${visibleCatalogCards.length} / ${catalogCards.length}` : `${catalogCards.length} cards`}</span>
                 </div>
-                <div class="deck-builder-binder-list">
+                ${renderBuilderFilterBar()}
+                <div class="deck-builder-binder-list" data-scroll-key="binder">
                     ${catalogCards.length ? visibleCatalogCards.map(renderBuilderBinderRow).join('') : '<div class="unlock-card builder-empty">No owned cards match these filters.</div>'}
                     ${hasMoreCatalogCards ? `<button class="ghost-btn deck-builder-load-more" type="button" data-builder-load-more>Load more cards (${catalogCards.length - visibleCatalogCards.length})</button>` : ''}
                 </div>
             </section>
-            <section class="deck-builder-inspector deck-builder-workbench">
-                <div class="section-head decks-row-head">
-                    <div><span class="eyebrow">Card View</span><h2>${previewCard ? escapeHtml(previewCard.name) : 'Select a card'}</h2></div>
-                </div>
-                <div class="deck-builder-preview-panel">${renderBuilderPreviewPanel(previewCard)}</div>
-                <div class="deck-builder-recommendations">
-                    <div class="section-head decks-row-head">
-                        <div><span class="eyebrow">Recommended</span><h3>Evolution tree picks</h3></div>
-                    </div>
-                    ${renderBuilderRecommendations(previewCard)}
-                </div>
+            <section class="deck-builder-inspector deck-builder-workbench" data-builder-pane="card">
+                <div class="deck-builder-preview-panel" data-scroll-key="card">${renderBuilderPreviewPanel(previewCard)}</div>
             </section>
-            <aside class="deck-builder-deck-pane deck-builder-workbench">
+            <aside class="deck-builder-deck-pane deck-builder-workbench" data-builder-pane="deck">
                 <div class="deck-builder-deck-head">
                     <div class="builder-total-ring${total >= 30 ? ' complete' : ''}">
                         <strong>${total}</strong><span>/30</span>
@@ -3798,10 +3889,16 @@
                         <div class="builder-progress-track"><span class="builder-progress-fill" style="width:${Math.min(100, Math.round((total / 30) * 100))}%"></span></div>
                     </div>
                 </div>
-                <div class="deck-builder-deck-list">${renderBuilderDeckListRows()}</div>
-                <div class="builder-form-grid deck-builder-deck-form">
-                    <label><span>Deck name</span><input class="search-input" id="builderDeckName" maxlength="40" value="${escapeAttr(builderDeckName())}" placeholder="Custom Binder Deck"></label>
-                    <label><span>SiegeKnight</span><select class="search-input" id="builderTrainerSelect">${builderTrainerOptions(trainerId)}</select></label>
+                <div class="deck-builder-deck-list" data-scroll-key="deck">${renderBuilderDeckListRows()}</div>
+                <div class="deck-builder-deck-settings${state.builderDeckSettingsOpen ? ' is-open' : ''}">
+                    <button class="ghost-btn deck-builder-settings-toggle" type="button" data-builder-toggle-settings aria-expanded="${state.builderDeckSettingsOpen}">
+                        <span>Deck name &amp; SiegeKnight</span>
+                        <small>${escapeHtml(builderDeckName())} / ${escapeHtml(builderTrainerName(trainerId))}</small>
+                    </button>
+                    ${state.builderDeckSettingsOpen ? `<div class="builder-form-grid deck-builder-deck-form">
+                        <label><span>Deck name</span><input class="search-input" id="builderDeckName" maxlength="40" value="${escapeAttr(builderDeckName())}" placeholder="Custom Binder Deck"></label>
+                        <label><span>SiegeKnight</span><select class="search-input" id="builderTrainerSelect">${builderTrainerOptions(trainerId)}</select></label>
+                    </div>` : ''}
                 </div>
                 <div class="builder-actions-row">
                     <button class="ghost-btn" type="button" id="playCustomBtn"${total < 30 ? ' disabled' : ''}>Play Custom</button>
@@ -3811,6 +3908,71 @@
         </div>`;
         renderBuilderFilterTray(catalogCards);
         bindDeckBuilderPageEvents(page);
+        restoreBuilderScroll(scroll);
+    }
+
+    // Rebuilding the whole builder page on every +/- tap used to throw away the
+    // binder and deck scroll offsets, forcing players back to the top of the
+    // list after each card they added.
+    function captureBuilderScroll() {
+        const map = { window: window.scrollY };
+        document.querySelectorAll('#deckBuilderPage [data-scroll-key]').forEach(el => {
+            map[el.dataset.scrollKey] = el.scrollTop;
+        });
+        return map;
+    }
+
+    function restoreBuilderScroll(map) {
+        if (!map) return;
+        document.querySelectorAll('#deckBuilderPage [data-scroll-key]').forEach(el => {
+            const value = map[el.dataset.scrollKey];
+            if (typeof value === 'number') el.scrollTop = value;
+        });
+        if (typeof map.window === 'number' && Math.abs(window.scrollY - map.window) > 1) {
+            window.scrollTo({ top: map.window });
+        }
+    }
+
+    // Desktop shows every pane at once, so the tab state only steers mobile.
+    function builderActiveTab() {
+        const tab = state.builderTab;
+        return ['binder', 'deck', 'card'].includes(tab) ? tab : 'binder';
+    }
+
+    function shortBuilderName(name) {
+        const value = String(name || '');
+        return value.length > 12 ? `${value.slice(0, 11)}…` : value;
+    }
+
+    function builderTrainerName(trainerId) {
+        const trainer = (state.options?.trainers || []).find(item => item.id === trainerId);
+        return trainer?.name || 'No SiegeKnight';
+    }
+
+    function builderActiveFilterCount() {
+        return [
+            state.builderElementFilter !== 'ALL',
+            state.builderTypeFilter !== 'ALL',
+            state.builderRarityFilter !== 'ALL',
+            Boolean(state.builderSearch)
+        ].filter(Boolean).length;
+    }
+
+    // Filter controls native to the page (the HUD tray is a long reach on a
+    // phone), while the "More" button still opens the same tray so there is
+    // exactly one source of truth for filter state.
+    function renderBuilderFilterBar() {
+        const activeFilters = builderActiveFilterCount();
+        const types = [['ALL', 'All'], ['SIEGLING', 'Siegelings'], ['SPELL', 'Strategies'], ['TRAP', 'Deceptions']];
+        return `<div class="builder-filter-bar">
+            <div class="builder-filter-chips">
+                ${types.map(([value, label]) => `<button type="button" class="builder-chip${state.builderTypeFilter === value ? ' is-active' : ''}" data-builder-type="${escapeAttr(value)}">${escapeHtml(label)}</button>`).join('')}
+            </div>
+            <div class="builder-filter-chips">
+                <button type="button" class="builder-chip builder-chip-more" data-open-builder-filters>More filters${activeFilters ? `<span class="builder-chip-badge">${activeFilters}</span>` : ''}</button>
+                ${activeFilters ? '<button type="button" class="builder-chip" data-clear-builder-filters>Reset</button>' : ''}
+            </div>
+        </div>`;
     }
 
     // Builder binder filters live in the HUD Filters tray (like the Cards
@@ -3866,6 +4028,22 @@
             state.builderSort = event.target.value;
             resetBuilderVisibleLimit();
             renderDeckBuilderPage();
+        });
+    }
+
+    // The tray controls are rendered once and kept in the DOM, so inline
+    // filter changes have to be mirrored back onto them by hand.
+    function syncBuilderFilterTrayControls() {
+        const pairs = [
+            ['builderSearchInput', state.builderSearch],
+            ['builderElementSelect', state.builderElementFilter],
+            ['builderTypeSelect', state.builderTypeFilter],
+            ['builderRaritySelect', state.builderRarityFilter],
+            ['builderSortSelect', state.builderSort]
+        ];
+        pairs.forEach(([id, value]) => {
+            const el = document.getElementById(id);
+            if (el) el.value = value;
         });
     }
 
@@ -3932,26 +4110,36 @@
                     const inDeck = state.builderCounts[card.id] || 0;
                     const maxCopies = builderCardLimit(card.id);
                     const canAdd = inDeck < maxCopies && builderTotal() < 30;
+                    // Deliberately not a "select this card" button: tapping a
+                    // recommendation used to replace the card being inspected,
+                    // which yanked the evolution list out from under the
+                    // player. Add keeps them on the card they are building
+                    // around; View is the explicit way to switch.
                     return `<article class="builder-recommendation-card" style="--el:${elementColor(card.element)}">
-                        <button type="button" class="builder-recommendation-main" data-select-builder-card="${escapeAttr(card.id)}">
+                        <div class="builder-recommendation-main">
                             <div class="builder-row-copy">
                                 <strong>${escapeHtml(card.name)}</strong>
-                                <span>${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))}</span>
+                                <span>${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))}${inDeck ? ` / In deck x${inDeck}` : ''}</span>
                                 <small>${card.evolvesFromId ? `Evolves from ${escapeHtml(card.evolvesFromName || findCard(card.evolvesFromId)?.name || 'base')}` : 'Base form'}</small>
                             </div>
-                        </button>
-                        <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>Add</button>
+                        </div>
+                        <div class="builder-recommendation-actions">
+                            <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>Add</button>
+                            <button class="ghost-btn compact-btn" type="button" data-select-builder-card="${escapeAttr(card.id)}">View</button>
+                        </div>
                     </article>`;
                 }).join('')}
             </div>`;
     }
 
+    // The Card View used to render the art, flavor, stats, every move and every
+    // ability in one column, which pushed the add controls a full screen down.
+    // The art + identity + stepper now stay pinned and the detail lives behind
+    // sub-tabs.
     function renderBuilderPreviewPanel(card) {
         if (!card) {
             return '<div class="unlock-card builder-empty">Tap a binder card to inspect it and add copies to your deck.</div>';
         }
-        const abilities = card.abilities || (card.ability ? [card.ability] : []);
-        const flavorText = creatureDescriptionFor(card);
         const inDeck = state.builderCounts[card.id] || 0;
         const maxCopies = builderCardLimit(card.id);
         const canAdd = maxCopies > 0 && inDeck < maxCopies && builderTotal() < 30;
@@ -3966,27 +4154,76 @@
                 descriptionText: shopCardDescriptionFor(card)
             })
             : `<div class="binder-card detail-card-preview" style="--el:${elementColor(card.element)}">${renderBinderCardShell(card)}</div>`;
+        const cardTab = builderActiveCardTab(card);
+        const tabs = builderCardTabsFor(card);
         return `<div class="deck-builder-preview-card" style="--el:${elementColor(card.element)}">
-            <div class="detail-card-preview-wrap">${cardPreview}</div>
-            <div class="detail-cost-block">
-                <span class="detail-cost-label">Energy cost</span>
-                ${renderBinderCardEnergyCost(cost, costElement)}
+            <div class="deck-builder-card-hero">
+                <div class="detail-card-preview-wrap">${cardPreview}</div>
+                <div class="deck-builder-card-identity">
+                    <strong>${escapeHtml(card.name)}</strong>
+                    <span>${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))} / ${escapeHtml(format(card.rarity))}</span>
+                    <div class="deck-builder-card-quickstats">
+                        ${card.type === 'SIEGLING'
+                            ? `<span><small>HP</small><b>${card.health ?? '-'}</b></span><span><small>SPD</small><b>${card.speed ?? '-'}</b></span>`
+                            : ''}
+                        <span class="deck-builder-cost-pill"><small>Cost</small>${renderBuilderCostEmblems(cost, costElement)}</span>
+                        <span><small>Owned</small><b>${ownedCount(card.id)}</b></span>
+                    </div>
+                    <div class="builder-stepper deck-builder-preview-actions">
+                        <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(card.id)}"${inDeck <= 0 ? ' disabled' : ''}>-</button>
+                        <strong>${inDeck} / ${maxCopies}</strong>
+                        <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>${addLabel}</button>
+                    </div>
+                </div>
             </div>
-            ${flavorText ? `<p class="deck-builder-preview-flavor">${escapeHtml(flavorText)}</p>` : ''}
-            <div class="detail-grid">
-                ${card.type === 'SIEGLING' ? `<div><span>Health</span><strong>${card.health ?? '-'}</strong></div>
-                <div><span>Speed</span><strong>${card.speed ?? '-'}</strong></div>
-                <div><span>Evolution</span><strong>${escapeHtml(card.evolvesFromName || card.evolvesFromId || 'Base')}</strong></div>` : ''}
-                ${card.type !== 'SIEGLING' ? `<div><span>Cost</span><strong>${card.costAmount ?? 0} ${format(card.costElement || card.element)}</strong></div>` : ''}
-            </div>
-            ${renderBuilderMoves(card)}
-            ${abilities.length ? `<div class="deck-builder-preview-abilities detail-abilities">${abilities.map(a => `<div class="detail-ability-row"><strong>${escapeHtml(a.name || 'Ability')}</strong><p>${escapeHtml(a.description || '')}</p></div>`).join('')}</div>` : ''}
-            <div class="builder-stepper deck-builder-preview-actions">
-                <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(card.id)}"${inDeck <= 0 ? ' disabled' : ''}>-</button>
-                <strong>${inDeck} / ${maxCopies}</strong>
-                <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>${addLabel}</button>
-            </div>
+            <nav class="deck-builder-card-tabs" role="tablist" aria-label="Card details">
+                ${tabs.map(tab => `<button type="button" role="tab" class="deck-builder-card-tab${tab.id === cardTab ? ' is-active' : ''}" data-builder-card-tab="${tab.id}" aria-selected="${tab.id === cardTab}">${escapeHtml(tab.label)}</button>`).join('')}
+            </nav>
+            <div class="deck-builder-card-tabpanel" role="tabpanel">${renderBuilderCardTabBody(card, cardTab)}</div>
         </div>`;
+    }
+
+    const BUILDER_COST_EMBLEM_CAP = 5;
+
+    function renderBuilderCostEmblems(cost, element) {
+        const amount = Number(cost);
+        if (!Number.isFinite(amount) || amount <= 0) return '<b>Free</b>';
+        const normalized = String(element || 'NEUTRAL').toLowerCase();
+        const shown = Math.min(amount, BUILDER_COST_EMBLEM_CAP);
+        const token = `<span class="energy-token notch-token token-${escapeAttr(normalized)}" style="${notchIconStyle(element || 'NEUTRAL')}"></span>`;
+        const overflow = amount > shown ? `<b class="builder-cost-overflow">+${amount - shown}</b>` : '';
+        return `<span class="builder-cost-emblems" aria-label="Cost ${amount} ${escapeAttr(format(element || 'NEUTRAL'))} energy">${token.repeat(shown)}${overflow}</span>`;
+    }
+
+    function builderCardTabsFor(card) {
+        const tabs = [{ id: 'card', label: 'Overview' }];
+        if ((card?.moves || []).filter(Boolean).length || (card?.abilities || []).length || card?.ability) {
+            tabs.push({ id: 'moves', label: 'Moves' });
+        }
+        tabs.push({ id: 'evo', label: 'Evolution' });
+        return tabs;
+    }
+
+    function builderActiveCardTab(card) {
+        const available = builderCardTabsFor(card).map(tab => tab.id);
+        return available.includes(state.builderCardTab) ? state.builderCardTab : 'card';
+    }
+
+    function renderBuilderCardTabBody(card, tab) {
+        if (tab === 'evo') return renderBuilderRecommendations(card);
+        if (tab === 'moves') {
+            const abilities = card.abilities || (card.ability ? [card.ability] : []);
+            return `${renderBuilderMoves(card)}
+                ${abilities.length ? `<div class="deck-builder-preview-abilities detail-abilities">${abilities.map(a => `<div class="detail-ability-row"><strong>${escapeHtml(a.name || 'Ability')}</strong><p>${escapeHtml(a.description || '')}</p></div>`).join('')}</div>` : ''}`;
+        }
+        const flavorText = creatureDescriptionFor(card);
+        const stats = card.type === 'SIEGLING'
+            ? `<div><span>Health</span><strong>${card.health ?? '-'}</strong></div>
+                <div><span>Speed</span><strong>${card.speed ?? '-'}</strong></div>
+                <div><span>Evolution</span><strong>${escapeHtml(card.evolvesFromName || card.evolvesFromId || 'Base')}</strong></div>`
+            : '';
+        return `${flavorText ? `<p class="deck-builder-preview-flavor">${escapeHtml(flavorText)}</p>` : ''}
+            ${stats ? `<div class="detail-grid">${stats}</div>` : ''}`;
     }
 
     function builderAddLabel(cardId) {
@@ -4030,7 +4267,7 @@
         const costElement = card.costElement || card.trapBucketElement || card.element || 'NEUTRAL';
         return `<div class="deck-builder-preview-card deck-builder-preview-card-compact" style="--el:${elementColor(card.element)}">
             <div class="deck-builder-compact-head">
-                <div class="builder-card-mark">${renderElementIcon(card.element)}</div>
+                <div class="builder-card-mark">${renderBuilderRowThumb(card)}</div>
                 <div>
                     <strong>${escapeHtml(card.name)}</strong>
                     <span>${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))} / ${escapeHtml(format(card.rarity))}</span>
@@ -4057,8 +4294,13 @@
         </div>`;
     }
 
+    function renderBuilderRowThumb(card) {
+        return (window.SieglingsCardBinderVisual?.renderCardRowThumb)
+            ? window.SieglingsCardBinderVisual.renderCardRowThumb(card)
+            : renderElementIcon(card?.element);
+    }
+
     function renderBuilderBinderRow(card) {
-        const owned = ownedCount(card.id);
         const count = state.builderCounts[card.id] || 0;
         const maxCopies = builderCardLimit(card.id);
         const total = builderTotal();
@@ -4066,10 +4308,10 @@
         const activeClass = card.id === state.builderPreviewCardId ? ' is-active' : '';
         return `<article class="deck-builder-binder-row${activeClass}" style="--el:${elementColor(card.element)}">
             <button type="button" class="deck-builder-binder-main" data-select-builder-card="${escapeAttr(card.id)}">
-                <div class="builder-card-mark">${renderElementIcon(card.element)}</div>
+                <div class="builder-card-mark">${renderBuilderRowThumb(card)}</div>
                 <div class="builder-row-copy">
                     <strong>${escapeHtml(card.name)}</strong>
-                    <span>${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))} / Owned x${owned}</span>
+                    <span>${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))}</span>
                     <small>${escapeHtml(format(card.rarity))}${card.evolvesFromId ? ` / Evolves from ${escapeHtml(card.evolvesFromName || findCard(card.evolvesFromId)?.name || 'base')}` : ''}</small>
                 </div>
                 ${count > 0 ? `<span class="deck-builder-binder-count${count >= maxCopies ? ' is-max' : ''}">In deck x${count}</span>` : ''}
@@ -4092,7 +4334,7 @@
             const activeClass = cardId === state.builderPreviewCardId ? ' is-active' : '';
             return `<div class="deck-builder-deck-row${activeClass}" style="--el:${elementColor(card?.element)}">
                 <button type="button" class="deck-builder-deck-row-main" data-select-builder-card="${escapeAttr(cardId)}">
-                    <div class="builder-card-mark">${renderElementIcon(card?.element)}</div>
+                    <div class="builder-card-mark">${renderBuilderRowThumb(card)}</div>
                     <div class="builder-row-copy">
                         <strong>${escapeHtml(card?.name || cardId)}</strong>
                         <span>${card ? `${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))}` : 'Card'}</span>
@@ -4109,8 +4351,40 @@
 
     function bindDeckBuilderPageEvents(root) {
         if (!root) return;
+        root.querySelectorAll('[data-builder-tab]').forEach(btn => btn.addEventListener('click', () => {
+            state.builderTab = btn.dataset.builderTab;
+            renderDeckBuilderPage();
+        }));
+        root.querySelectorAll('[data-builder-card-tab]').forEach(btn => btn.addEventListener('click', () => {
+            state.builderCardTab = btn.dataset.builderCardTab;
+            renderDeckBuilderPage();
+        }));
+        root.querySelectorAll('[data-builder-type]').forEach(btn => btn.addEventListener('click', () => {
+            state.builderTypeFilter = btn.dataset.builderType;
+            const select = document.getElementById('builderTypeSelect');
+            if (select) select.value = state.builderTypeFilter;
+            resetBuilderVisibleLimit();
+            renderDeckBuilderPage();
+        }));
+        root.querySelector('[data-open-builder-filters]')?.addEventListener('click', () => toggleTray('filter'));
+        root.querySelector('[data-clear-builder-filters]')?.addEventListener('click', () => {
+            state.builderSearch = '';
+            state.builderElementFilter = 'ALL';
+            state.builderTypeFilter = 'ALL';
+            state.builderRarityFilter = 'ALL';
+            syncBuilderFilterTrayControls();
+            resetBuilderVisibleLimit();
+            renderDeckBuilderPage();
+        });
+        root.querySelector('[data-builder-toggle-settings]')?.addEventListener('click', () => {
+            state.builderDeckSettingsOpen = !state.builderDeckSettingsOpen;
+            renderDeckBuilderPage();
+        });
         root.querySelectorAll('[data-select-builder-card]').forEach(btn => btn.addEventListener('click', () => {
             state.builderPreviewCardId = btn.dataset.selectBuilderCard;
+            // Jump straight to the Card pane on mobile so a tap on a binder row
+            // does not silently update an off-screen panel.
+            if (isMobileDeckBuilderViewport()) state.builderTab = 'card';
             renderDeckBuilderPage();
         }));
         root.querySelectorAll('[data-add-builder-card]').forEach(btn => btn.addEventListener('click', (event) => {
@@ -8358,6 +8632,10 @@
         if (descriptions) {
             state.creatureDescriptions = indexCreatureDescriptions(descriptions);
         }
+        // Paint the last board within its TTL instead of a loading emblem; the
+        // fetch in loadAll() replaces it as soon as it lands.
+        const leaderboards = readCache('leaderboards', LEADERBOARD_CACHE_TTL_MS);
+        if (leaderboards && !leaderboards.error) applyLeaderboardsPayload(leaderboards);
         if (state.options && !state.selectedCardId) {
             state.selectedCardId = state.options.cardCatalog?.[0]?.id || null;
         }
@@ -8733,7 +9011,11 @@
         const next = Math.max(0, Math.min(copyLimit, current + delta));
         if (next) state.builderCounts[cardId] = next;
         else delete state.builderCounts[cardId];
-        if (delta > 0 || !state.builderPreviewCardId) state.builderPreviewCardId = cardId;
+        // Adding a copy must never hijack the Card View. Players add several
+        // cards in a row from the binder/recommendation lists, and swapping the
+        // inspected card under them also re-flowed the recommendations they
+        // were working through.
+        if (!state.builderPreviewCardId) state.builderPreviewCardId = cardId;
         if (state.route === 'deck-builder') {
             renderDeckBuilderPage();
         }

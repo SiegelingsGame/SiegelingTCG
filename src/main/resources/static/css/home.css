@@ -1399,6 +1399,20 @@ body.help-modal-open {
     font-weight: 700;
 }
 
+/* Dashboard panels are short: the browser-panel padding would make the
+   leaderboard taller while loading than it is once its rows land. */
+.panel-loading.compact {
+    gap: 10px;
+    padding: 20px 12px;
+    font-size: 0.9rem;
+}
+
+.panel-loading.compact .panel-loading-spinner {
+    width: 26px;
+    height: 26px;
+    border-width: 2px;
+}
+
 .panel-loading-spinner {
     width: 40px;
     height: 40px;
@@ -4153,6 +4167,25 @@ select.search-input { color-scheme: dark; }
     white-space: nowrap;
 }
 
+.home-lb-error {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 14px;
+    border: 1px solid rgba(255, 138, 138, 0.34);
+    border-radius: 8px;
+    background: rgba(255, 90, 90, 0.07);
+}
+
+.home-lb-error span {
+    min-width: 0;
+    flex: 1 1 180px;
+    color: #f3d9d9;
+    font-weight: 800;
+}
+
 .command-panel-head {
     display: flex;
     align-items: flex-start;
@@ -5778,6 +5811,36 @@ body.starter-onboarding-active .starter-gate h1 {
     isolation: isolate;
 }
 
+/* Row thumbnails: the Siegling cutout (or a Strategy/Deception's notch art)
+   in place of the element badge. Same absolute-inset contract as
+   .element-icon-art — .builder-card-mark is the sized, clipped, positioned
+   box these are measured against. */
+.builder-card-mark .card-row-thumb-art,
+.builder-card-mark .card-row-thumb-notch {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    pointer-events: none;
+}
+
+/* Show the whole cutout rather than cropping into it: the illustration has a
+   transparent background, so letterboxing it costs nothing visually and keeps
+   the creature recognisable at 36px. */
+.builder-card-mark .card-row-thumb-art {
+    object-fit: contain;
+    object-position: center;
+    transform: none;
+}
+
+.builder-card-mark .card-row-thumb-notch {
+    object-fit: contain;
+    padding: 4px;
+}
+
 .builder-card-mark .element-icon-art,
 .builder-catalog-art .element-icon-art {
     width: 100%;
@@ -5883,6 +5946,269 @@ body.starter-onboarding-active .starter-gate h1 {
     grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(280px, 0.85fr);
     gap: 12px;
     align-items: start;
+}
+
+/* Grid and flex children default to min-width:auto, so a nowrap chip row or a
+   long card name sizes the track to its content and pushes the pane past the
+   page. Every builder pane and list gets an explicit floor instead. */
+.deck-builder-layout > *,
+.builder-filter-bar,
+.builder-filter-chips,
+.deck-builder-binder-list,
+.deck-builder-deck-list,
+.deck-builder-preview-panel {
+    min-width: 0;
+}
+
+/* Tab strip only drives the single-pane mobile builder; on desktop every pane
+   is visible at once so the strip is hidden there. */
+.deck-builder-tabs {
+    display: none;
+}
+
+.builder-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.builder-filter-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.builder-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 0;
+    cursor: pointer;
+    padding: 7px 12px;
+    min-height: 34px;
+    border-radius: 999px;
+    font: inherit;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.builder-chip.is-active {
+    color: #0b1220;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--builder-accent, var(--accent)) 82%, #fff6c8), var(--builder-accent, var(--accent)));
+    box-shadow: 0 0 12px color-mix(in srgb, var(--builder-accent, var(--accent)) 45%, transparent);
+}
+
+.builder-chip-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    font-size: 10px;
+    background: var(--builder-accent, var(--accent));
+    color: #0b1220;
+}
+
+.deck-builder-card-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 150px) minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+    margin-bottom: 10px;
+}
+
+/* The hero art is a thumbnail beside the identity block, not a showcase card.
+   A definite 1fr track is required or width:100% collapses to the card's
+   min-content and overruns the column (same trap as the Card View tray). */
+.deck-builder-card-hero .detail-card-preview-wrap {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+}
+
+.deck-builder-card-hero .detail-card-preview {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    min-height: 0;
+    margin: 0;
+}
+
+/* The card's stat/cost/description body is content-sized, so in the hero's
+   narrow column it forced a 120x326 sliver instead of a card shape. Everything
+   in it is already beside the art (the quickstat pills) or one tab away
+   (Overview), so the hero keeps just the frame, notches and illustration. */
+.deck-builder-card-hero .detail-card-preview .binder-card-body {
+    display: none;
+}
+
+.deck-builder-card-hero .detail-card-preview .binder-card-art {
+    height: clamp(96px, 26vw, 132px);
+}
+
+.deck-builder-card-hero .detail-card-preview .binder-card-header {
+    min-height: 0;
+}
+
+/* OVERLAY cutouts carry the designer's card-window framing (most sit around
+   scale 1.67). At hero size that painted the creature 40px into the identity
+   column beside it, so the hero fits the art to the card instead. Scoped to
+   the hero: the full-size card face elsewhere keeps its authored framing. */
+/* !important because renderBinderCardPreview writes the framing as an inline
+   transform, which no stylesheet rule can outrank otherwise. */
+.deck-builder-card-hero .detail-card-preview .binder-card-overlay-art-card,
+.deck-builder-card-hero .detail-card-preview .binder-card-custom-art {
+    transform: none !important;
+    object-fit: contain;
+}
+
+.deck-builder-card-identity {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.deck-builder-card-identity strong {
+    font-size: 16px;
+    line-height: 1.2;
+}
+
+.deck-builder-card-identity > span {
+    color: var(--text-dim);
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.deck-builder-card-quickstats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+/* Direct children only: the cost pill nests emblem <span>s, and the generic
+   descendant form gave each token the pill's padding (a 12px token measured
+   20px wide). */
+.deck-builder-card-quickstats > span {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 5px;
+    padding: 4px 9px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+}
+
+.deck-builder-card-quickstats small {
+    color: var(--text-dim);
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.deck-builder-card-quickstats b {
+    font-size: 13px;
+}
+
+/* Cost reads as notch emblems, one per energy, matching how the cost is shown
+   on the card face itself. The count is capped in JS so the row cannot wrap
+   and grow the hero, pushing the add stepper off screen. */
+.builder-cost-emblems {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 2px;
+}
+
+/* style.css's .energy-token carries an 18px box and a 2px border; both width
+   and min-width have to be reset or the token stays full size in the pill. */
+.builder-cost-emblems .energy-token {
+    width: 12px;
+    height: 12px;
+    min-width: 12px;
+    max-width: 12px;
+    margin: 0;
+    border-width: 1px;
+    border-radius: 50%;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.38);
+    background: var(--notch-icon, none), var(--notch, #8a96a8);
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.builder-cost-overflow {
+    margin-left: 1px;
+}
+
+.deck-builder-card-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 3px;
+    margin-bottom: 10px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.deck-builder-card-tab {
+    flex: 1;
+    border: 0;
+    cursor: pointer;
+    padding: 8px 6px;
+    min-height: 34px;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-dim);
+    font: inherit;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.deck-builder-card-tab.is-active {
+    color: #0b1220;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--builder-accent, var(--accent)) 82%, #fff6c8), var(--builder-accent, var(--accent)));
+}
+
+.deck-builder-settings-toggle {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    width: 100%;
+    text-align: left;
+    margin-bottom: 10px;
+}
+
+.deck-builder-settings-toggle small {
+    color: var(--text-dim);
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: none;
+    letter-spacing: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+}
+
+.builder-recommendation-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
 .deck-builder-binder-list,
@@ -9122,10 +9448,10 @@ body.gacha-active {
 
     .profile-modal {
         align-items: start;
-        padding: 12px 10px calc(16px + env(safe-area-inset-bottom, 0px));
+        padding: 12px 10px calc(4px + var(--hud-clearance));
     }
     .profile-edit-panel {
-        max-height: calc(100dvh - 28px - env(safe-area-inset-bottom, 0px));
+        max-height: calc(100dvh - var(--hud-clearance) - 16px);
     }
 }
 
@@ -9186,6 +9512,16 @@ body.gacha-active {
         height: 100dvh;
         min-height: 0;
         overflow: hidden;
+    }
+    /* One clearance for every popup that shares the screen with the docked HUD.
+       --bottom-hud-height is measured from the nav itself (JS), so it already
+       carries the nav's own bottom safe-area padding — never add the inset on
+       top of it. The fallback matches a signed-out four-row HUD and only
+       applies for the frame before the first measurement; the nav grows past it
+       once a session's extra action buttons appear, which is exactly why the
+       measured value has to drive this rather than a constant. */
+    :root {
+        --hud-clearance: calc(var(--bottom-hud-height, 205px) + 8px);
     }
     .home-nav {
         position: fixed;
@@ -9278,10 +9614,20 @@ body.gacha-active {
     .notif-panel {
         top: auto;
         right: 10px;
-        bottom: calc(200px + env(safe-area-inset-bottom, 0px));
+        /* Sit above the HUD's top edge rather than 200px off the bottom: that
+           constant was shorter than the nav is in practice, so the list ran
+           under it. */
+        bottom: var(--hud-clearance);
         left: 10px;
         width: auto;
-        max-height: calc(100vh - 240px - env(safe-area-inset-bottom, 0px));
+        /* The panel is anchored to the docked HUD and grows upward, so this
+           ceiling is the only thing keeping a full list out of the status bar.
+           Subtracting the top inset is what keeps that 40px gap measured from
+           the bottom of the safe area rather than the bottom of the display.
+           dvh rather than vh: when browser chrome is visible vh is the taller
+           number, which would put the top edge back under the inset. */
+        max-height: calc(100vh - var(--hud-clearance) - env(safe-area-inset-top, 0px) - 40px);
+        max-height: calc(100dvh - var(--hud-clearance) - env(safe-area-inset-top, 0px) - 40px);
     }
     .help-modal {
         padding: 0;
@@ -9293,16 +9639,26 @@ body.gacha-active {
         border-radius: 0;
         border: 0;
     }
-    /* Full-screen takeover on phones: the modal owns the viewport so the
-       chat reads like a native messaging screen. */
+    /* A popup card, not a takeover: the hub page stays visible behind the
+       backdrop so Friends reads as an overlay you dismiss, not a screen you
+       navigated to. Height is capped well under the viewport and the panel
+       clears the docked HUD at the bottom. */
     .friends-modal {
-        padding: 0;
+        align-content: center;
+        /* The old bottom padding cleared the home indicator but not the HUD, so
+           the centred card overlapped it by ~90px. The clearance already covers
+           the inset, so it replaces that term rather than stacking with it. */
+        padding: calc(12px + env(safe-area-inset-top, 0px)) 10px calc(12px + var(--hud-clearance));
     }
     .friends-panel {
         width: 100%;
-        height: 100dvh;
-        max-height: none;
-        border-radius: 0;
+        height: min(74dvh, 620px);
+        /* Padding shrinks the flex box, but max-height is resolved against the
+           viewport, so it needs the same clearance or a tall card overflows the
+           padding it was supposed to respect. */
+        max-height: calc(100dvh - var(--hud-clearance) - env(safe-area-inset-top, 0px) - 40px);
+        border-radius: 16px;
+        box-shadow: 0 28px 80px rgba(0, 0, 0, 0.66);
     }
     .friends-body {
         -webkit-overflow-scrolling: touch;
@@ -9318,14 +9674,13 @@ body.gacha-active {
     .detail-panel {
         top: auto;
         right: 10px;
-        /* Sit 8px above the docked HUD's top (the yellow accent line). The HUD
-           height is measured into --bottom-hud-height by JS; 170px is a safe
-           fallback before the first measurement. */
-        bottom: calc(var(--bottom-hud-height, 170px) + 8px);
+        /* Sit above the docked HUD's top (the yellow accent line) via the
+           shared clearance, so trays and popups can never drift apart. */
+        bottom: var(--hud-clearance);
         left: 10px;
         width: auto;
-        max-height: calc(100vh - var(--bottom-hud-height, 170px) - env(safe-area-inset-top, 0px) - 84px);
-        max-height: calc(100dvh - var(--bottom-hud-height, 170px) - env(safe-area-inset-top, 0px) - 84px);
+        max-height: calc(100vh - var(--hud-clearance) - env(safe-area-inset-top, 0px) - 76px);
+        max-height: calc(100dvh - var(--hud-clearance) - env(safe-area-inset-top, 0px) - 76px);
         transform: translateY(0);
         background:
             linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 40%),
@@ -9341,7 +9696,7 @@ body.gacha-active {
        the screen — the panel scrolls internally instead. */
     .detail-panel {
         top: calc(env(safe-area-inset-top, 0px) + 64px);
-        bottom: calc(var(--bottom-hud-height, 170px) + 8px);
+        bottom: var(--hud-clearance);
         max-height: none;
     }
     .tray-backdrop {
@@ -9372,32 +9727,142 @@ body.gacha-active {
     .deck-builder-layout {
         grid-template-columns: 1fr;
     }
-    /* Card View leads the stack so adding cards never shifts it; the deck
-       pane sits last so its list growing doesn't push the binder around. */
-    .deck-builder-inspector {
-        order: 1;
+    /* One pane at a time on phones. Stacking binder + card view + deck list in
+       one column meant every add was followed by a long scroll hunt; the tab
+       strip gives each list the full viewport instead. */
+    .deck-builder-tabs {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 4px;
+        padding: 3px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.04);
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+        position: sticky;
+        top: 0;
+        z-index: 3;
     }
-    .deck-builder-binder {
-        order: 2;
+    .deck-builder-tab {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        border: 0;
+        cursor: pointer;
+        min-height: 44px;
+        padding: 6px 4px;
+        border-radius: 10px;
+        background: transparent;
+        color: var(--text-dim);
+        font: inherit;
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
     }
-    .deck-builder-deck-pane {
-        order: 3;
+    .deck-builder-tab.is-active {
+        color: #0b1220;
+        background: linear-gradient(180deg, color-mix(in srgb, var(--builder-accent, var(--accent)) 82%, #fff6c8), var(--builder-accent, var(--accent)));
     }
-    /* Keep the lists bounded + scrollable on mobile. Unbounded height made the
-       page enormous in portrait (layout broke after rotation and iOS Safari
-       could crash under the paint load). */
+    .deck-builder-tab-badge {
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0;
+        text-transform: none;
+        opacity: 0.85;
+    }
+    .deck-builder-tab-badge.is-complete {
+        color: #0b3d1f;
+    }
+    .deck-builder-layout[data-builder-tab-active="binder"] .deck-builder-inspector,
+    .deck-builder-layout[data-builder-tab-active="binder"] .deck-builder-deck-pane,
+    .deck-builder-layout[data-builder-tab-active="deck"] .deck-builder-binder,
+    .deck-builder-layout[data-builder-tab-active="deck"] .deck-builder-inspector,
+    .deck-builder-layout[data-builder-tab-active="card"] .deck-builder-binder,
+    .deck-builder-layout[data-builder-tab-active="card"] .deck-builder-deck-pane {
+        display: none;
+    }
+    /* With only one pane on screen the lists get the viewport instead of a
+       22vh sliver, which is what forced the constant scrolling. */
     .deck-builder-binder-list {
-        max-height: min(22vh, 200px);
+        max-height: min(58vh, 620px);
         -webkit-overflow-scrolling: touch;
     }
     .deck-builder-deck-list {
-        max-height: min(30vh, 300px);
+        max-height: min(52vh, 560px);
         margin-bottom: 10px;
+        -webkit-overflow-scrolling: touch;
+    }
+    .deck-builder-card-hero {
+        grid-template-columns: minmax(0, 120px) minmax(0, 1fr);
+        gap: 10px;
+    }
+    .deck-builder-page-head {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+    .deck-builder-page-head h1 {
+        font-size: 18px;
+    }
+    .deck-builder-page-head .eyebrow {
+        display: none;
+    }
+    .deck-builder-back-btn {
+        margin-bottom: 4px;
+        padding: 5px 10px;
+        font-size: 11px;
+    }
+    .deck-builder-lock .unlock-card {
+        padding: 8px 10px;
+    }
+    .deck-builder-lock .unlock-card span {
+        font-size: 10px;
+    }
+    .deck-builder-page {
+        margin-top: 8px;
+    }
+    /* The tab strip already names the pane and carries its count, so the
+       per-pane section heads are pure duplication on a phone. */
+    .deck-builder-binder > .section-head {
+        display: none;
+    }
+    /* One scrolling row instead of three wrapped rows of chips. */
+    .builder-filter-bar {
+        flex-wrap: nowrap;
+        /* space-between on a nowrap overflow row drives the two chip groups
+           into each other once they exceed the width; pack them instead. */
+        justify-content: flex-start;
+        overflow-x: auto;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+        margin-bottom: 8px;
+    }
+    .builder-filter-bar::-webkit-scrollbar {
+        display: none;
+    }
+    /* The groups are flex items with min-width:0, so they shrank below their
+       own chips and the two collided. Dissolve them so every chip is a direct
+       item of the scrolling row and none of them shrink. */
+    .builder-filter-chips {
+        display: contents;
+    }
+    .builder-chip {
+        white-space: nowrap;
+        flex: 0 0 auto;
+    }
+    .deck-builder-preview-panel {
+        max-height: min(64vh, 680px);
+        overflow: auto;
         -webkit-overflow-scrolling: touch;
     }
     .deck-builder-binder-row,
     .deck-builder-deck-row {
-        grid-template-columns: minmax(0, 1fr);
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
         gap: 7px;
     }
     .deck-builder-binder-main,
@@ -9413,7 +9878,7 @@ body.gacha-active {
     }
     .deck-builder-binder-row .builder-stepper,
     .deck-builder-deck-row .builder-stepper {
-        width: 100%;
+        width: auto;
         justify-content: flex-end;
         gap: 5px;
     }
@@ -9425,15 +9890,14 @@ body.gacha-active {
     }
     .deck-builder-preview-panel .binder-card,
     .deck-builder-preview-panel .card-tile {
-        width: min(100%, 190px);
+        width: 100%;
         min-height: 0;
-        margin: 0 auto;
+        margin: 0;
     }
     .deck-builder-preview-card .detail-card-preview {
-        width: min(100%, 190px);
-        transform: scale(0.76);
-        transform-origin: top center;
-        margin-bottom: -52px;
+        width: 100%;
+        transform: none;
+        margin-bottom: 0;
     }
     .deck-builder-preview-card .detail-card-preview .binder-card-art {
         height: clamp(72px, 22vw, 96px);
@@ -9445,11 +9909,7 @@ body.gacha-active {
     .deck-builder-preview-card .detail-card-preview-wrap {
         margin-bottom: 6px;
     }
-    .deck-builder-preview-card .detail-cost-block,
-    .deck-builder-preview-card .detail-grid,
-    .deck-builder-preview-card .detail-abilities {
-        display: none;
-    }
+
     .room-emblem {
         width: 56px;
         height: 56px;
@@ -9596,11 +10056,17 @@ body.gacha-active {
     }
     .shop-card-preview-modal {
         align-items: end;
-        padding: 10px 10px calc(194px + env(safe-area-inset-bottom, 0px));
+        /* 194px was a stand-in for the HUD; the measured height replaces both it
+           and the inset, which the measurement already includes. */
+        padding: 10px 10px var(--hud-clearance);
     }
     .shop-card-preview-panel {
-        max-height: calc(100dvh - 216px - env(safe-area-inset-bottom, 0px));
+        max-height: calc(100dvh - var(--hud-clearance) - env(safe-area-inset-top, 0px) - 24px);
         padding: 12px;
+    }
+    .shop-purchase-confirm-modal {
+        align-items: center;
+        padding: 18px 18px calc(18px + var(--hud-clearance));
     }
     .shop-card-preview-layout {
         grid-template-columns: 1fr;

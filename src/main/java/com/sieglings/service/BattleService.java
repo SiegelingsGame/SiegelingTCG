@@ -336,7 +336,12 @@ public class BattleService {
         if (card.hasMoveLoadout()) {
             List<Ability> printed = movesPoolService.resolvePrintedAbilities(card);
             if (!printed.isEmpty()) {
-                return buildConfiguredBattleAbilities(attacker, card, printed);
+                List<Ability> configured = buildConfiguredBattleAbilities(attacker, card, printed);
+                // A loadout of nothing but auto-applied passives would leave the Siegling with
+                // no battle action at all; fall through to the generated options in that case.
+                if (!configured.isEmpty()) {
+                    return configured;
+                }
             }
         }
 
@@ -416,7 +421,7 @@ public class BattleService {
             if (printed == null) {
                 continue;
             }
-            if (isAutoAppliedTeamAuraDamagePassive(printed)) {
+            if (isAutoAppliedPassive(printed)) {
                 continue;
             }
             Ability battleAbility = buildBattleAbilityFromPrinted(attacker, printed);
@@ -481,12 +486,16 @@ public class BattleService {
     }
 
     /**
-     * Team damage auras (ALL_ALLIES / ROW_ALLIES passives) are applied continuously via
-     * {@link EffectService#recalculateBoardAuraDamageBoosts}; they must not consume a battle action.
+     * Passives the engine keeps applied on its own: team damage auras (ALL_ALLIES / ROW_ALLIES)
+     * via {@link EffectService#recalculateBoardAuraDamageBoosts}, and {@code energy_boost} via
+     * {@link EnergyService}. They must not also show up as battle actions to spend a turn on.
      */
-    private static boolean isAutoAppliedTeamAuraDamagePassive(Ability printed) {
+    private static boolean isAutoAppliedPassive(Ability printed) {
         if (printed == null || !printed.isPassive()) {
             return false;
+        }
+        if (AbilityEffectKeys.ENERGY_BOOST.equals(printed.getEffectType())) {
+            return true;
         }
         if (!AbilityEffectKeys.DAMAGE_BOOST.equals(printed.getEffectType())) {
             return false;

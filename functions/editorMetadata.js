@@ -98,6 +98,12 @@ const EFFECT_TYPES = [
     targetHints: ['SINGLE_ALLY', 'ALL_ALLIES', 'ROW_ALLIES', 'ROW_SELECT_ALLIES', 'PASSIVE']
   },
   {
+    key: 'energy_boost',
+    label: 'Energy Boost',
+    description: 'Generates energy with no notch link or socket needed. Pick the energy type, or leave it on Card element to generate the element of whichever card the ability names — the targeted card when it points at one, otherwise the card carrying it. Passive pays out every turn the card is on the board; an action overcharges the owner until the battle phase begins.',
+    targetHints: ['PASSIVE', 'SELF', 'SINGLE_ALLY', 'ALL_ALLIES', 'ROW_ALLIES', 'ROW_SELECT_ALLIES']
+  },
+  {
     key: 'connected_allies_slow',
     label: 'Connected Allies Slow',
     description: "Reduces directly linked allied Sieglings' Speed by the effect value for the turn.",

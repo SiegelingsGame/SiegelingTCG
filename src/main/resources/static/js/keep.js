@@ -837,6 +837,7 @@
         if (data?.rewardClaimed) {
             const reward = data.rewardClaimed;
             const parts = [`+${number(reward.gold)} Siegecoins`, `+${number(reward.remnants)} Remnants`];
+            if (number(reward.keeperXpAwarded) > 0) parts.push(`+${number(reward.keeperXpAwarded)} Keeper XP`);
             if (reward.decorationName) parts.push(`✿ ${reward.decorationName}`);
             if (number(reward.rapportGained) > 0) {
                 const rapport = reward.rapport || {};
@@ -998,6 +999,9 @@
         } else if (number(result.relationshipDelta) !== 0) {
             const delta = number(result.relationshipDelta);
             showNotice(delta > 0 ? `Affinity +${delta}` : `Affinity ${delta}`, result.npcName || 'Voice');
+        }
+        if (number(result.keeperXpAwarded) > 0) {
+            showNotice(`+${number(result.keeperXpAwarded)} XP for lending an ear`, 'Voice of Sanctuary');
         }
         const choices = document.getElementById('dialogueChoices');
         if (choices) choices.innerHTML = result.followupConversationId
@@ -1308,12 +1312,13 @@
 
         const activeTeams = activeConstructionList().length;
         const teamCapacity = Math.max(1, number(snapshot.constructionSlots) || 1);
-        text('constructionTeamAmount', `${activeTeams}/${teamCapacity}`);
+        // Reads as a stock of idle crews: full at rest, counting down as projects claim them.
+        const availableTeams = Math.max(0, teamCapacity - activeTeams);
+        text('constructionTeamAmount', `${availableTeams}/${teamCapacity}`);
         const constructionPill = document.querySelector('.construction-team-pill');
         if (constructionPill) {
-            const available = Math.max(0, teamCapacity - activeTeams);
-            constructionPill.setAttribute('aria-label', `Open construction projects: ${activeTeams} active, ${available} available`);
-            constructionPill.title = `${activeTeams} active · ${available} available`;
+            constructionPill.setAttribute('aria-label', `Open construction projects: ${availableTeams} of ${teamCapacity} teams free, ${activeTeams} building`);
+            constructionPill.title = `${availableTeams} free · ${activeTeams} building`;
         }
     }
 
@@ -2885,7 +2890,17 @@
             <span class="reward-value">${number(order.reward?.gold)} Siegecoins<br>${number(order.reward?.remnants)} Remnants</span>
             <button class="panel-button" type="button" data-claim-keep-reward="weekly_order" ${order.canClaim ? '' : 'disabled'}>${order.claimed ? 'Filled' : order.canClaim ? 'Fill order' : 'Gather materials'}</button>
         </section>`;
-        return `<div class="rewards-section"><span class="eyebrow">Keep rewards</span>${milestoneCards}${orderCard}<section class="reward-card tribute-card">
+        const repeatables = (state.snapshot.repeatableProjects?.projects || []).map((project) => {
+            const needs = (project.requirements || []).map((need) => `<span class="${number(need.have) >= number(need.amount) ? 'is-met' : ''}">${need.id === 'timber' ? '▰' : materialIcon(need.id)} ${number(need.have)}/${number(need.amount)} ${escapeHtml(need.name)}</span>`).join('');
+            const timber = number(project.timberCost) ? `<span class="${number(state.snapshot.resources?.timber) >= number(project.timberCost) ? 'is-met' : ''}">▰ ${number(state.snapshot.resources?.timber)}/${number(project.timberCost)} Timber</span>` : '';
+            const reward = project.reward || {};
+            return `<section class="reward-card repeatable-project-card ${project.claimed ? 'is-claimed' : ''}">
+                <span><small>${escapeHtml(project.cadence || 'Repeatable project')}</small><strong>${escapeHtml(project.name)}</strong><p>${escapeHtml(project.description || '')}</p><div class="order-reqs">${needs}${timber}</div></span>
+                <span class="reward-value">+${number(reward.xp)} XP<br>${number(reward.gold)} Siegecoins<br>${number(reward.remnants)} Remnants</span>
+                <button class="panel-button" type="button" data-claim-keep-reward="${escapeAttr(project.id)}" ${project.canClaim ? '' : 'disabled'}>${project.claimed ? 'Complete' : project.canClaim ? 'Complete project' : 'Gather supplies'}</button>
+            </section>`;
+        }).join('');
+        return `<div class="rewards-section"><span class="eyebrow">Repeatable restoration</span>${repeatables}<span class="eyebrow">Keep rewards</span>${milestoneCards}${orderCard}<section class="reward-card tribute-card">
             <span><small>Weekly sanctuary tribute</small><strong>A Gift Returned</strong><p>${escapeHtml(tributeTime)}</p></span>
             <span class="reward-value">${number(tribute.reward?.gold)} Siegecoins<br>${number(tribute.reward?.remnants)} Remnants</span>
             <button class="panel-button" type="button" data-claim-keep-reward="weekly_tribute" ${tribute.ready ? '' : 'disabled'}>${tribute.ready ? 'Claim tribute' : 'Not ready'}</button>
@@ -3993,18 +4008,21 @@
                 trust,
                 trustMax: 7,
                 stage,
-                summary: choiceCostHint(choice || {}) ? `Spent ${choiceCostHint(choice)}.` : 'No stores changed.'
+                summary: choiceCostHint(choice || {}) ? `Spent ${choiceCostHint(choice)}.` : 'No stores changed.',
+                keeperXpAwarded: 25
             };
         } else if (path.endsWith('/reward')) {
             const item = (snapshot.milestones || []).find((milestone) => milestone.id === body.rewardId);
+            const repeatable = (snapshot.repeatableProjects?.projects || []).find((project) => project.id === body.rewardId);
             const taskSlot = (snapshot.enclave?.slots || []).find((slot) =>
                 (slot.tasks || []).some((entry) => entry.id === body.rewardId));
             const task = (taskSlot?.tasks || []).find((entry) => entry.id === body.rewardId)
                 || (snapshot.enclave?.slots || []).map((slot) => slot.mission).find((entry) => entry?.id === body.rewardId);
-            const reward = item?.reward || task || snapshot.weeklyTribute?.reward || {};
+            const reward = item?.reward || repeatable?.reward || task || snapshot.weeklyTribute?.reward || {};
             snapshot.resources.gold = number(snapshot.resources.gold) + number(reward.gold);
             snapshot.resources.remnants = number(snapshot.resources.remnants) + number(reward.remnants);
             if (item) { item.claimed = true; item.canClaim = false; }
+            if (repeatable) { repeatable.claimed = true; repeatable.canClaim = false; }
             if (task) {
                 // Tasks repeat: banking one clears progress and pays rapport once.
                 task.progress = 0;
@@ -4026,7 +4044,7 @@
                     total + (slot.tasks || []).filter((entry) => entry.complete).length, 0);
             }
             if (body.rewardId === 'weekly_tribute' && snapshot.weeklyTribute) snapshot.weeklyTribute.ready = false;
-            snapshot.rewardClaimed = { id: body.rewardId, gold: number(reward.gold), remnants: number(reward.remnants) };
+            snapshot.rewardClaimed = { id: body.rewardId, gold: number(reward.gold), remnants: number(reward.remnants), keeperXpAwarded: number(reward.xp) || 50 };
             if (task && taskSlot?.resident) {
                 snapshot.rewardClaimed.rapportGained = number(task.rapport);
                 snapshot.rewardClaimed.rapportResidentId = taskSlot.resident.id;
