@@ -12,9 +12,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -169,6 +171,64 @@ class SiegeSieglingUnlockTest {
         } finally {
             swapField("accountService", realAccounts);
             swapField("progressionService", realProgressions);
+        }
+    }
+
+    /**
+     * The #711 unlock only updated {@code roster()}. {@code newRun} still keyed
+     * off the catalog flag, so a found Siegeling that the picker offered was
+     * rejected at Start. Force the lead card off the catalog-starter list so
+     * this holds even when the local catalog has not flagged any starters.
+     */
+    @Test
+    void startingARunRejectsACatalogLockedSieglingUntilItIsUnlocked() throws Exception {
+        SieglingCard target = lockedSiegling();
+        assertNotNull(target);
+        com.sieglings.model.TrainerCard knight = SiegeStarterTestSupport.starterKnight(content);
+        List<String> warband = SiegeStarterTestSupport.starterIds(content, knight, target);
+
+        SiegeContentService spyContent = org.mockito.Mockito.spy(content);
+        org.mockito.Mockito.doAnswer(inv -> {
+            SieglingCard s = inv.getArgument(0);
+            if (s != null && target.getId().equals(s.getId())) {
+                return false;
+            }
+            return inv.callRealMethod();
+        }).when(spyContent).isExpeditionStarter(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyBoolean());
+
+        Object realContent = swapField("content", spyContent);
+        try {
+            IllegalArgumentException locked = assertThrows(IllegalArgumentException.class,
+                    () -> siegeService.newRun(null, knight.getId(), warband, "STANDARD"),
+                    "a catalog-locked Siegeling must not start a run for a guest");
+            assertTrue(locked.getMessage().contains("locked"), locked.getMessage());
+
+            PlayerProgressionEntity progression = new PlayerProgressionEntity();
+            progression.setSiegeUnlockedSieglings(List.of(target.getId()));
+            com.sieglings.service.AccountService accounts = org.mockito.Mockito.mock(com.sieglings.service.AccountService.class);
+            com.sieglings.persistence.entity.AccountUser user = new com.sieglings.persistence.entity.AccountUser();
+            user.setId("unlock-start-user");
+            org.mockito.Mockito.when(accounts.findUser(org.mockito.ArgumentMatchers.anyString())).thenReturn(user);
+            PlayerProgressionService progressions = org.mockito.Mockito.mock(PlayerProgressionService.class);
+            org.mockito.Mockito.when(progressions.getOrCreate(user)).thenReturn(progression);
+            org.mockito.Mockito.when(progressions.isSiegeSieglingUnlocked(
+                    org.mockito.ArgumentMatchers.eq(progression), org.mockito.ArgumentMatchers.anyString()))
+                    .thenAnswer(inv -> target.getId().equalsIgnoreCase(inv.getArgument(1)));
+
+            Object realAccounts = swapField("accountService", accounts);
+            Object realProgressions = swapField("progressionService", progressions);
+            try {
+                Map<String, Object> started = assertDoesNotThrow(
+                        () -> siegeService.newRun("Bearer test", knight.getId(), warband, "STANDARD"),
+                        "an account unlock must be enough to start with that Siegeling");
+                assertNotNull(started.get("token"), "the run must actually start");
+            } finally {
+                swapField("accountService", realAccounts);
+                swapField("progressionService", realProgressions);
+            }
+        } finally {
+            swapField("content", realContent);
         }
     }
 
