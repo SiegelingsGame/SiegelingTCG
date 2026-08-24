@@ -51,6 +51,7 @@ let hoveredHandIndex = null;
 let hoveredBoardCard = null;
 /** Persisted board selection for live preview / drawer ({ isPlayer, row, col, instanceId }). */
 let arenaSelection = null;
+let lastActingPreviewInstanceId = null;
 /** Cached overlay structure fingerprint per side; skips link/nexus rebuild when board topology is unchanged. */
 const boardOverlayFingerprints = { player: '', enemy: '' };
 let pendingClaimTarget = null;
@@ -62,16 +63,30 @@ let phaseTransitionTimer = null;
 // down — a never-resolved await here would wedge the battle action queue and
 // freeze the game (auto-advance is gated on the queue being idle).
 let phaseTransitionResolve = null;
+let drawAbilityRevealTimer = null;
+let drawAbilityRevealRun = 0;
 let coinFlipDismissedRoomId = null;
 let handTouchGesture = null;
-/** @type {null | { handIndex: number, pointerId: number, startX: number, startY: number, active: boolean, ghost: HTMLElement | null, sourceEl: HTMLElement | null }} */
+/** @type {null | { handIndex: number, pointerId: number, startX: number, startY: number, active: boolean, ghost: HTMLElement | null, sourceEl: HTMLElement | null, captureEl: HTMLElement | null }} */
 let cardDragSession = null;
 let cardDragSuppressClickUntil = 0;
+// A placement POST is in flight. The hand still shows the card until the server
+// answers, so without this guard a second tap/drop fires a duplicate `place`
+// that the server rejects — leaving the client with a dead selection and a card
+// that looks stuck in hand while its twin is already on the board.
+let placementRequestInFlight = false;
+// Hand slot committed to the server but not yet confirmed; hidden from the hand
+// for the duration so the card cannot be picked up twice.
+let pendingHandRemovalIndex = null;
 const CARD_DRAG_THRESHOLD_PX = 10;
 let handAutoScrollFrame = null;
 let handAutoScrollDirection = 0;
 let handAutoScrollAxis = null;
 let handSelectorScaleFrame = null;
+// Fixed number of hand slots the desktop hand selector sizes itself around, so
+// a card keeps the same footprint whether the player holds two or nine. Matches
+// the opening hand plus the first few draws; anything past it scrolls.
+const HAND_SELECTOR_DESKTOP_CARD_SLOTS = 6;
 let previewCardScaleFrame = null;
 let framedSummaryFitFrame = null;
 let siegeKnightCardFitFrame = null;
@@ -4778,8 +4793,23 @@ function resolvePhaseTransitionBanner() {
     }
 }
 
+// The scrim is what makes the banner a beat rather than decoration: it blocks
+// taps on the board and the battle dock for as long as the banner holds.
+function setPhaseTransitionScrimVisible(visible) {
+    const scrim = document.getElementById('phaseTransitionScrim');
+    if (!scrim) return;
+    if (visible) {
+        scrim.classList.remove('hidden');
+        requestAnimationFrame(() => scrim.classList.add('visible'));
+    } else {
+        scrim.classList.remove('visible');
+        scrim.classList.add('hidden');
+    }
+}
+
 function hidePhaseTransitionBanner() {
     const banner = document.getElementById('phaseTransitionBanner');
+    setPhaseTransitionScrimVisible(false);
     if (!banner) return;
     if (phaseTransitionTimer) {
         clearTimeout(phaseTransitionTimer);
@@ -4811,6 +4841,7 @@ function showPhaseTransitionBanner(phase, activeSide, durationMs = 2000) {
     kicker.textContent = getPhaseTransitionKicker(phase, activeSide);
     title.textContent = formatPhaseLabel(phase);
     banner.classList.remove('hidden');
+    setPhaseTransitionScrimVisible(true);
     window.SieglingsSounds?.play('phase', 0.5);
     requestAnimationFrame(() => banner.classList.add('visible'));
 
@@ -4818,6 +4849,7 @@ function showPhaseTransitionBanner(phase, activeSide, durationMs = 2000) {
         phaseTransitionResolve = resolve;
         phaseTransitionTimer = setTimeout(() => {
             banner.classList.remove('visible');
+            setPhaseTransitionScrimVisible(false);
             phaseTransitionTimer = setTimeout(() => {
                 banner.classList.add('hidden');
                 phaseTransitionTimer = null;
@@ -4828,8 +4860,15 @@ function showPhaseTransitionBanner(phase, activeSide, durationMs = 2000) {
     });
 }
 
+// True while a phase banner is on screen and still holding its beat. The action
+// queue reads this as half of its "presentation is busy" gate.
+function isPhaseTransitionBannerActive() {
+    return phaseTransitionTimer != null || phaseTransitionResolve != null;
+}
+
 window.showPhaseTransitionBanner = showPhaseTransitionBanner;
 window.hidePhaseTransitionBanner = hidePhaseTransitionBanner;
+window.isPhaseTransitionBannerActive = isPhaseTransitionBannerActive;
 
 function showTurnChangeToast(state) {
     if (!state || state.gameOver) {
@@ -4890,7 +4929,17 @@ function maybeNotifyTurnChange(prevState, nextState) {
     if (nextState.currentPhase !== 'SETUP') {
         return;
     }
-    showTurnChangeToast(nextState);
+    const onIdle = window.SieglingsActionQueue?.onIdle;
+    if (typeof onIdle !== 'function') {
+        showTurnChangeToast(nextState);
+        return;
+    }
+    window.SieglingsActionQueue.onIdle().then(() => {
+        // A newer snapshot may have landed while playback drained; announcing a
+        // turn the player has already moved past would be worse than silence.
+        if (gameState !== nextState) return;
+        showTurnChangeToast(nextState);
+    });
 }
 
 function applyStartedMultiplayerState(data) {
@@ -5078,6 +5127,26 @@ function closeCardPreviewSurfaces() {
     }
 }
 
+/**
+ * True while the opponent (AI or the other player) owns the initiative, so no
+ * local input may reach the server. The backend rejects these actions anyway;
+ * the point here is that the controls must not *look* live while the other side
+ * is thinking — a Knight tap or a card drop that silently no-ops reads as a bug.
+ */
+function isOpponentControlLocked() {
+    if (!gameState || gameState.gameOver) {
+        return false;
+    }
+    const phase = gameState.currentPhase;
+    if (phase === 'MULLIGAN') {
+        return false;
+    }
+    if (phase === 'BATTLE') {
+        return gameState.battleWaitingOn === 'ENEMY';
+    }
+    return gameState.activeSide !== 'PLAYER';
+}
+
 function getTrainerAbilityLockReason(trainer = gameState?.player?.trainer) {
     if (!gameState || !trainer?.active) {
         return 'No active SiegeKnight ability is available right now.';
@@ -5199,7 +5268,7 @@ function renderTrainerAbilityPopup() {
 }
 function openTrainerAbilityPopup() {
     const trainer = gameState?.player?.trainer;
-    if (!trainer) {
+    if (!trainer || isOpponentControlLocked()) {
         return;
     }
     const overlay = document.getElementById('trainerAbilityOverlay');
@@ -5695,7 +5764,58 @@ function getFocusedPreviewCard() {
     }
     const hand = gameState?.player?.hand;
     const hoveredCard = hoveredHandIndex != null && hand ? hand[hoveredHandIndex] : null;
-    return hoveredCard || selectedCard || null;
+    if (hoveredCard) {
+        return hoveredCard;
+    }
+    // Battle docks the hand away, so whatever card was selected back in Setup is
+    // stale — the Siegeling that is actually acting is what the preview is for.
+    const actingCell = getActingPreviewCell();
+    if (actingCell) {
+        return boardCellToPreviewCard(actingCell);
+    }
+    if (isHandHiddenForPhase()) {
+        return null;
+    }
+    return selectedCard || null;
+}
+
+/**
+ * Board cell for the Siegeling the battle queue is on. Falls back to the last
+ * actor while the opponent resolves its own action (the server only hands us a
+ * pendingBattle for our side), so the preview holds steady between actors
+ * instead of flicking back to a hand card.
+ */
+function getActingPreviewCell() {
+    if (!gameState || !isHandHiddenForPhase()) {
+        return null;
+    }
+    const pendingId = gameState.pendingBattle?.instanceId;
+    if (pendingId) {
+        return findBoardCellByInstanceId(pendingId);
+    }
+    return lastActingPreviewInstanceId
+        ? findBoardCellByInstanceId(lastActingPreviewInstanceId)
+        : null;
+}
+
+/**
+ * Hand the preview back to the queue whenever it advances to a new actor. A
+ * board card the player clicked mid-battle still wins until that happens;
+ * without this an arena selection made during Setup would pin the preview to a
+ * bystander for the whole battle phase.
+ */
+function syncActingPreviewFocus() {
+    if (!isHandHiddenForPhase()) {
+        lastActingPreviewInstanceId = null;
+        return;
+    }
+    const pendingId = gameState?.pendingBattle?.instanceId || null;
+    if (!pendingId || pendingId === lastActingPreviewInstanceId) {
+        return;
+    }
+    lastActingPreviewInstanceId = pendingId;
+    clearArenaSelection();
+    hoveredBoardCard = null;
 }
 
 // Distinct, value-adding hints for whatever card is currently focused. Each
@@ -6243,9 +6363,15 @@ function renderDesktopCardPreviewPanel() {
         return;
     }
 
-    const focusedCard = getFocusedPreviewCard() || gameState?.player?.hand?.[0] || null;
+    // The first hand card is only a sensible default while the hand is on
+    // screen; during battle it is an arbitrary card the player cannot act on.
+    const focusedCard = getFocusedPreviewCard()
+        || (isHandHiddenForPhase() ? null : gameState?.player?.hand?.[0])
+        || null;
     if (!focusedCard) {
-        panel.innerHTML = '<div class="desktop-empty-state">Hover or click a Siegeling on either board, or select a hand card, to inspect it here.</div>';
+        panel.innerHTML = isHandHiddenForPhase()
+            ? '<div class="desktop-empty-state">The acting Siegeling shows here as the battle queue advances. Click any card on either board to inspect it instead.</div>'
+            : '<div class="desktop-empty-state">Hover or click a Siegeling on either board, or select a hand card, to inspect it here.</div>';
         return;
     }
 
@@ -6479,7 +6605,7 @@ function fitCardFrameTitle(title) {
     const card = title.closest('.hand-card');
     const computed = window.getComputedStyle(title);
     const maxPx = parseFloat(computed.fontSize) || (title.closest('.desktop-preview-card') ? 15 : 13);
-    const minPx = card?.closest('#playerHand, .hand-lift-layer')
+    const minPx = card?.closest('#playerHand, .hand-lift-layer, #drawAbilityRevealCards')
         ? 6
         : title.closest('.mulligan-showcase')
         ? 7
@@ -6552,7 +6678,7 @@ function fitFramedSummaryList(list) {
 
     const isDesktopPreview = card.classList.contains('desktop-preview-card');
     const isMulligan = card.classList.contains('mulligan-showcase');
-    const isHandTray = Boolean(card.closest('#playerHand'));
+    const isHandTray = Boolean(card.closest('#playerHand, #drawAbilityRevealCards'));
     const minPx = isMulligan ? 7 : isHandTray ? 6 : 8;
     const maxPx = isDesktopPreview ? 15 : isMulligan ? 11.5 : isHandTray ? 8 : 12;
     // The list is a flex child with overflow:hidden, so it can shrink and
@@ -8928,7 +9054,24 @@ function getSpellPlayRequirementLockReason(card) {
     return '';
 }
 
+/**
+ * Why this hand card cannot be played right now, or '' when it can.
+ *
+ * Wrapped so one card's lock check can never abort renderHand: the hand is
+ * built as a single string and only assigned at the end, so a throw here used
+ * to leave the entire hand frozen on its previous contents — cards the player
+ * had already played stayed on screen.
+ */
 function getHandCardLockReason(card) {
+    try {
+        return computeHandCardLockReason(card);
+    } catch (e) {
+        console.error('Hand card lock check failed; treating as playable:', e);
+        return '';
+    }
+}
+
+function computeHandCardLockReason(card) {
     if (!gameState || !card) {
         return '';
     }
@@ -8981,10 +9124,10 @@ function getHandCardLockReason(card) {
             return `Needs ${card.evolvesFromName || 'its base form'} on your board first.`;
         }
         if (getEvolutionPlacements(card).length === 0) {
-            const cursedBase = baseCells.some(([r, c]) => cellHasAffliction(
-                (gameState?.playerBoard || [])?.[r]?.[c],
-                'CURSE'
-            ));
+            // getEvolutionBaseCells yields board cells, not [row, col] pairs —
+            // destructuring them as pairs threw out of renderHand and froze the
+            // whole hand on its previous contents.
+            const cursedBase = baseCells.some((cell) => cellHasAffliction(cell, 'CURSE'));
             if (cursedBase) {
                 return `${card.evolvesFromName || 'Base form'} is Cursed and cannot evolve.`;
             }
@@ -9235,6 +9378,7 @@ function scheduleBattleAutoAdvance() {
     }, BATTLE_AUTO_ADVANCE_DELAY_MS);
 }
 window.scheduleBattleAutoAdvance = scheduleBattleAutoAdvance;
+window.renderBattlePanel = renderBattlePanel;
 
 // Surface a server/application error to the player as an on-screen toast, so
 // failed actions give visible feedback instead of only a console message.
@@ -9355,7 +9499,11 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
     }
 
     const prevState = gameState;
+    const drawAbilityUsed = didRequestUsePlayerDrawAbility(endpoint, body, prevState);
     gameState = data;
+    // Server state is authoritative for the hand; any optimistic slot hide is
+    // superseded by it (whether the action landed or was rejected).
+    pendingHandRemovalIndex = null;
     if (gameState?.gameOver && gameState.multiplayer && multiplayerSession?.roomId) {
         const status = await fetchRoomStatus();
         if (status && !status.error) {
@@ -9364,9 +9512,6 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
         }
     }
     if (endpoint !== 'new' && prevState) {
-        if (!playbackContext?.soloAiEndTurn) {
-            maybeNotifyTurnChange(prevState, data);
-        }
         // The animation/diff layer must never block the state update below. If
         // it throws, the new gameState would otherwise never render and the
         // interaction state never resets, freezing the client on the previous
@@ -9380,6 +9525,13 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
         } catch (e) {
             console.error('Battle animation queue failed; continuing without it:', e);
         }
+        // Announced only once the batch we just enqueued has played, so "your
+        // turn" lands after the previous turn's damage and phase banner rather
+        // than on top of them. Deliberately after enqueueFromStateDiff: asking
+        // for idle before the actions exist would resolve immediately.
+        if (!playbackContext?.soloAiEndTurn) {
+            maybeNotifyTurnChange(prevState, data);
+        }
     }
     try {
         render();
@@ -9392,7 +9544,121 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
         }
         throw e;
     }
+    if (drawAbilityUsed) {
+        showDrawAbilityReveal(prevState, data);
+    }
     return data;
+}
+
+function isDrawAbility(ability) {
+    const effect = String(ability?.effectType || ability?.effect || '').trim().toUpperCase();
+    return effect === 'DRAW';
+}
+
+// Only ability-originated draws use the reveal. The regular draw-phase button
+// intentionally remains quick, so turns do not feel delayed.
+function didRequestUsePlayerDrawAbility(endpoint, body, state) {
+    if (!state || !body) return false;
+    if (endpoint === 'cast') {
+        return isDrawAbility((state.player?.hand || []).find((card) => card.id === body.cardId)?.ability);
+    }
+    if (endpoint === 'battle/action') {
+        return isDrawAbility((state.pendingBattle?.abilities || []).find((ability) => ability.index === body.abilityIndex));
+    }
+    if (endpoint === 'trainer') {
+        return isDrawAbility(state.player?.trainer?.active);
+    }
+    return false;
+}
+
+function getNewDrawnHandIndices(previousState, nextState) {
+    const priorCounts = new Map();
+    (previousState?.player?.hand || []).forEach((card) => {
+        priorCounts.set(card.id, (priorCounts.get(card.id) || 0) + 1);
+    });
+    const drawn = [];
+    (nextState?.player?.hand || []).forEach((card, index) => {
+        const count = priorCounts.get(card.id) || 0;
+        if (count > 0) priorCounts.set(card.id, count - 1);
+        else drawn.push(index);
+    });
+    return drawn;
+}
+
+function showDrawAbilityReveal(previousState, nextState) {
+    const drawnIndices = getNewDrawnHandIndices(previousState, nextState);
+    if (drawnIndices.length === 0) return;
+    const reveal = document.getElementById('drawAbilityReveal');
+    const cards = document.getElementById('drawAbilityRevealCards');
+    const title = document.getElementById('drawAbilityRevealTitle');
+    if (!reveal || !cards || !title) return;
+    const run = ++drawAbilityRevealRun;
+    if (drawAbilityRevealTimer) clearTimeout(drawAbilityRevealTimer);
+
+    const hand = document.getElementById('playerHand');
+    // Render the reveal from the drawn cards in state, not from the hand DOM:
+    // battle-phase and SiegeKnight draws happen while the hand tray is in queue
+    // mode, so the matching .hand-card nodes may not exist and the reveal would
+    // silently never appear.
+    const drawnCards = drawnIndices
+        .map((index) => nextState?.player?.hand?.[index])
+        .filter(Boolean);
+    if (drawnCards.length === 0) return;
+    // Same template as the hand selector, so a card looks identical in the
+    // reveal and in the hand it lands in.
+    const markup = drawnCards.map((card) => {
+        const face = renderHandCardFace(card, { summaryBody: true });
+        const elemClass = String(card.element || 'NEUTRAL').toLowerCase();
+        return `<div class="hand-card ${elemClass} ${cardTypeClass(card)}${face.faceClass}">${face.html}</div>`;
+    }).join('');
+    if (!markup) return;
+    cards.innerHTML = markup;
+    const count = drawnCards.length;
+    // Cards sit side by side with real spacing; only a wide fan needs to tuck
+    // in, so shrink/overlap scales with the count instead of a fixed offset.
+    cards.dataset.count = String(Math.min(count, 6));
+    title.textContent = `${count} card${count === 1 ? '' : 's'} drawn`;
+    reveal.className = 'draw-ability-reveal';
+    requestAnimationFrame(() => {
+        reveal.classList.add('visible');
+        // Framed cards size their title and summary text by measurement, as the
+        // hand does after it renders — but only once the reveal is off
+        // `display:none`, or every box measures zero and the fit is skipped.
+        fitFramedSummaryText(cards);
+    });
+
+    // Aim at the real hand when it is open. During battle, the hand is tucked
+    // away, so use the player hand counter as an honest, visible destination.
+    const destination = !hand?.classList.contains('hidden')
+        ? hand.getBoundingClientRect()
+        : document.getElementById('mobilePlayerHandSize')?.getBoundingClientRect()
+            || document.getElementById('playerDeckSize')?.getBoundingClientRect();
+    const targetX = destination ? destination.left + destination.width / 2 : window.innerWidth / 2;
+    const targetY = destination ? destination.top + destination.height / 2 : window.innerHeight - 34;
+    const revealCenterX = window.innerWidth / 2;
+    const revealCenterY = window.innerHeight / 2;
+    cards.querySelectorAll('.hand-card').forEach((card, index) => {
+        const spread = (index - (count - 1) / 2) * 18;
+        card.style.setProperty('--draw-fly-x', `${targetX - revealCenterX + spread}px`);
+        card.style.setProperty('--draw-fly-y', `${targetY - revealCenterY}px`);
+    });
+    // The last card finishes its entrance around 620ms in; hold a full second of
+    // still, fully-readable cards after that before they fly into the hand.
+    const ENTRANCE_MS = 620;
+    const HOLD_MS = 1000;
+    const FLY_MS = 460;
+    drawAbilityRevealTimer = setTimeout(() => {
+        if (run === drawAbilityRevealRun) reveal.classList.add('flying');
+    }, ENTRANCE_MS + HOLD_MS);
+    setTimeout(() => {
+        if (run !== drawAbilityRevealRun) return;
+        reveal.classList.remove('visible', 'flying');
+        drawAbilityRevealTimer = setTimeout(() => {
+            if (run !== drawAbilityRevealRun) return;
+            reveal.classList.add('hidden');
+            drawAbilityRevealTimer = null;
+        }, 260);
+    }, ENTRANCE_MS + HOLD_MS + FLY_MS);
 }
 
 async function fetchJson(urlOrUrls, options = {}, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS) {
@@ -9668,6 +9934,7 @@ function openLoadoutSelector() {
     resolvePhaseTransitionBanner();
     document.getElementById('phaseTransitionBanner')?.classList.add('hidden');
     document.getElementById('phaseTransitionBanner')?.classList.remove('visible');
+    setPhaseTransitionScrimVisible(false);
     welcomeDismissed = true;
     resetGameOverOverlayState();
     if (!gameOptions) {
@@ -11497,6 +11764,9 @@ function collectBuilderElements() {
 }
 
 async function playerDraw() {
+    if (isOpponentControlLocked()) {
+        return;
+    }
     const data = await api('draw');
     if (data) {
         window.SieglingsSounds?.play('draw');
@@ -11674,12 +11944,43 @@ async function endTurn() {
 }
 
 async function placeCard(row, col) {
-    if (!selectedCard) return;
+    if (!selectedCard || placementRequestInFlight || isOpponentControlLocked()) return;
+    placementRequestInFlight = true;
     window.SieglingsSounds?.play('place');
-    const data = await api('place', 'POST', { cardId: selectedCard.id, row, col });
-    if (!data) return;
-    closeCardPreviewSurfaces();
-    resetInteractionState();
+    // Drop the card out of the hand immediately. The server is authoritative and
+    // its response replaces this state wholesale, but on a slow connection the
+    // optimistic removal is what stops the player from re-dropping a card that
+    // is already on its way to the board.
+    const pendingCardId = selectedCard.id;
+    applyOptimisticHandRemoval(selectedHandIndex);
+    try {
+        const data = await api('place', 'POST', { cardId: pendingCardId, row, col });
+        if (data) {
+            closeCardPreviewSurfaces();
+        }
+    } finally {
+        placementRequestInFlight = false;
+        // A successful call already replaced the hand from server state; a
+        // failed one must put the optimistically hidden card back. Either way
+        // the player ends up with a live hand and no stale selection, so a
+        // rejected placement can never wedge the UI.
+        pendingHandRemovalIndex = null;
+        resetInteractionState();
+    }
+}
+
+/**
+ * Hide a hand slot that has been committed to the server but not yet confirmed.
+ * Tracked by slot index rather than card id because hand cards carry definition
+ * ids, so three copies of a Siegling all share one id. The flag is cleared by
+ * the next authoritative state, which is what actually removes the card.
+ */
+function applyOptimisticHandRemoval(handIndex) {
+    pendingHandRemovalIndex = Number.isInteger(handIndex) ? handIndex : null;
+    selectedCard = null;
+    selectedHandIndex = null;
+    clearTargetMode();
+    render();
 }
 
 async function claimBoardCard(row, col) {
@@ -11815,7 +12116,8 @@ function renderDomLegacy() {
     } else {
         resetDrawButton();
     }
-    btnDraw.disabled = over || opponentSetupTurn || !playerActive || (phase !== 'DRAW' && !drawButtonActsAsEndTurn);
+    btnDraw.disabled = over || opponentSetupTurn || !playerActive || isOpponentControlLocked()
+        || (phase !== 'DRAW' && !drawButtonActsAsEndTurn);
     if (btnEndTurn) {
         btnEndTurn.textContent = playerActive ? 'End Turn' : 'Opponents Turn';
     }
@@ -11891,13 +12193,16 @@ function renderDomLegacy() {
         const trainer = gameState.player.trainer;
         const hasTrainer = Boolean(trainer);
         const canUse = canUseTrainerAbility(trainer);
+        const oppLocked = isOpponentControlLocked();
         btnTrainerAbility.classList.toggle('hidden', !hasTrainer);
-        btnTrainerAbility.disabled = !hasTrainer;
-        btnTrainerAbility.classList.toggle('ab-ability-ready', canUse);
+        btnTrainerAbility.disabled = !hasTrainer || oppLocked;
+        btnTrainerAbility.classList.toggle('ab-ability-ready', canUse && !oppLocked);
         btnTrainerAbility.innerHTML = trainer?.tier === 'SiegeLord' ? '&#9876; Lord' : '&#9876; Knight';
-        btnTrainerAbility.title = trainer
-            ? `${trainer.name}${trainer.active?.name ? `: ${trainer.active.name}` : ''}${canUse ? '' : ' (details only)'}`
-            : 'No SiegeKnight selected';
+        btnTrainerAbility.title = !trainer
+            ? 'No SiegeKnight selected'
+            : oppLocked
+                ? `${trainer.name} — wait for your turn`
+                : `${trainer.name}${trainer.active?.name ? `: ${trainer.active.name}` : ''}${canUse ? '' : ' (details only)'}`;
     }
     renderTrainerAbilityPopup();
     renderClaimPopup();
@@ -11951,6 +12256,7 @@ function getBoardCellMarkers(board, markers) {
 function render() {
     if (gameState) {
         pruneInvalidArenaSelection();
+        syncActingPreviewFocus();
         // Warm the art cache before the innerHTML rebuild below tears down
         // the current <img> elements, so the recreated ones paint instantly.
         preloadBattleArt();
@@ -14086,6 +14392,81 @@ function hasOppositeNotch(notches, direction) {
     return notches.some(n => n.direction === opposite);
 }
 
+/**
+ * The hand-selector card face — everything inside the `.hand-card` wrapper, plus
+ * the wrapper classes that face needs. Shared so any surface that shows a hand
+ * card (the hand selector, the draw-ability reveal) renders the identical
+ * template rather than a lookalike.
+ */
+function renderHandCardFace(card, options = {}) {
+    const lockReason = options.lockReason || '';
+    // The hand tray hides the card body (its cards are too small to read), so it
+    // renders the verbose flavor block. Surfaces that show the body — the draw
+    // reveal — ask for the compact summary that fits a frame's info panel.
+    const summaryBody = Boolean(options.summaryBody);
+    const fallbackArtLabel = card.type === 'SIEGLING'
+        ? formatElementLabel(card.element)
+        : `${formatElementLabel(card.element)} ${card.type}`.trim();
+    const handFrameClass = cardFrameClass(card);
+    // Holographic full-card art replaces the framed hand face with the
+    // complete painted card (frame + notches + stats baked/overlaid by the
+    // binder renderer). Keep the .hand-card wrapper so the drag/click
+    // handlers, lock states, and sizing all stay intact.
+    const holoFace = renderHolographicFullArtFace(card, {
+        descriptionText: card.description || card.ability?.description || ''
+    });
+    const faceClass = `${handFrameClass}${holographicCardClass(card)}${holoFace ? ' has-holo-full-art' : ''}`;
+    if (holoFace) {
+        return { faceClass, html: holoFace };
+    }
+
+    let html = '';
+    if (card.type === 'SIEGLING') {
+        html += renderHandNotches(card.notches);
+    }
+    html += `<div class="hand-card-shell">`;
+    if (isSpellTrapCard(card) && handFrameClass) {
+        html += renderCardCornerChips(card);
+    }
+    html += `<div class="hand-card-header">`;
+    html += `<div class="card-title">${escapeHtml(card.name)}</div>`;
+    const handLabel = card.type === 'SIEGLING'
+        ? `SIEGELING / ${formatElementLabel(card.element)}`
+        : `${card.type} / ${card.rarity}`;
+    html += `<div class="card-label">${escapeHtml(handLabel)}</div>`;
+    html += `</div>`;
+    html += renderCardArt(card, 'hand', fallbackArtLabel);
+    if (card.type === 'SIEGLING') {
+        html += renderCardStatPills(card, { mode: 'hand' });
+    }
+    html += `<div class="hand-card-body">`;
+    if (summaryBody || (isSpellTrapCard(card) && handFrameClass)) {
+        html += renderCompactCardSummary(card, { abilityLimit: summaryBody ? 1 : 3, omitCostEvolution: true });
+    } else {
+        html += renderCardAbilitiesFlavorSection(card);
+        if (card.type === 'TRAP' && card.trapBucketElement) {
+            html += `<div class="card-cost">Can Trigger when opponent has ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)} Energy</div>`;
+        } else if (card.costElement) {
+            html += `<div class="card-cost">Play Cost: ${card.costAmount} ${formatElementLabel(card.costElement)}</div>`;
+        } else if (card.requiredComboSize) {
+            html += `<div class="card-cost">Combo: ${card.requiredComboSignature ? card.requiredComboSignature.replaceAll('+', ' / ') : `${card.requiredComboSize}-element combo`}</div>`;
+        }
+        if (card.requiredReaction) {
+            html += `<div class="card-cost">Requires: ${escapeHtml(card.requiredReaction)}</div>`;
+        }
+        if (card.evolvesFromName) {
+            html += `<div class="card-cost">Evolution: ${escapeHtml(card.evolvesFromName)}</div>`;
+        }
+    }
+    if (lockReason) {
+        html += `<div class="card-cost interaction-lock-copy">${escapeHtml(lockReason)}</div>`;
+    }
+    html += `</div>`; /* body */
+    html += `</div>`; /* shell */
+    html += holographicCardOverlay(card);
+    return { faceClass, html };
+}
+
 function renderHand() {
     const container = document.getElementById('playerHand');
     const handTray = document.getElementById('handTray');
@@ -14129,6 +14510,9 @@ function renderHand() {
     const hand = gameState.player.hand;
     for (let handIndex = 0; handIndex < hand.length; handIndex++) {
         const card = hand[handIndex];
+        if (handIndex === pendingHandRemovalIndex) {
+            continue;
+        }
         const elemClass = card.element.toLowerCase();
         const isSelected = selectedHandIndex === handIndex;
         const lockReason = getHandCardLockReason(card);
@@ -14150,67 +14534,9 @@ function renderHand() {
             : '';
         const hoverEvents = `onmouseenter="handleHandCardPointerEnter(event, ${handIndex})" onmouseleave="handleHandCardPointerLeave(${handIndex})"`;
         const touchEvents = `ontouchstart="handleHandCardTouchStart(event, ${handIndex})" ontouchmove="handleHandCardTouchMove(event, ${handIndex})" ontouchend="handleHandCardTouchEnd(event, ${handIndex})"`;
-        const fallbackArtLabel = card.type === 'SIEGLING'
-            ? formatElementLabel(card.element)
-            : `${formatElementLabel(card.element)} ${card.type}`.trim();
-        const handFrameClass = cardFrameClass(card);
-        // Holographic full-card art replaces the framed hand face with the
-        // complete painted card (frame + notches + stats baked/overlaid by the
-        // binder renderer). Keep the .hand-card wrapper so the drag/click
-        // handlers, lock states, and sizing all stay intact.
-        const holoFace = renderHolographicFullArtFace(card, {
-            descriptionText: card.description || card.ability?.description || ''
-        });
-        const holoFaceClass = holoFace ? ' has-holo-full-art' : '';
-        html += `<div class="hand-card ${elemClass} ${cardTypeClass(card)}${interactionClass}${handFrameClass}${holographicCardClass(card)}${holoFaceClass}" data-card-id="${escapeHtml(card.id)}" data-hand-index="${handIndex}" ${onclick} ${pointerEvents} ${hoverEvents} ${touchEvents}>`;
-        if (holoFace) {
-            html += holoFace;
-            html += `</div>`; /* card */
-            continue;
-        }
-        if (card.type === 'SIEGLING') {
-            html += renderHandNotches(card.notches);
-        }
-        html += `<div class="hand-card-shell">`;
-        if (isSpellTrapCard(card) && handFrameClass) {
-            html += renderCardCornerChips(card);
-        }
-        html += `<div class="hand-card-header">`;
-        html += `<div class="card-title">${escapeHtml(card.name)}</div>`;
-        const handLabel = card.type === 'SIEGLING'
-            ? `SIEGELING / ${formatElementLabel(card.element)}`
-            : `${card.type} / ${card.rarity}`;
-        html += `<div class="card-label">${escapeHtml(handLabel)}</div>`;
-        html += `</div>`;
-        html += renderCardArt(card, 'hand', fallbackArtLabel);
-        if (card.type === 'SIEGLING') {
-            html += renderCardStatPills(card, { mode: 'hand' });
-        }
-        html += `<div class="hand-card-body">`;
-        if (isSpellTrapCard(card) && handFrameClass) {
-            html += renderCompactCardSummary(card, { abilityLimit: 3, omitCostEvolution: true });
-        } else {
-            html += renderCardAbilitiesFlavorSection(card);
-            if (card.type === 'TRAP' && card.trapBucketElement) {
-                html += `<div class="card-cost">Can Trigger when opponent has ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)} Energy</div>`;
-            } else if (card.costElement) {
-                html += `<div class="card-cost">Play Cost: ${card.costAmount} ${formatElementLabel(card.costElement)}</div>`;
-            } else if (card.requiredComboSize) {
-                html += `<div class="card-cost">Combo: ${card.requiredComboSignature ? card.requiredComboSignature.replaceAll('+', ' / ') : `${card.requiredComboSize}-element combo`}</div>`;
-            }
-            if (card.requiredReaction) {
-                html += `<div class="card-cost">Requires: ${escapeHtml(card.requiredReaction)}</div>`;
-            }
-            if (card.evolvesFromName) {
-                html += `<div class="card-cost">Evolution: ${escapeHtml(card.evolvesFromName)}</div>`;
-            }
-        }
-        if (lockReason) {
-            html += `<div class="card-cost interaction-lock-copy">${escapeHtml(lockReason)}</div>`;
-        }
-        html += `</div>`; /* body */
-        html += `</div>`; /* shell */
-        html += holographicCardOverlay(card);
+        const face = renderHandCardFace(card, { lockReason });
+        html += `<div class="hand-card ${elemClass} ${cardTypeClass(card)}${interactionClass}${face.faceClass}" data-card-id="${escapeHtml(card.id)}" data-hand-index="${handIndex}" ${onclick} ${pointerEvents} ${hoverEvents} ${touchEvents}>`;
+        html += face.html;
         html += `</div>`; /* card */
     }
 
@@ -14324,7 +14650,12 @@ function syncDesktopHandSelectorCardScale() {
         return;
     }
 
-    const visibleCards = Math.max(1, handCards.querySelectorAll('.hand-card').length || 5);
+    // Desktop holds one card size for the whole match. Dividing the rail by the
+    // live hand count made every card grow or shrink each time a card was drawn,
+    // played, or discarded; the rail scrolls past the reference row instead.
+    const visibleCards = isDesktopSidebarLayout()
+        ? HAND_SELECTOR_DESKTOP_CARD_SLOTS
+        : Math.max(1, handCards.querySelectorAll('.hand-card').length || 5);
     const root = document.documentElement;
 
     if (isVerticalHand) {
@@ -14387,6 +14718,9 @@ function handleHandCardPointerLeave(handIndex) {
 
 function canHandCardDragPlace(handIndex) {
     if (!gameState || gameState.currentPhase !== 'SETUP' || gameState.activeSide !== 'PLAYER' || targetMode) {
+        return false;
+    }
+    if (placementRequestInFlight || handIndex === pendingHandRemovalIndex) {
         return false;
     }
     const card = gameState.player.hand?.[handIndex];
@@ -14494,6 +14828,12 @@ function activateCardDragSession() {
     if (activeDrawer === 'selected') {
         closeDrawer(true);
     }
+    // Selecting the card re-renders the hand, which destroys the element that
+    // pointerdown captured. WebKit answers an implicit capture release on a
+    // removed node with pointercancel, which would abort the drag the instant
+    // it starts. Hand the capture back first — the drag tracks pointer events
+    // on document, so it does not need capture to keep working.
+    releaseCardDragPointerCapture();
     ensureHandCardSelectedForDrag(handIndex);
     // Selection re-renders the hand and normally defers its responsive sizing
     // to the next animation frame. Resolve that sizing before measuring the
@@ -14561,12 +14901,32 @@ function activateCardDragSession() {
     updateHandLiftLayer();
 }
 
+function releaseCardDragPointerCapture() {
+    const captureEl = cardDragSession?.captureEl;
+    if (!captureEl || cardDragSession.pointerId == null) {
+        return;
+    }
+    try {
+        if (captureEl.hasPointerCapture?.(cardDragSession.pointerId)) {
+            captureEl.releasePointerCapture(cardDragSession.pointerId);
+        }
+    } catch (_) {
+        /* capture already gone */
+    }
+    cardDragSession.captureEl = null;
+}
+
 function cleanupCardDragSession() {
     if (!cardDragSession) {
         return;
     }
+    releaseCardDragPointerCapture();
     cardDragSession.sourceEl?.classList?.remove('is-drag-source');
     cardDragSession.ghost?.remove();
+    // Sweep any ghost the session lost track of (interrupted gesture, a second
+    // pointer starting a new session) so a dragged card can never be left
+    // floating over the hand after the drag ends.
+    document.querySelectorAll('.card-drag-ghost').forEach((el) => el.remove());
     const layer = document.getElementById('handLiftLayer');
     if (layer && !layer.querySelector('.lifted-card-clone')) {
         layer.innerHTML = '';
@@ -14605,13 +14965,25 @@ function handleHandCardPointerDown(event, handIndex) {
         startY: event.clientY,
         active: false,
         ghost: null,
-        sourceEl: event.currentTarget
+        sourceEl: event.currentTarget,
+        captureEl: null
     };
     try {
         event.currentTarget.setPointerCapture(event.pointerId);
+        cardDragSession.captureEl = event.currentTarget;
     } catch (_) {
         /* ignore */
     }
+}
+
+// A cancelled gesture is not a drop. iOS Safari fires pointercancel whenever it
+// takes the touch over for its own scrolling/zoom handling, and treating that
+// as a drop placed cards the player never released.
+function handleCardDragPointerCancel(event) {
+    if (!cardDragSession || event.pointerId !== cardDragSession.pointerId) {
+        return;
+    }
+    cleanupCardDragSession();
 }
 
 function handleCardDragPointerMove(event) {
@@ -14642,15 +15014,15 @@ function handleCardDragPointerEnd(event) {
 
     if (wasActive) {
         const targetCell = findLegalPlacementCellAt(event.clientX, event.clientY);
-        if (targetCell) {
-            const row = Number(targetCell.dataset.row);
-            const col = Number(targetCell.dataset.col);
-            if (Number.isInteger(row) && Number.isInteger(col)) {
-                ensureHandCardSelectedForDrag(handIndex);
-                placeCard(row, col);
-            }
-        }
+        const row = targetCell ? Number(targetCell.dataset.row) : NaN;
+        const col = targetCell ? Number(targetCell.dataset.col) : NaN;
+        // Tear the drag down before submitting: placeCard re-renders the hand,
+        // and an active session would keep the drag ghost pinned over it.
         cleanupCardDragSession();
+        if (Number.isInteger(row) && Number.isInteger(col)) {
+            ensureHandCardSelectedForDrag(handIndex);
+            placeCard(row, col);
+        }
         event.preventDefault();
         return;
     }
@@ -15342,6 +15714,29 @@ function renderBattlePanel() {
         return `<div class="${shellClass}">${headerHtml}${bodyHtml}</div>`;
     };
 
+    // The acting Siegeling's move buttons must not appear before the phase
+    // banner that introduces them. render() paints from authoritative state the
+    // instant it lands, so this panel — and only this panel — waits on the
+    // presentation clock; the board, HP bars and hand keep updating live
+    // because the queue's pending-state layer is built around render() running.
+    // Targeting is exempt: it is player-driven, so playback is never mid-flight.
+    const presentationBusy = Boolean(window.SieglingsActionQueue?.isPresentationBusy?.())
+        && !isBattleTargetSelectionActive();
+
+    // Hold the actionable panels in standby while playback runs. Scoped to the
+    // drawer and hand docks on purpose: the left inspector is only rewritten
+    // below when the landscape dock is in use, so writing standby into it here
+    // would strand "Queue is resolving" on that rail after playback ends.
+    if (pending && presentationBusy) {
+        const holdHtml = buildQueueShell(
+            'Resolving',
+            'waiting',
+            '<div class="battle-attacker"><strong>Queue is resolving.</strong> The next available Siegeling will surface here in speed order.</div><div class="battle-hint">Stay ready. When your next acting Siegeling arrives, this panel flips into queue mode automatically.</div>'
+        );
+        setPanelHtml([...drawerPanels, handPanel].filter(Boolean), holdHtml);
+        return;
+    }
+
     if (!pending) {
         let standbyHtml;
         if (gameState.currentPhase === 'BATTLE' && gameState.battleWaitingOn === 'ENEMY') {
@@ -15655,6 +16050,11 @@ function abilityHasAvailableTarget(ability) {
 }
 
 function getSelectedLegalPlacements() {
+    // No legal cells while the opponent holds initiative — this is what kills
+    // both the click-to-place highlights and the drag-drop landing zones.
+    if (isOpponentControlLocked()) {
+        return [];
+    }
     const evolutionCardSelected = Boolean(selectedCard?.evolvesFromId);
     if (isPlacementBudgetLockedForCard(selectedCard) || (countBoardSieglings() >= 5 && !evolutionCardSelected)) {
         return [];
@@ -15783,7 +16183,7 @@ function selectCard(handIndexOrCardId) {
  * by the desktop single-tap path and the mobile confirm button.
  */
 function activateActionCard(card) {
-    if (!card) {
+    if (!card || isOpponentControlLocked()) {
         return;
     }
     const targetSide = getAbilityTargetSide(card.ability);
@@ -16805,7 +17205,7 @@ syncDesktopInspectTabUi();
 (function setupCardDragPointerListeners() {
     document.addEventListener('pointermove', handleCardDragPointerMove, { passive: false });
     document.addEventListener('pointerup', handleCardDragPointerEnd);
-    document.addEventListener('pointercancel', handleCardDragPointerEnd);
+    document.addEventListener('pointercancel', handleCardDragPointerCancel);
 })();
 
 // Drag-to-close for every slide-up drawer tray (Card Preview, Element Key, Hints, Log, Battle).

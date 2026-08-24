@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -72,8 +73,18 @@ class SiegeCardRewardTest {
         Set<String> evoMoveNames = new HashSet<>();
         content.moveSpecs(evo).forEach(s -> evoMoveNames.add(s.name()));
 
-        List<Map<String, Object>> previews = content.previewMovesFor(evo, 6, rng);
-        assertFalse(previews.isEmpty());
+        // Upgrading the hand both rewrites the cards and reports the previews the client morphs to.
+        List<SiegeCard> hand = new ArrayList<>();
+        for (AbilitySpec spec : content.moveSpecs(base)) {
+            hand.add(new SiegeCard("hand-" + spec.id(), "member-1", spec));
+        }
+        assertFalse(hand.isEmpty());
+        List<Map<String, Object>> previews = content.upgradeHandCards(evo, "member-1", hand, rng);
+        assertEquals(hand.size(), previews.size(), "every owned card in hand is rewritten");
+        for (SiegeCard card : hand) {
+            assertTrue(evoMoveNames.contains(card.getSpec().name()),
+                    "Hand card should be an evolved-form move: " + card.getSpec().name());
+        }
         for (Map<String, Object> preview : previews) {
             assertTrue(evoMoveNames.contains(preview.get("name")),
                     "Preview move should be from evolved form: " + preview.get("name"));

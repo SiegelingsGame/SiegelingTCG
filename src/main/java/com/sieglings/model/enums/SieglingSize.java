@@ -18,21 +18,24 @@ public enum SieglingSize {
     /**
      * The size a card falls into when the dashboard has not pinned one.
      *
-     * <p>Rarity is the band, because in this catalog rarity already tracks how far along an
-     * evolution line a card sits. Evolution depth only decides cards whose rarity is missing
-     * (hand-authored overrides may omit it): base form small, second stage medium, final
-     * stage large. Legendaries are gigantic regardless of where they sit in a line.</p>
+     * <p>Rarity and evolution depth are both bands and the larger one wins, so a late-stage
+     * form never draws smaller than its own precursor: base form small, second stage medium,
+     * final stage large, on top of common/uncommon small, rare medium, epic large, legendary
+     * gigantic. Rarity alone was not enough — a stage-3 form printed at RARE (Generoot) stood
+     * the same height as the stage-1 starters beside it.</p>
      */
     public static SieglingSize defaultFor(Rarity rarity, int evolutionDepth) {
+        SieglingSize byDepth = evolutionDepth <= 0 ? SMALL : evolutionDepth == 1 ? MEDIUM : LARGE;
         if (rarity == null) {
-            return evolutionDepth <= 0 ? SMALL : evolutionDepth == 1 ? MEDIUM : LARGE;
+            return byDepth;
         }
-        return switch (rarity) {
+        SieglingSize byRarity = switch (rarity) {
             case COMMON, UNCOMMON -> SMALL;
             case RARE -> MEDIUM;
             case EPIC -> LARGE;
             case LEGENDARY -> GIGANTIC;
         };
+        return byRarity.ordinal() >= byDepth.ordinal() ? byRarity : byDepth;
     }
 
     /** Lenient parse for dashboard/override JSON; unknown or blank values mean "use the default". */

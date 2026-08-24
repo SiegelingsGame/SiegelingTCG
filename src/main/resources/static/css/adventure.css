@@ -3,7 +3,14 @@
   --text:#e8ecf3; --dim:#9aa6b8; --faint:#6b7688;
   --accent:#ff9a3c; --accent-2:#3ea6ff; --good:#7ee787; --bad:#ff6e6e; --shield:#76e6ff;
   --radius:12px;
-  --playcard-w:128px;
+  --playcard-w:140px;
+  /* Cards are a fixed size, never content-sized: a long description used to
+     make its card taller than its neighbours, which broke the fan's arc and
+     read as "this card is bigger/better". Overflowing text clamps instead.
+     The box stays portrait-rectangular (~1:1.4, like a real card) because a
+     near-square card had no room for a wrapped name plus its effect line —
+     the text ran off the bottom edge. */
+  --playcard-h:196px;
 }
 *{box-sizing:border-box;}
 html{
@@ -55,6 +62,11 @@ button{font-family:inherit;}
 .siege-back:hover{color:var(--text);}
 .siege-title{font-weight:800; letter-spacing:2px; font-size:18px;}
 .siege-title span{display:block; font-size:11px; letter-spacing:1px; color:var(--faint); font-weight:600;}
+/* The run's mode badge rides in the top bar, and only while the map is up —
+   every other screen either has no run yet or names itself in its own header.
+   Placed between the title and the Menu button so it never displaces either. */
+.siege-topbar #mapMode{margin-left:auto; margin-right:10px;}
+body:not([data-screen="mapScreen"]) .siege-topbar #mapMode{display:none;}
 .siege-abandon{background:transparent; border:1px solid var(--border); color:var(--dim); border-radius:20px; padding:6px 14px; cursor:pointer; font-size:12px;}
 .siege-abandon:hover{color:var(--bad); border-color:var(--bad);}
 
@@ -291,6 +303,12 @@ body[data-screen="mapScreen"] #mapScreen{
 .um-name{font-size:18px; font-weight:800;}
 .um-sub{font-size:12px; color:var(--dim); margin-top:4px; line-height:1.4;}
 .um-cards-title{font-size:11px; letter-spacing:1.2px; text-transform:uppercase; color:var(--faint); margin:12px 0 8px; font-weight:700;}
+.um-effects{display:flex; flex-wrap:wrap; gap:7px;}
+.um-effect{display:flex; flex-direction:column; gap:2px; min-width:126px; flex:1 1 126px; border:1px solid var(--border); border-radius:9px; padding:7px 9px; background:rgba(0,0,0,.18);}
+.um-effect b{font-size:12px; line-height:1.15;}
+.um-effect small{font-size:10px; line-height:1.25; color:var(--faint);}
+.um-effect.is-positive{border-color:rgba(91,219,142,.55); background:rgba(47,154,93,.12); color:#9df0ba;}
+.um-effect.is-negative{border-color:rgba(255,120,120,.48); background:rgba(170,59,66,.12); color:#ffb0b0;}
 .um-cards{display:flex; flex-direction:column; gap:8px;}
 .um-card{display:flex; gap:10px; align-items:flex-start; background:rgba(0,0,0,.22); border:1px solid var(--border); border-left:3px solid var(--el); border-radius:10px; padding:8px 10px;}
 .um-cost{flex:0 0 22px; width:22px;height:22px; border-radius:50%; background:radial-gradient(circle at 35% 30%, #ffc37a, var(--accent)); color:#1a1206; font-weight:800; font-size:12px; display:flex; align-items:center; justify-content:center;}
@@ -327,6 +345,12 @@ body[data-screen="mapScreen"] #mapScreen{
 .party-chip .phpfill{height:100%; background:linear-gradient(90deg,var(--good),#4fbf67);}
 .party-chip .phptext{font-size:11px; color:var(--dim); margin-top:3px;}
 .party-chip .pbuff{color:var(--accent); font-weight:700;}
+/* Mercenary under contract: travels in the strip with the warband, gold-trimmed
+   so it never reads as a permanent member the player is levelling. */
+.party-chip.merc{border-left-color:#ffd066;}
+.party-chip .pmerc{display:inline-block; font-size:9px; font-weight:800; line-height:1; padding:2px 4px;
+  border-radius:4px; background:#3a2f14; color:#ffd066; margin-right:4px; vertical-align:middle;
+  letter-spacing:.4px; text-transform:uppercase;}
 /* Leveling: badge + thin XP bar under the HP bar. */
 .plvl{display:inline-block; font-size:10px; font-weight:800; line-height:1; padding:2px 4px; border-radius:4px;
   background:#22304a; color:#cfe0ff; vertical-align:middle;}
@@ -375,12 +399,25 @@ body[data-screen="mapScreen"] #mapScreen{
 .camp-card-desc{font-size:11px; color:var(--dim); margin-top:4px; line-height:1.35;}
 .camp-actions{margin-top:14px; display:flex; gap:10px; justify-content:center;}
 
-/* ---------- Resume prompt (boot-time: saved expedition detected) ---------- */
+/* ---------- Resume prompt (boot-time: saved runs detected) ----------
+   One card per save slot — an expedition and a Battlegrounds march can be held
+   at the same time, so the two have to be tellable apart at a glance: the badge
+   names the mode and the card's left edge carries its colour. */
 .resume-summary{background:rgba(12,16,23,.6); border:1px solid var(--border); border-radius:14px; padding:14px; margin-top:10px;}
 .resume-summary .party-strip{flex-wrap:wrap;}
 .resume-meta{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:10px;}
 .resume-battle-chip{font-size:12px; font-weight:800; color:#ff8a6a; border:1px solid rgba(255,110,80,.45); border-radius:12px; padding:2px 10px; background:rgba(255,110,80,.08); white-space:nowrap;}
 .resume-actions{margin-top:18px; display:flex; gap:10px; justify-content:center;}
+.resume-save{border-left-width:4px;}
+.resume-save.siege{border-left-color:var(--accent); box-shadow:inset 18px 0 26px -24px rgba(255,154,60,.9);}
+.resume-save.bg{border-left-color:#b47dff; box-shadow:inset 18px 0 26px -24px rgba(180,125,255,.9);}
+.resume-save-head{display:flex; align-items:center; gap:8px; margin-bottom:10px;}
+.resume-save-actions{display:flex; gap:8px; margin-top:12px;}
+.resume-save-actions .siege-btn{flex:1;}
+.run-slot-badge{font-size:11.5px; font-weight:800; letter-spacing:.4px; text-transform:uppercase;
+  border-radius:12px; padding:3px 10px; white-space:nowrap;}
+.run-slot-badge.siege{color:var(--accent); background:rgba(255,154,60,.12); border:1px solid rgba(255,154,60,.45);}
+.run-slot-badge.bg{color:#d8b6ff; background:rgba(180,125,255,.14); border:1px solid rgba(180,125,255,.5);}
 
 /* ---------- Broker stall ---------- */
 .broker-scene{background:linear-gradient(180deg,#141223 0%, #1e1730 55%, #2c2140 100%);}
@@ -535,6 +572,14 @@ body[data-screen="rewardScreen"] .siege-screen{
   font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 .location-siegling:hover,.location-siegling:focus-visible{outline:none; filter:drop-shadow(0 10px 6px rgba(0,0,0,.65)) drop-shadow(0 0 12px var(--el,#fff));}
+/* A rental stands at the stops with the warband, so it needs to be readable as
+   a temporary hand at a glance — gold trim and a badge above the nameplate. */
+.location-siegling.merc span{border-color:rgba(255,208,102,.7); box-shadow:0 0 10px rgba(255,208,102,.3);}
+.location-siegling .loc-merc{
+  position:absolute; left:50%; bottom:19px; translate:-50% 0; padding:2px 7px;
+  border-radius:999px; background:#3a2f14; color:#ffd066; font-size:8px; font-weight:800;
+  font-style:normal; letter-spacing:.5px; text-transform:uppercase; white-space:nowrap;
+}
 @keyframes location-idle{0%,100%{transform:translateY(0) rotate(-.5deg)}50%{transform:translateY(-7px) rotate(.5deg)}}
 .location-npc{
   position:absolute; z-index:3; right:32%; bottom:39%; width:104px; height:150px;
@@ -806,6 +851,7 @@ body[data-screen="rewardScreen"] .siege-screen{
 .map-bottom .map-meta{margin-bottom:0;}
 .map-scroll{
   position:relative; overflow:auto; flex:1 1 auto; min-height:280px;
+  display:flex;
   border:1px solid var(--border); border-radius:14px;
   background:
     radial-gradient(700px 340px at 50% 0%, rgba(255,154,60,.07), transparent 70%),
@@ -815,7 +861,11 @@ body[data-screen="rewardScreen"] .siege-screen{
     #0a0d13;
   -webkit-overflow-scrolling:touch;
 }
-#mapSvg{display:block; margin:0 auto;}
+/* Flex + auto margins centre the map on both axes when it is smaller than the
+   scroll box (rotating to a taller viewport used to leave it stuck at the top
+   with dead space below), while auto margins — unlike align-items:center —
+   never make the overflowing start edge unreachable. */
+#mapSvg{display:block; flex:0 0 auto; margin:auto;}
 .map-edge{fill:none; stroke:#2c3547; stroke-width:2.5; stroke-dasharray:5 6; opacity:.8;}
 .map-edge.walked{stroke:var(--accent); stroke-dasharray:none; opacity:.9;}
 .map-edge.open{stroke:var(--accent-2); stroke-dasharray:4 4; opacity:1; animation:edgeflow 1.2s linear infinite;}
@@ -961,15 +1011,36 @@ body[data-battle-node="BOSS"] .battle-stage::before{
 .ally-line{margin-top:6px;}
 
 /* character sprite (overlay cutout standing on the field).
-   --evo-scale grows the footprint and art 1.5× per evolution stage, so evolved
-   forms always read as bigger than the base Siegeling they came from. */
-.sprite{position:relative; width:calc(120px * var(--evo-scale,1)); max-width:calc(26vw * var(--evo-scale,1)); text-align:center; cursor:default;}
+   --sprite-scale grows the footprint and the art together, so a Siegeling's
+   physical size reads off the battlefield the way it does in the Keep. It comes
+   from the card's authored size band (dashboard field, served per unit by
+   SiegeService#sizeBandOf) rather than from evolution depth: depth is only one of
+   the inputs SieglingSize#defaultFor uses, and a designer can pin the band for a
+   card that is big without being far along a line. Evolving mid-battle still grows
+   the sprite, because the evolved card carries the larger band.
+   The ratios are keep.css's resident bands (.84/1/1.24/1.62) renormalised so SMALL
+   is 1.0 — identical proportions to the Keep, anchored so the common small
+   Siegeling keeps the size it has today instead of shrinking. */
+/* min-width:0 is load-bearing, not tidiness: the name plate sets a min-content
+   width (the name line is nowrap), so without it a flex item refuses to shrink
+   past its own name and a four-unit line — warband of 3 plus a hired merc —
+   pushes the outermost plate outside the overflow:hidden stage. */
+.sprite{position:relative; --sprite-scale:1; flex:0 1 auto; min-width:0;
+  width:calc(120px * var(--sprite-scale,1)); max-width:calc(26vw * var(--sprite-scale,1)); text-align:center; cursor:default;}
+.sprite[data-size="MEDIUM"]{--sprite-scale:1.19;}
+.sprite[data-size="LARGE"]{--sprite-scale:1.48;}
+.sprite[data-size="GIGANTIC"]{--sprite-scale:1.93;}
 .sprite .sp-art{
-  position:relative; height:calc(110px * var(--evo-scale,1)); display:flex; align-items:flex-end; justify-content:center;
+  position:relative; height:calc(110px * var(--sprite-scale,1)); display:flex; align-items:flex-end; justify-content:center;
   animation:idlebob 3.2s ease-in-out infinite; animation-delay:var(--idle-delay,0s);
   filter:drop-shadow(0 10px 12px rgba(0,0,0,.45));
 }
-.sprite .sp-art img{max-height:calc(110px * var(--evo-scale,1)); max-width:100%; object-fit:contain; pointer-events:none; user-select:none;}
+/* height:100% (not max-height alone) is what makes the scale actually reach the
+   art: with a cap only, an upload shorter than the scaled box renders at its
+   intrinsic size, so a stage-3 sprite came out the same height as a stage-1 one
+   whenever the source PNG was small. object-fit:contain keeps it undistorted —
+   the box grows, the creature fills it, the aspect ratio never changes. */
+.sprite .sp-art img{height:100%; max-height:calc(110px * var(--sprite-scale,1)); max-width:100%; object-fit:contain; pointer-events:none; user-select:none;}
 .sprite.enemy .sp-art img{transform:scaleX(-1);}
 /* Siege foes are corrupted Siegelings — the server hands them real card art
    (SiegeContentService#shadeCard) and this crushes it to the violet-black
@@ -989,7 +1060,7 @@ body[data-battle-node="BOSS"] .battle-stage::before{
   .sprite.enemy .sp-art img{ filter:url("#paper-siegling-shadow"); }
 }
 .sprite .sp-art-fallback span{
-  font-size:calc(56px * var(--evo-scale,1)); opacity:.8;
+  font-size:calc(56px * var(--sprite-scale,1)); opacity:.8;
   filter:drop-shadow(0 0 14px var(--el));
 }
 /* No art on the card the shade was drawn from (or an empty catalog): the glyph
@@ -1032,9 +1103,32 @@ body[data-battle-node="BOSS"] .battle-stage::before{
 .sprite .sp-shade{display:inline-block; font-size:9px; font-weight:800; line-height:1; padding:2px 4px;
   border-radius:4px; background:#2e1b4d; color:#d8a2ff; margin-right:4px; vertical-align:middle;
   letter-spacing:.4px; text-transform:uppercase;}
+/* A rented Siegeling's "(Merc)" suffix, badged for the same reason as the shade
+   prefix: it is a role, and on a four-unit line it costs the creature its name. */
+.sprite .sp-merc{display:inline-block; font-size:9px; font-weight:800; line-height:1; padding:2px 4px;
+  border-radius:4px; background:#3a2f14; color:#ffd066; margin-right:4px; vertical-align:middle;
+  letter-spacing:.4px; text-transform:uppercase;}
+/* Phone plates hide the badge (it costs the name the room it needs), so the
+   rental has to stay distinguishable from a permanent warband member without
+   spending any width at all. */
+.sprite.merc .sp-plate{border-color:rgba(255,208,102,.5); box-shadow:0 0 9px rgba(255,208,102,.18);}
+/* Every encounter is a squad of 2–3, so the boss/elite its minions escort gets a
+   lit plate to read as the headline foe. Deliberately NOT a size bump: sprite
+   height is the card's authored band (--sprite-scale), and a leader already draws
+   from a later evolution stage, so overriding it here would shrink a GIGANTIC
+   boss to spite its escorts. */
+.sprite.enemy.leader .sp-plate{
+  border-color:rgba(255,154,60,.55); box-shadow:0 0 10px rgba(255,154,60,.22);
+}
+.sprite.enemy.leader .sp-name{color:#ffd9ab;}
 .sprite .sp-xpbar{height:3px; border-radius:2px; background:#0c1017; margin-top:3px; overflow:hidden;}
 .sprite .sp-xpfill{height:100%; background:linear-gradient(90deg,#5b8def,#8ab4ff); transition:width .35s;}
-.sprite .sp-tags{display:flex; gap:6px; justify-content:center; font-size:10px; color:var(--dim); margin-top:3px;}
+/* Wraps rather than spills: hp + shield + attack buff + status chips is more
+   than a narrow plate can hold on one line, and this row has no ellipsis to
+   fall back on, so a fourth unit on the line used to write it over its
+   neighbour instead of stacking it. */
+.sprite .sp-tags{display:flex; flex-wrap:wrap; column-gap:5px; row-gap:2px; justify-content:center;
+  min-width:0; font-size:10px; color:var(--dim); margin-top:3px;}
 .sprite .sp-shield{color:var(--shield); font-weight:700;}
 .sprite .sp-buff{color:var(--accent); font-weight:700;}
 
@@ -1200,7 +1294,54 @@ body[data-battle-node="BOSS"] .battle-stage::before{
 .ap-pip{width:20px;height:20px;border-radius:50%; border:2px solid var(--accent);}
 .ap-pip.full{background:var(--accent); box-shadow:0 0 8px rgba(255,154,60,.7);}
 .ap-label{font-size:12px; color:var(--dim); margin-right:4px;}
-.deck-counts{font-size:12px; color:var(--faint);}
+/* Also the button that opens the hand sheet — the fan only shows a few cards
+   at a time, so this is how you read the whole hand on any screen size. */
+.deck-counts{
+  font-size:12px; color:var(--faint); font-family:inherit;
+  border:1px solid var(--border); background:rgba(12,16,23,.55);
+  border-radius:999px; padding:5px 11px; cursor:pointer; white-space:nowrap;
+}
+.deck-counts:hover,.deck-counts[aria-expanded="true"]{color:var(--text); border-color:var(--accent);}
+
+/* ---------- Hand sheet (full hand, opened from the deck counter) ---------- */
+.hand-sheet{z-index:120; padding:14px;}
+.hand-sheet-card{
+  width:min(760px,94vw); max-height:min(78dvh,620px);
+  display:flex; flex-direction:column; padding:14px;
+}
+.hand-sheet-head{display:flex; align-items:center; gap:9px; margin-bottom:10px; font-size:14px; font-weight:800;}
+.hand-sheet-head .unit-modal-close{position:static; margin-left:auto; flex:0 0 auto;}
+.hand-sheet-sub{font-size:11px; font-weight:600; color:var(--faint);}
+.hand-sheet-grid{
+  flex:1 1 auto; min-height:0; overflow:auto;
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(126px,1fr));
+  gap:12px 10px; padding:6px 3px 3px;
+}
+/* Cards here are laid out by the grid, not the fan: no negative margins, no
+   arc transform, and the description is always shown (the phone breakpoints
+   hide it in the fan, where there is no room for it). */
+.hand-sheet-grid .playcard{
+  width:100%; height:176px; margin:0; transform:none; cursor:pointer;
+  scroll-snap-align:none; padding:9px 10px;
+}
+.hand-sheet-grid .playcard:hover{transform:translateY(-4px);}
+.hand-sheet-grid .playcard .pc-desc{display:-webkit-box; -webkit-line-clamp:5; font-size:10.5px;}
+/* Grid gaps are tighter than the fan's overlap, so the cost badge sits nearly
+   inside the card here — the title indents to clear it instead of running
+   underneath it. */
+.hand-sheet-grid .playcard .pc-cost{top:-8px; left:-4px;}
+.hand-sheet-grid .playcard .pc-name{padding-left:20px; min-height:1.2em;}
+.hand-sheet-empty{grid-column:1/-1; text-align:center; color:var(--faint); font-size:13px; padding:26px 0;}
+/* Short landscape: trade card height for columns so a full hand still reads
+   in two rows instead of one tall scrolling column. */
+@media (orientation:landscape) and (max-height:600px){
+  .hand-sheet{padding:8px;}
+  .hand-sheet-card{width:min(940px,96vw); max-height:92dvh; padding:10px 11px;}
+  .hand-sheet-head{margin-bottom:6px; font-size:13px;}
+  .hand-sheet-grid{grid-template-columns:repeat(auto-fill,minmax(114px,1fr)); gap:8px; padding:5px 3px 2px;}
+  .hand-sheet-grid .playcard{height:142px; padding:8px 9px;}
+  .hand-sheet-grid .playcard .pc-desc{-webkit-line-clamp:3;}
+}
 
 /* ---------- Fanned hand (horizontally scrollable "wheel") ----------
    The hand can hold more cards than fit on one screen, so it scrolls: swipe
@@ -1211,7 +1352,7 @@ body[data-battle-node="BOSS"] .battle-stage::before{
    our own pointer handling in adventure.js — see setupCardDrag(). */
 .hand-fan{
   display:flex; justify-content:flex-start; align-items:flex-end;
-  min-height:184px; margin-top:4px; padding:26px calc(50% - (var(--playcard-w) / 2)) 10px;
+  min-height:232px; margin-top:4px; padding:26px calc(50% - (var(--playcard-w) / 2)) 10px;
   position:relative;
   overflow-x:auto; overflow-y:hidden;
   scroll-snap-type:x proximity;
@@ -1222,7 +1363,12 @@ body[data-battle-node="BOSS"] .battle-stage::before{
 .hand-fan::-webkit-scrollbar{display:none; height:0;}
 .playcard{
   width:var(--playcard-w);
+  height:var(--playcard-h);
   flex:0 0 auto;
+  /* Column flex + a clamped description is what keeps every card the same
+     size however much text it carries (see --playcard-h). Overflow stays
+     visible — the AP cost badge is deliberately hung outside the corner. */
+  display:flex; flex-direction:column;
   scroll-snap-align:center;
   /* Plain fallback first; browsers that don't parse color-mix() ignore the
      tinted declaration below and keep this one. */
@@ -1248,6 +1394,11 @@ body[data-battle-node="BOSS"] .battle-stage::before{
 .playcard.unplayable{opacity:.4; cursor:not-allowed;}
 /* Focused (tapped, not dragged) — a closer look, not an armed target. */
 .playcard.selected{outline:2px solid var(--accent); transform:rotate(0deg) translateY(-18px) scale(1.06); z-index:7;}
+/* Held (pointer down, before the drag threshold) — cards overlap by a
+   negative margin, so a pressed card was still partly hidden under its
+   neighbour. Lift it above the fan the same way a tap does, so you can see
+   the whole card you are about to drag. */
+.playcard.playcard-pressed{transform:rotate(0deg) translateY(-18px) scale(1.06); z-index:8;}
 /* The card left behind in the fan while its ghost is being dragged. */
 .playcard.playcard-dragsource{opacity:.35;}
 /* Floating clone that follows the pointer while dragging a card to the arena. */
@@ -1288,9 +1439,24 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
 .playcard .pc-cost{position:absolute; top:-9px; left:-9px; width:26px;height:26px; border-radius:50%; background:radial-gradient(circle at 35% 30%, #ffc37a, var(--accent)); color:#1a1206; font-weight:800; font-size:13px; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,.5); z-index:2;}
 .playcard .pc-cost.free{background:radial-gradient(circle at 35% 30%, #b7f0c0, var(--good)); color:#0c2412;}
 .playcard .pc-status{font-size:10px; color:#c896ff; margin-top:3px; font-weight:650;}
-.playcard .pc-name{font-weight:700; font-size:12.5px; line-height:1.2;}
-.playcard .pc-owner{font-size:10px; color:var(--faint); margin-top:2px;}
-.playcard .pc-eff{font-size:11px; margin-top:6px; font-weight:650;}
+.playcard .pc-name,.playcard .pc-owner,.playcard .pc-eff,
+.playcard .pc-status,.playcard .pc-gauge{flex:0 0 auto;}
+/* Every fixed row is line-clamped: an unclamped name (long Siegeling +
+   ability pair) grew tall enough to push the effect line past the bottom
+   edge, and .playcard keeps overflow visible for the AP badge, so the text
+   spilled onto the board instead of being cut. */
+.playcard .pc-name{
+  font-weight:700; font-size:12.5px; line-height:1.2;
+  overflow:hidden; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;
+}
+.playcard .pc-owner{
+  font-size:10px; color:var(--faint); margin-top:2px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.playcard .pc-eff{
+  font-size:11px; margin-top:6px; font-weight:650; line-height:1.25;
+  overflow:hidden; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;
+}
 .playcard .pc-eff.dmg{color:#ff8a6a;} .playcard .pc-eff.heal{color:var(--good);} .playcard .pc-eff.buff{color:var(--accent-2);} .playcard .pc-eff.shield{color:var(--shield);}
 .playcard .pc-eff.evo{color:#ffd066;}
 /* Evolution cards glow gold so they stand out in the fan */
@@ -1335,7 +1501,13 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
 .knight-plate.kp-charge-pop .kp-chargebar{box-shadow:0 0 14px rgba(255,230,60,.9);}
 .playcard .pc-eff .pc-boost{color:var(--good); font-weight:800;}
 .playcard .pc-eff s{opacity:.55; font-weight:500; margin-left:2px;}
-.playcard .pc-desc{font-size:10px; color:var(--faint); margin-top:4px; line-height:1.3; max-height:40px; overflow:hidden;}
+/* The one elastic row: it absorbs whatever height the fixed card has left and
+   clamps the overflow, so card height never tracks description length. */
+.playcard .pc-desc{
+  font-size:10px; color:var(--faint); margin-top:4px; line-height:1.3;
+  flex:1 1 auto; min-height:0; overflow:hidden;
+  display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;
+}
 
 .battle-endwrap{display:flex; flex-direction:column; align-items:center; gap:12px; padding:16px 0;}
 .battle-endtitle{font-size:26px; font-weight:900; letter-spacing:1px;}
@@ -1449,16 +1621,16 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
   .track-first{display:none;}
 
   .battle-stage{min-height:236px; padding:8px 4px 4px;}
-  .sprite{width:calc(86px * var(--evo-scale,1));}
-  .sprite .sp-art{height:calc(64px * var(--evo-scale,1));}
-  .sprite .sp-art img{max-height:calc(64px * var(--evo-scale,1));}
-  .sprite .sp-art-fallback span{font-size:calc(38px * var(--evo-scale,1));}
+  .sprite{width:calc(86px * var(--sprite-scale,1));}
+  .sprite .sp-art{height:calc(64px * var(--sprite-scale,1));}
+  .sprite .sp-art img{max-height:calc(64px * var(--sprite-scale,1));}
+  .sprite .sp-art-fallback span{font-size:calc(38px * var(--sprite-scale,1));}
   .sprite .sp-plate{padding:3px 5px 4px;}
   .sprite .sp-name{font-size:10px;}
   /* The plate is barely wider than the sprite here, and badge + creature name
      does not fit: the name is the half worth keeping, since the violet cutout
      already says the foe is a shade. */
-  .sprite .sp-shade{display:none;}
+  .sprite .sp-shade,.sprite .sp-merc{display:none;}
   .foe-line,.ally-line{min-height:112px;}
 
   .battle-log{max-height:38px; min-height:24px; font-size:11px; padding:4px 10px; margin-top:6px;}
@@ -1482,11 +1654,13 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
   .deck-counts{font-size:11px; white-space:nowrap;}
   .siege-btn{padding:10px 14px; font-size:13px;}
 
-  :root{--playcard-w:104px;}
+  /* No description row at this size, so the card is name/owner/effect plus
+     room for an optional status or evolution-gauge line. */
+  :root{--playcard-w:112px; --playcard-h:152px;}
   /* Tall enough to contain a card plus the upward fan arc (HAND_FAN_MAX_LIFT):
      with the arc lifting edge cards UP, the lowest card hugs the small bottom
      padding just above the hud and nothing is clipped top or bottom. */
-  .hand-fan{min-height:158px; padding:16px calc(50% - (var(--playcard-w) / 2)) 6px; margin-top:0;}
+  .hand-fan{min-height:206px; padding:16px calc(50% - (var(--playcard-w) / 2)) 6px; margin-top:0;}
   .playcard{margin:0 -20px; padding:7px 8px;}
   .playcard .pc-desc{display:none;}
   .battle-hint{font-size:11.5px; min-height:16px; margin-top:2px;}
@@ -1526,9 +1700,9 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
 @media (min-width:900px){
   /* Larger screens: widen the battlefield, bigger sprites */
   .battle-stage{min-height:400px;}
-  .sprite{width:calc(150px * var(--evo-scale,1));}
-  .sprite .sp-art{height:calc(130px * var(--evo-scale,1));}
-  .sprite .sp-art img{max-height:calc(130px * var(--evo-scale,1));}
+  .sprite{width:calc(150px * var(--sprite-scale,1));}
+  .sprite .sp-art{height:calc(130px * var(--sprite-scale,1));}
+  .sprite .sp-art img{max-height:calc(130px * var(--sprite-scale,1));}
 }
 
 /* ---------- v8: results, endless, cache games ---------- */
@@ -1547,6 +1721,13 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
 .result-extract .extract-chips{display:flex; gap:6px; flex-wrap:wrap; justify-content:center;}
 .result-extract .extract-chip{background:var(--chip,#1c2433); border:1px solid var(--border); border-radius:999px; padding:3px 10px; font-size:12px;}
 .result-extract .extract-note{margin-top:10px; font-size:12px; color:var(--dim);}
+/* Starter unlocks earned on the run — same card as extraction, green because it
+   is a permanent account gain rather than this run's banked team. */
+.result-unlocks{background:var(--panel); border:1px solid var(--good); border-radius:12px; padding:14px 18px; margin:14px auto; max-width:360px;}
+.result-unlocks h3{margin:0 0 8px; font-size:15px; color:var(--good);}
+.result-unlocks .unlock-chips{display:flex; gap:6px; flex-wrap:wrap; justify-content:center;}
+.result-unlocks .extract-chip{background:var(--chip,#1c2433); border:1px solid rgba(126,231,135,.4); border-radius:999px; padding:3px 10px; font-size:12px;}
+.result-unlocks .extract-note{margin-top:10px; font-size:12px; color:var(--dim);}
 .map-extract-btn{padding:5px 12px; font-size:13px;}
 .endless-slots{margin:14px 0 4px; text-align:center;}
 .endless-title{font-size:13px; color:var(--accent-2); margin-bottom:8px; font-weight:650;}
@@ -1685,10 +1866,28 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
 /* ---------- v9: inventory, smith, caravan, events ---------- */
 .map-inv-btn{padding:5px 12px; font-size:13px;}
 .inv-overlay{position:fixed; inset:0; background:rgba(6,9,14,.72); display:flex; align-items:center; justify-content:center; z-index:60; padding:16px;}
-.inv-panel{background:var(--panel); border:1px solid var(--border); border-radius:14px; width:min(560px,96vw); max-height:88vh; overflow:hidden; display:flex; flex-direction:column;}
+/* position:relative so the absolutely-positioned ✕ pins to the panel corner
+   instead of the viewport (it is .unit-modal-close, shared with the modals). */
+.inv-panel{position:relative; background:var(--panel); border:1px solid var(--border); border-radius:14px; width:min(560px,96vw); max-height:88vh; overflow:hidden; display:flex; flex-direction:column;}
 .inv-head{display:flex; justify-content:space-between; align-items:center; padding:14px 18px; border-bottom:1px solid var(--border); font-weight:700;}
 .inv-body{padding:14px 18px; overflow-y:auto;}
 .inv-subhead{font-size:13px; color:var(--dim); margin:16px 0 8px;}
+/* Map key (🗝️ Key on the map HUD): the emblem drawn the way the map draws it,
+   so the row reads as the same object the player is looking at. */
+.legend-panel{width:min(460px,96vw);}
+.legend-list{display:flex; flex-direction:column; gap:7px;}
+.legend-row{display:flex; align-items:center; gap:10px;}
+.legend-mark{
+  flex:0 0 auto; width:34px; height:34px; display:grid; place-items:center; font-size:17px;
+  border:2px solid var(--node-tint,#8fa3bf); border-radius:50%; background:#141a26;
+}
+.legend-mark.state-current{border-color:var(--accent); color:var(--accent); background:#241a10;}
+.legend-mark.state-reachable{border-color:var(--accent-2); color:var(--accent-2); background:#14202e;}
+.legend-mark.state-cleared{color:var(--good); opacity:.6;}
+.legend-mark.state-locked{color:var(--faint); opacity:.5;}
+.legend-copy{display:flex; flex-direction:column; min-width:0;}
+.legend-copy b{font-size:13px; font-weight:800;}
+.legend-copy i{font-style:normal; font-size:11.5px; color:var(--dim); line-height:1.3;}
 .inv-member{background:var(--bg-card,#1a2029); border:1px solid var(--border); border-left:4px solid var(--el); border-radius:10px; padding:10px 12px; margin-bottom:8px; cursor:pointer;}
 .inv-member.dead{opacity:.5;}
 .inv-member-name{font-weight:650; font-size:13.5px; margin-bottom:6px;}
@@ -1815,8 +2014,9 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
        the centered hint (max ~40vw) and Menu still clear it on short phones. */
     --arena-log-w:min(168px,28vw);
     --arena-menu-clear:72px;          /* Menu button + gap the log must clear */
-    --arena-hand-h:150px;
-    --playcard-w:94px;
+    --arena-hand-h:170px;
+    --playcard-w:100px;
+    --playcard-h:128px;
     --arena-tint:.42;                 /* elite/boss vignette strength on phone */
     /* Unit formations pull in from the notch/home-indicator; the arena art
        itself still paints edge-to-edge (siege-app side padding is 0 below). */
@@ -1897,18 +2097,18 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
     width:calc(50% - var(--arena-clash-half) - var(--arena-side-inset-right));
   }
   .sprite{
-    flex:0 1 calc(var(--arena-sprite-w) * var(--evo-scale,1)); min-width:0;
-    width:calc(var(--arena-sprite-w) * var(--evo-scale,1));
-    max-width:calc(22vw * var(--evo-scale,1));
+    flex:0 1 calc(var(--arena-sprite-w) * var(--sprite-scale,1)); min-width:0;
+    width:calc(var(--arena-sprite-w) * var(--sprite-scale,1));
+    max-width:calc(22vw * var(--sprite-scale,1));
   }
-  .sprite .sp-art{ height:calc(var(--arena-sprite-art) * var(--evo-scale,1)); }
-  .sprite .sp-art img{ max-height:calc(var(--arena-sprite-art) * var(--evo-scale,1)); }
-  .sprite .sp-art-fallback span{ font-size:calc(var(--arena-sprite-art) * 0.62 * var(--evo-scale,1)); }
+  .sprite .sp-art{ height:calc(var(--arena-sprite-art) * var(--sprite-scale,1)); }
+  .sprite .sp-art img{ max-height:calc(var(--arena-sprite-art) * var(--sprite-scale,1)); }
+  .sprite .sp-art-fallback span{ font-size:calc(var(--arena-sprite-art) * 0.62 * var(--sprite-scale,1)); }
   .sprite .sp-plate{ padding:2px 6px 3px; margin-bottom:2px; }
   .sprite .sp-name{ font-size:var(--arena-name); }
   /* Phone-sized plates cannot hold the badge and the creature's name; the
      min-height:601px block below puts it back for tablet/desktop. */
-  .sprite .sp-shade{ display:none; }
+  .sprite .sp-shade,.sprite .sp-merc{ display:none; }
 
   /* ---- Health + speed stretch across the top as one slim band ----
      Old layout stacked the knight/life plate ABOVE the speed strip in a
@@ -2030,8 +2230,12 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
     --arena-plate-w:clamp(210px, 20vw, 300px);
     --arena-log-w:clamp(180px, 18vw, 280px);
     --arena-menu-clear:88px;
-    --arena-hand-h:clamp(172px, 26vh, 240px);
-    --playcard-w:clamp(104px, 9.5vw, 138px);
+    --arena-hand-h:clamp(212px, 32vh, 300px);
+    --playcard-w:clamp(116px, 10.5vw, 152px);
+    /* Descriptions come back at this size (see the .pc-desc rule below), so
+       the card needs the taller box to hold the clamped copy — roughly a
+       1:1.4 card rectangle, sized off the width so it stays proportional. */
+    --playcard-h:clamp(166px, 25vh, 216px);
     --arena-tint:.48;
     /* On wide desktops, also pull formations in by a share of the width so
        allies/foes don't sit ~1700px apart at the extreme edges. Safe-area
@@ -2052,7 +2256,7 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
      Formations already inset via --arena-side-inset-*; the stage/map stay
      edge-to-edge under the notch and past the home indicator. */
   .sprite .sp-plate{ padding:4px 9px 5px; margin-bottom:4px; }
-  .sprite .sp-shade{ display:inline-block; }
+  .sprite .sp-shade,.sprite .sp-merc{ display:inline-block; }
   .sprite .sp-el{ font-size:11px; }
   .sprite .sp-tags{ font-size:11px; }
   .knight-plate{ padding:7px 11px 8px; }
@@ -2102,12 +2306,51 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
      safety net — the widest maps (up to 5 lanes) can exceed the short height,
      and clipping a lane node would make it unreachable; tuned lane spacing
      keeps the common 3-4 lane maps scroll-free. */
-  .map-scroll{ min-height:0; overflow-x:auto; overflow-y:auto; }
-  #mapSvg{ margin:auto 0; }
-  .map-bottom{ padding:4px 0 6px; }
+  /* ---- Map goes full-bleed in landscape ----
+     The boxed canvas wasted the short viewport twice over: a 1px-bordered card
+     inset by the app gutters, then a 100px HUD block below it in the flex flow.
+     The scroll canvas now covers the screen corner to corner and the chrome
+     (top bar + the resource/party HUD) floats on top of it, exactly like the
+     battle screen. Scroll padding — not margin — keeps nodes from parking under
+     either band while the canvas art still paints edge to edge. */
+  body[data-screen="mapScreen"] .siege-app{ padding:0; }
+  body[data-screen="mapScreen"] .siege-topbar{
+    position:absolute; top:0; left:0; right:0; z-index:20; pointer-events:none;
+    padding:3px max(8px,env(safe-area-inset-right,0px)) 2px max(8px,env(safe-area-inset-left,0px));
+    background:linear-gradient(180deg, rgba(8,11,17,.8), transparent);
+  }
+  body[data-screen="mapScreen"] .siege-topbar > *{ pointer-events:auto; }
+  body[data-screen="mapScreen"] #mapScreen{ display:block; position:relative; }
+  .map-scroll{
+    position:absolute; inset:0; min-height:0; overflow-x:auto; overflow-y:auto;
+    border:none; border-radius:0;
+    padding:34px max(6px,env(safe-area-inset-right,0px)) 78px max(6px,env(safe-area-inset-left,0px));
+  }
+  /* One HUD line, not three: the resource chips (gold, deck, Items, Key, hint)
+     sit left of the warband strip so the floating bar stays ~72px tall and the
+     map keeps the rest of the screen. Both halves scroll sideways on their own. */
+  .map-bottom{
+    position:absolute; left:0; right:0; bottom:0; z-index:12;
+    display:flex; align-items:center; gap:10px;
+    padding:5px max(8px,env(safe-area-inset-right,0px)) calc(4px + env(safe-area-inset-bottom,0px)) max(8px,env(safe-area-inset-left,0px));
+    background:linear-gradient(transparent, rgba(6,9,14,.72) 34%, rgba(6,9,14,.92));
+  }
+  .map-bottom .map-reward{flex:0 1 auto; max-width:26%; margin:0;}
+  .map-bottom .map-meta{flex:0 0 auto; max-width:56%; margin:0; flex-wrap:wrap;}
+  .map-bottom .party-strip{flex:1 1 auto; min-width:0; margin:0;}
   .map-reward{ margin-bottom:2px; font-size:11px; }
   .map-meta{ gap:8px; font-size:11px; margin-bottom:0; flex-wrap:wrap; }
-  .map-inv-btn, .map-extract-btn{ padding:4px 10px; font-size:12px; }
+  .map-inv-btn, .map-extract-btn, .map-key-btn{ padding:4px 10px; font-size:12px; }
+  /* Short viewport: the key is a reference list, so trade row height for how
+     much of it lands on screen at once. */
+  .legend-list{gap:5px;}
+  .legend-mark{width:28px; height:28px; font-size:14px;}
+  .legend-copy b{font-size:12px;}
+  .legend-copy i{font-size:10.5px;}
+  .legend-panel .inv-head{padding:8px 14px;}
+  .legend-panel .inv-body{padding:8px 14px 10px;}
+  .legend-panel .inv-subhead{margin:9px 0 5px; font-size:12px;}
+  .legend-panel .inv-subhead:first-child{margin-top:0;}
   .map-bottom .party-strip{
     flex-wrap:nowrap; overflow-x:auto; gap:6px; margin:4px 0 0; padding-bottom:2px;
     -webkit-overflow-scrolling:touch; scrollbar-width:none;
@@ -2200,6 +2443,59 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
 /* Portrait phones are too narrow to show every option at once, so the choice
    rows become swipeable carousels. Landscape has the width to lay them out
    flat and is handled at the bottom of this file instead. */
+/* Portrait phones: the map HUD is the only chrome under a full-height map, so
+   it has to stay one or two shallow rows. Wrapping the party strip to a second
+   row (three chips wide) was tried and rejected in play: it stole most of the
+   HUD height, stacked the team into a block that read as a wall, and squeezed
+   the chips so hard that names clipped. The strip is a single row that scrolls
+   horizontally instead — the team is swipeable, the chips keep readable names
+   and their level badge, and the HUD stays shallow enough that the resource row
+   below it (including the Items button) stays on screen. */
+@media (max-width:640px) and (orientation:portrait){
+  .map-bottom .party-strip{
+    flex-wrap:nowrap; overflow-x:auto; gap:6px; margin:5px 0 0; padding-bottom:2px;
+    /* Horizontal swipe belongs to the strip; the page itself must not pan. */
+    touch-action:pan-x; -webkit-overflow-scrolling:touch; scrollbar-width:none;
+  }
+  .map-bottom .party-strip::-webkit-scrollbar{display:none; height:0;}
+  .map-bottom .party-chip{
+    /* Sized so a third chip is half-visible at 390px: the cut-off edge is what
+       tells the player the strip keeps going. */
+    flex:0 0 auto; min-width:126px; max-width:150px; padding:5px 7px; gap:7px;
+  }
+  .map-bottom .party-chip .pthumb{width:34px; height:34px; flex-basis:34px;}
+  .map-bottom .party-chip .pname{font-size:11px;}
+  .map-bottom .party-chip .phptext{font-size:10px;}
+  .map-bottom .party-chip .pname,
+  .map-bottom .party-chip .phptext{
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  /* The ⓘ glyph opens a modal the whole chip already opens, so it is the one
+     thing on the narrow chip that can go without losing information. */
+  .map-bottom .party-chip .pinfo{display:none;}
+
+  /* The resource row was a single nowrap line: mode badge + gold + deck/save
+     count + Items + Extract + hint overflowed a 370px row, pushing the Items
+     button off the right edge with no way to reach it. It wraps now, and the
+     hint takes its own line so the buttons keep a full row to themselves. */
+  .map-meta{flex-wrap:wrap; gap:5px 7px; font-size:11px;}
+  /* Wrapping alone was not enough: these chips run 90-220px at full size, so
+     each claimed a line of its own. Shrunk, gold pairs with the deck/save count
+     and the buttons and hint land on the next line. */
+  .map-meta .gold-chip{font-size:10px; padding:2px 7px;}
+  /* The top bar carries the mode badge on this screen; a phone has no room for
+     it beside the two-line title, and the badge already names the run. */
+  body[data-screen="mapScreen"] .siege-title{display:none;}
+  .siege-topbar #mapMode{
+    font-size:9.5px; padding:2px 8px; letter-spacing:.2px;
+    max-width:60vw; overflow:hidden; text-overflow:ellipsis; margin-left:auto;
+  }
+  /* Let the deck/save chip wrap as a unit — broken over two lines it doubled
+     the row height for one line of text. */
+  .map-meta #mapDeckCount{white-space:nowrap;}
+  .map-inv-btn, .map-extract-btn{padding:4px 10px; font-size:12px;}
+}
+
 @media (max-width:760px) and (orientation:portrait){
   .location-overlay .location-choice-grid,
   .location-overlay .epiphany-grid,
@@ -2326,11 +2622,16 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
    so it wins the source-order tie against the two earlier phone queries that
    both match a 844x390 viewport. */
 @media (orientation:landscape) and (max-width:979px) and (max-height:600px){
+  /* The overlay spans the stage and lays its copy/choices out along the BOTTOM
+     edge (align-items:end). Capping its height at 78% therefore did not trim the
+     scene — it lifted every control ~22vh up, leaving a dead band of art under
+     the buttons on landscape phones. The overlay paints nothing itself, so it
+     can own the full stage; the children keep their own height caps. */
   .location-overlay,.smith-overlay{
-    max-height:78%; overflow:hidden;
+    max-height:none; overflow:hidden;
     gap:5px 12px; padding:8px 12px max(8px,env(safe-area-inset-bottom,0px));
   }
-  .camp-menu-open .location-overlay{max-height:78%;}
+  .camp-menu-open .location-overlay{max-height:none;}
   /* The short-landscape query above keeps utility tiles on one line by
      scrolling them sideways; its :not() selector outranks a plain two-class
      rule, so match that specificity here. Shrinking the tiles to share one
@@ -2369,13 +2670,61 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
   .location-overlay .camp-actions{min-width:96px;}
   .location-overlay .camp-actions .siege-btn{padding:7px 10px; font-size:11px;}
 
-  /* Rewards: the same flat row, so a 4-option spread (card/card/upgrade plus an
-     item sigil) still fits between the header and the bottom of the screen. */
-  .epiphany-screen{overflow:hidden;}
+  /* Rewards: landscape is wide and short, so the column stack of
+     header → recap → cards → skip cannot fit vertically — the recap either
+     scrolls away or gets hidden entirely. Split the screen sideways instead:
+     the narrow left rail carries the title and the full leveling recap (which
+     scrolls on its own), and the choice cards keep the wide right side as a
+     single flat row, so a 4-option spread still fits without a fold. */
+  .epiphany-screen{
+    display:grid; overflow:hidden;
+    grid-template-columns:minmax(196px,29%) minmax(0,1fr);
+    grid-template-rows:auto minmax(0,1fr) auto;
+    grid-template-areas:
+      "head  cards"
+      "recap cards"
+      "recap actions";
+    column-gap:12px; row-gap:4px;
+    padding:
+      calc(env(safe-area-inset-top, 0px) + 30px)
+      max(10px, env(safe-area-inset-right, 0px))
+      calc(6px + env(safe-area-inset-bottom, 0px))
+      max(10px, env(safe-area-inset-left, 0px));
+  }
+  .epiphany-header{
+    grid-area:head; margin:0; max-width:none; text-align:left;
+  }
+  .epiphany-header .location-kicker{display:block; font-size:9px;}
+  .epiphany-header h1{font-size:17px; line-height:1.15;}
+  /* The subtitle and sparkle are pure flourish; the recap needs their rows. */
+  .epiphany-header p,.epiphany-header::after{display:none;}
+  /* Beats the two short-viewport queries above, which shrink the recap behind a
+     scrollbar (or drop it) to buy height the side rail no longer needs. */
+  .epiphany-screen .xp-recap{
+    grid-area:recap; display:block; margin:4px 0 0; padding:8px 9px;
+    max-height:none; min-height:0; overflow:auto; align-self:stretch;
+  }
+  .epiphany-screen .xp-recap-kicker{display:none;}
+  .epiphany-screen .xp-recap-head{margin-bottom:5px;}
+  .epiphany-screen .xp-recap-head h2{font-size:12px;}
+  .epiphany-screen .xp-recap-total{font-size:10px; padding:2px 7px;}
+  .epiphany-screen .xp-recap-list{gap:4px;}
+  /* The rail is ~200-270px wide; the row's side-by-side name + level columns
+     squeezed the name to a single ellipsis. Stack them so the full name gets
+     the rail's width (wrapping to a second line when it needs one). */
+  .epiphany-screen .xp-recap-row{
+    padding:4px 7px; font-size:11px; flex-direction:column; align-items:stretch; gap:2px;
+  }
+  .epiphany-screen .xp-unit-name{white-space:normal; overflow:visible; line-height:1.2;}
+  .epiphany-screen .xp-unit-level{width:100%; grid-template-columns:1fr 74px; gap:2px 6px;}
+  .epiphany-screen .xp-level-badge{text-align:left;}
+  .epiphany-screen .xp-bar{width:74px;}
+  .epiphany-screen .reward-actions{grid-area:actions; margin:0; padding-top:5px;}
   .epiphany-screen .reward-grid{
+    grid-area:cards; align-self:stretch;
     display:grid; grid-template-columns:none; grid-auto-flow:column;
     grid-auto-columns:minmax(0,1fr); gap:8px; padding:0; overflow:visible;
-    width:100%; justify-content:stretch;
+    width:100%; min-height:0; justify-content:stretch;
   }
   .epiphany-screen .reward-card{
     min-height:0; height:100%; padding:8px 9px; border-radius:12px; scroll-snap-align:none;

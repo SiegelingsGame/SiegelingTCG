@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/style.css?v=230">
+    <link rel="stylesheet" href="/css/style.css?v=237">
     <!-- Pre-load loading-gate styles so the splash covers the loadout
          screen on the very first Start Battle press - the lazy-injected
          link tag inside loading-gate.js was paint-blocking the gate. -->
@@ -177,11 +177,21 @@
     </button>
 </div>
 
+<div class="phase-transition-scrim hidden" id="phaseTransitionScrim" aria-hidden="true"></div>
 <div class="phase-transition-banner hidden" id="phaseTransitionBanner" aria-live="polite" aria-atomic="true">
     <div class="phase-transition-banner-inner">
         <div class="phase-transition-banner-kicker" id="phaseTransitionKicker">Phase Shift</div>
         <div class="phase-transition-banner-title" id="phaseTransitionTitle">Battle Phase</div>
     </div>
+</div>
+
+<!-- Draw abilities get their own short reveal, separate from the ordinary turn draw. -->
+<div class="draw-ability-reveal hidden" id="drawAbilityReveal" aria-live="polite" aria-atomic="true">
+    <div class="draw-ability-reveal-copy">
+        <span class="draw-ability-reveal-kicker">Ability resolved</span>
+        <strong id="drawAbilityRevealTitle">Cards drawn</strong>
+    </div>
+    <div class="draw-ability-reveal-cards" id="drawAbilityRevealCards"></div>
 </div>
 
 <!-- App Shell: single screen, no scroll -->
@@ -903,15 +913,15 @@
 <script src="/js/config.js"></script>
 <script type="module" src="/js/firebase-init.js?v=2"></script>
     <script src="/js/catalog-sync.js?v=1"></script>
-    <script src="/js/game.js?v=240"></script>
+    <script src="/js/game.js?v=248"></script>
     <script src="/js/play-hud.js?v=1"></script>
     <!-- Defines window.SieglingsCardBinderVisual (buildArtTransformStyle). Without it,
          getDashboardCardArtMeta() can't build the cardArtScale/offset transform, so
          overlay art renders unscaled on the battle hand, board, and mulligan. -->
-    <script src="/js/card-binder-visual.js?v=20"></script>
+    <script src="/js/card-binder-visual.js?v=22"></script>
     <script src="/js/sounds.js?v=1"></script>
     <script src="/js/fx.js?v=4"></script>
-    <script src="/js/action-queue.js?v=40"></script>
+    <script src="/js/action-queue.js?v=45"></script>
     <script src="/js/loading-gate.js?v=2"></script>
     <script src="/js/sw-register.js?v=1"></script>
 </body>
