@@ -3357,11 +3357,16 @@
         // empty grid that would imply the player has no decks. An empty card
         // catalog means the options payload never arrived, so its deck list is
         // empty for the same reason.
-        if (!hasCardCatalog(state.options) || ownedDataLoading()) {
+        if (decksLoading()) {
             grid.innerHTML = panelLoadingMarkup('Loading your decks…');
+            // Nothing below the spinner can act on a deck yet — the create button
+            // and saved tiles would open a builder with no catalog — so the whole
+            // custom block stays hidden until the data lands.
+            setCustomDeckBlockVisible(false);
             renderSavedDecks();
             return;
         }
+        setCustomDeckBlockVisible(true);
         grid.innerHTML = (state.options?.decks || []).map(renderPremadeDeckTile).join('');
         grid.querySelectorAll('[data-preview-deck]').forEach(tile => {
             const select = () => {
@@ -3552,17 +3557,31 @@
         </article>`;
     }
 
+    function decksLoading() {
+        return !hasCardCatalog(state.options) || ownedDataLoading();
+    }
+
+    // The custom block's header carries the Create Custom Deck button; hiding the
+    // whole block (not just the grid) keeps a dead presser off screen while the
+    // deck data is still in flight.
+    function setCustomDeckBlockVisible(visible) {
+        const block = document.querySelector('#decksSection .builder-browser');
+        if (block) block.classList.toggle('hidden', !visible);
+    }
+
     function renderSavedDecks() {
         const grid = document.getElementById('customDeckGrid');
         const count = document.getElementById('deckCardCount');
         if (!grid) return;
         // Signed in but saved decks haven't loaded yet — show a spinner rather
         // than "No saved custom decks yet", which would be misleading mid-load.
-        if (ownedDataLoading()) {
+        if (decksLoading()) {
             if (count) count.textContent = '';
             grid.innerHTML = panelLoadingMarkup('Loading your saved decks…');
+            setCustomDeckBlockVisible(false);
             return;
         }
+        setCustomDeckBlockVisible(true);
         const savedDecks = state.profile?.savedDecks || [];
         if (count) count.textContent = `${savedDecks.length} saved`;
         if (!state.profile?.authenticated) {
