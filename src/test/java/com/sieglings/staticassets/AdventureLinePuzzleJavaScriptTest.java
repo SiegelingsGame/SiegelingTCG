@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AdventureLinePuzzleJavaScriptTest {
@@ -23,6 +24,32 @@ class AdventureLinePuzzleJavaScriptTest {
 
         assertTrue(completePath >= 0 && stopDrawing > completePath,
                 "A line path must lock as soon as it reaches its twin so pointer drift cannot extend it.");
+    }
+
+    @Test
+    void statusRoundsPrintOnlyForStatusesThatRunAClock() throws IOException {
+        String adventure = Files.readString(ADVENTURE_JS);
+        String effects = extractFunction(adventure, "function battleUnitEffects(u)");
+
+        // BURN/POISON hold BURN_ROUNDS (99) for the whole battle and STUN/LEECH/
+        // SHOCK/DISORIENT/INSIGHT/BLIND sit behind a 2-round safety net, so a bare
+        // "rounds > 0" printed "Burn - 99 rounds" at the player.
+        assertTrue(
+                effects.contains("meta.timed && rounds > 0"),
+                "The round counter must be gated on the status actually running a clock."
+        );
+        for (String timed : new String[] {"SLOW", "SOAK", "RUST", "CURSE", "WITHER"}) {
+            assertTrue(
+                    adventure.matches("(?s).*\\n\\s+" + timed + ": \\{[^}]*timed: true.*"),
+                    timed + " runs a real clock and must be marked timed in STATUS_META."
+            );
+        }
+        for (String untimed : new String[] {"BURN", "POISON", "STUN", "BLIND"}) {
+            assertFalse(
+                    adventure.matches("(?s).*\\n\\s+" + untimed + ": \\{[^}]*timed: true.*"),
+                    untimed + " does not run a countable clock and must not be marked timed."
+            );
+        }
     }
 
     @Test

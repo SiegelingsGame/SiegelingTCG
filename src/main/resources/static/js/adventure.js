@@ -47,18 +47,18 @@
   };
   var STATUS_META = {
     BURN: { icon: '🔥', label: 'Burn', tip: '1 damage at end of round' },
-    SLOW: { icon: '❄️', label: 'Slow', tip: '−2 Speed; reapply freezes' },
+    SLOW: { icon: '❄️', label: 'Slow', timed: true, tip: '−2 Speed; reapply freezes' },
     STUN: { icon: '💫', label: 'Stun', tip: 'Skips next action' },
     LEECH: { icon: '💚', label: 'Leech', tip: 'Heals the attacker for HP damage dealt' },
     SHOCK: { icon: '⚡', label: 'Shock', tip: 'Drains AP / weakens next hit' },
     DISORIENT: { icon: '🌬️', label: 'Disorient', tip: 'Cards cost +1 AP' },
     POISON: { icon: '☠️', label: 'Poison', tip: 'End-round DoT; blocks heals' },
-    SOAK: { icon: '💧', label: 'Soak', tip: 'Takes +1 from attacks' },
-    RUST: { icon: '⚙️', label: 'Rust', tip: 'Next Metal hit +1, then clears' },
-    CURSE: { icon: '🌑', label: 'Curse', tip: 'Cannot evolve' },
+    SOAK: { icon: '💧', label: 'Soak', timed: true, tip: 'Takes +1 from attacks' },
+    RUST: { icon: '⚙️', label: 'Rust', timed: true, tip: 'Next Metal hit +1, then clears' },
+    CURSE: { icon: '🌑', label: 'Curse', timed: true, tip: 'Cannot evolve' },
     INSIGHT: { icon: '👁️', label: 'Insight', tip: 'Second hit draws / pays off' },
     BLIND: { icon: '✨', label: 'Blind', tip: 'Ability values −1' },
-    WITHER: { icon: '💀', label: 'Wither', tip: '−1 HP at turn start' }
+    WITHER: { icon: '💀', label: 'Wither', timed: true, tip: '−1 HP at turn start' }
   };
   // Status → the element that inflicts it, mirroring
   // ElementalAfflictionCatalog.java. Statuses arrive from auras and riders, not
@@ -4248,7 +4248,12 @@
       var meta = STATUS_META[status];
       if (!meta) return;
       var rounds = Number((u.statusRounds || {})[status]);
-      effects.push({ icon: meta.icon, label: meta.label, detail: meta.tip + (rounds > 0 ? ' · ' + rounds + ' round' + (rounds === 1 ? '' : 's') : ''), negative: true });
+      // Rounds print only for statuses that run a real clock. BURN/POISON hold
+      // BURN_ROUNDS (99) for the whole battle and the consumed-on-next-action
+      // ones sit behind a 2-round safety net, so showing either reads as a
+      // promise the engine never made ("Burn · 99 rounds").
+      var clock = meta.timed && rounds > 0 ? ' · ' + rounds + ' round' + (rounds === 1 ? '' : 's') : '';
+      effects.push({ icon: meta.icon, label: meta.label, detail: meta.tip + clock, negative: true });
     });
     return effects;
   }
