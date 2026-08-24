@@ -288,7 +288,14 @@ public class EnergyService {
                 return;
             }
         }
-        player.adjustTemporaryEnergy(element, -amount);
+        // Drain the surge ledger before booking temporary debt. Temporary adjustments survive
+        // into Battle; overcharge does not. Charging the whole spend to temporary would leave a
+        // debt after clearOvercharge and under-restore board energy for the fight.
+        int fromOvercharge = player.consumeOverchargeEnergy(element, amount);
+        int fromTemporary = amount - fromOvercharge;
+        if (fromTemporary > 0) {
+            player.adjustTemporaryEnergy(element, -fromTemporary);
+        }
     }
 
     public boolean canAfford(GameState state, boolean isPlayer, Element costElement, int costAmount) {
