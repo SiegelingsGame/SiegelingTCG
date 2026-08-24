@@ -146,6 +146,29 @@ public class Player {
         overchargeEnergy.merge(element, amount, Integer::sum);
     }
 
+    /**
+     * Spends from a live overcharge first. Returns how much of {@code amount} came out of the
+     * surge so callers can avoid booking that portion as claim-style temporary debt — otherwise
+     * the debt would outlive {@link #clearOverchargeEnergy()} and steal board energy at Battle.
+     */
+    public int consumeOverchargeEnergy(Element element, int amount) {
+        if (element == null || amount <= 0) {
+            return 0;
+        }
+        int available = overchargeEnergy.getOrDefault(element, 0);
+        int used = Math.min(available, amount);
+        if (used <= 0) {
+            return 0;
+        }
+        int remaining = available - used;
+        if (remaining == 0) {
+            overchargeEnergy.remove(element);
+        } else {
+            overchargeEnergy.put(element, remaining);
+        }
+        return used;
+    }
+
     /** The Battle phase opening is where an overcharge always ends. */
     public void clearOverchargeEnergy() {
         overchargeEnergy.clear();
