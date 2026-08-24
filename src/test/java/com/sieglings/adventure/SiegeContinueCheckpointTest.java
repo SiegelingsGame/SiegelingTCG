@@ -59,6 +59,26 @@ class SiegeContinueCheckpointTest {
     }
 
     @Test
+    void continueRunSerializesOnTheSessionMonitor() throws Exception {
+        // Timeout retries / double Claim Rewards must not re-enter grantEndRewards
+        // while the first continue is still writing progression gold.
+        String source = java.nio.file.Files.readString(
+                java.nio.file.Path.of("src/main/java/com/sieglings/adventure/SiegeService.java"));
+        assertTrue(
+                source.contains("Session session = requireSession(token);")
+                        && source.contains("synchronized (session)")
+                        && source.contains("continueRunLocked("),
+                "continueRun must lock the in-memory Session before applying battle spoils."
+        );
+        assertTrue(
+                source.contains("Map<String, Object> extract(String token, String authorizationHeader)")
+                        && source.indexOf("synchronized (session)", source.indexOf("Map<String, Object> extract(String token"))
+                        > source.indexOf("Map<String, Object> extract(String token"),
+                "extract must use the same Session lock before banking end rewards."
+        );
+    }
+
+    @Test
     void checkpointSkipsFinishedBattles() throws Exception {
         SiegeRun run = baseRun();
         SiegeBattle battle = new SiegeBattle(NodeType.BATTLE);

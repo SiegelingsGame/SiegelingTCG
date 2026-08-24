@@ -170,9 +170,58 @@
         window.setTimeout(() => $('roomCodeInput')?.focus(), 60);
     }
 
-    function openJoinWithCode() {
-        if (typeof gameState !== 'undefined' && gameState
-            && !window.confirm('Leave the current match and open the room join screen?')) {
+    // openLoadoutSelector() only clears local session state. Leaving an active
+    // match must forfeit server-side first or the opponent is stranded in a
+    // live room with no forfeit/win recorded (Quit Match already does this).
+    async function abandonActiveMatchForJoinCode() {
+        if (typeof gameState === 'undefined' || !gameState || gameState.gameOver) {
+            return true;
+        }
+        const session = typeof multiplayerSession !== 'undefined' ? multiplayerSession : null;
+        const isOnline = Boolean(gameState.multiplayer && session?.roomId && session?.playerToken);
+        const message = isOnline
+            ? 'Leave this match and open Join With Code? Your opponent will be notified and wins by forfeit.'
+            : 'Leave this match and open Join With Code? You will lose.';
+        if (!window.confirm(message)) {
+            return false;
+        }
+        const urls = typeof apiUrls === 'function' ? apiUrls : (path) => path;
+        const headers = typeof getAuthHeaders === 'function'
+            ? getAuthHeaders({ 'Content-Type': 'application/json' })
+            : { 'Content-Type': 'application/json' };
+        if (isOnline) {
+            const data = await fetchJson(urls('/api/match/forfeit'), {
+                method: 'POST',
+                headers: {
+                    ...headers,
+                    'X-Room-Id': session.roomId,
+                    'X-Player-Token': session.playerToken
+                }
+            });
+            if (!data || data.error) {
+                window.alert(data?.error || 'Could not leave the online match.');
+                return false;
+            }
+            return true;
+        }
+        if (typeof soloSessionToken !== 'undefined' && soloSessionToken) {
+            const data = await fetchJson(urls('/api/game/forfeit'), {
+                method: 'POST',
+                headers: {
+                    ...headers,
+                    'X-Solo-Token': soloSessionToken
+                }
+            });
+            if (!data || data.error) {
+                window.alert(data?.error || 'Could not leave the match.');
+                return false;
+            }
+        }
+        return true;
+    }
+
+    async function openJoinWithCode() {
+        if (!(await abandonActiveMatchForJoinCode())) {
             return;
         }
         closeAll();
