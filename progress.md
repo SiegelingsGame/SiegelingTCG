@@ -1839,3 +1839,18 @@ target measures 58x34 px, matching the neighbouring Edit button. Plus `node --ch
 and a new `savedDeckTilesDeleteInTwoTapsAndClearTheActiveSelection` regression in
 `GameJavaScriptRegressionTest` (76 tests green). Cache-bust: `home.js` v150,
 `home.css` v136.
+
+## 2026-08-24 — Deck delete (and save) now update the shared profile cache
+
+Reported: delete "not working on state". The request and the server delete were fine —
+`deleteSavedDeck` updated `state.profile` but never wrote `sieglingsAuthProfile` in
+localStorage. That cache is what paints the hub before `/api/auth/me` returns and, more
+importantly, is the list `game.js` renders the Play page's saved decks from, so a deleted
+deck came back on the next load and stayed selectable on Play. `saveCustomDeck` had the
+same gap in the other direction (a freshly saved deck missing from the cache).
+Both now call `saveCachedAuthProfile(data)` with the server's response.
+
+Verified headless at 390x844 against stubbed endpoints: after the delete the cached
+profile lists only the surviving deck id (`d2`); with the new line removed it still
+listed the deleted `d1`, confirming the diagnosis. Regression extended in
+`GameJavaScriptRegressionTest` (76 green). Cache-bust: `home.js` v151.
