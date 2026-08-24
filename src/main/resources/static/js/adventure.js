@@ -1568,7 +1568,13 @@
     // A freshly joined Siegeling gets its gacha reveal before anything else —
     // claim it, then the normal reward flow continues.
     if (run.recruit) { renderRecruitReveal(); return; }
-    if (run.status === 'WON' || run.status === 'LOST') { renderResult(); return; }
+    if (run.status === 'WON' || run.status === 'LOST') {
+      renderResult();
+      // Signed-in spoils that failed to bank stay retryable on the server. Refetch
+      // state (auth-bearing) so a transient progression save does not strand coins.
+      maybeRetryUnclaimedEndRewards(run);
+      return;
+    }
     if (run.pendingRewards && run.pendingRewards.length) { renderRewards(); return; }
     if (state.interactionResult) { renderInteractionResult(); return; }
     if (run.camp) { renderCamp(); return; }
@@ -4547,6 +4553,28 @@
       .then(function () { state.busy = false; });
   }
 
+  function maybeRetryUnclaimedEndRewards(run) {
+    var er = run && run.endRewards;
+    if (!er || er.claimed || er.guestPreview) return;
+    if (state.endRewardRetryPending) return;
+    var auth = '';
+    try { auth = localStorage.getItem(AUTH_TOKEN_KEY) || ''; } catch (e) { /* ignore */ }
+    // Guests have no credential; cookie-session players store the sentinel and still
+    // authenticate via credentials:'include' + the server cookie bridge.
+    if (!auth) return;
+    var t = token();
+    if (!t) return;
+    state.endRewardRetryPending = true;
+    api('/api/siege/state?token=' + encodeURIComponent(t))
+      .then(function (fresh) {
+        state.endRewardRetryPending = false;
+        if (!fresh || !fresh.endRewards) return;
+        state.run = fresh;
+        renderResult();
+      })
+      .catch(function () { state.endRewardRetryPending = false; });
+  }
+
   function renderResult() {
     showScreen('resultScreen');
     var run = state.run;
@@ -4570,7 +4598,11 @@
     var er = run.endRewards;
     if (er) {
       var cardLine = er.card ? '<div>🃏 Card: <strong>' + esc(er.card.name) + '</strong> (' + esc(er.card.rarity) + ')</div>' : '';
-      var note = er.claimed ? 'Added to your account.' : 'Sign in before your next run to bank rewards like these!';
+      var note = er.claimed
+        ? 'Added to your account.'
+        : (er.guestPreview
+          ? 'Sign in before your next run to bank rewards like these!'
+          : 'Banking to your account…');
       var box = el('div', 'result-rewards',
         '<h3>Spoils of War</h3>' +
         '<div>🪙 ' + (er.gold || 0) + ' Siegecoins</div>' +
