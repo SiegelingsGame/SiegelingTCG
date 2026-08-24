@@ -2392,6 +2392,35 @@ class GameJavaScriptRegressionTest {
     // Asserts a rule targeting the given subject also applies to the wanted
     // selector, without pinning the exact :is() list — that list legitimately
     // grows as new surfaces reuse the rule.
+    @Test
+    void mulliganLeaveMatchForfeitsStartedOnlineGames() throws IOException {
+        String gameScript = readGameScript();
+        String playMarkup = Files.readString(PLAY_HTML);
+        String leaveOnlineMatch = extractFunction(gameScript, "async function leaveOnlineMatch(");
+
+        assertTrue(
+                playMarkup.contains("onclick=\"leaveOnlineMatch()\"")
+                        && playMarkup.contains("id=\"mulliganWaitActions\""),
+                "The mulligan wait UI must keep exposing Leave match."
+        );
+        assertTrue(
+                leaveOnlineMatch.contains("/api/match/forfeit")
+                        && leaveOnlineMatch.contains("wins by forfeit")
+                        && leaveOnlineMatch.indexOf("/api/match/forfeit")
+                        < leaveOnlineMatch.indexOf("openLoadoutSelector()"),
+                "Leave match during an active multiplayer game must forfeit before clearing local session."
+        );
+        assertTrue(
+                leaveOnlineMatch.contains("gameState?.multiplayer")
+                        && leaveOnlineMatch.contains("/api/match/close"),
+                "Unstarted lobby teardown may still close; started matches must take the forfeit branch first."
+        );
+        assertTrue(
+                gameJsPin(playMarkup) >= 241,
+                "Play must load the forfeiting leaveOnlineMatch bundle."
+        );
+    }
+
     private static boolean selectorCovers(String css, String subjectPattern, String wanted) {
         Matcher matcher = Pattern.compile("(:is\\([^)]*\\))\\s*" + subjectPattern).matcher(css);
         while (matcher.find()) {
