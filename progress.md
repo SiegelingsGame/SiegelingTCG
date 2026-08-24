@@ -1,3 +1,8 @@
+Original prompt: critical bug investigation
+
+- August 6, 2026 Mission panel still blanked when day/week rollover persist failed. `DailyMissionService.loadProgress` still called `progressStore.save` inside the snapshot read; a Firestore hiccup threw out of `GET /api/missions/daily` and blanked all three mission tabs (controller only caught `IllegalArgumentException`). Separately, `homeDailyMissions` used `featured || missions`, and empty `featured: []` is truthy in JS. Made rollover persist best-effort (`persistRollover`), returned a client-handled error envelope for unexpected snapshot failures, and length-checked featured before falling through. Cache pin `home.js?v=139`. Same fix previously opened as #674 / #586 / #585 and remained unmerged; verified still broken on `origin/main` before re-applying.
+- Verification: `node --check` clean on `home.js`. `DailyMissionServiceTest#snapshotStillServesWhenRolloverPersistFails` and `GameJavaScriptRegressionTest#emptyFeaturedMissionsFallThroughToFullDailyList` green via `./mvnw -q -Dtest=DailyMissionServiceTest,GameJavaScriptRegressionTest test`.
+
 Original prompt: Merge and deploy (follow-up deploy verification)
 
 - August 23, 2026 PR #729 (deck builder card-art fitting) merged to `main` as `2adf11f2` after merging `origin/main` in — #728 had landed meanwhile and conflicted only in `progress.md`, resolved by keeping both entries; #728 is Siege-only (`adventure.*`) so it shares no files or cache pins with this work. No code changed in this step; this entry records the live verification of the fix.

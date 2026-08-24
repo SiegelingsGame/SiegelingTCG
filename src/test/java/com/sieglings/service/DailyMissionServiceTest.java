@@ -115,6 +115,26 @@ class DailyMissionServiceTest {
         assertThrows(IllegalArgumentException.class, () -> service.claimMission(user, "weekly-pvp-10"));
     }
 
+    /**
+     * The snapshot is a read; a failure to persist the day's rollover must not
+     * take the whole mission panel down with it.
+     */
+    @Test
+    void snapshotStillServesWhenRolloverPersistFails() {
+        AccountUser user = user();
+        DailyMissionProgressEntity stale = progressForToday(user.getId());
+        stale.setDateKey("2000-01-01");
+        stale.setWeekKey("2000-W01");
+        missionStore.saved = stale;
+        missionStore.failSave = true;
+
+        Map<String, Object> snapshot = service.getDailySnapshot(user);
+
+        assertFalse(((List<?>) snapshot.get("daily")).isEmpty());
+        assertFalse(((List<?>) snapshot.get("weekly")).isEmpty());
+        assertFalse(((List<?>) snapshot.get("lifetime")).isEmpty());
+    }
+
     @Test
     void claimingMissionsBanksTrackPoints() {
         AccountUser user = user();
@@ -319,6 +339,7 @@ class DailyMissionServiceTest {
 
     private static final class FakeMissionProgressStore extends DailyMissionProgressStore {
         DailyMissionProgressEntity saved;
+        boolean failSave;
 
         @Override
         public Optional<DailyMissionProgressEntity> findByUserId(String userId) {
@@ -327,6 +348,9 @@ class DailyMissionServiceTest {
 
         @Override
         public DailyMissionProgressEntity save(DailyMissionProgressEntity progress) {
+            if (failSave) {
+                throw new IllegalStateException("Unable to save daily mission progress to Firestore.");
+            }
             saved = progress;
             return progress;
         }
