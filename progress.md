@@ -1819,3 +1819,23 @@ with the new CSS (full-width banner, 84px tall) on `home.html`. Cache-bust bumps
 `home.js` v149, `home.css` v135, `game.js` v251. The existing
 `failedCatalogFetchNeverEmptiesTheBinder` assertion was updated for the shared
 `decksLoading()` predicate introduced earlier today.
+
+## 2026-08-24 — Quick delete for saved custom decks
+
+Saved custom decks could only be created, never removed, so duplicate "Fire and Water"
+tiles piled up on the Decks screen. Each custom tile now carries a Delete button beside
+Edit that arms on the first tap ("Delete?", red pulse, auto-disarms after 4s) and calls
+the existing `POST /api/profile/decks/delete` on the second — no native confirm to
+dismiss on a phone, and no single mis-tap destroying a deck. A failed delete renders the
+server's reason in a `.builder-issue` banner above the grid instead of an alert, and a
+successful one clears `state.selectedDeckId` when the deleted deck was the active
+loadout, so the next Play tap can't start a match against a missing deck id.
+
+Verified: headless Chromium at 390x844 driving the real page against stubbed endpoints —
+first tap shows "Delete?" with no request sent, second tap posts `{id:"d1"}` and the tile
+disappears (2 → 1), the armed state reverts to "Delete" after the 4s timeout, and a
+stubbed error response leaves both tiles in place with the banner text shown. Delete tap
+target measures 58x34 px, matching the neighbouring Edit button. Plus `node --check`,
+and a new `savedDeckTilesDeleteInTwoTapsAndClearTheActiveSelection` regression in
+`GameJavaScriptRegressionTest` (76 tests green). Cache-bust: `home.js` v150,
+`home.css` v136.

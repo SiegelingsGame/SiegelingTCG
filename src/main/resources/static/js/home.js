@@ -3598,7 +3598,21 @@
             grid.innerHTML = '<div class="unlock-card"><strong>Sign in to save custom decks</strong><span>Your deck binder will show saved custom decks after login.</span></div>';
             return;
         }
-        grid.innerHTML = savedDecks.length ? savedDecks.map(renderSavedDeckTile).join('') : '<div class="unlock-card"><strong>No saved custom decks yet</strong><span>Tap Create Custom Deck to build a 30-card list from your binder.</span></div>';
+        const notice = state.savedDeckNotice
+            ? `<div class="builder-issue" role="alert"><div class="builder-issue-copy"><strong>Deck not deleted</strong><span>${escapeHtml(state.savedDeckNotice)}</span></div><button class="ghost-btn builder-issue-dismiss" type="button" data-saved-deck-notice-dismiss aria-label="Dismiss">&times;</button></div>`
+            : '';
+        grid.innerHTML = notice + (savedDecks.length ? savedDecks.map(renderSavedDeckTile).join('') : '<div class="unlock-card"><strong>No saved custom decks yet</strong><span>Tap Create Custom Deck to build a 30-card list from your binder.</span></div>');
+        grid.querySelector('[data-saved-deck-notice-dismiss]')?.addEventListener('click', () => {
+            state.savedDeckNotice = null;
+            renderSavedDecks();
+        });
+        grid.querySelectorAll('[data-delete-custom-deck]').forEach(btn => btn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            const deckId = btn.dataset.deleteCustomDeck || '';
+            if (state.deckDeleteBusy) return;
+            if (state.deckPendingDelete === deckId) return void deleteSavedDeck(deckId);
+            armSavedDeckDelete(deckId);
+        }));
         grid.querySelectorAll('[data-edit-custom-deck]').forEach(btn => btn.addEventListener('click', (event) => {
             event.stopPropagation();
             openDeckBuilder({ savedDeckId: btn.dataset.editCustomDeck });
@@ -3638,10 +3652,57 @@
                 <span class="deck-card-elements">${displayElements.map(format).join(' / ')}</span>
                 <span class="deck-card-desc">${deck.custom ? `${cardIds.length} owned cards` : escapeHtml(deck.deckName || 'Premade loadout')} / ${escapeHtml(deck.trainerName || 'SiegeKnight')}</span>
             </div>
-            <div class="deck-card-actions">
+            <div class="deck-card-actions${deck.custom ? ' has-delete' : ''}">
                 ${deck.custom ? `<button class="ghost-btn" type="button" data-edit-custom-deck="${escapeAttr(deck.id)}">Edit</button>` : ''}
+                ${deck.custom ? renderSavedDeckDeleteButton(deck) : ''}
             </div>
         </article>`;
+    }
+
+    // Deleting is one tap away but never a single tap: the first tap arms the
+    // button in place (no modal to dismiss on a phone) and it disarms itself.
+    const DECK_DELETE_ARM_MS = 4000;
+    let deckDeleteArmTimer = null;
+
+    function renderSavedDeckDeleteButton(deck) {
+        const armed = state.deckPendingDelete === deck.id;
+        return `<button class="ghost-btn deck-delete-btn${armed ? ' is-armed' : ''}" type="button"
+            data-delete-custom-deck="${escapeAttr(deck.id)}"
+            aria-label="${armed ? 'Confirm deleting' : 'Delete'} ${escapeAttr(deck.name || 'this deck')}"
+        >${armed ? 'Delete?' : 'Delete'}</button>`;
+    }
+
+    function armSavedDeckDelete(deckId) {
+        state.deckPendingDelete = deckId;
+        if (deckDeleteArmTimer) window.clearTimeout(deckDeleteArmTimer);
+        deckDeleteArmTimer = window.setTimeout(() => {
+            if (state.deckPendingDelete !== deckId) return;
+            state.deckPendingDelete = null;
+            renderSavedDecks();
+        }, DECK_DELETE_ARM_MS);
+        renderSavedDecks();
+    }
+
+    async function deleteSavedDeck(deckId) {
+        if (deckDeleteArmTimer) window.clearTimeout(deckDeleteArmTimer);
+        state.deckPendingDelete = null;
+        state.deckDeleteBusy = deckId;
+        state.savedDeckNotice = null;
+        renderSavedDecks();
+        const data = await fetchJson('/api/profile/decks/delete', { method: 'POST', body: JSON.stringify({ id: deckId }) });
+        state.deckDeleteBusy = null;
+        if (!data || data.error) {
+            state.savedDeckNotice = data?.error || 'That deck could not be deleted. Check your connection and try again.';
+            renderSavedDecks();
+            return;
+        }
+        state.profile = data;
+        state.progression = data.progression || state.progression;
+        // The active loadout cannot point at a deck that no longer exists, or the
+        // next Play tap starts a match against a missing deck id.
+        if (state.selectedDeckId === deckId) state.selectedDeckId = '';
+        renderProfile();
+        renderDecks();
     }
 
     function cardCountsFromIdList(cardIds) {

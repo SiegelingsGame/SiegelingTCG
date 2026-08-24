@@ -3311,6 +3311,39 @@ select.search-input { color-scheme: dark; }
     grid-template-columns: 1fr;
 }
 
+/* Edit stays the wide default action; Delete sits beside it at thumb size. */
+.custom-saved-deck .deck-card-actions.has-delete {
+    grid-template-columns: 1fr minmax(72px, 0.62fr);
+}
+
+.deck-delete-btn {
+    border-color: rgba(255, 106, 92, 0.55);
+    color: #ffb4ac;
+}
+
+.deck-delete-btn:hover,
+.deck-delete-btn:focus-visible {
+    border-color: rgba(255, 106, 92, 0.9);
+    color: #fff0ed;
+    background: rgba(255, 76, 62, 0.22);
+}
+
+/* Armed state has to read as "the next tap deletes" at a glance. */
+.deck-delete-btn.is-armed {
+    border-color: #ff4c3e;
+    color: #fff4f1;
+    background: rgba(255, 76, 62, 0.42);
+    box-shadow: 0 0 0 2px rgba(255, 76, 62, 0.28);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .deck-delete-btn.is-armed { animation: deck-delete-arm 1.1s ease-in-out infinite; }
+}
+
+@keyframes deck-delete-arm {
+    50% { box-shadow: 0 0 0 5px rgba(255, 76, 62, 0.14); }
+}
+
 .hub-deck-card:not(.custom-saved-deck) .deck-card-actions:empty,
 .hub-deck-card.custom-saved-deck .deck-card-actions:empty {
     display: none;
@@ -10209,6 +10242,9 @@ body.gacha-active {
         right: 8px;
         bottom: 8px;
         gap: 5px;
+    }
+    .custom-saved-deck .deck-card-actions.has-delete {
+        grid-template-columns: 1fr minmax(58px, 0.6fr);
     }
     .deck-card-actions button {
         min-height: 34px;

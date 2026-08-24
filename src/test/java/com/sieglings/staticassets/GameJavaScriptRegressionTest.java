@@ -2584,6 +2584,28 @@ class GameJavaScriptRegressionTest {
                 "The player must be told which cards are missing rather than seeing a short deck rejected.");
     }
 
+    /**
+     * Saved decks piled up with no way to remove one short of the builder. The tile's
+     * delete control arms on the first tap and only calls the endpoint on the second,
+     * so a mis-tap on a phone never destroys a deck.
+     */
+    @Test
+    void savedDeckTilesDeleteInTwoTapsAndClearTheActiveSelection() throws IOException {
+        String homeScript = readHomeScript();
+        String deleteSavedDeck = extractFunction(homeScript, "async function deleteSavedDeck(deckId)");
+        String renderSavedDecks = extractFunction(homeScript, "function renderSavedDecks()");
+
+        assertTrue(renderSavedDecks.contains("if (state.deckPendingDelete === deckId) return void deleteSavedDeck(deckId);")
+                        && renderSavedDecks.contains("armSavedDeckDelete(deckId)"),
+                "The first tap must only arm the delete; the second performs it.");
+        assertTrue(deleteSavedDeck.contains("'/api/profile/decks/delete'"),
+                "Deleting must go through the existing saved-deck delete endpoint.");
+        assertTrue(deleteSavedDeck.contains("if (state.selectedDeckId === deckId) state.selectedDeckId = '';"),
+                "The active loadout must not keep pointing at a deleted deck.");
+        assertTrue(deleteSavedDeck.contains("state.savedDeckNotice = data?.error"),
+                "A failed delete must surface the server's reason on the decks screen.");
+    }
+
     private static String extractFunction(String source, String signature) {
         int start = source.indexOf(signature);
         assertTrue(start >= 0, "Could not find " + signature);
