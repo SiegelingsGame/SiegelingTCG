@@ -1759,3 +1759,30 @@ Original prompt: I completed a run, I found spoutyl and Generoot on that run, si
 - Verification: full `./mvnw test` **529/529 green** (up from 527 with the two static-asset guards fixed). Seven of them are the new `SiegeSieglingUnlockTest`, which drives the real Spring context: `baseFormId` walks a real catalog evolution to a card that `stageOf` reports as stage 1 and is idempotent on a root; banking a discovery flips `isSiegeSieglingUnlocked` and returns the name for the result screen; **finding an evolution unlocks both its stage-1 base and the found form**; re-banking the same find announces nothing and stores no duplicate; discoveries survive a `snapshotRun` round trip; starting a real run via `siegeService.newRun` records its whole warband as discovered (proving the join hook fires rather than assuming it); and `roster()` reports a previously-unlocked Siegeling as `expeditionStarter: true` — that last one stubs `AccountService`/`PlayerProgressionService` through the service's own fields, because the unlock is per-account and this environment has no Firestore credentials. `node --check` clean on `adventure.js`.
 - August 16, 2026 (merge) Brought `claude/mobile-landscape-battle-screen-iyuyy1` up to date with `main` after PRs #712/#713 landed the Battlegrounds save-slot and sprite-size work. Four conflicts, all resolved toward main where it had done the same job better: `AdventureLinePuzzleJavaScriptTest` and `GameJavaScriptRegressionTest` had **independently converted the same literal adventure cache pins to floors** (main's `adventureJsPin`/`adventureCssPin` helpers replace the `assetPin` calls added on this branch — same guarantee, main's naming); `progress.md` keeps both histories in order; and `adventure.html` needed a real bump rather than a pick, because both sides had independently landed on `adventure.js?v=64` for **different** bundles — shipping either verbatim would have served one branch's JS under the other's URL. Pins therefore advance past both: `adventure.css` 60 and `adventure.js` 65. (Supersedes the 58->59 / 63->64 numbers recorded in this branch's earlier entries.) The semantic merges auto-resolved cleanly: the discovery hook sits alongside main's new `upgradeHandCards` call at both evolution sites, and the hand sheet, uniform card sizing, and starter-unlock code all survived intact.
 - Verification: full `./mvnw test` on the merged tree **536/536 green** (this branch's 7 new cases plus main's). `node --check` clean on `adventure.js`. `tests/siege-hand-sheet-check.cjs` was re-run against the merged build — a real expedition driven through main's rewritten resume/boot path into a battle — and passes all 12 assertions at **390x844, 844x390, 1024x768 and 1920x1080** with zero page errors, so main's resume-screen rework did not disturb the hand sheet or the uniform card sizing.
+
+## 2026-08-24 — Hide custom deck controls while decks load
+
+While the Decks page was fetching the card catalog / owned data, the premade grid
+showed a spinner but the "Custom / Your saved decks" block below it still rendered
+its header, the Create Custom Deck button and saved deck tiles — pressers that do
+nothing because the catalog they open the builder against has not arrived. The
+loading branches in `renderDecks`/`renderSavedDecks` now share a `decksLoading()`
+predicate and hide the whole `.builder-browser` block (via the global `.hidden`
+class) until data lands, so only the loading state is visible; `home.js` cache-bust
+bumped to v147 in `home.html`.
+
+Verified with `node --check` on `home.js` and a headless-Chromium check at 390x844
+serving the statics over `python3 -m http.server`: with no API responses the deck
+grid reads "Loading your decks…" and `#decksSection .builder-browser` reports
+`isVisible() === false` (it was `true` before the change).
+
+## 2026-08-24 — Hide premade heading while decks load
+
+Follow-up: the "PREMADE / Official battle decks" heading still labelled an empty
+row during the deck load. `renderDecks` now also toggles that row head with
+`setPremadeHeadVisible()`, so a loading Decks page shows only the page title and
+the spinner. `home.js` cache-bust bumped to v148.
+
+Verified headless at 390x844 with no API responses: `#decksSection` visible text
+is "DECKS | Premade and custom decks | Loading your decks…", with both the premade
+row head and the custom block reporting `isVisible() === false`.
