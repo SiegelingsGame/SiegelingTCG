@@ -2421,6 +2421,32 @@ class GameJavaScriptRegressionTest {
         );
     }
 
+    @Test
+    void playAuthProfileMergesPreserveProgressionWhenOmitted() throws IOException {
+        String playHudScript = Files.readString(Path.of("src/main/resources/static/js/play-hud.js"));
+        String gameScript = readGameScript();
+        String applyProfile = extractFunction(playHudScript, "function applyProfileResponse(data)");
+        String syncAuth = extractFunction(gameScript, "async function syncAuthProfileNow(silent = false)");
+
+        assertTrue(
+                applyProfile.contains("previous.progression")
+                        && applyProfile.contains("!data.progression")
+                        && applyProfile.contains("saveCachedAuthProfile(merged)"),
+                "Play HUD friend responses must merge a missing progression onto the prior same-user snapshot before caching."
+        );
+        assertTrue(
+                syncAuth.contains("previous.progression")
+                        && syncAuth.contains("!data.progression")
+                        && syncAuth.contains("saveCachedAuthProfile(merged)"),
+                "Play /api/auth/me refresh must not overwrite sieglingsAuthProfile with a progression-less authenticated body."
+        );
+        assertFalse(
+                applyProfile.contains("saveCachedAuthProfile(data)")
+                        || syncAuth.contains("saveCachedAuthProfile(data)"),
+                "Progression-less profile payloads must not be written straight into the shared auth cache."
+        );
+    }
+
     private static boolean selectorCovers(String css, String subjectPattern, String wanted) {
         Matcher matcher = Pattern.compile("(:is\\([^)]*\\))\\s*" + subjectPattern).matcher(css);
         while (matcher.find()) {
