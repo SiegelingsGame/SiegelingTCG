@@ -328,7 +328,9 @@ public class CardDefinitionService {
 
     public List<Card> buildCustomDeck(List<String> cardIds) {
         if (cardIds == null || cardIds.size() < getDeckBuilderMinSize()) {
-            throw new IllegalArgumentException("Custom decks must contain at least " + getDeckBuilderMinSize() + " cards.");
+            throw new DeckValidationException("cards", "Custom decks must contain at least " + getDeckBuilderMinSize()
+                    + " cards - this list arrived with " + (cardIds == null ? 0 : cardIds.size())
+                    + ". Reopen the deck in the builder and re-add the missing cards.");
         }
 
         List<String> canonicalIds = cardIds.stream().map(this::resolveToCatalogCardId).toList();
@@ -339,7 +341,7 @@ public class CardDefinitionService {
             if (entry.getValue() > getDeckBuilderMaxCopies()) {
                 Card card = findCardDefinition(entry.getKey())
                         .orElseThrow(() -> new IllegalArgumentException("Unknown card id: " + entry.getKey()));
-                throw new IllegalArgumentException("You can only use up to " + getDeckBuilderMaxCopies()
+                throw new DeckValidationException("cards", "You can only use up to " + getDeckBuilderMaxCopies()
                         + " copies of " + card.getName() + ".");
             }
         }
@@ -353,7 +355,12 @@ public class CardDefinitionService {
         return deck;
     }
 
-    private String resolveToCatalogCardId(String cardId) {
+    /** Player-facing card name for error messages; falls back to the raw id when unknown. */
+    public String cardDisplayName(String cardId) {
+        return findCardDefinition(cardId).map(Card::getName).orElse(cardId);
+    }
+
+    public String resolveToCatalogCardId(String cardId) {
         if (cardId == null || cardId.isBlank()) {
             throw new IllegalArgumentException("Card id cannot be empty.");
         }

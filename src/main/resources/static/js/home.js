@@ -458,6 +458,7 @@
         builderTab: 'binder',
         builderCardTab: 'card',
         builderDeckSettingsOpen: false,
+        builderIssue: null,
         builderVisibleLimit: 0,
         builderRenderTimer: null,
         notifications: [],
@@ -3907,6 +3908,7 @@
                 <div class="deck-builder-preview-panel" data-scroll-key="card">${renderBuilderPreviewPanel(previewCard)}</div>
             </section>
             <aside class="deck-builder-deck-pane deck-builder-workbench" data-builder-pane="deck">
+                ${renderBuilderIssueBanner()}
                 <div class="deck-builder-deck-head">
                     <div class="builder-total-ring${total >= 30 ? ' complete' : ''}">
                         <strong>${total}</strong><span>/30</span>
@@ -3937,6 +3939,7 @@
         renderBuilderFilterTray(catalogCards);
         bindDeckBuilderPageEvents(page);
         restoreBuilderScroll(scroll);
+        focusBuilderIssueTarget();
     }
 
     // Rebuilding the whole builder page on every +/- tap used to throw away the
@@ -3962,6 +3965,58 @@
     }
 
     // Desktop shows every pane at once, so the tab state only steers mobile.
+    // A bare alert() told the player something was wrong but not where to fix it.
+    // Deck problems now raise an in-page callout in the builder, open the pane and
+    // field that owns the problem, and flash a highlight on that control.
+    const BUILDER_ISSUE_FIELDS = {
+        name: { tab: 'deck', settings: true, selector: '#builderDeckName' },
+        trainer: { tab: 'deck', settings: true, selector: '#builderTrainerSelect' },
+        cards: { tab: 'deck', settings: false, selector: '.deck-builder-deck-head' }
+    };
+
+    function setBuilderIssue(message, field) {
+        const target = BUILDER_ISSUE_FIELDS[field] ? field : 'cards';
+        state.builderIssue = { message: String(message || 'That deck could not be saved.'), field: target };
+        const spec = BUILDER_ISSUE_FIELDS[target];
+        state.builderTab = spec.tab;
+        if (spec.settings) state.builderDeckSettingsOpen = true;
+        if (state.route !== 'deck-builder') navigateHub('deck-builder');
+        else renderDeckBuilderPage();
+    }
+
+    function clearBuilderIssue(rerender = true) {
+        if (!state.builderIssue) return;
+        state.builderIssue = null;
+        if (rerender && state.route === 'deck-builder') renderDeckBuilderPage();
+    }
+
+    function renderBuilderIssueBanner() {
+        const issue = state.builderIssue;
+        if (!issue) return '';
+        return `<div class="builder-issue" role="alert" data-builder-issue>
+            <div class="builder-issue-copy">
+                <strong>Deck needs a fix</strong>
+                <span>${escapeHtml(issue.message)}</span>
+            </div>
+            <button class="ghost-btn builder-issue-dismiss" type="button" data-builder-issue-dismiss aria-label="Dismiss">&times;</button>
+        </div>`;
+    }
+
+    // Runs after the builder re-renders: point the player at the control to fix.
+    function focusBuilderIssueTarget() {
+        const issue = state.builderIssue;
+        if (!issue) return;
+        const spec = BUILDER_ISSUE_FIELDS[issue.field] || BUILDER_ISSUE_FIELDS.cards;
+        const target = document.querySelector(`#deckBuilderPage ${spec.selector}`);
+        const banner = document.querySelector('#deckBuilderPage [data-builder-issue]');
+        (banner || target)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (!target) return;
+        target.classList.add('needs-fix');
+        if (typeof target.focus === 'function' && spec.selector !== '.deck-builder-deck-head') {
+            try { target.focus({ preventScroll: true }); } catch (error) { target.focus(); }
+        }
+    }
+
     function builderActiveTab() {
         const tab = state.builderTab;
         return ['binder', 'deck', 'card'].includes(tab) ? tab : 'binder';
@@ -4429,12 +4484,20 @@
         });
         root.querySelector('#builderTrainerSelect')?.addEventListener('change', (event) => {
             localStorage.setItem('sieglingsBuilderTrainerId', event.target.value);
+            event.target.classList.remove('needs-fix');
+            if (state.builderIssue?.field === 'trainer') clearBuilderIssue(false);
         });
         root.querySelector('#builderDeckName')?.addEventListener('input', (event) => {
             localStorage.setItem('sieglingsBuilderDeckName', event.target.value);
+            event.target.classList.remove('needs-fix');
+            if (state.builderIssue?.field === 'name') clearBuilderIssue(false);
         });
+        root.querySelector('[data-builder-issue-dismiss]')?.addEventListener('click', () => clearBuilderIssue());
         root.querySelector('#playCustomBtn')?.addEventListener('click', () => {
-            if (builderTotal() < 30) return alert('Custom decks need 30 cards.');
+            if (builderTotal() < 30) {
+                return setBuilderIssue(`Custom decks need 30 cards — you have ${builderTotal()}. Add ${30 - builderTotal()} more from your binder.`, 'cards');
+            }
+            clearBuilderIssue(false);
             goPlay({ mode: 'solo', customDeckCards: builderCards(), trainerId: builderTrainerId(), loadoutLabel: builderDeckName() });
         });
         root.querySelector('#clearBuilderBtn')?.addEventListener('click', () => {
@@ -8213,18 +8276,37 @@
 
     async function saveCustomDeck() {
         if (!state.profile?.authenticated) return openAuth();
-        if (!state.progression?.customDeckUnlocked) return alert('Save-ready custom decks unlock once you own 30 total card copies.');
+        if (!state.progression?.customDeckUnlocked) {
+            return setBuilderIssue(`Save-ready custom decks unlock once you own 30 total card copies — your binder has ${state.progression?.ownedTotal || 0}. Open packs in the Shop, then save.`, 'cards');
+        }
         const cards = builderCards();
-        if (cards.length < 30) return alert('Custom decks need 30 cards.');
+        if (cards.length < 30) {
+            return setBuilderIssue(`Custom decks need 30 cards — you have ${cards.length}. Add ${30 - cards.length} more from your binder.`, 'cards');
+        }
         const trainerId = builderTrainerId();
         const name = builderDeckName();
+        if (!trainerId) {
+            return setBuilderIssue('Pick a SiegeKnight you own under Deck name & SiegeKnight before saving.', 'trainer');
+        }
+        if (!name.trim()) {
+            return setBuilderIssue('Give this deck a name before saving.', 'name');
+        }
         const payload = { trainerId, customDeckCards: cards, name };
         if (state.editingSavedDeckId) payload.id = state.editingSavedDeckId;
+        const saveBtn = document.getElementById('saveDeckBuilderPageBtn');
+        if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
         const data = await fetchJson('/api/profile/decks', {
             method: 'POST',
             body: JSON.stringify(payload)
         });
-        if (data?.error) return alert(data.error);
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.textContent = state.editingSavedDeckId ? 'Update Deck' : 'Save Deck';
+        }
+        if (!data || data.error) {
+            return setBuilderIssue(data?.error || 'The save request did not reach the server. Check your connection and try again.', data?.field);
+        }
+        clearBuilderIssue(false);
         state.profile = data;
         state.progression = data.progression;
         state.editingSavedDeckId = '';
@@ -9044,6 +9126,7 @@
         // inspected card under them also re-flowed the recommendations they
         // were working through.
         if (!state.builderPreviewCardId) state.builderPreviewCardId = cardId;
+        if (state.builderIssue?.field === 'cards') state.builderIssue = null;
         if (state.route === 'deck-builder') {
             renderDeckBuilderPage();
         }

@@ -77,16 +77,16 @@ public class SavedDeckService {
 
     private void validateLoadout(AccountUser user, String deckId, String trainerId, List<String> customDeckCards) {
         if (trainerId == null || trainerId.isBlank()) {
-            throw new IllegalArgumentException("Choose a SiegeKnight before saving.");
+            throw new DeckValidationException("trainer", "Choose a SiegeKnight before saving.");
         }
         if (!cardDefinitionService.hasTrainer(trainerId)) {
-            throw new IllegalArgumentException("Unknown SiegeKnight selection.");
+            throw new DeckValidationException("trainer", "Unknown SiegeKnight selection.");
         }
         if (!cardDefinitionService.isTrainerActive(trainerId)) {
-            throw new IllegalArgumentException("Choose an active SiegeKnight before saving.");
+            throw new DeckValidationException("trainer", "Choose an active SiegeKnight before saving.");
         }
         if (!playerProgressionService.ownsTrainer(user, trainerId)) {
-            throw new IllegalArgumentException("You haven't unlocked that SiegeKnight yet. Pull it from a pack first.");
+            throw new DeckValidationException("trainer", "You haven't unlocked that SiegeKnight yet. Pull it from a pack first.");
         }
 
         if (customDeckCards != null && !customDeckCards.isEmpty()) {
@@ -95,19 +95,19 @@ public class SavedDeckService {
         }
 
         if (deckId == null || deckId.isBlank()) {
-            throw new IllegalArgumentException("Choose a preset deck or build a custom list before saving.");
+            throw new DeckValidationException("cards", "Choose a preset deck or build a custom list before saving.");
         }
         cardDefinitionService.getDeckOption(deckId)
-                .orElseThrow(() -> new IllegalArgumentException("Unknown deck selection."));
+                .orElseThrow(() -> new DeckValidationException("cards", "Unknown deck selection."));
     }
 
     private String normalizeName(String name) {
         String normalized = name == null ? "" : name.trim();
         if (normalized.isBlank()) {
-            throw new IllegalArgumentException("Give this saved deck a name.");
+            throw new DeckValidationException("name", "Give this saved deck a name.");
         }
         if (normalized.length() > 40) {
-            throw new IllegalArgumentException("Saved deck names must be 40 characters or fewer.");
+            throw new DeckValidationException("name", "Saved deck names must be 40 characters or fewer.");
         }
         return normalized;
     }
