@@ -2385,6 +2385,11 @@ public class SiegeService {
         purgeStale();
         String token = generateToken();
         SiegeRun run = buildBattlegroundsRun(token, teams, picks, knightTeamId, chosenTier, involvedTeamIds);
+        // Same stamp newRun applies. checkpoint() skips the account slot when
+        // ownerId is blank, and boot prefers /api/siege/run/active over the
+        // device token — so a Battlegrounds march started beside an expedition
+        // vanished from the resume prompt (and from every other device).
+        run.setOwnerId(user.getId());
         seedStartingKnightBag(run);
         run.getMap().addAll(content.generateMap(rng, true));
         runs.put(token, new Session(run));

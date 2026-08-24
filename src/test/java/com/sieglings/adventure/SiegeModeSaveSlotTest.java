@@ -4,7 +4,10 @@ import com.sieglings.model.SieglingCard;
 import com.sieglings.model.TrainerCard;
 import com.sieglings.model.enums.Element;
 import com.sieglings.model.enums.Rarity;
+import com.sieglings.persistence.entity.AccountUser;
+import com.sieglings.service.AccountService;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -18,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
 
 /**
  * Two reported Battlegrounds defects that share a cause: the mode was treated as a
@@ -125,6 +129,51 @@ class SiegeModeSaveSlotTest {
                 "a null slot must keep resolving to the pre-slot document id");
     }
 
+    /**
+     * newRun stamps ownerId before the first checkpoint; newBattlegrounds did not.
+     * Boot then asks /api/siege/run/active (account slots only) and, when any
+     * expedition save exists, never falls through to the device-local token —
+     * so a Battlegrounds march started beside an expedition disappeared on the
+     * next refresh, and never showed up on another device.
+     */
+    @Test
+    void startingBattlegroundsWritesTheAccountSaveSlot() throws Exception {
+        SiegeService service = serviceWithStubCatalog();
+        RecordingCheckpoints checkpoints = new RecordingCheckpoints();
+        setField(service, "checkpoints", checkpoints);
+
+        AccountUser user = new AccountUser();
+        user.setId("player-bg-1");
+        AccountService accounts = Mockito.mock(AccountService.class);
+        Mockito.when(accounts.findUser(anyString())).thenReturn(user);
+        setField(service, "accountService", accounts);
+
+        Map<String, Object> team = team("T", "warden",
+                member("rooty", "Rooty"),
+                member("tide", "Tide"),
+                member("gale", "Gale"));
+        setField(service, "veterans", new SiegeVeteranStore() {
+            @Override
+            List<Map<String, Object>> listTeams(String userId) {
+                return List.of(team);
+            }
+        });
+
+        List<Map<String, Object>> members = List.of(
+                Map.of("teamId", "T", "sourceCardId", "rooty"),
+                Map.of("teamId", "T", "sourceCardId", "tide"),
+                Map.of("teamId", "T", "sourceCardId", "gale"));
+        Map<String, Object> started = service.newBattlegrounds("Bearer test", members, "T", 1);
+
+        assertEquals("player-bg-1", checkpoints.savedUserId,
+                "a signed-in Battlegrounds start must write the account checkpoint, not only the token doc");
+        assertEquals(RunSlot.BATTLEGROUNDS, checkpoints.savedSlot,
+                "the march has to land in its own slot so it does not overwrite the expedition");
+        assertEquals(started.get("token"), checkpoints.accountSnapshot.get("token"));
+        assertEquals("player-bg-1", checkpoints.accountSnapshot.get("ownerId"));
+        assertEquals("BATTLEGROUNDS", started.get("slot"));
+    }
+
     // ---- fixtures --------------------------------------------------------
 
     /** A catalog with exactly one Siegeling and one knight, both carrying art. */
@@ -175,7 +224,7 @@ class SiegeModeSaveSlotTest {
     }
 
     /** The shape SiegeService#buildVeteranSnapshot banks. */
-    private static Map<String, Object> team(String teamId, String knightId, Map<String, Object> member) {
+    private static Map<String, Object> team(String teamId, String knightId, Map<String, Object>... membersIn) {
         Map<String, Object> knight = new LinkedHashMap<>();
         knight.put("knightId", knightId);
         knight.put("knightName", "Warden");
@@ -185,7 +234,7 @@ class SiegeModeSaveSlotTest {
         knight.put("xp", 0);
 
         List<Map<String, Object>> members = new ArrayList<>();
-        members.add(member);
+        for (Map<String, Object> member : membersIn) members.add(member);
 
         Map<String, Object> team = new LinkedHashMap<>();
         team.put("teamId", teamId);
@@ -193,6 +242,26 @@ class SiegeModeSaveSlotTest {
         team.put("members", members);
         team.put("deck", new ArrayList<>());
         return team;
+    }
+
+    /** Captures token + account checkpoint writes without talking to Firestore. */
+    private static final class RecordingCheckpoints extends SiegeCheckpointStore {
+        private String savedUserId;
+        private RunSlot savedSlot;
+        private Map<String, Object> accountSnapshot;
+
+        @Override
+        boolean save(String token, Map<String, Object> snapshot) {
+            return true;
+        }
+
+        @Override
+        boolean saveForUser(String userId, RunSlot slot, Map<String, Object> snapshot) {
+            savedUserId = userId;
+            savedSlot = slot;
+            accountSnapshot = snapshot;
+            return true;
+        }
     }
 
     private static Map<String, Object> member(String sourceCardId, String name) {
