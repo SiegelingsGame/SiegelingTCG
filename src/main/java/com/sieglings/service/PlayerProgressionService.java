@@ -582,20 +582,34 @@ public class PlayerProgressionService {
         }
         PlayerProgressionEntity progression = getOrCreate(user);
         if (ownedTotal(progression) < CUSTOM_DECK_UNLOCK_COPIES) {
-            throw new IllegalArgumentException("Own 30 total card copies to build custom decks.");
+            throw new DeckValidationException("cards", "Own 30 total card copies to build custom decks.");
         }
         Map<String, Integer> requested = new LinkedHashMap<>();
         for (String cardId : customDeckCards) {
-            requested.merge(cardId, 1, Integer::sum);
+            // Dashboard-edited cards can reach the client under a copy-suffixed id;
+            // ownership is tracked against the catalog id, so compare on that.
+            requested.merge(canonicalCardId(cardId), 1, Integer::sum);
         }
         for (Map.Entry<String, Integer> entry : requested.entrySet()) {
+            String cardName = cardDefinitionService.cardDisplayName(entry.getKey());
             if (entry.getValue() > cardDefinitionService.getDeckBuilderMaxCopies()) {
-                throw new IllegalArgumentException("You can only use up to 3 copies of one card in a custom deck.");
+                throw new DeckValidationException("cards", "You can only use up to "
+                        + cardDefinitionService.getDeckBuilderMaxCopies() + " copies of " + cardName + ".");
             }
             int owned = progression.getOwnedCards().getOrDefault(entry.getKey(), 0);
             if (entry.getValue() > owned) {
-                throw new IllegalArgumentException("You do not own enough copies of " + entry.getKey() + ".");
+                throw new DeckValidationException("cards", "Your deck uses " + entry.getValue() + " copies of "
+                        + cardName + " but your binder only has " + owned + ". Lower that card to " + owned
+                        + " or swap it out.");
             }
+        }
+    }
+
+    private String canonicalCardId(String cardId) {
+        try {
+            return cardDefinitionService.resolveToCatalogCardId(cardId);
+        } catch (RuntimeException ex) {
+            return cardId;
         }
     }
 

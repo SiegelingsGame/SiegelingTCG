@@ -11446,11 +11446,27 @@ async function startSelectedGame() {
         return;
     }
     if (loadoutMode === 'builder' && getBuilderCardCount() < gameOptions.deckBuilder.minDeckSize) return;
+    if (loadoutMode === 'builder') {
+        const missing = getUnknownLoadoutCardIds(Object.keys(builderCounts));
+        if (missing.length) {
+            loadoutErrorMessage = unknownLoadoutCardMessage(missing);
+            showErrorToast(loadoutErrorMessage);
+            updateLoadoutSummary();
+            return;
+        }
+    }
     if (loadoutMode === 'saved') {
         const savedDeck = getSelectedSavedDeck();
         if (!savedDeck) return;
         if (savedDeck.custom && (savedDeck.customDeckCards || []).length < gameOptions.deckBuilder.minDeckSize) return;
         if (!savedDeck.custom && !savedDeck.deckId) return;
+        const missing = savedDeck.custom ? getUnknownLoadoutCardIds(savedDeck.customDeckCards || []) : [];
+        if (missing.length) {
+            loadoutErrorMessage = unknownLoadoutCardMessage(missing);
+            showErrorToast(loadoutErrorMessage);
+            updateLoadoutSummary();
+            return;
+        }
     }
 
     loadoutStartPending = true;
@@ -11782,6 +11798,22 @@ function getBuilderSelectedCards() {
         }
     }
     return cards;
+}
+
+// Cards the loadout is carrying that this page's catalog does not know about.
+// They used to be dropped without a word, so a saved 30-card deck could reach the
+// server as a short list and come back rejected as if the deck were empty.
+function getUnknownLoadoutCardIds(cardIds) {
+    if (!gameOptions?.cardCatalog?.length) return [];
+    const availableIds = new Set(gameOptions.cardCatalog.map(card => card.id));
+    return [...new Set((cardIds || []).filter(cardId => !availableIds.has(cardId)))];
+}
+
+function unknownLoadoutCardMessage(missingIds) {
+    const shown = missingIds.slice(0, 3).join(', ');
+    const rest = missingIds.length > 3 ? ` and ${missingIds.length - 3} more` : '';
+    return `${missingIds.length} card${missingIds.length === 1 ? '' : 's'} in this deck (${shown}${rest}) `
+        + 'are no longer in the card catalog, so the deck cannot start. Open Decks \u2192 edit this deck and replace them.';
 }
 
 function getChosenBuilderCards() {

@@ -6,6 +6,7 @@ import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.MatchHistoryEntity;
 import com.sieglings.persistence.entity.ProfileSettingsEntity;
 import com.sieglings.persistence.entity.SavedDeckEntity;
+import com.sieglings.service.DeckValidationException;
 import com.sieglings.service.AccountService;
 import com.sieglings.service.CardDefinitionService;
 import com.sieglings.service.MatchHistoryService;
@@ -224,8 +225,23 @@ public class AuthController {
             );
             return buildProfileResponse(user, null);
         } catch (IllegalArgumentException ex) {
-            return Map.of("error", ex.getMessage());
+            return deckError(ex);
+        } catch (RuntimeException ex) {
+            // A storage or catalog failure used to surface as a bare 500, which the
+            // client could only render as "Request failed" — name it instead.
+            log.error("Saving deck failed", ex);
+            return Map.of("error", "We couldn't save this deck right now. Try again in a moment; if it keeps failing, reload the page.");
         }
+    }
+
+    // Validation errors carry the deck-builder control the player must fix so the
+    // client can scroll to and highlight it rather than only popping a message.
+    private Map<String, Object> deckError(IllegalArgumentException ex) {
+        String message = ex.getMessage() == null ? "That deck could not be saved." : ex.getMessage();
+        if (ex instanceof DeckValidationException validation && validation.getField() != null) {
+            return Map.of("error", message, "field", validation.getField());
+        }
+        return Map.of("error", message);
     }
 
     @PostMapping("/api/profile/decks/delete")
@@ -236,7 +252,10 @@ public class AuthController {
             savedDeckService.deleteDeck(user, (String) req.get("id"));
             return buildProfileResponse(user, null);
         } catch (IllegalArgumentException ex) {
-            return Map.of("error", ex.getMessage());
+            return deckError(ex);
+        } catch (RuntimeException ex) {
+            log.error("Deleting deck failed", ex);
+            return Map.of("error", "We couldn't delete this deck right now. Try again in a moment.");
         }
     }
 

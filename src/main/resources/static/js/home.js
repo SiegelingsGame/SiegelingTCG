@@ -458,6 +458,7 @@
         builderTab: 'binder',
         builderCardTab: 'card',
         builderDeckSettingsOpen: false,
+        builderIssue: null,
         builderVisibleLimit: 0,
         builderRenderTimer: null,
         notifications: [],
@@ -3597,7 +3598,21 @@
             grid.innerHTML = '<div class="unlock-card"><strong>Sign in to save custom decks</strong><span>Your deck binder will show saved custom decks after login.</span></div>';
             return;
         }
-        grid.innerHTML = savedDecks.length ? savedDecks.map(renderSavedDeckTile).join('') : '<div class="unlock-card"><strong>No saved custom decks yet</strong><span>Tap Create Custom Deck to build a 30-card list from your binder.</span></div>';
+        const notice = state.savedDeckNotice
+            ? `<div class="builder-issue" role="alert"><div class="builder-issue-copy"><strong>Deck not deleted</strong><span>${escapeHtml(state.savedDeckNotice)}</span></div><button class="ghost-btn builder-issue-dismiss" type="button" data-saved-deck-notice-dismiss aria-label="Dismiss">&times;</button></div>`
+            : '';
+        grid.innerHTML = notice + (savedDecks.length ? savedDecks.map(renderSavedDeckTile).join('') : '<div class="unlock-card"><strong>No saved custom decks yet</strong><span>Tap Create Custom Deck to build a 30-card list from your binder.</span></div>');
+        grid.querySelector('[data-saved-deck-notice-dismiss]')?.addEventListener('click', () => {
+            state.savedDeckNotice = null;
+            renderSavedDecks();
+        });
+        grid.querySelectorAll('[data-delete-custom-deck]').forEach(btn => btn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            const deckId = btn.dataset.deleteCustomDeck || '';
+            if (state.deckDeleteBusy) return;
+            if (state.deckPendingDelete === deckId) return void deleteSavedDeck(deckId);
+            armSavedDeckDelete(deckId);
+        }));
         grid.querySelectorAll('[data-edit-custom-deck]').forEach(btn => btn.addEventListener('click', (event) => {
             event.stopPropagation();
             openDeckBuilder({ savedDeckId: btn.dataset.editCustomDeck });
@@ -3637,10 +3652,57 @@
                 <span class="deck-card-elements">${displayElements.map(format).join(' / ')}</span>
                 <span class="deck-card-desc">${deck.custom ? `${cardIds.length} owned cards` : escapeHtml(deck.deckName || 'Premade loadout')} / ${escapeHtml(deck.trainerName || 'SiegeKnight')}</span>
             </div>
-            <div class="deck-card-actions">
+            <div class="deck-card-actions${deck.custom ? ' has-delete' : ''}">
                 ${deck.custom ? `<button class="ghost-btn" type="button" data-edit-custom-deck="${escapeAttr(deck.id)}">Edit</button>` : ''}
+                ${deck.custom ? renderSavedDeckDeleteButton(deck) : ''}
             </div>
         </article>`;
+    }
+
+    // Deleting is one tap away but never a single tap: the first tap arms the
+    // button in place (no modal to dismiss on a phone) and it disarms itself.
+    const DECK_DELETE_ARM_MS = 4000;
+    let deckDeleteArmTimer = null;
+
+    function renderSavedDeckDeleteButton(deck) {
+        const armed = state.deckPendingDelete === deck.id;
+        return `<button class="ghost-btn deck-delete-btn${armed ? ' is-armed' : ''}" type="button"
+            data-delete-custom-deck="${escapeAttr(deck.id)}"
+            aria-label="${armed ? 'Confirm deleting' : 'Delete'} ${escapeAttr(deck.name || 'this deck')}"
+        >${armed ? 'Delete?' : 'Delete'}</button>`;
+    }
+
+    function armSavedDeckDelete(deckId) {
+        state.deckPendingDelete = deckId;
+        if (deckDeleteArmTimer) window.clearTimeout(deckDeleteArmTimer);
+        deckDeleteArmTimer = window.setTimeout(() => {
+            if (state.deckPendingDelete !== deckId) return;
+            state.deckPendingDelete = null;
+            renderSavedDecks();
+        }, DECK_DELETE_ARM_MS);
+        renderSavedDecks();
+    }
+
+    async function deleteSavedDeck(deckId) {
+        if (deckDeleteArmTimer) window.clearTimeout(deckDeleteArmTimer);
+        state.deckPendingDelete = null;
+        state.deckDeleteBusy = deckId;
+        state.savedDeckNotice = null;
+        renderSavedDecks();
+        const data = await fetchJson('/api/profile/decks/delete', { method: 'POST', body: JSON.stringify({ id: deckId }) });
+        state.deckDeleteBusy = null;
+        if (!data || data.error) {
+            state.savedDeckNotice = data?.error || 'That deck could not be deleted. Check your connection and try again.';
+            renderSavedDecks();
+            return;
+        }
+        state.profile = data;
+        state.progression = data.progression || state.progression;
+        // The active loadout cannot point at a deck that no longer exists, or the
+        // next Play tap starts a match against a missing deck id.
+        if (state.selectedDeckId === deckId) state.selectedDeckId = '';
+        renderProfile();
+        renderDecks();
     }
 
     function cardCountsFromIdList(cardIds) {
@@ -3907,6 +3969,7 @@
                 <div class="deck-builder-preview-panel" data-scroll-key="card">${renderBuilderPreviewPanel(previewCard)}</div>
             </section>
             <aside class="deck-builder-deck-pane deck-builder-workbench" data-builder-pane="deck">
+                ${renderBuilderIssueBanner()}
                 <div class="deck-builder-deck-head">
                     <div class="builder-total-ring${total >= 30 ? ' complete' : ''}">
                         <strong>${total}</strong><span>/30</span>
@@ -3937,6 +4000,7 @@
         renderBuilderFilterTray(catalogCards);
         bindDeckBuilderPageEvents(page);
         restoreBuilderScroll(scroll);
+        focusBuilderIssueTarget();
     }
 
     // Rebuilding the whole builder page on every +/- tap used to throw away the
@@ -3962,6 +4026,58 @@
     }
 
     // Desktop shows every pane at once, so the tab state only steers mobile.
+    // A bare alert() told the player something was wrong but not where to fix it.
+    // Deck problems now raise an in-page callout in the builder, open the pane and
+    // field that owns the problem, and flash a highlight on that control.
+    const BUILDER_ISSUE_FIELDS = {
+        name: { tab: 'deck', settings: true, selector: '#builderDeckName' },
+        trainer: { tab: 'deck', settings: true, selector: '#builderTrainerSelect' },
+        cards: { tab: 'deck', settings: false, selector: '.deck-builder-deck-head' }
+    };
+
+    function setBuilderIssue(message, field) {
+        const target = BUILDER_ISSUE_FIELDS[field] ? field : 'cards';
+        state.builderIssue = { message: String(message || 'That deck could not be saved.'), field: target };
+        const spec = BUILDER_ISSUE_FIELDS[target];
+        state.builderTab = spec.tab;
+        if (spec.settings) state.builderDeckSettingsOpen = true;
+        if (state.route !== 'deck-builder') navigateHub('deck-builder');
+        else renderDeckBuilderPage();
+    }
+
+    function clearBuilderIssue(rerender = true) {
+        if (!state.builderIssue) return;
+        state.builderIssue = null;
+        if (rerender && state.route === 'deck-builder') renderDeckBuilderPage();
+    }
+
+    function renderBuilderIssueBanner() {
+        const issue = state.builderIssue;
+        if (!issue) return '';
+        return `<div class="builder-issue" role="alert" data-builder-issue>
+            <div class="builder-issue-copy">
+                <strong>Deck needs a fix</strong>
+                <span>${escapeHtml(issue.message)}</span>
+            </div>
+            <button class="ghost-btn builder-issue-dismiss" type="button" data-builder-issue-dismiss aria-label="Dismiss">&times;</button>
+        </div>`;
+    }
+
+    // Runs after the builder re-renders: point the player at the control to fix.
+    function focusBuilderIssueTarget() {
+        const issue = state.builderIssue;
+        if (!issue) return;
+        const spec = BUILDER_ISSUE_FIELDS[issue.field] || BUILDER_ISSUE_FIELDS.cards;
+        const target = document.querySelector(`#deckBuilderPage ${spec.selector}`);
+        const banner = document.querySelector('#deckBuilderPage [data-builder-issue]');
+        (banner || target)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (!target) return;
+        target.classList.add('needs-fix');
+        if (typeof target.focus === 'function' && spec.selector !== '.deck-builder-deck-head') {
+            try { target.focus({ preventScroll: true }); } catch (error) { target.focus(); }
+        }
+    }
+
     function builderActiveTab() {
         const tab = state.builderTab;
         return ['binder', 'deck', 'card'].includes(tab) ? tab : 'binder';
@@ -4429,12 +4545,20 @@
         });
         root.querySelector('#builderTrainerSelect')?.addEventListener('change', (event) => {
             localStorage.setItem('sieglingsBuilderTrainerId', event.target.value);
+            event.target.classList.remove('needs-fix');
+            if (state.builderIssue?.field === 'trainer') clearBuilderIssue(false);
         });
         root.querySelector('#builderDeckName')?.addEventListener('input', (event) => {
             localStorage.setItem('sieglingsBuilderDeckName', event.target.value);
+            event.target.classList.remove('needs-fix');
+            if (state.builderIssue?.field === 'name') clearBuilderIssue(false);
         });
+        root.querySelector('[data-builder-issue-dismiss]')?.addEventListener('click', () => clearBuilderIssue());
         root.querySelector('#playCustomBtn')?.addEventListener('click', () => {
-            if (builderTotal() < 30) return alert('Custom decks need 30 cards.');
+            if (builderTotal() < 30) {
+                return setBuilderIssue(`Custom decks need 30 cards — you have ${builderTotal()}. Add ${30 - builderTotal()} more from your binder.`, 'cards');
+            }
+            clearBuilderIssue(false);
             goPlay({ mode: 'solo', customDeckCards: builderCards(), trainerId: builderTrainerId(), loadoutLabel: builderDeckName() });
         });
         root.querySelector('#clearBuilderBtn')?.addEventListener('click', () => {
@@ -8213,18 +8337,37 @@
 
     async function saveCustomDeck() {
         if (!state.profile?.authenticated) return openAuth();
-        if (!state.progression?.customDeckUnlocked) return alert('Save-ready custom decks unlock once you own 30 total card copies.');
+        if (!state.progression?.customDeckUnlocked) {
+            return setBuilderIssue(`Save-ready custom decks unlock once you own 30 total card copies — your binder has ${state.progression?.ownedTotal || 0}. Open packs in the Shop, then save.`, 'cards');
+        }
         const cards = builderCards();
-        if (cards.length < 30) return alert('Custom decks need 30 cards.');
+        if (cards.length < 30) {
+            return setBuilderIssue(`Custom decks need 30 cards — you have ${cards.length}. Add ${30 - cards.length} more from your binder.`, 'cards');
+        }
         const trainerId = builderTrainerId();
         const name = builderDeckName();
+        if (!trainerId) {
+            return setBuilderIssue('Pick a SiegeKnight you own under Deck name & SiegeKnight before saving.', 'trainer');
+        }
+        if (!name.trim()) {
+            return setBuilderIssue('Give this deck a name before saving.', 'name');
+        }
         const payload = { trainerId, customDeckCards: cards, name };
         if (state.editingSavedDeckId) payload.id = state.editingSavedDeckId;
+        const saveBtn = document.getElementById('saveDeckBuilderPageBtn');
+        if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
         const data = await fetchJson('/api/profile/decks', {
             method: 'POST',
             body: JSON.stringify(payload)
         });
-        if (data?.error) return alert(data.error);
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.textContent = state.editingSavedDeckId ? 'Update Deck' : 'Save Deck';
+        }
+        if (!data || data.error) {
+            return setBuilderIssue(data?.error || 'The save request did not reach the server. Check your connection and try again.', data?.field);
+        }
+        clearBuilderIssue(false);
         state.profile = data;
         state.progression = data.progression;
         state.editingSavedDeckId = '';
@@ -9044,6 +9187,7 @@
         // inspected card under them also re-flowed the recommendations they
         // were working through.
         if (!state.builderPreviewCardId) state.builderPreviewCardId = cardId;
+        if (state.builderIssue?.field === 'cards') state.builderIssue = null;
         if (state.route === 'deck-builder') {
             renderDeckBuilderPage();
         }

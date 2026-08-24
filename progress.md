@@ -1786,3 +1786,56 @@ the spinner. `home.js` cache-bust bumped to v148.
 Verified headless at 390x844 with no API responses: `#decksSection` visible text
 is "DECKS | Premade and custom decks | Loading your decks…", with both the premade
 row head and the custom block reporting `isVisible() === false`.
+
+## 2026-08-24 — Actionable deck save/play errors, and no more silently shrunk custom decks
+
+Reported: saving a 30/30 custom deck failed with an unhelpful popup, and "Play Custom"
+started a match that lost the deck. Two causes, both fixed.
+
+1. **Silently shrunk decks.** `getBuilderSelectedCards()` in `game.js` dropped any card
+   id missing from `gameOptions.cardCatalog` without a word, so a 30-card loadout could
+   reach `/api/game/new` as a short list and be rejected as if the deck were empty —
+   which reads to the player as the deck vanishing. `startSelectedGame` now checks the
+   builder counts and a saved deck's `customDeckCards` with `getUnknownLoadoutCardIds()`
+   and refuses to start, naming the missing cards and telling the player to edit the deck.
+
+2. **Unactionable errors.** Every deck rejection was a bare `alert()` (client) or a raw
+   `IllegalArgumentException` message / bare 500 (server). Validation errors now throw
+   `DeckValidationException` carrying the deck-builder control at fault ("name",
+   "trainer", "cards"); `AuthController` returns it as `{error, field}` and catches
+   unexpected `RuntimeException`s with a readable message instead of a 500.
+   `validateCustomDeckOwnership` canonicalizes card ids (dashboard copy-suffixed ids no
+   longer read as unowned) and reports card names and the actual owned count instead of
+   a raw id. On the client, `setBuilderIssue()` renders an in-page `.builder-issue`
+   callout in the deck builder, switches to the pane/settings that own the problem,
+   scrolls it into view and flashes a `.needs-fix` outline on the exact control; editing
+   that control clears the issue.
+
+Verified: `./mvnw test` green (552 tests) including two new regressions in
+`GameJavaScriptRegressionTest` (`deckSaveFailuresPointAtTheControlToFix`,
+`unknownCustomDeckCardsBlockTheStartInsteadOfShrinkingTheDeck`); `node --check` on
+`home.js` and `game.js`; headless Chromium at 390x844 confirming the callout renders
+with the new CSS (full-width banner, 84px tall) on `home.html`. Cache-bust bumps:
+`home.js` v149, `home.css` v135, `game.js` v251. The existing
+`failedCatalogFetchNeverEmptiesTheBinder` assertion was updated for the shared
+`decksLoading()` predicate introduced earlier today.
+
+## 2026-08-24 — Quick delete for saved custom decks
+
+Saved custom decks could only be created, never removed, so duplicate "Fire and Water"
+tiles piled up on the Decks screen. Each custom tile now carries a Delete button beside
+Edit that arms on the first tap ("Delete?", red pulse, auto-disarms after 4s) and calls
+the existing `POST /api/profile/decks/delete` on the second — no native confirm to
+dismiss on a phone, and no single mis-tap destroying a deck. A failed delete renders the
+server's reason in a `.builder-issue` banner above the grid instead of an alert, and a
+successful one clears `state.selectedDeckId` when the deleted deck was the active
+loadout, so the next Play tap can't start a match against a missing deck id.
+
+Verified: headless Chromium at 390x844 driving the real page against stubbed endpoints —
+first tap shows "Delete?" with no request sent, second tap posts `{id:"d1"}` and the tile
+disappears (2 → 1), the armed state reverts to "Delete" after the 4s timeout, and a
+stubbed error response leaves both tiles in place with the banner text shown. Delete tap
+target measures 58x34 px, matching the neighbouring Edit button. Plus `node --check`,
+and a new `savedDeckTilesDeleteInTwoTapsAndClearTheActiveSelection` regression in
+`GameJavaScriptRegressionTest` (76 tests green). Cache-bust: `home.js` v150,
+`home.css` v136.

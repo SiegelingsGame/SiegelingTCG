@@ -1084,9 +1084,17 @@ class GameJavaScriptRegressionTest {
                 "A failed options fetch must fall back to the cached catalog for this identity, "
                         + "not resolve null — signed-in loads skip the cache on the way out."
         );
+        // renderDecks routes the same check through decksLoading(), which the saved-deck
+        // pane shares so both halves of the page agree on when data is still in flight.
+        assertTrue(
+                homeScript.contains("function decksLoading()")
+                        && extractFunction(homeScript, "function decksLoading()")
+                                .contains("!hasCardCatalog(state.options) || ownedDataLoading()"),
+                "decksLoading() must gate on both an empty catalog and in-flight owned data."
+        );
         assertTrue(
                 renderCards.contains("if (!hasCardCatalog(state.options) || ownedDataLoading())")
-                        && renderDecks.contains("if (!hasCardCatalog(state.options) || ownedDataLoading())"),
+                        && renderDecks.contains("if (decksLoading())"),
                 "An empty card catalog means the payload never arrived, so the binder and deck grids "
                         + "must show their loading status rather than an authoritative empty state."
         );
@@ -2535,6 +2543,67 @@ class GameJavaScriptRegressionTest {
         Matcher matcher = Pattern.compile(assetPattern + "\\?v=(\\d+)").matcher(markup);
         assertTrue(matcher.find(), "Markup does not load " + assetPattern + " with a cache pin.");
         return Integer.parseInt(matcher.group(1));
+    }
+
+    /**
+     * Save failures used to surface as a bare alert() that named neither the offending
+     * control nor, for a server rejection, anything the player could act on. Every deck
+     * rejection now raises the in-builder callout, which scrolls to and highlights the
+     * field the error is tagged with.
+     */
+    @Test
+    void deckSaveFailuresPointAtTheControlToFix() throws IOException {
+        String homeScript = readHomeScript();
+        String saveCustomDeck = extractFunction(homeScript, "async function saveCustomDeck()");
+
+        assertFalse(saveCustomDeck.contains("alert("),
+                "Deck save rejections must use the builder callout, not a bare alert().");
+        assertTrue(saveCustomDeck.contains("setBuilderIssue(data?.error")
+                        && saveCustomDeck.contains("data?.field"),
+                "A server rejection must carry its message and field tag into the callout.");
+        assertTrue(extractFunction(homeScript, "function focusBuilderIssueTarget()").contains("needs-fix"),
+                "The callout must highlight the control the player has to fix.");
+        assertTrue(extractFunction(homeScript, "function renderDeckBuilderPage()").contains("renderBuilderIssueBanner()"),
+                "The builder page must render the issue banner.");
+    }
+
+    /**
+     * A custom loadout whose card ids are missing from this page's catalog was silently
+     * shortened, so a saved 30-card deck reached /api/game/new as a stub and came back
+     * rejected as if it were empty. The start path now refuses and names the cards.
+     */
+    @Test
+    void unknownCustomDeckCardsBlockTheStartInsteadOfShrinkingTheDeck() throws IOException {
+        String startSelectedGame = extractFunction(readGameScript(), "async function startSelectedGame()");
+
+        assertTrue(startSelectedGame.contains("getUnknownLoadoutCardIds(Object.keys(builderCounts))"),
+                "A builder loadout must be checked for cards missing from the catalog before starting.");
+        assertTrue(startSelectedGame.contains("getUnknownLoadoutCardIds(savedDeck.customDeckCards || [])"),
+                "A saved custom deck must be checked for cards missing from the catalog before starting.");
+        assertTrue(startSelectedGame.contains("unknownLoadoutCardMessage(missing)"),
+                "The player must be told which cards are missing rather than seeing a short deck rejected.");
+    }
+
+    /**
+     * Saved decks piled up with no way to remove one short of the builder. The tile's
+     * delete control arms on the first tap and only calls the endpoint on the second,
+     * so a mis-tap on a phone never destroys a deck.
+     */
+    @Test
+    void savedDeckTilesDeleteInTwoTapsAndClearTheActiveSelection() throws IOException {
+        String homeScript = readHomeScript();
+        String deleteSavedDeck = extractFunction(homeScript, "async function deleteSavedDeck(deckId)");
+        String renderSavedDecks = extractFunction(homeScript, "function renderSavedDecks()");
+
+        assertTrue(renderSavedDecks.contains("if (state.deckPendingDelete === deckId) return void deleteSavedDeck(deckId);")
+                        && renderSavedDecks.contains("armSavedDeckDelete(deckId)"),
+                "The first tap must only arm the delete; the second performs it.");
+        assertTrue(deleteSavedDeck.contains("'/api/profile/decks/delete'"),
+                "Deleting must go through the existing saved-deck delete endpoint.");
+        assertTrue(deleteSavedDeck.contains("if (state.selectedDeckId === deckId) state.selectedDeckId = '';"),
+                "The active loadout must not keep pointing at a deleted deck.");
+        assertTrue(deleteSavedDeck.contains("state.savedDeckNotice = data?.error"),
+                "A failed delete must surface the server's reason on the decks screen.");
     }
 
     private static String extractFunction(String source, String signature) {
