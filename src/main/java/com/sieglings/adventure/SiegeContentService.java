@@ -16,12 +16,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
+import java.util.Set;
 
 /**
  * Builds all Siege content from the existing card catalog: the selectable
@@ -663,20 +665,41 @@ public class SiegeContentService {
     List<Combatant> generateEnemies(NodeType type, int floor, int partySize, int segment, Random rng,
                                     List<Element> palette, double bgHpScalar, double bgDmgScalar) {
         List<Combatant> enemies = new ArrayList<>();
-        int count = switch (type) {
-            case ELITE -> partySize <= 1 ? 1 : 2;
-            case BOSS -> 1;
-            default -> 1 + (floor >= 3 && partySize >= 2 ? rng.nextInt(2) : 0); // 1–2 for battles
-        };
+        // Every encounter is a squad of 2–3. A lone foe telegraphs the same one or
+        // two moves every round, so bosses and elites field an escort of minions
+        // instead of standing alone and the incoming pattern stays varied. A
+        // warband down to its last Siegeling still faces only the smaller squad.
+        boolean escorted = type == NodeType.BOSS || type == NodeType.ELITE;
+        int count;
+        if (partySize <= 1) count = 2;
+        else if (escorted) count = 3;
+        else count = floor >= 3 ? 2 + rng.nextInt(2) : 2;
+
         int tier = Math.min(segment, 2);
         double bossHp = switch (tier) { case 0 -> 1.9; case 1 -> 2.2; default -> 2.6; };
         double bossDmg = switch (tier) { case 0 -> 1.15; case 1 -> 1.25; default -> 1.35; };
         // Difficulty tracks warband size: a lone Siegeling faces ~2/3-strength foes.
         double partyMul = 0.48 + 0.175 * Math.max(1, partySize);
-        double hpMul = (switch (type) { case ELITE -> 1.5; case BOSS -> bossHp; default -> 1.0; })
-                * partyMul * Math.max(1.0, bgHpScalar);
-        double dmgMul = (switch (type) { case ELITE -> 1.2; case BOSS -> bossDmg; default -> 1.0; })
-                * Math.min(1.0, 0.62 + 0.13 * partySize) * Math.max(1.0, bgDmgScalar);
+        double partyDmgMul = Math.min(1.0, 0.62 + 0.13 * partySize);
+
+        // Per-foe share of the encounter's budget, relative to what a single
+        // rank-and-file foe used to be worth (1.0 hp / 1.0 dmg). Splitting a budget
+        // across more bodies makes an encounter *easier* at equal totals — focus
+        // fire removes attackers as the fight runs, which costs a squad of n roughly
+        // (n+1)/2n of the damage it would otherwise land — so these shares sum to
+        // more than the old one/two-foe totals while landing within ~15% of the old
+        // encounters once that decay is folded in. Rank-and-file are ~⅔ of the old
+        // solo foe, an elite keeps its old stat block, and a boss keeps ~85% of its
+        // own with two chip-damage escorts alongside.
+        double leaderHp;
+        double leaderDmg;
+        double minionHp;
+        double minionDmg;
+        switch (type) {
+            case BOSS -> { leaderHp = bossHp * 0.85; leaderDmg = bossDmg * 0.90; minionHp = 0.38; minionDmg = 0.35; }
+            case ELITE -> { leaderHp = 1.5; leaderDmg = 1.15; minionHp = 0.85; minionDmg = 0.70; }
+            default -> { leaderHp = 0.62; leaderDmg = 0.62; minionHp = 0.62; minionDmg = 0.62; }
+        }
         int abilityCount = switch (type) {
             case BOSS -> 3;
             case ELITE -> 2 + (floor >= 5 ? 1 : 0);
@@ -686,8 +709,11 @@ public class SiegeContentService {
 
         // Deeper foes are drawn from later evolution stages, so the silhouette
         // escalates with the encounter even though the numbers come from the
-        // scaling above rather than from the card.
-        int shadeStage = switch (type) { case BOSS -> 3; case ELITE -> 2; default -> floor >= 5 ? 2 : 1; };
+        // scaling above rather than from the card. Escorts take the rank-and-file
+        // stage rather than their leader's, so a boss still towers over its minions
+        // — the authored size band is the only thing that sets sprite height.
+        int rankShadeStage = floor >= 5 ? 2 : 1;
+        int leaderShadeStage = switch (type) { case BOSS -> 3; case ELITE -> 2; default -> rankShadeStage; };
         // Shades draw from their OWN stream, seeded once from the encounter's. Picking
         // a shade consumes a roll only when the catalog has art to offer, so drawing it
         // from the shared stream let the first foe's shade shift the second foe's HP,
@@ -696,21 +722,39 @@ public class SiegeContentService {
         // encounter rolls are identical whatever the catalog holds.
         Random shadeRng = new Random(rng.nextLong());
 
+        // Spread the squad across the palette so the telegraphs on screen are
+        // different elements — and so different statuses — wherever possible.
+        List<Element> unused = new ArrayList<>(palette);
+        Set<String> takenNames = new HashSet<>();
+        boolean sweepTaken = false;
         for (int i = 0; i < count; i++) {
-            Element element = palette.get(rng.nextInt(palette.size()));
+            boolean leader = escorted && i == 0;
+            if (unused.isEmpty()) unused.addAll(palette);
+            Element element = unused.remove(rng.nextInt(unused.size()));
+            double hpMul = (leader ? leaderHp : minionHp) * partyMul * Math.max(1.0, bgHpScalar);
+            double dmgMul = (leader ? leaderDmg : minionDmg) * partyDmgMul * Math.max(1.0, bgDmgScalar);
             // Tuned up for the fresh-hand-per-turn economy (a full 6 cards every
             // turn hits much harder than the old draw-1 flow).
             int hp = (int) Math.round((30 + floor * 9 + rng.nextInt(10)) * hpMul);
-            int speed = 6 + rng.nextInt(8) + (type == NodeType.BOSS ? 2 : 0);
-            String[] names = ENEMY_NAMES_BY_ELEMENT.getOrDefault(element, ENEMY_NAMES_FALLBACK);
+            int speed = 6 + rng.nextInt(8) + (leader && type == NodeType.BOSS ? 2 : 0);
             // Rolled even when a shade will replace it, so the roll stream — and with
             // it every number below — is identical whether or not the catalog has art.
-            String fallbackName = names[rng.nextInt(names.length)];
+            // Deduped within the squad so two escorts never share a label; the dedupe
+            // reads only this stream, never the catalog.
+            String fallbackName = squadName(element, takenNames, rng);
+            takenNames.add(fallbackName);
             // Bosses keep their own title: they are named antagonists (a Squire, a
-            // rogue SiegeKnight, the Siegelord), not corrupted Siegelings.
-            String bossTitle = type == NodeType.BOSS ? bossName(tier, rng) : null;
-            List<AbilitySpec> abilities = enemyAbilities(element, floor, abilityCount, dmgMul, rng);
-            Optional<SieglingCard> shade = shadeCard(element, shadeStage, shadeRng);
+            // rogue SiegeKnight, the Siegelord), not corrupted Siegelings. Only the
+            // boss itself — its escorts are ordinary shades.
+            String bossTitle = leader && type == NodeType.BOSS ? bossName(tier, rng) : null;
+            // Escorts run a shorter kit than the unit they guard, and at most one foe
+            // per squad gets the party-wide Sweep: three sweepers would multiply
+            // line damage by the squad size.
+            int kitSize = leader || !escorted ? abilityCount : Math.max(1, abilityCount - 1);
+            List<AbilitySpec> abilities = enemyAbilities(element, floor, kitSize, dmgMul, !sweepTaken, rng);
+            if (abilities.stream().anyMatch(a -> "ea-sweep".equals(a.id()))) sweepTaken = true;
+            Optional<SieglingCard> shade = shadeCard(element,
+                    leader ? leaderShadeStage : rankShadeStage, shadeRng);
             String id = "foe-" + floor + "-" + i;
             // A boss still gets the cutout — otherwise it is the one fight in the run
             // rendered as a bare element glyph.
@@ -718,11 +762,28 @@ public class SiegeContentService {
                     bossTitle != null ? bossTitle : shade.map(SiegeContentService::shadeName).orElse(fallbackName),
                     element, Side.ENEMY, hp, speed,
                     shade.map(SieglingCard::getCardArtUrl).orElse(null));
+            foe.setLeader(leader);
             if (bossTitle == null) shade.map(SieglingCard::getName).ifPresent(foe::setShadeOf);
+            // Sizing only (Combatant#artCardId): the shade stage above already escalates
+            // the silhouette with the encounter, and this is what carries that stage to
+            // the client. Bosses need it most and are the one case with no shadeOf to
+            // fall back on, so it is set regardless of bossTitle.
+            shade.map(SieglingCard::getId).ifPresent(foe::setArtCardId);
             foe.getAbilities().addAll(abilities);
             enemies.add(foe);
         }
         return enemies;
+    }
+
+    /** An element-themed name, avoiding duplicates within the same squad. */
+    private String squadName(Element element, Set<String> taken, Random rng) {
+        String[] names = ENEMY_NAMES_BY_ELEMENT.getOrDefault(element, ENEMY_NAMES_FALLBACK);
+        int start = rng.nextInt(names.length);
+        for (int i = 0; i < names.length; i++) {
+            String candidate = names[(start + i) % names.length];
+            if (!taken.contains(candidate)) return candidate;
+        }
+        return names[start];
     }
 
     // ---- Enemy appearance: corrupted Siegelings from the real catalog ------
@@ -804,10 +865,14 @@ public class SiegeContentService {
         // Its own stream, for the same reason as generateEnemies: what the catalog
         // holds must not reach the rolls (see there).
         Random shadeRng = new Random(rng.nextLong());
+        // Distinct elements and names across the pair, as for any other squad.
+        List<Element> unused = new ArrayList<>(palette);
+        Set<String> takenNames = new HashSet<>();
         for (int i = 0; i < SiegeTuning.OPENING_FIGHT_FOES; i++) {
-            Element element = palette.get(rng.nextInt(palette.size()));
-            String[] names = ENEMY_NAMES_BY_ELEMENT.getOrDefault(element, ENEMY_NAMES_FALLBACK);
-            String fallbackName = names[rng.nextInt(names.length)];
+            if (unused.isEmpty()) unused.addAll(palette);
+            Element element = unused.remove(rng.nextInt(unused.size()));
+            String fallbackName = squadName(element, takenNames, rng);
+            takenNames.add(fallbackName);
             // Which shade shows up varies like the element and name always have; none
             // of the pinned numbers below depend on it.
             Optional<SieglingCard> shade = shadeCard(element, 1, shadeRng);
@@ -817,6 +882,7 @@ public class SiegeContentService {
                     SiegeTuning.OPENING_FIGHT_HP, SiegeTuning.OPENING_FIGHT_SPEED,
                     shade.map(SieglingCard::getCardArtUrl).orElse(null));
             shade.map(SieglingCard::getName).ifPresent(foe::setShadeOf);
+            shade.map(SieglingCard::getId).ifPresent(foe::setArtCardId);
             int dmg = SiegeTuning.OPENING_FIGHT_DAMAGE;
             foe.getAbilities().add(new AbilitySpec("ea-strike", "Strike", element, Effect.DAMAGE, dmg,
                     TargetKind.ENEMY_SINGLE, 0, "Deals " + dmg + " damage to one Siegeling."));
@@ -825,13 +891,14 @@ public class SiegeContentService {
         return enemies;
     }
 
-    private List<AbilitySpec> enemyAbilities(Element element, int floor, int count, double dmgMul, Random rng) {
+    private List<AbilitySpec> enemyAbilities(Element element, int floor, int count, double dmgMul,
+                                             boolean allowSweep, Random rng) {
         List<AbilitySpec> abilities = new ArrayList<>();
         int dmg = (int) Math.round((5 + (int) (floor * 0.9) + rng.nextInt(3)) * dmgMul);
         abilities.add(new AbilitySpec("ea-strike", "Strike", element, Effect.DAMAGE, dmg,
                 TargetKind.ENEMY_SINGLE, 0, "Deals " + dmg + " damage to one Siegeling."));
         if (count >= 2) {
-            if (rng.nextBoolean()) {
+            if (allowSweep && rng.nextBoolean()) {
                 int sweep = Math.max(2, dmg - 2);
                 abilities.add(new AbilitySpec("ea-sweep", "Sweep", element, Effect.DAMAGE, sweep,
                         TargetKind.ALL_ENEMIES, 0, "Deals " + sweep + " damage to the whole party."));
@@ -1040,6 +1107,25 @@ public class SiegeContentService {
         return stage;
     }
 
+    /**
+     * Walks an evolution chain down to its stage-1 root. Finding a Siegeling at
+     * any stage earns its whole line, and warband select only ever lists stage-1
+     * cards, so the root is the id that actually becomes pickable. Returns the
+     * id unchanged when it is already a root or is not in the catalog.
+     */
+    String baseFormId(String cardId) {
+        String id = cardId;
+        int guard = 0;
+        while (id != null && guard++ < 6) {
+            String from = findAnySiegling(id).map(SieglingCard::getEvolvesFromId).orElse(null);
+            if (from == null || from.isBlank()) {
+                return id;
+            }
+            id = from;
+        }
+        return id;
+    }
+
     private List<SieglingCard> sieglingsAtStage(int stage) {
         List<SieglingCard> out = new ArrayList<>();
         for (Card card : cardDefs.getDeckBuilderCatalog()) {
@@ -1120,6 +1206,9 @@ public class SiegeContentService {
         Combatant merc = new Combatant("merc-" + s.getId(), s.getName() + " (Merc)", s.getElement(),
                 Side.PLAYER, hp, Math.max(4, s.getSpeed()) + 3, s.getCardArtUrl());
         // No sourceCardId: mercs don't get evolution cards; they're already elite.
+        // artCardId still points at the card, so a merc hired off a stage-2/3 Siegeling
+        // stands as tall as one — sizing reads it, evolution lookups don't.
+        merc.setArtCardId(s.getId());
         return merc;
     }
 
@@ -1284,13 +1373,26 @@ public class SiegeContentService {
         return out;
     }
 
-    /** Random move previews from an evolved form — powers the client card-morph FX. */
-    List<Map<String, Object>> previewMovesFor(SieglingCard evo, int count, Random rng) {
+    /**
+     * Rewrites the evolved unit's move cards that are already in hand into moves of its new
+     * stage, and returns previews of what each became. The client's morph FX flips those cards
+     * to the new art, so the underlying cards have to change with them — otherwise the next
+     * render pulls the untouched precursor cards straight back.
+     *
+     * <p>Evolution cards are left alone: the next stage's unlock is dealt from the deck.
+     * Instance ids are preserved so the morph animation keeps the same DOM nodes.</p>
+     */
+    List<Map<String, Object>> upgradeHandCards(SieglingCard evo, String ownerId,
+                                               List<SiegeCard> hand, Random rng) {
         List<Move> moves = playableMoves(evo);
-        if (moves.isEmpty() || count <= 0) return List.of();
+        if (moves.isEmpty()) return List.of();
         List<Map<String, Object>> out = new ArrayList<>();
-        for (int i = 0; i < count; i++) {
-            out.add(specToPreviewMap(toSpec(moves.get(rng.nextInt(moves.size())))));
+        for (int i = 0; i < hand.size(); i++) {
+            SiegeCard card = hand.get(i);
+            if (!ownerId.equals(card.getOwnerId()) || card.getSpec().effect() == Effect.EVOLVE) continue;
+            AbilitySpec spec = toSpec(moves.get(rng.nextInt(moves.size())));
+            hand.set(i, new SiegeCard(card.getInstanceId(), ownerId, spec));
+            out.add(specToPreviewMap(spec));
         }
         return out;
     }
