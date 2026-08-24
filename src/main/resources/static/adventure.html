@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Siege — Siegelings Adventure</title>
 <link rel="icon" href="/favicon.png">
-<link rel="stylesheet" href="/css/adventure.css?v=65">
+<link rel="stylesheet" href="/css/adventure.css?v=66">
 </head>
 <body>
 <!-- Enemy Siegelings are corrupted card art, so they need the same die-cut shade
@@ -161,6 +161,7 @@
         <span class="gold-chip" id="mapGold">🪙 0</span>
         <span id="mapDeckCount"></span>
         <button class="siege-btn map-inv-btn" id="inventoryBtn" type="button">🎒 Items</button>
+        <button class="siege-btn map-key-btn" id="mapKeyBtn" type="button">🗝️ Key</button>
         <button class="siege-btn map-extract-btn hidden" id="extractBtn" type="button">⤴ Extract team</button>
         <span class="map-hint" id="mapHint">Choose your path</span>
       </div>
@@ -407,6 +408,19 @@
     </div>
   </div>
 
+  <!-- Map key: what each node emblem on the expedition map means. -->
+  <div class="inv-overlay hidden" id="legendOverlay">
+    <div class="inv-panel legend-panel">
+      <div class="inv-head"><span>🗝️ Map key</span><button class="unit-modal-close" id="legendClose" type="button">✕</button></div>
+      <div class="inv-body">
+        <h3 class="inv-subhead">Node emblems</h3>
+        <div class="legend-list" id="legendNodes"></div>
+        <h3 class="inv-subhead">Node state</h3>
+        <div class="legend-list" id="legendStates"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Smith / Caravan (reuse camp layout) -->
   <section class="siege-screen hidden" id="smithScreen">
     <div class="location-stage location-smith">
@@ -620,6 +634,6 @@
   <div class="siege-toast hidden" id="siegeToast"></div>
 </div>
 <script src="/js/siege-maps.js?v=3"></script>
-<script src="/js/adventure.js?v=68"></script>
+<script src="/js/adventure.js?v=69"></script>
 </body>
 </html>

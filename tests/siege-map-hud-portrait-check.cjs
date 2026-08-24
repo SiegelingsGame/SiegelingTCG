@@ -113,6 +113,9 @@ function probe() {
     pageOverflow: document.documentElement.scrollWidth > vw + 1,
     mode: { inTopbar: !!mode.closest('.siege-topbar'), inMeta: !!mode.closest('.map-meta'),
             text: (mode.textContent || '').trim(), box: box(mode),
+            hitAtCentre: (() => { const b = mode.getBoundingClientRect();
+              const el = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+              return !!el && (el === mode || mode.contains(el)); })(),
             shown: mode.getBoundingClientRect().width > 0 },
     strip: { box: box(strip), scrollW: strip.scrollWidth, clientW: strip.clientWidth,
              rows: new Set(Array.from(strip.children)
@@ -134,7 +137,15 @@ function probe() {
     // box, and whether the run's current node is on screen.
     map: (() => {
       const svg = document.getElementById('mapSvg');
-      const sb = mapScroll.getBoundingClientRect();
+      const cs = getComputedStyle(mapScroll);
+      const padT = parseFloat(cs.paddingTop) || 0, padB = parseFloat(cs.paddingBottom) || 0;
+      const padL = parseFloat(cs.paddingLeft) || 0, padR = parseFloat(cs.paddingRight) || 0;
+      const raw = mapScroll.getBoundingClientRect();
+      // The landscape map is full-bleed with floating chrome: its scroll padding
+      // is the band reserved for that chrome, so centring is judged inside it.
+      const sb = { top: raw.top + padT, bottom: raw.bottom - padB,
+                   left: raw.left + padL, right: raw.right - padR,
+                   width: raw.width - padL - padR, height: raw.height - padT - padB };
       const gb = svg.getBoundingClientRect();
       const cur = document.querySelector('.map-node-g.current');
       const cb = cur && cur.getBoundingClientRect();
@@ -204,8 +215,15 @@ function probe() {
     // The expedition type reads at the top with the run's identity, not down in
     // the resource row where it was crowding the buttons off the line.
     check(m.mode.inTopbar && !m.mode.inMeta, 'the mode badge sits in the top bar, not the HUD row');
-    check(m.mode.shown && m.mode.box.bottom < m.mapScrollTop + 1,
-      'the mode badge is visible above the map');
+    // Portrait keeps the boxed map below the bar; landscape is full-bleed, so
+    // there the badge floats over the map and only has to stay on top of it.
+    if (vp.portrait) {
+      check(m.mode.shown && m.mode.box.bottom < m.mapScrollTop + 1,
+        'the mode badge is visible above the map');
+    } else {
+      check(m.mode.shown && m.mode.hitAtCentre,
+        'the mode badge floats on top of the full-bleed map');
+    }
     check(m.chips.length === 5, `knight + 3 warband + merc on the strip (got ${m.chips.length})`);
     check(!m.pageOverflow, 'the page itself never scrolls horizontally');
     // 1. The reported bug: the Items button must be on screen and tappable.

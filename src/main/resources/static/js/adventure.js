@@ -71,6 +71,25 @@
   };
   var NODE_ICON = { BATTLE: '⚔️', ELITE: '🔺', REST: '🏕️', TREASURE: '💎', BROKER: '🐾', SMITH: '🔨', CARAVAN: '🐫', EVENT: '❔', BOSS: '👑' };
   var NODE_TINT = { BATTLE: '#8fa3bf', ELITE: '#ff6e6e', REST: '#7ee787', TREASURE: '#ffd066', BROKER: '#c896ff', BOSS: '#ff9a3c' };
+  // One line per emblem, shown in the map key (🗝️ Key on the map HUD). Kept
+  // beside NODE_ICON so a new node type is obvious when it has no entry here.
+  var NODE_LEGEND = [
+    ['BATTLE', 'Skirmish', 'A standard fight. Win for XP, gold and a reward pick.'],
+    ['ELITE', 'Elite siege', 'A harder fight with a richer reward — and real risk.'],
+    ['REST', 'Rest camp', 'Heal the warband, upgrade a card or shop the camp stock.'],
+    ['TREASURE', 'Cache', 'Dig for loot. Digging deeper pays more and wakes trouble.'],
+    ['EVENT', 'Event', 'An encounter with a choice; outcomes vary.'],
+    ['BROKER', 'Broker', 'Recruit or hire an extra Siegeling for the run.'],
+    ['SMITH', 'Smith', 'Forge and upgrade gear for the warband.'],
+    ['CARAVAN', 'Caravan', 'Trade goods and buy items with run gold.'],
+    ['BOSS', 'Siegelord', 'The stage boss. Clearing it ends the stage.']
+  ];
+  var NODE_STATE_LEGEND = [
+    ['current', 'Where you stand', 'Your warband is here now.'],
+    ['reachable', 'Open path', 'Pulsing ring — tap to travel there next.'],
+    ['cleared', 'Cleared', 'Marked ✓ and dimmed; already resolved.'],
+    ['locked', 'Not connected', 'Dim, no ring — no route there from here.']
+  ];
   var CAMP_ICON = { REST: '🔥', SHOP_CARD: '🃏', SHOP_HEAL: '🍲', SHOP_UPGRADE: '⚒️', SHOP_MENU: '🛒', BROKER: '🐾', BROKER_MENU: '♞' };
   var PASSIVE_META = {
     SHIELD: { icon: '🛡', name: 'Bulwark' },
@@ -571,6 +590,9 @@
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && !$('handSheet').classList.contains('hidden')) toggleHandSheet(false);
     });
+    $('mapKeyBtn').addEventListener('click', function () { openLegend(); });
+    $('legendClose').addEventListener('click', function () { $('legendOverlay').classList.add('hidden'); });
+    $('legendOverlay').addEventListener('click', function (e) { if (e.target === $('legendOverlay')) $('legendOverlay').classList.add('hidden'); });
     $('invClose').addEventListener('click', function () { $('invOverlay').classList.add('hidden'); });
     $('invOverlay').addEventListener('click', function (e) { if (e.target === $('invOverlay')) $('invOverlay').classList.add('hidden'); });
     $('smithLeaveBtn').addEventListener('click', function () { simplePost('/api/siege/smith/leave'); });
@@ -1603,7 +1625,10 @@
   // landPad / landLaneGap tighten the lane (cross) axis in phone landscape so a
   // 3-4 lane map fits the short scroll height without vertical scrolling; the
   // depth axis keeps rowGap and scrolls horizontally as intended.
-  var MAP = { colGap: 96, rowGap: 104, pad: 56, r: 24, landPad: 40, landLaneGap: 60 };
+  // landLaneGap must clear a node's radius plus its label (drawn at r+18 and
+  // ~11px tall) before the next lane's halo begins, or landscape labels print
+  // over the circles below them. The full-bleed landscape map has the height.
+  var MAP = { colGap: 96, rowGap: 104, pad: 56, r: 24, landPad: 44, landLaneGap: 78 };
 
   // Phone landscape is too short to stack the depth axis vertically, so there
   // the map is transposed to flow left→right (start left, boss right). This
@@ -2564,6 +2589,24 @@
   }
 
   // ---- Inventory --------------------------------------------------------
+  function openLegend() {
+    var nodes = $('legendNodes');
+    nodes.innerHTML = NODE_LEGEND.map(function (row) {
+      return '<div class="legend-row">' +
+        '<span class="legend-mark" style="--node-tint:' + (NODE_TINT[row[0]] || '#8fa3bf') + '">' +
+          (NODE_ICON[row[0]] || '•') + '</span>' +
+        '<span class="legend-copy"><b>' + esc(row[1]) + '</b><i>' + esc(row[2]) + '</i></span>' +
+      '</div>';
+    }).join('');
+    $('legendStates').innerHTML = NODE_STATE_LEGEND.map(function (row) {
+      return '<div class="legend-row">' +
+        '<span class="legend-mark state-' + row[0] + '">' + (row[0] === 'cleared' ? '✓' : '●') + '</span>' +
+        '<span class="legend-copy"><b>' + esc(row[1]) + '</b><i>' + esc(row[2]) + '</i></span>' +
+      '</div>';
+    }).join('');
+    $('legendOverlay').classList.remove('hidden');
+  }
+
   function openInventory() { $('invOverlay').classList.remove('hidden'); renderInventory(); }
   function knightBagItems(run) { return run.knightBag || []; }
   function findKnightItem(run, itemId) {
