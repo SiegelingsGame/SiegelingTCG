@@ -3609,7 +3609,9 @@
         grid.querySelectorAll('[data-delete-custom-deck]').forEach(btn => btn.addEventListener('click', (event) => {
             event.stopPropagation();
             const deckId = btn.dataset.deleteCustomDeck || '';
-            if (state.deckDeleteBusy) return;
+            // Only the deck actually being deleted is locked out; a stuck request on
+            // one tile must never make every other Delete button inert.
+            if (state.deckDeleteBusy === deckId) return;
             if (state.deckPendingDelete === deckId) return void deleteSavedDeck(deckId);
             armSavedDeckDelete(deckId);
         }));
@@ -3661,37 +3663,93 @@
 
     // Deleting is one tap away but never a single tap: the first tap arms the
     // button in place (no modal to dismiss on a phone) and it disarms itself.
-    const DECK_DELETE_ARM_MS = 4000;
+    // Arming and disarming mutate the one button rather than re-rendering the
+    // whole grid: rebuilding a long deck list re-decodes every tile's art and
+    // shifts the scroll position out from under the finger, so the confirming
+    // second tap landed on nothing.
+    const DECK_DELETE_ARM_MS = 6000;
     let deckDeleteArmTimer = null;
 
     function renderSavedDeckDeleteButton(deck) {
         const armed = state.deckPendingDelete === deck.id;
+        const busy = state.deckDeleteBusy === deck.id;
         return `<button class="ghost-btn deck-delete-btn${armed ? ' is-armed' : ''}" type="button"
-            data-delete-custom-deck="${escapeAttr(deck.id)}"
+            data-delete-custom-deck="${escapeAttr(deck.id)}"${busy ? ' disabled' : ''}
             aria-label="${armed ? 'Confirm deleting' : 'Delete'} ${escapeAttr(deck.name || 'this deck')}"
-        >${armed ? 'Delete?' : 'Delete'}</button>`;
+        >${busy ? 'Deleting…' : (armed ? 'Delete?' : 'Delete')}</button>`;
+    }
+
+    function savedDeckDeleteButton(deckId) {
+        return [...document.querySelectorAll('[data-delete-custom-deck]')]
+            .find(btn => btn.dataset.deleteCustomDeck === deckId) || null;
+    }
+
+    function paintSavedDeckDeleteButton(deckId) {
+        const btn = savedDeckDeleteButton(deckId);
+        if (!btn) return;
+        const armed = state.deckPendingDelete === deckId;
+        const busy = state.deckDeleteBusy === deckId;
+        const name = btn.getAttribute('aria-label')?.replace(/^(Confirm deleting|Delete) /, '') || 'this deck';
+        btn.classList.toggle('is-armed', armed);
+        btn.disabled = busy;
+        btn.textContent = busy ? 'Deleting…' : (armed ? 'Delete?' : 'Delete');
+        btn.setAttribute('aria-label', `${armed ? 'Confirm deleting' : 'Delete'} ${name}`);
+    }
+
+    function disarmSavedDeckDelete() {
+        if (deckDeleteArmTimer) window.clearTimeout(deckDeleteArmTimer);
+        deckDeleteArmTimer = null;
+        const previous = state.deckPendingDelete;
+        state.deckPendingDelete = null;
+        if (previous) paintSavedDeckDeleteButton(previous);
     }
 
     function armSavedDeckDelete(deckId) {
+        disarmSavedDeckDelete();
         state.deckPendingDelete = deckId;
-        if (deckDeleteArmTimer) window.clearTimeout(deckDeleteArmTimer);
+        paintSavedDeckDeleteButton(deckId);
         deckDeleteArmTimer = window.setTimeout(() => {
             if (state.deckPendingDelete !== deckId) return;
-            state.deckPendingDelete = null;
-            renderSavedDecks();
+            disarmSavedDeckDelete();
         }, DECK_DELETE_ARM_MS);
-        renderSavedDecks();
     }
 
+    // Any tap that isn't on the armed button itself cancels the pending delete,
+    // so an armed button can never be left waiting to fire on a stray later tap.
+    document.addEventListener('click', (event) => {
+        if (!state.deckPendingDelete) return;
+        if (event.target?.closest?.('[data-delete-custom-deck]')) return;
+        disarmSavedDeckDelete();
+    }, true);
+
     async function deleteSavedDeck(deckId) {
-        if (deckDeleteArmTimer) window.clearTimeout(deckDeleteArmTimer);
-        state.deckPendingDelete = null;
+        if (state.deckDeleteBusy) return;
+        disarmSavedDeckDelete();
         state.deckDeleteBusy = deckId;
         state.savedDeckNotice = null;
-        renderSavedDecks();
-        const data = await fetchJson('/api/profile/decks/delete', { method: 'POST', body: JSON.stringify({ id: deckId }) });
-        state.deckDeleteBusy = null;
+        // The tile goes the moment the player confirms; the request only has to
+        // confirm it. A failure puts the deck back with the reason attached.
+        const savedDecks = state.profile?.savedDecks || [];
+        const removedIndex = savedDecks.findIndex(deck => deck.id === deckId);
+        const removed = removedIndex >= 0 ? savedDecks[removedIndex] : null;
+        if (removed) {
+            state.profile = { ...state.profile, savedDecks: savedDecks.filter(deck => deck.id !== deckId) };
+            renderSavedDecks();
+        }
+        let data = null;
+        try {
+            data = await fetchJson('/api/profile/decks/delete', { method: 'POST', body: JSON.stringify({ id: deckId }) });
+        } finally {
+            // Never leave the busy flag set on an unexpected throw — it would make
+            // this deck permanently undeletable until the page reloads.
+            state.deckDeleteBusy = null;
+        }
         if (!data || data.error) {
+            if (removed) {
+                const restored = (state.profile?.savedDecks || []).slice();
+                restored.splice(Math.min(removedIndex, restored.length), 0, removed);
+                state.profile = { ...state.profile, savedDecks: restored };
+            }
             state.savedDeckNotice = data?.error || 'That deck could not be deleted. Check your connection and try again.';
             renderSavedDecks();
             return;
