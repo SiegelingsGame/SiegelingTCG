@@ -105,6 +105,34 @@ class SavedDeckServiceTest {
         assertEquals(1, store.docs.size());
     }
 
+    @Test
+    void deletingABatchRemovesEveryDeckAndSkipsTheStaleIds() throws Exception {
+        FakeStore store = new FakeStore();
+        SavedDeckService service = createService(store);
+        AccountUser user = user("player@example.com");
+        List<String> ids = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            ids.add(service.saveDeck(user, null, "pyla", cards(), "Copy " + i, null, null).getId());
+        }
+        ids.add("already-deleted");
+
+        assertEquals(5, service.deleteDecks(user, ids), "only the decks that existed count as removed");
+        assertTrue(store.docs.isEmpty(), "one stale id must not block the rest of the batch");
+    }
+
+    @Test
+    void aBatchOnlyRemovesTheCallersOwnDecks() throws Exception {
+        FakeStore store = new FakeStore();
+        SavedDeckService service = createService(store);
+        AccountUser mine = user("player@example.com");
+        String ownDeck = service.saveDeck(mine, null, "pyla", cards(), "Mine", null, null).getId();
+        service.saveDeck(user("owner@example.com"), null, "pyla", cards(), "Theirs", null, CLIENT_ID);
+
+        assertEquals(1, service.deleteDecks(mine, List.of(ownDeck, CLIENT_ID)));
+        assertEquals(1, store.docs.size());
+        assertEquals("owner@example.com", store.docs.get(CLIENT_ID).getUserId());
+    }
+
     private SavedDeckService createService(FakeStore store) throws Exception {
         SavedDeckService service = new SavedDeckService();
         setField(service, "savedDeckStore", store);

@@ -88,6 +88,24 @@ public class SavedDeckService {
         return true;
     }
 
+    /**
+     * Deletes every named deck the player owns and reports how many were actually
+     * removed. Unknown ids are skipped rather than failing the batch, so one stale
+     * row in the binder cannot block the rest of a "delete all" from going through.
+     */
+    public int deleteDecks(AccountUser user, List<String> deckIds) {
+        if (deckIds == null || deckIds.isEmpty()) {
+            return 0;
+        }
+        int removed = 0;
+        for (String deckId : deckIds) {
+            if (deleteDeck(user, deckId)) {
+                removed++;
+            }
+        }
+        return removed;
+    }
+
     // A create carrying a client id that already names one of this player's decks is
     // a retry of that same create, so it updates in place instead of duplicating.
     // An id that names somebody else's deck is refused outright rather than

@@ -2275,6 +2275,10 @@ class GameJavaScriptRegressionTest {
         return Files.readString(HOME_JS);
     }
 
+    private static String readHomePage() throws IOException {
+        return Files.readString(HOME_HTML);
+    }
+
     /**
      * Slices a top-level object literal by brace depth. Template-literal SVG art
      * contains braces of its own, so a naive indexOf("};") would truncate.
@@ -2585,30 +2589,67 @@ class GameJavaScriptRegressionTest {
     }
 
     /**
-     * Saved decks piled up with no way to remove one short of the builder. The tile's
-     * delete control arms on the first tap and only calls the endpoint on the second,
-     * so a mis-tap on a phone never destroys a deck.
+     * The tile's delete used to arm on the first tap and fire on the second, with no
+     * visible commit step and a timer that disarmed it — on a phone that read as
+     * "Delete -> Delete? -> nothing happened". It now asks once in a dialog, and a
+     * binder full of duplicates can be cleared in one batch.
      */
     @Test
-    void savedDeckTilesDeleteInTwoTapsAndClearTheActiveSelection() throws IOException {
+    void savedDeckTilesDeleteBehindAConfirmDialogAndClearTheActiveSelection() throws IOException {
         String homeScript = readHomeScript();
-        String deleteSavedDeck = extractFunction(homeScript, "async function deleteSavedDeck(deckId)");
+        String deleteSavedDecks = extractFunction(homeScript, "async function deleteSavedDecks(deckIds)");
         String renderSavedDecks = extractFunction(homeScript, "function renderSavedDecks()");
 
-        assertTrue(renderSavedDecks.contains("if (state.deckPendingDelete === deckId) return void deleteSavedDeck(deckId);")
-                        && renderSavedDecks.contains("armSavedDeckDelete(deckId)"),
-                "The first tap must only arm the delete; the second performs it.");
-        assertTrue(deleteSavedDeck.contains("'/api/profile/decks/delete'"),
+        assertFalse(homeScript.contains("armSavedDeckDelete("),
+                "The two-tap arming must be gone, not merely bypassed.");
+        assertTrue(renderSavedDecks.contains("deleteSavedDeck(btn.dataset.deleteCustomDeck || '')"),
+                "One tap on a tile's Delete must start the deletion.");
+        assertTrue(deleteSavedDecks.contains("if (!await confirmDeckDelete(doomed)) return;"),
+                "Deleting must be confirmed in the dialog before anything is removed.");
+        assertTrue(deleteSavedDecks.contains("'/api/profile/decks/delete'"),
                 "Deleting must go through the existing saved-deck delete endpoint.");
-        assertTrue(deleteSavedDeck.contains("if (state.selectedDeckId === deckId) state.selectedDeckId = '';"),
+        assertTrue(deleteSavedDecks.contains("ids.length === 1 ? { id: ids[0] } : { ids }"),
+                "A batch must go out as one request rather than one call per deck.");
+        assertTrue(deleteSavedDecks.contains("if (ids.includes(state.selectedDeckId)) state.selectedDeckId = '';"),
                 "The active loadout must not keep pointing at a deleted deck.");
-        assertTrue(deleteSavedDeck.contains("state.savedDeckNotice = data?.error"),
+        assertTrue(deleteSavedDecks.contains("state.savedDeckNotice = data?.error"),
                 "A failed delete must surface the server's reason on the decks screen.");
+        assertTrue(deleteSavedDecks.contains("if (deckAlreadyGone(data)) {"),
+                "A deck the server no longer has must not be restored as an undeletable tile.");
         // game.js renders the Play page's saved-deck list from this same cache.
-        assertTrue(deleteSavedDeck.contains("saveCachedAuthProfile(data)")
+        assertTrue(deleteSavedDecks.contains("saveCachedAuthProfile(data)")
                         && extractFunction(homeScript, "async function saveCustomDeck()").contains("saveCachedAuthProfile(data)"),
                 "Saving and deleting must both refresh the shared profile cache, "
                         + "or the change is lost on the next load and on the Play page.");
+    }
+
+    /**
+     * Mobile Safari holds a tap ~300ms waiting for a possible double-tap zoom, and
+     * the body's pan-x/pan-y does not release it — only touch-action:manipulation on
+     * the element does. The battle screen opted in long ago; the hub had not, so
+     * every button there felt like it needed a second tap.
+     */
+    @Test
+    void hubControlsOptOutOfMobileSafarisTapDelay() throws IOException {
+        String homeCss = Files.readString(Path.of("src/main/resources/static/css/home.css"));
+        assertTrue(homeCss.contains(":where(button, a, summary, label, input, select, "
+                        + "[role=\"button\"], [role=\"checkbox\"], [role=\"tab\"]) {")
+                        && homeCss.contains("touch-action: manipulation;"),
+                "Hub controls must opt out of the double-tap-zoom wait.");
+        assertTrue(homeCss.contains(":where(.primary-btn, .ghost-btn, .deck-delete-btn):active {"),
+                "A press must be acknowledged before any handler or request runs.");
+    }
+
+    /** The confirm dialog and the bulk controls have to exist in the page it runs on. */
+    @Test
+    void savedDeckDeleteDialogAndBulkControlsShipInTheHubMarkup() throws IOException {
+        String home = readHomePage();
+        assertTrue(home.contains("id=\"deckDeleteConfirmModal\"") && home.contains("id=\"deckDeleteConfirmGo\"")
+                        && home.contains("id=\"deckDeleteConfirmCancel\""),
+                "The delete confirm dialog shell must be in home.html.");
+        assertTrue(home.contains("id=\"selectDecksBtn\"") && home.contains("id=\"selectAllDecksBtn\"")
+                        && home.contains("id=\"deleteSelectedDecksBtn\""),
+                "Selecting decks and deleting the selection must be reachable from the saved-deck header.");
     }
 
     private static String extractFunction(String source, String signature) {
