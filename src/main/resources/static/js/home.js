@@ -450,6 +450,7 @@
         builderCounts: {},
         builderPreviewCardId: null,
         editingSavedDeckId: '',
+        builderClientDeckId: '',
         builderSearch: '',
         builderElementFilter: 'ALL',
         builderTypeFilter: 'ALL',
@@ -3722,6 +3723,12 @@
         disarmSavedDeckDelete();
     }, true);
 
+    // Older builds answered a delete for an unknown deck with a bare error; current
+    // ones answer with the refreshed profile and deckMissing. Both mean "already gone".
+    function deckAlreadyGone(data) {
+        return Boolean(data?.deckMissing) || /saved deck not found/i.test(data?.error || '');
+    }
+
     async function deleteSavedDeck(deckId) {
         if (state.deckDeleteBusy) return;
         disarmSavedDeckDelete();
@@ -3745,6 +3752,16 @@
             state.deckDeleteBusy = null;
         }
         if (!data || data.error) {
+            // The server reporting the deck as missing means the binder was holding a
+            // stale row — the delete already happened, or it never existed. Restoring
+            // it would strand a tile that fails the same way on every retry, so let it
+            // go and resync from the server instead.
+            if (deckAlreadyGone(data)) {
+                state.savedDeckNotice = null;
+                renderSavedDecks();
+                syncProfile().then(() => { renderProfile(); renderDecks(); });
+                return;
+            }
             if (removed) {
                 const restored = (state.profile?.savedDecks || []).slice();
                 restored.splice(Math.min(removedIndex, restored.length), 0, removed);
@@ -3804,6 +3821,25 @@
         }, {});
     }
 
+    // Held across retries of the same save, and only across those: a fresh id is
+    // minted when the builder is reset for a new deck or after one is banked.
+    function builderClientDeckId() {
+        if (!state.builderClientDeckId) {
+            state.builderClientDeckId = randomDeckId();
+        }
+        return state.builderClientDeckId;
+    }
+
+    function randomDeckId() {
+        if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+        // iOS Safari only exposes randomUUID on secure origins; the server accepts
+        // this shape either way and falls back to its own id if it ever does not.
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (ch) => {
+            const rand = Math.random() * 16 | 0;
+            return (ch === 'x' ? rand : (rand & 0x3 | 0x8)).toString(16);
+        });
+    }
+
     function openDeckBuilder(options = {}) {
         if (!state.options?.cardCatalog?.length) {
             return navigateHub('decks');
@@ -3812,6 +3848,7 @@
             state.builderCounts = {};
             state.builderPreviewCardId = null;
             state.editingSavedDeckId = '';
+            state.builderClientDeckId = '';
             state.builderTab = 'binder';
             state.builderCardTab = 'card';
             state.builderDeckSettingsOpen = false;
@@ -8414,7 +8451,13 @@
             return setBuilderIssue('Give this deck a name before saving.', 'name');
         }
         const payload = { trainerId, customDeckCards: cards, name };
-        if (state.editingSavedDeckId) payload.id = state.editingSavedDeckId;
+        if (state.editingSavedDeckId) {
+            payload.id = state.editingSavedDeckId;
+        } else {
+            // Minted once per deck being composed, so a save whose response is lost in
+            // transit is retried onto the same document instead of creating a copy.
+            payload.clientDeckId = builderClientDeckId();
+        }
         const saveBtn = document.getElementById('saveDeckBuilderPageBtn');
         if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
         const data = await fetchJson('/api/profile/decks', {
@@ -8433,6 +8476,8 @@
         state.progression = data.progression;
         saveCachedAuthProfile(data);
         state.editingSavedDeckId = '';
+        // The deck is banked; the next new deck composed here needs its own id.
+        state.builderClientDeckId = '';
         renderProfile();
         renderDecks();
         navigateHub('decks');

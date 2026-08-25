@@ -68,6 +68,22 @@ public class SavedDeckStore {
         }
     }
 
+    /** Owner of the deck document with this id, empty when no such document exists. */
+    public Optional<String> findOwnerId(String id) {
+        if (id == null || id.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            DocumentSnapshot snapshot = deckDoc(id).get().get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            if (!snapshot.exists()) {
+                return Optional.empty();
+            }
+            return Optional.ofNullable(snapshot.getString("userId"));
+        } catch (Exception ex) {
+            throw new IllegalStateException("Unable to load saved deck from Firestore.", ex);
+        }
+    }
+
     public SavedDeckEntity save(SavedDeckEntity deck) {
         if (deck.getId() == null || deck.getId().isBlank()) {
             throw new IllegalArgumentException("Saved deck id is required.");

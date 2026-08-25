@@ -221,7 +221,8 @@ public class AuthController {
                     (String) req.get("trainerId"),
                     customDeckCards,
                     (String) req.get("name"),
-                    (String) req.get("id")
+                    (String) req.get("id"),
+                    (String) req.get("clientDeckId")
             );
             return buildProfileResponse(user, null);
         } catch (IllegalArgumentException ex) {
@@ -249,8 +250,13 @@ public class AuthController {
                                           @RequestBody Map<String, Object> req) {
         try {
             AccountUser user = accountService.requireUser(authorizationHeader);
-            savedDeckService.deleteDeck(user, (String) req.get("id"));
-            return buildProfileResponse(user, null);
+            boolean removed = savedDeckService.deleteDeck(user, (String) req.get("id"));
+            Map<String, Object> response = new LinkedHashMap<>(buildProfileResponse(user, null));
+            // A deck that was already gone is not an error — the binder just held a
+            // stale row. Say so, so the client can drop it silently instead of
+            // restoring a tile the player can never delete.
+            response.put("deckMissing", !removed);
+            return response;
         } catch (IllegalArgumentException ex) {
             return deckError(ex);
         } catch (RuntimeException ex) {
