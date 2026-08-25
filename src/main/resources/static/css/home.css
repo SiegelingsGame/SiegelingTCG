@@ -1675,6 +1675,24 @@ select.search-input { color-scheme: dark; }
     min-width: 96px;
 }
 
+/* Mobile Safari holds every tap for ~300ms waiting to see whether it is the
+   first half of a double-tap zoom. The body's `touch-action: pan-x pan-y`
+   (style.css, which this page also loads) does not release that wait — only
+   `manipulation` on the tapped element does, which is why the battle screen
+   already opts its controls in. The hub never did, so every button here felt
+   like it needed a second, harder tap before anything happened.
+   `:where()` keeps this at zero specificity, so the few surfaces that set their
+   own touch-action for drag or carousel gestures still win. */
+:where(button, a, summary, label, input, select, [role="button"], [role="checkbox"], [role="tab"]) {
+    touch-action: manipulation;
+}
+
+/* Acknowledge the press in the same frame as the touch, before any handler,
+   render or request runs — a tap that lights up is a tap that registered. */
+:where(.primary-btn, .ghost-btn, .deck-delete-btn):active {
+    filter: brightness(1.22);
+}
+
 /* The delete confirm reuses the purchase-confirm shell; only the go button's
    meaning differs, so it carries the same red as the Delete buttons it replaces. */
 .deck-delete-confirm-go {

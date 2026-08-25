@@ -2623,6 +2623,23 @@ class GameJavaScriptRegressionTest {
                         + "or the change is lost on the next load and on the Play page.");
     }
 
+    /**
+     * Mobile Safari holds a tap ~300ms waiting for a possible double-tap zoom, and
+     * the body's pan-x/pan-y does not release it — only touch-action:manipulation on
+     * the element does. The battle screen opted in long ago; the hub had not, so
+     * every button there felt like it needed a second tap.
+     */
+    @Test
+    void hubControlsOptOutOfMobileSafarisTapDelay() throws IOException {
+        String homeCss = Files.readString(Path.of("src/main/resources/static/css/home.css"));
+        assertTrue(homeCss.contains(":where(button, a, summary, label, input, select, "
+                        + "[role=\"button\"], [role=\"checkbox\"], [role=\"tab\"]) {")
+                        && homeCss.contains("touch-action: manipulation;"),
+                "Hub controls must opt out of the double-tap-zoom wait.");
+        assertTrue(homeCss.contains(":where(.primary-btn, .ghost-btn, .deck-delete-btn):active {"),
+                "A press must be acknowledged before any handler or request runs.");
+    }
+
     /** The confirm dialog and the bulk controls have to exist in the page it runs on. */
     @Test
     void savedDeckDeleteDialogAndBulkControlsShipInTheHubMarkup() throws IOException {

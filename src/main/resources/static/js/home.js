@@ -3724,6 +3724,9 @@
         renderSavedDecks();
     }
 
+    // Repaints the one tile rather than the grid: rebuilding it re-decodes every
+    // deck's art, which on a full binder is exactly the lag that makes a tap feel
+    // like it never landed.
     function toggleDeckSelection(deckId) {
         const picked = new Set(state.deckSelection || []);
         if (picked.has(deckId)) {
@@ -3732,7 +3735,17 @@
             picked.add(deckId);
         }
         state.deckSelection = [...picked];
-        renderSavedDecks();
+        paintDeckSelection(deckId);
+        renderDeckSelectionControls();
+    }
+
+    function paintDeckSelection(deckId) {
+        const tile = [...document.querySelectorAll('[data-preview-saved-deck]')]
+            .find(node => node.dataset.previewSavedDeck === deckId);
+        if (!tile) return renderSavedDecks();
+        const picked = (state.deckSelection || []).includes(deckId);
+        tile.classList.toggle('is-picked', picked);
+        tile.setAttribute('aria-checked', String(picked));
     }
 
     function renderDeckSelectionControls() {
@@ -3760,7 +3773,8 @@
             const decks = customSavedDecks();
             const all = (state.deckSelection || []).length === decks.length;
             state.deckSelection = all ? [] : decks.map(deck => deck.id);
-            renderSavedDecks();
+            decks.forEach(deck => paintDeckSelection(deck.id));
+            renderDeckSelectionControls();
         });
         document.getElementById('deleteSelectedDecksBtn')?.addEventListener('click', () => {
             deleteSavedDecks(state.deckSelection || []);
