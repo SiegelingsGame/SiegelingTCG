@@ -679,18 +679,23 @@ public class SiegeService {
      * run's owner, so a run adopted on this very call can still pay out.
      */
     Map<String, Object> state(String token, String authorizationHeader) {
-        SiegeRun run = lookup(token)
-                .orElseThrow(() -> new IllegalArgumentException("Run not found. Start a new expedition."));
-        AccountUser user = resolveUser(authorizationHeader);
-        if (user != null && user.getId() != null && !user.getId().isBlank() && run.getOwnerId().isBlank()) {
-            run.setOwnerId(user.getId());
-            run.setCheckpointSaved(saveCheckpoint(run));
+        // Same Session lock as continue/extract: #702 retried the bank from this
+        // path without it, so a refresh (or overlapping continue) during a slow
+        // progression save double-paid Siegecoins/Remnants/card prizes.
+        Session session = requireSession(token);
+        synchronized (session) {
+            SiegeRun run = session.run;
+            AccountUser user = resolveUser(authorizationHeader);
+            if (user != null && user.getId() != null && !user.getId().isBlank() && run.getOwnerId().isBlank()) {
+                run.setOwnerId(user.getId());
+                run.setCheckpointSaved(saveCheckpoint(run));
+            }
+            // Finished runs drop their checkpoint, so a transient progression save
+            // failure must be retried while the in-memory session still holds the
+            // spoils — otherwise the player permanently loses Siegecoins/Remnants.
+            maybeRetryEndRewards(run, authorizationHeader);
+            return serialize(run);
         }
-        // Finished runs drop their checkpoint, so a transient progression save
-        // failure must be retried while the in-memory session still holds the
-        // spoils — otherwise the player permanently loses Siegecoins/Remnants.
-        maybeRetryEndRewards(run, authorizationHeader);
-        return serialize(run);
     }
 
     /**
@@ -2152,6 +2157,15 @@ public class SiegeService {
      * banks the team with a ×loop multiplier (see {@link #extract}).
      */
     private void grantEndRewards(SiegeRun run, String authorizationHeader, double rewardMultiplier) {
+        // The granted flag is the only idempotency key. Two callers (state retry +
+        // continue, or two GETs after a refresh) can both observe it false and both
+        // add coins unless this whole bank runs as one critical section.
+        synchronized (run) {
+            grantEndRewardsLocked(run, authorizationHeader, rewardMultiplier);
+        }
+    }
+
+    private void grantEndRewardsLocked(SiegeRun run, String authorizationHeader, double rewardMultiplier) {
         if (run.isEndRewardsGranted()) return;
         boolean won = run.getStatus() == RunStatus.WON;
 
