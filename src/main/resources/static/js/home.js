@@ -451,6 +451,8 @@
         builderPreviewCardId: null,
         editingSavedDeckId: '',
         builderClientDeckId: '',
+        deckSelectMode: false,
+        deckSelection: [],
         builderSearch: '',
         builderElementFilter: 'ALL',
         builderTypeFilter: 'ALL',
@@ -1322,6 +1324,7 @@
         });
         document.getElementById('friendAddForm')?.addEventListener('submit', addFriendFromSocial);
         document.getElementById('createCustomDeckBtn')?.addEventListener('click', () => openDeckBuilder({ reset: true }));
+        bindDeckSelectionControls();
         document.getElementById('deckBuilderBackBtn')?.addEventListener('click', () => navigateHub('decks'));
         document.getElementById('saveDeckBuilderPageBtn')?.addEventListener('click', saveCustomDeck);
         document.getElementById('filterTrayBtn')?.addEventListener('click', () => toggleTray('filter'));
@@ -3595,6 +3598,7 @@
         setCustomDeckBlockVisible(true);
         const savedDecks = state.profile?.savedDecks || [];
         if (count) count.textContent = `${savedDecks.length} saved`;
+        renderDeckSelectionControls();
         if (!state.profile?.authenticated) {
             grid.innerHTML = '<div class="unlock-card"><strong>Sign in to save custom decks</strong><span>Your deck binder will show saved custom decks after login.</span></div>';
             return;
@@ -3609,12 +3613,7 @@
         });
         grid.querySelectorAll('[data-delete-custom-deck]').forEach(btn => btn.addEventListener('click', (event) => {
             event.stopPropagation();
-            const deckId = btn.dataset.deleteCustomDeck || '';
-            // Only the deck actually being deleted is locked out; a stuck request on
-            // one tile must never make every other Delete button inert.
-            if (state.deckDeleteBusy === deckId) return;
-            if (state.deckPendingDelete === deckId) return void deleteSavedDeck(deckId);
-            armSavedDeckDelete(deckId);
+            deleteSavedDeck(btn.dataset.deleteCustomDeck || '');
         }));
         grid.querySelectorAll('[data-edit-custom-deck]').forEach(btn => btn.addEventListener('click', (event) => {
             event.stopPropagation();
@@ -3622,6 +3621,7 @@
         }));
         grid.querySelectorAll('[data-preview-saved-deck]').forEach(tile => {
             tile.addEventListener('click', () => {
+                if (state.deckSelectMode) return void toggleDeckSelection(tile.dataset.previewSavedDeck || '');
                 const deck = savedDecks.find(item => item.id === tile.dataset.previewSavedDeck);
                 state.selectedDeckId = deck?.deckId || tile.dataset.previewSavedDeck || '';
                 if (deck) openSavedDeckPreview(deck);
@@ -3630,6 +3630,7 @@
             tile.addEventListener('keydown', (event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
+                    if (state.deckSelectMode) return void toggleDeckSelection(tile.dataset.previewSavedDeck || '');
                     const deck = savedDecks.find(item => item.id === tile.dataset.previewSavedDeck);
                     state.selectedDeckId = deck?.deckId || tile.dataset.previewSavedDeck || '';
                     if (deck) openSavedDeckPreview(deck);
@@ -3648,7 +3649,10 @@
         const accent = elementColor(displayElements[0]);
         const visual = deckAssetForElements(displayElements);
         const artStyle = visual?.back ? `;--deck-art:url('${visual.back}')` : '';
-        return `<article class="deck-tile hub-deck-card custom-saved-deck deck-tile--clickable${isSelected ? ' is-selected' : ''}${visual ? ' has-deck-art' : ''}" data-preview-saved-deck="${escapeAttr(deck.id)}" role="button" tabindex="0" aria-selected="${isSelected}" style="--deck-accent:${accent};--deck-bg:${deckGradient(displayElements)}${artStyle}">
+        const picking = Boolean(state.deckSelectMode) && Boolean(deck.custom);
+        const picked = picking && (state.deckSelection || []).includes(deck.id);
+        return `<article class="deck-tile hub-deck-card custom-saved-deck deck-tile--clickable${isSelected ? ' is-selected' : ''}${visual ? ' has-deck-art' : ''}${picking ? ' is-selectable' : ''}${picked ? ' is-picked' : ''}" data-preview-saved-deck="${escapeAttr(deck.id)}" role="${picking ? 'checkbox' : 'button'}" tabindex="0" aria-${picking ? 'checked' : 'selected'}="${picking ? picked : isSelected}" style="--deck-accent:${accent};--deck-bg:${deckGradient(displayElements)}${artStyle}">
+            ${picking ? '<span class="deck-pick-mark" aria-hidden="true">&#10003;</span>' : ''}
             <span class="deck-card-state">${deck.custom ? 'Custom' : 'Saved'}</span>
             <div class="deck-card-body">
                 <strong class="deck-card-name">${escapeHtml(deck.name || 'Saved Deck')}</strong>
@@ -3662,66 +3666,111 @@
         </article>`;
     }
 
-    // Deleting is one tap away but never a single tap: the first tap arms the
-    // button in place (no modal to dismiss on a phone) and it disarms itself.
-    // Arming and disarming mutate the one button rather than re-rendering the
-    // whole grid: rebuilding a long deck list re-decodes every tile's art and
-    // shifts the scroll position out from under the finger, so the confirming
-    // second tap landed on nothing.
-    const DECK_DELETE_ARM_MS = 6000;
-    let deckDeleteArmTimer = null;
+    // Deleting asks once, in a dialog the player dismisses or confirms. The old
+    // two-tap arming had no visible commit step, disarmed itself on a timer, and
+    // depended on the second tap landing on the same button — on a phone it read
+    // as "Delete -> Delete? -> nothing happened".
+    let deckDeleteConfirmResolver = null;
 
     function renderSavedDeckDeleteButton(deck) {
-        const armed = state.deckPendingDelete === deck.id;
         const busy = state.deckDeleteBusy === deck.id;
-        return `<button class="ghost-btn deck-delete-btn${armed ? ' is-armed' : ''}" type="button"
+        return `<button class="ghost-btn deck-delete-btn" type="button"
             data-delete-custom-deck="${escapeAttr(deck.id)}"${busy ? ' disabled' : ''}
-            aria-label="${armed ? 'Confirm deleting' : 'Delete'} ${escapeAttr(deck.name || 'this deck')}"
-        >${busy ? 'Deleting…' : (armed ? 'Delete?' : 'Delete')}</button>`;
+            aria-label="Delete ${escapeAttr(deck.name || 'this deck')}"
+        >${busy ? 'Deleting…' : 'Delete'}</button>`;
     }
 
-    function savedDeckDeleteButton(deckId) {
-        return [...document.querySelectorAll('[data-delete-custom-deck]')]
-            .find(btn => btn.dataset.deleteCustomDeck === deckId) || null;
+    function closeDeckDeleteConfirm(confirmed) {
+        const resolver = deckDeleteConfirmResolver;
+        deckDeleteConfirmResolver = null;
+        document.getElementById('deckDeleteConfirmModal')?.classList.add('hidden');
+        if (resolver) resolver(Boolean(confirmed));
     }
 
-    function paintSavedDeckDeleteButton(deckId) {
-        const btn = savedDeckDeleteButton(deckId);
-        if (!btn) return;
-        const armed = state.deckPendingDelete === deckId;
-        const busy = state.deckDeleteBusy === deckId;
-        const name = btn.getAttribute('aria-label')?.replace(/^(Confirm deleting|Delete) /, '') || 'this deck';
-        btn.classList.toggle('is-armed', armed);
-        btn.disabled = busy;
-        btn.textContent = busy ? 'Deleting…' : (armed ? 'Delete?' : 'Delete');
-        btn.setAttribute('aria-label', `${armed ? 'Confirm deleting' : 'Delete'} ${name}`);
+    function confirmDeckDelete(decks) {
+        const many = decks.length > 1;
+        const name = decks[0]?.name || 'this deck';
+        const modal = document.getElementById('deckDeleteConfirmModal');
+        const title = document.getElementById('deckDeleteConfirmTitle');
+        const copy = document.getElementById('deckDeleteConfirmCopy');
+        const goBtn = document.getElementById('deckDeleteConfirmGo');
+        if (!modal || !title || !copy || !goBtn) {
+            // Older cached HTML has no dialog shell; the native prompt still asks.
+            return Promise.resolve(window.confirm(many
+                ? `Delete ${decks.length} custom decks? This cannot be undone.`
+                : `Delete ${name}? This cannot be undone.`));
+        }
+        title.textContent = many ? `Delete ${decks.length} decks?` : `Delete ${name}?`;
+        copy.textContent = many
+            ? 'These saved decks are removed from your binder. This cannot be undone.'
+            : 'This saved deck is removed from your binder. This cannot be undone.';
+        goBtn.textContent = many ? `Delete ${decks.length}` : 'Delete';
+        modal.classList.remove('hidden');
+        goBtn.focus();
+        return new Promise(resolve => {
+            deckDeleteConfirmResolver = resolve;
+        });
     }
 
-    function disarmSavedDeckDelete() {
-        if (deckDeleteArmTimer) window.clearTimeout(deckDeleteArmTimer);
-        deckDeleteArmTimer = null;
-        const previous = state.deckPendingDelete;
-        state.deckPendingDelete = null;
-        if (previous) paintSavedDeckDeleteButton(previous);
+    // Selection mode turns every custom tile into a picker so a binder full of
+    // duplicates can be cleared in one pass instead of one dialog per deck.
+    function customSavedDecks() {
+        return (state.profile?.savedDecks || []).filter(deck => deck.custom);
     }
 
-    function armSavedDeckDelete(deckId) {
-        disarmSavedDeckDelete();
-        state.deckPendingDelete = deckId;
-        paintSavedDeckDeleteButton(deckId);
-        deckDeleteArmTimer = window.setTimeout(() => {
-            if (state.deckPendingDelete !== deckId) return;
-            disarmSavedDeckDelete();
-        }, DECK_DELETE_ARM_MS);
+    function setDeckSelectMode(on) {
+        state.deckSelectMode = Boolean(on);
+        if (!state.deckSelectMode) state.deckSelection = [];
+        renderSavedDecks();
     }
 
-    // Any tap that isn't on the armed button itself cancels the pending delete,
-    // so an armed button can never be left waiting to fire on a stray later tap.
-    document.addEventListener('click', (event) => {
-        if (!state.deckPendingDelete) return;
-        if (event.target?.closest?.('[data-delete-custom-deck]')) return;
-        disarmSavedDeckDelete();
-    }, true);
+    function toggleDeckSelection(deckId) {
+        const picked = new Set(state.deckSelection || []);
+        if (picked.has(deckId)) {
+            picked.delete(deckId);
+        } else {
+            picked.add(deckId);
+        }
+        state.deckSelection = [...picked];
+        renderSavedDecks();
+    }
+
+    function renderDeckSelectionControls() {
+        const decks = customSavedDecks();
+        const selectBtn = document.getElementById('selectDecksBtn');
+        const deleteBtn = document.getElementById('deleteSelectedDecksBtn');
+        const allBtn = document.getElementById('selectAllDecksBtn');
+        if (!selectBtn || !deleteBtn || !allBtn) return;
+        const active = Boolean(state.deckSelectMode);
+        const picked = (state.deckSelection || []).length;
+        selectBtn.hidden = decks.length === 0;
+        selectBtn.textContent = active ? 'Done' : 'Select';
+        deleteBtn.hidden = !active;
+        deleteBtn.disabled = picked === 0 || Boolean(state.deckDeleteBusy);
+        deleteBtn.textContent = picked ? `Delete ${picked}` : 'Delete selected';
+        allBtn.hidden = !active;
+        allBtn.textContent = picked === decks.length && decks.length > 0 ? 'Clear' : 'Select all';
+    }
+
+    function bindDeckSelectionControls() {
+        document.getElementById('selectDecksBtn')?.addEventListener('click', () => {
+            setDeckSelectMode(!state.deckSelectMode);
+        });
+        document.getElementById('selectAllDecksBtn')?.addEventListener('click', () => {
+            const decks = customSavedDecks();
+            const all = (state.deckSelection || []).length === decks.length;
+            state.deckSelection = all ? [] : decks.map(deck => deck.id);
+            renderSavedDecks();
+        });
+        document.getElementById('deleteSelectedDecksBtn')?.addEventListener('click', () => {
+            deleteSavedDecks(state.deckSelection || []);
+        });
+        document.getElementById('deckDeleteConfirmCancel')?.addEventListener('click', () => closeDeckDeleteConfirm(false));
+        document.getElementById('deckDeleteConfirmGo')?.addEventListener('click', () => closeDeckDeleteConfirm(true));
+        document.getElementById('deckDeleteConfirmModal')?.addEventListener('click', (event) => {
+            if (event.target?.id === 'deckDeleteConfirmModal') closeDeckDeleteConfirm(false);
+        });
+    }
 
     // Older builds answered a delete for an unknown deck with a bare error; current
     // ones answer with the refreshed profile and deckMissing. Both mean "already gone".
@@ -3729,30 +3778,42 @@
         return Boolean(data?.deckMissing) || /saved deck not found/i.test(data?.error || '');
     }
 
-    async function deleteSavedDeck(deckId) {
-        if (state.deckDeleteBusy) return;
-        disarmSavedDeckDelete();
-        state.deckDeleteBusy = deckId;
-        state.savedDeckNotice = null;
-        // The tile goes the moment the player confirms; the request only has to
-        // confirm it. A failure puts the deck back with the reason attached.
+    function deleteSavedDeck(deckId) {
+        return deleteSavedDecks([deckId]);
+    }
+
+    async function deleteSavedDecks(deckIds) {
+        const ids = (deckIds || []).filter(Boolean);
+        if (!ids.length || state.deckDeleteBusy) return;
         const savedDecks = state.profile?.savedDecks || [];
-        const removedIndex = savedDecks.findIndex(deck => deck.id === deckId);
-        const removed = removedIndex >= 0 ? savedDecks[removedIndex] : null;
-        if (removed) {
-            state.profile = { ...state.profile, savedDecks: savedDecks.filter(deck => deck.id !== deckId) };
-            renderSavedDecks();
-        }
+        const doomed = ids
+            .map(id => savedDecks.find(deck => deck.id === id))
+            .filter(Boolean);
+        if (!doomed.length) return;
+        if (!await confirmDeckDelete(doomed)) return;
+
+        state.deckDeleteBusy = ids.length === 1 ? ids[0] : 'batch';
+        state.savedDeckNotice = null;
+        // The tiles go the moment the player confirms; the request only has to
+        // confirm it. A failure puts them back with the reason attached.
+        const remaining = savedDecks.filter(deck => !ids.includes(deck.id));
+        state.profile = { ...state.profile, savedDecks: remaining };
+        state.deckSelection = (state.deckSelection || []).filter(id => !ids.includes(id));
+        renderSavedDecks();
+
         let data = null;
         try {
-            data = await fetchJson('/api/profile/decks/delete', { method: 'POST', body: JSON.stringify({ id: deckId }) });
+            data = await fetchJson('/api/profile/decks/delete', {
+                method: 'POST',
+                body: JSON.stringify(ids.length === 1 ? { id: ids[0] } : { ids })
+            });
         } finally {
             // Never leave the busy flag set on an unexpected throw — it would make
-            // this deck permanently undeletable until the page reloads.
+            // deleting impossible until the page reloads.
             state.deckDeleteBusy = null;
         }
         if (!data || data.error) {
-            // The server reporting the deck as missing means the binder was holding a
+            // The server reporting a deck as missing means the binder was holding a
             // stale row — the delete already happened, or it never existed. Restoring
             // it would strand a tile that fails the same way on every retry, so let it
             // go and resync from the server instead.
@@ -3762,12 +3823,10 @@
                 syncProfile().then(() => { renderProfile(); renderDecks(); });
                 return;
             }
-            if (removed) {
-                const restored = (state.profile?.savedDecks || []).slice();
-                restored.splice(Math.min(removedIndex, restored.length), 0, removed);
-                state.profile = { ...state.profile, savedDecks: restored };
-            }
-            state.savedDeckNotice = data?.error || 'That deck could not be deleted. Check your connection and try again.';
+            state.profile = { ...state.profile, savedDecks };
+            state.savedDeckNotice = data?.error || (ids.length === 1
+                ? 'That deck could not be deleted. Check your connection and try again.'
+                : 'Those decks could not be deleted. Check your connection and try again.');
             renderSavedDecks();
             return;
         }
@@ -3778,7 +3837,8 @@
         saveCachedAuthProfile(data);
         // The active loadout cannot point at a deck that no longer exists, or the
         // next Play tap starts a match against a missing deck id.
-        if (state.selectedDeckId === deckId) state.selectedDeckId = '';
+        if (ids.includes(state.selectedDeckId)) state.selectedDeckId = '';
+        if (!customSavedDecks().length) setDeckSelectMode(false);
         renderProfile();
         renderDecks();
     }
@@ -11352,6 +11412,11 @@
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape' && state.shopCardPreviewOpen) {
             closeShopCardPreview();
+        }
+        if (event.key === 'Escape' && deckDeleteConfirmResolver) {
+            event.preventDefault();
+            closeDeckDeleteConfirm(false);
+            return;
         }
         if (event.key === 'Escape' && shopPurchaseConfirmResolver) {
             closeShopPurchaseConfirm(false);

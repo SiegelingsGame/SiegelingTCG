@@ -26,6 +26,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -235,6 +236,17 @@ public class AuthController {
         }
     }
 
+    private List<String> requestedDeckIds(Map<String, Object> req) {
+        List<String> ids = new ArrayList<>();
+        if (req.get("ids") instanceof List<?> raw) {
+            raw.stream().filter(String.class::isInstance).map(String.class::cast).forEach(ids::add);
+        }
+        if (req.get("id") instanceof String single && !single.isBlank()) {
+            ids.add(single);
+        }
+        return ids;
+    }
+
     // Validation errors carry the deck-builder control the player must fix so the
     // client can scroll to and highlight it rather than only popping a message.
     private Map<String, Object> deckError(IllegalArgumentException ex) {
@@ -250,12 +262,17 @@ public class AuthController {
                                           @RequestBody Map<String, Object> req) {
         try {
             AccountUser user = accountService.requireUser(authorizationHeader);
-            boolean removed = savedDeckService.deleteDeck(user, (String) req.get("id"));
+            // Accepts one id or a batch, so clearing a binder full of decks is a
+            // single round trip instead of one request (and one full profile
+            // rebuild) per tile.
+            List<String> ids = requestedDeckIds(req);
+            int removed = savedDeckService.deleteDecks(user, ids);
             Map<String, Object> response = new LinkedHashMap<>(buildProfileResponse(user, null));
-            // A deck that was already gone is not an error — the binder just held a
-            // stale row. Say so, so the client can drop it silently instead of
-            // restoring a tile the player can never delete.
-            response.put("deckMissing", !removed);
+            response.put("deletedCount", removed);
+            // Decks that were already gone are not an error — the binder just held
+            // stale rows. Say so, so the client can drop them silently instead of
+            // restoring tiles the player can never delete.
+            response.put("deckMissing", removed < ids.size());
             return response;
         } catch (IllegalArgumentException ex) {
             return deckError(ex);

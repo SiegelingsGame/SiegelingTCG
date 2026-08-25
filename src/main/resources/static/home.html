@@ -11,7 +11,7 @@
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
     <link rel="stylesheet" href="/css/style.css?v=237">
-    <link rel="stylesheet" href="/css/home.css?v=136">
+    <link rel="stylesheet" href="/css/home.css?v=137">
 </head>
 <body>
 <div class="home-shell">
@@ -114,6 +114,18 @@
         </div>
     </div>
 
+    <div class="shop-purchase-confirm-modal deck-delete-confirm-modal hidden" id="deckDeleteConfirmModal" role="dialog" aria-modal="true" aria-labelledby="deckDeleteConfirmTitle">
+        <div class="shop-purchase-confirm-panel panel" role="document">
+            <span class="eyebrow">Confirm delete</span>
+            <h2 id="deckDeleteConfirmTitle">Delete deck</h2>
+            <p id="deckDeleteConfirmCopy">This cannot be undone.</p>
+            <div class="shop-purchase-confirm-actions">
+                <button class="ghost-btn" type="button" id="deckDeleteConfirmCancel" data-deck-delete-cancel>Cancel</button>
+                <button class="primary-btn deck-delete-confirm-go" type="button" id="deckDeleteConfirmGo" data-deck-delete-confirm>Delete</button>
+            </div>
+        </div>
+    </div>
+
     <main class="home-main">
         <section class="starter-gate hidden" id="starterGate">
             <div>
@@ -153,6 +165,9 @@
                         <div><span class="eyebrow">Custom</span><h2>Your saved decks</h2></div>
                         <div class="decks-row-actions">
                             <span id="deckCardCount"></span>
+                            <button class="ghost-btn" type="button" id="selectDecksBtn" hidden>Select</button>
+                            <button class="ghost-btn deck-delete-btn" type="button" id="deleteSelectedDecksBtn" hidden>Delete selected</button>
+                            <button class="ghost-btn" type="button" id="selectAllDecksBtn" hidden>Select all</button>
                             <button class="primary-btn" type="button" id="createCustomDeckBtn">Create Custom Deck</button>
                         </div>
                     </div>
@@ -415,7 +430,7 @@
 <script src="/js/game.js?v=251"></script>
 <script src="/js/card-binder-visual.js?v=22"></script>
 <script src="/js/achievements.js?v=8"></script>
-<script src="/js/home.js?v=153"></script>
+<script src="/js/home.js?v=154"></script>
 <script src="/js/sw-register.js?v=1"></script>
 </body>
 </html>

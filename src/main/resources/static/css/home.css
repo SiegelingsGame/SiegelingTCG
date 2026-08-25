@@ -1675,6 +1675,48 @@ select.search-input { color-scheme: dark; }
     min-width: 96px;
 }
 
+/* The delete confirm reuses the purchase-confirm shell; only the go button's
+   meaning differs, so it carries the same red as the Delete buttons it replaces. */
+.deck-delete-confirm-go {
+    background: linear-gradient(180deg, #ff6a5c, #d92f1f);
+    color: #fff5f3;
+    box-shadow: 0 8px 20px rgba(217, 47, 31, 0.32);
+}
+
+/* Selection mode: the whole tile is the checkbox target, so the mark only has to
+   read as state — the tile's own tap handler does the toggling. */
+.custom-saved-deck.is-selectable {
+    outline: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.custom-saved-deck.is-picked {
+    outline: 2px solid #ffcc4d;
+    outline-offset: 1px;
+}
+
+.deck-pick-mark {
+    position: absolute;
+    z-index: 4;
+    top: 10px;
+    left: 10px;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border: 2px solid rgba(255, 255, 255, 0.6);
+    border-radius: 50%;
+    background: rgba(6, 10, 24, 0.72);
+    color: transparent;
+    font-size: 0.85rem;
+    line-height: 1;
+}
+
+.custom-saved-deck.is-picked .deck-pick-mark {
+    border-color: #ffcc4d;
+    background: #ffcc4d;
+    color: #241a02;
+}
+
 .shop-card-preview-panel {
     position: relative;
     width: min(780px, 100%);
@@ -3326,22 +3368,6 @@ select.search-input { color-scheme: dark; }
     border-color: rgba(255, 106, 92, 0.9);
     color: #fff0ed;
     background: rgba(255, 76, 62, 0.22);
-}
-
-/* Armed state has to read as "the next tap deletes" at a glance. */
-.deck-delete-btn.is-armed {
-    border-color: #ff4c3e;
-    color: #fff4f1;
-    background: rgba(255, 76, 62, 0.42);
-    box-shadow: 0 0 0 2px rgba(255, 76, 62, 0.28);
-}
-
-@media (prefers-reduced-motion: no-preference) {
-    .deck-delete-btn.is-armed { animation: deck-delete-arm 1.1s ease-in-out infinite; }
-}
-
-@keyframes deck-delete-arm {
-    50% { box-shadow: 0 0 0 5px rgba(255, 76, 62, 0.14); }
 }
 
 .hub-deck-card:not(.custom-saved-deck) .deck-card-actions:empty,
@@ -10093,7 +10119,49 @@ body.gacha-active {
            and the inset, which the measurement already includes. */
         padding: 10px 10px var(--hud-clearance);
     }
-    .shop-card-preview-panel {
+    /* The delete confirm reuses the purchase-confirm shell; only the go button's
+   meaning differs, so it carries the same red as the Delete buttons it replaces. */
+.deck-delete-confirm-go {
+    background: linear-gradient(180deg, #ff6a5c, #d92f1f);
+    color: #fff5f3;
+    box-shadow: 0 8px 20px rgba(217, 47, 31, 0.32);
+}
+
+/* Selection mode: the whole tile is the checkbox target, so the mark only has to
+   read as state — the tile's own tap handler does the toggling. */
+.custom-saved-deck.is-selectable {
+    outline: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.custom-saved-deck.is-picked {
+    outline: 2px solid #ffcc4d;
+    outline-offset: 1px;
+}
+
+.deck-pick-mark {
+    position: absolute;
+    z-index: 4;
+    top: 10px;
+    left: 10px;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border: 2px solid rgba(255, 255, 255, 0.6);
+    border-radius: 50%;
+    background: rgba(6, 10, 24, 0.72);
+    color: transparent;
+    font-size: 0.85rem;
+    line-height: 1;
+}
+
+.custom-saved-deck.is-picked .deck-pick-mark {
+    border-color: #ffcc4d;
+    background: #ffcc4d;
+    color: #241a02;
+}
+
+.shop-card-preview-panel {
         max-height: calc(100dvh - var(--hud-clearance) - env(safe-area-inset-top, 0px) - 24px);
         padding: 12px;
     }
