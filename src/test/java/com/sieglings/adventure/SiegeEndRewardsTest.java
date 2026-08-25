@@ -11,6 +11,10 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -29,6 +33,7 @@ class SiegeEndRewardsTest {
     private final AtomicReference<PlayerProgressionEntity> persisted = new AtomicReference<>();
     private final AtomicInteger saveCalls = new AtomicInteger();
     private volatile boolean failNextSave;
+    private volatile boolean delaySaves;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -68,7 +73,16 @@ class SiegeEndRewardsTest {
                     failNextSave = false;
                     throw new RuntimeException("firestore blip");
                 }
+                // Persist first so a racing retry can read the new gold while this
+                // caller has not yet sealed endRewardsGranted — the #702 hole.
                 persisted.set(copyProgression(entity));
+                if (delaySaves) {
+                    try {
+                        Thread.sleep(400);
+                    } catch (InterruptedException ex) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
                 return entity;
             }
         });
@@ -116,6 +130,70 @@ class SiegeEndRewardsTest {
         assertTrue(run.isEndRewardsGranted());
         assertTrue(Boolean.TRUE.equals(run.getEndRewards().get("claimed")));
         assertTrue(persisted.get().getGold() > 100);
+    }
+
+    @Test
+    void concurrentEndRewardRetriesMustNotDoublePay() throws Exception {
+        // #702 retried the bank from GET /api/siege/state without the Session lock
+        // continue/extract already take. Refreshing /siege while "Banking to your
+        // account…" is in flight (or overlapping continue + state) let two
+        // grantEndRewards calls both pass endRewardsGranted==false, both add coins
+        // onto the post-save snapshot, and double Siegecoins/Remnants/stats.
+        SiegeRun run = finishedRun("end-rewards-race");
+        delaySaves = true;
+
+        Method maybeRetry = SiegeService.class.getDeclaredMethod(
+                "maybeRetryEndRewards", SiegeRun.class, String.class);
+        maybeRetry.setAccessible(true);
+
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        for (int i = 0; i < 2; i++) {
+            pool.submit(() -> {
+                ready.countDown();
+                try {
+                    start.await(2, TimeUnit.SECONDS);
+                    maybeRetry.invoke(service, run, "Bearer ok");
+                } catch (Throwable ex) {
+                    failure.compareAndSet(null, ex);
+                }
+            });
+        }
+        assertTrue(ready.await(2, TimeUnit.SECONDS));
+        start.countDown();
+        pool.shutdown();
+        assertTrue(pool.awaitTermination(8, TimeUnit.SECONDS), "both retries must finish");
+        if (failure.get() != null) {
+            throw new AssertionError("end-reward retry failed", failure.get());
+        }
+
+        int coins = ((Number) run.getEndRewards().get("gold")).intValue();
+        int remnants = ((Number) run.getEndRewards().get("remnants")).intValue();
+        assertTrue(run.isEndRewardsGranted());
+        assertEquals(1, saveCalls.get(),
+                "A racing GET /api/siege/state must not bank the same spoils twice.");
+        assertEquals(100 + coins, persisted.get().getGold());
+        assertEquals(20 + remnants, persisted.get().getRemnants());
+        assertEquals(1, persisted.get().getSiegeRuns());
+    }
+
+    @Test
+    void stateRetriesEndRewardsUnderTheSessionLock() throws Exception {
+        String source = java.nio.file.Files.readString(
+                java.nio.file.Path.of("src/main/java/com/sieglings/adventure/SiegeService.java"));
+        int state = source.indexOf("Map<String, Object> state(String token, String authorizationHeader)");
+        int continueRun = source.indexOf("Map<String, Object> continueRun(String token, String authorizationHeader)");
+        assertTrue(state > 0 && continueRun > state);
+        int stateLock = source.indexOf("synchronized (session)", state);
+        int stateRetry = source.indexOf("maybeRetryEndRewards(run, authorizationHeader)", state);
+        assertTrue(stateLock > state && stateLock < continueRun,
+                "state() must take the Session lock, same as continue/extract.");
+        assertTrue(stateRetry > stateLock && stateRetry < continueRun,
+                "maybeRetryEndRewards from state() must run inside that Session lock.");
+        assertTrue(source.contains("Session session = requireSession(token);"),
+                "state() must use requireSession so it locks the same Session continue uses.");
     }
 
     @Test
