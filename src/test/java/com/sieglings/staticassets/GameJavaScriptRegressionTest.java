@@ -2477,6 +2477,51 @@ class GameJavaScriptRegressionTest {
     }
 
     @Test
+    void hubDeckMutationsPreserveProgressionWhenOmitted() throws IOException {
+        String homeScript = readHomeScript();
+        String homeMarkup = Files.readString(HOME_HTML);
+        String merge = extractFunction(homeScript, "function mergeSameUserProgression(data)");
+        String deleteSavedDecks = extractFunction(homeScript, "async function deleteSavedDecks(deckIds)");
+        String saveCustomDeck = extractFunction(homeScript, "async function saveCustomDeck()");
+        String syncProfileNow = extractFunction(homeScript, "async function syncProfileNow()");
+
+        assertTrue(
+                merge.contains("previous.progression")
+                        && merge.contains("!data.progression")
+                        && merge.contains("sameUser"),
+                "Home must merge a missing progression onto the prior same-user snapshot, matching Play's #683 guard."
+        );
+        assertTrue(
+                deleteSavedDecks.contains("mergeSameUserProgression(data)")
+                        && deleteSavedDecks.contains("saveCachedAuthProfile(merged)"),
+                "Deleting a saved deck must cache the merged profile, not the raw buildProfileResponse body."
+        );
+        assertTrue(
+                saveCustomDeck.contains("mergeSameUserProgression(data)")
+                        && saveCustomDeck.contains("saveCachedAuthProfile(merged)")
+                        && saveCustomDeck.contains("merged?.progression || state.progression"),
+                "Saving a deck must keep the live progression when the save response omits it."
+        );
+        assertFalse(
+                saveCustomDeck.contains("state.progression = data.progression;"),
+                "Assigning data.progression with no fallback wipes the hub after an isolated Firestore read failure."
+        );
+        assertTrue(
+                syncProfileNow.contains("saveCachedAuthProfile(state.profile)"),
+                "A partial /api/auth/me must cache the merged in-memory snapshot, not the raw body."
+        );
+        assertFalse(
+                deleteSavedDecks.contains("saveCachedAuthProfile(data)")
+                        || saveCustomDeck.contains("saveCachedAuthProfile(data)"),
+                "Progression-less deck-mutation payloads must not be written straight into the shared auth cache."
+        );
+        assertTrue(
+                homeJsPin(homeMarkup) >= 156,
+                "The hub progression-merge fix must bump the home.js cache pin."
+        );
+    }
+
+    @Test
     void playHudJoinWithCodeForfeitsActiveMatchBeforeClearingLocalSession() throws IOException {
         Path playHudJs = Path.of("src/main/resources/static/js/play-hud.js");
         String playHud = Files.readString(playHudJs);
@@ -2617,8 +2662,10 @@ class GameJavaScriptRegressionTest {
         assertTrue(deleteSavedDecks.contains("if (deckAlreadyGone(data)) {"),
                 "A deck the server no longer has must not be restored as an undeletable tile.");
         // game.js renders the Play page's saved-deck list from this same cache.
-        assertTrue(deleteSavedDecks.contains("saveCachedAuthProfile(data)")
-                        && extractFunction(homeScript, "async function saveCustomDeck()").contains("saveCachedAuthProfile(data)"),
+        // Must write the merged snapshot: a raw buildProfileResponse can omit
+        // progression after an isolated Firestore read failure (#683 class).
+        assertTrue(deleteSavedDecks.contains("saveCachedAuthProfile(merged)")
+                        && extractFunction(homeScript, "async function saveCustomDeck()").contains("saveCachedAuthProfile(merged)"),
                 "Saving and deleting must both refresh the shared profile cache, "
                         + "or the change is lost on the next load and on the Play page.");
     }

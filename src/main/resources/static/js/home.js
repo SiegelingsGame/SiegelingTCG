@@ -368,6 +368,21 @@
         }
     }
 
+    // /api/auth/me and every other buildProfileResponse payload omit progression
+    // when that isolated Firestore read fails. Play already merges the prior
+    // same-user snapshot before writing sieglingsAuthProfile (#683). Home must
+    // do the same: a successful deck save/delete used to cache the raw body and
+    // lock the hub behind the starter gate.
+    function mergeSameUserProgression(data) {
+        if (!data || data.error) return data;
+        const previous = state.profile;
+        const sameUser = previous?.user?.id && previous.user.id === data.user?.id;
+        const progression = data.progression
+            || (sameUser ? previous.progression : null)
+            || (sameUser ? state.progression : null);
+        return progression && !data.progression ? { ...data, progression } : data;
+    }
+
     function clearCachedAuthProfile() {
         try {
             localStorage.removeItem(AUTH_PROFILE_CACHE_KEY);
@@ -1597,7 +1612,9 @@
         state.progression = progression || null;
         state.profileSynced = Boolean(state.progression);
         syncCollectionVisibilityDefault();
-        saveCachedAuthProfile(data);
+        // Cache the merged snapshot, not the raw body — data may still omit
+        // progression after a failed recovery, and writing that would lock Home.
+        saveCachedAuthProfile(state.profile);
         await loadDailyMissions();
         startPresenceHeartbeat();
         // The feed is keyed per account, so reload it once we know who is
@@ -3844,11 +3861,12 @@
             renderSavedDecks();
             return;
         }
-        state.profile = data;
-        state.progression = data.progression || state.progression;
+        const merged = mergeSameUserProgression(data);
+        state.profile = merged;
+        state.progression = merged?.progression || state.progression;
         // The saved-deck list is served to the Play page out of this cache, so a
         // delete that only touches in-memory state comes back on the next load.
-        saveCachedAuthProfile(data);
+        saveCachedAuthProfile(merged);
         // The active loadout cannot point at a deck that no longer exists, or the
         // next Play tap starts a match against a missing deck id.
         if (ids.includes(state.selectedDeckId)) state.selectedDeckId = '';
@@ -8546,9 +8564,10 @@
             return setBuilderIssue(data?.error || 'The save request did not reach the server. Check your connection and try again.', data?.field);
         }
         clearBuilderIssue(false);
-        state.profile = data;
-        state.progression = data.progression;
-        saveCachedAuthProfile(data);
+        const merged = mergeSameUserProgression(data);
+        state.profile = merged;
+        state.progression = merged?.progression || state.progression;
+        saveCachedAuthProfile(merged);
         state.editingSavedDeckId = '';
         // The deck is banked; the next new deck composed here needs its own id.
         state.builderClientDeckId = '';
