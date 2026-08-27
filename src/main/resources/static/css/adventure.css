@@ -212,6 +212,21 @@ body[data-screen="mapScreen"] #mapScreen{
 .kpassive-chip.pk-HEALTH{color:var(--good); border:1px solid rgba(126,231,135,.45); background:rgba(126,231,135,.08);}
 .kpassive-chip.pk-LOOT{color:#ffd066; border:1px solid rgba(255,208,102,.45); background:rgba(255,208,102,.08);}
 .kpassive-chip.pk-MARSHAL{color:#c49bff; border:1px solid rgba(180,140,255,.45); background:rgba(180,140,255,.08);}
+/* Collection level + XP crossover: the rank earned in the binder, shown on the
+   selection card so a player can see which knight is worth taking out. */
+.knight-card .klevel{
+  display:inline-block; margin-left:6px; vertical-align:middle;
+  font-size:9.5px; font-weight:800; letter-spacing:.4px; border-radius:8px; padding:1px 6px;
+  color:var(--accent-2); border:1px solid rgba(120,190,255,.45); background:rgba(120,190,255,.08);
+}
+.knight-card .klevel-max{color:#ffd066; border-color:rgba(255,208,102,.5); background:rgba(255,208,102,.1);}
+.knight-card .kxp{display:flex; align-items:center; gap:6px; margin-top:5px;}
+.knight-card .kxp-bar{flex:1 1 auto; height:4px; border-radius:3px; background:rgba(255,255,255,.09); overflow:hidden;}
+.knight-card .kxp-fill{height:100%; background:linear-gradient(90deg,var(--accent-2),var(--accent));}
+.knight-card .kxp-max .kxp-fill{background:#ffd066;}
+.knight-card .kxp-text{flex:0 0 auto; font-size:9px; font-weight:700; color:var(--dim); letter-spacing:.3px;}
+.knight-card .kult{font-size:11px; color:var(--dim); margin-top:5px; line-height:1.35;}
+.knight-card .kult-name{color:#ffd066; font-weight:750;}
 .info-btn{position:absolute; top:6px; left:6px; z-index:3; width:22px;height:22px; border-radius:50%; border:1px solid var(--border); background:rgba(12,16,23,.8); color:var(--accent-2); font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center;}
 .info-btn:hover{border-color:var(--accent-2);}
 .evo-tag{font-size:8.5px; font-weight:800; letter-spacing:.5px; color:#ffd066; border:1px solid rgba(255,208,102,.5); border-radius:8px; padding:0 5px; vertical-align:middle;}
@@ -1159,6 +1174,8 @@ body[data-battle-node="BOSS"] .battle-stage::before{
 .sp-float.heal{color:var(--good);}
 .sp-float.shield{color:var(--shield); font-size:16px;}
 .sp-float.status{color:#c896ff; font-size:14px; white-space:nowrap;}
+.sp-float.buff-atk{color:#ff5f56; font-size:15px;}
+.sp-float.buff-spd{color:#ffd23f; font-size:15px;}
 @keyframes floatup{to{transform:translate(-50%,-30px); opacity:0;}}
 
 /* Status-tick border (burn / poison / wither). Nothing fires at the unit — the
@@ -1188,8 +1205,60 @@ body[data-battle-node="BOSS"] .battle-stage::before{
   35%{opacity:.7; transform:scale(1) rotate(0);}
   100%{opacity:0; transform:scale(1.15) rotate(6deg);}
 }
+/* Gain aura (heal / attack / shield / speed) — a separate effect from the
+   status ring above, not a recolour of it. No border: a ring reads as an
+   arrival, and a gain is the unit itself lighting up. Colour comes in as
+   --gain from adventure.js's BUFF_AURA_COLOR; motes get their left offset,
+   delay and drift inline so units never pulse in lockstep. */
+.sp-gain{position:absolute; inset:-10px -4px -2px; pointer-events:none; z-index:4; overflow:hidden;}
+.sp-gain .sp-gain-glow{
+  position:absolute; inset:0; border-radius:50% 50% 42% 42% / 46% 46% 54% 54%;
+  background:radial-gradient(ellipse at 50% 72%,
+    color-mix(in srgb, var(--gain) 62%, transparent) 0%,
+    color-mix(in srgb, var(--gain) 26%, transparent) 42%,
+    transparent 74%);
+  filter:blur(3px); opacity:0;
+  animation:sp-gain-glow .9s cubic-bezier(.2,.75,.3,1);
+}
+/* The updraft: a narrow shaft of light the motes ride, anchored at the feet. */
+.sp-gain .sp-gain-column{
+  position:absolute; left:50%; bottom:0; width:64%; height:100%;
+  transform:translateX(-50%); transform-origin:50% 100%;
+  background:linear-gradient(to top,
+    color-mix(in srgb, var(--gain) 46%, transparent) 0%,
+    color-mix(in srgb, var(--gain) 14%, transparent) 48%,
+    transparent 88%);
+  filter:blur(2px); opacity:0;
+  animation:sp-gain-column .9s cubic-bezier(.2,.8,.3,1);
+}
+.sp-gain .sp-gain-mote{
+  position:absolute; bottom:2px; width:4px; height:4px; border-radius:50%;
+  background:var(--gain); box-shadow:0 0 7px var(--gain); opacity:0;
+  animation:sp-gain-mote .78s ease-out forwards;
+}
+@keyframes sp-gain-glow{
+  0%{opacity:0; transform:scale(.86);}
+  28%{opacity:.95; transform:scale(1.04);}
+  66%{opacity:.6; transform:scale(1);}
+  100%{opacity:0; transform:scale(1.06);}
+}
+@keyframes sp-gain-column{
+  0%{opacity:0; transform:translateX(-50%) scaleY(.35);}
+  30%{opacity:.9; transform:translateX(-50%) scaleY(1);}
+  100%{opacity:0; transform:translateX(-50%) scaleY(1.08);}
+}
+@keyframes sp-gain-mote{
+  0%{opacity:0; transform:translate(0,0) scale(.6);}
+  20%{opacity:1;}
+  100%{opacity:0; transform:translate(var(--mote-drift,0), -46px) scale(1);}
+}
+/* Speed is the one gain that is about motion, so its motes climb faster. */
+.sp-gain-spd .sp-gain-mote{animation-duration:.58s;}
 @media (prefers-reduced-motion: reduce){
   .sp-aura .sp-aura-ring{animation-duration:.3s;}
+  .sp-gain .sp-gain-mote{display:none;}
+  .sp-gain .sp-gain-glow,
+  .sp-gain .sp-gain-column{animation-duration:.3s;}
 }
 
 /* status chips on the name plate */

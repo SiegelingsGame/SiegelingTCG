@@ -1,6 +1,7 @@
 package com.sieglings.adventure;
 
 import com.sieglings.model.enums.Element;
+import com.sieglings.model.enums.Rarity;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,6 +25,14 @@ class SiegeRun {
     /** The knight's run-long leadership passive and its magnitude. */
     private KnightPassive knightPassive = KnightPassive.SHIELD;
     private int knightPassiveValue;
+    /**
+     * The level this account has raised the SiegeKnight card to in the collection
+     * (1..TRAINER_MAX_LEVEL), carried into the run so leadership passives and the
+     * Ultimate scale with the work already done outside Siege.
+     */
+    private int knightAccountLevel = 1;
+    /** Rarity of the chosen knight card — the other half of the power scale. */
+    private Rarity knightRarity;
     /** The Knight on the battlefield — persistent HP; the run is lost if it falls. */
     private Combatant knightUnit;
 
@@ -166,6 +175,10 @@ class SiegeRun {
     void setKnightPassive(KnightPassive knightPassive) { this.knightPassive = knightPassive; }
     int getKnightPassiveValue() { return knightPassiveValue; }
     void setKnightPassiveValue(int knightPassiveValue) { this.knightPassiveValue = knightPassiveValue; }
+    int getKnightAccountLevel() { return knightAccountLevel; }
+    void setKnightAccountLevel(int level) { this.knightAccountLevel = SiegeTuning.clampAccountLevel(level); }
+    Rarity getKnightRarity() { return knightRarity; }
+    void setKnightRarity(Rarity knightRarity) { this.knightRarity = knightRarity; }
     Combatant getKnightUnit() { return knightUnit; }
     void setKnightUnit(Combatant knightUnit) { this.knightUnit = knightUnit; }
 

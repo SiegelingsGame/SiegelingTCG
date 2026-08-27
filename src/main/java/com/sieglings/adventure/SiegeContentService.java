@@ -424,6 +424,18 @@ public class SiegeContentService {
         return all[Math.floorMod(h, all.length)];
     }
 
+    /**
+     * The passive magnitude a knight actually leads with: its base value scaled by
+     * the level the account has raised that SiegeKnight card to and by its rarity.
+     * MARSHAL is a headcount, not a magnitude, so it never scales — a bigger
+     * warband would blow past the party cap.
+     */
+    int knightPassiveValue(KnightPassive kind, int accountLevel, Rarity rarity) {
+        int base = knightPassiveValue(kind);
+        if (kind == KnightPassive.MARSHAL) return base;
+        return SiegeTuning.scalePower(base, accountLevel, rarity, 1);
+    }
+
     int knightPassiveValue(KnightPassive kind) {
         return switch (kind) {
             case SHIELD -> 4;   // +4 shield to each Siegeling at battle start
@@ -459,8 +471,12 @@ public class SiegeContentService {
     }
 
     String knightPassiveDescription(TrainerCard knight) {
+        return knightPassiveDescription(knight, 1);
+    }
+
+    String knightPassiveDescription(TrainerCard knight, int accountLevel) {
         KnightPassive kind = knightPassiveKind(knight);
-        int v = knightPassiveValue(kind);
+        int v = knightPassiveValue(kind, accountLevel, knight == null ? null : knight.getRarity());
         return switch (kind) {
             case SHIELD -> "The party begins each battle with +" + v + " shield.";
             case ATTACK -> "The party begins each battle with +" + v + " attack.";
@@ -469,6 +485,75 @@ public class SiegeContentService {
             case LOOT -> "+" + v + "% gold from spoils and caches.";
             case MARSHAL -> "Musters an extra Siegeling: choose " + Math.min(PARTY_MAX, PARTY_SIZE + v)
                     + " starting Siegelings instead of " + PARTY_SIZE + ".";
+        };
+    }
+
+    // ---- Knight Ultimates (one per leadership class) --------------------
+    // Each class unleashes its own Ultimate instead of the shared elemental
+    // sweep, so the class a player picks shapes the whole battle plan and not
+    // just the opening buff. Every magnitude below is a BASE value: the fired
+    // Ultimate scales it by account level, rarity and in-run knight level
+    // through {@link SiegeTuning#scalePower}.
+
+    /** HP the Warden Ultimate restores to every ally and the Knight. */
+    static final int ULT_WARDEN_HEAL = 12;
+    /** Shield the Bulwark Ultimate grants every ally and the Knight. */
+    static final int ULT_BULWARK_SHIELD = 14;
+    /** Percent of each enemy's max HP the Warlord Ultimate tears off. */
+    static final int ULT_WARLORD_PCT = 25;
+    /** Floor on Warlord Ultimate damage, so it still bites low-HP foes. */
+    static final int ULT_WARLORD_MIN = 8;
+    /** Speed the Vanguard Ultimate grants every ally for the rest of the battle. */
+    static final int ULT_VANGUARD_SPEED = 4;
+    /** Allies the Marshal Ultimate evolves for free (no AP gauge, no card). */
+    static final int ULT_MARSHAL_EVOLVES = 2;
+    /** Items the Quartermaster Ultimate pulls out of the baggage train. */
+    static final int ULT_QUARTERMASTER_ITEMS = 1;
+
+    String knightUltimateName(KnightPassive kind) {
+        if (kind == null) return "Knight Ultimate";
+        return switch (kind) {
+            case HEALTH -> "Warden's Vigil";
+            case MARSHAL -> "Muster the Line";
+            case ATTACK -> "Warlord's Reckoning";
+            case SPEED -> "Vanguard Charge";
+            case SHIELD -> "Bulwark Aegis";
+            case LOOT -> "Baggage Train";
+        };
+    }
+
+    /** Ultimate magnitude at the given knight standing (base value for kind, scaled). */
+    int knightUltimateValue(KnightPassive kind, int accountLevel, Rarity rarity, int runLevel) {
+        int base = switch (kind == null ? KnightPassive.SHIELD : kind) {
+            case HEALTH -> ULT_WARDEN_HEAL;
+            case SHIELD -> ULT_BULWARK_SHIELD;
+            case ATTACK -> ULT_WARLORD_PCT;
+            case SPEED -> ULT_VANGUARD_SPEED;
+            case MARSHAL -> ULT_MARSHAL_EVOLVES;
+            case LOOT -> ULT_QUARTERMASTER_ITEMS;
+        };
+        // Headcount Ultimates (allies evolved, items found) grow a step at a
+        // time rather than by percentage — a 15% bigger "1 item" is still 1.
+        if (kind == KnightPassive.MARSHAL || kind == KnightPassive.LOOT) {
+            return base + (SiegeTuning.clampAccountLevel(accountLevel) - 1) / 2
+                    + SiegeTuning.rarityStep(rarity) / 3;
+        }
+        return SiegeTuning.scalePower(base, accountLevel, rarity, runLevel);
+    }
+
+    String knightUltimateDescription(KnightPassive kind, int accountLevel, Rarity rarity, int runLevel) {
+        KnightPassive k = kind == null ? KnightPassive.SHIELD : kind;
+        int v = knightUltimateValue(k, accountLevel, rarity, runLevel);
+        return switch (k) {
+            case HEALTH -> "Restores " + v + " HP to the whole warband and the Knight.";
+            case SHIELD -> "Grants the whole warband and the Knight a " + v + " shield.";
+            case ATTACK -> "Tears " + v + "% of max HP (at least " + ULT_WARLORD_MIN
+                    + ") off every enemy.";
+            case SPEED -> "Stuns every enemy — their next action is cancelled — and grants the warband +"
+                    + v + " speed for the battle.";
+            case MARSHAL -> "Evolves up to " + v + " Siegeling" + (v == 1 ? "" : "s")
+                    + " on the spot — no AP gauge, no card.";
+            case LOOT -> "Pulls " + v + " random item" + (v == 1 ? "" : "s") + " from the baggage train.";
         };
     }
 

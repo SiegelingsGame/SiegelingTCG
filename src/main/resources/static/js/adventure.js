@@ -829,6 +829,28 @@
     return 2;
   }
 
+  /** Collection level badge — the same rank the binder shows for this knight. */
+  function knightLevelHtml(k) {
+    var lvl = Number(k.level) || 1;
+    var max = Number(k.maxLevel) || 5;
+    return '<span class="klevel' + (lvl >= max ? ' klevel-max' : '') + '">Lv ' + lvl + '</span>';
+  }
+
+  /** XP toward the knight's next collection level; a maxed knight shows MAX. */
+  function knightXpHtml(k) {
+    var lvl = Number(k.level) || 1;
+    var max = Number(k.maxLevel) || 5;
+    var span = Number(k.xpForNext) || 0;
+    var have = Math.max(0, Number(k.xp) || 0);
+    if (lvl >= max || span <= 0) {
+      return '<div class="kxp kxp-max"><div class="kxp-bar"><div class="kxp-fill" style="width:100%"></div></div>' +
+        '<span class="kxp-text">MAX</span></div>';
+    }
+    var pct = Math.max(0, Math.min(100, Math.round(100 * have / span)));
+    return '<div class="kxp"><div class="kxp-bar"><div class="kxp-fill" style="width:' + pct + '%"></div></div>' +
+      '<span class="kxp-text">' + have + '/' + span + ' XP</span></div>';
+  }
+
   function renderKnightStep() {
     var r = state.roster;
     var kg = $('knightGrid'); kg.innerHTML = '';
@@ -874,11 +896,16 @@
       }
       c.innerHTML =
         (locked ? '<div class="knight-lock">🔒</div>' : '') +
-        '<div class="kname">' + icon(k.element) + ' ' + esc(k.name) + '</div>' +
+        '<div class="kname">' + icon(k.element) + ' ' + esc(k.name) + knightLevelHtml(k) + '</div>' +
+        knightXpHtml(k) +
         '<div class="kability"><span class="kability-name">' + esc(k.activeName) + '</span>' +
         (summary ? ' <span class="kability-sum">' + summary + '</span>' : '') + '</div>' +
         (k.activeDesc ? '<div class="kdesc">' + esc(k.activeDesc) + '</div>' : '') +
         '<div class="kpassive">' + passiveChip + ' ' + esc(k.passive || '') + '</div>' +
+        (k.ultimateDesc
+          ? '<div class="kult"><span class="kult-name">⚡ ' + esc(k.ultimateName || 'Ultimate') + '</span> ' +
+            esc(k.ultimateDesc) + '</div>'
+          : '') +
         lockNote;
       if (!locked) {
         c.addEventListener('click', function () {
@@ -2940,6 +2967,9 @@
     var ult = $('knightUltBtn');
     ult.classList.toggle('hidden', b.phase === 'WON' || b.phase === 'LOST');
     ult.textContent = k.ultReady ? '⚡ ULT!' : '⚡' + k.charge + '/' + k.ultCost;
+    // The Ultimate differs per leadership class, so the button has to say what
+    // 20 Charge actually buys before the player spends it.
+    ult.title = (k.ultimateName || 'Knight Ultimate') + (k.ultimateDesc ? ' — ' + k.ultimateDesc : '');
   }
 
   /** Speed race track: both teams' units race along a line; leader acts first. */
@@ -3222,7 +3252,7 @@
     hit: 560, burn: 380, poison: 380, wither: 380,
     heal: 360, revive: 480, shield: 340, shieldExpired: 240,
     status: 360, stunned: 360, knightHit: 360,
-    round: 620, card: 380, enemyAct: 440, ultimate: 560, whiff: 440,
+    round: 620, card: 380, enemyAct: 440, ultimate: 560, whiff: 440, loot: 520,
     swap: 460, evolve: 760, cardUpdate: 560,
     reshuffle: 560, discardHand: 380, apCharge: 500, actionPoints: 380,
     buff: 380, gaugeReady: 380
@@ -3273,16 +3303,19 @@
         commitVitalsAfter(ev, 200);
         return 400;
       case 'heal':
+        buffAura(ev.targetId, 'heal');
         flashSprite(ev.targetId, 'healed');
         floatText(ev.targetId, '+' + ev.amount, 'heal');
         commitVitalsAfter(ev, 180);
         return 420;
       case 'revive':
+        buffAura(ev.targetId, 'heal');
         flashSprite(ev.targetId, 'healed');
         floatText(ev.targetId, '📜 Back!', 'heal');
         commitVitalsAfter(ev, 260);
         return 650;
       case 'shield':
+        buffAura(ev.targetId, 'shield');
         flashSprite(ev.targetId, 'shielded');
         floatText(ev.targetId, '🛡+' + ev.amount, 'shield');
         commitVitalsAfter(ev, 180);
@@ -3293,9 +3326,16 @@
         floatText(ev.targetId, '🛡 fades', 'status');
         commitVitalsAfter(ev, 160);
         return 260;
-      case 'buff':
-        showBanner(ev.kind === 'atk' ? '+' + ev.amount + ' attack!' : '+' + ev.amount + ' speed!', 'you');
+      case 'buff': {
+        var buffKind = ev.kind === 'atk' ? 'atk' : 'spd';
+        var ids = ev.targetIds || (ev.targetId ? [ev.targetId] : []);
+        for (var bi = 0; bi < ids.length; bi++) {
+          buffAura(ids[bi], buffKind);
+          floatText(ids[bi], (buffKind === 'atk' ? '⚔+' : '⚡+') + ev.amount, buffKind === 'atk' ? 'buff-atk' : 'buff-spd');
+        }
+        showBanner(buffKind === 'atk' ? '+' + ev.amount + ' attack!' : '+' + ev.amount + ' speed!', 'you');
         return 480;
+      }
       case 'status': {
         var meta = STATUS_META[ev.status] || { icon: '', label: ev.status };
         elementBorder(ev.targetId, STATUS_ELEMENT[ev.status] || ev.element || 'NEUTRAL');
@@ -3342,6 +3382,9 @@
         showBanner('Unused AP → +' + ev.amount + ' Ultimate Charge', 'you');
         apChargeAnimation(ev.amount, ev.total);
         return 750;
+      case 'loot':
+        showBanner('📦 ' + ev.name, 'you');
+        return 700;
       case 'whiff':
         showBanner(nameOf(ev.sourceId) + '\'s ' + ev.name + ' hits empty ground!', 'them');
         return 620;
@@ -3403,6 +3446,35 @@
     aura.innerHTML = '<span class="sp-aura-ring"></span><span class="sp-aura-ring sp-aura-ring-outer"></span>';
     node.appendChild(aura);
     setTimeout(function () { aura.remove(); }, 820);
+  }
+
+  /*
+   * Gain auras. Deliberately NOT the status ring: a bordered ring reads as
+   * something landing on the unit, and reusing it made a heal and a burn tick
+   * look like the same event with a different hue. A gain instead envelops the
+   * sprite in its own colour — a soft column of light rising off the unit with
+   * motes carried up through it — so it is legible as the unit powering up.
+   * Green heal, red attack, blue shield, yellow speed, whoever cast it.
+   */
+  var BUFF_AURA_COLOR = { heal: '#7ee787', atk: '#ff5f56', shield: '#3ea6ff', spd: '#ffd23f' };
+  var BUFF_AURA_MOTES = 7;
+
+  function buffAura(id, kind) {
+    var node = spriteOf(id);
+    if (!node) return;
+    var aura = el('div', 'sp-gain sp-gain-' + kind);
+    aura.style.setProperty('--gain', BUFF_AURA_COLOR[kind] || '#fff');
+    var parts = '<span class="sp-gain-glow"></span><span class="sp-gain-column"></span>';
+    // Motes are scattered by hand rather than by CSS alone so no two units
+    // powering up in the same round animate in lockstep.
+    for (var i = 0; i < BUFF_AURA_MOTES; i++) {
+      parts += '<span class="sp-gain-mote" style="left:' + (8 + Math.random() * 84).toFixed(1) + '%;' +
+        'animation-delay:' + (Math.random() * 260).toFixed(0) + 'ms;' +
+        '--mote-drift:' + (Math.random() * 16 - 8).toFixed(1) + 'px"></span>';
+    }
+    aura.innerHTML = parts;
+    node.appendChild(aura);
+    setTimeout(function () { aura.remove(); }, 900);
   }
 
   function floatText(id, text, cls) {
