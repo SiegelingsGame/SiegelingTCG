@@ -967,6 +967,10 @@ public class SiegeCombatEngine {
             case SWAP -> {
                 // Move to a new notch: the owner trades places with the chosen ally.
                 Combatant other = targets.get(0);
+                // Telegraphed before the positions change so the client can start
+                // both units spinning as the move winds up rather than only once
+                // they have landed.
+                battle.event("swapStart", "aId", attacker.getId(), "bId", other.getId());
                 int a = attacker.getPosition(), b = other.getPosition();
                 attacker.setPosition(b);
                 other.setPosition(a);

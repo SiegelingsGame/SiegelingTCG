@@ -1161,6 +1161,12 @@ body[data-battle-node="BOSS"] .battle-stage::before{
 .sprite.statused .sp-art{filter:drop-shadow(0 0 14px rgba(200,150,255,.85));}
 .sprite.acting .sp-art{animation:lunge .5s ease-in-out;}
 @keyframes lunge{35%{transform:translateY(6px) scale(1.06);}65%{transform:translateY(-4px) scale(1.02);}}
+/* Swap wind-up: both units spin in place from the moment the move starts and
+   keep spinning until the swap lands (the server telegraphs it with swapStart),
+   then swapflip carries them across. The idle bob is suspended for the spin so
+   the two animations cannot fight over the same transform. */
+.sprite.swap-spin .sp-art{animation:swapspin .55s linear infinite;}
+@keyframes swapspin{to{transform:rotateY(360deg);}}
 .sprite.swapping .sp-art{animation:swapflip .5s ease-in-out;}
 @keyframes swapflip{50%{transform:translateY(-14px) scaleX(-1);}}
 .sprite.evolving .sp-art{animation:evolveburst .9s ease-in-out; filter:drop-shadow(0 0 22px rgba(255,208,102,1)) brightness(1.6);}
@@ -1255,6 +1261,9 @@ body[data-battle-node="BOSS"] .battle-stage::before{
 /* Speed is the one gain that is about motion, so its motes climb faster. */
 .sp-gain-spd .sp-gain-mote{animation-duration:.58s;}
 @media (prefers-reduced-motion: reduce){
+  /* A continuous spin is the one animation here that runs until an event stops
+     it, so slow it to a pulse-free crawl rather than leaving it whirling. */
+  .sprite.swap-spin .sp-art{animation-duration:1.6s;}
   .sp-aura .sp-aura-ring{animation-duration:.3s;}
   .sp-gain .sp-gain-mote{display:none;}
   .sp-gain .sp-gain-glow,

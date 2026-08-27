@@ -3108,6 +3108,9 @@
       sp.addEventListener('click', function () { onUnitClick(raw); });
       host.appendChild(sp);
     });
+    // renderSpriteLine builds fresh nodes, which drops any class a still-running
+    // event is holding (the swap spin) — put those back.
+    reapplyHeldSpriteClasses();
   }
 
   function intentLabel(intent, b) {
@@ -3230,6 +3233,9 @@
     function step() {
       if (i >= events.length) {
         hideBanner();
+        // A held class outlives its own event by design; the end of playback is
+        // where it can no longer belong to anything.
+        clearHeldSpriteClasses();
         state.busy = false;
         syncBattleActionButtons();
         done();
@@ -3253,7 +3259,7 @@
     heal: 360, revive: 480, shield: 340, shieldExpired: 240,
     status: 360, stunned: 360, knightHit: 360,
     round: 620, card: 380, enemyAct: 440, ultimate: 560, whiff: 440, loot: 520,
-    swap: 460, evolve: 760, cardUpdate: 560,
+    swapStart: 420, swap: 460, evolve: 760, cardUpdate: 560,
     reshuffle: 560, discardHand: 380, apCharge: 500, actionPoints: 380,
     buff: 380, gaugeReady: 380
   };
@@ -3344,8 +3350,17 @@
         commitVitalsAfter(ev, 200);
         return 480;
       }
+      // The wind-up: both units spin in place from the moment the move starts
+      // and keep spinning until the swap itself lands, which is the next event.
+      case 'swapStart':
+        holdSprite(ev.aId, 'swap-spin');
+        holdSprite(ev.bId, 'swap-spin');
+        showBanner(nameOf(ev.aId) + ' ⇄ ' + nameOf(ev.bId) + ' trade notches…', 'you');
+        return 460;
       case 'swap':
         commitVitals(ev);
+        releaseSprite(ev.aId, 'swap-spin');
+        releaseSprite(ev.bId, 'swap-spin');
         flashSprite(ev.aId, 'swapping');
         flashSprite(ev.bId, 'swapping');
         showBanner(nameOf(ev.aId) + ' ⇄ ' + nameOf(ev.bId) + ' swap notches', 'you');
@@ -3433,6 +3448,38 @@
     if (!node) return;
     node.classList.add(cls);
     setTimeout(function () { node.classList.remove(cls); }, 700);
+  }
+
+  /*
+   * Like flashSprite, but the class stays on until a later event lifts it —
+   * for a state that lasts as long as the wind-up it belongs to (the swap spin)
+   * rather than for one fixed beat. Held classes are tracked so a re-render
+   * mid-hold can put them back, and so leaving the battle cannot strand one.
+   */
+  var heldSpriteClasses = [];
+  function holdSprite(id, cls) {
+    var node = spriteOf(id);
+    if (!node) return;
+    node.classList.add(cls);
+    heldSpriteClasses.push({ id: id, cls: cls });
+  }
+  function releaseSprite(id, cls) {
+    heldSpriteClasses = heldSpriteClasses.filter(function (h) { return !(h.id === id && h.cls === cls); });
+    var node = spriteOf(id);
+    if (node) node.classList.remove(cls);
+  }
+  function reapplyHeldSpriteClasses() {
+    heldSpriteClasses.forEach(function (h) {
+      var node = spriteOf(h.id);
+      if (node) node.classList.add(h.cls);
+    });
+  }
+  function clearHeldSpriteClasses() {
+    heldSpriteClasses.forEach(function (h) {
+      var node = spriteOf(h.id);
+      if (node) node.classList.remove(h.cls);
+    });
+    heldSpriteClasses = [];
   }
 
   // Status ticks and status applications have no attacker to launch a projectile
