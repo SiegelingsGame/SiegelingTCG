@@ -2912,10 +2912,20 @@
       var cardChip = e.card ? '<span class="ledger-card">🃏 ' + esc(e.card) + '</span>' : '';
       var row = el('div', 'ledger-row ' + (e.side || 'sys'),
         '<span class="ledger-actor">' + esc(e.actor || '') + '</span>' + cardChip + costChip +
-        '<span class="ledger-text">' + esc(e.text || '') + '</span>');
+        '<span class="ledger-text">' + esc(e.text || '') + '</span>' + ledgerTally(e));
       body.appendChild(row);
     });
     body.scrollTop = body.scrollHeight;
+  }
+
+  /** What the action actually did — totalled server-side across all its targets. */
+  function ledgerTally(e) {
+    var out = '';
+    if (e.dmg > 0) out += '<span class="ledger-amt dmg">\u2694 ' + e.dmg + '</span>';
+    if (e.heal > 0) out += '<span class="ledger-amt heal">\u2764 +' + e.heal + '</span>';
+    if (e.shield > 0) out += '<span class="ledger-amt shield">\u25C7 ' + e.shield + '</span>';
+    if (e.ko > 0) out += '<span class="ledger-amt ko">\u2620 KO' + (e.ko > 1 ? ' \u00D7' + e.ko : '') + '</span>';
+    return out;
   }
 
   function renderKnightPlate(b) {

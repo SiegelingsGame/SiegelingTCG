@@ -458,14 +458,15 @@ public class SiegeCombatEngine {
         // The card leaves the hand before it resolves, so a draw card refills the
         // slot it just vacated instead of being blocked by its own presence.
         battle.getHand().remove(card);
-        applyEffect(battle, attacker, spec, targets, rng);
-        battle.getDiscard().add(card);
-        battle.setActionPoints(battle.getActionPoints() - cost);
-
         String targetNames = targets.stream().map(Combatant::getName).distinct()
                 .reduce((a, b2) -> a + ", " + b2).orElse("");
-        battle.turnEntry("you", attacker.getName(), spec.name(), cost,
+        Map<String, Object> entry = battle.turnEntry("you", attacker.getName(), spec.name(), cost,
                 spec.name() + " → " + targetNames);
+        battle.beginTally();
+        applyEffect(battle, attacker, spec, targets, rng);
+        battle.stampTally(entry);
+        battle.getDiscard().add(card);
+        battle.setActionPoints(battle.getActionPoints() - cost);
 
         // Playing a Siegeling's own move fills its evolution gauge.
         if (!card.getOwnerId().startsWith(KNIGHT_OWNER_PREFIX) && !attacker.isKnight()) {
@@ -525,8 +526,9 @@ public class SiegeCombatEngine {
                 "to", evolved.getName(), "element",
                 evolved.getElement() == null ? null : evolved.getElement().name());
         battle.log("🌟 " + member.getName() + " evolves into " + evolved.getName() + "!");
-        battle.turnEntry("you", member.getName(), spec.name(), spec.actionCost(),
+        Map<String, Object> evoEntry = battle.turnEntry("you", member.getName(), spec.name(), spec.actionCost(),
                 member.getName() + " evolves into " + evolved.getName());
+        battle.beginTally();
 
         // The new stage's moves join the battle deck…
         int added = content.addNewStageCards(evo, evolved.getId(), battle.getDeck());
@@ -542,6 +544,7 @@ public class SiegeCombatEngine {
         battle.event("cardUpdate", "targetId", evolved.getId(), "previewMoves",
                 upgradeHandCards(battle, evolved, rng));
         Collections.shuffle(battle.getDeck(), rng);
+        battle.stampTally(evoEntry);
         return PlayResult.okay();
     }
 
@@ -603,6 +606,8 @@ public class SiegeCombatEngine {
                 "element", knight.getElement() == null ? null : knight.getElement().name());
         battle.log("⚡ " + run.getKnightName() + " unleashes " + ultName + "!");
 
+        // Bracket the class effect so the ledger row carries what it actually did.
+        battle.beginTally();
         String summary = switch (kind == null ? KnightPassive.SHIELD : kind) {
             case HEALTH -> wardenUltimate(run, battle, knight, value);
             case SHIELD -> bulwarkUltimate(run, battle, knight, value);
@@ -611,7 +616,7 @@ public class SiegeCombatEngine {
             case MARSHAL -> marshalUltimate(run, battle, knight, value, rng);
             case LOOT -> quartermasterUltimate(run, battle, knight, value, rng);
         };
-        battle.turnEntry("you", run.getKnightName(), ultName, 0, summary);
+        battle.stampTally(battle.turnEntry("you", run.getKnightName(), ultName, 0, summary));
         checkEnd(run);
         return PlayResult.okay();
     }
@@ -1251,12 +1256,13 @@ public class SiegeCombatEngine {
                 "element", foe.getElement() == null ? null : foe.getElement().name(),
                 "effect", choice.effect().name(), "position", targetPos);
         Combatant marked = battle.atPosition(targetPos);
-        battle.turnEntry("foe", foe.getName(), choice.name(), -1,
+        Map<String, Object> entry = battle.turnEntry("foe", foe.getName(), choice.name(), -1,
                 choice.name() + (choice.effect() == Effect.DAMAGE
                         ? (choice.target() == TargetKind.ALL_ENEMIES ? " → the whole line"
                         : " → " + (marked != null ? marked.getName() : "notch " + (targetPos + 1)))
                         : ""));
 
+        battle.beginTally();
         switch (choice.effect()) {
             case HEAL -> {
                 int amount = effectValue(foe, choice.value());
@@ -1303,6 +1309,7 @@ public class SiegeCombatEngine {
             }
             default -> battle.log(foe.getName() + " readies itself.");
         }
+        battle.stampTally(entry);
     }
 
     /**

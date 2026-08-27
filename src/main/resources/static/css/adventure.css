@@ -1303,6 +1303,12 @@ body[data-battle-node="BOSS"] .battle-stage::before{
 .ledger-card{font-size:10px; color:#ffd066; border:1px solid rgba(255,208,102,.4); border-radius:8px; padding:0 6px; white-space:nowrap;}
 .ledger-cost{font-size:10px; color:var(--accent); font-weight:800; white-space:nowrap;}
 .ledger-text{color:var(--dim); flex:1; min-width:120px;}
+/* Action totals: what the row actually did, not just what it aimed at. */
+.ledger-amt{font-size:10px; font-weight:800; border-radius:8px; padding:0 6px; white-space:nowrap; align-self:center;}
+.ledger-amt.dmg{color:#ff8a6b; background:rgba(255,138,107,.12);}
+.ledger-amt.heal{color:#6be59a; background:rgba(107,229,154,.12);}
+.ledger-amt.shield{color:#8fc7ff; background:rgba(143,199,255,.12);}
+.ledger-amt.ko{color:#ffd066; background:rgba(255,208,102,.14);}
 
 .battle-hud{display:flex; align-items:center; gap:16px; justify-content:center; margin:22px 0 0; padding-bottom:max(4px, env(safe-area-inset-bottom, 0px));}
 .ap-display{display:flex; gap:5px; align-items:center;}
