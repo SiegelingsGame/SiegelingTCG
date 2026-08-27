@@ -212,6 +212,21 @@ body[data-screen="mapScreen"] #mapScreen{
 .kpassive-chip.pk-HEALTH{color:var(--good); border:1px solid rgba(126,231,135,.45); background:rgba(126,231,135,.08);}
 .kpassive-chip.pk-LOOT{color:#ffd066; border:1px solid rgba(255,208,102,.45); background:rgba(255,208,102,.08);}
 .kpassive-chip.pk-MARSHAL{color:#c49bff; border:1px solid rgba(180,140,255,.45); background:rgba(180,140,255,.08);}
+/* Collection level + XP crossover: the rank earned in the binder, shown on the
+   selection card so a player can see which knight is worth taking out. */
+.knight-card .klevel{
+  display:inline-block; margin-left:6px; vertical-align:middle;
+  font-size:9.5px; font-weight:800; letter-spacing:.4px; border-radius:8px; padding:1px 6px;
+  color:var(--accent-2); border:1px solid rgba(120,190,255,.45); background:rgba(120,190,255,.08);
+}
+.knight-card .klevel-max{color:#ffd066; border-color:rgba(255,208,102,.5); background:rgba(255,208,102,.1);}
+.knight-card .kxp{display:flex; align-items:center; gap:6px; margin-top:5px;}
+.knight-card .kxp-bar{flex:1 1 auto; height:4px; border-radius:3px; background:rgba(255,255,255,.09); overflow:hidden;}
+.knight-card .kxp-fill{height:100%; background:linear-gradient(90deg,var(--accent-2),var(--accent));}
+.knight-card .kxp-max .kxp-fill{background:#ffd066;}
+.knight-card .kxp-text{flex:0 0 auto; font-size:9px; font-weight:700; color:var(--dim); letter-spacing:.3px;}
+.knight-card .kult{font-size:11px; color:var(--dim); margin-top:5px; line-height:1.35;}
+.knight-card .kult-name{color:#ffd066; font-weight:750;}
 .info-btn{position:absolute; top:6px; left:6px; z-index:3; width:22px;height:22px; border-radius:50%; border:1px solid var(--border); background:rgba(12,16,23,.8); color:var(--accent-2); font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center;}
 .info-btn:hover{border-color:var(--accent-2);}
 .evo-tag{font-size:8.5px; font-weight:800; letter-spacing:.5px; color:#ffd066; border:1px solid rgba(255,208,102,.5); border-radius:8px; padding:0 5px; vertical-align:middle;}

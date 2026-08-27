@@ -826,6 +826,28 @@
     return 2;
   }
 
+  /** Collection level badge — the same rank the binder shows for this knight. */
+  function knightLevelHtml(k) {
+    var lvl = Number(k.level) || 1;
+    var max = Number(k.maxLevel) || 5;
+    return '<span class="klevel' + (lvl >= max ? ' klevel-max' : '') + '">Lv ' + lvl + '</span>';
+  }
+
+  /** XP toward the knight's next collection level; a maxed knight shows MAX. */
+  function knightXpHtml(k) {
+    var lvl = Number(k.level) || 1;
+    var max = Number(k.maxLevel) || 5;
+    var span = Number(k.xpForNext) || 0;
+    var have = Math.max(0, Number(k.xp) || 0);
+    if (lvl >= max || span <= 0) {
+      return '<div class="kxp kxp-max"><div class="kxp-bar"><div class="kxp-fill" style="width:100%"></div></div>' +
+        '<span class="kxp-text">MAX</span></div>';
+    }
+    var pct = Math.max(0, Math.min(100, Math.round(100 * have / span)));
+    return '<div class="kxp"><div class="kxp-bar"><div class="kxp-fill" style="width:' + pct + '%"></div></div>' +
+      '<span class="kxp-text">' + have + '/' + span + ' XP</span></div>';
+  }
+
   function renderKnightStep() {
     var r = state.roster;
     var kg = $('knightGrid'); kg.innerHTML = '';
@@ -871,11 +893,16 @@
       }
       c.innerHTML =
         (locked ? '<div class="knight-lock">🔒</div>' : '') +
-        '<div class="kname">' + icon(k.element) + ' ' + esc(k.name) + '</div>' +
+        '<div class="kname">' + icon(k.element) + ' ' + esc(k.name) + knightLevelHtml(k) + '</div>' +
+        knightXpHtml(k) +
         '<div class="kability"><span class="kability-name">' + esc(k.activeName) + '</span>' +
         (summary ? ' <span class="kability-sum">' + summary + '</span>' : '') + '</div>' +
         (k.activeDesc ? '<div class="kdesc">' + esc(k.activeDesc) + '</div>' : '') +
         '<div class="kpassive">' + passiveChip + ' ' + esc(k.passive || '') + '</div>' +
+        (k.ultimateDesc
+          ? '<div class="kult"><span class="kult-name">⚡ ' + esc(k.ultimateName || 'Ultimate') + '</span> ' +
+            esc(k.ultimateDesc) + '</div>'
+          : '') +
         lockNote;
       if (!locked) {
         c.addEventListener('click', function () {
@@ -2927,6 +2954,9 @@
     var ult = $('knightUltBtn');
     ult.classList.toggle('hidden', b.phase === 'WON' || b.phase === 'LOST');
     ult.textContent = k.ultReady ? '⚡ ULT!' : '⚡' + k.charge + '/' + k.ultCost;
+    // The Ultimate differs per leadership class, so the button has to say what
+    // 20 Charge actually buys before the player spends it.
+    ult.title = (k.ultimateName || 'Knight Ultimate') + (k.ultimateDesc ? ' — ' + k.ultimateDesc : '');
   }
 
   /** Speed race track: both teams' units race along a line; leader acts first. */
@@ -3204,7 +3234,7 @@
     hit: 560, burn: 380, poison: 380, wither: 380,
     heal: 360, revive: 480, shield: 340, shieldExpired: 240,
     status: 360, stunned: 360, knightHit: 360,
-    round: 620, card: 380, enemyAct: 440, ultimate: 560, whiff: 440,
+    round: 620, card: 380, enemyAct: 440, ultimate: 560, whiff: 440, loot: 520,
     swap: 460, evolve: 760, cardUpdate: 560,
     reshuffle: 560, discardHand: 380, apCharge: 500, actionPoints: 380,
     buff: 380, gaugeReady: 380
@@ -3324,6 +3354,9 @@
         showBanner('Unused AP → +' + ev.amount + ' Ultimate Charge', 'you');
         apChargeAnimation(ev.amount, ev.total);
         return 750;
+      case 'loot':
+        showBanner('📦 ' + ev.name, 'you');
+        return 700;
       case 'whiff':
         showBanner(nameOf(ev.sourceId) + '\'s ' + ev.name + ' hits empty ground!', 'them');
         return 620;

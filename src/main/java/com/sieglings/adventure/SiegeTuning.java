@@ -130,6 +130,54 @@ final class SiegeTuning {
         return (clampLevel(level) - 1) / 2;
     }
 
+    // ---- Account SiegeKnight level / rarity crossover ---------------------
+    // A knight levelled in the collection (PlayerProgressionService trainer
+    // levels, 1..TRAINER_MAX_LEVEL) marches into Siege at that rank: the same
+    // card is stronger here once it has been levelled there. Rarity rides
+    // along so a Legendary leads harder than a Common at the same level.
+
+    /** Highest account (collection) knight level the crossover scales against. */
+    static final int ACCOUNT_MAX_LEVEL = 5;
+    /** Percent added to Siege leadership power per account level above 1. */
+    static final int ACCOUNT_PCT_PER_LEVEL = 15;
+    /** Percent added per rarity step above Common. */
+    static final int RARITY_PCT_PER_STEP = 10;
+    /** Percent added per in-run knight level above 1. */
+    static final int RUN_PCT_PER_LEVEL = 5;
+
+    static int clampAccountLevel(int level) {
+        return Math.max(1, Math.min(ACCOUNT_MAX_LEVEL, level));
+    }
+
+    /** 0 for Common … 4 for Legendary; unknown rarity reads as Common. */
+    static int rarityStep(com.sieglings.model.enums.Rarity rarity) {
+        if (rarity == null) return 0;
+        return switch (rarity) {
+            case COMMON -> 0;
+            case UNCOMMON -> 1;
+            case RARE -> 2;
+            case EPIC -> 3;
+            case LEGENDARY -> 4;
+        };
+    }
+
+    /**
+     * Multiplier on a knight's Siege leadership power (passive magnitude and
+     * Ultimate strength) from its collection level, its rarity, and the level it
+     * has reached inside the current run. 1.0 for a Common at account level 1.
+     */
+    static double knightPowerScale(int accountLevel, com.sieglings.model.enums.Rarity rarity, int runLevel) {
+        int pct = ACCOUNT_PCT_PER_LEVEL * (clampAccountLevel(accountLevel) - 1)
+                + RARITY_PCT_PER_STEP * rarityStep(rarity)
+                + RUN_PCT_PER_LEVEL * (clampLevel(runLevel) - 1);
+        return 1.0 + pct / 100.0;
+    }
+
+    /** Scales a base magnitude by {@link #knightPowerScale}, never below the base. */
+    static int scalePower(int base, int accountLevel, com.sieglings.model.enums.Rarity rarity, int runLevel) {
+        return Math.max(base, (int) Math.round(base * knightPowerScale(accountLevel, rarity, runLevel)));
+    }
+
     // ---- Battlegrounds (secondary "extraction" mode) ----------------------
     // Phase 3 core. Phase 4 will parameterize the tier scalar (I–V) so the same
     // formulas below drive every tier — the {@code tierScalar} argument is the
