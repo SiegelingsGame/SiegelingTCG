@@ -3255,16 +3255,19 @@
         commitVitalsAfter(ev, 200);
         return 400;
       case 'heal':
+        buffAura(ev.targetId, 'heal');
         flashSprite(ev.targetId, 'healed');
         floatText(ev.targetId, '+' + ev.amount, 'heal');
         commitVitalsAfter(ev, 180);
         return 420;
       case 'revive':
+        buffAura(ev.targetId, 'heal');
         flashSprite(ev.targetId, 'healed');
         floatText(ev.targetId, '📜 Back!', 'heal');
         commitVitalsAfter(ev, 260);
         return 650;
       case 'shield':
+        buffAura(ev.targetId, 'shield');
         flashSprite(ev.targetId, 'shielded');
         floatText(ev.targetId, '🛡+' + ev.amount, 'shield');
         commitVitalsAfter(ev, 180);
@@ -3275,9 +3278,16 @@
         floatText(ev.targetId, '🛡 fades', 'status');
         commitVitalsAfter(ev, 160);
         return 260;
-      case 'buff':
-        showBanner(ev.kind === 'atk' ? '+' + ev.amount + ' attack!' : '+' + ev.amount + ' speed!', 'you');
+      case 'buff': {
+        var buffKind = ev.kind === 'atk' ? 'atk' : 'spd';
+        var ids = ev.targetIds || (ev.targetId ? [ev.targetId] : []);
+        for (var bi = 0; bi < ids.length; bi++) {
+          buffAura(ids[bi], buffKind);
+          floatText(ids[bi], (buffKind === 'atk' ? '⚔+' : '⚡+') + ev.amount, buffKind === 'atk' ? 'buff-atk' : 'buff-spd');
+        }
+        showBanner(buffKind === 'atk' ? '+' + ev.amount + ' attack!' : '+' + ev.amount + ' speed!', 'you');
         return 480;
+      }
       case 'status': {
         var meta = STATUS_META[ev.status] || { icon: '', label: ev.status };
         elementBorder(ev.targetId, STATUS_ELEMENT[ev.status] || ev.element || 'NEUTRAL');
@@ -3382,6 +3392,23 @@
     if (!node) return;
     var aura = el('div', 'sp-aura');
     aura.style.setProperty('--aura', elColor(element));
+    aura.innerHTML = '<span class="sp-aura-ring"></span><span class="sp-aura-ring sp-aura-ring-outer"></span>';
+    node.appendChild(aura);
+    setTimeout(function () { aura.remove(); }, 820);
+  }
+
+  /*
+   * Gain auras: the same ring the status ticks use, but keyed to what was
+   * gained rather than to an element, so a heal reads green, an attack buff
+   * red, a shield blue and a speed buff yellow no matter who cast it.
+   */
+  var BUFF_AURA_COLOR = { heal: '#7ee787', atk: '#ff5f56', shield: '#3ea6ff', spd: '#ffd23f' };
+
+  function buffAura(id, kind) {
+    var node = spriteOf(id);
+    if (!node) return;
+    var aura = el('div', 'sp-aura sp-aura-gain');
+    aura.style.setProperty('--aura', BUFF_AURA_COLOR[kind] || '#fff');
     aura.innerHTML = '<span class="sp-aura-ring"></span><span class="sp-aura-ring sp-aura-ring-outer"></span>';
     node.appendChild(aura);
     setTimeout(function () { aura.remove(); }, 820);

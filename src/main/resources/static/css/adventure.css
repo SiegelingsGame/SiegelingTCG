@@ -1153,6 +1153,8 @@ body[data-battle-node="BOSS"] .battle-stage::before{
 .sp-float.heal{color:var(--good);}
 .sp-float.shield{color:var(--shield); font-size:16px;}
 .sp-float.status{color:#c896ff; font-size:14px; white-space:nowrap;}
+.sp-float.buff-atk{color:#ff5f56; font-size:15px;}
+.sp-float.buff-spd{color:#ffd23f; font-size:15px;}
 @keyframes floatup{to{transform:translate(-50%,-30px); opacity:0;}}
 
 /* Status-tick border (burn / poison / wither). Nothing fires at the unit — the
@@ -1182,8 +1184,23 @@ body[data-battle-node="BOSS"] .battle-stage::before{
   35%{opacity:.7; transform:scale(1) rotate(0);}
   100%{opacity:0; transform:scale(1.15) rotate(6deg);}
 }
+/* Gain aura (heal / attack / shield / speed). Same ring, but it swells outward
+   with a filled wash instead of snapping inward — a gain should read as the
+   unit growing, not as something landing on it. */
+.sp-aura-gain .sp-aura-ring{
+  background:radial-gradient(circle at 50% 60%, color-mix(in srgb, var(--aura) 34%, transparent), transparent 72%);
+  animation:sp-aura-gain .82s cubic-bezier(.2,.8,.3,1);
+}
+.sp-aura-gain .sp-aura-ring-outer{background:none;}
+@keyframes sp-aura-gain{
+  0%{opacity:0; transform:scale(.9);}
+  30%{opacity:1; transform:scale(1.03);}
+  70%{opacity:.75; transform:scale(1.06);}
+  100%{opacity:0; transform:scale(1.12);}
+}
 @media (prefers-reduced-motion: reduce){
   .sp-aura .sp-aura-ring{animation-duration:.3s;}
+  .sp-aura-gain .sp-aura-ring{animation-duration:.3s;}
 }
 
 /* status chips on the name plate */

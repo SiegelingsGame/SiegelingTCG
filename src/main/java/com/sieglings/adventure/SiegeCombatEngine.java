@@ -782,14 +782,14 @@ public class SiegeCombatEngine {
             case BUFF_ATK -> {
                 int amount = effectValue(attacker, spec.value());
                 for (Combatant t : targets) t.addAttackBuff(amount);
-                battle.event("buff", "kind", "atk", "amount", amount);
+                battle.event("buff", "kind", "atk", "amount", amount, "targetIds", buffedIds(targets));
                 battle.log(attacker.getName() + " uses " + spec.name() + " → "
                         + buffedNames(targets) + " gain +" + amount + " attack.");
             }
             case BUFF_SPD -> {
                 int amount = effectValue(attacker, spec.value());
                 for (Combatant t : targets) t.setSpeed(t.getSpeed() + amount);
-                battle.event("buff", "kind", "spd", "amount", amount);
+                battle.event("buff", "kind", "spd", "amount", amount, "targetIds", buffedIds(targets));
                 battle.log(attacker.getName() + " uses " + spec.name() + " → +" + amount + " speed.");
             }
             case SLOW -> {
@@ -847,6 +847,11 @@ public class SiegeCombatEngine {
     }
 
     /** "Rook, Ember and Vane" — reads better in the log than repeating the effect per unit. */
+    /** Ids of the buffed units, so the client can light the aura on each one. */
+    private List<String> buffedIds(List<Combatant> targets) {
+        return targets.stream().map(Combatant::getId).toList();
+    }
+
     private String buffedNames(List<Combatant> targets) {
         return targets.stream().map(Combatant::getName).distinct()
                 .reduce((a, b) -> a + ", " + b).orElse("no one");
