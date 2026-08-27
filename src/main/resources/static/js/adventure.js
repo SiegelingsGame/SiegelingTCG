@@ -3265,16 +3265,19 @@
         commitVitalsAfter(ev, 200);
         return 400;
       case 'heal':
+        buffAura(ev.targetId, 'heal');
         flashSprite(ev.targetId, 'healed');
         floatText(ev.targetId, '+' + ev.amount, 'heal');
         commitVitalsAfter(ev, 180);
         return 420;
       case 'revive':
+        buffAura(ev.targetId, 'heal');
         flashSprite(ev.targetId, 'healed');
         floatText(ev.targetId, '📜 Back!', 'heal');
         commitVitalsAfter(ev, 260);
         return 650;
       case 'shield':
+        buffAura(ev.targetId, 'shield');
         flashSprite(ev.targetId, 'shielded');
         floatText(ev.targetId, '🛡+' + ev.amount, 'shield');
         commitVitalsAfter(ev, 180);
@@ -3285,9 +3288,16 @@
         floatText(ev.targetId, '🛡 fades', 'status');
         commitVitalsAfter(ev, 160);
         return 260;
-      case 'buff':
-        showBanner(ev.kind === 'atk' ? '+' + ev.amount + ' attack!' : '+' + ev.amount + ' speed!', 'you');
+      case 'buff': {
+        var buffKind = ev.kind === 'atk' ? 'atk' : 'spd';
+        var ids = ev.targetIds || (ev.targetId ? [ev.targetId] : []);
+        for (var bi = 0; bi < ids.length; bi++) {
+          buffAura(ids[bi], buffKind);
+          floatText(ids[bi], (buffKind === 'atk' ? '⚔+' : '⚡+') + ev.amount, buffKind === 'atk' ? 'buff-atk' : 'buff-spd');
+        }
+        showBanner(buffKind === 'atk' ? '+' + ev.amount + ' attack!' : '+' + ev.amount + ' speed!', 'you');
         return 480;
+      }
       case 'status': {
         var meta = STATUS_META[ev.status] || { icon: '', label: ev.status };
         elementBorder(ev.targetId, STATUS_ELEMENT[ev.status] || ev.element || 'NEUTRAL');
@@ -3395,6 +3405,35 @@
     aura.innerHTML = '<span class="sp-aura-ring"></span><span class="sp-aura-ring sp-aura-ring-outer"></span>';
     node.appendChild(aura);
     setTimeout(function () { aura.remove(); }, 820);
+  }
+
+  /*
+   * Gain auras. Deliberately NOT the status ring: a bordered ring reads as
+   * something landing on the unit, and reusing it made a heal and a burn tick
+   * look like the same event with a different hue. A gain instead envelops the
+   * sprite in its own colour — a soft column of light rising off the unit with
+   * motes carried up through it — so it is legible as the unit powering up.
+   * Green heal, red attack, blue shield, yellow speed, whoever cast it.
+   */
+  var BUFF_AURA_COLOR = { heal: '#7ee787', atk: '#ff5f56', shield: '#3ea6ff', spd: '#ffd23f' };
+  var BUFF_AURA_MOTES = 7;
+
+  function buffAura(id, kind) {
+    var node = spriteOf(id);
+    if (!node) return;
+    var aura = el('div', 'sp-gain sp-gain-' + kind);
+    aura.style.setProperty('--gain', BUFF_AURA_COLOR[kind] || '#fff');
+    var parts = '<span class="sp-gain-glow"></span><span class="sp-gain-column"></span>';
+    // Motes are scattered by hand rather than by CSS alone so no two units
+    // powering up in the same round animate in lockstep.
+    for (var i = 0; i < BUFF_AURA_MOTES; i++) {
+      parts += '<span class="sp-gain-mote" style="left:' + (8 + Math.random() * 84).toFixed(1) + '%;' +
+        'animation-delay:' + (Math.random() * 260).toFixed(0) + 'ms;' +
+        '--mote-drift:' + (Math.random() * 16 - 8).toFixed(1) + 'px"></span>';
+    }
+    aura.innerHTML = parts;
+    node.appendChild(aura);
+    setTimeout(function () { aura.remove(); }, 900);
   }
 
   function floatText(id, text, cls) {
