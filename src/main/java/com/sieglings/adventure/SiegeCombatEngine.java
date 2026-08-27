@@ -678,7 +678,11 @@ public class SiegeCombatEngine {
     private String vanguardUltimate(SiegeRun run, SiegeBattle battle, Combatant knight, int speed) {
         int stunned = 0;
         for (Combatant foe : battle.living(Side.ENEMY)) {
-            foe.applyStatus(StatusKind.STUN, 1);
+            // Same 2-round safety net applyStatus uses for STUN. Statuses tick at
+            // endRound, so a 1-round stun applied during the player's turn is gone
+            // before the next resolveEnemyTurn — including when the player just
+            // acted second, which is when cancelling the next enemy action matters.
+            foe.applyStatus(StatusKind.STUN, 2);
             foe.setIntent(null);
             stunned++;
             battle.event("status", "targetId", foe.getId(), "status", "STUN",
