@@ -1103,14 +1103,20 @@ body[data-battle-node="BOSS"] .battle-stage::before{
   background:rgba(10,13,20,.72); border:1px solid rgba(70,84,110,.55); border-radius:9px;
   padding:4px 7px 5px; margin-bottom:4px; backdrop-filter:blur(3px);
 }
-.sprite .sp-name{font-size:11.5px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+/* Two lines, not an ellipsis: a plate this narrow cannot hold "Glaciemperor" or
+   "Applehead Sprout" on one line, and a clipped name tells the player nothing.
+   Wrapping costs one line of plate height instead of the creature's identity;
+   the clamp keeps a runaway name from pushing the art down. */
+.sprite .sp-name{font-size:11.5px; font-weight:700; line-height:1.18;
+  overflow-wrap:anywhere; overflow:hidden;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;}
 .sprite .sp-el{font-size:10px;}
 .sprite .sp-hpbar{height:6px; border-radius:3px; background:#0c1017; margin-top:4px; overflow:hidden;}
 .sprite .sp-hpfill{height:100%; background:linear-gradient(90deg,var(--good),#4fbf67); transition:width .35s;}
 .sprite.enemy .sp-hpfill{background:linear-gradient(90deg,#ff7a5c,var(--bad));}
 /* Leveling on the battle sprite: level badge before the name + a thin XP bar. */
 .sprite .sp-lvl{display:inline-block; font-size:9px; font-weight:800; line-height:1; padding:2px 3px; border-radius:4px;
-  background:#22304a; color:#cfe0ff; margin-right:4px; vertical-align:middle;}
+  background:#22304a; color:#cfe0ff; vertical-align:middle;}
 .sprite .sp-lvl.up{background:#ffd066; color:#3a2c00; box-shadow:0 0 6px rgba(255,208,102,.7);}
 /* "Shade of X" as a badge + the creature's own name — see renderSpriteLine.
    Violet to match the cutout the foe is wearing, and sized like .sp-lvl so ally
@@ -1696,7 +1702,10 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
   .track-first{display:none;}
 
   .battle-stage{min-height:236px; padding:8px 4px 4px;}
-  .sprite{width:calc(86px * var(--sprite-scale,1));}
+  /* The line holds 2–3 units with slack to spare here, so the column is sized
+     for the name plate rather than the sprite — the art height is set below
+     and does not follow this width. */
+  .sprite{width:calc(104px * var(--sprite-scale,1)); max-width:calc(31vw * var(--sprite-scale,1));}
   .sprite .sp-art{height:calc(64px * var(--sprite-scale,1));}
   .sprite .sp-art img{max-height:calc(64px * var(--sprite-scale,1));}
   .sprite .sp-art-fallback span{font-size:calc(38px * var(--sprite-scale,1));}
@@ -1996,6 +2005,64 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
 .event-choice .ec-desc{font-size:12px; color:var(--dim); font-weight:400;}
 .event-choice.unaffordable{opacity:.5;}
 
+/* ---- Puzzle + outcome screens are one-screeners ----
+   These used to page-scroll like the shop screens: entering a puzzle from an
+   already-scrolled screen dropped the player halfway down the board with the
+   title tucked under the top bar, and on landscape the grid ran off the bottom
+   entirely. They now use the same fixed 100dvh shell the location screens use,
+   centered, with the board measured against the viewport HEIGHT as well as its
+   width (--mg-board) so it can never outgrow the frame. */
+body[data-screen="minigameScreen"],
+body[data-screen="interactionResultScreen"]{ height:100dvh; overflow:hidden; }
+/* Board size: the smaller of the width budget and what is left of the viewport
+   height once the icon/title/prompt/actions stack has taken its share. */
+body[data-screen="minigameScreen"]{ --mg-board:min(88vw, 340px, 46dvh); }
+body[data-screen="minigameScreen"] .siege-app,
+body[data-screen="interactionResultScreen"] .siege-app{
+  height:100dvh; min-height:0; overflow:hidden; padding-bottom:0;
+  display:flex; flex-direction:column;
+}
+body[data-screen="minigameScreen"] .siege-topbar,
+body[data-screen="interactionResultScreen"] .siege-topbar{ flex:0 0 auto; position:static; }
+body[data-screen="minigameScreen"] .siege-screen,
+body[data-screen="interactionResultScreen"] .siege-screen{
+  flex:1 1 auto; min-height:0; overflow:hidden; padding:4px 0 8px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  text-align:center;
+}
+body[data-screen="minigameScreen"] .siege-screen > *,
+body[data-screen="interactionResultScreen"] .siege-screen > *{ flex:0 0 auto; max-width:100%; }
+/* The outcome popup's text is server-written and can run long; unlike the
+   puzzle board it has no size to solve for, so let this one scroll inside its
+   own frame rather than clipping the Continue button off a short landscape. */
+body[data-screen="interactionResultScreen"] .siege-screen{ overflow:auto; }
+body[data-screen="minigameScreen"] .event-scene,
+body[data-screen="interactionResultScreen"] .event-scene{ padding:0; }
+body[data-screen="minigameScreen"] .camp-title,
+body[data-screen="interactionResultScreen"] .camp-title{ margin:6px 0 2px; }
+body[data-screen="minigameScreen"] .event-prompt{ margin-bottom:8px; }
+body[data-screen="minigameScreen"] .camp-meta{ margin-bottom:6px; }
+body[data-screen="minigameScreen"] .mg-body{ margin-top:8px; }
+body[data-screen="minigameScreen"] #mgActions{ margin-top:12px; }
+/* Landscape/desktop: the copy column sits beside the board instead of stacking
+   above it, which is what let the board keep a usable size without scrolling. */
+@media (orientation:landscape){
+  body[data-screen="minigameScreen"] .siege-screen{
+    display:grid; align-content:center; justify-items:center;
+    column-gap:clamp(16px,4vw,56px); padding:4px max(12px,env(safe-area-inset-left,0px));
+    grid-template-columns:minmax(0,1fr) minmax(0,auto);
+    grid-template-areas:"icon board" "title board" "prompt board" "meta board" "actions board";
+  }
+  body[data-screen="minigameScreen"] .event-scene{ grid-area:icon; }
+  body[data-screen="minigameScreen"] #mgTitle{ grid-area:title; }
+  body[data-screen="minigameScreen"] #mgPrompt{ grid-area:prompt; }
+  body[data-screen="minigameScreen"] .camp-meta{ grid-area:meta; justify-content:center; }
+  body[data-screen="minigameScreen"] .mg-body{ grid-area:board; align-self:center; margin:0; }
+  body[data-screen="minigameScreen"] #mgActions{ grid-area:actions; justify-content:center; }
+  body[data-screen="minigameScreen"]{ --mg-board:min(46vw, 66dvh, 420px); }
+  body[data-screen="minigameScreen"] .event-icon{ font-size:clamp(40px,7vh,70px); }
+}
+
 /* ---------- cache/event puzzle mini-games ---------- */
 .mg-status{font-size:12px; font-weight:700; color:var(--dim);}
 .mg-body{display:flex; flex-direction:column; align-items:center; gap:12px; margin:14px auto 0; max-width:520px;}
@@ -2006,7 +2073,7 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
 /* LINE (Flow-Free) */
 .mg-line-grid{
   display:grid; grid-template-columns:repeat(var(--n),1fr); gap:4px;
-  width:min(88vw,340px); aspect-ratio:1; padding:6px;
+  width:var(--mg-board, min(88vw,340px)); aspect-ratio:1; padding:6px;
   background:rgba(0,0,0,.3); border:1px solid var(--border); border-radius:14px;
   user-select:none; -webkit-user-select:none;
 }
@@ -2037,7 +2104,7 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
 /* MATCH (memory pairs) */
 .mg-match-grid{
   display:grid; grid-template-columns:repeat(var(--n),1fr); gap:8px;
-  width:min(88vw,320px);
+  width:min(var(--mg-board, min(88vw,340px)), 320px);
 }
 .mg-tile{
   aspect-ratio:1; border-radius:12px; font-size:30px; cursor:pointer;
@@ -2080,7 +2147,7 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
 @media (orientation: landscape){
   body[data-screen="battleScreen"]{
     --arena-chrome-top:31px;          /* clearance below the floating top bar */
-    --arena-sprite-w:92px;
+    --arena-sprite-w:112px;
     --arena-sprite-art:64px;
     --arena-name:10px;
     --arena-plate-w:min(244px,46vw);

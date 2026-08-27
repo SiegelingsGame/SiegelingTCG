@@ -186,7 +186,10 @@
     // Battle and map are static, full-viewport screens (no page scroll —
     // only their own internal regions, like the map canvas, scroll).
     document.body.dataset.screen = id;
-    if (id === 'battleScreen' || id === 'mapScreen') resetViewportScroll();
+    // Every screen opens at its top. Arriving from a scrolled screen used to
+    // carry that offset over, which on the puzzle screen meant landing halfway
+    // down the board with the title hidden under the top bar.
+    resetViewportScroll();
   }
 
   function renderGameToText() {
@@ -3084,12 +3087,17 @@
         : isMerc
           ? '<span class="sp-merc">Merc</span>' + esc(u.name.replace(/\s\(Merc\)$/, ''))
           : esc(u.name);
+      // The name gets the plate's full width: the level badge and element icon
+      // ride in the tag row with HP instead. Sharing the name line with them is
+      // what pushed "Glaciemperor" and "Applehead Sprout" into an ellipsis at
+      // phone widths — the name is the one thing on the plate that must read.
       sp.innerHTML =
         '<div class="sp-plate">' +
-          '<div class="sp-name">' + levelBadge + plateName + ' <span class="sp-el">' + icon(u.element) + '</span></div>' +
+          '<div class="sp-name">' + plateName + '</div>' +
           '<div class="sp-hpbar"><div class="sp-hpfill" style="width:' + pct + '%"></div></div>' +
           xpLine +
-          '<div class="sp-tags"><span class="sp-hp">' + u.hp + '/' + u.maxHp + '</span>' + shield + buff + statusChips + '</div>' +
+          '<div class="sp-tags">' + levelBadge + '<span class="sp-el">' + icon(u.element) + '</span>' +
+            '<span class="sp-hp">' + u.hp + '/' + u.maxHp + '</span>' + shield + buff + statusChips + '</div>' +
           gaugeLine +
           intentLine +
         '</div>' +
