@@ -976,6 +976,35 @@ public class SiegeCombatEngine {
                 other.setPosition(a);
                 battle.event("swap", "aId", attacker.getId(), "bId", other.getId());
                 battle.log(attacker.getName() + " uses " + spec.name() + " → swaps notches with " + other.getName() + ".");
+                applySwapRider(battle, attacker, other, spec);
+            }
+        }
+    }
+
+    /**
+     * A level-up amplification can hand a notch swap something to do beyond
+     * moving — the swap itself has no magnitude to raise. The rider pays both
+     * Siegelings that traded places, which is what makes the move worth a card
+     * slot rather than a repositioning tax.
+     */
+    private void applySwapRider(SiegeBattle battle, Combatant a, Combatant b, AbilitySpec spec) {
+        if (!spec.hasRider()) return;
+        int amount = spec.riderValue();
+        for (Combatant unit : List.of(a, b)) {
+            if (!unit.isAlive()) continue;
+            switch (spec.rider()) {
+                case HEAL -> applyHeal(battle, a, unit, amount, spec.name());
+                case SHIELD -> {
+                    unit.addShield(amount, shieldExpiryFor(battle, unit));
+                    battle.event("shield", "sourceId", a.getId(), "targetId", unit.getId(), "amount", amount);
+                    battle.log(unit.getName() + " lands braced — " + amount + " shield.");
+                }
+                case ATTACK -> {
+                    unit.addAttackBuff(amount);
+                    battle.event("buff", "kind", "atk", "amount", amount, "targetId", unit.getId());
+                    battle.log(unit.getName() + " lands swinging — +" + amount + " attack.");
+                }
+                case NONE -> { }
             }
         }
     }

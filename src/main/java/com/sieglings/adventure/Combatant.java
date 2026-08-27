@@ -186,6 +186,10 @@ class Combatant {
      * Grants XP and levels up as thresholds are crossed. Returns the number of
      * levels gained (0 if none). Derived stats are recomputed from base via
      * {@link #applyLevel()} on every level-up, and the gained max HP is healed.
+     *
+     * <p>A level-up also pays {@link SiegeTuning#LEVELUP_BONUS_HP} of flat base
+     * max HP per level and restores the unit to full — the reward for surviving
+     * the fight, and the reason a level-up is worth pushing one more node for.
      */
     int addXp(int amount) {
         if (amount <= 0) return 0;
@@ -197,8 +201,20 @@ class Combatant {
             applyLevel();
         }
         int gained = level - before;
-        if (gained > 0) leveledRecently = true;
+        if (gained > 0) {
+            leveledRecently = true;
+            // The HP itself came from applyLevel() above — SiegeTuning.scaledMaxHp
+            // carries the flat per-level bonus so every route to a level agrees.
+            // What a live level-up adds is the full heal.
+            healToFull();
+        }
         return gained;
+    }
+
+    /** Restores this unit to its (possibly just-raised) max HP. */
+    void healToFull() {
+        if (hp <= 0) return; // a fallen unit is revived by its own effects, not by XP
+        hp = maxHp;
     }
 
     /**

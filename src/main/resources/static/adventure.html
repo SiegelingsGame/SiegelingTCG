@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Siege — Siegelings Adventure</title>
 <link rel="icon" href="/favicon.png">
-<link rel="stylesheet" href="/css/adventure.css?v=71">
+<link rel="stylesheet" href="/css/adventure.css?v=72">
 </head>
 <body>
 <!-- Enemy Siegelings are corrupted card art, so they need the same die-cut shade
@@ -363,6 +363,20 @@
     </div>
   </section>
 
+  <!-- Level-up: the Siegeling that levelled picks one of its cards to amplify -->
+  <section class="siege-screen hidden" id="ampScreen">
+    <div class="epiphany-screen">
+      <div class="epiphany-header">
+        <span class="location-kicker">Level up</span>
+        <h1 id="ampTitle">Amplify a <em>card</em></h1>
+        <p id="ampSub">Pick the card this level makes stronger.</p>
+      </div>
+      <div class="amp-unit" id="ampUnit"></div>
+      <div class="reward-grid amp-grid" id="ampGrid"></div>
+      <div class="reward-actions"><button class="siege-btn overlay-skip" id="ampSkipBtn" type="button">Skip</button></div>
+    </div>
+  </section>
+
   <!-- Gacha-style Siegeling join reveal -->
   <section class="siege-screen hidden" id="recruitScreen">
     <div class="gacha-stage" id="gachaStage">
@@ -634,6 +648,6 @@
   <div class="siege-toast hidden" id="siegeToast"></div>
 </div>
 <script src="/js/siege-maps.js?v=3"></script>
-<script src="/js/adventure.js?v=76"></script>
+<script src="/js/adventure.js?v=77"></script>
 </body>
 </html>
