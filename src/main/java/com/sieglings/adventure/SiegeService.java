@@ -127,10 +127,22 @@ public class SiegeService {
             m.put("activeDesc", active.description());
             m.put("active", serializeSpec(active));
             KnightPassive passive = content.knightPassiveKind(k);
-            m.put("passive", content.knightPassiveDescription(k));
+            // Collection level crosses over: the selection card shows the same
+            // level/XP the binder does, and the passive/Ultimate text quoted here
+            // is the scaled value the run will actually lead with.
+            int accountLevel = knightAccountLevel(progression, k.getId());
+            m.put("passive", content.knightPassiveDescription(k, accountLevel));
             m.put("passiveKind", passive.name());
             m.put("passiveName", content.knightPassiveName(passive));
-            m.put("passiveValue", content.knightPassiveValue(passive));
+            m.put("passiveValue", content.knightPassiveValue(passive, accountLevel, k.getRarity()));
+            m.put("level", accountLevel);
+            m.put("maxLevel", PlayerProgressionService.TRAINER_MAX_LEVEL);
+            m.put("xp", knightAccountPoints(progression, k.getId()));
+            m.put("xpForNext", progressionService == null ? 0
+                    : progressionService.pointsForNextLevel(accountLevel));
+            m.put("rarity", k.getRarity() == null ? null : k.getRarity().name());
+            m.put("ultimateName", content.knightUltimateName(passive));
+            m.put("ultimateDesc", content.knightUltimateDescription(passive, accountLevel, k.getRarity(), 1));
             // Marshal knights assemble a bigger warband, so the size is per-knight.
             m.put("startingParty", content.startingPartySize(k));
             m.put("expeditionStarter", starter);
@@ -415,6 +427,24 @@ public class SiegeService {
         return trainerId == null ? null : trainerId.trim().toLowerCase(java.util.Locale.ROOT);
     }
 
+    /**
+     * The level the account has raised this SiegeKnight card to in the collection.
+     * Unowned knights (and guests) lead at level 1, so an expedition never depends
+     * on being signed in.
+     */
+    private int knightAccountLevel(PlayerProgressionEntity progression, String knightId) {
+        if (progression == null) return 1;
+        Integer level = progression.getTrainerLevels().get(normalizeKnightId(knightId));
+        return SiegeTuning.clampAccountLevel(level == null ? 1 : level);
+    }
+
+    /** Duplicate points banked toward this knight's next collection level. */
+    private int knightAccountPoints(PlayerProgressionEntity progression, String knightId) {
+        if (progression == null) return 0;
+        Integer points = progression.getTrainerPoints().get(normalizeKnightId(knightId));
+        return points == null ? 0 : Math.max(0, points);
+    }
+
     // ---- Run lifecycle --------------------------------------------------
 
     Map<String, Object> newRun(String authorizationHeader, String knightId, List<String> sieglingIds, String modeName) {
@@ -450,10 +480,13 @@ public class SiegeService {
         run.setKnightName(knight.getName());
         run.setKnightElement(knight.getElement());
         run.setKnightActive(content.knightActiveSpec(knight));
-        run.setKnightPassiveDesc(content.knightPassiveDescription(knight));
+        int accountLevel = knightAccountLevel(progression, knight.getId());
+        run.setKnightAccountLevel(accountLevel);
+        run.setKnightRarity(knight.getRarity());
+        run.setKnightPassiveDesc(content.knightPassiveDescription(knight, accountLevel));
         KnightPassive passive = content.knightPassiveKind(knight);
         run.setKnightPassive(passive);
-        run.setKnightPassiveValue(content.knightPassiveValue(passive));
+        run.setKnightPassiveValue(content.knightPassiveValue(passive, accountLevel, knight.getRarity()));
         run.setKnightUnit(content.toKnightCombatant(knight));
 
         run.setMode(mode);
@@ -839,6 +872,7 @@ public class SiegeService {
         s.put("token", run.getToken());
         s.put("ownerId", run.getOwnerId());
         s.put("knightId", run.getKnightId());
+        s.put("knightAccountLevel", run.getKnightAccountLevel());
         s.put("gold", run.getGold());
         s.put("mode", run.getMode().name());
         if (run.isBattlegrounds()) {
@@ -1112,10 +1146,15 @@ public class SiegeService {
             run.setKnightName(knight.getName());
             run.setKnightElement(knight.getElement());
             run.setKnightActive(content.knightActiveSpec(knight));
-            run.setKnightPassiveDesc(content.knightPassiveDescription(knight));
+            // A checkpoint predating the level crossover has no stored standing —
+            // it resumes at level 1, exactly as it was played.
+            int accountLevel = SiegeTuning.clampAccountLevel(intVal(s.get("knightAccountLevel"), 1));
+            run.setKnightAccountLevel(accountLevel);
+            run.setKnightRarity(knight.getRarity());
+            run.setKnightPassiveDesc(content.knightPassiveDescription(knight, accountLevel));
             KnightPassive passive = content.knightPassiveKind(knight);
             run.setKnightPassive(passive);
-            run.setKnightPassiveValue(content.knightPassiveValue(passive));
+            run.setKnightPassiveValue(content.knightPassiveValue(passive, accountLevel, knight.getRarity()));
             Combatant knightUnit = content.toKnightCombatant(knight);
             // Restore the pre-level base then load XP (re-derives level + rescales HP).
             knightUnit.setBaseMaxHp(intVal(s.get("knightBaseMaxHp"), knightUnit.getBaseMaxHp()));
@@ -2340,6 +2379,7 @@ public class SiegeService {
         knight.put("passive", run.getKnightPassive() == null ? null : run.getKnightPassive().name());
         knight.put("passiveName", run.getKnightPassive() == null ? null : content.knightPassiveName(run.getKnightPassive()));
         knight.put("passiveValue", run.getKnightPassiveValue());
+        knight.put("accountLevel", run.getKnightAccountLevel());
         Combatant ku = run.getKnightUnit();
         knight.put("level", ku == null ? 1 : ku.getLevel());
         knight.put("xp", ku == null ? 0 : ku.getXp());
@@ -2514,8 +2554,13 @@ public class SiegeService {
         run.setKnightPassive(parsePassive(ks.get("passive")));
         run.setKnightPassiveValue(intOf(ks.get("passiveValue"), 0));
         Optional<TrainerCard> knightCard = content.findKnight(knightId);
+        // Banked veterans carry the collection standing they marched out with.
+        int bgAccountLevel = SiegeTuning.clampAccountLevel(intOf(ks.get("accountLevel"), 1));
+        run.setKnightAccountLevel(bgAccountLevel);
+        run.setKnightRarity(knightCard.map(TrainerCard::getRarity).orElse(null));
         run.setKnightActive(knightCard.map(content::knightActiveSpec).orElse(null));
-        run.setKnightPassiveDesc(knightCard.map(content::knightPassiveDescription).orElse(str(ks.get("passiveName"))));
+        run.setKnightPassiveDesc(knightCard.map(k -> content.knightPassiveDescription(k, bgAccountLevel))
+                .orElse(str(ks.get("passiveName"))));
         run.setKnightUnit(build.knightUnit);
 
         run.getParty().addAll(build.party);
@@ -3605,6 +3650,8 @@ public class SiegeService {
         knight.put("passiveName", run.getKnightPassive() == null ? null : content.knightPassiveName(run.getKnightPassive()));
         knight.put("active", run.getKnightActive() == null ? null : run.getKnightActive().name());
         knight.put("activeSpec", run.getKnightActive() == null ? null : serializeSpec(run.getKnightActive()));
+        putKnightUltimate(knight, run);
+        knight.put("accountLevel", run.getKnightAccountLevel());
         if (run.getKnightUnit() != null) {
             knight.put("unitId", run.getKnightUnit().getId());
             knight.put("hp", run.getKnightUnit().getHp());
@@ -3775,6 +3822,8 @@ public class SiegeService {
         }
         knight.put("charge", battle.getKnightCharge());
         knight.put("ultCost", SiegeBattle.KNIGHT_ULT_COST);
+        knight.put("passiveKind", run.getKnightPassive() == null ? null : run.getKnightPassive().name());
+        putKnightUltimate(knight, run);
         knight.put("ultReady", knightUnit != null && knightUnit.isAlive()
                 && battle.getKnightCharge() >= SiegeBattle.KNIGHT_ULT_COST);
         b.put("knight", knight);
@@ -3919,6 +3968,21 @@ public class SiegeService {
     }
 
     /** Adds the SiegeKnight's leveling fields (badge + XP bar) to a serialized knight map. */
+    /**
+     * The class Ultimate this run's knight will fire, quoted at the magnitude it
+     * currently has — the HUD reads it so the button says what it does before the
+     * player spends 20 Charge on it.
+     */
+    private void putKnightUltimate(Map<String, Object> knight, SiegeRun run) {
+        KnightPassive kind = run.getKnightPassive();
+        int runLevel = run.getKnightUnit() == null ? 1 : run.getKnightUnit().getLevel();
+        knight.put("ultimateName", content.knightUltimateName(kind));
+        knight.put("ultimateDesc", content.knightUltimateDescription(
+                kind, run.getKnightAccountLevel(), run.getKnightRarity(), runLevel));
+        knight.put("ultimateValue", content.knightUltimateValue(
+                kind, run.getKnightAccountLevel(), run.getKnightRarity(), runLevel));
+    }
+
     private void putKnightLeveling(Map<String, Object> knight, Combatant unit) {
         knight.put("level", unit.getLevel());
         knight.put("xp", unit.getXp());

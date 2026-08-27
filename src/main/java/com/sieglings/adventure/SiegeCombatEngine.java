@@ -52,8 +52,6 @@ public class SiegeCombatEngine {
      * extra attackers would raise status uptime (Stun especially) by half again.
      */
     static final int ENEMY_STATUS_CHANCE = 14;
-    /** Knight Ultimate: heavy elemental sweep. */
-    static final int KNIGHT_ULT_DAMAGE = 15;
     /**
      * Shields granted before round 1 (knight passive, carried items) lapse when
      * the party opens round 2 — the same "until the beginning of your next turn"
@@ -580,7 +578,13 @@ public class SiegeCombatEngine {
         return false;
     }
 
-    /** Fires the SiegeKnight's Ultimate: not a card, costs 0 AP, needs 20 Charge. */
+    /**
+     * Fires the SiegeKnight's Ultimate: not a card, costs 0 AP, needs 20 Charge.
+     * Which Ultimate lands depends on the knight's leadership class, so the class
+     * a player picks shapes the battle plan and not just the opening buff. Every
+     * magnitude scales with the knight's collection level, its rarity, and the
+     * level it has reached in this run.
+     */
     PlayResult useKnightUltimate(SiegeRun run, Random rng) {
         SiegeBattle battle = run.getBattle();
         if (battle == null || battle.getPhase() != BattlePhase.PLAYER_INPUT) {
@@ -592,37 +596,158 @@ public class SiegeCombatEngine {
         Combatant knight = battle.knight();
         if (knight == null || !knight.isAlive()) return PlayResult.fail("The Knight has fallen.");
 
-        battle.setKnightCharge(battle.getKnightCharge() - SiegeBattle.KNIGHT_ULT_COST);
-        battle.event("ultimate", "sourceId", knight.getId(), "name", run.getKnightName() + "'s Ultimate",
-                "element", knight.getElement() == null ? null : knight.getElement().name());
-        battle.log("⚡ " + run.getKnightName() + " unleashes the Knight Ultimate!");
-        Map<String, Object> ultEntry = battle.turnEntry("you", run.getKnightName(), "Knight Ultimate", 0,
-                "Ultimate unleashed (" + KNIGHT_ULT_DAMAGE + " dmg to all enemies)");
-        battle.beginTally();
+        KnightPassive kind = run.getKnightPassive();
+        String ultName = content.knightUltimateName(kind);
+        int value = content.knightUltimateValue(kind, run.getKnightAccountLevel(),
+                run.getKnightRarity(), knight.getLevel());
 
+        battle.setKnightCharge(battle.getKnightCharge() - SiegeBattle.KNIGHT_ULT_COST);
+        battle.event("ultimate", "sourceId", knight.getId(), "name", ultName,
+                "element", knight.getElement() == null ? null : knight.getElement().name());
+        battle.log("⚡ " + run.getKnightName() + " unleashes " + ultName + "!");
+
+        // Bracket the class effect so the ledger row carries what it actually did.
+        battle.beginTally();
+        String summary = switch (kind == null ? KnightPassive.SHIELD : kind) {
+            case HEALTH -> wardenUltimate(run, battle, knight, value);
+            case SHIELD -> bulwarkUltimate(run, battle, knight, value);
+            case ATTACK -> warlordUltimate(run, battle, knight, value, rng);
+            case SPEED -> vanguardUltimate(run, battle, knight, value);
+            case MARSHAL -> marshalUltimate(run, battle, knight, value, rng);
+            case LOOT -> quartermasterUltimate(run, battle, knight, value, rng);
+        };
+        battle.stampTally(battle.turnEntry("you", run.getKnightName(), ultName, 0, summary));
+        checkEnd(run);
+        return PlayResult.okay();
+    }
+
+    /** Warden: a battlefield-wide heal for the warband and the Knight. */
+    private String wardenUltimate(SiegeRun run, SiegeBattle battle, Combatant knight, int heal) {
+        int total = 0;
+        for (Combatant ally : battle.living(Side.PLAYER)) {
+            int before = ally.getHp();
+            ally.heal(heal);
+            int gained = ally.getHp() - before;
+            total += gained;
+            battle.event("heal", "targetId", ally.getId(), "amount", gained,
+                    "hp", ally.getHp(), "maxHp", ally.getMaxHp());
+        }
+        battle.log(run.getKnightName() + "'s vigil restores " + heal + " HP to the warband.");
+        return "Ultimate: +" + heal + " HP to every ally (" + total + " healed)";
+    }
+
+    /** Bulwark: a heavy shield over the whole line, lasting until the next turn. */
+    private String bulwarkUltimate(SiegeRun run, SiegeBattle battle, Combatant knight, int shield) {
+        for (Combatant ally : battle.living(Side.PLAYER)) {
+            ally.addShield(shield, battle.getRoundNumber() + 1);
+            battle.event("shield", "targetId", ally.getId(), "amount", shield,
+                    "shield", ally.getShield());
+        }
+        battle.log(run.getKnightName() + "'s aegis grants the warband a " + shield + " shield.");
+        return "Ultimate: +" + shield + " shield to every ally";
+    }
+
+    /**
+     * Warlord: percentage damage, so the Ultimate stays relevant against the
+     * fat HP pools of elites and Siegelords instead of scaling out of the fight.
+     */
+    private String warlordUltimate(SiegeRun run, SiegeBattle battle, Combatant knight, int pct, Random rng) {
         StatusKind status = SiegeContentService.statusFor(knight.getElement());
-        AbilitySpec ultSpec = new AbilitySpec("knight-ult", "Knight Ultimate", knight.getElement(),
-                Effect.DAMAGE, KNIGHT_ULT_DAMAGE, TargetKind.ALL_ENEMIES, 0, "Knight Ultimate.");
+        int total = 0;
         for (Combatant foe : new ArrayList<>(battle.living(Side.ENEMY))) {
             boolean wasAlive = foe.isAlive();
-            int dmg = resolveAttackDamage(battle, knight, ultSpec, foe, KNIGHT_ULT_DAMAGE);
+            int dmg = Math.max(SiegeContentService.ULT_WARLORD_MIN,
+                    (int) Math.round(foe.getMaxHp() * pct / 100.0));
             int hpBefore = foe.getHp();
             int dealt = foe.takeDamage(dmg);
             int hpDealt = Math.max(0, hpBefore - foe.getHp());
+            total += dealt;
             boolean killed = wasAlive && !foe.isAlive();
             battle.event("hit", "sourceId", knight.getId(), "targetId", foe.getId(),
                     "amount", dealt, "element", knight.getElement() == null ? null : knight.getElement().name(),
                     "ko", killed);
-            battle.log(run.getKnightName() + "'s Ultimate → " + foe.getName() + " takes " + dealt
+            battle.log(run.getKnightName() + "'s reckoning → " + foe.getName() + " takes " + dealt
                     + (foe.isAlive() ? "" : " and is defeated!"));
             if (killed) battle.creditKill(knight.getId());
-            if (status != null) {
-                applyStatus(battle, foe, status, knight, rng, hpDealt);
-            }
+            if (status != null) applyStatus(battle, foe, status, knight, rng, hpDealt);
         }
-        battle.stampTally(ultEntry);
-        checkEnd(run);
-        return PlayResult.okay();
+        return "Ultimate: " + pct + "% max HP off every enemy (" + total + " dmg)";
+    }
+
+    /** Vanguard: the enemy line loses its next action while the warband speeds up. */
+    private String vanguardUltimate(SiegeRun run, SiegeBattle battle, Combatant knight, int speed) {
+        int stunned = 0;
+        for (Combatant foe : battle.living(Side.ENEMY)) {
+            foe.applyStatus(StatusKind.STUN, 1);
+            foe.setIntent(null);
+            stunned++;
+            battle.event("status", "targetId", foe.getId(), "status", "STUN",
+                    "element", "ICE");
+        }
+        List<Combatant> quickened = new ArrayList<>();
+        for (Combatant ally : battle.living(Side.PLAYER)) {
+            if (ally.isKnight()) continue;
+            ally.setSpeed(ally.getSpeed() + speed);
+            quickened.add(ally);
+        }
+        battle.event("buff", "kind", "spd", "amount", speed, "targetIds", buffedIds(quickened));
+        battle.log(run.getKnightName() + "'s charge stuns " + stunned + " enem"
+                + (stunned == 1 ? "y" : "ies") + " and quickens the warband by +" + speed + " speed.");
+        return "Ultimate: " + stunned + " enemy turn" + (stunned == 1 ? "" : "s")
+                + " cancelled, warband +" + speed + " speed";
+    }
+
+    /**
+     * Marshal: evolutions on the spot. Normally a Siegeling must bank
+     * {@link SiegeBattle#EVOLVE_GAUGE} AP and draw its Evolution card first —
+     * the Marshal's Ultimate skips both, for the least-evolved allies first so
+     * the charge is never spent on a line that is already finished.
+     */
+    private String marshalUltimate(SiegeRun run, SiegeBattle battle, Combatant knight, int count, Random rng) {
+        List<Combatant> candidates = new ArrayList<>();
+        for (Combatant ally : battle.living(Side.PLAYER)) {
+            if (ally.isKnight()) continue;
+            // Curse (Shadow) blocks evolution here exactly as it blocks the card.
+            if (ally.has(StatusKind.CURSE)) continue;
+            if (content.evolutionOf(ally.getSourceCardId()).isPresent()) candidates.add(ally);
+        }
+        candidates.sort(Comparator.comparingInt(a ->
+                content.findAnySiegling(a.getSourceCardId()).map(content::stageOf).orElse(1)));
+        int evolved = 0;
+        for (Combatant ally : candidates) {
+            if (evolved >= count) break;
+            Optional<SieglingCard> evo = content.evolutionOf(ally.getSourceCardId());
+            if (evo.isEmpty()) continue;
+            forceEvolve(run, battle, ally.getId(), evo.get(), rng, true);
+            evolved++;
+        }
+        if (evolved == 0) {
+            // Nothing left to evolve: the muster steels the line instead, so the
+            // spent Charge is never a dead button.
+            int hp = Math.max(4, count * 4);
+            for (Combatant ally : battle.living(Side.PLAYER)) {
+                if (ally.isKnight()) continue;
+                ally.addBattleMaxHp(hp);
+                battle.event("heal", "targetId", ally.getId(), "amount", hp,
+                        "hp", ally.getHp(), "maxHp", ally.getMaxHp());
+            }
+            battle.log("No Siegeling can evolve — the muster steels the line for +" + hp + " max HP instead.");
+            return "Ultimate: no evolution available — warband +" + hp + " max HP";
+        }
+        return "Ultimate: " + evolved + " free evolution" + (evolved == 1 ? "" : "s");
+    }
+
+    /** Quartermaster: the baggage train coughs up gear, straight into the pack. */
+    private String quartermasterUltimate(SiegeRun run, SiegeBattle battle, Combatant knight, int count, Random rng) {
+        List<String> names = new ArrayList<>();
+        for (SiegeItem item : content.randomItems(Math.max(1, count), rng)) {
+            run.getInventory().add(item.id());
+            names.add(item.name());
+        }
+        String found = String.join(", ", names);
+        battle.event("loot", "name", found, "count", names.size());
+        battle.log("📦 The baggage train yields " + found + " — equip it from your inventory.");
+        return "Ultimate: found " + found;
     }
 
     void endPlayerTurn(SiegeRun run, Random rng) {
