@@ -186,7 +186,10 @@
     // Battle and map are static, full-viewport screens (no page scroll —
     // only their own internal regions, like the map canvas, scroll).
     document.body.dataset.screen = id;
-    if (id === 'battleScreen' || id === 'mapScreen') resetViewportScroll();
+    // Every screen opens at its top. Arriving from a scrolled screen used to
+    // carry that offset over, which on the puzzle screen meant landing halfway
+    // down the board with the title hidden under the top bar.
+    resetViewportScroll();
   }
 
   function renderGameToText() {
