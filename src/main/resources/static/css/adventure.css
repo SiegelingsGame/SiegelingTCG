@@ -1184,23 +1184,60 @@ body[data-battle-node="BOSS"] .battle-stage::before{
   35%{opacity:.7; transform:scale(1) rotate(0);}
   100%{opacity:0; transform:scale(1.15) rotate(6deg);}
 }
-/* Gain aura (heal / attack / shield / speed). Same ring, but it swells outward
-   with a filled wash instead of snapping inward — a gain should read as the
-   unit growing, not as something landing on it. */
-.sp-aura-gain .sp-aura-ring{
-  background:radial-gradient(circle at 50% 60%, color-mix(in srgb, var(--aura) 34%, transparent), transparent 72%);
-  animation:sp-aura-gain .82s cubic-bezier(.2,.8,.3,1);
+/* Gain aura (heal / attack / shield / speed) — a separate effect from the
+   status ring above, not a recolour of it. No border: a ring reads as an
+   arrival, and a gain is the unit itself lighting up. Colour comes in as
+   --gain from adventure.js's BUFF_AURA_COLOR; motes get their left offset,
+   delay and drift inline so units never pulse in lockstep. */
+.sp-gain{position:absolute; inset:-10px -4px -2px; pointer-events:none; z-index:4; overflow:hidden;}
+.sp-gain .sp-gain-glow{
+  position:absolute; inset:0; border-radius:50% 50% 42% 42% / 46% 46% 54% 54%;
+  background:radial-gradient(ellipse at 50% 72%,
+    color-mix(in srgb, var(--gain) 62%, transparent) 0%,
+    color-mix(in srgb, var(--gain) 26%, transparent) 42%,
+    transparent 74%);
+  filter:blur(3px); opacity:0;
+  animation:sp-gain-glow .9s cubic-bezier(.2,.75,.3,1);
 }
-.sp-aura-gain .sp-aura-ring-outer{background:none;}
-@keyframes sp-aura-gain{
-  0%{opacity:0; transform:scale(.9);}
-  30%{opacity:1; transform:scale(1.03);}
-  70%{opacity:.75; transform:scale(1.06);}
-  100%{opacity:0; transform:scale(1.12);}
+/* The updraft: a narrow shaft of light the motes ride, anchored at the feet. */
+.sp-gain .sp-gain-column{
+  position:absolute; left:50%; bottom:0; width:64%; height:100%;
+  transform:translateX(-50%); transform-origin:50% 100%;
+  background:linear-gradient(to top,
+    color-mix(in srgb, var(--gain) 46%, transparent) 0%,
+    color-mix(in srgb, var(--gain) 14%, transparent) 48%,
+    transparent 88%);
+  filter:blur(2px); opacity:0;
+  animation:sp-gain-column .9s cubic-bezier(.2,.8,.3,1);
 }
+.sp-gain .sp-gain-mote{
+  position:absolute; bottom:2px; width:4px; height:4px; border-radius:50%;
+  background:var(--gain); box-shadow:0 0 7px var(--gain); opacity:0;
+  animation:sp-gain-mote .78s ease-out forwards;
+}
+@keyframes sp-gain-glow{
+  0%{opacity:0; transform:scale(.86);}
+  28%{opacity:.95; transform:scale(1.04);}
+  66%{opacity:.6; transform:scale(1);}
+  100%{opacity:0; transform:scale(1.06);}
+}
+@keyframes sp-gain-column{
+  0%{opacity:0; transform:translateX(-50%) scaleY(.35);}
+  30%{opacity:.9; transform:translateX(-50%) scaleY(1);}
+  100%{opacity:0; transform:translateX(-50%) scaleY(1.08);}
+}
+@keyframes sp-gain-mote{
+  0%{opacity:0; transform:translate(0,0) scale(.6);}
+  20%{opacity:1;}
+  100%{opacity:0; transform:translate(var(--mote-drift,0), -46px) scale(1);}
+}
+/* Speed is the one gain that is about motion, so its motes climb faster. */
+.sp-gain-spd .sp-gain-mote{animation-duration:.58s;}
 @media (prefers-reduced-motion: reduce){
   .sp-aura .sp-aura-ring{animation-duration:.3s;}
-  .sp-aura-gain .sp-aura-ring{animation-duration:.3s;}
+  .sp-gain .sp-gain-mote{display:none;}
+  .sp-gain .sp-gain-glow,
+  .sp-gain .sp-gain-column{animation-duration:.3s;}
 }
 
 /* status chips on the name plate */

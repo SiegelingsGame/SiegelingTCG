@@ -3398,20 +3398,32 @@
   }
 
   /*
-   * Gain auras: the same ring the status ticks use, but keyed to what was
-   * gained rather than to an element, so a heal reads green, an attack buff
-   * red, a shield blue and a speed buff yellow no matter who cast it.
+   * Gain auras. Deliberately NOT the status ring: a bordered ring reads as
+   * something landing on the unit, and reusing it made a heal and a burn tick
+   * look like the same event with a different hue. A gain instead envelops the
+   * sprite in its own colour — a soft column of light rising off the unit with
+   * motes carried up through it — so it is legible as the unit powering up.
+   * Green heal, red attack, blue shield, yellow speed, whoever cast it.
    */
   var BUFF_AURA_COLOR = { heal: '#7ee787', atk: '#ff5f56', shield: '#3ea6ff', spd: '#ffd23f' };
+  var BUFF_AURA_MOTES = 7;
 
   function buffAura(id, kind) {
     var node = spriteOf(id);
     if (!node) return;
-    var aura = el('div', 'sp-aura sp-aura-gain');
-    aura.style.setProperty('--aura', BUFF_AURA_COLOR[kind] || '#fff');
-    aura.innerHTML = '<span class="sp-aura-ring"></span><span class="sp-aura-ring sp-aura-ring-outer"></span>';
+    var aura = el('div', 'sp-gain sp-gain-' + kind);
+    aura.style.setProperty('--gain', BUFF_AURA_COLOR[kind] || '#fff');
+    var parts = '<span class="sp-gain-glow"></span><span class="sp-gain-column"></span>';
+    // Motes are scattered by hand rather than by CSS alone so no two units
+    // powering up in the same round animate in lockstep.
+    for (var i = 0; i < BUFF_AURA_MOTES; i++) {
+      parts += '<span class="sp-gain-mote" style="left:' + (8 + Math.random() * 84).toFixed(1) + '%;' +
+        'animation-delay:' + (Math.random() * 260).toFixed(0) + 'ms;' +
+        '--mote-drift:' + (Math.random() * 16 - 8).toFixed(1) + 'px"></span>';
+    }
+    aura.innerHTML = parts;
     node.appendChild(aura);
-    setTimeout(function () { aura.remove(); }, 820);
+    setTimeout(function () { aura.remove(); }, 900);
   }
 
   function floatText(id, text, cls) {
