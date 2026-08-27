@@ -37,6 +37,11 @@ class SiegeBattle {
     private final List<Map<String, Object>> events = new ArrayList<>();
     /** Structured turn ledger: every action with the card behind it, grouped by round. */
     private final List<Map<String, Object>> turnLog = new ArrayList<>();
+    private boolean tallying;
+    private int tallyDamage;
+    private int tallyHeal;
+    private int tallyShield;
+    private int tallyKo;
     /**
      * Kills landed this battle, keyed by the combatant id that struck the blow.
      * Drained at battle-won time to hand out the killing-blow XP bonus. Keyed by
@@ -113,7 +118,7 @@ class SiegeBattle {
     Map<String, Integer> getKillCredit() { return killCredit; }
 
     /** Records a ledger step: who acted, with which card, and what happened. */
-    void turnEntry(String side, String actor, String card, int cost, String text) {
+    Map<String, Object> turnEntry(String side, String actor, String card, int cost, String text) {
         Map<String, Object> e = new LinkedHashMap<>();
         e.put("round", roundNumber);
         e.put("side", side);        // "you" | "foe" | "sys"
@@ -124,6 +129,47 @@ class SiegeBattle {
         turnLog.add(e);
         if (turnLog.size() > 120) {
             turnLog.remove(0);
+        }
+        return e;
+    }
+
+    /**
+     * Opens a tally window: presentation events fired from here on add their
+     * magnitudes up, so a ledger row can carry what the action actually did
+     * rather than only what it was aimed at. Bracketed explicitly (rather than
+     * riding on the newest ledger row) because between-action ticks — poison,
+     * wither, shield lapses — fire events too and must not be credited to
+     * whoever acted last.
+     */
+    void beginTally() {
+        tallying = true;
+        tallyDamage = 0;
+        tallyHeal = 0;
+        tallyShield = 0;
+        tallyKo = 0;
+    }
+
+    /** Closes the tally window and writes its non-zero totals onto {@code entry}. */
+    void stampTally(Map<String, Object> entry) {
+        tallying = false;
+        if (entry == null) return;
+        if (tallyDamage > 0) entry.put("dmg", tallyDamage);
+        if (tallyHeal > 0) entry.put("heal", tallyHeal);
+        if (tallyShield > 0) entry.put("shield", tallyShield);
+        if (tallyKo > 0) entry.put("ko", tallyKo);
+    }
+
+    private void tally(Map<String, Object> e) {
+        if (!tallying) return;
+        int amount = e.get("amount") instanceof Number n ? n.intValue() : 0;
+        switch (String.valueOf(e.get("type"))) {
+            case "hit", "knightHit" -> {
+                tallyDamage += Math.max(0, amount);
+                if (Boolean.TRUE.equals(e.get("ko"))) tallyKo++;
+            }
+            case "heal", "revive" -> tallyHeal += Math.max(0, amount);
+            case "shield" -> tallyShield += Math.max(0, amount);
+            default -> { }
         }
     }
 
@@ -163,6 +209,7 @@ class SiegeBattle {
             }
         }
         if (!vitals.isEmpty()) e.put("vitals", vitals);
+        tally(e);
         events.add(e);
         if (events.size() > 80) {
             events.remove(0);
