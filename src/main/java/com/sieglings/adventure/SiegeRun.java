@@ -109,6 +109,13 @@ class SiegeRun {
     private java.util.Map<String, Object> lastXpRecap;
     /** A just-joined Siegeling awaiting its gacha-style reveal (null when none). */
     private java.util.Map<String, Object> pendingRecruit;
+    /**
+     * One entry per Siegeling that levelled up and still owes the player an
+     * amplification pick, oldest first. Wire-shaped maps rather than a record:
+     * the client renders them as-is and the run snapshot stores them as-is, so a
+     * player who closes the app on the pick screen still owes the same pick.
+     */
+    private final java.util.List<java.util.Map<String, Object>> pendingAmps = new java.util.ArrayList<>();
 
     /**
      * Every Siegeling catalog card this run has met — recruits, broker hires, and
@@ -261,6 +268,7 @@ class SiegeRun {
     void setEndRewardsGranted(boolean endRewardsGranted) { this.endRewardsGranted = endRewardsGranted; }
     java.util.Map<String, Object> getEndRewards() { return endRewards; }
     void setEndRewards(java.util.Map<String, Object> endRewards) { this.endRewards = endRewards; }
+    java.util.List<java.util.Map<String, Object>> getPendingAmps() { return pendingAmps; }
     java.util.Map<String, Object> getLastXpRecap() { return lastXpRecap; }
     void setLastXpRecap(java.util.Map<String, Object> lastXpRecap) { this.lastXpRecap = lastXpRecap; }
     java.util.Map<String, Object> getPendingRecruit() { return pendingRecruit; }

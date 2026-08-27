@@ -967,11 +967,44 @@ public class SiegeCombatEngine {
             case SWAP -> {
                 // Move to a new notch: the owner trades places with the chosen ally.
                 Combatant other = targets.get(0);
+                // Telegraphed before the positions change so the client can start
+                // both units spinning as the move winds up rather than only once
+                // they have landed.
+                battle.event("swapStart", "aId", attacker.getId(), "bId", other.getId());
                 int a = attacker.getPosition(), b = other.getPosition();
                 attacker.setPosition(b);
                 other.setPosition(a);
                 battle.event("swap", "aId", attacker.getId(), "bId", other.getId());
                 battle.log(attacker.getName() + " uses " + spec.name() + " → swaps notches with " + other.getName() + ".");
+                applySwapRider(battle, attacker, other, spec);
+            }
+        }
+    }
+
+    /**
+     * A level-up amplification can hand a notch swap something to do beyond
+     * moving — the swap itself has no magnitude to raise. The rider pays both
+     * Siegelings that traded places, which is what makes the move worth a card
+     * slot rather than a repositioning tax.
+     */
+    private void applySwapRider(SiegeBattle battle, Combatant a, Combatant b, AbilitySpec spec) {
+        if (!spec.hasRider()) return;
+        int amount = spec.riderValue();
+        for (Combatant unit : List.of(a, b)) {
+            if (!unit.isAlive()) continue;
+            switch (spec.rider()) {
+                case HEAL -> applyHeal(battle, a, unit, amount, spec.name());
+                case SHIELD -> {
+                    unit.addShield(amount, shieldExpiryFor(battle, unit));
+                    battle.event("shield", "sourceId", a.getId(), "targetId", unit.getId(), "amount", amount);
+                    battle.log(unit.getName() + " lands braced — " + amount + " shield.");
+                }
+                case ATTACK -> {
+                    unit.addAttackBuff(amount);
+                    battle.event("buff", "kind", "atk", "amount", amount, "targetId", unit.getId());
+                    battle.log(unit.getName() + " lands swinging — +" + amount + " attack.");
+                }
+                case NONE -> { }
             }
         }
     }

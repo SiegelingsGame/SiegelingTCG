@@ -39,6 +39,13 @@ public class SiegeService {
 
     private static final Duration RUN_TTL = Duration.ofHours(6);
 
+    /**
+     * Suffix marking a move a level-up amplified. Distinct from the reward
+     * upgrade's " +" so a card's history reads at a glance: stars are levels,
+     * pluses are spoils.
+     */
+    private static final String AMP_MARK = " \u2605";
+
     @Autowired
     private SiegeContentService content;
 
@@ -568,6 +575,191 @@ public class SiegeService {
         recap.put("units", units);
         recap.put("levelUps", levelUps);
         run.setLastXpRecap(recap);
+        queueLevelUpAmps(run, levelUps);
+    }
+
+    /**
+     * A Siegeling that levelled up picks one of three of its own cards to
+     * amplify. Only Siegelings: the SiegeKnight's card is its class Ultimate and
+     * its own passive already scales with level, so a knight level pays the HP
+     * and the full heal and nothing else.
+     */
+    private void queueLevelUpAmps(SiegeRun run, List<Map<String, Object>> levelUps) {
+        for (Map<String, Object> entry : levelUps) {
+            if (!"SIEGLING".equals(entry.get("kind"))) continue;
+            String unitId = String.valueOf(entry.get("id"));
+            Combatant unit = run.getParty().stream()
+                    .filter(c -> c.getId().equals(unitId)).findFirst().orElse(null);
+            if (unit == null) continue;
+            List<Map<String, Object>> options = ampOptionsFor(run, unit);
+            if (options.isEmpty()) continue; // nothing in the deck to amplify
+
+            Map<String, Object> offer = new LinkedHashMap<>();
+            int levelBefore = intOf(entry.get("levelBefore"), 1);
+            offer.put("unitId", unitId);
+            offer.put("unitName", unit.getName());
+            offer.put("element", unit.getElement() == null ? null : unit.getElement().name());
+            offer.put("artUrl", unit.getArtUrl());
+            offer.put("levelBefore", levelBefore);
+            offer.put("level", unit.getLevel());
+            offer.put("hpGained", Math.max(0, unit.getMaxHp()
+                    - SiegeTuning.scaledMaxHp(unit.getBaseMaxHp(), levelBefore)));
+            offer.put("maxHp", unit.getMaxHp());
+            offer.put("options", options);
+            run.getPendingAmps().add(offer);
+        }
+    }
+
+    /** Up to three (card, amplification) pairs for one Siegeling, no pair repeated. */
+    private List<Map<String, Object>> ampOptionsFor(SiegeRun run, Combatant unit) {
+        // One entry per distinct move the unit owns — the deck holds copies.
+        Map<String, AbilitySpec> moves = new LinkedHashMap<>();
+        for (SiegeCard card : run.getDeckTemplates()) {
+            if (card.getOwnerId().equals(unit.getId())) {
+                moves.putIfAbsent(card.getSpec().id(), card.getSpec());
+            }
+        }
+        List<Map<String, Object>> out = new ArrayList<>();
+        List<AbilitySpec> pool = new ArrayList<>(moves.values());
+        Collections.shuffle(pool, rng);
+        // First pass gives three different cards; a unit with fewer moves fills
+        // the rest with a different amplification of a card already offered, so
+        // the player always gets a real choice rather than a single button.
+        for (int pass = 0; pass < 3 && out.size() < 3; pass++) {
+            for (AbilitySpec spec : pool) {
+                if (out.size() >= 3) break;
+                List<String> kinds = ampKindsFor(spec);
+                if (pass >= kinds.size()) continue;
+                String kind = kinds.get(pass);
+                String optionId = "amp-" + unit.getId() + "-" + spec.id() + "-" + kind;
+                boolean already = out.stream().anyMatch(o -> optionId.equals(o.get("id")));
+                if (already) continue;
+                out.add(ampOption(optionId, spec, kind));
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Which amplifications suit a move, best first. A notch swap has no
+     * magnitude to raise — it either happens or it does not — so it is offered a
+     * cheaper cost or one of two riders instead.
+     */
+    private List<String> ampKindsFor(AbilitySpec spec) {
+        if (spec.effect() == Effect.SWAP) {
+            List<String> kinds = new ArrayList<>(List.of("SWAP_HEAL", "SWAP_SHIELD", "SWAP_ATTACK"));
+            if (spec.actionCost() > 0) kinds.add(0, "COST");
+            return kinds;
+        }
+        List<String> kinds = new ArrayList<>();
+        kinds.add("VALUE");
+        if (spec.actionCost() > 0) kinds.add("COST");
+        return kinds;
+    }
+
+    private Map<String, Object> ampOption(String optionId, AbilitySpec spec, String kind) {
+        AbilitySpec after = ampedSpec(spec, kind);
+        Map<String, Object> o = new LinkedHashMap<>();
+        o.put("id", optionId);
+        o.put("moveId", spec.id());
+        o.put("moveName", spec.name());
+        o.put("kind", kind);
+        o.put("effect", spec.effect().name());
+        o.put("element", spec.element() == null ? null : spec.element().name());
+        o.put("label", ampLabel(kind));
+        o.put("desc", ampDescription(spec, after, kind));
+        o.put("beforeValue", spec.value());
+        o.put("afterValue", after.value());
+        o.put("beforeCost", spec.actionCost());
+        o.put("afterCost", after.actionCost());
+        o.put("rider", after.rider().name());
+        o.put("riderValue", after.riderValue());
+        return o;
+    }
+
+    private String ampLabel(String kind) {
+        return switch (kind) {
+            case "COST" -> "−" + SiegeTuning.AMP_COST_REDUCTION + " AP";
+            case "SWAP_HEAL" -> "Heals on arrival";
+            case "SWAP_SHIELD" -> "Shields on arrival";
+            case "SWAP_ATTACK" -> "Attack on arrival";
+            default -> "+" + SiegeTuning.AMP_VALUE_BONUS + " power";
+        };
+    }
+
+    private String ampDescription(AbilitySpec before, AbilitySpec after, String kind) {
+        return switch (kind) {
+            case "COST" -> before.name() + " costs " + after.actionCost() + " AP instead of "
+                    + before.actionCost() + ".";
+            case "SWAP_HEAL" -> "Both Siegelings heal " + after.riderValue() + " after they trade notches.";
+            case "SWAP_SHIELD" -> "Both Siegelings gain " + after.riderValue()
+                    + " shield after they trade notches.";
+            case "SWAP_ATTACK" -> "Both Siegelings gain +" + after.riderValue()
+                    + " attack after they trade notches.";
+            default -> before.name() + " hits for " + after.value() + " instead of " + before.value() + ".";
+        };
+    }
+
+    /** The amplified shape of a move. Amps stack: a second one builds on the first. */
+    private AbilitySpec ampedSpec(AbilitySpec spec, String kind) {
+        String name = spec.name().endsWith(AMP_MARK) ? spec.name() : spec.name() + AMP_MARK;
+        return switch (kind) {
+            case "COST" -> new AbilitySpec(spec.id(), name, spec.element(), spec.effect(), spec.value(),
+                    spec.target(), Math.max(0, spec.actionCost() - SiegeTuning.AMP_COST_REDUCTION),
+                    spec.description(), spec.status(), spec.statusChance(), spec.rider(), spec.riderValue());
+            case "SWAP_HEAL" -> riderSpec(spec, name, AmpRider.HEAL, SiegeTuning.AMP_SWAP_HEAL);
+            case "SWAP_SHIELD" -> riderSpec(spec, name, AmpRider.SHIELD, SiegeTuning.AMP_SWAP_SHIELD);
+            case "SWAP_ATTACK" -> riderSpec(spec, name, AmpRider.ATTACK, SiegeTuning.AMP_SWAP_ATTACK);
+            default -> new AbilitySpec(spec.id(), name, spec.element(), spec.effect(),
+                    spec.value() + SiegeTuning.AMP_VALUE_BONUS, spec.target(), spec.actionCost(),
+                    spec.description(), spec.status(), spec.statusChance(), spec.rider(), spec.riderValue());
+        };
+    }
+
+    /**
+     * A rider replaces a different rider rather than stacking with it — one card
+     * carries one extra effect — but re-picking the same rider adds to it.
+     */
+    private AbilitySpec riderSpec(AbilitySpec spec, String name, AmpRider rider, int amount) {
+        int value = spec.rider() == rider ? spec.riderValue() + amount : amount;
+        return new AbilitySpec(spec.id(), name, spec.element(), spec.effect(), spec.value(),
+                spec.target(), spec.actionCost(), spec.description(),
+                spec.status(), spec.statusChance(), rider, value);
+    }
+
+    /**
+     * Applies a level-up amplification: every copy of the chosen move in the
+     * run's deck templates is rewritten, so the amp lasts the whole run and
+     * rides the checkpoint with the deck it lives in.
+     */
+    Map<String, Object> chooseAmp(String token, String optionId) {
+        SiegeRun run = require(token);
+        if (run.getPendingAmps().isEmpty()) return serialize(run);
+        Map<String, Object> offer = run.getPendingAmps().get(0);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> options = (List<Map<String, Object>>) offer.getOrDefault("options", List.of());
+        Map<String, Object> pick = options.stream()
+                .filter(o -> String.valueOf(o.get("id")).equals(optionId)).findFirst().orElse(null);
+        if (pick == null && !"skip".equalsIgnoreCase(String.valueOf(optionId))) {
+            throw new IllegalArgumentException("Unknown amplification option.");
+        }
+        if (pick != null) {
+            String unitId = String.valueOf(offer.get("unitId"));
+            String moveId = String.valueOf(pick.get("moveId"));
+            String kind = String.valueOf(pick.get("kind"));
+            List<SiegeCard> deck = run.getDeckTemplates();
+            for (int i = 0; i < deck.size(); i++) {
+                SiegeCard card = deck.get(i);
+                if (!card.getOwnerId().equals(unitId) || !card.getSpec().id().equals(moveId)) continue;
+                deck.set(i, new SiegeCard(card.getInstanceId(), card.getOwnerId(),
+                        ampedSpec(card.getSpec(), kind)));
+            }
+            run.setLastReward(offer.get("unitName") + " amplifies " + pick.get("moveName")
+                    + " — " + pick.get("label") + ".");
+        }
+        run.getPendingAmps().remove(0);
+        checkpoint(run);
+        return serialize(run);
     }
 
     private Map<String, Object> awardBattleXpEntry(Combatant unit, String kind, int baseXp, Map<String, Integer> kills) {
@@ -914,6 +1106,7 @@ public class SiegeService {
             party.add(p);
         }
         s.put("party", party);
+        s.put("pendingAmps", new ArrayList<>(run.getPendingAmps()));
         s.put("discoveredSieglings", new ArrayList<>(run.getDiscoveredSieglingIds()));
         s.put("inventory", new ArrayList<>(run.getInventory()));
         s.put("knightBag", new ArrayList<>(run.getKnightBag()));
@@ -1132,6 +1325,10 @@ public class SiegeService {
         s.put("desc", spec.description());
         s.put("status", spec.status() == null ? null : spec.status().name());
         s.put("statusChance", spec.statusChance());
+        if (spec.hasRider()) {
+            s.put("rider", spec.rider().name());
+            s.put("riderValue", spec.riderValue());
+        }
         return s;
     }
 
@@ -1201,6 +1398,14 @@ public class SiegeService {
             }
             if (s.get("knightBag") instanceof List) {
                 for (Object it : (List<Object>) s.get("knightBag")) run.getKnightBag().add(String.valueOf(it));
+            }
+            // An amplification pick the player closed the app on is still owed.
+            if (s.get("pendingAmps") instanceof List) {
+                for (Object it : (List<Object>) s.get("pendingAmps")) {
+                    if (it instanceof Map<?, ?> offer) {
+                        run.getPendingAmps().add(new LinkedHashMap<>((Map<String, Object>) offer));
+                    }
+                }
             }
 
             for (Map<String, Object> p : (List<Map<String, Object>>) s.get("party")) {
@@ -1276,7 +1481,10 @@ public class SiegeService {
                 intVal(s.get("cost"), 1),
                 s.get("desc") == null ? "" : String.valueOf(s.get("desc")),
                 statusName == null ? null : StatusKind.valueOf(String.valueOf(statusName)),
-                intVal(s.get("statusChance"), 0));
+                intVal(s.get("statusChance"), 0),
+                // Snapshots written before level-up amplifications carry no rider.
+                s.get("rider") == null ? AmpRider.NONE : AmpRider.valueOf(String.valueOf(s.get("rider"))),
+                intVal(s.get("riderValue"), 0));
     }
 
     private int intVal(Object value, int fallback) {
@@ -3537,6 +3745,10 @@ public class SiegeService {
         m.put("stats", stats);
         m.put("endRewards", run.getEndRewards());
         m.put("xpRecap", run.getLastXpRecap());
+        // Only the head of the queue: one Siegeling picks at a time, and the next
+        // offer appears as soon as this one is answered.
+        m.put("ampChoice", run.getPendingAmps().isEmpty() ? null : run.getPendingAmps().get(0));
+        m.put("ampsPending", run.getPendingAmps().size());
         m.put("extraction", run.getVeteranTeam());
         m.put("recruit", run.getPendingRecruit());
         if (run.getMercenary() != null) {

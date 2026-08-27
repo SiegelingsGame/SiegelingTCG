@@ -152,6 +152,15 @@ public class SiegeController {
         return siege.chooseReward(str(body.get("token")), str(body.get("optionId")));
     }
 
+    /**
+     * Pick which of a levelled-up Siegeling's cards to amplify:
+     * body { token, optionId } ("skip" to decline the pick).
+     */
+    @PostMapping("/api/siege/level/amp")
+    public Map<String, Object> chooseAmp(@RequestBody Map<String, Object> body) {
+        return siege.chooseAmp(str(body.get("token")), str(body.get("optionId")));
+    }
+
     /** Use one Rest Camp interaction (rest / trader goods / broker): body { token, optionId }. */
     @PostMapping("/api/siege/camp/choose")
     public Map<String, Object> campChoose(@RequestBody Map<String, Object> body) {

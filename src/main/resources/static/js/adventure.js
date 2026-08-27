@@ -180,7 +180,7 @@
     // drag ghost — hand re-renders destroy the source card and otherwise leave
     // a stuck playcard floating over the arena.
     if (id !== 'battleScreen') { abandonActiveCardDrag(); toggleHandSheet(false); }
-    ['loadingScreen', 'resumeScreen', 'setupScreen', 'mapScreen', 'campScreen', 'cacheScreen', 'brokerScreen', 'smithScreen', 'caravanScreen', 'eventScreen', 'minigameScreen', 'interactionResultScreen', 'battleScreen', 'recruitScreen', 'rewardScreen', 'resultScreen'].forEach(function (s) {
+    ['loadingScreen', 'resumeScreen', 'setupScreen', 'mapScreen', 'campScreen', 'cacheScreen', 'brokerScreen', 'smithScreen', 'caravanScreen', 'eventScreen', 'minigameScreen', 'interactionResultScreen', 'battleScreen', 'recruitScreen', 'ampScreen', 'rewardScreen', 'resultScreen'].forEach(function (s) {
       var node = $(s); if (node) node.classList.toggle('hidden', s !== id);
     });
     // Battle and map are static, full-viewport screens (no page scroll —
@@ -582,6 +582,7 @@
     $('endTurnBtn').addEventListener('click', endTurn);
     $('knightUltBtn').addEventListener('click', useUltimate);
     $('rewardSkipBtn').addEventListener('click', function () { chooseReward('skip'); });
+    $('ampSkipBtn').addEventListener('click', function () { chooseAmp('skip'); });
     $('gachaClaimBtn').addEventListener('click', claimRecruit);
     $('interactionResultBtn').addEventListener('click', ackInteractionResult);
     $('inventoryBtn').addEventListener('click', function () { openInventory(); });
@@ -1605,6 +1606,9 @@
       maybeRetryUnclaimedEndRewards(run);
       return;
     }
+    // A level-up pick precedes the spoils pick: it is the consequence of the
+    // fight just fought, and the amplified card can change which spoil is worth taking.
+    if (run.ampChoice) { renderAmpChoice(); return; }
     if (run.pendingRewards && run.pendingRewards.length) { renderRewards(); return; }
     if (state.interactionResult) { renderInteractionResult(); return; }
     if (run.camp) { renderCamp(); return; }
@@ -3108,6 +3112,9 @@
       sp.addEventListener('click', function () { onUnitClick(raw); });
       host.appendChild(sp);
     });
+    // renderSpriteLine builds fresh nodes, which drops any class a still-running
+    // event is holding (the swap spin) — put those back.
+    reapplyHeldSpriteClasses();
   }
 
   function intentLabel(intent, b) {
@@ -3230,6 +3237,9 @@
     function step() {
       if (i >= events.length) {
         hideBanner();
+        // A held class outlives its own event by design; the end of playback is
+        // where it can no longer belong to anything.
+        clearHeldSpriteClasses();
         state.busy = false;
         syncBattleActionButtons();
         done();
@@ -3253,7 +3263,7 @@
     heal: 360, revive: 480, shield: 340, shieldExpired: 240,
     status: 360, stunned: 360, knightHit: 360,
     round: 620, card: 380, enemyAct: 440, ultimate: 560, whiff: 440, loot: 520,
-    swap: 460, evolve: 760, cardUpdate: 560,
+    swapStart: 420, swap: 460, evolve: 760, cardUpdate: 560,
     reshuffle: 560, discardHand: 380, apCharge: 500, actionPoints: 380,
     buff: 380, gaugeReady: 380
   };
@@ -3344,8 +3354,17 @@
         commitVitalsAfter(ev, 200);
         return 480;
       }
+      // The wind-up: both units spin in place from the moment the move starts
+      // and keep spinning until the swap itself lands, which is the next event.
+      case 'swapStart':
+        holdSprite(ev.aId, 'swap-spin');
+        holdSprite(ev.bId, 'swap-spin');
+        showBanner(nameOf(ev.aId) + ' ⇄ ' + nameOf(ev.bId) + ' trade notches…', 'you');
+        return 460;
       case 'swap':
         commitVitals(ev);
+        releaseSprite(ev.aId, 'swap-spin');
+        releaseSprite(ev.bId, 'swap-spin');
         flashSprite(ev.aId, 'swapping');
         flashSprite(ev.bId, 'swapping');
         showBanner(nameOf(ev.aId) + ' ⇄ ' + nameOf(ev.bId) + ' swap notches', 'you');
@@ -3433,6 +3452,38 @@
     if (!node) return;
     node.classList.add(cls);
     setTimeout(function () { node.classList.remove(cls); }, 700);
+  }
+
+  /*
+   * Like flashSprite, but the class stays on until a later event lifts it —
+   * for a state that lasts as long as the wind-up it belongs to (the swap spin)
+   * rather than for one fixed beat. Held classes are tracked so a re-render
+   * mid-hold can put them back, and so leaving the battle cannot strand one.
+   */
+  var heldSpriteClasses = [];
+  function holdSprite(id, cls) {
+    var node = spriteOf(id);
+    if (!node) return;
+    node.classList.add(cls);
+    heldSpriteClasses.push({ id: id, cls: cls });
+  }
+  function releaseSprite(id, cls) {
+    heldSpriteClasses = heldSpriteClasses.filter(function (h) { return !(h.id === id && h.cls === cls); });
+    var node = spriteOf(id);
+    if (node) node.classList.remove(cls);
+  }
+  function reapplyHeldSpriteClasses() {
+    heldSpriteClasses.forEach(function (h) {
+      var node = spriteOf(h.id);
+      if (node) node.classList.add(h.cls);
+    });
+  }
+  function clearHeldSpriteClasses() {
+    heldSpriteClasses.forEach(function (h) {
+      var node = spriteOf(h.id);
+      if (node) node.classList.remove(h.cls);
+    });
+    heldSpriteClasses = [];
   }
 
   // Status ticks and status applications have no attacker to launch a projectile
@@ -4579,6 +4630,64 @@
 
   function kindLabel(kind) {
     return { CARD: 'New Card', UPGRADE: 'Upgrade', RECRUIT: 'Recruit', ITEM: 'Item' }[kind] || 'Reward';
+  }
+
+  // ---- level-up amplification -------------------------------------------
+  var AMP_KIND_ICON = { VALUE: '\u2694', COST: '\u26A1', SWAP_HEAL: '\u2764', SWAP_SHIELD: '\u25C7', SWAP_ATTACK: '\u2B06' };
+
+  /** One levelled Siegeling picks one of three of its own cards to amplify. */
+  function renderAmpChoice() {
+    showScreen('ampScreen');
+    var offer = state.run.ampChoice || {};
+    var opts = offer.options || [];
+    $('ampTitle').innerHTML = esc(offer.unitName || 'Siegeling') + ' reached <em>Lv ' + esc(offer.level || 2) + '</em>';
+    $('ampSub').textContent = 'Full health restored and +' + (offer.hpGained || 0) +
+      ' max HP. Now pick the card this level makes stronger.';
+
+    var art = offer.artUrl
+      ? '<div class="amp-art" style="background-image:url(\'' + artCss(offer.artUrl) + '\')"></div>'
+      : '<div class="amp-glyph">' + icon(offer.element) + '</div>';
+    $('ampUnit').className = 'amp-unit ' + elClass(offer.element);
+    $('ampUnit').innerHTML = art +
+      '<div class="amp-unit-meta">' +
+        '<div class="amp-unit-name">' + icon(offer.element) + ' ' + esc(offer.unitName || '') + '</div>' +
+        '<div class="amp-unit-stats">\u2b50 Lv ' + esc(offer.levelBefore || 1) + ' \u2192 ' + esc(offer.level || 2) +
+          ' \u00b7 \u2764 ' + esc(offer.maxHp || 0) + ' max HP \u00b7 fully healed</div>' +
+      '</div>';
+
+    var grid = $('ampGrid'); grid.innerHTML = '';
+    opts.forEach(function (o) {
+      var c = el('button', 'reward-card amp-card ' + elClass(o.element || offer.element));
+      c.type = 'button';
+      c.innerHTML =
+        '<div class="reward-kind">' + (AMP_KIND_ICON[o.kind] || '\u2728') + ' ' + esc(o.label || 'Amplify') + '</div>' +
+        '<div class="amp-move">' + esc(o.moveName || '') + '</div>' +
+        '<div class="amp-delta">' + ampDeltaText(o) + '</div>' +
+        '<div class="reward-desc">' + esc(o.desc || '') + '</div>';
+      c.addEventListener('click', function () { chooseAmp(o.id); });
+      grid.appendChild(c);
+    });
+  }
+
+  /** The before → after line: whichever of power or cost this amp actually moves. */
+  function ampDeltaText(o) {
+    if (o.afterCost !== o.beforeCost) {
+      return '<span class="amp-was">' + o.beforeCost + ' AP</span> \u2192 <span class="amp-now">' +
+        o.afterCost + ' AP</span>';
+    }
+    if (o.afterValue !== o.beforeValue) {
+      return '<span class="amp-was">' + o.beforeValue + '</span> \u2192 <span class="amp-now">' +
+        o.afterValue + '</span> power';
+    }
+    return '<span class="amp-now">+' + (o.riderValue || 0) + '</span> after the swap';
+  }
+
+  function chooseAmp(optionId) {
+    if (state.busy) return; state.busy = true;
+    api('/api/siege/level/amp', { method: 'POST', body: { token: token(), optionId: optionId } })
+      .then(function (run) { state.run = run; renderRun(); })
+      .catch(function (e) { toast(e.message); })
+      .then(function () { state.busy = false; });
   }
 
   function chooseReward(optionId) {

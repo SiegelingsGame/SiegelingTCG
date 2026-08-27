@@ -57,6 +57,29 @@ final class SiegeTuning {
     /** Max-HP growth per level for the SiegeKnight (+5% of base per level). */
     static final int KNIGHT_HP_PCT_PER_LEVEL = 5;
 
+    // ---- Level-up rewards -------------------------------------------------
+
+    /**
+     * Flat max HP a Siegeling gains per level, on top of the percentage curve
+     * above. Flat so a level still feels like something on a small starter.
+     * Part of the derived curve rather than folded into base HP on the way past,
+     * so every route to level N — XP in a run, a checkpoint reload, a
+     * Battlegrounds squad rebuilt from extracted veterans — lands on the same
+     * max HP.
+     */
+    static final int LEVELUP_BONUS_HP = 5;
+
+    /** Extra magnitude an amplified move gains (damage, heal, shield, buff). */
+    static final int AMP_VALUE_BONUS = 4;
+    /** AP an amplified move costs less; never below 0. */
+    static final int AMP_COST_REDUCTION = 1;
+    /** Healing a swap move's HEAL rider restores to both units it moved. */
+    static final int AMP_SWAP_HEAL = 6;
+    /** Shield a swap move's SHIELD rider grants to both units it moved. */
+    static final int AMP_SWAP_SHIELD = 5;
+    /** Attack a swap move's ATTACK rider adds to both units it moved. */
+    static final int AMP_SWAP_ATTACK = 2;
+
     /**
      * The level derived from a cumulative XP total, clamped to
      * {@link #MAX_LEVEL}. Level 1 is the floor (0 XP).
@@ -97,7 +120,9 @@ final class SiegeTuning {
 
     /** A Siegeling's base max HP scaled to the given level (rounded up, exact integer math). */
     static int scaledMaxHp(int baseMaxHp, int level) {
-        return ceilPercent(baseMaxHp, percentAtLevel(HP_PCT_PER_LEVEL, level));
+        int clamped = Math.max(1, Math.min(MAX_LEVEL, level));
+        return ceilPercent(baseMaxHp, percentAtLevel(HP_PCT_PER_LEVEL, level))
+                + LEVELUP_BONUS_HP * (clamped - 1);
     }
 
     /** The SiegeKnight's base max HP scaled to the given level (rounded up). */

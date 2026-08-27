@@ -92,24 +92,25 @@ class SiegeLevelingTest {
         assertEquals(100, c.getMaxHp());
         assertEquals(100, c.getHp());
 
-        // 120 XP → level 3: maxHp = ceil(100 * 1.12) = 112, and the gained HP heals.
+        // 120 XP → level 3: maxHp = ceil(100 * 1.12) + 5 flat per level past 1
+        // = 112 + 10 = 122, and a level-up restores the unit to full.
         int gained = c.addXp(120);
         assertEquals(2, gained);
         assertEquals(3, c.getLevel());
-        assertEquals(112, c.getMaxHp());
-        assertEquals(112, c.getHp());       // healed the +12 gained
+        assertEquals(122, c.getMaxHp());
+        assertEquals(122, c.getHp());       // a level-up heals to full
         assertEquals(6, c.getSpeed());      // +1 speed at level 3
 
         // Re-applying the level must NOT compound the scaling (idempotent).
         c.applyLevel();
         c.applyLevel();
-        assertEquals(112, c.getMaxHp());
+        assertEquals(122, c.getMaxHp());
 
         // loadLeveling from the same XP reproduces the exact leveled max HP.
         Combatant restored = siegeling(100, 5);
         restored.loadLeveling(c.getXp());
         assertEquals(3, restored.getLevel());
-        assertEquals(112, restored.getMaxHp());
+        assertEquals(122, restored.getMaxHp());
     }
 
     @Test
@@ -122,8 +123,8 @@ class SiegeLevelingTest {
         // Level up: scaling now derives from the raised base, not the innate 100.
         c.addXp(120);                       // → level 3
         assertEquals(3, c.getLevel());
-        assertEquals(SiegeTuning.scaledMaxHp(120, 3), c.getMaxHp()); // 135, bonus preserved
-        assertEquals(135, c.getMaxHp());
+        assertEquals(SiegeTuning.scaledMaxHp(120, 3), c.getMaxHp()); // 145, bonus preserved
+        assertEquals(145, c.getMaxHp());   // ceil(120 * 1.12) = 135, plus 5 flat per level
     }
 
     @Test
