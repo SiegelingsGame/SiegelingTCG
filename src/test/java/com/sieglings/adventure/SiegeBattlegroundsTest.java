@@ -134,6 +134,36 @@ class SiegeBattlegroundsTest {
         assertEquals(3000L, SiegeTuning.bgScore(1000));
     }
 
+    @Test
+    void battlegroundsRebuildKeepsExtractedSwapRiders() {
+        SiegeService service = new SiegeService();
+        Map<String, Object> teamA = team("A", "k1", "Warden", Element.FIRE, 6,
+                member("s1", "Ember", Element.FIRE, 120),
+                member("s2", "Tide", Element.WATER, 50),
+                member("s3", "Cliff", Element.EARTH, 0));
+
+        AbilitySpec amped = new AbilitySpec("test-move-link", "Move Link ★", Element.NEUTRAL,
+                Effect.SWAP, 0, TargetKind.ALLY_SINGLE, 1, "Trade notches.",
+                null, 0, AmpRider.HEAL, SiegeTuning.AMP_SWAP_HEAL);
+        String owner = "ally-0-s1";
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> deck = new ArrayList<>((List<Map<String, Object>>) teamA.get("deck"));
+        deck.addAll(0, SiegeVeteranStore.deckOf(List.of(new SiegeCard(owner + "-swap", owner, amped))));
+        teamA.put("deck", deck);
+
+        SiegeService.BgBuild build = service.buildBattlegroundsParty(
+                List.of(teamA),
+                List.of(new String[] { "A", "s1" }, new String[] { "A", "s2" }, new String[] { "A", "s3" }),
+                "A");
+        AbilitySpec rebuilt = build.deck.stream()
+                .filter(c -> c.getSpec().id().equals("test-move-link"))
+                .findFirst().orElseThrow()
+                .getSpec();
+        assertEquals(AmpRider.HEAL, rebuilt.rider(), "extract → Battlegrounds must keep the swap rider");
+        assertEquals(SiegeTuning.AMP_SWAP_HEAL, rebuilt.riderValue());
+        assertTrue(rebuilt.hasRider());
+    }
+
     // ---- Snapshot helpers (mimic SiegeService.buildVeteranSnapshot) ------
 
     private static Map<String, Object> team(String teamId, String knightId, String knightName,

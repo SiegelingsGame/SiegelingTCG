@@ -111,6 +111,18 @@ class SiegeVeteranTest {
         assertEquals("Ember Strike", spec.get("name"));
         assertEquals("DAMAGE", spec.get("effect"));
         assertEquals(8, spec.get("value"));
+
+        // A level-up swap rider is part of the modified deck; extracting the team
+        // must not drop it or Battlegrounds marches the un-amped card.
+        SiegeCard ampedSwap = new SiegeCard("c2", "s1",
+                new AbilitySpec("m-swap", "Move Link ★", Element.NEUTRAL, Effect.SWAP, 0,
+                        TargetKind.ALLY_SINGLE, 1, "Trade notches.",
+                        null, 0, AmpRider.HEAL, SiegeTuning.AMP_SWAP_HEAL));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> swapSpec = (Map<String, Object>) SiegeVeteranStore.deckOf(List.of(ampedSwap))
+                .get(0).get("spec");
+        assertEquals("HEAL", swapSpec.get("rider"));
+        assertEquals(SiegeTuning.AMP_SWAP_HEAL, swapSpec.get("riderValue"));
     }
 
     // ---- flatten: teams → veteran Siegelings -----------------------------

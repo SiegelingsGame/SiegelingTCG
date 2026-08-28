@@ -1566,7 +1566,8 @@ public class SiegeContentService {
         if (spec.effect() == Effect.EXECUTE) cost = Math.max(EXECUTE_MIN_AP, cost);
         return new AbilitySpec(spec.id(), spec.name() + " +", spec.element(),
                 spec.effect(), value, spec.target(), cost, spec.description(),
-                spec.status(), spec.statusChance());
+                spec.status(), spec.statusChance(),
+                spec.rider() == null ? AmpRider.NONE : spec.rider(), spec.riderValue());
     }
 
     /** A random selectable Siegeling not already in the warband, if any. */

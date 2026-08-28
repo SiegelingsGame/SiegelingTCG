@@ -131,22 +131,10 @@ class SiegeVeteranStore {
     static List<Map<String, Object>> deckOf(List<SiegeCard> deck) {
         List<Map<String, Object>> out = new ArrayList<>();
         for (SiegeCard card : deck) {
-            AbilitySpec spec = card.getSpec();
-            Map<String, Object> s = new LinkedHashMap<>();
-            s.put("id", spec.id());
-            s.put("name", spec.name());
-            s.put("element", spec.element() == null ? null : spec.element().name());
-            s.put("effect", spec.effect().name());
-            s.put("value", spec.value());
-            s.put("target", spec.target().name());
-            s.put("cost", spec.actionCost());
-            s.put("desc", spec.description());
-            s.put("status", spec.status() == null ? null : spec.status().name());
-            s.put("statusChance", spec.statusChance());
             Map<String, Object> d = new LinkedHashMap<>();
             d.put("iid", card.getInstanceId());
             d.put("owner", card.getOwnerId());
-            d.put("spec", s);
+            d.put("spec", card.getSpec().toSnapshot());
             out.add(d);
         }
         return out;

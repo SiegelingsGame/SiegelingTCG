@@ -139,6 +139,19 @@ class SiegeSmithScrapTest {
         assertEquals(1, remaining.templateIndex);
     }
 
+    @Test
+    void upgradeSpecKeepsALevelUpSwapRider() {
+        AbilitySpec amped = new AbilitySpec("test-move-link", "Move Link ★", Element.NEUTRAL,
+                Effect.SWAP, 0, TargetKind.ALLY_SINGLE, 1, "Trade notches.",
+                null, 0, AmpRider.HEAL, SiegeTuning.AMP_SWAP_HEAL);
+        AbilitySpec upgraded = content.upgradeSpec(amped);
+        assertEquals(AmpRider.HEAL, upgraded.rider(),
+                "a smith / spoil upgrade must not strip the level-up rider");
+        assertEquals(SiegeTuning.AMP_SWAP_HEAL, upgraded.riderValue());
+        assertTrue(upgraded.hasRider());
+        assertTrue(upgraded.name().contains("+"));
+    }
+
     @SuppressWarnings("unchecked")
     private void registerRun(SiegeRun run) throws Exception {
         Map<String, Object> runs = (Map<String, Object>) getField(service, "runs");
