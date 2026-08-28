@@ -179,7 +179,13 @@
     // Leaving battle (or re-entering a fresh screen) must drop any in-flight
     // drag ghost — hand re-renders destroy the source card and otherwise leave
     // a stuck playcard floating over the arena.
-    if (id !== 'battleScreen') { abandonActiveCardDrag(); toggleHandSheet(false); }
+    if (id !== 'battleScreen') {
+      abandonActiveCardDrag();
+      toggleHandSheet(false);
+      // A queued End Turn belongs to the battle it was tapped in — never let it
+      // survive to fire on the first turn of the next one.
+      state.pendingEndTurn = false;
+    }
     ['loadingScreen', 'resumeScreen', 'setupScreen', 'mapScreen', 'campScreen', 'cacheScreen', 'brokerScreen', 'smithScreen', 'caravanScreen', 'eventScreen', 'minigameScreen', 'interactionResultScreen', 'battleScreen', 'recruitScreen', 'ampScreen', 'rewardScreen', 'resultScreen'].forEach(function (s) {
       var node = $(s); if (node) node.classList.toggle('hidden', s !== id);
     });
@@ -405,9 +411,93 @@
     }, 150);
   }
 
+  /** iOS Safari ignores `touch-action` for double-tap zoom on the document, and
+   *  a stray zoom on a fixed 100dvh battle layout strands the top of the screen
+   *  off-viewport with no in-app way back. So on the single-viewport screens we
+   *  swallow the second tap of a double-tap and Safari's pinch gestures, and if
+   *  a zoom happens anyway we pull the page back to the origin so the knight
+   *  plate and speed track are never left scrolled out of reach. */
+  function isFixedScreen() {
+    var screen = document.body.dataset.screen;
+    return screen === 'battleScreen' || screen === 'mapScreen';
+  }
+
+  function guardViewportZoom() {
+    var lastTap = 0, lastX = 0, lastY = 0;
+    document.addEventListener('touchend', function (e) {
+      if (!isFixedScreen() || e.touches.length) return;
+      var t = e.changedTouches[0];
+      if (!t) return;
+      var now = Date.now();
+      if (now - lastTap < 320 && Math.abs(t.clientX - lastX) < 32 && Math.abs(t.clientY - lastY) < 32) {
+        // Cancelling the second tap is what stops the zoom; the first tap has
+        // already done its work, so no interaction is lost.
+        e.preventDefault();
+        lastTap = 0;
+        return;
+      }
+      lastTap = now; lastX = t.clientX; lastY = t.clientY;
+    }, { passive: false });
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (type) {
+      document.addEventListener(type, function (e) {
+        if (isFixedScreen()) e.preventDefault();
+      }, { passive: false });
+    });
+    var vv = window.visualViewport;
+    if (!vv) return;
+    // Every fixed shell sizes off --siege-vh rather than raw 100dvh. dvh is the
+    // *layout* viewport: it does not shrink when the page is zoomed, and on iOS
+    // it lags a rotation, both of which push the bottom HUD off the glass and
+    // strand the top row. The visual viewport is what the player can actually
+    // see, so that is what the column is measured against.
+    function syncViewportHeight() {
+      var h = Math.round(vv.height);
+      if (h > 240) document.documentElement.style.setProperty('--siege-vh', h + 'px');
+    }
+    syncViewportHeight();
+    vv.addEventListener('resize', syncViewportHeight);
+    window.addEventListener('orientationchange', function () {
+      // iOS reports the post-rotation size a beat late; one settled re-read
+      // beats trusting the value that arrives with the event.
+      setTimeout(syncViewportHeight, 260);
+    });
+    var settle = null;
+    function resetViewport() {
+      if (!isFixedScreen()) return;
+      if (settle) clearTimeout(settle);
+      settle = setTimeout(function () {
+        if (!isFixedScreen()) return;
+        // Zoomed or merely panned, the layout viewport must sit at the origin
+        // or the fixed column's top row is off-screen.
+        if (vv.offsetTop > 1 || vv.offsetLeft > 1 || window.scrollY > 1 || window.scrollX > 1) {
+          window.scrollTo(0, 0);
+        }
+      }, 120);
+    }
+    vv.addEventListener('resize', resetViewport);
+    vv.addEventListener('scroll', resetViewport);
+  }
+
+  /** A rotation changes every baked pixel measurement on the battle screen —
+   *  the hand fan's arc, the AP row, the stage — and iOS reports the new size a
+   *  frame or two late, so re-render once the new axis has actually settled. */
+  var battleOrientTimer = null;
+  function onBattleOrientationFlip() {
+    if (battleOrientTimer) clearTimeout(battleOrientTimer);
+    battleOrientTimer = setTimeout(function () {
+      if (document.body.dataset.screen !== 'battleScreen') return;
+      if (!state.run || !state.run.battle || activeCardDrag) return;
+      if (window.scrollY > 1 || window.scrollX > 1) window.scrollTo(0, 0);
+      renderBattle();
+    }, 220);
+  }
+
   function boot() {
     window.addEventListener('resize', onMapOrientationFlip);
     window.addEventListener('orientationchange', onMapOrientationFlip);
+    window.addEventListener('resize', onBattleOrientationFlip);
+    window.addEventListener('orientationchange', onBattleOrientationFlip);
+    guardViewportZoom();
     wireStaticButtons();
     // Prefer the account checkpoint over this device's old token so phone and
     // desktop always resume the same signed-in expedition. Guests retain the
@@ -590,6 +680,10 @@
     if (extractBtn) extractBtn.addEventListener('click', extractTeam);
     $('deckCounts').addEventListener('click', function () { toggleHandSheet(); });
     $('handSheetClose').addEventListener('click', function () { toggleHandSheet(false); });
+    $('handSheetTabs').addEventListener('click', function (e) {
+      var tab = e.target.closest('.hand-sheet-tab');
+      if (tab) selectHandSheetPile(tab.dataset.pile);
+    });
     $('handSheet').addEventListener('click', function (e) { if (e.target === $('handSheet')) toggleHandSheet(false); });
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && !$('handSheet').classList.contains('hidden')) toggleHandSheet(false);
@@ -808,6 +902,7 @@
       case 'SLOW': return '❄ slow · ' + spec.actionCost + ' AP';
       case 'STUN': return '💫 stun · ' + spec.actionCost + ' AP';
       case 'DRAW': return '🃏 draw ' + spec.value + ' · ' + spec.actionCost + ' AP';
+      case 'GAIN_AP': return '⚡ +' + apGain(spec) + ' AP · ' + spec.actionCost + ' AP';
       case 'EXECUTE': return '☠ destroy · ' + spec.actionCost + ' AP';
       case 'SWAP': return '⇄ swap notches · ' + spec.actionCost + ' AP';
       case 'EVOLVE': return '🌟 evolve · ' + spec.actionCost + ' AP';
@@ -2782,7 +2877,18 @@
     var endBtn = $('endTurnBtn');
     if (endBtn) {
       endBtn.classList.toggle('hidden', over);
-      endBtn.disabled = !canAct;
+      // Deliberately NOT `disabled`: a disabled button swallows the tap
+      // entirely, which is exactly what made ending a turn feel like it needed
+      // two taps (the first landing during playback). The button stays live and
+      // latches the intent instead — see endTurn().
+      endBtn.disabled = false;
+      endBtn.classList.toggle('is-waiting', !canAct && !over);
+      endBtn.setAttribute('aria-disabled', canAct ? 'false' : 'true');
+      if (canAct && state.pendingEndTurn) {
+        state.pendingEndTurn = false;
+        endBtn.classList.remove('is-queued');
+        endTurn();
+      }
     }
     var ult = $('knightUltBtn');
     if (ult) {
@@ -2882,8 +2988,12 @@
 
     // hud
     var ap = $('apDisplay'); ap.innerHTML = '<span class="ap-label">AP</span>';
-    for (var i = 0; i < (b.maxActionPoints || 5); i++) {
-      ap.appendChild(el('span', 'ap-pip' + (i < b.actionPoints ? ' full' : '')));
+    // A GAIN_AP card can push the pool past its per-turn size, so the row grows
+    // to whatever is actually held — otherwise the extra points are invisible.
+    var apPipCount = Math.max(b.maxActionPoints || 5, b.actionPoints || 0);
+    for (var i = 0; i < apPipCount; i++) {
+      ap.appendChild(el('span', 'ap-pip' + (i < b.actionPoints ? ' full' : '') +
+        (i >= (b.maxActionPoints || 5) ? ' bonus' : '')));
     }
     $('deckCounts').textContent = '🃏' + b.deckCount + ' · ✋' + b.hand.length + ' · 🗑' + b.discardCount;
 
@@ -2968,12 +3078,76 @@
         renderBattle();
       });
     });
+    // The plate is the only place the knight's passive and Ultimate are
+    // written down, so tapping it (name, HP, charge bar — anywhere but the
+    // item buttons, which stop the event) opens the full sheet.
+    host.setAttribute('role', 'button');
+    host.setAttribute('tabindex', '0');
+    host.title = 'Tap for your SiegeKnight\'s passive and Ultimate';
+    if (host.dataset.sheetBound !== '1') {
+      host.dataset.sheetBound = '1';
+      host.addEventListener('click', showKnightSheet);
+      host.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showKnightSheet(); }
+      });
+    }
     var ult = $('knightUltBtn');
     ult.classList.toggle('hidden', b.phase === 'WON' || b.phase === 'LOST');
     ult.textContent = k.ultReady ? '⚡ ULT!' : '⚡' + k.charge + '/' + k.ultCost;
     // The Ultimate differs per leadership class, so the button has to say what
     // 20 Charge actually buys before the player spends it.
     ult.title = (k.ultimateName || 'Knight Ultimate') + (k.ultimateDesc ? ' — ' + k.ultimateDesc : '');
+  }
+
+  /** Every card the knight owns, wherever it currently sits — the sheet is a
+   *  reference for the whole class kit, not just what is in hand right now. */
+  function knightKit(b) {
+    var seen = {}, out = [];
+    ['hand', 'deck', 'discard'].forEach(function (pile) {
+      (b[pile] || []).forEach(function (card) {
+        // Knight-owned cards carry the knight's *owner* prefix, which is not
+        // the combatant id the HUD knows him by.
+        if (String(card.ownerId).indexOf('knight-') !== 0) return;
+        if (seen[card.name]) return;
+        seen[card.name] = 1;
+        out.push(card);
+      });
+    });
+    return out;
+  }
+
+  function showKnightSheet() {
+    var b = state.run && state.run.battle;
+    var k = b && heldVitals(b.knight);
+    if (!k) return;
+    var effects = [];
+    if (k.passiveName || k.passive) {
+      effects.push({
+        icon: '🛡️', label: k.passiveName || 'Passive',
+        detail: k.passive || '', negative: false
+      });
+    }
+    if (k.ultimateName) {
+      effects.push({
+        icon: '⚡', label: k.ultimateName + ' — ' + k.charge + '/' + k.ultCost + ' Charge',
+        detail: (k.ultimateDesc || '') + (k.ultReady ? ' · Ready now.' : ''), negative: false
+      });
+    }
+    showUnitModal({
+      name: k.name,
+      element: k.element,
+      artUrl: k.artUrl,
+      subtitle: 'SiegeKnight' + (k.level ? ' · Lv' + k.level : '') +
+        ' · ' + k.hp + '/' + k.maxHp + ' HP',
+      effects: effects,
+      cards: knightKit(b).map(function (card) {
+        return {
+          name: card.name, element: card.element, effect: card.effect, value: card.value,
+          actionCost: card.actionCost, description: card.description,
+          status: card.status, statusChance: card.statusChance
+        };
+      })
+    });
   }
 
   /** Speed race track: both teams' units race along a line; leader acts first. */
@@ -3396,7 +3570,11 @@
         return 120;
       case 'actionPoints':
         showBanner('⚡ +' + ev.amount + ' AP this turn', 'you');
-        return 520;
+        apGainAnimation(ev.sourceId, ev.amount, ev.total);
+        return 620;
+      case 'apRefill':
+        apRefillAnimation(ev.amount);
+        return 260;
       case 'apCharge':
         showBanner('Unused AP → +' + ev.amount + ' Ultimate Charge', 'you');
         apChargeAnimation(ev.amount, ev.total);
@@ -3685,6 +3863,91 @@
     }
   }
 
+  /** The AP pips the HUD is currently showing, so a refill can light up only
+   *  the pips that actually changed instead of re-flashing the whole row. */
+  function apPips() {
+    var host = $('apDisplay');
+    return host ? Array.prototype.slice.call(host.querySelectorAll('.ap-pip')) : [];
+  }
+
+  /** Lights pips [from, to) one after another, so a refill reads as the bar
+   *  filling rather than snapping. Used by both the refill and the AP orbs. */
+  function fillApPips(from, to) {
+    var pips = apPips();
+    if (!pips.length) return;
+    // A gain past the row's length still has to read as landing somewhere, so
+    // it flashes the last pip rather than falling on the floor.
+    from = Math.max(0, Math.min(from, pips.length - 1));
+    to = Math.max(from + 1, Math.min(to, pips.length));
+    for (var i = from; i < to; i++) {
+      // Look the pip up by index when the step actually runs: a state render in
+      // between rebuilds the row, and a node captured now would be detached —
+      // the flash would then play on an element nobody can see.
+      (function (index, order) {
+        setTimeout(function () {
+          var pip = apPips()[index];
+          if (!pip) return;
+          pip.classList.add('full', 'ap-pip-pop');
+          setTimeout(function () { pip.classList.remove('ap-pip-pop'); }, 420);
+        }, order * 70);
+      })(i, i - from);
+    }
+  }
+
+  /** Start of turn: the whole pool comes back, so the pips light up in sequence
+   *  from empty. The state render that follows leaves them lit. */
+  function apRefillAnimation(amount) {
+    var pips = apPips();
+    if (!pips.length) return;
+    pips.forEach(function (p) { p.classList.remove('full'); });
+    $('apDisplay').classList.add('ap-refilling');
+    setTimeout(function () { $('apDisplay').classList.remove('ap-refilling'); }, 700);
+    // Shock can drain the whole pool: an empty refill has nothing to light, and
+    // fillApPips always lights at least one pip.
+    var lit = amount == null ? pips.length : amount;
+    if (lit > 0) fillApPips(0, lit);
+  }
+
+  /** A GAIN_AP card: an energy ball drops from the Siegeling that played it
+   *  into the AP display, and the pip it paid for lights as it lands. */
+  function apGainAnimation(sourceId, amount, total) {
+    var host = $('apDisplay');
+    if (!host) return;
+    var n = Math.max(1, Math.min(amount || 1, 5));
+    var before = total != null ? total - (amount || 0) : apPips().filter(function (p) {
+      return p.classList.contains('full');
+    }).length;
+    var src = spriteOf(sourceId);
+    var from = src ? src.getBoundingClientRect() : null;
+    var to = host.getBoundingClientRect();
+    for (var i = 0; i < n; i++) {
+      (function (i) {
+        setTimeout(function () {
+          var orb = el('div', 'ap-orb ap-orb-gain');
+          var x0 = from ? from.left + from.width / 2 : to.left + to.width / 2;
+          var y0 = from ? from.top + from.height * 0.5 : to.top - 120;
+          orb.style.left = x0 + 'px';
+          orb.style.top = y0 + 'px';
+          document.body.appendChild(orb);
+          var x1 = to.left + to.width / 2, y1 = to.top + to.height / 2;
+          var anim = orb.animate([
+            { transform: 'translate(-50%,-50%) scale(.7)', opacity: .9, offset: 0 },
+            { transform: 'translate(calc(-50% + ' + ((x1 - x0) / 2) + 'px), calc(-50% + ' +
+                ((y1 - y0) / 2 - 26) + 'px)) scale(1.25)', opacity: 1, offset: .55 },
+            { transform: 'translate(calc(-50% + ' + (x1 - x0) + 'px), calc(-50% + ' +
+                (y1 - y0) + 'px)) scale(.6)', opacity: .95, offset: 1 }
+          ], { duration: 460, easing: 'cubic-bezier(.35,.75,.4,1)' });
+          anim.onfinish = function () {
+            orb.remove();
+            host.classList.add('ap-hit');
+            setTimeout(function () { host.classList.remove('ap-hit'); }, 300);
+            fillApPips(before + i, before + i + 1);
+          };
+        }, i * 130);
+      })(i);
+    }
+  }
+
   /** Element-colored orb that flies from the source sprite to the target. */
   function fireProjectile(stage, sourceId, targetId, element, onArrive) {
     var src = spriteOf(sourceId), dst = spriteOf(targetId);
@@ -3761,11 +4024,45 @@
     if (open) renderHandSheet(b);
   }
 
+  /** Which pile the sheet is showing. Kept across opens so a player who lives
+   *  in the discard pile does not have to re-pick it every time. */
+  var handSheetPile = 'hand';
+
+  function selectHandSheetPile(pile) {
+    if (!pile || pile === handSheetPile) return;
+    handSheetPile = pile;
+    renderHandSheet();
+  }
+
+  /** The three piles the sheet can show. Hand is the live, playable one; the
+   *  other two are server-sent read-only views (draw pile deliberately sorted,
+   *  not in draw order, so it never leaks what comes next). */
+  function handSheetCards(b, pile) {
+    if (pile === 'deck') return b.deck || [];
+    if (pile === 'discard') return b.discard || [];
+    return sortHandByOwner(b);
+  }
+
+  var HAND_SHEET_EMPTY = {
+    hand: 'Your hand is empty — end the turn to draw.',
+    deck: 'Your deck is empty — it reshuffles from the discard.',
+    discard: 'Nothing discarded yet this battle.'
+  };
+
   function renderHandSheet(b) {
     b = b || (state.run && state.run.battle);
     var grid = $('handSheetGrid');
     if (!grid || !b) return;
-    var cards = sortHandByOwner(b);
+    $('handSheetCountHand').textContent = (b.hand || []).length;
+    $('handSheetCountDeck').textContent = b.deck ? b.deck.length : (b.deckCount || 0);
+    $('handSheetCountDiscard').textContent = b.discard ? b.discard.length : (b.discardCount || 0);
+    var tabs = $('handSheetTabs').querySelectorAll('.hand-sheet-tab');
+    for (var i = 0; i < tabs.length; i++) {
+      var on = tabs[i].dataset.pile === handSheetPile;
+      tabs[i].classList.toggle('is-on', on);
+      tabs[i].setAttribute('aria-selected', on ? 'true' : 'false');
+    }
+    var cards = handSheetCards(b, handSheetPile);
     var sub = $('handSheetSub');
     if (sub) {
       sub.textContent = cards.length + (cards.length === 1 ? ' card' : ' cards') +
@@ -3773,17 +4070,20 @@
     }
     grid.innerHTML = '';
     if (!cards.length) {
-      grid.appendChild(el('div', 'hand-sheet-empty', 'Your hand is empty — end the turn to draw.'));
+      grid.appendChild(el('div', 'hand-sheet-empty', HAND_SHEET_EMPTY[handSheetPile]));
       return;
     }
+    var live = handSheetPile === 'hand';
     cards.forEach(function (card) {
-      var c = el('div', playCardClass(card));
+      var c = el('div', playCardClass(card) + (live ? '' : ' pile-card'));
       c.dataset.owner = card.ownerId;
       c.innerHTML = playCardMarkup(card);
-      c.addEventListener('click', function () {
-        toggleHandSheet(false);
-        focusHandCard(card.instanceId);
-      });
+      if (live) {
+        c.addEventListener('click', function () {
+          toggleHandSheet(false);
+          focusHandCard(card.instanceId);
+        });
+      }
       grid.appendChild(c);
     });
   }
@@ -4330,6 +4630,11 @@
   function allSuffix(card) {
     return (card.target === 'ALL_ENEMIES' || card.target === 'ALLY_ALL') ? ' (all)' : '';
   }
+  /** Mirrors SiegeCombatEngine's GAIN_AP floor so the face never promises
+   *  fewer points than the play actually grants. */
+  function apGain(card) {
+    return Math.max(1, card && card.value ? card.value : 0);
+  }
   function effectLabel(card) {
     switch (card.effect) {
       case 'DAMAGE': {
@@ -4346,6 +4651,7 @@
       case 'SLOW': return '❄ Slow' + allSuffix(card);
       case 'STUN': return '💫 Stun' + allSuffix(card);
       case 'DRAW': return '🃏 Draw ' + card.value;
+      case 'GAIN_AP': return '⚡ +' + apGain(card) + ' AP';
       case 'EXECUTE': return '☠ Destroy';
       case 'SWAP': return '⇄ Swap notches';
       case 'EVOLVE': return '🌟 Evolve!';
@@ -4493,6 +4799,11 @@
 
   function playCard(cardId, targetId) {
     if (state.busy) return;
+    // Playing a card is a change of mind: a queued End Turn must not fire
+    // behind it.
+    state.pendingEndTurn = false;
+    var endBtn = $('endTurnBtn');
+    if (endBtn) endBtn.classList.remove('is-queued');
     state.busy = true;
     syncBattleActionButtons();
     api('/api/siege/battle/play', { method: 'POST', body: { token: token(), cardId: cardId, targetId: targetId } })
@@ -4506,7 +4817,20 @@
   }
 
   function endTurn() {
-    if (state.busy) return;
+    var b = state.run && state.run.battle;
+    // Tapped while the previous action is still playing back: remember it and
+    // fire the moment the turn is actually ours again, rather than making the
+    // player tap a second time.
+    if (state.busy || (b && b.phase !== 'PLAYER_INPUT')) {
+      if (b && b.phase !== 'WON' && b.phase !== 'LOST') {
+        state.pendingEndTurn = true;
+        var btn = $('endTurnBtn');
+        if (btn) btn.classList.add('is-queued');
+      }
+      return;
+    }
+    state.pendingEndTurn = false;
+    $('endTurnBtn').classList.remove('is-queued');
     state.busy = true;
     syncBattleActionButtons();
     state.selectedCardId = null;

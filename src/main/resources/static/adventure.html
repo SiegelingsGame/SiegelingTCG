@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Siege — Siegelings Adventure</title>
 <link rel="icon" href="/favicon.png">
-<link rel="stylesheet" href="/css/adventure.css?v=72">
+<link rel="stylesheet" href="/css/adventure.css?v=74">
 </head>
 <body>
 <!-- Enemy Siegelings are corrupted card art, so they need the same die-cut shade
@@ -292,9 +292,14 @@
     <div class="unit-modal hand-sheet hidden" id="handSheet" role="dialog" aria-modal="true" aria-labelledby="handSheetTitle">
       <div class="unit-modal-card hand-sheet-card">
         <div class="hand-sheet-head">
-          <span id="handSheetTitle">✋ Your hand</span>
+          <span id="handSheetTitle">🃏 Your cards</span>
           <span class="hand-sheet-sub" id="handSheetSub"></span>
           <button class="unit-modal-close" id="handSheetClose" type="button" aria-label="Close">✕</button>
+        </div>
+        <div class="hand-sheet-tabs" id="handSheetTabs" role="tablist">
+          <button class="hand-sheet-tab is-on" type="button" role="tab" data-pile="hand" aria-selected="true">✋ Hand <b id="handSheetCountHand">0</b></button>
+          <button class="hand-sheet-tab" type="button" role="tab" data-pile="deck" aria-selected="false">🂠 Deck <b id="handSheetCountDeck">0</b></button>
+          <button class="hand-sheet-tab" type="button" role="tab" data-pile="discard" aria-selected="false">🗑 Discard <b id="handSheetCountDiscard">0</b></button>
         </div>
         <div class="hand-sheet-grid" id="handSheetGrid"></div>
       </div>
@@ -648,6 +653,6 @@
   <div class="siege-toast hidden" id="siegeToast"></div>
 </div>
 <script src="/js/siege-maps.js?v=3"></script>
-<script src="/js/adventure.js?v=77"></script>
+<script src="/js/adventure.js?v=81"></script>
 </body>
 </html>

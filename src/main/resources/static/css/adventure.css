@@ -98,11 +98,11 @@ body:not([data-screen="mapScreen"]) .siege-topbar #mapMode{display:none;}
    scroll shove them around or clip them under mobile browser chrome. */
 html{height:100%;}
 body[data-screen="battleScreen"], body[data-screen="mapScreen"]{
-  height:100dvh; overflow:hidden;
+  height:var(--siege-vh,100dvh); overflow:hidden;
 }
 body[data-screen="battleScreen"] .siege-app,
 body[data-screen="mapScreen"] .siege-app{
-  height:100dvh; overflow:hidden; min-height:0;
+  height:var(--siege-vh,100dvh); overflow:hidden; min-height:0;
   display:flex; flex-direction:column; padding-bottom:0;
 }
 body[data-screen="battleScreen"] .siege-topbar,
@@ -459,7 +459,7 @@ body[data-screen="smithScreen"],
 body[data-screen="caravanScreen"],
 body[data-screen="eventScreen"],
 body[data-screen="rewardScreen"]{
-  background:#05070b; height:100dvh; overflow:hidden;
+  background:#05070b; height:var(--siege-vh,100dvh); overflow:hidden;
 }
 body[data-screen="campScreen"] .siege-app,
 body[data-screen="cacheScreen"] .siege-app,
@@ -469,7 +469,7 @@ body[data-screen="caravanScreen"] .siege-app,
 body[data-screen="eventScreen"] .siege-app,
 body[data-screen="rewardScreen"] .siege-app{
   position:relative; max-width:none; width:100%;
-  height:100dvh; min-height:0; overflow:hidden; padding:0;
+  height:var(--siege-vh,100dvh); min-height:0; overflow:hidden; padding:0;
   display:flex; flex-direction:column;
 }
 /* Chrome floats over the scene rather than reserving a band above it; the
@@ -1402,6 +1402,19 @@ body[data-battle-node="BOSS"] .battle-stage::before{
 .hand-sheet-head{display:flex; align-items:center; gap:9px; margin-bottom:10px; font-size:14px; font-weight:800;}
 .hand-sheet-head .unit-modal-close{position:static; margin-left:auto; flex:0 0 auto;}
 .hand-sheet-sub{font-size:11px; font-weight:600; color:var(--faint);}
+.hand-sheet-tabs{display:flex; gap:6px; margin-bottom:9px; flex:0 0 auto;}
+.hand-sheet-tab{
+  flex:1 1 0; min-width:0; padding:7px 6px; border-radius:9px; cursor:pointer;
+  border:1px solid rgba(255,255,255,.13); background:rgba(255,255,255,.04);
+  color:var(--faint); font:inherit; font-size:11.5px; font-weight:700;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.hand-sheet-tab b{font-weight:800; opacity:.75;}
+.hand-sheet-tab.is-on{color:var(--text); border-color:var(--accent); background:rgba(255,255,255,.09);}
+/* Draw- and discard-pile cards are a reference, not a play: no hover lift and
+   no pointer, so the face never suggests it can be dragged out. */
+.hand-sheet-grid .playcard.pile-card{cursor:default;}
+.hand-sheet-grid .playcard.pile-card:hover{transform:none;}
 .hand-sheet-grid{
   flex:1 1 auto; min-height:0; overflow:auto;
   display:grid; grid-template-columns:repeat(auto-fill,minmax(126px,1fr));
@@ -1428,6 +1441,8 @@ body[data-battle-node="BOSS"] .battle-stage::before{
   .hand-sheet{padding:8px;}
   .hand-sheet-card{width:min(940px,96vw); max-height:92dvh; padding:10px 11px;}
   .hand-sheet-head{margin-bottom:6px; font-size:13px;}
+  .hand-sheet-tabs{margin-bottom:6px;}
+  .hand-sheet-tab{padding:5px 5px; font-size:11px;}
   .hand-sheet-grid{grid-template-columns:repeat(auto-fill,minmax(114px,1fr)); gap:8px; padding:5px 3px 2px;}
   .hand-sheet-grid .playcard{height:142px; padding:8px 9px;}
   .hand-sheet-grid .playcard .pc-desc{-webkit-line-clamp:3;}
@@ -1589,6 +1604,45 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
   transform:translate(-50%,-50%);
 }
 .knight-plate.kp-charge-pop .kp-chargebar{box-shadow:0 0 14px rgba(255,230,60,.9);}
+/* AP orbs from a GAIN_AP card read as energy falling into the pool, so they
+   are brighter and colder than the leftover-AP orbs going the other way. */
+.ap-orb-gain{
+  width:17px; height:17px;
+  background:radial-gradient(circle at 35% 30%, #fffbe0, #ffd23c 55%, #ff9a3c);
+  box-shadow:0 0 16px rgba(255,215,90,.95), 0 0 30px rgba(255,180,60,.55);
+}
+/* A pip lighting up: the flash is on the pip itself so a refill reads as the
+   row filling one step at a time rather than the whole HUD blinking. */
+.ap-pip{transition:background .18s ease, box-shadow .18s ease;}
+.ap-pip.ap-pip-pop{animation:ap-pip-pop .42s ease-out;}
+@keyframes ap-pip-pop{
+  0%{transform:scale(.65); box-shadow:0 0 0 rgba(255,154,60,0);}
+  45%{transform:scale(1.3); box-shadow:0 0 16px rgba(255,214,90,.95);}
+  100%{transform:scale(1); box-shadow:0 0 8px rgba(255,154,60,.7);}
+}
+.ap-pip.bonus{border-color:#ffe63c; box-shadow:0 0 10px rgba(255,230,60,.55);}
+.ap-pip.bonus.full{background:#ffe63c;}
+.ap-display.ap-refilling .ap-label{color:var(--accent); text-shadow:0 0 10px rgba(255,154,60,.8);}
+.ap-display.ap-hit{animation:ap-hit .3s ease-out;}
+@keyframes ap-hit{
+  0%{transform:scale(1);} 40%{transform:scale(1.08);} 100%{transform:scale(1);}
+}
+/* End Turn stays tappable while the board is animating (a disabled button
+   swallows the tap, which reads as "it needs two taps"); these say whether the
+   press is being held or has been queued. */
+#endTurnBtn.is-waiting{opacity:.62;}
+#endTurnBtn.is-queued{
+  opacity:1; border-color:var(--accent); color:var(--accent);
+  animation:end-turn-queued 1s ease-in-out infinite;
+}
+@keyframes end-turn-queued{
+  0%,100%{box-shadow:0 0 0 rgba(255,154,60,0);}
+  50%{box-shadow:0 0 14px rgba(255,154,60,.65);}
+}
+/* The plate opens the knight sheet, so it has to look pressable. */
+.knight-plate[role="button"]{cursor:pointer;}
+.knight-plate[role="button"]:active{transform:scale(.985);}
+.knight-plate[role="button"]:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
 .playcard .pc-eff .pc-boost{color:var(--good); font-weight:800;}
 .playcard .pc-eff s{opacity:.55; font-weight:500; margin-left:2px;}
 /* The one elastic row: it absorbs whatever height the fixed card has left and
@@ -2019,10 +2073,10 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
    of the post-battle moment), but the cards are text-only — an amplification
    has no art, just a before -> after — so they are compact instead of the
    reward screen's full-height sigils. */
-body[data-screen="ampScreen"]{ background:#05070b; height:100dvh; overflow:hidden; }
+body[data-screen="ampScreen"]{ background:#05070b; height:var(--siege-vh,100dvh); overflow:hidden; }
 body[data-screen="ampScreen"] .siege-app{
   position:relative; max-width:none; width:100%;
-  height:100dvh; min-height:0; overflow:hidden; padding:0;
+  height:var(--siege-vh,100dvh); min-height:0; overflow:hidden; padding:0;
   display:flex; flex-direction:column;
 }
 body[data-screen="ampScreen"] .siege-topbar{
@@ -2074,13 +2128,13 @@ body[data-screen="ampScreen"] .siege-screen{
    centered, with the board measured against the viewport HEIGHT as well as its
    width (--mg-board) so it can never outgrow the frame. */
 body[data-screen="minigameScreen"],
-body[data-screen="interactionResultScreen"]{ height:100dvh; overflow:hidden; }
+body[data-screen="interactionResultScreen"]{ height:var(--siege-vh,100dvh); overflow:hidden; }
 /* Board size: the smaller of the width budget and what is left of the viewport
    height once the icon/title/prompt/actions stack has taken its share. */
 body[data-screen="minigameScreen"]{ --mg-board:min(88vw, 340px, 46dvh); }
 body[data-screen="minigameScreen"] .siege-app,
 body[data-screen="interactionResultScreen"] .siege-app{
-  height:100dvh; min-height:0; overflow:hidden; padding-bottom:0;
+  height:var(--siege-vh,100dvh); min-height:0; overflow:hidden; padding-bottom:0;
   display:flex; flex-direction:column;
 }
 body[data-screen="minigameScreen"] .siege-topbar,
