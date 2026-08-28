@@ -2,6 +2,9 @@ package com.sieglings.adventure;
 
 import com.sieglings.model.enums.Element;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 /**
  * A resolved, combat-ready ability shape shared by player cards (built from a
  * Siegeling move) and enemy abilities. Immutable.
@@ -57,5 +60,29 @@ record AbilitySpec(
 
     boolean needsExplicitTarget() {
         return target == TargetKind.ENEMY_SINGLE || target == TargetKind.ALLY_SINGLE;
+    }
+
+    /**
+     * Checkpoint / veteran snapshot shape. One writer so a new field (amp
+     * riders, …) cannot survive a mid-run save and then vanish when the team
+     * is extracted for Battlegrounds.
+     */
+    Map<String, Object> toSnapshot() {
+        Map<String, Object> s = new LinkedHashMap<>();
+        s.put("id", id);
+        s.put("name", name);
+        s.put("element", element == null ? null : element.name());
+        s.put("effect", effect.name());
+        s.put("value", value);
+        s.put("target", target.name());
+        s.put("cost", actionCost);
+        s.put("desc", description);
+        s.put("status", status == null ? null : status.name());
+        s.put("statusChance", statusChance);
+        if (hasRider()) {
+            s.put("rider", rider.name());
+            s.put("riderValue", riderValue);
+        }
+        return s;
     }
 }

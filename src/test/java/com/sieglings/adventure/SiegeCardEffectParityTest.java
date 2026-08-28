@@ -266,4 +266,20 @@ class SiegeCardEffectParityTest {
         assertTrue(g.foe.has(StatusKind.SLOW));
         assertTrue(g.foe.effectiveSpeed() < g.foe.getSpeed());
     }
+
+    @Test
+    void chiselingAnAmpedSwapStillHealsBothUnits() {
+        Fixture f = fixture(NodeType.BATTLE);
+        f.ally.setHp(20);
+        f.mate.setHp(20);
+        AbilitySpec amped = new AbilitySpec("move_link", "Move Link ★", Element.NEUTRAL, Effect.SWAP, 0,
+                TargetKind.ALLY_SINGLE, 1, "Trade notches.",
+                null, 0, AmpRider.HEAL, SiegeTuning.AMP_SWAP_HEAL);
+        AbilitySpec upgraded = content.upgradeSpec(amped);
+        apply(f.battle, f.ally, upgraded, List.of(f.mate));
+        assertEquals(20 + SiegeTuning.AMP_SWAP_HEAL, f.ally.getHp());
+        assertEquals(20 + SiegeTuning.AMP_SWAP_HEAL, f.mate.getHp());
+        assertEquals(1, f.ally.getPosition());
+        assertEquals(0, f.mate.getPosition());
+    }
 }

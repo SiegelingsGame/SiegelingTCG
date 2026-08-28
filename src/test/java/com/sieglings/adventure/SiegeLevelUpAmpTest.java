@@ -164,4 +164,31 @@ class SiegeLevelUpAmpTest {
         assertTrue(partner.getHp() > partnerHp,
                 "the HEAL rider must heal its partner too: " + partnerHp + " -> " + partner.getHp());
     }
+
+    @Test
+    void upgradingAnAmpedSwapStillPaysTheRider() {
+        String token = startRunInBattle();
+        SiegeRun run = siegeService.lookup(token).orElseThrow();
+        SiegeBattle battle = run.getBattle();
+        List<Combatant> allies = battle.living(Side.PLAYER);
+        if (allies.size() < 2) return;
+
+        Combatant mover = allies.get(0), partner = allies.get(1);
+        mover.setHp(Math.max(1, mover.getMaxHp() - 12));
+        partner.setHp(Math.max(1, partner.getMaxHp() - 12));
+        int moverHp = mover.getHp(), partnerHp = partner.getHp();
+
+        AbilitySpec amped = new AbilitySpec(SWAP_MOVE_ID, "Move Link ★", Element.NEUTRAL, Effect.SWAP, 0,
+                TargetKind.ALLY_SINGLE, 0, "Trade notches with an ally.",
+                null, 0, AmpRider.HEAL, SiegeTuning.AMP_SWAP_HEAL);
+        SiegeCard upgraded = new SiegeCard("swap-amped-up", mover.getId(), content.upgradeSpec(amped));
+        battle.getHand().add(upgraded);
+
+        siegeService.playCard(token, upgraded.getInstanceId(), partner.getId());
+
+        assertTrue(mover.getHp() > moverHp,
+                "chiseling an amped swap must still heal the mover: " + moverHp + " -> " + mover.getHp());
+        assertTrue(partner.getHp() > partnerHp,
+                "chiseling an amped swap must still heal its partner: " + partnerHp + " -> " + partner.getHp());
+    }
 }

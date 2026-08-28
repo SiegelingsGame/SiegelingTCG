@@ -1314,22 +1314,7 @@ public class SiegeService {
     }
 
     private Map<String, Object> specToMap(AbilitySpec spec) {
-        Map<String, Object> s = new LinkedHashMap<>();
-        s.put("id", spec.id());
-        s.put("name", spec.name());
-        s.put("element", spec.element() == null ? null : spec.element().name());
-        s.put("effect", spec.effect().name());
-        s.put("value", spec.value());
-        s.put("target", spec.target().name());
-        s.put("cost", spec.actionCost());
-        s.put("desc", spec.description());
-        s.put("status", spec.status() == null ? null : spec.status().name());
-        s.put("statusChance", spec.statusChance());
-        if (spec.hasRider()) {
-            s.put("rider", spec.rider().name());
-            s.put("riderValue", spec.riderValue());
-        }
-        return s;
+        return spec.toSnapshot();
     }
 
     @SuppressWarnings("unchecked")
