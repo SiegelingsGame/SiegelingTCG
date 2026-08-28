@@ -353,6 +353,9 @@ public class SiegeCombatEngine {
             }
         }
         battle.setActionPoints(ap);
+        // The HUD fills its pips off this: a refill is the one AP change that
+        // is not tied to a card, so there is nothing else for it to animate on.
+        battle.event("apRefill", "amount", ap);
         battle.setPhase(BattlePhase.PLAYER_INPUT);
 
         // The Knight steels: +1 Ultimate Charge at the start of every turn.
@@ -947,7 +950,8 @@ public class SiegeCombatEngine {
             case GAIN_AP -> {
                 int gained = Math.max(1, spec.value());
                 battle.setActionPoints(battle.getActionPoints() + gained);
-                battle.event("actionPoints", "amount", gained, "total", battle.getActionPoints());
+                battle.event("actionPoints", "sourceId", attacker.getId(),
+                        "amount", gained, "total", battle.getActionPoints());
                 battle.log(attacker.getName() + " uses " + spec.name() + " → +" + gained + " AP this turn.");
             }
             case EXECUTE -> {

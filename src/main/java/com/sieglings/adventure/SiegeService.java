@@ -4036,6 +4036,10 @@ public class SiegeService {
         knight.put("charge", battle.getKnightCharge());
         knight.put("ultCost", SiegeBattle.KNIGHT_ULT_COST);
         knight.put("passiveKind", run.getKnightPassive() == null ? null : run.getKnightPassive().name());
+        // The battle HUD opens a knight sheet, so it needs the passive spelled
+        // out, not just its enum key.
+        knight.put("passiveName", run.getKnightPassive() == null ? null : content.knightPassiveName(run.getKnightPassive()));
+        knight.put("passive", run.getKnightPassiveDesc());
         putKnightUltimate(knight, run);
         knight.put("ultReady", knightUnit != null && knightUnit.isAlive()
                 && battle.getKnightCharge() >= SiegeBattle.KNIGHT_ULT_COST);

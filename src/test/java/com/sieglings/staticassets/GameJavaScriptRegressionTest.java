@@ -2067,7 +2067,9 @@ class GameJavaScriptRegressionTest {
                 adventureCss.contains("body[data-screen=\"campScreen\"] .siege-app,")
                         && adventureCss.contains("body[data-screen=\"rewardScreen\"] .siege-app{\n"
                                 + "  position:relative; max-width:none; width:100%;\n"
-                                + "  height:100dvh; min-height:0; overflow:hidden; padding:0;"),
+                                // --siege-vh is the visual viewport height (dvh is the fallback):
+                                // a zoomed or mid-rotation layout viewport does not match the glass.
+                                + "  height:var(--siege-vh,100dvh); min-height:0; overflow:hidden; padding:0;"),
                 "Location screens must run edge to edge — no max-width box and no page padding around the scene."
         );
         assertTrue(
