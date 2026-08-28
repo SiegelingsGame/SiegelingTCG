@@ -20,6 +20,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Comparator;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -4125,7 +4126,47 @@ public class SiegeService {
             hand.add(h);
         }
         b.put("hand", hand);
+
+        // The draw pile is deliberately sorted, not in draw order: the player
+        // is entitled to know *what* is left, not what comes next.
+        List<SiegeCard> deckView = new ArrayList<>(battle.getDeck());
+        deckView.sort(Comparator.comparing((SiegeCard c) -> c.getOwnerId())
+                .thenComparing(c -> c.getSpec().name()));
+        List<Map<String, Object>> deck = new ArrayList<>();
+        for (SiegeCard card : deckView) deck.add(pileCard(run, battle, card));
+        b.put("deck", deck);
+
+        // Discard runs most-recently-played first, which is the order a player
+        // actually asks about ("what did I just burn?").
+        List<Map<String, Object>> discard = new ArrayList<>();
+        List<SiegeCard> pile = battle.getDiscard();
+        for (int i = pile.size() - 1; i >= 0; i--) discard.add(pileCard(run, battle, pile.get(i)));
+        b.put("discard", discard);
         return b;
+    }
+
+    /** A card in the draw or discard pile: the same face the hand shows, minus
+     *  everything that only means something for a card you could play now. */
+    private Map<String, Object> pileCard(SiegeRun run, SiegeBattle battle, SiegeCard card) {
+        AbilitySpec spec = card.getSpec();
+        boolean knightCard = card.getOwnerId().startsWith(SiegeCombatEngine.KNIGHT_OWNER_PREFIX);
+        Combatant owner = battle.findCombatant(card.getOwnerId());
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("instanceId", card.getInstanceId());
+        m.put("name", spec.name());
+        m.put("element", spec.element().name());
+        m.put("effect", spec.effect().name());
+        m.put("value", spec.value());
+        m.put("target", spec.target().name());
+        m.put("actionCost", spec.actionCost());
+        m.put("description", spec.description());
+        if (spec.status() != null && spec.statusChance() > 0) {
+            m.put("status", spec.status().name());
+            m.put("statusChance", spec.statusChance());
+        }
+        m.put("ownerId", card.getOwnerId());
+        m.put("ownerName", knightCard ? run.getKnightName() : (owner == null ? "" : owner.getName()));
+        return m;
     }
 
     private Map<String, Object> serializeItem(SiegeItem item) {

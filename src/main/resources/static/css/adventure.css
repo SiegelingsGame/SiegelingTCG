@@ -1402,6 +1402,19 @@ body[data-battle-node="BOSS"] .battle-stage::before{
 .hand-sheet-head{display:flex; align-items:center; gap:9px; margin-bottom:10px; font-size:14px; font-weight:800;}
 .hand-sheet-head .unit-modal-close{position:static; margin-left:auto; flex:0 0 auto;}
 .hand-sheet-sub{font-size:11px; font-weight:600; color:var(--faint);}
+.hand-sheet-tabs{display:flex; gap:6px; margin-bottom:9px; flex:0 0 auto;}
+.hand-sheet-tab{
+  flex:1 1 0; min-width:0; padding:7px 6px; border-radius:9px; cursor:pointer;
+  border:1px solid rgba(255,255,255,.13); background:rgba(255,255,255,.04);
+  color:var(--faint); font:inherit; font-size:11.5px; font-weight:700;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.hand-sheet-tab b{font-weight:800; opacity:.75;}
+.hand-sheet-tab.is-on{color:var(--text); border-color:var(--accent); background:rgba(255,255,255,.09);}
+/* Draw- and discard-pile cards are a reference, not a play: no hover lift and
+   no pointer, so the face never suggests it can be dragged out. */
+.hand-sheet-grid .playcard.pile-card{cursor:default;}
+.hand-sheet-grid .playcard.pile-card:hover{transform:none;}
 .hand-sheet-grid{
   flex:1 1 auto; min-height:0; overflow:auto;
   display:grid; grid-template-columns:repeat(auto-fill,minmax(126px,1fr));
@@ -1428,6 +1441,8 @@ body[data-battle-node="BOSS"] .battle-stage::before{
   .hand-sheet{padding:8px;}
   .hand-sheet-card{width:min(940px,96vw); max-height:92dvh; padding:10px 11px;}
   .hand-sheet-head{margin-bottom:6px; font-size:13px;}
+  .hand-sheet-tabs{margin-bottom:6px;}
+  .hand-sheet-tab{padding:5px 5px; font-size:11px;}
   .hand-sheet-grid{grid-template-columns:repeat(auto-fill,minmax(114px,1fr)); gap:8px; padding:5px 3px 2px;}
   .hand-sheet-grid .playcard{height:142px; padding:8px 9px;}
   .hand-sheet-grid .playcard .pc-desc{-webkit-line-clamp:3;}

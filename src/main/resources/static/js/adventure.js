@@ -590,6 +590,10 @@
     if (extractBtn) extractBtn.addEventListener('click', extractTeam);
     $('deckCounts').addEventListener('click', function () { toggleHandSheet(); });
     $('handSheetClose').addEventListener('click', function () { toggleHandSheet(false); });
+    $('handSheetTabs').addEventListener('click', function (e) {
+      var tab = e.target.closest('.hand-sheet-tab');
+      if (tab) selectHandSheetPile(tab.dataset.pile);
+    });
     $('handSheet').addEventListener('click', function (e) { if (e.target === $('handSheet')) toggleHandSheet(false); });
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && !$('handSheet').classList.contains('hidden')) toggleHandSheet(false);
@@ -3762,11 +3766,45 @@
     if (open) renderHandSheet(b);
   }
 
+  /** Which pile the sheet is showing. Kept across opens so a player who lives
+   *  in the discard pile does not have to re-pick it every time. */
+  var handSheetPile = 'hand';
+
+  function selectHandSheetPile(pile) {
+    if (!pile || pile === handSheetPile) return;
+    handSheetPile = pile;
+    renderHandSheet();
+  }
+
+  /** The three piles the sheet can show. Hand is the live, playable one; the
+   *  other two are server-sent read-only views (draw pile deliberately sorted,
+   *  not in draw order, so it never leaks what comes next). */
+  function handSheetCards(b, pile) {
+    if (pile === 'deck') return b.deck || [];
+    if (pile === 'discard') return b.discard || [];
+    return sortHandByOwner(b);
+  }
+
+  var HAND_SHEET_EMPTY = {
+    hand: 'Your hand is empty — end the turn to draw.',
+    deck: 'Your draw pile is empty — it reshuffles from the discard.',
+    discard: 'Nothing discarded yet this battle.'
+  };
+
   function renderHandSheet(b) {
     b = b || (state.run && state.run.battle);
     var grid = $('handSheetGrid');
     if (!grid || !b) return;
-    var cards = sortHandByOwner(b);
+    $('handSheetCountHand').textContent = (b.hand || []).length;
+    $('handSheetCountDeck').textContent = b.deck ? b.deck.length : (b.deckCount || 0);
+    $('handSheetCountDiscard').textContent = b.discard ? b.discard.length : (b.discardCount || 0);
+    var tabs = $('handSheetTabs').querySelectorAll('.hand-sheet-tab');
+    for (var i = 0; i < tabs.length; i++) {
+      var on = tabs[i].dataset.pile === handSheetPile;
+      tabs[i].classList.toggle('is-on', on);
+      tabs[i].setAttribute('aria-selected', on ? 'true' : 'false');
+    }
+    var cards = handSheetCards(b, handSheetPile);
     var sub = $('handSheetSub');
     if (sub) {
       sub.textContent = cards.length + (cards.length === 1 ? ' card' : ' cards') +
@@ -3774,17 +3812,20 @@
     }
     grid.innerHTML = '';
     if (!cards.length) {
-      grid.appendChild(el('div', 'hand-sheet-empty', 'Your hand is empty — end the turn to draw.'));
+      grid.appendChild(el('div', 'hand-sheet-empty', HAND_SHEET_EMPTY[handSheetPile]));
       return;
     }
+    var live = handSheetPile === 'hand';
     cards.forEach(function (card) {
-      var c = el('div', playCardClass(card));
+      var c = el('div', playCardClass(card) + (live ? '' : ' pile-card'));
       c.dataset.owner = card.ownerId;
       c.innerHTML = playCardMarkup(card);
-      c.addEventListener('click', function () {
-        toggleHandSheet(false);
-        focusHandCard(card.instanceId);
-      });
+      if (live) {
+        c.addEventListener('click', function () {
+          toggleHandSheet(false);
+          focusHandCard(card.instanceId);
+        });
+      }
       grid.appendChild(c);
     });
   }
