@@ -4045,7 +4045,7 @@
 
   var HAND_SHEET_EMPTY = {
     hand: 'Your hand is empty — end the turn to draw.',
-    deck: 'Your draw pile is empty — it reshuffles from the discard.',
+    deck: 'Your deck is empty — it reshuffles from the discard.',
     discard: 'Nothing discarded yet this battle.'
   };
 
