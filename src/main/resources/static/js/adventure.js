@@ -808,6 +808,7 @@
       case 'SLOW': return '❄ slow · ' + spec.actionCost + ' AP';
       case 'STUN': return '💫 stun · ' + spec.actionCost + ' AP';
       case 'DRAW': return '🃏 draw ' + spec.value + ' · ' + spec.actionCost + ' AP';
+      case 'GAIN_AP': return '⚡ +' + apGain(spec) + ' AP · ' + spec.actionCost + ' AP';
       case 'EXECUTE': return '☠ destroy · ' + spec.actionCost + ' AP';
       case 'SWAP': return '⇄ swap notches · ' + spec.actionCost + ' AP';
       case 'EVOLVE': return '🌟 evolve · ' + spec.actionCost + ' AP';
@@ -4330,6 +4331,11 @@
   function allSuffix(card) {
     return (card.target === 'ALL_ENEMIES' || card.target === 'ALLY_ALL') ? ' (all)' : '';
   }
+  /** Mirrors SiegeCombatEngine's GAIN_AP floor so the face never promises
+   *  fewer points than the play actually grants. */
+  function apGain(card) {
+    return Math.max(1, card && card.value ? card.value : 0);
+  }
   function effectLabel(card) {
     switch (card.effect) {
       case 'DAMAGE': {
@@ -4346,6 +4352,7 @@
       case 'SLOW': return '❄ Slow' + allSuffix(card);
       case 'STUN': return '💫 Stun' + allSuffix(card);
       case 'DRAW': return '🃏 Draw ' + card.value;
+      case 'GAIN_AP': return '⚡ +' + apGain(card) + ' AP';
       case 'EXECUTE': return '☠ Destroy';
       case 'SWAP': return '⇄ Swap notches';
       case 'EVOLVE': return '🌟 Evolve!';
