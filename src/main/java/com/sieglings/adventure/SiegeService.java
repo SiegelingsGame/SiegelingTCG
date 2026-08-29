@@ -734,8 +734,23 @@ public class SiegeService {
      * rides the checkpoint with the deck it lives in.
      */
     Map<String, Object> chooseAmp(String token, String optionId) {
-        SiegeRun run = require(token);
-        if (run.getPendingAmps().isEmpty()) return serialize(run);
+        return chooseAmp(token, optionId, null);
+    }
+
+    Map<String, Object> chooseAmp(String token, String optionId, String authorizationHeader) {
+        Session session = requireSession(token);
+        synchronized (session) {
+            session.lastSeen = Instant.now();
+            return chooseAmpLocked(session.run, optionId, authorizationHeader);
+        }
+    }
+
+    private Map<String, Object> chooseAmpLocked(SiegeRun run, String optionId, String authorizationHeader) {
+        if (run.getPendingAmps().isEmpty()) {
+            maybeFinishPendingVictory(run, authorizationHeader);
+            checkpoint(run);
+            return serialize(run);
+        }
         Map<String, Object> offer = run.getPendingAmps().get(0);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> options = (List<Map<String, Object>>) offer.getOrDefault("options", List.of());
@@ -759,8 +774,25 @@ public class SiegeService {
                     + " — " + pick.get("label") + ".");
         }
         run.getPendingAmps().remove(0);
+        maybeFinishPendingVictory(run, authorizationHeader);
         checkpoint(run);
         return serialize(run);
+    }
+
+    /**
+     * A Siegelord win that queued level-up amps stays ACTIVE until the player
+     * answers them, so the pick can checkpoint and the veteran extract banks
+     * the amplified deck. Once the queue is empty, this seals WON, pays out,
+     * and extracts.
+     */
+    private void maybeFinishPendingVictory(SiegeRun run, String authorizationHeader) {
+        if (run == null || !run.isPendingVictory() || !run.getPendingAmps().isEmpty()) return;
+        String note = run.getPendingVictoryReward();
+        run.setPendingVictoryReward(null);
+        run.setStatus(RunStatus.WON);
+        if (note != null && !note.isBlank()) run.setLastReward(note);
+        grantEndRewards(run, authorizationHeader);
+        extractTeam(run, authorizationHeader);
     }
 
     private Map<String, Object> awardBattleXpEntry(Combatant unit, String kind, int baseXp, Map<String, Integer> kills) {
@@ -1108,6 +1140,9 @@ public class SiegeService {
         }
         s.put("party", party);
         s.put("pendingAmps", new ArrayList<>(run.getPendingAmps()));
+        if (run.getPendingVictoryReward() != null) {
+            s.put("pendingVictoryReward", run.getPendingVictoryReward());
+        }
         s.put("discoveredSieglings", new ArrayList<>(run.getDiscoveredSieglingIds()));
         s.put("inventory", new ArrayList<>(run.getInventory()));
         s.put("knightBag", new ArrayList<>(run.getKnightBag()));
@@ -1407,6 +1442,9 @@ public class SiegeService {
                         run.getPendingAmps().add(new LinkedHashMap<>((Map<String, Object>) offer));
                     }
                 }
+            }
+            if (s.get("pendingVictoryReward") != null) {
+                run.setPendingVictoryReward(str(s.get("pendingVictoryReward")));
             }
 
             for (Map<String, Object> p : (List<Map<String, Object>>) s.get("party")) {
@@ -2309,13 +2347,22 @@ public class SiegeService {
                 // team. Only ENDLESS loops onward.
                 boolean fixedExpedition = run.getMode() == RunMode.STANDARD || run.isBattlegrounds();
                 if (finalRow && fixedExpedition) {
-                    run.setStatus(RunStatus.WON);
-                    run.setLastReward((run.isBattlegrounds()
+                    String winNote = (run.isBattlegrounds()
                             ? "The Siegelord is defeated — Battlegrounds cleared!"
-                            : "The Siegelord is defeated — the expedition is won!") + mercNote);
-                    grantEndRewards(run, authorizationHeader);
-                    // Beating the final boss re-extracts the leveled team automatically.
-                    extractTeam(run, authorizationHeader);
+                            : "The Siegelord is defeated — the expedition is won!") + mercNote;
+                    run.setLastReward(winNote);
+                    // Level-up amps rewrite the deck the veteran extract snapshots.
+                    // Sealing WON here would hide the pick (client result screen
+                    // precedes ampChoice) and bank the un-amped cards. Hold the
+                    // win until chooseAmp drains the queue; status stays ACTIVE
+                    // so a checkpoint can keep the offer across a refresh.
+                    if (!run.getPendingAmps().isEmpty()) {
+                        run.setPendingVictoryReward(winNote);
+                    } else {
+                        run.setStatus(RunStatus.WON);
+                        grantEndRewards(run, authorizationHeader);
+                        extractTeam(run, authorizationHeader);
+                    }
                 } else if (finalRow) {
                     // Endless: the road never ends — bolt on another region.
                     run.setLoop(run.getLoop() + 1);
@@ -2344,7 +2391,8 @@ public class SiegeService {
             // (1% stage 3, 5% stage 2) until the team is full. Recruits never
             // appear before the first combat. The Marshal muster is not here —
             // that knight picks its extra Siegeling at warband assembly instead.
-            if (run.getStatus() == RunStatus.ACTIVE && run.getParty().size() < content.partyMax()) {
+            if (run.getStatus() == RunStatus.ACTIVE && !run.isPendingVictory()
+                    && run.getParty().size() < content.partyMax()) {
                 joinStagedRecruit(run, " emerges from the battlefield and joins the warband!", true);
             }
         } else if (battle.getPhase() == BattlePhase.LOST) {
@@ -2534,6 +2582,9 @@ public class SiegeService {
             }
             if (run.getBattle() != null) {
                 throw new IllegalArgumentException("Finish the battle before extracting your team.");
+            }
+            if (run.isPendingVictory() || !run.getPendingAmps().isEmpty()) {
+                throw new IllegalArgumentException("Choose your amplification before extracting your team.");
             }
             if (run.getBossKills() < 1) {
                 throw new IllegalArgumentException("Defeat at least one boss before extracting your team.");

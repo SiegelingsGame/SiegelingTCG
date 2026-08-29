@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -163,5 +164,92 @@ class SiegeLevelUpAmpTest {
         assertTrue(mover.getHp() > moverHp, "the HEAL rider must heal the mover: " + moverHp + " -> " + mover.getHp());
         assertTrue(partner.getHp() > partnerHp,
                 "the HEAL rider must heal its partner too: " + partnerHp + " -> " + partner.getHp());
+    }
+
+    @Test
+    void aFinalBossLevelUpHoldsTheWinUntilTheAmpIsPicked() {
+        String token = startRunInBattle();
+        SiegeRun run = siegeService.lookup(token).orElseThrow();
+        Combatant hero = run.getParty().getFirst();
+        hero.addXp(SiegeTuning.xpForLevel(2) - hero.getXp() - 1);
+        restageCurrentFightAsFinalBoss(run);
+
+        Map<String, Object> state = winBattle(token, run);
+
+        assertEquals("ACTIVE", state.get("status"),
+                "sealing WON before the pick hides the amp screen and banks the un-amped deck");
+        Map<String, Object> offer = ampChoice(state);
+        assertNotNull(offer, "the Siegelord win still owes the amplification");
+        assertNull(state.get("extraction"), "extracting before the pick would bank the un-amped deck");
+        assertTrue(run.isPendingVictory());
+        assertFalse(run.isVeteranExtracted());
+
+        Map<String, Object> pick = options(offer).getFirst();
+        String moveId = String.valueOf(pick.get("moveId"));
+        Map<String, Object> after = siegeService.chooseAmp(token, String.valueOf(pick.get("id")));
+        after = skipRemainingAmps(token, after);
+
+        assertEquals("WON", after.get("status"));
+        assertNull(ampChoice(after), "the owed pick is spent");
+        assertNotNull(after.get("extraction"), "the veteran snapshot waits until after the pick");
+        assertTrue(run.isVeteranExtracted());
+        assertFalse(run.isPendingVictory());
+        assertTrue(run.getDeckTemplates().stream()
+                        .filter(c -> c.getOwnerId().equals(hero.getId()) && c.getSpec().id().equals(moveId))
+                        .anyMatch(c -> c.getSpec().name().endsWith("★")),
+                "the banked deck must carry the amplification");
+    }
+
+    @Test
+    void skippingTheFinalBossAmpStillExtractsTheTeam() {
+        String token = startRunInBattle();
+        SiegeRun run = siegeService.lookup(token).orElseThrow();
+        Combatant hero = run.getParty().getFirst();
+        hero.addXp(SiegeTuning.xpForLevel(2) - hero.getXp() - 1);
+        restageCurrentFightAsFinalBoss(run);
+
+        Map<String, Object> state = winBattle(token, run);
+        assertNotNull(ampChoice(state));
+        assertEquals("ACTIVE", state.get("status"));
+
+        Map<String, Object> after = skipRemainingAmps(token, siegeService.chooseAmp(token, "skip"));
+        assertEquals("WON", after.get("status"));
+        assertNull(ampChoice(after));
+        assertNotNull(after.get("extraction"), "declining the pick still banks the team");
+        assertTrue(run.isVeteranExtracted());
+    }
+
+    @Test
+    void aFinalBossWinWithoutALevelUpStillExtractsImmediately() {
+        String token = startRunInBattle();
+        SiegeRun run = siegeService.lookup(token).orElseThrow();
+        int capXp = SiegeTuning.xpForLevel(SiegeTuning.MAX_LEVEL);
+        for (Combatant ally : run.getParty()) ally.addXp(capXp);
+        if (run.getKnightUnit() != null) run.getKnightUnit().addXp(capXp);
+        restageCurrentFightAsFinalBoss(run);
+
+        Map<String, Object> state = winBattle(token, run);
+        assertEquals("WON", state.get("status"), "no pick is owed, so the Siegelord win still seals immediately");
+        assertNull(ampChoice(state));
+        assertNotNull(state.get("extraction"));
+        assertTrue(run.isVeteranExtracted());
+        assertFalse(run.isPendingVictory());
+    }
+
+    /** A full warband can queue one offer per Siegeling; the Siegelord win waits for all of them. */
+    private Map<String, Object> skipRemainingAmps(String token, Map<String, Object> state) {
+        for (int i = 0; i < 8 && ampChoice(state) != null; i++) {
+            state = siegeService.chooseAmp(token, "skip");
+        }
+        return state;
+    }
+
+    /** Rewrite the live node's map entry as the last-row Siegelord without leaving the fight. */
+    private static void restageCurrentFightAsFinalBoss(SiegeRun run) {
+        SiegeNode cur = run.currentNode();
+        assertNotNull(cur, "the opening fight must have a map node");
+        int lastRow = run.getMap().stream().mapToInt(SiegeNode::getRow).max().orElse(cur.getRow());
+        run.getMap().removeIf(n -> n.getId() == cur.getId());
+        run.getMap().add(new SiegeNode(cur.getId(), lastRow, cur.getCol(), NodeType.BOSS, "The Siegelord"));
     }
 }

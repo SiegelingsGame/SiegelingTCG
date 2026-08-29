@@ -155,10 +155,14 @@ public class SiegeController {
     /**
      * Pick which of a levelled-up Siegeling's cards to amplify:
      * body { token, optionId } ("skip" to decline the pick).
+     * Authorization is forwarded so a delayed Siegelord win can still bank
+     * end rewards and extract the (now amplified) veteran team.
      */
     @PostMapping("/api/siege/level/amp")
-    public Map<String, Object> chooseAmp(@RequestBody Map<String, Object> body) {
-        return siege.chooseAmp(str(body.get("token")), str(body.get("optionId")));
+    public Map<String, Object> chooseAmp(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody Map<String, Object> body) {
+        return siege.chooseAmp(str(body.get("token")), str(body.get("optionId")), authorizationHeader);
     }
 
     /** Use one Rest Camp interaction (rest / trader goods / broker): body { token, optionId }. */
