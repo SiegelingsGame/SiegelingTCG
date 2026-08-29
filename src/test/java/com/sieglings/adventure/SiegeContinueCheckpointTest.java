@@ -76,6 +76,13 @@ class SiegeContinueCheckpointTest {
                         > source.indexOf("Map<String, Object> extract(String token"),
                 "extract must use the same Session lock before banking end rewards."
         );
+        assertTrue(
+                source.contains("Map<String, Object> chooseAmp(String token, String optionId, String authorizationHeader)")
+                        && source.contains("chooseAmpLocked(")
+                        && source.indexOf("synchronized (session)", source.indexOf("Map<String, Object> chooseAmp(String token, String optionId, String"))
+                        > source.indexOf("Map<String, Object> chooseAmp(String token, String optionId, String"),
+                "chooseAmp must lock the Session: a delayed Siegelord win banks end rewards and extracts here."
+        );
     }
 
     @Test
@@ -135,6 +142,27 @@ class SiegeContinueCheckpointTest {
         Map<String, Object> battleBlob = (Map<String, Object>) lastSnapshot.get().get("battle");
         assertEquals("PLAYER_INPUT", String.valueOf(battleBlob.get("phase")),
                 "resume must still land mid-fight, not on a re-Continueable WON screen");
+    }
+
+    @Test
+    void pendingVictoryCheckpointKeepsTheAmpPick() throws Exception {
+        // A Siegelord win that still owes an amp pick stays ACTIVE so the
+        // offer can survive a refresh. WON would delete the checkpoint.
+        SiegeRun run = baseRun();
+        run.setPendingVictoryReward("The Siegelord is defeated — the expedition is won!");
+        run.getPendingAmps().add(new LinkedHashMap<>(Map.of("unitId", "ally-0")));
+        registerRun(run);
+
+        invokeCheckpoint(run);
+
+        assertEquals(1, saveCount.get(), "a delayed Siegelord win must checkpoint the owed pick");
+        assertTrue(run.isCheckpointSaved());
+        assertEquals("The Siegelord is defeated — the expedition is won!",
+                lastSnapshot.get().get("pendingVictoryReward"));
+        @SuppressWarnings("unchecked")
+        java.util.List<Object> amps = (java.util.List<Object>) lastSnapshot.get().get("pendingAmps");
+        assertEquals(1, amps.size());
+        assertFalse(lastSnapshot.get().containsKey("battle"));
     }
 
     private SiegeRun baseRun() {

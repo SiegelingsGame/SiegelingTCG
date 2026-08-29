@@ -116,6 +116,13 @@ class SiegeRun {
      * player who closes the app on the pick screen still owes the same pick.
      */
     private final java.util.List<java.util.Map<String, Object>> pendingAmps = new java.util.ArrayList<>();
+    /**
+     * The result-screen lastReward for a Siegelord win that is waiting on
+     * {@link #pendingAmps}. Null when no delayed victory is owed. Status stays
+     * ACTIVE until the queue drains so a checkpoint can keep the pick, then
+     * {@code chooseAmp} applies this note, sets WON, and extracts.
+     */
+    private String pendingVictoryReward;
 
     /**
      * Every Siegeling catalog card this run has met — recruits, broker hires, and
@@ -269,6 +276,12 @@ class SiegeRun {
     java.util.Map<String, Object> getEndRewards() { return endRewards; }
     void setEndRewards(java.util.Map<String, Object> endRewards) { this.endRewards = endRewards; }
     java.util.List<java.util.Map<String, Object>> getPendingAmps() { return pendingAmps; }
+    boolean isPendingVictory() { return pendingVictoryReward != null && !pendingVictoryReward.isBlank(); }
+    String getPendingVictoryReward() { return pendingVictoryReward; }
+    void setPendingVictoryReward(String pendingVictoryReward) {
+        this.pendingVictoryReward = (pendingVictoryReward == null || pendingVictoryReward.isBlank())
+                ? null : pendingVictoryReward;
+    }
     java.util.Map<String, Object> getLastXpRecap() { return lastXpRecap; }
     void setLastXpRecap(java.util.Map<String, Object> lastXpRecap) { this.lastXpRecap = lastXpRecap; }
     java.util.Map<String, Object> getPendingRecruit() { return pendingRecruit; }
@@ -332,6 +345,7 @@ class SiegeRun {
     List<Integer> reachableNodeIds() {
         List<Integer> out = new ArrayList<>();
         if (status != RunStatus.ACTIVE || battle != null || !pendingRewards.isEmpty()
+                || !pendingAmps.isEmpty() || isPendingVictory()
                 || inCamp || inCache || inBroker || inSmith || inCaravan || inEvent || inMinigame
                 || pendingRecruit != null || awaitingBoonPick) return out;
         SiegeNode current = currentNode();
