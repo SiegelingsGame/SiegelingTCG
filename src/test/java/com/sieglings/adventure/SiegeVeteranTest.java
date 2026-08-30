@@ -11,6 +11,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -34,8 +35,9 @@ class SiegeVeteranTest {
         }
 
         @Override
-        protected void persistRaw(String userId, List<Map<String, Object>> teams) {
+        protected boolean persistRaw(String userId, List<Map<String, Object>> teams) {
             data.put(userId, new ArrayList<>(teams));
+            return true;
         }
     }
 
@@ -63,6 +65,51 @@ class SiegeVeteranTest {
         List<Map<String, Object>> teams = store.listTeams(USER);
         assertEquals(List.of("gamma", "beta", "alpha"),
                 teams.stream().map(t -> t.get("teamId")).toList());
+    }
+
+    @Test
+    void aFailedReadMustNotOverwriteExistingTeams() {
+        ControllableVeteranStore store = new ControllableVeteranStore();
+        store.saveTeam(USER, teamSnapshot("old-1"));
+        store.saveTeam(USER, teamSnapshot("old-2"));
+        store.saveTeam(USER, teamSnapshot("old-3"));
+        int persistsBefore = store.persistCount;
+        store.failNextLoad = true;
+
+        assertThrows(IllegalStateException.class,
+                () -> store.saveTeam(USER, teamSnapshot("new-win")),
+                "A timed-out read must refuse the write, not SET a one-team document.");
+        assertEquals(persistsBefore, store.persistCount,
+                "persistRaw must not run after a failed read — that is the wipe.");
+
+        store.failNextLoad = false;
+        List<Map<String, Object>> teams = store.listTeams(USER);
+        assertEquals(3, teams.size(), "The three banked teams must still be there.");
+        assertEquals(List.of("old-3", "old-2", "old-1"),
+                teams.stream().map(t -> t.get("teamId")).toList());
+    }
+
+    @Test
+    void aFailedWriteLeavesTheBankUntouched() {
+        ControllableVeteranStore store = new ControllableVeteranStore();
+        store.saveTeam(USER, teamSnapshot("keep-me"));
+        store.failNextPersist = true;
+
+        assertThrows(IllegalStateException.class,
+                () -> store.saveTeam(USER, teamSnapshot("lost-if-we-lied")));
+        List<Map<String, Object>> teams = store.listTeams(USER);
+        assertEquals(1, teams.size());
+        assertEquals("keep-me", teams.get(0).get("teamId"));
+    }
+
+    @Test
+    void savingTheSameTeamIdTwiceDoesNotDuplicate() {
+        ControllableVeteranStore store = new ControllableVeteranStore();
+        Map<String, Object> snap = teamSnapshot("same");
+        store.saveTeam(USER, snap);
+        store.saveTeam(USER, snap);
+        assertEquals(1, store.listTeams(USER).size());
+        assertEquals("same", store.listTeams(USER).get(0).get("teamId"));
     }
 
     @Test
@@ -136,6 +183,35 @@ class SiegeVeteranTest {
         assertEquals("A", veterans.get(0).get("teamId"));
         assertEquals("B", veterans.get(veterans.size() - 1).get("teamId"));
         assertTrue(veterans.stream().allMatch(v -> v.containsKey("level") && v.containsKey("element")));
+    }
+
+    /**
+     * In-memory bank that can simulate a Firestore GET timeout (null load)
+     * or a failed SET, so the wipe/retry guards can be proved red.
+     */
+    private static final class ControllableVeteranStore extends SiegeVeteranStore {
+        private final Map<String, List<Map<String, Object>>> data = new HashMap<>();
+        volatile boolean failNextLoad;
+        volatile boolean failNextPersist;
+        int persistCount;
+
+        @Override
+        protected List<Map<String, Object>> loadRaw(String userId) {
+            if (failNextLoad) return null;
+            List<Map<String, Object>> teams = data.get(userId);
+            return teams == null ? new ArrayList<>() : new ArrayList<>(teams);
+        }
+
+        @Override
+        protected boolean persistRaw(String userId, List<Map<String, Object>> teams) {
+            persistCount++;
+            if (failNextPersist) {
+                failNextPersist = false;
+                return false;
+            }
+            data.put(userId, new ArrayList<>(teams));
+            return true;
+        }
     }
 
     // ---- helpers ---------------------------------------------------------
