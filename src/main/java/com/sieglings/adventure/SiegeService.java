@@ -900,9 +900,10 @@ public class SiegeService {
 
     /**
      * Account-aware state lookup. This adopts an existing device-local checkpoint the
-     * first time its signed-in owner opens it, and retries end rewards whose
-     * progression save failed. Adoption runs first on purpose: the retry banks to the
-     * run's owner, so a run adopted on this very call can still pay out.
+     * first time its signed-in owner opens it, and retries end rewards / veteran
+     * extracts whose Firestore save failed. Adoption runs first on purpose: the
+     * retry banks to the run's owner, so a run adopted on this very call can still
+     * pay out.
      */
     Map<String, Object> state(String token, String authorizationHeader) {
         SiegeRun run = lookup(token)
@@ -916,6 +917,7 @@ public class SiegeService {
         // failure must be retried while the in-memory session still holds the
         // spoils — otherwise the player permanently loses Siegecoins/Remnants.
         maybeRetryEndRewards(run, authorizationHeader);
+        maybeRetryExtract(run, authorizationHeader);
         return serialize(run);
     }
 
@@ -2253,6 +2255,7 @@ public class SiegeService {
         SiegeBattle battle = run.getBattle();
         if (battle == null) {
             maybeRetryEndRewards(run, authorizationHeader);
+            maybeRetryExtract(run, authorizationHeader);
             return serialize(run);
         }
         if (battle.getPhase() == BattlePhase.WON) {
@@ -2555,20 +2558,37 @@ public class SiegeService {
      * Snapshots the run's leveled team (knight + party + modified deck) and banks
      * it as a veteran team. Idempotent — guarded by {@link SiegeRun#isVeteranExtracted()}.
      * Guests build the snapshot for the confirmation UI but nothing persists.
+     * Authenticated saves seal the flag only after {@link SiegeVeteranStore#saveTeam}
+     * succeeds, so a Firestore blip can retry from {@link #maybeRetryExtract}.
      */
     private void extractTeam(SiegeRun run, String authorizationHeader) {
         if (run.isVeteranExtracted()) return;
-        Map<String, Object> snapshot = buildVeteranSnapshot(run);
-        run.setVeteranTeam(snapshot);
-        run.setVeteranExtracted(true);
-        AccountUser user = resolveUser(authorizationHeader);
-        if (user != null && user.getId() != null) {
-            try {
-                veterans.saveTeam(user.getId(), snapshot);
-            } catch (Exception ignored) {
-                // best-effort; the run outcome + local confirmation stand either way
-            }
+        if (run.getVeteranTeam() == null) {
+            run.setVeteranTeam(buildVeteranSnapshot(run));
         }
+        AccountUser user = resolveUser(authorizationHeader);
+        if (user == null || user.getId() == null) {
+            // True guests have nowhere to bank. A signed-in lookup miss stays
+            // retryable — do not seal just because the header failed to resolve.
+            if (authorizationHeader == null || authorizationHeader.isBlank()) {
+                run.setVeteranExtracted(true);
+            }
+            return;
+        }
+        try {
+            veterans.saveTeam(user.getId(), run.getVeteranTeam());
+            run.setVeteranExtracted(true);
+        } catch (Exception ignored) {
+            // Keep veteranExtracted false so state/continue can retry the bank.
+        }
+    }
+
+    /** Retries a failed authenticated veteran extract while the finished run is still in memory. */
+    private void maybeRetryExtract(SiegeRun run, String authorizationHeader) {
+        if (run == null || run.isVeteranExtracted()) return;
+        if (run.getStatus() != RunStatus.WON) return;
+        if (authorizationHeader == null || authorizationHeader.isBlank()) return;
+        extractTeam(run, authorizationHeader);
     }
 
     /** Builds a portable snapshot of the run's leveled team at its extracted level. */

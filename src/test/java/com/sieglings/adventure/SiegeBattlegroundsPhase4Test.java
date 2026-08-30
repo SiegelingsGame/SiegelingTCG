@@ -152,8 +152,9 @@ class SiegeBattlegroundsPhase4Test {
         }
 
         @Override
-        protected void persistRaw(String userId, List<Map<String, Object>> teams) {
+        protected boolean persistRaw(String userId, List<Map<String, Object>> teams) {
             data.put(userId, new ArrayList<>(teams));
+            return true;
         }
     }
 

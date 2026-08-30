@@ -21,7 +21,10 @@ import java.util.concurrent.TimeUnit;
  *
  * <p>Fail-soft by design, mirroring {@link SiegeCheckpointStore}: if Firestore is
  * unavailable the game keeps running and extraction simply does not persist
- * (reads return an empty list, writes no-op after a single warning).
+ * (list reads look empty, writes no-op after a single warning). A failed
+ * <em>read</em> must never be treated as "no teams" followed by a document
+ * {@code set} — that would wipe every banked veteran. {@link #saveTeam} refuses
+ * to persist in that case so the existing document stays put.
  */
 @Component
 class SiegeVeteranStore {
@@ -43,20 +46,31 @@ class SiegeVeteranStore {
      */
     List<Map<String, Object>> saveTeam(String userId, Map<String, Object> teamSnapshot) {
         if (userId == null || userId.isBlank() || teamSnapshot == null) return listTeams(userId);
+        List<Map<String, Object>> existing = loadRaw(userId);
+        if (existing == null) {
+            // loadRaw failed. Writing {this team} would replace the document and
+            // delete every other banked squad. Leave the bank untouched.
+            throw new IllegalStateException("Veteran bank unreadable; refusing to overwrite.");
+        }
+        String newId = teamSnapshot.get("teamId") == null ? null : String.valueOf(teamSnapshot.get("teamId"));
         List<Map<String, Object>> teams = new ArrayList<>();
         teams.add(teamSnapshot);
-        for (Map<String, Object> existing : loadRaw(userId)) {
+        for (Map<String, Object> old : existing) {
             if (teams.size() >= MAX_TEAMS) break;
-            teams.add(existing);
+            if (newId != null && newId.equals(String.valueOf(old.get("teamId")))) continue;
+            teams.add(old);
         }
-        persistRaw(userId, teams);
+        if (!persistRaw(userId, teams)) {
+            throw new IllegalStateException("Veteran bank write failed.");
+        }
         return teams;
     }
 
     /** This user's banked teams, newest first (empty for guests or when unavailable). */
     List<Map<String, Object>> listTeams(String userId) {
         if (userId == null || userId.isBlank()) return new ArrayList<>();
-        return loadRaw(userId);
+        List<Map<String, Object>> teams = loadRaw(userId);
+        return teams == null ? new ArrayList<>() : teams;
     }
 
     /** A single banked team by its stable teamId, if present. */
@@ -77,6 +91,7 @@ class SiegeVeteranStore {
     List<Map<String, Object>> lockTeams(String userId, java.util.Collection<String> teamIds, long lockedUntil) {
         if (userId == null || userId.isBlank() || teamIds == null || teamIds.isEmpty()) return listTeams(userId);
         List<Map<String, Object>> teams = loadRaw(userId);
+        if (teams == null) return new ArrayList<>();
         boolean changed = false;
         for (Map<String, Object> team : teams) {
             if (teamIds.contains(String.valueOf(team.get("teamId")))) {
@@ -183,7 +198,11 @@ class SiegeVeteranStore {
 
     // ---- Persistence I/O (overridable in tests to avoid Firestore) ---------
 
-    /** Loads this user's stored teams (newest first). Fail-soft: empty on error. */
+    /**
+     * Loads this user's stored teams (newest first). A missing document is an
+     * empty list. I/O failure returns {@code null} — callers that write MUST
+     * treat that as "unknown", not "no teams".
+     */
     @SuppressWarnings("unchecked")
     protected List<Map<String, Object>> loadRaw(String userId) {
         try {
@@ -200,20 +219,25 @@ class SiegeVeteranStore {
             return out;
         } catch (Exception ex) {
             warnOnce(ex);
-            return new ArrayList<>();
+            return null;
         }
     }
 
-    /** Writes this user's team list (newest first). Fail-soft: warns once and no-ops on error. */
-    protected void persistRaw(String userId, List<Map<String, Object>> teams) {
+    /**
+     * Writes this user's team list (newest first). Fail-soft: warns once and
+     * returns {@code false} on error so callers can refuse to seal the extract.
+     */
+    protected boolean persistRaw(String userId, List<Map<String, Object>> teams) {
         try {
             Map<String, Object> doc = new LinkedHashMap<>();
             doc.put("teams", teams);
             doc.put("updatedAt", Timestamp.now());
             client.requireFirestore().collection(COLLECTION).document(userId)
                     .set(doc).get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            return true;
         } catch (Exception ex) {
             warnOnce(ex);
+            return false;
         }
     }
 
