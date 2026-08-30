@@ -16,9 +16,26 @@
     const OVERLAY_ID = 'playModePicker';
 
     const MODES = [
-        { id: 'arena', icon: '⚔️', name: 'Arena' },
-        { id: 'siege', icon: '🏰', name: 'Siege Battlegrounds', href: '/siege' },
-        { id: 'keep', icon: '🛡️', name: 'My Keep', href: '/keep' }
+        {
+            id: 'arena',
+            icon: '⚔️',
+            name: 'Arena',
+            sub: 'Face the table head-on. Solo skirmishes and live 1v1 duels — knight levels off, so it is your deck and your nerve.'
+        },
+        {
+            id: 'siege',
+            icon: '🏰',
+            name: 'Siege Battlegrounds',
+            sub: 'March a branching warpath. Muster a warband, level your knight, and see how deep you get before it ends you.',
+            href: '/siege'
+        },
+        {
+            id: 'keep',
+            icon: '🛡️',
+            name: 'My Keep',
+            sub: 'Your stronghold between battles — spoils, chronicles and the veterans you brought home alive.',
+            href: '/keep'
+        }
     ];
 
     function injectStyle() {
@@ -45,8 +62,8 @@
    phone, where a row of three would clip each sub-line to nothing. */
 .pmp-options{display:grid; grid-template-columns:repeat(3,1fr); gap:10px;}
 @media (max-width:719px){ .pmp-options{grid-template-columns:1fr;} }
-.pmp-option{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; text-align:center;
-  padding:18px 14px; border-radius:14px; cursor:pointer; font:inherit; text-decoration:none;
+.pmp-option{display:flex; flex-direction:column; align-items:flex-start; gap:5px; text-align:left;
+  padding:14px 14px 15px; border-radius:14px; cursor:pointer; font:inherit; text-decoration:none;
   border:1px solid var(--line,rgba(255,255,255,.12)); background:rgba(255,255,255,.045); color:#fff;
   min-height:44px; transition:border-color .15s ease, background .15s ease, transform .15s ease;}
 .pmp-option:hover{border-color:var(--accent,#ffd700); background:rgba(255,255,255,.09); transform:translateY(-2px);}
@@ -54,6 +71,7 @@
 .pmp-option:focus-visible{outline:2px solid var(--accent,#ffd700); outline-offset:2px;}
 .pmp-option-icon{font-size:22px; line-height:1;}
 .pmp-option-name{font-size:15px; font-weight:800; letter-spacing:.01em;}
+.pmp-option-sub{font-size:11.5px; line-height:1.45; color:rgba(255,255,255,.66);}
 /* Arena keeps the primary weight the orange button had, so the old one-tap
    habit still lands on the same choice. */
 .pmp-option.is-primary{border-color:color-mix(in srgb,var(--accent,#ffd700) 60%,transparent);
@@ -106,6 +124,7 @@
             <button class="pmp-option${mode.id === 'arena' ? ' is-primary' : ''}" type="button" data-pmp-mode="${mode.id}">
                 <span class="pmp-option-icon" aria-hidden="true">${mode.icon}</span>
                 <span class="pmp-option-name">${mode.name}</span>
+                <span class="pmp-option-sub">${mode.sub}</span>
             </button>`).join('');
 
         overlay.innerHTML = `
