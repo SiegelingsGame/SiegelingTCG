@@ -1290,7 +1290,14 @@
             renderFilters();
             renderCards();
         });
-        document.getElementById('playNowBtn')?.addEventListener('click', () => goPlay({ mode: 'solo', directLoadout: true }));
+        // The primary Play button asks where first: launching Arena straight from
+        // it left Siege and the Keep with no route off the one control labelled
+        // "play". Arena is still the first, primary choice in the picker.
+        document.getElementById('playNowBtn')?.addEventListener('click', () => {
+            const picker = window.SieglingsPlayModePicker;
+            if (!picker) { goPlay({ mode: 'solo', directLoadout: true }); return; }
+            picker.open({ onArena: () => goPlay({ mode: 'solo', directLoadout: true }) });
+        });
         document.getElementById('startPveBtn')?.addEventListener('click', () => goPlay({ mode: 'solo', directLoadout: true }));
         document.getElementById('createLobbyBtn')?.addEventListener('click', createLobbyFromHome);
         document.getElementById('shopShortcutBtn')?.addEventListener('click', () => navigateHub('shop'));
