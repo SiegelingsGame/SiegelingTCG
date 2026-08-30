@@ -20,7 +20,7 @@
             id: 'arena',
             icon: '⚔️',
             name: 'Arena',
-            sub: 'Face the table head-on. Solo skirmishes and live 1v1 duels — knight levels off, so it is your deck and your nerve.'
+            sub: 'Go 1v1 across the table. Connect your Sieglings notch-to-notch to build elemental energy, then spend it to break their board.'
         },
         {
             id: 'siege',
