@@ -16568,6 +16568,9 @@ function renderBoardCardBuffsList(card) {
 
 function updateSelectedInfo(card, msg) {
     const el = document.getElementById('selectedCardInfo');
+    // game.js is also loaded by the hub, which has no battle table: the global
+    // Escape handler reaches this with nothing to write into.
+    if (!el) return;
     if (!card && !msg) {
         el.innerHTML = 'Select a hand card or click a Siegeling on either board to preview it here.';
         syncSelectedPreviewDrawerTitle(0);

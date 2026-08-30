@@ -555,6 +555,20 @@
             renderNotifications();
         });
         $('playHudHelpBtn')?.addEventListener('click', () => toggleHelpModal());
+        // Same picker as the hub's Play button. On this page Arena starts the
+        // solo match in place rather than navigating, since the table is
+        // already loaded.
+        $('playHubPlayBtn')?.addEventListener('click', event => {
+            const picker = window.SieglingsPlayModePicker;
+            if (!picker) return;                     // no picker: the href still goes to /play
+            event.preventDefault();
+            picker.open({
+                onArena: () => {
+                    if (typeof window.startPlaySolo === 'function') window.startPlaySolo();
+                    else window.location.href = '/play';
+                }
+            });
+        });
         $('playHubJoinCodeBtn')?.addEventListener('click', openJoinWithCode);
         $('playHubFriendsBtn')?.addEventListener('click', openFriendsModal);
         $('playHudRequestsBtn')?.addEventListener('click', () => {
