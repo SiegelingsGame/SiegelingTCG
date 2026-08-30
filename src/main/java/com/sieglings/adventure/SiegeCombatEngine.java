@@ -43,6 +43,14 @@ public class SiegeCombatEngine {
     @Autowired
     private SiegeContentService content;
 
+    /**
+     * Live per-effect settings from the dashboard. Optional: unit tests build the
+     * engine directly, and every read falls back to the shipped default, so an
+     * absent service means "the balance this build was compiled with".
+     */
+    @Autowired(required = false)
+    private SiegeEffectTuningService effectTuning;
+
     static final String KNIGHT_OWNER_PREFIX = "knight-";
     /** Damage the Knight suffers whenever one of the Siegelings is knocked out. */
     static final int KNIGHT_KO_DAMAGE = 5;
@@ -718,7 +726,7 @@ public class SiegeCombatEngine {
                     "element", "ICE");
         }
         List<Combatant> quickened = new ArrayList<>();
-        int ultRounds = SiegeTuning.ULTIMATE_BUFF_ROUNDS;
+        int ultRounds = tunedGlobal("ultimateBuffRounds", SiegeTuning.ULTIMATE_BUFF_ROUNDS);
         for (Combatant ally : battle.living(Side.PLAYER)) {
             if (ally.isKnight()) continue;
             grantBuff(battle, ally, Combatant.BuffStat.SPEED, speed, ultRounds, "ult-vanguard");
@@ -1046,7 +1054,7 @@ public class SiegeCombatEngine {
                     battle.log(unit.getName() + " lands braced — " + amount + " shield.");
                 }
                 case ATTACK -> {
-                    int rounds = SiegeTuning.RIDER_BUFF_ROUNDS;
+                    int rounds = tunedGlobal("riderBuffRounds", SiegeTuning.RIDER_BUFF_ROUNDS);
                     grantBuff(battle, unit, Combatant.BuffStat.ATTACK, amount, rounds,
                             spec.id() + "-rider");
                     battle.event("buff", "kind", "atk", "amount", amount, "rounds", rounds,
@@ -1076,7 +1084,10 @@ public class SiegeCombatEngine {
      * round after this one.
      */
     private int shieldExpiryFor(SiegeBattle battle, Combatant target) {
-        return Math.max(1, battle.getRoundNumber()) + 1;
+        int rounds = Math.max(1, effectTuning != null
+                ? effectTuning.durationRounds(Effect.SHIELD)
+                : 1);
+        return Math.max(1, battle.getRoundNumber()) + rounds;
     }
 
     /**
@@ -1087,7 +1098,21 @@ public class SiegeCombatEngine {
      */
     private int buffRoundsFor(AbilitySpec spec) {
         int rounds = spec.durationRounds();
-        return rounds > 0 ? rounds : SiegeTuning.defaultBuffRounds(spec.effect());
+        return rounds > 0 ? rounds : tunedDuration(spec.effect());
+    }
+
+    /** The configured window for an effect's buff, or the shipped default. */
+    private int tunedDuration(Effect effect) {
+        return effectTuning != null
+                ? effectTuning.durationRounds(effect)
+                : SiegeTuning.defaultBuffRounds(effect);
+    }
+
+    /** A global buff window from the dashboard, or the shipped default. */
+    private int tunedGlobal(String key, int fallback) {
+        if (effectTuning == null) return fallback;
+        int value = effectTuning.globalValue(key);
+        return value > 0 ? value : fallback;
     }
 
     /**
@@ -1099,8 +1124,7 @@ public class SiegeCombatEngine {
                            int amount, int rounds, String sourceId) {
         if (amount <= 0) return;
         int window = rounds > 0 ? rounds
-                : SiegeTuning.defaultBuffRounds(stat == Combatant.BuffStat.ATTACK
-                        ? Effect.BUFF_ATK : Effect.BUFF_SPD);
+                : tunedDuration(stat == Combatant.BuffStat.ATTACK ? Effect.BUFF_ATK : Effect.BUFF_SPD);
         target.addTimedBuff(stat, amount, window, battle.getRoundNumber(), sourceId);
     }
 
@@ -1118,7 +1142,8 @@ public class SiegeCombatEngine {
         NodeType type = battle.getNodeType();
         boolean guarded = type == NodeType.ELITE || type == NodeType.BOSS;
         if (!guarded) return target.getHp() + target.getShield();
-        return Math.max(1, (int) Math.round(target.getMaxHp() * EXECUTE_BOSS_FRACTION));
+        double fraction = effectTuning != null ? effectTuning.executeBossFraction() : EXECUTE_BOSS_FRACTION;
+        return Math.max(1, (int) Math.round(target.getMaxHp() * fraction));
     }
 
     /** Damage is the card's (level-scaled) value plus explicit attack buffs, after Blind. */

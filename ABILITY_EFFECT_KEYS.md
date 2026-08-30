@@ -74,6 +74,14 @@ has a Siege translation. A card should do the thing its text promises in both
 modes; the mapping lives in `SiegeContentService.effectFor` /
 `targetFor`, and `SiegeCardEffectParityTest` pins it.
 
+The numbers in the "Siege effect" column below (the value bonus each effect
+adds, the draw/AP caps, the AP floor on `destroy`, and every buff window) are the
+**shipped defaults**, not fixed rules: they are shared by every card using that
+effect and are editable in the card dashboard under **Siege Mode → Ability
+Effects**, which writes them to `appConfig/siegeEffectTuning`
+(`SiegeEffectTuningService`). An empty override document behaves exactly like the
+table below; an edit applies to battles started afterwards.
+
 | Key | Siege effect | Siege targeting |
 | --- | --- | --- |
 | `damage` | `DAMAGE` — value + 2, plus the caster's attack buff. | as written |

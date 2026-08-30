@@ -25,6 +25,13 @@ public class SiegeController {
     @Autowired
     private SiegeService siege;
 
+    /** Shared per-effect settings edited in the dashboard's Siege Mode workspace. */
+    @Autowired
+    private SiegeEffectTuningService effectTuning;
+
+    @Autowired
+    private com.sieglings.service.CardEditorAuthService editorAuth;
+
     /** Selectable Siegelings + SiegeKnights for the team-select screen. */
     @GetMapping("/api/siege/roster")
     public Map<String, Object> roster(
@@ -359,9 +366,116 @@ public class SiegeController {
                 str(body.get("prompt")), body.get("choices"));
     }
 
+    /** Dashboard: shared ability-effect settings (defaults merged with overrides). */
+    @GetMapping("/api/siege/effects")
+    public Map<String, Object> listEffectTuning() {
+        return serializeTuning(effectTuning.buildSnapshot());
+    }
+
+    /**
+     * Dashboard: write one effect's shared settings (editor-authenticated). Only
+     * the fields present in the body are touched; a field sent as null resets
+     * that one knob to its default.
+     */
+    @PostMapping("/api/siege/effects")
+    public Map<String, Object> setEffectTuning(
+            @RequestHeader(value = "X-Card-Editor-Token", required = false) String editorToken,
+            @RequestBody Map<String, Object> body) {
+        String email = editorAuth.requireEditor(editorToken).email();
+        Effect effect = SiegeEffectTuningService.parseEffect(body.get("effect"));
+        java.util.Map<String, Integer> fields = new java.util.LinkedHashMap<>();
+        for (String field : List.of(SiegeEffectTuningService.FIELD_VALUE_BONUS,
+                SiegeEffectTuningService.FIELD_VALUE_CAP,
+                SiegeEffectTuningService.FIELD_MIN_ACTION_COST,
+                SiegeEffectTuningService.FIELD_DURATION_ROUNDS)) {
+            if (body.containsKey(field)) fields.put(field, nullableInt(body.get(field), field));
+        }
+        if (fields.isEmpty()) throw new IllegalArgumentException("No settings were sent.");
+        return serializeTuning(effectTuning.setEffect(effect, fields, email));
+    }
+
+    /** Dashboard: return one effect to its built-in settings (editor-authenticated). */
+    @PostMapping("/api/siege/effects/reset")
+    public Map<String, Object> resetEffectTuning(
+            @RequestHeader(value = "X-Card-Editor-Token", required = false) String editorToken,
+            @RequestBody Map<String, Object> body) {
+        String email = editorAuth.requireEditor(editorToken).email();
+        return serializeTuning(effectTuning.resetEffect(
+                SiegeEffectTuningService.parseEffect(body.get("effect")), email));
+    }
+
+    /** Dashboard: write one cross-effect setting, e.g. the Ultimate buff window. */
+    @PostMapping("/api/siege/effects/global")
+    public Map<String, Object> setEffectGlobal(
+            @RequestHeader(value = "X-Card-Editor-Token", required = false) String editorToken,
+            @RequestBody Map<String, Object> body) {
+        String email = editorAuth.requireEditor(editorToken).email();
+        String key = str(body.get("key"));
+        if (key == null || key.isBlank()) throw new IllegalArgumentException("A setting key is required.");
+        return serializeTuning(effectTuning.setGlobal(key, nullableInt(body.get("value"), key), email));
+    }
+
+    private Map<String, Object> serializeTuning(SiegeEffectTuningService.Snapshot snapshot) {
+        List<Map<String, Object>> effects = new java.util.ArrayList<>();
+        for (SiegeEffectTuningService.EffectRow row : snapshot.effects()) {
+            Map<String, Object> m = new java.util.LinkedHashMap<>();
+            m.put("effect", row.effect().name());
+            m.put("label", row.label());
+            m.put("fields", row.fields());
+            m.put("defaults", Map.of(
+                    "valueBonus", row.defaultValueBonus(),
+                    "valueCap", row.defaultValueCap(),
+                    "minActionCost", row.defaultMinActionCost(),
+                    "durationRounds", row.defaultDurationRounds()));
+            m.put("valueBonus", row.valueBonus());
+            m.put("valueCap", row.valueCap());
+            m.put("minActionCost", row.minActionCost());
+            m.put("durationRounds", row.durationRounds());
+            m.put("isOverride", row.isOverride());
+            effects.add(m);
+        }
+        List<Map<String, Object>> globals = new java.util.ArrayList<>();
+        for (SiegeEffectTuningService.GlobalRow row : snapshot.globals()) {
+            Map<String, Object> m = new java.util.LinkedHashMap<>();
+            m.put("key", row.key());
+            m.put("label", row.label());
+            m.put("description", row.description());
+            m.put("defaultValue", row.defaultValue());
+            m.put("value", row.value());
+            m.put("isOverride", row.isOverride());
+            globals.add(m);
+        }
+        Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("effects", effects);
+        out.put("globals", globals);
+        out.put("source", snapshot.backend() == null ? null : snapshot.backend().name());
+        out.put("updatedBy", snapshot.updatedBy());
+        out.put("updatedAt", snapshot.updatedAt());
+        return out;
+    }
+
+    /** Body ints that may legitimately be null — null resets that knob. */
+    private static Integer nullableInt(Object value, String field) {
+        if (value == null) return null;
+        if (value instanceof Number n) return n.intValue();
+        String raw = String.valueOf(value).trim();
+        if (raw.isEmpty()) return null;
+        try {
+            return Integer.parseInt(raw);
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException(field + " must be a whole number.");
+        }
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, Object>> handleBadRequest(IllegalArgumentException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", ex.getMessage()));
+    }
+
+    /** Storage failures (a Firestore write that did not land) keep their message. */
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<Map<String, Object>> handleServerError(IllegalStateException ex) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", ex.getMessage()));
     }
 
     private static String str(Object value) {

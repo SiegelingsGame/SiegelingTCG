@@ -50,6 +50,10 @@ public class SiegeService {
     @Autowired
     private SiegeContentService content;
 
+    /** Live shared ability-effect settings from the dashboard; optional in tests. */
+    @Autowired(required = false)
+    private SiegeEffectTuningService effectTuning;
+
     @Autowired
     private SiegeCombatEngine engine;
 
@@ -680,11 +684,11 @@ public class SiegeService {
 
     private String ampLabel(String kind) {
         return switch (kind) {
-            case "COST" -> "−" + SiegeTuning.AMP_COST_REDUCTION + " AP";
+            case "COST" -> "−" + ampCostReduction() + " AP";
             case "SWAP_HEAL" -> "Heals on arrival";
             case "SWAP_SHIELD" -> "Shields on arrival";
             case "SWAP_ATTACK" -> "Attack on arrival";
-            default -> "+" + SiegeTuning.AMP_VALUE_BONUS + " power";
+            default -> "+" + ampValueBonus() + " power";
         };
     }
 
@@ -706,14 +710,14 @@ public class SiegeService {
         String name = spec.name().endsWith(AMP_MARK) ? spec.name() : spec.name() + AMP_MARK;
         return switch (kind) {
             case "COST" -> new AbilitySpec(spec.id(), name, spec.element(), spec.effect(), spec.value(),
-                    spec.target(), Math.max(0, spec.actionCost() - SiegeTuning.AMP_COST_REDUCTION),
+                    spec.target(), Math.max(0, spec.actionCost() - ampCostReduction()),
                     spec.description(), spec.status(), spec.statusChance(), spec.rider(), spec.riderValue(),
                     spec.durationRounds());
             case "SWAP_HEAL" -> riderSpec(spec, name, AmpRider.HEAL, SiegeTuning.AMP_SWAP_HEAL);
             case "SWAP_SHIELD" -> riderSpec(spec, name, AmpRider.SHIELD, SiegeTuning.AMP_SWAP_SHIELD);
             case "SWAP_ATTACK" -> riderSpec(spec, name, AmpRider.ATTACK, SiegeTuning.AMP_SWAP_ATTACK);
             default -> new AbilitySpec(spec.id(), name, spec.element(), spec.effect(),
-                    spec.value() + SiegeTuning.AMP_VALUE_BONUS, spec.target(), spec.actionCost(),
+                    spec.value() + ampValueBonus(), spec.target(), spec.actionCost(),
                     // An amp pays magnitude, not duration — see SiegeTuning.BUFF_ATK_ROUNDS.
                     spec.description(), spec.status(), spec.statusChance(), spec.rider(), spec.riderValue(),
                     spec.durationRounds());
@@ -3706,6 +3710,16 @@ public class SiegeService {
     // ---- Serialization --------------------------------------------------
 
     /** Compact JSON for a list of ability specs (detail modals / shop cards). */
+    /** Live amp magnitude, or the shipped default when tuning is absent. */
+    private int ampValueBonus() {
+        return effectTuning != null ? effectTuning.globalValue("ampValueBonus") : SiegeTuning.AMP_VALUE_BONUS;
+    }
+
+    /** Live amp cost saving, or the shipped default when tuning is absent. */
+    private int ampCostReduction() {
+        return effectTuning != null ? effectTuning.globalValue("ampCostReduction") : SiegeTuning.AMP_COST_REDUCTION;
+    }
+
     private List<Map<String, Object>> serializeSpecs(List<AbilitySpec> specs) {
         List<Map<String, Object>> out = new ArrayList<>();
         for (AbilitySpec spec : specs) out.add(serializeSpec(spec));
