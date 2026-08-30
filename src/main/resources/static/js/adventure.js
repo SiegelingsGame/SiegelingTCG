@@ -1612,10 +1612,25 @@
         '<b>' + (effect.icon || '✦') + ' ' + esc(effect.label) + '</b>' +
         (effect.detail ? '<small>' + esc(effect.detail) + '</small>' : '') + '</span>';
     }).join('');
+    // Optional stat readout (XP breakdown from the reward screen); each row is
+    // {label, value, highlight}.
+    var stats = (u.stats || []).map(function (row) {
+      return '<div class="um-stat' + (row.highlight ? ' is-highlight' : '') + '">' +
+        '<span class="um-stat-label">' + esc(row.label) + '</span>' +
+        '<span class="um-stat-value">' + esc(row.value) + '</span></div>';
+    }).join('');
+    var bar = u.xpBar
+      ? '<div class="um-xp-bar ' + elClass(u.element) + '"><div class="um-xp-fill" style="width:' + u.xpBar.pct + '%"></div></div>' +
+        '<div class="um-xp-text">' + esc(u.xpBar.text) + '</div>'
+      : '';
     body.innerHTML =
       '<div class="um-head ' + elClass(u.element) + '">' + art +
       '<div><div class="um-name">' + icon(u.element) + ' ' + esc(u.name) + '</div>' +
       (u.subtitle ? '<div class="um-sub">' + esc(u.subtitle) + '</div>' : '') + '</div></div>' +
+      (stats || bar
+        ? '<div class="um-cards-title">' + esc(u.statsTitle || 'Details') + '</div>' +
+          (stats ? '<div class="um-stats">' + stats + '</div>' : '') + bar
+        : '') +
       (effects ? '<div class="um-cards-title">Active effects</div><div class="um-effects">' + effects + '</div>' : '') +
       '<div class="um-cards-title">' + (u.cards && u.cards.length ? 'Cards & abilities' : 'No cards') + '</div>' +
       '<div class="um-cards">' + cards + '</div>';
@@ -4887,6 +4902,13 @@
       : units.filter(function (u) { return u.leveledUp || (u.levelAfter || 1) > (u.levelBefore || 1); });
     var totalAwarded = recap.totalAwarded || units.reduce(function (sum, u) { return sum + (u.xpGained || 0); }, 0);
     host.classList.remove('hidden');
+    if (!host.dataset.drilldownBound) {
+      host.dataset.drilldownBound = '1';
+      host.addEventListener('click', function (e) {
+        var row = e.target.closest ? e.target.closest('[data-xp-unit]') : null;
+        if (row && host.contains(row)) showXpRecapDetails(row.getAttribute('data-xp-unit'));
+      });
+    }
     host.innerHTML =
       '<div class="xp-recap-head">' +
         '<div><span class="xp-recap-kicker">Battle XP</span><h2>Leveling recap</h2></div>' +
@@ -4913,9 +4935,11 @@
       ? '<span class="xp-kill-bonus">+' + u.killBonus + ' killing blow</span>'
       : '';
     var progressText = span > 0 ? (inLevel + '/' + span + ' XP') : 'Max level';
-    return '<div class="xp-recap-row ' + elClass(u.element) + (leveled ? ' leveled' : '') + '">' +
+    return '<button type="button" class="xp-recap-row ' + elClass(u.element) + (leveled ? ' leveled' : '') +
+      '" data-xp-unit="' + esc(u.id || '') + '" aria-label="' + esc(u.name) + ' — view XP and cards">' +
       '<div class="xp-unit-main">' +
-        '<div class="xp-unit-name">' + icon(u.element) + ' ' + esc(u.name) + '</div>' +
+        '<div class="xp-unit-name">' + icon(u.element) + ' ' + esc(u.name) +
+          '<span class="xp-unit-more" aria-hidden="true">\u203a</span></div>' +
         '<div class="xp-unit-meta">' + type + ' · +' + (u.xpGained || 0) + ' XP ' + bonus + '</div>' +
       '</div>' +
       '<div class="xp-unit-level">' +
@@ -4923,7 +4947,58 @@
         '<div class="xp-bar" title="' + esc(progressText) + '"><div class="xp-fill" style="width:' + pct + '%"></div></div>' +
         '<div class="xp-progress-text">' + progressText + '</div>' +
       '</div>' +
-    '</div>';
+    '</button>';
+  }
+
+  /**
+   * Reward-screen drill-down: tapping a recap row opens that unit's full XP
+   * breakdown and the cards it currently owns in the run deck. The recap entry
+   * carries the XP numbers; the live party/knight entry carries the cards, so
+   * both are looked up by unit id.
+   */
+  function showXpRecapDetails(unitId) {
+    var recap = state.run && state.run.xpRecap;
+    var units = recap && Array.isArray(recap.units) ? recap.units : [];
+    var u = units.find(function (e) { return e.id === unitId; });
+    if (!u) return;
+    var run = state.run || {};
+    var isKnight = u.kind === 'KNIGHT';
+    var member = (run.party || []).find(function (p) { return p.id === unitId; });
+    var knight = run.knight || {};
+    var cards = member ? (member.cards || [])
+      : (isKnight && knight.activeSpec ? [knight.activeSpec] : []);
+
+    var level = u.levelAfter || 1;
+    var span = u.xpSpan || 0;
+    var inLevel = Math.max(0, u.xpInLevel || 0);
+    var stats = [
+      { label: 'Level', value: u.leveledUp ? ('Lv ' + u.levelBefore + ' → Lv ' + level) : ('Lv ' + level),
+        highlight: !!u.leveledUp },
+      { label: 'Battle XP', value: '+' + (u.baseXp || 0) },
+      { label: 'Killing blows', value: (u.killCount || 0) + ' · +' + (u.killBonus || 0) + ' XP',
+        highlight: (u.killBonus || 0) > 0 },
+      { label: 'XP this battle', value: '+' + (u.xpGained || 0) },
+      { label: 'Total XP', value: (u.xpBefore || 0) + ' → ' + (u.xpAfter || 0) },
+      { label: 'To next level', value: span > 0 ? ((u.xpToNext || 0) + ' XP') : 'Max level' }
+    ];
+
+    var subtitle = (isKnight ? 'SiegeKnight' : 'Siegeling') + ' · Lv ' + level;
+    if (member) subtitle += ' · HP ' + member.hp + '/' + member.maxHp + ' · ⚡ ' + member.speed;
+    else if (isKnight && knight.maxHp) subtitle += ' · HP ' + (knight.hp != null ? knight.hp : knight.maxHp) + '/' + knight.maxHp;
+
+    showUnitModal({
+      name: u.name,
+      element: u.element,
+      artUrl: member ? member.artUrl : knight.artUrl,
+      subtitle: subtitle,
+      statsTitle: 'XP breakdown',
+      stats: stats,
+      xpBar: {
+        pct: span > 0 ? Math.max(0, Math.min(100, Math.round(100 * inLevel / span))) : 100,
+        text: span > 0 ? (inLevel + '/' + span + ' XP toward Lv ' + (level + 1)) : 'Max level'
+      },
+      cards: cards
+    });
   }
 
   function renderRewards() {
