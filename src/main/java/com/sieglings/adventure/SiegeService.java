@@ -707,13 +707,16 @@ public class SiegeService {
         return switch (kind) {
             case "COST" -> new AbilitySpec(spec.id(), name, spec.element(), spec.effect(), spec.value(),
                     spec.target(), Math.max(0, spec.actionCost() - SiegeTuning.AMP_COST_REDUCTION),
-                    spec.description(), spec.status(), spec.statusChance(), spec.rider(), spec.riderValue());
+                    spec.description(), spec.status(), spec.statusChance(), spec.rider(), spec.riderValue(),
+                    spec.durationRounds());
             case "SWAP_HEAL" -> riderSpec(spec, name, AmpRider.HEAL, SiegeTuning.AMP_SWAP_HEAL);
             case "SWAP_SHIELD" -> riderSpec(spec, name, AmpRider.SHIELD, SiegeTuning.AMP_SWAP_SHIELD);
             case "SWAP_ATTACK" -> riderSpec(spec, name, AmpRider.ATTACK, SiegeTuning.AMP_SWAP_ATTACK);
             default -> new AbilitySpec(spec.id(), name, spec.element(), spec.effect(),
                     spec.value() + SiegeTuning.AMP_VALUE_BONUS, spec.target(), spec.actionCost(),
-                    spec.description(), spec.status(), spec.statusChance(), spec.rider(), spec.riderValue());
+                    // An amp pays magnitude, not duration — see SiegeTuning.BUFF_ATK_ROUNDS.
+                    spec.description(), spec.status(), spec.statusChance(), spec.rider(), spec.riderValue(),
+                    spec.durationRounds());
         };
     }
 
@@ -725,7 +728,7 @@ public class SiegeService {
         int value = spec.rider() == rider ? spec.riderValue() + amount : amount;
         return new AbilitySpec(spec.id(), name, spec.element(), spec.effect(), spec.value(),
                 spec.target(), spec.actionCost(), spec.description(),
-                spec.status(), spec.statusChance(), rider, value);
+                spec.status(), spec.statusChance(), rider, value, spec.durationRounds());
     }
 
     /**
@@ -1195,7 +1198,20 @@ public class SiegeService {
         m.put("baseMaxHp", c.getBaseMaxHp());
         m.put("level", c.getLevel());
         m.put("xp", c.getXp());
-        m.put("attackBuff", c.getAttackBuff());
+        // Only the battle-long part: timed buffs ride in their own list with the
+        // absolute round they lapse on, so a run resumed mid-battle keeps each
+        // buff's remaining window instead of freezing it at full duration.
+        m.put("attackBuff", c.getBaseAttackBuff());
+        List<Map<String, Object>> timedBuffs = new ArrayList<>();
+        for (Combatant.TimedBuff buff : c.getTimedBuffs()) {
+            Map<String, Object> bm = new LinkedHashMap<>();
+            bm.put("stat", buff.stat().name());
+            bm.put("amount", buff.amount());
+            bm.put("expiryRound", buff.expiryRound());
+            bm.put("sourceId", buff.sourceId());
+            timedBuffs.add(bm);
+        }
+        m.put("timedBuffs", timedBuffs);
         m.put("position", c.getPosition());
         m.put("sourceCardId", c.getSourceCardId());
         m.put("artCardId", c.getArtCardId());
@@ -1278,6 +1294,18 @@ public class SiegeService {
         c.setShieldExpiryRound(intVal(m.get("shieldExpiryRound"), 0));
         c.setSpeed(intVal(m.get("speed"), baseSpeed));
         c.addAttackBuff(intVal(m.get("attackBuff"), 0));
+        if (m.get("timedBuffs") instanceof List<?> buffs) {
+            for (Object raw : buffs) {
+                if (!(raw instanceof Map<?, ?> bm)) continue;
+                Object stat = bm.get("stat");
+                if (stat == null) continue;
+                c.loadTimedBuff(new Combatant.TimedBuff(
+                        Combatant.BuffStat.valueOf(String.valueOf(stat)),
+                        intVal(bm.get("amount"), 0),
+                        intVal(bm.get("expiryRound"), 0),
+                        bm.get("sourceId") == null ? null : String.valueOf(bm.get("sourceId"))));
+            }
+        }
         c.setPosition(intVal(m.get("position"), -1));
         c.setSourceCardId(m.get("sourceCardId") == null ? null : String.valueOf(m.get("sourceCardId")));
         // Without this a run resumed mid-battle keeps the shade's art and "Shade of X"
@@ -1326,6 +1354,7 @@ public class SiegeService {
         s.put("desc", spec.description());
         s.put("status", spec.status() == null ? null : spec.status().name());
         s.put("statusChance", spec.statusChance());
+        s.put("durationRounds", spec.durationRounds());
         if (spec.hasRider()) {
             s.put("rider", spec.rider().name());
             s.put("riderValue", spec.riderValue());
@@ -1485,7 +1514,11 @@ public class SiegeService {
                 intVal(s.get("statusChance"), 0),
                 // Snapshots written before level-up amplifications carry no rider.
                 s.get("rider") == null ? AmpRider.NONE : AmpRider.valueOf(String.valueOf(s.get("rider"))),
-                intVal(s.get("riderValue"), 0));
+                intVal(s.get("riderValue"), 0),
+                // Snapshots written before buff durations existed carry none: fall back to
+                // the effect default rather than restoring the old battle-long buff.
+                intVal(s.get("durationRounds"),
+                        SiegeTuning.defaultBuffRounds(Effect.valueOf(String.valueOf(s.get("effect"))))));
     }
 
     private int intVal(Object value, int fallback) {
@@ -3688,6 +3721,7 @@ public class SiegeService {
         s.put("actionCost", spec.actionCost());
         s.put("target", spec.target().name());
         s.put("description", spec.description());
+        if (spec.buffExpires()) s.put("durationRounds", spec.durationRounds());
         if (spec.status() != null && spec.statusChance() > 0) {
             s.put("status", spec.status().name());
             s.put("statusChance", spec.statusChance());
@@ -4049,7 +4083,8 @@ public class SiegeService {
         List<Map<String, Object>> foes = new ArrayList<>();
         for (Combatant c : battle.getCombatants()) {
             if (c.isKnight()) continue;
-            Map<String, Object> cm = serializeCombatant(c, c.getSide() == Side.ENEMY);
+            Map<String, Object> cm = serializeCombatant(c, c.getSide() == Side.ENEMY,
+                    battle.getRoundNumber());
             if (c.getSide() == Side.PLAYER) allies.add(cm); else foes.add(cm);
         }
         // Present the line in notch order so positions read left → right.
@@ -4112,6 +4147,7 @@ public class SiegeService {
             h.put("target", spec.target().name());
             h.put("actionCost", displayCost);
             h.put("description", spec.description());
+            if (spec.buffExpires()) h.put("durationRounds", spec.durationRounds());
             if (spec.status() != null && spec.statusChance() > 0) {
                 h.put("status", spec.status().name());
                 h.put("statusChance", spec.statusChance());
@@ -4164,6 +4200,7 @@ public class SiegeService {
         m.put("target", spec.target().name());
         m.put("actionCost", spec.actionCost());
         m.put("description", spec.description());
+        if (spec.buffExpires()) m.put("durationRounds", spec.durationRounds());
         if (spec.status() != null && spec.statusChance() > 0) {
             m.put("status", spec.status().name());
             m.put("statusChance", spec.statusChance());
@@ -4279,6 +4316,15 @@ public class SiegeService {
     }
 
     private Map<String, Object> serializeCombatant(Combatant c, boolean includeAbilities) {
+        return serializeCombatant(c, includeAbilities, 0);
+    }
+
+    /**
+     * @param roundNumber the battle's current round, so buff badges can show how
+     *                    many rounds each one has left; 0 outside a battle, where
+     *                    no timed buff is ever standing.
+     */
+    private Map<String, Object> serializeCombatant(Combatant c, boolean includeAbilities, int roundNumber) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", c.getId());
         m.put("name", c.getName());
@@ -4291,6 +4337,12 @@ public class SiegeService {
         m.put("baseSpeed", c.getBaseSpeed());
         m.put("effectiveSpeed", c.effectiveSpeed());
         m.put("attackBuff", c.getAttackBuff());
+        // The badge needs the timed slice and its remaining window separately: the
+        // battle-long part (knight passive, item) has no countdown to show.
+        m.put("attackBuffTimed", c.timedBonus(Combatant.BuffStat.ATTACK));
+        m.put("attackBuffRounds", c.buffRoundsLeft(Combatant.BuffStat.ATTACK, roundNumber));
+        m.put("speedBuffTimed", c.timedBonus(Combatant.BuffStat.SPEED));
+        m.put("speedBuffRounds", c.buffRoundsLeft(Combatant.BuffStat.SPEED, roundNumber));
         m.put("maxHpBonus", c.getBattleMaxHpBonus());
         // Leveling (drives the level badge + XP bar on the unit chip).
         m.put("level", c.getLevel());

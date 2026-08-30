@@ -407,7 +407,8 @@ public class SiegeContentService {
         }
         // Fallback knight card: a rallying strike.
         return new AbilitySpec(kid, knight.getName() + ": Rally", knight.getElement(),
-                Effect.BUFF_ATK, 2, TargetKind.ALLY_ALL, 2, "All Siegelings gain +2 attack this battle.");
+                Effect.BUFF_ATK, 2, TargetKind.ALLY_ALL, 2,
+                "All Siegelings gain +2 attack for " + SiegeTuning.BUFF_ATK_ROUNDS + " rounds.");
     }
 
     /**
@@ -1306,7 +1307,10 @@ public class SiegeContentService {
         }
         cards.add(new SiegeCard(merc.getId() + "-boon-war", merc.getId(),
                 new AbilitySpec("boon-warcry", "Boon: Warcry", s.getElement(), Effect.BUFF_ATK, 3,
-                        TargetKind.ALLY_ALL, 1, merc.getName() + " rallies the warband: +3 attack this battle.")));
+                        TargetKind.ALLY_ALL, 1,
+                        merc.getName() + " rallies the warband: +3 attack for "
+                                + SiegeTuning.BOON_BUFF_ROUNDS + " rounds.",
+                        null, 0, AmpRider.NONE, 0, SiegeTuning.BOON_BUFF_ROUNDS)));
         cards.add(new SiegeCard(merc.getId() + "-boon-wall", merc.getId(),
                 new AbilitySpec("boon-bulwark", "Boon: Bulwark", s.getElement(), Effect.SHIELD, 8,
                         TargetKind.ALLY_ALL, 1, merc.getName() + " shields the whole warband for 8.")));
@@ -1566,7 +1570,10 @@ public class SiegeContentService {
         if (spec.effect() == Effect.EXECUTE) cost = Math.max(EXECUTE_MIN_AP, cost);
         return new AbilitySpec(spec.id(), spec.name() + " +", spec.element(),
                 spec.effect(), value, spec.target(), cost, spec.description(),
-                spec.status(), spec.statusChance());
+                // An upgrade raises the magnitude, never the window: a buff card that
+                // also bought more rounds is how the old permanent buffs compounded.
+                spec.status(), spec.statusChance(), spec.rider(), spec.riderValue(),
+                spec.durationRounds());
     }
 
     /** A random selectable Siegeling not already in the warband, if any. */

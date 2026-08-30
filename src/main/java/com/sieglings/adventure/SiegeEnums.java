@@ -19,8 +19,8 @@ enum Effect {
     HEAL,         // heal         — restore value HP up to max
     SHIELD,       // shield       — temporary shield HP, gone at the start of your next turn
     MAX_HP_BOOST, // health_boost — raise max HP for the battle and heal the same amount
-    BUFF_ATK,     // damage_boost — grant target +value flat attack for the battle
-    BUFF_SPD,     // speed_boost  — grant target +value speed for the battle
+    BUFF_ATK,     // damage_boost — grant target +value flat attack for a few rounds (AbilitySpec#durationRounds)
+    BUFF_SPD,     // speed_boost  — grant target +value speed for a few rounds (AbilitySpec#durationRounds)
     SLOW,         // slow/speed_zero — apply the Slow status
     STUN,         // freeze       — the target skips its next action
     DRAW,         // draw         — pull value cards into the hand

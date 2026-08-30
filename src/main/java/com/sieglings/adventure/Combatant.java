@@ -35,7 +35,18 @@ class Combatant {
     private int shieldExpiryRound;
     private int speed;                // base speed before status modifiers
     private int baseSpeed;
-    private int attackBuff;           // flat bonus added to this unit's damage
+    /**
+     * Battle-long flat damage bonus: the Knight's ATTACK leadership passive and
+     * carried ATTACK items, which are loadout rather than plays. Card-granted
+     * buffs go into {@link #timedBuffs} so they lapse.
+     */
+    private int attackBuff;
+    /**
+     * Buffs granted by played abilities, each with the round it lapses on. Kept
+     * as a list rather than one running total because durations differ per card
+     * and each grant has to expire on its own clock.
+     */
+    private final List<TimedBuff> timedBuffs = new ArrayList<>();
     /**
      * Battle-scoped max-HP gain from {@code health_boost} cards. Kept apart from
      * {@link #baseMaxHp} (which is run-permanent) so {@link #applyLevel()} can stay
@@ -146,7 +157,10 @@ class Combatant {
     void setSpeed(int speed) { this.speed = Math.max(0, speed); }
     int getBaseSpeed() { return baseSpeed; }
     void setBaseSpeed(int baseSpeed) { this.baseSpeed = Math.max(1, baseSpeed); }
-    int getAttackBuff() { return attackBuff; }
+    /** Total attack bonus in play: the battle-long loadout bonus plus every live timed buff. */
+    int getAttackBuff() { return Math.max(0, attackBuff + timedBonus(BuffStat.ATTACK)); }
+    /** The battle-long part alone — what a fresh battle resets and what evolution carries over. */
+    int getBaseAttackBuff() { return attackBuff; }
     void addAttackBuff(int amount) { this.attackBuff = Math.max(0, this.attackBuff + amount); }
     int getPosition() { return position; }
     void setPosition(int position) { this.position = position; }
@@ -314,12 +328,87 @@ class Combatant {
         statuses.values().removeIf(v -> v <= 0);
     }
 
-    /** Speed after status modifiers (Slow: −2). Only living, unstunned units contribute. */
+    /** Speed after timed buffs and status modifiers (Slow: −2). Only living, unstunned units contribute. */
     int effectiveSpeed() {
-        int s = speed;
+        int s = speed + timedBonus(BuffStat.SPEED);
         if (has(StatusKind.SLOW)) s -= 2;
         return Math.max(0, s);
     }
+
+    // ---- Timed buffs ------------------------------------------------------
+
+    /** Which stat a {@link TimedBuff} raises. */
+    enum BuffStat { ATTACK, SPEED }
+
+    /**
+     * One buff grant: {@code amount} on {@code stat} until this unit's side opens
+     * round {@code expiryRound}. Measured the same way as {@link #shieldExpiryRound}
+     * so "for 2 rounds" means the same thing for a shield and for an attack buff.
+     */
+    record TimedBuff(BuffStat stat, int amount, int expiryRound, String sourceId) {}
+
+    List<TimedBuff> getTimedBuffs() { return timedBuffs; }
+
+    /**
+     * Grants a buff that lapses after {@code rounds} of this unit's turns.
+     * Re-applying the same {@code sourceId} refreshes that grant instead of
+     * stacking a second copy of it — otherwise a repeatable buff card rebuilds
+     * the compounding this duration is meant to end. A different source stacks
+     * normally.
+     */
+    void addTimedBuff(BuffStat stat, int amount, int rounds, int currentRound, String sourceId) {
+        if (amount <= 0 || rounds <= 0) return;
+        int expiry = Math.max(1, currentRound) + rounds;
+        if (sourceId != null) {
+            for (int i = 0; i < timedBuffs.size(); i++) {
+                TimedBuff existing = timedBuffs.get(i);
+                if (existing.stat() == stat && sourceId.equals(existing.sourceId())) {
+                    timedBuffs.set(i, new TimedBuff(stat, Math.max(existing.amount(), amount),
+                            Math.max(existing.expiryRound(), expiry), sourceId));
+                    return;
+                }
+            }
+        }
+        timedBuffs.add(new TimedBuff(stat, amount, expiry, sourceId));
+    }
+
+    /** Restores a buff verbatim from a checkpoint (expiry already absolute). */
+    void loadTimedBuff(TimedBuff buff) {
+        if (buff != null && buff.amount() > 0) timedBuffs.add(buff);
+    }
+
+    int timedBonus(BuffStat stat) {
+        int total = 0;
+        for (TimedBuff b : timedBuffs) {
+            if (b.stat() == stat) total += b.amount();
+        }
+        return total;
+    }
+
+    /** Rounds left on the longest-lived buff of this stat, or 0 if none is running. */
+    int buffRoundsLeft(BuffStat stat, int currentRound) {
+        int most = 0;
+        for (TimedBuff b : timedBuffs) {
+            if (b.stat() == stat) most = Math.max(most, b.expiryRound() - currentRound);
+        }
+        return Math.max(0, most);
+    }
+
+    /**
+     * Drops every buff that has reached its expiry round. Returns the amount lost
+     * per stat so the caller can log and animate the fade.
+     */
+    Map<BuffStat, Integer> expireBuffs(int currentRound) {
+        Map<BuffStat, Integer> lost = new EnumMap<>(BuffStat.class);
+        timedBuffs.removeIf(b -> {
+            if (currentRound < b.expiryRound()) return false;
+            lost.merge(b.stat(), b.amount(), Integer::sum);
+            return true;
+        });
+        return lost;
+    }
+
+    void clearTimedBuffs() { timedBuffs.clear(); }
 
     boolean isAlive() { return hp > 0; }
 

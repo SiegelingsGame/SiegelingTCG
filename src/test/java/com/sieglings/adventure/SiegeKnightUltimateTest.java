@@ -145,10 +145,10 @@ class SiegeKnightUltimateTest {
         if (run == null) return;
         Combatant ally = run.getBattle().living(Side.PLAYER).stream()
                 .filter(c -> !c.isKnight()).findFirst().orElseThrow();
-        int speedBefore = ally.getSpeed();
+        int speedBefore = ally.effectiveSpeed();
         List<Combatant> foes = List.copyOf(run.getBattle().living(Side.ENEMY));
         assertTrue(engine.useKnightUltimate(run, new Random(1)).ok);
-        assertTrue(ally.getSpeed() > speedBefore, "allies speed up");
+        assertTrue(ally.effectiveSpeed() > speedBefore, "allies speed up");
         for (Combatant foe : foes) {
             assertTrue(foe.has(StatusKind.STUN), foe.getName() + " should lose its next action");
         }

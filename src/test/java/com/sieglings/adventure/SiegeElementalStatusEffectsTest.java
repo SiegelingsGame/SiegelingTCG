@@ -131,7 +131,9 @@ class SiegeElementalStatusEffectsTest {
         apply(f.battle, f.ally, attack, List.of(f.ally));
         apply(f.battle, f.ally, speed, List.of(f.ally));
         assertEquals(2, f.ally.getAttackBuff());
-        assertEquals(12, f.ally.getSpeed());
+        // Card speed buffs are timed and ride outside the unit's base speed, so the
+        // buffed value is the effective one initiative is read from.
+        assertEquals(12, f.ally.effectiveSpeed());
     }
 
     @Test

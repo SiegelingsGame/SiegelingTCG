@@ -22,6 +22,10 @@ import com.sieglings.model.enums.Element;
  * @param statusChance percent chance (0–100) to inflict {@link #status} per target
  * @param rider        extra effect added by a level-up amplification ({@link AmpRider#NONE} normally)
  * @param riderValue   magnitude of {@link #rider}
+ * @param durationRounds how many rounds a stat buff granted by this ability lasts;
+ *                     0 means "no duration" — either the effect is not a buff, or the
+ *                     buff is battle-long. Defaulted per effect by
+ *                     {@link SiegeTuning#defaultBuffRounds} when a caller does not say.
  */
 record AbilitySpec(
         String id,
@@ -35,8 +39,14 @@ record AbilitySpec(
         StatusKind status,
         int statusChance,
         AmpRider rider,
-        int riderValue
+        int riderValue,
+        int durationRounds
 ) {
+    /** Whether the stat buff this ability grants ever lapses on its own. */
+    boolean buffExpires() {
+        return durationRounds > 0;
+    }
+
     /** Convenience constructor for abilities with no status rider. */
     AbilitySpec(String id, String name, Element element, Effect effect, int value,
                 TargetKind target, int actionCost, String description) {
@@ -49,6 +59,17 @@ record AbilitySpec(
                 StatusKind status, int statusChance) {
         this(id, name, element, effect, value, target, actionCost, description,
                 status, statusChance, AmpRider.NONE, 0);
+    }
+
+    /**
+     * Convenience constructor for a spec with an amp rider but no explicit buff
+     * duration — the duration falls back to the per-effect default.
+     */
+    AbilitySpec(String id, String name, Element element, Effect effect, int value,
+                TargetKind target, int actionCost, String description,
+                StatusKind status, int statusChance, AmpRider rider, int riderValue) {
+        this(id, name, element, effect, value, target, actionCost, description,
+                status, statusChance, rider, riderValue, SiegeTuning.defaultBuffRounds(effect));
     }
 
     boolean hasRider() {
