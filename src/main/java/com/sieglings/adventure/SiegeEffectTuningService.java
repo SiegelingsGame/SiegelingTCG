@@ -302,63 +302,114 @@ public class SiegeEffectTuningService {
     }
 
     /**
-     * Writes one effect's knobs. A null value in {@code fields} clears that knob
-     * back to its default, so the dashboard can reset a single number without
-     * discarding the rest of the row.
+     * One effect's pending edit: the knobs to write (a null value clears that one
+     * knob back to its default), or {@code reset} to drop the whole row.
      */
+    public record EffectPatch(Effect effect, Map<String, Integer> fields, boolean reset) {}
+
+    /**
+     * Applies any number of effect and global edits in a single write. The
+     * dashboard edits a whole screen of settings at once, and saving each one
+     * separately meant a storage round trip per number and a window where half
+     * the change was live; everything is validated first, then written once.
+     */
+    public Snapshot applyChanges(List<EffectPatch> patches, Map<String, Integer> globals, String updatedByEmail) {
+        List<EffectPatch> effectPatches = patches == null ? List.of() : patches;
+        Map<String, Integer> globalPatches = globals == null ? Map.of() : globals;
+        if (effectPatches.isEmpty() && globalPatches.isEmpty()) {
+            throw new IllegalArgumentException("No settings were sent.");
+        }
+
+        TuningFile current = load().file();
+        Map<Effect, EffectOverride> merged = new LinkedHashMap<>();
+        for (EffectOverride row : current.effects()) {
+            Effect effect = effectOf(row);
+            if (effect != null) merged.put(effect, row);
+        }
+
+        // Validate every patch before touching storage: a typo in the last tile
+        // must not leave the first twelve already published.
+        for (EffectPatch patch : effectPatches) {
+            if (patch == null || patch.effect() == null) {
+                throw new IllegalArgumentException("An effect is required.");
+            }
+            Effect effect = patch.effect();
+            if (patch.reset()) {
+                merged.remove(effect);
+                continue;
+            }
+            Defaults defaults = DEFAULTS.get(effect);
+            if (defaults == null || defaults.fields().isEmpty()) {
+                throw new IllegalArgumentException(effect.name() + " has no shared settings to edit.");
+            }
+            EffectOverride existing = merged.get(effect);
+            Map<String, Integer> fields = patch.fields() == null ? Map.of() : patch.fields();
+            Integer valueBonus = merge(existing == null ? null : existing.valueBonus(), fields,
+                    FIELD_VALUE_BONUS, defaults, effect, MAX_VALUE_BONUS);
+            Integer valueCap = merge(existing == null ? null : existing.valueCap(), fields,
+                    FIELD_VALUE_CAP, defaults, effect, MAX_VALUE_CAP);
+            Integer minCost = merge(existing == null ? null : existing.minActionCost(), fields,
+                    FIELD_MIN_ACTION_COST, defaults, effect, MAX_ACTION_COST);
+            Integer duration = merge(existing == null ? null : existing.durationRounds(), fields,
+                    FIELD_DURATION_ROUNDS, defaults, effect, MAX_DURATION_ROUNDS);
+            if (valueBonus == null && valueCap == null && minCost == null && duration == null) {
+                merged.remove(effect); // every knob is back at its default
+            } else {
+                merged.put(effect, new EffectOverride(effect.name(), valueBonus, valueCap, minCost, duration));
+            }
+        }
+
+        GlobalOverride globalsOut = current.globals();
+        for (Map.Entry<String, Integer> entry : globalPatches.entrySet()) {
+            globalsOut = withGlobal(globalsOut, entry.getKey(), entry.getValue());
+        }
+
+        return save(new TuningFile(List.copyOf(merged.values()), globalsOut), updatedByEmail);
+    }
+
+    /** Writes one effect's knobs. Kept for callers editing a single row. */
     public Snapshot setEffect(Effect effect, Map<String, Integer> fields, String updatedByEmail) {
         if (effect == null) throw new IllegalArgumentException("An effect is required.");
-        Defaults defaults = DEFAULTS.get(effect);
-        if (defaults == null || defaults.fields().isEmpty()) {
-            throw new IllegalArgumentException(effect.name() + " has no shared settings to edit.");
-        }
-        EffectOverride existing = findOverride(load().file(), effect);
-        Integer valueBonus = merge(existing == null ? null : existing.valueBonus(), fields, FIELD_VALUE_BONUS,
-                defaults, effect, MAX_VALUE_BONUS);
-        Integer valueCap = merge(existing == null ? null : existing.valueCap(), fields, FIELD_VALUE_CAP,
-                defaults, effect, MAX_VALUE_CAP);
-        Integer minCost = merge(existing == null ? null : existing.minActionCost(), fields, FIELD_MIN_ACTION_COST,
-                defaults, effect, MAX_ACTION_COST);
-        Integer duration = merge(existing == null ? null : existing.durationRounds(), fields, FIELD_DURATION_ROUNDS,
-                defaults, effect, MAX_DURATION_ROUNDS);
-
-        List<EffectOverride> rows = new ArrayList<>();
-        for (EffectOverride row : load().file().effects()) {
-            if (!sameEffect(row, effect)) rows.add(row);
-        }
-        boolean empty = valueBonus == null && valueCap == null && minCost == null && duration == null;
-        if (!empty) {
-            rows.add(new EffectOverride(effect.name(), valueBonus, valueCap, minCost, duration));
-        }
-        return save(new TuningFile(rows, load().file().globals()), updatedByEmail);
+        return applyChanges(List.of(new EffectPatch(effect, fields, false)), Map.of(), updatedByEmail);
     }
 
     /** Drops every override on one effect, returning it to the built-in defaults. */
     public Snapshot resetEffect(Effect effect, String updatedByEmail) {
         if (effect == null) throw new IllegalArgumentException("An effect is required.");
-        List<EffectOverride> rows = new ArrayList<>();
-        for (EffectOverride row : load().file().effects()) {
-            if (!sameEffect(row, effect)) rows.add(row);
-        }
-        return save(new TuningFile(rows, load().file().globals()), updatedByEmail);
+        return applyChanges(List.of(new EffectPatch(effect, Map.of(), true)), Map.of(), updatedByEmail);
     }
 
     public Snapshot setGlobal(String key, Integer value, String updatedByEmail) {
-        GlobalDef def = GLOBAL_DEFS.get(key);
+        Map<String, Integer> one = new LinkedHashMap<>();
+        one.put(key, value);
+        return applyChanges(List.of(), one, updatedByEmail);
+    }
+
+    /** Validates one cross-effect setting and returns the globals with it applied. */
+    private GlobalOverride withGlobal(GlobalOverride g, String key, Integer value) {
+        GlobalDef def = key == null ? null : GLOBAL_DEFS.get(key);
         if (def == null) throw new IllegalArgumentException("Unknown setting: " + key);
         if (value != null && (value < MIN_FIELD_VALUE || value > def.max())) {
             throw new IllegalArgumentException(def.label() + " must be between "
                     + MIN_FIELD_VALUE + " and " + def.max() + ".");
         }
-        GlobalOverride g = load().file().globals();
-        GlobalOverride updated = new GlobalOverride(
+        return new GlobalOverride(
                 "ultimateBuffRounds".equals(key) ? value : overrideGlobal(g, "ultimateBuffRounds"),
                 "riderBuffRounds".equals(key) ? value : overrideGlobal(g, "riderBuffRounds"),
                 "boonBuffRounds".equals(key) ? value : overrideGlobal(g, "boonBuffRounds"),
                 "ampValueBonus".equals(key) ? value : overrideGlobal(g, "ampValueBonus"),
                 "ampCostReduction".equals(key) ? value : overrideGlobal(g, "ampCostReduction"),
                 "executeBossPercent".equals(key) ? value : overrideGlobal(g, "executeBossPercent"));
-        return save(new TuningFile(load().file().effects(), updated), updatedByEmail);
+    }
+
+    /** The effect a stored row names, or null when the row is unreadable. */
+    private static Effect effectOf(EffectOverride row) {
+        if (row == null || row.effect() == null) return null;
+        try {
+            return Effect.valueOf(row.effect().trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
     }
 
     private Integer merge(Integer current, Map<String, Integer> fields, String field,

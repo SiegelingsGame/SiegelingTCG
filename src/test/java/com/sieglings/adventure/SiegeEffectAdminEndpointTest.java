@@ -112,6 +112,55 @@ class SiegeEffectAdminEndpointTest {
                 () -> controller.setEffectGlobal(TOKEN, Map.of("key", "", "value", 2)));
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void bulkSavePublishesTheWholeScreenInOneRequest() throws Exception {
+        SiegeController controller = controller(new StubAuth(true));
+
+        Map<String, Object> damage = new HashMap<>();
+        damage.put("effect", "DAMAGE");
+        damage.put("valueBonus", 6);
+        Map<String, Object> buff = new HashMap<>();
+        buff.put("effect", "BUFF_ATK");
+        buff.put("durationRounds", "4"); // the dashboard sends input values as text
+        Map<String, Object> body = new HashMap<>();
+        body.put("effects", List.of(damage, buff));
+        body.put("globals", Map.of("ultimateBuffRounds", 6));
+
+        Map<String, Object> after = controller.saveEffectTuning(TOKEN, body);
+        assertEquals(6, row(after, "DAMAGE").get("valueBonus"));
+        assertEquals(4, row(after, "BUFF_ATK").get("durationRounds"));
+        assertEquals(6, ((List<Map<String, Object>>) after.get("globals")).stream()
+                .filter(g -> "ultimateBuffRounds".equals(g.get("key"))).findFirst().orElseThrow().get("value"));
+
+        // A reset flag in the batch drops that effect's row.
+        Map<String, Object> reset = new HashMap<>();
+        reset.put("effect", "DAMAGE");
+        reset.put("reset", true);
+        Map<String, Object> cleared = controller.saveEffectTuning(TOKEN, Map.of("effects", List.of(reset)));
+        assertEquals(2, row(cleared, "DAMAGE").get("valueBonus"));
+        assertEquals(false, row(cleared, "DAMAGE").get("isOverride"));
+        assertEquals(4, row(cleared, "BUFF_ATK").get("durationRounds"), "other effects are untouched");
+    }
+
+    @Test
+    void bulkSaveStillNeedsAnEditorAndRejectsABadBatchWhole() throws Exception {
+        SiegeController signedOut = controller(new StubAuth(false));
+        assertThrows(IllegalArgumentException.class,
+                () -> signedOut.saveEffectTuning(null, Map.of("effects", List.of(Map.of("effect", "DAMAGE", "valueBonus", 3)))));
+
+        SiegeController controller = controller(new StubAuth(true));
+        assertThrows(IllegalArgumentException.class,
+                () -> controller.saveEffectTuning(TOKEN, Map.of("effects", List.of(
+                        Map.of("effect", "DAMAGE", "valueBonus", 5),
+                        Map.of("effect", "HEAL", "valueBonus", 9999)))));
+        assertEquals(2, row(controller.listEffectTuning(), "DAMAGE").get("valueBonus"),
+                "nothing from a rejected batch is published");
+        assertThrows(IllegalArgumentException.class,
+                () -> controller.saveEffectTuning(TOKEN, Map.of()),
+                "an empty body is a mistake, not a no-op save");
+    }
+
     @SuppressWarnings("unchecked")
     private static Map<String, Object> row(Map<String, Object> body, String effect) {
         return ((List<Map<String, Object>>) body.get("effects")).stream()

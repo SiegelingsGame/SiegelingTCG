@@ -366,6 +366,13 @@ public class SiegeController {
                 str(body.get("prompt")), body.get("choices"));
     }
 
+    /** The per-effect knobs a tuning request may carry. */
+    private static final List<String> TUNING_FIELDS = List.of(
+            SiegeEffectTuningService.FIELD_VALUE_BONUS,
+            SiegeEffectTuningService.FIELD_VALUE_CAP,
+            SiegeEffectTuningService.FIELD_MIN_ACTION_COST,
+            SiegeEffectTuningService.FIELD_DURATION_ROUNDS);
+
     /** Dashboard: shared ability-effect settings (defaults merged with overrides). */
     @GetMapping("/api/siege/effects")
     public Map<String, Object> listEffectTuning() {
@@ -384,10 +391,7 @@ public class SiegeController {
         String email = editorAuth.requireEditor(editorToken).email();
         Effect effect = SiegeEffectTuningService.parseEffect(body.get("effect"));
         java.util.Map<String, Integer> fields = new java.util.LinkedHashMap<>();
-        for (String field : List.of(SiegeEffectTuningService.FIELD_VALUE_BONUS,
-                SiegeEffectTuningService.FIELD_VALUE_CAP,
-                SiegeEffectTuningService.FIELD_MIN_ACTION_COST,
-                SiegeEffectTuningService.FIELD_DURATION_ROUNDS)) {
+        for (String field : TUNING_FIELDS) {
             if (body.containsKey(field)) fields.put(field, nullableInt(body.get(field), field));
         }
         if (fields.isEmpty()) throw new IllegalArgumentException("No settings were sent.");
@@ -402,6 +406,43 @@ public class SiegeController {
         String email = editorAuth.requireEditor(editorToken).email();
         return serializeTuning(effectTuning.resetEffect(
                 SiegeEffectTuningService.parseEffect(body.get("effect")), email));
+    }
+
+    /**
+     * Dashboard: publish a whole screen of edits at once (editor-authenticated).
+     * Body: { effects: [ { effect, valueBonus?, …, reset? } ], globals: { key: value } }.
+     * Everything is validated before anything is written, so a bad number in one
+     * tile fails the request instead of half-publishing the rest.
+     */
+    @PostMapping("/api/siege/effects/bulk")
+    public Map<String, Object> saveEffectTuning(
+            @RequestHeader(value = "X-Card-Editor-Token", required = false) String editorToken,
+            @RequestBody Map<String, Object> body) {
+        String email = editorAuth.requireEditor(editorToken).email();
+        List<SiegeEffectTuningService.EffectPatch> patches = new java.util.ArrayList<>();
+        Object rawEffects = body.get("effects");
+        if (rawEffects instanceof List<?> list) {
+            for (Object raw : list) {
+                if (!(raw instanceof Map<?, ?> row)) continue;
+                Effect effect = SiegeEffectTuningService.parseEffect(row.get("effect"));
+                boolean reset = Boolean.TRUE.equals(row.get("reset"));
+                java.util.Map<String, Integer> fields = new java.util.LinkedHashMap<>();
+                if (!reset) {
+                    for (String field : TUNING_FIELDS) {
+                        if (row.containsKey(field)) fields.put(field, nullableInt(row.get(field), field));
+                    }
+                }
+                patches.add(new SiegeEffectTuningService.EffectPatch(effect, fields, reset));
+            }
+        }
+        java.util.Map<String, Integer> globals = new java.util.LinkedHashMap<>();
+        if (body.get("globals") instanceof Map<?, ?> rawGlobals) {
+            for (Map.Entry<?, ?> entry : rawGlobals.entrySet()) {
+                String key = String.valueOf(entry.getKey());
+                globals.put(key, nullableInt(entry.getValue(), key));
+            }
+        }
+        return serializeTuning(effectTuning.applyChanges(patches, globals, email));
     }
 
     /** Dashboard: write one cross-effect setting, e.g. the Ultimate buff window. */

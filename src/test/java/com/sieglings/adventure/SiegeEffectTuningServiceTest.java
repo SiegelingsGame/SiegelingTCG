@@ -139,6 +139,53 @@ class SiegeEffectTuningServiceTest {
                 "clearing a global returns it to the shipped value");
     }
 
+    @Test
+    void oneBatchAppliesEveryEditAtOnce() {
+        SiegeEffectTuningService service = inMemory();
+
+        service.applyChanges(List.of(
+                new SiegeEffectTuningService.EffectPatch(Effect.DAMAGE,
+                        Map.of(SiegeEffectTuningService.FIELD_VALUE_BONUS, 6), false),
+                new SiegeEffectTuningService.EffectPatch(Effect.BUFF_ATK,
+                        Map.of(SiegeEffectTuningService.FIELD_DURATION_ROUNDS, 4), false)),
+                Map.of("ultimateBuffRounds", 6), "editor@example.com");
+
+        assertEquals(6, service.valueBonus(Effect.DAMAGE));
+        assertEquals(4, service.durationRounds(Effect.BUFF_ATK));
+        assertEquals(6, service.globalValue("ultimateBuffRounds"));
+        assertEquals(3, service.valueBonus(Effect.HEAL), "an untouched effect keeps its default");
+
+        // A reset rides in the same batch as edits to other effects.
+        service.applyChanges(List.of(
+                new SiegeEffectTuningService.EffectPatch(Effect.DAMAGE, Map.of(), true),
+                new SiegeEffectTuningService.EffectPatch(Effect.HEAL,
+                        Map.of(SiegeEffectTuningService.FIELD_VALUE_BONUS, 5), false)),
+                Map.of(), "editor@example.com");
+        assertEquals(2, service.valueBonus(Effect.DAMAGE), "the reset landed");
+        assertEquals(5, service.valueBonus(Effect.HEAL));
+        assertEquals(4, service.durationRounds(Effect.BUFF_ATK), "an edit from the earlier batch survives");
+    }
+
+    @Test
+    void abadValueAnywhereInABatchPublishesNothing() {
+        SiegeEffectTuningService service = inMemory();
+
+        assertThrows(IllegalArgumentException.class, () -> service.applyChanges(List.of(
+                new SiegeEffectTuningService.EffectPatch(Effect.DAMAGE,
+                        Map.of(SiegeEffectTuningService.FIELD_VALUE_BONUS, 5), false),
+                new SiegeEffectTuningService.EffectPatch(Effect.HEAL,
+                        Map.of(SiegeEffectTuningService.FIELD_VALUE_BONUS, 9999), false)),
+                Map.of(), "editor@example.com"));
+
+        // The good edit in the same batch must not have been published either.
+        assertEquals(2, service.valueBonus(Effect.DAMAGE), "a half-applied batch would be worse than none");
+        assertEquals(3, service.valueBonus(Effect.HEAL));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.applyChanges(List.of(), Map.of(), "editor@example.com"),
+                "an empty batch is a mistake, not a silent success");
+    }
+
     private static SiegeEffectTuningService.EffectRow row(
             List<SiegeEffectTuningService.EffectRow> rows, Effect effect) {
         return rows.stream().filter(r -> r.effect() == effect).findFirst().orElseThrow();
