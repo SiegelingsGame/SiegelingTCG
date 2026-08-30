@@ -16,26 +16,9 @@
     const OVERLAY_ID = 'playModePicker';
 
     const MODES = [
-        {
-            id: 'arena',
-            icon: '⚔️',
-            name: 'Arena',
-            sub: 'Solo PVE and live 1v1 on the battle table — every SiegeKnight fights at base power.'
-        },
-        {
-            id: 'siege',
-            icon: '🏰',
-            name: 'Siege Battlegrounds',
-            sub: 'Roguelike expedition — build a warband and carry your SiegeKnight levels into every fight.',
-            href: '/siege'
-        },
-        {
-            id: 'keep',
-            icon: '🛡️',
-            name: 'My Keep',
-            sub: 'Your stronghold — chronicle, messages and the spoils of past runs.',
-            href: '/keep'
-        }
+        { id: 'arena', icon: '⚔️', name: 'Arena' },
+        { id: 'siege', icon: '🏰', name: 'Siege Battlegrounds', href: '/siege' },
+        { id: 'keep', icon: '🛡️', name: 'My Keep', href: '/keep' }
     ];
 
     function injectStyle() {
@@ -57,16 +40,13 @@
   background:linear-gradient(180deg,#16213e,#0a1020);
   box-shadow:0 26px 70px rgba(0,0,0,.6); padding:18px; animation:pmp-rise .18s ease-out;}
 @keyframes pmp-rise{from{opacity:0; transform:translateY(14px);} to{opacity:1; transform:none;}}
-.pmp-head{display:flex; align-items:baseline; gap:10px; margin-bottom:4px;}
-.pmp-eyebrow{font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent,#ffd700); font-weight:800;}
-.pmp-title{margin:0; font-size:19px; font-weight:800; color:#fff;}
-.pmp-lede{margin:0 0 14px; font-size:12.5px; line-height:1.45; color:rgba(255,255,255,.62);}
+.pmp-title{margin:0 0 14px; font-size:19px; font-weight:800; color:#fff;}
 /* Three across on anything wide enough to read them side by side; stacked on a
    phone, where a row of three would clip each sub-line to nothing. */
 .pmp-options{display:grid; grid-template-columns:repeat(3,1fr); gap:10px;}
 @media (max-width:719px){ .pmp-options{grid-template-columns:1fr;} }
-.pmp-option{display:flex; flex-direction:column; align-items:flex-start; gap:5px; text-align:left;
-  padding:14px 14px 15px; border-radius:14px; cursor:pointer; font:inherit; text-decoration:none;
+.pmp-option{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; text-align:center;
+  padding:18px 14px; border-radius:14px; cursor:pointer; font:inherit; text-decoration:none;
   border:1px solid var(--line,rgba(255,255,255,.12)); background:rgba(255,255,255,.045); color:#fff;
   min-height:44px; transition:border-color .15s ease, background .15s ease, transform .15s ease;}
 .pmp-option:hover{border-color:var(--accent,#ffd700); background:rgba(255,255,255,.09); transform:translateY(-2px);}
@@ -74,7 +54,6 @@
 .pmp-option:focus-visible{outline:2px solid var(--accent,#ffd700); outline-offset:2px;}
 .pmp-option-icon{font-size:22px; line-height:1;}
 .pmp-option-name{font-size:15px; font-weight:800; letter-spacing:.01em;}
-.pmp-option-sub{font-size:11.5px; line-height:1.4; color:rgba(255,255,255,.62);}
 /* Arena keeps the primary weight the orange button had, so the old one-tap
    habit still lands on the same choice. */
 .pmp-option.is-primary{border-color:color-mix(in srgb,var(--accent,#ffd700) 60%,transparent);
@@ -127,17 +106,12 @@
             <button class="pmp-option${mode.id === 'arena' ? ' is-primary' : ''}" type="button" data-pmp-mode="${mode.id}">
                 <span class="pmp-option-icon" aria-hidden="true">${mode.icon}</span>
                 <span class="pmp-option-name">${mode.name}</span>
-                <span class="pmp-option-sub">${mode.sub}</span>
             </button>`).join('');
 
         overlay.innerHTML = `
             <div class="pmp-backdrop" data-pmp-close></div>
             <div class="pmp-panel">
-                <div class="pmp-head">
-                    <span class="pmp-eyebrow">Play</span>
-                    <h2 class="pmp-title">Where are you fighting?</h2>
-                </div>
-                <p class="pmp-lede">Pick a mode — you will land there rather than straight into a match.</p>
+                <h2 class="pmp-title">Pick a mode</h2>
                 <div class="pmp-options">${options}</div>
                 <div class="pmp-foot"><button class="pmp-cancel" type="button" data-pmp-close>Cancel</button></div>
             </div>`;
