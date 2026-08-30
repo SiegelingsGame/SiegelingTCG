@@ -1938,3 +1938,26 @@ Verified headless at 390x844 against stubbed endpoints: after the delete the cac
 profile lists only the surviving deck id (`d2`); with the new line removed it still
 listed the deleted `d1`, confirming the diagnosis. Regression extended in
 `GameJavaScriptRegressionTest` (76 green). Cache-bust: `home.js` v151.
+
+## 2026-08-30 — Reward screen: tap a leveling-recap name for XP + card details
+
+The victory reward screen's leveling recap rows are now buttons: tapping a
+Siegeling or the SiegeKnight opens the existing unit modal with a full XP
+breakdown (level before → after, base battle XP, killing-blow count and bonus,
+XP gained this battle, total XP before → after, XP to next level, plus a
+progress bar toward the next level) and that unit's current cards in the run
+deck. All numbers already ship in `run.xpRecap.units[]`; cards come from the
+live `run.party[].cards` (or the knight's `activeSpec`), so this is a
+frontend-only change — `adventure.js` gained `showXpRecapDetails` and a
+delegated click handler on `#xpRecap`, and `showUnitModal` grew an optional
+`stats`/`xpBar` section. `adventure.css` styles the row affordance (`›`
+chevron, hover/focus states) and the new `.um-stats` grid, which collapses to
+one column under 420px.
+
+Verified with `node --check` on adventure.js and a headless-Chromium harness
+that stubs `/api/siege/run/active` with a mock run holding a four-unit XP recap
+and pending rewards, at 390x844 and 1920x1080: four clickable rows render, the
+Draco row opens a modal reading "Lv 2 → Lv 3 · +25 base · 1 killing blow · +30
+XP · +55 this battle · 90 → 145 · 55 XP to next" with its Spark card listed,
+and the knight row opens with its Rally Cry active. Cache-bust bumped
+(adventure.css v75, adventure.js v82).

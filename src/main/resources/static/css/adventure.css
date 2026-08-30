@@ -331,6 +331,18 @@ body[data-screen="mapScreen"] #mapScreen{
 .um-card-eff{font-size:11.5px; color:var(--accent-2); margin-top:2px; font-weight:650;}
 .um-status{color:#c896ff; margin-left:6px;}
 .um-card-desc{font-size:11px; color:var(--faint); margin-top:3px; line-height:1.35;}
+.um-stats{display:grid; grid-template-columns:1fr 1fr; gap:6px;}
+.um-stat{display:flex; justify-content:space-between; gap:8px; align-items:baseline;
+  background:rgba(0,0,0,.22); border:1px solid var(--border); border-radius:9px; padding:6px 9px;}
+.um-stat.is-highlight{border-color:rgba(126,231,135,.38); background:rgba(126,231,135,.08);}
+.um-stat-label{font-size:10.5px; letter-spacing:.4px; text-transform:uppercase; color:var(--faint); font-weight:700;}
+.um-stat-value{font-size:12px; font-weight:850; white-space:nowrap;}
+.um-stat.is-highlight .um-stat-value{color:var(--good);}
+.um-xp-bar{height:9px; margin-top:8px; border-radius:999px; overflow:hidden;
+  border:1px solid rgba(255,255,255,.12); background:rgba(0,0,0,.35);}
+.um-xp-fill{height:100%; border-radius:inherit; background:linear-gradient(90deg,var(--el),var(--good));}
+.um-xp-text{margin-top:4px; font-size:10.5px; color:var(--faint); text-align:right;}
+@media (max-width:420px){ .um-stats{grid-template-columns:1fr;} }
 
 /* Sticky action bar: must sit ABOVE the scrolling card grid so a Siegeling
    sprite can never cover (or steal taps from) the Begin/Approve button. */
@@ -1687,7 +1699,14 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
   display:flex; align-items:center; justify-content:space-between; gap:12px;
   padding:9px 10px; border:1px solid var(--border); border-left:4px solid var(--el);
   border-radius:11px; background:rgba(255,255,255,.035);
+  width:100%; text-align:left; font:inherit; color:inherit; cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
 }
+.xp-recap-row:hover, .xp-recap-row:focus-visible{
+  border-color:var(--accent); background:rgba(255,255,255,.07); outline:none;
+}
+.xp-recap-row:active{transform:scale(.99);}
+.xp-unit-more{margin-left:5px; color:var(--faint); font-weight:900;}
 .xp-recap-row.leveled{border-color:rgba(126,231,135,.38); border-left-color:var(--good); background:rgba(126,231,135,.07);}
 .xp-unit-main{min-width:0;}
 .xp-unit-name{font-size:13px; font-weight:850; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
