@@ -9,7 +9,7 @@
  * rather than starting a real run with training wheels.
  *
  * The cast is REAL card data, not invented placeholders: Squire Bob leads Draco
- * and Cacty, read out of the roster adventure.js already loaded, so the art,
+ * and Sundile, read out of the roster adventure.js already loaded, so the art,
  * stats, moves, passive and Ultimate the tutorial teaches are the ones the
  * player will actually meet — and they follow the dashboard when it retunes
  * them. Baked copies of the same cards stand in only if the roster is missing.
@@ -97,11 +97,11 @@
         { name: 'Spark', element: 'FIRE', effect: 'BUFF_ATK', value: 2, actionCost: 0, target: 'ALLY_SINGLE', description: 'Grant Ally +2 Damage', durationRounds: 2 }
       ]
     },
-    cacty: {
-      id: 'cacty', name: 'Cacty', element: 'EARTH', hp: 78, speed: 8, evolves: true, artUrl: null,
+    sundile: {
+      id: 'sundile', name: 'Sundile', element: 'FIRE', hp: 54, speed: 4, evolves: true, artUrl: null,
       moves: [
-        { name: 'Sproutspray', element: 'EARTH', effect: 'DAMAGE', value: 3, actionCost: 0, target: 'ALL_ENEMIES', description: 'Deal 1 Damage to Selected row Enemies', status: 'LEECH', statusChance: 20 },
-        { name: 'Pollinate', element: 'EARTH', effect: 'HEAL', value: 6, actionCost: 0, target: 'ALLY_SINGLE', description: 'Heal an Ally +3 Health' }
+        { name: 'Embers', element: 'FIRE', effect: 'DAMAGE', value: 5, actionCost: 0, target: 'ENEMY_SINGLE', description: 'Deal 3 Fire Damage to an Enemy', status: 'BURN', statusChance: 20 },
+        { name: 'Ember Strike', element: 'FIRE', effect: 'DAMAGE', value: 4, actionCost: 1, target: 'ALL_ENEMIES', description: 'Deal 2 Direct damage to the enemy Player', status: 'BURN', statusChance: 25 }
       ]
     },
     applehead: {
@@ -129,9 +129,9 @@
       id: 'dracoil', name: 'Dracoil', hp: 82, speed: 12,
       artUrl: 'https://firebasestorage.googleapis.com/v0/b/siegelingstcgtesting.firebasestorage.app/o/cards%2Fdracoil.png?alt=media&token=9c268396-5eab-4679-a448-dcab83a334ce'
     },
-    cacty: {
-      id: 'jackedty', name: "Jacked'ty", hp: 86, speed: 7,
-      artUrl: 'https://firebasestorage.googleapis.com/v0/b/siegelingstcgtesting.firebasestorage.app/o/cards%2Fjackedty.png?alt=media&token=a3ef266d-83f2-4596-aa2d-6d76d8227569'
+    sundile: {
+      id: 'raydile', name: 'Raydile', hp: 78, speed: 8,
+      artUrl: 'https://firebasestorage.googleapis.com/v0/b/siegelingstcgtesting.firebasestorage.app/o/cards%2Fraydile.png?alt=media&token=cab3a0e1-759c-41d2-bc34-69a0306f6fb2'
     }
   };
 
@@ -240,12 +240,12 @@
   function buildModel() {
     var k = knightCard();
     var dracoSrc = card('draco');
-    var cactySrc = card('cacty');
+    var sundileSrc = card('sundile');
     var draco = unitFrom(dracoSrc, { id: 'ally-draco', position: 0 });
-    var cacty = unitFrom(cactySrc, { id: 'ally-cacty', position: 1, size: 'LARGE' });
+    var sundile = unitFrom(sundileSrc, { id: 'ally-sundile', position: 1 });
 
     var deck = deckCardsFor('ally-draco', draco.name, dracoSrc.moves, 'd')
-      .concat(deckCardsFor('ally-cacty', cacty.name, cactySrc.moves, 'c'));
+      .concat(deckCardsFor('ally-sundile', sundile.name, sundileSrc.moves, 's'));
     var active = k.active || BAKED['squire-bob'].active;
     deck.push({
       instanceId: 'k-0', ownerId: 'knight-squire-bob', ownerName: k.name,
@@ -279,7 +279,7 @@
         unitId: 'knight-unit', hp: 40, maxHp: 40, artUrl: null, alive: true,
         level: 1, xp: 0, xpToNext: 60, xpInLevel: 0, xpSpan: 60, leveledThisBattle: false
       },
-      party: [draco, cacty],
+      party: [draco, sundile],
       deckTemplates: deck,
       deckList: deck.map(function (c, i) {
         return { index: i, name: c.name, element: c.element, owner: c.ownerName };
