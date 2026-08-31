@@ -9,7 +9,7 @@
  * rather than starting a real run with training wheels.
  *
  * The cast is REAL card data, not invented placeholders: Squire Bob leads Draco
- * and Sundile, read out of the roster adventure.js already loaded, so the art,
+ * and Fawny, read out of the roster adventure.js already loaded, so the art,
  * stats, moves, passive and Ultimate the tutorial teaches are the ones the
  * player will actually meet — and they follow the dashboard when it retunes
  * them. Baked copies of the same cards stand in only if the roster is missing.
@@ -97,11 +97,11 @@
         { name: 'Spark', element: 'FIRE', effect: 'BUFF_ATK', value: 2, actionCost: 0, target: 'ALLY_SINGLE', description: 'Grant Ally +2 Damage', durationRounds: 2 }
       ]
     },
-    sundile: {
-      id: 'sundile', name: 'Sundile', element: 'FIRE', hp: 54, speed: 4, evolves: true, artUrl: null,
+    fawny: {
+      id: 'fawny', name: 'Fawny', element: 'ICE', hp: 46, speed: 4, evolves: true, artUrl: null,
       moves: [
-        { name: 'Embers', element: 'FIRE', effect: 'DAMAGE', value: 5, actionCost: 0, target: 'ENEMY_SINGLE', description: 'Deal 3 Fire Damage to an Enemy', status: 'BURN', statusChance: 20 },
-        { name: 'Ember Strike', element: 'FIRE', effect: 'DAMAGE', value: 4, actionCost: 1, target: 'ALL_ENEMIES', description: 'Deal 2 Direct damage to the enemy Player', status: 'BURN', statusChance: 25 }
+        { name: 'Frozen Fist', element: 'ICE', effect: 'DAMAGE', value: 3, actionCost: 1, target: 'ENEMY_SINGLE', description: 'Deal 1 damage to 1 enemy', status: 'SLOW', statusChance: 25 },
+        { name: 'Snowball Fight', element: 'ICE', effect: 'DAMAGE', value: 4, actionCost: 2, target: 'ALL_ENEMIES', description: 'Deal 2 damage to the selected enemy row', status: 'SLOW', statusChance: 30 }
       ]
     },
     applehead: {
@@ -129,9 +129,9 @@
       id: 'dracoil', name: 'Dracoil', hp: 82, speed: 12,
       artUrl: 'https://firebasestorage.googleapis.com/v0/b/siegelingstcgtesting.firebasestorage.app/o/cards%2Fdracoil.png?alt=media&token=9c268396-5eab-4679-a448-dcab83a334ce'
     },
-    sundile: {
-      id: 'raydile', name: 'Raydile', hp: 78, speed: 8,
-      artUrl: 'https://firebasestorage.googleapis.com/v0/b/siegelingstcgtesting.firebasestorage.app/o/cards%2Fraydile.png?alt=media&token=cab3a0e1-759c-41d2-bc34-69a0306f6fb2'
+    fawny: {
+      id: 'chilldoe', name: 'Chilldoe', hp: 58, speed: 5,
+      artUrl: 'https://firebasestorage.googleapis.com/v0/b/siegelingstcgtesting.firebasestorage.app/o/cards%2Fchilldoe.png?alt=media&token=500918f8-06c5-4353-ac5c-af96f850ef97'
     }
   };
 
@@ -240,12 +240,12 @@
   function buildModel() {
     var k = knightCard();
     var dracoSrc = card('draco');
-    var sundileSrc = card('sundile');
+    var fawnySrc = card('fawny');
     var draco = unitFrom(dracoSrc, { id: 'ally-draco', position: 0 });
-    var sundile = unitFrom(sundileSrc, { id: 'ally-sundile', position: 1 });
+    var fawny = unitFrom(fawnySrc, { id: 'ally-fawny', position: 1 });
 
     var deck = deckCardsFor('ally-draco', draco.name, dracoSrc.moves, 'd')
-      .concat(deckCardsFor('ally-sundile', sundile.name, sundileSrc.moves, 's'));
+      .concat(deckCardsFor('ally-fawny', fawny.name, fawnySrc.moves, 'f'));
     var active = k.active || BAKED['squire-bob'].active;
     deck.push({
       instanceId: 'k-0', ownerId: 'knight-squire-bob', ownerName: k.name,
@@ -279,7 +279,7 @@
         unitId: 'knight-unit', hp: 40, maxHp: 40, artUrl: null, alive: true,
         level: 1, xp: 0, xpToNext: 60, xpInLevel: 0, xpSpan: 60, leveledThisBattle: false
       },
-      party: [draco, sundile],
+      party: [draco, fawny],
       deckTemplates: deck,
       deckList: deck.map(function (c, i) {
         return { index: i, name: c.name, element: c.element, owner: c.ownerName };
