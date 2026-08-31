@@ -3885,12 +3885,29 @@ public class SiegeService {
                 om.put("element", o.element == null ? null : o.element.name());
                 om.put("artUrl", o.artUrl);
                 om.put("used", o.used);
-                SieglingCard src = content.findSiegling(o.sieglingId).orElse(null);
+                // Mercs are stocked from the full catalog (evolved stages included),
+                // so they only resolve through findAnySiegling — findSiegling sees
+                // starter-eligible stage-1 cards and would leave a merc statless.
+                SieglingCard src = mercOffer
+                        ? content.findAnySiegling(o.sieglingId).orElse(null)
+                        : content.findSiegling(o.sieglingId).orElse(null);
                 if (src != null) {
-                    om.put("hp", 18 + src.getHealth() * 4);
-                    om.put("speed", Math.max(4, src.getSpeed()));
-                    om.put("moves", serializeSpecs(content.moveSpecs(src)));
-                    om.put("evolves", content.evolutionOf(src.getId()).isPresent());
+                    if (mercOffer) {
+                        // Preview exactly what marches in: the rented body's stats and
+                        // its upgraded moves plus boon cards, not the base card's.
+                        Combatant preview = content.toMercCombatant(src);
+                        om.put("hp", preview.getMaxHp());
+                        om.put("speed", preview.getSpeed());
+                        List<AbilitySpec> specs = new ArrayList<>();
+                        for (SiegeCard card : content.mercBoonCards(preview, src)) specs.add(card.getSpec());
+                        om.put("moves", serializeSpecs(specs));
+                        om.put("evolves", false); // mercs never carry an evolution card
+                    } else {
+                        om.put("hp", 18 + src.getHealth() * 4);
+                        om.put("speed", Math.max(4, src.getSpeed()));
+                        om.put("moves", serializeSpecs(content.moveSpecs(src)));
+                        om.put("evolves", content.evolutionOf(src.getId()).isPresent());
+                    }
                 }
                 offers.add(om);
             }
