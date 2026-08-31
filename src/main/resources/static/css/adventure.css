@@ -3055,9 +3055,18 @@ body[data-screen="minigameScreen"] #mgActions{ margin-top:12px; }
   0%,100%{box-shadow:0 0 0 4px color-mix(in srgb, var(--good) 30%, transparent), 0 0 0 9999px rgba(6,9,14,.52);}
   50%{box-shadow:0 0 0 9px color-mix(in srgb, var(--good) 16%, transparent), 0 0 0 9999px rgba(6,9,14,.52);}
 }
+/* Carries the phone's safe-area insets as padding so position() can measure
+   them. env() cannot be read from JS directly, and the tip card has to clear
+   the notch and the home indicator or its Got it button lands under them. */
+.tut-safe{
+  position:fixed; top:0; left:0; width:0; height:0; visibility:hidden; pointer-events:none;
+  padding-top:env(safe-area-inset-top, 0px); padding-bottom:env(safe-area-inset-bottom, 0px);
+}
 .tut-card{
   position:absolute; left:50%; transform:translateX(-50%);
   width:min(420px, calc(100vw - 24px));
+  /* position() owns the vertical placement and always clamps the card inside
+     the safe area; it sets top and never bottom. */
   pointer-events:auto;
   background:var(--panel-2); border:1px solid var(--border); border-top:3px solid var(--good);
   border-radius:12px; padding:13px 15px 12px; color:var(--text);

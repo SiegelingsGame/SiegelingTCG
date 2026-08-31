@@ -1223,14 +1223,17 @@
 
   // ---- coach overlay ------------------------------------------------------
 
-  var layer = null, ringEl = null, cardEl = null, raf = 0, lastRect = '', renderedKey = '';
+  var layer = null, ringEl = null, cardEl = null, safeProbe = null;
+  var raf = 0, lastRect = '', renderedKey = '';
 
   function buildLayer() {
     layer = el('div', 'tut-layer');
     ringEl = el('div', 'tut-ring');
     cardEl = el('div', 'tut-card');
+    safeProbe = el('div', 'tut-safe');
     layer.appendChild(ringEl);
     layer.appendChild(cardEl);
+    layer.appendChild(safeProbe);
     document.body.appendChild(layer);
     cardEl.addEventListener('click', function (e) {
       var btn = e.target.closest ? e.target.closest('button') : null;
@@ -1318,37 +1321,58 @@
     try { return document.querySelector(s.target); } catch (e) { return null; }
   }
 
+  /**
+   * The safe area the phone actually leaves us, measured rather than assumed:
+   * a hidden probe carries the env() insets as padding, so the tip card clears
+   * the notch and the home indicator instead of tucking its Got it button
+   * underneath them.
+   */
+  function safeInsets() {
+    if (!safeProbe) return { top: 0, bottom: 0 };
+    var cs = window.getComputedStyle(safeProbe);
+    return { top: parseFloat(cs.paddingTop) || 0, bottom: parseFloat(cs.paddingBottom) || 0 };
+  }
+
   function position() {
     var s = detour() || current();
     var node = targetNode(s);
     var vh = window.innerHeight, vw = window.innerWidth;
-    if (!node || !node.getBoundingClientRect) {
+    var safe = safeInsets();
+    var gap = 14;
+    // The card's real height. The previous cut clamped against a hard-coded
+    // 150px guess, so every card taller than that hung off the bottom edge.
+    var h = cardEl.offsetHeight || 160;
+    var minTop = safe.top + 10;
+    var maxTop = vh - safe.bottom - h - 10;
+    if (maxTop < minTop) maxTop = minTop;   // card taller than the viewport: pin it high
+    function place(top) {
+      cardEl.style.bottom = 'auto';
+      cardEl.style.top = Math.round(Math.max(minTop, Math.min(maxTop, top))) + 'px';
+    }
+
+    var r = node && node.getBoundingClientRect ? node.getBoundingClientRect() : null;
+    if (!r || (!r.width && !r.height)) {
+      // Nothing to point at (the opening and closing tips) — centre it.
       ringEl.classList.add('off');
-      cardEl.classList.remove('at-top');
-      cardEl.style.top = '';
-      cardEl.style.bottom = '18px';
+      place((vh - h) / 2);
       return;
     }
-    var r = node.getBoundingClientRect();
-    if (!r.width && !r.height) { ringEl.classList.add('off'); return; }
     var pad = 8;
     ringEl.classList.remove('off');
     ringEl.style.left = Math.max(2, r.left - pad) + 'px';
     ringEl.style.top = Math.max(2, r.top - pad) + 'px';
     ringEl.style.width = Math.min(vw - 4, r.width + pad * 2) + 'px';
     ringEl.style.height = Math.min(vh - 4, r.height + pad * 2) + 'px';
-    // Put the tip on whichever side of the highlight has more room, so the card
-    // never covers the thing the player has to tap.
-    var below = vh - r.bottom;
-    if (below >= r.top) {
-      cardEl.classList.add('at-top');
-      cardEl.style.top = Math.min(vh - 150, r.bottom + 14) + 'px';
-      cardEl.style.bottom = 'auto';
-    } else {
-      cardEl.classList.remove('at-top');
-      cardEl.style.top = 'auto';
-      cardEl.style.bottom = Math.min(vh - 150, vh - r.top + 14) + 'px';
-    }
+
+    // Sit on whichever side of the highlight the card actually fits, so it
+    // never covers the thing the player has to tap. When neither side has room
+    // — a target as tall as the map — hug the roomier one and stay fully on
+    // screen, which the clamp in place() guarantees.
+    var below = (vh - safe.bottom) - r.bottom;
+    var above = r.top - safe.top;
+    if (below >= h + gap) place(r.bottom + gap);
+    else if (above >= h + gap) place(r.top - gap - h);
+    else place(below >= above ? maxTop : minTop);
   }
 
   function tick() {
