@@ -3611,6 +3611,63 @@ public class SiegeService {
         return listItems();
     }
 
+    /**
+     * The Siege card catalog for the dashboard: every board move that can become
+     * a Siege card, the value it inherits from its effect's shared translation,
+     * and whatever per-card override sits on top. Both numbers are sent so the
+     * editor can see what a card would be if the override were cleared.
+     */
+    Map<String, Object> listSiegeCards() {
+        Map<String, SiegeEffectTuningService.CardOverride> overrides =
+                effectTuning == null ? Map.of() : effectTuning.cardOverrides();
+        List<Map<String, Object>> cards = new ArrayList<>();
+        content.siegeCardCatalog().forEach((move, owners) -> {
+            AbilitySpec base = content.toSpec(move, false);
+            AbilitySpec tuned = content.toSpec(move, true);
+            SiegeEffectTuningService.CardOverride o = overrides.get(move.id());
+            boolean excluded = o != null && Boolean.TRUE.equals(o.excluded());
+
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("moveId", move.id());
+            m.put("name", move.name());
+            m.put("element", move.element() == null ? null : move.element().name());
+            m.put("effect", base.effect().name());
+            m.put("effectKey", move.effectType());
+            m.put("target", base.target().name());
+            m.put("description", base.description());
+            m.put("owners", owners);
+            m.put("boardValue", move.effectValue());
+            m.put("boardEnergyCost", move.energyCost());
+            // What the card is without its own override — the effect defaults.
+            m.put("defaults", Map.of(
+                    "value", base.value(),
+                    "actionCost", base.actionCost(),
+                    "durationRounds", base.durationRounds(),
+                    "statusChance", base.statusChance()));
+            m.put("value", tuned.value());
+            m.put("actionCost", tuned.actionCost());
+            m.put("durationRounds", tuned.durationRounds());
+            m.put("statusChance", tuned.statusChance());
+            m.put("status", tuned.status() == null ? null : tuned.status().name());
+            // Which knobs this card actually reads, so the editor offers no
+            // field the engine would ignore — a duration on a damage card, say.
+            List<String> fields = new ArrayList<>();
+            if (base.value() > 0 || base.effect() == Effect.DAMAGE) fields.add("value");
+            fields.add("actionCost");
+            if (base.durationRounds() > 0) fields.add("durationRounds");
+            if (tuned.status() != null) fields.add("statusChance");
+            m.put("fields", fields);
+            m.put("excluded", excluded);
+            m.put("isOverride", o != null);
+            cards.add(m);
+        });
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("cards", cards);
+        out.put("count", cards.size());
+        out.put("overrideCount", cards.stream().filter(c -> Boolean.TRUE.equals(c.get("isOverride"))).count());
+        return out;
+    }
+
     Map<String, Object> listKnightClasses() {
         List<Map<String, Object>> knights = new ArrayList<>();
         for (TrainerCard k : content.selectableKnights()) {

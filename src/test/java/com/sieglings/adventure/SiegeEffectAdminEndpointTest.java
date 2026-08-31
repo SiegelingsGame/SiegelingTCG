@@ -161,6 +161,23 @@ class SiegeEffectAdminEndpointTest {
                 "an empty body is a mistake, not a no-op save");
     }
 
+    @Test
+    void perCardWritesNeedAnEditorAndRejectAnEmptyBatch() throws Exception {
+        SiegeController signedOut = controller(new StubAuth(false));
+        assertThrows(IllegalArgumentException.class,
+                () -> signedOut.saveSiegeCards(null, Map.of("cards",
+                        List.of(Map.of("moveId", "fire-spark", "value", 9)))),
+                "an anonymous caller cannot retune a card");
+
+        SiegeController controller = controller(new StubAuth(true));
+        assertThrows(IllegalArgumentException.class,
+                () -> controller.saveSiegeCards(TOKEN, Map.of()),
+                "a body with no cards is a mistake, not a no-op save");
+        assertThrows(IllegalArgumentException.class,
+                () -> controller.saveSiegeCards(TOKEN, Map.of("cards", List.of(Map.of("value", 3)))),
+                "a card patch without an id cannot be applied to anything");
+    }
+
     @SuppressWarnings("unchecked")
     private static Map<String, Object> row(Map<String, Object> body, String effect) {
         return ((List<Map<String, Object>>) body.get("effects")).stream()
@@ -199,7 +216,7 @@ class SiegeEffectAdminEndpointTest {
     private SiegeEffectTuningService inMemoryTuning() {
         ObjectMapper objectMapper = new ObjectMapper();
         AtomicReference<SiegeEffectTuningService.TuningFile> holder =
-                new AtomicReference<>(new SiegeEffectTuningService.TuningFile(List.of(), null));
+                new AtomicReference<>(new SiegeEffectTuningService.TuningFile(List.of(), null, List.of()));
         return new SiegeEffectTuningService(objectMapper, null, "appConfig", "siegeEffectTuning") {
             @Override
             protected StoredData loadStored() {

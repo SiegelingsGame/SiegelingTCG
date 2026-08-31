@@ -319,6 +319,11 @@ public class SiegeContentService {
             if (move == null || move.isPassive() || move.targetType() == TargetType.PASSIVE) {
                 continue;
             }
+            // A card the dashboard has excluded still exists on the board; it
+            // simply never becomes a Siege card.
+            if (effectTuning != null && effectTuning.isCardExcluded(move.id())) {
+                continue;
+            }
             out.add(move);
         }
         return out;
@@ -569,16 +574,84 @@ public class SiegeContentService {
 
     // ---- Move -> combat spec -------------------------------------------
 
+    /**
+     * Builds the Siege card for a board move. Per-card overrides from the
+     * dashboard win over the effect-wide translation, which in turn wins over
+     * the shipped defaults — so a single card can be retuned for Siege without
+     * moving every other card that shares its effect, and without touching the
+     * printed board move at all.
+     */
     private AbilitySpec toSpec(Move move) {
+        return toSpec(move, true);
+    }
+
+    /**
+     * @param applyCardOverrides false to get the card as it would be <em>without</em>
+     *                           its per-card override — what the dashboard shows as
+     *                           the inherited baseline beside the tuned value.
+     */
+    AbilitySpec toSpec(Move move, boolean applyCardOverrides) {
         Effect effect = effectFor(move.effectType());
         TargetKind target = targetFor(move.targetType(), effect, move.effectType());
         int value = combatValue(move, effect);
         int actionCost = actionCostFor(move.energyCost(), effect);
+        int rounds = buffRounds(effect);
         StatusKind status = effect == Effect.DAMAGE ? statusFor(move.element()) : null;
+        int statusChance = statusChanceFor(status, actionCost);
+
+        if (applyCardOverrides && effectTuning != null) {
+            Integer cardValue = effectTuning.cardValue(move.id());
+            if (cardValue != null) value = cardValue;
+            Integer cardCost = effectTuning.cardActionCost(move.id());
+            // An explicit AP override still respects the effect's floor: a 0 AP
+            // execute would be a free kill every turn however it was authored.
+            if (cardCost != null) actionCost = Math.max(minActionCost(effect), cardCost);
+            Integer cardRounds = effectTuning.cardDurationRounds(move.id());
+            if (cardRounds != null) rounds = cardRounds;
+            Integer cardChance = effectTuning.cardStatusChance(move.id());
+            if (cardChance != null && status != null) statusChance = cardChance;
+        }
+
         return new AbilitySpec(move.id(), move.name(), move.element(), effect, value, target, actionCost,
                 move.description() == null ? "" : move.description(),
-                status, statusChanceFor(status, actionCost), AmpRider.NONE, 0,
-                buffRounds(effect));
+                status, statusChance, AmpRider.NONE, 0, rounds);
+    }
+
+    /** The AP floor for an effect: live tuning when present, else the shipped rule. */
+    private int minActionCost(Effect effect) {
+        if (effectTuning != null) return effectTuning.minActionCost(effect);
+        return effect == Effect.EXECUTE ? EXECUTE_MIN_AP : 0;
+    }
+
+    /**
+     * Every board move that can become a Siege card, with the Siegelings that
+     * carry it — the catalog behind the dashboard's Siege Cards list. Excluded
+     * cards are included here (flagged by the caller), since the whole point of
+     * the list is to be able to put one back.
+     */
+    Map<Move, List<String>> siegeCardCatalog() {
+        Map<String, Move> moves = new LinkedHashMap<>();
+        Map<String, List<String>> owners = new LinkedHashMap<>();
+        for (Card card : cardDefs.getDeckBuilderCatalog()) {
+            if (!(card instanceof SieglingCard s)) continue;
+            for (String moveId : s.getMoveIds()) {
+                Move move = movesPool.getMove(moveId);
+                if (move == null || move.isPassive() || move.targetType() == TargetType.PASSIVE) continue;
+                moves.putIfAbsent(move.id(), move);
+                owners.computeIfAbsent(move.id(), k -> new ArrayList<>());
+                if (!owners.get(move.id()).contains(s.getName())) owners.get(move.id()).add(s.getName());
+            }
+        }
+        // Pool moves no Siegeling carries yet can still arrive as a run reward,
+        // so they are tunable too — they just have no owner to name.
+        for (Move move : movesPool.allMovesSorted()) {
+            if (move.isPassive() || move.targetType() == TargetType.PASSIVE) continue;
+            moves.putIfAbsent(move.id(), move);
+            owners.computeIfAbsent(move.id(), k -> new ArrayList<>());
+        }
+        Map<Move, List<String>> out = new LinkedHashMap<>();
+        moves.values().forEach(move -> out.put(move, List.copyOf(owners.getOrDefault(move.id(), List.of()))));
+        return out;
     }
 
     /**

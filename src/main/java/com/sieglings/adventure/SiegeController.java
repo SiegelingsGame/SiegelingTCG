@@ -408,6 +408,51 @@ public class SiegeController {
                 SiegeEffectTuningService.parseEffect(body.get("effect")), email));
     }
 
+    /** Dashboard: every Siege card with its inherited baseline and any per-card override. */
+    @GetMapping("/api/siege/cards")
+    public Map<String, Object> listSiegeCards() {
+        return siege.listSiegeCards();
+    }
+
+    /**
+     * Dashboard: publish per-card overrides (editor-authenticated). Body:
+     * { cards: [ { moveId, value?, actionCost?, durationRounds?, statusChance?, excluded?, reset? } ] }.
+     * A field sent as null clears that one override; validation runs across the
+     * whole batch before anything is written.
+     */
+    @PostMapping("/api/siege/cards/bulk")
+    public Map<String, Object> saveSiegeCards(
+            @RequestHeader(value = "X-Card-Editor-Token", required = false) String editorToken,
+            @RequestBody Map<String, Object> body) {
+        String email = editorAuth.requireEditor(editorToken).email();
+        List<SiegeEffectTuningService.CardPatch> patches = cardPatches(body);
+        if (patches.isEmpty()) throw new IllegalArgumentException("No card changes were sent.");
+        effectTuning.applyChanges(List.of(), Map.of(), patches, email);
+        return siege.listSiegeCards();
+    }
+
+    /** Reads the {@code cards} array of a tuning request into patches. */
+    private List<SiegeEffectTuningService.CardPatch> cardPatches(Map<String, Object> body) {
+        List<SiegeEffectTuningService.CardPatch> patches = new java.util.ArrayList<>();
+        if (!(body.get("cards") instanceof List<?> list)) return patches;
+        for (Object raw : list) {
+            if (!(raw instanceof Map<?, ?> row)) continue;
+            String moveId = str(row.get("moveId"));
+            if (moveId == null || moveId.isBlank()) {
+                throw new IllegalArgumentException("A card id is required.");
+            }
+            boolean reset = Boolean.TRUE.equals(row.get("reset"));
+            java.util.Map<String, Object> fields = new java.util.LinkedHashMap<>();
+            if (!reset) {
+                for (String field : SiegeEffectTuningService.CARD_FIELDS) {
+                    if (row.containsKey(field)) fields.put(field, row.get(field));
+                }
+            }
+            patches.add(new SiegeEffectTuningService.CardPatch(moveId, fields, reset));
+        }
+        return patches;
+    }
+
     /**
      * Dashboard: publish a whole screen of edits at once (editor-authenticated).
      * Body: { effects: [ { effect, valueBonus?, …, reset? } ], globals: { key: value } }.
@@ -442,7 +487,7 @@ public class SiegeController {
                 globals.put(key, nullableInt(entry.getValue(), key));
             }
         }
-        return serializeTuning(effectTuning.applyChanges(patches, globals, email));
+        return serializeTuning(effectTuning.applyChanges(patches, globals, cardPatches(body), email));
     }
 
     /** Dashboard: write one cross-effect setting, e.g. the Ultimate buff window. */

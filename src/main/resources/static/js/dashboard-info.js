@@ -274,6 +274,22 @@
             '<p>Saves apply to <em>battles started afterwards</em> — a run already mid-battle keeps the numbers it started with, because its cards were built when the battle opened.</p>'
     };
 
+    topics['siege-cards'] = {
+        title: 'Siege Card Overrides',
+        html: '<p>The <strong>Ability Effects</strong> page sets the rules every card of an effect shares. This page overrides <strong>one card</strong> on top of them — when a single move is too strong or too weak in Siege but its effect is fine everywhere else.</p>' +
+            table([
+                row(['<strong>Value</strong>', 'The card\'s Siege magnitude outright. Replaces the effect\'s translation of the printed board value for this card only.']),
+                row(['<strong>AP</strong>', 'What the card costs to play. The effect\'s AP floor still applies, so an execute cannot be made free.']),
+                row(['<strong>Duration</strong>', 'How many rounds this card\'s buff holds, overriding the effect\'s shared window.']),
+                row(['<strong>Status %</strong>', 'Chance this card inflicts its elemental status. Only shown for cards that carry one.']),
+                row(['<strong>Exclude</strong>', 'Keeps the card out of Siege entirely — it is never dealt, never offered as a reward. The Siegeling keeps it on the battle table.'])
+            ], ['Setting', 'What it does']) +
+            '<p>Every box shows the value it inherits underneath it as <code>def N</code>. Clearing a box drops that one override and the card goes back to inheriting; <strong>reset</strong> drops all of them for that card. A row only offers the boxes its card actually reads.</p>' +
+            '<p><strong>Nothing here touches the printed card.</strong> These overrides apply to the Siege translation only — the same Siegeling plays its normal move on the battle table. To change the move itself, edit it in the Siegeling\'s moves pool instead.</p>' +
+            '<p>Search matches a card\'s name, its move id, or the Siegelings that carry it. Cards listed as <em>reward pool only</em> are in the moves pool but on no Siegeling yet — they can still arrive as a run reward, so they are tunable too.</p>' +
+            '<p>Saves apply to <em>battles started afterwards</em> — a run already mid-battle keeps the cards it was dealt.</p>'
+    };
+
     topics['shop-prices'] = {
         title: 'Shop Prices',
         html: '<p>Each card\'s shop price is looked up by <strong>rarity + card type</strong>. Set an override for a cell to replace the default for every card of that combination; reset it to fall back to the default again.</p>' +
