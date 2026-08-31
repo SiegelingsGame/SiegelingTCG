@@ -2306,7 +2306,8 @@
         e.stopPropagation();
         showUnitModal({
           name: offer.name, element: offer.element, artUrl: offer.artUrl,
-          subtitle: '❤ ' + offer.hp + ' · ⚡ ' + offer.speed + (offer.evolves ? ' · Evolution card in battle deck' : ''),
+          subtitle: (offer.hp != null ? '❤ ' + offer.hp + ' · ⚡ ' + offer.speed : 'Broker offer') +
+            (offer.evolves ? ' · Evolution card in battle deck' : ''),
           cards: offer.moves || []
         });
       });

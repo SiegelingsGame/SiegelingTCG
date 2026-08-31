@@ -118,6 +118,20 @@ class SiegeBrokerSerializeTest {
         List<Map<String, Object>> offers = (List<Map<String, Object>>) broker.get("offers");
         assertFalse(offers.isEmpty());
         assertTrue(offers.stream().allMatch(o -> "MERC".equals(o.get("kind"))));
+
+        // Mercs are stocked from evolved catalog stages, which the starter-only
+        // lookup misses — the preview must still carry stats and cards.
+        for (Map<String, Object> offer : offers) {
+            assertNotNull(offer.get("hp"), "merc offer missing hp: " + offer);
+            assertNotNull(offer.get("speed"), "merc offer missing speed: " + offer);
+            assertTrue(((Number) offer.get("hp")).intValue() > 0);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> moves = (List<Map<String, Object>>) offer.get("moves");
+            assertNotNull(moves, "merc offer missing moves: " + offer);
+            assertFalse(moves.isEmpty());
+            assertTrue(moves.stream().anyMatch(mv -> String.valueOf(mv.get("name")).startsWith("Boon:")),
+                    "merc preview should show its boon cards: " + moves);
+        }
     }
 
     private void invokeOpenBroker(SiegeRun run) throws Exception {
