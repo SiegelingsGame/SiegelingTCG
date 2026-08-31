@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/style.css?v=237">
+    <link rel="stylesheet" href="/css/style.css?v=238">
     <!-- Pre-load loading-gate styles so the splash covers the loadout
          screen on the very first Start Battle press - the lazy-injected
          link tag inside loading-gate.js was paint-blocking the gate. -->
@@ -746,7 +746,25 @@
                     <div class="match-mode-tabs" role="group" aria-label="Battle Mode">
                         <button class="loadout-tab active" id="soloMatchTab" type="button" onclick="setMatchMode('solo')" aria-pressed="true">Solo Vs AI</button>
                         <button class="loadout-tab" id="onlineMatchTab" type="button" onclick="setMatchMode('online')" aria-pressed="false">Online Match</button>
+                        <button class="loadout-tab" id="tutorialMatchTab" type="button" onclick="setMatchMode('tutorial')" aria-pressed="false">Tutorial Match</button>
                     </div>
+                </div>
+                <div id="tutorialMatchPanel" class="hidden loadout-tutorial-panel">
+                    <div class="loadout-tutorial-head">
+                        <div class="loadout-section-kicker">Training Grounds</div>
+                        <h3>Guided Tutorial Match</h3>
+                    </div>
+                    <p class="loadout-tutorial-copy">A repeatable practice battle against the Training Dummy. You always command <strong>Squire Bob</strong> with the <strong>Ashen Roots</strong> deck and always move first, so every replay teaches the same lesson. A coach panel walks you through the arena while you play.</p>
+                    <ul class="loadout-tutorial-list">
+                        <li>Round loop: Draw, Setup, and Battle phases</li>
+                        <li>HUD navigation: board, hand, energy, log, and inspect</li>
+                        <li>Building notch links and combo notches</li>
+                        <li>Exterior notches and perimeter socket energy</li>
+                        <li>Battling: speed order, single vs multi target moves</li>
+                        <li>Buffs, debuffs, and status effects</li>
+                        <li>Strategies and Deceptions, plus how to bluff with them</li>
+                    </ul>
+                    <div class="loadout-tutorial-note">Deck and SiegeKnight are locked for this mode. Nothing you own changes; rewards only apply to your first tutorial win.</div>
                 </div>
                 <div id="onlineMatchPanel" class="hidden loadout-online-panel">
                     <div class="loadout-tabs" role="group" aria-label="Online room mode">
@@ -913,7 +931,7 @@
 <script src="/js/config.js"></script>
 <script type="module" src="/js/firebase-init.js?v=2"></script>
     <script src="/js/catalog-sync.js?v=1"></script>
-    <script src="/js/game.js?v=252"></script>
+    <script src="/js/game.js?v=253"></script>
     <script src="/js/play-mode-picker.js?v=4"></script>
     <script src="/js/play-hud.js?v=4"></script>
     <!-- Defines window.SieglingsCardBinderVisual (buildArtTransformStyle). Without it,

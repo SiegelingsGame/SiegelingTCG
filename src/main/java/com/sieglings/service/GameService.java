@@ -35,6 +35,19 @@ import java.util.stream.IntStream;
 @Service
 public class GameService {
 
+    /**
+     * The tutorial match is a fixed rehearsal: the same free knight and deck on
+     * both sides every run, so a returning player replays the exact same lesson.
+     * Ice opposes the Fire half of Ashen Roots, which makes the weakness chart
+     * visible without stacking the fight against the student.
+     */
+    public static final String TUTORIAL_PLAYER_DECK_ID = "deck_fire_earth";
+    public static final String TUTORIAL_PLAYER_TRAINER_ID = "squire-bob";
+    public static final String TUTORIAL_ENEMY_DECK_ID = "deck_ice";
+    public static final String TUTORIAL_ENEMY_TRAINER_ID = "trainer09";
+    public static final String TUTORIAL_OPPONENT_NAME = "Training Dummy";
+    public static final int TUTORIAL_ENEMY_HEALTH = 20;
+
     public record StartOptions(String playerDeckId, String playerTrainerId, List<String> customDeckCards,
                                String loadoutLabel, int playerTrainerLevel) {
         public StartOptions(String playerDeckId, String playerTrainerId, List<String> customDeckCards, String loadoutLabel) {
@@ -102,6 +115,27 @@ public class GameService {
     /** Starts a brand-new solo game scoped to a freshly generated token. */
     public SoloHandle newSoloGame(StartOptions options) {
         return newSoloGame(options, "Player");
+    }
+
+    /**
+     * Starts the fixed tutorial match: pinned loadouts on both sides, the player
+     * always moves first, and the sparring partner starts on reduced health so a
+     * full lesson fits in a few rounds.
+     */
+    public SoloHandle newTutorialGame(String playerName) {
+        StartOptions playerOptions = new StartOptions(
+                TUTORIAL_PLAYER_DECK_ID, TUTORIAL_PLAYER_TRAINER_ID, null, "Tutorial Loadout");
+        StartOptions enemyOptions = new StartOptions(
+                TUTORIAL_ENEMY_DECK_ID, TUTORIAL_ENEMY_TRAINER_ID, null, "Tutorial Warband");
+        GameState state = createGame(playerOptions, enemyOptions,
+                safePlayerName(playerName, "Player"), TUTORIAL_OPPONENT_NAME, false, true);
+        state.getEnemy().setHealth(TUTORIAL_ENEMY_HEALTH);
+        state.log("Tutorial match: " + TUTORIAL_OPPONENT_NAME + " starts at " + TUTORIAL_ENEMY_HEALTH
+                + " health so a full lesson fits in a few rounds.");
+        purgeStaleSoloGames();
+        String token = generateSoloToken();
+        soloGames.put(token, new SoloSession(state));
+        return new SoloHandle(token, state);
     }
 
     /** Starts a brand-new solo game scoped to a freshly generated token. */
@@ -513,6 +547,12 @@ public class GameService {
 
     private GameState createGame(StartOptions playerOptions, StartOptions enemyOptions,
                                  String playerName, String enemyName, boolean enemyHumanControlled) {
+        return createGame(playerOptions, enemyOptions, playerName, enemyName, enemyHumanControlled, false);
+    }
+
+    private GameState createGame(StartOptions playerOptions, StartOptions enemyOptions,
+                                 String playerName, String enemyName, boolean enemyHumanControlled,
+                                 boolean tutorial) {
         GameState state = new GameState();
         state.setEnemyHumanControlled(enemyHumanControlled);
 
@@ -523,7 +563,7 @@ public class GameService {
         enemy.setHealth(50);
 
         ResolvedLoadout playerLoadout = resolveLoadout(playerOptions, "deck_fire_earth", "trainer05");
-        ResolvedLoadout enemyLoadout = enemyHumanControlled
+        ResolvedLoadout enemyLoadout = enemyHumanControlled || tutorial
                 ? resolveLoadout(enemyOptions, "deck_water_wind", "trainer06")
                 : resolveSoloEnemyLoadout(playerLoadout.deckId());
 
@@ -547,7 +587,9 @@ public class GameService {
             enemy.drawCard();
         }
 
-        boolean playerStarts = random.nextBoolean();
+        // The tutorial teaches the setup phase before it is played against, so the
+        // student always takes the first turn.
+        boolean playerStarts = tutorial || random.nextBoolean();
         state.setCurrentPhase(Phase.MULLIGAN);
         state.resetRoundOrder(playerStarts);
         state.setMulliganPending(true, true);
