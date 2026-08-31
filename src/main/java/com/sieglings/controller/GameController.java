@@ -316,23 +316,26 @@ public class GameController {
     public Map<String, Object> newGame(@RequestBody(required = false) Map<String, Object> req,
                                        @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
         try {
-            GameService.StartOptions options = parseStartOptions(req, "deck_fire_earth", "trainer05");
             AccountUser user = accountService.findUser(authorizationHeader);
-            validateStartOwnership(user, options);
-            // Battle is a flat-power mode: SiegeKnight levels do not apply here. The
-            // leveling glue (withPlayerTrainerLevel) is kept for the upcoming Siege
-            // roguelike mode, where levels will carry into every fight.
             Object rawPlayerName = req == null ? null : req.get("playerName");
             String playerName = rawPlayerName == null ? null : String.valueOf(rawPlayerName);
-            GameService.SoloHandle handle = gameService.newSoloGame(options,
-                    user == null && (playerName == null || playerName.isBlank()) ? "Guest" : playerName);
-            attachAuthenticatedSoloUser(handle.state(), authorizationHeader);
-            // Tutorial matches face a 10 HP enemy so new players can finish
-            // the guided objectives quickly.
+            String resolvedName = user == null && (playerName == null || playerName.isBlank()) ? "Guest" : playerName;
+            // Tutorial matches ignore the submitted loadout entirely: both sides are
+            // pinned to the free starter knight/deck so the lesson is identical on
+            // every replay, which also means there is nothing to ownership-check.
             boolean tutorial = req != null && Boolean.TRUE.equals(req.get("tutorial"));
+            GameService.SoloHandle handle;
             if (tutorial) {
-                handle.state().getEnemy().setHealth(10);
+                handle = gameService.newTutorialGame(resolvedName);
+            } else {
+                GameService.StartOptions options = parseStartOptions(req, "deck_fire_earth", "trainer05");
+                validateStartOwnership(user, options);
+                // Battle is a flat-power mode: SiegeKnight levels do not apply here. The
+                // leveling glue (withPlayerTrainerLevel) is kept for the upcoming Siege
+                // roguelike mode, where levels will carry into every fight.
+                handle = gameService.newSoloGame(options, resolvedName);
             }
+            attachAuthenticatedSoloUser(handle.state(), authorizationHeader);
             Map<String, Object> resp = new LinkedHashMap<>(buildStateResponse(handle.state(), true, null));
             resp.put("soloToken", handle.token());
             if (tutorial) {
