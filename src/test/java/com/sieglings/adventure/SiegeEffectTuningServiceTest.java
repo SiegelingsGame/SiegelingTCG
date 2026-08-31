@@ -12,6 +12,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -186,6 +187,88 @@ class SiegeEffectTuningServiceTest {
                 "an empty batch is a mistake, not a silent success");
     }
 
+    @Test
+    void cardOverridesLayerOnTopOfTheEffectDefaults() {
+        SiegeEffectTuningService service = inMemory();
+
+        assertNull(service.cardValue("fire-spark"), "an untouched card inherits everything");
+        assertFalse(service.isCardExcluded("fire-spark"));
+
+        Map<String, Object> fields = new HashMap<>();
+        fields.put(SiegeEffectTuningService.FIELD_VALUE, 12);
+        fields.put(SiegeEffectTuningService.FIELD_ACTION_COST, 2);
+        service.applyChanges(List.of(), Map.of(),
+                List.of(new SiegeEffectTuningService.CardPatch("fire-spark", fields, false)),
+                "editor@example.com");
+
+        assertEquals(12, service.cardValue("fire-spark"));
+        assertEquals(2, service.cardActionCost("fire-spark"));
+        assertNull(service.cardDurationRounds("fire-spark"), "untouched knobs still inherit");
+        // A sibling card sharing the effect is unaffected — that is the whole point.
+        assertNull(service.cardValue("fire-ember"));
+        // And the effect-wide setting is untouched by a per-card edit.
+        assertEquals(2, service.valueBonus(Effect.DAMAGE));
+
+        Map<String, Object> clear = new HashMap<>();
+        clear.put(SiegeEffectTuningService.FIELD_VALUE, null);
+        service.applyChanges(List.of(), Map.of(),
+                List.of(new SiegeEffectTuningService.CardPatch("fire-spark", clear, false)),
+                "editor@example.com");
+        assertNull(service.cardValue("fire-spark"), "clearing one knob drops just that one");
+        assertEquals(2, service.cardActionCost("fire-spark"), "the other override survives");
+
+        service.applyChanges(List.of(), Map.of(),
+                List.of(new SiegeEffectTuningService.CardPatch("fire-spark", Map.of(), true)),
+                "editor@example.com");
+        assertNull(service.cardActionCost("fire-spark"), "reset drops the whole row");
+        assertTrue(service.cardOverrides().isEmpty());
+    }
+
+    @Test
+    void excludingACardIsStoredAndClearedByUnchecking() {
+        SiegeEffectTuningService service = inMemory();
+
+        service.applyChanges(List.of(), Map.of(), List.of(new SiegeEffectTuningService.CardPatch(
+                "fire-spark", Map.of(SiegeEffectTuningService.FIELD_EXCLUDED, true), false)),
+                "editor@example.com");
+        assertTrue(service.isCardExcluded("fire-spark"));
+
+        // Unchecking is the default state, so the row disappears rather than
+        // storing "excluded: false" forever.
+        service.applyChanges(List.of(), Map.of(), List.of(new SiegeEffectTuningService.CardPatch(
+                "fire-spark", Map.of(SiegeEffectTuningService.FIELD_EXCLUDED, false), false)),
+                "editor@example.com");
+        assertFalse(service.isCardExcluded("fire-spark"));
+        assertTrue(service.cardOverrides().isEmpty(), "no empty row is left behind");
+    }
+
+    @Test
+    void cardsEffectsAndGlobalsPublishInOneBatchAndFailAsOne() {
+        SiegeEffectTuningService service = inMemory();
+
+        service.applyChanges(
+                List.of(new SiegeEffectTuningService.EffectPatch(Effect.DAMAGE,
+                        Map.of(SiegeEffectTuningService.FIELD_VALUE_BONUS, 4), false)),
+                Map.of("ampValueBonus", 6),
+                List.of(new SiegeEffectTuningService.CardPatch("fire-spark",
+                        Map.of(SiegeEffectTuningService.FIELD_VALUE, 12), false)),
+                "editor@example.com");
+        assertEquals(4, service.valueBonus(Effect.DAMAGE));
+        assertEquals(6, service.globalValue("ampValueBonus"));
+        assertEquals(12, service.cardValue("fire-spark"));
+
+        // One bad card value rejects the batch; the effect edit beside it must not land.
+        assertThrows(IllegalArgumentException.class, () -> service.applyChanges(
+                List.of(new SiegeEffectTuningService.EffectPatch(Effect.HEAL,
+                        Map.of(SiegeEffectTuningService.FIELD_VALUE_BONUS, 5), false)),
+                Map.of(),
+                List.of(new SiegeEffectTuningService.CardPatch("fire-ember",
+                        Map.of(SiegeEffectTuningService.FIELD_VALUE, 5000), false)),
+                "editor@example.com"));
+        assertEquals(3, service.valueBonus(Effect.HEAL), "nothing from a rejected batch is published");
+        assertNull(service.cardValue("fire-ember"));
+    }
+
     private static SiegeEffectTuningService.EffectRow row(
             List<SiegeEffectTuningService.EffectRow> rows, Effect effect) {
         return rows.stream().filter(r -> r.effect() == effect).findFirst().orElseThrow();
@@ -200,7 +283,7 @@ class SiegeEffectTuningServiceTest {
         // The storage client is only reached through loadStored/saveStored, both
         // overridden below, so this fixture needs no Firestore plumbing at all.
         AtomicReference<SiegeEffectTuningService.TuningFile> holder =
-                new AtomicReference<>(new SiegeEffectTuningService.TuningFile(List.of(), null));
+                new AtomicReference<>(new SiegeEffectTuningService.TuningFile(List.of(), null, List.of()));
         return new SiegeEffectTuningService(objectMapper, null, "appConfig", "siegeEffectTuning") {
             @Override
             protected StoredData loadStored() {

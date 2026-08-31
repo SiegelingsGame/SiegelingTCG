@@ -82,6 +82,13 @@ Effects**, which writes them to `appConfig/siegeEffectTuning`
 (`SiegeEffectTuningService`). An empty override document behaves exactly like the
 table below; an edit applies to battles started afterwards.
 
+A single card can also be overridden on top of those shared rules under **Siege
+Mode → Siege Cards**, keyed by the board move the Siege card is built from: its
+Siege value, AP, buff duration and status chance, or `excluded` to keep it out of
+Siege entirely. Resolution order is **card override → effect tuning → shipped
+default**, and none of it touches the printed board move — the same Siegeling
+plays its normal card on the battle table.
+
 | Key | Siege effect | Siege targeting |
 | --- | --- | --- |
 | `damage` | `DAMAGE` — value + 2, plus the caster's attack buff. | as written |

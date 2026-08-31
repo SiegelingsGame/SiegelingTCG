@@ -1730,6 +1730,164 @@ textarea {
     flex: 0 0 auto;
 }
 
+/* Siege card rows: one line per card at desktop width — identity, its knobs,
+   then its actions — wrapping to stacked blocks on a narrow dashboard. */
+.siege-card-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin: 10px 0;
+    font-size: 12px;
+}
+
+.siege-card-toolbar input[type="search"] {
+    /* Capped, or it grows to the full row and wraps the filters onto lines of
+       their own — the toolbar reads as one control strip, not four. */
+    flex: 1 1 200px;
+    max-width: 360px;
+    min-width: 150px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(0, 0, 0, 0.25);
+    color: inherit;
+}
+
+.siege-card-toolbar select {
+    flex: 0 0 auto;
+    /* The dashboard's base rule is select{width:100%}, which makes every filter
+       claim its own row of the toolbar. */
+    width: auto;
+    min-width: 110px;
+    padding: 6px 8px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(0, 0, 0, 0.25);
+    color: inherit;
+}
+
+.siege-card-count {
+    margin-left: auto;
+    color: var(--text-dim, #9e9586);
+}
+
+.siege-card-list {
+    display: grid;
+    gap: 6px;
+    /* Long enough to need its own scroll rather than pushing the publish bar
+       and the sections below it off the bottom of the workspace. */
+    max-height: 60vh;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.siege-card-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--panel-border, rgba(255, 222, 173, 0.18));
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.siege-card-row.is-override {
+    border-color: rgba(240, 139, 67, 0.55);
+}
+
+.siege-card-row.is-dirty {
+    border-color: var(--accent-strong, #ffb25e);
+    box-shadow: 0 0 0 1px var(--accent-strong, #ffb25e) inset;
+}
+
+.siege-card-row.is-excluded .siege-card-id b,
+.siege-card-row.is-excluded .siege-card-fields {
+    opacity: 0.45;
+    text-decoration: line-through;
+}
+
+.siege-card-id {
+    flex: 1 1 180px;
+    min-width: 150px;
+    display: grid;
+    font-size: 12.5px;
+}
+
+.siege-card-tags,
+.siege-card-owners {
+    font-size: 10.5px;
+    color: var(--text-dim, #9e9586);
+}
+
+.siege-card-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.siege-card-field {
+    display: grid;
+    grid-template-columns: auto 58px;
+    grid-template-areas: "name input" "hint input";
+    align-items: center;
+    gap: 0 6px;
+    font-size: 11px;
+}
+
+.siege-card-field > span {
+    grid-area: name;
+    color: var(--text-soft, #cfc4b2);
+}
+
+.siege-card-field.is-set > span {
+    color: var(--accent-strong, #ffb25e);
+}
+
+.siege-card-field input {
+    grid-area: input;
+    width: 58px;
+    padding: 4px 6px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(0, 0, 0, 0.25);
+    color: inherit;
+}
+
+.siege-card-field small {
+    grid-area: hint;
+    font-size: 9.5px;
+    opacity: 0.5;
+}
+
+.siege-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+    font-size: 11px;
+}
+
+.siege-card-exclude {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+    color: var(--text-dim, #9e9586);
+    cursor: pointer;
+}
+
+.siege-card-reset {
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    cursor: pointer;
+    border: 1px solid var(--panel-border, rgba(255, 222, 173, 0.18));
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-soft, #cfc4b2);
+}
+
 /* The save bar sticks to the bottom of the section so the publish button is
    reachable from any tile without scrolling back. */
 .siege-effect-bar {

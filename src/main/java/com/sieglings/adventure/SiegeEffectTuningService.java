@@ -64,8 +64,25 @@ public class SiegeEffectTuningService {
             Integer executeBossPercent
     ) {}
 
+    /**
+     * One card's Siege-only overrides, keyed by the move id the Siege card is
+     * built from. A null field means "inherit" — from the effect defaults for
+     * value and duration, from the move's own printed cost for AP. These never
+     * touch the battle-table move: the same Siegeling plays its printed card on
+     * the board and the tuned one in Siege.
+     */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record TuningFile(List<EffectOverride> effects, GlobalOverride globals) {}
+    public record CardOverride(
+            String moveId,
+            Integer value,
+            Integer actionCost,
+            Integer durationRounds,
+            Integer statusChance,
+            Boolean excluded
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record TuningFile(List<EffectOverride> effects, GlobalOverride globals, List<CardOverride> cards) {}
 
     /**
      * The knobs an effect actually uses. A row only offers the fields its effect
@@ -91,6 +108,9 @@ public class SiegeEffectTuningService {
             boolean isOverride
     ) {}
 
+    /** A card's pending edit: the fields to write, or {@code reset} to drop the row. */
+    public record CardPatch(String moveId, Map<String, Object> fields, boolean reset) {}
+
     public record GlobalRow(
             String key,
             String label,
@@ -115,6 +135,14 @@ public class SiegeEffectTuningService {
     public static final String FIELD_VALUE_CAP = "valueCap";
     public static final String FIELD_MIN_ACTION_COST = "minActionCost";
     public static final String FIELD_DURATION_ROUNDS = "durationRounds";
+    public static final String FIELD_ACTION_COST = "actionCost";
+    public static final String FIELD_VALUE = "value";
+    public static final String FIELD_STATUS_CHANCE = "statusChance";
+    public static final String FIELD_EXCLUDED = "excluded";
+
+    /** Per-card fields a request may carry. */
+    public static final List<String> CARD_FIELDS = List.of(
+            FIELD_VALUE, FIELD_ACTION_COST, FIELD_DURATION_ROUNDS, FIELD_STATUS_CHANCE, FIELD_EXCLUDED);
 
     /** Guard rails: a dashboard typo must not be able to write an unplayable rule. */
     public static final int MIN_FIELD_VALUE = 0;
@@ -122,6 +150,9 @@ public class SiegeEffectTuningService {
     public static final int MAX_VALUE_CAP = 99;
     public static final int MAX_ACTION_COST = 5;
     public static final int MAX_DURATION_ROUNDS = 20;
+    /** A single Siege card may not be worth more than this, whatever its board move says. */
+    public static final int MAX_CARD_VALUE = 99;
+    public static final int MAX_STATUS_CHANCE = 100;
 
     private record Defaults(int valueBonus, int valueCap, int minActionCost, int durationRounds,
                             List<String> fields, String label) {}
@@ -239,6 +270,65 @@ public class SiegeEffectTuningService {
         return resolve(effect, FIELD_DURATION_ROUNDS);
     }
 
+    // ---- Per-card overrides ------------------------------------------------
+
+    /** This card's Siege magnitude, or null to use the effect's translation. */
+    public Integer cardValue(String moveId) {
+        CardOverride o = findCard(load().file(), moveId);
+        return o == null ? null : o.value();
+    }
+
+    /** This card's AP cost, or null to use the cost derived from its energy cost. */
+    public Integer cardActionCost(String moveId) {
+        CardOverride o = findCard(load().file(), moveId);
+        return o == null ? null : o.actionCost();
+    }
+
+    /** This card's buff window, or null to use its effect's shared duration. */
+    public Integer cardDurationRounds(String moveId) {
+        CardOverride o = findCard(load().file(), moveId);
+        return o == null ? null : o.durationRounds();
+    }
+
+    /** This card's status-infliction chance, or null to use the AP-derived default. */
+    public Integer cardStatusChance(String moveId) {
+        CardOverride o = findCard(load().file(), moveId);
+        return o == null ? null : o.statusChance();
+    }
+
+    /**
+     * Whether this card is kept out of Siege entirely. The move still exists on
+     * the battle table; it simply never becomes a Siege card, which is how a
+     * move that does not translate well is removed from the roguelike without
+     * editing the card itself.
+     */
+    public boolean isCardExcluded(String moveId) {
+        CardOverride o = findCard(load().file(), moveId);
+        return o != null && Boolean.TRUE.equals(o.excluded());
+    }
+
+    /** Every stored card override, for the dashboard to merge with the catalog. */
+    public Map<String, CardOverride> cardOverrides() {
+        Map<String, CardOverride> out = new LinkedHashMap<>();
+        for (CardOverride row : load().file().cards()) {
+            if (row != null && row.moveId() != null && !row.moveId().isBlank()) {
+                out.put(row.moveId().trim(), row);
+            }
+        }
+        return out;
+    }
+
+    private static CardOverride findCard(TuningFile file, String moveId) {
+        if (moveId == null || moveId.isBlank()) return null;
+        String key = moveId.trim();
+        for (CardOverride row : file.cards()) {
+            if (row != null && row.moveId() != null && key.equalsIgnoreCase(row.moveId().trim())) {
+                return row;
+            }
+        }
+        return null;
+    }
+
     public int globalValue(String key) {
         GlobalDef def = GLOBAL_DEFS.get(key);
         if (def == null) return 0;
@@ -314,9 +404,20 @@ public class SiegeEffectTuningService {
      * the change was live; everything is validated first, then written once.
      */
     public Snapshot applyChanges(List<EffectPatch> patches, Map<String, Integer> globals, String updatedByEmail) {
+        return applyChanges(patches, globals, List.of(), updatedByEmail);
+    }
+
+    /**
+     * As {@link #applyChanges(List, Map, String)}, plus per-card overrides. Cards
+     * and effects publish together because a designer edits them together — a
+     * card's value only means something beside the effect defaults it inherits.
+     */
+    public Snapshot applyChanges(List<EffectPatch> patches, Map<String, Integer> globals,
+                                 List<CardPatch> cardPatches, String updatedByEmail) {
         List<EffectPatch> effectPatches = patches == null ? List.of() : patches;
         Map<String, Integer> globalPatches = globals == null ? Map.of() : globals;
-        if (effectPatches.isEmpty() && globalPatches.isEmpty()) {
+        List<CardPatch> cards = cardPatches == null ? List.of() : cardPatches;
+        if (effectPatches.isEmpty() && globalPatches.isEmpty() && cards.isEmpty()) {
             throw new IllegalArgumentException("No settings were sent.");
         }
 
@@ -364,7 +465,46 @@ public class SiegeEffectTuningService {
             globalsOut = withGlobal(globalsOut, entry.getKey(), entry.getValue());
         }
 
-        return save(new TuningFile(List.copyOf(merged.values()), globalsOut), updatedByEmail);
+        Map<String, CardOverride> cardRows = new LinkedHashMap<>();
+        for (CardOverride row : current.cards()) {
+            if (row != null && row.moveId() != null && !row.moveId().isBlank()) {
+                cardRows.put(row.moveId().trim(), row);
+            }
+        }
+        for (CardPatch patch : cards) {
+            if (patch == null || patch.moveId() == null || patch.moveId().isBlank()) {
+                throw new IllegalArgumentException("A card id is required.");
+            }
+            String key = patch.moveId().trim();
+            if (patch.reset()) {
+                cardRows.remove(key);
+                continue;
+            }
+            CardOverride existing = cardRows.get(key);
+            Map<String, Object> fields = patch.fields() == null ? Map.of() : patch.fields();
+            Integer value = mergeCardInt(existing == null ? null : existing.value(), fields,
+                    FIELD_VALUE, MAX_CARD_VALUE);
+            Integer cost = mergeCardInt(existing == null ? null : existing.actionCost(), fields,
+                    FIELD_ACTION_COST, MAX_ACTION_COST);
+            Integer duration = mergeCardInt(existing == null ? null : existing.durationRounds(), fields,
+                    FIELD_DURATION_ROUNDS, MAX_DURATION_ROUNDS);
+            Integer chance = mergeCardInt(existing == null ? null : existing.statusChance(), fields,
+                    FIELD_STATUS_CHANCE, MAX_STATUS_CHANCE);
+            Boolean excluded = existing == null ? null : existing.excluded();
+            if (fields.containsKey(FIELD_EXCLUDED)) {
+                Object raw = fields.get(FIELD_EXCLUDED);
+                excluded = raw == null ? null : (Boolean.TRUE.equals(raw) || "true".equalsIgnoreCase(String.valueOf(raw)));
+                if (Boolean.FALSE.equals(excluded)) excluded = null; // "included" is the default
+            }
+            if (value == null && cost == null && duration == null && chance == null && excluded == null) {
+                cardRows.remove(key);
+            } else {
+                cardRows.put(key, new CardOverride(key, value, cost, duration, chance, excluded));
+            }
+        }
+
+        return save(new TuningFile(List.copyOf(merged.values()), globalsOut, List.copyOf(cardRows.values())),
+                updatedByEmail);
     }
 
     /** Writes one effect's knobs. Kept for callers editing a single row. */
@@ -410,6 +550,33 @@ public class SiegeEffectTuningService {
         } catch (IllegalArgumentException ex) {
             return null;
         }
+    }
+
+    /**
+     * Card fields arrive as a loose map because {@code excluded} is a boolean
+     * among integers. A key that is present with a null value clears that one
+     * override; a key that is absent leaves it alone.
+     */
+    private Integer mergeCardInt(Integer current, Map<String, Object> fields, String field, int max) {
+        if (!fields.containsKey(field)) return current;
+        Object raw = fields.get(field);
+        if (raw == null) return null;
+        int value;
+        if (raw instanceof Number n) {
+            value = n.intValue();
+        } else {
+            String text = String.valueOf(raw).trim();
+            if (text.isEmpty()) return null;
+            try {
+                value = Integer.parseInt(text);
+            } catch (NumberFormatException ex) {
+                throw new IllegalArgumentException(field + " must be a whole number.");
+            }
+        }
+        if (value < MIN_FIELD_VALUE || value > max) {
+            throw new IllegalArgumentException(field + " must be between " + MIN_FIELD_VALUE + " and " + max + ".");
+        }
+        return value;
     }
 
     private Integer merge(Integer current, Map<String, Integer> fields, String field,
@@ -509,7 +676,8 @@ public class SiegeEffectTuningService {
             TuningFile file = snapshot.exists()
                     ? parse(objectMapper.valueToTree(Map.of(
                             "effects", snapshot.get("effects") == null ? List.of() : snapshot.get("effects"),
-                            "globals", snapshot.get("globals") == null ? Map.of() : snapshot.get("globals"))))
+                            "globals", snapshot.get("globals") == null ? Map.of() : snapshot.get("globals"),
+                            "cards", snapshot.get("cards") == null ? List.of() : snapshot.get("cards"))))
                     : emptyFile();
             return new StoredData(file, CardOverrideStorageService.StorageBackend.FIRESTORE,
                     snapshot.getString("updatedBy"), resolveTimestamp(snapshot));
@@ -555,6 +723,7 @@ public class SiegeEffectTuningService {
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("effects", objectMapper.convertValue(file.effects(), Object.class));
             payload.put("globals", objectMapper.convertValue(file.globals(), Object.class));
+            payload.put("cards", objectMapper.convertValue(file.cards(), Object.class));
             String by = updatedByEmail == null || updatedByEmail.isBlank()
                     ? "unknown" : updatedByEmail.trim().toLowerCase(Locale.ROOT);
             payload.put("updatedBy", by);
@@ -585,7 +754,10 @@ public class SiegeEffectTuningService {
         try {
             TuningFile file = objectMapper.treeToValue(data, TuningFile.class);
             if (file == null) return emptyFile();
-            return new TuningFile(file.effects() == null ? List.of() : file.effects(), file.globals());
+            return new TuningFile(
+                    file.effects() == null ? List.of() : file.effects(),
+                    file.globals(),
+                    file.cards() == null ? List.of() : file.cards());
         } catch (Exception ex) {
             // Malformed stored data falls back to defaults instead of breaking
             // every Siege battle until someone fixes the document.
@@ -594,7 +766,7 @@ public class SiegeEffectTuningService {
     }
 
     private static TuningFile emptyFile() {
-        return new TuningFile(List.of(), null);
+        return new TuningFile(List.of(), null, List.of());
     }
 
     private DocumentReference docRef() {
