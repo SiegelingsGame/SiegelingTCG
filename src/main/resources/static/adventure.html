@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Siege — Siegelings Adventure</title>
 <link rel="icon" href="/favicon.png">
-<link rel="stylesheet" href="/css/adventure.css?v=78">
+<link rel="stylesheet" href="/css/adventure.css?v=79">
 </head>
 <body>
 <!-- Enemy Siegelings are corrupted card art, so they need the same die-cut shade
@@ -90,7 +90,7 @@
 
     <div id="setupStepMode">
       <h1>Choose your mode</h1>
-      <p class="siege-sub">Start a fresh Siege expedition, or take extracted veterans into Battlegrounds.</p>
+      <p class="siege-sub">Start a fresh Siege expedition, take extracted veterans into Battlegrounds, or run the guided Tutorial first.</p>
       <div class="mode-select-grid">
         <button class="mode-card mode-card-siege" id="chooseSiegeMode" type="button">
           <span class="mode-card-kicker">Classic run</span>
@@ -103,6 +103,12 @@
           <span class="mode-card-title">Battlegrounds <span class="mode-card-status" id="modeBgStatus">Locked</span></span>
           <span class="mode-card-desc">Bring a leveled team extracted from Siege into a higher-stakes run for boons, Warmarks, and bigger rewards.</span>
           <span class="mode-card-meta" id="modeBgMeta">Requires 3 banked veterans</span>
+        </button>
+        <button class="mode-card mode-card-tutorial" id="chooseTutorialMode" type="button">
+          <span class="mode-card-kicker">Guided tour</span>
+          <span class="mode-card-title">Tutorial</span>
+          <span class="mode-card-desc">A simulated expedition that walks you through every node: navigating, resting, buying, equipping, upgrading, renting, claiming Siegelings, levelling up, and combat — targeting, passives and Ultimates included.</span>
+          <span class="mode-card-meta">New here? Start with this · nothing is saved</span>
         </button>
       </div>
     </div>
@@ -653,6 +659,7 @@
   <div class="siege-toast hidden" id="siegeToast"></div>
 </div>
 <script src="/js/siege-maps.js?v=3"></script>
-<script src="/js/adventure.js?v=86"></script>
+<script src="/js/siege-tutorial.js?v=1"></script>
+<script src="/js/adventure.js?v=87"></script>
 </body>
 </html>

@@ -183,6 +183,7 @@ body[data-screen="mapScreen"] #mapScreen{
 }
 .mode-card-siege{--mode:var(--accent);}
 .mode-card-bg{--mode:var(--accent-2);}
+.mode-card-tutorial{--mode:var(--good);}
 .mode-card-kicker{font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--dim);}
 .mode-card-title{font-size:26px; line-height:1.05; font-weight:850; display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
 .mode-card-desc{font-size:14px; line-height:1.45; color:var(--dim); max-width:44ch;}
@@ -3032,4 +3033,55 @@ body[data-screen="minigameScreen"] #mgActions{ margin-top:12px; }
     display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden;
   }
   .epiphany-screen .reward-actions{margin-top:6px;}
+}
+
+
+/* ---- Tutorial coach (js/siege-tutorial.js) --------------------------------
+   A spotlight ring plus a tip card, drawn above every screen and modal. The
+   layer itself never takes pointer events: the whole point is that the player
+   drives the real UI underneath it, so only the tip card is clickable. */
+.tut-layer{position:fixed; inset:0; z-index:200; pointer-events:none;}
+.tut-layer.hidden{display:none;}
+.tut-ring{
+  position:absolute; border-radius:12px; pointer-events:none;
+  border:2px solid var(--good);
+  box-shadow:0 0 0 4px color-mix(in srgb, var(--good) 30%, transparent),
+             0 0 0 9999px rgba(6,9,14,.52);
+  transition:left .18s ease, top .18s ease, width .18s ease, height .18s ease;
+  animation:tutpulse 1.7s ease-in-out infinite;
+}
+.tut-ring.off{opacity:0; box-shadow:0 0 0 9999px rgba(6,9,14,.52);}
+@keyframes tutpulse{
+  0%,100%{box-shadow:0 0 0 4px color-mix(in srgb, var(--good) 30%, transparent), 0 0 0 9999px rgba(6,9,14,.52);}
+  50%{box-shadow:0 0 0 9px color-mix(in srgb, var(--good) 16%, transparent), 0 0 0 9999px rgba(6,9,14,.52);}
+}
+.tut-card{
+  position:absolute; left:50%; transform:translateX(-50%);
+  width:min(420px, calc(100vw - 24px));
+  pointer-events:auto;
+  background:var(--panel-2); border:1px solid var(--border); border-top:3px solid var(--good);
+  border-radius:12px; padding:13px 15px 12px; color:var(--text);
+  box-shadow:0 18px 40px rgba(0,0,0,.55);
+}
+.tut-head{display:flex; align-items:center; justify-content:space-between; gap:8px;}
+.tut-kicker{font-size:10.5px; font-weight:800; letter-spacing:.09em; text-transform:uppercase; color:var(--good);}
+.tut-quit{
+  background:none; border:none; color:var(--faint); font-size:15px; line-height:1;
+  padding:2px 4px; cursor:pointer;
+}
+.tut-quit:hover{color:var(--text);}
+.tut-title{margin:4px 0 5px; font-size:17px; line-height:1.2; font-weight:850;}
+.tut-body{margin:0; font-size:13.5px; line-height:1.5; color:var(--dim);}
+.tut-body b, .tut-body strong{color:var(--text);}
+.tut-body em{color:var(--good); font-style:normal;}
+.tut-foot{display:flex; justify-content:flex-end; margin-top:11px;}
+.tut-next{
+  background:var(--good); color:#0e1a10; border:none; border-radius:9px;
+  padding:8px 16px; font-size:13px; font-weight:800; cursor:pointer;
+}
+.tut-wait{font-size:12px; font-weight:800; color:var(--good); letter-spacing:.04em;}
+@media (max-width:480px){
+  .tut-card{padding:11px 13px 10px;}
+  .tut-title{font-size:15.5px;}
+  .tut-body{font-size:12.5px;}
 }
