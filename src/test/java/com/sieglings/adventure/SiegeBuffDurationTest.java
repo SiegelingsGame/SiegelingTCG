@@ -13,8 +13,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Stat buffs run a clock. They used to last the whole battle, so a repeatable
  * buff card compounded every round and every later attack cashed the whole
- * stack; these tests pin the window, the expiry, and the refresh-not-stack rule
- * that keeps one card from rebuilding that stack.
+ * stack; these tests pin the window, the expiry, and the stacking rule — copies
+ * add up, but each lapses on its own clock instead of compounding forever.
  */
 class SiegeBuffDurationTest {
 
@@ -98,22 +98,35 @@ class SiegeBuffDurationTest {
     }
 
     @Test
-    void replayingTheSameCardRefreshesInsteadOfStacking() {
+    void replayingTheSameCardStacksAmountAndKeepsItsOwnClock() {
         SiegeBattle b = battle();
         Combatant ally = ally();
         b.getCombatants().add(ally);
         AbilitySpec rally = buffCard("rally", Effect.BUFF_ATK, 4);
 
         apply(b, ally, rally, List.of(ally));
+        apply(b, ally, rally, List.of(ally));
+        assertEquals(8, ally.getAttackBuff(), "a second copy of the same card stacks on the first");
+
+        // The later copy runs its own clock, so the stack decays a grant at a time.
         b.setRoundNumber(2);
         apply(b, ally, rally, List.of(ally));
-        assertEquals(4, ally.getAttackBuff(), "the same buff card refreshes its own grant");
-        assertEquals(SiegeTuning.BUFF_ATK_ROUNDS, ally.buffRoundsLeft(Combatant.BuffStat.ATTACK, 2),
-                "and resets the window");
+        assertEquals(12, ally.getAttackBuff(), "a third copy stacks again");
+        assertEquals(SiegeTuning.BUFF_ATK_ROUNDS + 1, ally.buffRoundsLeft(Combatant.BuffStat.ATTACK, 1),
+                "the newest grant carries the window further out");
 
-        // A different card is a different grant, so it stacks.
+        b.setRoundNumber(1 + SiegeTuning.BUFF_ATK_ROUNDS);
+        expireBuffs(b, Side.PLAYER);
+        assertEquals(4, ally.getAttackBuff(), "the round-1 grants lapse together, the round-2 one holds");
+
+        b.setRoundNumber(2 + SiegeTuning.BUFF_ATK_ROUNDS);
+        expireBuffs(b, Side.PLAYER);
+        assertEquals(0, ally.getAttackBuff(), "and the last grant lapses on its own round");
+
+        // A different card is a different grant, and stacks the same way.
         apply(b, ally, buffCard("warcry", Effect.BUFF_ATK, 2), List.of(ally));
-        assertEquals(6, ally.getAttackBuff(), "distinct buff sources still stack");
+        apply(b, ally, rally, List.of(ally));
+        assertEquals(6, ally.getAttackBuff(), "distinct buff sources stack too");
     }
 
     @Test

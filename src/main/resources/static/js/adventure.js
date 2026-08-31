@@ -3051,13 +3051,78 @@
         body.appendChild(el('div', 'ledger-round', '— Round ' + e.round + ' —'));
       }
       var costChip = e.cost >= 0 ? '<span class="ledger-cost">' + e.cost + ' AP</span>' : '';
-      var cardChip = e.card ? '<span class="ledger-card">🃏 ' + esc(e.card) + '</span>' : '';
+      // Actor and card are look-up handles, not just labels: a ledger row is
+      // often the first place a player meets a card, so both open their detail.
+      var actorUnit = e.actor ? ledgerUnit(b, e.actor) : null;
+      var cardSpec = e.card ? ledgerSpec(b, e.card, e.actor) : null;
+      var actorTag = actorUnit ? 'button' : 'span';
+      var cardChip = e.card
+        ? '<' + (cardSpec ? 'button' : 'span') + ' class="ledger-card' + (cardSpec ? ' tappable' : '') + '"'
+          + (cardSpec ? ' type="button"' : '') + '>🃏 ' + esc(e.card) + '</' + (cardSpec ? 'button' : 'span') + '>'
+        : '';
       var row = el('div', 'ledger-row ' + (e.side || 'sys'),
-        '<span class="ledger-actor">' + esc(e.actor || '') + '</span>' + cardChip + costChip +
+        '<' + actorTag + ' class="ledger-actor' + (actorUnit ? ' tappable' : '') + '"'
+        + (actorUnit ? ' type="button"' : '') + '>' + esc(e.actor || '') + '</' + actorTag + '>'
+        + cardChip + costChip +
         '<span class="ledger-text">' + esc(e.text || '') + '</span>' + ledgerTally(e));
+      if (actorUnit) {
+        row.querySelector('.ledger-actor').addEventListener('click', function () {
+          if (actorUnit.knight) showKnightSheet(); else showBattleUnitDetails(actorUnit);
+        });
+      }
+      if (cardSpec) {
+        row.querySelector('.ledger-card').addEventListener('click', function () {
+          showCardDetails(cardSpec, e.actor);
+        });
+      }
       body.appendChild(row);
     });
     body.scrollTop = body.scrollHeight;
+  }
+
+  /** The combatant a ledger row's actor name refers to, or null for a system step. */
+  function ledgerUnit(b, name) {
+    if (!name) return null;
+    if (b.knight && b.knight.name === name) return { knight: true };
+    var all = (b.allies || []).concat(b.enemies || []);
+    return all.find(function (u) { return u.name === name; }) || null;
+  }
+
+  /**
+   * The card behind a ledger row. The ledger only carries the printed name, so
+   * it is matched against everything the client already holds a spec for —
+   * the actor's own kit first, so a name two units share resolves to the one
+   * that actually played it.
+   */
+  function ledgerSpec(b, cardName, actorName) {
+    var pools = [];
+    var unit = ledgerUnit(b, actorName);
+    if (unit && unit.knight) pools.push(knightKit(b));
+    else if (unit) {
+      pools.push(unit.abilities || []);
+      var member = ((state.run && state.run.party) || []).find(function (p) { return p.id === unit.id; });
+      if (member) pools.push(member.cards || []);
+    }
+    pools.push(b.hand || [], b.deck || [], b.discard || []);
+    (b.enemies || []).forEach(function (foe) { pools.push(foe.abilities || []); });
+    ((state.run && state.run.party) || []).forEach(function (p) { pools.push(p.cards || []); });
+    for (var i = 0; i < pools.length; i++) {
+      var hit = (pools[i] || []).find(function (c) { return c && c.name === cardName; });
+      if (hit) return hit;
+    }
+    return null;
+  }
+
+  /** One card, opened from wherever its name appears. */
+  function showCardDetails(spec, ownerName) {
+    var bits = [];
+    if (spec.actionCost != null && spec.actionCost >= 0) bits.push(spec.actionCost + ' AP');
+    if (ownerName) bits.push(ownerName);
+    showUnitModal({
+      name: spec.name, element: spec.element,
+      subtitle: 'Card' + (bits.length ? ' · ' + bits.join(' · ') : ''),
+      cards: [spec]
+    });
   }
 
   /** What the action actually did — totalled server-side across all its targets. */
