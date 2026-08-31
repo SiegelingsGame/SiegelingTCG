@@ -3283,15 +3283,40 @@
       b.playerActsFirst ? 'You act first' : 'Enemy first'));
   }
 
+  /** A foe that is stunned skips its action, so its telegraph is not a threat. */
+  function isStunned(u) {
+    return (u.statuses || []).indexOf('STUN') >= 0;
+  }
+
+  /**
+   * The notches an enemy attack is actually aimed at. Recomputed from the foes
+   * on screen rather than taken from the server's list alone, so the ring
+   * matches the plates beside it — the same parity rule the placement preview
+   * follows. Falls back to the server's list for a payload with no intents.
+   */
+  function threatenedNotches(b) {
+    var foes = b.enemies || [];
+    var live = foes.filter(function (f) { return f.alive && f.intent; });
+    if (!live.length) return { positions: b.targetedPositions || [], sweep: !!b.sweepIncoming };
+    var positions = [], sweep = false;
+    live.forEach(function (f) {
+      if (isStunned(f) || f.intent.effect !== 'DAMAGE') return;
+      if (f.intent.sweep) sweep = true;
+      else if (f.intent.position >= 0 && positions.indexOf(f.intent.position) < 0) positions.push(f.intent.position);
+    });
+    return { positions: positions, sweep: sweep };
+  }
+
   function renderSpriteLine(host, units, side, b) {
     host.innerHTML = '';
-    var targeted = b.targetedPositions || [];
+    var threat = threatenedNotches(b);
+    var targeted = threat.positions;
     units.forEach(function (raw, idx) {
       // While events are playing, HP/shield read from the pre-turn snapshot;
       // each event steps its own targets forward as its effect lands.
       var u = heldVitals(raw);
       var isThreatened = side === 'ally' && u.alive &&
-        (targeted.indexOf(u.position) >= 0 || b.sweepIncoming);
+        (targeted.indexOf(u.position) >= 0 || threat.sweep);
       // Encounters are squads of 2–3; the boss/elite its minions escort is badged
       // so the headline foe reads apart from them. Height stays the authored size
       // band below — a leader is already drawn from a later evolution stage.
@@ -3329,7 +3354,12 @@
         : '<div class="sp-art sp-art-fallback"><span>' + icon(u.element) + '</span></div>';
       // Intent lives inside the plate so it can never clip off-screen.
       var intentLine = '';
-      if (side === 'enemy' && u.alive && u.intent) {
+      if (side === 'enemy' && u.alive && isStunned(u)) {
+        // A stunned foe loses its turn, so the plate says so instead of
+        // telegraphing a swing it will not take.
+        intentLine = '<div class="sp-intent-line is-stunned">' +
+          STATUS_META.STUN.icon + ' Stunned</div>';
+      } else if (side === 'enemy' && u.alive && u.intent) {
         intentLine = '<div class="sp-intent-line">' + intentLabel(u.intent, b) + '</div>';
       }
       var notch = side === 'ally' && u.position >= 0 ? '<div class="sp-notch">' + (u.position + 1) + '</div>' : '';
@@ -4841,7 +4871,8 @@
   function showBattleUnitDetails(u) {
     var run = state.run;
     if (u.side === 'ENEMY') {
-      var intentNote = u.intent ? ' · Next: ' + u.intent.name : '';
+      var intentNote = isStunned(u) ? ' · Stunned — skips its next action'
+        : u.intent ? ' · Next: ' + u.intent.name : '';
       showUnitModal({
         name: u.name, element: u.element, artUrl: u.artUrl,
         subtitle: 'Enemy · HP ' + u.hp + '/' + u.maxHp + ' · ⚡ ' + u.speed + intentNote,

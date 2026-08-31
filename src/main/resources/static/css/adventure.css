@@ -1296,6 +1296,11 @@ body[data-battle-node="BOSS"] .battle-stage::before{
   border-top:1px dashed rgba(255,110,110,.4); padding-top:2px;
 }
 
+/* A stunned foe telegraphs nothing, so its line drops the attack-warning red. */
+.sprite .sp-intent-line.is-stunned{
+  color:#ffd066; border-top-color:rgba(255,208,102,.4);
+}
+
 /* threatened notch: red target marker under the Siegeling standing on it */
 .sprite.threatened .sp-shadow{
   background:radial-gradient(ellipse, rgba(255,60,40,.85), transparent 72%);

@@ -4106,12 +4106,15 @@ public class SiegeService {
         b.put("allies", allies);
         b.put("enemies", foes);
 
-        // Which notches are threatened by telegraphed enemy attacks.
+        // Which notches are threatened by telegraphed enemy attacks. A stunned
+        // foe skips its action (see SiegeCombatEngine#enemyTurn), so its
+        // telegraph is not a threat and must not mark a notch.
         List<Integer> targetedPositions = new ArrayList<>();
         boolean sweepIncoming = false;
         for (Combatant foe : battle.living(Side.ENEMY)) {
             AbilitySpec intent = foe.getIntent();
             if (intent == null || intent.effect() != Effect.DAMAGE) continue;
+            if (foe.has(StatusKind.STUN)) continue;
             if (intent.target() == TargetKind.ALL_ENEMIES) sweepIncoming = true;
             else if (foe.getIntentPosition() >= 0 && !targetedPositions.contains(foe.getIntentPosition())) {
                 targetedPositions.add(foe.getIntentPosition());
