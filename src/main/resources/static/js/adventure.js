@@ -5447,6 +5447,9 @@
    * expedition uses, so there is exactly one implementation of every screen. */
   window.SiegeClient = {
     applyRun: function (run) { state.run = run; renderRun(); },
+    // The tutorial casts its expedition from the live roster, so the cards it
+    // teaches are the ones the dashboard currently ships.
+    roster: function () { return state.roster; },
     exitTutorial: function () {
       state.run = null; state.party = []; state.knightId = null;
       state.setupStep = 'mode';
