@@ -3051,13 +3051,78 @@
         body.appendChild(el('div', 'ledger-round', '— Round ' + e.round + ' —'));
       }
       var costChip = e.cost >= 0 ? '<span class="ledger-cost">' + e.cost + ' AP</span>' : '';
-      var cardChip = e.card ? '<span class="ledger-card">🃏 ' + esc(e.card) + '</span>' : '';
+      // Actor and card are look-up handles, not just labels: a ledger row is
+      // often the first place a player meets a card, so both open their detail.
+      var actorUnit = e.actor ? ledgerUnit(b, e.actor) : null;
+      var cardSpec = e.card ? ledgerSpec(b, e.card, e.actor) : null;
+      var actorTag = actorUnit ? 'button' : 'span';
+      var cardChip = e.card
+        ? '<' + (cardSpec ? 'button' : 'span') + ' class="ledger-card' + (cardSpec ? ' tappable' : '') + '"'
+          + (cardSpec ? ' type="button"' : '') + '>🃏 ' + esc(e.card) + '</' + (cardSpec ? 'button' : 'span') + '>'
+        : '';
       var row = el('div', 'ledger-row ' + (e.side || 'sys'),
-        '<span class="ledger-actor">' + esc(e.actor || '') + '</span>' + cardChip + costChip +
+        '<' + actorTag + ' class="ledger-actor' + (actorUnit ? ' tappable' : '') + '"'
+        + (actorUnit ? ' type="button"' : '') + '>' + esc(e.actor || '') + '</' + actorTag + '>'
+        + cardChip + costChip +
         '<span class="ledger-text">' + esc(e.text || '') + '</span>' + ledgerTally(e));
+      if (actorUnit) {
+        row.querySelector('.ledger-actor').addEventListener('click', function () {
+          if (actorUnit.knight) showKnightSheet(); else showBattleUnitDetails(actorUnit);
+        });
+      }
+      if (cardSpec) {
+        row.querySelector('.ledger-card').addEventListener('click', function () {
+          showCardDetails(cardSpec, e.actor);
+        });
+      }
       body.appendChild(row);
     });
     body.scrollTop = body.scrollHeight;
+  }
+
+  /** The combatant a ledger row's actor name refers to, or null for a system step. */
+  function ledgerUnit(b, name) {
+    if (!name) return null;
+    if (b.knight && b.knight.name === name) return { knight: true };
+    var all = (b.allies || []).concat(b.enemies || []);
+    return all.find(function (u) { return u.name === name; }) || null;
+  }
+
+  /**
+   * The card behind a ledger row. The ledger only carries the printed name, so
+   * it is matched against everything the client already holds a spec for —
+   * the actor's own kit first, so a name two units share resolves to the one
+   * that actually played it.
+   */
+  function ledgerSpec(b, cardName, actorName) {
+    var pools = [];
+    var unit = ledgerUnit(b, actorName);
+    if (unit && unit.knight) pools.push(knightKit(b));
+    else if (unit) {
+      pools.push(unit.abilities || []);
+      var member = ((state.run && state.run.party) || []).find(function (p) { return p.id === unit.id; });
+      if (member) pools.push(member.cards || []);
+    }
+    pools.push(b.hand || [], b.deck || [], b.discard || []);
+    (b.enemies || []).forEach(function (foe) { pools.push(foe.abilities || []); });
+    ((state.run && state.run.party) || []).forEach(function (p) { pools.push(p.cards || []); });
+    for (var i = 0; i < pools.length; i++) {
+      var hit = (pools[i] || []).find(function (c) { return c && c.name === cardName; });
+      if (hit) return hit;
+    }
+    return null;
+  }
+
+  /** One card, opened from wherever its name appears. */
+  function showCardDetails(spec, ownerName) {
+    var bits = [];
+    if (spec.actionCost != null && spec.actionCost >= 0) bits.push(spec.actionCost + ' AP');
+    if (ownerName) bits.push(ownerName);
+    showUnitModal({
+      name: spec.name, element: spec.element,
+      subtitle: 'Card' + (bits.length ? ' · ' + bits.join(' · ') : ''),
+      cards: [spec]
+    });
   }
 
   /** What the action actually did — totalled server-side across all its targets. */
@@ -3218,15 +3283,40 @@
       b.playerActsFirst ? 'You act first' : 'Enemy first'));
   }
 
+  /** A foe that is stunned skips its action, so its telegraph is not a threat. */
+  function isStunned(u) {
+    return (u.statuses || []).indexOf('STUN') >= 0;
+  }
+
+  /**
+   * The notches an enemy attack is actually aimed at. Recomputed from the foes
+   * on screen rather than taken from the server's list alone, so the ring
+   * matches the plates beside it — the same parity rule the placement preview
+   * follows. Falls back to the server's list for a payload with no intents.
+   */
+  function threatenedNotches(b) {
+    var foes = b.enemies || [];
+    var live = foes.filter(function (f) { return f.alive && f.intent; });
+    if (!live.length) return { positions: b.targetedPositions || [], sweep: !!b.sweepIncoming };
+    var positions = [], sweep = false;
+    live.forEach(function (f) {
+      if (isStunned(f) || f.intent.effect !== 'DAMAGE') return;
+      if (f.intent.sweep) sweep = true;
+      else if (f.intent.position >= 0 && positions.indexOf(f.intent.position) < 0) positions.push(f.intent.position);
+    });
+    return { positions: positions, sweep: sweep };
+  }
+
   function renderSpriteLine(host, units, side, b) {
     host.innerHTML = '';
-    var targeted = b.targetedPositions || [];
+    var threat = threatenedNotches(b);
+    var targeted = threat.positions;
     units.forEach(function (raw, idx) {
       // While events are playing, HP/shield read from the pre-turn snapshot;
       // each event steps its own targets forward as its effect lands.
       var u = heldVitals(raw);
       var isThreatened = side === 'ally' && u.alive &&
-        (targeted.indexOf(u.position) >= 0 || b.sweepIncoming);
+        (targeted.indexOf(u.position) >= 0 || threat.sweep);
       // Encounters are squads of 2–3; the boss/elite its minions escort is badged
       // so the headline foe reads apart from them. Height stays the authored size
       // band below — a leader is already drawn from a later evolution stage.
@@ -3264,7 +3354,12 @@
         : '<div class="sp-art sp-art-fallback"><span>' + icon(u.element) + '</span></div>';
       // Intent lives inside the plate so it can never clip off-screen.
       var intentLine = '';
-      if (side === 'enemy' && u.alive && u.intent) {
+      if (side === 'enemy' && u.alive && isStunned(u)) {
+        // A stunned foe loses its turn, so the plate says so instead of
+        // telegraphing a swing it will not take.
+        intentLine = '<div class="sp-intent-line is-stunned">' +
+          STATUS_META.STUN.icon + ' Stunned</div>';
+      } else if (side === 'enemy' && u.alive && u.intent) {
         intentLine = '<div class="sp-intent-line">' + intentLabel(u.intent, b) + '</div>';
       }
       var notch = side === 'ally' && u.position >= 0 ? '<div class="sp-notch">' + (u.position + 1) + '</div>' : '';
@@ -4776,7 +4871,8 @@
   function showBattleUnitDetails(u) {
     var run = state.run;
     if (u.side === 'ENEMY') {
-      var intentNote = u.intent ? ' · Next: ' + u.intent.name : '';
+      var intentNote = isStunned(u) ? ' · Stunned — skips its next action'
+        : u.intent ? ' · Next: ' + u.intent.name : '';
       showUnitModal({
         name: u.name, element: u.element, artUrl: u.artUrl,
         subtitle: 'Enemy · HP ' + u.hp + '/' + u.maxHp + ' · ⚡ ' + u.speed + intentNote,

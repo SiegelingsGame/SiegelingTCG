@@ -351,24 +351,14 @@ class Combatant {
 
     /**
      * Grants a buff that lapses after {@code rounds} of this unit's turns.
-     * Re-applying the same {@code sourceId} refreshes that grant instead of
-     * stacking a second copy of it — otherwise a repeatable buff card rebuilds
-     * the compounding this duration is meant to end. A different source stacks
-     * normally.
+     * Every grant stacks: playing the same buff card twice is worth twice the
+     * bonus, and each copy runs its own clock, so the later copy keeps the
+     * unit buffed after the earlier one lapses. {@code sourceId} is kept for
+     * checkpoint round-tripping and event attribution, not for de-duplication.
      */
     void addTimedBuff(BuffStat stat, int amount, int rounds, int currentRound, String sourceId) {
         if (amount <= 0 || rounds <= 0) return;
         int expiry = Math.max(1, currentRound) + rounds;
-        if (sourceId != null) {
-            for (int i = 0; i < timedBuffs.size(); i++) {
-                TimedBuff existing = timedBuffs.get(i);
-                if (existing.stat() == stat && sourceId.equals(existing.sourceId())) {
-                    timedBuffs.set(i, new TimedBuff(stat, Math.max(existing.amount(), amount),
-                            Math.max(existing.expiryRound(), expiry), sourceId));
-                    return;
-                }
-            }
-        }
         timedBuffs.add(new TimedBuff(stat, amount, expiry, sourceId));
     }
 
