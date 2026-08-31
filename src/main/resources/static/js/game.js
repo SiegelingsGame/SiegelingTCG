@@ -10503,7 +10503,7 @@ function applyPendingHomeLoadout() {
         return;
     }
     const directLoadout = Boolean(pending.directLoadout);
-    tutorialMatchActive = Boolean(pending.tutorial);
+    tutorialMatchActive = Boolean(pending.tutorial) || pending.mode === 'tutorial';
     // Arrived from the Home hub with a chosen loadout — skip the welcome and go straight to the loadout.
     welcomeDismissed = true;
     if (directLoadout) {

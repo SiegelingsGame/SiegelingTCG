@@ -1070,7 +1070,7 @@
         { target: '#hudNotifBtn', title: 'Notifications', text: 'Match results, rewards, mission completions, and unlocks collect here.' },
         { target: '#hudHelpBtn', title: 'Field Guide', text: 'Open the help popup anytime for card types, buffs, energy, and elemental afflictions.' },
         { target: '#optionsBtn', title: 'Settings', text: 'Game guides, the Art Gallery, profile sharing, and support live in Settings.' },
-        { target: null, title: 'Ready for your first siege?', text: 'Play the tutorial match: place a Siegeling, use a Strategy and a Deception, destroy an enemy Siegeling, and fire your Knight ability. Win and you earn a second starter pack plus bonus Siegecoins.' }
+        { target: null, title: 'Ready for your first siege?', text: 'Play the tutorial match: a fixed practice battle where a coach panel walks you through phases, notch links, energy, targeting, and Deceptions while you play. Place a Siegeling, use a Strategy and a Deception, destroy an enemy Siegeling, and fire your Knight ability. Win your first one and you earn a second starter pack plus bonus Siegecoins - after that it stays open as practice.' }
     ];
     let tourStepIndex = -1;
 
@@ -1130,7 +1130,9 @@
         const target = step.target ? document.querySelector(step.target) : null;
         const visibleTarget = target && !target.classList.contains('hidden') && target.getBoundingClientRect().width > 0 ? target : null;
         if (finalStep) {
-            if (nextBtn) nextBtn.textContent = state.progression?.tutorialCompleted ? 'Finish' : 'Play Tutorial Match';
+            // The tutorial match is repeatable, so a player who already claimed
+            // its reward is still offered the practice run rather than a dead end.
+            if (nextBtn) nextBtn.textContent = state.progression?.tutorialCompleted ? 'Replay Tutorial Match' : 'Play Tutorial Match';
         } else if (nextBtn) {
             nextBtn.textContent = 'Next';
         }
@@ -1150,10 +1152,10 @@
             bubble.classList.add('is-centered');
         }
         if (!nextBtn) return;
-        if (finalStep && !state.progression?.tutorialCompleted) {
+        if (finalStep) {
             nextBtn.onclick = () => {
                 endOnboardingTour(true);
-                goPlay({ mode: 'solo', tutorial: true, loadoutLabel: 'Tutorial Match' });
+                goPlay({ mode: 'tutorial', tutorial: true, loadoutLabel: 'Tutorial Match' });
             };
         } else {
             nextBtn.onclick = advanceOnboardingTour;
@@ -8698,6 +8700,9 @@
     }
 
     function queuePlayLoadout(payload = {}) {
+        // The tutorial match is pinned server-side, so carrying the hub's current
+        // deck/knight selection into it would only be misleading on the loadout.
+        const tutorial = Boolean(payload.tutorial) || payload.mode === 'tutorial';
         const savedDeck = selectedSavedDeck();
         const customDeckCards = payload.customDeckCards
             || (!payload.directLoadout && savedDeck?.custom && savedDeck.customDeckCards?.length ? savedDeck.customDeckCards : null);
@@ -8705,15 +8710,15 @@
             || (customDeckCards?.length ? (savedDeck?.name || 'Custom Loadout') : '');
         localStorage.setItem(PENDING_LOADOUT_KEY, JSON.stringify({
             createdAt: Date.now(),
-            deckId: payload.deckId || selectedDeckId(),
-            trainerId: payload.trainerId || selectedTrainerId(),
-            mode: payload.mode || 'solo',
+            deckId: tutorial ? '' : (payload.deckId || selectedDeckId()),
+            trainerId: tutorial ? '' : (payload.trainerId || selectedTrainerId()),
+            mode: tutorial ? 'tutorial' : (payload.mode || 'solo'),
             onlineRoomMode: payload.onlineRoomMode || 'join',
             roomId: payload.roomId || '',
             battleLaunch: Boolean(payload.battleLaunch),
             directLoadout: Boolean(payload.directLoadout),
-            tutorial: Boolean(payload.tutorial),
-            customDeckCards,
+            tutorial,
+            customDeckCards: tutorial ? null : customDeckCards,
             loadoutLabel,
             playerName: payload.playerName
                 || (state.profile?.authenticated ? (state.profile?.user?.displayName || '') : 'Guest')
