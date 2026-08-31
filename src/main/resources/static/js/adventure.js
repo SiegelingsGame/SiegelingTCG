@@ -122,6 +122,12 @@
 
   function api(path, opts) {
     opts = opts || {};
+    // Tutorial mode is a simulated expedition: it answers every /api/siege call
+    // from an in-memory run so the guided tour never touches the player's
+    // account, saves or gold. Every screen below still runs unmodified.
+    if (window.SiegeTutorial && window.SiegeTutorial.active()) {
+      return window.SiegeTutorial.respond(path, opts.body || {});
+    }
     var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
     var timer = controller ? setTimeout(function () { controller.abort(); }, API_TIMEOUT_MS) : null;
     return fetch(path, {
@@ -639,6 +645,14 @@
       chooseSiegeMode.addEventListener('click', function () {
         state.setupStep = 'knight';
         renderSetup();
+      });
+    }
+    var chooseTutorialMode = $('chooseTutorialMode');
+    if (chooseTutorialMode) {
+      chooseTutorialMode.addEventListener('click', function () {
+        if (!window.SiegeTutorial) { toast('Tutorial is unavailable — try reloading.'); return; }
+        state.run = null; state.party = []; state.knightId = null;
+        window.SiegeTutorial.start();
       });
     }
     var chooseBattlegroundsMode = $('chooseBattlegroundsMode');
@@ -1714,7 +1728,9 @@
     var run = state.run;
     if (!run) { updateRunMenu(false); loadRoster(); return; }
     if (!run.camp) state.campMenu = null;
-    updateRunMenu(run.status === 'ACTIVE');
+    // A tutorial run has nothing to save, restart or quit — the coach's own ✕
+    // is the way out, so it never offers a Save that would not be one.
+    updateRunMenu(run.status === 'ACTIVE' && !run.tutorial);
     if (run.battle) { renderBattle(); return; }
     // A freshly joined Siegeling gets its gacha reveal before anything else —
     // claim it, then the normal reward flow continues.
@@ -5424,6 +5440,22 @@
     setToken(null);
     $('resultBtn').textContent = 'Return to Play';
   }
+
+  /* Bridge for Tutorial mode (js/siege-tutorial.js). The tutorial feeds this
+   * client scripted run payloads through the same render path a live
+   * expedition uses, so there is exactly one implementation of every screen. */
+  window.SiegeClient = {
+    applyRun: function (run) { state.run = run; renderRun(); },
+    exitTutorial: function () {
+      state.run = null; state.party = []; state.knightId = null;
+      state.setupStep = 'mode';
+      state.interactionResult = null;
+      state.campMenu = null;
+      updateRunMenu(false);
+      renderSetup();
+    },
+    toast: toast
+  };
 
   document.addEventListener('DOMContentLoaded', boot);
 })();
