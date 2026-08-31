@@ -890,6 +890,16 @@
     refreshBattlegroundsEntry();
   }
 
+  /**
+   * " · 2 rounds" — how long the buff a card grants will hold. Printed on the
+   * card itself because the duration is now the difference between a buff card
+   * and a damage card, and a player cannot plan around a window they can't see.
+   */
+  function buffWindowText(spec) {
+    var n = Number(spec && spec.durationRounds);
+    return n > 0 ? ' · ' + n + ' round' + (n === 1 ? '' : 's') : '';
+  }
+
   function specSummary(spec) {
     if (!spec) return '';
     switch (spec.effect) {
@@ -897,8 +907,8 @@
       case 'HEAL': return '➕ heal ' + spec.value + ' · ' + spec.actionCost + ' AP';
       case 'SHIELD': return '🛡 shield ' + spec.value + ' · ' + spec.actionCost + ' AP';
       case 'MAX_HP_BOOST': return '❤ +' + spec.value + ' max HP · ' + spec.actionCost + ' AP';
-      case 'BUFF_ATK': return '↑ +' + spec.value + ' attack · ' + spec.actionCost + ' AP';
-      case 'BUFF_SPD': return '↑ +' + spec.value + ' speed · ' + spec.actionCost + ' AP';
+      case 'BUFF_ATK': return '↑ +' + spec.value + ' attack' + buffWindowText(spec) + ' · ' + spec.actionCost + ' AP';
+      case 'BUFF_SPD': return '↑ +' + spec.value + ' speed' + buffWindowText(spec) + ' · ' + spec.actionCost + ' AP';
       case 'SLOW': return '❄ slow · ' + spec.actionCost + ' AP';
       case 'STUN': return '💫 stun · ' + spec.actionCost + ' AP';
       case 'DRAW': return '🃏 draw ' + spec.value + ' · ' + spec.actionCost + ' AP';
@@ -3159,6 +3169,7 @@
         return {
           name: card.name, element: card.element, effect: card.effect, value: card.value,
           actionCost: card.actionCost, description: card.description,
+          durationRounds: card.durationRounds,
           status: card.status, statusChance: card.statusChance
         };
       })
@@ -3234,7 +3245,13 @@
       if (u.size) sp.dataset.size = u.size;
       var pct = Math.max(0, Math.round(100 * u.hp / Math.max(1, u.maxHp)));
       var shield = u.shield > 0 ? '<span class="sp-shield">🛡' + u.shield + '</span>' : '';
-      var buff = u.attackBuff > 0 ? '<span class="sp-buff">⚔+' + u.attackBuff + '</span>' : '';
+      // Buffs from cards run a clock now, so the badge carries the rounds left.
+      // The battle-long slice (knight passive, carried item) has no countdown and
+      // prints bare, which is how the player tells the two apart at a glance.
+      var buff = u.attackBuff > 0
+        ? '<span class="sp-buff">⚔+' + u.attackBuff + buffClock(u.attackBuffRounds) + '</span>' : '';
+      var spdBuff = Number(u.speedBuffTimed) > 0
+        ? '<span class="sp-buff sp-buff-spd">⚡+' + u.speedBuffTimed + buffClock(u.speedBuffRounds) + '</span>' : '';
       var statusChips = (u.statuses || []).map(function (s) {
         var meta = STATUS_META[s];
         if (!meta) return '';
@@ -3290,7 +3307,7 @@
           '<div class="sp-hpbar"><div class="sp-hpfill" style="width:' + pct + '%"></div></div>' +
           xpLine +
           '<div class="sp-tags">' + levelBadge + '<span class="sp-el">' + icon(u.element) + '</span>' +
-            '<span class="sp-hp">' + u.hp + '/' + u.maxHp + '</span>' + shield + buff + statusChips + '</div>' +
+            '<span class="sp-hp">' + u.hp + '/' + u.maxHp + '</span>' + shield + buff + spdBuff + statusChips + '</div>' +
           gaugeLine +
           intentLine +
         '</div>' +
@@ -3449,7 +3466,7 @@
    */
   var EVENT_MIN_MS = {
     hit: 560, burn: 380, poison: 380, wither: 380,
-    heal: 360, revive: 480, shield: 340, shieldExpired: 240,
+    heal: 360, revive: 480, shield: 340, shieldExpired: 240, buffExpired: 240,
     status: 360, stunned: 360, knightHit: 360,
     round: 620, card: 380, enemyAct: 440, ultimate: 560, whiff: 440, loot: 520,
     swapStart: 420, swap: 460, evolve: 760, cardUpdate: 560,
@@ -3525,6 +3542,12 @@
         floatText(ev.targetId, '🛡 fades', 'status');
         commitVitalsAfter(ev, 160);
         return 260;
+      // A buff running out changes what the next attack will do, so it gets the
+      // same visible beat a lapsing shield does rather than a silent stat drop.
+      case 'buffExpired':
+        floatText(ev.targetId, (ev.kind === 'atk' ? '⚔' : '⚡') + ' fades', 'status');
+        commitVitalsAfter(ev, 160);
+        return 260;
       case 'buff': {
         var buffKind = ev.kind === 'atk' ? 'atk' : 'spd';
         var ids = ev.targetIds || (ev.targetId ? [ev.targetId] : []);
@@ -3532,7 +3555,10 @@
           buffAura(ids[bi], buffKind);
           floatText(ids[bi], (buffKind === 'atk' ? '⚔+' : '⚡+') + ev.amount, buffKind === 'atk' ? 'buff-atk' : 'buff-spd');
         }
-        showBanner(buffKind === 'atk' ? '+' + ev.amount + ' attack!' : '+' + ev.amount + ' speed!', 'you');
+        var buffWindow = Number(ev.rounds) > 0
+          ? ' (' + ev.rounds + ' round' + (Number(ev.rounds) === 1 ? '' : 's') + ')' : '';
+        showBanner((buffKind === 'atk' ? '+' + ev.amount + ' attack!' : '+' + ev.amount + ' speed!')
+          + buffWindow, 'you');
         return 480;
       }
       case 'status': {
@@ -4661,8 +4687,8 @@
       case 'HEAL': return '➕ Heal ' + card.value + allSuffix(card);
       case 'SHIELD': return '🛡 Shield ' + card.value + allSuffix(card);
       case 'MAX_HP_BOOST': return '❤ +' + card.value + ' max HP' + allSuffix(card);
-      case 'BUFF_ATK': return '↑ +' + card.value + ' attack' + allSuffix(card);
-      case 'BUFF_SPD': return '↑ +' + card.value + ' speed' + allSuffix(card);
+      case 'BUFF_ATK': return '↑ +' + card.value + ' attack' + buffWindowText(card) + allSuffix(card);
+      case 'BUFF_SPD': return '↑ +' + card.value + ' speed' + buffWindowText(card) + allSuffix(card);
       case 'SLOW': return '❄ Slow' + allSuffix(card);
       case 'STUN': return '💫 Stun' + allSuffix(card);
       case 'DRAW': return '🃏 Draw ' + card.value;
@@ -4699,12 +4725,27 @@
     showBattleUnitDetails(u);
   }
 
+  /** " (2)" — the rounds a timed buff has left; empty for battle-long buffs. */
+  function buffClock(rounds) {
+    var n = Number(rounds);
+    return n > 0 ? '<span class="sp-buff-clock"> (' + n + ')</span>' : '';
+  }
+
   /** Cards, abilities, and evolution info for any battlefield unit (allies AND enemies). */
   function battleUnitEffects(u) {
     var effects = [];
     if (Number(u.shield) > 0) effects.push({ icon: '🛡', label: '+' + u.shield + ' Shield', detail: 'Absorbs damage until the unit\'s next turn', negative: false });
-    if (Number(u.attackBuff) > 0) effects.push({ icon: '⚔', label: '+' + u.attackBuff + ' Attack', detail: 'Battle damage bonus', negative: false });
-    if (Number(u.baseSpeed) > 0 && Number(u.speed) > Number(u.baseSpeed)) effects.push({ icon: '⚡', label: '+' + (u.speed - u.baseSpeed) + ' Speed', detail: 'Battle speed bonus', negative: false });
+    if (Number(u.attackBuff) > 0) {
+      effects.push({ icon: '⚔', label: '+' + u.attackBuff + ' Attack',
+        detail: buffDetail(u.attackBuffTimed, u.attackBuffRounds, 'damage'), negative: false });
+    }
+    // The standing speed bonus is what the plate shows minus the base, plus the
+    // timed buffs, which sit outside `speed` so they can lapse on their own clock.
+    var spdBonus = Math.max(0, Number(u.speed || 0) - Number(u.baseSpeed || 0)) + Number(u.speedBuffTimed || 0);
+    if (Number(u.baseSpeed) > 0 && spdBonus > 0) {
+      effects.push({ icon: '⚡', label: '+' + spdBonus + ' Speed',
+        detail: buffDetail(u.speedBuffTimed, u.speedBuffRounds, 'speed'), negative: false });
+    }
     if (Number(u.maxHpBonus) > 0) effects.push({ icon: '❤', label: '+' + u.maxHpBonus + ' Max Health', detail: 'Battle health bonus', negative: false });
     (u.statuses || []).forEach(function (status) {
       var meta = STATUS_META[status];
@@ -4718,6 +4759,18 @@
       effects.push({ icon: meta.icon, label: meta.label, detail: meta.tip + clock, negative: true });
     });
     return effects;
+  }
+
+  /**
+   * Detail line for a stat buff: how long the timed part has left, and whether
+   * any of it is the battle-long loadout bonus that never fades.
+   */
+  function buffDetail(timed, rounds, word) {
+    var n = Number(rounds);
+    if (Number(timed) > 0 && n > 0) {
+      return 'Battle ' + word + ' bonus · ' + n + ' round' + (n === 1 ? '' : 's') + ' left';
+    }
+    return 'Battle ' + word + ' bonus · lasts the battle';
   }
 
   function showBattleUnitDetails(u) {

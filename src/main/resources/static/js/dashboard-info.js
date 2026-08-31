@@ -260,6 +260,20 @@
             ], ['Kind', 'Effect'])
     };
 
+    topics['siege-effects'] = {
+        title: 'Shared Ability Effects',
+        html: '<p>These settings are shared by <strong>every Siege card of a given effect</strong>. A Siegeling move keeps its printed board value; this page decides how that value is translated into Siege and how long what it grants lasts. Changing a row rebalances every card using that effect at once, without touching a single card.</p>' +
+            table([
+                row(['<strong>Value bonus</strong>', 'Added to the printed board value when a move becomes a Siege card — Siege HP pools are larger than the board\'s, so damage and healing are scaled up here.']),
+                row(['<strong>Value cap</strong>', 'Ceiling on the magnitude. Draw and AP gain are capped so a board card reading "draw 2" cannot become "draw 5". 0 means uncapped.']),
+                row(['<strong>Min AP</strong>', 'Price floor for cards with this effect, however cheap the board version is — an execute printed at 0 energy would otherwise be a free kill every turn.']),
+                row(['<strong>Duration</strong>', 'Rounds a buff or shield from this effect holds, counted from the buffed side\'s own turn. Attack and speed buffs expire; a card replayed inside its own window refreshes it rather than stacking a second copy.'])
+            ], ['Setting', 'What it does']) +
+            '<p>A tile with no boxes means the effect does not read those knobs — stun, swap, and evolve have no magnitude of their own, so there is nothing to scale. Edit as many tiles as you like and press <strong>Publish changes</strong> once; <strong>Discard</strong> throws away everything unsaved, and a tile\'s <strong>reset</strong> returns that effect to the values this build ships with. Clearing a box returns that one setting to its default.</p>' +
+            '<p><strong>Cross-effect settings</strong> are the windows and magnitudes that do not belong to any one card effect: how long a Knight Ultimate\'s buff half holds, the amp rider window on an amplified swap move, a hired mercenary\'s Boon window, what a level-up amplification adds or saves, and what an execute takes off an elite or Siegelord instead of killing it.</p>' +
+            '<p>Saves apply to <em>battles started afterwards</em> — a run already mid-battle keeps the numbers it started with, because its cards were built when the battle opened.</p>'
+    };
+
     topics['shop-prices'] = {
         title: 'Shop Prices',
         html: '<p>Each card\'s shop price is looked up by <strong>rarity + card type</strong>. Set an override for a cell to replace the default for every card of that combination; reset it to fall back to the default again.</p>' +

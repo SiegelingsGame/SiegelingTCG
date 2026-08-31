@@ -1164,6 +1164,10 @@ body[data-battle-node="BOSS"] .battle-stage::before{
   min-width:0; font-size:10px; color:var(--dim); margin-top:3px;}
 .sprite .sp-shield{color:var(--shield); font-weight:700;}
 .sprite .sp-buff{color:var(--accent); font-weight:700;}
+/* The countdown rides inside the buff chip at a lighter weight: the number that
+   matters at a glance is the bonus, the rounds left are the fine print. */
+.sprite .sp-buff-clock{font-weight:600; opacity:.75;}
+.sprite .sp-buff-spd{color:var(--accent-2);}
 
 /* hit/heal reactions */
 .sprite.hurt .sp-art{animation:hitshake .45s ease-in-out; filter:drop-shadow(0 0 12px rgba(255,80,60,.8));}

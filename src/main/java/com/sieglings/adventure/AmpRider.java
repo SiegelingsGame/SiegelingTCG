@@ -13,6 +13,6 @@ enum AmpRider {
     HEAL,
     /** Shields both units the move touched until their next turn. */
     SHIELD,
-    /** Adds flat attack to both units the move touched, for the rest of the battle. */
+    /** Adds flat attack to both units the move touched, for {@code SiegeTuning.RIDER_BUFF_ROUNDS} rounds. */
     ATTACK
 }

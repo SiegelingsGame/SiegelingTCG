@@ -74,6 +74,14 @@ has a Siege translation. A card should do the thing its text promises in both
 modes; the mapping lives in `SiegeContentService.effectFor` /
 `targetFor`, and `SiegeCardEffectParityTest` pins it.
 
+The numbers in the "Siege effect" column below (the value bonus each effect
+adds, the draw/AP caps, the AP floor on `destroy`, and every buff window) are the
+**shipped defaults**, not fixed rules: they are shared by every card using that
+effect and are editable in the card dashboard under **Siege Mode → Ability
+Effects**, which writes them to `appConfig/siegeEffectTuning`
+(`SiegeEffectTuningService`). An empty override document behaves exactly like the
+table below; an edit applies to battles started afterwards.
+
 | Key | Siege effect | Siege targeting |
 | --- | --- | --- |
 | `damage` | `DAMAGE` — value + 2, plus the caster's attack buff. | as written |
@@ -84,8 +92,8 @@ modes; the mapping lives in `SiegeContentService.effectFor` /
 | `heal` / `connected_allies_heal` | `HEAL` — value + 3. | as written / `ALLY_ALL` for connected-allies |
 | `shield` | `SHIELD` — value + 3, **lapses when the shielded side opens its next turn** (the board clears shields at the end of the battle phase). | as written |
 | `health_boost` | `MAX_HP_BOOST` — raises max HP for the battle and heals the same amount, then drops when the battle ends. | as written |
-| `damage_boost` | `BUFF_ATK` — only the Siegelings the card named. | as written |
-| `speed_boost` | `BUFF_SPD` | as written |
+| `damage_boost` | `BUFF_ATK` — only the Siegelings the card named, and **only for `AbilitySpec.durationRounds` rounds** (2 by default, `SiegeTuning.BUFF_ATK_ROUNDS`); replaying the same card refreshes its own grant instead of stacking a second copy. Battle-long attack bonuses come from the Knight's ATTACK passive and ATTACK items, not from cards. | as written |
+| `speed_boost` | `BUFF_SPD` — same bounded window (`SiegeTuning.BUFF_SPD_ROUNDS`); the buff rides outside the unit's `speed`, so it lapses without disturbing the base. | as written |
 | `freeze` | `STUN` — skips the target's next action, matching "skips its turn" on the board. | as written |
 | `speed_zero` / `slow` | `SLOW` — the Slow status (Speed loss for 2 rounds). | as written |
 | `destroy` | `EXECUTE` — defeats the target outright; against an **elite or Siegelord** it deals 25% of max HP instead, and always costs at least 3 AP. | forced to `ENEMY_SINGLE` |

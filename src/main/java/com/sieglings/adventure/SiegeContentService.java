@@ -107,6 +107,13 @@ public class SiegeContentService {
     @Autowired
     private MovesPoolService movesPool;
 
+    /**
+     * Live per-effect settings from the dashboard. Optional so tests and any
+     * caller building this service directly keep the shipped defaults.
+     */
+    @Autowired(required = false)
+    private SiegeEffectTuningService effectTuning;
+
     // ---- Roster ---------------------------------------------------------
 
     /**
@@ -403,11 +410,14 @@ public class SiegeContentService {
             StatusKind status = effect == Effect.DAMAGE ? statusFor(knight.getElement()) : null;
             return new AbilitySpec(kid, knight.getName() + ": " + a.getName(), knight.getElement(),
                     effect, value, target, 2, a.getDescription() == null ? "" : a.getDescription(),
-                    status, status == null ? 0 : 30);
+                    status, status == null ? 0 : 30, AmpRider.NONE, 0, buffRounds(effect));
         }
         // Fallback knight card: a rallying strike.
+        int rallyRounds = buffRounds(Effect.BUFF_ATK);
         return new AbilitySpec(kid, knight.getName() + ": Rally", knight.getElement(),
-                Effect.BUFF_ATK, 2, TargetKind.ALLY_ALL, 2, "All Siegelings gain +2 attack this battle.");
+                Effect.BUFF_ATK, 2, TargetKind.ALLY_ALL, 2,
+                "All Siegelings gain +2 attack for " + rallyRounds + " rounds.",
+                null, 0, AmpRider.NONE, 0, rallyRounds);
     }
 
     /**
@@ -567,24 +577,48 @@ public class SiegeContentService {
         StatusKind status = effect == Effect.DAMAGE ? statusFor(move.element()) : null;
         return new AbilitySpec(move.id(), move.name(), move.element(), effect, value, target, actionCost,
                 move.description() == null ? "" : move.description(),
-                status, statusChanceFor(status, actionCost));
+                status, statusChanceFor(status, actionCost), AmpRider.NONE, 0,
+                buffRounds(effect));
     }
 
+    /**
+     * Scales a raw board value into a Siege magnitude. The per-effect bonus and
+     * ceiling are shared by every card using that effect and are editable in the
+     * dashboard ("Siege Mode → Ability Effects"); the values below are only the
+     * fallback when no live tuning is available.
+     */
     private int combatValue(Move move, Effect effect) {
         int base = Math.max(1, move.effectValue());
-        // Scale raw board values up a little so combat numbers feel meaningful
-        // against the larger HP pools used in Siege.
         return switch (effect) {
-            case DAMAGE -> base + 2;
-            case HEAL, SHIELD, MAX_HP_BOOST -> base + 3;
-            case BUFF_ATK, BUFF_SPD, SLOW -> Math.max(1, base);
-            // A draw card's value is a card count, not a magnitude — a board card
-            // that says "draw 2" must not become "draw 5" here.
-            case DRAW -> Math.min(MAX_DRAW_CARDS, base);
-            // AP is scarce (3 a turn) — a board card that generates 2 energy must not hand out 5 AP.
-            case GAIN_AP -> Math.min(MAX_AP_GAIN, base);
+            // Effects with no magnitude of their own: they do what they do.
             case STUN, EXECUTE, SWAP, EVOLVE -> 0;
+            // A draw card's value is a card count and AP is scarce, so both are
+            // capped: "draw 2" must not become "draw 5", nor 2 energy 5 AP.
+            case DRAW -> Math.min(valueCap(effect, MAX_DRAW_CARDS), base + valueBonus(effect, 0));
+            case GAIN_AP -> Math.min(valueCap(effect, MAX_AP_GAIN), base + valueBonus(effect, 0));
+            // Everything else is the board value plus its effect's bonus, scaled
+            // up so combat numbers feel meaningful against Siege's larger HP pools.
+            case DAMAGE -> Math.max(1, base + valueBonus(effect, 2));
+            case HEAL, SHIELD, MAX_HP_BOOST -> Math.max(1, base + valueBonus(effect, 3));
+            case BUFF_ATK, BUFF_SPD, SLOW -> Math.max(1, base + valueBonus(effect, 0));
         };
+    }
+
+    /** Live per-effect value bonus, or the shipped default when tuning is absent. */
+    private int valueBonus(Effect effect, int fallback) {
+        return effectTuning != null ? effectTuning.valueBonus(effect) : fallback;
+    }
+
+    /** Live per-effect value ceiling, or the shipped default when tuning is absent. */
+    private int valueCap(Effect effect, int fallback) {
+        int cap = effectTuning != null ? effectTuning.valueCap(effect) : fallback;
+        return cap > 0 ? cap : fallback;
+    }
+
+    /** Live per-effect buff window, or the shipped default when tuning is absent. */
+    int buffRounds(Effect effect) {
+        return effectTuning != null ? effectTuning.durationRounds(effect)
+                : SiegeTuning.defaultBuffRounds(effect);
     }
 
     /** Ceiling on cards a single draw card may pull; the hand is only 8 wide. */
@@ -597,9 +631,10 @@ public class SiegeContentService {
     private int actionCostFor(int energyCost, Effect effect) {
         int cost = actionCostFor(energyCost);
         // A destroy card that happened to be printed at 0 energy would otherwise
-        // be a free kill every turn.
-        if (effect == Effect.EXECUTE) return Math.max(EXECUTE_MIN_AP, cost);
-        return cost;
+        // be a free kill every turn; the floor is per-effect and dashboard-tuned.
+        int floor = effectTuning != null ? effectTuning.minActionCost(effect)
+                : (effect == Effect.EXECUTE ? EXECUTE_MIN_AP : 0);
+        return Math.max(floor, cost);
     }
 
     private int actionCostFor(int energyCost) {
@@ -1306,7 +1341,10 @@ public class SiegeContentService {
         }
         cards.add(new SiegeCard(merc.getId() + "-boon-war", merc.getId(),
                 new AbilitySpec("boon-warcry", "Boon: Warcry", s.getElement(), Effect.BUFF_ATK, 3,
-                        TargetKind.ALLY_ALL, 1, merc.getName() + " rallies the warband: +3 attack this battle.")));
+                        TargetKind.ALLY_ALL, 1,
+                        merc.getName() + " rallies the warband: +3 attack for "
+                                + boonRounds() + " rounds.",
+                        null, 0, AmpRider.NONE, 0, boonRounds())));
         cards.add(new SiegeCard(merc.getId() + "-boon-wall", merc.getId(),
                 new AbilitySpec("boon-bulwark", "Boon: Bulwark", s.getElement(), Effect.SHIELD, 8,
                         TargetKind.ALLY_ALL, 1, merc.getName() + " shields the whole warband for 8.")));
@@ -1566,7 +1604,17 @@ public class SiegeContentService {
         if (spec.effect() == Effect.EXECUTE) cost = Math.max(EXECUTE_MIN_AP, cost);
         return new AbilitySpec(spec.id(), spec.name() + " +", spec.element(),
                 spec.effect(), value, spec.target(), cost, spec.description(),
-                spec.status(), spec.statusChance());
+                // An upgrade raises the magnitude, never the window: a buff card that
+                // also bought more rounds is how the old permanent buffs compounded.
+                spec.status(), spec.statusChance(), spec.rider(), spec.riderValue(),
+                spec.durationRounds());
+    }
+
+    /** Live mercenary Boon window, or the shipped default when tuning is absent. */
+    private int boonRounds() {
+        return effectTuning != null
+                ? Math.max(1, effectTuning.globalValue("boonBuffRounds"))
+                : SiegeTuning.BOON_BUFF_ROUNDS;
     }
 
     /** A random selectable Siegeling not already in the warband, if any. */

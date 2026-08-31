@@ -43,6 +43,14 @@ public class SiegeCombatEngine {
     @Autowired
     private SiegeContentService content;
 
+    /**
+     * Live per-effect settings from the dashboard. Optional: unit tests build the
+     * engine directly, and every read falls back to the shipped default, so an
+     * absent service means "the balance this build was compiled with".
+     */
+    @Autowired(required = false)
+    private SiegeEffectTuningService effectTuning;
+
     static final String KNIGHT_OWNER_PREFIX = "knight-";
     /** Damage the Knight suffers whenever one of the Siegelings is knocked out. */
     static final int KNIGHT_KO_DAMAGE = 5;
@@ -86,7 +94,8 @@ public class SiegeCombatEngine {
             ally.setShieldExpiryRound(BATTLE_START_SHIELD_EXPIRY);
             ally.setBattleMaxHpBonus(0);
             ally.setSpeed(ally.leveledBaseSpeed());
-            ally.addAttackBuff(-ally.getAttackBuff());
+            ally.addAttackBuff(-ally.getBaseAttackBuff());
+            ally.clearTimedBuffs();
             ally.clearStatuses();
             ally.setApSpent(0);
             ally.setLeveledRecently(false);
@@ -223,7 +232,10 @@ public class SiegeCombatEngine {
         evolved.setShield(member.getShield());
         evolved.setShieldExpiryRound(member.getShieldExpiryRound());
         evolved.addBattleMaxHp(member.getBattleMaxHpBonus());
-        evolved.addAttackBuff(member.getAttackBuff());
+        evolved.addAttackBuff(member.getBaseAttackBuff());
+        // Timed buffs carry over on their own clocks: evolving mid-buff must not
+        // refresh them, and must not silently drop the buff the player just paid for.
+        for (Combatant.TimedBuff buff : member.getTimedBuffs()) evolved.loadTimedBuff(buff);
         evolved.setItemId(member.getItemId());
 
         int bi = battle.getCombatants().indexOf(member);
@@ -326,10 +338,33 @@ public class SiegeCombatEngine {
         }
     }
 
+    /**
+     * Lapses stat buffs whose duration has run out. Measured against the buffed
+     * unit's own side opening its turn, exactly like {@link #expireShields}, so
+     * "for 2 rounds" reads the same on a buff badge as on a shield.
+     */
+    private void expireBuffs(SiegeBattle battle, Side side) {
+        for (Combatant c : battle.living(side)) {
+            Map<Combatant.BuffStat, Integer> lost = c.expireBuffs(battle.getRoundNumber());
+            if (lost.isEmpty()) continue;
+            Integer atk = lost.get(Combatant.BuffStat.ATTACK);
+            Integer spd = lost.get(Combatant.BuffStat.SPEED);
+            if (atk != null && atk > 0) {
+                battle.event("buffExpired", "targetId", c.getId(), "kind", "atk", "amount", atk);
+                battle.log(c.getName() + "'s +" + atk + " attack fades.");
+            }
+            if (spd != null && spd > 0) {
+                battle.event("buffExpired", "targetId", c.getId(), "kind", "spd", "amount", spd);
+                battle.log(c.getName() + "'s +" + spd + " speed fades.");
+            }
+        }
+    }
+
     private void openPlayerTurn(SiegeRun run, Random rng) {
         SiegeBattle battle = run.getBattle();
 
         expireShields(battle, Side.PLAYER);
+        expireBuffs(battle, Side.PLAYER);
 
         // Wither (Undead): clamp HP as if max were lower, then clear — mirrors
         // the battle-table Setup tick with Siege's turn-open cadence.
@@ -516,7 +551,10 @@ public class SiegeCombatEngine {
         evolved.setShield(member.getShield());
         evolved.setShieldExpiryRound(member.getShieldExpiryRound());
         evolved.addBattleMaxHp(member.getBattleMaxHpBonus());
-        evolved.addAttackBuff(member.getAttackBuff());
+        evolved.addAttackBuff(member.getBaseAttackBuff());
+        // Timed buffs carry over on their own clocks: evolving mid-buff must not
+        // refresh them, and must not silently drop the buff the player just paid for.
+        for (Combatant.TimedBuff buff : member.getTimedBuffs()) evolved.loadTimedBuff(buff);
         evolved.setItemId(member.getItemId());
 
         // Same combatant id, so deck ownership and the sprite carry straight over.
@@ -688,14 +726,17 @@ public class SiegeCombatEngine {
                     "element", "ICE");
         }
         List<Combatant> quickened = new ArrayList<>();
+        int ultRounds = tunedGlobal("ultimateBuffRounds", SiegeTuning.ULTIMATE_BUFF_ROUNDS);
         for (Combatant ally : battle.living(Side.PLAYER)) {
             if (ally.isKnight()) continue;
-            ally.setSpeed(ally.getSpeed() + speed);
+            grantBuff(battle, ally, Combatant.BuffStat.SPEED, speed, ultRounds, "ult-vanguard");
             quickened.add(ally);
         }
-        battle.event("buff", "kind", "spd", "amount", speed, "targetIds", buffedIds(quickened));
+        battle.event("buff", "kind", "spd", "amount", speed, "rounds", ultRounds,
+                "targetIds", buffedIds(quickened));
         battle.log(run.getKnightName() + "'s charge stuns " + stunned + " enem"
-                + (stunned == 1 ? "y" : "ies") + " and quickens the warband by +" + speed + " speed.");
+                + (stunned == 1 ? "y" : "ies") + " and quickens the warband by +" + speed
+                + " speed" + forRounds(ultRounds) + ".");
         return "Ultimate: " + stunned + " enemy turn" + (stunned == 1 ? "" : "s")
                 + " cancelled, warband +" + speed + " speed";
     }
@@ -914,16 +955,25 @@ public class SiegeCombatEngine {
             }
             case BUFF_ATK -> {
                 int amount = effectValue(attacker, spec.value());
-                for (Combatant t : targets) t.addAttackBuff(amount);
-                battle.event("buff", "kind", "atk", "amount", amount, "targetIds", buffedIds(targets));
+                int rounds = buffRoundsFor(spec);
+                for (Combatant t : targets) {
+                    grantBuff(battle, t, Combatant.BuffStat.ATTACK, amount, rounds, spec.id());
+                }
+                battle.event("buff", "kind", "atk", "amount", amount, "rounds", rounds,
+                        "targetIds", buffedIds(targets));
                 battle.log(attacker.getName() + " uses " + spec.name() + " → "
-                        + buffedNames(targets) + " gain +" + amount + " attack.");
+                        + buffedNames(targets) + " gain +" + amount + " attack" + forRounds(rounds) + ".");
             }
             case BUFF_SPD -> {
                 int amount = effectValue(attacker, spec.value());
-                for (Combatant t : targets) t.setSpeed(t.getSpeed() + amount);
-                battle.event("buff", "kind", "spd", "amount", amount, "targetIds", buffedIds(targets));
-                battle.log(attacker.getName() + " uses " + spec.name() + " → +" + amount + " speed.");
+                int rounds = buffRoundsFor(spec);
+                for (Combatant t : targets) {
+                    grantBuff(battle, t, Combatant.BuffStat.SPEED, amount, rounds, spec.id());
+                }
+                battle.event("buff", "kind", "spd", "amount", amount, "rounds", rounds,
+                        "targetIds", buffedIds(targets));
+                battle.log(attacker.getName() + " uses " + spec.name() + " → +" + amount
+                        + " speed" + forRounds(rounds) + ".");
             }
             case SLOW -> {
                 for (Combatant t : targets) {
@@ -1004,9 +1054,13 @@ public class SiegeCombatEngine {
                     battle.log(unit.getName() + " lands braced — " + amount + " shield.");
                 }
                 case ATTACK -> {
-                    unit.addAttackBuff(amount);
-                    battle.event("buff", "kind", "atk", "amount", amount, "targetId", unit.getId());
-                    battle.log(unit.getName() + " lands swinging — +" + amount + " attack.");
+                    int rounds = tunedGlobal("riderBuffRounds", SiegeTuning.RIDER_BUFF_ROUNDS);
+                    grantBuff(battle, unit, Combatant.BuffStat.ATTACK, amount, rounds,
+                            spec.id() + "-rider");
+                    battle.event("buff", "kind", "atk", "amount", amount, "rounds", rounds,
+                            "targetId", unit.getId());
+                    battle.log(unit.getName() + " lands swinging — +" + amount + " attack"
+                            + forRounds(rounds) + ".");
                 }
                 case NONE -> { }
             }
@@ -1030,7 +1084,53 @@ public class SiegeCombatEngine {
      * round after this one.
      */
     private int shieldExpiryFor(SiegeBattle battle, Combatant target) {
-        return Math.max(1, battle.getRoundNumber()) + 1;
+        int rounds = Math.max(1, effectTuning != null
+                ? effectTuning.durationRounds(Effect.SHIELD)
+                : 1);
+        return Math.max(1, battle.getRoundNumber()) + rounds;
+    }
+
+    /**
+     * How long a buff from this ability runs. A spec that states no duration
+     * falls back to the per-effect default rather than lasting the whole battle,
+     * so a card authored in the dashboard cannot reintroduce a permanent buff by
+     * omission.
+     */
+    private int buffRoundsFor(AbilitySpec spec) {
+        int rounds = spec.durationRounds();
+        return rounds > 0 ? rounds : tunedDuration(spec.effect());
+    }
+
+    /** The configured window for an effect's buff, or the shipped default. */
+    private int tunedDuration(Effect effect) {
+        return effectTuning != null
+                ? effectTuning.durationRounds(effect)
+                : SiegeTuning.defaultBuffRounds(effect);
+    }
+
+    /** A global buff window from the dashboard, or the shipped default. */
+    private int tunedGlobal(String key, int fallback) {
+        if (effectTuning == null) return fallback;
+        int value = effectTuning.globalValue(key);
+        return value > 0 ? value : fallback;
+    }
+
+    /**
+     * Applies a stat buff. A duration of 0 or less would be a battle-long buff;
+     * only loadout grants (knight passive, items) take that path, so a played
+     * ability that somehow asks for it is given the effect's default window.
+     */
+    private void grantBuff(SiegeBattle battle, Combatant target, Combatant.BuffStat stat,
+                           int amount, int rounds, String sourceId) {
+        if (amount <= 0) return;
+        int window = rounds > 0 ? rounds
+                : tunedDuration(stat == Combatant.BuffStat.ATTACK ? Effect.BUFF_ATK : Effect.BUFF_SPD);
+        target.addTimedBuff(stat, amount, window, battle.getRoundNumber(), sourceId);
+    }
+
+    /** " for 2 rounds" — the duration clause every buff log line ends with. */
+    private String forRounds(int rounds) {
+        return rounds <= 0 ? "" : " for " + rounds + (rounds == 1 ? " round" : " rounds");
     }
 
     /**
@@ -1042,7 +1142,8 @@ public class SiegeCombatEngine {
         NodeType type = battle.getNodeType();
         boolean guarded = type == NodeType.ELITE || type == NodeType.BOSS;
         if (!guarded) return target.getHp() + target.getShield();
-        return Math.max(1, (int) Math.round(target.getMaxHp() * EXECUTE_BOSS_FRACTION));
+        double fraction = effectTuning != null ? effectTuning.executeBossFraction() : EXECUTE_BOSS_FRACTION;
+        return Math.max(1, (int) Math.round(target.getMaxHp() * fraction));
     }
 
     /** Damage is the card's (level-scaled) value plus explicit attack buffs, after Blind. */
@@ -1269,6 +1370,7 @@ public class SiegeCombatEngine {
     private void resolveEnemyTurn(SiegeRun run, Random rng) {
         SiegeBattle battle = run.getBattle();
         expireShields(battle, Side.ENEMY);
+        expireBuffs(battle, Side.ENEMY);
         for (Combatant foe : battle.living(Side.ENEMY)) {
             tickWither(battle, foe);
         }
@@ -1533,7 +1635,8 @@ public class SiegeCombatEngine {
             ally.setShieldExpiryRound(0);
             ally.setBattleMaxHpBonus(0);
             ally.setSpeed(ally.leveledBaseSpeed());
-            ally.addAttackBuff(-ally.getAttackBuff());
+            ally.addAttackBuff(-ally.getBaseAttackBuff());
+            ally.clearTimedBuffs();
             ally.clearStatuses();
         }
         if (run.getKnightUnit() != null) {

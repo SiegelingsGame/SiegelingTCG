@@ -80,6 +80,42 @@ final class SiegeTuning {
     /** Attack a swap move's ATTACK rider adds to both units it moved. */
     static final int AMP_SWAP_ATTACK = 2;
 
+    // ---- Buff durations ---------------------------------------------------
+
+    /**
+     * Rounds a card-granted attack buff lasts. Stat buffs used to run for the
+     * whole battle, so a repeatable buff card compounded every turn and every
+     * later attack cashed the whole stack — an upgraded booster was worth more
+     * than any damage card by round three. A short window keeps the buff a
+     * setup play (buff, then swing) instead of a permanent stat purchase.
+     */
+    static final int BUFF_ATK_ROUNDS = 2;
+    /** Rounds a card-granted speed buff lasts; same reasoning as {@link #BUFF_ATK_ROUNDS}. */
+    static final int BUFF_SPD_ROUNDS = 2;
+    /** Rounds the buff half of a once-per-battle Knight ultimate lasts — longer, since it costs the ultimate. */
+    static final int ULTIMATE_BUFF_ROUNDS = 3;
+    /** Rounds a swap move's ATTACK amp rider lasts; it rides a positioning move, so it matches a card buff. */
+    static final int RIDER_BUFF_ROUNDS = 2;
+    /** Rounds a mercenary's signature Boon buff lasts — one round longer than a stock card buff. */
+    static final int BOON_BUFF_ROUNDS = 3;
+
+    /**
+     * Default duration for a buff granted by an ability that does not state one.
+     * Non-buff effects get 0: they have nothing to expire.
+     *
+     * <p>Battle-long buffs still exist, but they are loadout, not plays — the
+     * Knight's ATTACK/SPEED leadership passive and carried items grant theirs at
+     * battle start and are applied through the untimed buff path instead.
+     */
+    static int defaultBuffRounds(Effect effect) {
+        if (effect == null) return 0;
+        return switch (effect) {
+            case BUFF_ATK -> BUFF_ATK_ROUNDS;
+            case BUFF_SPD -> BUFF_SPD_ROUNDS;
+            default -> 0;
+        };
+    }
+
     /**
      * The level derived from a cumulative XP total, clamped to
      * {@link #MAX_LEVEL}. Level 1 is the floor (0 XP).
