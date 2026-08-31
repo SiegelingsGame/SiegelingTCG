@@ -1118,6 +1118,13 @@ public class SiegeService {
         s.put("discoveredSieglings", new ArrayList<>(run.getDiscoveredSieglingIds()));
         s.put("inventory", new ArrayList<>(run.getInventory()));
         s.put("knightBag", new ArrayList<>(run.getKnightBag()));
+        // A hired mercenary is not a party member: it fights the next battle and
+        // leaves. Dropping it from the checkpoint silently refunds nothing and,
+        // worse, a mid-battle restore used to promote it into the warband.
+        if (run.getMercenary() != null) {
+            s.put("mercenary", snapshotCombatant(run.getMercenary()));
+            s.put("mercCards", snapshotCards(run.getMercCards()));
+        }
         List<Map<String, Object>> deck = new ArrayList<>();
         for (SiegeCard card : run.getDeckTemplates()) {
             Map<String, Object> d = new LinkedHashMap<>();
@@ -1441,6 +1448,19 @@ public class SiegeService {
                     }
                 }
             }
+            // Snapshots written before mercenaries were checkpointed carry neither
+            // field; those map-side hires are unrecoverable. Mid-battle ones are
+            // recovered below from the combatant list.
+            if (s.get("mercenary") instanceof Map<?, ?> mercSnap) {
+                run.setMercenary(restoreCombatant((Map<String, Object>) mercSnap));
+            }
+            if (s.get("mercCards") instanceof List<?> cards) {
+                for (Object d : cards) {
+                    if (d instanceof Map<?, ?> card) {
+                        run.getMercCards().add(restoreSiegeCard((Map<String, Object>) card));
+                    }
+                }
+            }
 
             for (Map<String, Object> p : (List<Map<String, Object>>) s.get("party")) {
                 String sourceId = String.valueOf(p.get("sourceCardId"));
@@ -1485,14 +1505,21 @@ public class SiegeService {
                 run.setBattle(battle);
                 List<Combatant> restoredParty = new ArrayList<>();
                 Combatant restoredKnight = null;
+                Combatant restoredMerc = null;
                 for (Combatant c : battle.getCombatants()) {
                     if (c.getSide() != Side.PLAYER) continue;
-                    if (c.isKnight()) restoredKnight = c; else restoredParty.add(c);
+                    if (c.isKnight()) restoredKnight = c;
+                    else if (isRentedMercenary(c)) restoredMerc = c;
+                    else restoredParty.add(c);
                 }
                 restoredParty.sort((x, y) -> Integer.compare(x.getPosition(), y.getPosition()));
                 run.getParty().clear();
                 run.getParty().addAll(restoredParty);
                 if (restoredKnight != null) run.setKnightUnit(restoredKnight);
+                // Prefer the in-battle instance so HP/buffs stay on the object the
+                // engine is already mutating; the run-level snapshot is the fallback
+                // for a hire that has not marched yet.
+                if (restoredMerc != null) run.setMercenary(restoredMerc);
             }
 
             run.setCheckpointSaved(true);
@@ -1501,6 +1528,11 @@ public class SiegeService {
         } catch (Exception ex) {
             return Optional.empty();
         }
+    }
+
+    /** Rented mercenaries fight one battle then leave; they are never warband members. */
+    private static boolean isRentedMercenary(Combatant c) {
+        return c != null && c.getId() != null && c.getId().startsWith("merc-");
     }
 
     private AbilitySpec specFromMap(Map<String, Object> s) {
