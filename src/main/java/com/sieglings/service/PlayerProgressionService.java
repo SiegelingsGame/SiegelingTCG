@@ -44,6 +44,10 @@ public class PlayerProgressionService {
     public static final double BULK_PACK_DISCOUNT = 0.05;
     public static final int MAX_BULK_PACK_COUNT = 10;
     public static final int TUTORIAL_GOLD_REWARD = 250;
+    /** Siege tutorial pays a smaller first-time purse than the Arena tutorial: it
+     *  costs nothing to run and grants no cards, so it tops up rather than seeds. */
+    public static final int SIEGE_TUTORIAL_GOLD_REWARD = 150;
+    public static final int SIEGE_TUTORIAL_REMNANTS = 25;
     public static final int SOLO_WIN_REMNANTS = 20;
     public static final int ONLINE_WIN_REMNANTS = 30;
     private static final int PACK_OPEN_LOCK_STRIPES = 64;
@@ -208,6 +212,26 @@ public class PlayerProgressionService {
             PlayerProgressionEntity saved = store.save(progression);
             recordPackOpenedAsync(saved.getUserId());
             return saved;
+        }
+    }
+
+    /**
+     * Grants the one-time Siege tutorial purse. Deliberately independent of
+     * {@link #completeTutorial}: the two tutorials teach different modes and are
+     * claimed separately, and this one asks for no starter pack because the
+     * Siege tutorial is a simulated expedition that never touches the collection.
+     */
+    public PlayerProgressionEntity completeSiegeTutorial(AccountUser user) {
+        synchronized (progressionWriteLock(user)) {
+            PlayerProgressionEntity progression = getOrCreate(user);
+            if (progression.isSiegeTutorialCompleted()) {
+                throw new IllegalArgumentException("Siege tutorial rewards have already been claimed.");
+            }
+            progression.setGold(progression.getGold() + SIEGE_TUTORIAL_GOLD_REWARD);
+            grantRemnants(progression, SIEGE_TUTORIAL_REMNANTS);
+            progression.setSiegeTutorialCompleted(true);
+            progression.setUpdatedAt(Instant.now());
+            return store.save(progression);
         }
     }
 
@@ -625,6 +649,7 @@ public class PlayerProgressionService {
         out.put("ownedTotal", ownedTotal(progression));
         out.put("ownedTrainers", serializeOwnedTrainers(progression));
         out.put("tutorialCompleted", progression.isTutorialCompleted());
+        out.put("siegeTutorialCompleted", progression.isSiegeTutorialCompleted());
         out.put("customDeckUnlocked", ownedTotal(progression) >= CUSTOM_DECK_UNLOCK_COPIES);
         out.put("customDeckUnlockCopies", CUSTOM_DECK_UNLOCK_COPIES);
         out.put("starterPackId", progression.getStarterPackId());

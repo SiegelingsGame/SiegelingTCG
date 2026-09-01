@@ -832,10 +832,12 @@
       M.event = {
         title: 'The Standing Stone', icon: '🗿',
         prompt: 'A humming monolith offers a bargain: strength for blood, or coin for nothing.',
+        // Action only, no outcome — the same payload the real server now sends,
+        // so the tutorial teaches the rule it demonstrates.
         options: [
-          campOpt('ev-power', 'EVENT', 'Touch the stone', 'Every Siegeling loses 4 HP and gains +1 attack.', 0),
-          campOpt('ev-gold', 'EVENT', 'Pry loose a shard', 'Take 30 gold and walk away.', 0),
-          campOpt('ev-leave', 'EVENT', 'Leave it alone', 'Nothing ventured.', 0)
+          campOpt('ev-power', 'EVENT_CHOICE', 'Touch the stone', '', 0),
+          campOpt('ev-gold', 'EVENT_CHOICE', 'Pry loose a shard', '', 0),
+          campOpt('ev-leave', 'EVENT_CHOICE', 'Leave it alone', '', 0)
         ]
       };
       return;
@@ -1256,13 +1258,15 @@
         body: '<b>Travel to the ❔ Standing Stone.</b>',
         until: function () { return screenIs('eventScreen'); } },
       { id: 'event-b', hint: 'Choose an <b>option</b>', title: 'Choices with a price', target: '#eventChoices',
-        body: 'Events trade something for something: HP for power, safety for coin. There is no wrong answer, only what the run needs. <b>Choose one.</b>',
+        body: 'Events trade something for something: HP for power, safety for coin. A choice names only the <b>action</b> — never what it pays — so read the scene and commit. <b>Choose one.</b>',
         until: function () { return screenIs('mapScreen'); } },
 
       { id: 'boss', title: 'The Siegelord', target: '.map-node-g.type-BOSS',
-        body: 'The 👑 node at the top of every stage is the Siegelord. Clearing it ends the stage — and in a real run, winning banks your leveled team for Battlegrounds.' },
-      { id: 'done', kicker: 'Tutorial complete', title: 'That is the loop', finish: true,
-        body: 'Travel, fight, spend, and arrive at the boss stronger than the map expected. Nothing you did here was saved — start a real expedition whenever you are ready.' }
+        body: 'The 👑 node at the top of every stage is the Siegelord. Clearing it ends the stage — and in a real run, winning lets you <b>bank</b> the team you just leveled.' },
+      { id: 'done', kicker: 'Tutorial complete', title: '🎉 Congratulations, Marshal', finish: true, finale: true,
+        body: 'You have run the whole loop: travel, fight, spend, and arrive at the boss stronger than the map expected.' +
+          '<span class="tut-p"><b>What it all builds toward.</b> Win an expedition and you can bank that warband as a <b>veteran team</b> — up to ten of them are kept. Once you hold <b>3 banked veterans</b>, they can march into <b>Battlegrounds</b>: five tiers, each unlocked by clearing the one below, paying <b>Warmarks</b> for its own shop. Lose there and the team is fatigued until its timer runs out, so Siege never stops being the place you rebuild.</span>' +
+          '<span class="tut-p">Nothing you did here was saved. Start a real expedition whenever you are ready.</span>' }
     ];
   }
 
@@ -1379,7 +1383,7 @@
     // itself when the player performs it, but they must never be able to end up
     // with a card on screen and no way past it — which is exactly what happened
     // when a tall overlay put its own close control behind this card.
-    cardEl.className = 'tut-card';
+    cardEl.className = 'tut-card' + (s.finale ? ' is-finale' : '');
     cardEl.dataset.step = s.title;
     var label = s.finish ? 'Finish' : 'Got it ▸';
     cardEl.innerHTML =
@@ -1389,6 +1393,7 @@
       '</div>' +
       '<h3 class="tut-title">' + esc(s.title) + '</h3>' +
       '<p class="tut-body">' + s.body + '</p>' +
+      (s.finale ? '<div class="tut-reward" id="tutReward">Claiming your first-time reward…</div>' : '') +
       '<div class="tut-foot">' +
         (waits ? '<span class="tut-wait">Waiting for you</span>' : '') +
         // On a detour the button dismisses the popup it is describing, rather
@@ -1396,6 +1401,37 @@
         '<button class="tut-next" type="button"' + (det ? ' data-detour="1"' : '') + '>' + label + '</button>' +
       '</div>';
     position();
+    if (s.finale) claimFinaleReward();
+  }
+
+  // The first-time purse is claimed once per arrival at the finale, not once per
+  // repaint: position() and the resize tick both re-render this card.
+  var rewardClaim = null;
+
+  /** Fills the finale's reward strip. Never blocks the player: any failure just
+   *  reports that the purse is still claimable, since the flag is server-side. */
+  function claimFinaleReward() {
+    if (!rewardClaim) {
+      rewardClaim = (window.SiegeClient && window.SiegeClient.claimTutorialReward)
+        ? window.SiegeClient.claimTutorialReward()
+        : Promise.resolve({ claimed: false, already: false });
+    }
+    rewardClaim.then(function (r) {
+      var box = document.getElementById('tutReward');
+      if (!box) return;
+      if (r && r.claimed) {
+        box.className = 'tut-reward is-claimed';
+        box.innerHTML = '<b>First-time reward</b> 🪙 ' + (r.gold || 0) + ' Siegecoins &nbsp;·&nbsp; 🔮 '
+          + (r.remnants || 0) + ' Remnants';
+      } else if (r && r.already) {
+        box.className = 'tut-reward is-claimed';
+        box.innerHTML = '<b>First-time reward</b> already claimed on this account.';
+      } else {
+        box.className = 'tut-reward';
+        box.innerHTML = 'Sign in to claim the first-time reward — it stays available.';
+      }
+      position();
+    });
   }
 
   function targetNode(s) {
@@ -1544,6 +1580,7 @@
       bought: false, equipped: false, rented: false, smithed: false, reachedBoss: false
     };
     visited = {};
+    rewardClaim = null;   // a second run must re-ask the server, not replay the first answer
     STEPS = buildSteps();
     total = STEPS.filter(function (s) { return !s.route; }).length;
     idx = -1;

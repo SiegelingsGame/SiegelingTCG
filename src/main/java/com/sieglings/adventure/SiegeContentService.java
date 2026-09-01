@@ -1434,11 +1434,11 @@ public class SiegeContentService {
         out.add(new EventDef("bandit-toll", "Bandit Toll", "\uD83E\uDD77", // 🥷
                 "Bandits block the pass. \u201CPay the toll \u2014 or bleed for it.\u201D", List.of(
                 new EventChoice("Pay 30 gold", "PAY_GOLD", 30, "They step aside, grinning."),
-                new EventChoice("Fight them (ambush!)", "AMBUSH", 0, "Steel rings out \u2014 they strike first!"),
+                new EventChoice("Draw steel", "AMBUSH", 0, "Steel rings out \u2014 they strike first!"),
                 new EventChoice("Try to sneak past", "SNEAK", 12, "You slip into the brush\u2026"))));
         out.add(new EventDef("stranger", "Mysterious Stranger", "\uD83E\uDDD9", // 🧙
                 "A cloaked figure offers a bargain. \u201CYour blood for my treasure.\u201D", List.of(
-                new EventChoice("Bleed for a relic (\u221215 HP)", "BLEED_ITEM", 15, "The pain is worth it."),
+                new EventChoice("Accept the bargain", "BLEED_ITEM", 15, "The pain is worth it."),
                 new EventChoice("Decline", "NOTHING", 0, "The figure fades into mist."))));
         out.add(new EventDef("lost-child", "Lost Siegeling", "\uD83D\uDC23", // 🐣
                 "A frightened wild Siegeling watches from the ferns.", List.of(
@@ -1451,7 +1451,7 @@ public class SiegeContentService {
                 new EventChoice("Move on", "NOTHING", 0, "Best not linger."))));
         out.add(new EventDef("monster-tracks", "Monster Tracks", "\uD83D\uDC3E", // 🐾
                 "Huge tracks lead off the path \u2014 fresh, and deep.", List.of(
-                new EventChoice("Follow them (elite ambush!)", "AMBUSH_ELITE", 0, "You corner the beast \u2014 it lunges!"),
+                new EventChoice("Follow the tracks", "AMBUSH_ELITE", 0, "You corner the beast \u2014 it lunges!"),
                 new EventChoice("Avoid them", "GOLD", 10, "You skirt danger and pocket some scrap."))));
         out.add(new EventDef("treasure-map", "Treasure Map", "\uD83D\uDDFA\uFE0F", // 🗺️
                 "A tattered map marks an X not far off.", List.of(
@@ -1459,7 +1459,7 @@ public class SiegeContentService {
                 new EventChoice("Sell the map", "GOLD", 35, "A passing trader pays well."))));
         out.add(new EventDef("oracle", "Wandering Oracle", "\uD83D\uDD2E", // 🔮
                 "An oracle reads the threads of fate for a fee.", List.of(
-                new EventChoice("Pay 15 for a blessing", "BLESS_SPEED", 15, "Foresight quickens your warband."),
+                new EventChoice("Pay the oracle's fee (15 gold)", "BLESS_SPEED", 15, "Foresight quickens your warband."),
                 new EventChoice("Ask nothing", "NOTHING", 0, "You trust your own path."))));
         return out;
     }
