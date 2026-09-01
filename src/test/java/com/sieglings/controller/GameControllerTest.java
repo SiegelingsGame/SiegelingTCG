@@ -5,11 +5,17 @@ import com.sieglings.model.TrainerCard;
 import com.sieglings.model.enums.Element;
 import com.sieglings.model.enums.Rarity;
 import com.sieglings.persistence.entity.AccountUser;
+import com.sieglings.persistence.entity.MatchHistoryEntity;
 import com.sieglings.service.AccountService;
+import com.sieglings.service.EnergyService;
 import com.sieglings.service.GameService;
+import com.sieglings.service.MatchHistoryService;
 import com.sieglings.service.MultiplayerRoom;
 import com.sieglings.service.MultiplayerService;
+import com.sieglings.service.PlacementService;
 import com.sieglings.service.PlayerProgressionService;
+import com.sieglings.model.GameState;
+import com.sieglings.model.Player;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
@@ -66,6 +72,49 @@ class GameControllerTest {
 
         assertEquals(true, closed.get("ok"));
         assertNull(multiplayerService.getRoom(session.roomId()));
+    }
+
+    @Test
+    void tutorialEndScreenDoesNotDescribeRankedRewards() throws Exception {
+        GameController controller = createController(new MultiplayerService(), accountServiceReturning(user("player@example.com")));
+        setField(controller, "energyService", new EnergyService(new PlacementService()));
+        setField(controller, "matchHistoryService", new MatchHistoryService() {
+            @Override
+            public List<MatchHistoryEntity> listRecent(AccountUser user) {
+                return List.of();
+            }
+        });
+        setField(controller, "playerProgressionService", new PlayerProgressionService() {
+            @Override
+            public Map<String, Object> describeEarnedRewards(AccountUser user, String matchType, String result) {
+                throw new AssertionError("tutorial end screen must not describe ranked rewards");
+            }
+        });
+
+        GameState state = new GameState();
+        Player player = new Player("Student", true);
+        player.setAccountUserId("player@example.com");
+        Player enemy = new Player("Training Dummy", false);
+        enemy.setHealth(0);
+        state.setPlayer(player);
+        state.setEnemy(enemy);
+        state.setTutorialMode(true);
+        state.setGameOver(true);
+        state.setWinner("Student");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> screen = (Map<String, Object>) invoke(
+                controller,
+                "buildEndScreen",
+                new Class<?>[] { GameState.class, boolean.class, String.class, AccountUser.class, Player.class, Player.class },
+                new Object[] { state, true, null, user("player@example.com"), player, enemy }
+        );
+
+        assertEquals(0, screen.get("goldEarned"));
+        assertEquals(0, screen.get("remnantsEarned"));
+        assertEquals(0, screen.get("streakBonus"));
+        assertEquals(Boolean.FALSE, screen.get("guestPreview"));
+        assertEquals(Boolean.FALSE, screen.get("rewardsClaimed"));
     }
 
     private GameService guestTrainerGameService() {

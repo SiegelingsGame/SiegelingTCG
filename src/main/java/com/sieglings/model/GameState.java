@@ -52,6 +52,12 @@ public class GameState {
     private boolean playerGoesFirst = true;
     private int setupTurnsTakenThisRound = 0;
     private boolean enemyHumanControlled = false;
+    /**
+     * Practice / tutorial match. Must never write match history or pay win
+     * rewards: the Dummy starts at reduced HP and the lesson is meant to be
+     * replayed, so treating it as a solo ranked game is an infinite farm.
+     */
+    private boolean tutorialMode = false;
     private boolean playerMulliganPending = false;
     private boolean enemyMulliganPending = false;
     private boolean playerMulliganUsed = false;
@@ -323,6 +329,8 @@ public class GameState {
     public void setSetupTurnsTakenThisRound(int setupTurnsTakenThisRound) { this.setupTurnsTakenThisRound = setupTurnsTakenThisRound; }
     public boolean isEnemyHumanControlled() { return enemyHumanControlled; }
     public void setEnemyHumanControlled(boolean enemyHumanControlled) { this.enemyHumanControlled = enemyHumanControlled; }
+    public boolean isTutorialMode() { return tutorialMode; }
+    public void setTutorialMode(boolean tutorialMode) { this.tutorialMode = tutorialMode; }
     public boolean isPlayerMulliganPending() { return playerMulliganPending; }
     public boolean isEnemyMulliganPending() { return enemyMulliganPending; }
     public boolean isPlayerMulliganUsed() { return playerMulliganUsed; }

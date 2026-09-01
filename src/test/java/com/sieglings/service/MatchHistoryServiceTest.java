@@ -72,6 +72,28 @@ class MatchHistoryServiceTest {
         assertTrue(matchHistoryStore.savedIds.contains(state.getMatchHistoryId() + "-player"));
     }
 
+    @Test
+    void tutorialMatchDoesNotRecordHistoryOrPayEvenWhenAnAccountIsAttached() throws Exception {
+        BlockingMatchHistoryStore matchHistoryStore = new BlockingMatchHistoryStore();
+        RecordingProgressionService progressionService = new RecordingProgressionService();
+        MatchHistoryService service = createService(matchHistoryStore, progressionService);
+        GameState state = completedGuestSoloGame();
+        state.setTutorialMode(true);
+        state.getPlayer().setAccountUserId("player@example.com");
+        state.setWinner("Player");
+
+        service.recordCompletedGame(state);
+
+        assertTrue(state.isMatchHistoryRecorded(), "seal the match so a later attach cannot pay");
+        assertEquals(0, matchHistoryStore.savedIds.size());
+        assertEquals(0, progressionService.rewardedIds.size());
+
+        // Signing in after the Dummy falls must not convert the lesson into a SOLO win.
+        service.recordCompletedGame(state);
+        assertEquals(0, matchHistoryStore.savedIds.size());
+        assertEquals(0, progressionService.rewardedIds.size());
+    }
+
     private MatchHistoryService createService(MatchHistoryStore matchHistoryStore, PlayerProgressionService progressionService) throws Exception {
         MatchHistoryService service = new MatchHistoryService();
         setField(service, "matchHistoryStore", matchHistoryStore);

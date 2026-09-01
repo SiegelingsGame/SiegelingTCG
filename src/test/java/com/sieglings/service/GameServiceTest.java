@@ -63,6 +63,23 @@ class GameServiceTest {
     }
 
     @Test
+    void tutorialMatchIsFlaggedAsPracticeAndPinsTheDummyAtReducedHealth() throws Exception {
+        GameService gameService = new GameService();
+        setField(gameService, "cardDefs", new CardDefinitionService());
+
+        GameService.SoloHandle tutorial = gameService.newTutorialGame("Student");
+        GameService.SoloHandle ranked = gameService.newSoloGame(
+                new GameService.StartOptions("deck_fire_earth", "squire-bob", null, "Ranked"),
+                "Student");
+
+        assertTrue(tutorial.state().isTutorialMode());
+        assertEquals(GameService.TUTORIAL_ENEMY_HEALTH, tutorial.state().getEnemy().getHealth());
+        assertEquals(GameService.TUTORIAL_OPPONENT_NAME, tutorial.state().getEnemy().getName());
+        assertFalse(ranked.state().isTutorialMode());
+        assertEquals(50, ranked.state().getEnemy().getHealth());
+    }
+
+    @Test
     void trainerHealthPassiveUpdatesPlacedSieglingDuringSetupWithoutRehealing() throws Exception {
         GameService gameService = new GameService();
         setField(gameService, "energyService", new EnergyService(new PlacementService()));

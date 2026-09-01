@@ -555,6 +555,7 @@ public class GameService {
                                  boolean tutorial) {
         GameState state = new GameState();
         state.setEnemyHumanControlled(enemyHumanControlled);
+        state.setTutorialMode(tutorial);
 
         Player player = new Player(playerName, true);
         Player enemy = new Player(enemyName, enemyHumanControlled);

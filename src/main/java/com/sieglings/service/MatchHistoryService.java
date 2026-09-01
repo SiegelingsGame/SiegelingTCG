@@ -41,6 +41,13 @@ public class MatchHistoryService {
             if (state.isMatchHistoryRecorded()) {
                 return;
             }
+            // Tutorial matches are a repeatable 20-HP rehearsal. Recording them as
+            // SOLO wins pays gold/remnants, inflates the solo streak, and counts
+            // toward daily missions every time a signed-in player replays the lesson.
+            if (state.isTutorialMode()) {
+                state.setMatchHistoryRecorded(true);
+                return;
+            }
             boolean playerRecorded = recordForSide(state, true);
             boolean enemyRecorded = recordForSide(state, false);
             if (playerRecorded || enemyRecorded) {
