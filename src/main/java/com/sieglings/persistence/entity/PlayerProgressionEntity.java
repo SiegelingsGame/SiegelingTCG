@@ -21,6 +21,8 @@ public class PlayerProgressionEntity {
     private Map<String, Integer> trainerPoints = new LinkedHashMap<>();
     private String starterPackId;
     private boolean tutorialCompleted;
+    /** Siege tutorial is a separate first-time claim from the Arena tutorial above. */
+    private boolean siegeTutorialCompleted;
     private List<String> rewardedMatchIds = new ArrayList<>();
     private List<String> purchasedDeckIds = new ArrayList<>();
     private List<String> purchasedDailyOfferIds = new ArrayList<>();
@@ -83,6 +85,8 @@ public class PlayerProgressionEntity {
 
     public boolean isTutorialCompleted() { return tutorialCompleted; }
     public void setTutorialCompleted(boolean tutorialCompleted) { this.tutorialCompleted = tutorialCompleted; }
+    public boolean isSiegeTutorialCompleted() { return siegeTutorialCompleted; }
+    public void setSiegeTutorialCompleted(boolean siegeTutorialCompleted) { this.siegeTutorialCompleted = siegeTutorialCompleted; }
     public List<String> getRewardedMatchIds() { return rewardedMatchIds; }
     public void setRewardedMatchIds(List<String> rewardedMatchIds) {
         this.rewardedMatchIds = rewardedMatchIds == null ? new ArrayList<>() : new ArrayList<>(rewardedMatchIds);

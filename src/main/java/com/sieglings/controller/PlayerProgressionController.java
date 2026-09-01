@@ -55,6 +55,20 @@ public class PlayerProgressionController {
         }
     }
 
+    @PostMapping("/api/player/siege-tutorial-complete")
+    public Map<String, Object> siegeTutorialComplete(@RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+        try {
+            AccountUser user = accountService.requireUser(authorizationHeader);
+            PlayerProgressionEntity progression = progressionService.completeSiegeTutorial(user);
+            Map<String, Object> response = buildResponse(user, progression);
+            response.put("goldAwarded", PlayerProgressionService.SIEGE_TUTORIAL_GOLD_REWARD);
+            response.put("remnantsAwarded", PlayerProgressionService.SIEGE_TUTORIAL_REMNANTS);
+            return response;
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
+    }
+
     @PostMapping("/api/player/starter-pack")
     public Map<String, Object> starterPack(@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
                                            @RequestBody Map<String, Object> req) {

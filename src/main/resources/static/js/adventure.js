@@ -2476,8 +2476,11 @@
     $('eventGold').textContent = '🪙 ' + (run.gold || 0);
     var box = $('eventChoices'); box.innerHTML = '';
     (ev.options || []).forEach(function (o) {
+      // An event choice shows the ACTION only. The flavour line spoiled what the
+      // choice paid out, which turned a gamble into a menu; the server no longer
+      // sends it, and the outcome popup is where the result is revealed.
       var b = el('button', 'siege-btn event-choice' + (o.affordable ? '' : ' unaffordable'),
-        '<span class="ec-label">' + esc(o.title) + '</span>' + (o.desc ? '<span class="ec-desc">' + esc(o.desc) + '</span>' : ''));
+        '<span class="ec-label">' + esc(o.title) + '</span>');
       if (o.affordable) b.addEventListener('click', function () {
         var ev = state.run.event || {};
         simplePost('/api/siege/event/choose', { optionId: o.id }, {
@@ -5457,6 +5460,34 @@
       state.campMenu = null;
       updateRunMenu(false);
       renderSetup();
+    },
+    /**
+     * The one-time Siege tutorial purse. This goes straight to fetch rather than
+     * through api(): while the tutorial is active api() answers EVERY path from
+     * the simulated run, and this is the one call that genuinely must reach the
+     * account. Resolves to a plain result the finale can render either way —
+     * a claim, an already-claimed, or a quiet failure worth no alarm.
+     */
+    claimTutorialReward: function () {
+      return fetch('/api/player/siege-tutorial-complete', {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        credentials: 'include'
+      }).then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok, body: d || {} }; });
+      })
+        .then(function (res) {
+          var d = res.body;
+          // A signed-out player gets a 401, and a bad deploy an HTML 404 that
+          // parses to {} — neither is a grant, so never report one. Only a 2xx
+          // carrying the awarded amounts counts as claimed.
+          if (!res.ok || d.error) {
+            return { claimed: false, already: String(d.error || '').toLowerCase().indexOf('already') >= 0 };
+          }
+          if (!d.goldAwarded && !d.remnantsAwarded) return { claimed: false, already: false };
+          return { claimed: true, gold: d.goldAwarded || 0, remnants: d.remnantsAwarded || 0 };
+        })
+        .catch(function () { return { claimed: false, already: false }; });
     },
     toast: toast
   };

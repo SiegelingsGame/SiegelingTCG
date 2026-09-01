@@ -39,6 +39,30 @@ class PlayerProgressionServiceTest {
     }
 
     @Test
+    void siegeTutorialRewardPaysOnceAndIsIndependentOfTheArenaTutorial() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setUserId("player@example.com");
+        progression.setGold(100);
+        progression.setRemnants(10);
+        // Deliberately no starter pack and no Arena tutorial: the Siege tutorial is
+        // a simulated expedition, so neither is a precondition for its purse.
+        store.saved = progression;
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        service.completeSiegeTutorial(user());
+
+        assertEquals(100 + PlayerProgressionService.SIEGE_TUTORIAL_GOLD_REWARD, store.saved.getGold());
+        assertEquals(10 + PlayerProgressionService.SIEGE_TUTORIAL_REMNANTS, store.saved.getRemnants());
+        assertTrue(store.saved.isSiegeTutorialCompleted());
+        // The Arena tutorial's own one-time claim must still be available.
+        assertEquals(false, store.saved.isTutorialCompleted());
+
+        assertThrows(IllegalArgumentException.class, () -> service.completeSiegeTutorial(user()));
+        assertEquals(100 + PlayerProgressionService.SIEGE_TUTORIAL_GOLD_REWARD, store.saved.getGold());
+    }
+
+    @Test
     void repeatedPackOpenRequestDoesNotChargeAgain() throws Exception {
         FakeProgressionStore store = new FakeProgressionStore();
         PlayerProgressionEntity progression = new PlayerProgressionEntity();

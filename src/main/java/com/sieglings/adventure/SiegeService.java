@@ -4008,7 +4008,7 @@ public class SiegeService {
         m.put("smith", run.isInSmith() ? serializeOptionStop(run, run.getSmithOptions(), null) : null);
         m.put("caravan", run.isInCaravan() ? serializeOptionStop(run, run.getCaravanOptions(), null) : null);
         if (run.isInEvent()) {
-            Map<String, Object> ev = serializeOptionStop(run, run.getEventOptions(), null);
+            Map<String, Object> ev = serializeOptionStop(run, run.getEventOptions(), null, true);
             ev.put("title", run.getEventTitle());
             ev.put("prompt", run.getEventPrompt());
             ev.put("icon", run.getEventIcon());
@@ -4258,21 +4258,34 @@ public class SiegeService {
     }
 
     private Map<String, Object> serializeOptionStop(SiegeRun run, List<CampOption> options, String note) {
+        return serializeOptionStop(run, options, note, false);
+    }
+
+    /**
+     * @param hideOutcome an event stop: send the action the player is choosing and
+     *                    nothing that says what it pays out. A shop tells you what
+     *                    you are buying, but an event choice is a gamble — the
+     *                    flavour line, the outcome code and its value all describe
+     *                    the result, so none of them leave the server until the
+     *                    choice is made and the outcome popup reports it.
+     */
+    private Map<String, Object> serializeOptionStop(SiegeRun run, List<CampOption> options, String note,
+                                                    boolean hideOutcome) {
         Map<String, Object> out = new LinkedHashMap<>();
         if (note != null) out.put("note", note);
         List<Map<String, Object>> opts = new ArrayList<>();
         for (CampOption o : options) {
             Map<String, Object> om = new LinkedHashMap<>();
             om.put("id", o.id);
-            om.put("kind", o.kind);
+            om.put("kind", hideOutcome ? "EVENT_CHOICE" : o.kind);
             om.put("title", o.title);
-            om.put("desc", o.desc);
+            om.put("desc", hideOutcome ? null : o.desc);
             om.put("cost", o.cost);
             om.put("element", o.element == null ? null : o.element.name());
             om.put("used", o.used);
             om.put("affordable", run.getGold() >= o.cost);
-            om.put("templateIndex", o.templateIndex);
-            if ("SHOP_ITEM".equals(o.kind) && o.sieglingId != null) {
+            om.put("templateIndex", hideOutcome ? 0 : o.templateIndex);
+            if (!hideOutcome && "SHOP_ITEM".equals(o.kind) && o.sieglingId != null) {
                 om.put("item", serializeItem(content.findItem(o.sieglingId)));
             }
             opts.add(om);
