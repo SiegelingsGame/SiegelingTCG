@@ -569,14 +569,9 @@
         element: a.element, vitals: vitalsOf([a.id])
       });
       logLine(was + ' evolves into ' + evo.name + '!');
-      // The party carries the evolution out of the battle, like a real run.
-      M.party.forEach(function (p) {
-        if (p.id !== a.id) return;
-        p.name = a.name; p.sourceCardId = a.sourceCardId; p.artUrl = a.artUrl;
-        p.maxHp = a.maxHp; p.hp = a.hp; p.speed = a.speed;
-        p.effectiveSpeed = a.speed; p.evoStage = 1; p.hasEvolution = false; p.evolvesTo = null;
-        p.evoGauge = 0; p.evoReady = false; p.apSpent = 0;
-      });
+      // Deliberately NOT written back to M.party: evolution lasts the battle
+      // and no longer (SiegeCombatEngine#clearBattleBuffs). An equipped
+      // Evolution Sigil is what re-applies it at the start of every fight.
     });
     if (!evolved) {
       logLine(M.knight.name + ' calls the muster, but no Siegeling can evolve.');
@@ -665,6 +660,17 @@
 
   /** Battle over → XP, a level-up pick, spoils, and a Siegeling asking to join. */
   function battleSpoils() {
+    // Battle over: the party keeps its base form and carries the damage home,
+    // exactly as clearBattleBuffs does — evolution does not survive the fight.
+    if (M.battle) {
+      M.battle.allies.forEach(function (a) {
+        M.party.forEach(function (p) {
+          if (p.id !== a.id) return;
+          p.hp = Math.min(p.maxHp, a.hp);
+          p.alive = a.alive;
+        });
+      });
+    }
     M.battle = null;
     M.gold += 48;
     M.stats.goldEarned += 48;
@@ -1146,7 +1152,8 @@
         until: function () { return flags.ulted; },
         skipIf: function () { return !M.battle; } },
       { id: 'evolved', title: 'Evolution', target: '#allyRow',
-        body: 'That is an <b>evolution</b>: a Siegeling becomes its next form, with more HP and a stronger kit, and it stays evolved for the rest of the run. Normally you earn it by spending AP on that Siegeling until its gauge fills — ' + esc(knightName()) + '\'s Ultimate simply skips the wait.',
+        body: 'That is an <b>evolution</b>: a Siegeling becomes its next form, with more HP and a stronger kit. It holds <b>until the end of this battle</b> — afterwards it returns to its base form, keeping the damage it took.' +
+          '<br><br>Normally you earn it mid-fight by spending AP on that Siegeling until its 🌟 gauge fills; ' + esc(knightName()) + '\'s Ultimate skips the wait. To have a Siegeling fight <em>every</em> battle in its evolved form, equip it an <b>Evolution Sigil</b> — an item that evolves it the moment battle begins.',
         skipIf: function () { return !flags.ulted; } },
       { id: 'finish', title: 'Finish the fight', target: '#handRow',
         body: 'Play out the rest of the fight — attack, end turn, repeat — until both shades are down.',
