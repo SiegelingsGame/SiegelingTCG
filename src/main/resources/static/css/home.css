@@ -2032,7 +2032,7 @@ select.search-input { color-scheme: dark; }
     min-height: 118px;
     flex: 1 1 auto;
     border-radius: 10px;
-    background-image: var(--knight-card-back, url('/img/knights/card-back-siegeknight.png'));
+    background-image: var(--knight-card-back, url('/img/knights/card-back-siegeknight.webp'));
     background-size: cover;
     background-position: center;
 }

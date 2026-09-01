@@ -30,6 +30,47 @@
         return ELEMENT_SVG[String(element).toUpperCase()] || ELEMENT_SVG.NEUTRAL;
     }
 
+    // WebP delivery (self-contained; the landing page loads neither game.js nor
+    // card-binder-visual.js). The legendary art is the heaviest thing here —
+    // ~2.5 MB as PNG against ~0.5 MB as WebP — so prefer the twin and revert to
+    // the original on any load error.
+    let __landingWebp = null;
+    function landingWebpSupported() {
+        if (__landingWebp !== null) {
+            return __landingWebp;
+        }
+        try {
+            const c = document.createElement('canvas');
+            __landingWebp = !!(c.getContext && c.getContext('2d'))
+                && c.toDataURL('image/webp').indexOf('data:image/webp') === 0;
+        } catch (e) {
+            __landingWebp = false;
+        }
+        return __landingWebp;
+    }
+    function landingImgAttrs(url) {
+        const original = String(url || '');
+        const preferred = landingWebpSupported()
+            ? original.replace(/^(\/(?:img|assets)\/[^?#]+)\.(png|jpe?g)(\?[^#]*)?$/i, '$1.webp$3')
+            : original;
+        if (preferred === original) {
+            return `src="${escapeAttr(original)}"`;
+        }
+        return `src="${escapeAttr(preferred)}" data-img-fallback="${escapeAttr(original)}" onerror="landingWebpFallback(this)"`;
+    }
+    if (typeof window !== 'undefined' && !window.landingWebpFallback) {
+        window.landingWebpFallback = function (img) {
+            if (!img) {
+                return;
+            }
+            const fallback = img.getAttribute('data-img-fallback');
+            img.onerror = null;
+            if (fallback && img.getAttribute('src') !== fallback) {
+                img.setAttribute('src', fallback);
+            }
+        };
+    }
+
     const FEATURED_SIEGELINGS = [
         { name: 'Pylord',       element: 'FIRE',  art: '/img/legendary/legendary-fire.png',  model: '/assets/models/Model_Pylord.fbx', description: 'A crown-forged fire titan that turns every linked ember into a decisive opening.' },
         { name: 'Glaciemperor', element: 'ICE',   art: '/img/legendary/legendary-ice.png',   model: '/assets/models/Model_Glaciemperor.fbx', description: 'An ancient ruler of the frostbound reaches, patient enough to freeze an entire board in place.' },
@@ -128,7 +169,7 @@
             host.style.setProperty('--roster-glow', `var(--element-${element}-glow, rgba(92, 205, 255, .38))`);
             host.innerHTML = `
                 <article class="roster-slide" aria-live="polite">
-                    <div class="roster-slide-art"><img src="${escapeAttr(entry.art)}" alt="${escapeAttr(entry.name)}, ${escapeAttr(entry.element)} Siegling" loading="eager"></div>
+                    <div class="roster-slide-art"><img ${landingImgAttrs(entry.art)} alt="${escapeAttr(entry.name)}, ${escapeAttr(entry.element)} Siegling" loading="eager"></div>
                     <div class="roster-slide-copy">
                         <span class="roster-element">Siegling · ${escapeHtml(entry.element)}</span>
                         <h3>${escapeHtml(entry.name)}</h3>
@@ -171,7 +212,7 @@
                     <div class="featured-slide-art featured-model-card" data-element="${escapeAttr(element)}" data-model="${escapeAttr(entry.model || '')}">
                         <div class="featured-model-viewport" data-model-viewport data-active-element="${escapeAttr(element)}">
                             <canvas aria-label="Animated ${escapeAttr(entry.name)} model viewport"></canvas>
-                            <img class="featured-model-poster" src="${escapeAttr(entry.art)}" alt="${escapeAttr(entry.name)}, legendary ${escapeAttr(entry.element)} Siegling" loading="eager">
+                            <img class="featured-model-poster" ${landingImgAttrs(entry.art)} alt="${escapeAttr(entry.name)}, legendary ${escapeAttr(entry.element)} Siegling" loading="eager">
                             <div class="legendary-loading">Summoning model</div>
                         </div>
                     </div>

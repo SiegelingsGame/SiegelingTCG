@@ -1767,7 +1767,7 @@ body:has(.welcome-overlay.visible) .safe-hp-strip {
     inset: 0;
     z-index: 3;
     pointer-events: none;
-    background-image: var(--knight-card-template, url('/img/knights/siegeknight-card-template.png'));
+    background-image: var(--knight-card-template, url('/img/knights/siegeknight-card-template.webp'));
     background-size: 100% 100%;
     background-repeat: no-repeat;
 }
@@ -7607,7 +7607,7 @@ body.placement-active .board-cell.legal {
 }
 
 /* ── Hand-drawn element frames ──────────────────────────────────────────
-   Painted template PNGs (img/frames/frame-*.png) replace the CSS-drawn
+   Painted template PNGs (img/frames/frame-*.webp) replace the CSS-drawn
    chrome on battle-board cards for elements listed in game.js
    ELEMENT_FRAME_CLASS. The overlay geometry (notch centers, info-panel
    rect, art window) is measured from the template pixels with
@@ -7627,19 +7627,19 @@ body.placement-active .board-cell.legal {
 }
 
 .board-card.arena-board-card.element-frame.frame-fire {
-    background: url('/img/frames/frame-fire-common.png') center / 100% 100% no-repeat;
+    background: url('/img/frames/frame-fire-common.webp') center / 100% 100% no-repeat;
 }
 
 .board-card.arena-board-card.element-frame.frame-earth {
-    background: url('/img/frames/frame-earth-common.png') center / 100% 100% no-repeat;
+    background: url('/img/frames/frame-earth-common.webp') center / 100% 100% no-repeat;
 }
 
 .board-card.arena-board-card.element-frame.frame-ice {
-    background: url('/img/frames/frame-ice-common.png') center / 100% 100% no-repeat;
+    background: url('/img/frames/frame-ice-common.webp') center / 100% 100% no-repeat;
 }
 
 .board-card.arena-board-card.element-frame.frame-wind {
-    background: url('/img/frames/frame-wind-common.png') center / 100% 100% no-repeat;
+    background: url('/img/frames/frame-wind-common.webp') center / 100% 100% no-repeat;
 }
 
 .board-card.arena-board-card.element-frame .hand-card-shell.arena-board-shell {
@@ -8586,19 +8586,19 @@ body.placement-active .board-cell.legal {
 }
 
 :is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame.frame-fire {
-    background: url('/img/frames/frame-fire-common.png') center / 100% 100% no-repeat;
+    background: url('/img/frames/frame-fire-common.webp') center / 100% 100% no-repeat;
 }
 
 :is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame.frame-earth {
-    background: url('/img/frames/frame-earth-common.png') center / 100% 100% no-repeat;
+    background: url('/img/frames/frame-earth-common.webp') center / 100% 100% no-repeat;
 }
 
 :is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame.frame-ice {
-    background: url('/img/frames/frame-ice-common.png') center / 100% 100% no-repeat;
+    background: url('/img/frames/frame-ice-common.webp') center / 100% 100% no-repeat;
 }
 
 :is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame.frame-wind {
-    background: url('/img/frames/frame-wind-common.png') center / 100% 100% no-repeat;
+    background: url('/img/frames/frame-wind-common.webp') center / 100% 100% no-repeat;
 }
 
 :is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .hand-card-shell {
@@ -8735,151 +8735,151 @@ body.placement-active .board-cell.legal {
 .selected-preview-card.element-frame.frame-fire,
 .mulligan-showcase.element-frame.frame-fire,
 .mulligan-card-slot .hand-card.mulligan-showcase.element-frame.frame-fire {
-    background: url('/img/frames/frame-fire-common.png') center / 100% 100% no-repeat;
+    background: url('/img/frames/frame-fire-common.webp') center / 100% 100% no-repeat;
 }
 
 .card-preview-card.element-frame.frame-earth,
 .selected-preview-card.element-frame.frame-earth,
 .mulligan-showcase.element-frame.frame-earth,
 .mulligan-card-slot .hand-card.mulligan-showcase.element-frame.frame-earth {
-    background: url('/img/frames/frame-earth-common.png') center / 100% 100% no-repeat;
+    background: url('/img/frames/frame-earth-common.webp') center / 100% 100% no-repeat;
 }
 
 .card-preview-card.element-frame.frame-ice,
 .selected-preview-card.element-frame.frame-ice,
 .mulligan-showcase.element-frame.frame-ice,
 .mulligan-card-slot .hand-card.mulligan-showcase.element-frame.frame-ice {
-    background: url('/img/frames/frame-ice-common.png') center / 100% 100% no-repeat;
+    background: url('/img/frames/frame-ice-common.webp') center / 100% 100% no-repeat;
 }
 
 .card-preview-card.element-frame.frame-wind,
 .selected-preview-card.element-frame.frame-wind,
 .mulligan-showcase.element-frame.frame-wind,
 .mulligan-card-slot .hand-card.mulligan-showcase.element-frame.frame-wind {
-    background: url('/img/frames/frame-wind-common.png') center / 100% 100% no-repeat;
+    background: url('/img/frames/frame-wind-common.webp') center / 100% 100% no-repeat;
 }
 
 /* Siegeling painted frames now use paired element art and rarity-colored rails.
    These rules intentionally apply to every Siegeling card surface that carries
    .element-frame: board cards, hand cards, previews, mulligan, and binder tiles. */
 .element-frame.frame-fire-metal.frame-rarity-common {
-    background: url('/img/frames/frame-fire-metal-common.png') center / 100% 100% no-repeat !important;
+    background: url('/img/frames/frame-fire-metal-common.webp') center / 100% 100% no-repeat !important;
 }
 
 .element-frame.frame-fire-metal.frame-rarity-uncommon {
-    background: url('/img/frames/frame-fire-metal-uncommon.png') center / 100% 100% no-repeat !important;
+    background: url('/img/frames/frame-fire-metal-uncommon.webp') center / 100% 100% no-repeat !important;
 }
 
 .element-frame.frame-fire-metal.frame-rarity-rare {
-    background: url('/img/frames/frame-fire-metal-rare.png') center / 100% 100% no-repeat !important;
+    background: url('/img/frames/frame-fire-metal-rare.webp') center / 100% 100% no-repeat !important;
 }
 
 .element-frame.frame-fire-metal.frame-rarity-epic {
-    background: url('/img/frames/frame-fire-metal-epic.png') center / 100% 100% no-repeat !important;
+    background: url('/img/frames/frame-fire-metal-epic.webp') center / 100% 100% no-repeat !important;
 }
 
 .element-frame.frame-fire-metal.frame-rarity-legendary {
-    background: url('/img/frames/frame-fire-metal-legendary.png') center / 100% 100% no-repeat !important;
+    background: url('/img/frames/frame-fire-metal-legendary.webp') center / 100% 100% no-repeat !important;
 }
 
 .element-frame.frame-earth.frame-rarity-common {
-    background: url('/img/frames/frame-earth-common.png') center / 100% 100% no-repeat !important;
+    background: url('/img/frames/frame-earth-common.webp') center / 100% 100% no-repeat !important;
 }
 
 .element-frame.frame-earth.frame-rarity-uncommon {
-    background: url('/img/frames/frame-earth-uncommon.png') center / 100% 100% no-repeat !important;
+    background: url('/img/frames/frame-earth-uncommon.webp') center / 100% 100% no-repeat !important;
 }
 
 .element-frame.frame-earth.frame-rarity-rare {
-    background: url('/img/frames/frame-earth-rare.png') center / 100% 100% no-repeat !important;
+    background: url('/img/frames/frame-earth-rare.webp') center / 100% 100% no-repeat !important;
 }
 
 .element-frame.frame-earth.frame-rarity-epic {
-    background: url('/img/frames/frame-earth-epic.png') center / 100% 100% no-repeat !important;
+    background: url('/img/frames/frame-earth-epic.webp') center / 100% 100% no-repeat !important;
 }
 
 .element-frame.frame-earth.frame-rarity-legendary {
-    background: url('/img/frames/frame-earth-legendary.png') center / 100% 100% no-repeat !important;
+    background: url('/img/frames/frame-earth-legendary.webp') center / 100% 100% no-repeat !important;
 }
 
 .element-frame.frame-psychic.frame-rarity-common {
-    background: url('/img/frames/frame-psychic-common.png') center / 100% 100% no-repeat !important;
+    background: url('/img/frames/frame-psychic-common.webp') center / 100% 100% no-repeat !important;
 }
 
 .element-frame.frame-psychic.frame-rarity-uncommon {
-    background: url('/img/frames/frame-psychic-uncommon.png') center / 100% 100% no-repeat !important;
+    background: url('/img/frames/frame-psychic-uncommon.webp') center / 100% 100% no-repeat !important;
 }
 
 .element-frame.frame-psychic.frame-rarity-rare {
-    background: url('/img/frames/frame-psychic-rare.png') center / 100% 100% no-repeat !important;
+    background: url('/img/frames/frame-psychic-rare.webp') center / 100% 100% no-repeat !important;
 }
 
 .element-frame.frame-psychic.frame-rarity-epic {
-    background: url('/img/frames/frame-psychic-epic.png') center / 100% 100% no-repeat !important;
+    background: url('/img/frames/frame-psychic-epic.webp') center / 100% 100% no-repeat !important;
 }
 
 .element-frame.frame-psychic.frame-rarity-legendary {
-    background: url('/img/frames/frame-psychic-legendary.png') center / 100% 100% no-repeat !important;
+    background: url('/img/frames/frame-psychic-legendary.webp') center / 100% 100% no-repeat !important;
 }
 
 .element-frame.frame-earth-psychic.frame-rarity-common {
-    background: url('/img/frames/frame-earth-psychic-common.png') center / 100% 100% no-repeat !important;
+    background: url('/img/frames/frame-earth-psychic-common.webp') center / 100% 100% no-repeat !important;
 }
 
 .element-frame.frame-earth-psychic.frame-rarity-uncommon {
-    background: url('/img/frames/frame-earth-psychic-uncommon.png') center / 100% 100% no-repeat !important;
+    background: url('/img/frames/frame-earth-psychic-uncommon.webp') center / 100% 100% no-repeat !important;
 }
 
 .element-frame.frame-earth-psychic.frame-rarity-rare {
-    background: url('/img/frames/frame-earth-psychic-rare.png') center / 100% 100% no-repeat !important;
+    background: url('/img/frames/frame-earth-psychic-rare.webp') center / 100% 100% no-repeat !important;
 }
 
 .element-frame.frame-earth-psychic.frame-rarity-epic {
-    background: url('/img/frames/frame-earth-psychic-epic.png') center / 100% 100% no-repeat !important;
+    background: url('/img/frames/frame-earth-psychic-epic.webp') center / 100% 100% no-repeat !important;
 }
 
 .element-frame.frame-earth-psychic.frame-rarity-legendary {
-    background: url('/img/frames/frame-earth-psychic-legendary.png') center / 100% 100% no-repeat !important;
+    background: url('/img/frames/frame-earth-psychic-legendary.webp') center / 100% 100% no-repeat !important;
 }
 
 .element-frame.frame-air-electric.frame-rarity-common {
-    background: url('/img/frames/frame-air-electric-common.png') center / 100% 100% no-repeat !important;
+    background: url('/img/frames/frame-air-electric-common.webp') center / 100% 100% no-repeat !important;
 }
 
 .element-frame.frame-air-electric.frame-rarity-uncommon {
-    background: url('/img/frames/frame-air-electric-uncommon.png') center / 100% 100% no-repeat !important;
+    background: url('/img/frames/frame-air-electric-uncommon.webp') center / 100% 100% no-repeat !important;
 }
 
 .element-frame.frame-air-electric.frame-rarity-rare {
-    background: url('/img/frames/frame-air-electric-rare.png') center / 100% 100% no-repeat !important;
+    background: url('/img/frames/frame-air-electric-rare.webp') center / 100% 100% no-repeat !important;
 }
 
 .element-frame.frame-air-electric.frame-rarity-epic {
-    background: url('/img/frames/frame-air-electric-epic.png') center / 100% 100% no-repeat !important;
+    background: url('/img/frames/frame-air-electric-epic.webp') center / 100% 100% no-repeat !important;
 }
 
 .element-frame.frame-air-electric.frame-rarity-legendary {
-    background: url('/img/frames/frame-air-electric-legendary.png') center / 100% 100% no-repeat !important;
+    background: url('/img/frames/frame-air-electric-legendary.webp') center / 100% 100% no-repeat !important;
 }
 
 .element-frame.frame-ice-water.frame-rarity-common {
-    background: url('/img/frames/frame-ice-water-common.png') center / 100% 100% no-repeat !important;
+    background: url('/img/frames/frame-ice-water-common.webp') center / 100% 100% no-repeat !important;
 }
 
 .element-frame.frame-ice-water.frame-rarity-uncommon {
-    background: url('/img/frames/frame-ice-water-uncommon.png') center / 100% 100% no-repeat !important;
+    background: url('/img/frames/frame-ice-water-uncommon.webp') center / 100% 100% no-repeat !important;
 }
 
 .element-frame.frame-ice-water.frame-rarity-rare {
-    background: url('/img/frames/frame-ice-water-rare.png') center / 100% 100% no-repeat !important;
+    background: url('/img/frames/frame-ice-water-rare.webp') center / 100% 100% no-repeat !important;
 }
 
 .element-frame.frame-ice-water.frame-rarity-epic {
-    background: url('/img/frames/frame-ice-water-epic.png') center / 100% 100% no-repeat !important;
+    background: url('/img/frames/frame-ice-water-epic.webp') center / 100% 100% no-repeat !important;
 }
 
 .element-frame.frame-ice-water.frame-rarity-legendary {
-    background: url('/img/frames/frame-ice-water-legendary.png') center / 100% 100% no-repeat !important;
+    background: url('/img/frames/frame-ice-water-legendary.webp') center / 100% 100% no-repeat !important;
 }
 
 .card-preview-card.element-frame .hand-card-shell,
@@ -9377,39 +9377,39 @@ body.placement-active .board-cell.legal {
 }
 
 .hand-card.spell-trap-frame.frame-spell-fire {
-    --spell-trap-frame-url: url('/img/frames/frame-spell-fire.png');
+    --spell-trap-frame-url: url('/img/frames/frame-spell-fire.webp');
 }
 
 .hand-card.spell-trap-frame.frame-spell-earth {
-    --spell-trap-frame-url: url('/img/frames/frame-spell-earth.png');
+    --spell-trap-frame-url: url('/img/frames/frame-spell-earth.webp');
 }
 
 .hand-card.spell-trap-frame.frame-spell-ice {
-    --spell-trap-frame-url: url('/img/frames/frame-spell-ice.png');
+    --spell-trap-frame-url: url('/img/frames/frame-spell-ice.webp');
 }
 
 .hand-card.spell-trap-frame.frame-spell-wind {
-    --spell-trap-frame-url: url('/img/frames/frame-spell-wind.png');
+    --spell-trap-frame-url: url('/img/frames/frame-spell-wind.webp');
 }
 
 .hand-card.spell-trap-frame.frame-spell-water {
-    --spell-trap-frame-url: url('/img/frames/frame-spell-water.png');
+    --spell-trap-frame-url: url('/img/frames/frame-spell-water.webp');
 }
 
 .hand-card.spell-trap-frame.frame-spell-electric {
-    --spell-trap-frame-url: url('/img/frames/frame-spell-electric.png');
+    --spell-trap-frame-url: url('/img/frames/frame-spell-electric.webp');
 }
 
 .hand-card.spell-trap-frame.frame-spell-metal {
-    --spell-trap-frame-url: url('/img/frames/frame-spell-metal.png');
+    --spell-trap-frame-url: url('/img/frames/frame-spell-metal.webp');
 }
 
 .hand-card.spell-trap-frame.frame-spell-psychic {
-    --spell-trap-frame-url: url('/img/frames/frame-spell-psychic.png');
+    --spell-trap-frame-url: url('/img/frames/frame-spell-psychic.webp');
 }
 
 .hand-card.spell-trap-frame.frame-spell-neutral {
-    --spell-trap-frame-url: url('/img/frames/frame-spell-neutral.png');
+    --spell-trap-frame-url: url('/img/frames/frame-spell-neutral.webp');
 }
 
 .hand-card.spell-trap-frame::after {
@@ -9479,7 +9479,7 @@ body.placement-active .board-cell.legal {
 .hand-card.spell-trap-frame.card-type-spell .card-art-selected {
     background-image:
         linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(5, 8, 18, 0.16)),
-        url('/img/packs/spell-card-back.png') !important;
+        url('/img/packs/spell-card-back.webp') !important;
 }
 
 .hand-card.spell-trap-frame.card-type-trap .card-art-hand,
@@ -9487,7 +9487,7 @@ body.placement-active .board-cell.legal {
 .hand-card.spell-trap-frame.card-type-trap .card-art-selected {
     background-image:
         linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(5, 8, 18, 0.16)),
-        url('/img/packs/trap-card-back.png') !important;
+        url('/img/packs/trap-card-back.webp') !important;
 }
 
 .hand-card.spell-trap-frame .card-art-fallback span {
@@ -11699,7 +11699,7 @@ body.placement-active .board-cell.legal {
 .knight-card-portrait.has-knight-back,
 .preview-knight-icon.has-knight-back,
 .hud-knight-portrait.has-knight-back {
-    background-image: var(--knight-card-back, url('/img/knights/card-back-siegeknight.png'));
+    background-image: var(--knight-card-back, url('/img/knights/card-back-siegeknight.webp'));
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
@@ -12439,7 +12439,7 @@ body.placement-active .board-cell.legal {
     border-radius: 0;
     background-image:
         linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(3, 5, 14, 0.16)),
-        var(--knight-card-back, url('/img/knights/card-back-siegeknight.png'));
+        var(--knight-card-back, url('/img/knights/card-back-siegeknight.webp'));
     background-size: cover;
     background-position: center top;
     background-repeat: no-repeat;
@@ -12451,7 +12451,7 @@ body.placement-active .board-cell.legal {
     inset: 0;
     z-index: 3;
     pointer-events: none;
-    background-image: var(--knight-card-template, url('/img/knights/siegeknight-card-template.png'));
+    background-image: var(--knight-card-template, url('/img/knights/siegeknight-card-template.webp'));
     background-size: 100% 100%;
     background-repeat: no-repeat;
 }
