@@ -34,6 +34,7 @@
   var shown = 0;         // steps actually rendered, for the "Step N of T" counter
   var total = 0;
   var flags = null;      // things the coach waits on that state alone cannot show
+  var visited = null;    // step ids the coach has actually rendered, for fork routing
 
   function $(id) { return document.getElementById(id); }
   function el(tag, cls, html) {
@@ -1055,6 +1056,21 @@
 
   // ---- the coach script ---------------------------------------------------
 
+  /* Which lane of a fork to teach next. The screen the player actually landed
+   * on wins; when they clicked the tip through instead of travelling, fall back
+   * to whichever lane the coach has not shown yet — routing on "did the action
+   * happen" instead would loop forever on a click-through. */
+  function lane1() {
+    if (screenIs('campScreen')) return 'camp-a';
+    if (screenIs('caravanScreen')) return 'caravan-a';
+    return visited['camp-a'] ? 'caravan-a' : 'camp-a';
+  }
+  function lane2() {
+    if (screenIs('brokerScreen')) return 'broker-a';
+    if (screenIs('smithScreen')) return 'smith-a';
+    return visited['broker-a'] ? 'smith-a' : 'broker-a';
+  }
+
   function leadName() { return M.party[0] ? M.party[0].name : 'your Siegeling'; }
   function knightName() { return M.knight.name; }
 
@@ -1070,15 +1086,15 @@
       { id: 'key', title: 'What the emblems mean', target: '#mapKeyBtn',
         body: 'Each node type has its own emblem. Tap <b>🗝️ Key</b> to read them.',
         until: function () { return !hidden('legendOverlay'); } },
-      { id: 'key-read', title: 'Read the key', target: '.legend-panel',
-        body: 'Fights, camps, caches, shops and the Siegelord all live on this list, along with what the ring around a node means. Close it when you are done.',
+      { id: 'key-read', title: 'Read the key', target: '.legend-panel', avoid: '#legendClose',
+        body: 'Fights, camps, caches, shops and the Siegelord all live on this list, along with what the ring around a node means. Close it with the ✕ when you are done.',
         until: function () { return hidden('legendOverlay'); } },
       { id: 'warband', title: 'Your warband', target: '#partyStrip',
         body: esc(knightName()) + ' is a <b>' + esc(k.passiveName) + '</b>: ' + esc(k.passive) +
           ' That is why two Siegelings stand with him. <b>Tap one</b> to read its cards.',
         until: function () { return !hidden('unitModal'); } },
-      { id: 'warband-cards', title: 'Cards come from Siegelings', target: '#unitModalCard',
-        body: 'These are the moves this Siegeling puts into the shared deck. Lose the Siegeling and its cards go dead — protecting your line is protecting your hand. Close this when you have looked.',
+      { id: 'warband-cards', title: 'Cards come from Siegelings', target: '#unitModalCard', avoid: '#unitModalClose',
+        body: 'These are the moves this Siegeling puts into the shared deck. Lose the Siegeling and its cards go dead — protecting your line is protecting your hand. Close this with the ✕ when you have looked.',
         until: function () { return hidden('unitModal'); } },
       { id: 'navigate', title: 'Navigate', target: '.map-node-g.reachable',
         body: 'A pulsing ring means you can travel there. <b>Tap the ⚔️ Ruined Gate</b> to start the first fight.',
@@ -1135,7 +1151,7 @@
       { id: 'branch-1', title: 'The path forks', target: '#mapSvg',
         body: 'Two routes open out of the gate, and you may only walk one. <b>In this tutorial both lanes reach the same two stops in the opposite order</b>, so you will see everything either way — in a real run they hold different things, and choosing is the game. <b>Tap either node.</b>',
         until: function () { return screenIs('campScreen') || screenIs('caravanScreen'); } },
-      { id: 'branch-1-route', route: function () { return screenIs('campScreen') ? 'camp-a' : 'caravan-a'; } },
+      { id: 'branch-1-route', route: function () { return lane1(); } },
 
       { id: 'camp-a', title: 'Resting', target: '#campGrid',
         body: 'A camp gives one free <b>Rest</b> (healing the whole warband) plus a trader and a broker behind their own menus. Shopping does not spend the rest. <b>Take the rest.</b>',
@@ -1162,19 +1178,19 @@
         until: function () { return hidden('invOverlay'); }, next: 'stop-1-done' },
 
       { id: 'stop-1-done', route: function () {
-        return (flags.camped && flags.bought) ? 'branch-2' : 'other-lane-1';
+        return (visited['camp-a'] && visited['caravan-a']) ? 'branch-2' : 'other-lane-1';
       } },
       { id: 'other-lane-1', title: 'The other lane', target: '.map-node-g.reachable',
         body: 'This lane rejoins the other one — the stop ahead is the type you did not just visit. <b>Travel there.</b>',
         until: function () { return screenIs('campScreen') || screenIs('caravanScreen'); },
         next: 'other-lane-1-route' },
-      { id: 'other-lane-1-route', route: function () { return screenIs('campScreen') ? 'camp-a' : 'caravan-a'; } },
+      { id: 'other-lane-1-route', route: function () { return lane1(); } },
 
       // ---- second branch ---------------------------------------------------
       { id: 'branch-2', title: 'Another fork', target: '#mapSvg',
         body: 'The path splits again, this time between a <b>🐾 broker</b> and a <b>🔨 smith</b>. Same deal: both lanes visit both, in opposite order. <b>Pick one.</b>',
         until: function () { return screenIs('brokerScreen') || screenIs('smithScreen'); } },
-      { id: 'branch-2-route', route: function () { return screenIs('brokerScreen') ? 'broker-a' : 'smith-a'; } },
+      { id: 'branch-2-route', route: function () { return lane2(); } },
 
       { id: 'broker-a', title: 'Renting', target: '#brokerGrid',
         body: 'The broker sells two different things. <b>Hire</b> adds a Siegeling to the warband permanently. <b>Rent</b> takes a mercenary who fights your <em>next battle only</em>, then leaves — cheap muscle for a fight you expect to be ugly. <b>Rent the mercenary.</b>',
@@ -1188,13 +1204,13 @@
         until: function () { return screenIs('mapScreen'); }, next: 'stop-2-done' },
 
       { id: 'stop-2-done', route: function () {
-        return (flags.rented && flags.smithed) ? 'cache-a' : 'other-lane-2';
+        return (visited['broker-a'] && visited['smith-a']) ? 'cache-a' : 'other-lane-2';
       } },
       { id: 'other-lane-2', title: 'The other lane', target: '.map-node-g.reachable',
         body: 'And this lane carries the stop you skipped. <b>Travel there.</b>',
         until: function () { return screenIs('brokerScreen') || screenIs('smithScreen'); },
         next: 'other-lane-2-route' },
-      { id: 'other-lane-2-route', route: function () { return screenIs('brokerScreen') ? 'broker-a' : 'smith-a'; } },
+      { id: 'other-lane-2-route', route: function () { return lane2(); } },
 
       // ---- the shared tail --------------------------------------------------
       { id: 'cache-a', title: 'The cache', target: '.map-node-g.reachable',
@@ -1238,8 +1254,14 @@
     cardEl.addEventListener('click', function (e) {
       var btn = e.target.closest ? e.target.closest('button') : null;
       if (!btn) return;
-      if (btn.classList.contains('tut-next')) advance();
-      else if (btn.classList.contains('tut-quit')) stop();
+      if (btn.classList.contains('tut-next')) {
+        if (btn.getAttribute('data-detour')) {
+          var cont = $('interactionResultBtn');
+          if (cont) cont.click();
+          return;
+        }
+        advance();
+      } else if (btn.classList.contains('tut-quit')) stop();
     });
   }
 
@@ -1275,6 +1297,7 @@
       break;
     }
     if (idx < 0 || idx >= STEPS.length) { stop(); return; }
+    if (STEPS[idx].id) visited[STEPS[idx].id] = true;
     shown++;
     lastRect = '';
     renderedKey = idx + (detour() ? '|detour' : '|step');
@@ -1298,9 +1321,11 @@
     var det = detour();
     var s = det || current();
     if (!s) return;
-    // A detour never carries its own Next button: advancing is still the real
-    // step's job, and the popup it describes has to be dismissed first.
-    var waiting = !!det || !!s.until;
+    // EVERY tip carries a button. A step that waits on an action still advances
+    // itself when the player performs it, but they must never be able to end up
+    // with a card on screen and no way past it — which is exactly what happened
+    // when a tall overlay put its own close control behind this card.
+    var label = s.finish ? 'Finish' : 'Got it ▸';
     cardEl.innerHTML =
       '<div class="tut-head">' +
         '<span class="tut-kicker">' + esc(s.kicker || ('Step ' + shown + ' of ' + total)) + '</span>' +
@@ -1309,9 +1334,10 @@
       '<h3 class="tut-title">' + esc(s.title) + '</h3>' +
       '<p class="tut-body">' + s.body + '</p>' +
       '<div class="tut-foot">' +
-        (waiting
-          ? '<span class="tut-wait">Your move ▸</span>'
-          : '<button class="tut-next" type="button">' + (s.finish ? 'Finish' : 'Got it ▸') + '</button>') +
+        (s.until && !det ? '<span class="tut-wait">Waiting for you</span>' : '') +
+        // On a detour the button dismisses the popup it is describing, rather
+        // than advancing a step the player has not reached the end of.
+        '<button class="tut-next" type="button"' + (det ? ' data-detour="1"' : '') + '>' + label + '</button>' +
       '</div>';
     position();
   }
@@ -1364,15 +1390,39 @@
     ringEl.style.width = Math.min(vw - 4, r.width + pad * 2) + 'px';
     ringEl.style.height = Math.min(vh - 4, r.height + pad * 2) + 'px';
 
-    // Sit on whichever side of the highlight the card actually fits, so it
-    // never covers the thing the player has to tap. When neither side has room
-    // — a target as tall as the map — hug the roomier one and stay fully on
-    // screen, which the clamp in place() guarantees.
+    // Sit on whichever side of the highlight the card actually fits. When
+    // neither side has room — a target as tall as the map key — the card has to
+    // overlap it, and then WHICH side matters: an overlay carries its close
+    // button at the top, so hugging the top buried the only control that could
+    // dismiss it. A step names that control with `avoid` and the card takes the
+    // first placement that clears it.
     var below = (vh - safe.bottom) - r.bottom;
     var above = r.top - safe.top;
-    if (below >= h + gap) place(r.bottom + gap);
-    else if (above >= h + gap) place(r.top - gap - h);
-    else place(below >= above ? maxTop : minTop);
+    var roomier = below >= above;
+    var options = [];
+    if (below >= h + gap) options.push(r.bottom + gap);
+    if (above >= h + gap) options.push(r.top - gap - h);
+    options.push(roomier ? maxTop : minTop);
+    options.push(roomier ? minTop : maxTop);
+
+    var keepClear = s && s.avoid ? rectOf(s.avoid) : null;
+    for (var i = 0; i < options.length; i++) {
+      var top = Math.max(minTop, Math.min(maxTop, options[i]));
+      if (!keepClear || top + h <= keepClear.top || top >= keepClear.bottom) {
+        place(top);
+        return;
+      }
+    }
+    place(options[0]);
+  }
+
+  /** Rect of a selector, or null — used for the control a card must not cover. */
+  function rectOf(sel) {
+    var n = null;
+    try { n = document.querySelector(sel); } catch (e) { return null; }
+    if (!n || !n.getBoundingClientRect) return null;
+    var r = n.getBoundingClientRect();
+    return (r.width || r.height) ? r : null;
   }
 
   function tick() {
@@ -1405,6 +1455,7 @@
       played: 0, dug: 0, ulted: false, claimed: false, rewarded: false, camped: false,
       bought: false, equipped: false, rented: false, smithed: false, reachedBoss: false
     };
+    visited = {};
     STEPS = buildSteps();
     total = STEPS.filter(function (s) { return !s.route; }).length;
     idx = -1;
