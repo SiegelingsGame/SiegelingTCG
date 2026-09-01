@@ -32,6 +32,7 @@
   var STEPS = null;
   var idx = -1;
   var shown = 0;         // steps actually rendered, for the "Step N of T" counter
+  var collapsed = false; // a read tip shrinks to a one-line hint so the play area is clear
   var total = 0;
   var flags = null;      // things the coach waits on that state alone cannot show
   var visited = null;    // step ids the coach has actually rendered, for fork routing
@@ -1109,20 +1110,20 @@
           '. Nothing here touches your account: no gold spent, no saves written. I will walk you to every kind of stop on the map.' },
       { id: 'map', title: 'The expedition map', target: '#mapSvg',
         body: 'A Siege run is a branching path read bottom to top. You travel one node at a time, and every node you clear is gone for good — the route you pick <em>is</em> the run.' },
-      { id: 'key', title: 'What the emblems mean', target: '#mapKeyBtn',
+      { id: 'key', hint: 'Tap <b>🗝️ Key</b>', title: 'What the emblems mean', target: '#mapKeyBtn',
         body: 'Each node type has its own emblem. Tap <b>🗝️ Key</b> to read them.',
         until: function () { return !hidden('legendOverlay'); } },
-      { id: 'key-read', title: 'Read the key', target: '.legend-panel', avoid: '#legendClose',
+      { id: 'key-read', hint: 'Close the key with <b>✕</b>', title: 'Read the key', target: '.legend-panel', avoid: '#legendClose',
         body: 'Fights, camps, caches, shops and the Siegelord all live on this list, along with what the ring around a node means. Close it with the ✕ when you are done.',
         until: function () { return hidden('legendOverlay'); } },
-      { id: 'warband', title: 'Your warband', target: '#partyStrip',
+      { id: 'warband', hint: 'Tap a <b>Siegeling</b>', title: 'Your warband', target: '#partyStrip',
         body: esc(knightName()) + ' is a <b>' + esc(k.passiveName) + '</b>: ' + esc(k.passive) +
           ' That is why two Siegelings stand with him. <b>Tap one</b> to read its cards.',
         until: function () { return !hidden('unitModal'); } },
-      { id: 'warband-cards', title: 'Cards come from Siegelings', target: '#unitModalCard', avoid: '#unitModalClose',
+      { id: 'warband-cards', hint: 'Close with <b>✕</b>', title: 'Cards come from Siegelings', target: '#unitModalCard', avoid: '#unitModalClose',
         body: 'These are the moves this Siegeling puts into the shared deck. Lose the Siegeling and its cards go dead — protecting your line is protecting your hand. Close this with the ✕ when you have looked.',
         until: function () { return hidden('unitModal'); } },
-      { id: 'navigate', title: 'Navigate', target: '.map-node-g.reachable',
+      { id: 'navigate', hint: 'Tap the <b>⚔️ Ruined Gate</b>', title: 'Navigate', target: '.map-node-g.reachable',
         body: 'A pulsing ring means you can travel there. <b>Tap the ⚔️ Ruined Gate</b> to start the first fight.',
         until: function () { return screenIs('battleScreen'); } },
 
@@ -1138,14 +1139,14 @@
         body: 'The fan is your hand. Each card belongs to one Siegeling — its owner is the one who swings, so buffs on that Siegeling change what the card does.' },
       { id: 'intents', title: 'Foes telegraph their attacks', target: '#enemyRow',
         body: 'These are corrupted Siegelings — <b>shades</b>. Each shows its <b>intent</b>: the move it will use and the notch it will hit. A ▼ over one of your Siegelings means that blow is aimed at it — heal it, or kill the attacker first.' },
-      { id: 'targeting', title: 'Targeting', target: '#handRow',
+      { id: 'targeting', hint: 'Drag an attack card <b>onto a foe</b>', title: 'Targeting', target: '#handRow',
         body: '<b>Drag an attack card onto a foe</b> to play it. Cards that need a target draw an arrow while you drag; drop it on the enemy you want.',
         until: function () { return flags.played > 0; } },
-      { id: 'endturn', title: 'End the turn', target: '#endTurnBtn',
+      { id: 'endturn', hint: 'Tap <b>End Turn</b>', title: 'End the turn', target: '#endTurnBtn',
         body: 'Spend what is worth spending, then <b>End Turn</b>. The foes act on the intents they showed you, and a fresh hand is dealt.' +
           '<br><br>Watch the charge bar on ' + esc(knightName()) + '\'s plate as you do. Ultimate Charge comes from three places: <b>every AP you did not spend</b> converts into it at end of turn, your Knight <b>steels +1 at the start of each turn</b> whatever you do, and <b>each Knight card you play</b> adds one more. Holding AP back is a real choice — it buys the Ultimate sooner.',
         until: function () { return M.battle && M.battle.roundNumber > 1; } },
-      { id: 'ultimate', title: 'The Ultimate', target: '#knightUltBtn',
+      { id: 'ultimate', hint: 'Tap <b>⚡ ULT!</b>', title: 'The Ultimate', target: '#knightUltBtn',
         body: 'The charge bar is full. <b>Tap ⚡ ULT!</b> — ' + esc(k.ultimateName) + ' ' +
           esc(String(k.ultimateDesc || '').charAt(0).toLowerCase() + String(k.ultimateDesc || '').slice(1)) +
           ' Watch your line when it lands.',
@@ -1155,106 +1156,106 @@
         body: 'That is an <b>evolution</b>: a Siegeling becomes its next form, with more HP and a stronger kit. It holds <b>until the end of this battle</b> — afterwards it returns to its base form, keeping the damage it took.' +
           '<br><br>Normally you earn it mid-fight by spending AP on that Siegeling until its 🌟 gauge fills; ' + esc(knightName()) + '\'s Ultimate skips the wait. To have a Siegeling fight <em>every</em> battle in its evolved form, equip it an <b>Evolution Sigil</b> — an item that evolves it the moment battle begins.',
         skipIf: function () { return !flags.ulted; } },
-      { id: 'finish', title: 'Finish the fight', target: '#handRow',
+      { id: 'finish', hint: 'Attack, <b>End Turn</b>, repeat', title: 'Finish the fight', target: '#handRow',
         body: 'Play out the rest of the fight — attack, end turn, repeat — until both shades are down.',
         until: function () { return !M.battle || M.battle.phase === 'WON'; } },
-      { id: 'spoils', title: 'Claim the spoils', target: '#handRow',
+      { id: 'spoils', hint: 'Tap <b>Claim Rewards</b>', title: 'Claim the spoils', target: '#handRow',
         body: 'Victory. Tap <b>Claim Rewards</b> to collect XP, gold and a pick.',
         until: function () { return !screenIs('battleScreen'); } },
 
-      { id: 'recruit', title: 'Claiming a Siegeling', target: '#gachaClaimBtn',
+      { id: 'recruit', hint: 'Tap <b>Claim</b>', title: 'Claiming a Siegeling', target: '#gachaClaimBtn',
         body: 'A wild Siegeling wants to join. Claiming it adds it to your warband <em>and</em> adds its moves to your shared deck. <b>Tap Claim</b>.',
         until: function () { return flags.claimed; },
         skipIf: function () { return !M.recruit && !flags.claimed; } },
-      { id: 'levelup', title: 'Level up', target: '#ampGrid',
+      { id: 'levelup', hint: 'Pick a card to <b>amplify</b>', title: 'Level up', target: '#ampGrid',
         body: 'Siegelings earn XP from every fight. A level restores health, adds max HP, and lets that Siegeling <b>amplify one of its own cards</b> permanently. <b>Pick one.</b>',
         until: function () { return !M.ampChoice; },
         skipIf: function () { return !M.ampChoice; } },
-      { id: 'reward', title: 'Choose a reward', target: '#rewardGrid',
+      { id: 'reward', hint: 'Take the <b>Emberheart Charm</b>', title: 'Choose a reward', target: '#rewardGrid',
         body: 'Now the spoils: an item to equip, a new card, or a heal. <b>Take the Emberheart Charm</b> — we will equip it shortly.',
         until: function () { return flags.rewarded; },
         skipIf: function () { return !(M.pendingRewards && M.pendingRewards.length) && !flags.rewarded; } },
 
       // ---- first branch ----------------------------------------------------
-      { id: 'branch-1', title: 'The path forks', target: '#mapSvg',
+      { id: 'branch-1', hint: 'Tap <b>either</b> node', title: 'The path forks', target: '#mapSvg',
         body: 'Two routes open out of the gate, and you may only walk one. <b>In this tutorial both lanes reach the same two stops in the opposite order</b>, so you will see everything either way — in a real run they hold different things, and choosing is the game. <b>Tap either node.</b>',
         until: function () { return screenIs('campScreen') || screenIs('caravanScreen'); } },
       { id: 'branch-1-route', route: function () { return lane1(); } },
 
-      { id: 'camp-a', title: 'Resting', target: '#campGrid',
+      { id: 'camp-a', hint: 'Take the free <b>Rest</b>', title: 'Resting', target: '#campGrid',
         body: 'A camp gives one free <b>Rest</b> (healing the whole warband) plus a trader and a broker behind their own menus. Shopping does not spend the rest. <b>Take the rest.</b>',
         until: function () { return flags.camped; }, next: 'camp-b' },
-      { id: 'camp-b', title: 'Break camp', target: '#campLeaveBtn',
+      { id: 'camp-b', hint: 'Tap <b>Break Camp</b>', title: 'Break camp', target: '#campLeaveBtn',
         body: 'Browse the trader if you like, then <b>Break Camp</b> to return to the map.',
         until: function () { return screenIs('mapScreen'); }, next: 'stop-1-done' },
 
-      { id: 'caravan-a', title: 'Purchasing', target: '#caravanGrid',
+      { id: 'caravan-a', hint: 'Buy the <b>Ironbark Ward</b>', title: 'Purchasing', target: '#caravanGrid',
         body: 'The caravan is the run\'s shop. Gold buys <b>items</b> you equip to a Siegeling, <b>cards</b> that join the shared deck, and healing. <b>Buy the Ironbark Ward.</b>',
         until: function () { return flags.bought; }, next: 'caravan-b' },
-      { id: 'caravan-b', title: 'Move on', target: '#caravanLeaveBtn',
+      { id: 'caravan-b', hint: 'Tap <b>Move On</b>', title: 'Move on', target: '#caravanLeaveBtn',
         body: 'Bought goods go straight into the backpack. <b>Move On</b> when you are done shopping.',
         until: function () { return screenIs('mapScreen'); }, next: 'equip-a' },
 
-      { id: 'equip-a', title: 'Equipping', target: '#inventoryBtn',
+      { id: 'equip-a', hint: 'Open <b>🎒 Items</b>', title: 'Equipping', target: '#inventoryBtn',
         body: 'Items do nothing in the backpack. Open <b>🎒 Items</b>.',
         until: function () { return !hidden('invOverlay'); }, next: 'equip-b' },
-      { id: 'equip-b', title: 'One item per Siegeling', target: '#invBag',
+      { id: 'equip-b', hint: 'Tap an item, then a <b>Siegeling</b>', title: 'One item per Siegeling', target: '#invBag',
         body: '<b>Tap an item in the backpack, then tap a Siegeling</b> to equip it. Each Siegeling holds one item at a time; the ✕ on a filled slot returns it to the bag. The Knight\'s Bag above holds consumables you can use here or mid-battle.',
         until: function () { return flags.equipped; }, next: 'equip-c' },
-      { id: 'equip-c', title: 'Close the bag', target: '#invClose',
+      { id: 'equip-c', hint: 'Tap <b>✕</b> to close the bag', title: 'Close the bag', target: '#invClose',
         body: 'Equipped. Close the inventory to carry on.',
         until: function () { return hidden('invOverlay'); }, next: 'stop-1-done' },
 
       { id: 'stop-1-done', route: function () {
         return (visited['camp-a'] && visited['caravan-a']) ? 'branch-2' : 'other-lane-1';
       } },
-      { id: 'other-lane-1', title: 'The other lane', target: '.map-node-g.reachable',
+      { id: 'other-lane-1', hint: 'Tap the <b>open node</b>', title: 'The other lane', target: '.map-node-g.reachable',
         body: 'This lane rejoins the other one — the stop ahead is the type you did not just visit. <b>Travel there.</b>',
         until: function () { return screenIs('campScreen') || screenIs('caravanScreen'); },
         next: 'other-lane-1-route' },
       { id: 'other-lane-1-route', route: function () { return lane1(); } },
 
       // ---- second branch ---------------------------------------------------
-      { id: 'branch-2', title: 'Another fork', target: '#mapSvg',
+      { id: 'branch-2', hint: 'Pick <b>either</b> lane', title: 'Another fork', target: '#mapSvg',
         body: 'The path splits again, this time between a <b>🐾 broker</b> and a <b>🔨 smith</b>. Same deal: both lanes visit both, in opposite order. <b>Pick one.</b>',
         until: function () { return screenIs('brokerScreen') || screenIs('smithScreen'); } },
       { id: 'branch-2-route', route: function () { return lane2(); } },
 
-      { id: 'broker-a', title: 'Renting', target: '#brokerGrid',
+      { id: 'broker-a', hint: 'Tap <b>Rent</b> on the mercenary', title: 'Renting', target: '#brokerGrid',
         body: 'The broker sells two different things. <b>Hire</b> adds a Siegeling to the warband permanently. <b>Rent</b> takes a mercenary who fights your <em>next battle only</em>, then leaves — cheap muscle for a fight you expect to be ugly. <b>Rent the mercenary.</b>',
         until: function () { return flags.rented; }, next: 'broker-b' },
-      { id: 'broker-b', title: 'Move on', target: '#brokerLeaveBtn',
+      { id: 'broker-b', hint: 'Tap <b>Move On</b>', title: 'Move on', target: '#brokerLeaveBtn',
         body: 'Your rental now stands with the warband at every stop until its battle is fought. <b>Move On.</b>',
         until: function () { return screenIs('mapScreen'); }, next: 'stop-2-done' },
 
-      { id: 'smith-a', title: 'Upgrading a card', target: '#smithGrid',
+      { id: 'smith-a', hint: 'Pick an <b>upgrade</b>', title: 'Upgrading a card', target: '#smithGrid',
         body: 'The smith permanently awakens one card in your deck into a stronger form. You can also <b>Scrap a card</b> to thin the deck so your best cards come up more often. <b>Pick an upgrade.</b>',
         until: function () { return screenIs('mapScreen'); }, next: 'stop-2-done' },
 
       { id: 'stop-2-done', route: function () {
         return (visited['broker-a'] && visited['smith-a']) ? 'cache-a' : 'other-lane-2';
       } },
-      { id: 'other-lane-2', title: 'The other lane', target: '.map-node-g.reachable',
+      { id: 'other-lane-2', hint: 'Tap the <b>open node</b>', title: 'The other lane', target: '.map-node-g.reachable',
         body: 'And this lane carries the stop you skipped. <b>Travel there.</b>',
         until: function () { return screenIs('brokerScreen') || screenIs('smithScreen'); },
         next: 'other-lane-2-route' },
       { id: 'other-lane-2-route', route: function () { return lane2(); } },
 
       // ---- the shared tail --------------------------------------------------
-      { id: 'cache-a', title: 'The cache', target: '.map-node-g.reachable',
+      { id: 'cache-a', hint: 'Travel to the <b>💎 cache</b>', title: 'The cache', target: '.map-node-g.reachable',
         body: 'The lanes have rejoined — from here there is one road. <b>Travel to the 💎 Buried Cache.</b>',
         until: function () { return screenIs('cacheScreen'); } },
-      { id: 'cache-b', title: 'Press your luck', target: '#cacheDigBtn',
+      { id: 'cache-b', hint: 'Tap <b>Dig Deeper</b>', title: 'Press your luck', target: '#cacheDigBtn',
         body: 'A cache is a gamble: every dig adds gold and raises the collapse risk on the bar. <b>Dig Deeper</b> once.',
         until: function () { return flags.dug > 0; } },
-      { id: 'cache-c', title: 'Know when to stop', target: '#cacheTakeBtn',
+      { id: 'cache-c', hint: 'Tap <b>Bank the Loot</b>', title: 'Know when to stop', target: '#cacheTakeBtn',
         body: 'Loot is unbanked until you take it — a collapse costs you everything in the shaft. <b>Bank the Loot.</b>',
         until: function () { return screenIs('mapScreen'); } },
 
-      { id: 'event-a', title: 'Events', target: '.map-node-g.reachable',
+      { id: 'event-a', hint: 'Travel to the <b>❔ stone</b>', title: 'Events', target: '.map-node-g.reachable',
         body: '<b>Travel to the ❔ Standing Stone.</b>',
         until: function () { return screenIs('eventScreen'); } },
-      { id: 'event-b', title: 'Choices with a price', target: '#eventChoices',
+      { id: 'event-b', hint: 'Choose an <b>option</b>', title: 'Choices with a price', target: '#eventChoices',
         body: 'Events trade something for something: HP for power, safety for coin. There is no wrong answer, only what the run needs. <b>Choose one.</b>',
         until: function () { return screenIs('mapScreen'); } },
 
@@ -1288,8 +1289,17 @@
           if (cont) cont.click();
           return;
         }
+        var cur = current();
+        if (cur && cur.until && !detour()) {
+          // Read it — now get out of the way and let them play.
+          collapsed = true;
+          lastRect = '';
+          renderStep();
+          return;
+        }
         advance();
-      } else if (btn.classList.contains('tut-quit')) stop();
+      } else if (btn.classList.contains('tut-skip')) advance();
+      else if (btn.classList.contains('tut-quit')) stop();
     });
   }
 
@@ -1326,6 +1336,7 @@
     }
     if (idx < 0 || idx >= STEPS.length) { stop(); return; }
     if (STEPS[idx].id) visited[STEPS[idx].id] = true;
+    collapsed = false;
     shown++;
     lastRect = '';
     renderedKey = idx + (detour() ? '|detour' : '|step');
@@ -1349,10 +1360,27 @@
     var det = detour();
     var s = det || current();
     if (!s) return;
+    var waits = !!s.until && !det;
+
+    // Second stage: the player has read the tip and now needs the screen. The
+    // card shrinks to a single line naming the tap, so it can sit clear of the
+    // hand, the camp options or whatever the step is actually about.
+    if (waits && collapsed) {
+      cardEl.className = 'tut-card is-hint';
+      cardEl.dataset.step = s.title;
+      cardEl.innerHTML =
+        '<span class="tut-hint">' + (s.hint || esc(s.title)) + '</span>' +
+        '<button class="tut-skip" type="button" title="Skip this step">Skip ▸</button>';
+      position();
+      return;
+    }
+
     // EVERY tip carries a button. A step that waits on an action still advances
     // itself when the player performs it, but they must never be able to end up
     // with a card on screen and no way past it — which is exactly what happened
     // when a tall overlay put its own close control behind this card.
+    cardEl.className = 'tut-card';
+    cardEl.dataset.step = s.title;
     var label = s.finish ? 'Finish' : 'Got it ▸';
     cardEl.innerHTML =
       '<div class="tut-head">' +
@@ -1362,7 +1390,7 @@
       '<h3 class="tut-title">' + esc(s.title) + '</h3>' +
       '<p class="tut-body">' + s.body + '</p>' +
       '<div class="tut-foot">' +
-        (s.until && !det ? '<span class="tut-wait">Waiting for you</span>' : '') +
+        (waits ? '<span class="tut-wait">Waiting for you</span>' : '') +
         // On a detour the button dismisses the popup it is describing, rather
         // than advancing a step the player has not reached the end of.
         '<button class="tut-next" type="button"' + (det ? ' data-detour="1"' : '') + '>' + label + '</button>' +
@@ -1434,14 +1462,42 @@
     options.push(roomier ? minTop : maxTop);
 
     var keepClear = s && s.avoid ? rectOf(s.avoid) : null;
-    for (var i = 0; i < options.length; i++) {
-      var top = Math.max(minTop, Math.min(maxTop, options[i]));
-      if (!keepClear || top + h <= keepClear.top || top >= keepClear.bottom) {
-        place(top);
-        return;
+    // Once collapsed the hint is small enough to fit somewhere that leaves the
+    // hand, the camp options or the shop grid completely alone — so try for
+    // that first. A tip the player has already read must not cost them a card
+    // they cannot reach.
+    var playRects = collapsed ? playAreas() : [];
+
+    function fits(top, rects) {
+      for (var k = 0; k < rects.length; k++) {
+        var r2 = rects[k];
+        if (r2 && Math.min(top + h, r2.bottom) - Math.max(top, r2.top) > 8) return false;
+      }
+      return true;
+    }
+    var avoidList = keepClear ? [keepClear] : [];
+    var passes = playRects.length ? [avoidList.concat(playRects), avoidList] : [avoidList];
+    for (var pass = 0; pass < passes.length; pass++) {
+      for (var i = 0; i < options.length; i++) {
+        var top = Math.max(minTop, Math.min(maxTop, options[i]));
+        if (fits(top, passes[pass])) { place(top); return; }
       }
     }
     place(options[0]);
+  }
+
+  /** The regions a player taps to actually play, which a read hint should clear. */
+  var PLAY_AREAS = ['#handRow', '#campGrid', '#smithGrid', '#caravanGrid', '#brokerGrid',
+    '#rewardGrid', '#ampGrid', '#eventChoices', '#invBag', '#cacheOptions'];
+  function playAreas() {
+    var out = [];
+    PLAY_AREAS.forEach(function (sel) {
+      var n = document.querySelector(sel);
+      if (!n || n.offsetParent === null) return;
+      var r = n.getBoundingClientRect();
+      if (r.height > 40) out.push(r);
+    });
+    return out;
   }
 
   /** Rect of a selector, or null — used for the control a card must not cover. */
@@ -1488,6 +1544,7 @@
     total = STEPS.filter(function (s) { return !s.route; }).length;
     idx = -1;
     shown = 0;
+    collapsed = false;
     if (!layer) buildLayer();
     layer.classList.remove('hidden');
     document.body.classList.add('siege-tutorial');
