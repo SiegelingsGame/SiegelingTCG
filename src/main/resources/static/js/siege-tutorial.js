@@ -35,7 +35,7 @@
   var collapsed = false; // a read tip shrinks to a one-line hint so the play area is clear
   var total = 0;
   var flags = null;      // things the coach waits on that state alone cannot show
-  var visited = null;    // step ids the coach has actually rendered, for fork routing
+  var visited = null;    // mirror of the coach's visited map, for fork routing
 
   function $(id) { return document.getElementById(id); }
   function el(tag, cls, html) {
@@ -1090,11 +1090,13 @@
    * to whichever lane the coach has not shown yet — routing on "did the action
    * happen" instead would loop forever on a click-through. */
   function lane1() {
+    visited = window.TutorialCoach.visited();
     if (screenIs('campScreen')) return 'camp-a';
     if (screenIs('caravanScreen')) return 'caravan-a';
     return visited['camp-a'] ? 'caravan-a' : 'camp-a';
   }
   function lane2() {
+    visited = window.TutorialCoach.visited();
     if (screenIs('brokerScreen')) return 'broker-a';
     if (screenIs('smithScreen')) return 'smith-a';
     return visited['broker-a'] ? 'smith-a' : 'broker-a';
@@ -1270,139 +1272,7 @@
     ];
   }
 
-  // ---- coach overlay ------------------------------------------------------
-
-  var layer = null, ringEl = null, cardEl = null, safeProbe = null;
-  var raf = 0, lastRect = '', renderedKey = '';
-
-  function buildLayer() {
-    layer = el('div', 'tut-layer');
-    ringEl = el('div', 'tut-ring');
-    cardEl = el('div', 'tut-card');
-    safeProbe = el('div', 'tut-safe');
-    layer.appendChild(ringEl);
-    layer.appendChild(cardEl);
-    layer.appendChild(safeProbe);
-    document.body.appendChild(layer);
-    cardEl.addEventListener('click', function (e) {
-      var btn = e.target.closest ? e.target.closest('button') : null;
-      if (!btn) return;
-      if (btn.classList.contains('tut-next')) {
-        if (btn.getAttribute('data-detour')) {
-          var cont = $('interactionResultBtn');
-          if (cont) cont.click();
-          return;
-        }
-        var cur = current();
-        if (cur && cur.until && !detour()) {
-          // Read it — now get out of the way and let them play.
-          collapsed = true;
-          lastRect = '';
-          renderStep();
-          return;
-        }
-        advance();
-      } else if (btn.classList.contains('tut-skip')) advance();
-      else if (btn.classList.contains('tut-quit')) stop();
-    });
-  }
-
-  function current() { return STEPS[idx] || null; }
-
-  function indexOfId(id) {
-    for (var i = 0; i < STEPS.length; i++) { if (STEPS[i].id === id) return i; }
-    return -1;
-  }
-
-  /**
-   * Move to the next step. A step names its successor with `next` (a branch lane
-   * rejoining the trunk), otherwise the script runs in order; `route` steps
-   * render nothing and hand straight on to whichever id they resolve to, which
-   * is what lets one script follow either lane of a fork.
-   */
-  function advance() {
-    var cur = current();
-    var target = null;
-    if (cur && cur.next) target = typeof cur.next === 'function' ? cur.next() : cur.next;
-    idx = target ? indexOfId(target) : idx + 1;
-
-    var guard = 0;
-    while (idx >= 0 && idx < STEPS.length && guard++ < 60) {
-      var s = STEPS[idx];
-      if (s.skipIf && s.skipIf()) { idx++; continue; }
-      if (s.route) {
-        var j = indexOfId(s.route());
-        if (j < 0) { idx++; continue; }
-        idx = j;
-        continue;
-      }
-      break;
-    }
-    if (idx < 0 || idx >= STEPS.length) { stop(); return; }
-    if (STEPS[idx].id) visited[STEPS[idx].id] = true;
-    collapsed = false;
-    shown++;
-    lastRect = '';
-    renderedKey = idx + (detour() ? '|detour' : '|step');
-    renderStep();
-  }
-
-  /** The interaction-result popup interrupts every stop; say so rather than
-   *  pointing the spotlight at a button that is no longer on screen. */
-  function detour() {
-    if (screenIs('interactionResultScreen')) {
-      return {
-        title: 'Outcome', kicker: 'Result',
-        body: 'Every stop reports what it gave you. Tap <b>Continue ▸</b> to carry on.',
-        target: '#interactionResultBtn'
-      };
-    }
-    return null;
-  }
-
-  function renderStep() {
-    var det = detour();
-    var s = det || current();
-    if (!s) return;
-    var waits = !!s.until && !det;
-
-    // Second stage: the player has read the tip and now needs the screen. The
-    // card shrinks to a single line naming the tap, so it can sit clear of the
-    // hand, the camp options or whatever the step is actually about.
-    if (waits && collapsed) {
-      cardEl.className = 'tut-card is-hint';
-      cardEl.dataset.step = s.title;
-      cardEl.innerHTML =
-        '<span class="tut-hint">' + (s.hint || esc(s.title)) + '</span>' +
-        '<button class="tut-skip" type="button" title="Skip this step">Skip ▸</button>';
-      position();
-      return;
-    }
-
-    // EVERY tip carries a button. A step that waits on an action still advances
-    // itself when the player performs it, but they must never be able to end up
-    // with a card on screen and no way past it — which is exactly what happened
-    // when a tall overlay put its own close control behind this card.
-    cardEl.className = 'tut-card' + (s.finale ? ' is-finale' : '');
-    cardEl.dataset.step = s.title;
-    var label = s.finish ? 'Finish' : 'Got it ▸';
-    cardEl.innerHTML =
-      '<div class="tut-head">' +
-        '<span class="tut-kicker">' + esc(s.kicker || ('Step ' + shown + ' of ' + total)) + '</span>' +
-        '<button class="tut-quit" type="button" aria-label="Exit tutorial">✕</button>' +
-      '</div>' +
-      '<h3 class="tut-title">' + esc(s.title) + '</h3>' +
-      '<p class="tut-body">' + s.body + '</p>' +
-      (s.finale ? '<div class="tut-reward" id="tutReward">Claiming your first-time reward…</div>' : '') +
-      '<div class="tut-foot">' +
-        (waits ? '<span class="tut-wait">Waiting for you</span>' : '') +
-        // On a detour the button dismisses the popup it is describing, rather
-        // than advancing a step the player has not reached the end of.
-        '<button class="tut-next" type="button"' + (det ? ' data-detour="1"' : '') + '>' + label + '</button>' +
-      '</div>';
-    position();
-    if (s.finale) claimFinaleReward();
-  }
+  // ---- the finale's first-time reward -------------------------------------
 
   // The first-time purse is claimed once per arrival at the finale, not once per
   // repaint: position() and the resize tick both re-render this card.
@@ -1410,14 +1280,14 @@
 
   /** Fills the finale's reward strip. Never blocks the player: any failure just
    *  reports that the purse is still claimable, since the flag is server-side. */
-  function claimFinaleReward() {
+  function claimFinaleReward(box0, reposition) {
     if (!rewardClaim) {
       rewardClaim = (window.SiegeClient && window.SiegeClient.claimTutorialReward)
         ? window.SiegeClient.claimTutorialReward()
         : Promise.resolve({ claimed: false, already: false });
     }
     rewardClaim.then(function (r) {
-      var box = document.getElementById('tutReward');
+      var box = box0 || document.getElementById('tutReward');
       if (!box) return;
       if (r && r.claimed) {
         box.className = 'tut-reward is-claimed';
@@ -1430,144 +1300,27 @@
         box.className = 'tut-reward';
         box.innerHTML = 'Sign in to claim the first-time reward — it stays available.';
       }
-      position();
+      if (reposition) reposition();
     });
   }
 
-  function targetNode(s) {
-    if (!s || !s.target) return null;
-    try { return document.querySelector(s.target); } catch (e) { return null; }
-  }
-
-  /**
-   * The safe area the phone actually leaves us, measured rather than assumed:
-   * a hidden probe carries the env() insets as padding, so the tip card clears
-   * the notch and the home indicator instead of tucking its Got it button
-   * underneath them.
-   */
-  function safeInsets() {
-    if (!safeProbe) return { top: 0, bottom: 0 };
-    var cs = window.getComputedStyle(safeProbe);
-    return { top: parseFloat(cs.paddingTop) || 0, bottom: parseFloat(cs.paddingBottom) || 0 };
-  }
-
-  function position() {
-    var s = detour() || current();
-    var node = targetNode(s);
-    var vh = window.innerHeight, vw = window.innerWidth;
-    var safe = safeInsets();
-    var gap = 14;
-    // The card's real height. The previous cut clamped against a hard-coded
-    // 150px guess, so every card taller than that hung off the bottom edge.
-    var h = cardEl.offsetHeight || 160;
-    var minTop = safe.top + 10;
-    var maxTop = vh - safe.bottom - h - 10;
-    if (maxTop < minTop) maxTop = minTop;   // card taller than the viewport: pin it high
-    function place(top) {
-      cardEl.style.bottom = 'auto';
-      cardEl.style.top = Math.round(Math.max(minTop, Math.min(maxTop, top))) + 'px';
-    }
-
-    var r = node && node.getBoundingClientRect ? node.getBoundingClientRect() : null;
-    if (!r || (!r.width && !r.height)) {
-      // Nothing to point at (the opening and closing tips) — centre it.
-      ringEl.classList.add('off');
-      place((vh - h) / 2);
-      return;
-    }
-    var pad = 8;
-    ringEl.classList.remove('off');
-    ringEl.style.left = Math.max(2, r.left - pad) + 'px';
-    ringEl.style.top = Math.max(2, r.top - pad) + 'px';
-    ringEl.style.width = Math.min(vw - 4, r.width + pad * 2) + 'px';
-    ringEl.style.height = Math.min(vh - 4, r.height + pad * 2) + 'px';
-
-    // Sit on whichever side of the highlight the card actually fits. When
-    // neither side has room — a target as tall as the map key — the card has to
-    // overlap it, and then WHICH side matters: an overlay carries its close
-    // button at the top, so hugging the top buried the only control that could
-    // dismiss it. A step names that control with `avoid` and the card takes the
-    // first placement that clears it.
-    var below = (vh - safe.bottom) - r.bottom;
-    var above = r.top - safe.top;
-    var roomier = below >= above;
-    var options = [];
-    if (below >= h + gap) options.push(r.bottom + gap);
-    if (above >= h + gap) options.push(r.top - gap - h);
-    options.push(roomier ? maxTop : minTop);
-    options.push(roomier ? minTop : maxTop);
-
-    var keepClear = s && s.avoid ? rectOf(s.avoid) : null;
-    // Once collapsed the hint is small enough to fit somewhere that leaves the
-    // hand, the camp options or the shop grid completely alone — so try for
-    // that first. A tip the player has already read must not cost them a card
-    // they cannot reach.
-    var playRects = collapsed ? playAreas() : [];
-
-    function fits(top, rects) {
-      for (var k = 0; k < rects.length; k++) {
-        var r2 = rects[k];
-        if (r2 && Math.min(top + h, r2.bottom) - Math.max(top, r2.top) > 8) return false;
-      }
-      return true;
-    }
-    var avoidList = keepClear ? [keepClear] : [];
-    var passes = playRects.length ? [avoidList.concat(playRects), avoidList] : [avoidList];
-    for (var pass = 0; pass < passes.length; pass++) {
-      for (var i = 0; i < options.length; i++) {
-        var top = Math.max(minTop, Math.min(maxTop, options[i]));
-        if (fits(top, passes[pass])) { place(top); return; }
-      }
-    }
-    place(options[0]);
+  /** The modal that interrupts every stop: point at its way out, not at a
+   *  button that is no longer on screen. */
+  function eventDetour() {
+    if (!screenIs('interactionResultScreen')) return null;
+    return {
+      title: 'Outcome', kicker: 'Result',
+      body: 'Every stop reports what it gave you. Tap <b>Continue \u25B8</b> to carry on.',
+      target: '#interactionResultBtn'
+    };
   }
 
   /** The regions a player taps to actually play, which a read hint should clear.
    *  The arena counts: a card is played by dragging it ONTO a sprite, so a hint
-   *  lying across the foe line blocks the drop itself — which is what stranded
-   *  the fight in landscape, where the arena and the hand leave little room. */
+   *  lying across the foe line blocks the drop itself. */
   var PLAY_AREAS = ['#handRow', '#enemyRow', '#allyRow', '#campGrid', '#smithGrid',
     '#caravanGrid', '#brokerGrid', '#rewardGrid', '#ampGrid', '#eventChoices',
     '#invBag', '#cacheOptions'];
-  function playAreas() {
-    var out = [];
-    PLAY_AREAS.forEach(function (sel) {
-      var n = document.querySelector(sel);
-      if (!n || n.offsetParent === null) return;
-      var r = n.getBoundingClientRect();
-      if (r.height > 40) out.push(r);
-    });
-    return out;
-  }
-
-  /** Rect of a selector, or null — used for the control a card must not cover. */
-  function rectOf(sel) {
-    var n = null;
-    try { n = document.querySelector(sel); } catch (e) { return null; }
-    if (!n || !n.getBoundingClientRect) return null;
-    var r = n.getBoundingClientRect();
-    return (r.width || r.height) ? r : null;
-  }
-
-  function tick() {
-    if (!ACTIVE) return;
-    raf = window.requestAnimationFrame(tick);
-    var s = current();
-    if (!s) return;
-    if (s.until && !detour()) {
-      var done = false;
-      try { done = !!s.until(); } catch (e) { done = false; }
-      if (done) { advance(); return; }
-    }
-    // Cheap re-layout: only touch the DOM when the copy or the target moved.
-    var det = detour();
-    var key = idx + (det ? '|detour' : '|step');
-    if (key !== renderedKey) { renderedKey = key; renderStep(); return; }
-    var node = targetNode(det || s);
-    var r = node ? node.getBoundingClientRect() : null;
-    var rect = r ? [r.left, r.top, r.width, r.height].join(',') : 'none';
-    if (rect !== lastRect) { lastRect = rect; position(); }
-  }
 
   // ---- lifecycle ----------------------------------------------------------
 
@@ -1581,29 +1334,35 @@
     };
     visited = {};
     rewardClaim = null;   // a second run must re-ask the server, not replay the first answer
-    STEPS = buildSteps();
-    total = STEPS.filter(function (s) { return !s.route; }).length;
-    idx = -1;
-    shown = 0;
-    collapsed = false;
-    if (!layer) buildLayer();
-    layer.classList.remove('hidden');
-    document.body.classList.add('siege-tutorial');
     refreshReachable();
     if (window.SiegeClient) window.SiegeClient.applyRun(clone(M));
-    advance();
-    raf = window.requestAnimationFrame(tick);
+    window.TutorialCoach.start({
+      steps: buildSteps(),
+      playAreas: PLAY_AREAS,
+      detour: eventDetour,
+      onDetourContinue: function () {
+        var cont = $('interactionResultBtn');
+        if (cont) cont.click();
+      },
+      onFinale: claimFinaleReward,
+      onStop: finish,
+      bodyClass: 'siege-tutorial'
+    });
+  }
+
+  /** Called when the coach ends, however it ended. */
+  function finish() {
+    if (!ACTIVE) return;
+    ACTIVE = false;
+    M = null;
+    if (window.SiegeClient) window.SiegeClient.exitTutorial();
   }
 
   function stop() {
     if (!ACTIVE) return;
-    ACTIVE = false;
-    if (raf) window.cancelAnimationFrame(raf);
-    raf = 0;
-    if (layer) layer.classList.add('hidden');
-    document.body.classList.remove('siege-tutorial');
-    M = null;
-    if (window.SiegeClient) window.SiegeClient.exitTutorial();
+    // Ending the coach calls finish() back, which is what tears the run down.
+    if (window.TutorialCoach.active()) window.TutorialCoach.stop();
+    else finish();
   }
 
   window.SiegeTutorial = {

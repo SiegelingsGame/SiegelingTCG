@@ -9962,9 +9962,9 @@ async function newGame() {
         return;
     }
     if (tutorialMatchActive) {
-        showTutorialGoalsPanel();
+        window.ArenaTutorial?.start();
     } else {
-        document.getElementById('tutorialCoachPanel')?.remove();
+        window.ArenaTutorial?.stop();
     }
 }
 
@@ -10220,236 +10220,21 @@ function hydrateOnlineStateFromUrl() {
 let tutorialMatchActive = false;
 let tutorialRewardRequested = false;
 
-const TUTORIAL_GOALS = [
-    'Place a Siegeling on your board',
-    'Play a Strategy card',
-    'Play a Deception card',
-    'Destroy an enemy Siegeling',
-    'Use your SiegeKnight ability',
-    'Win the match'
-];
 
-const TUTORIAL_LESSONS = [
-    {
-        id: 'welcome',
-        title: 'Welcome to the training grounds',
-        body: `<p>This is a practice battle you can replay any time. You always lead <strong>Squire Bob</strong> with the <strong>Ashen Roots</strong> deck against the Training Dummy, and you always move first, so nothing changes between runs.</p>
-            <p>Step through these pages with Next while you play. Nothing here blocks the match &mdash; play at your own pace.</p>`
-    },
-    {
-        id: 'hud',
-        title: 'Reading the HUD',
-        body: `<p>Both halves of the board sit in the middle: the Training Dummy above, you below. Each side shows its <strong>HP</strong> (you both start at 50; the Dummy starts lower here), its SiegeKnight, and its energy bucket.</p>
-            <ul>
-                <li><strong>Hand</strong> &mdash; your cards along the bottom. Tap one to select, tap a board cell to place.</li>
-                <li><strong>&#9672; Energy</strong> &mdash; opens the full energy breakdown: internal links, external sockets, passives.</li>
-                <li><strong>&#9776; Log</strong> &mdash; every action in order. Filter by Turns, Rounds, or Actions.</li>
-                <li><strong>? Hint</strong> &mdash; tells you what the game is waiting on right now.</li>
-                <li><strong>&#128065; Preview</strong> &mdash; blows up the selected card so you can read notches and abilities.</li>
-                <li><strong>&#9876; Knight</strong> &mdash; your SiegeKnight's active and ultimate.</li>
-            </ul>
-            <p>On a phone, tap either HP bar to open that side's detail sheet.</p>`
-    },
-    {
-        id: 'phases',
-        title: 'The round loop: Draw, Setup, Battle',
-        phase: 'DRAW',
-        body: `<p>Every round runs the same three phases:</p>
-            <ul>
-                <li><strong>Draw</strong> &mdash; take a card with the Draw button.</li>
-                <li><strong>Setup</strong> &mdash; place at most one Siegeling, cast Strategies, set Deceptions, and claim surviving Siegelings for temporary energy. Your setup actions are 1 base plus 1 per energy you held entering the phase.</li>
-                <li><strong>Battle</strong> &mdash; every Siegeling on the board acts once, in Speed order, using energy to pay for moves.</li>
-            </ul>
-            <p>End Turn hands the phase to your opponent. Battle starts on its own once both sides finish Setup.</p>`
-    },
-    {
-        id: 'placement',
-        title: 'Placing your first Siegeling',
-        phase: 'SETUP',
-        body: `<p>Your half is a 3x3 grid. Select a Siegeling in hand and the legal cells light up. Your first card can go anywhere; after that, new Siegelings must build off the foundation network you already have.</p>
-            <p>You may keep up to <strong>5</strong> Siegelings on the board. Evolution cards are placed onto their live precursor and are exempt from both the board cap and the one-placement-per-turn limit.</p>
-            <p>Siegelings have <strong>Health</strong>, <strong>Speed</strong>, notches, and abilities &mdash; there is no printed attack stat. All damage comes from abilities.</p>`
-    },
-    {
-        id: 'notches',
-        title: 'Notches and reciprocal links',
-        phase: 'SETUP',
-        body: `<p>The colored dots on a card's edges are <strong>notches</strong>. When two adjacent cards each have a notch pointing at the other, they form a <strong>reciprocal link</strong> and that link generates elemental energy every round.</p>
-            <p>A notch pointing at a neighbor that has nothing pointing back does nothing. Before you place, look at where the neighbor's notches sit &mdash; rotating your plan by one cell is often the difference between one energy and three.</p>
-            <p>Matching elements link straight through. Two different elements still link, but they produce a hybrid connection.</p>`
-    },
-    {
-        id: 'combos',
-        title: 'Combo notches',
-        phase: 'SETUP',
-        body: `<p>When linked notches carry <strong>different elements</strong>, the pair banks a <strong>combo point</strong> instead of plain energy. Combos are their own currency in the energy bucket, shown separately from solid energy.</p>
-            <p>Cards that demand a combo cost &mdash; the heavier Strategies and the strongest battle abilities &mdash; can only be paid with combo points, so a board of one element alone will hit a ceiling. Ashen Roots mixes Fire and Earth precisely so you can build them.</p>
-            <p>Chain several mixed links together and one setup phase can fund a finishing move in the next battle.</p>`
-    },
-    {
-        id: 'external',
-        title: 'Exterior notches and socket energy',
-        phase: 'SETUP',
-        body: `<p>A notch that points <em>off</em> the board is not wasted. On the outer cells it reaches a perimeter <strong>socket</strong>: the left column anchors LEFT, the right column RIGHT, and the outer rows TOP and BOTTOM.</p>
-            <p>An anchored socket gives <strong>1 baseline energy of that element for the rest of the battle</strong> &mdash; and it keeps giving even if the Siegeling that woke it is destroyed. That makes edge placements the safest long-term energy on the board.</p>
-            <p>Open the &#9672; Energy panel to see your income split into internal (card-to-card) and external (socket) sources.</p>`
-    },
-    {
-        id: 'energy',
-        title: 'Spending energy',
-        body: `<p>Energy is elemental. A Fire cost must be paid in Fire, and combo costs must be paid in combo points. Energy carries between rounds, so banking a turn to afford something bigger is a real play.</p>
-            <p>You can also <strong>claim</strong> a Siegeling that survived a round during Setup for a burst of temporary energy &mdash; temporary energy expires at the end of the phase, so only claim when you have somewhere to spend it now.</p>`
-    },
-    {
-        id: 'battle',
-        title: 'Battle: speed order and targeting',
-        phase: 'BATTLE',
-        body: `<p>In Battle each Siegeling acts once, fastest <strong>Speed</strong> first. When it is your Siegeling's turn you pick one of its abilities; each ability lists its energy cost, and unaffordable ones are greyed out.</p>
-            <ul>
-                <li><strong>Single target</strong> moves ask you to tap one enemy Siegeling. They hit hardest.</li>
-                <li><strong>Multi target</strong> moves hit a whole row, column, or the full enemy board for less each. Use the highlight preview to check exactly what will be caught before you confirm.</li>
-            </ul>
-            <p>You can Pass a Siegeling's action to save energy for a faster answer later in the queue.</p>`
-    },
-    {
-        id: 'weakness',
-        title: 'Elements and damage',
-        phase: 'BATTLE',
-        body: `<p>Attacking into a weakness multiplies your damage. The core wheel is Fire &gt; Ice &gt; Wind &gt; Earth &gt; Fire, with Water &gt; Fire and Ice, Metal &gt; Earth and Wind, Electric &gt; Wind and Fire, Poison &gt; Ice and Earth, and Shadow &gt; Psychic &gt; Light &gt; Undead &gt; Shadow.</p>
-            <p>The Training Dummy fields Ice, so your Fire half of Ashen Roots is the sharp end &mdash; look for the Fire lines first.</p>
-            <p>When a Siegeling is destroyed, its owner takes <strong>bounty damage</strong> based on the card's rarity. Board losses hurt your HP directly, which is often how a match actually ends.</p>`
-    },
-    {
-        id: 'status',
-        title: 'Buffs, debuffs, and status effects',
-        phase: 'BATTLE',
-        body: `<p>Badges under a card show what is currently attached to it. Buffs raise Health, Speed, or damage; debuffs cut them. Status effects change what a card can do at all &mdash; burn ticks damage each round, freeze and stun take away actions, and shields absorb the next hits.</p>
-            <p>Most of these have a duration counter. Tap any card to read its full effect list in the preview before you commit a move: attacking into a shield or spending a big move on a frozen target is how tempo gets thrown away.</p>
-            <p>Your SiegeKnight's passive is always on, and its active or ultimate is a once-per-match swing &mdash; hold it for a moment that actually changes the board.</p>`
-    },
-    {
-        id: 'strategies',
-        title: 'Strategies and Deceptions',
-        phase: 'SETUP',
-        body: `<p><strong>Strategies</strong> (spells) resolve the moment you cast them in Setup: damage, healing, buffs, board manipulation. What you see is what happens.</p>
-            <p><strong>Deceptions</strong> (traps) are set face down and stay hidden until the opponent meets their trigger &mdash; attacking a certain card, placing into a certain lane, or crossing an energy threshold. If the trigger never comes, the Deception never fires.</p>
-            <p>Both cost energy, so plan them into the same budget as your placements.</p>`
-    },
-    {
-        id: 'deception',
-        title: 'Playing the bluff',
-        body: `<p>Your opponent sees a face-down Deception but not what it is. That is information you control:</p>
-            <ul>
-                <li>Set a Deception on a quiet turn and a careful opponent will play around a card that may not even threaten them.</li>
-                <li>Leave a weak-looking Siegeling exposed to bait an attack into the Deception you actually set.</li>
-                <li>Hold energy visibly and your opponent must respect the strongest move you could afford, not the one you meant to make.</li>
-                <li>Read the same signals in reverse: an opponent who suddenly stops attacking a lane is usually protecting something in it.</li>
-            </ul>
-            <p>The AI here plays it straight &mdash; the bluffs matter online.</p>`
-    },
-    {
-        id: 'goals',
-        title: 'Your objectives',
-        body: `<p>Work through these while you play:</p>
-            <ul>${TUTORIAL_GOALS.map(goal => `<li>${goal}</li>`).join('')}</ul>
-            <p>Winning your first tutorial match grants a second starter pack and bonus Siegecoins. Later replays are practice only &mdash; run them as often as you like.</p>`
-    }
-];
+/**
+ * The guided Tutorial Match coach (js/arena-tutorial.js) needs to read the live
+ * match to know when the player has actually done the thing a step asks for.
+ * game.js declares its state with `let`, which in a classic script is
+ * script-scoped and never appears on window, so the reader is published here
+ * explicitly. It is read-only by design: the coach observes the match, it never
+ * drives it.
+ */
+window.ArenaTutorialBridge = {
+    state: () => gameState,
+    selected: () => selectedCard,
+    authHeaders: (extra) => getAuthHeaders(extra || {})
+};
 
-let tutorialLessonIndex = 0;
-let tutorialCoachPhasesSeen = new Set();
-
-// The coach follows the match: entering a phase for the first time jumps to the
-// lesson that teaches it, but only until the player navigates by hand, so manual
-// reading is never yanked away mid-sentence.
-let tutorialCoachManual = false;
-
-function showTutorialGoalsPanel() {
-    if (document.getElementById('tutorialCoachPanel')) return;
-    tutorialLessonIndex = 0;
-    tutorialCoachManual = false;
-    tutorialCoachPhasesSeen = new Set();
-    const panel = document.createElement('aside');
-    panel.id = 'tutorialCoachPanel';
-    panel.className = 'tutorial-coach-panel';
-    panel.setAttribute('aria-label', 'Tutorial coach');
-    panel.innerHTML = `
-        <button class="tutorial-coach-head" type="button" id="tutorialCoachToggle">
-            <span>Tutorial Coach</span><span class="tutorial-coach-caret" aria-hidden="true">&#9662;</span>
-        </button>
-        <div class="tutorial-coach-body">
-            <div class="tutorial-coach-phase" id="tutorialCoachPhase"></div>
-            <h4 class="tutorial-coach-title" id="tutorialCoachTitle"></h4>
-            <div class="tutorial-coach-copy" id="tutorialCoachCopy"></div>
-        </div>
-        <div class="tutorial-coach-nav">
-            <button class="tutorial-coach-btn" type="button" id="tutorialCoachPrev">Back</button>
-            <span class="tutorial-coach-count" id="tutorialCoachCount"></span>
-            <button class="tutorial-coach-btn" type="button" id="tutorialCoachNext">Next</button>
-        </div>`;
-    document.body.appendChild(panel);
-    panel.querySelector('#tutorialCoachToggle')?.addEventListener('click', () => panel.classList.toggle('is-collapsed'));
-    panel.querySelector('#tutorialCoachPrev')?.addEventListener('click', () => stepTutorialLesson(-1));
-    panel.querySelector('#tutorialCoachNext')?.addEventListener('click', () => stepTutorialLesson(1));
-    renderTutorialCoach();
-}
-
-function stepTutorialLesson(direction) {
-    const next = tutorialLessonIndex + direction;
-    if (next < 0 || next >= TUTORIAL_LESSONS.length) return;
-    tutorialLessonIndex = next;
-    tutorialCoachManual = true;
-    renderTutorialCoach();
-}
-
-function currentTutorialPhaseLabel() {
-    const phase = gameState?.currentPhase;
-    if (!phase) return '';
-    if (phase === 'MULLIGAN') return 'Opening hand - mulligan once if you want a different start.';
-    if (phase === 'DRAW') return 'Draw phase - take your card.';
-    if (phase === 'SETUP') return 'Setup phase - place, cast, set, and claim.';
-    if (phase === 'BATTLE') return 'Battle phase - Siegelings act in speed order.';
-    return '';
-}
-
-/** Called from render(); syncs the coach with the live phase before repainting it. */
-function syncTutorialCoach() {
-    const panel = document.getElementById('tutorialCoachPanel');
-    if (!panel) return;
-    const phase = gameState?.currentPhase;
-    if (phase && !tutorialCoachPhasesSeen.has(phase)) {
-        tutorialCoachPhasesSeen.add(phase);
-        if (!tutorialCoachManual) {
-            const idx = TUTORIAL_LESSONS.findIndex(lesson => lesson.phase === phase);
-            if (idx >= 0) {
-                tutorialLessonIndex = idx;
-            }
-        }
-    }
-    renderTutorialCoach();
-}
-
-function renderTutorialCoach() {
-    const panel = document.getElementById('tutorialCoachPanel');
-    if (!panel) return;
-    const lesson = TUTORIAL_LESSONS[tutorialLessonIndex] || TUTORIAL_LESSONS[0];
-    const phaseLine = currentTutorialPhaseLabel();
-    const phaseEl = panel.querySelector('#tutorialCoachPhase');
-    if (phaseEl) {
-        phaseEl.textContent = phaseLine;
-        phaseEl.classList.toggle('hidden', !phaseLine);
-    }
-    const titleEl = panel.querySelector('#tutorialCoachTitle');
-    if (titleEl) titleEl.textContent = lesson.title;
-    const copyEl = panel.querySelector('#tutorialCoachCopy');
-    if (copyEl) copyEl.innerHTML = lesson.body;
-    const countEl = panel.querySelector('#tutorialCoachCount');
-    if (countEl) countEl.textContent = `${tutorialLessonIndex + 1} / ${TUTORIAL_LESSONS.length}`;
-    const prev = panel.querySelector('#tutorialCoachPrev');
-    if (prev) prev.disabled = tutorialLessonIndex === 0;
-    const next = panel.querySelector('#tutorialCoachNext');
-    if (next) next.disabled = tutorialLessonIndex === TUTORIAL_LESSONS.length - 1;
-}
 
 async function claimTutorialReward() {
     if (tutorialRewardRequested) return;
@@ -12603,7 +12388,6 @@ function getBoardCellMarkers(board, markers) {
 
 function render() {
     if (tutorialMatchActive) {
-        syncTutorialCoach();
     }
     if (gameState) {
         pruneInvalidArenaSelection();
