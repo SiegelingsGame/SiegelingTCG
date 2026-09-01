@@ -3082,6 +3082,9 @@ body[data-screen="minigameScreen"] #mgActions{ margin-top:12px; }
 .tut-title{margin:4px 0 5px; font-size:17px; line-height:1.2; font-weight:850;}
 .tut-body{margin:0; font-size:13.5px; line-height:1.5; color:var(--dim);}
 .tut-body b, .tut-body strong{color:var(--text);}
+/* A second paragraph inside a tip. Its own element rather than two <br>s, so
+   the landscape rules below can tighten the gap instead of spending a line. */
+.tut-p{display:block; margin-top:.75em;}
 .tut-body em{color:var(--good); font-style:normal;}
 /* The wait hint sits left, the button right; with no hint the button still
    lands on the right because the hint is simply absent. */
@@ -3112,4 +3115,28 @@ body[data-screen="minigameScreen"] #mgActions{ margin-top:12px; }
   .tut-card{padding:11px 13px 10px;}
   .tut-title{font-size:15.5px;}
   .tut-body{font-size:12.5px;}
+}
+/* Phone landscape — the same breakpoint isPhoneLandscape() uses, so the coach
+   agrees with the map and battle screens about when the phone is on its side.
+   A 420px card in a ~400px-tall viewport is half the screen; here there is
+   width to spare and height to save, so the card spends the former to buy the
+   latter. */
+@media (orientation: landscape) and (max-width: 979px) and (max-height: 600px){
+  .tut-card{
+    width:min(620px, calc(100vw - 32px));
+    padding:9px 14px 8px; border-radius:10px;
+  }
+  .tut-kicker{font-size:9.5px;}
+  .tut-title{font-size:14.5px; margin:1px 0 3px;}
+  .tut-body{font-size:12px; line-height:1.4;}
+  /* A cap, not a layout: no tip should reach it, but a long one must never be
+     allowed to swallow a 375px-tall screen if the copy grows later. */
+  .tut-body{max-height:42vh; overflow-y:auto; overscroll-behavior:contain;}
+  .tut-p{margin-top:.4em;}
+  .tut-foot{margin-top:7px;}
+  .tut-next{padding:6px 13px; font-size:12px; border-radius:8px;}
+  .tut-quit{font-size:14px;}
+  .tut-card.is-hint{padding:5px 7px 5px 11px;}
+  .tut-hint{font-size:12px;}
+  .tut-skip{padding:4px 8px; font-size:11px;}
 }

@@ -1105,7 +1105,7 @@
     var k = M.knight;
     return [
       { id: 'welcome', kicker: 'Tutorial', title: 'Welcome to the Siege',
-        body: 'This is a full practice expedition, fought with real cards — ' + esc(knightName()) +
+        body: 'A full practice expedition, fought with real cards — ' + esc(knightName()) +
           ' leading ' + esc(M.party[0].name) + ' and ' + esc(M.party[1].name) +
           '. Nothing here touches your account: no gold spent, no saves written. I will walk you to every kind of stop on the map.' },
       { id: 'map', title: 'The expedition map', target: '#mapSvg',
@@ -1130,9 +1130,9 @@
       { id: 'speed', title: 'Who moves first', target: '#speedTrack',
         body: 'Combat is round-based. Your side\'s total <b>Speed</b> against theirs decides who acts first — the runners on this track are your Siegelings at their speed.' },
       { id: 'passive', title: 'Passive and Ultimate', target: '#knightPlate',
-        body: 'Your SiegeKnight does not attack. He contributes a <b>passive</b> — ' + esc(k.passiveName) + ', above — and charges an <b>Ultimate</b> on the bar below his HP: <em>' +
+        body: 'Your SiegeKnight does not attack. He gives a <b>passive</b> — ' + esc(k.passiveName) + ' — and charges an <b>Ultimate</b> on the bar under his HP: <em>' +
           esc(k.ultimateName) + '</em>, which ' + esc(String(k.ultimateDesc || '').charAt(0).toLowerCase() + String(k.ultimateDesc || '').slice(1)) +
-          ' Tap the plate any time to read both.' },
+          ' Tap the plate to read both.' },
       { id: 'ap', title: 'Action Points', target: '#apDisplay',
         body: 'You get ' + MAX_AP + ' AP a turn, and a card costs whatever is printed in its corner. AP does not carry over — but it is never wasted either, and the next steps show where it goes.' },
       { id: 'hand', title: 'Your hand', target: '#handRow',
@@ -1143,8 +1143,8 @@
         body: '<b>Drag an attack card onto a foe</b> to play it. Cards that need a target draw an arrow while you drag; drop it on the enemy you want.',
         until: function () { return flags.played > 0; } },
       { id: 'endturn', hint: 'Tap <b>End Turn</b>', title: 'End the turn', target: '#endTurnBtn',
-        body: 'Spend what is worth spending, then <b>End Turn</b>. The foes act on the intents they showed you, and a fresh hand is dealt.' +
-          '<br><br>Watch the charge bar on ' + esc(knightName()) + '\'s plate as you do. Ultimate Charge comes from three places: <b>every AP you did not spend</b> converts into it at end of turn, your Knight <b>steels +1 at the start of each turn</b> whatever you do, and <b>each Knight card you play</b> adds one more. Holding AP back is a real choice — it buys the Ultimate sooner.',
+        body: 'Spend what is worth spending, then <b>End Turn</b>: the foes act on the intents they showed you, and a fresh hand is dealt.' +
+          '<span class="tut-p">Watch <b>⚡ Charge</b> on the Knight\'s plate. It comes from three places — <b>unspent AP</b> at end of turn, <b>+1 every turn</b> whatever you do, and <b>+1 per Knight card</b>. Banking AP buys the Ultimate sooner.</span>',
         until: function () { return M.battle && M.battle.roundNumber > 1; } },
       { id: 'ultimate', hint: 'Tap <b>⚡ ULT!</b>', title: 'The Ultimate', target: '#knightUltBtn',
         body: 'The charge bar is full. <b>Tap ⚡ ULT!</b> — ' + esc(k.ultimateName) + ' ' +
@@ -1153,8 +1153,8 @@
         until: function () { return flags.ulted; },
         skipIf: function () { return !M.battle; } },
       { id: 'evolved', title: 'Evolution', target: '#allyRow',
-        body: 'That is an <b>evolution</b>: a Siegeling becomes its next form, with more HP and a stronger kit. It holds <b>until the end of this battle</b> — afterwards it returns to its base form, keeping the damage it took.' +
-          '<br><br>Normally you earn it mid-fight by spending AP on that Siegeling until its 🌟 gauge fills; ' + esc(knightName()) + '\'s Ultimate skips the wait. To have a Siegeling fight <em>every</em> battle in its evolved form, equip it an <b>Evolution Sigil</b> — an item that evolves it the moment battle begins.',
+        body: 'An <b>evolution</b>: the next form, with more HP and a stronger kit. It holds <b>until this battle ends</b>, then reverts, keeping the damage it took.' +
+          '<span class="tut-p">You normally earn it mid-fight by spending AP on that Siegeling until its 🌟 gauge fills — the Ultimate skips the wait. Equip an <b>Evolution Sigil</b> to have one start <em>every</em> battle evolved.</span>',
         skipIf: function () { return !flags.ulted; } },
       { id: 'finish', hint: 'Attack, <b>End Turn</b>, repeat', title: 'Finish the fight', target: '#handRow',
         body: 'Play out the rest of the fight — attack, end turn, repeat — until both shades are down.',
@@ -1486,9 +1486,13 @@
     place(options[0]);
   }
 
-  /** The regions a player taps to actually play, which a read hint should clear. */
-  var PLAY_AREAS = ['#handRow', '#campGrid', '#smithGrid', '#caravanGrid', '#brokerGrid',
-    '#rewardGrid', '#ampGrid', '#eventChoices', '#invBag', '#cacheOptions'];
+  /** The regions a player taps to actually play, which a read hint should clear.
+   *  The arena counts: a card is played by dragging it ONTO a sprite, so a hint
+   *  lying across the foe line blocks the drop itself — which is what stranded
+   *  the fight in landscape, where the arena and the hand leave little room. */
+  var PLAY_AREAS = ['#handRow', '#enemyRow', '#allyRow', '#campGrid', '#smithGrid',
+    '#caravanGrid', '#brokerGrid', '#rewardGrid', '#ampGrid', '#eventChoices',
+    '#invBag', '#cacheOptions'];
   function playAreas() {
     var out = [];
     PLAY_AREAS.forEach(function (sel) {
