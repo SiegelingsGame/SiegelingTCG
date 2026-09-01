@@ -55,6 +55,7 @@
   var MAX_AP = 5;
   var HAND_MAX = 5;
   var ULT_COST = 6;      // lower than a real run's 20: the tutorial has to reach it
+  var EVOLVE_GAUGE = 5;  // SiegeBattle.EVOLVE_GAUGE — AP a Siegeling spends to evolve
 
   // ---- real card data ---------------------------------------------------
 
@@ -162,6 +163,10 @@
       position: opts.position == null ? 0 : opts.position,
       statuses: [], statusRounds: {}, evoStage: 0, size: opts.size || 'MEDIUM',
       hasEvolution: !!src.evolves, hasStage3Evolution: false,
+      // The gauge the plate draws. hasEvolution without these printed
+      // "undefined/undefined" on the badge; the real payload always carries
+      // them together. apSpent drives it, the way a real run does.
+      apSpent: 0, evoGauge: 0, evoGaugeMax: EVOLVE_GAUGE, evoReady: false,
       leader: !!opts.leader, cards: (src.moves || []).slice(),
       abilities: opts.side === 'ENEMY' ? (src.moves || []).slice() : [],
       evolvesTo: src.evolves && EVOLUTIONS[src.id] ? EVOLUTIONS[src.id].name : null
@@ -363,7 +368,7 @@
       id: 'knight-unit', name: k.name, element: k.element, hp: k.hp, maxHp: k.maxHp,
       artUrl: null, level: k.level, xp: k.xp, xpToNext: k.xpToNext,
       xpInLevel: k.xpInLevel, xpSpan: k.xpSpan, leveledThisBattle: false,
-      charge: 0, ultCost: ULT_COST,
+      charge: 1, ultCost: ULT_COST,
       passiveKind: k.passiveKind, passiveName: k.passiveName, passive: k.passive,
       ultimateName: k.ultimateName, ultimateDesc: k.ultimateDesc,
       ultimateValue: k.ultimateValue, ultReady: false
@@ -455,10 +460,17 @@
     b._hand.splice(i, 1);
     b._discard.push(c);
     b.actionPoints -= c.actionCost;
-    b.knight.charge = Math.min(b.knight.ultCost, b.knight.charge + 2);
+    if (String(c.ownerId).indexOf('knight-') === 0) {
+      b.knight.charge = Math.min(b.knight.ultCost, b.knight.charge + 1);
+    }
     flags.played++;
 
     var owner = findUnit(c.ownerId) || b.knight;
+    if (owner && owner.hasEvolution) {
+      owner.apSpent = (owner.apSpent || 0) + c.actionCost;
+      owner.evoGauge = Math.min(owner.apSpent, EVOLVE_GAUGE);
+      owner.evoReady = owner.evoGauge >= EVOLVE_GAUGE;
+    }
     var events = [{ type: 'card', sourceId: owner.id, name: c.name, element: c.element }];
     b.turnLog.push({
       round: b.roundNumber, actor: owner.name, card: c.name,
@@ -549,6 +561,8 @@
       a.effectiveSpeed = evo.speed + (a.speedBuffTimed || 0);
       a.evoStage = 1;
       a.hasEvolution = false;
+      a.evoGauge = 0;
+      a.evoReady = false;
       a.evolvesTo = null;
       events.push({
         type: 'evolve', targetId: a.id, from: was, to: evo.name,
@@ -561,6 +575,7 @@
         p.name = a.name; p.sourceCardId = a.sourceCardId; p.artUrl = a.artUrl;
         p.maxHp = a.maxHp; p.hp = a.hp; p.speed = a.speed;
         p.effectiveSpeed = a.speed; p.evoStage = 1; p.hasEvolution = false; p.evolvesTo = null;
+        p.evoGauge = 0; p.evoReady = false; p.apSpent = 0;
       });
     });
     if (!evolved) {
@@ -618,9 +633,14 @@
 
     b.roundNumber++;
     b.actionPoints = MAX_AP;
+    b.knight.charge = Math.min(b.knight.ultCost, b.knight.charge + 1);   // the Knight steels
     // Round 2 always opens with a charged Ultimate: a tutorial that cannot
-    // demonstrate the button is not teaching it.
-    if (b.roundNumber === 2) b.knight.charge = b.knight.ultCost;
+    // demonstrate the button is not teaching it. With the real accrual above a
+    // player who banked their AP is already there; this only tops up one who
+    // spent it all.
+    if (b.roundNumber === 2 && b.knight.charge < b.knight.ultCost) {
+      b.knight.charge = b.knight.ultCost;
+    }
     b._discard = b._discard.concat(b._hand);
     b._hand = [];
     events.push({ type: 'discardHand' });
@@ -1107,7 +1127,7 @@
           esc(k.ultimateName) + '</em>, which ' + esc(String(k.ultimateDesc || '').charAt(0).toLowerCase() + String(k.ultimateDesc || '').slice(1)) +
           ' Tap the plate any time to read both.' },
       { id: 'ap', title: 'Action Points', target: '#apDisplay',
-        body: 'You get ' + MAX_AP + ' AP a turn, and a card costs whatever is printed in its corner. Unspent AP is not wasted: it converts into Ultimate Charge when you end the turn.' },
+        body: 'You get ' + MAX_AP + ' AP a turn, and a card costs whatever is printed in its corner. AP does not carry over — but it is never wasted either, and the next steps show where it goes.' },
       { id: 'hand', title: 'Your hand', target: '#handRow',
         body: 'The fan is your hand. Each card belongs to one Siegeling — its owner is the one who swings, so buffs on that Siegeling change what the card does.' },
       { id: 'intents', title: 'Foes telegraph their attacks', target: '#enemyRow',
@@ -1116,7 +1136,8 @@
         body: '<b>Drag an attack card onto a foe</b> to play it. Cards that need a target draw an arrow while you drag; drop it on the enemy you want.',
         until: function () { return flags.played > 0; } },
       { id: 'endturn', title: 'End the turn', target: '#endTurnBtn',
-        body: 'Spend what is worth spending, then <b>End Turn</b>. The foes act on the intents they showed you, and a fresh hand is dealt.',
+        body: 'Spend what is worth spending, then <b>End Turn</b>. The foes act on the intents they showed you, and a fresh hand is dealt.' +
+          '<br><br>Watch the charge bar on ' + esc(knightName()) + '\'s plate as you do. Ultimate Charge comes from three places: <b>every AP you did not spend</b> converts into it at end of turn, your Knight <b>steels +1 at the start of each turn</b> whatever you do, and <b>each Knight card you play</b> adds one more. Holding AP back is a real choice — it buys the Ultimate sooner.',
         until: function () { return M.battle && M.battle.roundNumber > 1; } },
       { id: 'ultimate', title: 'The Ultimate', target: '#knightUltBtn',
         body: 'The charge bar is full. <b>Tap ⚡ ULT!</b> — ' + esc(k.ultimateName) + ' ' +
