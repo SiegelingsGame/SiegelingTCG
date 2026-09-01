@@ -206,9 +206,26 @@
 
     var r = node && node.getBoundingClientRect ? node.getBoundingClientRect() : null;
     if (!r || (!r.width && !r.height)) {
-      // Nothing to point at (the opening and closing tips) — centre it.
+      // Nothing to point at: the opening and closing tips, or a step whose
+      // control is briefly off screen (the action bar during battle playback).
+      // Centre it — but a *collapsed* hint centred on a short landscape screen
+      // lands squarely on the hand, so let the play areas move it if they must.
       ringEl.classList.add('off');
-      place((vh - h) / 2);
+      var mid = (vh - h) / 2;
+      var free = collapsed ? playAreas() : [];
+      if (!free.length) { place(mid); return; }
+      var candidates = [mid, minTop, maxTop];
+      var pick = mid, pickCost = Infinity;
+      for (var m = 0; m < candidates.length; m++) {
+        var cTop = Math.max(minTop, Math.min(maxTop, candidates[m]));
+        var cost = 0;
+        for (var q = 0; q < free.length; q++) {
+          var o = Math.min(cTop + h, free[q].bottom) - Math.max(cTop, free[q].top);
+          if (o > 0) cost += o;
+        }
+        if (cost < pickCost) { pickCost = cost; pick = cTop; }
+      }
+      place(pick);
       return;
     }
     var pad = 8;
@@ -248,18 +265,19 @@
       return true;
     }
     var avoidList = keepClear ? [keepClear] : [];
-    var passes = playRects.length ? [avoidList.concat(playRects), avoidList] : [avoidList];
-    for (var pass = 0; pass < passes.length; pass++) {
-      for (var i = 0; i < options.length; i++) {
-        var top = Math.max(minTop, Math.min(maxTop, options[i]));
-        if (fits(top, passes[pass])) { place(top); return; }
-      }
+    // One strict pass: a placement that clears the step's `avoid` control AND
+    // every play region wins outright.
+    var strict = avoidList.concat(playRects);
+    for (var i = 0; i < options.length; i++) {
+      var top = Math.max(minTop, Math.min(maxTop, options[i]));
+      if (fits(top, strict)) { place(top); return; }
     }
-    // Nothing clears everything — which happens once the board lights up cells
-    // in several rows at once and the hand takes the rest of a phone screen.
-    // Take the LEAST bad placement rather than the first: falling back to
-    // options[0] parked the hint straight across the cells it was asking the
-    // player to tap.
+    // Nothing clears everything — a short landscape screen, or a board lighting
+    // up cells in several rows at once. Score every candidate instead of taking
+    // the first that merely clears `avoid`: that shortcut always chose the slot
+    // directly above the target, which for a bottom-docked button is exactly on
+    // top of the hand. `avoid` still dominates, so a close control is never
+    // buried to save a few pixels of hand.
     var best = options[0], bestCost = Infinity;
     for (var j = 0; j < options.length; j++) {
       var t = Math.max(minTop, Math.min(maxTop, options[j]));
