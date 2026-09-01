@@ -9535,7 +9535,18 @@
     }
     function deckAssetForElements(elements = []) {
         const key = elements.find(element => DECK_ASSET_KEYS.includes(element));
-        return key ? DECK_ASSET_PATHS[key] : null;
+        if (!key) {
+            return null;
+        }
+        // Deck art is injected as a CSS url(), where the <img onerror> WebP
+        // fallback cannot reach it — resolve the twin here instead. The
+        // literals stay .png so the cross-file asset contract keeps holding.
+        const asset = DECK_ASSET_PATHS[key];
+        const preferWebp = window.SieglingsCardBinderVisual?.preferWebp;
+        if (!asset || !preferWebp) {
+            return asset || null;
+        }
+        return { ...asset, back: preferWebp(asset.back), icon: preferWebp(asset.icon) };
     }
     function parseHubRoute(path) {
         const segments = String(path || '/home').replace(/^\/+/, '').split('/').filter(Boolean);

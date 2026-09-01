@@ -28,7 +28,7 @@
     --element-wind-glow:  rgba(110, 231, 183, 0.55);
 
     /* Asset overrides — drop real files into static/img/ and override these */
-    --asset-pcg-logo:        url('/img/pcg-logo.png');
+    --asset-pcg-logo:        url('/img/pcg-logo.webp');
 }
 
 * { box-sizing: border-box; }

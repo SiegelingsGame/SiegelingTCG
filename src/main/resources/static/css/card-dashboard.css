@@ -2291,7 +2291,7 @@ body.move-picker-open {
     overflow: hidden;
     border: 1px solid var(--line);
     background: #0b1020 center/cover no-repeat;
-    background-image: url('/img/knights/siegeknight-card-template.png');
+    background-image: url('/img/knights/siegeknight-card-template.webp');
 }
 
 .trainer-art-portrait .trainer-art-full-img {
@@ -2339,7 +2339,7 @@ body.move-picker-open {
     inset: 0;
     z-index: 2;
     pointer-events: none;
-    background-image: url('/img/knights/siegeknight-card-template.png');
+    background-image: url('/img/knights/siegeknight-card-template.webp');
     background-size: 100% 100%;
     background-repeat: no-repeat;
 }

@@ -13295,7 +13295,14 @@ function buildDeckFaceSigils(elements) {
 
 function deckArtAssetForElements(elements = []) {
     const key = elements.find(element => DECK_ART_ASSET_KEYS.includes(element));
-    return key ? DECK_ART_ASSETS[key] : null;
+    if (!key) {
+        return null;
+    }
+    // Deck art is injected as a CSS url(), where the <img onerror> WebP
+    // fallback cannot reach it — resolve the twin here instead. The literals
+    // stay .png so the cross-file asset contract keeps holding.
+    const asset = DECK_ART_ASSETS[key];
+    return asset ? { ...asset, back: sgPreferWebp(asset.back), icon: sgPreferWebp(asset.icon) } : null;
 }
 
 function getDeckSigilPlacements(count) {
