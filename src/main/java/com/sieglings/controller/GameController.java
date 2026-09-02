@@ -379,9 +379,6 @@ public class GameController {
             attachAuthenticatedSoloUser(handle.state(), authorizationHeader);
             Map<String, Object> resp = new LinkedHashMap<>(buildStateResponse(handle.state(), true, null));
             resp.put("soloToken", handle.token());
-            if (tutorial) {
-                resp.put("tutorialMode", true);
-            }
             return resp;
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage());
@@ -890,6 +887,7 @@ public class GameController {
         resp.put("setupTurnsTakenThisRound", gs.getSetupTurnsTakenThisRound());
         resp.put("gameOver", gs.isGameOver());
         resp.put("winner", gs.getWinner());
+        resp.put("tutorialMode", gs.isTutorialMode());
         resp.put("multiplayer", roomId != null);
         resp.put("roomId", roomId);
         resp.put("viewerSide", viewerIsPlayer ? "PLAYER" : "ENEMY");
@@ -999,7 +997,13 @@ public class GameController {
                 && viewer.getAccountUserId() != null && !viewer.getAccountUserId().isBlank()) {
             rewardUser = accountService.findById(viewer.getAccountUserId());
         }
-        screen.putAll(playerProgressionService.describeEarnedRewards(rewardUser, matchType, result));
+        if (gs.isTutorialMode()) {
+            // Practice match: nothing is granted, so the end screen must not
+            // claim the solo-win purse the Dummy would otherwise display.
+            screen.putAll(PlayerProgressionService.describePracticeRewards());
+        } else {
+            screen.putAll(playerProgressionService.describeEarnedRewards(rewardUser, matchType, result));
+        }
 
         if (rewardUser != null) {
             screen.put("record", buildBattleRecord(rewardUser));

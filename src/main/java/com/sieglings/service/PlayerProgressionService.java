@@ -532,6 +532,20 @@ public class PlayerProgressionService {
     }
 
     /**
+     * End-screen payload for a practice / tutorial match: no gold, no remnants,
+     * not a guest preview. The one-time tutorial purse is a separate claim.
+     */
+    public static Map<String, Object> describePracticeRewards() {
+        Map<String, Object> rewards = new LinkedHashMap<>();
+        rewards.put("goldEarned", 0);
+        rewards.put("remnantsEarned", 0);
+        rewards.put("streakBonus", 0);
+        rewards.put("rewardsClaimed", false);
+        rewards.put("guestPreview", false);
+        return rewards;
+    }
+
+    /**
      * Describes the rewards tied to a finished match for the end screen.
      *
      * <p>For a logged-in winner these are the rewards actually granted (the real
@@ -549,12 +563,7 @@ public class PlayerProgressionService {
         int remnants = online ? ONLINE_WIN_REMNANTS : SOLO_WIN_REMNANTS;
 
         if (!win) {
-            rewards.put("goldEarned", 0);
-            rewards.put("remnantsEarned", 0);
-            rewards.put("streakBonus", 0);
-            rewards.put("rewardsClaimed", false);
-            rewards.put("guestPreview", false);
-            return rewards;
+            return describePracticeRewards();
         }
 
         if (user == null) {

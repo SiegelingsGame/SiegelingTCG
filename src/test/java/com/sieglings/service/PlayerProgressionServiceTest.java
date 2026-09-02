@@ -326,6 +326,17 @@ class PlayerProgressionServiceTest {
     }
 
     @Test
+    void practiceMatchRewardsAreZeroAndNotAGuestPreview() {
+        Map<String, Object> rewards = PlayerProgressionService.describePracticeRewards();
+
+        assertEquals(0, rewards.get("goldEarned"));
+        assertEquals(0, rewards.get("remnantsEarned"));
+        assertEquals(0, rewards.get("streakBonus"));
+        assertEquals(Boolean.FALSE, rewards.get("guestPreview"));
+        assertEquals(Boolean.FALSE, rewards.get("rewardsClaimed"));
+    }
+
+    @Test
     void lossEarnsNothingAndIsNotAPreview() throws Exception {
         FakeProgressionStore store = new FakeProgressionStore();
         PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
