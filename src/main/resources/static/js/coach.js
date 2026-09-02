@@ -423,6 +423,49 @@
     applyRecommendation(det || s);
   }
 
+  // ---- rotation -----------------------------------------------------------
+
+  var viewportTimer = 0;
+
+  /**
+   * A rotation invalidates everything the placement was measured from: the
+   * safe-area insets swap, the card's own width changes with the landscape
+   * media query (so its height does too), the play areas move, and in Siege the
+   * map is re-drawn on a transposed axis entirely.
+   *
+   * The rAF tick alone is not enough. It repositions only when the spotlight
+   * RECT STRING changes, which silently misses the case where it reads 'none'
+   * both before and after — a target that exists in only one layout, like the
+   * Arena's desktop-only #btnEndTurn — leaving the card parked where the old
+   * orientation put it. So a viewport change forces a full re-render.
+   *
+   * Debounced past adventure.js's own 150ms map re-render, because resize fires
+   * in bursts through a rotation and the ring has to land on the transposed
+   * nodes rather than on their old geometry.
+   */
+  function onViewportChange() {
+    if (!ACTIVE) return;
+    if (viewportTimer) clearTimeout(viewportTimer);
+    viewportTimer = setTimeout(function () {
+      viewportTimer = 0;
+      if (!ACTIVE) return;
+      lastRect = '';
+      renderStep();
+      // Re-measure once more on the next frame: the card's height is only
+      // final after the new width has reflowed its copy.
+      window.requestAnimationFrame(function () { if (ACTIVE) position(); });
+    }, 220);
+  }
+
+  var VIEWPORT_EVENTS = ['resize', 'orientationchange'];
+
+  function watchViewport(on) {
+    var fn = on ? 'addEventListener' : 'removeEventListener';
+    VIEWPORT_EVENTS.forEach(function (ev) { window[fn](ev, onViewportChange); });
+    // iOS reports a rotation on visualViewport before window.resize settles.
+    if (window.visualViewport) window.visualViewport[fn]('resize', onViewportChange);
+  }
+
   // ---- lifecycle ----------------------------------------------------------
 
   /**
@@ -446,6 +489,7 @@
     layer.classList.remove('hidden');
     if (cfg.bodyClass) document.body.classList.add(cfg.bodyClass);
     advance();
+    watchViewport(true);
     raf = window.requestAnimationFrame(tick);
   }
 
@@ -454,6 +498,8 @@
     ACTIVE = false;
     if (raf) window.cancelAnimationFrame(raf);
     raf = 0;
+    watchViewport(false);
+    if (viewportTimer) { clearTimeout(viewportTimer); viewportTimer = 0; }
     if (recommended) { recommended.classList.remove('tut-pick'); recommended = null; }
     if (layer) layer.classList.add('hidden');
     var done = cfg;
