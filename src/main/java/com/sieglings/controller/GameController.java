@@ -906,13 +906,19 @@ public class GameController {
         resp.put("playerPlacementUsed", gs.isSieglingSetupBudgetExhausted(viewerIsPlayer));
         resp.put("setupSieglingActionsUsed", gs.getSieglingSetupActionsUsed(viewerIsPlayer));
         resp.put("setupSieglingActionBudget", gs.getSieglingSetupActionBudget(viewerIsPlayer));
-        resp.put("mulligan", Map.of(
-                "active", mulliganActive,
-                "youPending", viewerPendingMulligan,
-                "opponentPending", opponentPendingMulligan,
-                "youUsed", gs.hasUsedMulligan(viewerIsPlayer),
-                "opponentUsed", gs.hasUsedMulligan(!viewerIsPlayer)
-        ));
+        Map<String, Object> mulligan = new LinkedHashMap<>();
+        mulligan.put("active", mulliganActive);
+        mulligan.put("youPending", viewerPendingMulligan);
+        mulligan.put("opponentPending", opponentPendingMulligan);
+        mulligan.put("youUsed", gs.hasUsedMulligan(viewerIsPlayer));
+        mulligan.put("opponentUsed", gs.hasUsedMulligan(!viewerIsPlayer));
+        if (gs.isTutorialMatch()) {
+            // Scripted opening: only one practice slot may be redrawn; the rest stay locked.
+            mulligan.put("tutorialScripted", true);
+            mulligan.put("allowedIndices", List.of(GameService.TUTORIAL_SCRIPTED_MULLIGAN_INDEX));
+            resp.put("tutorialMode", true);
+        }
+        resp.put("mulligan", mulligan);
 
         CardInstance pendingAttacker = gameService.getPendingBattleAttacker(gs);
         if (pendingAttacker != null && pendingAttacker.isOwner() == viewerIsPlayer) {

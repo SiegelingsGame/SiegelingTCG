@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -908,6 +909,97 @@ class GameServiceTest {
                 "Advanced shield Strategy should be injected");
         assertTrue(player.getDeck().stream().anyMatch(c -> "spell_fire_09".equals(c.getId()) || "spell_earth_02".equals(c.getId())),
                 "Advanced buff Strategies should be seeded when available");
+    }
+
+    @Test
+    void tutorialMulliganLocksLessonCardsAndPreservesDeckOrder() throws Exception {
+        GameService gameService = new GameService();
+        CardDefinitionService stubs = new CardDefinitionService() {
+            @Override
+            public List<Card> buildCustomDeck(List<String> cardIds) {
+                if (cardIds == null || cardIds.isEmpty()) {
+                    return List.of();
+                }
+                String id = cardIds.get(0);
+                if ("trap13".equals(id)) {
+                    return List.of(new TrapCard(
+                            "trap13", "Shatter Seal", Element.FIRE, Rarity.RARE,
+                            Element.ICE, 3,
+                            Ability.damage("Shatter", "Deal 4 if opponent has 3 Ice",
+                                    TargetType.SINGLE_ENEMY, null, 1, 4)));
+                }
+                return List.of();
+            }
+        };
+        setField(gameService, "cardDefs", stubs);
+
+        Player player = new Player("Roc", true);
+        List<Card> mixed = new ArrayList<>();
+        mixed.add(baseSiegling("sundile", "Sundile", Element.FIRE));
+        mixed.add(baseSiegling("squirebud", "Squire Bud", Element.EARTH));
+        mixed.add(new SpellCard("spell_fire_06", "Cinder Bolt", Element.FIRE, Rarity.COMMON, 1,
+                Ability.damage("Bolt", "Deal 4", TargetType.SINGLE_ENEMY, null, 1, 4)));
+        mixed.add(baseSiegling("pylook", "Pylook", Element.FIRE));
+        mixed.add(baseSiegling("raydile", "Raydile", Element.FIRE));
+        mixed.add(baseSiegling("floraknight", "Flora Knight", Element.EARTH));
+        player.setDeck(mixed);
+
+        Method prepare = GameService.class.getDeclaredMethod("prepareTutorialPlayerDeck", Player.class);
+        prepare.setAccessible(true);
+        prepare.invoke(gameService, player);
+
+        GameState state = new GameState();
+        state.setTutorialMatch(true);
+        state.setPlayer(player);
+        state.setEnemy(new Player("Dummy", false));
+        state.setCurrentPhase(Phase.MULLIGAN);
+        state.setMulliganPending(true, true);
+        // Keep the enemy pending so completing the player side does not advance phases
+        // (this unit test only asserts hand/deck scripting).
+        state.setMulliganPending(false, true);
+        for (int i = 0; i < 5; i++) {
+            player.drawCard();
+        }
+
+        List<String> opening = player.getHand().stream().map(Card::getId).toList();
+        assertEquals(List.of("sundile", "squirebud", "spell_fire_06", "trap13", "pylook"), opening);
+        assertEquals("raydile", player.getDeck().get(0).getId());
+
+        // Dumping lesson cards is ignored — treated as a keep.
+        gameService.resolveOpeningMulligan(state, true, List.of(0, 1, 2));
+        assertEquals(opening, player.getHand().stream().map(Card::getId).toList());
+        assertFalse(state.isMulliganPending(true));
+        assertFalse(state.hasUsedMulligan(true));
+
+        // Fresh opening hand for the practice redraw path.
+        state = new GameState();
+        state.setTutorialMatch(true);
+        player = new Player("Roc", true);
+        List<Card> mixed2 = new ArrayList<>();
+        mixed2.add(baseSiegling("sundile", "Sundile", Element.FIRE));
+        mixed2.add(baseSiegling("squirebud", "Squire Bud", Element.EARTH));
+        mixed2.add(new SpellCard("spell_fire_06", "Cinder Bolt", Element.FIRE, Rarity.COMMON, 1,
+                Ability.damage("Bolt", "Deal 4", TargetType.SINGLE_ENEMY, null, 1, 4)));
+        mixed2.add(baseSiegling("pylook", "Pylook", Element.FIRE));
+        mixed2.add(baseSiegling("raydile", "Raydile", Element.FIRE));
+        mixed2.add(baseSiegling("floraknight", "Flora Knight", Element.EARTH));
+        player.setDeck(mixed2);
+        prepare.invoke(gameService, player);
+        state.setPlayer(player);
+        state.setEnemy(new Player("Dummy", false));
+        state.setCurrentPhase(Phase.MULLIGAN);
+        state.setMulliganPending(true, true);
+        state.setMulliganPending(false, true);
+        for (int i = 0; i < 5; i++) {
+            player.drawCard();
+        }
+
+        gameService.resolveOpeningMulligan(state, true, List.of(4));
+        List<String> after = player.getHand().stream().map(Card::getId).toList();
+        assertEquals(List.of("sundile", "squirebud", "spell_fire_06", "trap13", "raydile"), after);
+        assertEquals("floraknight", player.getDeck().get(0).getId(),
+                "Deck order must stay intact after a non-shuffling tutorial mulligan");
+        assertTrue(state.hasUsedMulligan(true));
     }
 
     private SieglingCard baseSiegling(String id, String name, Element element) {

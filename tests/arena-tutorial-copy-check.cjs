@@ -17,8 +17,13 @@ if (!coachSrc.includes('onAlt')) failures.push('coach missing onAlt');
 if (!gameSrc.includes('tutorial_ashen_ward')) failures.push('deck missing Ashen Ward injection');
 if (!gameSrc.includes('spell_fire_09')) failures.push('deck missing damage-boost Strategy');
 if (!gameSrc.includes('spell_earth_02')) failures.push('deck missing health-boost Strategy');
-if (!playHtml.includes('arena-tutorial.js?v=6')) failures.push('arena-tutorial pin not v=6');
+if (!playHtml.includes('arena-tutorial.js?v=7')) failures.push('arena-tutorial pin not v=7');
 if (!playHtml.includes('coach.js?v=3')) failures.push('coach.js pin not v=3');
+if (!playHtml.includes('game.js?v=258')) failures.push('game.js pin not v=258');
+if (!arenaSrc.includes('scripted')) failures.push('mulligan tip missing scripted copy');
+if (!arenaSrc.includes('Pylook')) failures.push('mulligan tip missing Pylook practice card');
+if (!gameSrc.includes('TUTORIAL_SCRIPTED_MULLIGAN_INDEX')) failures.push('missing scripted mulligan index');
+if (!gameSrc.includes('ensureTutorialLessonOpeningHand')) failures.push('missing lesson-hand restore');
 if (arenaSrc.includes('face-down')) failures.push('still says face-down');
 
 if (failures.length) {

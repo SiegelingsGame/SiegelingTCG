@@ -657,12 +657,23 @@ public class GameService {
     }
 
     /**
+     * Opening-hand index the tutorial student may redraw (0-based). Indices 0–3 are
+     * the locked lesson cards (Sundile, Squire Bud, Strategy, Shatter Seal); index 4
+     * is the practice redraw (Pylook). A redraw does not shuffle — the next scripted
+     * card comes off the top of the deck.
+     */
+    public static final int TUTORIAL_SCRIPTED_MULLIGAN_INDEX = 4;
+
+    private static final List<String> TUTORIAL_REQUIRED_OPENING_IDS = List.of(
+            "sundile", "squirebud", "spell_fire_06", "trap13");
+
+    /**
      * Tutorial draw stack (top drawn first into the opening five, then T1/T2 draws):
      * Sundile (Fire socket opener), Squire Bud (Earth linker for combo), a cheap
-     * Strategy, Shatter Seal (Ice Deception vs the Dummy), spare Pylook, Raydile
-     * (evolve Sundile), Flora Knight (Rootbind status), then Advanced-lesson cards:
-     * damage-boost Strategy, health-boost Strategy, Root Bind, and an injected
-     * Ashen Ward shield Strategy.
+     * Strategy, Shatter Seal (Ice Deception vs the Dummy), spare Pylook (the only
+     * card the scripted mulligan may redraw), Raydile (evolve Sundile), Flora Knight
+     * (Rootbind status), then Advanced-lesson cards: damage-boost Strategy,
+     * health-boost Strategy, Root Bind, and an injected Ashen Ward shield Strategy.
      */
     private void prepareTutorialPlayerDeck(Player player) {
         if (player == null) {
@@ -1072,16 +1083,66 @@ public class GameService {
 
         Player actor = getSidePlayer(state, isPlayerSide);
         List<Integer> plan = mulliganHandIndices == null ? List.of() : mulliganHandIndices;
+        boolean tutorialScripted = state.isTutorialMatch() && isPlayerSide;
+        if (tutorialScripted) {
+            // Only the practice slot may leave the hand; keep / ignore anything else so
+            // lesson cards cannot be discarded even by an old or malicious client.
+            plan = plan.stream()
+                    .filter(i -> i != null && i == TUTORIAL_SCRIPTED_MULLIGAN_INDEX)
+                    .distinct()
+                    .toList();
+        }
         if (plan.isEmpty()) {
             state.log(sideName(state, isPlayerSide) + " keeps the opening hand.");
         } else {
-            actor.mulliganHandAtIndices(plan);
+            actor.mulliganHandAtIndices(plan, !tutorialScripted);
             state.setMulliganUsed(isPlayerSide, true);
             state.log(sideName(state, isPlayerSide) + " mulligans " + plan.size() + " opening card(s).");
+        }
+        if (tutorialScripted) {
+            ensureTutorialLessonOpeningHand(actor);
         }
         state.setMulliganPending(isPlayerSide, false);
         tryCompleteOpeningMulligan(state);
         return state;
+    }
+
+    /**
+     * After a tutorial mulligan, restore any missing lesson openers from the deck so
+     * the coach script can still fire even if a client somehow bypassed the UI lock.
+     */
+    private void ensureTutorialLessonOpeningHand(Player player) {
+        if (player == null) {
+            return;
+        }
+        for (String id : TUTORIAL_REQUIRED_OPENING_IDS) {
+            boolean inHand = player.getHand().stream()
+                    .anyMatch(card -> card != null && id.equalsIgnoreCase(card.getId()));
+            if (inHand) {
+                continue;
+            }
+            Card restored = takeNamedCard(player.getDeck(), id);
+            if (restored == null) {
+                continue;
+            }
+            // Keep hand size stable: park a non-required card under the deck.
+            int swapIndex = -1;
+            for (int i = 0; i < player.getHand().size(); i++) {
+                Card held = player.getHand().get(i);
+                String heldId = held == null ? "" : held.getId();
+                boolean required = TUTORIAL_REQUIRED_OPENING_IDS.stream()
+                        .anyMatch(req -> req.equalsIgnoreCase(heldId));
+                if (!required) {
+                    swapIndex = i;
+                    break;
+                }
+            }
+            if (swapIndex >= 0) {
+                Card parked = player.getHand().remove(swapIndex);
+                player.getDeck().add(parked);
+            }
+            player.getHand().add(restored);
+        }
     }
 
     private void resolveAutomatedOpeningMulligan(GameState state, boolean isPlayerSide) {

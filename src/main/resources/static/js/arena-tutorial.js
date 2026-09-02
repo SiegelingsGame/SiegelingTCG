@@ -198,9 +198,10 @@
       { id: 'welcome', kicker: 'Tutorial match', title: 'Welcome',
         body: 'You lead <b>Squire Bob</b> with <b>Ashen Roots</b> against a Training Dummy. I will tip you, you press <b>Got it</b>, then make the play.' },
 
-      { id: 'mulligan', hint: 'Keep, or redraw, once', title: 'Opening hand', target: '#mulliganActions',
+      { id: 'mulligan', hint: 'Keep, or practice one redraw', title: 'Opening hand',
+        target: '#mulliganHandPreview .mulligan-card-slot[data-index="4"]',
         highlight: ['#mulliganHandPreview', '#mulliganActions'],
-        body: 'One mulligan before the match. Keep the hand, or tap cards to redraw. Open with a <b>Siegeling</b>.',
+        body: 'This hand is scripted. Four cards stay locked for the lesson. Tap <b>Pylook</b> to practice one redraw, or <b>Keep hand</b>.',
         skipIf: function () { return phase() !== 'MULLIGAN'; },
         until: function () { return phase() !== 'MULLIGAN'; } },
 

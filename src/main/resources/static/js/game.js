@@ -11918,9 +11918,17 @@ function toggleMulliganCard(index) {
     if (!gameState?.mulligan?.youPending) {
         return;
     }
+    const allowed = mulliganAllowedIndexSet();
+    if (allowed && !allowed.has(index)) {
+        return;
+    }
     if (mulliganSelectedIndices.has(index)) {
         mulliganSelectedIndices.delete(index);
     } else {
+        // Tutorial script: at most one practice redraw.
+        if (allowed && allowed.size === 1) {
+            mulliganSelectedIndices.clear();
+        }
         mulliganSelectedIndices.add(index);
     }
     // The hand has not changed, so keep its live card/image nodes in place.
@@ -11929,25 +11937,45 @@ function toggleMulliganCard(index) {
     updateMulliganSelectionUI();
 }
 
+/** null = any card; otherwise only those indices may be selected for redraw. */
+function mulliganAllowedIndexSet() {
+    const allowed = gameState?.mulligan?.allowedIndices;
+    if (Array.isArray(allowed) && allowed.length > 0) {
+        return new Set(allowed.map((n) => Number(n)).filter((n) => Number.isInteger(n)));
+    }
+    if (gameState?.mulligan?.tutorialScripted || (typeof tutorialMatchActive !== 'undefined' && tutorialMatchActive)) {
+        return new Set([4]);
+    }
+    return null;
+}
+
 function updateMulliganSelectionUI() {
     const preview = document.getElementById('mulliganHandPreview');
+    const allowed = mulliganAllowedIndexSet();
+    const scripted = Boolean(gameState?.mulligan?.tutorialScripted) || (allowed && allowed.size === 1);
     if (preview) {
         preview.querySelectorAll('.mulligan-card-slot').forEach((slot) => {
             const index = Number(slot.dataset.index);
             const isSelected = mulliganSelectedIndices.has(index);
+            const slotAllowed = !allowed || allowed.has(index);
+            const locked = Boolean(allowed) && !slotAllowed;
             slot.classList.toggle('is-selected', isSelected);
             if (slot.getAttribute('role') === 'button') {
                 slot.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
             }
-            let badge = slot.querySelector('.mulligan-redraw-badge');
-            if (isSelected && !badge) {
-                badge = document.createElement('div');
+            slot.querySelectorAll('.mulligan-redraw-badge, .mulligan-practice-badge').forEach((el) => el.remove());
+            if (isSelected) {
+                const badge = document.createElement('div');
                 badge.className = 'mulligan-redraw-badge';
                 badge.setAttribute('aria-hidden', 'true');
                 badge.textContent = 'Redraw';
                 slot.insertBefore(badge, slot.firstChild);
-            } else if (!isSelected && badge) {
-                badge.remove();
+            } else if (scripted && slotAllowed && gameState?.mulligan?.youPending && !locked) {
+                const badge = document.createElement('div');
+                badge.className = 'mulligan-practice-badge';
+                badge.setAttribute('aria-hidden', 'true');
+                badge.textContent = 'Practice';
+                slot.insertBefore(badge, slot.firstChild);
             }
         });
     }
@@ -11969,7 +11997,14 @@ function submitMulliganSelected() {
     if (mulliganSelectedIndices.size === 0) {
         return;
     }
-    const sorted = Array.from(mulliganSelectedIndices).sort((a, b) => a - b);
+    const allowed = mulliganAllowedIndexSet();
+    let sorted = Array.from(mulliganSelectedIndices).sort((a, b) => a - b);
+    if (allowed) {
+        sorted = sorted.filter((i) => allowed.has(i));
+        if (sorted.length === 0) {
+            return;
+        }
+    }
     submitMulligan(sorted);
 }
 
@@ -15314,13 +15349,19 @@ function renderMulliganOverlay() {
 
     overlay.classList.add('visible');
     const hand = gameState.player.hand || [];
+    const allowedSet = mulliganAllowedIndexSet();
+    const scriptedTutorial = Boolean(gameState.mulligan?.tutorialScripted) || (allowedSet && allowedSet.size === 1);
     if (gameState.mulligan.youPending) {
         const sig = hand.map((c, i) => i + ':' + c.id).join(',');
         if (sig !== mulliganHandSig) {
             mulliganSelectedIndices.clear();
             mulliganHandSig = sig;
         }
-        copy.textContent = 'Select any cards to shuffle back into your deck; you draw the same number of new cards. Leave none selected to keep your whole hand. You get one mulligan before the first draw phase.';
+        if (scriptedTutorial) {
+            copy.textContent = 'This opening hand is scripted for the lesson. Four cards stay locked. Tap Pylook (the last card) to practice one redraw, or Keep hand to continue.';
+        } else {
+            copy.textContent = 'Select any cards to shuffle back into your deck; you draw the same number of new cards. Leave none selected to keep your whole hand. You get one mulligan before the first draw phase.';
+        }
     } else if (gameState.mulligan.opponentPending) {
         mulliganHandSig = '';
         copy.textContent = 'Your hand is locked. Waiting for the other player to finish their mulligan decision.';
@@ -15340,12 +15381,15 @@ function renderMulliganOverlay() {
 
     preview.innerHTML = hand.map((card, index) => {
         const isSelected = mulliganSelectedIndices.has(index);
-        const interactive = gameState.mulligan.youPending;
+        const slotAllowed = !allowedSet || allowedSet.has(index);
+        const interactive = gameState.mulligan.youPending && slotAllowed;
+        const locked = gameState.mulligan.youPending && allowedSet && !slotAllowed;
         const slotClasses = [
             'mulligan-card-slot',
             (card.element || 'NEUTRAL').toLowerCase(),
             isSelected ? 'is-selected' : '',
-            interactive ? 'is-interactive' : ''
+            interactive ? 'is-interactive' : '',
+            locked ? 'is-locked' : ''
         ].filter(Boolean).join(' ');
         const role = interactive ? ' role="button" tabindex="0" aria-pressed="' + (isSelected ? 'true' : 'false') + '"' : '';
         const click = interactive ? ` onclick="toggleMulliganCard(${index})"` : '';
@@ -15356,9 +15400,14 @@ function renderMulliganOverlay() {
         const showcase = renderHolographicFullArtFace(card, {
             descriptionText: card.description || card.ability?.description || ''
         }) || renderShowcaseCard(card, { artVariant: 'preview', cardClass: 'mulligan-showcase', compactAbilityLimit: 2 });
-        const badge = isSelected
-            ? `<div class="mulligan-redraw-badge" aria-hidden="true">Redraw</div>`
-            : '';
+        let badge = '';
+        if (isSelected) {
+            badge = `<div class="mulligan-redraw-badge" aria-hidden="true">Redraw</div>`;
+        } else if (locked) {
+            badge = `<div class="mulligan-keep-badge" aria-hidden="true">Keep</div>`;
+        } else if (scriptedTutorial && slotAllowed && gameState.mulligan.youPending) {
+            badge = `<div class="mulligan-practice-badge" aria-hidden="true">Practice</div>`;
+        }
         return `
         <div class="${slotClasses}" data-index="${index}"${role}${click}>
             ${badge}
