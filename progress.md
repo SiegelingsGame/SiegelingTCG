@@ -2127,3 +2127,12 @@ at 390x844 and 1920x1080. Both viewports rendered all ten key entries and the
 per-card Advantage reference with no console errors. Cache-bust:
 `coach.css` v3, `adventure.css` v88, `siege-tutorial.js` v15, and
 `adventure.js` v91.
+
+Production release: PR #791 squash-merged as `473948fd`; Deploy run
+`33691584165` completed successfully from 22:41:14–22:49:06Z with Cloud Run,
+Firebase Hosting, and Firebase Functions all green. Live `/siege` serves all
+four new cache pins, and its tutorial/card bundles contain the Team Speed key,
+per-card Advantage reference, and Sear damage path. Hosting and direct Cloud
+Run `/api/cards/editor` both report `source: FIRESTORE`, live editing enabled,
+and Firestore available; hosted `/api/game/options` and `/api/siege/roster`
+both return 200, with same-origin API configuration intact.
