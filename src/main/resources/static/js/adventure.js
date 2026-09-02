@@ -60,6 +60,21 @@
     BLIND: { icon: '✨', label: 'Blind', tip: 'Ability values −1' },
     WITHER: { icon: '💀', label: 'Wither', timed: true, tip: '−1 HP at turn start' }
   };
+  // Reference copy for a card's potential Advantage rider. The server remains
+  // authoritative when a card is actually played; this table lets every
+  // Siegeling detail sheet explain the rider before that unit holds the token.
+  var ADVANTAGE_RIDERS = {
+    FIRE: ['Kindle: target gains +1 Attack for this battle.', 'Sear: deal 2 additional damage.'],
+    EARTH: ['Fortify: grant 4 Shield.', 'Stagger: apply Slow.'],
+    WIND: ['Tailwind: recover 1 AP after this card.', 'Headwind: apply Shock.'],
+    WATER: ['Mend: heal 3 additional HP.', 'Flow: heal the Advantage holder for 2.'],
+    ICE: ['Frostguard: grant 3 Shield.', 'Deep Chill: Slow, or Stun an already-Slow target.'],
+    ELECTRIC: ['Charge: gain 1 Knight Ultimate Charge.', 'Arc: deal 2 damage to another enemy.'],
+    METAL: ['Plate: grant 5 Shield.', 'Expose: break 4 Shield, or deal 1 damage.'],
+    SHADOW: ['Veil: heal 2 and grant 2 Shield.', 'Drain: deal 2 damage and heal the holder for 2.'],
+    UNDEAD: ['Graveguard: heal 3 if the target is below half HP.', 'Reap: deal 3 damage if the target is below half HP.'],
+    PSYCHIC: ['Insight: draw 1 card.', 'Confuse: apply Shock.']
+  };
   // Status → the element that inflicts it, mirroring
   // ElementalAfflictionCatalog.java. Statuses arrive from auras and riders, not
   // from something flying across the arena, so they light this element around
@@ -943,6 +958,15 @@
     }
   }
 
+  function advantageRiderText(spec) {
+    if (!spec) return '';
+    if (spec.advantageText) return spec.advantageText;
+    var pair = ADVANTAGE_RIDERS[spec.element];
+    if (!pair) return '';
+    var friendly = spec.target === 'ALLY_SINGLE' || spec.target === 'ALLY_ALL' || spec.target === 'SELF';
+    return pair[friendly ? 0 : 1];
+  }
+
   // Availability tier for the knight list: knights you can ride out with right
   // now sort above ones that still cost Siegecoins, which sort above knights
   // whose card you don't even own — so the usable ones are always at the top.
@@ -1637,6 +1661,7 @@
         '<span class="um-cost">' + spec.actionCost + '</span>' +
         '<div class="um-card-main"><div class="um-card-name">' + icon(spec.element) + ' ' + esc(spec.name) + '</div>' +
         '<div class="um-card-eff">' + specSummary(spec) + ' ' + status + '</div>' +
+        (advantageRiderText(spec) ? '<div class="um-card-advantage"><b>◆ Advantage</b> ' + esc(advantageRiderText(spec)) + '</div>' : '') +
         (spec.description ? '<div class="um-card-desc">' + esc(spec.description) + '</div>' : '') +
         '</div></div>';
     }).join('');

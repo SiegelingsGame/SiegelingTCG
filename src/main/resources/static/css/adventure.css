@@ -331,6 +331,8 @@ body[data-screen="mapScreen"] #mapScreen{
 .um-card-name{font-weight:700; font-size:13px;}
 .um-card-eff{font-size:11.5px; color:var(--accent-2); margin-top:2px; font-weight:650;}
 .um-status{color:#c896ff; margin-left:6px;}
+.um-card-advantage{font-size:10.5px; color:#ffe36b; margin-top:5px; line-height:1.35; padding:4px 6px; border:1px solid rgba(255,213,66,.28); border-radius:6px; background:rgba(255,213,66,.07);}
+.um-card-advantage b{text-transform:uppercase; letter-spacing:.45px;}
 .um-card-desc{font-size:11px; color:var(--faint); margin-top:3px; line-height:1.35;}
 .um-stats{display:grid; grid-template-columns:1fr 1fr; gap:6px;}
 .um-stat{display:flex; justify-content:space-between; gap:8px; align-items:baseline;

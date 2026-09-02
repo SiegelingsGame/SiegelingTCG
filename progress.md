@@ -2098,3 +2098,32 @@ rail, inline rider copy, and holder treatment. Hosting and direct Cloud Run
 and `firestoreAvailable: true`; `/api/game/options` returns 200 with 6 decks and
 13 trainers, `/api/siege/roster` returns 200, and hosted `js/config.js` retains
 the empty same-origin `apiBaseUrl`.
+
+## 2026-09-02 — Advantage tutorial, card reference, and damage regression
+
+The Siege speed lesson now distinguishes Team Speed (the living team total
+that decides who takes the first turn) from the shared Advantage initiative
+cycle (fastest to slowest, passing after each team turn). Its compact key lists
+the friendly- and enemy-target rider for all ten live elements and remains
+fully visible at both phone and desktop sizes.
+
+Every Siege Siegeling detail sheet now adds an Advantage line to each elemental
+card. Because setup, the map party strip, illustrated stops, brokers, battle
+units, reward/XP drill-downs, and ledger card details all use the same modal,
+the reference is available anywhere a unit can be selected. Active hand cards
+still reserve their gold Advantage treatment for the current holder.
+
+The simulated tutorial battle now carries the same fastest-to-slowest holder
+queue as a real battle, advances it between team turns, annotates the current
+holder's hand cards, and resolves the Fire and Electric riders used by the
+tutorial cast. This fixes the tutorial-only missing Fire damage: in the exact
+Draco/Spark/Embers regression, Spark grants +2 Attack, Kindle adds +1 Attack,
+Embers deals 8 base/buffed damage, and Sear lands as a separate +2 hit. The
+server-authoritative Advantage suite remains green.
+
+Verified with JavaScript syntax checks, focused `SiegeAdvantageTest` plus the
+new static-asset regression suite, `git diff --check`, and browser automation
+at 390x844 and 1920x1080. Both viewports rendered all ten key entries and the
+per-card Advantage reference with no console errors. Cache-bust:
+`coach.css` v3, `adventure.css` v88, `siege-tutorial.js` v15, and
+`adventure.js` v91.
