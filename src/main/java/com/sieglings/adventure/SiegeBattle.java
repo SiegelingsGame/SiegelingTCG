@@ -58,6 +58,10 @@ class SiegeBattle {
     private int knightCharge;
     /** Combatant id of the fastest ready Siegeling (cosmetic "lead" for the UI). */
     private String leadId;
+    /** Shared fastest-to-slowest queue, stable until it wraps. */
+    private final List<String> advantageOrder = new ArrayList<>();
+    private int advantageIndex = -1;
+    private long advantageCycle;
     /** Active run-wide Battlegrounds boon ids for this battle (empty outside Battlegrounds). */
     private java.util.Set<String> boons = java.util.Set.of();
     /** Whether the BATTLE_REVIVE boon has already fired this battle (once per battle). */
@@ -92,6 +96,15 @@ class SiegeBattle {
     void addKnightCharge(int amount) { setKnightCharge(knightCharge + amount); }
     String getLeadId() { return leadId; }
     void setLeadId(String leadId) { this.leadId = leadId; }
+    List<String> getAdvantageOrder() { return advantageOrder; }
+    int getAdvantageIndex() { return advantageIndex; }
+    void setAdvantageIndex(int advantageIndex) { this.advantageIndex = advantageIndex; }
+    long getAdvantageCycle() { return advantageCycle; }
+    void setAdvantageCycle(long advantageCycle) { this.advantageCycle = Math.max(0, advantageCycle); }
+    String getAdvantageHolderId() {
+        return advantageIndex >= 0 && advantageIndex < advantageOrder.size()
+                ? advantageOrder.get(advantageIndex) : null;
+    }
     void setBoons(java.util.Collection<String> boonIds) {
         this.boons = boonIds == null ? java.util.Set.of() : new java.util.HashSet<>(boonIds);
     }

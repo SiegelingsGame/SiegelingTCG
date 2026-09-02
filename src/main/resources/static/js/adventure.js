@@ -206,6 +206,7 @@
 
   function renderGameToText() {
     var run = state.run || {};
+    var battle = run.battle || {};
     var screen = document.body.dataset.screen || 'loadingScreen';
     var visibleChoices = [];
     var choiceRoots = ['campGrid', 'cacheOptions', 'brokerGrid', 'smithGrid', 'caravanGrid', 'eventChoices', 'rewardGrid'];
@@ -226,6 +227,14 @@
       party: (run.party || []).map(function (p) {
         return { id: p.id, name: p.name, element: p.element, hp: p.hp, maxHp: p.maxHp, alive: !!p.alive };
       }),
+      advantage: battle.advantageHolderId ? {
+        holderId: battle.advantageHolderId,
+        cycle: battle.advantageCycle,
+        activeForPlayer: !!battle.advantageActiveForPlayer,
+        order: (battle.advantageOrder || []).map(function (u) {
+          return { id: u.id, name: u.name, side: u.side, speed: u.effectiveSpeed, alive: !!u.alive };
+        })
+      } : null,
       choices: visibleChoices
     });
   }
@@ -3299,6 +3308,24 @@
         lanes.appendChild(row);
       });
     host.appendChild(lanes);
+    var advantage = el('div', 'advantage-lane');
+    advantage.appendChild(el('span', 'advantage-label', 'ADV'));
+    var queue = el('div', 'advantage-queue');
+    (b.advantageOrder || []).forEach(function (u, index) {
+      var holder = u.id === b.advantageHolderId;
+      var chip = el('span', 'advantage-chip ' + elClass(u.element) +
+        (holder ? ' holder' : '') + (u.alive ? '' : ' fallen') +
+        (u.side === 'PLAYER' ? ' you' : ' them'));
+      chip.setAttribute('aria-label', (holder ? 'Current Advantage holder: ' : '') +
+        u.name + ', Speed ' + u.effectiveSpeed + ', ' + (u.side === 'PLAYER' ? 'your team' : 'enemy team'));
+      chip.title = (index + 1) + '. ' + u.name + ' · Speed ' + u.effectiveSpeed;
+      if (u.artUrl) chip.style.backgroundImage = 'url("' + String(u.artUrl).replace(/"/g, '%22') + '")';
+      else chip.textContent = icon(u.element);
+      queue.appendChild(chip);
+      if (index < b.advantageOrder.length - 1) queue.appendChild(el('span', 'advantage-arrow', '›'));
+    });
+    advantage.appendChild(queue);
+    host.appendChild(advantage);
     host.appendChild(el('div', 'track-first ' + (b.playerActsFirst ? 'you' : 'them'),
       b.playerActsFirst ? 'You act first' : 'Enemy first'));
   }
@@ -3343,6 +3370,7 @@
       var isMerc = /\s\(Merc\)$/.test(u.name || '');
       var sp = el('div', 'sprite ' + side + ' ' + elClass(u.element) +
         (u.alive ? '' : ' dead') + (u.id === b.leadId ? ' lead' : '') +
+        (u.id === b.advantageHolderId ? ' advantage-holder' : '') +
         (side === 'enemy' && u.leader ? ' leader' : '') +
         (isMerc ? ' merc' : '') +
         (isThreatened ? ' threatened' : ''));
@@ -3380,7 +3408,8 @@
         intentLine = '<div class="sp-intent-line is-stunned">' +
           STATUS_META.STUN.icon + ' Stunned</div>';
       } else if (side === 'enemy' && u.alive && u.intent) {
-        intentLine = '<div class="sp-intent-line">' + intentLabel(u.intent, b) + '</div>';
+        intentLine = '<div class="sp-intent-line">' + intentLabel(u.intent, b) + '</div>' +
+          (u.advantaged && u.advantageText ? '<div class="sp-advantage-intent">◆ ' + esc(u.advantageText) + '</div>' : '');
       }
       var notch = side === 'ally' && u.position >= 0 ? '<div class="sp-notch">' + (u.position + 1) + '</div>' : '';
       // Level badge + XP bar for player Siegelings.
@@ -3602,6 +3631,14 @@
         showBanner(nameOf(ev.sourceId) + ' uses ' + ev.name, 'them', ev.element);
         flashSprite(ev.sourceId, 'acting');
         return 700;
+      case 'advantage-pass':
+        showBanner('◆ Advantage → ' + nameOf(ev.holderId), 'advantage');
+        flashSprite(ev.holderId, 'advantage-flash');
+        return 420;
+      case 'advantage-trigger':
+        showBanner('◆ ' + ev.text, ev.friendly ? 'you' : 'advantage', ev.element);
+        flashSprite(ev.sourceId, 'advantage-flash');
+        return 520;
       case 'ultimate':
         showBanner('⚡ ' + ev.name + '!', 'you', ev.element);
         return 800;
@@ -4139,6 +4176,7 @@
   function playCardClass(card) {
     return 'playcard ' + elClass(card.element) +
       (card.effect === 'EVOLVE' ? ' evo-card' : '') +
+      (card.advantaged ? ' advantaged' : '') +
       (card.playable ? '' : ' unplayable') +
       (card.instanceId === state.selectedCardId ? ' selected' : '');
   }
@@ -4161,6 +4199,7 @@
       '<div class="pc-owner">' + icon(card.element) + ' ' + esc(card.ownerName) + '</div>' +
       '<div class="pc-eff ' + effectClass(card.effect) + '">' + effectLabel(card) + '</div>' +
       statusLine + gaugeLine +
+      (card.advantaged && card.advantageText ? '<div class="pc-advantage"><b>◆ ADVANTAGE</b> ' + esc(card.advantageText) + '</div>' : '') +
       '<div class="pc-desc">' + esc(card.description || '') + '</div>';
   }
 

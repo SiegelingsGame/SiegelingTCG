@@ -41,6 +41,9 @@ class SiegeBattleCheckpointTest {
         battle.setEnemySpeed(9);
         battle.setKnightCharge(12);
         battle.setLeadId("ally-1");
+        battle.getAdvantageOrder().addAll(java.util.List.of("foe-1", "ally-1"));
+        battle.setAdvantageIndex(1);
+        battle.setAdvantageCycle(3);
         battle.log("Round 4 begins.");
 
         Combatant ally = new Combatant("ally-1", "Cacty", Element.EARTH, Side.PLAYER, 86, 12, "/img/cacty.png");
@@ -95,6 +98,9 @@ class SiegeBattleCheckpointTest {
         assertEquals(9, restored.getEnemySpeed());
         assertEquals(12, restored.getKnightCharge());
         assertEquals("ally-1", restored.getLeadId());
+        assertEquals(java.util.List.of("foe-1", "ally-1"), restored.getAdvantageOrder());
+        assertEquals("ally-1", restored.getAdvantageHolderId());
+        assertEquals(3, restored.getAdvantageCycle());
         assertTrue(restored.getLog().contains("Round 4 begins."));
         assertEquals(1, restored.getTurnLog().size());
 

@@ -1157,6 +1157,9 @@ public class SiegeService {
         b.put("enemySpeed", battle.getEnemySpeed());
         b.put("knightCharge", battle.getKnightCharge());
         b.put("leadId", battle.getLeadId());
+        b.put("advantageOrder", new ArrayList<>(battle.getAdvantageOrder()));
+        b.put("advantageIndex", battle.getAdvantageIndex());
+        b.put("advantageCycle", battle.getAdvantageCycle());
         b.put("log", new ArrayList<>(battle.getLog()));
         b.put("turnLog", new ArrayList<>(battle.getTurnLog()));
         b.put("killCredit", new LinkedHashMap<>(battle.getKillCredit()));
@@ -1251,6 +1254,14 @@ public class SiegeService {
         battle.setEnemySpeed(intVal(b.get("enemySpeed"), 0));
         battle.setKnightCharge(intVal(b.get("knightCharge"), 0));
         battle.setLeadId(b.get("leadId") == null ? null : String.valueOf(b.get("leadId")));
+        for (Object id : (List<Object>) b.getOrDefault("advantageOrder", List.of())) {
+            battle.getAdvantageOrder().add(String.valueOf(id));
+        }
+        int advantageIndex = intVal(b.get("advantageIndex"), battle.getAdvantageOrder().isEmpty() ? -1 : 0);
+        if (!battle.getAdvantageOrder().isEmpty()
+                && (advantageIndex < 0 || advantageIndex >= battle.getAdvantageOrder().size())) advantageIndex = 0;
+        battle.setAdvantageIndex(advantageIndex);
+        battle.setAdvantageCycle(intVal(b.get("advantageCycle"), 0));
         for (Object line : (List<Object>) b.getOrDefault("log", List.of())) {
             battle.log(String.valueOf(line));
         }
@@ -4077,6 +4088,9 @@ public class SiegeService {
         b.put("maxActionPoints", SiegeBattle.ACTIONS_PER_TURN);
         b.put("handMax", SiegeBattle.HAND_MAX);
         b.put("leadId", battle.getLeadId());
+        SiegeAdvantage.ensureOrder(battle);
+        b.put("advantageHolderId", battle.getAdvantageHolderId());
+        b.put("advantageCycle", battle.getAdvantageCycle());
         b.put("nodeType", battle.getNodeType().name());
         b.put("deckCount", battle.getDeck().size());
         b.put("discardCount", battle.getDiscard().size());
@@ -4116,12 +4130,37 @@ public class SiegeService {
             if (c.isKnight()) continue;
             Map<String, Object> cm = serializeCombatant(c, c.getSide() == Side.ENEMY,
                     battle.getRoundNumber());
+            boolean advantaged = SiegeAdvantage.holds(battle, c);
+            cm.put("advantaged", advantaged);
+            if (advantaged && c.getIntent() != null) {
+                cm.put("advantageText", SiegeAdvantage.riderText(c.getIntent().element(), c.getIntent().target()));
+            }
             if (c.getSide() == Side.PLAYER) allies.add(cm); else foes.add(cm);
         }
         // Present the line in notch order so positions read left → right.
         allies.sort((x, y) -> Integer.compare((int) x.getOrDefault("position", 0), (int) y.getOrDefault("position", 0)));
         b.put("allies", allies);
         b.put("enemies", foes);
+
+        List<Map<String, Object>> advantageOrder = new ArrayList<>();
+        for (String id : battle.getAdvantageOrder()) {
+            Combatant c = battle.findCombatant(id);
+            if (c == null) continue;
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("id", c.getId());
+            entry.put("name", c.getName());
+            entry.put("element", c.getElement() == null ? null : c.getElement().name());
+            entry.put("side", c.getSide() == Side.PLAYER ? "PLAYER" : "ENEMY");
+            entry.put("effectiveSpeed", c.effectiveSpeed());
+            entry.put("position", c.getPosition());
+            entry.put("artUrl", c.getArtUrl());
+            entry.put("alive", c.isAlive());
+            advantageOrder.add(entry);
+        }
+        b.put("advantageOrder", advantageOrder);
+        Combatant advantageHolder = battle.findCombatant(battle.getAdvantageHolderId());
+        b.put("advantageActiveForPlayer", battle.getPhase() == BattlePhase.PLAYER_INPUT
+                && advantageHolder != null && advantageHolder.getSide() == Side.PLAYER && advantageHolder.isAlive());
 
         // Which notches are threatened by telegraphed enemy attacks. A stunned
         // foe skips its action (see SiegeCombatEngine#enemyTurn), so its
@@ -4188,6 +4227,9 @@ public class SiegeService {
             }
             h.put("ownerId", card.getOwnerId());
             h.put("ownerName", knightCard ? run.getKnightName() : (owner == null ? "" : owner.getName()));
+            boolean advantaged = !knightCard && owner != null && SiegeAdvantage.holds(battle, owner);
+            h.put("advantaged", advantaged);
+            if (advantaged) h.put("advantageText", SiegeAdvantage.riderText(spec.element(), spec.target()));
             h.put("needsTarget", spec.needsExplicitTarget());
             if (spec.effect() == Effect.EVOLVE && owner != null) {
                 h.put("gauge", Math.min(owner.getApSpent(), SiegeBattle.EVOLVE_GAUGE));
