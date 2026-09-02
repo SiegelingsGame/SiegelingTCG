@@ -92,6 +92,16 @@ public class Player {
      * Indices are 0-based positions in the current hand before any removal.
      */
     public void mulliganHandAtIndices(List<Integer> indices) {
+        mulliganHandAtIndices(indices, true);
+    }
+
+    /**
+     * Returns chosen hand cards into the deck, then draws the same number of replacements.
+     * When {@code shuffle} is false, returned cards go to the bottom and the top of the
+     * deck stays intact — used by the Arena tutorial so a practice redraw cannot scramble
+     * the scripted lesson order.
+     */
+    public void mulliganHandAtIndices(List<Integer> indices, boolean shuffle) {
         if (indices == null || indices.isEmpty()) {
             return;
         }
@@ -109,7 +119,9 @@ public class Player {
             returning.add(hand.remove(idx));
         }
         deck.addAll(returning);
-        shuffleDeck();
+        if (shuffle) {
+            shuffleDeck();
+        }
         for (int j = 0; j < returning.size(); j++) {
             drawCard();
         }

@@ -14182,6 +14182,15 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     outline-offset: 2px;
 }
 
+.mulligan-card-slot.is-locked {
+    cursor: default;
+    opacity: 0.88;
+}
+
+.mulligan-card-slot.is-locked:hover {
+    transform: none;
+}
+
 .mulligan-card-slot.fire { box-shadow: inset 0 0 0 1px rgba(255, 80, 30, 0.22); }
 .mulligan-card-slot.earth { box-shadow: inset 0 0 0 1px rgba(180, 140, 80, 0.22); }
 .mulligan-card-slot.wind { box-shadow: inset 0 0 0 1px rgba(150, 255, 180, 0.22); }
@@ -14428,6 +14437,32 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     border: 1px solid rgba(255, 255, 255, 0.35);
     box-shadow: 0 6px 14px rgba(0, 0, 0, 0.4);
     pointer-events: none;
+}
+
+.mulligan-keep-badge,
+.mulligan-practice-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 6;
+    font-size: 0.66em;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    padding: 4px 9px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35);
+    pointer-events: none;
+    color: #fff;
+}
+
+.mulligan-keep-badge {
+    background: linear-gradient(180deg, rgba(90, 110, 130, 0.92), rgba(50, 65, 85, 0.94));
+}
+
+.mulligan-practice-badge {
+    background: linear-gradient(180deg, rgba(70, 160, 120, 0.96), rgba(30, 110, 80, 0.96));
 }
 
 @media (max-width: 900px) {

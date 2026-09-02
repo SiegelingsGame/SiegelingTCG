@@ -360,6 +360,23 @@ public class CardDefinitionService {
         return findCardDefinition(cardId).map(Card::getName).orElse(cardId);
     }
 
+    /**
+     * Returns a fresh copy of one catalog card, or empty when the id is unknown.
+     * Unlike {@link #buildCustomDeck}, this does not enforce deck-size / copy-limit
+     * rules — it is for tutorial seeding and other single-card lookups.
+     */
+    public Optional<Card> findCardCopy(String cardId) {
+        if (cardId == null || cardId.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            String canonical = resolveToCatalogCardId(cardId);
+            return findCardDefinition(canonical).map(this::copyCard);
+        } catch (IllegalArgumentException ignored) {
+            return Optional.empty();
+        }
+    }
+
     public String resolveToCatalogCardId(String cardId) {
         if (cardId == null || cardId.isBlank()) {
             throw new IllegalArgumentException("Card id cannot be empty.");

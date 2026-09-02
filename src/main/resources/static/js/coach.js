@@ -9,7 +9,9 @@
  *
  * A step is:
  *   { id, kicker, title, body, hint, target, highlight, avoid,
- *     until, next, route, skipIf, finish, finale }
+ *     until, next, route, skipIf, finish, finale, altLabel }
+ * `altLabel` adds a second foot button on a finale (e.g. Advanced Tutorial);
+ * the caller handles it via `onAlt`.
  * `highlight` names everything else the player may touch on this step; the
  * spotlight lifts the union, because the dim reads as "disabled". `nodim`
  * drops the shade altogether, for a step that hands the whole screen back.
@@ -76,6 +78,8 @@
           return;
         }
         advance();
+      } else if (btn.classList.contains('tut-alt')) {
+        if (cfg && cfg.onAlt) cfg.onAlt(current());
       } else if (btn.classList.contains('tut-skip')) advance();
       else if (btn.classList.contains('tut-quit')) stop();
     });
@@ -167,6 +171,9 @@
       (s.finale ? '<div class="tut-reward" id="tutReward">Claiming your first-time reward…</div>' : '') +
       '<div class="tut-foot">' +
         (waits ? '<span class="tut-wait">Waiting for you</span>' : '') +
+        (s.altLabel && !det && !waits
+          ? '<button class="tut-alt" type="button">' + esc(s.altLabel) + '</button>'
+          : '') +
         // On a detour the button dismisses the popup it is describing, rather
         // than advancing a step the player has not reached the end of.
         '<button class="tut-next" type="button"' + (det ? ' data-detour="1"' : '') + '>' + label + '</button>' +
@@ -469,7 +476,7 @@
   // ---- lifecycle ----------------------------------------------------------
 
   /**
-   * @param options {steps, playAreas, detour, onDetourContinue, onFinale,
+   * @param options {steps, playAreas, detour, onDetourContinue, onFinale, onAlt,
    *                 onStop, bodyClass}
    */
   function start(options) {
@@ -493,6 +500,35 @@
     raf = window.requestAnimationFrame(tick);
   }
 
+  /**
+   * Swap in a new chapter without tearing the overlay down — used when the
+   * Arena finale offers an Advanced Tutorial and the same match keeps going.
+   */
+  function continueWith(newSteps, patch) {
+    if (!ACTIVE) {
+      var opts = patch || {};
+      opts.steps = newSteps || [];
+      start(opts);
+      return;
+    }
+    if (patch) {
+      Object.keys(patch).forEach(function (k) {
+        if (k === 'steps') return;
+        cfg[k] = patch[k];
+      });
+    }
+    STEPS = newSteps || [];
+    if (!STEPS.length) { stop(); return; }
+    total = STEPS.filter(function (s) { return !s.route; }).length;
+    idx = -1;
+    shown = 0;
+    collapsed = false;
+    visited = {};
+    lastRect = '';
+    renderedKey = '';
+    advance();
+  }
+
   function stop() {
     if (!ACTIVE) return;
     ACTIVE = false;
@@ -512,6 +548,7 @@
   window.TutorialCoach = {
     start: start,
     stop: stop,
+    continueWith: continueWith,
     active: function () { return ACTIVE; },
     /** Which step ids have actually been shown — fork routing keys off this. */
     visited: function () { return visited || {}; }

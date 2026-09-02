@@ -52,6 +52,8 @@ public class GameState {
     private boolean playerGoesFirst = true;
     private int setupTurnsTakenThisRound = 0;
     private boolean enemyHumanControlled = false;
+    /** Fixed Tutorial Match — coach follows this state; decks are scripted. */
+    private boolean tutorialMatch = false;
     private boolean playerMulliganPending = false;
     private boolean enemyMulliganPending = false;
     private boolean playerMulliganUsed = false;
@@ -323,6 +325,8 @@ public class GameState {
     public void setSetupTurnsTakenThisRound(int setupTurnsTakenThisRound) { this.setupTurnsTakenThisRound = setupTurnsTakenThisRound; }
     public boolean isEnemyHumanControlled() { return enemyHumanControlled; }
     public void setEnemyHumanControlled(boolean enemyHumanControlled) { this.enemyHumanControlled = enemyHumanControlled; }
+    public boolean isTutorialMatch() { return tutorialMatch; }
+    public void setTutorialMatch(boolean tutorialMatch) { this.tutorialMatch = tutorialMatch; }
     public boolean isPlayerMulliganPending() { return playerMulliganPending; }
     public boolean isEnemyMulliganPending() { return enemyMulliganPending; }
     public boolean isPlayerMulliganUsed() { return playerMulliganUsed; }
