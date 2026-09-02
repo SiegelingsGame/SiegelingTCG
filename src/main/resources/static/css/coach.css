@@ -154,3 +154,19 @@
   .tut-hint{font-size:12px;}
   .tut-skip{padding:4px 8px; font-size:11px;}
 }
+
+/* The step's suggested choice. The spotlight lifts every option so none of them
+   reads as disabled, which makes it far too broad to point at one — this is how
+   a step still advises without taking the other options away. */
+.tut-pick{
+  position:relative;
+  outline:3px solid #f0b429;
+  outline-offset:-3px;
+  border-radius:10px;
+  box-shadow:0 0 14px rgba(240,180,41,.55), inset 0 0 18px rgba(240,180,41,.18);
+  animation:tutpick 1.6s ease-in-out infinite;
+}
+@keyframes tutpick{
+  0%,100%{box-shadow:0 0 10px rgba(240,180,41,.45), inset 0 0 14px rgba(240,180,41,.14);}
+  50%{box-shadow:0 0 20px rgba(240,180,41,.75), inset 0 0 22px rgba(240,180,41,.26);}
+}

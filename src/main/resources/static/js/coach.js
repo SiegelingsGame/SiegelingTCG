@@ -13,6 +13,9 @@
  * `highlight` names everything else the player may touch on this step; the
  * spotlight lifts the union, because the dim reads as "disabled". `nodim`
  * drops the shade altogether, for a step that hands the whole screen back.
+ * `recommend` marks ONE element as the suggested choice — needed precisely
+ * because lifting the union makes the spotlight too broad to single anything
+ * out, and a step can both keep every option available and still advise.
  * `until` makes the step wait on the player: the full tip renders, "Got it"
  * collapses it to a one-line hint so the play area is clear, and the step
  * advances itself the moment `until()` comes true.
@@ -169,12 +172,29 @@
         '<button class="tut-next" type="button"' + (det ? ' data-detour="1"' : '') + '>' + label + '</button>' +
       '</div>';
     position();
+    applyRecommendation(s);
     if (s.finale && cfg.onFinale) cfg.onFinale(document.getElementById('tutReward'), position);
   }
 
   /** A step's target may be a selector, or a function returning one — the
    *  Arena needs the latter, because the cells it points at only exist once a
    *  card is selected and it must fall back to the grid until then. */
+  var recommended = null;
+
+  /** Marks the step's suggested choice, so a broad spotlight can still advise.
+   *  Exactly one element carries the class at a time, and it is always cleared
+   *  when the step changes or the coach stops. */
+  function applyRecommendation(s) {
+    var sel = s && s.recommend;
+    if (typeof sel === 'function') { try { sel = sel(); } catch (e) { sel = null; } }
+    var node = null;
+    if (sel) { try { node = document.querySelector(sel); } catch (e) { node = null; } }
+    if (node === recommended) return;
+    if (recommended) recommended.classList.remove('tut-pick');
+    recommended = node;
+    if (recommended) recommended.classList.add('tut-pick');
+  }
+
   function targetNode(s) {
     if (!s || !s.target) return null;
     var sel = typeof s.target === 'function' ? s.target() : s.target;
@@ -400,6 +420,7 @@
     var r = spotlightRect(det || s);
     var rect = r ? [r.left, r.top, r.width, r.height].join(',') : 'none';
     if (rect !== lastRect) { lastRect = rect; position(); }
+    applyRecommendation(det || s);
   }
 
   // ---- lifecycle ----------------------------------------------------------
@@ -433,6 +454,7 @@
     ACTIVE = false;
     if (raf) window.cancelAnimationFrame(raf);
     raf = 0;
+    if (recommended) { recommended.classList.remove('tut-pick'); recommended = null; }
     if (layer) layer.classList.add('hidden');
     var done = cfg;
     if (done && done.bodyClass) document.body.classList.remove(done.bodyClass);
