@@ -1112,8 +1112,13 @@
         body: 'A full practice expedition, fought with real cards — ' + esc(knightName()) +
           ' leading ' + esc(M.party[0].name) + ' and ' + esc(M.party[1].name) +
           '. Nothing here touches your account: no gold spent, no saves written. I will walk you to every kind of stop on the map.' },
+      // Naming BOTH readings rather than the current one: the map genuinely
+      // transposes (adventure.js isPhoneLandscape -> "start left, boss right"),
+      // and a step's body is built once, so a tip that named only the live
+      // orientation would be wrong the moment the player rotated mid-step.
       { id: 'map', title: 'The expedition map', target: '#mapSvg',
-        body: 'A Siege run is a branching path read bottom to top. You travel one node at a time, and every node you clear is gone for good — the route you pick <em>is</em> the run.' },
+        body: 'A Siege run is a branching path: read it <b>bottom to top</b> in portrait, or <b>left to right</b> in landscape — either way you start at the near end and the boss waits at the far one.' +
+          '<span class="tut-p">You travel one node at a time, and every node you clear is gone for good — the route you pick <em>is</em> the run.</span>' },
       { id: 'key', hint: 'Tap <b>🗝️ Key</b>', title: 'What the emblems mean', target: '#mapKeyBtn',
         body: 'Each node type has its own emblem. Tap <b>🗝️ Key</b> to read them.',
         until: function () { return !hidden('legendOverlay'); } },
