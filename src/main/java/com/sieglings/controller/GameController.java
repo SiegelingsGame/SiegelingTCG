@@ -1,5 +1,6 @@
 package com.sieglings.controller;
 
+import com.sieglings.diagnostics.CallMetrics;
 import com.sieglings.diagnostics.FirestoreReadMetrics;
 import com.sieglings.model.Ability;
 import com.sieglings.model.AbilityEffectKeys;
@@ -124,24 +125,29 @@ public class GameController {
         Map<String, Object> resp = new LinkedHashMap<>();
 
         Map<String, Map<String, Long>> beforeFirst = FirestoreReadMetrics.snapshot();
+        Map<String, Map<String, Long>> beforeFirstCalls = CallMetrics.snapshot();
         long firstStart = System.nanoTime();
         Map<String, Object> firstPayload = getOptions(authorizationHeader);
         long firstMillis = (System.nanoTime() - firstStart) / 1_000_000L;
         Map<String, Map<String, Long>> afterFirst = FirestoreReadMetrics.snapshot();
+        Map<String, Map<String, Long>> afterFirstCalls = CallMetrics.snapshot();
 
         long secondStart = System.nanoTime();
         getOptions(authorizationHeader);
         long secondMillis = (System.nanoTime() - secondStart) / 1_000_000L;
         Map<String, Map<String, Long>> afterSecond = FirestoreReadMetrics.snapshot();
+        Map<String, Map<String, Long>> afterSecondCalls = CallMetrics.snapshot();
 
         Map<String, Object> first = new LinkedHashMap<>();
         first.put("elapsedMillis", firstMillis);
         first.put("firestore", FirestoreReadMetrics.delta(beforeFirst, afterFirst));
+        first.put("calls", CallMetrics.delta(beforeFirstCalls, afterFirstCalls));
         resp.put("firstBuild", first);
 
         Map<String, Object> second = new LinkedHashMap<>();
         second.put("elapsedMillis", secondMillis);
         second.put("firestore", FirestoreReadMetrics.delta(afterFirst, afterSecond));
+        second.put("calls", CallMetrics.delta(afterFirstCalls, afterSecondCalls));
         resp.put("secondBuild", second);
 
         Object catalog = firstPayload.get("cardCatalog");

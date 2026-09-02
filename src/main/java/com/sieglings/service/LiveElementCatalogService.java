@@ -1,5 +1,6 @@
 package com.sieglings.service;
 
+import com.sieglings.diagnostics.CallMetrics;
 import com.sieglings.diagnostics.FirestoreReadMetrics;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -106,7 +107,13 @@ public class LiveElementCatalogService {
      * Active gameplay elements for matchmaking, catalog, and presets (stable iteration order).
      */
     public Set<Element> loadActiveElementsForGame() {
+        long __cmStart = System.nanoTime();
+        try {
         return resolveActiveElements(parseElementFile(loadSnapshot().data()).elements());
+    
+        } finally {
+            CallMetrics.record("liveElements.loadActiveElementsForGame", System.nanoTime() - __cmStart);
+        }
     }
 
     public List<ElementToggle> buildEditorPayload() {
