@@ -2082,3 +2082,13 @@ passes, and `git diff --check` is clean. The full 619-test local run reached the
 pre-existing main-branch/environment failures (Java 25 Byte Buddy support,
 missing local Node, and three unrelated static-asset assertions); no Advantage
 test failed.
+
+Production release: PR #786 squash-merged as `8fc52785`; Deploy run
+`33652615828` completed successfully from 16:04:20–16:13:21Z with Cloud Run,
+Firebase Hosting, and Firebase Functions all green. Live `/siege` serves
+`adventure.css?v=87` and `adventure.js?v=90`; the bundles contain the Advantage
+rail, inline rider copy, and holder treatment. Hosting and direct Cloud Run
+`/api/cards/editor` both report `source: FIRESTORE`, `liveEditingEnabled: true`,
+and `firestoreAvailable: true`; `/api/game/options` returns 200 with 6 decks and
+13 trainers, `/api/siege/roster` returns 200, and hosted `js/config.js` retains
+the empty same-origin `apiBaseUrl`.
