@@ -1,5 +1,6 @@
 package com.sieglings.controller;
 
+import com.sieglings.diagnostics.FirestoreReadMetrics;
 import com.sieglings.model.Ability;
 import com.sieglings.model.AbilityEffectKeys;
 import com.sieglings.model.BattleAbilityOption;
@@ -106,6 +107,46 @@ public class GameController {
         resp.put("defaultDeckId", defaultDeck == null ? null : defaultDeck.id());
         resp.put("defaultTrainerId", defaultDeck == null ? null : defaultDeck.recommendedTrainerId());
         resp.put("catalogVersion", cardOverrideStorageService.getCatalogRevision());
+        return resp;
+    }
+
+    /**
+     * Diagnostic: where does /api/game/options actually spend its time?
+     *
+     * Builds the same payload twice in one request and reports elapsed time plus
+     * the Firestore reads each build performed. The second build runs while every
+     * catalog TTL is certainly warm, so a second pass that still reads is a cache
+     * that is not holding. Read-only, and it returns counters and timings only.
+     */
+    @GetMapping("/api/game/options-timing")
+    @ResponseBody
+    public Map<String, Object> getOptionsTiming(@RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+        Map<String, Object> resp = new LinkedHashMap<>();
+
+        Map<String, Map<String, Long>> beforeFirst = FirestoreReadMetrics.snapshot();
+        long firstStart = System.nanoTime();
+        Map<String, Object> firstPayload = getOptions(authorizationHeader);
+        long firstMillis = (System.nanoTime() - firstStart) / 1_000_000L;
+        Map<String, Map<String, Long>> afterFirst = FirestoreReadMetrics.snapshot();
+
+        long secondStart = System.nanoTime();
+        getOptions(authorizationHeader);
+        long secondMillis = (System.nanoTime() - secondStart) / 1_000_000L;
+        Map<String, Map<String, Long>> afterSecond = FirestoreReadMetrics.snapshot();
+
+        Map<String, Object> first = new LinkedHashMap<>();
+        first.put("elapsedMillis", firstMillis);
+        first.put("firestore", FirestoreReadMetrics.delta(beforeFirst, afterFirst));
+        resp.put("firstBuild", first);
+
+        Map<String, Object> second = new LinkedHashMap<>();
+        second.put("elapsedMillis", secondMillis);
+        second.put("firestore", FirestoreReadMetrics.delta(afterFirst, afterSecond));
+        resp.put("secondBuild", second);
+
+        Object catalog = firstPayload.get("cardCatalog");
+        resp.put("cardCatalogSize", catalog instanceof List<?> list ? list.size() : -1);
+        resp.put("firestoreReady", cardOverrideStorageService.isFirestoreReady());
         return resp;
     }
 
