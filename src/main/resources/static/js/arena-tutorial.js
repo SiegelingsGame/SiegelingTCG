@@ -56,6 +56,23 @@
     var card = b ? b.selected() : null;
     return card ? card.type : null;
   }
+
+  var ENERGY_KEYS = ['fire', 'earth', 'wind', 'water', 'ice', 'shadow', 'poison', 'electric', 'metal', 'psychic', 'light', 'undead'];
+
+  function playerEnergyTotal() {
+    var g = gs();
+    if (!g || !g.player) return 0;
+    var total = 0;
+    ENERGY_KEYS.forEach(function (key) {
+      total += Number(g.player[key + 'Energy'] || 0);
+    });
+    return total;
+  }
+
+  function comboCount() {
+    var g = gs();
+    return g && g.player && g.player.comboPoints ? g.player.comboPoints.length : 0;
+  }
   /** offsetParent is null for a position:fixed element, and the action bar and
    *  hand fan are both fixed on a phone — so measure rects instead. */
   function visible(sel) {
@@ -99,6 +116,8 @@
     if (phase() === 'BATTLE') seen.sawBattle = true;
     if (turn() > seen.maxTurn) seen.maxTurn = turn();
     if (g.winner) seen.ended = true;
+    if (turn() >= 2 && playerEnergyTotal() > 0) seen.hadLinkEnergy = true;
+    if (turn() >= 2 && comboCount() > 0) seen.hadCombo = true;
 
     var btn = document.getElementById('btnTrainerAbility');
     if (btn && (btn.disabled || /used/i.test(btn.textContent || ''))) seen.knightSpent = true;
@@ -146,19 +165,12 @@
           '<span class="tut-p">You may hold up to <b>5</b> Sieglings. Evolutions are placed onto their living precursor and are exempt from both the cap and the one-per-turn limit.</span>',
         until: function () { return mine() > 0; } },
 
-      { id: 'notches', title: 'Notches make the energy', target: '#playerGrid',
-        body: 'The coloured dots around a card\'s edge are <b>notches</b>. When two neighbours each point a notch <em>at each other</em>, that is a <b>reciprocal link</b>, and it generates elemental energy every round.' +
-          '<span class="tut-p">A notch pointing at a neighbour with nothing pointing back does nothing at all. Board-edge cells can instead anchor to the perimeter <b>sockets</b> — the dots outside the grid.</span>' },
-
-      { id: 'combos', title: 'Combo notches', target: '#btnEnergyDetail',
-        body: 'When two linked notches carry <b>different</b> elements, the pair banks a <b>combo point</b> instead of plain energy — its own currency, for the heavier Strategies and the strongest abilities.' +
-          '<span class="tut-p">Ashen Roots mixes Fire and Earth precisely so you can build them. Tap <b>◈</b> any time for the full breakdown of where your energy is coming from.</span>' },
-
       // Deliberately no `until`: casting is optional, and an earlier cut waited
       // on a condition only *leaving* Setup could satisfy — which stranded any
       // player who did not want to cast, since End Turn is the step after this.
       { id: 'spell', title: 'Strategies and Deceptions', target: '#playerHand',
-        body: 'The other two card types are paid for with energy. A <b>Strategy</b> resolves the moment you cast it; a <b>Deception</b> is set face-down and fires later, on its trigger — which is how you punish a move your opponent has not made yet.' +
+        body: '<b>Strategies</b> are cast on your turn and paid from <b>your</b> elemental energy and any <b>combo</b> energy you have banked — they resolve the moment you play them.' +
+          '<span class="tut-p"><b>Deceptions</b> are also set on your turn, face-down, but their cost keys off <b>your opponent\'s</b> energy — set them to punish a specific element you expect them to hold.</span>' +
           '<span class="tut-p">Cast one now if you are holding one and can afford it. It is optional — carry on either way.</span>',
         skipIf: function () { return !handHas('SPELL') && !handHas('TRAP'); } },
 
@@ -167,7 +179,7 @@
       { id: 'knight', hint: 'Tap <b>Knight</b>', title: 'Your SiegeKnight', target: '#btnTrainerAbility',
         avoid: '.trainer-ability-close',
         body: 'Squire Bob sits behind your board with a <b>passive</b> that is always on and an <b>active</b> you spend. <b>Tap Knight</b> to read what he does — using it here is optional, but knowing it is not.',
-        until: function () { return seen.knightSpent || visible('#trainerAbilityModal') || seen.knightOpened; } },
+        until: function () { return seen.knightSpent || visible('#trainerAbilityOverlay') || seen.knightOpened; } },
 
       { id: 'endturn', hint: 'Tap <b>End Turn</b>', title: 'Hand over the phase', target: actionBtn,
         body: 'You are done building. <b>End Turn</b> passes to the Dummy; once both sides finish Setup, Battle starts on its own.',
@@ -185,28 +197,62 @@
         skipIf: function () { return !visible('#enemyGrid .board-cell.targetable'); },
         until: function () { return !visible('#enemyGrid .board-cell.targetable'); } },
 
-      // No `until`: this explains a rule, it does not ask for a tap. Giving it
-      // one made it collapse into a hint that then had to sit somewhere, and on
-      // a phone mid-battle the only room left was on top of the board's own
-      // claimable cells — a tip in the way of the play, which is the thing the
-      // two-stage design exists to prevent.
-      { id: 'kill', title: 'Bounty damage', target: '#enemyGrid',
-        body: 'A defeated Siegeling deals <b>bounty damage</b> straight to its owner\'s HP, scaled to its rarity. That is the second way to win: you can burn a player down through their board without ever touching them directly.' },
+      // No `until`: this explains a rule, it does not ask for a tap.
+      { id: 'kill', title: 'Siege Damage', target: '#enemyGrid',
+        body: 'When a Siegeling is defeated, its owner takes <b>Siege Damage</b> straight to HP. Higher rarity hits harder — read the card frame: 🟢 Uncommon, 🔵 Rare, 🟣 Epic, 🟡 Legendary, 🔴 the heaviest tiers.' +
+          '<span class="tut-p">That is the second way to win: burn a player down through their board without ever touching them directly.</span>' },
 
       { id: 'claim', title: 'Claiming for energy',
         target: function () { return firstOf(['#playerGrid .board-cell.claimable', '#playerGrid']); },
         body: 'A Siegeling that survives a battle can be <b>claimed</b> in a later Setup for temporary energy. It leaves the board to do it, so claiming is a real trade: a body now, or a bigger play this round.',
         skipIf: function () { return !visible('#playerGrid .board-cell.claimable'); } },
 
+      { id: 't2-draw', hint: 'Tap <b>Draw</b>', title: 'Turn 2 — draw again', target: '#btnDraw',
+        body: 'The loop continues. <b>Tap Draw</b> to take your card for round two.',
+        skipIf: function () { return turn() < 2 || !seen.sawBattle; },
+        until: function () { return phase() !== 'DRAW'; } },
+
+      { id: 't2-setup', title: 'Setup again', target: '#phaseBadge',
+        body: 'Back in Setup. This is where you grow the board and bank energy for the next battle.',
+        skipIf: function () { return turn() < 2 || !seen.sawBattle; },
+        until: function () { return phase() === 'SETUP' || phase() === 'BATTLE'; } },
+
+      { id: 't2-pick', hint: 'Tap a <b>Siegeling</b> in hand', title: 'Place a second Siegeling', target: '#playerHand',
+        body: '<b>Tap another Siegeling</b> from your hand. You will place it beside your first so their notches can link.',
+        skipIf: function () { return turn() < 2 || mine() >= 2; },
+        until: function () { return selectedType() === 'SIEGLING' || mine() >= 2; } },
+
+      { id: 't2-place', hint: 'Tap a lit cell beside your first', title: 'Build a link', target: function () {
+          return firstOf(['#playerGrid .board-cell.legal', '#playerGrid']);
+        },
+        body: 'Place it in a lit cell <b>next to</b> your first Siegeling with notches pointing at each other. Matching elements bank plain energy; <b>Fire</b> and <b>Earth</b> together bank a <b>combo point</b> instead.',
+        skipIf: function () { return turn() < 2 || mine() >= 2; },
+        until: function () { return mine() >= 2; } },
+
+      { id: 't2-notches', title: 'Notches make the energy', target: '#playerGrid',
+        body: 'Those coloured dots are <b>notches</b>. When two neighbours each point a notch <em>at each other</em>, that is a <b>reciprocal link</b> — it is what generates energy every round.' +
+          '<span class="tut-p">A notch with nothing pointing back does nothing. Edge cells can instead anchor to perimeter <b>sockets</b> — the dots outside the grid.</span>',
+        skipIf: function () { return turn() < 2 || mine() < 2; } },
+
+      { id: 't2-energy', hint: 'Tap <b>◈</b> for the breakdown', title: 'Your link energy', target: '#btnEnergyDetail',
+        body: 'Same-element links add elemental energy to your pool — check the coloured dots beside your HP. That energy plus any combo points is what pays for Strategies on your turn.',
+        skipIf: function () { return turn() < 2 || mine() < 2; },
+        until: function () { return seen.hadLinkEnergy || comboCount() > 0; } },
+
+      { id: 't2-combo', title: 'Combo links', target: '#btnEnergyDetail',
+        body: 'When linked notches carry <b>different</b> elements, the pair banks a <b>combo point</b> — the split-colour token in your energy row. Combo energy unlocks the heavier Strategies and the strongest abilities.' +
+          '<span class="tut-p">Ashen Roots mixes Fire and Earth so you can build both. Tap <b>◈</b> any time for the full breakdown.</span>',
+        skipIf: function () { return turn() < 2 || mine() < 2; } },
+
       { id: 'tools', title: 'The tools along the bottom', target: '#btnHint',
         body: '<b>?</b> tells you exactly what the game is waiting on — reach for it whenever you are unsure. <b>≡</b> is the full log of every action. <b>👁</b> blows up the selected card so you can read its notches.' },
 
-      { id: 'finish', hint: 'Play on to the win', title: 'Finish the match', target: actionBtn,
-        body: 'You know the whole loop now: <b>Draw</b>, build in <b>Setup</b>, watch <b>Battle</b> resolve, repeat. Keep going until the Dummy is down — it starts on low health, so it will not take long.',
-        until: function () { return seen.ended; } },
+      { id: 'loop', title: 'The round loop', target: '#phaseBadge',
+        body: 'That is the full loop: <b>Draw</b>, build links and spend energy in <b>Setup</b> — Strategies from your pool, Deceptions keyed to theirs — then <b>Battle</b> resolves and the round repeats.' +
+          '<span class="tut-p">You have seen one full round and built your first links. Keep playing this match on your own, or head to the Arena when you are ready.</span>' },
 
       { id: 'done', kicker: 'Tutorial complete', title: '🎉 Well fought', finish: true, finale: true,
-        body: 'That is the Battle Table: notches make energy, energy pays for abilities, and abilities are the only thing that deals damage.' +
+        body: 'That is the Battle Table: notches make energy, energy pays for Strategies and sets Deceptions, and abilities are the only thing that deals damage.' +
           '<span class="tut-p"><b>Where to go next.</b> The <b>Arena</b> is this same game against real opponents. <b>Siege</b> is the single-player expedition — a branching map, a warband you level up, and a boss at the top; win one and you can bank that team for <b>Battlegrounds</b>. Both draw on the collection you build in the Keep.</span>' +
           '<span class="tut-p">You can replay this tutorial match any time.</span>' }
     ];
@@ -230,6 +276,7 @@
     ACTIVE = true;
     seen = {
       maxMine: 0, maxTheirs: 0, maxTurn: 0, enemyDown: false, sawBattle: false,
+      hadLinkEnergy: false, hadCombo: false,
       knightSpent: false, knightOpened: false, ended: false
     };
     var knightBtn = document.getElementById('btnTrainerAbility');

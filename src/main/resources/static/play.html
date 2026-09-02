@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/style.css?v=241">
+    <link rel="stylesheet" href="/css/style.css?v=242">
     <link rel="stylesheet" href="/css/coach.css?v=1">
     <!-- Pre-load loading-gate styles so the splash covers the loadout
          screen on the very first Start Battle press - the lazy-injected
@@ -583,6 +583,7 @@
         <div class="trainer-ability-tier" id="trainerAbilityTier"></div>
         <p class="trainer-ability-description" id="trainerAbilityDescription"></p>
         <p class="trainer-ability-copy" id="trainerAbilityCopy"></p>
+        <p class="trainer-ability-status hidden" id="trainerAbilityStatus"></p>
         <div class="trainer-ability-actions">
             <button class="btn" type="button" onclick="closeTrainerAbilityPopup(event)">Close</button>
             <button class="btn btn-primary" type="button" id="btnUseTrainerAbility" onclick="activateTrainerAbilityFromPopup()">Use Ability</button>
@@ -933,8 +934,8 @@
 <script type="module" src="/js/firebase-init.js?v=2"></script>
     <script src="/js/catalog-sync.js?v=1"></script>
     <script src="/js/coach.js?v=1"></script>
-    <script src="/js/arena-tutorial.js?v=1"></script>
-    <script src="/js/game.js?v=255"></script>
+    <script src="/js/arena-tutorial.js?v=2"></script>
+    <script src="/js/game.js?v=256"></script>
     <script src="/js/play-mode-picker.js?v=4"></script>
     <script src="/js/play-hud.js?v=4"></script>
     <!-- Defines window.SieglingsCardBinderVisual (buildArtTransformStyle). Without it,

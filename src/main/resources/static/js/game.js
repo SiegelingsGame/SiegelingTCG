@@ -5229,6 +5229,7 @@ function renderTrainerAbilityPopup() {
     const tier = document.getElementById('trainerAbilityTier');
     const description = document.getElementById('trainerAbilityDescription');
     const copy = document.getElementById('trainerAbilityCopy');
+    const status = document.getElementById('trainerAbilityStatus');
     const useBtn = document.getElementById('btnUseTrainerAbility');
 
     if (title) {
@@ -5247,13 +5248,16 @@ function renderTrainerAbilityPopup() {
             : 'No passive effect listed.';
     }
     if (copy) {
-        const activeDescription = trainer.active?.description
+        copy.textContent = trainer.active?.description
             ? `Active: ${trainer.active.description}`
             : 'No active ability listed.';
+    }
+    if (status) {
         const availability = trainer.active
             ? buildTrainerAbilityHint(trainer)
             : 'No active SiegeKnight ability is available right now.';
-        copy.textContent = `${activeDescription} ${availability}`.trim();
+        status.textContent = availability || '';
+        status.classList.toggle('hidden', !availability);
     }
     if (useBtn) {
         const lockReason = getTrainerAbilityLockReason(trainer);
