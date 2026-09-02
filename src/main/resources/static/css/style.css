@@ -2829,6 +2829,13 @@ body.card-drag-active #playerGrid {
     margin-top: 10px;
 }
 
+.trainer-ability-status {
+    color: var(--text-dim);
+    font-size: 0.82em;
+    line-height: 1.4;
+    margin-top: 8px;
+}
+
 .claim-confirm-copy {
     color: rgba(214, 255, 230, 0.82);
 }
