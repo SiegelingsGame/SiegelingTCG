@@ -71,6 +71,17 @@ public class LiveElementCatalogService {
 
     private volatile CacheEntry cacheEntry;
 
+    private record ActiveElementsMemo(Set<Element> elements, long loadedAtMillis) {}
+
+    // Every consumer of the live element set is a per-card predicate, so a single
+    // /api/game/options re-resolved it ~10k times, each call re-running the
+    // publish-version check and re-parsing the already-cached snapshot -- ~20s of a
+    // 22s response. Hold the resolved set for the same one second the
+    // publish-version check itself caches for, so a dashboard publish still lands
+    // exactly as fast as it did before.
+    private static final long ACTIVE_ELEMENTS_MEMO_TTL_MILLIS = 1_000L;
+    private volatile ActiveElementsMemo activeElementsMemo;
+
     public LiveElementCatalogService(
             ObjectMapper objectMapper,
             CardOverrideStorageService cardOverrideStorageService,
@@ -96,6 +107,8 @@ public class LiveElementCatalogService {
 
     public LoadSnapshot saveSnapshot(JsonNode data, String updatedByEmail) {
         LiveElementsFile file = parseElementFile(data);
+        // A publish must drop the memo now, not wait out the TTL.
+        activeElementsMemo = null;
         if (cardOverrideStorageService.isFirestoreReady()) {
             return saveToFirestore(file, updatedByEmail);
         }
@@ -106,7 +119,19 @@ public class LiveElementCatalogService {
      * Active gameplay elements for matchmaking, catalog, and presets (stable iteration order).
      */
     public Set<Element> loadActiveElementsForGame() {
-        return resolveActiveElements(parseElementFile(loadSnapshot().data()).elements());
+        ActiveElementsMemo cached = activeElementsMemo;
+        long now = System.currentTimeMillis();
+        if (cached == null || now - cached.loadedAtMillis() >= ACTIVE_ELEMENTS_MEMO_TTL_MILLIS) {
+            cached = new ActiveElementsMemo(
+                    resolveActiveElements(parseElementFile(loadSnapshot().data()).elements()),
+                    now
+            );
+            activeElementsMemo = cached;
+        }
+        // Callers have always been handed their own mutable set; keep that contract
+        // so nothing downstream can corrupt the memo. Copying 13 enum values is free
+        // next to the snapshot check and re-parse it replaces.
+        return new LinkedHashSet<>(cached.elements());
     }
 
     public List<ElementToggle> buildEditorPayload() {
