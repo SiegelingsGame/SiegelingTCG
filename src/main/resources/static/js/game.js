@@ -10236,6 +10236,9 @@ let tutorialRewardRequested = false;
 window.ArenaTutorialBridge = {
     state: () => gameState,
     selected: () => selectedCard,
+    // The cells the game itself would accept right now, so the coach can
+    // recommend one instead of guessing. Same source the .legal highlight uses.
+    legalPlacements: () => getSelectedLegalPlacements(),
     authHeaders: (extra) => getAuthHeaders(extra || {})
 };
 

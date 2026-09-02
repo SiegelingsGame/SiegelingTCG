@@ -98,6 +98,50 @@
     return firstOf(['#btnEndTurn', '#btnDraw']);
   }
 
+  // ---- recommending the opening cell ---------------------------------------
+
+  /**
+   * How many of `card`'s notches would reach a perimeter socket from cell (r,c).
+   *
+   * Mirrors PlacementService.resolveExternalSocketKey for the player's side:
+   * a LEFT notch in column 0, a RIGHT notch in column 2, a BOTTOM notch in
+   * row 0. Diagonals never reach a socket, and a NEUTRAL notch opens no call
+   * well (EnergyService.collectExternalSocketTouches skips it). This is the
+   * frontend half of a server rule, so it has to stay in step with both.
+   */
+  function socketScore(card, r, c) {
+    var notches = (card && card.notches) || [];
+    var n = 0;
+    notches.forEach(function (notch) {
+      if (!notch || notch.element === 'NEUTRAL') return;
+      var d = notch.direction;
+      if ((d === 'LEFT' && c === 0) || (d === 'RIGHT' && c === 2) || (d === 'BOTTOM' && r === 0)) n++;
+    });
+    return n;
+  }
+
+  /**
+   * The cell the coach rings for the opening placement: whichever legal cell
+   * earns the selected card the most socket energy. Ringing the first legal
+   * cell taught nothing — the opening play IS "reach a socket", because with
+   * no neighbours to link to, a socket is the only energy on offer.
+   * Falls back to the legal set, then the grid, when nothing scores.
+   */
+  function recommendedCell() {
+    var b = bridge();
+    var card = b && b.selected ? b.selected() : null;
+    var cells = (b && b.legalPlacements) ? (b.legalPlacements() || []) : [];
+    var best = null, bestScore = 0;
+    cells.forEach(function (p) {
+      var r = p[0], c = p[1];
+      var score = socketScore(card, r, c);
+      if (score > bestScore) { bestScore = score; best = p; }
+    });
+    if (!best) return firstOf(['#playerGrid .board-cell.legal', '#playerGrid']);
+    var sel = '#playerGrid .board-cell[data-row="' + best[0] + '"][data-col="' + best[1] + '"]';
+    return visible(sel) ? sel : firstOf(['#playerGrid .board-cell.legal', '#playerGrid']);
+  }
+
   // ---- latching watcher ---------------------------------------------------
 
   /** Some lessons are about an outcome, not a tap: a Siegeling destroyed, the
@@ -169,11 +213,13 @@
         body: 'Your hand runs along the bottom. <b>Tap a Siegeling</b> — the cards with an HP and SPD box — and the legal cells on your grid will light up.',
         until: function () { return selectedType() === 'SIEGLING' || mine() > 0; } },
 
-      { id: 'place', hint: 'Tap a lit cell to place', title: 'Place it on the grid',
-        target: function () { return firstOf(['#playerGrid .board-cell.legal', '#playerGrid']); },
+      { id: 'place', hint: 'Place on the <b>gold</b> cell to reach a socket', title: 'Reach an exterior socket',
+        target: recommendedCell,
         highlight: ['#playerGrid .board-cell.legal'],
-        body: 'Your first Siegeling can go <b>anywhere</b>. After that, new ones must build off the foundation network you already have, so the first cell shapes the whole board.' +
-          '<span class="tut-p">You may hold up to <b>5</b> Sieglings. Evolutions are placed onto their living precursor and are exempt from both the cap and the one-per-turn limit.</span>',
+        recommend: recommendedCell,
+        body: 'Every lit cell is legal, but they are not equal. The dots <em>outside</em> the grid are <b>sockets</b>: a notch on the board edge pointing out at one opens a <b>call well</b> and starts generating energy on its own.' +
+          '<span class="tut-p"><b>Energy is what pays for everything</b> — casting Strategies, setting Deceptions, and the abilities your Sieglings attack with. With nothing on the board yet you have no neighbour to link to, so a socket is the only energy going.</span>' +
+          '<span class="tut-p">The <b>gold</b> cell is the one where <em>this</em> card\'s notches reach a socket — it moves as you pick a different card. Only LEFT, RIGHT and outward notches count, and a grey (neutral) notch opens nothing. Any lit cell still works.</span>',
         until: function () { return mine() > 0; } },
 
       // Deliberately no `until`: casting is optional, and an earlier cut waited
