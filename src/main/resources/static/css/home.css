@@ -11057,3 +11057,13 @@ body.gacha-active {
 @media (prefers-reduced-motion: reduce) {
     .needs-fix { animation: none; }
 }
+
+/* iOS Safari zooms focused inputs under 16px. Touch-primary devices only. */
+@media (hover: none) and (pointer: coarse) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="hidden"]):not([type="file"]),
+    select,
+    textarea,
+    .search-input {
+        font-size: 16px;
+    }
+}

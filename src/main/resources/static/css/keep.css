@@ -3818,3 +3818,13 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
 }
+
+/* iOS Safari zooms focused inputs under 16px. Touch-primary devices only. */
+@media (hover: none) and (pointer: coarse) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="hidden"]):not([type="file"]),
+    select,
+    textarea,
+    .keep-login-input {
+        font-size: 16px;
+    }
+}
