@@ -686,15 +686,13 @@ public class GameService {
                 "spell_fire_09", "spell_earth_02", "spell_earth_01", "tutorial_ashen_ward")) {
             Card taken = takeNamedCard(pool, id);
             if (taken == null && "trap13".equals(id)) {
-                List<Card> injected = cardDefs.buildCustomDeck(List.of("trap13"));
-                taken = injected.isEmpty() ? null : injected.get(0);
+                taken = cardDefs.findCardCopy("trap13").orElse(null);
             }
             if (taken == null && "tutorial_ashen_ward".equals(id)) {
                 taken = buildTutorialAshenWard();
             }
             if (taken == null && ("spell_fire_09".equals(id) || "spell_earth_02".equals(id) || "spell_earth_01".equals(id))) {
-                List<Card> injected = cardDefs.buildCustomDeck(List.of(id));
-                taken = injected.isEmpty() ? null : injected.get(0);
+                taken = cardDefs.findCardCopy(id).orElse(null);
             }
             if (taken != null) {
                 ordered.add(taken);
