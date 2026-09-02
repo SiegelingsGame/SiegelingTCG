@@ -296,6 +296,7 @@ public class SiegeCombatEngine {
         battle.setPlayerSpeed(playerSpeed);
         battle.setEnemySpeed(enemySpeed);
         battle.setPlayerActsFirst(playerFirst);
+        SiegeAdvantage.ensureOrder(battle);
         battle.event("round", "round", battle.getRoundNumber(),
                 "playerSpeed", playerSpeed, "enemySpeed", enemySpeed, "playerFirst", playerFirst);
         battle.log("— Round " + battle.getRoundNumber() + " · Speed " + playerSpeed + " vs " + enemySpeed
@@ -481,6 +482,10 @@ public class SiegeCombatEngine {
             battle.getHand().remove(card);
             // Evolution cards are consumed for the battle — they do not reshuffle.
             battle.setActionPoints(battle.getActionPoints() - cost);
+            Combatant evolvedOwner = battle.findCombatant(card.getOwnerId());
+            if (SiegeAdvantage.holds(battle, evolvedOwner)) {
+                applyAdvantageRider(battle, evolvedOwner, spec, List.of(evolvedOwner), rng);
+            }
             if (checkEnd(run)) return PlayResult.okay();
             if (battle.getActionPoints() <= 0 && !hasPlayableFreeCard(battle)) {
                 endPlayerTurn(run, rng);
@@ -502,6 +507,9 @@ public class SiegeCombatEngine {
                 spec.name() + " → " + targetNames);
         battle.beginTally();
         applyEffect(battle, attacker, spec, targets, rng);
+        if (SiegeAdvantage.holds(battle, attacker)) {
+            applyAdvantageRider(battle, attacker, spec, targets, rng);
+        }
         battle.stampTally(entry);
         battle.getDiscard().add(card);
         battle.setActionPoints(battle.getActionPoints() - cost);
@@ -838,6 +846,8 @@ public class SiegeCombatEngine {
                 battle.log(ally.getName() + "'s evolution gauge is full!");
             }
         }
+
+        SiegeAdvantage.advance(battle);
 
         battle.setPhase(BattlePhase.ENEMY_RESOLVING);
         if (battle.isPlayerActsFirst()) {
@@ -1391,6 +1401,8 @@ public class SiegeCombatEngine {
             executeEnemyAbility(battle, foe, choice, foe.getIntentPosition(), rng);
         }
 
+        SiegeAdvantage.advance(battle);
+
         // Telegraph next round's moves so the player sees what is coming.
         if (!battle.isOver()) {
             rollEnemyIntents(battle, rng);
@@ -1409,8 +1421,10 @@ public class SiegeCombatEngine {
                         : ""));
 
         battle.beginTally();
+        List<Combatant> advantageTargets = new ArrayList<>();
         switch (choice.effect()) {
             case HEAL -> {
+                advantageTargets.add(foe);
                 int amount = effectValue(foe, choice.value());
                 if (foe.has(StatusKind.POISON)) {
                     foe.clearStatus(StatusKind.POISON);
@@ -1423,6 +1437,7 @@ public class SiegeCombatEngine {
                 }
             }
             case SHIELD -> {
+                advantageTargets.add(foe);
                 int amount = effectValue(foe, choice.value());
                 foe.addShield(amount, shieldExpiryFor(battle, foe));
                 battle.event("shield", "sourceId", foe.getId(), "targetId", foe.getId(), "amount", amount);
@@ -1434,8 +1449,10 @@ public class SiegeCombatEngine {
                     // A sweep hits every notch.
                     List<Combatant> line = battle.living(Side.PLAYER);
                     if (line.isEmpty()) {
+                        if (battle.knight() != null) advantageTargets.add(battle.knight());
                         strikeKnight(battle, foe, choice, dmg, rng);
                     } else {
+                        advantageTargets.addAll(line);
                         for (Combatant ally : new ArrayList<>(line)) {
                             strikeAlly(battle, foe, choice, ally, dmg, rng);
                         }
@@ -1443,8 +1460,10 @@ public class SiegeCombatEngine {
                 } else {
                     Combatant occupant = battle.atPosition(targetPos);
                     if (occupant != null) {
+                        advantageTargets.add(occupant);
                         strikeAlly(battle, foe, choice, occupant, dmg, rng);
                     } else if (battle.living(Side.PLAYER).isEmpty()) {
+                        if (battle.knight() != null) advantageTargets.add(battle.knight());
                         strikeKnight(battle, foe, choice, dmg, rng);
                     } else {
                         battle.event("whiff", "sourceId", foe.getId(), "name", choice.name(), "position", targetPos);
@@ -1455,7 +1474,128 @@ public class SiegeCombatEngine {
             }
             default -> battle.log(foe.getName() + " readies itself.");
         }
+        if (SiegeAdvantage.holds(battle, foe)) {
+            applyAdvantageRider(battle, foe, choice, advantageTargets, rng);
+        }
         battle.stampTally(entry);
+    }
+
+    /** Applies one element rider after the holder's normal card or intent resolves. */
+    private void applyAdvantageRider(SiegeBattle battle, Combatant source, AbilitySpec spec,
+                                     List<Combatant> resolvedTargets, Random rng) {
+        if (source == null || spec.element() == null || resolvedTargets == null || resolvedTargets.isEmpty()) return;
+        Combatant focus = resolvedTargets.stream().filter(Combatant::isAlive)
+                .min(Comparator.comparingDouble(c -> (double) c.getHp() / Math.max(1, c.getMaxHp())))
+                .orElse(null);
+        if (focus == null) return;
+        boolean friendly = focus.getSide() == source.getSide();
+        String text = SiegeAdvantage.riderText(spec.element(),
+                friendly ? TargetKind.ALLY_SINGLE : TargetKind.ENEMY_SINGLE);
+        if (text == null) return;
+
+        switch (spec.element()) {
+            case FIRE -> {
+                if (friendly) {
+                    focus.addAttackBuff(1);
+                    battle.event("buff", "kind", "atk", "targetId", focus.getId(), "amount", 1);
+                } else advantageDamage(battle, source, focus, 2);
+            }
+            case EARTH -> {
+                if (friendly) advantageShield(battle, source, focus, 4);
+                else applyStatus(battle, focus, StatusKind.SLOW);
+            }
+            case WIND -> {
+                if (friendly && source.getSide() == Side.PLAYER) {
+                    battle.setActionPoints(battle.getActionPoints() + 1);
+                    battle.event("ap", "amount", 1, "sourceId", source.getId());
+                } else if (!friendly) applyStatus(battle, focus, StatusKind.SHOCK);
+            }
+            case WATER -> {
+                if (friendly) advantageHeal(battle, source, focus, 3);
+                else advantageHeal(battle, source, source, 2);
+            }
+            case ICE -> {
+                if (friendly) advantageShield(battle, source, focus, 3);
+                else applyStatus(battle, focus, focus.has(StatusKind.SLOW) ? StatusKind.STUN : StatusKind.SLOW);
+            }
+            case ELECTRIC -> {
+                if (friendly) {
+                    battle.addKnightCharge(1);
+                    battle.event("charge", "amount", 1, "total", battle.getKnightCharge());
+                } else {
+                    Combatant arc = battle.living(focus.getSide()).stream()
+                            .filter(c -> !c.getId().equals(focus.getId()))
+                            .min(Comparator.comparingInt(Combatant::getHp)).orElse(null);
+                    if (arc != null) advantageDamage(battle, source, arc, 2);
+                }
+            }
+            case METAL -> {
+                if (friendly) advantageShield(battle, source, focus, 5);
+                else if (focus.getShield() > 0) {
+                    int broken = Math.min(4, focus.getShield());
+                    focus.setShield(focus.getShield() - broken);
+                    battle.event("shieldBreak", "sourceId", source.getId(), "targetId", focus.getId(), "amount", broken);
+                } else advantageDamage(battle, source, focus, 1);
+            }
+            case SHADOW -> {
+                if (friendly) {
+                    advantageHeal(battle, source, focus, 2);
+                    advantageShield(battle, source, focus, 2);
+                } else {
+                    advantageDamage(battle, source, focus, 2);
+                    advantageHeal(battle, source, source, 2);
+                }
+            }
+            case UNDEAD -> {
+                if (focus.getHp() * 2 < focus.getMaxHp()) {
+                    if (friendly) advantageHeal(battle, source, focus, 3);
+                    else advantageDamage(battle, source, focus, 3);
+                }
+            }
+            case PSYCHIC -> {
+                if (friendly && source.getSide() == Side.PLAYER) {
+                    draw(battle, 1, rng);
+                    battle.event("draw", "count", 1, "sourceId", source.getId());
+                } else if (!friendly) applyStatus(battle, focus, StatusKind.SHOCK);
+            }
+            default -> { return; }
+        }
+        battle.event("advantage-trigger", "sourceId", source.getId(), "targetId", focus.getId(),
+                "element", spec.element().name(), "friendly", friendly, "text", text);
+        battle.log("◆ Advantage — " + source.getName() + ": " + text);
+    }
+
+    private void advantageHeal(SiegeBattle battle, Combatant source, Combatant target, int amount) {
+        if (target == null || !target.isAlive()) return;
+        int before = target.getHp();
+        target.heal(amount);
+        int healed = target.getHp() - before;
+        battle.event("heal", "sourceId", source.getId(), "targetId", target.getId(), "amount", healed,
+                "advantage", true);
+    }
+
+    private void advantageShield(SiegeBattle battle, Combatant source, Combatant target, int amount) {
+        if (target == null || !target.isAlive()) return;
+        target.setShield(target.getShield() + amount);
+        battle.event("shield", "sourceId", source.getId(), "targetId", target.getId(), "amount", amount,
+                "advantage", true);
+    }
+
+    private void advantageDamage(SiegeBattle battle, Combatant source, Combatant target, int amount) {
+        if (target == null || !target.isAlive()) return;
+        boolean wasAlive = target.isAlive();
+        int dealt = target.takeDamage(amount);
+        boolean killed = wasAlive && !target.isAlive();
+        battle.event("hit", "sourceId", source.getId(), "targetId", target.getId(), "amount", dealt,
+                "element", source.getElement() == null ? null : source.getElement().name(),
+                "ko", killed, "advantage", true);
+        if (!killed) return;
+        if (source.getSide() == Side.PLAYER && target.getSide() == Side.ENEMY) {
+            battle.creditKill(source.getId());
+        } else if (target.getSide() == Side.PLAYER && !target.isKnight()
+                && !maybeReviveOnFall(battle, target)) {
+            hitKnightForKo(battle, target);
+        }
     }
 
     /**

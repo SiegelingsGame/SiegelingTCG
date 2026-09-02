@@ -2060,3 +2060,25 @@ Draco row opens a modal reading "Lv 2 → Lv 3 · +25 base · 1 killing blow · 
 XP · +55 this battle · 90 → 145 · 55 XP to next" with its Spark card listed,
 and the knight row opens with its Rally Cry active. Cache-bust bumped
 (adventure.css v75, adventure.js v82).
+
+## 2026-09-02 — Siege Advantage initiative and elemental riders
+
+Siege battles now keep team Speed as the round turn-order check while also
+building a shared, server-authoritative Advantage queue from every living
+Siegeling's effective Speed. The token passes fastest to slowest after each
+team turn, skips fallen units, and rebuilds from current Speed only when the
+cycle wraps. Save-slot checkpoints persist the queue, holder, and cycle.
+
+When the current holder acts, its cards or enemy intent gain a secondary rider
+based on the card element and whether the resolved target is friendly or
+hostile. All ten live card elements have both branches. The battle HUD adds an
+accessible Advantage rail beside the team-speed track, a gold holder treatment
+on the battlefield, pass/trigger banners, and inline rider copy on affected
+cards and enemy intents. Cache-bust: adventure.css v87, adventure.js v90.
+
+Verified against current `origin/main`: focused Advantage and checkpoint tests
+pass (7 tests), the isolated existing pile-view suite passes, Maven compilation
+passes, and `git diff --check` is clean. The full 619-test local run reached the
+pre-existing main-branch/environment failures (Java 25 Byte Buddy support,
+missing local Node, and three unrelated static-asset assertions); no Advantage
+test failed.

@@ -949,6 +949,20 @@ body[data-screen="rewardScreen"] .siege-screen{
 .track-first{font-size:9.5px; font-weight:800; letter-spacing:.4px; writing-mode:initial; white-space:nowrap;}
 .track-first.you{color:var(--good);}
 .track-first.them{color:var(--bad);}
+.advantage-lane{display:flex; align-items:center; gap:5px; min-width:0; max-width:290px; padding-left:7px; border-left:1px solid rgba(255,208,102,.2);}
+.advantage-label{font-size:8px; font-weight:900; letter-spacing:.7px; color:#ffd066; flex:0 0 auto;}
+.advantage-queue{display:flex; align-items:center; min-width:0; overflow:hidden;}
+.advantage-chip{
+  width:22px; height:22px; flex:0 0 22px; display:flex; align-items:center; justify-content:center;
+  border-radius:50%; background-color:#101621; background-size:155%; background-position:center 16%; background-repeat:no-repeat;
+  border:1px solid color-mix(in srgb,var(--el) 72%,#fff); font-size:11px; box-shadow:0 2px 5px rgba(0,0,0,.6);
+}
+.advantage-chip.you{border-bottom-color:var(--good);}
+.advantage-chip.them{border-bottom-color:var(--bad);}
+.advantage-chip.holder{border:2px solid #ffd066; box-shadow:0 0 0 2px rgba(255,208,102,.18),0 0 12px rgba(255,208,102,.9); animation:advantagepulse 1.25s ease-in-out infinite;}
+.advantage-chip.fallen{filter:grayscale(1); opacity:.32;}
+.advantage-arrow{font-size:13px; color:rgba(255,208,102,.48); margin:0 1px;}
+@keyframes advantagepulse{50%{box-shadow:0 0 0 3px rgba(255,208,102,.28),0 0 18px rgba(255,208,102,1);}}
 
 /* SiegeKnight plate: HP + Ultimate Charge */
 .knight-plate{position:relative; min-width:150px; max-width:190px; background:rgba(12,16,23,.85); border:1px solid var(--border); border-left:4px solid var(--el); border-radius:10px; padding:5px 9px 6px;}
@@ -1102,6 +1116,12 @@ body[data-battle-node="BOSS"] .battle-stage::before{
   background:radial-gradient(ellipse, rgba(0,0,0,.5), transparent 70%);
 }
 .sprite.lead .sp-art{filter:drop-shadow(0 10px 12px rgba(0,0,0,.45)) drop-shadow(0 0 10px rgba(255,154,60,.55));}
+.sprite.advantage-holder .sp-art{filter:drop-shadow(0 10px 12px rgba(0,0,0,.45)) drop-shadow(0 0 15px rgba(255,208,102,.95));}
+.sprite.advantage-holder .sp-plate{position:relative; border-color:rgba(255,208,102,.9); box-shadow:0 0 12px rgba(255,208,102,.34);}
+.sprite.advantage-holder .sp-plate::after{
+  content:'◆ ADV'; position:absolute; right:-5px; top:-9px; padding:1px 4px; border-radius:6px;
+  background:#ffd066; color:#271d00; font-size:7px; font-weight:950; letter-spacing:.35px; box-shadow:0 2px 7px rgba(0,0,0,.55);
+}
 .sprite.dead{opacity:.32;}
 .sprite.dead .sp-art{animation:none; filter:grayscale(1) brightness(.6); transform:rotate(8deg) translateY(8px);}
 .sprite.targetable{cursor:pointer;}
@@ -1177,6 +1197,7 @@ body[data-battle-node="BOSS"] .battle-stage::before{
 .sprite.shielded .sp-art{filter:drop-shadow(0 0 14px rgba(62,166,255,.85));}
 .sprite.statused .sp-art{filter:drop-shadow(0 0 14px rgba(200,150,255,.85));}
 .sprite.acting .sp-art{animation:lunge .5s ease-in-out;}
+.sprite.advantage-flash .sp-art{filter:drop-shadow(0 0 22px rgba(255,208,102,1)) brightness(1.2);}
 @keyframes lunge{35%{transform:translateY(6px) scale(1.06);}65%{transform:translateY(-4px) scale(1.02);}}
 /* Swap wind-up: both units spin in place from the moment the move starts and
    keep spinning until the swap lands (the server telegraphs it with swapStart),
@@ -1348,6 +1369,7 @@ body[data-battle-node="BOSS"] .battle-stage::before{
 .action-banner.show{opacity:1; transform:translate(-50%,-50%) scale(1);}
 .action-banner.you{color:var(--accent-2);}
 .action-banner.them{color:#ff8a6a;}
+.action-banner.advantage{color:#ffd066; border-color:rgba(255,208,102,.6); box-shadow:0 8px 26px rgba(0,0,0,.55),0 0 18px rgba(255,208,102,.24);}
 
 /* projectiles */
 .projectile{
@@ -1593,6 +1615,13 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
 }
 .playcard .pc-eff.dmg{color:#ff8a6a;} .playcard .pc-eff.heal{color:var(--good);} .playcard .pc-eff.buff{color:var(--accent-2);} .playcard .pc-eff.shield{color:var(--shield);}
 .playcard .pc-eff.evo{color:#ffd066;}
+.playcard.advantaged{border-color:#ffd066; box-shadow:0 7px 20px rgba(0,0,0,.42),0 0 15px rgba(255,208,102,.48);}
+.playcard .pc-advantage{
+  margin-top:5px; padding-top:4px; border-top:1px solid rgba(255,208,102,.38);
+  color:#ffe29a; font-size:8.5px; line-height:1.2; max-height:34px; overflow:hidden;
+}
+.playcard .pc-advantage b{display:block; color:#ffd066; font-size:8px; letter-spacing:.35px;}
+.sprite .sp-advantage-intent{font-size:8px; line-height:1.2; color:#ffd066; margin-top:2px; max-height:20px; overflow:hidden;}
 /* Evolution cards glow gold so they stand out in the fan */
 .playcard.evo-card{border-top-color:#ffd066; box-shadow:0 6px 16px rgba(0,0,0,.35), 0 0 12px rgba(255,208,102,.35);}
 .playcard .pc-gauge{position:relative; height:12px; border-radius:6px; background:#0c1017; margin-top:4px; overflow:hidden; border:1px solid rgba(255,208,102,.4);}
@@ -1798,6 +1827,9 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
   .knight-plate .kp-hpbar{height:5px; margin-top:3px;}
   .knight-plate .kp-chargebar{height:10px; margin-top:3px;}
   .speed-track{flex-basis:100%; order:2; padding:4px 8px;}
+  .advantage-lane{max-width:44%;}
+  .advantage-chip{width:19px; height:19px; flex-basis:19px; font-size:9px;}
+  .advantage-arrow{font-size:10px; margin:0;}
   .track-first{display:none;}
 
   .battle-stage{min-height:236px; padding:8px 4px 4px;}
