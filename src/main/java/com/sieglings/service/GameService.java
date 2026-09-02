@@ -659,8 +659,10 @@ public class GameService {
     /**
      * Tutorial draw stack (top drawn first into the opening five, then T1/T2 draws):
      * Sundile (Fire socket opener), Squire Bud (Earth linker for combo), a cheap
-     * Strategy, Shatter Seal (Ice Deception vs the Dummy), spare Pylook, then
-     * Raydile so Sundile can evolve after battle 1.
+     * Strategy, Shatter Seal (Ice Deception vs the Dummy), spare Pylook, Raydile
+     * (evolve Sundile), Flora Knight (Rootbind status), then Advanced-lesson cards:
+     * damage-boost Strategy, health-boost Strategy, Root Bind, and an injected
+     * Ashen Ward shield Strategy.
      */
     private void prepareTutorialPlayerDeck(Player player) {
         if (player == null) {
@@ -669,10 +671,18 @@ public class GameService {
         List<Card> pool = new ArrayList<>(player.getDeck());
         List<Card> ordered = new ArrayList<>();
         for (String id : List.of(
-                "sundile", "squirebud", "spell_fire_06", "trap13", "pylook", "raydile", "floraknight")) {
+                "sundile", "squirebud", "spell_fire_06", "trap13", "pylook", "raydile", "floraknight",
+                "spell_fire_09", "spell_earth_02", "spell_earth_01", "tutorial_ashen_ward")) {
             Card taken = takeNamedCard(pool, id);
             if (taken == null && "trap13".equals(id)) {
                 List<Card> injected = cardDefs.buildCustomDeck(List.of("trap13"));
+                taken = injected.isEmpty() ? null : injected.get(0);
+            }
+            if (taken == null && "tutorial_ashen_ward".equals(id)) {
+                taken = buildTutorialAshenWard();
+            }
+            if (taken == null && ("spell_fire_09".equals(id) || "spell_earth_02".equals(id) || "spell_earth_01".equals(id))) {
+                List<Card> injected = cardDefs.buildCustomDeck(List.of(id));
                 taken = injected.isEmpty() ? null : injected.get(0);
             }
             if (taken != null) {
@@ -681,6 +691,28 @@ public class GameService {
         }
         ordered.addAll(pool);
         player.setDeck(ordered);
+    }
+
+    /** Tutorial-only Strategy so the Advanced chapter can teach shields on-board. */
+    private SpellCard buildTutorialAshenWard() {
+        Ability shield = new Ability(
+                "Ashen Ward",
+                "Grant 1 ally +3 Shield",
+                TargetType.SINGLE_ALLY,
+                null,
+                1,
+                AbilityEffectKeys.SHIELD,
+                3,
+                false);
+        SpellCard ward = new SpellCard(
+                "tutorial_ashen_ward",
+                "Ashen Ward",
+                Element.FIRE,
+                com.sieglings.model.enums.Rarity.COMMON,
+                1,
+                shield);
+        ward.setDescription("A training ward — temporary Shield that absorbs damage before HP.");
+        return ward;
     }
 
     /** Dummy opens on Cozycub so turn-1 Ice sockets are reliable for the Deception lesson. */

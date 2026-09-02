@@ -855,12 +855,31 @@ class GameServiceTest {
         CardDefinitionService stubs = new CardDefinitionService() {
             @Override
             public List<Card> buildCustomDeck(List<String> cardIds) {
-                if (cardIds != null && cardIds.contains("trap13")) {
+                if (cardIds == null || cardIds.isEmpty()) {
+                    return List.of();
+                }
+                String id = cardIds.get(0);
+                if ("trap13".equals(id)) {
                     return List.of(new TrapCard(
                             "trap13", "Shatter Seal", Element.FIRE, Rarity.RARE,
                             Element.ICE, 3,
                             Ability.damage("Shatter", "Deal 4 if opponent has 3 Ice",
                                     TargetType.SINGLE_ENEMY, null, 1, 4)));
+                }
+                if ("spell_fire_09".equals(id)) {
+                    return List.of(new SpellCard("spell_fire_09", "Cinder Volley", Element.FIRE, Rarity.COMMON, 1,
+                            new Ability("Volley", "Allies +1 attack", TargetType.ALL_ALLIES, null, 0,
+                                    AbilityEffectKeys.DAMAGE_BOOST, 1, false)));
+                }
+                if ("spell_earth_02".equals(id)) {
+                    return List.of(new SpellCard("spell_earth_02", "Root Guard", Element.EARTH, Rarity.COMMON, 1,
+                            new Ability("Guard", "Allies +3 max Health", TargetType.ALL_ALLIES, null, 0,
+                                    AbilityEffectKeys.HEALTH_BOOST, 3, false)));
+                }
+                if ("spell_earth_01".equals(id)) {
+                    return List.of(new SpellCard("spell_earth_01", "Root Bind", Element.EARTH, Rarity.COMMON, 1,
+                            new Ability("Bind", "Set Speed to 0", TargetType.SINGLE_ENEMY, null, 1,
+                                    AbilityEffectKeys.SPEED_ZERO, 1, false)));
                 }
                 return List.of();
             }
@@ -885,6 +904,10 @@ class GameServiceTest {
         List<String> top = player.getDeck().stream().limit(5).map(Card::getId).toList();
         assertEquals(List.of("sundile", "squirebud", "spell_fire_06", "trap13", "pylook"), top);
         assertTrue(player.getDeck().stream().anyMatch(c -> "trap13".equals(c.getId())));
+        assertTrue(player.getDeck().stream().anyMatch(c -> "tutorial_ashen_ward".equals(c.getId())),
+                "Advanced shield Strategy should be injected");
+        assertTrue(player.getDeck().stream().anyMatch(c -> "spell_fire_09".equals(c.getId()) || "spell_earth_02".equals(c.getId())),
+                "Advanced buff Strategies should be seeded when available");
     }
 
     private SieglingCard baseSiegling(String id, String name, Element element) {

@@ -336,8 +336,37 @@
         body: '<b>?</b> = what the game wants. <b>≡</b> = full log. <b>👁</b> = inspect notches.' },
 
       { id: 'done', kicker: 'Tutorial complete', title: '🎉 Well fought', finish: true, finale: true,
-        body: 'You have the loop: sockets and links make energy, Strategies spend yours, Deceptions key off theirs, battle deals damage and badges, evolutions and claims reshape the board.' +
-          '<span class="tut-p"><b>Next:</b> Arena (PvP), Siege (expedition), Battlegrounds. Replay this anytime.</span>' }
+        altLabel: 'Advanced Tutorial ▸',
+        body: 'You know the loop: energy, Strategies, Deceptions, battle.' +
+          '<span class="tut-p">Want badges, shields, and elemental statuses? Start the <b>Advanced Tutorial</b> — or Finish and head to Arena / Siege.</span>' }
+    ];
+  }
+
+  function buildAdvancedSteps() {
+    return [
+      { id: 'adv-welcome', kicker: 'Advanced', title: 'Badges & statuses',
+        body: 'Same match. Next tips cover <b>elemental afflictions</b>, <b>buff badges</b>, <b>shields</b>, and <b>debuffs</b>. Your deck already holds the cards.' },
+
+      { id: 'adv-burn', title: 'Elemental afflictions', target: '#boardArea',
+        body: 'Fire damage leaves <b>Burn</b> badges. Ice leaves <b>Chill</b>. Stacks tick on that owner\'s Setup — tap a badge anytime to read it.' },
+
+      { id: 'adv-buff', hint: 'Cast a boost Strategy if you can', title: 'Buff badges', target: '#playerHand',
+        highlight: ['#playerHand', '#handTray'],
+        body: '<b>Cinder Volley</b> and <b>Root Guard</b> put attack / max-Health badges on allies. Cast one when you can afford it — optional.' },
+
+      { id: 'adv-shield', hint: 'Cast Ashen Ward on an ally', title: 'Shields', target: '#playerHand',
+        highlight: ['#playerHand', '#handTray'],
+        body: '<b>Ashen Ward</b> grants temporary <b>Shield</b> — it absorbs damage before HP, then drops. Cast it on an ally if you are holding it.' },
+
+      { id: 'adv-debuff', title: 'Debuffs', target: '#playerHand',
+        highlight: ['#playerHand', '#handTray'],
+        body: '<b>Root Bind</b> / Flora Knight\'s Rootbind set Speed to 0 for the turn. Debuffs show as status badges on the foe.' },
+
+      { id: 'adv-read', title: 'Reading badges', target: '#btnHint',
+        body: 'Tap any badge on a card, or <b>?</b>, for the full effect. Buffs, shields, burns, freezes — same place.' },
+
+      { id: 'adv-done', kicker: 'Advanced complete', title: 'You are ready', finish: true, finale: true,
+        body: 'Afflictions tick, buffs and shields show as badges, debuffs slow the foe. Keep playing this match, or Finish for Arena and Siege.' }
     ];
   }
 
@@ -373,12 +402,27 @@
       steps: buildSteps(),
       playAreas: PLAY_AREAS,
       onFinale: claimReward,
+      onAlt: startAdvanced,
       onStop: function () {
         ACTIVE = false;
         if (watchRaf) window.cancelAnimationFrame(watchRaf);
         watchRaf = 0;
       },
       bodyClass: 'arena-tutorial'
+    });
+  }
+
+  function startAdvanced() {
+    if (!window.TutorialCoach || !window.TutorialCoach.continueWith) return;
+    // Keep the live match and the watcher; swap the script to the badge chapter.
+    window.TutorialCoach.continueWith(buildAdvancedSteps(), {
+      onFinale: function (box, reposition) {
+        if (!box) return;
+        box.className = 'tut-reward is-claimed';
+        box.innerHTML = '<b>Advanced complete</b> keep playing, or Finish when you are done.';
+        if (reposition) reposition();
+      },
+      onAlt: null
     });
   }
 
