@@ -2,6 +2,12 @@
 - Verification: `GameServiceTest.tutorialMulliganLocksLessonCardsAndPreservesDeckOrder`; `tests/arena-tutorial-copy-check.cjs`; `node --check` on game/arena-tutorial; live tutorial mulligan API + UI demo.
 
 
+- September 2, 2026 (follow-up 11) The tutorial laid itself out for whichever orientation it started in and never adjusted. Reported by the owner, and reproduced with numbers: rotating to landscape mid-step leaves the tip card hanging **88-97px off the bottom of the screen** — `Welcome to the Siege @667x375: card bottom 463 past safe 375`, and the same on eight further steps. The rAF tick was not enough on its own. It repositions only when the spotlight's **rect string** changes, which silently misses the case where it reads `none` both before and after — a target that exists in only one layout, like the Arena's desktop-only `#btnEndTurn` — and even when the rect does move, nothing re-renders the card, whose height changes with the landscape media query. The coach now listens for `resize`, `orientationchange` and `visualViewport` resize and forces a **full re-render plus a re-measure on the next frame**, since the card's height is only final after the new width has reflowed its copy. Debounced at 220ms: resize fires in bursts through a rotation, and `adventure.js` re-draws the transposed Siege map on its own 150ms debounce, so the ring has to settle *after* that or it lands on the old axis's geometry. Listeners attach in `start()` and detach in `stop()`, with the pending timer cleared, so a finished tutorial leaves nothing behind. Cache pin: `coach.js` 2 -> 3.
+- Verification: `node --check` clean. A new harness rotates on **every step** and re-measures — card inside the safe area top, bottom and horizontally; the ring not stranded off-viewport or collapsed to nothing; a collapsed hint still clear of the play area. It was **proved to discriminate against the current `main`**, which fails it on nine steps with the measurements above. Against the fix: **none — the coach follows every rotation**, across 26 steps of Siege (390x844 <-> 667x375) and 15 steps of a real Arena match (390x844 <-> 844x390), rotating at each one. The standing sweeps are unchanged — Siege at BRANCH=1 and 667x375 landscape, Arena at 390x844 and 667x375, every check reporting none.
+
+- September 2, 2026 (follow-up 10) The Siege tutorial's map tip said the run is "read bottom to top" — true in portrait, **wrong in landscape**. `adventure.js` genuinely transposes the map on a phone in landscape (`isPhoneLandscape()`, whose own comment reads "the map is transposed to flow left→right (start left, boss right)"), so the one sentence explaining how to read the map was telling half the players to read it along the wrong axis. Measured rather than assumed: at 390x844 the twelve nodes span **722px vertically against 115px horizontally**; at 667x375 they span **723px horizontally against 78px vertically**. The tip now names **both** readings — bottom to top in portrait, left to right in landscape, near end to far end either way — and says so deliberately rather than picking the live one: a step's body is built once at `buildSteps()` and the coach re-renders on step change, not on rotation, so a tip that named only the current orientation would be wrong the moment the player turned the phone mid-step. Cache pin: `siege-tutorial.js` 13 -> 14.
+- Verification: `node --check` clean. The harness gained a standing assertion that reads the **drawn geometry** rather than the copy's intent — it measures the spread of `.map-node-g` on the map step and requires the tip to name whichever axis is longer — and it was proved to discriminate by reverting the sentence to the old portrait-only wording: the landscape run then fails with `The expedition map: map depth runs left->right but the tip does not say so`, while the portrait run still passes, which is exactly the shape of the reported bug. Against the fix it reports **none** on four configurations (390x844 BRANCH=1, 667x375 and 956x440 landscape, and a 44px inset), alongside every standing check — no dimmed choice, no collapsed hint over the play area, a button on every tip, every card inside the safe area, a clean finish, no console errors. `adventure.html` was rebuilt on `origin/main` rather than restored from the working copy, so PR #785's `coach.css?v=2` survived; the staged diff is one pin line.
+
 - September 2, 2026 (deploy) PR #784 squash-merged to `main` as `8ed5c569`; Deploy run #782 shipped Cloud Run then Firebase Hosting, both jobs green. Verified live at `https://siegelingstcgtesting.web.app`: `/play` serves `style.css?v=242`, `coach.js?v=2`, `arena-tutorial.js?v=4`, `game.js?v=257` and `/siege` serves `coach.js?v=2`, `adventure.css?v=86`, `siege-tutorial.js?v=13`, `adventure.js?v=89` — every bundle 200 and **byte-identical to `origin/main`**. `/api/cards/editor` reports `source: FIRESTORE`, `liveEditingEnabled: true`, `firestoreAvailable: true`, empty `firestoreError`. **The deploy check caught a cache-busting violation of our own rule #1**: `coach.css` has been pinned at `?v=1` since it first shipped in #776, but its content has changed twice since — `.tut-nodim` in #783 and `.tut-pick` in #784, 20 added lines. The bytes on the CDN are current, so a first-time visitor is fine, but any browser holding `coach.css?v=1` from the earlier release keeps the stale stylesheet and the gold recommendation marker simply does not render for them. Pinned `coach.css` 1 -> 2 on both `play.html` and `adventure.html`. Worth recording as a pattern: a *new* file's pin is easy to forget on the releases that follow, because the reflex is to bump what was renamed rather than what was edited.
 
 - September 1, 2026 (follow-up 9) The Arena tutorial's opening placement now teaches **exterior sockets**, and recommends the cell that actually reaches one. It had ringed whichever legal cell came first — a corner, chosen by DOM order — while telling the player only that the first Siegeling "can go anywhere". That is the least useful thing to say about the opening play: with nothing on the board there is no neighbour to link to, so a perimeter **socket** is the only energy on offer, and energy is what pays for Strategies, Deceptions and every ability a Siegeling attacks with. The step now says that, and marks the cell where **this card's** notches reach a socket — recomputed from the live selection, so it moves when the player picks a different card. The rule is the server's, mirrored: a LEFT notch in column 0, a RIGHT notch in column 2, a BOTTOM notch in row 0, diagonals never, and a NEUTRAL notch never (`PlacementService.resolveExternalSocketKey` plus the NEUTRAL skip in `EnergyService.collectExternalSocketTouches`). `ArenaTutorialBridge` gained a `legalPlacements()` reader so the coach scores the cells the game itself would accept rather than guessing. One design correction on the way: the recommendation was first carried by the spotlight ring, which does not work now that the ring lifts the **union** of every legal cell — it covers the whole grid, singling nothing out. The coach gained a `recommend` field that marks exactly one element with `.tut-pick` (a gold pulse), so a step can keep every option available *and* still advise. Cache pins: `game.js` 255/256 -> 257 (play, home and card-dashboard), `arena-tutorial.js` 3 -> 4.
@@ -2094,3 +2100,41 @@ rail, inline rider copy, and holder treatment. Hosting and direct Cloud Run
 and `firestoreAvailable: true`; `/api/game/options` returns 200 with 6 decks and
 13 trainers, `/api/siege/roster` returns 200, and hosted `js/config.js` retains
 the empty same-origin `apiBaseUrl`.
+
+## 2026-09-02 — Advantage tutorial, card reference, and damage regression
+
+The Siege speed lesson now distinguishes Team Speed (the living team total
+that decides who takes the first turn) from the shared Advantage initiative
+cycle (fastest to slowest, passing after each team turn). Its compact key lists
+the friendly- and enemy-target rider for all ten live elements and remains
+fully visible at both phone and desktop sizes.
+
+Every Siege Siegeling detail sheet now adds an Advantage line to each elemental
+card. Because setup, the map party strip, illustrated stops, brokers, battle
+units, reward/XP drill-downs, and ledger card details all use the same modal,
+the reference is available anywhere a unit can be selected. Active hand cards
+still reserve their gold Advantage treatment for the current holder.
+
+The simulated tutorial battle now carries the same fastest-to-slowest holder
+queue as a real battle, advances it between team turns, annotates the current
+holder's hand cards, and resolves the Fire and Electric riders used by the
+tutorial cast. This fixes the tutorial-only missing Fire damage: in the exact
+Draco/Spark/Embers regression, Spark grants +2 Attack, Kindle adds +1 Attack,
+Embers deals 8 base/buffed damage, and Sear lands as a separate +2 hit. The
+server-authoritative Advantage suite remains green.
+
+Verified with JavaScript syntax checks, focused `SiegeAdvantageTest` plus the
+new static-asset regression suite, `git diff --check`, and browser automation
+at 390x844 and 1920x1080. Both viewports rendered all ten key entries and the
+per-card Advantage reference with no console errors. Cache-bust:
+`coach.css` v3, `adventure.css` v88, `siege-tutorial.js` v15, and
+`adventure.js` v91.
+
+Production release: PR #791 squash-merged as `473948fd`; Deploy run
+`33691584165` completed successfully from 22:41:14–22:49:06Z with Cloud Run,
+Firebase Hosting, and Firebase Functions all green. Live `/siege` serves all
+four new cache pins, and its tutorial/card bundles contain the Team Speed key,
+per-card Advantage reference, and Sear damage path. Hosting and direct Cloud
+Run `/api/cards/editor` both report `source: FIRESTORE`, live editing enabled,
+and Firestore available; hosted `/api/game/options` and `/api/siege/roster`
+both return 200, with same-origin API configuration intact.

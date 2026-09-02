@@ -68,6 +68,9 @@
 /* A second paragraph inside a tip. Its own element rather than two <br>s, so
    the landscape rules below can tighten the gap instead of spending a line. */
 .tut-p{display:block; margin-top:.75em;}
+.tut-adv-key{display:grid; grid-template-columns:1fr 1fr; gap:3px 9px; margin-top:8px; font-size:10px; line-height:1.3;}
+.tut-adv-key span{padding:3px 5px; border:1px solid var(--tut-border); border-radius:5px; background:rgba(255,255,255,.025);}
+.tut-adv-key b{color:#ffe36b;}
 .tut-body em{color:var(--tut-good); font-style:normal;}
 /* The wait hint sits left, the button right; with no hint the button still
    lands on the right because the hint is simply absent. */
@@ -120,6 +123,7 @@
   .tut-card{padding:11px 13px 10px;}
   .tut-title{font-size:15.5px;}
   .tut-body{font-size:12.5px;}
+  .tut-adv-key{font-size:9.5px; gap:2px 6px;}
 }
 /* Phone landscape — the same breakpoint isPhoneLandscape() uses, so the coach
    agrees with the map and battle screens about when the phone is on its side.

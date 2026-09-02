@@ -359,6 +359,7 @@
     refillKnight();
     shuffleIntents();
     syncSpeeds();
+    rebuildAdvantage(false);
     drawTo(HAND_MAX);
     syncPiles();
   }
@@ -383,6 +384,63 @@
     M.battle.playerSpeed = livingAllies().reduce(function (s, u) { return s + u.effectiveSpeed; }, 0);
     M.battle.enemySpeed = livingFoes().reduce(function (s, u) { return s + u.effectiveSpeed; }, 0);
     M.battle.playerActsFirst = M.battle.playerSpeed >= M.battle.enemySpeed;
+  }
+
+  function rebuildAdvantage(wrapped) {
+    var b = M.battle;
+    var firstSide = b.playerActsFirst ? 'PLAYER' : 'ENEMY';
+    var units = livingAllies().concat(livingFoes());
+    units.sort(function (a, c) {
+      var speed = (c.effectiveSpeed || c.speed) - (a.effectiveSpeed || a.speed);
+      if (speed) return speed;
+      var position = (a.position == null ? 999 : a.position) - (c.position == null ? 999 : c.position);
+      if (position) return position;
+      if (a.side !== c.side) return a.side === firstSide ? -1 : 1;
+      return String(a.id).localeCompare(String(c.id));
+    });
+    b.advantageOrder = units.map(function (u) {
+      return {
+        id: u.id, name: u.name, element: u.element, side: u.side,
+        effectiveSpeed: u.effectiveSpeed || u.speed, position: u.position,
+        artUrl: u.artUrl, alive: u.alive
+      };
+    });
+    b.advantageIndex = units.length ? 0 : -1;
+    b.advantageHolderId = units.length ? units[0].id : null;
+    b.advantageCycle = (b.advantageCycle || 0) + ((wrapped || !b.advantageCycle) ? 1 : 0);
+    syncAdvantageFlags();
+  }
+
+  function syncAdvantageFlags() {
+    var b = M.battle;
+    (b.advantageOrder || []).forEach(function (entry) {
+      var unit = findUnit(entry.id);
+      if (!unit) return;
+      entry.name = unit.name;
+      entry.element = unit.element;
+      entry.effectiveSpeed = unit.effectiveSpeed || unit.speed;
+      entry.artUrl = unit.artUrl;
+      entry.alive = unit.alive;
+    });
+    var holder = findUnit(b.advantageHolderId);
+    b.advantageActiveForPlayer = b.phase === 'PLAYER_INPUT' && holder && holder.side === 'PLAYER' && holder.alive;
+  }
+
+  function advanceAdvantage(events) {
+    var b = M.battle;
+    var previous = b.advantageHolderId;
+    for (var i = b.advantageIndex + 1; i < (b.advantageOrder || []).length; i++) {
+      var next = findUnit(b.advantageOrder[i].id);
+      if (next && next.alive) {
+        b.advantageIndex = i;
+        b.advantageHolderId = next.id;
+        syncAdvantageFlags();
+        events.push({ type: 'advantage-pass', fromId: previous, holderId: next.id, cycle: b.advantageCycle });
+        return;
+      }
+    }
+    rebuildAdvantage(true);
+    if (b.advantageHolderId) events.push({ type: 'advantage-pass', fromId: previous, holderId: b.advantageHolderId, cycle: b.advantageCycle });
   }
 
   /** Enemy intents are public in Siege: each foe telegraphs the notch it will hit. */
@@ -417,6 +475,10 @@
   function syncPiles() {
     var b = M.battle;
     b.hand = b._hand.map(function (c) { return handCard(c, b.actionPoints); });
+    b.hand.forEach(function (c) {
+      c.advantaged = c.ownerId === b.advantageHolderId;
+      if (c.advantaged) c.advantageText = tutorialAdvantageText(c);
+    });
     b.deck = b._draw.map(pileCard);
     b.discard = b._discard.slice().reverse().map(pileCard);
     b.deckCount = b._draw.length;
@@ -449,6 +511,46 @@
   }
 
   function logLine(line) { M.battle.log.push(line); }
+
+  function tutorialAdvantageText(c) {
+    var friendly = c.target === 'ALLY_SINGLE' || c.target === 'ALLY_ALL' || c.target === 'SELF';
+    if (c.element === 'FIRE') return friendly
+      ? 'Kindle: target gains +1 Attack for this battle.'
+      : 'Sear: deal 2 additional damage.';
+    if (c.element === 'ELECTRIC') return friendly
+      ? 'Charge: gain 1 Knight Ultimate Charge.'
+      : 'Arc: deal 2 damage to another enemy.';
+    return null;
+  }
+
+  function triggerAdvantage(owner, c, targets, events) {
+    var b = M.battle;
+    targets = (targets || []).filter(function (target) { return target && target.alive; });
+    if (!owner || owner.id !== b.advantageHolderId || !targets.length) return;
+    var friendly = c.target === 'ALLY_SINGLE' || c.target === 'ALLY_ALL' || c.target === 'SELF';
+    var text = tutorialAdvantageText(c);
+    if (!text) return;
+    if (c.element === 'FIRE') {
+      targets.forEach(function (target) {
+        if (friendly) {
+          target.attackBuff = (target.attackBuff || 0) + 1;
+          events.push({ type: 'buff', kind: 'atk', amount: 1, targetIds: [target.id] });
+        } else {
+          damage(target, 2, events, owner.id, c.element);
+        }
+      });
+    } else if (c.element === 'ELECTRIC' && !friendly) {
+      var arc = (owner.side === 'PLAYER' ? livingFoes() : livingAllies()).filter(function (u) {
+        return targets.indexOf(u) < 0;
+      })[0];
+      if (arc) damage(arc, 2, events, owner.id, c.element);
+    }
+    events.push({
+      type: 'advantage-trigger', sourceId: owner.id, targetId: targets[0].id,
+      element: c.element, friendly: friendly, text: text
+    });
+    logLine('Advantage — ' + text);
+  }
 
   function playCard(cardId, targetId) {
     var b = M.battle;
@@ -492,6 +594,7 @@
         if (ko) logLine(foe.name + ' is destroyed!');
         else applyStatus(foe, c, events);
       });
+      triggerAdvantage(owner, c, marks, events);
     } else if (c.effect === 'HEAL') {
       var pool = c.target === 'ALLY_ALL' ? livingAllies() : [];
       if (!pool.length) {
@@ -504,6 +607,7 @@
         events.push({ type: 'heal', targetId: a.id, amount: c.value, vitals: vitalsOf([a.id]) });
         logLine(a.name + ' recovers ' + c.value + ' HP.');
       });
+      triggerAdvantage(owner, c, pool, events);
     } else if (c.effect === 'SHIELD') {
       var me = findUnit(c.ownerId) || livingAllies()[0];
       if (me) {
@@ -520,6 +624,7 @@
         mark.attackBuffRounds = c.durationRounds || 2;
         events.push({ type: 'buff', kind: 'atk', amount: c.value, targetIds: [mark.id], rounds: c.durationRounds || 2 });
         logLine(mark.name + ' hits for +' + c.value + '.');
+        triggerAdvantage(owner, c, [mark], events);
       }
     } else if (c.effect === 'BUFF_SPD') {
       var sm = findUnit(targetId) || livingAllies()[0];
@@ -592,6 +697,8 @@
       events.push({ type: 'apCharge', amount: b.actionPoints, total: b.knight.charge });
     }
 
+    advanceAdvantage(events);
+
     livingFoes().forEach(function (f) {
       if (!f.intent) return;
       var mark = null;
@@ -601,8 +708,13 @@
       if (mark) {
         damage(mark, f.intent.value, events, f.id, f.element);
         logLine(f.name + ' hits ' + mark.name + ' for ' + f.intent.value + '.');
+        triggerAdvantage(f, {
+          element: f.element, target: 'ENEMY_SINGLE'
+        }, [mark], events);
       }
     });
+
+    advanceAdvantage(events);
 
     // End-of-round damage-over-time on whatever is still standing.
     livingFoes().concat(livingAllies()).forEach(function (u) {
@@ -1112,8 +1224,13 @@
         body: 'A full practice expedition, fought with real cards — ' + esc(knightName()) +
           ' leading ' + esc(M.party[0].name) + ' and ' + esc(M.party[1].name) +
           '. Nothing here touches your account: no gold spent, no saves written. I will walk you to every kind of stop on the map.' },
+      // Naming BOTH readings rather than the current one: the map genuinely
+      // transposes (adventure.js isPhoneLandscape -> "start left, boss right"),
+      // and a step's body is built once, so a tip that named only the live
+      // orientation would be wrong the moment the player rotated mid-step.
       { id: 'map', title: 'The expedition map', target: '#mapSvg',
-        body: 'A Siege run is a branching path read bottom to top. You travel one node at a time, and every node you clear is gone for good — the route you pick <em>is</em> the run.' },
+        body: 'A Siege run is a branching path: read it <b>bottom to top</b> in portrait, or <b>left to right</b> in landscape — either way you start at the near end and the boss waits at the far one.' +
+          '<span class="tut-p">You travel one node at a time, and every node you clear is gone for good — the route you pick <em>is</em> the run.</span>' },
       { id: 'key', hint: 'Tap <b>🗝️ Key</b>', title: 'What the emblems mean', target: '#mapKeyBtn',
         body: 'Each node type has its own emblem. Tap <b>🗝️ Key</b> to read them.',
         until: function () { return !hidden('legendOverlay'); } },
@@ -1132,7 +1249,20 @@
         until: function () { return screenIs('battleScreen'); } },
 
       { id: 'speed', title: 'Who moves first', target: '#speedTrack',
-        body: 'Combat is round-based. Your side\'s total <b>Speed</b> against theirs decides who acts first — the runners on this track are your Siegelings at their speed.' },
+        body: '<b>Team Speed</b> is every living Siegeling\'s Speed added together; the higher team takes the first turn each round. The <b>Advantage</b> token is separate: it cycles through every Siegeling, fastest to slowest, after each team turn. If the holder belongs to the team taking its turn, every card owned by that Siegeling gains its elemental rider.' +
+          '<span class="tut-p"><b>Advantage key</b> · Ally = friendly target · Foe = enemy target</span>' +
+          '<span class="tut-adv-key">' +
+            '<span>🔥 <b>Fire</b> Ally +1 ATK · Foe +2 dmg</span>' +
+            '<span>🪨 <b>Earth</b> Ally +4 shield · Foe Slow</span>' +
+            '<span>🌪️ <b>Wind</b> Ally +1 AP · Foe Shock</span>' +
+            '<span>💧 <b>Water</b> Ally +3 heal · Foe holder heals 2</span>' +
+            '<span>❄️ <b>Ice</b> Ally +3 shield · Foe Slow→Stun</span>' +
+            '<span>⚡ <b>Electric</b> Ally +1 Ult · Foe Arc 2</span>' +
+            '<span>⚙️ <b>Metal</b> Ally +5 shield · Foe break 4 / 1 dmg</span>' +
+            '<span>🌑 <b>Shadow</b> Ally heal/shield 2 · Foe drain 2</span>' +
+            '<span>💀 <b>Undead</b> Below half: Ally heal 3 · Foe +3 dmg</span>' +
+            '<span>🔮 <b>Psychic</b> Ally draw 1 · Foe Shock</span>' +
+          '</span>' },
       { id: 'passive', title: 'Passive and Ultimate', target: '#knightPlate',
         body: 'Your SiegeKnight does not attack. He gives a <b>passive</b> — ' + esc(k.passiveName) + ' — and charges an <b>Ultimate</b> on the bar under his HP: <em>' +
           esc(k.ultimateName) + '</em>, which ' + esc(String(k.ultimateDesc || '').charAt(0).toLowerCase() + String(k.ultimateDesc || '').slice(1)) +
