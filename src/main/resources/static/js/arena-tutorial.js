@@ -135,6 +135,7 @@
       // covers the board completely — teaching 'Reading the board' here rang a
       // grid the player could not even see.
       { id: 'mulligan', hint: 'Keep, or redraw, once', title: 'Your opening hand', target: '#mulliganActions',
+        highlight: ['#mulliganHandPreview', '#mulliganActions'],
         body: 'Before the first round you get <b>one</b> mulligan. Tap any cards you would rather not keep and <b>Redraw selected</b>, or take the hand as dealt with <b>Keep hand</b>.' +
           '<span class="tut-p">You want a Siegeling to open with — you cannot build anything without a body on the board.</span>',
         skipIf: function () { return phase() !== 'MULLIGAN'; },
@@ -164,11 +165,13 @@
         until: function () { return phase() === 'SETUP' || phase() === 'BATTLE'; } },
 
       { id: 'pick', hint: 'Tap a <b>Siegeling</b> in hand', title: 'Choose a Siegeling', target: '#playerHand',
+        highlight: ['#playerHand', '#handTray'],
         body: 'Your hand runs along the bottom. <b>Tap a Siegeling</b> — the cards with an HP and SPD box — and the legal cells on your grid will light up.',
         until: function () { return selectedType() === 'SIEGLING' || mine() > 0; } },
 
       { id: 'place', hint: 'Tap a lit cell to place', title: 'Place it on the grid',
         target: function () { return firstOf(['#playerGrid .board-cell.legal', '#playerGrid']); },
+        highlight: ['#playerGrid .board-cell.legal'],
         body: 'Your first Siegeling can go <b>anywhere</b>. After that, new ones must build off the foundation network you already have, so the first cell shapes the whole board.' +
           '<span class="tut-p">You may hold up to <b>5</b> Sieglings. Evolutions are placed onto their living precursor and are exempt from both the cap and the one-per-turn limit.</span>',
         until: function () { return mine() > 0; } },
@@ -177,6 +180,7 @@
       // on a condition only *leaving* Setup could satisfy — which stranded any
       // player who did not want to cast, since End Turn is the step after this.
       { id: 'spell', title: 'Strategies and Deceptions', target: '#playerHand',
+        highlight: ['#playerHand', '#handTray'],
         body: '<b>Strategies</b> are cast on your turn and paid from <b>your</b> elemental energy and any <b>combo</b> energy you have banked — they resolve the moment you play them.' +
           '<span class="tut-p"><b>Deceptions</b> are also set on your turn, face-down, but their cost keys off <b>your opponent\'s</b> energy — set them to punish a specific element you expect them to hold.</span>' +
           '<span class="tut-p">Cast one now if you are holding one and can afford it. It is optional — carry on either way.</span>',
@@ -200,6 +204,7 @@
 
       { id: 'target', hint: 'Pick a <b>target</b> when asked', title: 'Choosing targets',
         target: function () { return firstOf(['#enemyGrid .board-cell.targetable', '#enemyGrid']); },
+        highlight: ['#enemyGrid .board-cell.targetable', '#playerGrid .board-cell.targetable'],
         body: 'When an ability needs a target, the legal cells light up and the board waits for you. Single-target moves ask for one cell; row and board moves take everything in range.' +
           '<span class="tut-p">Tap a lit enemy cell to fire.</span>',
         skipIf: function () { return !visible('#enemyGrid .board-cell.targetable'); },
@@ -212,6 +217,7 @@
 
       { id: 'claim', title: 'Claiming for energy',
         target: function () { return firstOf(['#playerGrid .board-cell.claimable', '#playerGrid']); },
+        highlight: ['#playerGrid .board-cell.claimable'],
         body: 'A Siegeling that survives a battle can be <b>claimed</b> in a later Setup for temporary energy. It leaves the board to do it, so claiming is a real trade: a body now, or a bigger play this round.',
         skipIf: function () { return !visible('#playerGrid .board-cell.claimable'); } },
 
@@ -226,6 +232,7 @@
         until: function () { return phase() === 'SETUP' || phase() === 'BATTLE'; } },
 
       { id: 't2-pick', hint: 'Tap a <b>Siegeling</b> in hand', title: 'Place a second Siegeling', target: '#playerHand',
+        highlight: ['#playerHand', '#handTray'],
         body: '<b>Tap another Siegeling</b> from your hand. You will place it beside your first so their notches can link.',
         skipIf: function () { return turn() < 2 || mine() >= 2; },
         until: function () { return selectedType() === 'SIEGLING' || mine() >= 2; } },
@@ -233,6 +240,7 @@
       { id: 't2-place', hint: 'Tap a lit cell beside your first', title: 'Build a link', target: function () {
           return firstOf(['#playerGrid .board-cell.legal', '#playerGrid']);
         },
+        highlight: ['#playerGrid .board-cell.legal'],
         body: 'Place it in a lit cell <b>next to</b> your first Siegeling with notches pointing at each other. Matching elements bank plain energy; <b>Fire</b> and <b>Earth</b> together bank a <b>combo point</b> instead.',
         skipIf: function () { return turn() < 2 || mine() >= 2; },
         until: function () { return mine() >= 2; } },

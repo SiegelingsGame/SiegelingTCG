@@ -8,8 +8,11 @@
  * hint sitting on the hand — and a second copy would rediscover all of them.
  *
  * A step is:
- *   { id, kicker, title, body, hint, target, avoid,
+ *   { id, kicker, title, body, hint, target, highlight, avoid,
  *     until, next, route, skipIf, finish, finale }
+ * `highlight` names everything else the player may touch on this step; the
+ * spotlight lifts the union, because the dim reads as "disabled". `nodim`
+ * drops the shade altogether, for a step that hands the whole screen back.
  * `until` makes the step wait on the player: the full tip renders, "Got it"
  * collapses it to a one-line hint so the play area is clear, and the step
  * advances itself the moment `until()` comes true.
@@ -126,6 +129,10 @@
     var s = det || current();
     if (!s) return;
     var waits = !!s.until && !det;
+    // A free-play step ("carry on until you win") has no one control to point
+    // at, and shading the board it is inviting you to use is the same
+    // misleading grey-out as a dimmed choice. Drop the shade for those.
+    if (layer) layer.classList.toggle('tut-nodim', !!s.nodim);
 
     // Second stage: the player has read the tip and now needs the screen. The
     // card shrinks to a single line naming the tap, so it can sit clear of the
@@ -175,6 +182,51 @@
     try { return document.querySelector(sel); } catch (e) { return null; }
   }
 
+  function rectOfNode(n) {
+    if (!n || !n.getClientRects || !n.getClientRects().length) return null;
+    var r = n.getBoundingClientRect();
+    return (r.width || r.height) ? r : null;
+  }
+
+  /**
+   * The rect the spotlight lifts out of the dim. A step may name `highlight`
+   * selectors alongside its target, and the hole becomes the union of them all.
+   *
+   * This matters because the dim reads as "disabled": the mulligan ringed only
+   * its Keep/Redraw buttons, so the cards above — which you tap to choose what
+   * to redraw — sat under the shade and looked greyed out. Anything the player
+   * may touch on this step has to be inside the light. Selectors are matched
+   * with querySelectorAll, so "every legal cell" and "every reachable node" are
+   * one entry, not one per element.
+   */
+  function spotlightRect(s) {
+    var rects = [];
+    var first = rectOfNode(targetNode(s));
+    if (first) rects.push(first);
+    var extra = s && s.highlight;
+    if (typeof extra === 'function') { try { extra = extra(); } catch (e) { extra = null; } }
+    if (extra) {
+      (typeof extra === 'string' ? [extra] : extra).forEach(function (sel) {
+        var nodes = [];
+        try { nodes = document.querySelectorAll(sel); } catch (e) { return; }
+        for (var i = 0; i < nodes.length; i++) {
+          var r = rectOfNode(nodes[i]);
+          if (r) rects.push(r);
+        }
+      });
+    }
+    if (!rects.length) return null;
+    var top = Infinity, left = Infinity, right = -Infinity, bottom = -Infinity;
+    rects.forEach(function (r) {
+      if (r.top < top) top = r.top;
+      if (r.left < left) left = r.left;
+      if (r.right > right) right = r.right;
+      if (r.bottom > bottom) bottom = r.bottom;
+    });
+    return { top: top, left: left, right: right, bottom: bottom,
+             width: right - left, height: bottom - top };
+  }
+
   /**
    * The safe area the phone actually leaves us, measured rather than assumed:
    * a hidden probe carries the env() insets as padding, so the tip card clears
@@ -189,7 +241,6 @@
 
   function position() {
     var s = detour() || current();
-    var node = targetNode(s);
     var vh = window.innerHeight, vw = window.innerWidth;
     var safe = safeInsets();
     var gap = 14;
@@ -204,7 +255,7 @@
       cardEl.style.top = Math.round(Math.max(minTop, Math.min(maxTop, top))) + 'px';
     }
 
-    var r = node && node.getBoundingClientRect ? node.getBoundingClientRect() : null;
+    var r = spotlightRect(s);
     if (!r || (!r.width && !r.height)) {
       // Nothing to point at: the opening and closing tips, or a step whose
       // control is briefly off screen (the action bar during battle playback).
@@ -344,8 +395,9 @@
     var det = detour();
     var key = idx + (det ? '|detour' : '|step');
     if (key !== renderedKey) { renderedKey = key; renderStep(); return; }
-    var node = targetNode(det || s);
-    var r = node ? node.getBoundingClientRect() : null;
+    // Watch the whole spotlight, not just the target: a step highlighting the
+    // legal cells has to re-light when the set of lit cells changes.
+    var r = spotlightRect(det || s);
     var rect = r ? [r.left, r.top, r.width, r.height].join(',') : 'none';
     if (rect !== lastRect) { lastRect = rect; position(); }
   }

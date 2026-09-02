@@ -1127,7 +1127,7 @@
       { id: 'warband-cards', hint: 'Close with <b>✕</b>', title: 'Cards come from Siegelings', target: '#unitModalCard', avoid: '#unitModalClose',
         body: 'These are the moves this Siegeling puts into the shared deck. Lose the Siegeling and its cards go dead — protecting your line is protecting your hand. Close this with the ✕ when you have looked.',
         until: function () { return hidden('unitModal'); } },
-      { id: 'navigate', hint: 'Tap the <b>⚔️ Ruined Gate</b>', title: 'Navigate', target: '.map-node-g.reachable',
+      { id: 'navigate', hint: 'Tap the <b>⚔️ Ruined Gate</b>', title: 'Navigate', target: '.map-node-g.reachable', highlight: ['.map-node-g.reachable'],
         body: 'A pulsing ring means you can travel there. <b>Tap the ⚔️ Ruined Gate</b> to start the first fight.',
         until: function () { return screenIs('battleScreen'); } },
 
@@ -1143,7 +1143,7 @@
         body: 'The fan is your hand. Each card belongs to one Siegeling — its owner is the one who swings, so buffs on that Siegeling change what the card does.' },
       { id: 'intents', title: 'Foes telegraph their attacks', target: '#enemyRow',
         body: 'These are corrupted Siegelings — <b>shades</b>. Each shows its <b>intent</b>: the move it will use and the notch it will hit. A ▼ over one of your Siegelings means that blow is aimed at it — heal it, or kill the attacker first.' },
-      { id: 'targeting', hint: 'Drag an attack card <b>onto a foe</b>', title: 'Targeting', target: '#handRow',
+      { id: 'targeting', hint: 'Drag an attack card <b>onto a foe</b>', title: 'Targeting', target: '#handRow', highlight: ['#handRow', '#enemyRow', '#allyRow'],
         body: '<b>Drag an attack card onto a foe</b> to play it. Cards that need a target draw an arrow while you drag; drop it on the enemy you want.',
         until: function () { return flags.played > 0; } },
       { id: 'endturn', hint: 'Tap <b>End Turn</b>', title: 'End the turn', target: '#endTurnBtn',
@@ -1160,7 +1160,7 @@
         body: 'An <b>evolution</b>: the next form, with more HP and a stronger kit. It holds <b>until this battle ends</b>, then reverts, keeping the damage it took.' +
           '<span class="tut-p">You normally earn it mid-fight by spending AP on that Siegeling until its 🌟 gauge fills — the Ultimate skips the wait. Equip an <b>Evolution Sigil</b> to have one start <em>every</em> battle evolved.</span>',
         skipIf: function () { return !flags.ulted; } },
-      { id: 'finish', hint: 'Attack, <b>End Turn</b>, repeat', title: 'Finish the fight', target: '#handRow',
+      { id: 'finish', hint: 'Attack, <b>End Turn</b>, repeat', title: 'Finish the fight', nodim: true, target: '#handRow', highlight: ['#handRow', '#enemyRow', '#allyRow'],
         body: 'Play out the rest of the fight — attack, end turn, repeat — until both shades are down.',
         until: function () { return !M.battle || M.battle.phase === 'WON'; } },
       { id: 'spoils', hint: 'Tap <b>Claim Rewards</b>', title: 'Claim the spoils', target: '#handRow',
@@ -1204,6 +1204,7 @@
         body: 'Items do nothing in the backpack. Open <b>🎒 Items</b>.',
         until: function () { return !hidden('invOverlay'); }, next: 'equip-b' },
       { id: 'equip-b', hint: 'Tap an item, then a <b>Siegeling</b>', title: 'One item per Siegeling', target: '#invBag',
+        highlight: ['#invBag', '#invParty'],
         body: '<b>Tap an item in the backpack, then tap a Siegeling</b> to equip it. Each Siegeling holds one item at a time; the ✕ on a filled slot returns it to the bag. The Knight\'s Bag above holds consumables you can use here or mid-battle.',
         until: function () { return flags.equipped; }, next: 'equip-c' },
       { id: 'equip-c', hint: 'Tap <b>✕</b> to close the bag', title: 'Close the bag', target: '#invClose',
@@ -1213,7 +1214,7 @@
       { id: 'stop-1-done', route: function () {
         return (visited['camp-a'] && visited['caravan-a']) ? 'branch-2' : 'other-lane-1';
       } },
-      { id: 'other-lane-1', hint: 'Tap the <b>open node</b>', title: 'The other lane', target: '.map-node-g.reachable',
+      { id: 'other-lane-1', hint: 'Tap the <b>open node</b>', title: 'The other lane', target: '.map-node-g.reachable', highlight: ['.map-node-g.reachable'],
         body: 'This lane rejoins the other one — the stop ahead is the type you did not just visit. <b>Travel there.</b>',
         until: function () { return screenIs('campScreen') || screenIs('caravanScreen'); },
         next: 'other-lane-1-route' },
@@ -1239,14 +1240,14 @@
       { id: 'stop-2-done', route: function () {
         return (visited['broker-a'] && visited['smith-a']) ? 'cache-a' : 'other-lane-2';
       } },
-      { id: 'other-lane-2', hint: 'Tap the <b>open node</b>', title: 'The other lane', target: '.map-node-g.reachable',
+      { id: 'other-lane-2', hint: 'Tap the <b>open node</b>', title: 'The other lane', target: '.map-node-g.reachable', highlight: ['.map-node-g.reachable'],
         body: 'And this lane carries the stop you skipped. <b>Travel there.</b>',
         until: function () { return screenIs('brokerScreen') || screenIs('smithScreen'); },
         next: 'other-lane-2-route' },
       { id: 'other-lane-2-route', route: function () { return lane2(); } },
 
       // ---- the shared tail --------------------------------------------------
-      { id: 'cache-a', hint: 'Travel to the <b>💎 cache</b>', title: 'The cache', target: '.map-node-g.reachable',
+      { id: 'cache-a', hint: 'Travel to the <b>💎 cache</b>', title: 'The cache', target: '.map-node-g.reachable', highlight: ['.map-node-g.reachable'],
         body: 'The lanes have rejoined — from here there is one road. <b>Travel to the 💎 Buried Cache.</b>',
         until: function () { return screenIs('cacheScreen'); } },
       { id: 'cache-b', hint: 'Tap <b>Dig Deeper</b>', title: 'Press your luck', target: '#cacheDigBtn',
@@ -1256,7 +1257,7 @@
         body: 'Loot is unbanked until you take it — a collapse costs you everything in the shaft. <b>Bank the Loot.</b>',
         until: function () { return screenIs('mapScreen'); } },
 
-      { id: 'event-a', hint: 'Travel to the <b>❔ stone</b>', title: 'Events', target: '.map-node-g.reachable',
+      { id: 'event-a', hint: 'Travel to the <b>❔ stone</b>', title: 'Events', target: '.map-node-g.reachable', highlight: ['.map-node-g.reachable'],
         body: '<b>Travel to the ❔ Standing Stone.</b>',
         until: function () { return screenIs('eventScreen'); } },
       { id: 'event-b', hint: 'Choose an <b>option</b>', title: 'Choices with a price', target: '#eventChoices',

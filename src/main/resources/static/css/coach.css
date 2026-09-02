@@ -30,6 +30,10 @@
   animation:tutpulse 1.7s ease-in-out infinite;
 }
 .tut-ring.off{opacity:0; box-shadow:0 0 0 9999px rgba(6,9,14,.52);}
+/* A free-play step hands the whole screen back: no shade, so nothing on the
+   board reads as disabled while the player is being told to carry on. */
+.tut-layer.tut-nodim .tut-ring,
+.tut-layer.tut-nodim .tut-ring.off{box-shadow:none; animation:none;}
 @keyframes tutpulse{
   0%,100%{box-shadow:0 0 0 4px color-mix(in srgb, var(--tut-good) 30%, transparent), 0 0 0 9999px rgba(6,9,14,.52);}
   50%{box-shadow:0 0 0 9px color-mix(in srgb, var(--tut-good) 16%, transparent), 0 0 0 9999px rgba(6,9,14,.52);}
