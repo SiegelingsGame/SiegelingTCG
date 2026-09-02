@@ -1,5 +1,6 @@
 package com.sieglings.service;
 
+import com.sieglings.diagnostics.FirestoreReadMetrics;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -217,7 +218,9 @@ public class CardOverrideStorageService {
 
             try {
                 DocumentReference docRef = fireStoreDocRef();
+                long __fsReadStart = System.nanoTime();
                 DocumentSnapshot snapshot = docRef.get().get(10, TimeUnit.SECONDS);
+                FirestoreReadMetrics.record("cardOverrides", System.nanoTime() - __fsReadStart);
                 LoadSnapshot loadSnapshot;
                 if (!snapshot.exists() || snapshot.get("cards") == null) {
                     JsonNode fallback = readLocalData();
@@ -530,7 +533,9 @@ public class CardOverrideStorageService {
                 return cached.version();
             }
             try {
+                long __fsReadStart = System.nanoTime();
                 DocumentSnapshot snapshot = fireStorePublishSignalDocRef().get().get(5, TimeUnit.SECONDS);
+                FirestoreReadMetrics.record("publishVersion", System.nanoTime() - __fsReadStart);
                 long version = resolvePublishVersion(snapshot);
                 publishVersionEntry = new PublishVersionEntry(version, System.currentTimeMillis());
                 return version;
