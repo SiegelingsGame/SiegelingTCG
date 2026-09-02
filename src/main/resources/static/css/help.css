@@ -768,3 +768,13 @@ body.help-embed .help-chip-nav {
     .help-type-grid { grid-template-columns: 1fr; }
     .help-quick-stats { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* iOS Safari zooms focused inputs under 16px. Touch-primary devices only. */
+@media (hover: none) and (pointer: coarse) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="hidden"]):not([type="file"]),
+    select,
+    textarea,
+    .help-search input {
+        font-size: 16px;
+    }
+}

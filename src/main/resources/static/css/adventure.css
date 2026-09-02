@@ -3035,4 +3035,12 @@ body[data-screen="minigameScreen"] #mgActions{ margin-top:12px; }
   .epiphany-screen .reward-actions{margin-top:6px;}
 }
 
+/* iOS Safari zooms focused inputs under 16px. Touch-primary devices only. */
+@media (hover: none) and (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="hidden"]):not([type="file"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
 

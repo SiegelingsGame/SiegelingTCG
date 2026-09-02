@@ -20094,5 +20094,19 @@ body.has-custom-art::before {
     font-size: 11.5px;
 }
 
-
+/* iOS Safari zooms focused inputs under 16px. Touch-primary devices only — covers
+   portrait and landscape phones without changing desktop typography. */
+@media (hover: none) and (pointer: coarse) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="hidden"]):not([type="file"]),
+    select,
+    textarea,
+    .welcome-auth-card .online-field input,
+    .login-input,
+    .search-input,
+    .online-field input,
+    .play-hud-input,
+    .keep-login-input,
+    .help-search input {
+        font-size: 16px;
+    }
 }
