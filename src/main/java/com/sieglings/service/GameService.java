@@ -129,6 +129,7 @@ public class GameService {
                 TUTORIAL_ENEMY_DECK_ID, TUTORIAL_ENEMY_TRAINER_ID, null, "Tutorial Warband");
         GameState state = createGame(playerOptions, enemyOptions,
                 safePlayerName(playerName, "Player"), TUTORIAL_OPPONENT_NAME, false, true);
+        state.setTutorialMatch(true);
         state.getEnemy().setHealth(TUTORIAL_ENEMY_HEALTH);
         state.log("Tutorial match: " + TUTORIAL_OPPONENT_NAME + " starts at " + TUTORIAL_ENEMY_HEALTH
                 + " health so a full lesson fits in a few rounds.");
@@ -243,6 +244,11 @@ public class GameService {
         // Burn (and future Setup-tick afflictions) resolve as this side enters Setup.
         if (elementalAfflictionService != null) {
             elementalAfflictionService.tickOwnerSetup(state, isPlayerSide);
+        }
+        // Turn-2 Setup is when the coach teaches Deceptions (keyed to opponent Ice).
+        // Guarantee the Dummy holds enough Ice so Shatter Seal is actually playable.
+        if (state.isTutorialMatch() && isPlayerSide && state.getTurnNumber() >= 2) {
+            state.getEnemy().adjustTemporaryEnergy(Element.ICE, 3);
         }
         energyService.recalculateEnergy(state);
         state.captureSieglingSetupPlacementBonusFromEnergy(isPlayerSide);
@@ -574,10 +580,17 @@ public class GameService {
         player.setLoadoutLabel(playerLoadout.label());
         enemy.setLoadoutLabel(enemyLoadout.label());
 
-        player.shuffleDeck();
-        enemy.shuffleDeck();
-        biasOpeningDraw(player);
-        biasOpeningDraw(enemy);
+        if (tutorial) {
+            // Fixed draw order so every coach lesson can fire (socket, Strategy,
+            // link/combo, Deception, evolution) without relying on shuffle luck.
+            prepareTutorialPlayerDeck(player);
+            prepareTutorialEnemyDeck(enemy);
+        } else {
+            player.shuffleDeck();
+            enemy.shuffleDeck();
+            biasOpeningDraw(player);
+            biasOpeningDraw(enemy);
+        }
 
         state.setPlayer(player);
         state.setEnemy(enemy);
@@ -641,6 +654,64 @@ public class GameService {
             rebuiltDeck.add(workingDeck.get(deckIndex++));
         }
         player.setDeck(rebuiltDeck);
+    }
+
+    /**
+     * Tutorial draw stack (top drawn first into the opening five, then T1/T2 draws):
+     * Sundile (Fire socket opener), Squire Bud (Earth linker for combo), a cheap
+     * Strategy, Shatter Seal (Ice Deception vs the Dummy), spare Pylook, then
+     * Raydile so Sundile can evolve after battle 1.
+     */
+    private void prepareTutorialPlayerDeck(Player player) {
+        if (player == null) {
+            return;
+        }
+        List<Card> pool = new ArrayList<>(player.getDeck());
+        List<Card> ordered = new ArrayList<>();
+        for (String id : List.of(
+                "sundile", "squirebud", "spell_fire_06", "trap13", "pylook", "raydile", "floraknight")) {
+            Card taken = takeNamedCard(pool, id);
+            if (taken == null && "trap13".equals(id)) {
+                List<Card> injected = cardDefs.buildCustomDeck(List.of("trap13"));
+                taken = injected.isEmpty() ? null : injected.get(0);
+            }
+            if (taken != null) {
+                ordered.add(taken);
+            }
+        }
+        ordered.addAll(pool);
+        player.setDeck(ordered);
+    }
+
+    /** Dummy opens on Cozycub so turn-1 Ice sockets are reliable for the Deception lesson. */
+    private void prepareTutorialEnemyDeck(Player enemy) {
+        if (enemy == null) {
+            return;
+        }
+        List<Card> pool = new ArrayList<>(enemy.getDeck());
+        List<Card> ordered = new ArrayList<>();
+        for (String id : List.of("cozycub", "falcool", "fawny", "frostfly", "icewee")) {
+            Card taken = takeNamedCard(pool, id);
+            if (taken != null) {
+                ordered.add(taken);
+            }
+        }
+        ordered.addAll(pool);
+        enemy.setDeck(ordered);
+    }
+
+    private Card takeNamedCard(List<Card> pool, String cardId) {
+        if (pool == null || cardId == null || cardId.isBlank()) {
+            return null;
+        }
+        for (int i = 0; i < pool.size(); i++) {
+            Card card = pool.get(i);
+            if (card != null && cardId.equalsIgnoreCase(card.getId())) {
+                pool.remove(i);
+                return card;
+            }
+        }
+        return null;
     }
 
     private void pullOpeningCards(List<Card> sourceDeck, List<Card> seededCards, int maxCount,

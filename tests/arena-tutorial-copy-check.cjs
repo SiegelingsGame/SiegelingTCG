@@ -1,22 +1,26 @@
 const { readFileSync } = require('node:fs');
 
 const arenaSrc = readFileSync('/workspace/src/main/resources/static/js/arena-tutorial.js', 'utf8');
-const gameSrc = readFileSync('/workspace/src/main/resources/static/js/game.js', 'utf8');
 const playHtml = readFileSync('/workspace/src/main/resources/static/play.html', 'utf8');
 
 const failures = [];
-if (!arenaSrc.includes('your</b> elemental energy')) failures.push('missing Strategies energy copy');
-if (!arenaSrc.includes('your opponent')) failures.push('missing Deceptions opponent-energy copy');
-if (!arenaSrc.includes('Siege Damage')) failures.push('missing Siege Damage title');
+if (!arenaSrc.includes('Strategies</b> cast on your turn')) failures.push('missing short Strategies copy');
+if (!arenaSrc.includes('Deceptions</b> play like Strategies')) failures.push('missing Deceptions play-like-Strategies copy');
+if (arenaSrc.includes('face-down')) failures.push('still says face-down');
+if (!arenaSrc.includes('t2-deception')) failures.push('Deceptions not moved to turn 2');
+if (!arenaSrc.includes('⚪ Common')) failures.push('missing Common white rarity');
+if (!arenaSrc.includes('Siege Damage')) failures.push('missing Siege Damage');
 if (arenaSrc.includes('bounty damage')) failures.push('still mentions bounty damage');
-if (!arenaSrc.includes('t2-draw')) failures.push('missing turn 2 draw step');
-if (arenaSrc.includes('Finish the match')) failures.push('still has Finish the match step');
-if (!playHtml.includes('trainerAbilityStatus')) failures.push('trainer status element missing from play.html');
-if (!gameSrc.includes('trainerAbilityStatus')) failures.push('game.js does not reference trainerAbilityStatus');
-if (gameSrc.includes('`${activeDescription} ${availability}`')) failures.push('trainer popup still concatenates active + availability');
+if (!arenaSrc.includes('t2-battle')) failures.push('missing battle 2 step');
+if (!arenaSrc.includes('t2-evolve')) failures.push('missing evolution step');
+if (!arenaSrc.includes('t2-claim')) failures.push('missing claim step');
+if (!arenaSrc.includes('Status & badges')) failures.push('missing status/badges step');
+if (!arenaSrc.includes('Reach a socket')) failures.push('missing shortened socket title');
+if (arenaSrc.includes('call well')) failures.push('socket tip still overshares call-well jargon');
+if (!playHtml.includes('arena-tutorial.js?v=5')) failures.push('cache pin not bumped to v=5');
 
 if (failures.length) {
   console.error('CHECK FAILED', failures);
   process.exit(1);
 }
-console.log('arena tutorial copy and trainer popup checks passed');
+console.log('arena tutorial simplify checks passed');

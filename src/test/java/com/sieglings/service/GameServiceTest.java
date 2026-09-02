@@ -2,6 +2,7 @@ package com.sieglings.service;
 
 import com.sieglings.model.Ability;
 import com.sieglings.model.AbilityEffectKeys;
+import com.sieglings.model.Card;
 import com.sieglings.model.CardInstance;
 import com.sieglings.model.GameState;
 import com.sieglings.model.Notch;
@@ -22,6 +23,7 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -845,6 +847,48 @@ class GameServiceTest {
         assertEquals(Phase.BATTLE, state.getCurrentPhase());
         CardInstance onBoard = state.getAt(true, 1, 1);
         assertEquals(2, onBoard.getTemporaryShield(), "Shield should persist when battle phase begins.");
+    }
+
+    @Test
+    void tutorialPlayerDeckPutsLessonCardsOnTopInOrder() throws Exception {
+        GameService gameService = new GameService();
+        CardDefinitionService stubs = new CardDefinitionService() {
+            @Override
+            public List<Card> buildCustomDeck(List<String> cardIds) {
+                if (cardIds != null && cardIds.contains("trap13")) {
+                    return List.of(new TrapCard(
+                            "trap13", "Shatter Seal", Element.FIRE, Rarity.RARE,
+                            Element.ICE, 3,
+                            Ability.damage("Shatter", "Deal 4 if opponent has 3 Ice",
+                                    TargetType.SINGLE_ENEMY, null, 1, 4)));
+                }
+                return List.of();
+            }
+        };
+        setField(gameService, "cardDefs", stubs);
+
+        Player player = new Player("Roc", true);
+        List<Card> mixed = new ArrayList<>();
+        mixed.add(new SpellCard("spell_fire_06", "Cinder Bolt", Element.FIRE, Rarity.COMMON, 1,
+                Ability.damage("Bolt", "Deal 4", TargetType.SINGLE_ENEMY, null, 1, 4)));
+        mixed.add(baseSiegling("pylook", "Pylook", Element.FIRE));
+        mixed.add(baseSiegling("squirebud", "Squire Bud", Element.EARTH));
+        mixed.add(baseSiegling("sundile", "Sundile", Element.FIRE));
+        mixed.add(new TrapCard("trap01", "Backfire", Element.FIRE, Rarity.UNCOMMON,
+                Element.FIRE, 3, Ability.damage("Boom", "Deal 4", TargetType.SINGLE_ENEMY, null, 1, 4)));
+        player.setDeck(mixed);
+
+        Method prepare = GameService.class.getDeclaredMethod("prepareTutorialPlayerDeck", Player.class);
+        prepare.setAccessible(true);
+        prepare.invoke(gameService, player);
+
+        List<String> top = player.getDeck().stream().limit(5).map(Card::getId).toList();
+        assertEquals(List.of("sundile", "squirebud", "spell_fire_06", "trap13", "pylook"), top);
+        assertTrue(player.getDeck().stream().anyMatch(c -> "trap13".equals(c.getId())));
+    }
+
+    private SieglingCard baseSiegling(String id, String name, Element element) {
+        return new SieglingCard(id, name, element, Rarity.COMMON, 8, 4, List.of(), Row.FRONT);
     }
 
     /** A GameService wired far enough to run a setup turn all the way into the battle phase. */
