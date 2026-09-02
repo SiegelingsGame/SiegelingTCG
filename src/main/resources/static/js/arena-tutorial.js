@@ -131,15 +131,23 @@
         body: 'You lead <b>Squire Bob</b> with the <b>Ashen Roots</b> deck against a Training Dummy that starts on low health, and you always move first — so this match plays the same way every time you replay it.' +
           '<span class="tut-p">I will walk you through it move by move. Read a tip, press <b>Got it</b>, and the tip shrinks out of your way while you make the move.</span>' },
 
-      { id: 'hud', title: 'Reading the board', target: '#boardArea',
-        body: 'The Dummy\'s half is above, yours below — each a <b>3x3 grid</b>. The bar at the top of each half shows that side\'s <b>HP</b> (you both start at 50, the Dummy lower here), its <b>Deck</b> and its <b>Energy</b>.' +
-          '<span class="tut-p">Sieglings have only <b>Health</b>, <b>Speed</b>, notches and abilities. There is no printed attack stat — <em>all</em> damage comes from abilities.</span>' },
-
+      // FIRST, because the match opens on the mulligan overlay and that overlay
+      // covers the board completely — teaching 'Reading the board' here rang a
+      // grid the player could not even see.
       { id: 'mulligan', hint: 'Keep, or redraw, once', title: 'Your opening hand', target: '#mulliganActions',
         body: 'Before the first round you get <b>one</b> mulligan. Tap any cards you would rather not keep and <b>Redraw selected</b>, or take the hand as dealt with <b>Keep hand</b>.' +
           '<span class="tut-p">You want a Siegeling to open with — you cannot build anything without a body on the board.</span>',
         skipIf: function () { return phase() !== 'MULLIGAN'; },
         until: function () { return phase() !== 'MULLIGAN'; } },
+
+      // No skipIf on the phase here: the mulligan step above already waits for
+      // the overlay to close, so this cannot run behind it in normal play — and
+      // guarding it meant a player who pressed Skip on the mulligan lost the
+      // board lesson outright, which is worse than the case it was guarding.
+      { id: 'hud', title: 'Reading the board', target: '#boardArea',
+        body: 'The Dummy\'s half is above, yours below — each a <b>3x3 grid</b>. The bar at the top of each half shows that side\'s <b>HP</b> (you both start at 50, the Dummy lower here), its <b>Deck</b> and its <b>Energy</b>.' +
+          '<span class="tut-p">Sieglings have only <b>Health</b>, <b>Speed</b>, notches and abilities. There is no printed attack stat — <em>all</em> damage comes from abilities.</span>' },
+
 
       { id: 'phases', kicker: 'The round loop', title: 'Draw, Setup, Battle', target: '#phaseBadge',
         body: 'Every round runs three phases, and this badge always says which one you are in.' +
@@ -264,7 +272,7 @@
    *  phone screen, so requiring all of it to stay clear leaves the hint nowhere
    *  to go and it falls back onto the hand anyway. The cells that are actually
    *  waiting for a tap are what must stay reachable. */
-  var PLAY_AREAS = ['#playerHand', '#handTray', '#mulliganActions',
+  var PLAY_AREAS = ['#playerHand', '#handTray', '#mulliganActions', '#mulliganHandPreview',
     '#playerGrid .board-cell.legal', '#playerGrid .board-cell.claimable',
     '#enemyGrid .board-cell.targetable', '#playerGrid .board-cell.targetable'];
 
