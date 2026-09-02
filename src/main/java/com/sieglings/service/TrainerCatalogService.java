@@ -1,6 +1,5 @@
 package com.sieglings.service;
 
-import com.sieglings.diagnostics.FirestoreReadMetrics;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -267,9 +266,7 @@ public class TrainerCatalogService {
 
             try {
                 DocumentReference docRef = fireStoreDocRef();
-                long __fsReadStart = System.nanoTime();
                 DocumentSnapshot snapshot = docRef.get().get(10, TimeUnit.SECONDS);
-                FirestoreReadMetrics.record("trainers", System.nanoTime() - __fsReadStart);
                 LoadSnapshot loadSnapshot;
                 if (!snapshot.exists() || snapshot.get("trainers") == null) {
                     loadSnapshot = persistFirestoreData(docRef, new TrainerFile(defaultDefinitions()), "system@bootstrap");

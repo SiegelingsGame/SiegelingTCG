@@ -1,6 +1,5 @@
 package com.sieglings.service;
 
-import com.sieglings.diagnostics.CallMetrics;
 import com.sieglings.model.Ability;
 import com.sieglings.model.Card;
 import com.sieglings.model.SieglingCard;
@@ -734,29 +733,17 @@ public class CardDefinitionService {
     }
 
     private Set<Element> activeGameplayElements() {
-        long __cmStart = System.nanoTime();
-        try {
         if (liveElementCatalogService == null) {
             return EnumSet.copyOf(LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER);
         }
         return liveElementCatalogService.loadActiveElementsForGame();
-    
-        } finally {
-            CallMetrics.record("activeGameplayElements", System.nanoTime() - __cmStart);
-        }
     }
 
     private List<PresetDeckCatalogService.PresetDeckDefinition> loadPlayablePresetDeckDefinitions() {
-        long __cmStart = System.nanoTime();
-        try {
         return loadPresetDeckDefinitions().stream()
                 .filter(CardDefinitionService::isDeckActive)
                 .filter(this::presetDeckUsesOnlyLiveElements)
                 .toList();
-    
-        } finally {
-            CallMetrics.record("loadPlayablePresetDeckDefinitions", System.nanoTime() - __cmStart);
-        }
     }
 
     private boolean presetDeckUsesOnlyLiveElements(PresetDeckCatalogService.PresetDeckDefinition definition) {

@@ -1,6 +1,5 @@
 package com.sieglings.service;
 
-import com.sieglings.diagnostics.FirestoreReadMetrics;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -184,9 +183,7 @@ public class PackAvailabilityCatalogService {
 
             try {
                 DocumentReference docRef = fireStoreDocRef();
-                long __fsReadStart = System.nanoTime();
                 DocumentSnapshot snapshot = docRef.get().get(10, TimeUnit.SECONDS);
-                FirestoreReadMetrics.record("packAvailability", System.nanoTime() - __fsReadStart);
                 LoadSnapshot loadSnapshot;
                 if (!snapshot.exists() || snapshot.get("packs") == null) {
                     loadSnapshot = persistFirestoreData(docRef, new PackAvailabilityFile(List.of()), "system@bootstrap");

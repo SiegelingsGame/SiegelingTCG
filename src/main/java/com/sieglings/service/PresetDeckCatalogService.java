@@ -1,7 +1,5 @@
 package com.sieglings.service;
 
-import com.sieglings.diagnostics.CallMetrics;
-import com.sieglings.diagnostics.FirestoreReadMetrics;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -84,13 +82,7 @@ public class PresetDeckCatalogService {
     }
 
     public List<PresetDeckDefinition> loadDefinitionsForGame() {
-        long __cmStart = System.nanoTime();
-        try {
         return normalizeDefinitions(parseDeckFile(loadSnapshot().data()).decks());
-    
-        } finally {
-            CallMetrics.record("presetDecks.loadDefinitionsForGame", System.nanoTime() - __cmStart);
-        }
     }
 
     public static List<PresetDeckDefinition> defaultDefinitions() {
@@ -146,9 +138,7 @@ public class PresetDeckCatalogService {
 
             try {
                 DocumentReference docRef = fireStoreDocRef();
-                long __fsReadStart = System.nanoTime();
                 DocumentSnapshot snapshot = docRef.get().get(10, TimeUnit.SECONDS);
-                FirestoreReadMetrics.record("presetDecks", System.nanoTime() - __fsReadStart);
                 LoadSnapshot loadSnapshot;
                 if (!snapshot.exists() || snapshot.get("decks") == null) {
                     loadSnapshot = persistFirestoreData(docRef, new PresetDeckFile(defaultDefinitions()), "system@bootstrap");
