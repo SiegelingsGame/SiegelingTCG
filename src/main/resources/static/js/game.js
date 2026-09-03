@@ -10369,7 +10369,7 @@ function applyPendingHomeLoadout() {
     // Arrived from the Home hub with a chosen loadout — skip the welcome and go straight to the loadout.
     welcomeDismissed = true;
     if (directLoadout) {
-        loadoutStep = 'deck';
+        loadoutStep = pending.startStep === 'setup' ? 'setup' : 'deck';
         if (!authState.profile?.authenticated) {
             dropStaleGuestToken();
             setLoadoutPlayerName(pending.playerName || GUEST_DIRECT_PLAYER_NAME);
