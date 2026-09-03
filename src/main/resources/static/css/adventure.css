@@ -939,11 +939,14 @@ body[data-screen="rewardScreen"] .siege-screen{
 .lane-fill{position:absolute; left:0; top:0; height:100%; border-radius:6px; transition:width .4s ease; opacity:.5;}
 .track-lane.you .lane-fill{background:linear-gradient(90deg,#1d4a2a,var(--good));}
 .track-lane.them .lane-fill{background:linear-gradient(90deg,#4a1d1d,var(--bad));}
-.lane-runner{position:absolute; top:50%; transform:translateY(-52%); font-size:11px; line-height:1; filter:drop-shadow(0 1px 3px rgba(0,0,0,.8)); transition:left .4s ease;}
-/* runner avatar: the unit's overlay art cutout in a small ring */
+.lane-runner{position:absolute; top:50%; transform:translate(-50%,-52%); font-size:11px; line-height:1; filter:drop-shadow(0 1px 3px rgba(0,0,0,.8)); transition:left .4s ease;}
+/* runner avatar: the unit's overlay art cutout in a small ring. Art cutouts are
+   framed inconsistently (some full-body, some head-only, some off-centre), so
+   the token fits the whole image with `contain` instead of zooming into a
+   guessed head position — nothing gets clipped by the circular mask. */
 .lane-runner.img{
-  width:18px; height:18px; border-radius:50%;
-  background-color:#0c1017; background-size:150%; background-position:center 15%; background-repeat:no-repeat;
+  width:22px; height:22px; border-radius:50%;
+  background-color:#0c1017; background-size:contain; background-position:center center; background-repeat:no-repeat;
   border:1.5px solid var(--el); box-shadow:0 1px 4px rgba(0,0,0,.7);
 }
 .lane-flag{position:absolute; right:-2px; top:50%; transform:translateY(-55%); font-size:11px;}
@@ -955,8 +958,8 @@ body[data-screen="rewardScreen"] .siege-screen{
 .advantage-label{font-size:8px; font-weight:900; letter-spacing:.7px; color:#ffd066; flex:0 0 auto;}
 .advantage-queue{display:flex; align-items:center; min-width:0; overflow:hidden;}
 .advantage-chip{
-  width:22px; height:22px; flex:0 0 22px; display:flex; align-items:center; justify-content:center;
-  border-radius:50%; background-color:#101621; background-size:155%; background-position:center 16%; background-repeat:no-repeat;
+  width:26px; height:26px; flex:0 0 26px; display:flex; align-items:center; justify-content:center;
+  border-radius:50%; background-color:#101621; background-size:contain; background-position:center center; background-repeat:no-repeat;
   border:1px solid color-mix(in srgb,var(--el) 72%,#fff); font-size:11px; box-shadow:0 2px 5px rgba(0,0,0,.6);
 }
 .advantage-chip.you{border-bottom-color:var(--good);}
@@ -1830,7 +1833,7 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
   .knight-plate .kp-chargebar{height:10px; margin-top:3px;}
   .speed-track{flex-basis:100%; order:2; padding:4px 8px;}
   .advantage-lane{max-width:44%;}
-  .advantage-chip{width:19px; height:19px; flex-basis:19px; font-size:9px;}
+  .advantage-chip{width:22px; height:22px; flex-basis:22px; font-size:9px;}
   .advantage-arrow{font-size:10px; margin:0;}
   .track-first{display:none;}
 
