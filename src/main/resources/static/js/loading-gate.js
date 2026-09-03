@@ -157,11 +157,25 @@
         // and active it actually brings. The element sigil stays as the fallback
         // for a knight with no art (and for the placeholder opponent shown
         // before the server has picked one).
-        const portrait = info?.art
-            ? `<div class="sgl-knight-portrait has-art" aria-hidden="true">
-                   <img class="sgl-knight-art" src="${escapeHtml(info.art)}" alt="" draggable="false" loading="eager">
-               </div>`
-            : `<div class="sgl-knight-portrait" aria-hidden="true" style="color:${color}">${sigil}</div>`;
+        //
+        // Two art shapes reach us, the same split the loadout handles. FULL_CARD
+        // uploads are already a finished card face, border and all. OVERLAY
+        // uploads are the character illustration only, so they have to be inset
+        // into the art window with the shared template painted over them —
+        // otherwise the knight shows as a bare portrait next to framed cards.
+        const overlayArt = String(info?.artMode || '').trim().toUpperCase() === 'OVERLAY';
+        const artImg = `<img class="sgl-knight-art" src="${escapeHtml(info?.art)}" alt="" draggable="false" loading="eager">`;
+        let portrait;
+        if (info?.art && overlayArt) {
+            portrait = `<div class="sgl-knight-portrait has-art is-overlay" aria-hidden="true">
+                   <div class="sgl-knight-art-window">${artImg}</div>
+                   <div class="sgl-knight-card-template"></div>
+               </div>`;
+        } else if (info?.art) {
+            portrait = `<div class="sgl-knight-portrait has-art" aria-hidden="true">${artImg}</div>`;
+        } else {
+            portrait = `<div class="sgl-knight-portrait" aria-hidden="true" style="color:${color}">${sigil}</div>`;
+        }
         const tierLabel = info?.tier
             ? `<div class="sgl-knight-tier">${escapeHtml(info.tier)}</div>`
             : '';
