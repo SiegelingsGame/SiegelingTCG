@@ -195,6 +195,56 @@
     return base ? { base: base, evolution: evo } : null;
   }
 
+  /** Where a given hand card is rendered, so a step can mark that one card.
+   *  Hand cards carry data-hand-index, which is stable for a given hand. */
+  function handCardTarget(card) {
+    var h = hand();
+    for (var i = 0; i < h.length; i++) {
+      if (h[i] === card) {
+        var sel = '#playerHand .hand-card[data-hand-index="' + i + '"]';
+        if (visible(sel)) return sel;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * The opener the pick step marks. First choice is the base the round-two
+   * evolution grows out of — that is a sequencing requirement, not a
+   * preference: evolving needs the base to have already survived a battle
+   * phase, so it must go down now.
+   *
+   * Not every deal holds the evolution at this point though (the tutorial hand
+   * after a Keep is Sundile, Squire Bud, Cinder Bolt, Shatter Seal, Pylook —
+   * no Raydile), and there the tip falls back to generic wording. Rather than
+   * mark an arbitrary card, fall back to the rule the very next step teaches:
+   * whichever playable Siegeling reaches the most perimeter sockets.
+   */
+  function openerCard() {
+    var pair = baseOfEvolutionInHand();
+    if (pair) return pair.base;
+    var h = hand();
+    var best = null, bestScore = -1;
+    for (var i = 0; i < h.length; i++) {
+      var c = h[i];
+      if (!c || c.type !== 'SIEGLING' || c.evolvesFromId) continue;
+      var score = 0;
+      for (var r = 0; r < 3; r++) {
+        for (var col = 0; col < 3; col++) {
+          var v = socketScore(c, r, col);
+          if (v > score) score = v;
+        }
+      }
+      if (score > bestScore) { bestScore = score; best = c; }
+    }
+    return best;
+  }
+
+  function openerTarget() {
+    var sel = handCardTarget(openerCard());
+    return sel || firstOf(['#playerHand .hand-card', '#playerHand']);
+  }
+
   /** A plain (non-evolution) Siegeling in hand that is NOT the named base — the
    *  partner the round-two link is built with. */
   function partnerSiegling(excludeId) {
@@ -370,15 +420,25 @@
         body: 'One Siegeling down, plus whatever you can pay for. The more energy you walked in with, the more you get to do.',
         until: function () { return phase() === 'SETUP' || phase() === 'BATTLE'; } },
 
-      { id: 'pick', title: 'Who is going in?', target: '#playerHand',
+      { id: 'pick', title: 'Who is going in?', target: openerTarget,
         highlight: ['#playerHand', '#handTray'],
+        // The tip named the opener but nothing on screen pointed at it, so the
+        // player picked whichever card they liked and then met a gold cell
+        // computed for a card they had never been aimed at. The marker the
+        // placement step uses for its cell now also lands on this card.
+        recommend: openerTarget,
         hint: function () {
-          var pair = baseOfEvolutionInHand();
-          return pair ? 'Tap <b>' + esc(pair.base.name) + '</b>' : 'Tap a <b>Siegeling</b>';
+          var c = openerCard();
+          return c ? 'Tap <b>' + esc(c.name) + '</b>' : 'Tap a <b>Siegeling</b>';
         },
         body: function () {
           var pair = baseOfEvolutionInHand();
-          if (!pair) return 'Pick your opener — anything with <b>HP</b> and <b>SPD</b>. Tap it and the board shows you where it can go.';
+          if (!pair) {
+            var c = openerCard();
+            return 'Pick your opener — it wants <b>HP</b>, <b>SPD</b> and notches that reach the edge. ' +
+              (c ? 'Take <b>' + esc(c.name) + '</b>, marked for you. ' : '') +
+              'Tap it and the board shows you where it can go.';
+          }
           // Named on purpose: this opener is the base the round-two evolution
           // grows out of, and evolving needs it to have survived a full battle
           // phase — so it has to go down NOW, not next round.
