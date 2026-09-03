@@ -114,6 +114,9 @@
     // Starter SiegeKnights guests can command in Play. Keep in sync with
     // GameController.GUEST_TRAINER_IDS and game.js.
     const GUEST_TRAINER_IDS = new Set(['squire-bob', 'pyla', 'ser-airek']);
+    // Free main-four singleton decks — guests may browse only these card lists
+    // in the Cards binder (full catalog requires sign-in).
+    const FREE_DECK_ELEMENTS = new Set(['FIRE', 'ICE', 'EARTH', 'WIND']);
 
     function versionedPackAsset(path) {
         if (!path) return '';
@@ -436,7 +439,7 @@
         rarityFilter: 'ALL',
         finishFilter: 'ALL',
         energyCostFilter: 'ALL',
-        showUnowned: initialCollectionAuthMode === 'guest',
+        showUnowned: false,
         collectionAuthMode: initialCollectionAuthMode,
         collectionFilterTouched: false,
         sortField: 'owned',
@@ -1300,6 +1303,12 @@
         });
         updateSortDirToggle();
         document.getElementById('showUnownedToggle')?.addEventListener('click', () => {
+            // Guests only browse free preset-deck cards; the control is their
+            // path into the full binder, not an unowned toggle.
+            if (!state.profile?.authenticated) {
+                openAuth();
+                return;
+            }
             state.collectionFilterTouched = true;
             state.showUnowned = !state.showUnowned;
             resetBinderVisibleLimit();
@@ -1872,9 +1881,15 @@
     function renderFilters() {
         const showUnownedToggle = document.getElementById('showUnownedToggle');
         if (showUnownedToggle) {
-            showUnownedToggle.classList.toggle('active', state.showUnowned);
-            showUnownedToggle.setAttribute('aria-pressed', String(state.showUnowned));
-            showUnownedToggle.textContent = state.showUnowned ? 'Showing unowned' : 'Show unowned';
+            if (isGuestCollection()) {
+                showUnownedToggle.classList.remove('active');
+                showUnownedToggle.setAttribute('aria-pressed', 'false');
+                showUnownedToggle.textContent = 'Sign in to access cards';
+            } else {
+                showUnownedToggle.classList.toggle('active', state.showUnowned);
+                showUnownedToggle.setAttribute('aria-pressed', String(state.showUnowned));
+                showUnownedToggle.textContent = state.showUnowned ? 'Showing unowned' : 'Show unowned';
+            }
         }
         renderFilter('elementFilters', elementFilterValues(), state.elementFilter, (value) => {
             state.elementFilter = value;
@@ -1931,12 +1946,15 @@
             state.collectionFilterTouched = false;
         }
         if (!state.collectionFilterTouched) {
-            state.showUnowned = authMode === 'guest';
+            // Guests browse the free Fire/Ice/Earth/Wind deck lists instead of
+            // the full unowned catalog; signed-in players start on owned only.
+            state.showUnowned = false;
         }
     }
 
     function cardsRenderSignature(cards, visibleCount) {
         return [
+            isGuestCollection() ? 'guest' : 'signed-in',
             state.showUnowned,
             state.elementFilter,
             state.typeFilter,
@@ -2005,6 +2023,7 @@
         }
         grid.setAttribute('aria-busy', 'false');
         const cards = filteredCards();
+        const guest = isGuestCollection();
         if (!state.binderVisibleLimit || state.binderVisibleLimit < BINDER_PAGE_SIZE) {
             state.binderVisibleLimit = BINDER_PAGE_SIZE;
         }
@@ -2016,13 +2035,23 @@
         // than flashing blank while every tile re-mounts and re-decodes its art.
         const signature = cardsRenderSignature(cards, visibleCards.length);
         if (signature !== state._cardsRenderSig || !grid.children.length) {
+            const guestNote = guest
+                ? `<div class="unlock-card binder-guest-note">
+                    <strong>Starter decks only</strong>
+                    <span>Guests can browse cards from the free Fire, Ice, Earth, and Wind decks. Sign in to access the full card binder.</span>
+                    <button class="primary-btn" type="button" data-guest-binder-signin>Sign in to access cards</button>
+                   </div>`
+                : '';
+            const emptyCopy = guest
+                ? `<div class="unlock-card binder-empty"><strong>No starter-deck cards match these filters</strong><span>Clear a filter, or sign in to browse the full binder.</span></div>`
+                : `<div class="unlock-card binder-empty"><strong>No owned cards match these filters</strong><span>${state.showUnowned ? 'Try another search or filter.' : 'Use Show unowned to browse the full catalog.'}</span></div>`;
             const tiles = visibleCards.length
                 ? visibleCards.map(renderCardTile).join('')
-                : `<div class="unlock-card binder-empty"><strong>No owned cards match these filters</strong><span>${state.showUnowned ? 'Try another search or filter.' : 'Use Show unowned to browse the full catalog.'}</span></div>`;
+                : emptyCopy;
             const loadMore = hasMoreCards
                 ? `<button class="ghost-btn binder-load-more" type="button" data-binder-load-more>Load more cards (${cards.length - visibleCards.length})</button>`
                 : '';
-            grid.innerHTML = tiles + loadMore;
+            grid.innerHTML = guestNote + tiles + loadMore;
             grid.querySelectorAll('[data-card-id]').forEach(tile => tile.addEventListener('click', () => {
                 state.selectedCardId = tile.dataset.cardId;
                 markCardViewed(tile.dataset.cardId);
@@ -2034,6 +2063,7 @@
                 state.binderVisibleLimit = Math.max(state.binderVisibleLimit || BINDER_PAGE_SIZE, BINDER_PAGE_SIZE) + BINDER_PAGE_SIZE;
                 renderCards();
             });
+            grid.querySelector('[data-guest-binder-signin]')?.addEventListener('click', () => openAuth());
             state._cardsRenderSig = signature;
             window.SieglingsCardShowcase?.scheduleFramedSummaryFit?.();
         window.SieglingsCardBinderVisual?.scheduleDescriptionFit?.();
@@ -2042,9 +2072,13 @@
         if (allCount) {
             const ownedVisible = cards.filter(card => ownedCount(card.id) > 0).length;
             const shown = `${visibleCards.length}${hasMoreCards ? ` / ${cards.length}` : ''}`;
-            allCount.textContent = state.showUnowned
-                ? `${shown} cards / ${ownedVisible} owned`
-                : `${shown} owned cards`;
+            if (guest) {
+                allCount.textContent = `${shown} starter cards`;
+            } else {
+                allCount.textContent = state.showUnowned
+                    ? `${shown} cards / ${ownedVisible} owned`
+                    : `${shown} owned cards`;
+            }
         }
         renderDetail();
         renderUnlock();
@@ -2097,6 +2131,26 @@
         </div>`;
     }
 
+    function isGuestCollection() {
+        return !state.profile?.authenticated;
+    }
+
+    // Card ids that appear in the free main-four singleton decks. Guests browse
+    // only this set so Cards stays light without loading the full catalog UI.
+    function freePresetDeckCardIdSet() {
+        const ids = new Set();
+        (state.options?.decks || []).forEach((deck) => {
+            const elements = deck?.elements || [];
+            if (elements.length !== 1) return;
+            if (!FREE_DECK_ELEMENTS.has(String(elements[0] || '').toUpperCase())) return;
+            (deck.cards || []).forEach((entry) => {
+                const id = String(entry?.id || '').trim();
+                if (id) ids.add(id.toLowerCase());
+            });
+        });
+        return ids;
+    }
+
     function siegeknightBinderCards() {
         return (state.options?.trainers || []).map(trainer => {
             const level = Math.max(1, Number(trainer.level) || trainerOwnedLevel(trainer.id) || 1);
@@ -2132,12 +2186,25 @@
     }
 
     function binderCatalog() {
-        return [...(state.options?.cardCatalog || []), ...siegeknightBinderCards()];
+        const catalog = state.options?.cardCatalog || [];
+        const knights = siegeknightBinderCards();
+        if (!isGuestCollection()) {
+            return [...catalog, ...knights];
+        }
+        const allowed = freePresetDeckCardIdSet();
+        const starterCards = catalog.filter((card) => allowed.has(String(card.id || '').toLowerCase()));
+        // Guests can already field the free starter knights in Play; keep those
+        // visible in Cards without pulling in the paid SiegeKnight roster.
+        const starterKnights = knights.filter((card) => GUEST_TRAINER_IDS.has(String(card.id || '').toLowerCase()));
+        return [...starterCards, ...starterKnights];
     }
 
     function filteredCards() {
+        const guest = isGuestCollection();
         const cards = binderCatalog().filter(card => {
-            if (!state.showUnowned && ownedCount(card.id) <= 0) return false;
+            // Guest binderCatalog is already the free-deck subset; show it even
+            // though the account owns nothing yet.
+            if (!guest && !state.showUnowned && ownedCount(card.id) <= 0) return false;
             if (state.elementFilter !== 'ALL' && card.element !== state.elementFilter) return false;
             if (state.typeFilter !== 'ALL' && card.type !== state.typeFilter) return false;
             if (state.rarityFilter !== 'ALL' && card.rarity !== state.rarityFilter) return false;
@@ -3451,8 +3518,7 @@
 
     // The main four are free for everyone; the starter pack's element comes with
     // the starter choice. The backend is the authority (progression.unlockedDeckIds)
-    // — this list only covers the signed-out / not-yet-loaded case.
-    const FREE_DECK_ELEMENTS = new Set(['FIRE', 'ICE', 'EARTH', 'WIND']);
+    // — FREE_DECK_ELEMENTS only covers the signed-out / not-yet-loaded case.
 
     function premadeDeckPrice() {
         return Number(state.progression?.premadeDeckPrice) || 500;
