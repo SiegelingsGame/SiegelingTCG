@@ -9673,9 +9673,11 @@ function isDrawAbility(ability) {
     return effect === 'DRAW';
 }
 
-// Only ability-originated draws use the reveal. The regular draw-phase button
-// intentionally remains quick, so turns do not feel delayed.
+// Every draw the player makes shows the reveal, so the drawn card is readable
+// before it disappears into the hand fan — the draw-phase button included, not
+// just ability-originated draws.
 function didRequestUsePlayerDrawAbility(endpoint, body, state) {
+    if (endpoint === 'draw') return true;
     if (!state || !body) return false;
     if (endpoint === 'cast') {
         return isDrawAbility((state.player?.hand || []).find((card) => card.id === body.cardId)?.ability);
