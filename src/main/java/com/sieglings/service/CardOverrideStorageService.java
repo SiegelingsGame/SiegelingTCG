@@ -57,7 +57,10 @@ public class CardOverrideStorageService {
     // Keep the cached snapshot warm long enough that opening the loadout screen and then
     // starting a match does not trigger another remote config round-trip.
     private static final long CACHE_TTL_MILLIS = 5 * 60_000L;
-    private static final long PUBLISH_VERSION_CACHE_TTL_MILLIS = 1_000L;
+    // Publish bumps clear this entry via markLivePublish; keep it warm for the
+    // same window as the card-override snapshot so a single /api/game/options
+    // build (formerly ~9s) does not re-hit Firestore mid-request every second.
+    private static final long PUBLISH_VERSION_CACHE_TTL_MILLIS = 5 * 60_000L;
     private static volatile CardOverrideStorageService INSTANCE;
 
     private final ObjectMapper objectMapper;
