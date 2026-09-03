@@ -1250,21 +1250,7 @@ public class GameController {
 
     /** Ordered id+count summary of a preset deck so clients can preview its contents. */
     private List<Map<String, Object>> deckCardCounts(String deckId) {
-        try {
-            List<Card> cards = gameService.buildDeckById(deckId);
-            Map<String, Long> counts = new LinkedHashMap<>();
-            for (Card card : cards) {
-                counts.merge(card.getId(), 1L, Long::sum);
-            }
-            return counts.entrySet().stream().map(entry -> {
-                Map<String, Object> m = new LinkedHashMap<>();
-                m.put("id", entry.getKey());
-                m.put("count", entry.getValue());
-                return (Map<String, Object>) m;
-            }).toList();
-        } catch (RuntimeException ex) {
-            return List.of();
-        }
+        return gameService.deckCardCounts(deckId);
     }
 
     private List<Map<String, Object>> serializeCards(List<Card> cards) {

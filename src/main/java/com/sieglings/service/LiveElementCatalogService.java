@@ -76,10 +76,10 @@ public class LiveElementCatalogService {
     // Every consumer of the live element set is a per-card predicate, so a single
     // /api/game/options re-resolved it ~10k times, each call re-running the
     // publish-version check and re-parsing the already-cached snapshot -- ~20s of a
-    // 22s response. Hold the resolved set for the same one second the
-    // publish-version check itself caches for, so a dashboard publish still lands
-    // exactly as fast as it did before.
-    private static final long ACTIVE_ELEMENTS_MEMO_TTL_MILLIS = 1_000L;
+    // 22s response. Hold the resolved set for the same window the publish-version
+    // check itself caches for; dashboard publishes clear the memo in saveSnapshot
+    // and bump the shared publish signal, so toggles still land immediately.
+    private static final long ACTIVE_ELEMENTS_MEMO_TTL_MILLIS = 5 * 60_000L;
     private volatile ActiveElementsMemo activeElementsMemo;
 
     public LiveElementCatalogService(

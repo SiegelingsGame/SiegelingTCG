@@ -22,6 +22,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -163,6 +164,68 @@ class CardDefinitionServiceTest {
 
         assertEquals(30, builtDeck.size());
         assertIterableEquals(explicitDeck, builtDeck.stream().map(Card::getId).toList());
+
+        List<Map<String, Object>> counts = service.deckCardCounts("exact_list");
+        assertEquals(10, counts.size());
+        assertTrue(counts.stream().allMatch(row -> ((Number) row.get("count")).intValue() == 3));
+    }
+
+    @Test
+    void deckBuilderCatalogIsMemoizedAndCopiedForCallers() {
+        List<String> seedIds = cardDefinitions.getDeckBuilderCatalog().stream()
+                .map(Card::getId)
+                .limit(10)
+                .toList();
+        List<String> explicitDeck = new ArrayList<>();
+        for (String cardId : seedIds) {
+            explicitDeck.add(cardId);
+            explicitDeck.add(cardId);
+            explicitDeck.add(cardId);
+        }
+        // Mirror production: live preset decks author an explicit cardIds list.
+        // Counting those must not rebuild the catalog per id the way the old
+        // findCardDefinition → getDeckBuilderCatalog path did (~9s warm).
+        CardDefinitionService service = serviceWithPresetDecks(List.of(
+                new PresetDeckCatalogService.PresetDeckDefinition(
+                        "perf_a", "Perf A", "Explicit.", List.of(Element.FIRE), "trainer05", true, explicitDeck),
+                new PresetDeckCatalogService.PresetDeckDefinition(
+                        "perf_b", "Perf B", "Explicit.", List.of(Element.ICE), "trainer05", true, explicitDeck),
+                new PresetDeckCatalogService.PresetDeckDefinition(
+                        "perf_c", "Perf C", "Explicit.", List.of(Element.EARTH), "trainer05", true, explicitDeck),
+                new PresetDeckCatalogService.PresetDeckDefinition(
+                        "perf_d", "Perf D", "Explicit.", List.of(Element.WIND), "trainer05", true, explicitDeck),
+                new PresetDeckCatalogService.PresetDeckDefinition(
+                        "perf_e", "Perf E", "Explicit.", List.of(Element.WATER), "trainer05", true, explicitDeck),
+                new PresetDeckCatalogService.PresetDeckDefinition(
+                        "perf_f", "Perf F", "Explicit.", List.of(Element.ELECTRIC), "trainer05", true, explicitDeck)
+        ));
+
+        List<Card> first = service.getDeckBuilderCatalog();
+        assertTrue(first.size() > 50, "Catalog should include the live roster.");
+
+        Card firstCard = first.get(0);
+        String originalName = firstCard.getName();
+        firstCard.setName("CORRUPTED-MEMO-PROBE");
+
+        List<Card> second = service.getDeckBuilderCatalog();
+        assertEquals(first.size(), second.size());
+        assertEquals(originalName, second.get(0).getName(),
+                "getDeckBuilderCatalog must return defensive copies from the memo.");
+
+        long started = System.nanoTime();
+        for (int i = 0; i < 200; i++) {
+            for (CardDefinitionService.DeckOption option : service.getDeckOptions()) {
+                List<Map<String, Object>> counts = service.deckCardCounts(option.id());
+                assertEquals(10, counts.size(), option.id() + " should summarize the explicit list.");
+            }
+        }
+        long elapsedMs = (System.nanoTime() - started) / 1_000_000L;
+        System.out.println("deckCardCounts_200_passes_ms=" + elapsedMs
+                + " decks=" + service.getDeckOptions().size()
+                + " catalog=" + second.size());
+        assertTrue(elapsedMs < 500L,
+                "Repeated deckCardCounts over authored cardIds should finish in under 500ms, took "
+                        + elapsedMs + "ms");
     }
 
     @Test

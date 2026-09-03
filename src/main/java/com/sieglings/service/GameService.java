@@ -205,6 +205,10 @@ public class GameService {
         return cardDefs.buildDeckById(deckId);
     }
 
+    public List<Map<String, Object>> deckCardCounts(String deckId) {
+        return cardDefs.deckCardCounts(deckId);
+    }
+
     public List<String> getActiveLiveElementNames() {
         return cardDefs.getActiveLiveElementNames();
     }

@@ -990,16 +990,20 @@ class GameJavaScriptRegressionTest {
     }
 
     @Test
-    void signedInGameOptionsBypassSharedGuestCache() throws IOException {
+    void signedInGameOptionsUseIdentityScopedCache() throws IOException {
         String homeScript = readHomeScript();
+        String fetchGameOptions = extractFunction(homeScript, "async function fetchGameOptions()");
 
         assertTrue(
                 homeScript.contains("function gameOptionsCacheKey()")
                         && homeScript.contains("'gameOptions:signed-in'")
                         && homeScript.contains("'gameOptions:guest'")
-                        && extractFunction(homeScript, "async function fetchGameOptions()").contains("if (!state.token)")
+                        && fetchGameOptions.contains("const cached = readCache(cacheKey, STATIC_CACHE_TTL_MS);")
+                        && fetchGameOptions.contains("if (cached && hasCardCatalog(cached)) return cached;")
+                        && !fetchGameOptions.contains("if (!state.token)")
                         && extractFunction(homeScript, "async function submitAuth(mode)").contains("await refreshLiveCatalog()"),
-                "Signed-in binder loads must not reuse the guest gameOptions cache."
+                "Guest and signed-in binder loads must use separate identity-scoped caches, "
+                        + "and both may paint from a warm cache without waiting on /api/game/options."
         );
     }
 
@@ -1063,8 +1067,8 @@ class GameJavaScriptRegressionTest {
      * A failed /api/game/options used to hand applyGameOptions null, which installed
      * an empty-but-truthy catalog over the cached one. Every owned card then filtered
      * away and the binder reported "0 owned cards" to a player whose collection was
-     * sitting in localStorage — the signed-in path is the exposed one, because it
-     * skips the cache on the way out and so had nothing to fall back to.
+     * sitting in localStorage — the signed-in path is the exposed one when a live
+     * fetch fails after the identity-scoped cache was skipped or emptied.
      */
     @Test
     void failedCatalogFetchNeverEmptiesTheBinder() throws IOException {
@@ -1082,7 +1086,7 @@ class GameJavaScriptRegressionTest {
         assertTrue(
                 fetchGameOptions.contains("return readCache(cacheKey, STATIC_CACHE_TTL_MS);"),
                 "A failed options fetch must fall back to the cached catalog for this identity, "
-                        + "not resolve null — signed-in loads skip the cache on the way out."
+                        + "not resolve null."
         );
         // renderDecks routes the same check through decksLoading(), which the saved-deck
         // pane shares so both halves of the page agree on when data is still in flight.

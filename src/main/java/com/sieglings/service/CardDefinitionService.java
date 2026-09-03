@@ -47,6 +47,9 @@ public class CardDefinitionService {
     @Autowired(required = false)
     private MovesPoolService movesPoolService;
 
+    @Autowired(required = false)
+    private CardOverrideStorageService cardOverrideStorageService;
+
     private MovesPoolService fallbackMovesPool;
 
     public record DeckOption(
@@ -64,6 +67,24 @@ public class CardDefinitionService {
         }
     }
     private record MonsterPlan(List<LineChoice> choices, int score) {}
+
+    /**
+     * Assembled deck-builder catalog for one publish + live-element roster.
+     * Without this, /api/game/options rebuilt the full catalog once per card id
+     * while counting every preset deck (~hundreds of rebuilds, ~9s warm).
+     */
+    private record CatalogMemo(
+            long publishVersion,
+            String liveElementsKey,
+            List<Card> catalog,
+            Map<String, Card> byIdLower
+    ) {}
+
+    /** Unfiltered id→element map so preset-deck live checks do not rescan every roster. */
+    private record ElementIndexMemo(long publishVersion, Map<String, Element> byIdLower) {}
+
+    private volatile CatalogMemo catalogMemo;
+    private volatile ElementIndexMemo elementIndexMemo;
 
     private static final int PRESET_SIEGLING_COUNT = 20;
     private static final int PRESET_SPELL_COUNT = 10;
@@ -299,15 +320,51 @@ public class CardDefinitionService {
     }
 
     public List<Card> getDeckBuilderCatalog() {
-        syncMovesPoolFromSources();
+        CatalogMemo memo = ensureCatalogMemo();
+        // Callers treat the list as templates; return defensive copies so a
+        // mutated board/hand card can never corrupt the shared memo.
+        return memo.catalog().stream().map(this::copyCard).toList();
+    }
+
+    private CatalogMemo ensureCatalogMemo() {
+        long publishVersion = currentPublishVersion();
         Set<Element> live = activeGameplayElements();
+        String liveKey = liveElementsKey(live);
+        CatalogMemo cached = catalogMemo;
+        if (cached != null
+                && cached.publishVersion() == publishVersion
+                && liveKey.equals(cached.liveElementsKey())) {
+            return cached;
+        }
+        synchronized (this) {
+            cached = catalogMemo;
+            if (cached != null
+                    && cached.publishVersion() == publishVersion
+                    && liveKey.equals(cached.liveElementsKey())) {
+                return cached;
+            }
+            List<Card> built = buildDeckBuilderCatalogUncached(live);
+            Map<String, Card> byId = new LinkedHashMap<>();
+            for (Card card : built) {
+                if (card.getId() != null) {
+                    byId.put(card.getId().toLowerCase(), card);
+                }
+            }
+            CatalogMemo next = new CatalogMemo(publishVersion, liveKey, List.copyOf(built), Map.copyOf(byId));
+            catalogMemo = next;
+            return next;
+        }
+    }
+
+    private List<Card> buildDeckBuilderCatalogUncached(Set<Element> live) {
+        syncMovesPoolFromSources();
         return Stream.concat(
                         LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER.stream()
                                 .filter(live::contains)
-                                .flatMap(element -> getSieglingsForElement(element).stream().map(this::copyCard)),
+                                .flatMap(element -> loadSieglingsUnchecked(element).stream().map(this::copyCard)),
                         Stream.concat(
-                                createSpells().stream().filter(this::isSpellLiveForMeta).map(this::copyCard),
-                                createTraps().stream().filter(this::isTrapLiveForMeta).map(this::copyCard)
+                                createSpells().stream().filter(spell -> isSpellLiveForMeta(spell, live)).map(this::copyCard),
+                                createTraps().stream().filter(trap -> isTrapLiveForMeta(trap, live)).map(this::copyCard)
                         )
                 )
                 .sorted(Comparator
@@ -321,6 +378,24 @@ public class CardDefinitionService {
                         .thenComparing(card -> rarityOrder(card.getRarity()))
                         .thenComparing(Card::getName))
                 .toList();
+    }
+
+    private long currentPublishVersion() {
+        if (cardOverrideStorageService == null) {
+            return 0L;
+        }
+        Long published = cardOverrideStorageService.getCurrentPublishVersion();
+        return published == null ? 0L : published;
+    }
+
+    private static String liveElementsKey(Set<Element> live) {
+        return live.stream().map(Enum::name).sorted().collect(Collectors.joining(","));
+    }
+
+    /** Drop assembled catalog memos after a live publish (tests / explicit invalidation). */
+    void invalidateCatalogMemos() {
+        catalogMemo = null;
+        elementIndexMemo = null;
     }
 
     /** Card editor / export sometimes appends {@code -copy} when duplicating rows; resolve to catalog ids. */
@@ -474,6 +549,57 @@ public class CardDefinitionService {
                         .findFirst()
                         .orElseGet(() -> playable.stream().findFirst().orElseThrow()));
         return buildDeck(definition);
+    }
+
+    /**
+     * Ordered id+count summary of a preset deck for /api/game/options previews.
+     * When the dashboard authored an explicit cardIds list, count that list
+     * directly — building full Card instances (and previously rebuilding the
+     * whole catalog per id) is unnecessary for a binder/deck tile preview.
+     */
+    public List<Map<String, Object>> deckCardCounts(String deckId) {
+        List<PresetDeckCatalogService.PresetDeckDefinition> playable = loadPlayablePresetDeckDefinitions();
+        if (playable.isEmpty()) {
+            return List.of();
+        }
+        PresetDeckCatalogService.PresetDeckDefinition definition = playable.stream()
+                .filter(option -> option.id().equals(deckId))
+                .findFirst()
+                .orElse(null);
+        if (definition == null) {
+            return List.of();
+        }
+        List<String> cardIds = definition.cardIds();
+        if (cardIds != null && !cardIds.isEmpty()) {
+            Map<String, Long> counts = new LinkedHashMap<>();
+            for (String cardId : cardIds) {
+                if (cardId == null || cardId.isBlank()) {
+                    continue;
+                }
+                counts.merge(cardId.trim(), 1L, Long::sum);
+            }
+            return counts.entrySet().stream().map(entry -> {
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("id", entry.getKey());
+                row.put("count", entry.getValue());
+                return row;
+            }).toList();
+        }
+        try {
+            List<Card> cards = buildDeck(definition);
+            Map<String, Long> counts = new LinkedHashMap<>();
+            for (Card card : cards) {
+                counts.merge(card.getId(), 1L, Long::sum);
+            }
+            return counts.entrySet().stream().map(entry -> {
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("id", entry.getKey());
+                row.put("count", entry.getValue());
+                return row;
+            }).toList();
+        } catch (RuntimeException ex) {
+            return List.of();
+        }
     }
 
     public List<PresetDeckCatalogService.PresetDeckDefinition> getStoredDeckDefinitions() {
@@ -790,29 +916,52 @@ public class CardDefinitionService {
         if (cardId == null || cardId.isBlank()) {
             return null;
         }
-        String normalized = cardId.trim().toLowerCase();
-        for (Element element : LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER) {
-            for (SieglingCard card : loadSieglingsUnchecked(element)) {
-                if (card.getId().equalsIgnoreCase(normalized)) {
-                    return card.getElement();
+        return ensureElementIndexMemo().byIdLower().get(cardId.trim().toLowerCase());
+    }
+
+    private ElementIndexMemo ensureElementIndexMemo() {
+        long publishVersion = currentPublishVersion();
+        ElementIndexMemo cached = elementIndexMemo;
+        if (cached != null && cached.publishVersion() == publishVersion) {
+            return cached;
+        }
+        synchronized (this) {
+            cached = elementIndexMemo;
+            if (cached != null && cached.publishVersion() == publishVersion) {
+                return cached;
+            }
+            // Index every authored card regardless of the live roster so preset
+            // decks that mention a toggled-off element still fail the live check
+            // without rescanning every element list per card id.
+            Map<String, Element> byId = new LinkedHashMap<>();
+            for (Element element : LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER) {
+                for (SieglingCard card : loadSieglingsUnchecked(element)) {
+                    if (card.getId() != null) {
+                        byId.putIfAbsent(card.getId().toLowerCase(), card.getElement());
+                    }
                 }
             }
-        }
-        for (SpellCard spell : createSpells()) {
-            if (spell.getId().equalsIgnoreCase(normalized)) {
-                return spell.getElement();
+            for (SpellCard spell : createSpells()) {
+                if (spell.getId() != null) {
+                    byId.putIfAbsent(spell.getId().toLowerCase(), spell.getElement());
+                }
             }
-        }
-        for (TrapCard trap : createTraps()) {
-            if (trap.getId().equalsIgnoreCase(normalized)) {
-                return trap.getElement();
+            for (TrapCard trap : createTraps()) {
+                if (trap.getId() != null) {
+                    byId.putIfAbsent(trap.getId().toLowerCase(), trap.getElement());
+                }
             }
+            ElementIndexMemo next = new ElementIndexMemo(publishVersion, Map.copyOf(byId));
+            elementIndexMemo = next;
+            return next;
         }
-        return null;
     }
 
     private boolean isSpellLiveForMeta(SpellCard spell) {
-        Set<Element> live = activeGameplayElements();
+        return isSpellLiveForMeta(spell, activeGameplayElements());
+    }
+
+    private boolean isSpellLiveForMeta(SpellCard spell, Set<Element> live) {
         if (spell.getElement() != Element.NEUTRAL) {
             return live.contains(spell.getElement());
         }
@@ -834,7 +983,11 @@ public class CardDefinitionService {
     }
 
     private boolean isTrapLiveForMeta(TrapCard trap) {
-        return activeGameplayElements().contains(trap.getElement());
+        return isTrapLiveForMeta(trap, activeGameplayElements());
+    }
+
+    private boolean isTrapLiveForMeta(TrapCard trap, Set<Element> live) {
+        return live.contains(trap.getElement());
     }
 
     private boolean trainerElementIsLive(TrainerCatalogService.TrainerDefinition definition) {
@@ -888,7 +1041,11 @@ public class CardDefinitionService {
     }
 
     private Optional<Card> findCardDefinition(String cardId) {
-        return getDeckBuilderCatalog().stream().filter(card -> card.getId().equals(cardId)).findFirst();
+        if (cardId == null || cardId.isBlank()) {
+            return Optional.empty();
+        }
+        Card found = ensureCatalogMemo().byIdLower().get(cardId.trim().toLowerCase());
+        return Optional.ofNullable(found);
     }
 
     private Card copyCard(Card card) {

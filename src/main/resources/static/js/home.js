@@ -8950,20 +8950,21 @@
 
     async function fetchGameOptions() {
         const cacheKey = gameOptionsCacheKey();
-        if (!state.token) {
-            const cached = readCache(cacheKey, STATIC_CACHE_TTL_MS);
-            if (cached) return cached;
-        }
+        // Both guest and signed-in keys are identity-scoped. Serving a warm
+        // cache lets Cards/Decks paint immediately; syncCatalogIfVersionChanged
+        // (and a dashboard publish) still force a full refresh when the live
+        // catalog moves. Skipping the cache for signed-in players used to make
+        // every hub visit wait on the ~9s /api/game/options build.
+        const cached = readCache(cacheKey, STATIC_CACHE_TTL_MS);
+        if (cached && hasCardCatalog(cached)) return cached;
         const data = await fetchJson('/api/game/options');
         if (data) {
             writeCache(cacheKey, data);
             return data;
         }
         // The request failed — offline, a cold-start timeout, or aborted because the
-        // player reloaded while it was in flight. Signed-in loads skip the cache above
-        // (so they never serve the guest catalog), which left this path returning null
-        // and handing applyGameOptions an empty catalog. Fall back to the last good
-        // snapshot for this identity instead.
+        // player reloaded while it was in flight. Fall back to the last good
+        // snapshot for this identity instead of handing applyGameOptions an empty catalog.
         return readCache(cacheKey, STATIC_CACHE_TTL_MS);
     }
 
