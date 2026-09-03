@@ -597,28 +597,53 @@
         }
     }
 
-    // ── Play Now → Prepare for Battle ─────────────────────────────────────
-    // Route Play Now straight to the loadout ("Prepare for Battle") screen
-    // instead of the play page's welcome overlay. Writing the same hub handoff
-    // the in-app Start Match uses lets the play page skip the welcome and drop
-    // players — guests included — onto premade decks and the common SiegeKnight
-    // roster. The anchor's href="/play" still performs the navigation.
+    // ── Play Now → mode picker ────────────────────────────────────────────
+    // Ask which mode first, exactly as the hub's primary Play button does.
+    // This used to jump straight into Arena's loadout, which left Siege and the
+    // Keep unreachable from the one control on the landing page that says
+    // "play" — the same problem the hub button already solved.
+    //
+    // Arena writes the hub handoff (so the play page skips its welcome overlay
+    // and drops players, guests included, onto premade decks and the common
+    // SiegeKnight roster) and starts on the match-setup step, because saying
+    // "Arena" is not yet choosing a deck. Siege and the Keep navigate
+    // themselves, from the hrefs the picker carries.
     const PENDING_LOADOUT_KEY = 'sieglingsPendingLoadout';
+
+    function queueArenaLoadout() {
+        try {
+            localStorage.setItem(PENDING_LOADOUT_KEY, JSON.stringify({
+                createdAt: Date.now(),
+                mode: 'solo',
+                directLoadout: true,
+                startStep: 'setup'
+            }));
+        } catch (e) {
+            /* If storage is unavailable the navigation still proceeds and the
+               play page simply shows its welcome overlay as before. */
+        }
+    }
 
     function bindPlayNow() {
         const trigger = document.getElementById('ctaPlay');
         if (!trigger) return;
-        trigger.addEventListener('click', () => {
-            try {
-                localStorage.setItem(PENDING_LOADOUT_KEY, JSON.stringify({
-                    createdAt: Date.now(),
-                    mode: 'solo',
-                    directLoadout: true
-                }));
-            } catch (e) {
-                /* If storage is unavailable, navigation still proceeds and the
-                   play page simply shows its welcome overlay as before. */
+        trigger.addEventListener('click', (event) => {
+            const picker = window.SieglingsPlayModePicker;
+            // No picker (script blocked or failed to load): keep the old direct
+            // route rather than stranding the player on a button that does
+            // nothing. The anchor's href="/play" performs the navigation.
+            if (!picker) {
+                queueArenaLoadout();
+                return;
             }
+            // The anchor would navigate out from under the picker otherwise.
+            event.preventDefault();
+            picker.open({
+                onArena: () => {
+                    queueArenaLoadout();
+                    window.location.href = '/play';
+                }
+            });
         });
     }
 
