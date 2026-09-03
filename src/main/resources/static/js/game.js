@@ -9190,6 +9190,9 @@ function computeHandCardLockReason(card) {
     if (gameState.currentPhase !== 'SETUP') {
         return 'Cards can only be played during setup.';
     }
+    if (isSetupResolutionPending()) {
+        return 'Resolving setup effects before the board opens.';
+    }
     if (card.type === 'SIEGLING' && countBoardSieglings() >= 5 && !card.evolvesFromId) {
         return 'Maxed out.';
     }
@@ -9637,6 +9640,14 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
     }
     if (drawAbilityUsed) {
         showDrawAbilityReveal(prevState, data);
+    }
+    // Setup-entry effects are resolved by the server before it returns this
+    // snapshot. Do not reopen placement until their queued destruction and
+    // damage visuals have caught up with that authoritative board state.
+    if (gameState?.currentPhase === 'SETUP' && window.SieglingsActionQueue?.isProcessing?.()) {
+        window.SieglingsActionQueue.onIdle?.().then(() => {
+            if (gameState === data) render();
+        });
     }
     return data;
 }
@@ -12162,7 +12173,7 @@ async function endTurn() {
 }
 
 async function placeCard(row, col) {
-    if (!selectedCard || placementRequestInFlight || isOpponentControlLocked()) return;
+    if (!selectedCard || placementRequestInFlight || isOpponentControlLocked() || isSetupResolutionPending()) return;
     placementRequestInFlight = true;
     window.SieglingsSounds?.play('place');
     // Drop the card out of the hand immediately. The server is authoritative and
@@ -12627,9 +12638,8 @@ function renderEnergyDetailPanel() {
     const enemyTitle = escapeHtml(gameState.enemyName || 'Opponent');
     let html = '';
     html += '<div class="energy-detail-columns">';
-    html += '<div class="energy-detail-section">';
-    html += `<div class="energy-detail-h2">${escapeHtml(gameState.playerName || 'You')}</div>`;
-    html += `<div class="energy-detail-hp">${pHealth} HP</div>`;
+    html += '<div class="energy-detail-section energy-detail-player">';
+    html += `<div class="energy-detail-sidehead"><span class="energy-detail-sideicon">✦</span><div><div class="energy-detail-h2">${escapeHtml(gameState.playerName || 'You')}</div><div class="energy-detail-hp">${pHealth} <span>HP</span></div></div></div>`;
     html += energyDetailOverchargeBlock(p);
     html += energyDetailElementRows(p);
     html += '<div class="energy-detail-subh">Combos</div>';
@@ -12641,9 +12651,8 @@ function renderEnergyDetailPanel() {
     }
     html += '</div>';
 
-    html += '<div class="energy-detail-section">';
-    html += `<div class="energy-detail-h2">${enemyTitle}</div>`;
-    html += `<div class="energy-detail-hp">${eHealth} HP</div>`;
+    html += '<div class="energy-detail-section energy-detail-enemy">';
+    html += `<div class="energy-detail-sidehead"><span class="energy-detail-sideicon">⚔</span><div><div class="energy-detail-h2">${enemyTitle}</div><div class="energy-detail-hp">${eHealth} <span>HP</span></div></div></div>`;
     html += energyDetailOverchargeBlock(e);
     html += energyDetailElementRows(e);
     html += '<div class="energy-detail-subh">Combos</div>';
@@ -12856,6 +12865,7 @@ function updateMobileHud(state) {
         isPlayer: true,
         name: state.playerName || p.name || 'Player',
         hpBarId: 'mobilePlayerHpBar',
+        hpValueId: 'mobilePlayerHpValue',
         nameId: 'mobilePlayerName',
         handId: 'mobilePlayerHandSize',
         deckId: 'mobilePlayerDeckSize',
@@ -12874,6 +12884,7 @@ function updateMobileHud(state) {
         isPlayer: false,
         name: state.enemyName || e.name || 'AI',
         hpBarId: 'mobileEnemyHpBar',
+        hpValueId: 'mobileEnemyHpValue',
         nameId: 'mobileEnemyName',
         handId: 'mobileEnemyHandSize',
         deckId: 'mobileEnemyDeckSize',
@@ -12925,6 +12936,7 @@ function updateMobileHudSide(label, playerData, ids) {
     setTextIfExists(ids.handId, handSize);
     setTextIfExists(ids.deckId, deckSize);
     setTextIfExists(ids.energyId, energyTotal);
+    setTextIfExists(ids.hpValueId, health);
     syncOverchargeCue(ids.energyId, playerData);
     setTextIfExists(ids.statHealthId, health);
     setTextIfExists(ids.statHandId, handSize);
@@ -16293,7 +16305,7 @@ function abilityHasAvailableTarget(ability) {
 function getSelectedLegalPlacements() {
     // No legal cells while the opponent holds initiative — this is what kills
     // both the click-to-place highlights and the drag-drop landing zones.
-    if (isOpponentControlLocked()) {
+    if (isOpponentControlLocked() || isSetupResolutionPending()) {
         return [];
     }
     const evolutionCardSelected = Boolean(selectedCard?.evolvesFromId);
@@ -16305,6 +16317,11 @@ function getSelectedLegalPlacements() {
         return gameState.legalPlacements || [];
     }
     return getLegalPlacementsForCard(selectedCard);
+}
+
+function isSetupResolutionPending() {
+    return gameState?.currentPhase === 'SETUP'
+        && Boolean(window.SieglingsActionQueue?.isProcessing?.());
 }
 
 function canCardLinkAt(card, row, col, board) {

@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/style.css?v=244">
+    <link rel="stylesheet" href="/css/style.css?v=245">
     <link rel="stylesheet" href="/css/coach.css?v=3">
     <!-- Pre-load loading-gate styles so the splash covers the loadout
          screen on the very first Start Battle press - the lazy-injected
@@ -162,7 +162,7 @@
 <div class="mobile-hud" id="mobileHud" aria-label="Mobile match summary">
     <button class="mobile-hud-side mobile-hud-enemy" type="button" onclick="toggleMobileHudSheet('enemy')" aria-controls="mobileStatSheet" aria-expanded="false">
         <div class="m-name" id="mobileEnemyName">AI</div>
-        <div class="m-hp-bar"><div class="m-hp-fill" id="mobileEnemyHpBar" style="width:100%"></div></div>
+        <div class="m-hp-bar"><div class="m-hp-fill" id="mobileEnemyHpBar" style="width:100%"></div><span class="m-hp-value" id="mobileEnemyHpValue">50</span></div>
         <div class="m-counts">H:<strong id="mobileEnemyHandSize">0</strong> D:<strong id="mobileEnemyDeckSize">0</strong> E:<strong id="mobileEnemyEnergyCount">0</strong><span class="m-elements" id="mobileEnemyElements"></span></div>
     </button>
 
@@ -173,7 +173,7 @@
 
     <button class="mobile-hud-side right mobile-hud-player" type="button" onclick="toggleMobileHudSheet('player')" aria-controls="mobileStatSheet" aria-expanded="false">
         <div class="m-name" id="mobilePlayerName">Player</div>
-        <div class="m-hp-bar"><div class="m-hp-fill" id="mobilePlayerHpBar" style="width:100%"></div></div>
+        <div class="m-hp-bar"><div class="m-hp-fill" id="mobilePlayerHpBar" style="width:100%"></div><span class="m-hp-value" id="mobilePlayerHpValue">50</span></div>
         <div class="m-counts">H:<strong id="mobilePlayerHandSize">0</strong> D:<strong id="mobilePlayerDeckSize">0</strong> E:<strong id="mobilePlayerEnergyCount">0</strong><span class="m-elements" id="mobilePlayerElements"></span></div>
     </button>
 </div>
@@ -550,7 +550,7 @@
 
 <div class="drawer hidden" id="drawerKey" data-drawer="energy">
     <div class="drawer-handle" onclick="closeDrawer()"></div>
-    <h3>Energy Detail</h3>
+    <h3>Energy Dossier</h3>
     <div id="elementKeyPanel" class="drawer-content energy-detail-panel" hidden></div>
     <div id="drawerEnergyPanel" class="drawer-content energy-detail-panel"></div>
 </div>
@@ -933,7 +933,7 @@
     <script src="/js/catalog-sync.js?v=1"></script>
     <script src="/js/coach.js?v=3"></script>
     <script src="/js/arena-tutorial.js?v=7"></script>
-    <script src="/js/game.js?v=259"></script>
+    <script src="/js/game.js?v=260"></script>
     <script src="/js/play-mode-picker.js?v=4"></script>
     <script src="/js/play-hud.js?v=4"></script>
     <!-- Defines window.SieglingsCardBinderVisual (buildArtTransformStyle). Without it,
