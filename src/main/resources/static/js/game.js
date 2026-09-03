@@ -15413,7 +15413,14 @@ function renderMulliganOverlay() {
             mulliganHandSig = sig;
         }
         if (scriptedTutorial) {
-            copy.textContent = 'This opening hand is scripted for the lesson. Four cards stay locked. Tap Pylook (the last card) to practice one redraw, or Keep hand to continue.';
+            // Name the card the player can actually swap, read from the hand
+            // rather than baked in: the tutorial deal is fixed but the copy
+            // hard-coded "Pylook" and the slot holds whatever was dealt there.
+            const swapIndex = allowedSet ? [...allowedSet][0] : hand.length - 1;
+            const swapName = hand[swapIndex]?.name;
+            copy.textContent = swapName
+                ? `Not sure about ${swapName}? Tap it, then Redraw selected — or take the hand as dealt with Keep hand.`
+                : 'Tap a card to swap it, then Redraw selected — or take the hand as dealt with Keep hand.';
         } else {
             copy.textContent = 'Select any cards to shuffle back into your deck; you draw the same number of new cards. Leave none selected to keep your whole hand. You get one mulligan before the first draw phase.';
         }
@@ -15461,7 +15468,7 @@ function renderMulliganOverlay() {
         } else if (locked) {
             badge = `<div class="mulligan-keep-badge" aria-hidden="true">Keep</div>`;
         } else if (scriptedTutorial && slotAllowed && gameState.mulligan.youPending) {
-            badge = `<div class="mulligan-practice-badge" aria-hidden="true">Practice</div>`;
+            badge = `<div class="mulligan-practice-badge" aria-hidden="true">Tap to redraw</div>`;
         }
         return `
         <div class="${slotClasses}" data-index="${index}"${role}${click}>

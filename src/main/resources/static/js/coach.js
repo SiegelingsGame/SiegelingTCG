@@ -21,6 +21,9 @@
  * `until` makes the step wait on the player: the full tip renders, "Got it"
  * collapses it to a one-line hint so the play area is clear, and the step
  * advances itself the moment `until()` comes true.
+ * `body` and `hint` may be functions, evaluated at render time, so a tip can
+ * name what the player is actually looking at rather than a guess baked in
+ * when the script was built.
  *
  * ES5-flavoured (var, function statements, IIFE) to match its two callers.
  */
@@ -131,6 +134,13 @@
     return cfg && cfg.detour ? (cfg.detour() || null) : null;
   }
 
+  /** A step's copy may be a string or a function of live state. Resolved at
+   *  render time — which also means a rotation re-render picks up any change. */
+  function text(v) {
+    if (typeof v !== 'function') return v;
+    try { return v(); } catch (e) { return ''; }
+  }
+
   function renderStep() {
     var det = detour();
     var s = det || current();
@@ -147,8 +157,10 @@
     if (waits && collapsed) {
       cardEl.className = 'tut-card is-hint';
       cardEl.dataset.step = s.title;
+      // Stable identity alongside the title, which is copy and gets reworded.
+      cardEl.dataset.stepId = s.id || '';
       cardEl.innerHTML =
-        '<span class="tut-hint">' + (s.hint || esc(s.title)) + '</span>' +
+        '<span class="tut-hint">' + (text(s.hint) || esc(s.title)) + '</span>' +
         '<button class="tut-skip" type="button" title="Skip this step">Skip &#9656;</button>';
       position();
       return;
@@ -160,6 +172,7 @@
     // when a tall overlay put its own close control behind this card.
     cardEl.className = 'tut-card' + (s.finale ? ' is-finale' : '');
     cardEl.dataset.step = s.title;
+    cardEl.dataset.stepId = s.id || '';
     var label = s.finish ? 'Finish' : 'Got it ▸';
     cardEl.innerHTML =
       '<div class="tut-head">' +
@@ -167,7 +180,7 @@
         '<button class="tut-quit" type="button" aria-label="Exit tutorial">✕</button>' +
       '</div>' +
       '<h3 class="tut-title">' + esc(s.title) + '</h3>' +
-      '<p class="tut-body">' + s.body + '</p>' +
+      '<p class="tut-body">' + text(s.body) + '</p>' +
       (s.finale ? '<div class="tut-reward" id="tutReward">Claiming your first-time reward…</div>' : '') +
       '<div class="tut-foot">' +
         (waits ? '<span class="tut-wait">Waiting for you</span>' : '') +
