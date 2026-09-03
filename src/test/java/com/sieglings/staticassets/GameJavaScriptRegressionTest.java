@@ -1042,17 +1042,27 @@ class GameJavaScriptRegressionTest {
     }
 
     @Test
-    void guestBinderPagesFullCatalogInsteadOfMountingEveryTile() throws IOException {
+    void guestBinderShowsFreePresetDeckCardsAndAsksForSignIn() throws IOException {
         String homeScript = readHomeScript();
         String renderCards = extractFunction(homeScript, "function renderCards()");
+        String binderCatalog = extractFunction(homeScript, "function binderCatalog()");
+        String renderFilters = extractFunction(homeScript, "function renderFilters()");
         String logout = extractFunction(homeScript, "async function logout()");
 
         assertTrue(
+                homeScript.contains("function freePresetDeckCardIdSet()")
+                        && homeScript.contains("const FREE_DECK_ELEMENTS = new Set(['FIRE', 'ICE', 'EARTH', 'WIND'])")
+                        && binderCatalog.contains("freePresetDeckCardIdSet()")
+                        && binderCatalog.contains("GUEST_TRAINER_IDS")
+                        && renderCards.contains("Sign in to access cards")
+                        && renderFilters.contains("Sign in to access cards"),
+                "Guests must browse only free Fire/Ice/Earth/Wind deck cards and see a sign-in CTA for the full binder."
+        );
+        assertTrue(
                 homeScript.contains("const BINDER_PAGE_SIZE = 24")
-                        && homeScript.contains("binderVisibleLimit: 24")
                         && renderCards.contains("data-binder-load-more")
                         && renderCards.contains("visibleCards.map(renderCardTile)"),
-                "Guest Show-unowned binders must page the card grid instead of mounting the full catalog at once."
+                "The guest starter-deck binder still pages so a large free-deck union cannot mount all at once."
         );
         assertTrue(
                 logout.contains("writeCache('gameOptions:guest', catalog)")

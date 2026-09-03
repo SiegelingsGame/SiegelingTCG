@@ -2878,6 +2878,19 @@ select.search-input { color-scheme: dark; }
     line-height: 1.45;
 }
 
+.binder-guest-note {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.binder-guest-note .primary-btn {
+    align-self: flex-start;
+    margin-top: 2px;
+}
+
 /* Full-card holo tiles bring template-relative typography. The generic tile
    span rule above must not inflate HP/SPD pills inside the smaller grid card. */
 .card-tile .holographic-card-stats .holographic-card-stat {
