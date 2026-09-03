@@ -9178,6 +9178,15 @@ function getHandCardLockReason(card) {
     }
 }
 
+/** The printed name of the card the tutorial requires first, for the lock copy. */
+function tutorialRequiredPlacementName() {
+    const requiredId = gameState?.tutorialRequiredPlacementId;
+    if (!requiredId) return 'Your opener';
+    const held = (gameState?.player?.hand || []).find(
+        (c) => c && String(c.id).toLowerCase() === String(requiredId).toLowerCase());
+    return held?.name || 'Your opener';
+}
+
 function computeHandCardLockReason(card) {
     if (!gameState || !card) {
         return '';
@@ -9187,6 +9196,15 @@ function computeHandCardLockReason(card) {
     }
     if (isBoardPreviewCard(card)) {
         return 'This Siegeling is already on the board.';
+    }
+    // The tutorial's first placement is fixed: the server refuses anything else,
+    // so lock the rest of the hand rather than let the player tap into a
+    // rejection. The id comes from the server (tutorialRequiredPlacementId) —
+    // no copy of the rule lives here, so the two sides cannot drift.
+    const requiredId = gameState.tutorialRequiredPlacementId;
+    if (requiredId && card.type === 'SIEGLING' && !card.evolvesFromId
+            && String(card.id).toLowerCase() !== String(requiredId).toLowerCase()) {
+        return `${tutorialRequiredPlacementName()} opens this match — place it first.`;
     }
     if (gameState.currentPhase === 'MULLIGAN') {
         return 'Choose cards to redraw (optional) or keep your opening hand.';

@@ -54,6 +54,13 @@ public class GameState {
     private boolean enemyHumanControlled = false;
     /** Fixed Tutorial Match — coach follows this state; decks are scripted. */
     private boolean tutorialMatch = false;
+    /**
+     * The one Siegling the tutorial accepts on turn one. Sundile is the pinned
+     * draw stack's designated "Fire socket opener", and every later lesson is
+     * built on it being down: Pylook links to it in round two, and the evolution
+     * needs it to have survived a full battle phase.
+     */
+    public static final String TUTORIAL_TURN_ONE_OPENER_ID = "sundile";
     private boolean playerMulliganPending = false;
     private boolean enemyMulliganPending = false;
     private boolean playerMulliganUsed = false;
@@ -325,6 +332,16 @@ public class GameState {
     public void setSetupTurnsTakenThisRound(int setupTurnsTakenThisRound) { this.setupTurnsTakenThisRound = setupTurnsTakenThisRound; }
     public boolean isEnemyHumanControlled() { return enemyHumanControlled; }
     public void setEnemyHumanControlled(boolean enemyHumanControlled) { this.enemyHumanControlled = enemyHumanControlled; }
+    /**
+     * While non-null, the only Siegling the player may place. DERIVED rather than
+     * stored: the first version set this when entering Setup from the draw phase,
+     * and turn one does not arrive that way, so the field was still null exactly
+     * when it mattered and the client locked nothing. Deriving it removes the
+     * "did we remember to set it" failure entirely.
+     */
+    public String getTutorialRequiredPlacementId() {
+        return tutorialMatch && turnNumber == 1 ? TUTORIAL_TURN_ONE_OPENER_ID : null;
+    }
     public boolean isTutorialMatch() { return tutorialMatch; }
     public void setTutorialMatch(boolean tutorialMatch) { this.tutorialMatch = tutorialMatch; }
     public boolean isPlayerMulliganPending() { return playerMulliganPending; }

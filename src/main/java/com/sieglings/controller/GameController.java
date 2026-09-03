@@ -917,6 +917,13 @@ public class GameController {
             mulligan.put("tutorialScripted", true);
             mulligan.put("allowedIndices", List.of(GameService.TUTORIAL_SCRIPTED_MULLIGAN_INDEX));
             resp.put("tutorialMode", true);
+            // Turn one takes the designated opener and nothing else. The server
+            // refuses anything else outright; the client reads this to lock the
+            // rest of the hand rather than let the player tap into a refusal.
+            // This response is an explicit map, not a serialized GameState, so a
+            // new getter is invisible to the client until it is added here.
+            resp.put("tutorialRequiredPlacementId",
+                    viewerIsPlayer ? gs.getTutorialRequiredPlacementId() : null);
         }
         resp.put("mulligan", mulligan);
 
