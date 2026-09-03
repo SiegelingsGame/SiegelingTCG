@@ -1320,8 +1320,10 @@
         // "play". Arena is still the first, primary choice in the picker.
         document.getElementById('playNowBtn')?.addEventListener('click', () => {
             const picker = window.SieglingsPlayModePicker;
-            if (!picker) { goPlay({ mode: 'solo', directLoadout: true }); return; }
-            picker.open({ onArena: () => goPlay({ mode: 'solo', directLoadout: true }) });
+            // Arena from the picker starts on the match-setup step: the player has
+            // only said "Arena" so far, so naming themselves comes before the deck.
+            if (!picker) { goPlay({ mode: 'solo', directLoadout: true, startStep: 'setup' }); return; }
+            picker.open({ onArena: () => goPlay({ mode: 'solo', directLoadout: true, startStep: 'setup' }) });
         });
         document.getElementById('startPveBtn')?.addEventListener('click', () => goPlay({ mode: 'solo', directLoadout: true }));
         document.getElementById('createLobbyBtn')?.addEventListener('click', createLobbyFromHome);
@@ -8820,6 +8822,7 @@
             roomId: payload.roomId || '',
             battleLaunch: Boolean(payload.battleLaunch),
             directLoadout: Boolean(payload.directLoadout),
+            startStep: payload.startStep === 'setup' ? 'setup' : '',
             tutorial,
             customDeckCards: tutorial ? null : customDeckCards,
             loadoutLabel,
