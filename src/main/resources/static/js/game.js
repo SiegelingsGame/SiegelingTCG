@@ -9990,6 +9990,25 @@ function normalizeDashboardCardId(id) {
     return normalized || null;
 }
 
+/**
+ * The loading gate wants one shape, but a SiegeKnight reaches us in two: the
+ * loadout options serialize `passive`/`active` as plain strings, while an
+ * in-match trainer serializes them as ability objects. Normalise here, next to
+ * the data, so the gate stays a renderer.
+ */
+function knightSplashInfo(trainer, fallbackName) {
+    const text = (v) => (typeof v === 'string' ? v : (v && v.description) || '');
+    return {
+        element: trainer?.element || 'NEUTRAL',
+        trainerName: trainer?.name || fallbackName || 'SiegeKnight',
+        tier: trainer?.tier || '',
+        art: trainer?.cardArtUrl || '',
+        artMode: trainer?.cardArtMode || '',
+        passive: text(trainer?.passive),
+        active: text(trainer?.active)
+    };
+}
+
 async function newGame() {
     clearMultiplayerSession();
     cancelBattleAutoAdvance();
@@ -10007,8 +10026,7 @@ async function newGame() {
         window.SieglingsLoadingGate.show({
             player: {
                 name: getCurrentPlayerName() || 'Player',
-                element: trainer?.element || 'NEUTRAL',
-                trainerName: trainer?.name || 'SiegeKnight'
+                ...knightSplashInfo(trainer)
             },
             opponent: {
                 name: 'AI Opponent',
@@ -10038,13 +10056,11 @@ async function newGame() {
                 window.SieglingsLoadingGate.show({
                     player: {
                         name: gameState?.playerName || getCurrentPlayerName() || 'Player',
-                        element: gameState?.player?.trainer?.element || 'NEUTRAL',
-                        trainerName: gameState?.player?.trainer?.name || 'SiegeKnight'
+                        ...knightSplashInfo(gameState?.player?.trainer)
                     },
                     opponent: {
                         name: gameState?.enemyName || 'AI Opponent',
-                        element: enemyTrainer.element || 'SHADOW',
-                        trainerName: enemyTrainer.name || 'Mystery SiegeKnight'
+                        ...knightSplashInfo(enemyTrainer, 'Mystery SiegeKnight')
                     },
                     minDurationMs: 600
                 });

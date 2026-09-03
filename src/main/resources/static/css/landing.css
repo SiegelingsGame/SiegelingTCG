@@ -1443,6 +1443,72 @@ img { display: block; }
     color: rgba(228, 232, 246, 0.7);
     margin-bottom: 8px;
 }
+/* A SiegeKnight with real art shows the card face rather than the element
+   sigil, so the portrait becomes a framed rectangle instead of a badge. */
+.sgl-knight-portrait.has-art {
+    width: 108px;
+    height: 150px;
+    border-radius: 12px;
+    overflow: hidden;
+    padding: 0;
+    background: rgba(0, 0, 0, 0.35);
+}
+.sgl-knight-art {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    user-select: none;
+    -webkit-user-drag: none;
+}
+.sgl-knight-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 0;
+}
+.sgl-knight-tier {
+    font-size: 0.66rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(228, 232, 246, 0.55);
+    margin-bottom: 8px;
+}
+/* The knight's actual rules text. Clamped rather than truncated to one line:
+   a passive is the reason you picked the knight, and the splash is the last
+   moment it is readable before the match starts. */
+.sgl-knight-abilities {
+    margin-top: 10px;
+    display: grid;
+    gap: 6px;
+    text-align: left;
+    max-width: 260px;
+}
+.sgl-knight-ability {
+    display: grid;
+    gap: 2px;
+    padding: 6px 8px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.3);
+    border-left: 2px solid var(--knight-color);
+}
+.sgl-knight-ability-label {
+    font-size: 0.6rem;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--knight-color);
+}
+.sgl-knight-ability-text {
+    font-size: 0.72rem;
+    line-height: 1.35;
+    color: rgba(228, 232, 246, 0.86);
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
 .sgl-knight-element {
     display: inline-block;
     padding: 3px 10px;
@@ -1672,6 +1738,7 @@ img { display: block; }
     height: 100%;
     object-fit: contain;
     border-radius: 50%;
+    clip-path: circle(42% at 50% 50%);
     position: relative;
     z-index: 2;
     animation:
@@ -1682,9 +1749,14 @@ img { display: block; }
     -webkit-user-drag: none;
 }
 
+/* The logo art carries a gold rim outside its elemental quadrants. Clip it away
+   and scale back up so the stage shows only the elements -- the rim read as a
+   second, competing ring next to the two the stage already spins. The clip is
+   applied in the element's own box, so the scale below enlarges the cropped
+   circle rather than bringing the rim back. */
 @keyframes sgl-logo-float {
-    0%, 100% { transform: translateY(0)   scale(1);    }
-    50%       { transform: translateY(-9px) scale(1.03); }
+    0%, 100% { transform: translateY(0)    scale(1.19); }
+    50%      { transform: translateY(-9px) scale(1.22); }
 }
 
 @keyframes sgl-logo-element-glow {
@@ -1759,7 +1831,40 @@ img { display: block; }
     .legendary-viewport-title { text-align: left; }
     .creature-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
     .creature-portrait .sgl-element-svg { width: 46%; height: 46%; }
-    .sgl-gate-vs { grid-template-columns: 1fr; gap: 14px; }
+    .sgl-gate-vs { grid-template-columns: 1fr; gap: 12px; }
+    /* The last 26px: the flavour line sat just past the fold. */
+    .sgl-gate-content { gap: 12px; }
+    /* The flavour line now sits on screen where the corner watermark used to
+       have the bottom edge to itself, so give the line the full width and drop
+       the watermark's wordmark on phones. */
+    .sgl-gate-watermark { bottom: 8px; right: 10px; font-size: 0.62rem; }
+    .sgl-gate-watermark span:not(.pcg-letter) { display: none; }
+    .sgl-gate-flavor { padding: 0 12px 22px; }
+    .sgl-logo-stage { width: min(160px, 36vw); height: min(160px, 36vw); }
+    .sgl-gate-flavor { font-size: 0.82rem; }
+    /* The knight cards stack on a phone, so the card face and its rules text
+       have to give ground or the splash outgrows the viewport -- it is a fixed
+       overlay, so anything past the fold is simply cut off (the logo was, and
+       the watermark landed on the second card). */
+    /* Stacked cards with a portrait above a rules block are far too tall for a
+       phone -- measured at 1052px of content in an 844px viewport, and the gate
+       is a fixed overlay so the excess is cut off, not scrolled. Turn each card
+       on its side: art beside the text rather than above it. */
+    .sgl-knight-card {
+        flex-direction: row;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        text-align: left;
+    }
+    .sgl-knight-body { align-items: flex-start; }
+    .sgl-knight-portrait.has-art { width: 68px; height: 94px; margin-bottom: 0; flex: 0 0 auto; }
+    .sgl-knight-portrait { margin-bottom: 0; flex: 0 0 auto; }
+    .sgl-knight-name { white-space: normal; }
+    .sgl-knight-tier { margin-bottom: 6px; }
+    .sgl-knight-abilities { margin-top: 8px; gap: 4px; max-width: none; }
+    .sgl-knight-ability { padding: 5px 7px; }
+    .sgl-knight-ability-text { font-size: 0.68rem; -webkit-line-clamp: 2; }
     .sgl-vs-emblem { width: 70px; height: 70px; }
     .sgl-vs-emblem-text { font-size: 1.8rem; }
     .sgl-knight-card.right { transform: translateX(0); }
@@ -1767,6 +1872,17 @@ img { display: block; }
     .pcg-watermark-text { display: none; }
     .pcg-bubble-large { padding: 12px 16px; border-radius: 18px; }
     .pcg-bubble-large .pcg-letter { font-size: 1.1rem; padding: 6px 8px; }
+}
+
+/* A short phone (360x740 and smaller) cannot hold the full rules text without
+   pushing the flavour line past the fold. Give up the tier line and the second
+   line of each ability rather than the text itself -- the knight's rules are
+   the reason this splash is worth reading. */
+@media (max-width: 760px) and (max-height: 800px) {
+    .sgl-knight-tier { display: none; }
+    .sgl-knight-ability-text { -webkit-line-clamp: 1; }
+    .sgl-knight-portrait.has-art { width: 60px; height: 84px; }
+    .sgl-logo-stage { width: min(140px, 32vw); height: min(140px, 32vw); }
 }
 
 /* ── Landing expansion: navigation, game modes, social, and featured roster ── */

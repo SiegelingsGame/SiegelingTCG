@@ -153,13 +153,41 @@
         const trainerLabel = info?.trainerName
             ? `<div class="sgl-knight-trainer">${escapeHtml(info.trainerName)}</div>`
             : '';
+        // The SiegeKnight's own card, when we have it: the art plus the passive
+        // and active it actually brings. The element sigil stays as the fallback
+        // for a knight with no art (and for the placeholder opponent shown
+        // before the server has picked one).
+        const portrait = info?.art
+            ? `<div class="sgl-knight-portrait has-art" aria-hidden="true">
+                   <img class="sgl-knight-art" src="${escapeHtml(info.art)}" alt="" draggable="false" loading="eager">
+               </div>`
+            : `<div class="sgl-knight-portrait" aria-hidden="true" style="color:${color}">${sigil}</div>`;
+        const tierLabel = info?.tier
+            ? `<div class="sgl-knight-tier">${escapeHtml(info.tier)}</div>`
+            : '';
+        const ability = (label, body) => (body
+            ? `<div class="sgl-knight-ability">
+                   <span class="sgl-knight-ability-label">${label}</span>
+                   <span class="sgl-knight-ability-text">${escapeHtml(body)}</span>
+               </div>`
+            : '');
+        const abilities = (info?.passive || info?.active)
+            ? `<div class="sgl-knight-abilities">
+                   ${ability('Passive', info.passive)}
+                   ${ability('Active', info.active)}
+               </div>`
+            : '';
         return `
-            <div class="sgl-knight-card ${sideClass}"
+            <div class="sgl-knight-card ${sideClass}${info?.art ? ' has-art' : ''}"
                  style="--knight-color: ${color}; --knight-glow: ${glow}; animation-delay: ${isRight ? '120ms' : '0ms'}">
-                <div class="sgl-knight-portrait" aria-hidden="true" style="color:${color}">${sigil}</div>
-                <div class="sgl-knight-name">${safeName}</div>
-                ${trainerLabel}
-                <span class="sgl-knight-element">${escapeHtml(el)}</span>
+                ${portrait}
+                <div class="sgl-knight-body">
+                    <div class="sgl-knight-name">${safeName}</div>
+                    ${trainerLabel}
+                    ${tierLabel}
+                    <span class="sgl-knight-element">${escapeHtml(el)}</span>
+                    ${abilities}
+                </div>
             </div>
         `;
     }
