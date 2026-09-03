@@ -48,9 +48,14 @@ class SiegeAdvantageTutorialJavaScriptTest {
         assertTrue(tutorial.contains("<b>Team Speed</b>"));
         assertTrue(tutorial.contains("<b>Advantage key</b>"));
         assertTrue(tutorial.contains("fastest to slowest"));
-        assertTrue(html.contains("/css/coach.css?v=3"));
-        assertTrue(html.contains("/css/adventure.css?v=88"));
-        assertTrue(html.contains("/js/siege-tutorial.js?v=15"));
-        assertTrue(html.contains("/js/adventure.js?v=91"));
+        // These pins are asserted so a content change cannot ship without a
+        // refresh. They had gone stale on main — adventure.css had moved to 89
+        // and adventure.js to 92 while the assertions still named 88 and 91,
+        // so the test was red for everyone. Brought back in line, with
+        // siege-tutorial at 16 for the evolved-card fix.
+        assertTrue(html.contains("/css/coach.css?v=3"), "coach.css pin");
+        assertTrue(html.contains("/css/adventure.css?v=89"), "adventure.css pin");
+        assertTrue(html.contains("/js/siege-tutorial.js?v=16"), "siege-tutorial.js pin");
+        assertTrue(html.contains("/js/adventure.js?v=92"), "adventure.js pin");
     }
 }

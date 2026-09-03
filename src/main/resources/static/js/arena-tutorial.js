@@ -25,6 +25,7 @@
   /** Latched observations: things a single state snapshot cannot show, such as
    *  "a Siegeling died at some point during that battle phase". */
   var seen = null;
+  var linkBaseline = null;   // elemental energy when the same-element lesson opened
   var watchRaf = 0;
 
   /** game.js declares its state with `let`, which in a classic script is
@@ -67,6 +68,26 @@
       total += Number(g.player[key + 'Energy'] || 0);
     });
     return total;
+  }
+
+  /** Energy actually banked in the elemental pools — what a SAME-ELEMENT link
+   *  pays. A combo goes to comboPoints instead, so the two are distinguishable
+   *  and each lesson can wait for the thing it is actually teaching. */
+  function elementalEnergy() { return playerEnergyTotal(); }
+
+  /** A hand card that actually asks for energy, or null. The tutorial's starter
+   *  Sieglings are all free (cost 0) — it is the EVOLUTIONS that carry a cost
+   *  (Raydile and Dracoil are FIRE 2), so the lesson has to read the hand
+   *  rather than assume a Siegling costs something. */
+  function costedCard() {
+    var cards = hand().filter(function (c) { return c && c.costAmount > 0 && c.costElement; });
+    return cards[0] || null;
+  }
+
+  /** The cost chip the game actually renders — `.card-corner-cost`, not the
+   *  summary row, which the hand fan does not use. */
+  function costTarget() {
+    return firstOf(['#playerHand .card-corner-cost', '#handTray .card-corner-cost', '#playerHand']);
   }
 
   function comboCount() {
@@ -358,6 +379,22 @@
         skipIf: function () { return turn() < 2 || !seen.sawBattle; },
         until: function () { return phase() === 'SETUP' || phase() === 'BATTLE'; } },
 
+      // Cost is a real rule and it is NOT the same rule for both card kinds:
+      // GameService checks `canAfford` for a Siegling and never spends it
+      // (energy is recomputed from links each turn), while a spell or trap goes
+      // through `spendEnergy`. Saying "pay" for a Siegling would be wrong.
+      { id: 't2-cost', title: 'What a card asks for', target: costTarget,
+        highlight: ['#playerHand', '#handTray'],
+        body: function () {
+          var c = costedCard();
+          var named = c
+            ? '<b>' + esc(c.name) + '</b> wants <b>' + c.costAmount + ' ' + esc(String(c.costElement).toLowerCase()) + '</b>. '
+            : '';
+          return 'That little corner number is the <b>cost</b>. ' + named +
+            'Your starters are free, but the heavier Siegelings — <b>evolutions especially</b> — ask for energy of their element, and you must <b>have</b> it on tap: a Siegeling checks the pool, it does not drain it. <b>Strategies</b> and <b>Deceptions</b> are what actually spend.';
+        },
+        skipIf: function () { return !costedCard() && !visible('#playerHand .card-corner-cost'); } },
+
       { id: 't2-pick', hint: 'Tap a <b>Siegeling</b>', title: 'Bring a friend', target: '#playerHand',
         highlight: ['#playerHand', '#handTray'],
         body: 'Grab another Siegeling. This one goes <b>next to</b> the first.',
@@ -374,6 +411,32 @@
       { id: 't2-notches', title: 'That is a link', target: '#playerGrid',
         body: 'Both notches facing each other pays you <b>every round</b>. One pointing at nothing pays you nothing.',
         skipIf: function () { return turn() < 2 || mine() < 2; } },
+
+      // Two payouts, two different lessons. Matching elements bank that
+      // element; mixed ones bank a split-colour combo instead. Both wait for
+      // the player to actually make one — and both give up the wait the moment
+      // Setup ends, so neither can hold the match hostage (the badge lesson
+      // taught us that the hard way).
+      { id: 't2-link-same', hint: 'Face two <b>matching</b> notches at each other',
+        title: 'Your first same-element link', target: '#playerGrid',
+        highlight: ['#playerGrid .board-cell.legal', '#playerGrid'],
+        body: 'Two notches of the <b>same element</b> pointing at each other bank that element, every single round. That is the steady income — build it first.',
+        skipIf: function () { return turn() < 2 || mine() < 2; },
+        until: function () {
+          // Latch where the pools stood when the lesson opened. Waiting on
+          // "energy > 0" completed instantly, because a turn-one socket has
+          // already banked some — the step never rendered. What is being
+          // taught is the INCREASE a new matching link pays.
+          if (linkBaseline == null) linkBaseline = elementalEnergy();
+          return elementalEnergy() > linkBaseline || phase() !== 'SETUP';
+        } },
+
+      { id: 't2-link-combo', hint: 'Now face two <b>different</b> elements at each other',
+        title: 'Your first combo link', target: '#playerGrid',
+        highlight: ['#playerGrid .board-cell.legal', '#playerGrid'],
+        body: 'Point <b>two different</b> elements at each other and you bank a <b>combo</b> instead — a split-colour point. Your heaviest cards take nothing else, so it is worth building for.',
+        skipIf: function () { return turn() < 2 || mine() < 2; },
+        until: function () { return comboCount() > 0 || phase() !== 'SETUP'; } },
 
       { id: 't2-energy', hint: 'Tap <b>◈</b>', title: 'Look what you made', target: '#btnEnergyDetail',
         body: 'Those coloured dots are yours to spend. Tap <b>◈</b> to see where they came from.',
@@ -396,7 +459,7 @@
 
       { id: 't2-evolve', hint: 'Play an evolution onto its base', title: 'Grow one up', target: '#playerHand',
         highlight: ['#playerHand', '#handTray'],
-        body: 'Survive a battle and a Siegeling can <b>evolve</b> — play the bigger version straight onto it. Free of the one-per-turn limit.',
+        body: 'Two things before a Siegeling can <b>evolve</b>: it has to have <b>survived a full battle phase</b> in its current form, and you need the evolution\'s own <b>energy</b> on tap. Then play the bigger card straight onto it — evolutions ignore the one-per-turn limit <em>and</em> the five-on-board cap.',
         skipIf: function () {
           if (turn() < 2) return true;
           return !hand().some(function (c) { return c && c.type === 'SIEGLING' && c.evolvesFromId; });
@@ -613,6 +676,7 @@
       hadEvolution: false, sawBadge: false,
       knightSpent: false, knightOpened: false, ended: false
     };
+    linkBaseline = null;
     var knightBtn = document.getElementById('btnTrainerAbility');
     if (knightBtn) {
       knightBtn.addEventListener('click', function () { seen.knightOpened = true; }, { once: true });
