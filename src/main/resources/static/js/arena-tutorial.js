@@ -184,6 +184,82 @@
     return (card && card.name) || '';
   }
 
+  /** The hand Siegeling that an evolution in hand grows out of — Sundile for
+   *  Raydile in the pinned tutorial deal. Named live rather than hard-coded so
+   *  a retuned deck cannot make the lesson point at a card you do not hold. */
+  function baseOfEvolutionInHand() {
+    var h = hand();
+    var evo = h.filter(function (c) { return c && c.type === 'SIEGLING' && c.evolvesFromId; })[0];
+    if (!evo) return null;
+    var base = h.filter(function (c) { return c && c.id === evo.evolvesFromId; })[0];
+    return base ? { base: base, evolution: evo } : null;
+  }
+
+  /** A plain (non-evolution) Siegeling in hand that is NOT the named base — the
+   *  partner the round-two link is built with. */
+  function partnerSiegling(excludeId) {
+    return hand().filter(function (c) {
+      return c && c.type === 'SIEGLING' && !c.evolvesFromId && c.id !== excludeId;
+    })[0] || null;
+  }
+
+  var OPPOSITE_DIR = {
+    TOP: 'BOTTOM', TOP_RIGHT: 'BOTTOM_LEFT', RIGHT: 'LEFT', BOTTOM_RIGHT: 'TOP_LEFT',
+    BOTTOM: 'TOP', BOTTOM_LEFT: 'TOP_RIGHT', LEFT: 'RIGHT', TOP_LEFT: 'BOTTOM_RIGHT'
+  };
+
+  /** Player-side notch travel. Mirrors game.js directionDelta(dir, true), which
+   *  itself mirrors the server — the player's grid is drawn flipped, so TOP
+   *  walks toward increasing row on this half. */
+  function playerDelta(direction) {
+    switch (direction) {
+      case 'TOP': return [1, 0];
+      case 'TOP_RIGHT': return [1, 1];
+      case 'RIGHT': return [0, 1];
+      case 'BOTTOM_RIGHT': return [-1, 1];
+      case 'BOTTOM': return [-1, 0];
+      case 'BOTTOM_LEFT': return [-1, -1];
+      case 'LEFT': return [0, -1];
+      case 'TOP_LEFT': return [1, -1];
+      default: return [0, 0];
+    }
+  }
+
+  /** Selectors for every player cell holding a Siegeling that is in a live
+   *  reciprocal link. The link lesson spotlights the two cards it is talking
+   *  about; ringing the whole grid left the player hunting for them. */
+  function linkedCellSelectors() {
+    var g = gs();
+    var board = (g && g.playerBoard) || [];
+    var out = [];
+    function push(r, c) {
+      var sel = '#playerGrid .board-cell[data-row="' + r + '"][data-col="' + c + '"]';
+      if (out.indexOf(sel) < 0 && visible(sel)) out.push(sel);
+    }
+    for (var r = 0; r < board.length; r++) {
+      for (var c = 0; c < (board[r] || []).length; c++) {
+        var card = board[r][c];
+        if (!card) continue;
+        (card.notches || []).forEach(function (notch) {
+          if (!notch || !notch.direction) return;
+          var d = playerDelta(notch.direction);
+          var nr = r + d[0], nc = c + d[1];
+          if (nr < 0 || nr > 2 || nc < 0 || nc > 2) return;
+          var neighbour = board[nr] && board[nr][nc];
+          if (!neighbour) return;
+          var wanted = OPPOSITE_DIR[notch.direction];
+          var reciprocal = (neighbour.notches || []).some(function (n) {
+            return n && n.direction === wanted;
+          });
+          if (!reciprocal) return;
+          push(r, c);
+          push(nr, nc);
+        });
+      }
+    }
+    return out;
+  }
+
   // ---- latching watcher ---------------------------------------------------
 
   /** Some lessons are about an outcome, not a tap: a Siegeling destroyed, the
@@ -279,9 +355,21 @@
         body: 'One Siegeling down, plus whatever you can pay for. The more energy you walked in with, the more you get to do.',
         until: function () { return phase() === 'SETUP' || phase() === 'BATTLE'; } },
 
-      { id: 'pick', hint: 'Tap a <b>Siegeling</b>', title: 'Who is going in?', target: '#playerHand',
+      { id: 'pick', title: 'Who is going in?', target: '#playerHand',
         highlight: ['#playerHand', '#handTray'],
-        body: 'Pick your opener — anything with <b>HP</b> and <b>SPD</b>. Tap it and the board shows you where it can go.',
+        hint: function () {
+          var pair = baseOfEvolutionInHand();
+          return pair ? 'Tap <b>' + esc(pair.base.name) + '</b>' : 'Tap a <b>Siegeling</b>';
+        },
+        body: function () {
+          var pair = baseOfEvolutionInHand();
+          if (!pair) return 'Pick your opener — anything with <b>HP</b> and <b>SPD</b>. Tap it and the board shows you where it can go.';
+          // Named on purpose: this opener is the base the round-two evolution
+          // grows out of, and evolving needs it to have survived a full battle
+          // phase — so it has to go down NOW, not next round.
+          return 'Open with <b>' + esc(pair.base.name) + '</b>. It grows into <b>' + esc(pair.evolution.name) +
+            '</b> later, and that only works if it has already fought a round — so it goes down first. Tap it and the board shows you where it can go.';
+        },
         until: function () { return selectedType() === 'SIEGLING' || mine() > 0; } },
 
       { id: 'place', hint: 'Place on the <b>gold</b> cell', title: 'Plug into a socket',
@@ -290,11 +378,6 @@
         recommend: recommendedCell,
         body: 'See the dots outside the grid? Those are <b>sockets</b>, and touching one starts your energy flowing. The <b>gold</b> cell is where this card reaches one. Put it there.',
         until: function () { return mine() > 0; } },
-
-      { id: 'strategy', title: 'Spend that energy', target: '#playerHand',
-        highlight: ['#playerHand', '#handTray'],
-        body: '<b>Strategies</b> spend your own energy and go off immediately. Got one you can afford? Fire it.',
-        skipIf: function () { return !handHas('SPELL'); } },
 
       { id: 'knight', hint: 'Tap <b>Knight</b>', title: 'Meet your Knight', target: '#btnTrainerAbility',
         avoid: '.trainer-ability-close',
@@ -395,9 +478,25 @@
         },
         skipIf: function () { return !costedCard() && !visible('#playerHand .card-corner-cost'); } },
 
-      { id: 't2-pick', hint: 'Tap a <b>Siegeling</b>', title: 'Bring a friend', target: '#playerHand',
+      { id: 't2-pick', title: 'Bring a friend', target: '#playerHand',
         highlight: ['#playerHand', '#handTray'],
-        body: 'Grab another Siegeling. This one goes <b>next to</b> the first.',
+        hint: function () {
+          var mate = partnerSiegling();
+          return mate ? 'Tap <b>' + esc(mate.name) + '</b>' : 'Tap a <b>Siegeling</b>';
+        },
+        body: function () {
+          var pair = baseOfEvolutionInHand();
+          var mate = partnerSiegling(pair && pair.base ? pair.base.id : null);
+          var evo = pair ? pair.evolution : hand().filter(function (c) {
+            return c && c.type === 'SIEGLING' && c.evolvesFromId;
+          })[0];
+          var goal = evo
+            ? ' You are building toward <b>' + esc(evo.name) + '</b> — it wants <b>' + (evo.costAmount || 0) + ' ' +
+              esc(String(evo.costElement || '').toLowerCase()) + '</b>, and this link is where that energy comes from.'
+            : '';
+          return (mate ? 'Play <b>' + esc(mate.name) + '</b> right ' : 'Grab another Siegeling and put it ') +
+            'next to the one already out, so their notches meet.' + goal;
+        },
         skipIf: function () { return turn() < 2 || mine() >= 2; },
         until: function () { return selectedType() === 'SIEGLING' || mine() >= 2; } },
 
@@ -408,8 +507,18 @@
         skipIf: function () { return turn() < 2 || mine() >= 2; },
         until: function () { return mine() >= 2; } },
 
-      { id: 't2-notches', title: 'That is a link', target: '#playerGrid',
-        body: 'Both notches facing each other pays you <b>every round</b>. One pointing at nothing pays you nothing.',
+      // Spotlight the two cards that are actually linked, not the whole grid —
+      // the lesson names a connection the player then has to go find.
+      { id: 't2-notches', title: 'That is a link',
+        target: function () {
+          var cells = linkedCellSelectors();
+          return cells.length ? cells[0] : '#playerGrid';
+        },
+        highlight: function () {
+          var cells = linkedCellSelectors();
+          return cells.length ? cells : ['#playerGrid'];
+        },
+        body: 'These two are wired together. Both notches facing each other pays you <b>every round</b>. One pointing at nothing pays you nothing.',
         skipIf: function () { return turn() < 2 || mine() < 2; } },
 
       // Two payouts, two different lessons. Matching elements bank that
@@ -459,7 +568,12 @@
 
       { id: 't2-evolve', hint: 'Play an evolution onto its base', title: 'Grow one up', target: '#playerHand',
         highlight: ['#playerHand', '#handTray'],
-        body: 'Two things before a Siegeling can <b>evolve</b>: it has to have <b>survived a full battle phase</b> in its current form, and you need the evolution\'s own <b>energy</b> on tap. Then play the bigger card straight onto it — evolutions ignore the one-per-turn limit <em>and</em> the five-on-board cap.',
+        body: function () {
+          var evo = hand().filter(function (c) { return c && c.type === 'SIEGLING' && c.evolvesFromId; })[0];
+          var named = evo ? 'Your opener fought last round and this link is paying — so <b>' + esc(evo.name) +
+            '</b> can go down on top of it right now. ' : '';
+          return named + 'Two things before a Siegeling can <b>evolve</b>: it has to have <b>survived a full battle phase</b> in its current form, and you need the evolution\'s own <b>energy</b> on tap. Play the bigger card straight onto it — evolutions ignore the one-per-turn limit <em>and</em> the five-on-board cap.';
+        },
         skipIf: function () {
           if (turn() < 2) return true;
           return !hand().some(function (c) { return c && c.type === 'SIEGLING' && c.evolvesFromId; });
