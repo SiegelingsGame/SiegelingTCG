@@ -2887,6 +2887,37 @@ body.battle-inline-dock .battle-queue-actions {
     color: #eadfff;
 }
 
+/* On compact landscape screens the board itself is the targeting guide. Keep
+   the confirmation action in one predictable, thumb-reachable place instead
+   of duplicating it in the narrow battle dock. */
+@media (orientation: landscape) and (max-width: 1366px) and (max-height: 1100px) {
+    .battle-row-confirm-overlay {
+        top: calc(env(safe-area-inset-top, 0px) + 48px);
+        left: calc(env(safe-area-inset-left, 0px) + 12px);
+        bottom: auto;
+        width: min(320px, calc(100% - 24px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)));
+        transform: none;
+    }
+
+    .battle-row-confirm-overlay .battle-row-confirm {
+        padding: 6px;
+        gap: 6px;
+    }
+
+    .battle-row-confirm-overlay .battle-row-confirm-btn {
+        min-height: 38px;
+        font-size: 0.74em;
+    }
+
+    .battle-targeting-tray-compact-landscape {
+        min-height: 0;
+    }
+
+    .battle-targeting-tray-compact-landscape .battle-targeting-actions {
+        margin-top: 4px;
+    }
+}
+
 @media (max-width: 560px) {
     .battle-row-confirm {
         flex-wrap: wrap;

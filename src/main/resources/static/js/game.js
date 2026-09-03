@@ -2925,6 +2925,24 @@ function renderBattleTargetingTray(pending, ability) {
     const selectedRow = getRowSelectSelectedRow();
     const instructions = buildBattleTargetingInstruction(targetSide, ability, selectedRow);
 
+    // Landscape keeps targeting in view beside the arena. The board highlights
+    // and preview arrows already explain the selection, so repeating the full
+    // walkthrough in the narrow dock just competes with the board. The fixed
+    // confirmation bar supplies the row actions instead.
+    if (isCompactLandscapeLayout()) {
+        let compactHtml = '<div class="battle-targeting-tray battle-targeting-tray-compact-landscape">';
+        compactHtml += '<div class="battle-targeting-move">';
+        compactHtml += '<div class="battle-targeting-move-label">Selected move</div>';
+        compactHtml += `<div class="battle-targeting-move-name">${escapeHtml(instructions.moveName)}</div>`;
+        compactHtml += `<div class="battle-targeting-move-desc">${escapeHtml(instructions.effectLine)}</div>`;
+        compactHtml += '</div>';
+        compactHtml += '<div class="battle-targeting-actions">';
+        compactHtml += '<button class="battle-targeting-cancel" type="button" onclick="cancelBattleTargetSelection()">Cancel — choose a different move</button>';
+        compactHtml += '</div>';
+        compactHtml += '</div>';
+        return compactHtml;
+    }
+
     let html = '<div class="battle-targeting-tray">';
     html += '<div class="battle-targeting-move">';
     html += '<div class="battle-targeting-move-label">Selected move</div>';
