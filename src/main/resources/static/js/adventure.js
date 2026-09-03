@@ -3323,7 +3323,7 @@
           } else {
             runner = el('span', 'lane-runner ' + elClass(u.element), icon(u.element));
           }
-          runner.style.left = 'calc(' + Math.round(100 * cum / max) + '% - 9px)';
+          runner.style.left = Math.round(100 * cum / max) + '%';
           runner.title = u.name + ' ⚡' + (u.effectiveSpeed != null ? u.effectiveSpeed : u.speed);
           bar.appendChild(runner);
         });
