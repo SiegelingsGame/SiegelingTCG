@@ -1042,6 +1042,27 @@ class GameJavaScriptRegressionTest {
     }
 
     @Test
+    void guestBinderPagesFullCatalogInsteadOfMountingEveryTile() throws IOException {
+        String homeScript = readHomeScript();
+        String renderCards = extractFunction(homeScript, "function renderCards()");
+        String logout = extractFunction(homeScript, "async function logout()");
+
+        assertTrue(
+                homeScript.contains("const BINDER_PAGE_SIZE = 24")
+                        && homeScript.contains("binderVisibleLimit: 24")
+                        && renderCards.contains("data-binder-load-more")
+                        && renderCards.contains("visibleCards.map(renderCardTile)"),
+                "Guest Show-unowned binders must page the card grid instead of mounting the full catalog at once."
+        );
+        assertTrue(
+                logout.contains("writeCache('gameOptions:guest', catalog)")
+                        && !logout.contains("clearGameOptionsCaches()")
+                        && logout.contains("removeItem(HUB_CACHE_PREFIX + 'gameOptions:signed-in')"),
+                "Logout must keep the live catalog as the guest cache rather than wiping every options key."
+        );
+    }
+
+    @Test
     void binderWaitsForOwnedCardSnapshotWhenCachedProfileIsPartial() throws IOException {
         String homeScript = readHomeScript();
         String ownedDataLoading = extractFunction(homeScript, "function ownedDataLoading()");
