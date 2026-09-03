@@ -260,6 +260,21 @@
     return out;
   }
 
+  /** The turn-three combo partner: a hand Siegeling whose element is NOT already
+   *  on your board. GameService hoists one (Earth, in the pinned Fire/Earth
+   *  deck) to the top of the tutorial deck for the round-three draw, so this
+   *  reads what actually arrived rather than naming a card by hand. */
+  function comboPartnerInHand() {
+    var g = gs();
+    var onBoard = {};
+    ((g && g.playerBoard) || []).forEach(function (row) {
+      (row || []).forEach(function (c) { if (c && c.element) onBoard[c.element] = true; });
+    });
+    return hand().filter(function (c) {
+      return c && c.type === 'SIEGLING' && !c.evolvesFromId && c.element && !onBoard[c.element];
+    })[0] || null;
+  }
+
   // ---- latching watcher ---------------------------------------------------
 
   /** Some lessons are about an outcome, not a tap: a Siegeling destroyed, the
@@ -540,32 +555,6 @@
           return elementalEnergy() > linkBaseline || phase() !== 'SETUP';
         } },
 
-      { id: 't2-link-combo', hint: 'Now face two <b>different</b> elements at each other',
-        title: 'Your first combo link', target: '#playerGrid',
-        highlight: ['#playerGrid .board-cell.legal', '#playerGrid'],
-        body: 'Point <b>two different</b> elements at each other and you bank a <b>combo</b> instead — a split-colour point. Your heaviest cards take nothing else, so it is worth building for.',
-        skipIf: function () { return turn() < 2 || mine() < 2; },
-        until: function () { return comboCount() > 0 || phase() !== 'SETUP'; } },
-
-      { id: 't2-energy', hint: 'Tap <b>◈</b>', title: 'Look what you made', target: '#btnEnergyDetail',
-        body: 'Those coloured dots are yours to spend. Tap <b>◈</b> to see where they came from.',
-        skipIf: function () { return turn() < 2 || mine() < 2; },
-        until: function () { return seen.hadLinkEnergy || comboCount() > 0 || phase() === 'BATTLE'; } },
-
-      { id: 't2-combo', title: 'Mix it up', target: '#btnEnergyDetail',
-        body: 'Mixed links bank a split-colour <b>combo</b>. Your heaviest cards only take these — worth building for.',
-        skipIf: function () { return turn() < 2 || mine() < 2; } },
-
-      { id: 't2-strategy', hint: 'Cast a <b>Strategy</b> you can afford', title: 'Now you can afford things',
-        target: '#playerHand', highlight: ['#playerHand', '#handTray'],
-        body: 'That fresh card plus a round of link energy is the point of building a board. <b>Strategies</b> spend your own energy and resolve the moment you play them — cast one.',
-        skipIf: function () { return turn() < 2 || !handHas('SPELL'); } },
-
-      { id: 't2-deception', title: 'Spend their energy', target: '#playerHand',
-        highlight: ['#playerHand', '#handTray'],
-        body: 'Here is the sneaky one: a <b>Deception</b> is paid for with <b>their</b> energy, not yours. Play one if you have it.',
-        skipIf: function () { return turn() < 2 || !handHas('TRAP'); } },
-
       { id: 't2-evolve', hint: 'Play an evolution onto its base', title: 'Grow one up', target: '#playerHand',
         highlight: ['#playerHand', '#handTray'],
         body: function () {
@@ -579,21 +568,88 @@
           return !hand().some(function (c) { return c && c.type === 'SIEGLING' && c.evolvesFromId; });
         } },
 
-      { id: 't2-claim', title: 'Cash one in',
-        target: function () { return firstOf(['#playerGrid .board-cell.claimable', '#playerGrid']); },
-        highlight: ['#playerGrid .board-cell.claimable'],
-        body: 'Need energy right now? <b>Claim</b> a survivor and cash it in. You lose the body — worth it sometimes.',
-        skipIf: function () { return turn() < 2 || !visible('#playerGrid .board-cell.claimable'); } },
-
       { id: 't2-end', hint: 'Tap <b>End Turn</b>', title: 'Send it', target: actionBtn,
-        body: 'Let us see it work. <b>End Turn</b>.',
+        body: 'Linked and evolved — that is round two spent. <b>End Turn</b> and watch it fight.',
         skipIf: function () { return turn() < 2 || phase() === 'BATTLE' || seen.sawBattle2; },
         until: function () { return !myTurn() || phase() === 'BATTLE' || seen.sawBattle2; } },
 
       { id: 't2-battle', title: 'Now watch', target: '#boardArea',
-        body: 'Same rhythm, bigger board. Watch what your links bought you.',
+        body: 'Same rhythm, bigger board. Watch what your link and your evolution bought you.',
         skipIf: function () { return !seen.sawBattle; },
         until: function () { return seen.sawBattle2 || seen.ended; } },
+
+      // ---- Turn 3 ---------------------------------------------------------
+      //
+      // Round two is deliberately only two moves — link, then evolve — because
+      // that is all one Setup affords. The combo link needs a THIRD Siegeling of
+      // a different element, so it waits for round three, where GameService's
+      // scripted tutorial draw guarantees an Earth partner in hand.
+
+      { id: 'gate-t3', skipTo: 'tools',
+        hint: 'Finish round two — there is one more lesson after it',
+        gate: function () { return turn() >= 3 && seen.sawBattle2; } },
+
+      { id: 't3-draw', hint: 'Tap <b>Draw</b>', title: 'Round three, and a new element',
+        target: '#btnDraw',
+        body: function () {
+          var earth = comboPartnerInHand();
+          return 'Draw your card. ' + (earth
+            ? 'That is <b>' + esc(earth.name) + '</b> — a <b>different element</b> to what is already on your board, which is exactly what a combo needs.'
+            : 'Watch for a Siegeling of a <b>different element</b> to the ones already out — that is what a combo needs.');
+        },
+        skipIf: function () { return turn() < 3 || !seen.sawBattle2; },
+        until: function () { return phase() !== 'DRAW'; } },
+
+      { id: 't3-pick', title: 'A different element', target: '#playerHand',
+        highlight: ['#playerHand', '#handTray'],
+        hint: function () {
+          var earth = comboPartnerInHand();
+          return earth ? 'Tap <b>' + esc(earth.name) + '</b>' : 'Tap a Siegeling of a <b>different element</b>';
+        },
+        body: function () {
+          var earth = comboPartnerInHand();
+          return (earth ? 'Play <b>' + esc(earth.name) + '</b>' : 'Play that off-element Siegeling') +
+            ' next to what you already have, notches facing. Same elements bank that element; <b>different</b> ones bank a <b>combo</b>.';
+        },
+        skipIf: function () { return turn() < 3 || !seen.sawBattle2; },
+        until: function () { return selectedType() === 'SIEGLING' || comboCount() > 0 || phase() !== 'SETUP'; } },
+
+      { id: 't3-link-combo', hint: 'Now face two <b>different</b> elements at each other',
+        title: 'Your first combo link', target: '#playerGrid',
+        highlight: ['#playerGrid .board-cell.legal', '#playerGrid'],
+        body: 'Point <b>two different</b> elements at each other and you bank a <b>combo</b> instead — a split-colour point. Your heaviest cards take nothing else, so it is worth building for.',
+        skipIf: function () { return turn() < 3 || !seen.sawBattle2; },
+        until: function () { return comboCount() > 0 || phase() !== 'SETUP'; } },
+
+      { id: 't3-energy', hint: 'Tap <b>◈</b>', title: 'Look what you made', target: '#btnEnergyDetail',
+        body: 'Those coloured dots are yours to spend. Tap <b>◈</b> to see where they came from.',
+        skipIf: function () { return turn() < 3 || !seen.sawBattle2; },
+        until: function () { return seen.hadLinkEnergy || comboCount() > 0 || phase() === 'BATTLE'; } },
+
+      { id: 't3-combo', title: 'Mix it up', target: '#btnEnergyDetail',
+        body: 'Mixed links bank a split-colour <b>combo</b>. Your heaviest cards only take these — worth building for.',
+        skipIf: function () { return turn() < 3 || !seen.sawBattle2; } },
+
+      { id: 't3-strategy', hint: 'Cast a <b>Strategy</b> you can afford', title: 'Now you can afford things',
+        target: '#playerHand', highlight: ['#playerHand', '#handTray'],
+        body: 'Two rounds of link energy have piled up, so now you can actually pay for one. <b>Strategies</b> spend your own energy and resolve the moment you play them — cast one.',
+        skipIf: function () { return turn() < 3 || !handHas('SPELL'); } },
+
+      { id: 't3-deception', title: 'Spend their energy', target: '#playerHand',
+        highlight: ['#playerHand', '#handTray'],
+        body: 'Here is the sneaky one: a <b>Deception</b> is paid for with <b>their</b> energy, not yours. Play one if you have it.',
+        skipIf: function () { return turn() < 3 || !handHas('TRAP'); } },
+
+      { id: 't3-claim', title: 'Cash one in',
+        target: function () { return firstOf(['#playerGrid .board-cell.claimable', '#playerGrid']); },
+        highlight: ['#playerGrid .board-cell.claimable'],
+        body: 'Need energy right now? <b>Claim</b> a survivor and cash it in. You lose the body — worth it sometimes.',
+        skipIf: function () { return turn() < 3 || !visible('#playerGrid .board-cell.claimable'); } },
+
+      { id: 't3-end', hint: 'Tap <b>End Turn</b>', title: 'Send it', target: actionBtn,
+        body: 'That is everything a round can hold — board, links, spells. <b>End Turn</b>.',
+        skipIf: function () { return turn() < 3 || phase() === 'BATTLE'; },
+        until: function () { return !myTurn() || phase() === 'BATTLE'; } },
 
       { id: 'tools', title: 'If you get stuck', target: '#btnHint',
         body: 'Tap <b>?</b> and it tells you exactly what it is waiting for. <b>≡</b> is the log, <b>👁</b> zooms a card.' },
