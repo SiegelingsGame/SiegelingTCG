@@ -9,7 +9,7 @@
  *
  * A step is:
  *   { id, kicker, title, body, hint, target, highlight, avoid,
- *     until, next, route, skipIf, finish, finale, altLabel }
+ *     until, next, route, skipIf, gate, skipTo, finish, finale, altLabel }
  * `altLabel` adds a second foot button on a finale (e.g. Advanced Tutorial);
  * the caller handles it via `onAlt`.
  * `highlight` names everything else the player may touch on this step; the
@@ -24,6 +24,16 @@
  * `body` and `hint` may be functions, evaluated at render time, so a tip can
  * name what the player is actually looking at rather than a guess baked in
  * when the script was built.
+ * `gate` renders nothing and HOLDS the script until it comes true. This is not
+ * the same as `skipIf`, and the difference cost a whole chapter: skipIf is
+ * evaluated once, at the instant the coach advances onto the step, and a step
+ * skipped is skipped for good. So a "not yet" condition written as skipIf
+ * (`turn() < 2` on every round-two lesson) fires while round one is still
+ * playing and silently discards the lot, stranding the coach on the last step
+ * that happened to survive. A gate expresses "not yet" correctly: the coach
+ * parks, showing the gate's `hint`, and walks on the moment it opens. `skipTo`
+ * names where its Skip button lands, since skipping a wait means giving up the
+ * chapter it was waiting for.
  *
  * ES5-flavoured (var, function statements, IIFE) to match its two callers.
  */
@@ -38,6 +48,7 @@
   var collapsed = false; // a read tip shrinks to a one-line hint so the play area is clear
   var total = 0;
   var visited = null;    // step ids the coach has actually rendered, for fork routing
+  var held = false;      // parked on a `gate` step, waiting for the match to catch up
 
   var layer = null, ringEl = null, cardEl = null, safeProbe = null;
   var raf = 0, lastRect = '', renderedKey = '';
@@ -67,6 +78,13 @@
     cardEl.addEventListener('click', function (e) {
       var btn = e.target.closest ? e.target.closest('button') : null;
       if (!btn) return;
+      if (held) {
+        // Parked on a gate: the tip on screen is the gate's own hint, so the
+        // only meaningful control is giving up on what it is waiting for.
+        if (btn.classList.contains('tut-skip')) skipGate();
+        else if (btn.classList.contains('tut-quit')) stop();
+        return;
+      }
       if (btn.classList.contains('tut-next')) {
         if (btn.getAttribute('data-detour')) {
           if (cfg.onDetourContinue) cfg.onDetourContinue();
@@ -110,6 +128,13 @@
     var guard = 0;
     while (idx >= 0 && idx < STEPS.length && guard++ < 60) {
       var s = STEPS[idx];
+      if (s.gate) {
+        var open = false;
+        try { open = !!s.gate(); } catch (e) { open = true; }
+        if (!open) { held = true; renderHeld(); return; }
+        idx++;
+        continue;
+      }
       if (s.skipIf && s.skipIf()) { idx++; continue; }
       if (s.route) {
         var j = indexOfId(s.route());
@@ -139,6 +164,33 @@
   function text(v) {
     if (typeof v !== 'function') return v;
     try { return v(); } catch (e) { return ''; }
+  }
+
+  /** The parked card: the gate's own one-line hint, so the player knows what
+   *  the coach is waiting for rather than staring at the last tip they read. */
+  function renderHeld() {
+    var s = STEPS[idx];
+    if (!s) return;
+    cardEl.className = 'tut-card is-hint';
+    cardEl.dataset.step = s.title || '';
+    cardEl.dataset.stepId = s.id || '';
+    cardEl.innerHTML =
+      '<span class="tut-hint">' + (text(s.hint) || esc(s.title || 'Play on')) + '</span>' +
+      '<button class="tut-skip" type="button" title="Skip this step">Skip &#9656;</button>';
+    lastRect = '';
+    position();
+  }
+
+  /** Skipping a gate gives up the chapter behind it, so it lands where the gate
+   *  says rather than on the very lessons the wait was protecting. */
+  function skipGate() {
+    var s = STEPS[idx];
+    held = false;
+    var j = s && s.skipTo ? indexOfId(s.skipTo) : -1;
+    if (j < 0) { idx = idx + 1; }
+    else { idx = j; }
+    idx--;
+    advance();
   }
 
   function renderStep() {
@@ -426,6 +478,12 @@
     raf = window.requestAnimationFrame(tick);
     var s = current();
     if (!s) return;
+    if (held) {
+      var open = false;
+      try { open = !!(s.gate && s.gate()); } catch (e) { open = true; }
+      if (open) { held = false; idx--; advance(); }
+      return;
+    }
     if (s.until && !detour()) {
       var done = false;
       try { done = !!s.until(); } catch (e) { done = false; }
@@ -499,10 +557,11 @@
     if (!STEPS.length) { cfg = null; return; }
     ACTIVE = true;
     visited = {};
-    total = STEPS.filter(function (s) { return !s.route; }).length;
+    total = STEPS.filter(function (s) { return !s.route && !s.gate; }).length;
     idx = -1;
     shown = 0;
     collapsed = false;
+    held = false;
     lastRect = '';
     renderedKey = '';
     if (!layer) buildLayer();
@@ -532,10 +591,11 @@
     }
     STEPS = newSteps || [];
     if (!STEPS.length) { stop(); return; }
-    total = STEPS.filter(function (s) { return !s.route; }).length;
+    total = STEPS.filter(function (s) { return !s.route && !s.gate; }).length;
     idx = -1;
     shown = 0;
     collapsed = false;
+    held = false;
     visited = {};
     lastRect = '';
     renderedKey = '';
@@ -545,6 +605,7 @@
   function stop() {
     if (!ACTIVE) return;
     ACTIVE = false;
+    held = false;
     if (raf) window.cancelAnimationFrame(raf);
     raf = 0;
     watchViewport(false);

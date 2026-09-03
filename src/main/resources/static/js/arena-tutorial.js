@@ -186,7 +186,10 @@
     if (turn() >= 2 && playerEnergyTotal() > 0) seen.hadLinkEnergy = true;
     if (turn() >= 2 && comboCount() > 0) seen.hadCombo = true;
     if (handHas('TRAP') && turn() >= 2) seen.hadTrap = true;
-    if (visible('.status-badge, .affliction-badge, .sbadge, [class*="status-badge"]')) seen.sawBadge = true;
+    // `.sb-badge` is what renderStatusBadge actually emits; the earlier list here
+    // (.status-badge, .sbadge, ...) matched no element in the DOM, so this only
+    // ever fired off the board data below.
+    if (visible('.sb-badge')) seen.sawBadge = true;
 
     var board = (g.playerBoard || []);
     board.forEach(function (row) {
@@ -196,7 +199,7 @@
           seen.hadEvolution = true;
         }
         if (c.afflictions && c.afflictions.length) seen.sawBadge = true;
-        if (c.statusEffects && c.statusEffects.length) seen.sawBadge = true;
+        if (c.statuses && c.statuses.length) seen.sawBadge = true;
       });
     });
     var eboard = (g.enemyBoard || []);
@@ -204,7 +207,7 @@
       (row || []).forEach(function (c) {
         if (!c) return;
         if (c.afflictions && c.afflictions.length) seen.sawBadge = true;
-        if (c.statusEffects && c.statusEffects.length) seen.sawBadge = true;
+        if (c.statuses && c.statuses.length) seen.sawBadge = true;
       });
     });
 
@@ -295,12 +298,49 @@
         body: 'Drop a Siegeling and its owner takes <b>Siege Damage</b> straight to the face — more the rarer it was. You can win through their board.' },
 
       { id: 'status', title: 'Little icons, big deal', target: '#boardArea',
-        body: 'Burns, freezes, shields and buffs all show up as <b>badges</b>. Tap one any time to see what it is doing.' },
+        body: 'Fire leaves them <b>Burning</b>, Ice leaves them <b>Chilled</b>, and shields and boosts ride along the same way. They all show up as <b>badges</b> on the card, and they keep working after your turn ends.' },
+
+      // Deliberately NOT a waiting step. A badge is transient — it expires, and
+      // the board re-renders under it — so gating on "now tap it" either strands
+      // the player on a tap that is no longer possible or holds the match
+      // hostage while they ignore it. It points at a live badge and invites the
+      // tap; the two steps below pick the thread up only if they took it.
+      { id: 'badge-open', title: 'Look one up',
+        target: function () { return firstOf(['#playerGrid .sb-badge', '#enemyGrid .sb-badge', '#playerGrid']); },
+        highlight: ['#playerGrid', '#enemyGrid'],
+        body: 'Never guess what a badge is doing. <b>Tap the card</b> wearing one and its preview opens underneath, with the badge listed as a chip.',
+        skipIf: function () { return !visible('.sb-badge'); } },
+
+      { id: 'badge-key', hint: 'Tap the badge chip', title: 'The badge screen',
+        target: function () { return firstOf(['.buff-pill:not(.buff-pill-all)', '.buff-pill-all', '#boardArea']); },
+        highlight: ['.selected-copy-buffs .buff-pill'],
+        avoid: '.trainer-ability-close',
+        body: 'Tap the chip. It spells out exactly what that badge does — how hard it bites, how long it lasts, what happens if it stacks. <b>All Effects</b> lists every one in the game.',
+        skipIf: function () { return !visible('.buff-pill') && !visible('#effectKeyOverlay:not(.hidden)'); },
+        until: function () { return visible('#effectKeyOverlay:not(.hidden)') || !visible('.buff-pill'); } },
+
+      { id: 'badge-close', hint: 'Tap <b>Close</b>', title: 'Always one tap away',
+        target: function () { return firstOf(['#effectKeyOverlay .trainer-ability-close', '#boardArea']); },
+        avoid: '.trainer-ability-close',
+        body: 'That key is open to you mid-fight, for any badge on any card, yours or theirs. Close it and let us finish the round.',
+        skipIf: function () { return !visible('#effectKeyOverlay:not(.hidden)'); },
+        until: function () { return !visible('#effectKeyOverlay:not(.hidden)'); } },
 
       // ---- Turn 2 ---------------------------------------------------------
+      //
+      // Everything below is round-two material, and MUST NOT be reached while
+      // round one is still playing. Written as `skipIf: turn() < 2` it was:
+      // skipIf is evaluated once, on arrival, so the whole chapter was skipped
+      // in a single pass during the first Battle phase and the coach stranded
+      // itself on the last step standing, which then sat there as a stale hint
+      // through all of round two. A gate holds instead of discarding.
 
-      { id: 't2-draw', hint: 'Tap <b>Draw</b>', title: 'Round two', target: '#btnDraw',
-        body: 'Round two. <b>Tap Draw</b>.',
+      { id: 'gate-t2', skipTo: 'tools',
+        hint: 'Play the battle out — round two is next',
+        gate: function () { return turn() >= 2 && seen.sawBattle; } },
+
+      { id: 't2-draw', hint: 'Tap <b>Draw</b>', title: 'Round two, fresh card', target: '#btnDraw',
+        body: 'Every round opens by drawing one card into your hand. <b>Tap Draw</b> and see what you got.',
         skipIf: function () { return turn() < 2 || !seen.sawBattle; },
         until: function () { return phase() !== 'DRAW'; } },
 
@@ -334,6 +374,11 @@
       { id: 't2-combo', title: 'Mix it up', target: '#btnEnergyDetail',
         body: 'Mixed links bank a split-colour <b>combo</b>. Your heaviest cards only take these — worth building for.',
         skipIf: function () { return turn() < 2 || mine() < 2; } },
+
+      { id: 't2-strategy', hint: 'Cast a <b>Strategy</b> you can afford', title: 'Now you can afford things',
+        target: '#playerHand', highlight: ['#playerHand', '#handTray'],
+        body: 'That fresh card plus a round of link energy is the point of building a board. <b>Strategies</b> spend your own energy and resolve the moment you play them — cast one.',
+        skipIf: function () { return turn() < 2 || !handHas('SPELL'); } },
 
       { id: 't2-deception', title: 'Spend their energy', target: '#playerHand',
         highlight: ['#playerHand', '#handTray'],
