@@ -284,6 +284,10 @@ public class GameService {
             state.log("Card not found in hand or not a Siegling!");
             return state;
         }
+        if (!isTutorialTurnOnePlacementAllowed(state, isPlayerSide, siegling)) {
+            state.log("The tutorial opens with " + tutorialOpenerName(actor) + " — place it first.");
+            return state;
+        }
         if (!energyService.canAfford(state, isPlayerSide, siegling.getCostElement(), siegling.getCostAmount())) {
             state.log("Not enough energy to play " + siegling.getName() + "!");
             return state;
@@ -679,6 +683,9 @@ public class GameService {
 
     private static final List<String> TUTORIAL_REQUIRED_OPENING_IDS = List.of(
             "sundile", "pylook", "spell_fire_06", "trap13");
+
+    /** Single source of truth for the turn-one opener; see GameState. */
+    public static final String TUTORIAL_TURN_ONE_OPENER_ID = GameState.TUTORIAL_TURN_ONE_OPENER_ID;
 
     /**
      * Tutorial draw stack, in the order the lessons need it. The opening five are
@@ -1153,6 +1160,35 @@ public class GameService {
         state.setMulliganPending(isPlayerSide, false);
         tryCompleteOpeningMulligan(state);
         return state;
+    }
+
+    /**
+     * Turn one of the tutorial takes the designated opener and nothing else.
+     * Evolutions are exempt — they cannot be placed on turn one anyway (their
+     * base has not fought yet), so the base rules already refuse them and this
+     * gate has no business producing a second, more confusing refusal.
+     */
+    private boolean isTutorialTurnOnePlacementAllowed(GameState state, boolean isPlayerSide, SieglingCard siegling) {
+        if (state == null || !state.isTutorialMatch() || !isPlayerSide) {
+            return true;
+        }
+        if (siegling == null || siegling.isEvolutionCard()) {
+            return true;
+        }
+        String required = state.getTutorialRequiredPlacementId();
+        return required == null || required.equalsIgnoreCase(siegling.getId());
+    }
+
+    /** The opener's printed name, so the refusal names a card the player can see. */
+    private String tutorialOpenerName(Player actor) {
+        if (actor != null) {
+            for (Card held : actor.getHand()) {
+                if (held != null && TUTORIAL_TURN_ONE_OPENER_ID.equalsIgnoreCase(held.getId())) {
+                    return held.getName();
+                }
+            }
+        }
+        return "its first Siegling";
     }
 
     /**
