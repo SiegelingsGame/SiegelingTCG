@@ -10234,18 +10234,18 @@ body.placement-active .board-cell.legal {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 6px 14px;
+    gap: 6px 8px;
     font-size: 0.68em;
     color: var(--text-dim);
-    padding: 4px 2px 8px;
+    padding: 2px 0 10px;
     margin: 0;
 }
 
 .game-log-toolbar-label {
     font-weight: 700;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: rgba(200, 210, 235, 0.78);
+    color: rgba(255, 211, 91, 0.82);
 }
 
 .game-log-filter {
@@ -10254,6 +10254,10 @@ body.placement-active .board-cell.legal {
     gap: 5px;
     cursor: pointer;
     user-select: none;
+    padding: 4px 8px;
+    border: 1px solid rgba(131, 166, 225, 0.2);
+    border-radius: 999px;
+    background: rgba(50, 70, 112, 0.3);
 }
 
 .battle-hint-compact {
@@ -10618,21 +10622,36 @@ body.placement-active .board-cell.legal {
     font-size: 0.7em;
     max-height: 240px;
     overflow-y: auto;
-    background: #0d1117;
-    border-radius: 6px;
-    padding: 8px;
+    background: radial-gradient(circle at 100% 0, rgba(55, 113, 192, 0.16), transparent 34%), linear-gradient(155deg, #11192c, #090e1b 72%);
+    border: 1px solid rgba(124, 153, 210, 0.22);
+    border-radius: 12px;
+    padding: 7px;
 }
 
 .log-entry {
-    padding: 2px 0;
-    border-bottom: 1px solid #1a2030;
+    display: flex;
+    gap: 8px;
+    padding: 7px 8px;
+    margin: 3px 0;
+    border: 1px solid rgba(122, 150, 203, 0.13);
+    border-left: 3px solid #667696;
+    border-radius: 9px;
+    background: rgba(12, 19, 36, 0.62);
     color: var(--text-dim);
     word-wrap: break-word;
 }
 
-.log-entry:last-child {
-    color: var(--text);
-    font-weight: bold;
+.log-entry-icon { display:grid; flex:0 0 21px; width:21px; height:21px; place-items:center; border-radius:7px; background:rgba(111,139,188,.15); color:#b7c8ee; font-weight:900; }
+.log-entry-copy { min-width:0; flex:1; }
+.log-entry-copy p { margin:2px 0 0; line-height:1.35; color:rgba(218,228,247,.88); }
+.log-entry-meta { display:flex; gap:5px; }
+.log-phase, .log-turn { padding:1px 5px; border-radius:4px; font-size:.72em; font-weight:800; letter-spacing:.08em; }
+.log-phase { background:rgba(126,150,194,.15); color:#aebee0; }
+.log-turn { color:rgba(196,210,240,.58); }
+.log-entry-draw { border-left-color:#61bff4; }.log-entry-setup { border-left-color:#a989ff; }.log-entry-battle { border-left-color:#ffc653; }.log-entry-impact { border-left-color:#ff685d; }
+.log-entry.is-latest { border-color:rgba(255,207,87,.44); border-left-color:#ffd35a; background:linear-gradient(105deg,rgba(255,191,59,.11),rgba(28,58,111,.58)); }
+.log-round-divider { display:flex; align-items:center; gap:7px; margin:9px 2px 6px; color:#ffd66f; font-size:.74em; font-weight:900; letter-spacing:.12em; text-transform:uppercase; }
+.log-round-divider span { height:1px; flex:1; background:rgba(255,208,87,.55); }
 }
 
 .card-tooltip {

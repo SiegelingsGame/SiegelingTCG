@@ -1,3 +1,6 @@
+- September 3, 2026 Battle Chronicle refresh: the Battle Table log now renders existing server entries as color-coded Draw, Setup, Battle, Impact, and milestone cards with phase/turn badges, icons, round dividers, filter chips, and a highlighted latest event. The mobile drawer is named Battle Chronicle; the same feed powers the desktop inspector. Cache pins: `style.css` 243 → 244, `game.js` 258 → 259.
+- Verification: focused `GameJavaScriptRegressionTest` passed before the merge; cache pins were rebased onto current main and `git diff --check` passes.
+
 - September 3, 2026 Guest Cards binder no longer offers the full unowned catalog. Logged-out players only browse cards from the free Fire / Ice / Earth / Wind preset decks (plus the three guest starter SiegeKnights), with a **Sign in to access cards** CTA for the full binder — ~87 starter cards instead of the whole roster. Cache pins: `home.js` 160 → 161, `home.css` 141 → 142 (`home.html`, `card-dashboard.html`).
 - Verification: `node --check js/home.js`; `GameJavaScriptRegressionTest#guestBinderShowsFreePresetDeckCardsAndAsksForSignIn` green. Headless Chromium guest `/cards` against the live options payload at 390x844 and 1920x1080: count `24 / 87 starter cards`, Sign-in CTA present, full catalog (153) not shown.
 

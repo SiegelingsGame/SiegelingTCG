@@ -1241,6 +1241,51 @@ function getFilteredGameLog(entries) {
     return entries.filter((e) => logEntryMatchesFilters(e, filters));
 }
 
+function describeGameLogEntry(entry) {
+    const raw = String(entry || '');
+    const prefix = raw.match(/^\[Turn\s+(\d+)\s+(\w+)\]\s*/i);
+    const round = raw.match(/---\s*Round\s+(\d+)/i);
+    const isOrder = /Turn order this round/i.test(raw);
+    let phase = prefix ? prefix[2].toUpperCase() : '';
+    let copy = prefix ? raw.slice(prefix[0].length) : raw;
+    let kind = 'note';
+    let icon = '✦';
+
+    if (round || isOrder) {
+        phase = 'ROUND';
+        kind = 'round';
+        icon = '✦';
+        copy = round ? `Round ${round[1]}` : 'Turn order locked in';
+    } else if (phase === 'DRAW') {
+        kind = 'draw';
+        icon = '↗';
+    } else if (phase === 'SETUP') {
+        kind = 'setup';
+        icon = /afflicted|burn|poison|chill|stun|shield/i.test(copy) ? '✹' : '◆';
+    } else if (phase === 'BATTLE') {
+        kind = /deals?\s+\d+\s+damage|defeat|destroy|bounty/i.test(copy) ? 'impact' : 'battle';
+        icon = kind === 'impact' ? '✹' : '⚔';
+    }
+    if (/phase end/i.test(copy)) {
+        kind = 'milestone';
+        icon = '—';
+    }
+    return { phase, kind, icon, copy, turn: prefix ? prefix[1] : '' };
+}
+
+function gameLogEntryMarkup(entry, isLatest) {
+    const event = describeGameLogEntry(entry);
+    if (event.kind === 'round') {
+        return `<div class="log-round-divider"><span></span><strong>${escapeHtml(event.copy)}</strong><span></span></div>`;
+    }
+    const phaseLabel = event.phase || 'EVENT';
+    const turnLabel = event.turn ? `<span class="log-turn">T${escapeHtml(event.turn)}</span>` : '';
+    return `<article class="log-entry log-entry-${event.kind}${isLatest ? ' is-latest' : ''}">
+        <span class="log-entry-icon" aria-hidden="true">${event.icon}</span>
+        <div class="log-entry-copy"><div class="log-entry-meta"><span class="log-phase">${escapeHtml(phaseLabel)}</span>${turnLabel}</div><p>${escapeHtml(event.copy)}</p></div>
+    </article>`;
+}
+
 function renderGameLogToolbar() {
     const bars = [
         document.getElementById('gameLogToolbar'),
@@ -1288,10 +1333,8 @@ function renderLog() {
         return;
     }
 
-    let html = '';
-    for (const entry of getFilteredGameLog(gameState.gameLog)) {
-        html += `<div class="log-entry">${escapeHtml(entry)}</div>`;
-    }
+    const entries = getFilteredGameLog(gameState.gameLog);
+    const html = entries.map((entry, index) => gameLogEntryMarkup(entry, index === 0)).join('');
     logs.forEach((log) => {
         log.innerHTML = html;
         log.scrollTop = 0;
