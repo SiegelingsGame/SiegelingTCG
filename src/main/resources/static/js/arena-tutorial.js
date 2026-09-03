@@ -252,14 +252,14 @@
           var n = swapCardName();
           return n ? 'Tap <b>' + esc(n) + '</b>, then <b>Redraw selected</b>' : 'Tap the marked card, then <b>Redraw selected</b>';
         },
-        title: 'Swap a card before you start',
+        title: 'Mulligan before you start',
         target: '#mulliganHandPreview .mulligan-card-slot[data-index="4"]',
         highlight: ['#mulliganHandPreview', '#mulliganActions'],
         body: function () {
           var n = swapCardName();
-          return 'You get one swap before the first round. ' +
-            (n ? 'Tap <b>' + esc(n) + '</b> — the card marked <b>Tap to redraw</b> — ' : 'Tap the marked card ') +
-            'then hit <b>Redraw selected</b> and see what you get.';
+          return 'One mulligan before the first round: tap every card you do not want and you draw that many back. ' +
+            'Let\'s try it with ' + (n ? '<b>' + esc(n) + '</b> — the card marked <b>Tap to redraw</b>. ' : 'the marked card. ') +
+            'Tap it, then hit <b>Redraw selected</b> and see what you get.';
         },
         skipIf: function () { return phase() !== 'MULLIGAN'; },
         until: function () { return phase() !== 'MULLIGAN'; } },
