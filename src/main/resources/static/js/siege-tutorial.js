@@ -130,11 +130,24 @@
   var EVOLUTIONS = {
     draco: {
       id: 'dracoil', name: 'Dracoil', hp: 82, speed: 12,
-      artUrl: 'https://firebasestorage.googleapis.com/v0/b/siegelingstcgtesting.firebasestorage.app/o/cards%2Fdracoil.png?alt=media&token=9c268396-5eab-4679-a448-dcab83a334ce'
+      artUrl: 'https://firebasestorage.googleapis.com/v0/b/siegelingstcgtesting.firebasestorage.app/o/cards%2Fdracoil.png?alt=media&token=9c268396-5eab-4679-a448-dcab83a334ce',
+      // The evolved form brings its OWN cards, as a real run does — the deck is
+      // rebuilt around the new Siegeling rather than keeping the basic's.
+      moves: [
+        { name: 'Magma Lash', element: 'FIRE', effect: 'DAMAGE', value: 8, actionCost: 0, target: 'ENEMY_SINGLE', description: 'Deal 8 Fire damage to an Enemy', status: 'BURN', statusChance: 35 },
+        // Keep a BUFF_ATK in slot 1: Draco's Spark sits there, and it is the
+        // only card in the tutorial that demonstrates an attack buff — swapping
+        // it out for a second damage move would quietly delete that lesson.
+        { name: 'Emberbrand', element: 'FIRE', effect: 'BUFF_ATK', value: 3, actionCost: 0, target: 'ALLY_SINGLE', description: 'Grant Ally +3 Damage', durationRounds: 2 }
+      ]
     },
     fawny: {
       id: 'chilldoe', name: 'Chilldoe', hp: 58, speed: 5,
-      artUrl: 'https://firebasestorage.googleapis.com/v0/b/siegelingstcgtesting.firebasestorage.app/o/cards%2Fchilldoe.png?alt=media&token=500918f8-06c5-4353-ac5c-af96f850ef97'
+      artUrl: 'https://firebasestorage.googleapis.com/v0/b/siegelingstcgtesting.firebasestorage.app/o/cards%2Fchilldoe.png?alt=media&token=500918f8-06c5-4353-ac5c-af96f850ef97',
+      moves: [
+        { name: 'Glacier Fist', element: 'ICE', effect: 'DAMAGE', value: 6, actionCost: 1, target: 'ENEMY_SINGLE', description: 'Deal 6 Ice damage to an Enemy', status: 'SLOW', statusChance: 40 },
+        { name: 'Whiteout', element: 'ICE', effect: 'DAMAGE', value: 7, actionCost: 2, target: 'ALL_ENEMIES', description: 'Deal 7 Ice damage to every Enemy', status: 'SLOW', statusChance: 45 }
+      ]
     }
   };
 
@@ -186,11 +199,22 @@
     });
   }
 
+  /** What a damage card will ACTUALLY hit for, owner's attack buff included.
+   *  `resolve` already adds it (`c.value + owner.attackBuff`) but the card face
+   *  was built with `boostedValue: tpl.value`, so a buffed Siegeling's cards
+   *  kept advertising the unbuffed number — standard Siege strikes through the
+   *  old value and shows the new one, and the tutorial did not. */
+  function boostedFor(tpl) {
+    if (tpl.effect !== 'DAMAGE' && tpl.effect !== 'EXECUTE') return tpl.value;
+    var owner = M.battle ? findUnit(tpl.ownerId) : null;
+    return tpl.value + ((owner && owner.attackBuff) || 0);
+  }
+
   function handCard(tpl, ap) {
     var needs = tpl.target === 'ENEMY_SINGLE' || tpl.target === 'ALLY_SINGLE';
     var h = {
       instanceId: tpl.instanceId, name: tpl.name, element: tpl.element,
-      effect: tpl.effect, value: tpl.value, boostedValue: tpl.value,
+      effect: tpl.effect, value: tpl.value, boostedValue: boostedFor(tpl),
       target: tpl.target, actionCost: tpl.actionCost, description: tpl.description,
       ownerId: tpl.ownerId, ownerName: tpl.ownerName, needsTarget: needs,
       playable: ap >= tpl.actionCost
@@ -642,10 +666,49 @@
     b.events = events;
   }
 
+  /**
+   * An evolved Siegeling fights with its OWN cards. This used to be skipped —
+   * the comment said the lesson was "what evolving is" — and the result was a
+   * board showing Chilldoe while the hand still held a card labelled Fawny,
+   * which reads as a bug rather than a simplification. Every card this unit
+   * owns, in hand, draw pile and discard, is rebuilt from the evolved form's
+   * moves; a card mid-flight keeps its instanceId so the DOM node it is
+   * animating survives the swap.
+   */
+  function swapCardsForEvolution(unit, evo) {
+    var b = M.battle;
+    var moves = (evo.moves && evo.moves.length) ? evo.moves : null;
+    ['_hand', '_draw', '_discard'].forEach(function (pile) {
+      b[pile] = (b[pile] || []).map(function (c) {
+        if (!c || c.ownerId !== unit.id) return c;
+        if (!moves) {
+          // No evolved moveset baked: at least stop the card claiming the
+          // pre-evolution owner.
+          c.ownerName = evo.name;
+          return c;
+        }
+        var m = moves[cardSlotOf(c)] || moves[0];
+        return {
+          instanceId: c.instanceId, ownerId: unit.id, ownerName: evo.name,
+          name: m.name, element: m.element, effect: m.effect, value: m.value,
+          actionCost: m.actionCost, target: m.target, description: m.description,
+          status: m.status, statusChance: m.statusChance, durationRounds: m.durationRounds
+        };
+      });
+    });
+    unit.cards = moves ? moves.slice() : unit.cards;
+  }
+
+  /** Deck cards are built one per move and tagged "<tag>-<i>", so the trailing
+   *  index says which of its owner's moves a card came from. */
+  function cardSlotOf(c) {
+    var m = /-(\d+)$/.exec(String(c.instanceId || ''));
+    return m ? Number(m[1]) : 0;
+  }
+
   /* Squire Bob is a Marshal, so his Ultimate is Muster the Line: it evolves
    * Siegelings on the spot. The tutorial plays the real evolve event and takes
-   * the evolved form's name, art and stats; it keeps the pre-evolution cards,
-   * which a real run would swap — the lesson here is what evolving *is*. */
+   * the evolved form's name, art, stats and cards, as a real run does. */
   function useUltimate() {
     var b = M.battle;
     if (!b || b.knight.charge < b.knight.ultCost) { M.error = 'The Ultimate is not charged yet.'; return; }
@@ -674,6 +737,7 @@
         type: 'evolve', targetId: a.id, from: was, to: evo.name,
         element: a.element, vitals: vitalsOf([a.id])
       });
+      swapCardsForEvolution(a, evo);
       logLine(was + ' evolves into ' + evo.name + '!');
       // Deliberately NOT written back to M.party: evolution lasts the battle
       // and no longer (SiegeCombatEngine#clearBattleBuffs). An equipped

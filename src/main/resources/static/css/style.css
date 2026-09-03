@@ -14491,6 +14491,12 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 
 .mulligan-practice-badge {
     background: linear-gradient(180deg, rgba(70, 160, 120, 0.96), rgba(30, 110, 80, 0.96));
+    /* "Tap to redraw" is a whole instruction, not the one word this badge was
+       sized for, so keep it on one line and tighten the tracking rather than
+       let it wrap into two rows over the card art. */
+    white-space: nowrap;
+    letter-spacing: 0.4px;
+    max-width: calc(100% - 20px);
 }
 
 @media (max-width: 900px) {

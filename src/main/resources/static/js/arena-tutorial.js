@@ -25,6 +25,7 @@
   /** Latched observations: things a single state snapshot cannot show, such as
    *  "a Siegeling died at some point during that battle phase". */
   var seen = null;
+  var linkBaseline = null;   // elemental energy when the same-element lesson opened
   var watchRaf = 0;
 
   /** game.js declares its state with `let`, which in a classic script is
@@ -67,6 +68,26 @@
       total += Number(g.player[key + 'Energy'] || 0);
     });
     return total;
+  }
+
+  /** Energy actually banked in the elemental pools — what a SAME-ELEMENT link
+   *  pays. A combo goes to comboPoints instead, so the two are distinguishable
+   *  and each lesson can wait for the thing it is actually teaching. */
+  function elementalEnergy() { return playerEnergyTotal(); }
+
+  /** A hand card that actually asks for energy, or null. The tutorial's starter
+   *  Sieglings are all free (cost 0) — it is the EVOLUTIONS that carry a cost
+   *  (Raydile and Dracoil are FIRE 2), so the lesson has to read the hand
+   *  rather than assume a Siegling costs something. */
+  function costedCard() {
+    var cards = hand().filter(function (c) { return c && c.costAmount > 0 && c.costElement; });
+    return cards[0] || null;
+  }
+
+  /** The cost chip the game actually renders — `.card-corner-cost`, not the
+   *  summary row, which the hand fan does not use. */
+  function costTarget() {
+    return firstOf(['#playerHand .card-corner-cost', '#handTray .card-corner-cost', '#playerHand']);
   }
 
   function comboCount() {
@@ -142,6 +163,27 @@
     return visible(sel) ? sel : firstOf(['#playerGrid .board-cell.legal', '#playerGrid']);
   }
 
+  /** Card names come from the catalog and land inside tip HTML, so escape them
+   *  here rather than trusting them. coach.js has its own copy in its closure;
+   *  this file cannot see it. */
+  function esc(v) {
+    return String(v == null ? '' : v).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+
+  /** The card the scripted mulligan lets you swap, by name. Read live rather
+   *  than baked into the copy: the tip used to say "Pylook" while the slot held
+   *  whatever the deal put there. */
+  function swapCardName() {
+    var g = gs();
+    var h = (g && g.player && g.player.hand) || [];
+    var allowed = g && g.mulligan && g.mulligan.allowedIndices;
+    var i = (allowed && allowed.length) ? Number(allowed[0]) : h.length - 1;
+    var card = h[i];
+    return (card && card.name) || '';
+  }
+
   // ---- latching watcher ---------------------------------------------------
 
   /** Some lessons are about an outcome, not a tap: a Siegeling destroyed, the
@@ -165,7 +207,10 @@
     if (turn() >= 2 && playerEnergyTotal() > 0) seen.hadLinkEnergy = true;
     if (turn() >= 2 && comboCount() > 0) seen.hadCombo = true;
     if (handHas('TRAP') && turn() >= 2) seen.hadTrap = true;
-    if (visible('.status-badge, .affliction-badge, .sbadge, [class*="status-badge"]')) seen.sawBadge = true;
+    // `.sb-badge` is what renderStatusBadge actually emits; the earlier list here
+    // (.status-badge, .sbadge, ...) matched no element in the DOM, so this only
+    // ever fired off the board data below.
+    if (visible('.sb-badge')) seen.sawBadge = true;
 
     var board = (g.playerBoard || []);
     board.forEach(function (row) {
@@ -175,7 +220,7 @@
           seen.hadEvolution = true;
         }
         if (c.afflictions && c.afflictions.length) seen.sawBadge = true;
-        if (c.statusEffects && c.statusEffects.length) seen.sawBadge = true;
+        if (c.statuses && c.statuses.length) seen.sawBadge = true;
       });
     });
     var eboard = (g.enemyBoard || []);
@@ -183,7 +228,7 @@
       (row || []).forEach(function (c) {
         if (!c) return;
         if (c.afflictions && c.afflictions.length) seen.sawBadge = true;
-        if (c.statusEffects && c.statusEffects.length) seen.sawBadge = true;
+        if (c.statuses && c.statuses.length) seen.sawBadge = true;
       });
     });
 
@@ -195,179 +240,416 @@
 
   function buildSteps() {
     return [
-      { id: 'welcome', kicker: 'Tutorial match', title: 'Welcome',
-        body: 'You lead <b>Squire Bob</b> with <b>Ashen Roots</b> against a Training Dummy. I will tip you, you press <b>Got it</b>, then make the play.' },
+      { id: 'welcome', kicker: 'Tutorial match', title: 'Let\'s get you fighting',
+        body: function () {
+          var k = knightName();
+          return 'You are ' + (k ? '<b>' + esc(k) + '</b>' : 'the Knight') +
+            ', leading a warband against a Training Dummy that hits back. I will point, you play.';
+        } },
 
-      { id: 'mulligan', hint: 'Keep, or practice one redraw', title: 'Opening hand',
+      { id: 'mulligan',
+        hint: function () {
+          var n = swapCardName();
+          return n ? 'Tap <b>' + esc(n) + '</b>, then <b>Redraw selected</b>' : 'Tap the marked card, then <b>Redraw selected</b>';
+        },
+        title: 'Swap a card before you start',
         target: '#mulliganHandPreview .mulligan-card-slot[data-index="4"]',
         highlight: ['#mulliganHandPreview', '#mulliganActions'],
-        body: 'This hand is scripted. Four cards stay locked for the lesson. Tap <b>Pylook</b> to practice one redraw, or <b>Keep hand</b>.',
+        body: function () {
+          var n = swapCardName();
+          return 'You get one swap before the first round. ' +
+            (n ? 'Tap <b>' + esc(n) + '</b> — the card marked <b>Tap to redraw</b> — ' : 'Tap the marked card ') +
+            'then hit <b>Redraw selected</b> and see what you get.';
+        },
         skipIf: function () { return phase() !== 'MULLIGAN'; },
         until: function () { return phase() !== 'MULLIGAN'; } },
 
-      { id: 'hud', title: 'The board', target: '#boardArea',
-        body: 'Dummy above, you below — each a <b>3×3</b>. Bars show <b>HP</b>, deck, and energy. Sieglings have Health, Speed, notches, and abilities — no printed attack.' },
+      { id: 'hud', title: 'Your half, their half', target: '#boardArea',
+        body: 'Dummy up top, you down below, <b>3×3</b> each. The bars track <b>HP</b>, deck and energy.' },
 
       { id: 'phases', kicker: 'The round', title: 'Draw → Setup → Battle', target: '#phaseBadge',
-        body: '<b>Draw</b> a card. <b>Setup</b> place and cast. <b>Battle</b> every Siegeling acts once, fastest first.' },
+        body: 'Three beats, every round. <b>Draw</b> one. <b>Setup</b> your board. <b>Battle</b> — everyone swings, fastest first.' },
 
-      { id: 'draw', hint: 'Tap <b>Draw</b>', title: 'Draw', target: '#btnDraw',
-        body: '<b>Tap Draw</b> to take your card.',
+      { id: 'draw', hint: 'Tap <b>Draw</b>', title: 'Take a card', target: '#btnDraw',
+        body: 'Your round starts here. <b>Tap Draw</b>.',
         skipIf: function () { return phase() !== 'DRAW'; },
         until: function () { return phase() !== 'DRAW'; } },
 
-      { id: 'setup', title: 'Setup', target: '#phaseBadge',
-        body: 'Place up to <b>one</b> Siegeling, cast cards you can afford, or claim later. Actions scale with the energy you held when Setup began.',
+      { id: 'setup', title: 'This is your turn', target: '#phaseBadge',
+        body: 'One Siegeling down, plus whatever you can pay for. The more energy you walked in with, the more you get to do.',
         until: function () { return phase() === 'SETUP' || phase() === 'BATTLE'; } },
 
-      { id: 'pick', hint: 'Tap a <b>Siegeling</b>', title: 'Pick a Siegeling', target: '#playerHand',
+      { id: 'pick', hint: 'Tap a <b>Siegeling</b>', title: 'Who is going in?', target: '#playerHand',
         highlight: ['#playerHand', '#handTray'],
-        body: '<b>Tap a Siegeling</b> (HP + SPD). Legal cells light up.',
+        body: 'Pick your opener — anything with <b>HP</b> and <b>SPD</b>. Tap it and the board shows you where it can go.',
         until: function () { return selectedType() === 'SIEGLING' || mine() > 0; } },
 
-      { id: 'place', hint: 'Place on the <b>gold</b> cell', title: 'Reach a socket',
+      { id: 'place', hint: 'Place on the <b>gold</b> cell', title: 'Plug into a socket',
         target: recommendedCell,
         highlight: ['#playerGrid .board-cell.legal'],
         recommend: recommendedCell,
-        body: 'Dots outside the grid are <b>sockets</b>. The <b>gold</b> cell is where this card\'s notches reach one — that starts your energy. Place there.',
+        body: 'See the dots outside the grid? Those are <b>sockets</b>, and touching one starts your energy flowing. The <b>gold</b> cell is where this card reaches one. Put it there.',
         until: function () { return mine() > 0; } },
 
-      { id: 'strategy', title: 'Strategies', target: '#playerHand',
+      { id: 'strategy', title: 'Spend that energy', target: '#playerHand',
         highlight: ['#playerHand', '#handTray'],
-        body: '<b>Strategies</b> cast on your turn from <b>your</b> energy (and combo). They resolve right away. Cast one if you can — optional.',
+        body: '<b>Strategies</b> spend your own energy and go off immediately. Got one you can afford? Fire it.',
         skipIf: function () { return !handHas('SPELL'); } },
 
-      { id: 'knight', hint: 'Tap <b>Knight</b>', title: 'SiegeKnight', target: '#btnTrainerAbility',
+      { id: 'knight', hint: 'Tap <b>Knight</b>', title: 'Meet your Knight', target: '#btnTrainerAbility',
         avoid: '.trainer-ability-close',
-        body: 'Your Knight has an always-on <b>passive</b> and a spendable <b>active</b>. Tap <b>Knight</b> to read them.',
+        body: function () {
+          var k = knightName();
+          return (k ? '<b>' + esc(k) + '</b>' : 'Your Knight') +
+            ' is not just standing there — a <b>passive</b> always running, and an <b>active</b> you spend. ' +
+            '<b>Tap Knight</b> and see what they bring.';
+        },
         until: function () { return seen.knightSpent || visible('#trainerAbilityOverlay') || seen.knightOpened; } },
 
-      { id: 'endturn', hint: 'Tap <b>End Turn</b>', title: 'End Setup', target: actionBtn,
-        body: '<b>End Turn</b>. When both sides finish Setup, Battle starts.',
+      { id: 'endturn', hint: 'Tap <b>End Turn</b>', title: 'Hand it over', target: actionBtn,
+        body: 'Done building? <b>End Turn</b> and let them swing.',
         until: function () { return !myTurn() || phase() === 'BATTLE'; } },
 
-      { id: 'battle', title: 'Battle', target: '#boardArea',
-        body: 'Fastest Siegeling acts first. Abilities spend energy. Fire hits Ice hard here.',
+      { id: 'battle', title: 'Watch them go', target: '#boardArea',
+        body: 'Fastest acts first, all the way down the line. Your Fire is very rude to their Ice.',
         until: function () { return seen.sawBattle; } },
 
-      { id: 'target', hint: 'Pick a <b>target</b>', title: 'Targets',
+      { id: 'target', hint: 'Pick a <b>target</b>', title: 'Pick your victim',
         target: function () { return firstOf(['#enemyGrid .board-cell.targetable', '#enemyGrid']); },
         highlight: ['#enemyGrid .board-cell.targetable', '#playerGrid .board-cell.targetable'],
-        body: 'Lit cells are legal targets. Tap one to fire.',
+        body: 'Lit cells are fair game. Pick one.',
         skipIf: function () { return !visible('#enemyGrid .board-cell.targetable'); },
         until: function () { return !visible('#enemyGrid .board-cell.targetable'); } },
 
-      { id: 'damage', title: 'Damage', target: '#boardArea',
-        body: 'All damage comes from <b>abilities</b>. Weakness adds +1 when your element beats theirs.' },
+      { id: 'damage', title: 'Where damage comes from', target: '#boardArea',
+        body: 'Every point of it comes from <b>abilities</b> — there is no attack stat. Hit an element you beat and you get <b>+1</b> for free.' },
 
-      { id: 'kill', title: 'Siege Damage', target: '#enemyGrid',
-        body: 'A defeated Siegeling deals <b>Siege Damage</b> to its owner\'s HP. Higher rarity hits harder: ⚪ Common · 🟢 Uncommon · 🔵 Rare · 🟣 Epic · 🟡 Legendary · 🔴 heaviest.' },
+      { id: 'kill', title: 'Knocking one out hurts them', target: '#enemyGrid',
+        body: 'Drop a Siegeling and its owner takes <b>Siege Damage</b> straight to the face — more the rarer it was. You can win through their board.' },
 
-      { id: 'status', title: 'Status & badges', target: '#boardArea',
-        body: 'Hits can leave <b>badges</b> — burn, freeze, buffs, shields. Tap a badge or <b>?</b> anytime to read what it does.' },
+      { id: 'status', title: 'Little icons, big deal', target: '#boardArea',
+        body: 'Fire leaves them <b>Burning</b>, Ice leaves them <b>Chilled</b>, and shields and boosts ride along the same way. They all show up as <b>badges</b> on the card, and they keep working after your turn ends.' },
+
+      // Deliberately NOT a waiting step. A badge is transient — it expires, and
+      // the board re-renders under it — so gating on "now tap it" either strands
+      // the player on a tap that is no longer possible or holds the match
+      // hostage while they ignore it. It points at a live badge and invites the
+      // tap; the two steps below pick the thread up only if they took it.
+      { id: 'badge-open', title: 'Look one up',
+        target: function () { return firstOf(['#playerGrid .sb-badge', '#enemyGrid .sb-badge', '#playerGrid']); },
+        highlight: ['#playerGrid', '#enemyGrid'],
+        body: 'Never guess what a badge is doing. <b>Tap the card</b> wearing one and its preview opens underneath, with the badge listed as a chip.',
+        skipIf: function () { return !visible('.sb-badge'); } },
+
+      { id: 'badge-key', hint: 'Tap the badge chip', title: 'The badge screen',
+        target: function () { return firstOf(['.buff-pill:not(.buff-pill-all)', '.buff-pill-all', '#boardArea']); },
+        highlight: ['.selected-copy-buffs .buff-pill'],
+        avoid: '.trainer-ability-close',
+        body: 'Tap the chip. It spells out exactly what that badge does — how hard it bites, how long it lasts, what happens if it stacks. <b>All Effects</b> lists every one in the game.',
+        skipIf: function () { return !visible('.buff-pill') && !visible('#effectKeyOverlay:not(.hidden)'); },
+        until: function () { return visible('#effectKeyOverlay:not(.hidden)') || !visible('.buff-pill'); } },
+
+      { id: 'badge-close', hint: 'Tap <b>Close</b>', title: 'Always one tap away',
+        target: function () { return firstOf(['#effectKeyOverlay .trainer-ability-close', '#boardArea']); },
+        avoid: '.trainer-ability-close',
+        body: 'That key is open to you mid-fight, for any badge on any card, yours or theirs. Close it and let us finish the round.',
+        skipIf: function () { return !visible('#effectKeyOverlay:not(.hidden)'); },
+        until: function () { return !visible('#effectKeyOverlay:not(.hidden)'); } },
 
       // ---- Turn 2 ---------------------------------------------------------
+      //
+      // Everything below is round-two material, and MUST NOT be reached while
+      // round one is still playing. Written as `skipIf: turn() < 2` it was:
+      // skipIf is evaluated once, on arrival, so the whole chapter was skipped
+      // in a single pass during the first Battle phase and the coach stranded
+      // itself on the last step standing, which then sat there as a stale hint
+      // through all of round two. A gate holds instead of discarding.
 
-      { id: 't2-draw', hint: 'Tap <b>Draw</b>', title: 'Turn 2 — Draw', target: '#btnDraw',
-        body: '<b>Tap Draw</b>. Round two.',
+      { id: 'gate-t2', skipTo: 'tools',
+        hint: 'Play the battle out — round two is next',
+        gate: function () { return turn() >= 2 && seen.sawBattle; } },
+
+      { id: 't2-draw', hint: 'Tap <b>Draw</b>', title: 'Round two, fresh card', target: '#btnDraw',
+        body: 'Every round opens by drawing one card into your hand. <b>Tap Draw</b> and see what you got.',
         skipIf: function () { return turn() < 2 || !seen.sawBattle; },
         until: function () { return phase() !== 'DRAW'; } },
 
-      { id: 't2-setup', title: 'Setup again', target: '#phaseBadge',
-        body: 'Grow the board, spend energy, claim, or evolve.',
+      { id: 't2-setup', title: 'Build on it', target: '#phaseBadge',
+        body: 'Now you have energy to spend. Grow the board, cast, claim, evolve — your call.',
         skipIf: function () { return turn() < 2 || !seen.sawBattle; },
         until: function () { return phase() === 'SETUP' || phase() === 'BATTLE'; } },
 
-      { id: 't2-pick', hint: 'Tap a <b>Siegeling</b>', title: 'Second Siegeling', target: '#playerHand',
+      // Cost is a real rule and it is NOT the same rule for both card kinds:
+      // GameService checks `canAfford` for a Siegling and never spends it
+      // (energy is recomputed from links each turn), while a spell or trap goes
+      // through `spendEnergy`. Saying "pay" for a Siegling would be wrong.
+      { id: 't2-cost', title: 'What a card asks for', target: costTarget,
         highlight: ['#playerHand', '#handTray'],
-        body: '<b>Tap another Siegeling</b> to place beside the first and link notches.',
+        body: function () {
+          var c = costedCard();
+          var named = c
+            ? '<b>' + esc(c.name) + '</b> wants <b>' + c.costAmount + ' ' + esc(String(c.costElement).toLowerCase()) + '</b>. '
+            : '';
+          return 'That little corner number is the <b>cost</b>. ' + named +
+            'Your starters are free, but the heavier Siegelings — <b>evolutions especially</b> — ask for energy of their element, and you must <b>have</b> it on tap: a Siegeling checks the pool, it does not drain it. <b>Strategies</b> and <b>Deceptions</b> are what actually spend.';
+        },
+        skipIf: function () { return !costedCard() && !visible('#playerHand .card-corner-cost'); } },
+
+      { id: 't2-pick', hint: 'Tap a <b>Siegeling</b>', title: 'Bring a friend', target: '#playerHand',
+        highlight: ['#playerHand', '#handTray'],
+        body: 'Grab another Siegeling. This one goes <b>next to</b> the first.',
         skipIf: function () { return turn() < 2 || mine() >= 2; },
         until: function () { return selectedType() === 'SIEGLING' || mine() >= 2; } },
 
-      { id: 't2-place', hint: 'Place next to your first', title: 'Make a link',
+      { id: 't2-place', hint: 'Place next to your first', title: 'Point them at each other',
         target: function () { return firstOf(['#playerGrid .board-cell.legal', '#playerGrid']); },
         highlight: ['#playerGrid .board-cell.legal'],
-        body: 'Place so notches point <b>at each other</b>. Same element → energy. Fire + Earth → a <b>combo</b>.',
+        body: 'Line the notches up so they face <b>each other</b>. Matching elements pay energy; mixed ones pay a <b>combo</b>.',
         skipIf: function () { return turn() < 2 || mine() >= 2; },
         until: function () { return mine() >= 2; } },
 
-      { id: 't2-notches', title: 'Links & energy', target: '#playerGrid',
-        body: 'A <b>reciprocal link</b> (both notches face each other) banks energy every round. One-way notches do nothing.',
+      { id: 't2-notches', title: 'That is a link', target: '#playerGrid',
+        body: 'Both notches facing each other pays you <b>every round</b>. One pointing at nothing pays you nothing.',
         skipIf: function () { return turn() < 2 || mine() < 2; } },
 
-      { id: 't2-energy', hint: 'Tap <b>◈</b>', title: 'Energy pool', target: '#btnEnergyDetail',
-        body: 'Your coloured dots are spendable energy. Tap <b>◈</b> for the breakdown.',
+      // Two payouts, two different lessons. Matching elements bank that
+      // element; mixed ones bank a split-colour combo instead. Both wait for
+      // the player to actually make one — and both give up the wait the moment
+      // Setup ends, so neither can hold the match hostage (the badge lesson
+      // taught us that the hard way).
+      { id: 't2-link-same', hint: 'Face two <b>matching</b> notches at each other',
+        title: 'Your first same-element link', target: '#playerGrid',
+        highlight: ['#playerGrid .board-cell.legal', '#playerGrid'],
+        body: 'Two notches of the <b>same element</b> pointing at each other bank that element, every single round. That is the steady income — build it first.',
+        skipIf: function () { return turn() < 2 || mine() < 2; },
+        until: function () {
+          // Latch where the pools stood when the lesson opened. Waiting on
+          // "energy > 0" completed instantly, because a turn-one socket has
+          // already banked some — the step never rendered. What is being
+          // taught is the INCREASE a new matching link pays.
+          if (linkBaseline == null) linkBaseline = elementalEnergy();
+          return elementalEnergy() > linkBaseline || phase() !== 'SETUP';
+        } },
+
+      { id: 't2-link-combo', hint: 'Now face two <b>different</b> elements at each other',
+        title: 'Your first combo link', target: '#playerGrid',
+        highlight: ['#playerGrid .board-cell.legal', '#playerGrid'],
+        body: 'Point <b>two different</b> elements at each other and you bank a <b>combo</b> instead — a split-colour point. Your heaviest cards take nothing else, so it is worth building for.',
+        skipIf: function () { return turn() < 2 || mine() < 2; },
+        until: function () { return comboCount() > 0 || phase() !== 'SETUP'; } },
+
+      { id: 't2-energy', hint: 'Tap <b>◈</b>', title: 'Look what you made', target: '#btnEnergyDetail',
+        body: 'Those coloured dots are yours to spend. Tap <b>◈</b> to see where they came from.',
         skipIf: function () { return turn() < 2 || mine() < 2; },
         until: function () { return seen.hadLinkEnergy || comboCount() > 0 || phase() === 'BATTLE'; } },
 
-      { id: 't2-combo', title: 'Combo links', target: '#btnEnergyDetail',
-        body: 'Different-element links bank a <b>combo</b> (split-colour token). Combos unlock heavier Strategies and abilities.',
+      { id: 't2-combo', title: 'Mix it up', target: '#btnEnergyDetail',
+        body: 'Mixed links bank a split-colour <b>combo</b>. Your heaviest cards only take these — worth building for.',
         skipIf: function () { return turn() < 2 || mine() < 2; } },
 
-      { id: 't2-deception', title: 'Deceptions', target: '#playerHand',
+      { id: 't2-strategy', hint: 'Cast a <b>Strategy</b> you can afford', title: 'Now you can afford things',
+        target: '#playerHand', highlight: ['#playerHand', '#handTray'],
+        body: 'That fresh card plus a round of link energy is the point of building a board. <b>Strategies</b> spend your own energy and resolve the moment you play them — cast one.',
+        skipIf: function () { return turn() < 2 || !handHas('SPELL'); } },
+
+      { id: 't2-deception', title: 'Spend their energy', target: '#playerHand',
         highlight: ['#playerHand', '#handTray'],
-        body: '<b>Deceptions</b> play like Strategies — on your turn, from hand — but their cost uses <b>opponent</b> energy of a chosen element. Punish what they are holding. Play one if you can.',
+        body: 'Here is the sneaky one: a <b>Deception</b> is paid for with <b>their</b> energy, not yours. Play one if you have it.',
         skipIf: function () { return turn() < 2 || !handHas('TRAP'); } },
 
-      { id: 't2-evolve', hint: 'Play an evolution onto its base', title: 'Evolutions', target: '#playerHand',
+      { id: 't2-evolve', hint: 'Play an evolution onto its base', title: 'Grow one up', target: '#playerHand',
         highlight: ['#playerHand', '#handTray'],
-        body: 'After a Siegeling survives a battle, you may play its <b>evolution</b> onto it. Evolutions skip the one-per-turn place limit.',
+        body: 'Two things before a Siegeling can <b>evolve</b>: it has to have <b>survived a full battle phase</b> in its current form, and you need the evolution\'s own <b>energy</b> on tap. Then play the bigger card straight onto it — evolutions ignore the one-per-turn limit <em>and</em> the five-on-board cap.',
         skipIf: function () {
           if (turn() < 2) return true;
           return !hand().some(function (c) { return c && c.type === 'SIEGLING' && c.evolvesFromId; });
         } },
 
-      { id: 't2-claim', title: 'Claiming',
+      { id: 't2-claim', title: 'Cash one in',
         target: function () { return firstOf(['#playerGrid .board-cell.claimable', '#playerGrid']); },
         highlight: ['#playerGrid .board-cell.claimable'],
-        body: 'A survivor can be <b>claimed</b> for temporary energy — it leaves the board. Body now, or a bigger play this round.',
+        body: 'Need energy right now? <b>Claim</b> a survivor and cash it in. You lose the body — worth it sometimes.',
         skipIf: function () { return turn() < 2 || !visible('#playerGrid .board-cell.claimable'); } },
 
-      { id: 't2-end', hint: 'Tap <b>End Turn</b>', title: 'Into battle 2', target: actionBtn,
-        body: '<b>End Turn</b> to resolve battle two.',
+      { id: 't2-end', hint: 'Tap <b>End Turn</b>', title: 'Send it', target: actionBtn,
+        body: 'Let us see it work. <b>End Turn</b>.',
         skipIf: function () { return turn() < 2 || phase() === 'BATTLE' || seen.sawBattle2; },
         until: function () { return !myTurn() || phase() === 'BATTLE' || seen.sawBattle2; } },
 
-      { id: 't2-battle', title: 'Battle 2', target: '#boardArea',
-        body: 'Same loop: Speed order, abilities, badges. Watch damage and statuses land.',
+      { id: 't2-battle', title: 'Now watch', target: '#boardArea',
+        body: 'Same rhythm, bigger board. Watch what your links bought you.',
         skipIf: function () { return !seen.sawBattle; },
         until: function () { return seen.sawBattle2 || seen.ended; } },
 
-      { id: 'tools', title: 'Tools', target: '#btnHint',
-        body: '<b>?</b> = what the game wants. <b>≡</b> = full log. <b>👁</b> = inspect notches.' },
+      { id: 'tools', title: 'If you get stuck', target: '#btnHint',
+        body: 'Tap <b>?</b> and it tells you exactly what it is waiting for. <b>≡</b> is the log, <b>👁</b> zooms a card.' },
 
       { id: 'done', kicker: 'Tutorial complete', title: '🎉 Well fought', finish: true, finale: true,
         altLabel: 'Advanced Tutorial ▸',
-        body: 'You know the loop: energy, Strategies, Deceptions, battle.' +
-          '<span class="tut-p">Want badges, shields, and elemental statuses? Start the <b>Advanced Tutorial</b> — or Finish and head to Arena / Siege.</span>' }
+        body: 'That is the whole loop — links pay energy, energy buys abilities, abilities win fights.' +
+          '<span class="tut-p">Want the deeper stuff — badges, shields, elemental statuses? Take the <b>Advanced Tutorial</b>. Otherwise go pick a real fight in Arena or Siege.</span>' }
     ];
+  }
+
+  /** The name of a card of `type` that is ACTUALLY in hand, or null.
+   *  Every "cast X" line goes through this. The advanced tips used to name
+   *  Cinder Volley, Root Guard and Root Bind outright and the hand held none of
+   *  them, which is the same lie the mulligan told about Pylook: the deck can
+   *  be reshuffled or retuned, and a tutorial that names a card you cannot see
+   *  reads as broken. `match` narrows it further when a step wants a specific
+   *  kind of card (a shield, a boost). */
+  function handCardName(type, match) {
+    var cards = hand().filter(function (c) {
+      if (!c || c.type !== type) return false;
+      if (!match) return true;
+      var text = ((c.name || '') + ' ' + (c.description || '') + ' ' +
+        ((c.ability && c.ability.description) || '')).toLowerCase();
+      return match.test(text);
+    });
+    return (cards[0] && cards[0].name) || null;
+  }
+
+  /** The player's SiegeKnight, by name, read from the match. The tips said
+   *  "Squire Bob" outright — true for today's pinned tutorial loadout and a lie
+   *  the moment it is retuned, which is the same trap the card names fell into. */
+  function knightName() {
+    var g = gs();
+    return (g && g.player && g.player.trainer && g.player.trainer.name) || '';
+  }
+
+  /** "Cast <b>Name</b>" when we can see it, an honest generic line when we
+   *  cannot — never a card the player does not hold. */
+  function castLine(type, match, generic) {
+    var n = handCardName(type, match);
+    return n ? 'Cast <b>' + esc(n) + '</b>' : generic;
   }
 
   function buildAdvancedSteps() {
     return [
-      { id: 'adv-welcome', kicker: 'Advanced', title: 'Badges & statuses',
-        body: 'Same match. Next tips cover <b>elemental afflictions</b>, <b>buff badges</b>, <b>shields</b>, and <b>debuffs</b>. Your deck already holds the cards.' },
+      { id: 'adv-welcome', kicker: 'Advanced', title: 'The sneaky stuff',
+        body: 'Same match, deeper cuts — burns, buffs, shields and debuffs, and every button along the bottom of your screen.' },
 
       { id: 'adv-burn', title: 'Elemental afflictions', target: '#boardArea',
-        body: 'Fire damage leaves <b>Burn</b> badges. Ice leaves <b>Chill</b>. Stacks tick on that owner\'s Setup — tap a badge anytime to read it.' },
+        body: 'Fire leaves them <b>Burning</b>, Ice leaves them <b>Chilled</b>, and it keeps biting on their own turn. Free damage while you do something else.' },
 
-      { id: 'adv-buff', hint: 'Cast a boost Strategy if you can', title: 'Buff badges', target: '#playerHand',
+      { id: 'adv-buff', title: 'Make one hit harder', target: '#playerHand',
         highlight: ['#playerHand', '#handTray'],
-        body: '<b>Cinder Volley</b> and <b>Root Guard</b> put attack / max-Health badges on allies. Cast one when you can afford it — optional.' },
+        hint: function () {
+          return castLine('SPELL', /boost|attack|damage|strength|max health|health up/,
+            'Cast a boost Strategy when you draw one');
+        },
+        body: function () {
+          var n = handCardName('SPELL', /boost|attack|damage|strength|max health|health up/);
+          return n
+            ? '<b>' + esc(n) + '</b> pins a badge on an ally — more punch, or more health. Got the energy? Stack it up.'
+            : 'Some Strategies pin a badge on an ally — more punch, or more health. None in your hand this second; when one turns up, that is what it does.';
+        } },
 
-      { id: 'adv-shield', hint: 'Cast Ashen Ward on an ally', title: 'Shields', target: '#playerHand',
+      { id: 'adv-shield', title: 'Shields', target: '#playerHand',
         highlight: ['#playerHand', '#handTray'],
-        body: '<b>Ashen Ward</b> grants temporary <b>Shield</b> — it absorbs damage before HP, then drops. Cast it on an ally if you are holding it.' },
+        hint: function () { return castLine('SPELL', /shield|ward|absorb|guard/, 'Cast a shield Strategy when you draw one'); },
+        body: function () {
+          var n = handCardName('SPELL', /shield|ward|absorb|guard/);
+          return n
+            ? '<b>' + esc(n) + '</b> drops a <b>Shield</b> that eats damage before HP does. Put it on whoever is about to get hit.'
+            : 'A <b>Shield</b> eats damage before HP does — worth saving for whoever is about to get hit.';
+        } },
 
-      { id: 'adv-debuff', title: 'Debuffs', target: '#playerHand',
+      { id: 'adv-debuff', title: 'Slow them down', target: '#playerHand',
         highlight: ['#playerHand', '#handTray'],
-        body: '<b>Root Bind</b> / Flora Knight\'s Rootbind set Speed to 0 for the turn. Debuffs show as status badges on the foe.' },
+        body: function () {
+          var n = handCardName('SPELL', /bind|slow|speed|root/) || handCardName('TRAP', /bind|slow|speed|root/);
+          return n
+            ? '<b>' + esc(n) + '</b> drags a foe down the Speed order — they act last, or not at all. Look for the badge on their card.'
+            : 'Some cards drag a foe down to <b>0 Speed</b> — they act dead last, or not at all. Look for the badge on their card.';
+        } },
 
-      { id: 'adv-read', title: 'Reading badges', target: '#btnHint',
-        body: 'Tap any badge on a card, or <b>?</b>, for the full effect. Buffs, shields, burns, freezes — same place.' },
+      // ---- The HUD ---------------------------------------------------------
+      //
+      // One step per control, in the order they sit on screen, each skipped if
+      // it is not currently rendered: the action row swaps buttons with the
+      // phase, so Draw, Auto Battle, Pass and Cancel Move are never all up at
+      // once.
+
+      { id: 'adv-hud', kicker: 'The bar', title: 'Everything down there',
+        target: '#actionBar', highlight: ['#actionBar'],
+        body: 'The strip along the bottom is your whole control panel. Let us go along it.',
+        skipIf: function () { return !visible('#actionBar'); } },
+
+      { id: 'adv-hud-knight', title: '⚔ Knight', target: '#btnTrainerAbility',
+        body: 'Your SiegeKnight. A <b>passive</b> that is always on, and an <b>active</b> you get to spend once. It reads <b>Ready</b> until you use it.',
+        skipIf: function () { return !visible('#btnTrainerAbility'); } },
+
+      // On a phone the action row collapses to ONE button whose label follows the
+      // phase, so Draw / End Turn / Auto Battle / Pass are never all on screen —
+      // a step each would silently skip most of them there. One step covers
+      // whichever is live (that is what actionBtn() is for) and names the rest;
+      // the individual steps below still fire on desktop, where they coexist.
+      { id: 'adv-hud-action', title: 'The big action button', target: actionBtn,
+        body: 'The wide one changes with the phase: <b>Draw</b> takes your card, <b>End Turn</b> hands the round over, <b>Auto Battle</b> gets on with the fighting, and mid-battle it becomes <b>Pass</b> — skip this Siegeling rather than spend energy — or <b>Cancel Move</b> to back out of a move you have not aimed yet.',
+        skipIf: function () { return !actionBtn(); } },
+
+      { id: 'adv-hud-draw', title: '🎴 Draw', target: '#btnDraw',
+        body: 'Takes your one card for the round. Only lit during the Draw phase.',
+        skipIf: function () { return !visible('#btnDraw'); } },
+
+      { id: 'adv-hud-end', title: 'End Turn', target: '#btnEndTurn',
+        body: 'Hands the round over. Once both sides are done building, Battle runs itself.',
+        skipIf: function () { return !visible('#btnEndTurn'); } },
+
+      { id: 'adv-hud-battle', title: 'Auto Battle', target: '#btnBattle',
+        body: 'Runs the Battle phase without waiting. It starts on its own after both sides finish Setup — this just gets on with it.',
+        skipIf: function () { return !visible('#btnBattle'); } },
+
+      { id: 'adv-hud-pass', title: 'Pass', target: '#btnBattlePass',
+        body: 'Mid-battle, skips the Siegeling whose turn it is instead of spending energy on a move.',
+        skipIf: function () { return !visible('#btnBattlePass'); } },
+
+      { id: 'adv-hud-cancel', title: 'Cancel Move', target: '#btnCancelBattleMove',
+        body: 'Backs out of a move you have picked but not aimed yet — no cost, pick again.',
+        skipIf: function () { return !visible('#btnCancelBattleMove'); } },
+
+      { id: 'adv-hud-act', title: 'Act — your Setup budget', target: '#setupActionsCounter',
+        body: 'How many Setup actions you have left this round. It ticks down as you place, cast and claim.',
+        skipIf: function () { return !visible('#setupActionsCounter'); } },
+
+      { id: 'adv-hud-preview', title: '👁 Card Preview', target: '#btnSelectedPreview',
+        body: 'Opens the full face of whatever card is selected — art, stats, every move and what each one costs.',
+        skipIf: function () { return !visible('#btnSelectedPreview'); } },
+
+      { id: 'adv-hud-hint', title: '? Hints', target: '#btnHint',
+        body: 'The one to remember. It tells you exactly what the game is waiting for, whenever you are stuck.',
+        skipIf: function () { return !visible('#btnHint'); } },
+
+      { id: 'adv-hud-queue', title: '⚔ Queue Action', target: '#btnBattlePanel',
+        body: 'The battle panel: which of your Siegelings acts next, what it can do, and what each move costs.',
+        skipIf: function () { return !visible('#btnBattlePanel'); } },
+
+      { id: 'adv-hud-log', title: '≡ Game Log', target: '#btnGameLog',
+        body: 'Every hit, heal and badge, in order. Worth a look when a number surprises you.',
+        skipIf: function () { return !visible('#btnGameLog'); } },
+
+      { id: 'adv-hud-energy', title: '◈ Energy Detail', target: '#btnEnergyDetail',
+        body: 'Where each drop of energy came from — which link, which socket, which combo.',
+        skipIf: function () { return !visible('#btnEnergyDetail'); } },
+
+      { id: 'adv-hud-speed', title: '▶ Playback speed', target: '#sglSpeedToggle',
+        body: 'Battle animations too slow? Tap to cycle the speed. Nothing about the fight changes.',
+        skipIf: function () { return !visible('#sglSpeedToggle'); } },
+
+      { id: 'adv-hud-sound', title: '🔊 Sound', target: '#btnMuteSound',
+        body: 'Mutes and unmutes.',
+        skipIf: function () { return !visible('#btnMuteSound'); } },
+
+      { id: 'adv-hud-quit', title: 'Quit', target: '#btnQuitOrNewGame',
+        body: 'Leaves this match and sets up a new one. Your progress is already banked.',
+        skipIf: function () { return !visible('#btnQuitOrNewGame'); } },
+
+      { id: 'adv-read', title: 'Never guess', target: '#btnHint',
+        body: 'Between <b>?</b> and tapping a badge, the game will always tell you what it is doing. You never have to guess.' },
 
       { id: 'adv-done', kicker: 'Advanced complete', title: 'You are ready', finish: true, finale: true,
-        body: 'Afflictions tick, buffs and shields show as badges, debuffs slow the foe. Keep playing this match, or Finish for Arena and Siege.' }
+        body: 'Afflictions tick, shields soak, debuffs stall, and every button down there now has a name. Play this one out, or take it to Arena and Siege.' }
     ];
   }
 
@@ -394,6 +676,7 @@
       hadEvolution: false, sawBadge: false,
       knightSpent: false, knightOpened: false, ended: false
     };
+    linkBaseline = null;
     var knightBtn = document.getElementById('btnTrainerAbility');
     if (knightBtn) {
       knightBtn.addEventListener('click', function () { seen.knightOpened = true; }, { once: true });
@@ -420,7 +703,9 @@
       onFinale: function (box, reposition) {
         if (!box) return;
         box.className = 'tut-reward is-claimed';
-        box.innerHTML = '<b>Advanced complete</b> keep playing, or Finish when you are done.';
+        // The finale body already says keep playing or Finish, and this box sits
+        // directly under it — repeating the sentence read like a stutter.
+        box.innerHTML = '<b>Nothing left to teach</b> the rest is practice.';
         if (reposition) reposition();
       },
       onAlt: null
