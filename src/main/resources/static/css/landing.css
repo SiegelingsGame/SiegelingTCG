@@ -1461,6 +1461,37 @@ img { display: block; }
     user-select: none;
     -webkit-user-drag: none;
 }
+/* OVERLAY art is the illustration alone, so the gate rebuilds the card around
+   it: the art sits in the template's transparent window and the shared frame
+   paints on top. The insets mirror .knight-card.knight-overlay-art in
+   style.css — same template image, so the same window geometry. Rounding is
+   dropped because the template supplies the card's own corners. */
+.sgl-knight-portrait.has-art.is-overlay {
+    border-radius: 0;
+    background: transparent;
+    position: relative;
+    /* The template draws the card's own border, so the element-colour ring the
+       other portraits use would read as a second frame around it. */
+    border: 0;
+}
+.sgl-knight-art-window {
+    position: absolute;
+    z-index: 1;
+    left: 8.8%;
+    right: 8.6%;
+    top: 5.7%;
+    bottom: 7.1%;
+    overflow: hidden;
+}
+.sgl-knight-card-template {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    background-image: url('/img/knights/siegeknight-card-template.webp');
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+}
 .sgl-knight-body {
     display: flex;
     flex-direction: column;
