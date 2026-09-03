@@ -35,6 +35,19 @@ import java.util.stream.IntStream;
 @Service
 public class GameService {
 
+    /**
+     * The tutorial match is a fixed rehearsal: the same free knight and deck on
+     * both sides every run, so a returning player replays the exact same lesson.
+     * Ice opposes the Fire half of Ashen Roots, which makes the weakness chart
+     * visible without stacking the fight against the student.
+     */
+    public static final String TUTORIAL_PLAYER_DECK_ID = "deck_fire_earth";
+    public static final String TUTORIAL_PLAYER_TRAINER_ID = "squire-bob";
+    public static final String TUTORIAL_ENEMY_DECK_ID = "deck_ice";
+    public static final String TUTORIAL_ENEMY_TRAINER_ID = "trainer09";
+    public static final String TUTORIAL_OPPONENT_NAME = "Training Dummy";
+    public static final int TUTORIAL_ENEMY_HEALTH = 20;
+
     public record StartOptions(String playerDeckId, String playerTrainerId, List<String> customDeckCards,
                                String loadoutLabel, int playerTrainerLevel) {
         public StartOptions(String playerDeckId, String playerTrainerId, List<String> customDeckCards, String loadoutLabel) {
@@ -71,6 +84,9 @@ public class GameService {
     private EffectService effectService;
 
     @Autowired
+    private ElementalAfflictionService elementalAfflictionService;
+
+    @Autowired
     private AIService aiService;
 
     @Autowired
@@ -99,6 +115,28 @@ public class GameService {
     /** Starts a brand-new solo game scoped to a freshly generated token. */
     public SoloHandle newSoloGame(StartOptions options) {
         return newSoloGame(options, "Player");
+    }
+
+    /**
+     * Starts the fixed tutorial match: pinned loadouts on both sides, the player
+     * always moves first, and the sparring partner starts on reduced health so a
+     * full lesson fits in a few rounds.
+     */
+    public SoloHandle newTutorialGame(String playerName) {
+        StartOptions playerOptions = new StartOptions(
+                TUTORIAL_PLAYER_DECK_ID, TUTORIAL_PLAYER_TRAINER_ID, null, "Tutorial Loadout");
+        StartOptions enemyOptions = new StartOptions(
+                TUTORIAL_ENEMY_DECK_ID, TUTORIAL_ENEMY_TRAINER_ID, null, "Tutorial Warband");
+        GameState state = createGame(playerOptions, enemyOptions,
+                safePlayerName(playerName, "Player"), TUTORIAL_OPPONENT_NAME, false, true);
+        state.setTutorialMatch(true);
+        state.getEnemy().setHealth(TUTORIAL_ENEMY_HEALTH);
+        state.log("Tutorial match: " + TUTORIAL_OPPONENT_NAME + " starts at " + TUTORIAL_ENEMY_HEALTH
+                + " health so a full lesson fits in a few rounds.");
+        purgeStaleSoloGames();
+        String token = generateSoloToken();
+        soloGames.put(token, new SoloSession(state));
+        return new SoloHandle(token, state);
     }
 
     /** Starts a brand-new solo game scoped to a freshly generated token. */
@@ -167,6 +205,10 @@ public class GameService {
         return cardDefs.buildDeckById(deckId);
     }
 
+    public List<Map<String, Object>> deckCardCounts(String deckId) {
+        return cardDefs.deckCardCounts(deckId);
+    }
+
     public List<String> getActiveLiveElementNames() {
         return cardDefs.getActiveLiveElementNames();
     }
@@ -187,6 +229,12 @@ public class GameService {
 
         Player actor = getSidePlayer(state, isPlayerSide);
         actor.clearTemporaryEnergyAdjustments();
+        // An overcharge started during the last battle phase carries into this setup; say so,
+        // because the pool is bigger than the board explains.
+        if (actor.isOvercharged()) {
+            state.log(sideName(state, isPlayerSide) + " is overcharged: "
+                    + describeOvercharge(actor) + " through this Setup phase.");
+        }
         state.resetPlacementsForTurn(isPlayerSide);
 
         Card drawn = actor.drawCard();
@@ -197,6 +245,15 @@ public class GameService {
         }
 
         state.setCurrentPhase(Phase.SETUP);
+        // Burn (and future Setup-tick afflictions) resolve as this side enters Setup.
+        if (elementalAfflictionService != null) {
+            elementalAfflictionService.tickOwnerSetup(state, isPlayerSide);
+        }
+        // Turn-2 Setup is when the coach teaches Deceptions (keyed to opponent Ice).
+        // Guarantee the Dummy holds enough Ice so Shatter Seal is actually playable.
+        if (state.isTutorialMatch() && isPlayerSide && state.getTurnNumber() >= 2) {
+            state.getEnemy().adjustTemporaryEnergy(Element.ICE, 3);
+        }
         energyService.recalculateEnergy(state);
         state.captureSieglingSetupPlacementBonusFromEnergy(isPlayerSide);
         return state;
@@ -236,6 +293,12 @@ public class GameService {
 
         CardInstance existing = state.getAt(isPlayerSide, row, col);
         boolean evolutionPlacement = placementService.isEvolutionPlacement(state, isPlayerSide, row, col, siegling);
+        if (evolutionPlacement && existing != null
+                && elementalAfflictionService != null
+                && elementalAfflictionService.hasCurse(existing)) {
+            state.log(existing.getName() + " is Cursed and cannot evolve!");
+            return state;
+        }
         energyService.recalculateEnergy(state);
         if (state.isSieglingSetupBudgetExhausted(isPlayerSide)) {
             state.log(evolutionPlacement
@@ -282,6 +345,10 @@ public class GameService {
         }
         if (claimed.getBattlePhasesSeen() <= 0) {
             state.log(claimed.getName() + " must survive at least 1 battle phase before it can be claimed.");
+            return state;
+        }
+        if (elementalAfflictionService != null && elementalAfflictionService.hasCurse(claimed)) {
+            state.log(claimed.getName() + " is Cursed and cannot be claimed!");
             return state;
         }
 
@@ -490,6 +557,12 @@ public class GameService {
 
     private GameState createGame(StartOptions playerOptions, StartOptions enemyOptions,
                                  String playerName, String enemyName, boolean enemyHumanControlled) {
+        return createGame(playerOptions, enemyOptions, playerName, enemyName, enemyHumanControlled, false);
+    }
+
+    private GameState createGame(StartOptions playerOptions, StartOptions enemyOptions,
+                                 String playerName, String enemyName, boolean enemyHumanControlled,
+                                 boolean tutorial) {
         GameState state = new GameState();
         state.setEnemyHumanControlled(enemyHumanControlled);
 
@@ -500,7 +573,7 @@ public class GameService {
         enemy.setHealth(50);
 
         ResolvedLoadout playerLoadout = resolveLoadout(playerOptions, "deck_fire_earth", "trainer05");
-        ResolvedLoadout enemyLoadout = enemyHumanControlled
+        ResolvedLoadout enemyLoadout = enemyHumanControlled || tutorial
                 ? resolveLoadout(enemyOptions, "deck_water_wind", "trainer06")
                 : resolveSoloEnemyLoadout(playerLoadout.deckId());
 
@@ -511,10 +584,17 @@ public class GameService {
         player.setLoadoutLabel(playerLoadout.label());
         enemy.setLoadoutLabel(enemyLoadout.label());
 
-        player.shuffleDeck();
-        enemy.shuffleDeck();
-        biasOpeningDraw(player);
-        biasOpeningDraw(enemy);
+        if (tutorial) {
+            // Fixed draw order so every coach lesson can fire (socket, Strategy,
+            // link/combo, Deception, evolution) without relying on shuffle luck.
+            prepareTutorialPlayerDeck(player);
+            prepareTutorialEnemyDeck(enemy);
+        } else {
+            player.shuffleDeck();
+            enemy.shuffleDeck();
+            biasOpeningDraw(player);
+            biasOpeningDraw(enemy);
+        }
 
         state.setPlayer(player);
         state.setEnemy(enemy);
@@ -524,7 +604,9 @@ public class GameService {
             enemy.drawCard();
         }
 
-        boolean playerStarts = random.nextBoolean();
+        // The tutorial teaches the setup phase before it is played against, so the
+        // student always takes the first turn.
+        boolean playerStarts = tutorial || random.nextBoolean();
         state.setCurrentPhase(Phase.MULLIGAN);
         state.resetRoundOrder(playerStarts);
         state.setMulliganPending(true, true);
@@ -576,6 +658,105 @@ public class GameService {
             rebuiltDeck.add(workingDeck.get(deckIndex++));
         }
         player.setDeck(rebuiltDeck);
+    }
+
+    /**
+     * Opening-hand index the tutorial student may redraw (0-based). Indices 0–3 are
+     * the locked lesson cards (Sundile, Squire Bud, Strategy, Shatter Seal); index 4
+     * is the practice redraw (Pylook). A redraw does not shuffle — the next scripted
+     * card comes off the top of the deck.
+     */
+    public static final int TUTORIAL_SCRIPTED_MULLIGAN_INDEX = 4;
+
+    private static final List<String> TUTORIAL_REQUIRED_OPENING_IDS = List.of(
+            "sundile", "squirebud", "spell_fire_06", "trap13");
+
+    /**
+     * Tutorial draw stack (top drawn first into the opening five, then T1/T2 draws):
+     * Sundile (Fire socket opener), Squire Bud (Earth linker for combo), a cheap
+     * Strategy, Shatter Seal (Ice Deception vs the Dummy), spare Pylook (the only
+     * card the scripted mulligan may redraw), Raydile (evolve Sundile), Flora Knight
+     * (Rootbind status), then Advanced-lesson cards: damage-boost Strategy,
+     * health-boost Strategy, Root Bind, and an injected Ashen Ward shield Strategy.
+     */
+    private void prepareTutorialPlayerDeck(Player player) {
+        if (player == null) {
+            return;
+        }
+        List<Card> pool = new ArrayList<>(player.getDeck());
+        List<Card> ordered = new ArrayList<>();
+        for (String id : List.of(
+                "sundile", "squirebud", "spell_fire_06", "trap13", "pylook", "raydile", "floraknight",
+                "spell_fire_09", "spell_earth_02", "spell_earth_01", "tutorial_ashen_ward")) {
+            Card taken = takeNamedCard(pool, id);
+            if (taken == null && "trap13".equals(id)) {
+                taken = cardDefs.findCardCopy("trap13").orElse(null);
+            }
+            if (taken == null && "tutorial_ashen_ward".equals(id)) {
+                taken = buildTutorialAshenWard();
+            }
+            if (taken == null && ("spell_fire_09".equals(id) || "spell_earth_02".equals(id) || "spell_earth_01".equals(id))) {
+                taken = cardDefs.findCardCopy(id).orElse(null);
+            }
+            if (taken != null) {
+                ordered.add(taken);
+            }
+        }
+        ordered.addAll(pool);
+        player.setDeck(ordered);
+    }
+
+    /** Tutorial-only Strategy so the Advanced chapter can teach shields on-board. */
+    private SpellCard buildTutorialAshenWard() {
+        Ability shield = new Ability(
+                "Ashen Ward",
+                "Grant 1 ally +3 Shield",
+                TargetType.SINGLE_ALLY,
+                null,
+                1,
+                AbilityEffectKeys.SHIELD,
+                3,
+                false);
+        SpellCard ward = new SpellCard(
+                "tutorial_ashen_ward",
+                "Ashen Ward",
+                Element.FIRE,
+                com.sieglings.model.enums.Rarity.COMMON,
+                1,
+                shield);
+        ward.setDescription("A training ward — temporary Shield that absorbs damage before HP.");
+        return ward;
+    }
+
+    /** Dummy opens on Cozycub so turn-1 Ice sockets are reliable for the Deception lesson. */
+    private void prepareTutorialEnemyDeck(Player enemy) {
+        if (enemy == null) {
+            return;
+        }
+        List<Card> pool = new ArrayList<>(enemy.getDeck());
+        List<Card> ordered = new ArrayList<>();
+        for (String id : List.of("cozycub", "falcool", "fawny", "frostfly", "icewee")) {
+            Card taken = takeNamedCard(pool, id);
+            if (taken != null) {
+                ordered.add(taken);
+            }
+        }
+        ordered.addAll(pool);
+        enemy.setDeck(ordered);
+    }
+
+    private Card takeNamedCard(List<Card> pool, String cardId) {
+        if (pool == null || cardId == null || cardId.isBlank()) {
+            return null;
+        }
+        for (int i = 0; i < pool.size(); i++) {
+            Card card = pool.get(i);
+            if (card != null && cardId.equalsIgnoreCase(card.getId())) {
+                pool.remove(i);
+                return card;
+            }
+        }
+        return null;
     }
 
     private void pullOpeningCards(List<Card> sourceDeck, List<Card> seededCards, int maxCount,
@@ -720,6 +901,13 @@ public class GameService {
 
     private void startBattlePhase(GameState state) {
         state.setCurrentPhase(Phase.BATTLE);
+        // Active energy buffs run out here: they power setup, not the fight. Dropping them
+        // before the restore is what makes the pool read true for the whole battle phase.
+        boolean overchargeEnded = state.getPlayer().isOvercharged() || state.getEnemy().isOvercharged();
+        energyService.clearOvercharge(state);
+        if (overchargeEnded) {
+            state.log("Overcharge fades as the battle phase begins.");
+        }
         // Full energy restore at start of battle phase
         energyService.recalculateEnergy(state);
         state.log("Both setup turns are complete. Entering battle phase. Energy restored!");
@@ -809,17 +997,22 @@ public class GameService {
 
     private void clearTempEffects(GameState state) {
         for (CardInstance ci : state.getBoardSieglings(true)) {
-            ci.clearTemporaryEffects();
-            ci.getStatusEffects().remove(StatusEffect.FREEZE);
-            ci.getStatusEffects().remove(StatusEffect.SPEED_ZERO);
-            ci.setCurrentSpeed(ci.getCard().getSpeed());
+            clearTempEffects(ci);
         }
         for (CardInstance ci : state.getBoardSieglings(false)) {
-            ci.clearTemporaryEffects();
-            ci.getStatusEffects().remove(StatusEffect.FREEZE);
-            ci.getStatusEffects().remove(StatusEffect.SPEED_ZERO);
-            ci.setCurrentSpeed(ci.getCard().getSpeed());
+            clearTempEffects(ci);
         }
+    }
+
+    private void clearTempEffects(CardInstance ci) {
+        ci.clearTemporaryEffects();
+        // Chill-freeze outlives the battle phase — it thaws at its owner's next Setup,
+        // and its Chill badges are already spent, so the status is all that's left of it.
+        if (!ci.isChillFrozen()) {
+            ci.getStatusEffects().remove(StatusEffect.FREEZE);
+        }
+        ci.getStatusEffects().remove(StatusEffect.SPEED_ZERO);
+        ci.setCurrentSpeed(ci.getCard().getSpeed());
     }
 
     private void clearTemporaryEnergyAdjustments(GameState state) {
@@ -892,16 +1085,66 @@ public class GameService {
 
         Player actor = getSidePlayer(state, isPlayerSide);
         List<Integer> plan = mulliganHandIndices == null ? List.of() : mulliganHandIndices;
+        boolean tutorialScripted = state.isTutorialMatch() && isPlayerSide;
+        if (tutorialScripted) {
+            // Only the practice slot may leave the hand; keep / ignore anything else so
+            // lesson cards cannot be discarded even by an old or malicious client.
+            plan = plan.stream()
+                    .filter(i -> i != null && i == TUTORIAL_SCRIPTED_MULLIGAN_INDEX)
+                    .distinct()
+                    .toList();
+        }
         if (plan.isEmpty()) {
             state.log(sideName(state, isPlayerSide) + " keeps the opening hand.");
         } else {
-            actor.mulliganHandAtIndices(plan);
+            actor.mulliganHandAtIndices(plan, !tutorialScripted);
             state.setMulliganUsed(isPlayerSide, true);
             state.log(sideName(state, isPlayerSide) + " mulligans " + plan.size() + " opening card(s).");
+        }
+        if (tutorialScripted) {
+            ensureTutorialLessonOpeningHand(actor);
         }
         state.setMulliganPending(isPlayerSide, false);
         tryCompleteOpeningMulligan(state);
         return state;
+    }
+
+    /**
+     * After a tutorial mulligan, restore any missing lesson openers from the deck so
+     * the coach script can still fire even if a client somehow bypassed the UI lock.
+     */
+    private void ensureTutorialLessonOpeningHand(Player player) {
+        if (player == null) {
+            return;
+        }
+        for (String id : TUTORIAL_REQUIRED_OPENING_IDS) {
+            boolean inHand = player.getHand().stream()
+                    .anyMatch(card -> card != null && id.equalsIgnoreCase(card.getId()));
+            if (inHand) {
+                continue;
+            }
+            Card restored = takeNamedCard(player.getDeck(), id);
+            if (restored == null) {
+                continue;
+            }
+            // Keep hand size stable: park a non-required card under the deck.
+            int swapIndex = -1;
+            for (int i = 0; i < player.getHand().size(); i++) {
+                Card held = player.getHand().get(i);
+                String heldId = held == null ? "" : held.getId();
+                boolean required = TUTORIAL_REQUIRED_OPENING_IDS.stream()
+                        .anyMatch(req -> req.equalsIgnoreCase(heldId));
+                if (!required) {
+                    swapIndex = i;
+                    break;
+                }
+            }
+            if (swapIndex >= 0) {
+                Card parked = player.getHand().remove(swapIndex);
+                player.getDeck().add(parked);
+            }
+            player.getHand().add(restored);
+        }
     }
 
     private void resolveAutomatedOpeningMulligan(GameState state, boolean isPlayerSide) {
@@ -945,6 +1188,14 @@ public class GameService {
 
     private String sideName(GameState state, boolean isPlayerSide) {
         return getSidePlayer(state, isPlayerSide).getName();
+    }
+
+    /** e.g. {@code "+2 fire, +1 water"} — used in the overcharge log line. */
+    private String describeOvercharge(Player player) {
+        return player.getOverchargeEnergyTotals().entrySet().stream()
+                .filter(entry -> entry.getValue() != null && entry.getValue() > 0)
+                .map(entry -> "+" + entry.getValue() + " " + entry.getKey().name().toLowerCase())
+                .collect(java.util.stream.Collectors.joining(", "));
     }
 
     private Card findInHand(Player player, String cardId) {

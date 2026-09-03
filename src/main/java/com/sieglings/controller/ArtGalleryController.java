@@ -71,6 +71,18 @@ public class ArtGalleryController {
             } else if (lower.endsWith("-landscape")) {
                 id = base.substring(0, base.length() - "-landscape".length());
             }
+            // Prefer a .webp twin over a same-named .png/.jpg: the raster
+            // originals are ~6x larger and every browser we target reads WebP.
+            // (Iteration order alone used to decide this, since "png" sorts
+            // before "webp" — that was luck, not intent.)
+            Object existing = pieces.containsKey(id.toLowerCase(Locale.ROOT))
+                    ? pieces.get(id.toLowerCase(Locale.ROOT)).get(orientation)
+                    : null;
+            if (existing instanceof String current
+                    && current.toLowerCase(Locale.ROOT).contains(".webp")
+                    && !"webp".equals(ext)) {
+                continue;
+            }
             String pieceId = id;
             Map<String, Object> piece = pieces.computeIfAbsent(id.toLowerCase(Locale.ROOT), key -> {
                 Map<String, Object> entry = new LinkedHashMap<>();

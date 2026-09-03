@@ -21,6 +21,15 @@
         ]
       },
       {
+        "source": "**/*.@(png|webp|jpg|jpeg|svg|gif|ico|mp3|fbx)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          }
+        ]
+      },
+      {
         "source": "**/*.html",
         "headers": [
           {
@@ -107,6 +116,10 @@
       {
         "source": "/keep",
         "destination": "/keep.html"
+      },
+      {
+        "source": "/help",
+        "destination": "/help.html"
       },
       {
         "source": "/api/cards/editor",

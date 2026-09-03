@@ -1,0 +1,73 @@
+package com.sieglings.service;
+
+import org.junit.jupiter.api.Test;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * The Arena tutorial now states cost and evolution rules outright, and copy that
+ * contradicts the engine is worse than no copy at all. These assertions pin the
+ * two claims that are easy to get backwards, against the engine source itself.
+ */
+class TutorialRuleParityTest {
+
+    private static String read(String path) throws Exception {
+        return Files.readString(Path.of(path));
+    }
+
+    @Test
+    void sieglingCostIsCheckedButNeverSpentWhileSpellsAndTrapsSpend() throws Exception {
+        String gameService = read("src/main/java/com/sieglings/service/GameService.java");
+
+        // A Siegling placement gates on canAfford...
+        assertTrue(gameService.contains(
+                        "energyService.canAfford(state, isPlayerSide, siegling.getCostElement(), siegling.getCostAmount())"),
+                "Siegling placement must still gate on canAfford — the tutorial tells the player "
+                        + "the cost has to be on tap.");
+
+        // ...and never calls spendEnergy for one, which is exactly why the tip
+        // says "it does not spend it" rather than "pay".
+        assertTrue(!gameService.contains("spendEnergy(state, isPlayerSide, siegling."),
+                "A Siegling's cost must stay a requirement, not a payment — the tutorial copy "
+                        + "says placing does not spend it.");
+
+        // Spells and traps do spend, which is the contrast the tip draws.
+        assertTrue(gameService.contains(
+                        "energyService.spendEnergy(state, isPlayerSide, spell.getCostElement(), spell.getCostAmount())"),
+                "Spells must still spend energy — the tutorial contrasts them with Sieglings.");
+        assertTrue(gameService.contains(
+                        "energyService.spendEnergy(state, isPlayerSide, trap.getCostElement(), trap.getCostAmount())"),
+                "Traps must still spend energy — the tutorial contrasts them with Sieglings.");
+    }
+
+    @Test
+    void evolutionStillRequiresASurvivedBattlePhase() throws Exception {
+        String gameService = read("src/main/java/com/sieglings/service/GameService.java");
+        assertTrue(gameService.contains("getBattlePhasesSeen() <= 0"),
+                "Evolution must still require a completed battle phase — the tutorial states it "
+                        + "as one of the two preconditions.");
+    }
+
+    @Test
+    void tutorialCopyMatchesThoseRules() throws Exception {
+        String tutorial = read("src/main/resources/static/js/arena-tutorial.js");
+        assertTrue(tutorial.contains("it does not drain it"),
+                "The cost lesson must keep saying a Siegling's cost is not spent.");
+        assertTrue(tutorial.contains("survived a full battle phase"),
+                "The evolution lesson must keep naming the battle-phase requirement.");
+        // Both link kinds are taught, and each waits on the payout it teaches.
+        assertTrue(tutorial.contains("t2-link-same") && tutorial.contains("t2-link-combo"),
+                "Both the same-element link and the combo link must be walked through.");
+        // Waiting on "energy > 0" completed instantly, because a turn-one socket has
+        // already banked some; the lesson must wait on the INCREASE a new link pays.
+        assertTrue(tutorial.contains("elementalEnergy() > linkBaseline || phase() !== 'SETUP'"),
+                "The same-element lesson must wait on energy rising above where it stood when the "
+                        + "lesson opened, and must give that wait up when Setup ends so it cannot "
+                        + "hold the match hostage.");
+        assertTrue(tutorial.contains("comboCount() > 0 || phase() !== 'SETUP'"),
+                "The combo lesson must wait on a real combo point, with the same escape.");
+    }
+}

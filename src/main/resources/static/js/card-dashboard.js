@@ -8,7 +8,7 @@
 
     /** Must match server live-element roster order (see LiveElementCatalogService). */
     const DEFAULT_LIVE_ELEMENT_ORDER = [
-        "FIRE", "ICE", "WATER", "EARTH", "WIND", "SHADOW", "ELECTRIC", "METAL", "UNDEAD", "PSYCHIC"
+        "FIRE", "ICE", "EARTH", "WIND", "WATER", "SHADOW", "ELECTRIC", "METAL", "UNDEAD", "PSYCHIC"
     ];
 
     // Matches .trainer-art-portrait.is-overlay { aspect-ratio: 639/919 } and the
@@ -103,6 +103,7 @@
         firestoreError: "",
         updatedBy: "",
         updatedAt: "",
+        catalogVersion: 0,
         auth: { ...DEFAULT_AUTH },
         status: { ...DEFAULT_STATUS },
         ephemeralCardArtPreview: null,
@@ -866,6 +867,8 @@
             renderMoveDraftLivePanels();
         });
         refs.moveDraftEffectSelect?.addEventListener("change", () => {
+            // energy_boost turns the element select into the energy-type picker.
+            syncMoveDraftTargetElementUi();
             syncMoveDraftAutoDescription();
             renderMoveDraftLivePanels();
         });
@@ -3157,22 +3160,11 @@
         refs.abilityRequiredReactionField.classList.toggle("hidden", isActionAbility);
 
         if (isActionAbility) {
-            const autoDescription = buildAutoAbilityDescription(ability);
-            const previousAutoDescription = refs.abilityDescriptionInput.dataset.autoDescription || "";
-            const currentDescription = ability.description || "";
-            if (!autoDescription) {
-                if (currentDescription === previousAutoDescription) {
-                    ability.description = "";
-                }
-                refs.abilityDescriptionInput.dataset.autoDescription = "";
-            } else {
-                if (!currentDescription.trim() || currentDescription === previousAutoDescription) {
-                    ability.description = autoDescription;
-                }
-                refs.abilityDescriptionInput.dataset.autoDescription = autoDescription;
-            }
-        } else {
-            refs.abilityDescriptionInput.dataset.autoDescription = "";
+            ability.description = resolveAutoDescription(
+                ability.description,
+                (overrides) => buildAutoAbilityDescription({ ...ability, ...overrides }),
+                `ability:${toNumber(ability.requiredEnergy, 0)}`
+            );
         }
 
         setInputValue(refs.abilityNameInput, ability.name);
@@ -3219,10 +3211,14 @@
                 return `${scope} ${gainVerb} ${signedValue} Speed`;
             case "slow":
                 return `${scope} lose ${value} Speed`;
+            case "energy_boost":
+                return buildEnergyBoostDescription(value, ability?.targetElement || trainer?.element || "", Boolean(ability?.passive), ability?.targetType);
             case "connected_allies_damage_boost":
                 return `Connected allies gain ${signedValue} Attack Damage`;
             case "connected_allies_health_boost":
                 return `Connected allies gain ${signedValue} max HP`;
+            case "connected_allies_heal":
+                return `Heal connected allies for ${value}`;
             case "connected_allies_shield":
                 return `Connected allies gain ${signedValue} Shield`;
             case "connected_allies_slow":
@@ -3240,6 +3236,22 @@
                     isPassive: true
                 });
         }
+    }
+
+    /**
+     * An active resolves on the targets the designer picked, so it reads like a Siegling move — the
+     * SiegeKnight's own element must not leak into the blurb the way it does for a passive aura.
+     */
+    function buildAutoTrainerActiveDescription(ability) {
+        return buildAutoMoveDescription({
+            targetType: ability?.targetType || "",
+            targetElement: "",
+            targetRow: ability?.targetRow || "",
+            effectType: ability?.effectType || "",
+            effectValue: ability?.effectValue,
+            energyCost: ability?.requiredEnergy,
+            isPassive: false
+        });
     }
 
     function trainerPassiveTargetScope(ability, trainer) {
@@ -3802,27 +3814,18 @@
     }
 
     function syncTrainerAbilityAutoDescription(kind, ability, refsForAbility) {
-        if (kind !== "passive" || !ability || !refsForAbility.descriptionInput) {
-            if (refsForAbility.descriptionInput) {
-                refsForAbility.descriptionInput.dataset.autoDescription = "";
-            }
+        if (!ability || !refsForAbility.descriptionInput) {
             return;
         }
         const trainer = getSelectedTrainer();
-        const generated = buildAutoTrainerPassiveDescription(ability, trainer);
-        const previousGenerated = refsForAbility.descriptionInput.dataset.autoDescription || "";
-        const current = ability.description || "";
-        if (!generated) {
-            refsForAbility.descriptionInput.dataset.autoDescription = "";
-            if (current === previousGenerated) {
-                ability.description = "";
-            }
-            return;
-        }
-        refsForAbility.descriptionInput.dataset.autoDescription = generated;
-        if (!current.trim() || current === previousGenerated) {
-            ability.description = generated;
-        }
+        const energy = toNumber(ability.requiredEnergy, 0);
+        const generate = kind === "passive"
+            ? (overrides) => buildAutoTrainerPassiveDescription({ ...ability, ...overrides }, trainer)
+            : (overrides) => buildAutoTrainerActiveDescription({ ...ability, ...overrides });
+        const cacheKey = kind === "passive"
+            ? `trainerPassive:${trainer?.element || ""}:${energy}`
+            : `trainerActive:${energy}`;
+        ability.description = resolveAutoDescription(ability.description, generate, cacheKey);
     }
 
     function renderTrainerSummary() {
@@ -4879,6 +4882,7 @@
 
     function buildExportData() {
         return {
+            catalogVersion: state.catalogVersion,
             cards: state.cards.map((card) => buildExportCard(card)),
             moves: state.movesPool.map((m) => buildExportMove(m)),
             decks: state.decks.map((deck) => buildExportDeck(deck)),
@@ -5288,6 +5292,7 @@
         state.metadata = payload.metadata
             ? { cardTypes: ["SIEGLING", "SPELL", "TRAP"], trainers: [], deckRules: {}, ...payload.metadata }
             : state.metadata;
+        resetAutoDescriptionSignatureCache();
         state.filePath = payload.filePath || "";
         state.source = payload.source || "PROJECT_FILE";
         state.canSaveToProjectFile = Boolean(payload.canSaveToProjectFile);
@@ -5296,6 +5301,7 @@
         state.firestoreError = payload.firestoreError || "";
         state.updatedBy = payload.updatedBy || "";
         state.updatedAt = payload.updatedAt || "";
+        state.catalogVersion = Number(payload.catalogVersion) || 0;
         state.auth = {
             ...DEFAULT_AUTH,
             ...(payload.auth || {}),
@@ -5549,8 +5555,8 @@
         };
     }
 
-    function buildMoveDraftAutoDescription() {
-        return buildAutoMoveDescription({
+    function readMoveDraftAutoDescriptionFields() {
+        return {
             targetType: String(refs.moveDraftTargetSelect?.value || "SINGLE_ENEMY").trim(),
             targetElement: String(refs.moveDraftTargetElementSelect?.value || "").trim(),
             targetRow: String(refs.moveDraftTargetRowSelect?.value || "").trim(),
@@ -5558,26 +5564,21 @@
             effectValue: refs.moveDraftEffectValueInput?.value,
             energyCost: refs.moveDraftEnergyInput?.value,
             isPassive: refs.moveDraftPassiveSelect?.value === "true"
-        });
+        };
     }
 
     function syncMoveDraftAutoDescription() {
         if (!refs.moveDraftDescInput) {
             return;
         }
-        const generated = buildMoveDraftAutoDescription();
-        const previousGenerated = refs.moveDraftDescInput.dataset.autoDescription || "";
-        const current = refs.moveDraftDescInput.value || "";
-        if (!generated) {
-            refs.moveDraftDescInput.dataset.autoDescription = "";
-            if (current === previousGenerated) {
-                setInputValue(refs.moveDraftDescInput, "");
-            }
-            return;
-        }
-        refs.moveDraftDescInput.dataset.autoDescription = generated;
-        if (!current.trim() || current === previousGenerated) {
-            setInputValue(refs.moveDraftDescInput, generated);
+        const fields = readMoveDraftAutoDescriptionFields();
+        const next = resolveAutoDescription(
+            refs.moveDraftDescInput.value,
+            (overrides) => buildAutoMoveDescription({ ...fields, ...overrides }),
+            `move:${fields.targetElement}:${toNumber(fields.energyCost, 0)}`
+        );
+        if (next !== refs.moveDraftDescInput.value) {
+            setInputValue(refs.moveDraftDescInput, next);
         }
     }
 
@@ -5623,6 +5624,84 @@
         return state.movesPool.some((m) => m.id === candidate && m.id !== editingOriginalId);
     }
 
+    // Counts drive singular/plural wording ("1 card" vs "2 cards"), so both forms get sampled when
+    // we ask what a blurb could have looked like. The digit folding below covers every other value.
+    const AUTO_DESCRIPTION_SAMPLE_VALUES = [1, 2];
+
+    // Signature sets are pure functions of the metadata plus the few fields the sweep holds fixed,
+    // so they are memoised per caller-supplied key — renderAll runs on every keystroke.
+    const autoDescriptionSignatureCache = new Map();
+
+    function resetAutoDescriptionSignatureCache() {
+        autoDescriptionSignatureCache.clear();
+    }
+
+    /**
+     * Generated blurbs are recognised by shape rather than by an exact string: digits fold away so
+     * an Effect Value edit never strands the sentence, and case/spacing noise is dropped.
+     */
+    function autoDescriptionSignature(text) {
+        return String(text || "").toLowerCase().replace(/\d+/g, "#").replace(/\s+/g, " ").trim();
+    }
+
+    /**
+     * Every blurb the generator could write for this skill across the target/effect/row/passive
+     * combinations a designer can reach. Membership is what marks stored text as dashboard-owned,
+     * so retargeting or reassigning an effect keeps rewriting it instead of leaving a description
+     * of the old skill behind. This is deliberately independent of any "last generated" DOM state —
+     * that vanishes on reload and when you switch records, which is how stale text used to stick.
+     */
+    function autoDescriptionSignatures(generate, cacheKey) {
+        const cached = autoDescriptionSignatureCache.get(cacheKey);
+        if (cached) {
+            return cached;
+        }
+        const targetTypes = state.metadata?.targetTypes || [];
+        const effectKeys = (state.metadata?.effectTypes || []).map((effect) => effect.key);
+        const rows = state.metadata?.rows || [];
+        const signatures = new Set();
+        targetTypes.forEach((targetType) => {
+            const rowOptions = getTargetRule(targetType).requiresRow && rows.length > 0 ? rows : [""];
+            effectKeys.forEach((effectType) => {
+                rowOptions.forEach((targetRow) => {
+                    AUTO_DESCRIPTION_SAMPLE_VALUES.forEach((effectValue) => {
+                        [false, true].forEach((isPassive) => {
+                            // Moves carry `isPassive`, abilities carry `passive`; feed both shapes.
+                            const text = generate({ targetType, effectType, targetRow, effectValue, isPassive, passive: isPassive });
+                            if (text) {
+                                signatures.add(autoDescriptionSignature(text));
+                            }
+                        });
+                    });
+                });
+            });
+        });
+        autoDescriptionSignatureCache.set(cacheKey, signatures);
+        return signatures;
+    }
+
+    /**
+     * Returns the description a skill should carry now. `generate` takes field overrides so we can
+     * ask what the blurb would have read under settings the designer has already moved away from;
+     * anything hand-written matches no generated shape and is returned untouched. `cacheKey` must
+     * name every generator input the sweep does not vary (energy cost, source element, and so on).
+     */
+    function resolveAutoDescription(currentDescription, generate, cacheKey) {
+        const current = String(currentDescription || "");
+        const generated = generate({});
+        if (generated && current.trim() === generated.trim()) {
+            return current;
+        }
+        if (!current.trim()) {
+            return generated;
+        }
+        if (!autoDescriptionSignatures(generate, cacheKey).has(autoDescriptionSignature(current))) {
+            return current;
+        }
+        // Generated-but-now-unmapped combos clear out: stale text would describe the wrong skill.
+        return generated;
+    }
+
     function buildAutoMoveDescription(move) {
         const effectType = String(move?.effectType || "").trim();
         const targetType = String(move?.targetType || "").trim();
@@ -5637,6 +5716,8 @@
         switch (effectType) {
             case "damage":
                 return buildDamageMoveDescription(value, targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow);
+            case "chain_damage":
+                return buildChainDamageMoveDescription(value, targetType, elementPrefix, selectedEnemyRow);
             case "player_damage":
                 return `Deal ${value} damage to the enemy player`;
             case "draw":
@@ -5661,18 +5742,62 @@
                 return `Connected allies gain ${signedValue} Attack Damage`;
             case "connected_allies_health_boost":
                 return `Connected allies gain ${signedValue} max HP`;
+            case "connected_allies_heal":
+                return `Heal connected allies for ${value}`;
             case "connected_allies_shield":
                 return `Connected allies gain ${signedValue} Shield`;
             case "connected_allies_slow":
                 return `Connected allies lose ${value} Speed`;
             case "connected_allies_speed_boost":
                 return `Connected allies gain ${signedValue} Speed`;
+            case "energy_boost":
+                return buildEnergyBoostDescription(value, targetElement, isPassive, targetType);
             case "destroy":
                 return buildDestroyMoveDescription(targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow);
             case "move_link":
                 return `Move to an open linked point (${Math.max(0, toNumber(move?.energyCost, 0))} Cost)`;
             default:
                 return "";
+        }
+    }
+
+    /**
+     * Energy generation reads by its energy type rather than by what it does to a target — the
+     * card makes energy out of nothing. But an unset type follows whichever card the ability
+     * names, so a targeted boost has to say whose element it takes.
+     */
+    function buildEnergyBoostDescription(value, targetElement, isPassive, targetType) {
+        const chosen = String(targetElement || "").trim();
+        const amount = Math.max(1, value);
+        if (chosen && chosen !== "ALL") {
+            const elementText = `${formatEnumLabel(chosen)} `;
+            return isPassive
+                ? `Passively generates ${amount} ${elementText}energy each turn`
+                : `Generate ${amount} ${elementText}energy`;
+        }
+        const source = energyBoostElementSource(targetType, isPassive);
+        return isPassive
+            ? `Passively generates ${amount} energy of ${source} each turn`
+            : `Generate ${amount} energy of ${source}`;
+    }
+
+    /**
+     * Whose element an unset ("Card element") energy type follows, per target shape. A passive
+     * runs every turn with nobody to pick for it, so only board-wide shapes can name allies —
+     * matching how EnergyService resolves a continuously-applied boost.
+     */
+    function energyBoostElementSource(targetType, isPassive) {
+        switch (String(targetType || "").trim()) {
+            case "SINGLE_ALLY":
+                return isPassive ? "this card's element" : "1 ally's element";
+            case "ALL_ALLIES":
+                return "each ally's element";
+            case "ROW_ALLIES":
+                return "each ally in the row's element";
+            case "ROW_SELECT_ALLIES":
+                return "each ally in the selected row's element";
+            default:
+                return "this card's element";
         }
     }
 
@@ -5710,6 +5835,25 @@
                 return `Deal ${value} damage to the enemy player`;
             default:
                 return "";
+        }
+    }
+
+    function buildChainDamageMoveDescription(value, targetType, elementPrefix, selectedEnemyRow) {
+        switch (targetType) {
+            case "SINGLE_ENEMY":
+                return `Chain ${value} damage to 1 ${elementPrefix}enemy and its connected allies`;
+            case "SINGLE_ALLY":
+                return `Chain ${value} damage to 1 ${elementPrefix}ally and its connected allies`;
+            case "ROW_SELECT_ENEMIES":
+                return `Chain ${value} damage to ${selectedEnemyRow} and their connected allies`;
+            case "ROW_ENEMIES":
+                return elementPrefix
+                    ? `Chain ${value} damage to ${elementPrefix.toLowerCase()}row enemies and their connected allies`
+                    : `Chain ${value} damage to the row and their connected allies`;
+            case "ALL_ENEMIES":
+                return `Chain ${value} damage to all ${elementPrefix}enemies and their connected allies`;
+            default:
+                return `Chain ${value} damage to the target and its connected allies`;
         }
     }
 
@@ -6499,6 +6643,10 @@
         refs.moveDraftTargetRowWrap.classList.toggle("hidden", !rule.requiresRow);
     }
 
+    function isEnergyBoostDraft() {
+        return String(refs.moveDraftEffectSelect?.value || "").trim() === "energy_boost";
+    }
+
     function populateMoveDraftTargetElementOptions() {
         if (!refs.moveDraftTargetElementSelect) {
             return;
@@ -6506,8 +6654,11 @@
         const elements = state.metadata?.elements || [];
         const options = ["ALL", ...elements];
         const prev = String(refs.moveDraftTargetElementSelect.value || "ALL").trim() || "ALL";
+        // On an energy card this select is the energy type, so the "no pick" row has to say
+        // what leaving it unset actually does: generate the card's own element.
+        const unsetLabel = isEnergyBoostDraft() ? "Card element" : "All";
         const markup = options.map((v) => {
-            const label = v === "ALL" ? "All" : formatEnumLabel(v);
+            const label = v === "ALL" ? unsetLabel : formatEnumLabel(v);
             const sel = v === prev ? " selected" : "";
             return `<option value="${escapeHtml(v)}"${sel}>${escapeHtml(label)}</option>`;
         }).join("");
@@ -6524,7 +6675,18 @@
         const passive = refs.moveDraftPassiveSelect.value === "true";
         const tt = String(refs.moveDraftTargetSelect.value || "").trim();
         const supportsElementFilter = tt.includes("ALLY") || tt.includes("ENEMY");
-        refs.moveDraftTargetElementWrap.classList.toggle("hidden", !(passive && supportsElementFilter));
+        // energy_boost reuses this select to pick the energy type, so it is offered on every
+        // target type — including PASSIVE, which has no targets to filter at all.
+        const energyBoost = isEnergyBoostDraft();
+        const label = refs.moveDraftTargetElementWrap.querySelector("span");
+        if (label) {
+            label.textContent = energyBoost ? "Energy type" : "Target element";
+        }
+        populateMoveDraftTargetElementOptions();
+        refs.moveDraftTargetElementWrap.classList.toggle(
+            "hidden",
+            !(energyBoost || (passive && supportsElementFilter))
+        );
     }
 
     function onMoveDraftPassiveChange() {

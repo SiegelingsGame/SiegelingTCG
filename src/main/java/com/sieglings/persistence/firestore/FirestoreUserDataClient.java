@@ -98,6 +98,12 @@ public class FirestoreUserDataClient {
         return firestore;
     }
 
+    /** Non-throwing probe, so callers can pick a transactional path only when one exists. */
+    public boolean isAvailable() {
+        ensureInitialized();
+        return firestore != null;
+    }
+
     public String usersCollection() {
         return usersCollection;
     }

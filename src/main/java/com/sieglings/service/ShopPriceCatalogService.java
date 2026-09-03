@@ -1,5 +1,6 @@
 package com.sieglings.service;
 
+import com.sieglings.diagnostics.FirestoreReadMetrics;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -293,7 +294,9 @@ public class ShopPriceCatalogService {
 
             try {
                 DocumentReference docRef = fireStoreDocRef();
+                long __fsReadStart = System.nanoTime();
                 DocumentSnapshot snapshot = docRef.get().get(10, TimeUnit.SECONDS);
+                FirestoreReadMetrics.record("shopPrices", System.nanoTime() - __fsReadStart);
                 LoadSnapshot loadSnapshot;
                 if (!snapshot.exists() || snapshot.get("overrides") == null) {
                     loadSnapshot = persistFirestoreData(docRef, new ShopPriceFile(List.of()), "system@bootstrap");

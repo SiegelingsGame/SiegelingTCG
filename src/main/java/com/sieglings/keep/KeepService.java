@@ -4,6 +4,7 @@ import com.sieglings.keep.KeepLoreCatalog.Conversation;
 import com.sieglings.keep.KeepLoreCatalog.ConversationChoice;
 import com.sieglings.keep.KeepLoreCatalog.LoreEntry;
 import com.sieglings.keep.KeepLoreCatalog.Outcome;
+import com.sieglings.keep.KeepEventCatalog.KeepEvent;
 import com.sieglings.model.Card;
 import com.sieglings.model.SieglingCard;
 import com.sieglings.model.enums.SieglingSize;
@@ -22,6 +23,7 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.temporal.IsoFields;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -55,12 +57,28 @@ public class KeepService {
     public static final long GENERATOR_LEVEL_ONE_SECONDS = 14_400;
     public static final int ENCLAVE_BUILD_COST = 240;
     public static final long ENCLAVE_BUILD_SECONDS = 7_200;
+    public static final int CONSTRUCTION_MATERIAL_SPEEDUP_COST = 10;
+    public static final int CONSTRUCTION_MATERIAL_SPEEDUP_PERCENT = 25;
+    public static final int CONSTRUCTION_COIN_SECONDS_PER_COIN = 300;
+    public static final int INSTANT_BUILD_BASE_COIN_COST = 250;
+    public static final int INSTANT_BUILD_COINS_PER_MINUTE = 2;
+    public static final int INSTANT_BUILD_COINS_PER_MATERIAL = 8;
     private static final int ENCLAVE_CAPACITY = 5;
     public static final int AKHARS_FRONT_BUILD_COST = 360;
     public static final long AKHARS_FRONT_BUILD_SECONDS = 14_400;
-    private static final int AKHARS_FRONT_CAPACITY = 3;
-    private static final int AKHARS_FRONT_GOLD_CAPACITY = 360;
+    public static final int AKHARS_FRONT_MAX_LEVEL = 4;
+    /** Rampart tiers, indexed by front level (0 = unbuilt). The wall's level *is* its post
+        count, so raising the walls is the only way to field more than one defender, and a
+        better wall also banks more and pays every defender more. */
+    private static final int[] AKHARS_FRONT_GOLD_CAPACITY_BY_LEVEL = {0, 120, 220, 340, 480};
+    private static final int[] AKHARS_FRONT_WALL_BONUS_PERCENT = {0, 0, 10, 20, 35};
+    private static final String[] AKHARS_FRONT_WALL_NAMES = {
+            "Distant front", "Timber Palisade", "Stone Rampart", "Reinforced Bulwark", "Bastion Battlements"};
     private static final double AKHARS_FRONT_GOLD_PER_MINUTE_PER_DEFENDER = 1.0;
+    private static final double AKHARS_FRONT_COMBAT_GOLD_PER_MINUTE_PER_DEFENDER = 4.0;
+    private static final int AKHARS_FRONT_COINS_PER_DEFEAT = 1;
+    /** How many corrupted Siegelings the client may draw raider art from per visit. */
+    private static final int AKHARS_FRONT_RAIDER_POOL = 12;
     private static final int ROOM_DECORATION_CAPACITY = 6;
     private static final double STORAGE_ANNEX_BONUS = .50;
     private static final double STORAGE_DECORATION_BONUS = .25;
@@ -87,6 +105,10 @@ public class KeepService {
     private static final int KEEPER_MATERIAL_COLLECT_XP = 15;
     private static final int KEEPER_PROJECT_XP = 40;
     private static final int KEEPER_QUEST_XP = 50;
+    /** Voices are a meaningful act of stewardship, not just flavor between rewards. */
+    private static final int KEEPER_VOICE_XP = 25;
+    private static final int KEEPER_DAILY_COMMISSION_XP = 35;
+    private static final int KEEPER_WEEKLY_COMMISSION_XP = 120;
     private static final int KEEPER_RESOURCE_XP_DAILY_CAP = 150;
     private static final int KEEPER_LEVELS_PER_CHAPTER = 5;
     /** Decoration granted at specific Keeper Levels (owned outright, placeable once its room is built). */
@@ -106,6 +128,8 @@ public class KeepService {
     private static final Duration OFFLINE_REPORT_THRESHOLD = Duration.ofMinutes(5);
     private static final Duration TRIBUTE_COOLDOWN = Duration.ofDays(7);
     private static final Duration VISITOR_ROLL_COOLDOWN = Duration.ofHours(2);
+    private static final Duration KEEP_EVENT_ROLL_COOLDOWN = Duration.ofMinutes(45);
+    private static final int KEEP_EVENT_CHANCE_PERCENT = 35;
     private static final int MAX_ACTIVE_VISITORS = 3;
     /** Bonded threshold / Voices spectrum ceiling — also the soft cap for npcTrust. */
     public static final int NPC_TRUST_MAX = 7;
@@ -130,6 +154,7 @@ public class KeepService {
     private final PlayerProgressionService progressionService;
     private final CardDefinitionService cardDefinitionService;
     private final KeepLoreCatalog loreCatalog;
+    private final KeepEventCatalog eventCatalog;
     @Autowired(required = false)
     private PlayerProgressionStore progressionStore;
     /** Optional so tests (and a Firestore-less runtime) fall back to the shipped balance. */
@@ -141,11 +166,13 @@ public class KeepService {
     public KeepService(KeepStore store,
                        PlayerProgressionService progressionService,
                        CardDefinitionService cardDefinitionService,
-                       KeepLoreCatalog loreCatalog) {
+                       KeepLoreCatalog loreCatalog,
+                       KeepEventCatalog eventCatalog) {
         this.store = store;
         this.progressionService = progressionService;
         this.cardDefinitionService = cardDefinitionService;
         this.loreCatalog = loreCatalog;
+        this.eventCatalog = eventCatalog;
     }
 
     public Map<String, Object> getSnapshot(AccountUser user) {
@@ -163,11 +190,12 @@ public class KeepService {
                     && Duration.between(awaySince, context.now()).compareTo(OFFLINE_REPORT_THRESHOLD) >= 0;
             boolean produced = completed || (returning && materializeAllProduction(state, context.residents(), context.now()));
             boolean visitorsChanged = refreshVisitors(state, context.now());
+            boolean eventChanged = refreshKeepEvent(state, context.now());
             Map<String, Object> offlineReport = offlineReport(state, awaySince, context.now(), timberBefore,
                     frontGoldBefore, facilityBefore, completedProjects, beforeUnlocks);
             int dailyXp = grantDailyKeeperXp(state, context.now());
             state.setLastVisitedAt(context.now());
-            if (completed || produced || visitorsChanged || dailyXp > 0) {
+            if (completed || produced || visitorsChanged || eventChanged || dailyXp > 0) {
                 bump(context.state(), context.now());
                 store.save(state);
             } else {
@@ -189,32 +217,11 @@ public class KeepService {
 
     public Map<String, Object> collect(AccountUser user, String stationId, String requestId, long expectedVersion) {
         return mutate(user, requestId, expectedVersion, context -> {
-            KeepState state = context.state();
             String id = normalizeStationId(stationId);
-            if ("akhars_front".equals(id)) return collectAkharsFront(state, context);
-            if (!"woodlot".equals(id)) return collectEssenceStation(state, context, id);
-            int room = Math.max(0, timberInventoryCapacity(state) - state.getTimber());
-            int grant = Math.min(room, projectedWoodlotAvailable(state, context.residents(), context.now()));
-            if (grant <= 0) {
-                throw new IllegalArgumentException(room <= 0
-                        ? "Your timber store is full. Start a project before collecting more."
-                        : "The Woodlot has not produced any timber yet.");
-            }
-            materializeProduction(state, context.residents(), context.now());
-            grant = Math.min(room, state.getWoodlotStored());
-            state.setTimber(state.getTimber() + grant);
-            state.setWoodlotStored(state.getWoodlotStored() - grant);
-            state.setWoodlotCollectCount(state.getWoodlotCollectCount() + 1);
-            advanceEnclaveTasks(state, context.residents(), "TIMBER_COLLECTION");
-            if (state.getWoodlotCollectCount() == 1) unlock(state, "letter_forester_maren");
-            if (state.getWoodlotCollectCount() >= 3) unlock(state, "memorabilia_petrified_root");
-            final int granted = grant;
-            recordKeepStats(context.progression(), p -> p.setKeepTimberCollected(p.getKeepTimberCollected() + granted));
-            int xpGained = grantResourceKeeperXp(state, context.now(), KEEPER_TIMBER_COLLECT_XP);
-            Map<String, Object> extra = new LinkedHashMap<>();
-            extra.put("collected", Map.of("resource", "TIMBER", "amount", grant));
-            if (xpGained > 0) extra.put("keeperXpAwarded", xpGained);
-            return extra;
+            if ("all".equals(id)) return collectAllStations(context);
+            if ("akhars_front".equals(id)) return collectAkharsFront(context.state(), context);
+            if (!"woodlot".equals(id)) return collectEssenceStation(context.state(), context, id);
+            return collectWoodlot(context);
         });
     }
 
@@ -264,6 +271,199 @@ public class KeepService {
             addConstruction(state, id, context.now(), context.now().plusSeconds(project.durationSeconds()));
             return Map.of("constructionStarted", id);
         });
+    }
+
+    /** Purchase an available building or upgrade outright with account Siegecoins.
+     * This replaces its timber/material bill and construction timer, but never its
+     * progression prerequisites or Keeper-level gate. */
+    public Map<String, Object> purchaseBuild(AccountUser user, String buildId,
+                                             String requestId, long expectedVersion) {
+        return mutate(user, requestId, expectedVersion, context -> {
+            KeepState state = context.state();
+            String id = buildId == null ? "" : buildId.trim();
+            if (isConstructing(state, id)) {
+                throw new IllegalArgumentException("That project is already underway. Use its time savers instead.");
+            }
+            BuildProject project = buildProject(id);
+            if (project == null) throw new IllegalArgumentException("Unknown construction project.");
+            validateBuild(state, project);
+            int coinCost = instantBuildCoinCost(project);
+            PlayerProgressionEntity progression = context.progression();
+            if (progression.getGold() < coinCost) {
+                throw new IllegalArgumentException("You need " + (coinCost - progression.getGold())
+                        + " more Siegecoins to buy that project instantly.");
+            }
+
+            // Keep effects first; account gold is charged only after the Keep
+            // document persists (see mutate). Charging first left a window where
+            // a failed Keep write deducted Siegecoins without applying the build,
+            // and the client's fresh requestId then charged again on retry.
+            materializeAllProduction(state, context.residents(), context.now());
+            applyConstructionEffects(state, id, context.now());
+            awardKeeperXp(state, KEEPER_PROJECT_XP);
+            advanceEnclaveTasks(state, context.residents(), "CONSTRUCTION");
+            int goldBalance = progression.getGold() - coinCost;
+            context.afterKeepPersist(p -> {
+                p.setGold(p.getGold() - coinCost);
+                p.setKeepProjectsCompleted(p.getKeepProjectsCompleted() + 1);
+                p.setUpdatedAt(context.now());
+            });
+            return Map.of("projectPurchased", Map.of(
+                    "buildId", id,
+                    "name", project.name(),
+                    "coinCost", coinCost,
+                    "goldBalance", goldBalance,
+                    "completed", true));
+        });
+    }
+
+    private int instantBuildCoinCost(BuildProject project) {
+        long minutes = Math.max(1, (long) Math.ceil(project.durationSeconds() / 60.0));
+        long materials = project.materialCosts().values().stream()
+                .mapToLong(value -> Math.max(0, value == null ? 0 : value)).sum();
+        long total = INSTANT_BUILD_BASE_COIN_COST + Math.max(0, project.timberCost())
+                + minutes * INSTANT_BUILD_COINS_PER_MINUTE
+                + materials * INSTANT_BUILD_COINS_PER_MATERIAL;
+        return (int) Math.min(Integer.MAX_VALUE, Math.max(1, total));
+    }
+
+    /**
+     * Buys time against one active project. Materials trim a fixed share of the time
+     * still on the clock; account Siegecoins finish it immediately. Both costs are
+     * derived here so a stale or modified client cannot choose its own price.
+     */
+    public Map<String, Object> speedUpConstruction(AccountUser user, String buildId, String payment,
+                                                    String requestId, long expectedVersion) {
+        return mutate(user, requestId, expectedVersion, context -> {
+            KeepState state = context.state();
+            String id = buildId == null ? "" : buildId.trim();
+            ConstructionSlot slot = constructionSlotsInUse(state).stream()
+                    .filter(item -> item.id().equals(id)).findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("That construction project is no longer underway."));
+            long remaining = Math.max(1, Duration.between(context.now(), slot.completesAt()).getSeconds());
+            String normalizedPayment = payment == null ? "" : payment.trim().toUpperCase(Locale.ROOT);
+
+            if ("MATERIALS".equals(normalizedPayment)) {
+                if (totalMaterials(state) < CONSTRUCTION_MATERIAL_SPEEDUP_COST) {
+                    throw new IllegalArgumentException("You need " + CONSTRUCTION_MATERIAL_SPEEDUP_COST
+                            + " workshop materials for that time saver.");
+                }
+                Map<String, Integer> spent = spendAnyMaterials(state, CONSTRUCTION_MATERIAL_SPEEDUP_COST);
+                long savedSeconds = Math.max(1,
+                        (long) Math.ceil(remaining * CONSTRUCTION_MATERIAL_SPEEDUP_PERCENT / 100.0));
+                long after = Math.max(1, remaining - savedSeconds);
+                setConstructionCompletesAt(state, slot.index(), context.now().plusSeconds(after));
+                return Map.of("timeSaverApplied", Map.of(
+                        "buildId", id,
+                        "payment", "MATERIALS",
+                        "materialCost", CONSTRUCTION_MATERIAL_SPEEDUP_COST,
+                        "materialPercent", CONSTRUCTION_MATERIAL_SPEEDUP_PERCENT,
+                        "materialsSpent", serializeMaterialCosts(spent),
+                        "savedSeconds", savedSeconds,
+                        "remainingSeconds", after));
+            }
+
+            if (!"SIEGECOINS".equals(normalizedPayment)) {
+                throw new IllegalArgumentException("Choose materials or Siegecoins for that time saver.");
+            }
+            int coinCost = constructionCoinCost(remaining);
+            PlayerProgressionEntity progression = context.progression();
+            if (progression.getGold() < coinCost) {
+                throw new IllegalArgumentException("You need " + (coinCost - progression.getGold())
+                        + " more Siegecoins to complete that project.");
+            }
+
+            materializeAllProduction(state, context.residents(), context.now());
+            applyConstructionEffects(state, id, context.now());
+            clearConstruction(state, slot.index());
+            awardKeeperXp(state, KEEPER_PROJECT_XP);
+            advanceEnclaveTasks(state, context.residents(), "CONSTRUCTION");
+            int goldBalance = progression.getGold() - coinCost;
+            context.afterKeepPersist(p -> {
+                p.setGold(p.getGold() - coinCost);
+                p.setKeepProjectsCompleted(p.getKeepProjectsCompleted() + 1);
+                p.setUpdatedAt(context.now());
+            });
+            return Map.of("timeSaverApplied", Map.of(
+                    "buildId", id,
+                    "payment", "SIEGECOINS",
+                    "coinCost", coinCost,
+                    "goldBalance", goldBalance,
+                    "completed", true));
+        });
+    }
+
+    private int constructionCoinCost(long remainingSeconds) {
+        return Math.max(1, (int) Math.ceil(Math.max(1, remainingSeconds)
+                / (double) CONSTRUCTION_COIN_SECONDS_PER_COIN));
+    }
+
+    /** Rebuilds the currently damaged Keep feature with either a short timer or Siegecoins. */
+    public Map<String, Object> repairKeepEvent(AccountUser user, String eventId, String payment,
+                                               String requestId, long expectedVersion) {
+        return mutate(user, requestId, expectedVersion, context -> {
+            KeepState state = context.state();
+            KeepEvent event = eventCatalog.event(state.getActiveKeepEventId());
+            String id = eventId == null ? "" : eventId.trim();
+            if (event == null || !event.id().equals(id)) {
+                throw new IllegalArgumentException("That Keep damage has already been repaired.");
+            }
+            String normalizedPayment = payment == null ? "" : payment.trim().toUpperCase(Locale.ROOT);
+            if ("TIME".equals(normalizedPayment)) {
+                if (state.getKeepEventRepairCompletesAt() != null) {
+                    throw new IllegalArgumentException("That rebuild is already underway.");
+                }
+                state.setKeepEventRepairStartedAt(context.now());
+                state.setKeepEventRepairCompletesAt(context.now().plusSeconds(event.repairSeconds()));
+                return Map.of("keepEventRepair", Map.of(
+                        "eventId", event.id(), "payment", "TIME", "completed", false,
+                        "repairSeconds", event.repairSeconds(),
+                        "repairCompletesAt", state.getKeepEventRepairCompletesAt().toString()));
+            }
+            if (!"SIEGECOINS".equals(normalizedPayment)) {
+                throw new IllegalArgumentException("Choose a timed rebuild or Siegecoins.");
+            }
+            PlayerProgressionEntity progression = context.progression();
+            if (progression.getGold() < event.coinCost()) {
+                throw new IllegalArgumentException("You need " + (event.coinCost() - progression.getGold())
+                        + " more Siegecoins to repair that damage now.");
+            }
+            int goldBalance = progression.getGold() - event.coinCost();
+            clearKeepEvent(state);
+            context.afterKeepPersist(p -> {
+                p.setGold(p.getGold() - event.coinCost());
+                p.setUpdatedAt(context.now());
+            });
+            return Map.of("keepEventRepair", Map.of(
+                    "eventId", event.id(), "payment", "SIEGECOINS", "completed", true,
+                    "coinCost", event.coinCost(), "goldBalance", goldBalance));
+        });
+    }
+
+    private int totalMaterials(KeepState state) {
+        return state.getMaterialInventory().values().stream()
+                .mapToInt(value -> Math.max(0, value == null ? 0 : value)).sum();
+    }
+
+    /** Spend the fullest stacks first so the time saver is predictable and avoids
+     * leaving one workshop capped while rarer, smaller stacks are drained. */
+    private Map<String, Integer> spendAnyMaterials(KeepState state, int amount) {
+        int remaining = Math.max(0, amount);
+        Map<String, Integer> spent = new LinkedHashMap<>();
+        List<Map.Entry<String, Integer>> stacks = new ArrayList<>(state.getMaterialInventory().entrySet());
+        stacks.sort(Comparator.<Map.Entry<String, Integer>>comparingInt(entry ->
+                Math.max(0, entry.getValue() == null ? 0 : entry.getValue())).reversed()
+                .thenComparing(Map.Entry::getKey));
+        for (Map.Entry<String, Integer> stack : stacks) {
+            if (remaining <= 0) break;
+            int owned = Math.max(0, stack.getValue() == null ? 0 : stack.getValue());
+            int take = Math.min(owned, remaining);
+            if (take <= 0) continue;
+            state.getMaterialInventory().put(stack.getKey(), owned - take);
+            spent.put(stack.getKey(), take);
+            remaining -= take;
+        }
+        return spent;
     }
 
     /** Keeper journey milestones add one team at levels 5, 10, 15, 20, and 25. */
@@ -355,6 +555,13 @@ public class KeepService {
             int appliedTimber = applyTimberDelta(state, timberDelta);
             Map<String, Integer> appliedMaterials = applyMaterialDeltas(state, materialDeltas);
             if (flag != null && !flag.isBlank()) addUnique(state.getChoiceFlags(), flag);
+            String consequenceFlag = "";
+            boolean badChoice = relationshipDelta < 0 || appliedTimber < 0
+                    || appliedMaterials.values().stream().anyMatch(value -> value < 0);
+            if (badChoice) {
+                consequenceFlag = "bad_choice_" + conversation.id() + "_" + choice.id();
+                addUnique(state.getChoiceFlags(), consequenceFlag);
+            }
             if (unlockLoreId != null) unlock(state, unlockLoreId);
             int trustBefore = Math.max(0, state.getNpcTrust().getOrDefault(conversation.npcId(), 0));
             int trustAfter = Math.max(0, Math.min(NPC_TRUST_MAX, trustBefore + relationshipDelta));
@@ -363,13 +570,19 @@ public class KeepService {
             if (loreCatalog.isRollingEncounter(conversation)) {
                 // Visitors and Interaction NPCs leave the active slate and return after cooldown.
                 state.getActiveVisitorIds().remove(conversation.id());
-                state.getVisitorAvailableAt().put(conversation.id(),
-                        context.now().plus(Duration.ofHours(conversation.cooldownHours())));
+                if (conversation.oneTime()) {
+                    addUnique(state.getCompletedConversationIds(), conversation.id());
+                } else {
+                    state.getVisitorAvailableAt().put(conversation.id(),
+                            context.now().plus(Duration.ofHours(conversation.cooldownHours())));
+                }
             } else {
                 addUnique(state.getCompletedConversationIds(), conversation.id());
             }
+            String followupConversationId = activateConsequenceFollowup(state, consequenceFlag);
             recordKeepStats(context.progression(), p -> p.setKeepConversationsCompleted(p.getKeepConversationsCompleted() + 1));
             advanceEnclaveTasks(state, context.residents(), "CONVERSATION");
+            int voiceXp = awardKeeperXp(state, KEEPER_VOICE_XP);
 
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("npcId", conversation.npcId());
@@ -386,6 +599,10 @@ public class KeepService {
             result.put("materialCosts", serializeMaterialCosts(choice.materialCosts()));
             result.put("materialDeltas", serializeMaterialDeltas(appliedMaterials));
             result.put("summary", dialogueSummary(choice.timberCost(), appliedTimber, choice.materialCosts(), appliedMaterials));
+            result.put("badChoice", badChoice);
+            result.put("consequenceFlag", consequenceFlag);
+            result.put("followupConversationId", followupConversationId);
+            result.put("keeperXpAwarded", voiceXp);
             return Map.of("dialogueResult", result);
         });
     }
@@ -441,6 +658,9 @@ public class KeepService {
                 throw new IllegalArgumentException("That decoration does not belong in this room.");
             }
             if (craftedCount(state, id) < 1) throw new IllegalArgumentException("Craft that decoration before placing it.");
+            if (isDamagedTarget(state, KeepEventCatalog.TARGET_DECORATION, id)) {
+                throw new IllegalArgumentException("Rebuild that damaged decoration before moving it.");
+            }
             // Apply production under the old capacity before a storage furnishing changes it.
             materializeAllProduction(state, context.residents(), context.now());
             LinkedHashSet<String> placed = placedDecorationIds(state, room);
@@ -487,15 +707,20 @@ public class KeepService {
         return mutate(user, requestId, expectedVersion, context -> {
             KeepState state = context.state();
             if (state.getAkharsFrontLevel() < 1) throw new IllegalArgumentException("Unlock Akhar's Front first.");
-            if (slot < 0 || slot >= AKHARS_FRONT_CAPACITY) {
-                throw new IllegalArgumentException("Choose one of the three rampart posts.");
+            int capacity = akharsFrontCapacity(state);
+            if (slot < 0 || slot >= capacity) {
+                throw new IllegalArgumentException(capacity == 1
+                        ? "The rampart only has one post. Upgrade the walls to open more."
+                        : "Choose one of the " + capacity + " rampart posts.");
             }
             String normalized = residentId == null ? "" : residentId.trim();
             if (!normalized.isBlank() && context.residents().stream().noneMatch(item -> item.id().equals(normalized))) {
                 throw new IllegalArgumentException("That Siegeling has not joined your collection yet.");
             }
-            // Settle the old defender count before changing the passive-income rate.
-            materializeAkharsFront(state, context.residents(), context.now());
+            // Moving a worker onto the wall must vacate its Keep building. Materialize every
+            // affected producer first so neither the old station nor the rampart loses accrual.
+            materializeAllProduction(state, context.residents(), context.now());
+            if (!normalized.isBlank()) clearResidentAssignment(state, normalized);
             List<String> assignments = normalizedAkharsFrontResidents(state);
             if (!normalized.isBlank()) {
                 for (int index = 0; index < assignments.size(); index++) {
@@ -536,6 +761,7 @@ public class KeepService {
         a Legendary partner always out-earns a Common one, and the distance between them
         grows by the same threshold as the bonus itself. */
     private double favoriteBoost(KeepState state, List<Resident> residents) {
+        if (isDamagedTarget(state, KeepEventCatalog.TARGET_UPGRADE, "great_hall")) return 0;
         Resident favorite = favoriteResident(state, residents);
         if (favorite == null) return 0;
         return favoriteBoostFor(state, favorite);
@@ -687,6 +913,24 @@ public class KeepService {
                 int totalLevels = totalBuildLevels(state);
                 gold = (int) Math.round((90 + totalLevels * 20) * boost);
                 remnants = (int) Math.round((15 + totalLevels * 5) * boost);
+            } else if ("daily_stewardship".equals(id)) {
+                String day = dayKey(context.now());
+                claimKey = "daily_stewardship:" + day;
+                if (state.getTimber() < 5) throw new IllegalArgumentException("Gather 5 timber for today's stewardship round.");
+                state.setTimber(state.getTimber() - 5);
+                gold = 15;
+                remnants = 5;
+            } else if ("weekly_restoration".equals(id)) {
+                String week = weekKey(context.now());
+                claimKey = "weekly_restoration:" + week;
+                Map<String, Integer> requirements = weeklyRestorationRequirements(state, week);
+                if (state.getTimber() < 20 || requirements.isEmpty() || !hasMaterials(state, requirements)) {
+                    throw new IllegalArgumentException("Prepare this week's restoration supplies first.");
+                }
+                state.setTimber(state.getTimber() - 20);
+                orderCosts = requirements;
+                gold = 55;
+                remnants = 20;
             } else if (id.startsWith("enclave_task:") || id.startsWith("enclave_mission:")) {
                 // "enclave_mission:<residentId>" is the pre-rapport client's id; it still resolves
                 // to the resident's first task so a cached page claims something sensible.
@@ -747,20 +991,34 @@ public class KeepService {
                 materializeAllProduction(state, context.residents(), context.now());
                 state.getResidentRapport().merge(rapportResidentId, rapportAward, Integer::sum);
             }
-            progression.setGold(progression.getGold() + gold);
-            progression.setRemnants(progression.getRemnants() + remnants);
-            if (!repeatableClaim) progression.getKeepRewardClaimIds().add(claimKey);
-            progression.setUpdatedAt(context.now());
-            if (progressionStore != null) progressionStore.save(progression);
+            // Keep spends materials / grants decorations first; account gold and the durable
+            // claim marker flush only after Keep persists. Saving progression inside this
+            // action left a window where a failed Keep write credited weekly_order gold
+            // (and marked the claim) while Firestore still held the unspent materials.
+            final int awardedGold = gold;
+            final int awardedRemnants = remnants;
+            final String durableClaimKey = claimKey;
+            final boolean durableClaim = !repeatableClaim;
+            int goldBalance = progression.getGold() + awardedGold;
+            int remnantsBalance = progression.getRemnants() + awardedRemnants;
+            context.afterKeepPersist(p -> {
+                p.setGold(p.getGold() + awardedGold);
+                p.setRemnants(p.getRemnants() + awardedRemnants);
+                if (durableClaim) p.getKeepRewardClaimIds().add(durableClaimKey);
+                p.setUpdatedAt(context.now());
+            });
             // Completing a quest is itself a progression beat; claiming the battlepass
             // payout is not (that XP is what earned the level in the first place).
-            int questXp = id.startsWith("keeper_level:") ? 0 : awardKeeperXp(state, KEEPER_QUEST_XP);
+            int questXp = id.startsWith("keeper_level:") ? 0
+                    : "daily_stewardship".equals(id) ? awardKeeperXp(state, KEEPER_DAILY_COMMISSION_XP)
+                    : "weekly_restoration".equals(id) ? awardKeeperXp(state, KEEPER_WEEKLY_COMMISSION_XP)
+                    : awardKeeperXp(state, KEEPER_QUEST_XP);
             Map<String, Object> reward = new LinkedHashMap<>();
             reward.put("id", id);
             reward.put("gold", gold);
             reward.put("remnants", remnants);
-            reward.put("goldBalance", progression.getGold());
-            reward.put("remnantsBalance", progression.getRemnants());
+            reward.put("goldBalance", goldBalance);
+            reward.put("remnantsBalance", remnantsBalance);
             if (questXp > 0) reward.put("keeperXpAwarded", questXp);
             if (grantedDecorationId != null && !grantedDecorationId.isBlank()) {
                 reward.put("decorationId", grantedDecorationId);
@@ -789,12 +1047,14 @@ public class KeepService {
             boolean completed = !completedProjects.isEmpty();
             boolean produced = materializeAllProduction(state, context.residents(), context.now());
             refreshVisitors(state, context.now());
+            boolean eventChanged = refreshKeepEvent(state, context.now());
+            boolean worldChanged = completed || produced || eventChanged;
             if (completed) {
                 recordKeepStats(context.progression(),
                         p -> p.setKeepProjectsCompleted(p.getKeepProjectsCompleted() + completedProjects.size()));
             }
             if (state.getProcessedRequestIds().contains(normalizedRequestId)) {
-                if (completed || produced) {
+                if (worldChanged) {
                     bump(state, context.now());
                     store.save(state);
                 }
@@ -803,7 +1063,7 @@ public class KeepService {
                 return out;
             }
             if (expectedVersion >= 0 && state.getVersion() != expectedVersion) {
-                if (completed || produced) {
+                if (worldChanged) {
                     bump(state, context.now());
                     store.save(state);
                 }
@@ -813,7 +1073,7 @@ public class KeepService {
             try {
                 extra = action.apply(context);
             } catch (RuntimeException ex) {
-                if (completed || produced) {
+                if (worldChanged) {
                     bump(state, context.now());
                     store.save(state);
                 }
@@ -822,6 +1082,11 @@ public class KeepService {
             rememberRequest(state, normalizedRequestId);
             bump(state, context.now());
             store.save(state);
+            // Account gold/progression lives in a separate document. Apply those
+            // mutations only after Keep persists so a failed Keep write cannot
+            // leave coins credited (or charged) against a rolled-back Keep bank
+            // or unapplied construction.
+            context.flushProgressionAfterKeep(progressionStore);
             Map<String, Object> out = serialize(user, context.progression(), state, context.residents(), context.now());
             addNewUnlocks(out, state, beforeUnlocks);
             if (extra != null) out.putAll(extra);
@@ -842,6 +1107,7 @@ public class KeepService {
         KeepState state = store.findByUserId(user.getId()).orElseGet(() -> store.save(newState(user.getId(), now)));
         repairDefaults(state, now);
         backfillKeeperXp(state);
+        repairClaimedKeeperDecorations(state, progression);
         if (!progression.isKeepFounded()) {
             recordKeepStats(progression, p -> p.setKeepFounded(true));
         }
@@ -856,6 +1122,7 @@ public class KeepService {
         state.setWoodlotLevel(1);
         state.setWoodlotLastAccruedAt(now.minus(Duration.ofMinutes(15)));
         state.setLastVisitedAt(now);
+        state.setLastKeepEventRollAt(now);
         state.setCreatedAt(now);
         state.setUpdatedAt(now);
         state.setUnlockedLoreIds(List.of("charter_three_promises"));
@@ -867,8 +1134,22 @@ public class KeepService {
         if (state.getAkharsFrontLevel() > 0 && state.getAkharsFrontLastAccruedAt() == null) {
             state.setAkharsFrontLastAccruedAt(now);
         }
+        // Akhar's Front shipped with three fixed posts before the walls became upgradable.
+        // Promote those keeps to the tier they were effectively already holding so making
+        // posts a wall-tier reward never evicts a Siegeling somebody had posted.
+        if (state.getAkharsFrontLevel() > 0) {
+            List<String> posted = state.getAkharsFrontResidentIds();
+            int occupied = 0;
+            for (int index = 0; index < posted.size(); index++) {
+                if (posted.get(index) != null && !posted.get(index).isBlank()) occupied = index + 1;
+            }
+            if (occupied > state.getAkharsFrontLevel()) {
+                state.setAkharsFrontLevel(Math.min(AKHARS_FRONT_MAX_LEVEL, occupied));
+            }
+        }
         if (state.getCreatedAt() == null) state.setCreatedAt(now);
         if (state.getLastVisitedAt() == null) state.setLastVisitedAt(state.getUpdatedAt() == null ? now : state.getUpdatedAt());
+        if (state.getLastKeepEventRollAt() == null) state.setLastKeepEventRollAt(now);
         for (String id : FACILITIES.keySet()) {
             if (facilityLevel(state, id) > 0) state.getFacilityLastAccruedAt().putIfAbsent(id, now);
             state.getFacilityStored().putIfAbsent(id, 0);
@@ -877,6 +1158,23 @@ public class KeepService {
             state.getMaterialInventory().putIfAbsent(FACILITIES.get(id).resourceId(), 0);
         }
         if (!state.getUnlockedLoreIds().contains("charter_three_promises")) unlock(state, "charter_three_promises");
+    }
+
+    /**
+     * Reward claims and Keep inventory live in separate Firestore documents. If
+     * the progression write succeeds but the Keep write fails, the claim is
+     * already consumed on retry. Rebuild this derived entitlement from the
+     * durable claim marker so a transient split-write failure cannot lose it.
+     */
+    private void repairClaimedKeeperDecorations(KeepState state, PlayerProgressionEntity progression) {
+        if (progression == null) return;
+        for (Map.Entry<Integer, String> reward : KEEPER_LEVEL_DECORATIONS.entrySet()) {
+            String decorationId = reward.getValue();
+            if (progression.getKeepRewardClaimIds().contains("keeper_level:" + reward.getKey())
+                    && craftedCount(state, decorationId) < 1) {
+                state.getCraftedItemCounts().put(decorationId, 1);
+            }
+        }
     }
 
     /** Completes every due project across all level-provided teams, earliest first. */
@@ -946,6 +1244,20 @@ public class KeepService {
         }
     }
 
+    private void setConstructionCompletesAt(KeepState state, int index, Instant completesAt) {
+        if (index == 0) {
+            state.setConstructionCompletesAt(completesAt);
+        } else if (index == 1) {
+            state.setConstructionCompletesAt2(completesAt);
+        } else {
+            int additionalIndex = index - 2;
+            while (state.getAdditionalConstructionCompletesAts().size() <= additionalIndex) {
+                state.getAdditionalConstructionCompletesAts().add(null);
+            }
+            state.getAdditionalConstructionCompletesAts().set(additionalIndex, completesAt);
+        }
+    }
+
     private void applyConstructionEffects(KeepState state, String id, Instant completesAt) {
         if ("woodlot_level_2".equals(id)) {
             state.setWoodlotLevel(2);
@@ -982,6 +1294,9 @@ public class KeepService {
         } else if ("build_akhars_front".equals(id)) {
             state.setAkharsFrontLevel(1);
             state.setAkharsFrontLastAccruedAt(completesAt);
+        } else if (parseAkharsFrontLevel(id) > 0) {
+            state.setAkharsFrontLevel(Math.max(state.getAkharsFrontLevel(), parseAkharsFrontLevel(id)));
+            if (state.getAkharsFrontLastAccruedAt() == null) state.setAkharsFrontLastAccruedAt(completesAt);
         } else if (storageProjectRoom(id) != null) {
             state.getStorageUpgradeLevels().put(storageProjectRoom(id), 1);
         } else if (id.startsWith("hall_level_")) {
@@ -1032,7 +1347,7 @@ public class KeepService {
         }
         if (!at.isAfter(last)) return;
         long seconds = Duration.between(last, at).getSeconds();
-        int room = Math.max(0, AKHARS_FRONT_GOLD_CAPACITY - state.getAkharsFrontStoredGold());
+        int room = Math.max(0, akharsFrontGoldCapacity(state) - state.getAkharsFrontStoredGold());
         double exact = seconds * akharsFrontRate(state, residents) / 60.0
                 + state.getAkharsFrontProductionRemainder();
         long produced = Math.max(0, (long) Math.floor(exact + 1e-9));
@@ -1042,12 +1357,25 @@ public class KeepService {
         state.setAkharsFrontLastAccruedAt(at);
     }
 
-    private double akharsFrontRate(KeepState state, List<Resident> residents) {
+    private long akharsFrontDefenderCount(KeepState state, List<Resident> residents) {
         if (state.getAkharsFrontLevel() < 1) return 0;
         Set<String> owned = residents.stream().map(Resident::id).collect(Collectors.toSet());
-        long defenders = normalizedAkharsFrontResidents(state).stream()
+        return normalizedAkharsFrontResidents(state).stream()
                 .filter(id -> !id.isBlank() && owned.contains(id)).count();
-        return defenders * AKHARS_FRONT_GOLD_PER_MINUTE_PER_DEFENDER * (1 + favoriteBoost(state, residents));
+    }
+
+    private double akharsFrontPassiveRate(KeepState state, List<Resident> residents) {
+        return akharsFrontDefenderCount(state, residents) * AKHARS_FRONT_GOLD_PER_MINUTE_PER_DEFENDER
+                * akharsFrontWallMultiplier(state) * (1 + favoriteBoost(state, residents));
+    }
+
+    private double akharsFrontCombatRate(KeepState state, List<Resident> residents) {
+        return akharsFrontDefenderCount(state, residents) * AKHARS_FRONT_COMBAT_GOLD_PER_MINUTE_PER_DEFENDER
+                * akharsFrontWallMultiplier(state) * (1 + favoriteBoost(state, residents));
+    }
+
+    private double akharsFrontRate(KeepState state, List<Resident> residents) {
+        return akharsFrontPassiveRate(state, residents) + akharsFrontCombatRate(state, residents);
     }
 
     private int projectedAkharsFrontAvailable(KeepState state, List<Resident> residents, Instant at) {
@@ -1056,7 +1384,7 @@ public class KeepService {
         if (last == null || !at.isAfter(last)) return state.getAkharsFrontStoredGold();
         double exact = Duration.between(last, at).getSeconds() * akharsFrontRate(state, residents) / 60.0
                 + state.getAkharsFrontProductionRemainder();
-        return Math.min(AKHARS_FRONT_GOLD_CAPACITY,
+        return Math.min(akharsFrontGoldCapacity(state),
                 state.getAkharsFrontStoredGold() + Math.max(0, (int) Math.floor(exact + 1e-9)));
     }
 
@@ -1098,6 +1426,7 @@ public class KeepService {
     }
 
     private double woodlotRate(KeepState state, List<Resident> residents) {
+        if (isDamagedTarget(state, KeepEventCatalog.TARGET_UPGRADE, "woodlot")) return 0;
         double base = state.getWoodlotLevel() >= 2 ? 2.0 : 1.0;
         Resident invited = residents.stream().filter(r -> r.id().equals(state.getWoodlotResidentId())).findFirst().orElse(null);
         double rate = base * (1 + stationBonus(state, invited, "woodlot"));
@@ -1132,12 +1461,16 @@ public class KeepService {
     }
 
     private int timberInventoryCapacity(KeepState state) {
-        return TIMBER_INVENTORY_CAPACITY + state.getStorehouseLevel() * 300
+        int storehouse = isDamagedTarget(state, KeepEventCatalog.TARGET_UPGRADE, "storehouse")
+                ? 0 : state.getStorehouseLevel();
+        return TIMBER_INVENTORY_CAPACITY + storehouse * 300
                 + (hallLevel(state) - 1) * 50;
     }
 
     private int materialInventoryCapacity(KeepState state) {
-        return 75 + state.getStorehouseLevel() * 125
+        int storehouse = isDamagedTarget(state, KeepEventCatalog.TARGET_UPGRADE, "storehouse")
+                ? 0 : state.getStorehouseLevel();
+        return 75 + storehouse * 125
                 + (craftedCount(state, "covenant_crates") > 0 ? 75 : 0)
                 + (hallLevel(state) - 1) * 15;
     }
@@ -1151,7 +1484,8 @@ public class KeepService {
     }
 
     private double storageMultiplier(KeepState state) {
-        return 1.0 + state.getStorehouseLevel() * .5;
+        return 1.0 + (isDamagedTarget(state, KeepEventCatalog.TARGET_UPGRADE, "storehouse")
+                ? 0 : state.getStorehouseLevel()) * .5;
     }
 
     private double localStorageMultiplier(KeepState state, String roomId) {
@@ -1183,6 +1517,7 @@ public class KeepService {
     private double facilityRate(KeepState state, List<Resident> residents, String id) {
         FacilityDefinition definition = FACILITIES.get(id);
         if (definition == null || facilityLevel(state, id) < 1) return 0;
+        if (isDamagedTarget(state, KeepEventCatalog.TARGET_UPGRADE, id)) return 0;
         String residentId = state.getFacilityResidentIds().getOrDefault(id, "");
         Resident resident = residents.stream().filter(item -> item.id().equals(residentId)).findFirst().orElse(null);
         double affinity = 1 + stationBonus(state, resident, id);
@@ -1193,22 +1528,145 @@ public class KeepService {
                 * (1 + favoriteBoost(state, residents));
     }
 
+    /**
+     * Dock Collect gathers every ready production point in one action — Woodlot
+     * timber plus each built facility stockpile — skipping empty or capped stores
+     * instead of failing the whole claim when only some points can pay out.
+     */
+    private Map<String, Object> collectAllStations(Context context) {
+        List<Map<String, Object>> grants = new ArrayList<>();
+        int xpGained = 0;
+        Map<String, Object> woodlot = tryCollectWoodlot(context);
+        if (woodlot != null) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> entry = (Map<String, Object>) woodlot.get("collected");
+            if (entry != null) grants.add(entry);
+            xpGained += number(woodlot.get("keeperXpAwarded"));
+        }
+        for (String id : FACILITIES.keySet()) {
+            Map<String, Object> facility = tryCollectEssenceStation(context.state(), context, id);
+            if (facility == null) continue;
+            @SuppressWarnings("unchecked")
+            Map<String, Object> entry = (Map<String, Object>) facility.get("collected");
+            if (entry != null) grants.add(entry);
+            xpGained += number(facility.get("keeperXpAwarded"));
+        }
+        if (grants.isEmpty()) {
+            KeepState state = context.state();
+            KeepEvent damage = eventCatalog.event(state.getActiveKeepEventId());
+            if (damage != null && KeepEventCatalog.TARGET_UPGRADE.equals(damage.targetType())
+                    && productionStationDamagedWithStores(state, context, damage.targetId())) {
+                throw new IllegalArgumentException("Rebuild "
+                        + damage.targetName()
+                        + " before collecting from it.");
+            }
+            boolean timberFull = !isDamagedTarget(state, KeepEventCatalog.TARGET_UPGRADE, "woodlot")
+                    && timberInventoryCapacity(state) <= state.getTimber()
+                    && projectedWoodlotAvailable(state, context.residents(), context.now()) > 0;
+            boolean materialsFull = FACILITIES.values().stream().anyMatch(definition -> {
+                if (facilityLevel(state, definition.id()) < 1) return false;
+                if (isDamagedTarget(state, KeepEventCatalog.TARGET_UPGRADE, definition.id())) return false;
+                int ready = projectedFacilityAvailable(state, context.residents(), definition.id(), context.now());
+                if (ready <= 0) return false;
+                int held = state.getMaterialInventory().getOrDefault(definition.resourceId(), 0);
+                return materialInventoryCapacity(state) <= held;
+            });
+            if (timberFull || materialsFull) {
+                throw new IllegalArgumentException(timberFull && !materialsFull
+                        ? "Your timber store is full. Start a project before collecting more."
+                        : "Your stores are full. Craft or build something before collecting more.");
+            }
+            throw new IllegalArgumentException("Nothing is ready to collect yet.");
+        }
+        int total = grants.stream().mapToInt(entry -> number(entry.get("amount"))).sum();
+        Map<String, Object> collected = new LinkedHashMap<>();
+        collected.put("resource", "ALL");
+        collected.put("resourceName", "Resources");
+        collected.put("amount", total);
+        collected.put("stationId", "all");
+        collected.put("stations", grants);
+        Map<String, Object> extra = new LinkedHashMap<>();
+        extra.put("collected", collected);
+        if (xpGained > 0) extra.put("keeperXpAwarded", xpGained);
+        return extra;
+    }
+
+    private Map<String, Object> collectWoodlot(Context context) {
+        Map<String, Object> granted = tryCollectWoodlot(context);
+        if (granted != null) return granted;
+        KeepState state = context.state();
+        if (isDamagedTarget(state, KeepEventCatalog.TARGET_UPGRADE, "woodlot")) {
+            throw new IllegalArgumentException("Rebuild the Restorative Woodlot before collecting from it.");
+        }
+        int room = Math.max(0, timberInventoryCapacity(state) - state.getTimber());
+        throw new IllegalArgumentException(room <= 0
+                ? "Your timber store is full. Start a project before collecting more."
+                : "The Woodlot has not produced any timber yet.");
+    }
+
+    private Map<String, Object> tryCollectWoodlot(Context context) {
+        KeepState state = context.state();
+        // Damaged stations keep their stockpile but stay uncollectable until repaired.
+        if (isDamagedTarget(state, KeepEventCatalog.TARGET_UPGRADE, "woodlot")) return null;
+        int room = Math.max(0, timberInventoryCapacity(state) - state.getTimber());
+        int grant = Math.min(room, projectedWoodlotAvailable(state, context.residents(), context.now()));
+        if (grant <= 0) return null;
+        materializeProduction(state, context.residents(), context.now());
+        grant = Math.min(room, state.getWoodlotStored());
+        if (grant <= 0) return null;
+        state.setTimber(state.getTimber() + grant);
+        state.setWoodlotStored(state.getWoodlotStored() - grant);
+        state.setWoodlotCollectCount(state.getWoodlotCollectCount() + 1);
+        advanceEnclaveTasks(state, context.residents(), "TIMBER_COLLECTION");
+        if (state.getWoodlotCollectCount() == 1) unlock(state, "letter_forester_maren");
+        if (state.getWoodlotCollectCount() >= 3) unlock(state, "memorabilia_petrified_root");
+        final int granted = grant;
+        recordKeepStats(context.progression(), p -> p.setKeepTimberCollected(p.getKeepTimberCollected() + granted));
+        int xpGained = grantResourceKeeperXp(state, context.now(), KEEPER_TIMBER_COLLECT_XP);
+        Map<String, Object> collected = new LinkedHashMap<>();
+        collected.put("resource", "TIMBER");
+        collected.put("resourceName", "Timber");
+        collected.put("amount", grant);
+        collected.put("stationId", "woodlot");
+        Map<String, Object> extra = new LinkedHashMap<>();
+        extra.put("collected", collected);
+        if (xpGained > 0) extra.put("keeperXpAwarded", xpGained);
+        return extra;
+    }
+
     private Map<String, Object> collectEssenceStation(KeepState state, Context context, String id) {
+        Map<String, Object> granted = tryCollectEssenceStation(state, context, id);
+        if (granted != null) return granted;
         if (!FACILITIES.containsKey(id) || facilityLevel(state, id) < 1) {
             throw new IllegalArgumentException("Build that elemental facility before collecting from it.");
+        }
+        if (isDamagedTarget(state, KeepEventCatalog.TARGET_UPGRADE, id)) {
+            KeepEvent damage = eventCatalog.event(state.getActiveKeepEventId());
+            String name = damage == null ? "that facility" : damage.targetName();
+            throw new IllegalArgumentException("Rebuild " + name + " before collecting from it.");
         }
         FacilityDefinition definition = FACILITIES.get(id);
         String resourceId = definition.resourceId();
         int storedInventory = state.getMaterialInventory().getOrDefault(resourceId, 0);
         int room = Math.max(0, materialInventoryCapacity(state) - storedInventory);
+        throw new IllegalArgumentException(room <= 0
+                ? "Your material store is full. Craft or build something before collecting more."
+                : "That facility has not produced any materials yet.");
+    }
+
+    private Map<String, Object> tryCollectEssenceStation(KeepState state, Context context, String id) {
+        if (!FACILITIES.containsKey(id) || facilityLevel(state, id) < 1) return null;
+        // Damaged stations keep their stockpile but stay uncollectable until repaired.
+        if (isDamagedTarget(state, KeepEventCatalog.TARGET_UPGRADE, id)) return null;
+        FacilityDefinition definition = FACILITIES.get(id);
+        String resourceId = definition.resourceId();
+        int storedInventory = state.getMaterialInventory().getOrDefault(resourceId, 0);
+        int room = Math.max(0, materialInventoryCapacity(state) - storedInventory);
         int grant = Math.min(room, projectedFacilityAvailable(state, context.residents(), id, context.now()));
-        if (grant <= 0) {
-            throw new IllegalArgumentException(room <= 0
-                    ? "Your material store is full. Craft or build something before collecting more."
-                    : "That facility has not produced any materials yet.");
-        }
+        if (grant <= 0) return null;
         materializeFacilityProduction(state, context.residents(), id, context.now());
         grant = Math.min(room, state.getFacilityStored().getOrDefault(id, 0));
+        if (grant <= 0) return null;
         state.getMaterialInventory().put(resourceId, storedInventory + grant);
         state.getFacilityStored().put(id, state.getFacilityStored().getOrDefault(id, 0) - grant);
         state.setEssenceCollectCount(state.getEssenceCollectCount() + 1);
@@ -1221,6 +1679,11 @@ public class KeepService {
         return collected;
     }
 
+    private static int number(Object value) {
+        if (value instanceof Number number) return number.intValue();
+        return 0;
+    }
+
     private Map<String, Object> collectAkharsFront(KeepState state, Context context) {
         if (state.getAkharsFrontLevel() < 1) throw new IllegalArgumentException("Unlock Akhar's Front first.");
         int grant = projectedAkharsFrontAvailable(state, context.residents(), context.now());
@@ -1228,9 +1691,14 @@ public class KeepService {
         materializeAkharsFront(state, context.residents(), context.now());
         grant = state.getAkharsFrontStoredGold();
         state.setAkharsFrontStoredGold(0);
-        context.progression().setGold(context.progression().getGold() + grant);
-        context.progression().setUpdatedAt(context.now());
-        if (progressionStore != null) progressionStore.save(context.progression());
+        // Clear the bank on Keep before minting account gold. Crediting progression
+        // first left a split-write window where Collect could pay out again after a
+        // failed Keep save restored the uncleared bank from Firestore.
+        final int credited = grant;
+        context.afterKeepPersist(p -> {
+            p.setGold(p.getGold() + credited);
+            p.setUpdatedAt(context.now());
+        });
         return Map.of("collected", Map.of(
                 "resource", "SIEGECOINS", "resourceName", "Siegecoins", "amount", grant, "stationId", "akhars_front"));
     }
@@ -1247,6 +1715,9 @@ public class KeepService {
     private void clearResidentAssignment(KeepState state, String residentId) {
         if (residentId.equals(state.getWoodlotResidentId())) state.setWoodlotResidentId("");
         state.getFacilityResidentIds().replaceAll((key, value) -> residentId.equals(value) ? "" : value);
+        List<String> front = normalizedAkharsFrontResidents(state);
+        front.replaceAll(value -> residentId.equals(value) ? "" : value);
+        state.setAkharsFrontResidentIds(front);
     }
 
     private void setStationResidentId(KeepState state, String stationId, String residentId) {
@@ -1282,6 +1753,21 @@ public class KeepService {
             String normalized = id.trim();
             if (!normalized.isBlank()) ids.add(normalized);
         }
+        KeepEvent active = eventCatalog.event(state.getActiveKeepEventId());
+        if (active != null && KeepEventCatalog.TARGET_DECORATION.equals(active.targetType())) {
+            ids.remove(active.targetId());
+        }
+        return ids;
+    }
+
+    private LinkedHashSet<String> rawPlacedDecorationIds(KeepState state) {
+        LinkedHashSet<String> ids = new LinkedHashSet<>();
+        for (String stored : state.getPlacedDecorations().values()) {
+            for (String id : stored.split(",")) {
+                String normalized = id.trim();
+                if (!normalized.isBlank()) ids.add(normalized);
+            }
+        }
         return ids;
     }
 
@@ -1293,12 +1779,64 @@ public class KeepService {
     }
 
     private List<String> normalizedAkharsFrontResidents(KeepState state) {
+        int capacity = akharsFrontCapacity(state);
         List<String> residents = new ArrayList<>(state.getAkharsFrontResidentIds());
-        if (residents.size() > AKHARS_FRONT_CAPACITY) {
-            residents = new ArrayList<>(residents.subList(0, AKHARS_FRONT_CAPACITY));
+        if (residents.size() > capacity) {
+            residents = new ArrayList<>(residents.subList(0, capacity));
         }
-        while (residents.size() < AKHARS_FRONT_CAPACITY) residents.add("");
+        while (residents.size() < capacity) residents.add("");
         return residents;
+    }
+
+    private int akharsFrontLevel(KeepState state) {
+        return Math.min(AKHARS_FRONT_MAX_LEVEL, Math.max(0, state.getAkharsFrontLevel()));
+    }
+
+    /** One rampart post per wall tier: 1 when the front is first raised, 4 fully upgraded. */
+    private int akharsFrontCapacity(KeepState state) {
+        return akharsFrontLevel(state);
+    }
+
+    private int akharsFrontGoldCapacity(KeepState state) {
+        return AKHARS_FRONT_GOLD_CAPACITY_BY_LEVEL[akharsFrontLevel(state)];
+    }
+
+    /** Wall quality paid out as income: better stone means every defender earns more. */
+    private double akharsFrontWallMultiplier(KeepState state) {
+        return 1 + AKHARS_FRONT_WALL_BONUS_PERCENT[akharsFrontLevel(state)] / 100.0;
+    }
+
+    private static String akharsFrontWallName(int level) {
+        return AKHARS_FRONT_WALL_NAMES[Math.min(AKHARS_FRONT_MAX_LEVEL, Math.max(0, level))];
+    }
+
+    private static int parseAkharsFrontLevel(String projectId) {
+        if (projectId == null || !projectId.startsWith("akhars_front_level_")) return 0;
+        try {
+            int level = Integer.parseInt(projectId.substring("akhars_front_level_".length()));
+            return level >= 2 && level <= AKHARS_FRONT_MAX_LEVEL ? level : 0;
+        } catch (NumberFormatException ignored) {
+            return 0;
+        }
+    }
+
+    /** Better walls need the Builder's Yard, and the top two tiers need a keep that can
+        cut and finish stone at scale. */
+    private boolean akharsFrontUpgradeGateMet(KeepState state, int level) {
+        if (state.getBuildersYardLevel() < 1) return false;
+        return switch (level) {
+            case 3 -> hallLevel(state) >= 4;
+            case 4 -> hallLevel(state) >= 5;
+            default -> true;
+        };
+    }
+
+    private String akharsFrontUpgradeRequirement(int level) {
+        return switch (level) {
+            case 3 -> "Needs the Builder's Yard and a " + rankName(4) + " keep.";
+            case 4 -> "Needs the Builder's Yard and a " + rankName(5) + " keep.";
+            default -> "Needs the Builder's Yard.";
+        };
     }
 
     /** The rapport tasks a resident currently offers — element defaults, dashboard overrides,
@@ -1490,7 +2028,7 @@ public class KeepService {
                 .toList();
         List<String> capsReached = new ArrayList<>();
         if (state.getWoodlotStored() >= woodlotStorageCapacity(state)) capsReached.add("Restorative Woodlot");
-        if (state.getAkharsFrontLevel() > 0 && state.getAkharsFrontStoredGold() >= AKHARS_FRONT_GOLD_CAPACITY) {
+        if (state.getAkharsFrontLevel() > 0 && state.getAkharsFrontStoredGold() >= akharsFrontGoldCapacity(state)) {
             capsReached.add("Akhar's Front");
         }
         for (FacilityDefinition definition : FACILITIES.values()) {
@@ -1631,7 +2169,7 @@ public class KeepService {
     private Map<String, Object> akharsFront(KeepState state, List<Resident> residents, Instant now) {
         List<String> assigned = normalizedAkharsFrontResidents(state);
         List<Map<String, Object>> slots = new ArrayList<>();
-        for (int index = 0; index < AKHARS_FRONT_CAPACITY; index++) {
+        for (int index = 0; index < assigned.size(); index++) {
             String residentId = assigned.get(index);
             Resident resident = residents.stream().filter(item -> item.id().equals(residentId)).findFirst().orElse(null);
             Map<String, Object> slot = new LinkedHashMap<>();
@@ -1640,17 +2178,82 @@ public class KeepService {
             slot.put("resident", resident == null ? null : serializeResident(state, resident));
             slots.add(slot);
         }
+        int level = akharsFrontLevel(state);
         int available = projectedAkharsFrontAvailable(state, residents, now);
+        int storageCapacity = akharsFrontGoldCapacity(state);
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("built", state.getAkharsFrontLevel() > 0);
-        out.put("level", state.getAkharsFrontLevel());
-        out.put("capacity", AKHARS_FRONT_CAPACITY);
+        out.put("built", level > 0);
+        out.put("level", level);
+        out.put("maxLevel", AKHARS_FRONT_MAX_LEVEL);
+        out.put("capacity", akharsFrontCapacity(state));
+        out.put("wallName", akharsFrontWallName(level));
+        out.put("wallBonusPercent", AKHARS_FRONT_WALL_BONUS_PERCENT[level]);
         out.put("residentCount", assigned.stream().filter(id -> !id.isBlank()).count());
         out.put("available", available);
-        out.put("storageCapacity", AKHARS_FRONT_GOLD_CAPACITY);
+        out.put("storageCapacity", storageCapacity);
         out.put("ratePerMinute", akharsFrontRate(state, residents));
-        out.put("isFull", available >= AKHARS_FRONT_GOLD_CAPACITY);
+        out.put("passiveRatePerMinute", akharsFrontPassiveRate(state, residents));
+        out.put("combatRatePerMinute", akharsFrontCombatRate(state, residents));
+        out.put("coinsPerDefeat", AKHARS_FRONT_COINS_PER_DEFEAT);
+        out.put("isFull", available >= storageCapacity);
         out.put("slots", slots);
+        out.put("upgrade", akharsFrontUpgrade(state));
+        out.put("raiders", akharsFrontRaiderPool());
+        return out;
+    }
+
+    /**
+     * Akhar's raiders are corrupted Siegelings, so they are drawn from the real card catalog
+     * and recoloured client-side rather than being one hard-coded ghost shape. A pool is sent
+     * instead of a fixed cast because raiders respawn continuously while the player watches —
+     * the client picks from it per spawn, so the wall never faces the same four silhouettes.
+     * Only cards with uploaded art qualify; a keep whose catalog has none simply gets an empty
+     * pool and the client keeps its built-in shade.
+     */
+    private List<Map<String, Object>> akharsFrontRaiderPool() {
+        List<SieglingCard> eligible = new ArrayList<>();
+        for (Card card : cardDefinitionService.getDeckBuilderCatalog()) {
+            if (card instanceof SieglingCard siegling
+                    && siegling.getCardArtUrl() != null && !siegling.getCardArtUrl().isBlank()) {
+                eligible.add(siegling);
+            }
+        }
+        if (eligible.isEmpty()) return List.of();
+        Collections.shuffle(eligible, random);
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (SieglingCard card : eligible.subList(0, Math.min(AKHARS_FRONT_RAIDER_POOL, eligible.size()))) {
+            Map<String, Object> raider = new LinkedHashMap<>();
+            raider.put("id", card.getId());
+            raider.put("name", "Shade of " + card.getName());
+            raider.put("element", card.getElement() == null ? "NEUTRAL" : card.getElement().name());
+            raider.put("artUrl", card.getCardArtUrl());
+            out.add(raider);
+        }
+        return out;
+    }
+
+    /** The next wall tier, previewed even while its gate is unmet so the Front screen can
+        tell the player what raising the walls buys and what it still needs. */
+    private Map<String, Object> akharsFrontUpgrade(KeepState state) {
+        int level = akharsFrontLevel(state);
+        if (level < 1 || level >= AKHARS_FRONT_MAX_LEVEL) return null;
+        int next = level + 1;
+        BuildProject project = buildProject("akhars_front_level_" + next);
+        if (project == null) return null;
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("id", project.id());
+        out.put("name", project.name());
+        out.put("level", next);
+        out.put("wallName", akharsFrontWallName(next));
+        out.put("posts", next);
+        out.put("wallBonusPercent", AKHARS_FRONT_WALL_BONUS_PERCENT[next]);
+        out.put("storageCapacity", AKHARS_FRONT_GOLD_CAPACITY_BY_LEVEL[next]);
+        out.put("timberCost", project.timberCost());
+        out.put("materialCosts", serializeMaterialCosts(project.materialCosts()));
+        out.put("durationSeconds", project.durationSeconds());
+        out.put("gateMet", akharsFrontUpgradeGateMet(state, next));
+        out.put("requirement", akharsFrontUpgradeRequirement(next));
+        out.put("inProgress", isConstructing(state, project.id()));
         return out;
     }
 
@@ -1674,15 +2277,6 @@ public class KeepService {
                     break;
                 }
             }
-            if (type.isEmpty() && state.getEnclaveLevel() > 0) {
-                List<String> enclaveIds = normalizedEnclaveResidents(state);
-                int slot = enclaveIds.indexOf(residentId);
-                if (slot >= 0) {
-                    type = "ENCLAVE";
-                    id = String.valueOf(slot);
-                    label = "Enclave space " + (slot + 1);
-                }
-            }
             if (type.isEmpty() && state.getAkharsFrontLevel() > 0) {
                 List<String> frontIds = normalizedAkharsFrontResidents(state);
                 int slot = frontIds.indexOf(residentId);
@@ -1690,6 +2284,15 @@ public class KeepService {
                     type = "FRONT";
                     id = String.valueOf(slot);
                     label = "Akhar's Front post " + (slot + 1);
+                }
+            }
+            if (type.isEmpty() && state.getEnclaveLevel() > 0) {
+                List<String> enclaveIds = normalizedEnclaveResidents(state);
+                int slot = enclaveIds.indexOf(residentId);
+                if (slot >= 0) {
+                    type = "ENCLAVE";
+                    id = String.valueOf(slot);
+                    label = "Enclave space " + (slot + 1);
                 }
             }
         }
@@ -1768,6 +2371,41 @@ public class KeepService {
         return out;
     }
 
+    /** A lighter, distinct weekly job that lets every established workshop contribute to repair. */
+    private Map<String, Integer> weeklyRestorationRequirements(KeepState state, String week) {
+        List<FacilityDefinition> built = FACILITIES.values().stream()
+                .filter(definition -> facilityLevel(state, definition.id()) >= 1).toList();
+        if (built.isEmpty()) return Map.of();
+        FacilityDefinition selected = built.get(Math.floorMod((week + ":restoration").hashCode(), built.size()));
+        return Map.of(selected.resourceId(), 4 + facilityLevel(state, selected.id()));
+    }
+
+    private Map<String, Object> repeatableKeeperProjects(KeepState state, PlayerProgressionEntity progression,
+                                                           Instant now) {
+        String day = dayKey(now);
+        String week = weekKey(now);
+        boolean dailyClaimed = progression.getKeepRewardClaimIds().contains("daily_stewardship:" + day);
+        boolean weeklyClaimed = progression.getKeepRewardClaimIds().contains("weekly_restoration:" + week);
+        Map<String, Integer> weeklyRequirements = weeklyRestorationRequirements(state, week);
+        List<Map<String, Object>> projects = new ArrayList<>();
+        projects.add(Map.of(
+                "id", "daily_stewardship", "cadence", "Daily stewardship", "name", "Walk the Grounds",
+                "description", "Spend 5 timber replacing worn ties, clearing paths, and tending the sanctuary.",
+                "claimed", dailyClaimed, "canClaim", !dailyClaimed && state.getTimber() >= 5,
+                "requirements", List.of(Map.of("id", "timber", "name", "Timber", "amount", 5, "have", state.getTimber())),
+                "reward", Map.of("xp", KEEPER_DAILY_COMMISSION_XP, "gold", 15, "remnants", 5)));
+        List<Map<String, Object>> weeklyNeeds = weeklyRequirements.entrySet().stream().map(entry -> Map.<String, Object>of(
+                "id", entry.getKey(), "name", materialName(entry.getKey()), "amount", entry.getValue(),
+                "have", state.getMaterialInventory().getOrDefault(entry.getKey(), 0))).toList();
+        projects.add(Map.of(
+                "id", "weekly_restoration", "cadence", "Weekly restoration", "name", "Mend What Endures",
+                "description", "Bring 20 timber and the requested workshop supply to strengthen the keep for the coming week.",
+                "claimed", weeklyClaimed, "canClaim", !weeklyClaimed && state.getTimber() >= 20 && hasMaterials(state, weeklyRequirements),
+                "requirements", weeklyNeeds, "timberCost", 20,
+                "reward", Map.of("xp", KEEPER_WEEKLY_COMMISSION_XP, "gold", 55, "remnants", 20)));
+        return Map.of("projects", projects);
+    }
+
     private Map<String, Object> weeklyOrder(KeepState state, PlayerProgressionEntity progression,
                                             List<Resident> residents, Instant now) {
         boolean unlocked = facilityLevel(state, "kitchen") >= 1;
@@ -1823,7 +2461,8 @@ public class KeepService {
             "hall_level_4", "hall_level_5", "hall_level_6", "hall_level_7", "hall_level_8",
             "woodlot_storage_annex", "garden_storage_annex", "forge_storage_annex",
             "fridge_storage_annex", "generator_storage_annex", "quarry_storage_annex",
-            "kitchen_storage_annex");
+            "kitchen_storage_annex", "build_akhars_front", "akhars_front_level_2",
+            "akhars_front_level_3", "akhars_front_level_4");
 
     /** Shipped workshop output, for the dashboard's "default" column. */
     public static List<Map<String, Object>> shippedBuildingDefaults() {
@@ -1890,6 +2529,12 @@ public class KeepService {
             case "build_enclave" -> new BuildProject(id, "Raise the Siegeling Enclave", ENCLAVE_BUILD_COST, Map.of(), ENCLAVE_BUILD_SECONDS);
             case "build_akhars_front" -> new BuildProject(id, "Raise Akhar's Front", AKHARS_FRONT_BUILD_COST,
                     Map.of("stone", 20), AKHARS_FRONT_BUILD_SECONDS);
+            case "akhars_front_level_2" -> new BuildProject(id, "Reinforce the Rampart", 320,
+                    Map.of("stone", 24), 21_600);
+            case "akhars_front_level_3" -> new BuildProject(id, "Raise the Battlements", 420,
+                    Map.of("stone", 32, "ember_ingot", 14), 36_000);
+            case "akhars_front_level_4" -> new BuildProject(id, "Crown the Bastion", 540,
+                    Map.of("stone", 44, "ember_ingot", 18, "frost_crystal", 14), 57_600);
             case "storehouse_level_2" -> new BuildProject(id, "Vault the Storehouse", 320,
                     Map.of("verdant_fiber", 18, "ember_ingot", 12, "frost_crystal", 12, "storm_cell", 8), 28_800);
             case "hall_level_2" -> new BuildProject(id, "Raise the Timber Outpost", 120, Map.of(), 900);
@@ -1935,6 +2580,10 @@ public class KeepService {
             case "build_enclave" -> state.getArchiveLevel() >= 1 && state.getEnclaveLevel() < 1;
             case "build_akhars_front" -> state.getEnclaveLevel() >= 1 && hallLevel(state) >= 3
                     && facilityLevel(state, "quarry") >= 1 && state.getAkharsFrontLevel() < 1;
+            case "akhars_front_level_2", "akhars_front_level_3", "akhars_front_level_4" -> {
+                int level = parseAkharsFrontLevel(id);
+                yield level > 0 && akharsFrontLevel(state) == level - 1 && akharsFrontUpgradeGateMet(state, level);
+            }
             case "storehouse_level_2" -> elementalFacilitiesAtLeast(state, 1) && state.getStorehouseLevel() < 2
                     && state.getBuildersYardLevel() >= 1;
             case "hall_level_2", "hall_level_3", "hall_level_4", "hall_level_5",
@@ -2373,7 +3022,7 @@ public class KeepService {
         int siegelingSlotCapacity = 1 + (int) FACILITIES.keySet().stream()
                 .filter(id -> facilityLevel(state, id) > 0).count()
                 + (state.getEnclaveLevel() > 0 ? ENCLAVE_CAPACITY : 0)
-                + (state.getAkharsFrontLevel() > 0 ? AKHARS_FRONT_CAPACITY : 0);
+                + akharsFrontCapacity(state);
         int activeSiegelingSlots = (state.getWoodlotResidentId().isBlank() ? 0 : 1)
                 + (int) FACILITIES.keySet().stream()
                 .filter(id -> facilityLevel(state, id) > 0)
@@ -2387,8 +3036,8 @@ public class KeepService {
                 "capacity", siegelingSlotCapacity,
                 "available", Math.max(0, siegelingSlotCapacity - activeSiegelingSlots)));
         out.put("buildings", buildings(state));
-        out.put("buildOptions", buildOptions(state));
-        List<Map<String, Object>> constructions = activeConstructions(state, now);
+        out.put("buildOptions", buildOptions(state, progression));
+        List<Map<String, Object>> constructions = activeConstructions(state, progression, now);
         out.put("activeConstruction", constructions.isEmpty() ? null : constructions.get(0));
         out.put("activeConstructions", constructions);
         out.put("constructionSlots", constructionSlots(state));
@@ -2403,6 +3052,9 @@ public class KeepService {
         visualState.put("enclaveLevel", state.getEnclaveLevel());
         visualState.put("akharsFrontLevel", state.getAkharsFrontLevel());
         visualState.put("favoriteSet", !state.getFavoriteResidentId().isBlank());
+        KeepEvent activeEvent = eventCatalog.event(state.getActiveKeepEventId());
+        visualState.put("damagedTargetId", activeEvent == null ? "" : activeEvent.targetId());
+        visualState.put("damagedTargetType", activeEvent == null ? "" : activeEvent.targetType());
         FACILITIES.keySet().forEach(id -> visualState.put(id + "Level", facilityLevel(state, id)));
         out.put("visualState", visualState);
 
@@ -2451,6 +3103,12 @@ public class KeepService {
         out.put("availableConversations", availableConversations(state));
         out.put("relationships", relationships(state));
         out.put("choiceFlags", state.getChoiceFlags());
+        out.put("activeKeepEvent", serializeKeepEvent(state, progression, now));
+        out.put("keepEvents", Map.of(
+                "catalogSize", eventCatalog.allEvents().size(),
+                "occurredCount", state.getKeepEventCount(),
+                "recentEventIds", List.copyOf(state.getRecentKeepEventIds()),
+                "rollCooldownSeconds", KEEP_EVENT_ROLL_COOLDOWN.getSeconds()));
         out.put("recipes", recipes(state));
         out.put("decorations", decorations(state));
         out.put("placedDecorations", state.getPlacedDecorations());
@@ -2459,6 +3117,7 @@ public class KeepService {
         out.put("milestones", milestones(state, progression, now));
         out.put("weeklyTribute", weeklyTribute(state, progression, residents, now));
         out.put("weeklyOrder", weeklyOrder(state, progression, residents, now));
+        out.put("repeatableProjects", repeatableKeeperProjects(state, progression, now));
         if (offlineReport != null && !offlineReport.isEmpty()) out.put("offlineReport", offlineReport);
         out.put("keeper", keeperBlock(state, progression, now));
         out.put("progressionReady", progression.getStarterPackId() != null);
@@ -2486,9 +3145,12 @@ public class KeepService {
         out.add(building("enclave", state.getEnclaveLevel() > 0 ? "Siegeling Enclave" : "Enclave Clearing",
                 state.getEnclaveLevel(), isConstructing(state, "build_enclave") ? "CONSTRUCTING"
                         : state.getEnclaveLevel() > 0 ? "COMPLETE" : "FOUNDATIONS"));
-        out.add(building("akhars_front", state.getAkharsFrontLevel() > 0 ? "Akhar's Front" : "Distant Front",
-                state.getAkharsFrontLevel(), isConstructing(state, "build_akhars_front") ? "CONSTRUCTING"
-                        : state.getAkharsFrontLevel() > 0 ? "COMPLETE" : "LOCKED"));
+        int frontLevel = akharsFrontLevel(state);
+        boolean frontBuilding = isConstructing(state, "build_akhars_front")
+                || (frontLevel > 0 && frontLevel < AKHARS_FRONT_MAX_LEVEL
+                    && isConstructing(state, "akhars_front_level_" + (frontLevel + 1)));
+        out.add(building("akhars_front", frontLevel > 0 ? "Akhar's Front" : "Distant Front",
+                frontLevel, frontBuilding ? "CONSTRUCTING" : frontLevel > 0 ? "COMPLETE" : "LOCKED"));
         out.add(building("storehouse", state.getStorehouseLevel() > 0 ? "Covenant Storehouse" : "Storehouse Foundations",
                 state.getStorehouseLevel(), constructionStatus(state, "raise_storehouse", "storehouse_level_2", state.getStorehouseLevel())));
         for (FacilityDefinition definition : FACILITIES.values()) {
@@ -2508,9 +3170,17 @@ public class KeepService {
      * rise on completion — so an in-progress project would otherwise be offered again and fail at
      * startBuild. Drop it here so a free team only ever sees projects it can actually take.
      */
-    private List<Map<String, Object>> buildOptions(KeepState state) {
+    private List<Map<String, Object>> buildOptions(KeepState state, PlayerProgressionEntity progression) {
         List<Map<String, Object>> out = collectBuildOptions(state);
         out.removeIf(option -> isConstructing(state, String.valueOf(option.get("id"))));
+        for (Map<String, Object> option : out) {
+            BuildProject project = buildProject(String.valueOf(option.get("id")));
+            if (project == null) continue;
+            int coinCost = instantBuildCoinCost(project);
+            boolean levelMet = !Boolean.FALSE.equals(option.get("levelMet"));
+            option.put("instantCoinCost", coinCost);
+            option.put("canPurchase", levelMet && progression.getGold() >= coinCost);
+        }
         return out;
     }
 
@@ -2575,6 +3245,7 @@ public class KeepService {
         addHallUpgradeOption(state, out);
         addEnclaveBuildOption(state, out);
         addAkharsFrontBuildOption(state, out);
+        addAkharsFrontUpgradeOption(state, out);
         return out;
     }
 
@@ -2592,8 +3263,35 @@ public class KeepService {
         BuildProject project = buildProject("build_akhars_front");
         out.add(buildOption(state, project.id(), project.name(), project.timberCost(), project.materialCosts(),
                 project.durationSeconds(),
-                "Fortify the road with three voluntary rampart posts. Defenders repel Akhar's raiders and earn Siegecoins while you are away.",
+                "Fortify the road with one voluntary rampart post. Its defender repels Akhar's raiders and earns Siegecoins while you are away — later wall upgrades open up to four posts.",
                 true));
+    }
+
+    /** Wall tiers are ordinary construction projects, so timed builds, material speed-ups,
+        and the Siegecoin instant purchase all work on them unchanged. */
+    private void addAkharsFrontUpgradeOption(KeepState state, List<Map<String, Object>> out) {
+        int level = akharsFrontLevel(state);
+        if (level < 1 || level >= AKHARS_FRONT_MAX_LEVEL) return;
+        int next = level + 1;
+        String id = "akhars_front_level_" + next;
+        if (!akharsFrontUpgradeGateMet(state, next) || isConstructing(state, id)) return;
+        BuildProject project = buildProject(id);
+        if (project == null) return;
+        Map<String, Object> option = buildOption(state, project.id(), project.name(), project.timberCost(),
+                project.materialCosts(), project.durationSeconds(), akharsFrontUpgradeDescription(next), true);
+        option.put("wallName", akharsFrontWallName(next));
+        out.add(option);
+    }
+
+    private String akharsFrontUpgradeDescription(int level) {
+        return switch (level) {
+            case 2 -> "Fit cut stone over the palisade: a second rampart post, +"
+                    + AKHARS_FRONT_WALL_BONUS_PERCENT[2] + "% Siegecoins from every defender, and a deeper coin bank.";
+            case 3 -> "Crenellate the wall and widen the walk: a third rampart post and +"
+                    + AKHARS_FRONT_WALL_BONUS_PERCENT[3] + "% Siegecoins from every defender.";
+            default -> "Iron, banners, and a full torch line: the fourth and final rampart post and +"
+                    + AKHARS_FRONT_WALL_BONUS_PERCENT[4] + "% Siegecoins from every defender.";
+        };
     }
 
     /** The next hall rank appears alongside other projects once its gate is met. */
@@ -2627,11 +3325,24 @@ public class KeepService {
         return out;
     }
 
-    private List<Map<String, Object>> activeConstructions(KeepState state, Instant now) {
+    private List<Map<String, Object>> activeConstructions(KeepState state, PlayerProgressionEntity progression, Instant now) {
         List<Map<String, Object>> out = new ArrayList<>();
         for (ConstructionSlot slot : constructionSlotsInUse(state)) {
             Map<String, Object> entry = constructionEntry(slot.id(), slot.startedAt(), slot.completesAt(), now);
-            if (entry != null) out.add(entry);
+            if (entry != null) {
+                long remaining = ((Number) entry.get("remainingSeconds")).longValue();
+                int materials = totalMaterials(state);
+                int coinCost = constructionCoinCost(remaining);
+                entry.put("timeSavers", Map.of(
+                        "materialPercent", CONSTRUCTION_MATERIAL_SPEEDUP_PERCENT,
+                        "materialCost", CONSTRUCTION_MATERIAL_SPEEDUP_COST,
+                        "materialsAvailable", materials,
+                        "canUseMaterials", materials >= CONSTRUCTION_MATERIAL_SPEEDUP_COST,
+                        "coinCost", coinCost,
+                        "siegecoinsAvailable", progression.getGold(),
+                        "canUseSiegecoins", progression.getGold() >= coinCost));
+                out.add(entry);
+            }
         }
         return out;
     }
@@ -2736,7 +3447,8 @@ public class KeepService {
         if (!state.getChoiceFlags().containsAll(conversation.requiresFlags())) return false;
         if (state.getStorehouseLevel() < conversation.minStorehouseLevel()) return false;
         if (loreCatalog.isRollingEncounter(conversation)) {
-            return state.getActiveVisitorIds().contains(conversation.id());
+            return state.getActiveVisitorIds().contains(conversation.id())
+                    && (!conversation.oneTime() || !state.getCompletedConversationIds().contains(conversation.id()));
         }
         return !state.getCompletedConversationIds().contains(conversation.id());
     }
@@ -2745,7 +3457,8 @@ public class KeepService {
         List<String> active = state.getActiveVisitorIds();
         active.removeIf(id -> {
             Conversation conversation = loreCatalog.conversation(id);
-            return conversation == null || !loreCatalog.isRollingEncounter(conversation);
+            return conversation == null || !loreCatalog.isRollingEncounter(conversation)
+                    || (conversation.oneTime() && state.getCompletedConversationIds().contains(conversation.id()));
         });
         boolean changed = false;
         boolean rollReady = state.getLastVisitorRollAt() == null
@@ -2805,8 +3518,126 @@ public class KeepService {
         if (!state.getUnlockedLoreIds().containsAll(visitor.requiresLoreIds())) return false;
         if (!state.getChoiceFlags().containsAll(visitor.requiresFlags())) return false;
         if (state.getStorehouseLevel() < visitor.minStorehouseLevel()) return false;
+        if (visitor.oneTime() && state.getCompletedConversationIds().contains(visitor.id())) return false;
         Instant availableAt = state.getVisitorAvailableAt().get(visitor.id());
         return availableAt == null || !now.isBefore(availableAt);
+    }
+
+    private String activateConsequenceFollowup(KeepState state, String flag) {
+        for (Conversation followup : loreCatalog.followupsForFlag(flag)) {
+            if (state.getCompletedConversationIds().contains(followup.id())) continue;
+            addUnique(state.getActiveVisitorIds(), followup.id());
+            return followup.id();
+        }
+        return "";
+    }
+
+    /** Materializes a finished rebuild, then performs one low-frequency adverse-event roll. */
+    private boolean refreshKeepEvent(KeepState state, Instant now) {
+        boolean changed = false;
+        if (!state.getActiveKeepEventId().isBlank()
+                && (eventCatalog.event(state.getActiveKeepEventId()) == null
+                || (state.getKeepEventRepairCompletesAt() != null
+                && !now.isBefore(state.getKeepEventRepairCompletesAt())))) {
+            clearKeepEvent(state);
+            changed = true;
+        }
+        if (!state.getActiveKeepEventId().isBlank() || hallLevel(state) < 2) return changed;
+        Instant lastRoll = state.getLastKeepEventRollAt();
+        if (lastRoll == null) {
+            state.setLastKeepEventRollAt(now);
+            return true;
+        }
+        if (now.isBefore(lastRoll.plus(KEEP_EVENT_ROLL_COOLDOWN))) return changed;
+        state.setLastKeepEventRollAt(now);
+        changed = true;
+        if (random.nextInt(100) >= KEEP_EVENT_CHANCE_PERCENT) return true;
+
+        List<KeepEvent> candidates = eventCatalog.allEvents().stream()
+                .filter(event -> event.minHallLevel() <= hallLevel(state))
+                .filter(event -> keepEventTargetExists(state, event))
+                .collect(Collectors.toCollection(ArrayList::new));
+        if (candidates.size() > 1) {
+            List<KeepEvent> fresh = candidates.stream()
+                    .filter(event -> !state.getRecentKeepEventIds().contains(event.id())).toList();
+            if (!fresh.isEmpty()) candidates = new ArrayList<>(fresh);
+        }
+        if (candidates.isEmpty()) return true;
+        KeepEvent picked = candidates.get(random.nextInt(candidates.size()));
+        state.setActiveKeepEventId(picked.id());
+        state.setKeepEventOccurredAt(now);
+        state.setKeepEventRepairStartedAt(null);
+        state.setKeepEventRepairCompletesAt(null);
+        state.setKeepEventCount(state.getKeepEventCount() + 1);
+        return true;
+    }
+
+    private boolean keepEventTargetExists(KeepState state, KeepEvent event) {
+        if (KeepEventCatalog.TARGET_DECORATION.equals(event.targetType())) {
+            return rawPlacedDecorationIds(state).contains(event.targetId());
+        }
+        return switch (event.targetId()) {
+            case "great_hall" -> hallLevel(state) >= 2;
+            case "woodlot" -> state.getWoodlotLevel() >= 2;
+            case "archive" -> state.getArchiveLevel() > 0;
+            case "storehouse" -> state.getStorehouseLevel() > 0;
+            case "builders_yard" -> state.getBuildersYardLevel() > 0;
+            case "enclave" -> state.getEnclaveLevel() > 0;
+            default -> facilityLevel(state, event.targetId()) > 0;
+        };
+    }
+
+    private boolean isDamagedTarget(KeepState state, String targetType, String targetId) {
+        KeepEvent active = eventCatalog.event(state.getActiveKeepEventId());
+        return active != null && active.targetType().equals(targetType) && active.targetId().equals(targetId);
+    }
+
+    /** True when a damaged production station still holds uncollected stores. */
+    private boolean productionStationDamagedWithStores(KeepState state, Context context, String stationId) {
+        if ("woodlot".equals(stationId)) {
+            return projectedWoodlotAvailable(state, context.residents(), context.now()) > 0;
+        }
+        if (!FACILITIES.containsKey(stationId) || facilityLevel(state, stationId) < 1) return false;
+        return projectedFacilityAvailable(state, context.residents(), stationId, context.now()) > 0;
+    }
+
+    private void clearKeepEvent(KeepState state) {
+        String id = state.getActiveKeepEventId();
+        if (!id.isBlank()) {
+            state.getRecentKeepEventIds().remove(id);
+            state.getRecentKeepEventIds().add(id);
+            while (state.getRecentKeepEventIds().size() > 6) state.getRecentKeepEventIds().remove(0);
+        }
+        state.setActiveKeepEventId("");
+        state.setKeepEventOccurredAt(null);
+        state.setKeepEventRepairStartedAt(null);
+        state.setKeepEventRepairCompletesAt(null);
+    }
+
+    private Map<String, Object> serializeKeepEvent(KeepState state, PlayerProgressionEntity progression, Instant now) {
+        KeepEvent event = eventCatalog.event(state.getActiveKeepEventId());
+        if (event == null) return null;
+        boolean underway = state.getKeepEventRepairCompletesAt() != null;
+        long remaining = underway
+                ? Math.max(0, Duration.between(now, state.getKeepEventRepairCompletesAt()).getSeconds())
+                : event.repairSeconds();
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("id", event.id());
+        out.put("title", event.title());
+        out.put("kicker", event.kicker());
+        out.put("description", event.description());
+        out.put("targetType", event.targetType());
+        out.put("targetId", event.targetId());
+        out.put("targetName", event.targetName());
+        out.put("occurredAt", state.getKeepEventOccurredAt() == null ? now.toString() : state.getKeepEventOccurredAt().toString());
+        out.put("repairSeconds", event.repairSeconds());
+        out.put("repairStartedAt", state.getKeepEventRepairStartedAt() == null ? null : state.getKeepEventRepairStartedAt().toString());
+        out.put("repairCompletesAt", state.getKeepEventRepairCompletesAt() == null ? null : state.getKeepEventRepairCompletesAt().toString());
+        out.put("remainingSeconds", remaining);
+        out.put("repairInProgress", underway);
+        out.put("coinCost", event.coinCost());
+        out.put("canPayCoin", progression.getGold() >= event.coinCost());
+        return out;
     }
 
     private Conversation weightedPick(List<Conversation> candidates, KeepState state) {
@@ -3188,6 +4019,11 @@ public class KeepService {
         this.tuningService = tuningService;
     }
 
+    /** Test seam: inject a progression store so split-write ordering can be asserted. */
+    void setProgressionStore(PlayerProgressionStore progressionStore) {
+        this.progressionStore = progressionStore;
+    }
+
     /** Live designer tuning, or the shipped defaults when no tuning source is wired. */
     private KeepTuning tuning() {
         return tuningService == null ? KeepTuning.EMPTY : tuningService.current();
@@ -3213,7 +4049,46 @@ public class KeepService {
                                 long durationSeconds) { }
     private record ConstructionSlot(int index, String id, Instant startedAt, Instant completesAt) { }
     private record KeeperReward(int gold, int remnants, String decorationId) { }
-    private record Context(PlayerProgressionEntity progression, KeepState state, List<Resident> residents, Instant now) { }
+    /**
+     * Per-mutate working set. Progression updates that must not race a failed
+     * Keep write are queued on {@link #afterKeepPersist} and flushed only after
+     * {@code store.save} succeeds.
+     */
+    private static final class Context {
+        private final PlayerProgressionEntity progression;
+        private final KeepState state;
+        private final List<Resident> residents;
+        private final Instant now;
+        private Consumer<PlayerProgressionEntity> progressionAfterKeep;
+
+        private Context(PlayerProgressionEntity progression, KeepState state, List<Resident> residents, Instant now) {
+            this.progression = progression;
+            this.state = state;
+            this.residents = residents;
+            this.now = now;
+        }
+
+        private PlayerProgressionEntity progression() { return progression; }
+        private KeepState state() { return state; }
+        private List<Resident> residents() { return residents; }
+        private Instant now() { return now; }
+
+        private void afterKeepPersist(Consumer<PlayerProgressionEntity> update) {
+            if (update == null) return;
+            Consumer<PlayerProgressionEntity> prior = progressionAfterKeep;
+            progressionAfterKeep = prior == null ? update : p -> {
+                prior.accept(p);
+                update.accept(p);
+            };
+        }
+
+        private void flushProgressionAfterKeep(PlayerProgressionStore store) {
+            if (progressionAfterKeep == null) return;
+            progressionAfterKeep.accept(progression);
+            progressionAfterKeep = null;
+            if (store != null) store.save(progression);
+        }
+    }
 
     public static class StaleKeepStateException extends IllegalStateException {
         public StaleKeepStateException(String message) { super(message); }

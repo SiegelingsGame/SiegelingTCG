@@ -37,6 +37,11 @@ public class Player {
     private int psychicEnergy;
     private boolean mistActive;
     private final Map<Element, Integer> temporaryEnergyAdjustments = new EnumMap<>(Element.class);
+    /**
+     * Energy from an active {@code energy_boost}. Live from the moment the card resolves,
+     * through the owner's next Setup phase, and dropped as the Battle phase opens.
+     */
+    private final Map<Element, Integer> overchargeEnergy = new EnumMap<>(Element.class);
 
     /** Counts for the current match; persisted to match_history for registered users. */
     private int spellsCastThisMatch;
@@ -87,6 +92,16 @@ public class Player {
      * Indices are 0-based positions in the current hand before any removal.
      */
     public void mulliganHandAtIndices(List<Integer> indices) {
+        mulliganHandAtIndices(indices, true);
+    }
+
+    /**
+     * Returns chosen hand cards into the deck, then draws the same number of replacements.
+     * When {@code shuffle} is false, returned cards go to the bottom and the top of the
+     * deck stays intact — used by the Arena tutorial so a practice redraw cannot scramble
+     * the scripted lesson order.
+     */
+    public void mulliganHandAtIndices(List<Integer> indices, boolean shuffle) {
         if (indices == null || indices.isEmpty()) {
             return;
         }
@@ -104,7 +119,9 @@ public class Player {
             returning.add(hand.remove(idx));
         }
         deck.addAll(returning);
-        shuffleDeck();
+        if (shuffle) {
+            shuffleDeck();
+        }
         for (int j = 0; j < returning.size(); j++) {
             drawCard();
         }
@@ -131,6 +148,58 @@ public class Player {
 
     public void clearTemporaryEnergyAdjustments() {
         temporaryEnergyAdjustments.clear();
+    }
+
+    /** Turns on an active energy buff. It counts from right now. */
+    public void addOverchargeEnergy(Element element, int amount) {
+        if (element == null || amount <= 0) {
+            return;
+        }
+        overchargeEnergy.merge(element, amount, Integer::sum);
+    }
+
+    /**
+     * Spends from a live overcharge first. Returns how much of {@code amount} came out of the
+     * surge so callers can avoid booking that portion as claim-style temporary debt — otherwise
+     * the debt would outlive {@link #clearOverchargeEnergy()} and steal board energy at Battle.
+     */
+    public int consumeOverchargeEnergy(Element element, int amount) {
+        if (element == null || amount <= 0) {
+            return 0;
+        }
+        int available = overchargeEnergy.getOrDefault(element, 0);
+        int used = Math.min(available, amount);
+        if (used <= 0) {
+            return 0;
+        }
+        int remaining = available - used;
+        if (remaining == 0) {
+            overchargeEnergy.remove(element);
+        } else {
+            overchargeEnergy.put(element, remaining);
+        }
+        return used;
+    }
+
+    /** The Battle phase opening is where an overcharge always ends. */
+    public void clearOverchargeEnergy() {
+        overchargeEnergy.clear();
+    }
+
+    public int getOverchargeEnergy(Element element) {
+        if (element == null) {
+            return 0;
+        }
+        return overchargeEnergy.getOrDefault(element, 0);
+    }
+
+    public Map<Element, Integer> getOverchargeEnergyTotals() {
+        return Collections.unmodifiableMap(overchargeEnergy);
+    }
+
+    /** True while an active energy buff is riding on this side's pool. */
+    public boolean isOvercharged() {
+        return overchargeEnergy.values().stream().anyMatch(amount -> amount != null && amount > 0);
     }
 
     /** Sum of all element pool totals (used for Siegling setup placement budget snapshot). */

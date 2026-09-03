@@ -47,7 +47,7 @@
         },
         {
             art: '▰', kicker: 'Grow and gather', title: 'The Woodlot works for you',
-            body: 'The Restorative Woodlot produces timber over time — the READY counter at the top shows how much is waiting. Tap Collect to store it. Cultivation, never clear-cutting.'
+            body: 'Workshops produce timber and materials over time — the READY counter at the top shows how much is waiting across every point. Tap Collect to store it all. Cultivation, never clear-cutting.'
         },
         {
             art: '⚒', kicker: 'Restore the sanctuary', title: 'Spend timber on Projects',
@@ -81,6 +81,8 @@
         discoveryQueue: [],
         discoveryTimer: null,
         completionRefreshPending: false,
+        eventRefreshPending: false,
+        shownKeepEventId: '',
         constructionCollapsed: window.matchMedia('(max-width: 767px)').matches,
         selectedStation: 'woodlot',
         // Which Enclave space has its assign menu open (-1 = none). Kept in state rather than
@@ -90,10 +92,29 @@
         // space is ever open, so five stacked cards never bury the tasks on a phone.
         enclaveOpenSlot: -1,
         frontPickerSlot: -1,
+        frontCombat: {
+            initialized: false,
+            running: false,
+            timeMs: 0,
+            previousFrameMs: 0,
+            nextProjectileId: 1,
+            enemies: [],
+            projectiles: [],
+            defenderCooldowns: [],
+            defeats: 0,
+            coinsEarned: 0,
+            projectedBonusBeforeSession: 0,
+            lastDefeat: null
+        },
         // The Keeper's Favor menu walks cell -> portrait grid -> confirm sheet. Both steps
         // live in state because every snapshot refresh re-renders the panel body.
         favorPickerOpen: false,
         favorCandidateId: '',
+        timeSaverProjectId: '',
+        // Whether the interior HUD's construction menu is expanded. Closed on every
+        // room change so walking the tour never lands behind an open sheet.
+        interiorBuildOpen: false,
+        instantBuyProjectId: '',
         selectedRelationshipId: '',
         inventoryFilter: 'ALL',
         pendingOfflineReport: null,
@@ -109,6 +130,35 @@
         SHADOW: '#9b6bd0', ELECTRIC: '#ffe63c', METAL: '#b7c0c8', UNDEAD: '#9e8aad',
         PSYCHIC: '#d0a7ff', LIGHT: '#ffe9a8', POISON: '#84c55b', NEUTRAL: '#c8b997'
     };
+    const FRONT_RAIDER_MAX_HEALTH = 8;
+    const FRONT_DEFENDER_ATTACK_MS = 1600;
+    const FRONT_PROJECTILE_MS = 460;
+    const FRONT_RAIDER_MARCH_MS = 18000;
+    const FRONT_RAIDER_RESPAWN_MS = 900;
+    const FRONT_RAIDER_PATHS = [
+        { startX: 89, startY: 18, endX: 68, endY: 49, size: 14, stagger: 0 },
+        { startX: 75, startY: 27, endX: 59, endY: 54, size: 12, stagger: .24 },
+        { startX: 58, startY: 18, endX: 48, endY: 48, size: 10, stagger: .48 },
+        { startX: 97, startY: 34, endX: 76, endY: 58, size: 9, stagger: .7 }
+    ];
+    /** Muzzle points per rampart tier, mirroring the per-capacity post lefts in keep.css so
+        a shot leaves the defender that fired it however wide the wall currently is. The y
+        tracks the Siegeling's upper body as it stands on the interior walk, so a shot leaves
+        the defender rather than the stonework it is standing on. */
+    const FRONT_DEFENDER_STARTS = {
+        1: [{ x: 49.5, y: 51 }],
+        2: [{ x: 33.5, y: 51 }, { x: 65.5, y: 50 }],
+        3: [{ x: 17.5, y: 52 }, { x: 41.5, y: 49 }, { x: 65.5, y: 51 }],
+        4: [{ x: 13.5, y: 52 }, { x: 36.5, y: 49 }, { x: 59.5, y: 51 }, { x: 82.5, y: 50 }]
+    };
+    const FRONT_MAX_LEVEL = 4;
+    /** Rampart geometry in SVG units. The pitch is the authored merlon + crenel pair, and
+        the px-per-unit is the scale the wall was drawn at, so regenerating the path for a
+        wider stage adds crenellations rather than stretching the ones that are there. */
+    const FRONT_WALL_MERLON = 32;
+    const FRONT_WALL_CRENEL = 30;
+    const FRONT_WALL_PX_PER_UNIT = 3.06;
+    const FRONT_WALL_MIN_UNITS = 360;
 
     const RANK_NAMES = ['Ruined Camp', 'Timber Outpost', 'Settled Courtyard', 'Stonehold',
         'Walled Keep', 'Elemental Stronghold', 'High Castle', 'Grand Keep'];
@@ -134,6 +184,7 @@
         maybeShowTutorial();
         maybeShowOfflineReport();
         window.setInterval(updateLiveState, 1000);
+        startFrontCombatLoop();
     }
 
     function bindEvents() {
@@ -146,11 +197,14 @@
         document.getElementById('dialogueOverlay')?.addEventListener('click', (event) => {
             if (event.target.id === 'dialogueOverlay') closeDialogue();
         });
+        document.getElementById('keepEventOverlay')?.addEventListener('click', (event) => {
+            if (event.target.id === 'keepEventOverlay') closeKeepEvent();
+        });
         // Tapping the darkened surround is the same as denying: the favorite is unchanged.
         document.getElementById('favorOverlay')?.addEventListener('click', (event) => {
             if (event.target.id === 'favorOverlay') closeFavorConfirm();
         });
-        document.getElementById('collectButton')?.addEventListener('click', collectTimber);
+        document.getElementById('collectButton')?.addEventListener('click', collectAllReady);
         document.getElementById('fullscreenButton')?.addEventListener('click', toggleFullscreen);
         document.getElementById('discoveryOpen')?.addEventListener('click', openLatestDiscovery);
         document.getElementById('noticeButton')?.addEventListener('click', toggleNoticeTray);
@@ -160,6 +214,11 @@
         document.getElementById('tutorialSkip')?.addEventListener('click', finishTutorial);
         document.getElementById('tutorialNext')?.addEventListener('click', tutorialAdvance);
         document.getElementById('offlineDismiss')?.addEventListener('click', dismissOfflineReport);
+        document.getElementById('collectDismiss')?.addEventListener('click', closeCollectPopup);
+        document.getElementById('collectClose')?.addEventListener('click', closeCollectPopup);
+        document.getElementById('collectOverlay')?.addEventListener('click', (event) => {
+            if (event.target.id === 'collectOverlay') closeCollectPopup();
+        });
         // The scene caption doubles as the Keeper's Journey button; keyboard-activate it.
         document.getElementById('sceneCaption')?.addEventListener('keydown', (event) => {
             if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openJourney(); }
@@ -167,10 +226,13 @@
         // iOS Safari can leave the document scrolled after a rotation even with
         // overflow hidden, hiding the fixed header; snap back whenever it happens.
         window.addEventListener('resize', resetViewportScroll);
+        window.addEventListener('resize', renderFrontRampart);
         window.addEventListener('orientationchange', () => {
             resetViewportScroll();
             window.setTimeout(resetViewportScroll, 250);
             window.setTimeout(resetViewportScroll, 700);
+            // Rotation resizes the stage after the layout settles, not with the event.
+            window.setTimeout(renderFrontRampart, 250);
         });
         window.addEventListener('scroll', resetViewportScroll, { passive: true });
         document.addEventListener('keydown', (event) => {
@@ -185,10 +247,13 @@
             }
             if (event.key === 'Escape') {
                 if (!document.getElementById('keepTutorial')?.classList.contains('hidden')) finishTutorial();
+                else if (!document.getElementById('collectOverlay')?.classList.contains('hidden')) closeCollectPopup();
                 else if (!document.getElementById('favorOverlay')?.classList.contains('hidden')) closeFavorConfirm();
                 else if (!document.getElementById('journeyOverlay')?.classList.contains('hidden')) closeJourney();
+                else if (!document.getElementById('keepEventOverlay')?.classList.contains('hidden')) closeKeepEvent();
                 else if (!document.getElementById('dialogueOverlay')?.classList.contains('hidden')) closeDialogue();
                 else if (state.panel) closePanel();
+                else if (state.interiorBuildOpen) { state.interiorBuildOpen = false; renderInteriorConstruction(); }
                 else if (state.frontView) exitAkharsFront();
                 else closeInterior();
             }
@@ -288,8 +353,26 @@
     }
 
     function handleClick(event) {
+        if (event.target.closest('[data-open-keep-event]')) {
+            if (event.target.closest('#noticeTray')) closeNoticeTray();
+            openKeepEvent();
+            return;
+        }
+        if (event.target.closest('[data-close-keep-event]')) { closeKeepEvent(); return; }
+        const eventRepair = event.target.closest('[data-keep-event-repair]');
+        if (eventRepair) { void repairKeepEvent(eventRepair.dataset.keepEventRepair); return; }
         if (event.target.closest('#constructionToggle')) {
             toggleConstructionBanner();
+            return;
+        }
+        if (event.target.closest('#interiorBuildToggle')) {
+            state.interiorBuildOpen = !state.interiorBuildOpen;
+            renderInteriorConstruction();
+            return;
+        }
+        if (event.target.closest('[data-close-build-menu]')) {
+            state.interiorBuildOpen = false;
+            renderInteriorConstruction();
             return;
         }
         const panelTrigger = event.target.closest('[data-open-panel]');
@@ -437,6 +520,31 @@
             void startBuild(build.dataset.startBuild);
             return;
         }
+        const instantBuyToggle = event.target.closest('[data-toggle-instant-buy]');
+        if (instantBuyToggle) {
+            const id = instantBuyToggle.dataset.toggleInstantBuy || '';
+            state.instantBuyProjectId = state.instantBuyProjectId === id ? '' : id;
+            renderPanel();
+            return;
+        }
+        const instantBuy = event.target.closest('[data-purchase-build]');
+        if (instantBuy) {
+            void purchaseBuildInstantly(instantBuy.dataset.purchaseBuild);
+            return;
+        }
+        const timeSaverToggle = event.target.closest('[data-toggle-time-savers]');
+        if (timeSaverToggle) {
+            const id = timeSaverToggle.dataset.toggleTimeSavers || '';
+            state.timeSaverProjectId = state.timeSaverProjectId === id ? '' : id;
+            renderPanel();
+            return;
+        }
+        const timeSaver = event.target.closest('[data-construction-speedup]');
+        if (timeSaver) {
+            void buyConstructionTimeSaver(timeSaver.dataset.constructionSpeedup,
+                timeSaver.dataset.speedupPayment || '');
+            return;
+        }
         const theme = event.target.closest('[data-set-theme]');
         if (theme) {
             void setHallTheme(theme.dataset.setTheme);
@@ -475,8 +583,14 @@
             void chooseDialogue(choice.dataset.dialogueChoice);
             return;
         }
+        const followup = event.target.closest('[data-dialogue-followup]');
+        if (followup) {
+            closeDialogue();
+            openConversation(followup.dataset.dialogueFollowup);
+            return;
+        }
         if (event.target.closest('[data-dialogue-done]')) closeDialogue();
-        if (event.target.closest('[data-collect-inline]')) void collectTimber();
+        if (event.target.closest('[data-collect-inline]')) void collectStation('woodlot');
     }
 
     async function loadSnapshot(announceDiscoveries = false) {
@@ -522,25 +636,165 @@
         }
     }
 
-    async function collectTimber() {
-        if (projectedAvailable() <= 0) return;
-        await collectStation('woodlot');
+    async function collectAllReady() {
+        if (projectedTotalReady() <= 0 || !canCollectAnyStation()) return;
+        const before = captureStorageSnapshot();
+        const data = await perform('/api/keep/collect', { stationId: 'all' });
+        if (!data?.collected) return;
+        const grants = Array.isArray(data.collected.stations) ? data.collected.stations : [data.collected];
+        for (const grant of grants) {
+            if (number(grant?.amount) > 0) playCollectBurst(grant.stationId || 'woodlot', number(grant.amount));
+        }
+        openCollectPopup(grants, before);
     }
 
     async function collectStation(stationId) {
+        if (stationId === 'all') {
+            await collectAllReady();
+            return;
+        }
+        if (isProductionStationDamaged(stationId)) {
+            showNotice('Rebuild this building before collecting from it.', 'Building disabled');
+            return;
+        }
         if (stationId === 'akhars_front') {
             if (projectedAkharsFrontAvailable() <= 0) return;
+            const before = captureStorageSnapshot();
             const data = await perform('/api/keep/collect', { stationId });
             if (data?.collected) {
                 playCollectBurst(stationId, number(data.collected.amount));
-                showNotice(`+${number(data.collected.amount)} Siegecoins from the rampart patrol.`, "Akhar's Front");
+                openCollectPopup([data.collected], before);
             }
             return;
         }
         const station = stationById(stationId);
         if (!station || projectedStationAvailable(station) <= 0) return;
+        const before = captureStorageSnapshot();
         const data = await perform('/api/keep/collect', { stationId });
-        if (data?.collected) playCollectBurst(stationId, number(data.collected.amount));
+        if (data?.collected) {
+            playCollectBurst(stationId, number(data.collected.amount));
+            openCollectPopup([data.collected], before);
+        }
+    }
+
+    /** Snapshot inventory levels before a collect so the popup can draw before/after bars. */
+    function captureStorageSnapshot() {
+        const resources = state.snapshot?.resources || {};
+        const materials = {};
+        for (const item of resources.materials || []) {
+            materials[item.id] = {
+                amount: number(item.amount),
+                capacity: number(item.capacity) || number(resources.materialCapacity),
+                name: item.name || titleCase(item.id)
+            };
+        }
+        return {
+            timber: number(resources.timber),
+            timberCapacity: number(resources.timberCapacity),
+            gold: number(resources.gold),
+            materials
+        };
+    }
+
+    function openCollectPopup(grants, before) {
+        const rows = collectPopupRows(grants || [], before || captureStorageSnapshot());
+        if (!rows.length) return;
+        const overlay = document.getElementById('collectOverlay');
+        const list = document.getElementById('collectResults');
+        if (!overlay || !list) return;
+        const total = rows.reduce((sum, row) => sum + row.gain, 0);
+        text('collectTitle', rows.length === 1 ? `${rows[0].name} gathered` : 'Collected');
+        text('collectSummary', rows.length === 1
+            ? `+${rows[0].gain} added to storage.`
+            : `+${total} from ${rows.length} production points.`);
+        list.innerHTML = rows.map((row) => collectPopupRowMarkup(row)).join('');
+        overlay.classList.remove('hidden', 'is-revealed');
+        // Two frames so the gain segment starts at width 0 before transitioning open.
+        window.requestAnimationFrame(() => {
+            window.requestAnimationFrame(() => overlay.classList.add('is-revealed'));
+        });
+        document.getElementById('collectDismiss')?.focus?.();
+    }
+
+    function closeCollectPopup() {
+        const overlay = document.getElementById('collectOverlay');
+        if (!overlay) return;
+        overlay.classList.add('hidden');
+        overlay.classList.remove('is-revealed');
+    }
+
+    function collectPopupRows(grants, before) {
+        const byResource = new Map();
+        for (const grant of grants) {
+            const amount = number(grant?.amount);
+            if (amount <= 0) continue;
+            const resource = String(grant.resource || (grant.stationId === 'woodlot' ? 'TIMBER' : '')).trim();
+            if (!resource) continue;
+            const current = byResource.get(resource) || {
+                resource,
+                name: grant.resourceName || (resource === 'TIMBER' ? 'Timber' : titleCase(resource)),
+                gain: 0,
+                stationId: grant.stationId || ''
+            };
+            current.gain += amount;
+            if (grant.resourceName) current.name = grant.resourceName;
+            if (grant.stationId) current.stationId = grant.stationId;
+            byResource.set(resource, current);
+        }
+        const afterResources = state.snapshot?.resources || {};
+        return [...byResource.values()].map((row) => {
+            if (row.resource === 'TIMBER') {
+                const after = number(afterResources.timber);
+                const capacity = Math.max(1, number(afterResources.timberCapacity) || before.timberCapacity || 1);
+                const prior = number(before.timber);
+                return { ...row, name: 'Timber', icon: '▰', before: prior, after, capacity };
+            }
+            if (row.resource === 'SIEGECOINS') {
+                const after = number(afterResources.gold);
+                const prior = number(before.gold);
+                return {
+                    ...row, name: 'Siegecoins', icon: '◉',
+                    before: prior, after: after || prior + row.gain, capacity: 0
+                };
+            }
+            const priorMaterial = before.materials?.[row.resource] || {};
+            const afterMaterial = (afterResources.materials || []).find((item) => item.id === row.resource);
+            const capacity = Math.max(1, number(afterMaterial?.capacity)
+                || number(priorMaterial.capacity)
+                || number(afterResources.materialCapacity)
+                || 1);
+            const prior = number(priorMaterial.amount);
+            const after = afterMaterial ? number(afterMaterial.amount) : prior + row.gain;
+            return {
+                ...row,
+                name: row.name || afterMaterial?.name || priorMaterial.name || titleCase(row.resource),
+                icon: materialIcon(row.resource),
+                before: prior,
+                after,
+                capacity
+            };
+        });
+    }
+
+    function collectPopupRowMarkup(row) {
+        const capacity = number(row.capacity);
+        const beforePct = capacity > 0 ? clamp(row.before / capacity * 100, 0, 100) : 0;
+        const afterPct = capacity > 0 ? clamp(row.after / capacity * 100, 0, 100) : 0;
+        const gainPct = Math.max(0, afterPct - beforePct);
+        const storageLabel = capacity > 0
+            ? `<span class="collect-row-meta"><span>Storage <b>${number(row.after)} / ${capacity}</b></span><span>was ${number(row.before)}</span></span>
+                <div class="collect-meter" aria-hidden="true">
+                    <i class="collect-meter-was" style="width:${beforePct}%"></i>
+                    <i class="collect-meter-gain" style="left:${beforePct}%; --gain-width:${gainPct}%"></i>
+                </div>`
+            : `<span class="collect-row-meta"><span>On hand <b>${number(row.after)}</b></span><span>was ${number(row.before)}</span></span>`;
+        return `<section class="collect-row" data-resource="${escapeAttr(row.resource)}">
+            <i aria-hidden="true">${row.icon || '✦'}</i>
+            <div class="collect-row-copy">
+                <div class="collect-row-head"><strong>${escapeHtml(row.name)}</strong><em>+${number(row.gain)}</em></div>
+                ${storageLabel}
+            </div>
+        </section>`;
     }
 
     async function setHallTheme(themeId) {
@@ -583,6 +837,7 @@
         if (data?.rewardClaimed) {
             const reward = data.rewardClaimed;
             const parts = [`+${number(reward.gold)} Siegecoins`, `+${number(reward.remnants)} Remnants`];
+            if (number(reward.keeperXpAwarded) > 0) parts.push(`+${number(reward.keeperXpAwarded)} Keeper XP`);
             if (reward.decorationName) parts.push(`✿ ${reward.decorationName}`);
             if (number(reward.rapportGained) > 0) {
                 const rapport = reward.rapport || {};
@@ -595,7 +850,58 @@
 
     async function startBuild(buildId) {
         const data = await perform('/api/keep/build', { buildId });
-        if (data) openPanel('projects');
+        if (data) {
+            state.instantBuyProjectId = '';
+            openPanel('projects');
+        }
+    }
+
+    async function purchaseBuildInstantly(buildId) {
+        const data = await perform('/api/keep/build/purchase', { buildId });
+        const purchased = data?.projectPurchased;
+        if (!purchased) return;
+        state.instantBuyProjectId = '';
+        showNotice(`${purchased.name || projectName(buildId)} purchased for ${number(purchased.coinCost)} Siegecoins.`,
+            'Project complete');
+        openPanel('projects');
+    }
+
+    async function buyConstructionTimeSaver(buildId, payment) {
+        const data = await perform('/api/keep/construction/speedup', { buildId, payment });
+        const result = data?.timeSaverApplied;
+        if (!result) return;
+        if (result.completed) {
+            state.timeSaverProjectId = '';
+            showNotice(`${projectName(buildId)} completed for ${number(result.coinCost)} Siegecoins.`, 'Project complete');
+        } else {
+            showNotice(`${formatDuration(result.savedSeconds)} removed from ${projectName(buildId)}.`, 'Materials applied');
+        }
+        // Buying time from inside the building keeps the player in the room they
+        // are watching change; only the Projects panel path returns to Projects.
+        if (state.interior) renderInterior();
+        else openPanel('projects');
+    }
+
+    async function repairKeepEvent(payment) {
+        const event = state.snapshot?.activeKeepEvent;
+        if (!event) return;
+        const data = await perform('/api/keep/event/repair', { eventId: event.id, payment });
+        const result = data?.keepEventRepair;
+        if (!result) return;
+        if (result.completed) {
+            closeKeepEvent();
+            showNotice(`${event.targetName} was repaired for ${number(result.coinCost)} Siegecoins.`, 'Setback resolved');
+        }
+    }
+
+    function openKeepEvent() {
+        if (!state.snapshot?.activeKeepEvent) return;
+        state.shownKeepEventId = state.snapshot.activeKeepEvent.id;
+        document.getElementById('keepEventOverlay')?.classList.remove('hidden');
+    }
+
+    function closeKeepEvent() {
+        document.getElementById('keepEventOverlay')?.classList.add('hidden');
     }
 
     async function openLore(loreId) {
@@ -694,8 +1000,13 @@
             const delta = number(result.relationshipDelta);
             showNotice(delta > 0 ? `Affinity +${delta}` : `Affinity ${delta}`, result.npcName || 'Voice');
         }
+        if (number(result.keeperXpAwarded) > 0) {
+            showNotice(`+${number(result.keeperXpAwarded)} XP for lending an ear`, 'Voice of Sanctuary');
+        }
         const choices = document.getElementById('dialogueChoices');
-        if (choices) choices.innerHTML = '<button type="button" data-dialogue-done>Return to the keep</button>';
+        if (choices) choices.innerHTML = result.followupConversationId
+            ? `<button type="button" data-dialogue-followup="${escapeAttr(result.followupConversationId)}"><strong>Face what follows</strong><small>This answer caused a new Interaction.</small></button>`
+            : '<button type="button" data-dialogue-done>Return to the keep</button>';
         renderPanel();
     }
 
@@ -708,10 +1019,17 @@
         if (!next || typeof next !== 'object') return;
         const previousLore = new Set((state.snapshot?.lore || []).map((item) => item.id));
         state.snapshot = next;
+        const nextEventId = next.activeKeepEvent?.id || '';
+        if (!nextEventId) {
+            state.shownKeepEventId = '';
+            closeKeepEvent();
+        }
         if (next.offlineReport) state.pendingOfflineReport = clone(next.offlineReport);
         state.receivedAtMs = Date.now() + state.debugTimeOffsetMs;
+        resetFrontCombat();
         announceKeeperProgress(next);
         renderAll();
+        if (state.frontView) initializeFrontCombat();
         if (announceDiscoveries) {
             const ids = Array.isArray(next.newLoreUnlocks)
                 ? next.newLoreUnlocks
@@ -752,11 +1070,13 @@
             scene.dataset.akharsFrontLevel = String(number(visual.akharsFrontLevel));
             scene.dataset.hallLevel = String(hallLevel);
             scene.dataset.hallTheme = visual.hallTheme || 'covenant';
+            scene.dataset.damagedTarget = visual.damagedTargetId || snapshot.activeKeepEvent?.targetId || '';
             for (let level = 2; level <= HALL_MAX_LEVEL; level++) scene.classList.toggle(`hall-l${level}`, hallLevel >= level);
             // Space-separated targets let CSS [data-constructing~="x"] scaffold both crews' sites.
             scene.dataset.constructing = activeConstructionList()
                 .map((item) => constructionTarget(item.id)).filter(Boolean).join(' ');
         }
+        renderKeepEvent();
         renderFavoriteShrine();
         renderFavorConfirm();
         renderJourney();
@@ -778,9 +1098,12 @@
         document.getElementById('enclaveMissionAlert')?.classList.toggle('hidden', readyTasks <= 0);
         renderEnclaveResidents();
         const front = snapshot.akharsFront || {};
-        if (scene) scene.dataset.frontDefenders = String(number(front.residentCount));
+        if (scene) {
+            scene.dataset.frontDefenders = String(number(front.residentCount));
+            scene.dataset.frontCapacity = String(front.built ? frontCapacity() : 0);
+        }
         text('frontLabel', front.built
-            ? `${number(front.residentCount)}/${number(front.capacity) || 3} defenders · passive income`
+            ? `${number(front.residentCount)}/${frontCapacity()} defenders · ${front.wallName || 'rampart'}`
             : 'Unlock after the Enclave and Quarry');
         document.getElementById('frontIncome')?.classList.toggle('hidden', !front.built);
         document.getElementById('frontLock')?.classList.toggle('hidden', Boolean(front.built));
@@ -810,10 +1133,91 @@
         resetViewportScroll();
     }
 
+    function renderKeepEvent() {
+        const event = state.snapshot?.activeKeepEvent;
+        document.querySelectorAll('.is-damaged').forEach((node) => node.classList.remove('is-damaged'));
+        document.querySelectorAll('.repair-scaffold').forEach((node) => node.remove());
+        if (!event) {
+            document.body.removeAttribute('data-keep-damage');
+            return;
+        }
+        document.body.dataset.keepDamage = event.targetId || 'active';
+        const roomId = event.targetType === 'DECORATION'
+            ? (state.snapshot.recipes || []).find((item) => item.id === event.targetId)?.roomId || ''
+            : event.targetId;
+        if (roomId) {
+            const safeId = window.CSS?.escape ? window.CSS.escape(roomId) : String(roomId).replace(/[^a-z0-9_-]/gi, '');
+            // Quarter facilities have no data-building of their own; their tile in the
+            // cluster carries data-stockpile, so a damaged forge still gets scaffolded.
+            document.querySelectorAll(`[data-building="${safeId}"], [data-room="${safeId}"], [data-enter-facility="${safeId}"], .quarter-building[data-stockpile="${safeId}"]`)
+                .forEach((node) => { node.classList.add('is-damaged'); raiseRepairScaffold(node); });
+        }
+        text('keepEventKicker', event.kicker || 'A setback strikes');
+        text('keepEventTitle', event.title || 'Repairs needed');
+        text('keepEventTarget', `${titleCase(event.targetType)} damaged · ${event.targetName || event.targetId}`);
+        text('keepEventDescription', event.description || 'A part of the Keep needs to be rebuilt.');
+        text('keepEventImpact', event.targetType === 'DECORATION'
+            ? 'Decoration bonus paused until rebuilt'
+            : `${event.targetName || 'Building'} is offline until rebuilt`);
+        const timed = document.getElementById('keepEventTimedRepair');
+        if (timed) {
+            timed.disabled = Boolean(event.repairInProgress);
+            timed.textContent = event.repairInProgress ? 'Timed rebuild underway' : `Rebuild · ${formatDuration(event.repairSeconds)}`;
+        }
+        const coin = document.getElementById('keepEventCoinRepair');
+        if (coin) {
+            coin.disabled = !event.canPayCoin;
+            coin.textContent = event.canPayCoin
+                ? `Repair now · ${number(event.coinCost)} coins`
+                : `Need ${number(event.coinCost)} coins`;
+        }
+        text('keepEventStatus', event.repairInProgress
+            ? 'The damaged feature stays offline until the rebuild finishes. Siegecoins can still finish it now.'
+            : 'Choose a short rebuild timer or spend Siegecoins to restore it immediately.');
+        renderKeepEventTimer();
+    }
+
+    // Scaffolding is scene furniture, so it only goes on illustration containers —
+    // never on the interior shell or a panel button that happens to share the id.
+    function raiseRepairScaffold(node) {
+        const host = node.querySelector('.building-illustration, .enclave-illustration, .quarter-illustration')
+            || (node.classList.contains('quarter-building') ? node : null);
+        if (!host || host.querySelector('.repair-scaffold')) return;
+        const scaffold = document.createElement('span');
+        scaffold.className = 'scaffold repair-scaffold';
+        scaffold.setAttribute('aria-hidden', 'true');
+        scaffold.innerHTML = '<b></b><b></b><b></b><i></i>';
+        host.appendChild(scaffold);
+    }
+
+    function keepEventRemaining() {
+        const event = state.snapshot?.activeKeepEvent;
+        if (!event) return 0;
+        if (!event.repairInProgress) return number(event.repairSeconds);
+        const completes = Date.parse(event.repairCompletesAt || '');
+        return Number.isFinite(completes) ? Math.max(0, Math.ceil((completes - nowMs()) / 1000)) : number(event.remainingSeconds);
+    }
+
+    function renderKeepEventTimer() {
+        const event = state.snapshot?.activeKeepEvent;
+        if (!event) return;
+        const remaining = keepEventRemaining();
+        const clock = formatDuration(remaining);
+        text('keepEventTimer', clock);
+        text('keepEventActivityTime', event.repairInProgress ? clock : 'Choose repair');
+        document.querySelectorAll('[data-live-repair-timer]').forEach((node) => {
+            node.textContent = clock;
+        });
+    }
+
     function updateLiveState() {
         if (!state.snapshot) return;
-        if (state.testMode) completeMockConstructionIfReady();
+        if (state.testMode) {
+            completeMockConstructionIfReady();
+            completeMockKeepEventIfReady();
+        }
         updateLiveCounters();
+        renderKeepEventTimer();
         const construction = activeConstructionList().length > 0;
         if (construction && constructionRemaining() <= 0 && !state.testMode && !state.completionRefreshPending) {
             state.completionRefreshPending = true;
@@ -822,26 +1226,35 @@
                 state.completionRefreshPending = false;
             }, 800);
         }
+        if (state.snapshot.activeKeepEvent?.repairInProgress && keepEventRemaining() <= 0
+                && !state.testMode && !state.eventRefreshPending) {
+            state.eventRefreshPending = true;
+            window.setTimeout(async () => {
+                await loadSnapshot(true);
+                state.eventRefreshPending = false;
+            }, 700);
+        }
     }
 
     function updateLiveCounters() {
         if (!state.snapshot) return;
         const available = projectedAvailable();
-        const totalReady = (state.snapshot.stations || [state.snapshot.station]).reduce(
-            (sum, station) => sum + projectedStationAvailable(station), 0);
+        const totalReady = projectedTotalReady();
         text('stationAvailable', totalReady);
         renderHeaderCapacityCounters();
-        text('collectAmount', `${available} timber`);
+        text('collectAmount', `${totalReady} ready`);
         text('frontReadyAmount', String(projectedAkharsFrontAvailable()));
         const collect = document.getElementById('collectButton');
-        if (collect) collect.disabled = available <= 0 || number(state.snapshot.resources?.timber) >= number(state.snapshot.resources?.timberCapacity) || state.busy;
+        if (collect) collect.disabled = totalReady <= 0 || !canCollectAnyStation() || state.busy;
         // Map Collect cue only when the Woodlot stockpile is full — partial stores
         // still show as growing piles and remain claimable from the dock button.
+        // Damaged Woodlots stay uncollectable, so the cue stays hidden too.
         const woodlotCapacity = number(state.snapshot.station?.storageCapacity);
         document.getElementById('productionReady')?.classList.toggle(
-            'hidden', woodlotCapacity <= 0 || available < woodlotCapacity);
+            'hidden', woodlotCapacity <= 0 || available < woodlotCapacity || isProductionStationDamaged('woodlot'));
         updateStockpileVisuals();
         renderConstruction();
+        if (state.interior) renderInteriorConstruction();
         // The Keep Activity tray also owns live construction clocks. Updating
         // these lightweight data-bound values every second keeps both the tray
         // and any open project/interior panel synchronized without rebuilding
@@ -899,12 +1312,13 @@
 
         const activeTeams = activeConstructionList().length;
         const teamCapacity = Math.max(1, number(snapshot.constructionSlots) || 1);
-        text('constructionTeamAmount', `${activeTeams}/${teamCapacity}`);
+        // Reads as a stock of idle crews: full at rest, counting down as projects claim them.
+        const availableTeams = Math.max(0, teamCapacity - activeTeams);
+        text('constructionTeamAmount', `${availableTeams}/${teamCapacity}`);
         const constructionPill = document.querySelector('.construction-team-pill');
         if (constructionPill) {
-            const available = Math.max(0, teamCapacity - activeTeams);
-            constructionPill.setAttribute('aria-label', `Open construction projects: ${activeTeams} active, ${available} available`);
-            constructionPill.title = `${activeTeams} active · ${available} available`;
+            constructionPill.setAttribute('aria-label', `Open construction projects: ${availableTeams} of ${teamCapacity} teams free, ${activeTeams} building`);
+            constructionPill.title = `${availableTeams} free · ${activeTeams} building`;
         }
     }
 
@@ -943,6 +1357,262 @@
         });
     }
 
+    function resetFrontCombat() {
+        const combat = state.frontCombat;
+        combat.initialized = false;
+        combat.running = false;
+        combat.timeMs = 0;
+        combat.previousFrameMs = 0;
+        combat.nextProjectileId = 1;
+        combat.enemies = [];
+        combat.projectiles = [];
+        combat.defenderCooldowns = [];
+        combat.defeats = 0;
+        combat.coinsEarned = 0;
+        combat.projectedBonusBeforeSession = 0;
+        combat.lastDefeat = null;
+        renderFrontCombat();
+    }
+
+    function initializeFrontCombat() {
+        const front = state.snapshot?.akharsFront;
+        if (!front?.built) return;
+        const combat = state.frontCombat;
+        const elapsedMinutes = Math.max(0, (nowMs() - state.receivedAtMs) / 60000);
+        combat.initialized = true;
+        combat.running = true;
+        combat.timeMs = 0;
+        combat.previousFrameMs = 0;
+        combat.nextProjectileId = 1;
+        combat.projectiles = [];
+        combat.defeats = 0;
+        combat.coinsEarned = 0;
+        combat.projectedBonusBeforeSession = Math.floor(elapsedMinutes * number(front.combatRatePerMinute));
+        combat.lastDefeat = null;
+        // Built by pushing rather than mapping: each raider's shade pick reads the ones already
+        // created, which a .map() cannot see because the array is only assigned once it ends.
+        combat.enemies = [];
+        FRONT_RAIDER_PATHS.forEach((path, index) => {
+            combat.enemies.push(createFrontRaider(index, -path.stagger));
+        });
+        combat.defenderCooldowns = (front.slots || []).map((slot, index) =>
+            slot?.resident ? index * 360 : Number.POSITIVE_INFINITY);
+        renderFrontCombat();
+        updateLiveCounters();
+    }
+
+    function createFrontRaider(index, progress = 0) {
+        return {
+            id: index,
+            shade: pickFrontRaiderShade(index),
+            health: FRONT_RAIDER_MAX_HEALTH,
+            maxHealth: FRONT_RAIDER_MAX_HEALTH,
+            progress,
+            status: 'marching',
+            hitUntilMs: 0,
+            defeatedAtMs: 0
+        };
+    }
+
+    /**
+     * Raiders are corrupted Siegelings drawn from the server's pool of real card art, so the
+     * wall faces recoloured Siegelings rather than one repeated ghost. Shades already marching
+     * are avoided so the four raiders on screen stay distinct; the pool is only re-used once
+     * there is nothing else left to send.
+     */
+    function pickFrontRaiderShade(index) {
+        const pool = state.snapshot?.akharsFront?.raiders || [];
+        if (!pool.length) return null;
+        const taken = new Set((state.frontCombat.enemies || [])
+            .filter((enemy) => enemy && enemy.id !== index && enemy.status !== 'defeated')
+            .map((enemy) => enemy.shade?.id)
+            .filter(Boolean));
+        const fresh = pool.filter((shade) => !taken.has(shade.id));
+        const choices = fresh.length ? fresh : pool;
+        return choices[Math.floor(Math.random() * choices.length)] || null;
+    }
+
+    function startFrontCombatLoop() {
+        if ((state.testMode && !window.__KEEP_AUTOPLAY__) || typeof window.requestAnimationFrame !== 'function') return;
+        const frame = (timestamp) => {
+            const combat = state.frontCombat;
+            if (state.frontView && combat.running) {
+                const elapsed = combat.previousFrameMs ? Math.min(64, Math.max(0, timestamp - combat.previousFrameMs)) : 0;
+                combat.previousFrameMs = timestamp;
+                if (elapsed > 0) advanceFrontCombat(elapsed);
+            } else {
+                combat.previousFrameMs = timestamp;
+            }
+            window.requestAnimationFrame(frame);
+        };
+        window.requestAnimationFrame(frame);
+    }
+
+    function advanceFrontCombat(ms) {
+        const combat = state.frontCombat;
+        if (!combat.initialized || !combat.running || !state.frontView) return;
+        let remaining = Math.max(0, number(ms));
+        // Short fixed steps keep hits, deaths, and respawns deterministic even when a test
+        // advances several seconds at once.
+        while (remaining > 0) {
+            const step = Math.min(50, remaining);
+            updateFrontCombatStep(step);
+            remaining -= step;
+        }
+        renderFrontCombat();
+        updateLiveCounters();
+    }
+
+    function updateFrontCombatStep(stepMs) {
+        const combat = state.frontCombat;
+        combat.timeMs += stepMs;
+
+        for (let index = 0; index < combat.enemies.length; index++) {
+            const enemy = combat.enemies[index];
+            if (enemy.status === 'defeated') {
+                if (combat.timeMs - enemy.defeatedAtMs >= FRONT_RAIDER_RESPAWN_MS) {
+                    combat.enemies[index] = createFrontRaider(index, -.16);
+                }
+                continue;
+            }
+            enemy.progress = Math.min(1, enemy.progress + stepMs / FRONT_RAIDER_MARCH_MS);
+        }
+
+        const slots = state.snapshot?.akharsFront?.slots || [];
+        for (let index = 0; index < slots.length; index++) {
+            if (!slots[index]?.resident) continue;
+            combat.defenderCooldowns[index] = number(combat.defenderCooldowns[index]) - stepMs;
+            if (combat.defenderCooldowns[index] > 0) continue;
+            const target = frontCombatTarget();
+            if (target) launchFrontProjectile(index, slots[index].resident, target);
+            combat.defenderCooldowns[index] += FRONT_DEFENDER_ATTACK_MS;
+        }
+
+        const activeProjectiles = [];
+        for (const projectile of combat.projectiles) {
+            projectile.elapsedMs += stepMs;
+            const target = combat.enemies.find((enemy) => enemy.id === projectile.targetId);
+            if (projectile.elapsedMs < projectile.durationMs) {
+                if (target?.status !== 'defeated') activeProjectiles.push(projectile);
+                continue;
+            }
+            if (!target || target.status === 'defeated') continue;
+            target.health = Math.max(0, target.health - projectile.damage);
+            target.hitUntilMs = combat.timeMs + 190;
+            target.hitColor = projectile.color;
+            if (target.health <= 0) defeatFrontRaider(target);
+        }
+        combat.projectiles = activeProjectiles;
+    }
+
+    function frontCombatTarget() {
+        return state.frontCombat.enemies
+            .filter((enemy) => enemy.status !== 'defeated' && enemy.progress >= 0)
+            .sort((a, b) => b.progress - a.progress || a.health - b.health || a.id - b.id)[0] || null;
+    }
+
+    function launchFrontProjectile(defenderIndex, resident, target) {
+        const starts = FRONT_DEFENDER_STARTS[frontCapacity()] || FRONT_DEFENDER_STARTS[3];
+        const start = starts[defenderIndex] || starts[0];
+        state.frontCombat.projectiles.push({
+            id: state.frontCombat.nextProjectileId++,
+            defenderIndex,
+            targetId: target.id,
+            element: String(resident?.element || 'NEUTRAL').toUpperCase(),
+            color: elementColors[String(resident?.element || 'NEUTRAL').toUpperCase()] || elementColors.NEUTRAL,
+            startX: start.x,
+            startY: start.y,
+            elapsedMs: 0,
+            durationMs: FRONT_PROJECTILE_MS,
+            damage: 1
+        });
+    }
+
+    function defeatFrontRaider(enemy) {
+        const combat = state.frontCombat;
+        const point = frontRaiderPosition(enemy);
+        enemy.status = 'defeated';
+        enemy.defeatedAtMs = combat.timeMs;
+        combat.projectiles = combat.projectiles.filter((shot) => shot.targetId !== enemy.id);
+        combat.defeats += 1;
+        combat.coinsEarned += number(state.snapshot?.akharsFront?.coinsPerDefeat) || 1;
+        combat.lastDefeat = { x: point.x, y: point.y, atMs: combat.timeMs };
+        showFrontCoinBurst(point.x, point.y);
+    }
+
+    function frontRaiderPosition(enemy) {
+        const path = FRONT_RAIDER_PATHS[enemy.id] || FRONT_RAIDER_PATHS[0];
+        const progress = clamp(enemy.progress, 0, 1);
+        return {
+            x: path.startX + (path.endX - path.startX) * progress,
+            y: path.startY + (path.endY - path.startY) * progress,
+            size: path.size
+        };
+    }
+
+    function showFrontCoinBurst(x, y) {
+        const burst = document.getElementById('frontCoinBurst');
+        if (!burst) return;
+        burst.style.setProperty('--coin-x', `${x}%`);
+        burst.style.setProperty('--coin-y', `${y}%`);
+        burst.classList.remove('is-visible');
+        // Restart the award animation when two defenders land near-simultaneous final hits.
+        void burst.offsetWidth;
+        burst.classList.add('is-visible');
+    }
+
+    /** Swaps a raider's art only when its shade actually changes, so the marching animation
+        is not restarted every frame by re-writing identical markup. */
+    function paintFrontRaiderShade(node, enemy) {
+        const art = node.querySelector('.raider-art');
+        if (!art) return;
+        const shadeId = enemy.shade?.artUrl ? String(enemy.shade.id || enemy.shade.artUrl) : '';
+        if (art.dataset.shade === shadeId) return;
+        art.dataset.shade = shadeId;
+        node.classList.toggle('has-shade-art', Boolean(shadeId));
+        if (!shadeId) return;
+        art.innerHTML = `<span class="front-raider-health"><b></b></span><img src="${escapeAttr(enemy.shade.artUrl)}" alt="">`;
+        node.title = enemy.shade.name || '';
+    }
+
+    function renderFrontCombat() {
+        const combat = state.frontCombat;
+        document.querySelectorAll('[data-front-raider]').forEach((node) => {
+            const enemy = combat.enemies[number(node.dataset.frontRaider)];
+            if (!enemy) {
+                node.style.removeProperty('--raider-x');
+                node.style.removeProperty('--raider-y');
+                node.style.removeProperty('--raider-size');
+                node.style.removeProperty('--raider-health');
+                node.classList.remove('is-hit', 'is-defeated');
+                return;
+            }
+            paintFrontRaiderShade(node, enemy);
+            const point = frontRaiderPosition(enemy);
+            node.style.setProperty('--raider-x', `${point.x}%`);
+            node.style.setProperty('--raider-y', `${point.y}%`);
+            node.style.setProperty('--raider-size', `${point.size}%`);
+            node.style.setProperty('--raider-health', `${Math.round(enemy.health / enemy.maxHealth * 100)}%`);
+            node.style.setProperty('--hit-color', enemy.hitColor || '#fff');
+            node.classList.toggle('is-hit', enemy.hitUntilMs > combat.timeMs);
+            node.classList.toggle('is-defeated', enemy.status === 'defeated');
+        });
+
+        const layer = document.getElementById('frontProjectiles');
+        if (!layer) return;
+        layer.innerHTML = combat.projectiles.map((projectile) => {
+            const target = combat.enemies.find((enemy) => enemy.id === projectile.targetId);
+            if (!target) return '';
+            const destination = frontRaiderPosition(target);
+            const progress = clamp(projectile.elapsedMs / projectile.durationMs, 0, 1);
+            const eased = 1 - Math.pow(1 - progress, 2);
+            const x = projectile.startX + (destination.x - projectile.startX) * eased;
+            const y = projectile.startY + (destination.y - projectile.startY) * eased;
+            const angle = Math.atan2(destination.y - projectile.startY, destination.x - projectile.startX) * 180 / Math.PI;
+            return `<i class="front-projectile" data-element="${escapeAttr(projectile.element)}" style="--shot-x:${x.toFixed(2)}%;--shot-y:${y.toFixed(2)}%;--shot-angle:${angle.toFixed(2)}deg;--shot-color:${escapeAttr(projectile.color)}"></i>`;
+        }).join('');
+    }
+
     function constructionTarget(constructionId) {
         const id = String(constructionId || '');
         if (!id) return '';
@@ -953,8 +1623,9 @@
         if (id === 'woodlot_level_2') return 'woodlot';
         if (id === 'raise_storehouse' || id === 'storehouse_level_2') return 'storehouse';
         if (id.startsWith('build_')) return id.slice('build_'.length);
-        if (id.endsWith('_level_2')) return id.slice(0, -'_level_2'.length);
-        return '';
+        if (id.endsWith('_storage_annex')) return id.slice(0, -'_storage_annex'.length);
+        const level = /^(.+)_level_\d+$/.exec(id);
+        return level ? level[1] : '';
     }
 
     function playCollectBurst(stationId, amount) {
@@ -1090,17 +1761,55 @@
         state.frontView = true;
         document.getElementById('keepApp')?.classList.add('front-view-active');
         document.getElementById('frontViewToolbar')?.setAttribute('aria-hidden', 'false');
+        syncMusicForLocation();
+        initializeFrontCombat();
+        // The stage only reaches full width once .front-view-active lands, so measure after it.
+        renderFrontRampart();
+        window.requestAnimationFrame?.(renderFrontRampart);
         const hotspot = document.querySelector('.front-hotspot');
         hotspot?.setAttribute('aria-label', "Manage Akhar's Front rampart posts");
         document.getElementById('frontReturn')?.focus({ preventScroll: true });
+    }
+
+    /**
+     * The rampart is drawn with preserveAspectRatio="none" so it can fill the stage, which
+     * means a wall stretched edge to edge on a wide screen would smear its crenellations and
+     * stonework. Rebuild the path for the width actually rendered instead: the viewBox grows
+     * with the wall and merlons keep a constant pitch, so a phone and an ultrawide show the
+     * same size stone, just more of it.
+     */
+    function renderFrontRampart() {
+        const svg = document.querySelector('.front-rampart');
+        if (!svg) return;
+        const width = svg.getBoundingClientRect().width;
+        if (!(width > 0)) return;
+        const units = Math.max(FRONT_WALL_MIN_UNITS, Math.round(width / FRONT_WALL_PX_PER_UNIT));
+        if (svg.dataset.units === String(units)) return;
+        svg.dataset.units = String(units);
+        svg.setAttribute('viewBox', `0 0 ${units} 150`);
+        let path = 'M0 64h28';
+        let crown = '';
+        for (let x = 28; x < units; x += FRONT_WALL_MERLON + FRONT_WALL_CRENEL) {
+            path += `V37h${FRONT_WALL_MERLON}v27h${FRONT_WALL_CRENEL}`;
+            crown += `M${x} 37h${FRONT_WALL_MERLON}`;
+        }
+        svg.querySelector('.wall-body')?.setAttribute('d', `${path}V150H0Z`);
+        svg.querySelector('.wall-crown')?.setAttribute('d', crown);
+        svg.querySelector('.wall-cap')?.setAttribute('d', `M0 77h${units}`);
+        svg.querySelector('.wall-shadow')?.setAttribute('d', `M22 112h${Math.max(0, units - 44)}`);
     }
 
     function exitAkharsFront() {
         if (!state.frontView) return;
         closePanel();
         state.frontView = false;
+        state.frontCombat.running = false;
+        state.frontCombat.projectiles = [];
+        renderFrontCombat();
         document.getElementById('keepApp')?.classList.remove('front-view-active');
         document.getElementById('frontViewToolbar')?.setAttribute('aria-hidden', 'true');
+        syncMusicForLocation();
+        renderFrontRampart(); // back to the map-sized wall, so the viewBox shrinks with it
         const hotspot = document.querySelector('.front-hotspot');
         hotspot?.setAttribute('aria-label', "Enter Akhar's Front");
         hotspot?.focus({ preventScroll: true });
@@ -1162,7 +1871,9 @@
         }
         if (id === 'akhars_front') {
             const front = state.snapshot.akharsFront || {};
-            return { title: "Akhar's Front", kicker: front.built ? `${number(front.residentCount)}/${number(front.capacity) || 3} rampart posts` : 'Distant front' };
+            return { title: "Akhar's Front", kicker: front.built
+                ? `${number(front.residentCount)}/${frontCapacity()} rampart posts · ${front.wallName || 'Rampart'}`
+                : 'Distant front' };
         }
         const station = stationById(id);
         if (station) return { title: station.name, kicker: `Level ${number(station.level)} · ${station.resourceName || 'Elemental workshop'}` };
@@ -1171,29 +1882,34 @@
     }
 
     function buildingMarkup(id) {
+        const damageNotice = roomDamageNoticeMarkup(id);
         if (id === 'woodlot') {
             const station = state.snapshot.station || {};
-            return `
-                <p class="panel-intro">The grove is cultivated with resident Siegelings. Fallen limbs and willing growth replace clear-cutting.</p>
-                <section class="detail-card">
+            const production = isProductionStationDamaged('woodlot')
+                ? damageNotice
+                : `<section class="detail-card">
                     <h3>${escapeHtml(String(projectedAvailable()))} timber ready</h3>
                     <div class="meter"><i data-live-woodlot-meter style="width:${woodlotFill()}%"></i></div>
                     <div class="cost-row"><span>${escapeHtml(formatRate(station.ratePerMinute))} per minute</span><strong>${escapeHtml(String(station.storageCapacity || 0))} storage${number(station.storageBonusPercent) ? ` · +${number(station.storageBonusPercent)}% local` : ''}</strong></div>
                     <div class="button-row"><button class="panel-button" type="button" data-collect-inline ${projectedAvailable() <= 0 ? 'disabled' : ''}>Collect timber</button><button class="panel-button secondary" type="button" data-open-panel="residents">Invite resident</button></div>
-                </section>
+                </section>`;
+            return `
+                <p class="panel-intro">The grove is cultivated with resident Siegelings. Fallen limbs and willing growth replace clear-cutting.</p>
+                ${production}
                 ${station.resident ? `<section class="detail-card"><span class="eyebrow">Current partner</span><h3>${escapeHtml(station.resident.name)}</h3><p>${escapeHtml(station.resident.affinityLabel || '')}. Invited residents remain available in decks and expeditions.</p></section>` : `<div class="empty-state">No resident has been invited. The Woodlot still produces normally.</div>`}
                 ${craftingMarkup('woodlot')}`;
         }
         if (id === 'archive') {
             const restored = Boolean(state.snapshot.visualState?.archiveRestored);
-            return restored
+            const body = restored
                 ? `<p class="panel-intro">Letters, artifacts, and translated memories are preserved with their disagreements intact.</p><section class="detail-card"><h3>${number(state.snapshot.lore?.length)} discoveries</h3><p>${number(state.snapshot.unreadLoreCount)} entries remain unread. Memorabilia displayed here also appears in the sanctuary scene.</p><div class="button-row"><button class="panel-button" type="button" data-open-panel="chronicle">Open Chronicle</button><button class="panel-button secondary" type="button" data-open-panel="conversations">Speak with visitors</button></div></section>`
                 : `<p class="panel-intro">A collapsed record hall lies beneath the eastern wall. Its stones protect letters from the Age Before Cards.</p>${projectsMarkup()}`;
+            return `${damageNotice}${body}`;
         }
-        if (id === 'enclave') return enclaveMarkup();
+        if (id === 'enclave') return `${damageNotice}${enclaveMarkup()}`;
         if (id === 'akhars_front') return akharsFrontMarkup();
         if (stationById(id)) return facilityInteriorMarkup(id);
-        return `<p class="panel-intro">The sanctuary is founded on Stewardship, Consent, and Shelter.</p>${rankCardMarkup()}${favoriteChooserMarkup()}<section class="detail-card"><h3>The Keeper's Charter</h3><p>No Siegeling will be compelled to labor or fight. The land will be repaired rather than consumed, and those hunted by Akhar may seek refuge here.</p><div class="button-row"><button class="panel-button" type="button" data-open-panel="chronicle">Read the charter</button></div></section>${themePickerMarkup()}${craftingMarkup('great_hall')}`;
+        return `${damageNotice}<p class="panel-intro">The sanctuary is founded on Stewardship, Consent, and Shelter.</p>${rankCardMarkup()}${favoriteChooserMarkup()}<section class="detail-card"><h3>The Keeper's Charter</h3><p>No Siegeling will be compelled to labor or fight. The land will be repaired rather than consumed, and those hunted by Akhar may seek refuge here.</p><div class="button-row"><button class="panel-button" type="button" data-open-panel="chronicle">Read the charter</button></div></section>${themePickerMarkup()}${craftingMarkup('great_hall')}`;
     }
 
     /** Spaces are collapsed to a grid of Siegeling buttons by default; opening one expands that
@@ -1501,12 +2217,43 @@
     function facilityInteriorMarkup(id) {
         const station = stationById(id) || {};
         const ready = projectedStationAvailable(station);
-        return `<p class="panel-intro">${facilityInteriorDescription(id)}</p>
-            <section class="detail-card"><h3>${ready} ${escapeHtml(station.resourceName || 'materials')} ready</h3>
+        const production = isProductionStationDamaged(id)
+            ? roomDamageNoticeMarkup(id)
+            : `<section class="detail-card"><h3>${ready} ${escapeHtml(station.resourceName || 'materials')} ready</h3>
             <div class="meter"><i data-station-meter="${escapeAttr(id)}" style="width:${stationFill(station)}%"></i></div>
             <div class="cost-row"><span>${escapeHtml(formatRate(station.ratePerMinute))} per minute</span><strong>${number(station.storageCapacity)} local storage${number(station.storageBonusPercent) ? ` · +${number(station.storageBonusPercent)}%` : ''}</strong></div>
-            <div class="button-row"><button class="panel-button" type="button" data-collect-station="${escapeAttr(id)}" ${ready <= 0 ? 'disabled' : ''}>Collect ${escapeHtml(station.resourceName || 'materials')}</button><button class="panel-button secondary" type="button" data-open-panel="residents" data-select-station="${escapeAttr(id)}">Assign resident</button></div></section>
+            <div class="button-row"><button class="panel-button" type="button" data-collect-station="${escapeAttr(id)}" ${ready <= 0 ? 'disabled' : ''}>Collect ${escapeHtml(station.resourceName || 'materials')}</button><button class="panel-button secondary" type="button" data-open-panel="residents" data-select-station="${escapeAttr(id)}">Assign resident</button></div></section>`;
+        return `<p class="panel-intro">${facilityInteriorDescription(id)}</p>
+            ${production}
             ${craftingMarkup(id)}`;
+    }
+
+    /** Active UPGRADE setback for a walkable room, if any. Decorations pause bonuses only. */
+    function roomDamageEvent(roomId) {
+        const event = state.snapshot?.activeKeepEvent;
+        if (!event || event.targetType !== 'UPGRADE' || !roomId) return null;
+        return event.targetId === roomId ? event : null;
+    }
+
+    function isProductionStationDamaged(stationId) {
+        return Boolean(roomDamageEvent(stationId));
+    }
+
+    /** Interior production card becomes a disabled notice with the live rebuild clock. */
+    function roomDamageNoticeMarkup(roomId) {
+        const event = roomDamageEvent(roomId);
+        if (!event) return '';
+        const remaining = keepEventRemaining();
+        const status = event.repairInProgress
+            ? 'Rebuild underway. Collection and production stay locked until it finishes.'
+            : 'This building is disabled until repaired. Collection and production stay locked.';
+        return `<section class="detail-card interior-damage-card" data-interior-damage="${escapeAttr(roomId)}">
+            <span class="eyebrow">Building disabled</span>
+            <h3>Offline until repaired</h3>
+            <p>${escapeHtml(status)}</p>
+            <div class="interior-damage-timer"><span>${event.repairInProgress ? 'Repair finishes in' : 'Repair timer'}</span><strong data-live-repair-timer>${escapeHtml(formatDuration(remaining))}</strong></div>
+            <div class="button-row"><button class="panel-button" type="button" data-open-keep-event>Open repair</button></div>
+        </section>`;
     }
 
     function craftingMarkup(roomId) {
@@ -1544,6 +2291,7 @@
             openPanel('projects');
             return;
         }
+        if (state.interior !== id) state.interiorBuildOpen = false;
         state.interior = id;
         closePanel();
         const interior = document.getElementById('keepInterior');
@@ -1603,7 +2351,9 @@
 
     function closeInterior() {
         state.interior = '';
+        state.interiorBuildOpen = false;
         collapseEnclaveSpaces();
+        renderInteriorConstruction();
         document.getElementById('keepInterior')?.setAttribute('aria-hidden', 'true');
         setGroundsSuppressed(false);
     }
@@ -1656,11 +2406,361 @@
         });
         renderEnclaveResidents();
         renderInteriorNav();
+        renderInteriorConstruction();
         const root = loreById('memorabilia_petrified_root');
         document.getElementById('interiorPlinth')?.classList.toggle('hidden', !root?.displayed);
         const actions = document.getElementById('interiorActions');
         if (actions) actions.innerHTML = buildingMarkup(state.interior);
     }
+
+    /* —— Construction seen from inside the building being worked on ——
+       The grounds banner only says a crew is busy somewhere. Standing in the room
+       under construction, the player gets the site itself: a drawn work site that
+       advances through four quarters of the build, and a HUD menu naming the kind
+       of project, its clock, and the same time savers the Projects panel offers. */
+    const BUILD_PHASES = [
+        { name: 'Groundworks', note: 'Footings marked and materials staged. The crew is still clearing the floor.' },
+        { name: 'Framing', note: 'Scaffold is up and the frame is going in around you.' },
+        { name: 'Raising', note: 'Walls and fittings are taking their shape overhead.' },
+        { name: 'Finishing', note: 'Last details and cleanup before the crew stands down.' }
+    ];
+
+    /** Interior rooms are named for the space; construction ids are named for the building. */
+    function constructionRoomId(constructionId) {
+        const target = constructionTarget(constructionId);
+        return target === 'hall' ? 'great_hall' : target;
+    }
+
+    /** The project a crew is running on the room the player is standing in, if any. */
+    function interiorConstruction() {
+        if (!state.interior) return null;
+        return activeConstructionList().find((item) => constructionRoomId(item.id) === state.interior) || null;
+    }
+
+    function constructionKindLabel(constructionId) {
+        const id = String(constructionId || '');
+        if (id.startsWith('hall_level_')) return 'Keep rank';
+        if (id === 'restore_archive') return 'Restoration';
+        if (id.endsWith('_storage_annex')) return 'Storage annex';
+        if (/_level_\d+$/.test(id)) return 'Expansion';
+        if (id.startsWith('build_') || id.startsWith('raise_')) return 'New building';
+        return 'Project';
+    }
+
+    function constructionPhaseIndex(progress) {
+        return clamp(Math.floor(number(progress) * BUILD_PHASES.length), 0, BUILD_PHASES.length - 1);
+    }
+
+    function formatCompletionTime(value) {
+        const at = Date.parse(value || '');
+        if (!Number.isFinite(at)) return '—';
+        const finish = new Date(at);
+        const time = finish.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        const sameDay = new Date(nowMs()).toDateString() === finish.toDateString();
+        return sameDay ? time : `${finish.toLocaleDateString([], { weekday: 'short' })} ${time}`;
+    }
+
+    function renderInteriorConstruction() {
+        const toggle = document.getElementById('interiorBuildToggle');
+        const menu = document.getElementById('interiorBuildMenu');
+        const art = document.getElementById('interiorBuildArt');
+        const construction = interiorConstruction();
+        if (!construction) {
+            state.interiorBuildOpen = false;
+            toggle?.classList.add('hidden');
+            toggle?.setAttribute('aria-expanded', 'false');
+            menu?.classList.add('hidden');
+            if (menu) { menu.innerHTML = ''; delete menu.dataset.signature; }
+            art?.classList.add('hidden');
+            if (art) { art.innerHTML = ''; delete art.dataset.room; }
+            return;
+        }
+        const progress = constructionEntryProgress(construction);
+        const phase = constructionPhaseIndex(progress);
+        if (art) {
+            if (art.dataset.room !== state.interior) {
+                art.dataset.room = state.interior;
+                art.innerHTML = buildArtMarkup(state.interior);
+            }
+            art.classList.remove('hidden');
+            art.dataset.phase = String(phase);
+            // Raising groups one at a time (rather than re-rendering) lets each new
+            // stage fade in over the room the player is already looking at.
+            art.querySelectorAll('[data-phase-min]').forEach((group) => {
+                group.classList.toggle('is-raised', number(group.dataset.phaseMin) <= phase);
+            });
+        }
+        if (toggle) {
+            toggle.classList.remove('hidden');
+            toggle.setAttribute('aria-expanded', String(Boolean(state.interiorBuildOpen)));
+            text('interiorBuildKind', constructionKindLabel(construction.id));
+            text('interiorBuildClock', formatDuration(constructionEntryRemaining(construction)));
+            const meter = document.getElementById('interiorBuildToggleMeter');
+            if (meter) meter.style.width = `${Math.round(progress * 100)}%`;
+        }
+        if (!menu) return;
+        menu.classList.toggle('hidden', !state.interiorBuildOpen);
+        if (!state.interiorBuildOpen) return;
+        const savers = construction.timeSavers || {};
+        // Rebuilding only on a real change keeps the ticking clock from resetting
+        // a button the player's finger is already on.
+        const signature = [construction.id, phase, number(savers.materialsAvailable),
+            number(savers.siegecoinsAvailable), number(savers.coinCost)].join('|');
+        if (menu.dataset.signature !== signature) {
+            menu.dataset.signature = signature;
+            menu.innerHTML = interiorBuildMenuMarkup(construction, phase);
+        }
+        const time = menu.querySelector('[data-live-interior-time]');
+        if (time) time.textContent = formatDuration(constructionEntryRemaining(construction));
+        const meter = menu.querySelector('[data-live-interior-meter]');
+        if (meter) meter.style.width = `${Math.round(progress * 100)}%`;
+    }
+
+    function interiorBuildMenuMarkup(construction, phaseIndex) {
+        const phase = BUILD_PHASES[phaseIndex] || BUILD_PHASES[0];
+        const crews = activeConstructionList();
+        const crewNumber = Math.max(1, crews.indexOf(construction) + 1);
+        const slots = Math.max(1, number(state.snapshot?.constructionSlots) || 1);
+        const percent = Math.round(constructionEntryProgress(construction) * 100);
+        return `<div class="build-menu-head">
+                <span class="eyebrow">${escapeHtml(constructionKindLabel(construction.id))} · Phase ${phaseIndex + 1} of ${BUILD_PHASES.length}</span>
+                <h3>${escapeHtml(projectName(construction.id))}</h3>
+                <button class="build-menu-close" type="button" data-close-build-menu aria-label="Close construction status">×</button>
+            </div>
+            <p class="build-menu-note">${escapeHtml(phase.note)}</p>
+            <div class="build-menu-meter" aria-hidden="true"><i data-live-interior-meter style="width:${percent}%"></i></div>
+            <dl class="build-menu-facts">
+                <div><dt>Stage</dt><dd>${escapeHtml(phase.name)}</dd></div>
+                <div><dt>Time left</dt><dd data-live-interior-time>${escapeHtml(formatDuration(constructionEntryRemaining(construction)))}</dd></div>
+                <div><dt>Finishes</dt><dd>${escapeHtml(formatCompletionTime(construction.completesAt))}</dd></div>
+                <div><dt>Crew</dt><dd>${crewNumber} of ${slots}</dd></div>
+            </dl>
+            ${timeSaverMarkup(construction, true)}`;
+    }
+
+    /** Flat work-site drawings, one per room, grouped by the quarter they appear in. */
+    function buildArtMarkup(roomId) {
+        const scene = BUILD_ART[roomId] || BUILD_ART_FALLBACK;
+        return `<svg class="build-art-svg" viewBox="0 0 400 240" preserveAspectRatio="xMidYMax meet"
+            aria-hidden="true" focusable="false">${scene}</svg>`;
+    }
+
+    const BUILD_ART_GROUND = `<ellipse class="b-shadow" cx="200" cy="215" rx="158" ry="14"/>`;
+    const BUILD_ART_DUST = `<g class="b-dust"><circle cx="104" cy="198" r="3.2"/><circle cx="196" cy="186" r="2.4"/>
+        <circle cx="292" cy="200" r="3.6"/><circle cx="244" cy="172" r="2"/></g>`;
+
+    const BUILD_ART_FALLBACK = `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-chalk" d="M104 204h192M132 186h136"/>
+            <rect class="b-tim-d" x="96" y="188" width="96" height="9" rx="4"/>
+            <rect class="b-tim" x="104" y="176" width="80" height="9" rx="4"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M148 66v138M256 66v138M144 70h116"/>
+            <path class="b-beam-d" d="M148 126h108"/></g>
+        <g data-phase-min="2">
+            <g class="b-hoist"><path class="b-rope" d="M202 74v42"/><rect class="b-stone" x="184" y="116" width="36" height="26" rx="4"/></g>
+            <rect class="b-stone-d" x="150" y="170" width="50" height="20" rx="3"/>
+            <rect class="b-stone-d" x="204" y="170" width="50" height="20" rx="3"/></g>
+        <g data-phase-min="3">
+            <rect class="b-stone" x="150" y="148" width="104" height="20" rx="3"/>
+            <circle class="b-glow b-lamp" cx="286" cy="96" r="9"/></g>`;
+
+    const BUILD_ART = {
+        // Covenant Hall ranks are cut stone: a timber gantry lifts ashlar onto rising courses.
+        great_hall: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-chalk" d="M96 206h208M124 186h152M124 186v20M276 186v20"/>
+            <rect class="b-tim-d" x="80" y="186" width="94" height="9" rx="4"/>
+            <rect class="b-stone" x="86" y="168" width="40" height="18" rx="3"/>
+            <rect class="b-stone" x="130" y="168" width="40" height="18" rx="3"/>
+            <rect class="b-stone-d" x="108" y="150" width="40" height="18" rx="3"/>
+            <rect class="b-tim" x="292" y="180" width="70" height="8" rx="4"/>
+            <rect class="b-tim" x="300" y="169" width="54" height="8" rx="4"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M152 58v148M254 58v148M146 62h114"/>
+            <path class="b-beam-d" d="M152 96l44-30M254 96l-44-30"/></g>
+        <g data-phase-min="2">
+            <rect class="b-stone" x="168" y="182" width="34" height="18" rx="3"/>
+            <rect class="b-stone" x="206" y="182" width="34" height="18" rx="3"/>
+            <rect class="b-stone-d" x="180" y="162" width="34" height="18" rx="3"/>
+            <rect class="b-stone-d" x="218" y="162" width="34" height="18" rx="3"/>
+            <g class="b-hoist"><path class="b-rope" d="M203 66v44"/><rect class="b-stone" x="184" y="110" width="38" height="26" rx="4"/></g></g>
+        <g data-phase-min="3">
+            <rect class="b-stone" x="160" y="140" width="100" height="20" rx="4"/>
+            <path class="b-banner" d="M120 62h34v52l-17-13-17 13z"/>
+            <circle class="b-glow b-lamp" cx="292" cy="120" r="9"/></g>`,
+        // The Woodlot is cultivated, not felled: saw pit first, drying racks, then staked saplings.
+        woodlot: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-soil" d="M84 206q26-16 52 0zM160 206q26-16 52 0zM236 206q26-16 52 0z"/>
+            <rect class="b-tim-d" x="300" y="176" width="58" height="30" rx="4"/>
+            <path class="b-beam-d" d="M118 190l-8-38"/>
+            <rect class="b-tim-l" x="102" y="140" width="18" height="14" rx="3"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M150 200l30-46M210 200l-30-46M162 200l30-46M222 200l-30-46"/>
+            <rect class="b-tim-l" x="140" y="142" width="106" height="12" rx="5"/>
+            <path class="b-saw" d="M252 148l38-16"/></g>
+        <g data-phase-min="2">
+            <path class="b-beam" d="M96 200V96M304 200V96"/>
+            <path class="b-rope" d="M96 106h208M96 128h208M96 150h208"/>
+            <path class="b-bundle" d="M132 106v22M180 128v20M236 106v20M276 128v22"/></g>
+        <g data-phase-min="3">
+            <path class="b-leaf" d="M110 200q6-52 24-64 12 20 4 64zM196 200q6-58 24-70 12 22 4 70zM282 200q6-48 22-58 12 18 4 58z"/>
+            <circle class="b-glow b-lamp" cx="330" cy="118" r="9"/></g>`,
+        // The Archive is shored before it is shelved — props, then ladder, shelves, and lamp.
+        archive: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <rect class="b-stone-d" x="96" y="46" width="208" height="18" rx="3"/>
+            <path class="b-crack" d="M186 64l12 26-9 22 14 24"/>
+            <path class="b-rubble" d="M152 204l26-30 26 30zM210 204l20-22 20 22z"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M116 202l12-136M284 202l-12-136M200 202V68"/>
+            <path class="b-beam-d" d="M312 200l-12-92M340 200l-12-92"/>
+            <path class="b-rope" d="M302 128h30M306 152h30M310 176h30"/></g>
+        <g data-phase-min="2">
+            <rect class="b-tim-d" x="44" y="116" width="8" height="88" rx="3"/>
+            <rect class="b-tim-d" x="98" y="116" width="8" height="88" rx="3"/>
+            <rect class="b-tim" x="38" y="126" width="74" height="9" rx="4"/>
+            <rect class="b-tim" x="38" y="156" width="74" height="9" rx="4"/>
+            <rect class="b-tim" x="38" y="186" width="74" height="9" rx="4"/></g>
+        <g data-phase-min="3">
+            <rect class="b-canvas" x="48" y="104" width="21" height="22" rx="2"/>
+            <rect class="b-canvas" x="76" y="108" width="18" height="18" rx="2"/>
+            <rect class="b-canvas" x="52" y="136" width="23" height="20" rx="2"/>
+            <circle class="b-glow b-lamp" cx="238" cy="144" r="10"/></g>`,
+        // The Garden raises a trellis over turned beds; blossom is the finishing coat.
+        garden: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-soil" d="M78 202h110v14H78zM212 202h110v14H212z"/>
+            <path class="b-chalk" d="M86 196h94M220 196h94"/>
+            <rect class="b-tim-d" x="176" y="178" width="48" height="26" rx="4"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M104 200V92M172 200V80M228 200V80M296 200V92M100 84h200"/></g>
+        <g data-phase-min="2">
+            <path class="b-lattice" d="M104 120h192M104 152h192M136 200V88M200 200V84M264 200V88"/>
+            <path class="b-hoop" d="M92 200a34 34 0 0168 0M240 200a34 34 0 0168 0"/></g>
+        <g data-phase-min="3">
+            <path class="b-leaf" d="M116 118q26 6 26 34-26-4-26-34zM196 96q28 8 26 38-28-6-26-38zM266 132q26 8 24 36-26-6-24-36z"/>
+            <circle class="b-bloom" cx="150" cy="106" r="7"/><circle class="b-bloom" cx="238" cy="132" r="6"/>
+            <circle class="b-glow b-lamp" cx="322" cy="128" r="9"/></g>`,
+        // The Forge builds upward from the ash pit: scaffold, flue courses, then first fire.
+        forge: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-soil" d="M150 208a50 22 0 01100 0z"/>
+            <rect class="b-brick" x="72" y="180" width="76" height="12" rx="2"/>
+            <rect class="b-brick" x="80" y="166" width="60" height="12" rx="2"/>
+            <rect class="b-tim-d" x="66" y="192" width="90" height="10" rx="4"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M156 202V52M252 202V52"/>
+            <path class="b-beam-d" d="M156 84h96M156 130h96M156 172h96"/></g>
+        <g data-phase-min="2">
+            <rect class="b-brick" x="172" y="150" width="64" height="16" rx="2"/>
+            <rect class="b-brick" x="172" y="130" width="64" height="16" rx="2"/>
+            <rect class="b-brick" x="176" y="110" width="56" height="16" rx="2"/>
+            <path class="b-anvil" d="M276 196h56l-10-14h-14l4-14h-18l4 14h-12z"/>
+            <path class="b-beam-d" d="M282 202h44"/></g>
+        <g data-phase-min="3">
+            <rect class="b-brick" x="180" y="88" width="48" height="16" rx="2"/>
+            <path class="b-fire" d="M204 190q-22-16-14-38 10 12 16 4 6 16 16 6 8 22-18 28z"/>
+            <g class="b-sparks"><circle cx="188" cy="140" r="3"/><circle cx="222" cy="126" r="2.4"/><circle cx="206" cy="108" r="2"/></g></g>`,
+        // The Fridge is a lattice cage packed with panels before the frost coil is charged.
+        fridge: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-straw" d="M70 202h110"/>
+            <rect class="b-ice" x="80" y="176" width="38" height="26" rx="3"/>
+            <rect class="b-ice" x="122" y="176" width="38" height="26" rx="3"/>
+            <rect class="b-canvas" x="286" y="164" width="66" height="38" rx="4"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M150 202V64M256 202V64M144 68h118M146 132h114"/></g>
+        <g data-phase-min="2">
+            <rect class="b-panel" x="156" y="76" width="46" height="48" rx="3"/>
+            <rect class="b-panel" x="206" y="76" width="46" height="48" rx="3"/>
+            <rect class="b-panel" x="156" y="140" width="46" height="52" rx="3"/>
+            <rect class="b-panel" x="206" y="140" width="46" height="52" rx="3"/></g>
+        <g data-phase-min="3">
+            <path class="b-coil" d="M170 168h68M170 152h68M170 184h68"/>
+            <path class="b-ice b-crystal" d="M203 84l20 30-20 30-20-30z"/>
+            <circle class="b-glow b-lamp b-frost" cx="300" cy="120" r="10"/></g>`,
+        // The Generator winds an armature ring before the conduit carries the first arc.
+        generator: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <circle class="b-spool" cx="106" cy="180" r="26"/><circle class="b-spool-hub" cx="106" cy="180" r="9"/>
+            <rect class="b-canvas" x="272" y="170" width="76" height="34" rx="4"/>
+            <path class="b-beam-d" d="M272 186h76"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-ring" d="M138 148a64 64 0 01128 0"/>
+            <path class="b-beam" d="M138 148v54M266 148v54"/></g>
+        <g data-phase-min="2">
+            <path class="b-winding" d="M152 122l16 34M172 104l16 40M196 96l14 44M222 104l14 40M246 122l14 34"/>
+            <path class="b-beam" d="M202 96V60"/><rect class="b-tim-l" x="188" y="52" width="28" height="12" rx="4"/></g>
+        <g data-phase-min="3">
+            <path class="b-arc" d="M172 132q30 22 60 0M162 158q40 30 80 0"/>
+            <circle class="b-glow b-lamp" cx="202" cy="176" r="12"/></g>`,
+        // The Quarry cuts along a chalked face; a derrick lifts each block onto the sled.
+        quarry: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-face" d="M60 204V70h116l-14 134z"/>
+            <path class="b-chalk" d="M72 104h92M72 142h84M72 178h76"/>
+            <path class="b-rubble" d="M186 204l24-24 24 24z"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M300 202V56M300 60L212 92"/>
+            <path class="b-rope" d="M300 84l-64 26M300 202l-48-30"/></g>
+        <g data-phase-min="2">
+            <g class="b-hoist"><path class="b-rope" d="M214 94v34"/><rect class="b-stone" x="196" y="128" width="38" height="26" rx="3"/></g>
+            <rect class="b-tim-d" x="180" y="192" width="96" height="10" rx="4"/>
+            <circle class="b-tim" cx="196" cy="204" r="7"/><circle class="b-tim" cx="260" cy="204" r="7"/></g>
+        <g data-phase-min="3">
+            <rect class="b-stone" x="188" y="168" width="40" height="20" rx="3"/>
+            <rect class="b-stone-d" x="232" y="168" width="40" height="20" rx="3"/>
+            <rect class="b-stone" x="208" y="146" width="40" height="20" rx="3"/>
+            <circle class="b-glow b-lamp" cx="330" cy="104" r="9"/></g>`,
+        // The Kitchen turns a wooden former into a brick dome, then lights its first fire.
+        kitchen: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-chalk" d="M132 204h136"/>
+            <rect class="b-brick" x="66" y="180" width="72" height="12" rx="2"/>
+            <rect class="b-brick" x="74" y="166" width="56" height="12" rx="2"/>
+            <rect class="b-tim-d" x="126" y="192" width="148" height="12" rx="4"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-former" d="M140 192a60 60 0 01120 0"/>
+            <path class="b-beam-d" d="M200 192v-60M170 192l14-52M230 192l-14-52"/></g>
+        <g data-phase-min="2">
+            <path class="b-dome" d="M132 192a68 68 0 01136 0z"/>
+            <path class="b-line" d="M148 160h104M162 138h76M180 122h40"/>
+            <rect class="b-tim" x="286" y="150" width="64" height="9" rx="4"/></g>
+        <g data-phase-min="3">
+            <rect class="b-brick" x="238" y="88" width="30" height="52" rx="3"/>
+            <path class="b-fire" d="M200 190q-18-14-12-32 8 10 14 3 5 13 13 5 7 18-15 24z"/>
+            <path class="b-steam" d="M254 76q10-14 0-26M270 78q10-14 0-26"/>
+            <circle class="b-glow b-lamp" cx="322" cy="120" r="9"/></g>`,
+        // The Enclave is woven, not cut: rafters, then nests, then lanterns for the residents.
+        enclave: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-chalk" d="M100 202h200"/>
+            <path class="b-bundle" d="M74 202l18-46M88 202l16-46M102 202l14-46"/>
+            <rect class="b-tim-d" x="286" y="176" width="66" height="28" rx="4"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M140 202l60-96 60 96M120 202l52-84M280 202l-52-84"/>
+            <path class="b-beam-d" d="M156 152h88"/></g>
+        <g data-phase-min="2">
+            <path class="b-nest" d="M118 170a24 16 0 0148 0zM234 170a24 16 0 0148 0zM178 196a22 15 0 0144 0z"/>
+            <path class="b-rope" d="M156 152l-14 18M244 152l14 18"/></g>
+        <g data-phase-min="3">
+            <path class="b-banner" d="M186 110h28v46l-14-11-14 11z"/>
+            <circle class="b-glow b-lamp" cx="140" cy="140" r="8"/>
+            <circle class="b-glow b-lamp" cx="262" cy="140" r="8"/></g>`
+    };
 
     function maybeShowTutorial() {
         if (!state.snapshot) return;
@@ -1752,17 +2852,20 @@
         const intro = '<p class="panel-intro">Every workshop has its own resident slot. Matching elements increase output by 20%; Neutral residents lend a 5% bonus anywhere.</p>';
         if (!facilities.length) return `${intro}<div class="empty-state">Restore the Storehouse, then plant the Covenant Garden to open the Elemental Quarter.</div>${rewardsMarkup()}`;
         return `${intro}<div class="facility-grid">${facilities.map((station) => {
+            const damaged = isProductionStationDamaged(station.id);
             const ready = projectedStationAvailable(station);
-            const full = ready >= number(station.storageCapacity);
-            return `<section class="facility-card ${full ? 'is-full' : ''}">
+            const full = !damaged && ready >= number(station.storageCapacity);
+            return `<section class="facility-card ${full ? 'is-full' : ''} ${damaged ? 'is-damaged-station' : ''}">
                 <span class="facility-icon facility-${escapeAttr(station.id)}">${facilityIcon(station.id)}</span>
-                <span class="eyebrow">Level ${number(station.level)} · ${escapeHtml(formatRate(station.ratePerMinute))}/min</span>
+                <span class="eyebrow">Level ${number(station.level)} · ${escapeHtml(formatRate(station.ratePerMinute))}/min${damaged ? ' · Damaged' : ''}</span>
                 <h3>${escapeHtml(station.name)}</h3>
-                <p>${ready}/${number(station.storageCapacity)} ${escapeHtml(station.resourceName || 'materials')} ready${full ? ' · Storage full' : ''}${number(station.storageBonusPercent) ? ` · +${number(station.storageBonusPercent)}% local storage` : ''}</p>
+                <p>${damaged
+                    ? `Offline until repaired · ${escapeHtml(formatDuration(keepEventRemaining()))} remaining`
+                    : `${ready}/${number(station.storageCapacity)} ${escapeHtml(station.resourceName || 'materials')} ready${full ? ' · Storage full' : ''}${number(station.storageBonusPercent) ? ` · +${number(station.storageBonusPercent)}% local storage` : ''}`}</p>
                 <div class="meter"><i data-station-meter="${escapeAttr(station.id)}" style="width:${stationFill(station)}%"></i></div>
                 <small>Affinity: ${escapeHtml((station.affinityNames || []).join(', '))}</small>
                 <div class="facility-resident">${station.resident ? `${residentAvatarContent(station.resident)} <span><strong>${escapeHtml(station.resident.name)}</strong><small>${escapeHtml(station.resident.affinityLabel || '')}</small></span>` : '<span><strong>Open resident slot</strong><small>Production continues at base rate</small></span>'}</div>
-                <div class="button-row"><button class="panel-button" type="button" data-collect-station="${escapeAttr(station.id)}" ${ready <= 0 ? 'disabled' : ''}>Collect ${ready}</button><button class="panel-button secondary" type="button" data-open-panel="residents" data-select-station="${escapeAttr(station.id)}">Assign</button><button class="panel-button secondary" type="button" data-enter-facility="${escapeAttr(station.id)}">Enter & craft</button></div>
+                <div class="button-row"><button class="panel-button" type="button" data-collect-station="${escapeAttr(station.id)}" ${damaged || ready <= 0 ? 'disabled' : ''}>${damaged ? 'Disabled' : `Collect ${ready}`}</button><button class="panel-button secondary" type="button" data-open-panel="residents" data-select-station="${escapeAttr(station.id)}">Assign</button><button class="panel-button secondary" type="button" data-enter-facility="${escapeAttr(station.id)}">Enter & craft</button></div>
             </section>`;
         }).join('')}</div>${rewardsMarkup()}`;
     }
@@ -1787,7 +2890,17 @@
             <span class="reward-value">${number(order.reward?.gold)} Siegecoins<br>${number(order.reward?.remnants)} Remnants</span>
             <button class="panel-button" type="button" data-claim-keep-reward="weekly_order" ${order.canClaim ? '' : 'disabled'}>${order.claimed ? 'Filled' : order.canClaim ? 'Fill order' : 'Gather materials'}</button>
         </section>`;
-        return `<div class="rewards-section"><span class="eyebrow">Keep rewards</span>${milestoneCards}${orderCard}<section class="reward-card tribute-card">
+        const repeatables = (state.snapshot.repeatableProjects?.projects || []).map((project) => {
+            const needs = (project.requirements || []).map((need) => `<span class="${number(need.have) >= number(need.amount) ? 'is-met' : ''}">${need.id === 'timber' ? '▰' : materialIcon(need.id)} ${number(need.have)}/${number(need.amount)} ${escapeHtml(need.name)}</span>`).join('');
+            const timber = number(project.timberCost) ? `<span class="${number(state.snapshot.resources?.timber) >= number(project.timberCost) ? 'is-met' : ''}">▰ ${number(state.snapshot.resources?.timber)}/${number(project.timberCost)} Timber</span>` : '';
+            const reward = project.reward || {};
+            return `<section class="reward-card repeatable-project-card ${project.claimed ? 'is-claimed' : ''}">
+                <span><small>${escapeHtml(project.cadence || 'Repeatable project')}</small><strong>${escapeHtml(project.name)}</strong><p>${escapeHtml(project.description || '')}</p><div class="order-reqs">${needs}${timber}</div></span>
+                <span class="reward-value">+${number(reward.xp)} XP<br>${number(reward.gold)} Siegecoins<br>${number(reward.remnants)} Remnants</span>
+                <button class="panel-button" type="button" data-claim-keep-reward="${escapeAttr(project.id)}" ${project.canClaim ? '' : 'disabled'}>${project.claimed ? 'Complete' : project.canClaim ? 'Complete project' : 'Gather supplies'}</button>
+            </section>`;
+        }).join('');
+        return `<div class="rewards-section"><span class="eyebrow">Repeatable restoration</span>${repeatables}<span class="eyebrow">Keep rewards</span>${milestoneCards}${orderCard}<section class="reward-card tribute-card">
             <span><small>Weekly sanctuary tribute</small><strong>A Gift Returned</strong><p>${escapeHtml(tributeTime)}</p></span>
             <span class="reward-value">${number(tribute.reward?.gold)} Siegecoins<br>${number(tribute.reward?.remnants)} Remnants</span>
             <button class="panel-button" type="button" data-claim-keep-reward="weekly_tribute" ${tribute.ready ? '' : 'disabled'}>${tribute.ready ? 'Claim tribute' : 'Not ready'}</button>
@@ -1848,7 +2961,7 @@
         const crewNote = slots > 1 || constructions.length
             ? `<p class="panel-intro crew-note">Construction teams: ${constructions.length}/${slots} active${slots > 1 ? ` · Keeper Level ${number(state.snapshot.keeper?.level) || 1} coordinates ${slots} simultaneous projects` : ''}.</p>`
             : '';
-        const inProgress = constructions.map((item, index) => `<section class="project-card"><span class="eyebrow">In progress${slots > 1 ? ` · Crew ${index + 1}` : ''}</span><h3>${escapeHtml(projectName(item.id))}</h3><p>The site changes through foundations, scaffolding, and completion. No progress is lost while you are away.</p><div class="meter"><i data-live-construction-meter="${index}" style="width:${constructionPercent(index)}%"></i></div><div class="cost-row"><span data-live-construction-time="${index}">${escapeHtml(formatDuration(constructionEntryRemaining(item)))}</span><strong>Workers active</strong></div></section>`).join('');
+        const inProgress = constructions.map((item, index) => `<section class="project-card"><span class="eyebrow">In progress${slots > 1 ? ` · Crew ${index + 1}` : ''}</span><h3>${escapeHtml(projectName(item.id))}</h3><p>The site changes through foundations, scaffolding, and completion. No progress is lost while you are away.</p><div class="meter"><i data-live-construction-meter="${index}" style="width:${constructionPercent(index)}%"></i></div><div class="cost-row"><span data-live-construction-time="${index}">${escapeHtml(formatDuration(constructionEntryRemaining(item)))}</span><strong>Workers active</strong></div>${timeSaverMarkup(item)}</section>`).join('');
         // Parity with KeepService.buildOptions: a project a crew already holds is never offered again,
         // so a stale snapshot cannot render a "Begin project" button the server will reject.
         const busyIds = new Set(constructions.map((item) => item.id));
@@ -1862,17 +2975,60 @@
                 if (number(materialById(cost.id)?.amount) < number(cost.amount)) shortages.push(cost.name);
             }
             const levelLocked = option.levelMet === false;
+            const instantCost = number(option.instantCoinCost);
+            const siegecoins = number(state.snapshot.resources?.gold);
+            const canPurchase = option.canPurchase !== false && !levelLocked && siegecoins >= instantCost;
+            const buying = state.instantBuyProjectId === option.id;
             const blockedLabel = levelLocked ? `Reach Keeper Level ${number(option.requiredLevel)}`
                 : constructions.length >= slots ? 'Crews busy'
                 : `Need ${escapeHtml(shortages.join(' & ') || 'prior project')}`;
+            const buyLabel = canPurchase ? `Buy instantly · ${instantCost} ◉`
+                : levelLocked ? `Locked · Level ${number(option.requiredLevel)}`
+                : `Need ${Math.max(0, instantCost - siegecoins)} more ◉`;
             const eyebrow = levelLocked ? `Locked · Keeper Level ${number(option.requiredLevel)}`
                 : option.rankName ? `Keep rank · ${escapeHtml(option.rankName)}` : 'Visible restoration';
             return `<section class="project-card ${option.rankName ? 'is-rank-project' : ''}${levelLocked ? ' is-level-locked' : ''}"><span class="eyebrow">${eyebrow}</span><h3>${escapeHtml(option.name)}</h3><p>${escapeHtml(option.description || '')}</p>
                 <div class="cost-row"><span>${escapeHtml(formatDuration(option.durationSeconds))}</span><strong>${escapeHtml(costs.join(' · '))}</strong></div>
-                <div class="button-row"><button class="panel-button" type="button" data-start-build="${escapeAttr(option.id)}" ${option.canStart ? '' : 'disabled'}>${option.canStart ? 'Begin project' : blockedLabel}</button></div></section>`;
+                <div class="button-row project-actions"><button class="panel-button" type="button" data-start-build="${escapeAttr(option.id)}" ${option.canStart ? '' : 'disabled'}>${option.canStart ? 'Begin project' : blockedLabel}</button>
+                    <button class="panel-button instant-buy-button" type="button" data-toggle-instant-buy="${escapeAttr(option.id)}" aria-expanded="${buying}" ${canPurchase ? '' : 'disabled'}>${buyLabel}</button></div>
+                ${buying ? `<div class="instant-purchase-confirm"><span><strong>Purchase immediately?</strong><small>This skips the timber, materials, construction crew, and wait. Progression requirements still apply.</small></span><div class="button-row"><button class="panel-button" type="button" data-purchase-build="${escapeAttr(option.id)}">Confirm · ${instantCost} ◉</button><button class="panel-button secondary" type="button" data-toggle-instant-buy="${escapeAttr(option.id)}">Cancel</button></div></div>` : ''}
+                </section>`;
         }).join('');
         const projects = inProgress + optionCards;
         return `${crewNote}${projects || '<div class="empty-state">Every current restoration is complete. Weekly tribute and resident affinities keep the sanctuary useful while future chapters arrive.</div>'}${rewardsMarkup()}`;
+    }
+
+    /** `alwaysOpen` is for the interior HUD menu, which is itself the disclosure —
+        nesting a second collapse inside it would cost an extra tap for no gain. */
+    function timeSaverMarkup(construction, alwaysOpen) {
+        const savers = construction.timeSavers || {};
+        const open = alwaysOpen === true || state.timeSaverProjectId === construction.id;
+        const remaining = constructionEntryRemaining(construction);
+        const materialCost = number(savers.materialCost) || 10;
+        const materialPercent = number(savers.materialPercent) || 25;
+        const coinCost = number(savers.coinCost) || Math.max(1, Math.ceil(remaining / 300));
+        const materialsAvailable = Number.isFinite(Number(savers.materialsAvailable))
+            ? number(savers.materialsAvailable)
+            : (state.snapshot.resources?.materials || []).reduce((total, item) => total + number(item.amount), 0);
+        const siegecoinsAvailable = Number.isFinite(Number(savers.siegecoinsAvailable))
+            ? number(savers.siegecoinsAvailable) : number(state.snapshot.resources?.gold);
+        const canUseMaterials = savers.canUseMaterials !== false && materialsAvailable >= materialCost;
+        const canUseSiegecoins = savers.canUseSiegecoins !== false && siegecoinsAvailable >= coinCost;
+        return `<div class="time-saver${open ? ' is-open' : ''}${alwaysOpen ? ' is-static' : ''}">
+            ${alwaysOpen ? '<span class="time-saver-heading"><i aria-hidden="true">⌛</i><strong>Time savers</strong></span>'
+            : `<button class="time-saver-toggle" type="button" data-toggle-time-savers="${escapeAttr(construction.id)}" aria-expanded="${open}">
+                <span><i aria-hidden="true">⌛</i><strong>Time savers</strong></span><small>${open ? 'Hide options' : 'Speed up or complete'}</small>
+            </button>`}
+            ${open ? `<div class="time-saver-options">
+                <p>Use mixed workshop materials to cut the remaining time, or spend your account Siegecoins to finish now.</p>
+                <button class="time-saver-choice material" type="button" data-construction-speedup="${escapeAttr(construction.id)}" data-speedup-payment="MATERIALS" ${canUseMaterials ? '' : 'disabled'}>
+                    <span><strong>Cut ${materialPercent}%</strong><small>${canUseMaterials ? `${materialsAvailable} materials available` : `Need ${materialCost - materialsAvailable} more materials`}</small></span><b>${materialCost} ✦</b>
+                </button>
+                <button class="time-saver-choice coins" type="button" data-construction-speedup="${escapeAttr(construction.id)}" data-speedup-payment="SIEGECOINS" ${canUseSiegecoins ? '' : 'disabled'}>
+                    <span><strong>Complete now</strong><small>${canUseSiegecoins ? `${siegecoinsAvailable} Siegecoins available` : `Need ${coinCost - siegecoinsAvailable} more Siegecoins`}</small></span><b>${coinCost} ◉</b>
+                </button>
+            </div>` : ''}
+        </div>`;
     }
 
     function projectsMarkupLegacy() {
@@ -2069,6 +3225,10 @@
         return state.notices.filter((notice) => !notice.read).length;
     }
 
+    function keepActivityBadgeCount() {
+        return unreadNoticeCount() + (state.snapshot?.activeKeepEvent ? 1 : 0);
+    }
+
     /**
      * Messages are marked read when the tray closes, not when it opens: closing is the moment the
      * player has actually seen them, and it keeps the New group and the header badge in agreement.
@@ -2082,6 +3242,13 @@
     function renderNoticeCenter() {
         const list = document.getElementById('noticeList');
         const constructions = activeConstructionList();
+        const repair = state.snapshot?.activeKeepEvent;
+        const repairMarkup = repair ? `<section class="notice-repair-group">
+            <div class="notice-section-heading"><span>Repairs</span><strong>${repair.repairInProgress ? 'Underway' : 'Action needed'}</strong></div>
+            <button class="notice-repair-card" type="button" data-open-keep-event aria-label="Open repair details for ${escapeAttr(repair.targetName || repair.title)}">
+                <i aria-hidden="true">!</i><span><small>${repair.repairInProgress ? 'Repair underway' : 'Repair needed'}</small><strong>${escapeHtml(repair.targetName || repair.title)}</strong></span><time id="keepEventActivityTime">${escapeHtml(repair.repairInProgress ? formatDuration(keepEventRemaining()) : 'Choose repair')}</time>
+            </button>
+        </section>` : '';
         const constructionMarkup = constructions.length ? `<section class="notice-construction-group">
             <div class="notice-section-heading"><span>Active construction</span><strong>${constructions.length} crew${constructions.length === 1 ? '' : 's'}</strong></div>
             ${constructions.map((construction, index) => `<button class="notice-construction-card" type="button" data-open-panel="projects" aria-label="Open Projects for ${escapeAttr(projectName(construction.id))}">
@@ -2098,10 +3265,11 @@
         const read = state.notices.filter((notice) => notice.read);
         const activityMarkup = state.notices.length
             ? listSection('New', unread.length, unread.map(card)) + listSection('Earlier', read.length, read.map(card))
-            : `<div class="notice-empty">${constructions.length ? 'Construction is underway. New sanctuary updates will appear here.' : 'No new Keep activity. Start a project or continue restoring the sanctuary.'}</div>`;
-        if (list) list.innerHTML = constructionMarkup + activityMarkup;
-        text('noticeBadge', unreadNoticeCount());
-        document.getElementById('noticeBadge')?.classList.toggle('hidden', unreadNoticeCount() <= 0);
+            : `<div class="notice-empty">${repair || constructions.length ? 'Active Keep work appears above. New sanctuary updates will appear here.' : 'No new Keep activity. Start a project or continue restoring the sanctuary.'}</div>`;
+        if (list) list.innerHTML = repairMarkup + constructionMarkup + activityMarkup;
+        const badgeCount = keepActivityBadgeCount();
+        text('noticeBadge', badgeCount);
+        document.getElementById('noticeBadge')?.classList.toggle('hidden', badgeCount <= 0);
     }
 
     function toggleNoticeTray() {
@@ -2123,52 +3291,76 @@
     }
 
     // ── Theme music ───────────────────────────────────────────────────────────
-    // Loops the main theme in Keep mode behind a header toggle. Preference persists;
+    // Loops the main theme on the Keep grounds and the battle theme at Akhar's Front behind
+    // one shared header toggle. Preference persists across both locations;
     // browsers block autoplay-with-sound until a user gesture, so when the saved
     // preference is "on" we also arm a one-shot gesture starter.
     const MUSIC_KEY = 'sieglingsKeepMusicOn';
+    let musicOn = true;
+
+    function musicTrackForLocation(audio) {
+        return state.frontView ? audio?.dataset.frontSrc : audio?.dataset.keepSrc;
+    }
+
+    function reflectMusicControl() {
+        const button = document.getElementById('musicToggle');
+        if (!button) return;
+        const location = state.frontView ? 'battle' : 'Keep';
+        button.classList.toggle('is-muted', !musicOn);
+        button.setAttribute('aria-pressed', String(musicOn));
+        button.setAttribute('aria-label', musicOn ? `Mute ${location} music` : `Play ${location} music`);
+        button.title = musicOn ? `Mute ${location} music` : `Play ${location} music`;
+    }
+
+    function tryPlayMusic() {
+        const audio = document.getElementById('keepTheme');
+        if (!audio || !musicOn || document.hidden) return;
+        const promise = audio.play();
+        if (promise && promise.catch) promise.catch(() => { /* autoplay blocked until a gesture */ });
+    }
+
+    function syncMusicForLocation() {
+        const audio = document.getElementById('keepTheme');
+        if (!audio) return;
+        const desired = musicTrackForLocation(audio);
+        if (desired && audio.getAttribute('src') !== desired) {
+            audio.pause();
+            audio.setAttribute('src', desired);
+            audio.load();
+        }
+        reflectMusicControl();
+        tryPlayMusic();
+    }
 
     function initMusic() {
         const audio = document.getElementById('keepTheme');
         const button = document.getElementById('musicToggle');
         if (!audio || !button) return;
         audio.volume = 0.32;
-        let on;
-        try { on = (localStorage.getItem(MUSIC_KEY) || '1') === '1'; } catch (e) { on = true; }
-
-        function reflect() {
-            button.classList.toggle('is-muted', !on);
-            button.setAttribute('aria-pressed', String(on));
-            button.title = on ? 'Mute theme music' : 'Play theme music';
-        }
-        function tryPlay() {
-            if (!on) return;
-            const promise = audio.play();
-            if (promise && promise.catch) promise.catch(() => { /* autoplay blocked until a gesture */ });
-        }
+        try { musicOn = (localStorage.getItem(MUSIC_KEY) || '1') === '1'; } catch (e) { musicOn = true; }
         function armGestureStart() {
             const starter = () => {
                 document.removeEventListener('pointerdown', starter);
                 document.removeEventListener('keydown', starter);
-                tryPlay();
+                tryPlayMusic();
             };
             document.addEventListener('pointerdown', starter);
             document.addEventListener('keydown', starter);
         }
 
-        reflect();
-        if (on) { tryPlay(); armGestureStart(); }
+        syncMusicForLocation();
+        if (musicOn) armGestureStart();
 
         button.addEventListener('click', () => {
-            on = !on;
-            try { localStorage.setItem(MUSIC_KEY, on ? '1' : '0'); } catch (e) { /* private mode */ }
-            reflect();
-            if (on) tryPlay(); else audio.pause();
+            musicOn = !musicOn;
+            try { localStorage.setItem(MUSIC_KEY, musicOn ? '1' : '0'); } catch (e) { /* private mode */ }
+            reflectMusicControl();
+            if (musicOn) tryPlayMusic(); else audio.pause();
         });
         // Don't keep playing over a backgrounded tab; resume on return if still enabled.
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) audio.pause();
-            else if (on) tryPlay();
+            else if (musicOn) tryPlayMusic();
         });
     }
 
@@ -2504,6 +3696,65 @@
         }
     }
 
+    function clearMockWorkAssignment(snapshot, residentId) {
+        if (!residentId) return;
+        for (const station of [snapshot.station, ...(snapshot.stations || [])].filter(Boolean)) {
+            if (station.residentId === residentId) {
+                station.residentId = '';
+                station.resident = null;
+            }
+        }
+        for (const slot of snapshot.akharsFront?.slots || []) {
+            if (slot.residentId !== residentId) continue;
+            slot.residentId = '';
+            slot.resident = null;
+        }
+    }
+
+    function clearMockEnclaveAssignment(snapshot, residentId) {
+        if (!residentId) return;
+        for (const slot of snapshot.enclave?.slots || []) {
+            if (slot.residentId !== residentId) continue;
+            slot.residentId = '';
+            slot.resident = null;
+            slot.mission = null;
+            slot.tasks = [];
+            slot.rapport = null;
+        }
+    }
+
+    function syncMockResidentAssignments(snapshot) {
+        const stations = [snapshot.station, ...(snapshot.stations || [])].filter(Boolean);
+        const enclaveSlots = snapshot.enclave?.slots || [];
+        const frontSlots = snapshot.akharsFront?.slots || [];
+        for (const resident of snapshot.residents || []) {
+            const station = stations.find((item) => item.residentId === resident.id);
+            const enclaveSlot = enclaveSlots.findIndex((item) => item.residentId === resident.id);
+            const frontSlot = frontSlots.findIndex((item) => item.residentId === resident.id);
+            resident.assignment = station
+                ? { assigned: true, type: 'STATION', id: station.id, label: station.name || station.id }
+                : frontSlot >= 0
+                    ? { assigned: true, type: 'FRONT', id: String(frontSlot), label: `Akhar's Front post ${frontSlot + 1}` }
+                    : enclaveSlot >= 0
+                        ? { assigned: true, type: 'ENCLAVE', id: String(enclaveSlot), label: `Enclave space ${enclaveSlot + 1}` }
+                        : { assigned: false, type: '', id: '', label: '' };
+        }
+        if (snapshot.enclave) {
+            snapshot.enclave.residentCount = enclaveSlots.filter((slot) => slot.residentId).length;
+            snapshot.enclave.readyTaskCount = enclaveSlots.reduce((total, slot) =>
+                total + (slot.tasks || []).filter((task) => task.complete).length, 0);
+        }
+        syncMockFrontRates(snapshot);
+        if (snapshot.siegelingSlots) {
+            const active = stations.filter((station, index) => station.residentId
+                    && stations.findIndex((item) => item.id === station.id) === index).length
+                + enclaveSlots.filter((slot) => slot.residentId).length
+                + frontSlots.filter((slot) => slot.residentId).length;
+            snapshot.siegelingSlots.active = active;
+            snapshot.siegelingSlots.available = Math.max(0, number(snapshot.siegelingSlots.capacity) - active);
+        }
+    }
+
     function mockApi(path, options) {
         if (typeof window.__KEEP_TEST_API__ === 'function') {
             return Promise.resolve(window.__KEEP_TEST_API__(path, options, clone(state.snapshot)));
@@ -2524,6 +3775,48 @@
                 window.__KEEP_TEST_SNAPSHOT__ = clone(snapshot);
                 return Promise.resolve(snapshot);
             }
+            if (stationId !== 'all' && isProductionStationDamaged(stationId)) {
+                return Promise.reject(new Error('Rebuild this building before collecting from it.'));
+            }
+            if (stationId === 'all') {
+                const grants = [];
+                for (const station of snapshot.stations || [snapshot.station]) {
+                    if (!station?.id || isProductionStationDamaged(station.id)) continue;
+                    const amount = projectedStationAvailable(station);
+                    if (amount <= 0) continue;
+                    if (station.id === 'woodlot') {
+                        const room = Math.max(0, number(snapshot.resources.timberCapacity) - number(snapshot.resources.timber));
+                        const grant = Math.min(room, amount);
+                        if (grant <= 0) continue;
+                        snapshot.resources.timber = number(snapshot.resources.timber) + grant;
+                        snapshot.station.collectCount = number(snapshot.station.collectCount) + 1;
+                        if (snapshot.station.collectCount === 1) mockUnlock(snapshot, 'letter_forester_maren');
+                        if (snapshot.station.collectCount >= 3) mockUnlock(snapshot, 'memorabilia_petrified_root');
+                        station.available = 0;
+                        grants.push({ resource: 'TIMBER', resourceName: 'Timber', amount: grant, stationId: 'woodlot' });
+                        continue;
+                    }
+                    const material = (snapshot.resources.materials || []).find((item) => item.id === station.resource);
+                    const capacity = number(material?.capacity || snapshot.resources.materialCapacity);
+                    const room = Math.max(0, capacity - number(material?.amount));
+                    const grant = Math.min(room, amount);
+                    if (grant <= 0) continue;
+                    if (material) material.amount = number(material.amount) + grant;
+                    station.available = 0;
+                    grants.push({
+                        resource: station.resource || 'ESSENCE',
+                        resourceName: station.resourceName || 'Materials',
+                        amount: grant,
+                        stationId: station.id
+                    });
+                }
+                const total = grants.reduce((sum, grant) => sum + number(grant.amount), 0);
+                snapshot.collected = {
+                    resource: 'ALL', resourceName: 'Resources', amount: total, stationId: 'all', stations: grants
+                };
+                window.__KEEP_TEST_SNAPSHOT__ = clone(snapshot);
+                return Promise.resolve(snapshot);
+            }
             const station = (snapshot.stations || [snapshot.station]).find((item) => item.id === stationId) || snapshot.station;
             const amount = projectedStationAvailable(station);
             if (stationId === 'woodlot') {
@@ -2536,23 +3829,25 @@
                 if (material) material.amount = Math.min(number(material.capacity || snapshot.resources.materialCapacity), number(material.amount) + amount);
             }
             station.available = 0;
-            snapshot.collected = { resource: stationId === 'woodlot' ? 'TIMBER' : 'ESSENCE', amount, stationId };
+            snapshot.collected = stationId === 'woodlot'
+                ? { resource: 'TIMBER', resourceName: 'Timber', amount, stationId }
+                : {
+                    resource: station.resource || 'ESSENCE',
+                    resourceName: station.resourceName || 'Materials',
+                    amount,
+                    stationId
+                };
         } else if (path.endsWith('/keep/resident')) {
             const stationId = body.stationId || 'woodlot';
             const stations = snapshot.stations || [snapshot.station];
-            for (const item of stations) {
-                if (item.residentId === body.residentId) { item.residentId = ''; item.resident = null; }
-            }
+            if (body.residentId) clearMockWorkAssignment(snapshot, body.residentId);
             const station = stations.find((item) => item.id === stationId) || snapshot.station;
             station.residentId = body.residentId || '';
             station.resident = (snapshot.residents || []).find((item) => item.id === body.residentId) || null;
+            syncMockResidentAssignments(snapshot);
         } else if (path.endsWith('/enclave/resident')) {
             const slots = snapshot.enclave?.slots || [];
-            for (const slot of slots) {
-                if (body.residentId && slot.residentId === body.residentId) {
-                    slot.residentId = ''; slot.resident = null; slot.mission = null; slot.tasks = []; slot.rapport = null;
-                }
-            }
+            if (body.residentId) clearMockEnclaveAssignment(snapshot, body.residentId);
             const slot = slots[number(body.slot)];
             if (slot) {
                 const resident = (snapshot.residents || []).find((item) => item.id === body.residentId) || null;
@@ -2562,15 +3857,7 @@
                 slot.rapport = resident?.rapport || null;
                 slot.mission = slot.tasks[0] || null;
             }
-            for (const choice of snapshot.residents || []) {
-                const seat = slots.findIndex((item) => item.residentId === choice.id);
-                const stationed = (snapshot.stations || [snapshot.station]).find((item) => item?.residentId === choice.id);
-                choice.assignment = stationed
-                    ? { assigned: true, type: 'STATION', id: stationed.id, label: stationed.name || stationed.id }
-                    : seat >= 0
-                        ? { assigned: true, type: 'ENCLAVE', id: String(seat), label: `Enclave space ${seat + 1}` }
-                        : { assigned: false, type: '', id: '', label: '' };
-            }
+            syncMockResidentAssignments(snapshot);
             if (snapshot.enclave) {
                 snapshot.enclave.residentCount = slots.filter((item) => item.resident).length;
                 snapshot.enclave.readyTaskCount = slots.reduce((total, item) =>
@@ -2578,21 +3865,15 @@
             }
         } else if (path.endsWith('/akhars-front/resident')) {
             const slots = snapshot.akharsFront?.slots || [];
-            for (const item of slots) {
-                if (body.residentId && item.residentId === body.residentId) {
-                    item.residentId = ''; item.resident = null;
-                }
-            }
+            if (body.residentId) clearMockWorkAssignment(snapshot, body.residentId);
             const slot = slots[number(body.slot)];
             if (slot) {
                 const resident = (snapshot.residents || []).find((item) => item.id === body.residentId) || null;
                 slot.residentId = resident?.id || '';
                 slot.resident = resident;
             }
-            if (snapshot.akharsFront) {
-                snapshot.akharsFront.residentCount = slots.filter((item) => item.resident).length;
-                snapshot.akharsFront.ratePerMinute = snapshot.akharsFront.residentCount;
-            }
+            syncMockFrontRates(snapshot);
+            syncMockResidentAssignments(snapshot);
         } else if (path.endsWith('/build')) {
             const option = (snapshot.buildOptions || []).find((item) => item.id === body.buildId);
             if (option) {
@@ -2611,6 +3892,72 @@
                 snapshot.activeConstructions = [...(snapshot.activeConstructions || []), entry];
                 snapshot.activeConstruction = snapshot.activeConstructions[0];
                 snapshot.buildOptions = (snapshot.buildOptions || []).filter((item) => item.id !== option.id);
+            }
+        } else if (path.endsWith('/build/purchase')) {
+            const option = (snapshot.buildOptions || []).find((item) => item.id === body.buildId);
+            if (option) {
+                const coinCost = number(option.instantCoinCost);
+                snapshot.resources.gold = Math.max(0, number(snapshot.resources.gold) - coinCost);
+                applyMockConstruction(snapshot, { id: option.id });
+                snapshot.buildOptions = (snapshot.buildOptions || []).filter((item) => item.id !== option.id);
+                snapshot.projectPurchased = { buildId: option.id, name: option.name, coinCost,
+                    goldBalance: snapshot.resources.gold, completed: true };
+            }
+        } else if (path.endsWith('/construction/speedup')) {
+            const constructions = snapshot.activeConstructions || (snapshot.activeConstruction ? [snapshot.activeConstruction] : []);
+            const construction = constructions.find((item) => item.id === body.buildId);
+            if (construction && body.payment === 'MATERIALS') {
+                let cost = number(construction.timeSavers?.materialCost) || 10;
+                const materials = [...(snapshot.resources.materials || [])]
+                    .sort((a, b) => number(b.amount) - number(a.amount) || String(a.id).localeCompare(String(b.id)));
+                for (const material of materials) {
+                    const spent = Math.min(cost, number(material.amount));
+                    material.amount = Math.max(0, number(material.amount) - spent);
+                    cost -= spent;
+                    if (cost <= 0) break;
+                }
+                const remaining = constructionEntryRemaining(construction);
+                const savedSeconds = Math.max(1, Math.ceil(remaining * 0.25));
+                const remainingSeconds = Math.max(1, remaining - savedSeconds);
+                construction.completesAt = new Date(nowMs() + remainingSeconds * 1000).toISOString();
+                construction.remainingSeconds = remainingSeconds;
+                const available = (snapshot.resources.materials || []).reduce((total, item) => total + number(item.amount), 0);
+                construction.timeSavers = {
+                    ...(construction.timeSavers || {}), materialsAvailable: available,
+                    canUseMaterials: available >= 10,
+                    coinCost: Math.max(1, Math.ceil(remainingSeconds / 300))
+                };
+                snapshot.timeSaverApplied = { buildId: body.buildId, payment: 'MATERIALS', materialCost: 10,
+                    materialPercent: 25, savedSeconds, remainingSeconds };
+            } else if (construction && body.payment === 'SIEGECOINS') {
+                const coinCost = number(construction.timeSavers?.coinCost)
+                    || Math.max(1, Math.ceil(constructionEntryRemaining(construction) / 300));
+                snapshot.resources.gold = Math.max(0, number(snapshot.resources.gold) - coinCost);
+                applyMockConstruction(snapshot, construction);
+                snapshot.activeConstructions = constructions.filter((item) => item.id !== body.buildId);
+                snapshot.activeConstruction = snapshot.activeConstructions[0] || null;
+                snapshot.timeSaverApplied = { buildId: body.buildId, payment: 'SIEGECOINS', coinCost,
+                    goldBalance: snapshot.resources.gold, completed: true };
+            }
+        } else if (path.endsWith('/event/repair')) {
+            const event = snapshot.activeKeepEvent;
+            if (event && body.payment === 'TIME') {
+                event.repairInProgress = true;
+                event.repairStartedAt = new Date(nowMs()).toISOString();
+                event.repairCompletesAt = new Date(nowMs() + number(event.repairSeconds) * 1000).toISOString();
+                event.remainingSeconds = number(event.repairSeconds);
+                snapshot.keepEventRepair = { eventId: event.id, payment: 'TIME', completed: false,
+                    repairSeconds: number(event.repairSeconds), repairCompletesAt: event.repairCompletesAt };
+            } else if (event && body.payment === 'SIEGECOINS') {
+                const coinCost = number(event.coinCost);
+                snapshot.resources.gold = Math.max(0, number(snapshot.resources.gold) - coinCost);
+                snapshot.activeKeepEvent = null;
+                if (snapshot.visualState) {
+                    snapshot.visualState.damagedTargetId = '';
+                    snapshot.visualState.damagedTargetType = '';
+                }
+                snapshot.keepEventRepair = { eventId: event.id, payment: 'SIEGECOINS', completed: true,
+                    coinCost, goldBalance: snapshot.resources.gold };
             }
         } else if (path.endsWith('/favorite')) {
             const resident = (snapshot.residents || []).find((item) => item.id === body.residentId) || null;
@@ -2661,18 +4008,21 @@
                 trust,
                 trustMax: 7,
                 stage,
-                summary: choiceCostHint(choice || {}) ? `Spent ${choiceCostHint(choice)}.` : 'No stores changed.'
+                summary: choiceCostHint(choice || {}) ? `Spent ${choiceCostHint(choice)}.` : 'No stores changed.',
+                keeperXpAwarded: 25
             };
         } else if (path.endsWith('/reward')) {
             const item = (snapshot.milestones || []).find((milestone) => milestone.id === body.rewardId);
+            const repeatable = (snapshot.repeatableProjects?.projects || []).find((project) => project.id === body.rewardId);
             const taskSlot = (snapshot.enclave?.slots || []).find((slot) =>
                 (slot.tasks || []).some((entry) => entry.id === body.rewardId));
             const task = (taskSlot?.tasks || []).find((entry) => entry.id === body.rewardId)
                 || (snapshot.enclave?.slots || []).map((slot) => slot.mission).find((entry) => entry?.id === body.rewardId);
-            const reward = item?.reward || task || snapshot.weeklyTribute?.reward || {};
+            const reward = item?.reward || repeatable?.reward || task || snapshot.weeklyTribute?.reward || {};
             snapshot.resources.gold = number(snapshot.resources.gold) + number(reward.gold);
             snapshot.resources.remnants = number(snapshot.resources.remnants) + number(reward.remnants);
             if (item) { item.claimed = true; item.canClaim = false; }
+            if (repeatable) { repeatable.claimed = true; repeatable.canClaim = false; }
             if (task) {
                 // Tasks repeat: banking one clears progress and pays rapport once.
                 task.progress = 0;
@@ -2694,7 +4044,7 @@
                     total + (slot.tasks || []).filter((entry) => entry.complete).length, 0);
             }
             if (body.rewardId === 'weekly_tribute' && snapshot.weeklyTribute) snapshot.weeklyTribute.ready = false;
-            snapshot.rewardClaimed = { id: body.rewardId, gold: number(reward.gold), remnants: number(reward.remnants) };
+            snapshot.rewardClaimed = { id: body.rewardId, gold: number(reward.gold), remnants: number(reward.remnants), keeperXpAwarded: number(reward.xp) || 50 };
             if (task && taskSlot?.resident) {
                 snapshot.rewardClaimed.rapportGained = number(task.rapport);
                 snapshot.rewardClaimed.rapportResidentId = taskSlot.resident.id;
@@ -2787,6 +4137,19 @@
         applySnapshot(snapshot, true);
     }
 
+    function completeMockKeepEventIfReady() {
+        const snapshot = state.snapshot;
+        const event = snapshot?.activeKeepEvent;
+        if (!event?.repairInProgress || keepEventRemaining() > 0) return;
+        snapshot.activeKeepEvent = null;
+        if (snapshot.visualState) {
+            snapshot.visualState.damagedTargetId = '';
+            snapshot.visualState.damagedTargetType = '';
+        }
+        snapshot.stateVersion = number(snapshot.stateVersion) + 1;
+        applySnapshot(snapshot, true);
+    }
+
     function applyMockConstruction(snapshot, construction) {
         if (construction.id === 'restore_archive') {
             snapshot.visualState.archiveRestored = true;
@@ -2809,11 +4172,20 @@
             if (enclave) { enclave.level = 1; enclave.status = 'COMPLETE'; enclave.name = 'Siegeling Enclave'; }
         } else if (construction.id === 'build_akhars_front') {
             snapshot.visualState.akharsFrontLevel = 1;
-            snapshot.akharsFront = { built: true, level: 1, capacity: 3, residentCount: 0,
-                available: 0, storageCapacity: 360, ratePerMinute: 0, isFull: false,
-                slots: [0, 1, 2].map((slot) => ({ slot, residentId: '', resident: null })) };
+            snapshot.akharsFront = { built: true, level: 1, residentCount: 0,
+                available: 0, ratePerMinute: 0, isFull: false, slots: [] };
+            applyMockFrontLevel(snapshot, 1);
             const front = (snapshot.buildings || []).find((item) => item.id === 'akhars_front');
             if (front) { front.level = 1; front.status = 'COMPLETE'; front.name = "Akhar's Front"; }
+        } else if (String(construction.id).startsWith('akhars_front_level_')) {
+            applyMockFrontLevel(snapshot, number(String(construction.id).slice('akhars_front_level_'.length)));
+        } else if (String(construction.id).startsWith('build_')) {
+            const facilityId = String(construction.id).slice('build_'.length);
+            if (snapshot.visualState) snapshot.visualState[`${facilityId}Level`] = 1;
+            const station = (snapshot.stations || []).find((item) => item.id === facilityId);
+            if (station) station.level = 1;
+            const building = (snapshot.buildings || []).find((item) => item.id === facilityId);
+            if (building) { building.level = 1; building.status = 'COMPLETE'; }
         } else if (String(construction.id).startsWith('hall_level_')) {
             const level = number(String(construction.id).slice('hall_level_'.length));
             if (snapshot.visualState) snapshot.visualState.hallLevel = level;
@@ -2831,9 +4203,97 @@
         return projectedStationAvailable(state.snapshot?.station);
     }
 
+    function projectedTotalReady() {
+        return (state.snapshot?.stations || [state.snapshot?.station]).reduce((sum, station) => {
+            if (!station?.id || isProductionStationDamaged(station.id)) return sum;
+            return sum + projectedStationAvailable(station);
+        }, 0);
+    }
+
+    /** True when at least one production point can pay into inventory (not just ready-on-pile). */
+    function canCollectAnyStation() {
+        const snapshot = state.snapshot;
+        if (!snapshot) return false;
+        for (const station of snapshot.stations || [snapshot.station]) {
+            if (!station?.id || isProductionStationDamaged(station.id)) continue;
+            const ready = projectedStationAvailable(station);
+            if (ready <= 0) continue;
+            if (station.id === 'woodlot') {
+                if (number(snapshot.resources?.timber) < number(snapshot.resources?.timberCapacity)) return true;
+                continue;
+            }
+            const material = (snapshot.resources?.materials || []).find((item) => item.id === station.resource);
+            const capacity = number(material?.capacity || snapshot.resources?.materialCapacity);
+            if (number(material?.amount) < capacity) return true;
+        }
+        return false;
+    }
+
+    /** Test-mode mirror of the server's rampart tiers, so a harness can walk a wall from one
+        post to four without a backend. Keep the numbers in step with KeepService. */
+    const MOCK_FRONT_TIERS = [
+        null,
+        { wallName: 'Timber Palisade', storageCapacity: 120, wallBonusPercent: 0 },
+        { wallName: 'Stone Rampart', storageCapacity: 220, wallBonusPercent: 10 },
+        { wallName: 'Reinforced Bulwark', storageCapacity: 340, wallBonusPercent: 20 },
+        { wallName: 'Bastion Battlements', storageCapacity: 480, wallBonusPercent: 35 }
+    ];
+    const MOCK_FRONT_UPGRADE_COSTS = {
+        2: { name: 'Reinforce the Rampart', timberCost: 320, durationSeconds: 21600 },
+        3: { name: 'Raise the Battlements', timberCost: 420, durationSeconds: 36000 },
+        4: { name: 'Crown the Bastion', timberCost: 540, durationSeconds: 57600 }
+    };
+
+    function applyMockFrontLevel(snapshot, level) {
+        const front = snapshot.akharsFront;
+        if (!front) return;
+        const next = clamp(number(level) || 1, 1, FRONT_MAX_LEVEL);
+        const tier = MOCK_FRONT_TIERS[next];
+        front.built = true;
+        front.level = next;
+        front.maxLevel = FRONT_MAX_LEVEL;
+        front.capacity = next;
+        front.wallName = tier.wallName;
+        front.wallBonusPercent = tier.wallBonusPercent;
+        front.storageCapacity = tier.storageCapacity;
+        front.slots = front.slots || [];
+        while (front.slots.length < next) front.slots.push({ slot: front.slots.length, residentId: '', resident: null });
+        front.slots = front.slots.slice(0, next);
+        front.upgrade = next >= FRONT_MAX_LEVEL ? null : {
+            id: `akhars_front_level_${next + 1}`,
+            name: MOCK_FRONT_UPGRADE_COSTS[next + 1].name,
+            level: next + 1,
+            wallName: MOCK_FRONT_TIERS[next + 1].wallName,
+            posts: next + 1,
+            wallBonusPercent: MOCK_FRONT_TIERS[next + 1].wallBonusPercent,
+            storageCapacity: MOCK_FRONT_TIERS[next + 1].storageCapacity,
+            timberCost: MOCK_FRONT_UPGRADE_COSTS[next + 1].timberCost,
+            materialCosts: [],
+            durationSeconds: MOCK_FRONT_UPGRADE_COSTS[next + 1].durationSeconds,
+            gateMet: true,
+            requirement: "Needs the Builder's Yard.",
+            inProgress: false
+        };
+        if (snapshot.visualState) snapshot.visualState.akharsFrontLevel = next;
+        const building = (snapshot.buildings || []).find((item) => item.id === 'akhars_front');
+        if (building) { building.level = next; building.status = 'COMPLETE'; }
+        syncMockFrontRates(snapshot);
+    }
+
+    function syncMockFrontRates(snapshot) {
+        const front = snapshot.akharsFront;
+        if (!front) return;
+        const multiplier = 1 + number(front.wallBonusPercent) / 100;
+        front.residentCount = (front.slots || []).filter((slot) => slot.residentId).length;
+        front.passiveRatePerMinute = front.residentCount * multiplier;
+        front.combatRatePerMinute = front.residentCount * 4 * multiplier;
+        front.ratePerMinute = front.passiveRatePerMinute + front.combatRatePerMinute;
+        front.coinsPerDefeat = 1;
+    }
+
     function akharsFrontMarkup() {
         const front = state.snapshot.akharsFront || {};
-        if (!front.built) return `<p class="panel-intro">Fortify the road beyond the Keep. Once raised, three Siegelings can volunteer for the ramparts, repel Akhar's raiders, and earn Siegecoins while you are away.</p>${projectsMarkup()}`;
+        if (!front.built) return `<p class="panel-intro">Fortify the road beyond the Keep. Once raised, a Siegeling can volunteer for the rampart, repel Akhar's raiders, and earn Siegecoins while you are away. Later wall upgrades open up to four posts.</p>${projectsMarkup()}`;
         const ready = projectedAkharsFrontAvailable();
         const capacity = Math.max(1, number(front.storageCapacity));
         return `<p class="panel-intro">Siegelings posted here attack approaching dark raiders from the safety of the ramparts. Every occupied post earns passive Siegecoins; posted Siegelings remain available for decks and battles.</p>
@@ -2843,7 +4303,38 @@
                 <div class="cost-row"><span>${escapeHtml(formatRate(front.ratePerMinute))} per minute</span><strong>${capacity} storage</strong></div>
                 <button class="panel-button" type="button" data-collect-station="akhars_front" ${ready <= 0 ? 'disabled' : ''}>Collect Siegecoins</button>
             </section>
+            ${akharsFrontWallMarkup(front)}
             <div class="front-post-list">${(front.slots || []).map((slot, index) => akharsFrontSlotMarkup(slot || {}, index)).join('')}</div>`;
+    }
+
+    /** Wall tier card: what the current rampart is worth, and what the next one costs. */
+    function akharsFrontWallMarkup(front) {
+        const level = clamp(number(front.level) || 1, 1, FRONT_MAX_LEVEL);
+        const maxLevel = number(front.maxLevel) || FRONT_MAX_LEVEL;
+        const bonus = number(front.wallBonusPercent);
+        const posts = frontCapacity();
+        const current = `<span class="eyebrow">Rampart walls</span>
+            <h3>${escapeHtml(front.wallName || 'Rampart')} &middot; Tier ${level}/${maxLevel}</h3>
+            <div class="cost-row"><span>${posts} rampart ${posts === 1 ? 'post' : 'posts'}</span><strong>${bonus > 0 ? `+${bonus}% defender income` : 'Base defender income'}</strong></div>`;
+        const upgrade = front.upgrade;
+        if (!upgrade) {
+            return `<section class="detail-card front-wall-card">${current}
+                <p class="front-wall-note">The bastion is fully raised — all four posts are open.</p></section>`;
+        }
+        const costs = [`${number(upgrade.timberCost)} timber`]
+            .concat((upgrade.materialCosts || []).map((cost) => `${materialIcon(cost.id)} ${number(cost.amount)} ${cost.name || cost.id}`));
+        const next = `<div class="front-wall-next">
+                <span class="eyebrow">Next tier</span>
+                <strong>${escapeHtml(upgrade.wallName || upgrade.name)}</strong>
+                <small>${number(upgrade.posts)} posts &middot; +${number(upgrade.wallBonusPercent)}% defender income &middot; ${number(upgrade.storageCapacity)} storage</small>
+                <div class="cost-row"><span>${escapeHtml(costs.join(' · '))}</span><strong>${escapeHtml(formatDuration(number(upgrade.durationSeconds)))}</strong></div>
+                ${upgrade.inProgress
+                    ? '<p class="front-wall-note">Masons are on the wall now — track them in Projects.</p>'
+                    : upgrade.gateMet
+                        ? '<button class="panel-button" type="button" data-open-panel="projects">Open Projects to upgrade</button>'
+                        : `<p class="front-wall-note">${escapeHtml(upgrade.requirement || '')}</p>`}
+            </div>`;
+        return `<section class="detail-card front-wall-card">${current}${next}</section>`;
     }
 
     function akharsFrontSlotMarkup(slot, index) {
@@ -2863,19 +4354,43 @@
         const residents = state.snapshot.residents || [];
         const seated = slot.residentId || '';
         const choices = residents.filter((choice) => choice.id !== seated);
-        const chip = (choice) => `<button type="button" class="enclave-resident-choice" data-front-resident="${escapeAttr(choice.id)}" data-front-slot="${index}"
-                style="--resident-color:${escapeAttr(elementColors[choice.element] || elementColors.NEUTRAL)}"><span>${residentAvatarContent(choice)}</span><small>${escapeHtml(choice.name)}</small></button>`;
+        const available = choices.filter((choice) => !choice.assignment?.assigned);
+        const occupied = choices.filter((choice) => choice.assignment?.assigned);
+        const chip = (choice) => {
+            const assignment = choice.assignment || {};
+            return `<button type="button" class="enclave-resident-choice ${assignment.assigned ? 'is-reassign' : ''}" data-front-resident="${escapeAttr(choice.id)}" data-front-slot="${index}"
+                style="--resident-color:${escapeAttr(elementColors[choice.element] || elementColors.NEUTRAL)}">
+                <span>${residentAvatarContent(choice)}</span><small>${escapeHtml(choice.name)}</small>
+                ${assignment.assigned ? `<i class="reassign-tag">Occupied &middot; ${escapeHtml(assignment.label || 'Keep post')}</i>` : '<i class="available-tag">Available</i>'}
+            </button>`;
+        };
         return `<div class="enclave-picker"><div class="enclave-picker-head"><strong>${seated ? 'Change defender' : 'Post a defender'}</strong>
                 <button type="button" class="picker-close" data-front-picker="-1" aria-label="Close the assign menu">&times;</button></div>
             ${seated ? `<button type="button" class="panel-button secondary" data-front-resident="${escapeAttr(seated)}" data-front-slot="${index}">Leave this rampart open</button>` : ''}
-            ${choices.length ? `<span class="eyebrow">Owned Siegelings</span><div class="enclave-resident-choices">${choices.map(chip).join('')}</div>` : '<div class="empty-state">No other owned Siegelings are available to choose.</div>'}</div>`;
+            ${available.length ? `<span class="eyebrow">Available &middot; ${available.length}</span><div class="enclave-resident-choices">${available.map(chip).join('')}</div>` : ''}
+            ${occupied.length ? `<p class="front-reassign-note">Occupied Siegelings can be moved here. Their current Keep location will be left empty.</p><span class="eyebrow">Occupied elsewhere</span><div class="enclave-resident-choices">${occupied.map(chip).join('')}</div>` : ''}
+            ${choices.length ? '' : '<div class="empty-state">No other owned Siegelings are available to choose.</div>'}</div>`;
+    }
+
+    /** Rampart posts equal the wall's level; fall back to the served slot count so an older
+        snapshot without `capacity` still renders the posts it actually has. */
+    function frontCapacity() {
+        const front = state.snapshot?.akharsFront;
+        if (!front?.built) return 0;
+        return clamp(number(front.capacity) || (front.slots || []).length || 1, 1, FRONT_MAX_LEVEL);
     }
 
     function projectedAkharsFrontAvailable() {
         const front = state.snapshot?.akharsFront;
         if (!front?.built) return 0;
         const elapsedMinutes = Math.max(0, (nowMs() - state.receivedAtMs) / 60000);
-        return Math.min(number(front.storageCapacity), number(front.available) + Math.floor(elapsedMinutes * number(front.ratePerMinute)));
+        const hasCombatBreakdown = front.passiveRatePerMinute != null || front.combatRatePerMinute != null;
+        const passiveRate = hasCombatBreakdown ? number(front.passiveRatePerMinute) : number(front.ratePerMinute);
+        const projectedCombat = state.frontView && state.frontCombat.initialized
+            ? state.frontCombat.projectedBonusBeforeSession + state.frontCombat.coinsEarned
+            : Math.floor(elapsedMinutes * number(front.combatRatePerMinute));
+        return Math.min(number(front.storageCapacity),
+            number(front.available) + Math.floor(elapsedMinutes * passiveRate) + projectedCombat);
     }
 
     function projectedStationAvailable(station) {
@@ -2991,6 +4506,8 @@
             build_quarry: 'Open the Covenant Quarry', build_kitchen: 'Warm the Garden Kitchen',
             build_enclave: 'Raise the Siegeling Enclave',
             build_akhars_front: "Raise Akhar's Front",
+            akhars_front_level_2: 'Reinforce the Rampart', akhars_front_level_3: 'Raise the Battlements',
+            akhars_front_level_4: 'Crown the Bastion',
             build_builders_yard: 'Raise the Builder’s Yard',
             hall_level_2: 'Raise the Timber Outpost', hall_level_3: 'Settle the Courtyard',
             hall_level_4: 'Cut the Stonehold', hall_level_5: 'Raise the Keep Walls',
@@ -3090,9 +4607,15 @@
     }
 
     window.advanceTime = function (ms) {
-        state.debugTimeOffsetMs += Math.max(0, number(ms));
-        if (state.testMode) completeMockConstructionIfReady();
+        const elapsed = Math.max(0, number(ms));
+        state.debugTimeOffsetMs += elapsed;
+        if (state.testMode) {
+            completeMockConstructionIfReady();
+            completeMockKeepEventIfReady();
+        }
+        advanceFrontCombat(elapsed);
         updateLiveCounters();
+        renderKeepEventTimer();
     };
 
     window.render_game_to_text = function () {
@@ -3126,14 +4649,93 @@
             siegelingSlots: snapshot.siegelingSlots || null,
             hallTheme: snapshot.visualState?.hallTheme || 'covenant',
             favorite: snapshot.favorite || null,
+            activeKeepEvent: snapshot.activeKeepEvent ? {
+                id: snapshot.activeKeepEvent.id,
+                title: snapshot.activeKeepEvent.title,
+                targetType: snapshot.activeKeepEvent.targetType,
+                targetId: snapshot.activeKeepEvent.targetId,
+                targetName: snapshot.activeKeepEvent.targetName,
+                repairInProgress: Boolean(snapshot.activeKeepEvent.repairInProgress),
+                remainingSeconds: keepEventRemaining(),
+                coinCost: number(snapshot.activeKeepEvent.coinCost),
+                overlayOpen: !document.getElementById('keepEventOverlay')?.classList.contains('hidden')
+            } : null,
+            keepEventCatalogSize: number(snapshot.keepEvents?.catalogSize),
             weeklyOrder: snapshot.weeklyOrder || null,
             constructionSlots: number(snapshot.constructionSlots) || 1,
             activeConstructions: activeConstructionList().map((item) => ({
-                id: item.id, remainingSeconds: constructionEntryRemaining(item)
+                id: item.id, remainingSeconds: constructionEntryRemaining(item), timeSavers: item.timeSavers || null
+            })),
+            availableProjects: (snapshot.buildOptions || []).map((item) => ({
+                id: item.id, canStart: Boolean(item.canStart), instantCoinCost: number(item.instantCoinCost),
+                canPurchase: Boolean(item.canPurchase)
             })),
             sceneView: { zoom: view.zoom, panX: view.panX, panY: view.panY },
             location: state.frontView ? 'akhars_front' : 'keep_grounds',
             returnToKeepAvailable: state.frontView,
+            music: {
+                enabled: musicOn,
+                track: state.frontView ? 'battle' : 'keep',
+                playing: !Boolean(document.getElementById('keepTheme')?.paused)
+            },
+            akharsFront: (() => {
+                const front = snapshot.akharsFront || {};
+                return {
+                    built: Boolean(front.built),
+                    level: number(front.level),
+                    maxLevel: number(front.maxLevel) || FRONT_MAX_LEVEL,
+                    wallName: front.wallName || null,
+                    wallBonusPercent: number(front.wallBonusPercent),
+                    posts: frontCapacity(),
+                    capacity: number(front.capacity),
+                    defenders: number(front.residentCount),
+                    residentCount: number(front.residentCount),
+                    pickerSlot: state.frontPickerSlot,
+                    slots: (front.slots || []).map((slot) => ({
+                        slot: number(slot.slot), resident: slot.resident?.name || null
+                    })),
+                    upgrade: front.upgrade ? {
+                        id: front.upgrade.id, level: number(front.upgrade.level),
+                        wallName: front.upgrade.wallName, posts: number(front.upgrade.posts),
+                        gateMet: Boolean(front.upgrade.gateMet), inProgress: Boolean(front.upgrade.inProgress)
+                    } : null,
+                    siegecoinsReady: projectedAkharsFrontAvailable(),
+                    availableSiegecoins: projectedAkharsFrontAvailable(),
+                    passiveRatePerMinute: number(front.passiveRatePerMinute),
+                    combatRatePerMinute: number(front.combatRatePerMinute),
+                    coinsPerDefeat: number(front.coinsPerDefeat) || 1,
+                    raiderShadePool: (front.raiders || []).length,
+                    combat: {
+                        active: state.frontView && state.frontCombat.running,
+                        defeatsThisVisit: state.frontCombat.defeats,
+                        bonusCoinsThisVisit: state.frontCombat.coinsEarned,
+                        enemies: state.frontCombat.enemies.map((enemy) => {
+                            const point = frontRaiderPosition(enemy);
+                            return {
+                                id: enemy.id, x: Math.round(point.x * 10) / 10, y: Math.round(point.y * 10) / 10,
+                                health: enemy.health, maxHealth: enemy.maxHealth, status: enemy.status,
+                                shade: enemy.shade?.name || null, shadeId: enemy.shade?.id || null
+                            };
+                        }),
+                        projectiles: state.frontCombat.projectiles.map((shot) => ({
+                            element: shot.element, targetId: shot.targetId,
+                            progress: Math.round(clamp(shot.elapsedMs / shot.durationMs, 0, 1) * 100) / 100
+                        }))
+                    }
+                };
+            })(),
+            interiorRoom: state.interior || null,
+            interiorConstruction: (() => {
+                const construction = interiorConstruction();
+                if (!construction) return null;
+                const progress = constructionEntryProgress(construction);
+                return {
+                    id: construction.id, roomId: state.interior, kind: constructionKindLabel(construction.id),
+                    phase: constructionPhaseIndex(progress), phaseName: BUILD_PHASES[constructionPhaseIndex(progress)].name,
+                    remainingSeconds: constructionEntryRemaining(construction),
+                    menuOpen: Boolean(state.interiorBuildOpen)
+                };
+            })(),
             stockpileTiers: (snapshot.stations || [snapshot.station]).filter(Boolean).reduce((out, station) => {
                 out[station.id] = fillTier(station);
                 return out;
@@ -3171,6 +4773,7 @@
             residentAssignments: (snapshot.residents || []).map((resident) => ({
                 id: resident.id, name: resident.name,
                 assigned: Boolean(resident.assignment?.assigned),
+                assignmentType: resident.assignment?.type || '',
                 assignmentLabel: resident.assignment?.label || '',
                 rapportLevel: number(resident.rapport?.level)
             })),
@@ -3179,6 +4782,12 @@
                 read: state.notices.length - unreadNoticeCount(),
                 count: state.notices.length,
                 open: !document.getElementById('noticeTray')?.classList.contains('hidden'),
+                repair: snapshot.activeKeepEvent ? {
+                    id: snapshot.activeKeepEvent.id,
+                    targetName: snapshot.activeKeepEvent.targetName,
+                    status: snapshot.activeKeepEvent.repairInProgress ? 'underway' : 'action_needed',
+                    remainingSeconds: keepEventRemaining()
+                } : null,
                 constructionTimers: activeConstructionList().map((item, index) => ({
                     id: item.id,
                     name: projectName(item.id),

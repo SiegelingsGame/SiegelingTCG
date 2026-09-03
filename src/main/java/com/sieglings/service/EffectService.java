@@ -28,6 +28,9 @@ public class EffectService {
     @org.springframework.beans.factory.annotation.Autowired
     private MovesPoolService movesPoolService;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private ElementalAfflictionService elementalAfflictionService;
+
     /**
      * Spells/traps with {@code move_link} on a single enemy require an explicit empty destination cell
      * on that unit's board (no notch link required).
@@ -73,6 +76,14 @@ public class EffectService {
             return;
         }
 
+        if (AbilityEffectKeys.ENERGY_BOOST.equals(ability.getEffectType())) {
+            // Targets are resolved unfiltered on purpose: on this key `targetElement` names the
+            // energy type, not a target filter, so filterExplicitTargetElement must not run.
+            applyEnergyBoostEffect(state, ability, source, isPlayerSource,
+                    resolveTargets(state, ability, source, isPlayerSource, targetRow, targetCol));
+            return;
+        }
+
         if (ability.getTargetType() == TargetType.ENEMY_PLAYER) {
             applyPlayerEffect(state, ability, isPlayerSource);
             return;
@@ -87,7 +98,7 @@ public class EffectService {
             return;
         }
 
-        applyEffect(state, ability, source, targets, destRow, destCol);
+        applyEffect(state, ability, source, isPlayerSource, targets, destRow, destCol);
     }
 
     private List<CardInstance> resolveTargets(GameState state, Ability ability, CardInstance source,
@@ -100,6 +111,10 @@ public class EffectService {
                 if (targetRow >= 0 && targetCol >= 0) {
                     CardInstance t = state.getAt(!isPlayerSource, targetRow, targetCol);
                     if (t != null && t.isAlive()) targets.add(t);
+                } else if (isChainDamage(ability)) {
+                    // Auto-target: chain damage wants the busiest link hub, not the weakest unit
+                    CardInstance t = findBestChainTarget(state, !isPlayerSource, ability.getTargetRow());
+                    if (t != null) targets.add(t);
                 } else {
                     // Auto-target: front row first, then middle, then back
                     CardInstance t = findFirstEnemy(state, !isPlayerSource, ability.getTargetRow());
@@ -194,8 +209,8 @@ public class EffectService {
         return targets.stream().filter(t -> t != null && t.isAlive() && t.getElement() == el).toList();
     }
 
-    private void applyEffect(GameState state, Ability ability, CardInstance source, List<CardInstance> targets,
-                             int destRow, int destCol) {
+    private void applyEffect(GameState state, Ability ability, CardInstance source, boolean isPlayerSource,
+                             List<CardInstance> targets, int destRow, int destCol) {
         String effectType = ability.getEffectType();
         int value = ability.getEffectValue();
 
@@ -205,6 +220,10 @@ public class EffectService {
         }
         if (AbilityEffectKeys.CONNECTED_ALLIES_HEALTH_BOOST.equals(effectType)) {
             applyConnectedAlliesHealthBoost(state, ability, source, Math.max(1, value));
+            return;
+        }
+        if (AbilityEffectKeys.CONNECTED_ALLIES_HEAL.equals(effectType)) {
+            applyConnectedAlliesHeal(state, ability, source, Math.max(1, value));
             return;
         }
         if (AbilityEffectKeys.CONNECTED_ALLIES_SHIELD.equals(effectType)) {
@@ -219,26 +238,37 @@ public class EffectService {
             applyConnectedAlliesSpeedBoost(state, ability, source, Math.max(1, value));
             return;
         }
+        if (AbilityEffectKeys.CHAIN_DAMAGE.equals(effectType)) {
+            applyChainDamage(state, ability, source, targets, Math.max(1, value), isPlayerSource);
+            return;
+        }
 
         for (CardInstance target : targets) {
             switch (effectType) {
-                case AbilityEffectKeys.DAMAGE -> {
-                    int damage = value;
-                    boolean weaknessBonus = false;
-                    if (source != null && isWeakTo(source.getElement(), target.getElement())) {
-                        damage += 1;
-                        weaknessBonus = true;
-                    }
-
-                    target.takeRawDamage(damage);
-                    state.log(ability.getName() + " deals " + damage + " damage to " + target.getName()
-                            + (weaknessBonus ? " (weakness +1)" : "")
-                            + " (HP: " + target.getCurrentHealth() + ")");
-                }
+                case AbilityEffectKeys.DAMAGE ->
+                        dealAbilityDamage(state, ability, source, target, value, isPlayerSource);
                 case AbilityEffectKeys.HEAL -> {
-                    target.healDamage(value);
-                    state.log(ability.getName() + " heals " + target.getName() + " for " + value
-                            + " (HP: " + target.getCurrentHealth() + ")");
+                    int healValue = value;
+                    if (elementalAfflictionService != null && source != null) {
+                        healValue = elementalAfflictionService.applyBlindToValue(source, healValue);
+                    }
+                    int toxinBefore = target.getAfflictionStacks(
+                            com.sieglings.model.enums.ElementalAffliction.TOXIN);
+                    int restored;
+                    if (elementalAfflictionService != null) {
+                        restored = elementalAfflictionService.applyHealWithToxin(state, target, healValue);
+                    } else {
+                        int before = target.getCurrentHealth();
+                        target.healDamage(healValue);
+                        restored = Math.max(0, target.getCurrentHealth() - before);
+                    }
+                    if (restored > 0) {
+                        state.log(ability.getName() + " heals " + target.getName() + " for " + restored
+                                + " (HP: " + target.getCurrentHealth() + ")");
+                    } else if (toxinBefore <= 0) {
+                        state.log(ability.getName() + " heals " + target.getName() + " for " + healValue
+                                + " (HP: " + target.getCurrentHealth() + ")");
+                    }
                 }
                 case AbilityEffectKeys.SHIELD -> {
                     target.addShield(Math.max(1, value));
@@ -297,6 +327,132 @@ public class EffectService {
         }
     }
 
+    /**
+     * Shared board-damage path for {@code damage} and {@code chain_damage}. Keeps Blind, Soak,
+     * Rust, weakness, log wording, and elemental affliction inflict in one place so chain hits
+     * cannot drift from normal damage.
+     */
+    private void dealAbilityDamage(GameState state, Ability ability, CardInstance source,
+                                   CardInstance target, int value, boolean isPlayerSource) {
+        Element damageElement = ElementalAfflictionService.damageElementFor(
+                source, ability.getRequiredElement());
+        int damage = value;
+        if (elementalAfflictionService != null && source != null) {
+            damage = elementalAfflictionService.applyBlindToValue(source, damage);
+        }
+        // Damaging abilities keep at least 1 after Blind unless the printed value was 0.
+        if (value > 0) {
+            damage = Math.max(1, damage);
+        }
+        boolean weaknessBonus = false;
+        if (source != null && isWeakTo(source.getElement(), target.getElement())) {
+            damage += 1;
+            weaknessBonus = true;
+        }
+        int soak = 0;
+        int rust = 0;
+        if (elementalAfflictionService != null) {
+            soak = elementalAfflictionService.soakBonus(target);
+            rust = elementalAfflictionService.rustBonusAndClear(state, target, damageElement);
+            damage += soak + rust;
+        }
+
+        int hpBefore = target.getCurrentHealth();
+        target.takeRawDamage(damage);
+        int hpDealt = Math.max(0, hpBefore - target.getCurrentHealth());
+        String bonusBits = "";
+        if (weaknessBonus) bonusBits += " (weakness +1)";
+        if (soak > 0) bonusBits += " (soak +" + soak + ")";
+        if (rust > 0) bonusBits += " (rust +" + rust + ")";
+        state.log(ability.getName() + " deals " + damage + " damage to " + target.getName()
+                + bonusBits
+                + " (HP: " + target.getCurrentHealth() + ")");
+        if (elementalAfflictionService != null) {
+            elementalAfflictionService.tryInflictFromDamage(
+                    state, source, target, damageElement, hpDealt, isPlayerSource);
+        }
+    }
+
+    /**
+     * Chain damage hits the picked target and everything wired to it: each Siegling that shares an
+     * active reciprocal notch link with that target, on the target's own board. Weakness and
+     * afflictions are scored per victim.
+     */
+    private void applyChainDamage(GameState state, Ability ability, CardInstance source,
+                                  List<CardInstance> primaryTargets, int value, boolean isPlayerSource) {
+        // Resolve the whole chain before any damage lands — otherwise a lethal first hit would
+        // sever links the rest of the arc is supposed to travel through.
+        List<CardInstance> victims = new ArrayList<>();
+        for (CardInstance primary : primaryTargets) {
+            if (primary == null || !primary.isAlive()) {
+                continue;
+            }
+            List<CardInstance> linked = getChainedTargets(state, primary);
+            addUnique(victims, primary);
+            if (linked.isEmpty()) {
+                state.log(ability.getName() + " finds no links on " + primary.getName() + ".");
+            } else {
+                state.log(ability.getName() + " arcs through " + primary.getName() + "'s links to "
+                        + linked.size() + " connected Siegling" + (linked.size() == 1 ? "" : "s") + "!");
+                linked.forEach(ally -> addUnique(victims, ally));
+            }
+        }
+
+        for (CardInstance victim : victims) {
+            dealAbilityDamage(state, ability, source, victim, value, isPlayerSource);
+        }
+    }
+
+    /** Sieglings that a chain effect jumps to from {@code primary} (its directly linked neighbours). */
+    public List<CardInstance> getChainedTargets(GameState state, CardInstance primary) {
+        return placementService.getDirectlyConnectedAllies(state, primary);
+    }
+
+    static boolean isChainDamage(Ability ability) {
+        return ability != null && AbilityEffectKeys.CHAIN_DAMAGE.equals(ability.getEffectType());
+    }
+
+    private void addUnique(List<CardInstance> list, CardInstance candidate) {
+        if (candidate == null || !candidate.isAlive()) {
+            return;
+        }
+        if (list.stream().noneMatch(existing -> existing == candidate)) {
+            list.add(candidate);
+        }
+    }
+
+    /**
+     * Auto-target for chain damage (AI turns and untargeted resolution): the enemy whose links
+     * carry the hit to the most Sieglings, breaking ties on the weakest primary target.
+     */
+    private CardInstance findBestChainTarget(GameState state, boolean side, Row preferredRow) {
+        List<CardInstance> candidates = new ArrayList<>();
+        if (preferredRow != null) {
+            candidates.addAll(getSieglingsInRow(state, side, preferredRow.getIndex()));
+        }
+        if (candidates.isEmpty()) {
+            for (int r = 2; r >= 0; r--) {
+                candidates.addAll(getSieglingsInRow(state, side, r));
+            }
+        }
+        if (candidates.isEmpty()) {
+            return null;
+        }
+
+        CardInstance best = null;
+        int bestChain = -1;
+        for (CardInstance candidate : candidates) {
+            int chain = getChainedTargets(state, candidate).size();
+            if (chain > bestChain
+                    || (chain == bestChain && best != null
+                    && candidate.getCurrentHealth() < best.getCurrentHealth())) {
+                best = candidate;
+                bestChain = chain;
+            }
+        }
+        return best;
+    }
+
     private void applyPlayerEffect(GameState state, Ability ability, boolean isPlayerSource) {
         var targetPlayer = isPlayerSource ? state.getEnemy() : state.getPlayer();
         int value = ability.getEffectValue();
@@ -333,6 +489,53 @@ public class EffectService {
         }
     }
 
+    /**
+     * Active {@code energy_boost} (a battle move, spell, trap, or trainer active): the caster's
+     * side is overcharged from this moment, through its next Setup phase, until the Battle phase
+     * opens. The passive form is continuous instead and is recomputed by {@link EnergyService},
+     * so it never comes through here.
+     */
+    private void applyEnergyBoostEffect(GameState state, Ability ability, CardInstance source,
+                                        boolean isPlayerSource, List<CardInstance> targets) {
+        var actor = isPlayerSource ? state.getPlayer() : state.getEnemy();
+        int value = Math.max(1, ability.getEffectValue());
+
+        // Pointed at cards, the boost reads each card it names: with no energy type chosen it
+        // generates that card's own element, once per card. A SELF ability resolves to the source
+        // through this same path, so it keeps generating the source's element.
+        if (targets != null && !targets.isEmpty()) {
+            boolean grantedAny = false;
+            for (CardInstance target : targets) {
+                Element element = EnergyService.resolveEnergyElement(ability, target.getElement());
+                if (element == null) {
+                    state.log(ability.getName() + " finds no energy type on " + target.getName() + ".");
+                    continue;
+                }
+                EnergyService.grantOverchargeEnergy(actor, element, value);
+                grantedAny = true;
+                state.log(ability.getName() + " overcharges " + actor.getName() + " with " + value + " "
+                        + element.name().toLowerCase() + " energy from " + target.getName()
+                        + " until the battle phase begins.");
+            }
+            if (grantedAny) {
+                return;
+            }
+            // Every named card was poolless; fall through to the source so the card still does
+            // something rather than silently fizzling.
+        }
+
+        Element sourceElement = source != null ? source.getElement()
+                : (actor.getActiveTrainer() != null ? actor.getActiveTrainer().getElement() : null);
+        Element element = EnergyService.resolveEnergyElement(ability, sourceElement);
+        if (element == null) {
+            state.log(ability.getName() + " has no energy type to generate.");
+            return;
+        }
+        EnergyService.grantOverchargeEnergy(actor, element, value);
+        state.log(ability.getName() + " overcharges " + actor.getName() + " with " + value + " "
+                + element.name().toLowerCase() + " energy until the battle phase begins.");
+    }
+
     private void applyConnectedAlliesHealthBoost(GameState state, Ability ability, CardInstance source, int value) {
         if (source == null) {
             state.log(ability.getName() + " has no source card to trace connected allies.");
@@ -350,6 +553,47 @@ public class EffectService {
             state.log(ability.getName() + " raises " + ally.getName() + "'s max Health by " + value
                     + " through a direct link"
                     + " (HP: " + ally.getCurrentHealth() + "/" + ally.getEffectiveMaxHealth() + ")");
+        }
+    }
+
+    /**
+     * Restores current HP on directly linked allies only — never raises max Health.
+     * Log wording matches {@code heal} so action-queue heal playback can parse it.
+     */
+    private void applyConnectedAlliesHeal(GameState state, Ability ability, CardInstance source, int value) {
+        if (source == null) {
+            state.log(ability.getName() + " has no source card to trace connected allies.");
+            return;
+        }
+
+        List<CardInstance> connectedAllies = placementService.getDirectlyConnectedAllies(state, source);
+        if (connectedAllies.isEmpty()) {
+            state.log(ability.getName() + " found no directly linked allies.");
+            return;
+        }
+
+        for (CardInstance ally : connectedAllies) {
+            int healValue = value;
+            if (elementalAfflictionService != null) {
+                healValue = elementalAfflictionService.applyBlindToValue(source, healValue);
+            }
+            int toxinBefore = ally.getAfflictionStacks(
+                    com.sieglings.model.enums.ElementalAffliction.TOXIN);
+            int restored;
+            if (elementalAfflictionService != null) {
+                restored = elementalAfflictionService.applyHealWithToxin(state, ally, healValue);
+            } else {
+                int before = ally.getCurrentHealth();
+                ally.healDamage(healValue);
+                restored = Math.max(0, ally.getCurrentHealth() - before);
+            }
+            if (restored > 0) {
+                state.log(ability.getName() + " heals " + ally.getName() + " for " + restored
+                        + " (HP: " + ally.getCurrentHealth() + ")");
+            } else if (toxinBefore <= 0) {
+                state.log(ability.getName() + " heals " + ally.getName() + " for " + healValue
+                        + " (HP: " + ally.getCurrentHealth() + ")");
+            }
         }
     }
 

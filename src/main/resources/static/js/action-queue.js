@@ -32,13 +32,15 @@
         METAL:    '#a0aab4',
         UNDEAD:   '#8c78a0',
         PSYCHIC:  '#c896ff',
+        POISON:   '#7ecb4d',
+        LIGHT:    '#ffe59a',
         NEUTRAL:  '#95a5a6'
     };
 
     const ELEMENT_SIGIL = {
         FIRE: '🔥', WATER: '💧', EARTH: '⛰', WIND: '🌪', ICE: '❄',
         SHADOW: '🌑', ELECTRIC: '⚡', METAL: '⚙', UNDEAD: '☠',
-        PSYCHIC: '✦', NEUTRAL: '◆'
+        PSYCHIC: '✦', POISON: '☣', LIGHT: '☀', NEUTRAL: '◆'
     };
 
     const ACTION_LABEL = {
@@ -52,6 +54,7 @@
         MOVE:    'shifts',
         BLOCK:   'blocks',
         EFFECT:  'effect',
+        AFFLICTION: 'suffers',
         DESTROY: 'was destroyed',
         PHASE:   'phase'
     };
@@ -520,6 +523,16 @@
             // so the badge appears with the hit rather than ahead of it.
             queue.revealPendingStatusesForTarget(target, target.statuses);
         }
+        // Elemental badge (Burn, Toxin, …) applied by this hit — light the
+        // element's border around the card so the badge reads as landing.
+        const aura = target.afflictionAura || action?.afflictionAura;
+        if (aura) {
+            spawnElementalBorder(target.isPlayer, target.row, target.col, {
+                element: aura.element,
+                variant: String(aura.affliction || 'effect').toLowerCase(),
+                durationMs: 900
+            });
+        }
     }
 
     async function playStandardAttackImpact(queue, action, target, elColor, t) {
@@ -548,6 +561,112 @@
             await destroyBoardCard(cardToDestroy, elColor, 520);
         }
         queue.releasePendingLethalHold(pendingKey);
+    }
+
+    /**
+     * Chain damage playback. The effect is about the links, so it has to read as
+     * one strike that ricochets: the projectile crosses the board to the card the
+     * ability actually targeted, lands, and only then do arcs jump from that card
+     * to each Siegling wired to it. (The generic multi-target barrage fires
+     * everything from the attacker at once, which hid the link entirely.)
+     *
+     * Victims killed by a hop keep their card on screen until every hop is done —
+     * a dead primary is still the origin the arcs bounce from — so the impact and
+     * the destruction animation are split across the sequence.
+     * @returns the lethal victims, in hop order, awaiting their destroy toast.
+     */
+    async function playChainAttack(queue, action, t, elColor) {
+        const fxElement = attackFxElement(action);
+        const casterFxColor = elementHex(fxElement);
+        const borderMs = queue.getSpeed() === 'fast' ? 520 : 950;
+        const lethalTargets = [];
+        queue.syncPendingLethalHolds();
+
+        // Arcs off the primary are quicker than the opening strike: they read as
+        // one continuous shock travelling the links rather than N separate attacks.
+        const ARC_SPEED_SCALE = 0.55;
+
+        const playHop = async (origin, victims, speedScale) => {
+            if (!victims.length) return;
+            const scale = speedScale || 1;
+            const projectileMs = Math.max(90, Math.round(t.projectileMs * scale));
+            const impactMs = Math.max(70, Math.round(t.impactMs * scale));
+            let leadInMs = projectileMs;
+            if (origin && window.SieglingsFx?.attackCell) {
+                for (const tgt of victims) {
+                    window.SieglingsFx.attackCell(
+                        origin.isPlayer, origin.row, origin.col,
+                        tgt.isPlayer, tgt.row, tgt.col,
+                        fxElement,
+                        { duration: projectileMs }
+                    );
+                    // A chain is the one attack that is also about the card it
+                    // travels through, so each victim burns the element on its
+                    // border as the bolt lands — the projectile shows the path,
+                    // the border shows the card conducting it.
+                    spawnElementalBorder(tgt.isPlayer, tgt.row, tgt.col, {
+                        element: fxElement,
+                        variant: 'chain',
+                        durationMs: borderMs
+                    });
+                }
+            } else {
+                // Sourceless chain (trap / spell / trainer active): nothing crossed
+                // the board to reach the primary, so it ignites its own border. The
+                // arcs off it still fly, because those really do travel the links.
+                for (const tgt of victims) {
+                    spawnElementalBorder(tgt.isPlayer, tgt.row, tgt.col, {
+                        element: fxElement,
+                        variant: 'effect',
+                        durationMs: borderMs
+                    });
+                }
+                leadInMs = Math.round(borderMs * 0.4);
+            }
+            await sleep(leadInMs);
+
+            const surviving = [];
+            for (const tgt of victims) {
+                if (tgt.destroysTarget && tgt.ghostCell) {
+                    queue.applyLethalImpactHealth(tgt.pendingLethalKey || tgt.pendingHealthKey, tgt);
+                    lethalTargets.push(tgt);
+                } else {
+                    surviving.push(tgt);
+                }
+            }
+            queue.applyPendingImpactHealthForTargets(surviving);
+            for (const tgt of victims) {
+                applyAttackImpactVfx(queue, action, tgt, casterFxColor);
+            }
+            if (window.SieglingsFx?.cameraShake) {
+                const hopDamage = victims.reduce((sum, tt) => sum + (Number(tt.amount) || 0), 0);
+                window.SieglingsFx.cameraShake(
+                    Math.min(16, 6 + Math.round(hopDamage * 0.35)), impactMs
+                );
+            }
+            await sleep(impactMs);
+            if (surviving.length) queue.releasePendingHealthForTargets(surviving);
+        };
+
+        for (const step of action.chainSteps) {
+            // Initial target lands first and alone; the shock then jumps to each
+            // connected Siegling one at a time, so the arc order is readable
+            // instead of every link flashing on the same frame.
+            await playHop(action.source, [step.primary]);
+            for (const link of step.links) {
+                await playHop(step.primary, [link], ARC_SPEED_SCALE);
+            }
+        }
+
+        for (const tgt of lethalTargets) {
+            const cardToDestroy = queue.getHeldBoardCard(tgt.isPlayer, tgt.row, tgt.col)
+                || findCellEl(tgt.isPlayer, tgt.row, tgt.col)?.querySelector('.board-card');
+            if (cardToDestroy) {
+                await destroyBoardCard(cardToDestroy, elColor, 520);
+            }
+            queue.releasePendingLethalHold(tgt.pendingLethalKey || tgt.pendingHealthKey);
+        }
+        return lethalTargets;
     }
 
     function buildCardDestroyedToast(sourceAction, target) {
@@ -602,6 +721,129 @@
             card.classList.remove(profile.className);
             card.classList.remove('sgl-status-applied');
         }, profile.duration);
+    }
+
+    // Elemental damage afflictions — mirrors ElementalAfflictionCatalog.java.
+    // These never have an attacker cell behind them: the card is hurt by a badge
+    // it already carries, so their visual is an element-colored border igniting
+    // around the card rather than a projectile flying in from somewhere.
+    const AFFLICTION_PROFILES = {
+        BURN:      { element: 'FIRE',     label: 'Burn' },
+        CHILL:     { element: 'ICE',      label: 'Chill' },
+        STAGGER:   { element: 'EARTH',    label: 'Stagger' },
+        DISORIENT: { element: 'WIND',     label: 'Disorient' },
+        SOAK:      { element: 'WATER',    label: 'Soak' },
+        SHOCK:     { element: 'ELECTRIC', label: 'Shock' },
+        RUST:      { element: 'METAL',    label: 'Rust' },
+        TOXIN:     { element: 'POISON',   label: 'Toxin' },
+        CURSE:     { element: 'SHADOW',   label: 'Curse' },
+        INSIGHT:   { element: 'PSYCHIC',  label: 'Insight' },
+        BLIND:     { element: 'LIGHT',    label: 'Blind' },
+        WITHER:    { element: 'UNDEAD',   label: 'Wither' }
+    };
+    // Damage-tick log wording → affliction key. Server lines read
+    // "<name> takes 3 burn damage (HP: 7)."; "poison" is accepted as an alias so
+    // Toxin ticks phrased that way land on the same visual.
+    const AFFLICTION_LOG_WORDS = {
+        burn: 'BURN', burning: 'BURN', chill: 'CHILL', frost: 'CHILL',
+        poison: 'TOXIN', toxin: 'TOXIN', venom: 'TOXIN', shock: 'SHOCK',
+        rust: 'RUST', curse: 'CURSE', wither: 'WITHER', soak: 'SOAK'
+    };
+    function afflictionProfile(affliction) {
+        const k = String(affliction || '').toUpperCase();
+        return AFFLICTION_PROFILES[k] || { element: 'NEUTRAL', label: 'Affliction' };
+    }
+
+    // Walk a point around the perimeter of the card box. t in [0,1) starts at the
+    // top-left corner and travels clockwise; used to seed the border motes so
+    // their staggered delays read as one wave circling the card.
+    function borderPerimeterPoint(t) {
+        const p = ((t % 1) + 1) % 1;
+        if (p < 0.25) return { x: (p / 0.25) * 100, y: 0 };
+        if (p < 0.5)  return { x: 100, y: ((p - 0.25) / 0.25) * 100 };
+        if (p < 0.75) return { x: 100 - ((p - 0.5) / 0.25) * 100, y: 100 };
+        return { x: 0, y: 100 - ((p - 0.75) / 0.25) * 100 };
+    }
+
+    // The house visual for anything that happens to a card without a Siegling
+    // attacking it — affliction ticks, badges landing, trap/aura/effect damage,
+    // status applications, heals. Projectiles stay reserved for real attacks, so
+    // these light the element around the card's border instead. Fixed positioned
+    // (like spawnHealCross) so a board re-render mid-animation can't tear it down.
+    //
+    // options: { element, color, variant, durationMs, sigil }
+    //   element  element key ('FIRE') used for colour + sigil
+    //   color    explicit hex, overrides element (heals are green, not elemental)
+    //   variant  class suffix for per-cause styling hooks ('burn', 'effect', …)
+    function spawnElementalBorder(isPlayer, row, col, options) {
+        const cellEl = findCellEl(isPlayer, row, col);
+        if (!cellEl) return null;
+        const rect = cellEl.getBoundingClientRect();
+        if (!rect || rect.width <= 0 || rect.height <= 0) return null;
+
+        const opts = options || {};
+        const hex = opts.color || elementHex(opts.element);
+        const total = Math.max(320, opts.durationMs || 900);
+        const variant = String(opts.variant || 'effect').toLowerCase();
+        const sigil = opts.sigil != null ? opts.sigil : elementSigil(opts.element);
+        const overlay = document.createElement('div');
+        overlay.className = `sgl-element-border sgl-element-border-${variant}`;
+        overlay.setAttribute('aria-hidden', 'true');
+        overlay.style.position = 'fixed';
+        overlay.style.left = `${rect.left}px`;
+        overlay.style.top = `${rect.top}px`;
+        overlay.style.width = `${rect.width}px`;
+        overlay.style.height = `${rect.height}px`;
+        overlay.style.setProperty('--sgl-border-color', hex);
+        overlay.style.setProperty('--sgl-border-soft', hexWithAlpha(hex, 0.3));
+        overlay.style.setProperty('--sgl-border-glow', hexWithAlpha(hex, 0.72));
+        overlay.style.setProperty('--sgl-border-ms', `${total}ms`);
+
+        const MOTE_COUNT = 12;
+        const motes = [];
+        for (let i = 0; i < MOTE_COUNT; i++) {
+            const at = borderPerimeterPoint(i / MOTE_COUNT);
+            // Push each mote a little away from the card centre so it burns on
+            // the border line instead of drifting across the artwork.
+            const dx = (at.x - 50) / 50;
+            const dy = (at.y - 50) / 50;
+            const size = 5 + Math.random() * 4;
+            const delay = Math.round((i / MOTE_COUNT) * total * 0.45);
+            motes.push(
+                `<span class="sgl-border-mote"
+                    style="left:${at.x}%;top:${at.y}%;width:${size}px;height:${size}px;
+                           --m-dx:${(dx * 12).toFixed(1)}px;--m-dy:${(dy * 12 - 6).toFixed(1)}px;
+                           animation-delay:${delay}ms"></span>`
+            );
+        }
+
+        overlay.innerHTML = `
+            <span class="sgl-border-ring"></span>
+            <span class="sgl-border-ring sgl-border-ring-outer"></span>
+            <span class="sgl-border-fill"></span>
+            ${motes.join('')}
+            <span class="sgl-border-sigil">${sigil}</span>
+        `;
+        document.body.appendChild(overlay);
+
+        const reposition = () => {
+            const r = cellEl.getBoundingClientRect();
+            if (!r) return;
+            overlay.style.left = `${r.left}px`;
+            overlay.style.top = `${r.top}px`;
+            overlay.style.width = `${r.width}px`;
+            overlay.style.height = `${r.height}px`;
+        };
+        window.addEventListener('resize', reposition);
+        const scrollHandler = () => reposition();
+        window.addEventListener('scroll', scrollHandler, true);
+
+        setTimeout(() => {
+            window.removeEventListener('resize', reposition);
+            window.removeEventListener('scroll', scrollHandler, true);
+            if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+        }, total + 120);
+        return overlay;
     }
 
     // Spawn a glowing green "+" cross overlay with outward particles on a
@@ -791,6 +1033,20 @@
     function findCellByAbilityName(board, abilityName) {
         const ability = String(abilityName || '').trim().toLowerCase();
         if (!ability) return null;
+        // Board cells carry their own ability list (GameController serializes it),
+        // so an exact ability match names the attacker outright. This is what
+        // keeps a projectile flying when the "<Card> uses <Ability>." line is
+        // missing from the batch — without it the attack silently degrades to the
+        // sourceless border playback reserved for traps and auras.
+        for (let r = 0; r < 3; r++) {
+            for (let c = 0; c < 3; c++) {
+                const cell = board?.[r]?.[c];
+                const owns = (cell?.abilities || []).some(
+                    (ab) => String(ab?.name || '').trim().toLowerCase() === ability
+                );
+                if (owns) return { row: r, col: c, cell };
+            }
+        }
         const matches = [];
         for (let r = 0; r < 3; r++) {
             for (let c = 0; c < 3; c++) {
@@ -818,6 +1074,71 @@
         const m = text.match(/^(.+?)\s+evolved\s+(?:in)?to\s+(.+?)[.!]?$/i);
         if (!m) return null;
         return { from: m[1].trim(), to: m[2].trim() };
+    }
+    // Affliction damage ticks: "<name> takes 3 burn damage (HP: 7)." and
+    // "<name> withers (clamped by 2; HP: 5)." Nothing attacked the card — the
+    // badge it was carrying resolved — so these must never reach the projectile
+    // path. Wither reports no damage number (the tick is an HP clamp), so its
+    // amount is left null and matched by name alone.
+    function parseAfflictionTickFromLog(line) {
+        const text = stripLogPrefix(line);
+        let m = text.match(/^(.+?)\s+takes\s+(\d+)\s+([a-z]+)\s+damage(?:\s*\([^)]*\))?[.!]?$/i);
+        if (m) {
+            const affliction = AFFLICTION_LOG_WORDS[m[3].toLowerCase()];
+            if (!affliction) return null;
+            return { target: m[1].trim(), amount: Number(m[2]), affliction };
+        }
+        m = text.match(/^(.+?)\s+withers\s*\([^)]*\)[.!]?$/i);
+        if (m) return { target: m[1].trim(), amount: null, affliction: 'WITHER' };
+        return null;
+    }
+    // "<Player> casts Fireball!" / "<Player> springs trap Snare!" — the only
+    // place a spell or trap names itself. The damage line that follows names the
+    // *ability*, so both are fed to the catalog lookup below.
+    function parseEffectCardFromLog(line) {
+        const text = stripLogPrefix(line);
+        let m = text.match(/^(.+?)\s+springs\s+trap\s+(.+?)[!.]?$/i);
+        if (m) return { actor: m[1].trim(), name: m[2].trim(), kind: 'TRAP' };
+        m = text.match(/^(.+?)\s+casts\s+(.+?)[!.]?$/i);
+        if (m) return { actor: m[1].trim(), name: m[2].trim(), kind: 'SPELL' };
+        return null;
+    }
+    // Spells/traps/trainer actives have no board cell to read an element from, so
+    // ask game.js's catalog bridge what element the named card (or ability) is.
+    function effectElementForName(name) {
+        try {
+            return normalizeElement(window.SieglingsCardElements?.elementFor?.(name));
+        } catch (_) {
+            return null;
+        }
+    }
+
+    // "<name> is afflicted with Burn (Burn x2)." — the badge landing alongside a
+    // real hit, so it rides along with that attack's impact instead of becoming
+    // its own action.
+    function parseAfflictionApplyFromLog(line) {
+        const text = stripLogPrefix(line);
+        const m = text.match(/^(.+?)\s+is\s+afflicted\s+with\s+([A-Za-z]+)\s*\(([^)]*)\)[.!]?$/i);
+        if (!m) return null;
+        const affliction = m[2].toUpperCase();
+        if (!AFFLICTION_PROFILES[affliction]) return null;
+        const stacks = Number((m[3].match(/x\s*(\d+)/i) || [])[1]) || 1;
+        return { target: m[1].trim(), affliction, stacks };
+    }
+    // Chain damage announces its shape before the damage lines land:
+    //   "<Ability> arcs through <Primary>'s links to 2 connected Sieglings!"
+    //   "<Ability> finds no links on <Primary>."
+    // The named card is the one the projectile strikes first — every other
+    // victim of that ability in the same batch is a bounce off it. Board diffs
+    // arrive in row/col order, so this is the only way playback can tell the
+    // struck target from the cards the arc jumped to.
+    function parseChainArcFromLog(line) {
+        const text = stripLogPrefix(line);
+        let m = text.match(/^(.+?)\s+arcs\s+through\s+(.+?)'s\s+links\s+to\s+(\d+)\s+connected\s+Siegling/i);
+        if (m) return { ability: m[1].trim(), primary: m[2].trim(), links: parseInt(m[3], 10) };
+        m = text.match(/^(.+?)\s+finds\s+no\s+links\s+on\s+(.+?)[.!]?$/i);
+        if (m) return { ability: m[1].trim(), primary: m[2].trim(), links: 0 };
+        return null;
     }
     function parseClaimFromLog(line) {
         const text = stripLogPrefix(line);
@@ -936,6 +1257,8 @@
                     out.push({
                         isPlayer, row: r, col: c,
                         amount: nextShield - prevShield,
+                        prevShield,
+                        nextShield,
                         element: normalizeElement(n.element || p.element),
                         name: n.name || p.name || '',
                         instanceId: String(n.instanceId || p.instanceId || n.id || p.id || '')
@@ -1070,11 +1393,15 @@
     // Best-effort extraction of "X uses Y" / "X plays Y" lines for ABILITY/PLAY toasts.
     function parseAbilityFromLog(line) {
         const text = stripLogPrefix(line);
-        let m = text.match(/^(.+?)\s+uses\s+(.+?)\.?$/i);
+        // Trailing punctuation varies by log site ("uses Ember." / "uses Ember!"),
+        // and the name has to come back clean — a stray "!" makes the ability-name
+        // comparison in resolveAttackerFromLogs miss and costs the attack its
+        // projectile.
+        let m = text.match(/^(.+?)\s+uses\s+(.+?)[.!]?$/i);
         if (m) return { kind: 'ABILITY', actor: m[1].trim(), name: m[2].trim() };
-        m = text.match(/^(.+?)\s+plays\s+(.+?)\.?$/i);
+        m = text.match(/^(.+?)\s+plays\s+(.+?)[.!]?$/i);
         if (m) return { kind: 'PLAY', actor: m[1].trim(), name: m[2].trim() };
-        m = text.match(/^(.+?)\s+activates\s+(.+?)\.?$/i);
+        m = text.match(/^(.+?)\s+activates\s+(.+?)[.!]?$/i);
         if (m) return { kind: 'ABILITY', actor: m[1].trim(), name: m[2].trim() };
         return null;
     }
@@ -1096,9 +1423,14 @@
     // Server lines look like "Embers deals 3 damage to Pylme (HP: 10)" — the
     // trailing "(HP: N)" is informational and must not become part of the
     // target name or attribution against the board state will fail.
+    // EffectService can append SEVERAL trailing groups before the HP one —
+    // "(weakness +1) (soak +2) (rust +1) (HP: 6)" — so every trailing
+    // parenthetical is stripped, not just the last. Matching only one left the
+    // target named "Sundile (weakness +1)", which silently broke chain-attack
+    // attribution (it fell back to a barrage fired from the attacker).
     function parseDamageFromLog(line) {
         const text = stripLogPrefix(line);
-        const m = text.match(/^(.+?)\s+deals\s+(\d+)\s+damage\s+to\s+(.+?)(?:\s*\([^)]*\))?\.?$/i);
+        const m = text.match(/^(.+?)\s+deals\s+(\d+)\s+damage\s+to\s+(.+?)(?:\s*\([^)]*\))*\.?$/i);
         if (!m) return null;
         return {
             abilityOrSource: m[1].trim(),
@@ -1109,7 +1441,7 @@
 
     function parseSiegeBountyFromLog(line) {
         const text = stripLogPrefix(line);
-        const m = text.match(/^(.+?)'s\s+bounty\s+deals\s+(\d+)\s+damage\s+to\s+(.+?)(?:\s*\([^)]*\))?[.!]?$/i);
+        const m = text.match(/^(.+?)'s\s+bounty\s+deals\s+(\d+)\s+damage\s+to\s+(.+?)(?:\s*\([^)]*\))*[.!]?$/i);
         if (!m) return null;
         return {
             source: m[1].trim(),
@@ -1230,6 +1562,10 @@
         constructor() {
             this.queue = [];
             this.processing = false;
+            // Resolvers waiting on the queue to go idle (see onIdle). The queue
+            // is the single authority on "presentation is busy" — game.js reads
+            // it rather than keeping its own timers, so there is one clock.
+            this._idleWaiters = [];
             this.toasts = new ToastRenderer();
             this.activeToast = null;
             this.thinkingNode = null;
@@ -1285,6 +1621,42 @@
             }
         }
         isProcessing() { return this.processing; }
+
+        // Single write path for `processing`, so the body class and anything
+        // awaiting idle can never drift from the queue's real state.
+        _setProcessing(value) {
+            const next = Boolean(value);
+            if (this.processing === next) return;
+            this.processing = next;
+            document.body?.classList.toggle('sgl-playback-active', next);
+            if (!next) {
+                const waiters = this._idleWaiters;
+                this._idleWaiters = [];
+                for (const resolve of waiters) {
+                    try { resolve(); } catch (_) {}
+                }
+            }
+        }
+
+        // Resolves once playback has drained. Callers use this instead of
+        // polling `isProcessing()` on a timer.
+        onIdle() {
+            if (!this.processing) return Promise.resolve();
+            return new Promise((resolve) => this._idleWaiters.push(resolve));
+        }
+
+        // True while a phase banner is on screen and still holding. game.js owns
+        // the banner element, so it owns the answer.
+        isPhaseBannerActive() {
+            return Boolean(window.isPhaseTransitionBannerActive?.());
+        }
+
+        // The gate every interactive surface should consult: playback is mid-flight
+        // or a phase banner is still announcing.
+        isPresentationBusy() {
+            return this.processing || this.isPhaseBannerActive();
+        }
+
         clear() {
             this.queue = [];
             if (this.activeToast) { this.activeToast.dismiss(); this.activeToast = null; }
@@ -1292,7 +1664,7 @@
             if (typeof window.hidePhaseTransitionBanner === 'function') {
                 window.hidePhaseTransitionBanner();
             }
-            this.processing = false;
+            this._setProcessing(false);
             this.markOpponentThinking(false);
             this.revealAllPendingPlacements();
             this.revealAllPendingMoves();
@@ -1441,12 +1813,19 @@
                 (_, i) => `<div class="shield-plate" data-plate-index="${i}"></div>`
             ).join('');
         }
-        resyncShieldFromState(isPlayer, row, col) {
+        resyncShieldFromState(isPlayer, row, col, fallbackShieldHp) {
             const getter = window.SieglingsBoardCellState?.getCell;
             const cell = getter ? getter(isPlayer, row, col) : null;
-            const shieldHp = Math.max(0, Number(cell?.shieldHp) || 0);
             const cellEl = findCellEl(isPlayer, row, col);
             const card = cellEl?.querySelector('.board-card');
+            const stateShieldHp = Number(cell?.shieldHp);
+            const fallback = Number(fallbackShieldHp);
+            const renderedShieldHp = Number(card?.querySelector('.shield-plates')?.dataset?.shield);
+            const shieldHp = Math.max(0,
+                Number.isFinite(stateShieldHp) ? stateShieldHp
+                    : Number.isFinite(fallback) ? fallback
+                        : Number.isFinite(renderedShieldHp) ? renderedShieldHp : 0
+            );
             if (!card) return shieldHp;
             this.syncShieldVisualsToHealth(card, {
                 displayShield: shieldHp,
@@ -1888,31 +2267,6 @@
             }, 920);
         }
 
-        // Where to launch a "sourceless" projectile from when we can't
-        // identify the attacking cell (e.g. an AI counter-attack whose log
-        // line shape doesn't match the parser). Picks a point on the
-        // attacker's side of the board so the projectile still flies the
-        // right direction toward the target.
-        _getFallbackProjectileOrigin(attackerIsPlayer) {
-            const grid = document.getElementById(attackerIsPlayer ? 'playerGrid' : 'enemyGrid');
-            if (grid) {
-                const r = grid.getBoundingClientRect();
-                if (r && r.width > 0 && r.height > 0) {
-                    return {
-                        x: r.left + r.width / 2,
-                        // Top edge of player grid / bottom edge of enemy grid
-                        // so the projectile starts "near the line" and flies
-                        // across the board rather than from inside the grid.
-                        y: attackerIsPlayer ? r.top + r.height * 0.15 : r.top + r.height * 0.85
-                    };
-                }
-            }
-            return {
-                x: window.innerWidth / 2,
-                y: attackerIsPlayer ? window.innerHeight * 0.75 : window.innerHeight * 0.25
-            };
-        }
-
         enqueueAction(action) {
             if (!action) return;
             this.queue.push(action);
@@ -2047,6 +2401,109 @@
                 splitShieldExpiry(damageOnPlayer, shieldExpiryOnPlayer);
                 splitShieldExpiry(damageOnEnemy, shieldExpiryOnEnemy);
             }
+
+            // Burn / Toxin / Wither ticks damage a card from a badge it already
+            // carries. Pull them out of the damage diff before source resolution
+            // so they can't fall through to the sourceless projectile fallback,
+            // which would fling a phantom bolt across the board at a card that
+            // nothing attacked.
+            const afflictionTickLogs = newLogs.map(parseAfflictionTickFromLog).filter(Boolean);
+            const takeAfflictionTick = (entry) => {
+                if (!afflictionTickLogs.length) return null;
+                const hpLoss = Number(entry.hpLoss);
+                const amount = Number.isFinite(hpLoss) ? hpLoss : (Number(entry.amount) || 0);
+                let idx = afflictionTickLogs.findIndex((tick) =>
+                    namesMatch(tick.target, entry.name)
+                    && (tick.amount == null || tick.amount === amount)
+                );
+                if (idx === -1) {
+                    idx = afflictionTickLogs.findIndex((tick) => namesMatch(tick.target, entry.name));
+                }
+                if (idx === -1) return null;
+                return afflictionTickLogs.splice(idx, 1)[0];
+            };
+            const afflictionTicksOnPlayer = [];
+            const afflictionTicksOnEnemy = [];
+            const splitAfflictionTicks = (damageList, out) => {
+                for (let i = damageList.length - 1; i >= 0; i--) {
+                    const tick = takeAfflictionTick(damageList[i]);
+                    if (!tick) continue;
+                    out.unshift({ ...damageList[i], afflictionTick: tick });
+                    damageList.splice(i, 1);
+                }
+            };
+            splitAfflictionTicks(damageOnPlayer, afflictionTicksOnPlayer);
+            splitAfflictionTicks(damageOnEnemy, afflictionTicksOnEnemy);
+
+            // Trap / spell / trainer-active damage: no board cell fired it, so the
+            // knight's element is the only colour the queue could reach for. Ask
+            // the catalog what the named card actually is, so the border burns in
+            // the trap's own element rather than its owner's.
+            const effectCardLogs = newLogs.map(parseEffectCardFromLog).filter(Boolean);
+            const damageLogs = newLogs.map(parseDamageFromLog).filter(Boolean);
+            const effectElementForTarget = (name, amount) => {
+                const hit = damageLogs.find((d) =>
+                    namesMatch(d.target, name) && (!amount || d.amount === amount)
+                ) || damageLogs.find((d) => namesMatch(d.target, name));
+                // The damage line names the ability; fall back to the card named
+                // by the cast/spring line in this same batch.
+                const byAbility = hit ? effectElementForName(hit.abilityOrSource) : null;
+                if (byAbility) return byAbility;
+                for (const effect of effectCardLogs) {
+                    const byCard = effectElementForName(effect.name);
+                    if (byCard) return byCard;
+                }
+                return null;
+            };
+
+            // Chain damage hop structure for this batch, keyed off the arc log
+            // lines. A target only counts as a chain primary when the same
+            // ability is also logged as damaging it, so an unrelated attack on a
+            // same-named card elsewhere in the batch can't hijack the ordering.
+            const chainArcs = newLogs.map(parseChainArcFromLog).filter(Boolean);
+            const damagedByAbility = (ability, name) => damageLogs.some((d) =>
+                namesMatch(d.abilityOrSource, ability) && namesMatch(d.target, name)
+            );
+            // Notch links reach one step in any of the eight directions, so a
+            // bounce victim always sits in a cell touching its primary.
+            const touchesCell = (a, b) => a.isPlayer === b.isPlayer
+                && Math.max(Math.abs(a.row - b.row), Math.abs(a.col - b.col)) === 1;
+            /**
+             * Split a damage group into [{ primary, links }] hops, or null when it
+             * isn't a chain — which is also how a multi-primary chain gets pulled
+             * back apart from the flat, row/col-ordered damage list.
+             */
+            const buildChainSteps = (groupTargets) => {
+                if (!chainArcs.length || groupTargets.length < 2) return null;
+                const steps = [];
+                for (const arc of chainArcs) {
+                    const primary = groupTargets.find((tt) =>
+                        namesMatch(tt.name, arc.primary)
+                        && damagedByAbility(arc.ability, tt.name)
+                        && !steps.some((s) => s.primary === tt)
+                    );
+                    if (primary) steps.push({ ability: arc.ability, primary, links: [] });
+                }
+                if (!steps.length) return null;
+                for (const tt of groupTargets) {
+                    if (steps.some((s) => s.primary === tt)) continue;
+                    const owner = steps.find((s) =>
+                        touchesCell(s.primary, tt) && damagedByAbility(s.ability, tt.name)
+                    );
+                    if (owner) owner.links.push(tt);
+                    else return null; // a victim this chain can't explain — play it as a barrage
+                }
+                return steps.some((s) => s.links.length) ? steps : null;
+            };
+
+            // Badges that landed on top of a real hit — the attack keeps its
+            // projectile, and the element's border lights up on impact.
+            const afflictionApplyLogs = newLogs.map(parseAfflictionApplyFromLog).filter(Boolean);
+            const afflictionAuraFor = (name) => {
+                const hit = afflictionApplyLogs.find((entry) => namesMatch(entry.target, name));
+                if (!hit) return null;
+                return { affliction: hit.affliction, element: afflictionProfile(hit.affliction).element };
+            };
 
             // Destruction events (cards that no longer exist). Paired with attacks
             // below so the killed card stays visible until the projectile lands.
@@ -2215,13 +2672,16 @@
                         nextShield: t.nextShield,
                         prevMaxHp: t.prevMaxHp,
                         nextMaxHp: t.nextMaxHp,
-                        printedHealth: t.printedHealth
+                        printedHealth: t.printedHealth,
+                        afflictionAura: afflictionAuraFor(t.name)
                     };
                     targetEntry.pendingHealthKey = this.registerPendingHealth(targetEntry);
                     if (targetEntry.destroysTarget) {
                         targetEntry.pendingLethalKey = targetEntry.pendingHealthKey;
                     }
-                    const srcElement = normalizeElement(srcRef?.pending?.element || srcRef?.cell?.element) || sideKnight;
+                    const srcElement = normalizeElement(srcRef?.pending?.element || srcRef?.cell?.element)
+                        || (srcRef ? null : effectElementForTarget(t.name, Number(t.amount) || 0))
+                        || sideKnight;
                     const key = srcRef
                         ? `S:${srcRef.row}:${srcRef.col}:${srcRef.cell?.instanceId || srcRef.cell?.id || ''}`
                         : `N:${t.row}:${t.col}:${t.instanceId || ''}`;
@@ -2232,6 +2692,61 @@
                 }
                 return groups;
             };
+
+            // Affliction ticks read as something happening *to* the card, so the
+            // toast is sided with the card's owner and no attacker is named.
+            const enqueueAfflictionTicks = (ticks, destructionList, side, knight) => {
+                for (const d of ticks) {
+                    const profile = afflictionProfile(d.afflictionTick.affliction);
+                    const destroyed = matchDestruction(destructionList, d);
+                    const target = {
+                        isPlayer: d.isPlayer,
+                        row: d.row, col: d.col,
+                        amount: d.amount,
+                        shieldBroken: Number(d.shieldBroken) || 0,
+                        hpLoss: Number(d.hpLoss) || 0,
+                        shieldFullyBroken: !!d.shieldFullyBroken,
+                        element: d.element,
+                        name: d.name,
+                        destroysTarget: !!destroyed,
+                        ghostCell: destroyed?.cell || null,
+                        instanceId: d.instanceId,
+                        prevHp: d.prevHp,
+                        nextHp: d.nextHp,
+                        prevShield: d.prevShield,
+                        nextShield: d.nextShield,
+                        prevMaxHp: d.prevMaxHp,
+                        nextMaxHp: d.nextMaxHp,
+                        printedHealth: d.printedHealth
+                    };
+                    const pendingHealthKey = this.registerPendingHealth(target);
+                    this.enqueueAction({
+                        kind: 'AFFLICTION',
+                        side,
+                        actorName: d.name || 'Card',
+                        label: `suffers ${profile.label}`,
+                        targetName: '',
+                        amount: d.amount,
+                        shieldBroken: target.shieldBroken,
+                        hpLoss: target.hpLoss,
+                        affliction: d.afflictionTick.affliction,
+                        knightElement: knight,
+                        elementColor: profile.element,
+                        source: null,
+                        target: {
+                            isPlayer: d.isPlayer, row: d.row, col: d.col,
+                            element: d.element || profile.element
+                        },
+                        destroysTarget: target.destroysTarget,
+                        ghostCell: target.ghostCell,
+                        pendingHealthKey,
+                        pendingLethalKey: target.destroysTarget ? pendingHealthKey : null,
+                        gapAfterMs: BATTLE_GAP_MS
+                    });
+                }
+            };
+            enqueueAfflictionTicks(afflictionTicksOnPlayer, destructionsOnPlayer, 'PLAYER', playerKnight);
+            enqueueAfflictionTicks(afflictionTicksOnEnemy, destructionsOnEnemy, 'ENEMY', enemyKnight);
 
             const playerGroups = groupDamage(damageOnEnemy, destructionsOnEnemy, resolvePlayerSource, playerKnight, false);
             const enemyGroups  = groupDamage(damageOnPlayer, destructionsOnPlayer, resolveEnemySource, enemyKnight,  true);
@@ -2378,6 +2893,7 @@
                         pendingHealthKey: t.pendingHealthKey,
                         pendingLethalKey: t.pendingLethalKey,
                         statuses: t.statuses && t.statuses.length ? t.statuses.slice() : null,
+                        afflictionAura: t.afflictionAura || null,
                         gapAfterMs: BATTLE_GAP_MS
                     });
                     return;
@@ -2393,6 +2909,23 @@
                     .filter((tt) => Number(tt.amount) > 0)
                     .map((tt) => `${Number(tt.amount)} damage to ${tt.name || defenderLabel}`)
                     .join(' and ');
+                const actionTargets = targets.map((tt) => ({
+                    isPlayer: tt.isPlayer, row: tt.row, col: tt.col,
+                    element: tt.element || srcElement,
+                    name: tt.name,
+                    amount: tt.amount,
+                    shieldBroken: tt.shieldBroken,
+                    hpLoss: tt.hpLoss,
+                    destroysTarget: tt.destroysTarget,
+                    ghostCell: tt.ghostCell,
+                    pendingHealthKey: tt.pendingHealthKey,
+                    pendingLethalKey: tt.pendingLethalKey,
+                    statuses: tt.statuses && tt.statuses.length ? tt.statuses.slice() : null,
+                    afflictionAura: tt.afflictionAura || null
+                }));
+                // Chain hops reference the same objects the barrage path uses, so
+                // pending health/lethal keys stay shared between both playbacks.
+                const chainSteps = buildChainSteps(actionTargets);
                 this.enqueueAction({
                     kind: 'ATTACK',
                     side,
@@ -2406,19 +2939,8 @@
                     knightElement: knight,
                     elementColor: srcElement,
                     source: sourcePayload,
-                    targets: targets.map((tt) => ({
-                        isPlayer: tt.isPlayer, row: tt.row, col: tt.col,
-                        element: tt.element || srcElement,
-                        name: tt.name,
-                        amount: tt.amount,
-                        shieldBroken: tt.shieldBroken,
-                        hpLoss: tt.hpLoss,
-                        destroysTarget: tt.destroysTarget,
-                        ghostCell: tt.ghostCell,
-                        pendingHealthKey: tt.pendingHealthKey,
-                        pendingLethalKey: tt.pendingLethalKey,
-                        statuses: tt.statuses && tt.statuses.length ? tt.statuses.slice() : null
-                    })),
+                    targets: actionTargets,
+                    chainSteps,
                     gapAfterMs: BATTLE_GAP_MS
                 });
             };
@@ -2598,7 +3120,13 @@
                     amountSign: '+',
                     knightElement: knight,
                     elementColor: 'METAL',
-                    target: { isPlayer: h.isPlayer, row: h.row, col: h.col, element: 'METAL' },
+                    target: {
+                        isPlayer: h.isPlayer,
+                        row: h.row,
+                        col: h.col,
+                        element: 'METAL',
+                        shieldHp: h.nextShield
+                    },
                     gapAfterMs: BATTLE_GAP_MS
                 });
             };
@@ -2751,14 +3279,10 @@
             // A fast player can draw and immediately end setup while the Draw
             // Phase banner is still resolving. Start this flow only after the
             // previous playback batch has cleared so its banner/toasts cannot
-            // overlap the end-turn and AI-thinking beats.
-            const idleDeadline = Date.now() + 15000;
-            while (this.processing && Date.now() < idleDeadline) {
-                await sleep(50);
-            }
-            if (typeof window.hidePhaseTransitionBanner === 'function') {
-                window.hidePhaseTransitionBanner();
-            }
+            // overlap the end-turn and AI-thinking beats. The PHASE action
+            // awaits its own banner, so an idle queue means the banner has
+            // already finished — no need to cut it short.
+            await this.onIdle();
             if (this.activeToast) {
                 this.activeToast.dismiss();
                 this.activeToast = null;
@@ -2863,7 +3387,7 @@
 
         _kick() {
             if (this.processing) return;
-            this.processing = true;
+            this._setProcessing(true);
             // Do not block the current callstack
             Promise.resolve().then(() => this._drain());
         }
@@ -2875,7 +3399,7 @@
                     await this._playAction(action);
                 }
             } finally {
-                this.processing = false;
+                this._setProcessing(false);
                 if (this.opponentThinking) this.markOpponentThinking(false);
                 // Defensive: never leave a card permanently hidden because no
                 // PLAY action was queued for it, and never leave a heal/status
@@ -2885,6 +3409,13 @@
                 this.settleAllPendingHealth();
                 this.settleAllPendingDirectHealth();
                 this.settleAllPendingStatuses();
+                // The battle dock held itself in standby for the duration of
+                // playback; bring the acting Siegeling's moves up now that the
+                // last banner has cleared. Runs unconditionally so the dock can
+                // never be stranded in standby by a dropped or throwing action.
+                if (typeof window.renderBattlePanel === 'function') {
+                    try { window.renderBattlePanel(); } catch (_) {}
+                }
                 if (typeof window.scheduleBattleAutoAdvance === 'function') {
                     window.scheduleBattleAutoAdvance();
                 }
@@ -2932,12 +3463,15 @@
             this.syncPendingDirectHealth();
             this.syncPendingLethalHolds();
 
-            const deferAttackToast = action.kind === 'ATTACK' && !action.target?.healthBar && (
+            const deferAttackToast = (action.kind === 'ATTACK' && !action.target?.healthBar && (
                 (action.source && action.target)
                 || (action.source && Array.isArray(action.targets) && action.targets.length > 0)
                 || (action.target && (action.destroysTarget && action.ghostCell))
                 || (Array.isArray(action.targets) && action.targets.some((tgt) => tgt.destroysTarget && tgt.ghostCell))
-            );
+            ))
+                // A tick that kills announces after the card comes apart, same
+                // ordering as a lethal attack.
+                || (action.kind === 'AFFLICTION' && action.destroysTarget && action.ghostCell);
             const deferEarlyToast = deferAttackToast || action.kind === 'DESTROY';
 
             if (action.kind === 'PHASE') {
@@ -3023,21 +3557,49 @@
                 await showCardDestroyedToast(this, action, targetLike || action, t);
             };
 
-            // 2a. Multi-target ATTACK — all projectiles fire simultaneously
-            // (no stagger). One coordinated impact + camera shake + per-target
-            // damage floater after the projectile duration.
-            if (action.kind === 'ATTACK' && Array.isArray(action.targets) && action.targets.length > 1
-                && action.source && window.SieglingsFx?.attackCell) {
-                this.syncPendingLethalHolds();
-                for (const tgt of action.targets) {
-                    window.SieglingsFx.attackCell(
-                        action.source.isPlayer, action.source.row, action.source.col,
-                        tgt.isPlayer, tgt.row, tgt.col,
-                        attackFxElement(action),
-                        { duration: t.projectileMs }
-                    );
+            // 2a-chain. Chain damage strikes its target first, then bounces from
+            // that card along its links — see playChainAttack.
+            if (action.kind === 'ATTACK' && Array.isArray(action.chainSteps) && action.chainSteps.length) {
+                const lethalTargets = await playChainAttack(this, action, t, elColor);
+                await showDeferredAttackToast();
+                for (const tgt of lethalTargets) {
+                    await showDeferredDestroyToast(tgt);
                 }
-                await sleep(t.projectileMs);
+                const chainGap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
+                await sleep(chainGap);
+                return;
+            }
+
+            // 2a. Multi-target damage. With an attacker, all projectiles fire
+            // simultaneously (no stagger); without one — a trap, an aura, a
+            // board-wide effect — every target lights its elemental border
+            // instead, since nothing crossed the board to reach them. Either way
+            // one coordinated impact + camera shake + per-target damage floater
+            // follows the lead-in.
+            if (action.kind === 'ATTACK' && Array.isArray(action.targets) && action.targets.length > 1) {
+                this.syncPendingLethalHolds();
+                let leadInMs = t.projectileMs;
+                if (action.source && window.SieglingsFx?.attackCell) {
+                    for (const tgt of action.targets) {
+                        window.SieglingsFx.attackCell(
+                            action.source.isPlayer, action.source.row, action.source.col,
+                            tgt.isPlayer, tgt.row, tgt.col,
+                            attackFxElement(action),
+                            { duration: t.projectileMs }
+                        );
+                    }
+                } else {
+                    const borderMs = this.speed === 'fast' ? 520 : 950;
+                    for (const tgt of action.targets) {
+                        spawnElementalBorder(tgt.isPlayer, tgt.row, tgt.col, {
+                            element: attackFxElement(action),
+                            variant: 'effect',
+                            durationMs: borderMs
+                        });
+                    }
+                    leadInMs = Math.round(borderMs * 0.4);
+                }
+                await sleep(leadInMs);
 
                 const lethalTargets = action.targets.filter((tgt) => tgt.destroysTarget && tgt.ghostCell);
                 const survivingTargets = action.targets.filter((tgt) => !tgt.destroysTarget || !tgt.ghostCell);
@@ -3069,18 +3631,67 @@
                 return;
             }
 
+            // 2a-affliction. AFFLICTION — burn/toxin/wither style ticks. Nothing
+            // attacked the card, so there is deliberately no projectile: the
+            // element's border ignites around the card and the damage lands as
+            // the border burns.
+            if (action.kind === 'AFFLICTION' && action.target) {
+                const isLethalKill = action.destroysTarget && action.ghostCell;
+                if (isLethalKill) this.syncPendingLethalHolds();
+                const auraMs = this.speed === 'fast' ? 520 : 950;
+                spawnElementalBorder(
+                    action.target.isPlayer, action.target.row, action.target.col,
+                    {
+                        element: action.elementColor,
+                        variant: String(action.affliction || 'effect').toLowerCase(),
+                        durationMs: auraMs
+                    }
+                );
+                // Let the border catch before the HP drops so the two read as
+                // cause and effect rather than one flash.
+                await sleep(Math.round(auraMs * 0.4));
+
+                const tickTarget = {
+                    isPlayer: action.target.isPlayer,
+                    row: action.target.row,
+                    col: action.target.col,
+                    name: action.actorName || action.ghostCell?.name,
+                    element: action.target.element,
+                    amount: action.amount,
+                    shieldBroken: action.shieldBroken,
+                    ghostCell: action.ghostCell,
+                    pendingHealthKey: action.pendingHealthKey,
+                    pendingLethalKey: action.pendingLethalKey || action.pendingHealthKey
+                };
+                if (isLethalKill) {
+                    await playLethalAttackImpact(this, action, tickTarget, elColor, t);
+                    await showDeferredAttackToast();
+                    await showDeferredDestroyToast(tickTarget);
+                } else {
+                    await playStandardAttackImpact(this, action, tickTarget, elColor, t);
+                }
+                const afflictionGap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
+                await sleep(afflictionGap);
+                return;
+            }
+
             // 2a-status. STATUS_APPLY / STATUS_SKIP — status-only events
             // that should read as status feedback rather than attacks.
             if ((action.kind === 'STATUS_APPLY' || action.kind === 'STATUS_SKIP') && action.target) {
                 const isSkip = action.kind === 'STATUS_SKIP';
-                if (!isSkip && action.source && window.SieglingsFx?.attackCell) {
-                    window.SieglingsFx.attackCell(
-                        action.source.isPlayer, action.source.row, action.source.col,
+                if (!isSkip) {
+                    // A status landing with no damage is an aura or a rider, not
+                    // an attack — the status's element lights the target's border.
+                    const borderMs = this.speed === 'fast' ? 460 : 820;
+                    spawnElementalBorder(
                         action.target.isPlayer, action.target.row, action.target.col,
-                        action.elementColor || action.knightElement,
-                        { duration: t.projectileMs }
+                        {
+                            element: action.elementColor || action.knightElement,
+                            variant: 'status',
+                            durationMs: borderMs
+                        }
                     );
-                    await sleep(t.projectileMs);
+                    await sleep(Math.round(borderMs * 0.4));
                 }
                 if (isSkip) {
                     pulseCard(
@@ -3108,19 +3719,17 @@
                 return;
             }
 
-            // 2a-heal. HEAL — green projectile (when there's an identified
-            // healer) and a glowing green "+" cross with outward particles on
-            // the target. Damage floater is replaced with a green "+N" gain.
+            // 2a-heal. HEAL — a green border blooming on the healed card, then a
+            // glowing green "+" cross with outward particles. Healing is not an
+            // attack, so it gets the border treatment rather than a projectile.
+            // Damage floater is replaced with a green "+N" gain.
             if (action.kind === 'HEAL' && action.target) {
-                if (action.source && window.SieglingsFx?.attackCell) {
-                    window.SieglingsFx.attackCell(
-                        action.source.isPlayer, action.source.row, action.source.col,
-                        action.target.isPlayer, action.target.row, action.target.col,
-                        'WIND',
-                        { duration: t.projectileMs }
-                    );
-                    await sleep(t.projectileMs);
-                }
+                const healBorderMs = this.speed === 'fast' ? 460 : 820;
+                spawnElementalBorder(
+                    action.target.isPlayer, action.target.row, action.target.col,
+                    { color: '#5eff8e', variant: 'heal', sigil: '✚', durationMs: healBorderMs }
+                );
+                await sleep(Math.round(healBorderMs * 0.35));
                 spawnHealCross(action.target.isPlayer, action.target.row, action.target.col, 1400);
                 if (action.amount && window.SieglingsFx?.floatingDamage) {
                     // floatingDamage formats as "-N"; use floatingText for "+N"
@@ -3159,7 +3768,12 @@
                         '#a8b0ba', 30
                     );
                 }
-                this.resyncShieldFromState(action.target.isPlayer, action.target.row, action.target.col);
+                this.resyncShieldFromState(
+                    action.target.isPlayer,
+                    action.target.row,
+                    action.target.col,
+                    action.target.shieldHp
+                );
                 await sleep(t.impactMs);
                 const shieldGap = (action.gapAfterMs != null) ? action.gapAfterMs : t.gapMs;
                 await sleep(shieldGap);
@@ -3297,22 +3911,25 @@
                 await sleep(gap);
                 return;
             } else if (action.kind === 'ATTACK' && action.target) {
+                // Damage with no attacker cell behind it — a trap, an aura, an
+                // effect tick, or an AI log line the parser couldn't pin to a
+                // card. Nothing crossed the board to get here, so the element
+                // burns around the target's border rather than a projectile
+                // flying in from a made-up origin.
                 const isLethalKill = action.destroysTarget && action.ghostCell;
                 if (isLethalKill) {
                     this.syncPendingLethalHolds();
                 }
-                const targetCellEl = findCellEl(action.target.isPlayer, action.target.row, action.target.col);
-                if (targetCellEl && window.SieglingsFx?.attackBetween) {
-                    const tr = targetCellEl.getBoundingClientRect();
-                    const origin = this._getFallbackProjectileOrigin(action.side === 'PLAYER');
-                    window.SieglingsFx.attackBetween(
-                        origin.x, origin.y,
-                        tr.left + tr.width / 2, tr.top + tr.height / 2,
-                        action.elementColor || action.knightElement,
-                        { duration: t.projectileMs }
-                    );
-                    await sleep(t.projectileMs);
-                }
+                const borderMs = this.speed === 'fast' ? 520 : 950;
+                spawnElementalBorder(
+                    action.target.isPlayer, action.target.row, action.target.col,
+                    {
+                        element: action.elementColor || action.knightElement,
+                        variant: 'effect',
+                        durationMs: borderMs
+                    }
+                );
+                await sleep(Math.round(borderMs * 0.4));
                 if (isLethalKill) {
                     const lethalTarget = {
                         isPlayer: action.target.isPlayer,
@@ -3422,6 +4039,9 @@
         getSpeed: () => queue.getSpeed(),
         clear: () => queue.clear(),
         isProcessing: () => queue.isProcessing(),
+        isPresentationBusy: () => queue.isPresentationBusy(),
+        isPhaseBannerActive: () => queue.isPhaseBannerActive(),
+        onIdle: () => queue.onIdle(),
         markOpponentThinking: (a, s) => queue.markOpponentThinking(a, s),
         syncPendingPlacements: () => queue.syncPendingPlacements(),
         syncPendingDirectHealth: () => queue.syncPendingDirectHealth(),

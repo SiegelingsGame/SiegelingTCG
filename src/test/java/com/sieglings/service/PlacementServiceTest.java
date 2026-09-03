@@ -6,9 +6,11 @@ import com.sieglings.model.Notch;
 import com.sieglings.model.Player;
 import com.sieglings.model.SieglingCard;
 import com.sieglings.model.enums.Element;
+import com.sieglings.model.enums.ElementalAffliction;
 import com.sieglings.model.enums.NotchDirection;
 import com.sieglings.model.enums.Rarity;
 import com.sieglings.model.enums.Row;
+import com.sieglings.model.enums.StatusEffect;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -81,6 +83,44 @@ class PlacementServiceTest {
         assertEquals(3, evolved.getPermanentHealthBoost());
         assertEquals(17, evolved.getEffectiveMaxHealth());
         assertEquals(13, evolved.getCurrentHealth(), "Evolution should preserve the actual damage taken before evolving.");
+    }
+
+    @Test
+    void evolutionCarriesBadgesForwardInsteadOfCleansingThem() {
+        SieglingCard base = siegling(
+                "base-badged",
+                Element.ICE,
+                List.of(new Notch(NotchDirection.RIGHT, Element.ICE))
+        );
+        SieglingCard evolvedCard = siegling(
+                "stage2-badged",
+                Element.ICE,
+                List.of(new Notch(NotchDirection.RIGHT, Element.ICE))
+        );
+        evolvedCard.setEvolvesFromId("base-badged");
+
+        CardInstance existing = new CardInstance(base.copy(), 1, 1, true);
+        existing.addAfflictionStacks(ElementalAffliction.BURN, 3, 5);
+        existing.addAfflictionStacks(ElementalAffliction.SOAK, 2, 5);
+        existing.setChillFrozen(true);
+        existing.getStatusEffects().add(StatusEffect.FREEZE);
+        existing.addShield(4);
+        existing.addDamageBuff(2);
+
+        CardInstance evolved = placementService.createPlacedInstance(existing, evolvedCard.copy(), true, 1, 1);
+
+        assertEquals(3, evolved.getAfflictionStacks(ElementalAffliction.BURN));
+        assertEquals(2, evolved.getAfflictionStacks(ElementalAffliction.SOAK));
+        assertTrue(evolved.isChillFrozen(), "Evolving must not thaw a Chill freeze.");
+        assertTrue(evolved.isFrozen());
+        assertEquals(4, evolved.getTemporaryShield());
+        assertEquals(2, evolved.getTemporaryDamageBuff());
+        assertTrue(evolved.getStatusEffects().contains(StatusEffect.HEALTH_BOOST));
+        assertTrue(evolved.getStatusEffects().contains(StatusEffect.DAMAGE_BOOST));
+
+        // Copied, not shared: burning off the old instance must not touch the new one.
+        existing.clearAllAfflictions();
+        assertEquals(3, evolved.getAfflictionStacks(ElementalAffliction.BURN));
     }
 
     @Test

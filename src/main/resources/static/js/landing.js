@@ -30,11 +30,52 @@
         return ELEMENT_SVG[String(element).toUpperCase()] || ELEMENT_SVG.NEUTRAL;
     }
 
+    // WebP delivery (self-contained; the landing page loads neither game.js nor
+    // card-binder-visual.js). The legendary art is the heaviest thing here —
+    // ~2.5 MB as PNG against ~0.5 MB as WebP — so prefer the twin and revert to
+    // the original on any load error.
+    let __landingWebp = null;
+    function landingWebpSupported() {
+        if (__landingWebp !== null) {
+            return __landingWebp;
+        }
+        try {
+            const c = document.createElement('canvas');
+            __landingWebp = !!(c.getContext && c.getContext('2d'))
+                && c.toDataURL('image/webp').indexOf('data:image/webp') === 0;
+        } catch (e) {
+            __landingWebp = false;
+        }
+        return __landingWebp;
+    }
+    function landingImgAttrs(url) {
+        const original = String(url || '');
+        const preferred = landingWebpSupported()
+            ? original.replace(/^(\/(?:img|assets)\/[^?#]+)\.(png|jpe?g)(\?[^#]*)?$/i, '$1.webp$3')
+            : original;
+        if (preferred === original) {
+            return `src="${escapeAttr(original)}"`;
+        }
+        return `src="${escapeAttr(preferred)}" data-img-fallback="${escapeAttr(original)}" onerror="landingWebpFallback(this)"`;
+    }
+    if (typeof window !== 'undefined' && !window.landingWebpFallback) {
+        window.landingWebpFallback = function (img) {
+            if (!img) {
+                return;
+            }
+            const fallback = img.getAttribute('data-img-fallback');
+            img.onerror = null;
+            if (fallback && img.getAttribute('src') !== fallback) {
+                img.setAttribute('src', fallback);
+            }
+        };
+    }
+
     const FEATURED_SIEGELINGS = [
-        { name: 'Pylord',       element: 'FIRE',  art: '/img/legendary/legendary-fire.png',  model: '/assets/models/Model_Pylord.fbx' },
-        { name: 'Glaciemperor', element: 'ICE',   art: '/img/legendary/legendary-ice.png',   model: '/assets/models/Model_Glaciemperor.fbx' },
-        { name: 'Aerovane',     element: 'WIND',  art: '/img/legendary/legendary-wind.png',  model: '/assets/models/Aerovane.fbx' },
-        { name: 'Gymstone',     element: 'EARTH', art: '/img/legendary/legendary-earth.png', model: '/assets/models/Model_Gymstone.fbx' },
+        { name: 'Pylord',       element: 'FIRE',  art: '/img/legendary/legendary-fire.png',  model: '/assets/models/Model_Pylord.fbx', description: 'A crown-forged fire titan that turns every linked ember into a decisive opening.' },
+        { name: 'Glaciemperor', element: 'ICE',   art: '/img/legendary/legendary-ice.png',   model: '/assets/models/Model_Glaciemperor.fbx', description: 'An ancient ruler of the frostbound reaches, patient enough to freeze an entire board in place.' },
+        { name: 'Aerovane',     element: 'WIND',  art: '/img/legendary/legendary-wind.png',  model: '/assets/models/Aerovane.fbx', description: 'A skyborne tactician whose shifting currents reward players who never stand still.' },
+        { name: 'Gymstone',     element: 'EARTH', art: '/img/legendary/legendary-earth.png', model: '/assets/models/Model_Gymstone.fbx', description: 'A living fortress of stone and root, built to hold the field when the battle turns.' },
     ];
 
     const FLAVOR_LINES = [
@@ -49,33 +90,167 @@
     function renderCreatureGrid() {
         const grid = document.getElementById('creatureGrid');
         if (!grid) return;
-        const html = FEATURED_SIEGELINGS.map((s) => {
+        const html = FEATURED_SIEGELINGS.map((s, index) => {
             const elKey = String(s.element).toLowerCase();
-            const hasModel = Boolean(s.model);
-            const portrait = hasModel
-                ? `<div class="creature-portrait creature-model-viewport" data-model-viewport data-active-element="${elKey}" aria-hidden="true">
-                        <canvas aria-label="Animated ${escapeAttr(s.name)} model viewport"></canvas>
-                        <img class="creature-model-poster" src="${escapeAttr(s.art)}" alt="" loading="lazy">
-                        <div class="legendary-loading">Summoning model</div>
-                   </div>`
-                : `<div class="creature-portrait" aria-hidden="true">
-                        <img src="${escapeAttr(s.art)}" alt="" loading="lazy">
-                   </div>`;
             return `
-                <button class="creature-card" type="button" data-element="${elKey}"
-                         data-name="${escapeAttr(s.name)}" data-art="${escapeAttr(s.art)}" data-model="${escapeAttr(s.model || '')}"
-                         aria-label="Show ${escapeAttr(s.name)} in the legendary viewport"
+                <button class="legendary-selector${index === 0 ? ' is-selected' : ''}" type="button" data-featured-index="${index}"
+                         aria-label="Show ${escapeAttr(s.name)}, legendary ${escapeAttr(s.element)} Siegling"
+                         aria-pressed="${index === 0 ? 'true' : 'false'}"
                          style="--creature-color: var(--element-${elKey}); --creature-glow: var(--element-${elKey}-glow, rgba(255,255,255,0.4))">
-                    ${portrait}
-                    <div class="creature-name">${escapeHtml(s.name)}</div>
-                    <div class="creature-card-footer">
-                        <span class="creature-element">${s.element}</span>
-                    </div>
+                    <span class="legendary-selector-notch" aria-hidden="true">${getElementSvg(s.element)}</span>
+                    <span class="legendary-selector-name">${escapeHtml(s.name)}</span>
+                    <span class="legendary-selector-element">${escapeHtml(s.element)}</span>
                 </button>
             `;
         }).join('');
         grid.innerHTML = html;
+        grid.querySelectorAll('[data-featured-index]').forEach((button) => {
+            button.addEventListener('click', () => {
+                document.dispatchEvent(new CustomEvent('sieglings:featured-legendary-select', {
+                    detail: { index: Number(button.dataset.featuredIndex) }
+                }));
+            });
+        });
         document.dispatchEvent(new CustomEvent('sieglings:legendary-grid-rendered'));
+    }
+
+    function rosterDescription(card) {
+        const direct = String(card.description || '').trim();
+        if (direct) return direct;
+        const ability = card.ability?.description || card.abilities?.[0]?.description;
+        if (ability) return String(ability);
+        const move = card.moves?.find((entry) => entry && entry.description)?.description;
+        if (move) return String(move);
+        return `A ${String(card.element || 'neutral').toLowerCase()} Siegling ready to shape your next battle.`;
+    }
+
+    function normalizeRosterCard(card) {
+        const element = String(card.element || 'NEUTRAL').toUpperCase();
+        return {
+            name: String(card.name || 'Unknown Siegling'),
+            element,
+            art: String(card.cardArtUrl || ''),
+            description: rosterDescription(card)
+        };
+    }
+
+    // The full roster comes from the same live catalog used by the deck builder.
+    // The legendary roster remains hand-curated below so it stays a distinct section.
+    async function loadRosterEntries() {
+        try {
+            const response = await fetch('/api/game/options', { credentials: 'same-origin' });
+            if (!response.ok) throw new Error(`Catalog request failed (${response.status})`);
+            const payload = await response.json();
+            const cards = Array.isArray(payload?.cardCatalog) ? payload.cardCatalog : [];
+            const entries = cards
+                .filter((card) => String(card?.type || '').toUpperCase() === 'SIEGLING' && String(card?.cardArtUrl || '').trim())
+                .map(normalizeRosterCard);
+            if (entries.length) return entries;
+        } catch (_ignored) {
+            // A static preview or an unavailable API still presents the curated fallback.
+        }
+        return FEATURED_SIEGELINGS.map((entry) => ({ ...entry }));
+    }
+
+    async function bindRosterRotator() {
+        const host = document.getElementById('rosterRotator');
+        if (!host) return;
+        const entries = await loadRosterEntries();
+        if (!entries.length) return;
+        let activeIndex = 0;
+        let interval = null;
+        const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        function render(index) {
+            activeIndex = (index + entries.length) % entries.length;
+            const entry = entries[activeIndex];
+            const element = String(entry.element || 'NEUTRAL').toLowerCase();
+            host.style.setProperty('--roster-color', `var(--element-${element}, #aeeaff)`);
+            host.style.setProperty('--roster-glow', `var(--element-${element}-glow, rgba(92, 205, 255, .38))`);
+            host.innerHTML = `
+                <article class="roster-slide" aria-live="polite">
+                    <div class="roster-slide-art"><img ${landingImgAttrs(entry.art)} alt="${escapeAttr(entry.name)}, ${escapeAttr(entry.element)} Siegling" loading="eager"></div>
+                    <div class="roster-slide-copy">
+                        <span class="roster-element">Siegling · ${escapeHtml(entry.element)}</span>
+                        <h3>${escapeHtml(entry.name)}</h3>
+                        <p>${escapeHtml(entry.description)}</p>
+                        <div class="roster-controls" aria-label="Siegling roster controls">
+                            <button class="roster-control" type="button" data-roster-prev aria-label="Previous Siegling">←</button>
+                            <button class="roster-control" type="button" data-roster-next aria-label="Next Siegling">→</button>
+                        </div>
+                    </div>
+                    <div class="roster-progress" aria-label="Current roster position"><span>${activeIndex + 1}</span> / ${entries.length}</div>
+                </article>`;
+            host.querySelector('[data-roster-prev]')?.addEventListener('click', () => render(activeIndex - 1));
+            host.querySelector('[data-roster-next]')?.addEventListener('click', () => render(activeIndex + 1));
+        }
+        function stop() { if (interval) { window.clearInterval(interval); interval = null; } }
+        function start() { if (!reducedMotion && !interval && entries.length > 1) interval = window.setInterval(() => render(activeIndex + 1), 5600); }
+        host.addEventListener('pointerenter', stop);
+        host.addEventListener('pointerleave', start);
+        host.addEventListener('focusin', stop);
+        host.addEventListener('focusout', () => window.setTimeout(() => { if (!host.contains(document.activeElement)) start(); }, 0));
+        render(0);
+        start();
+    }
+
+    // The spotlight gives the legendary roster a narrative, rotating treatment
+    // while retaining the browseable card grid beneath it.
+    function bindFeaturedRotator() {
+        const host = document.getElementById('featuredRotator');
+        if (!host || !FEATURED_SIEGELINGS.length) return;
+        let activeIndex = 0;
+
+        function render(index) {
+            activeIndex = (index + FEATURED_SIEGELINGS.length) % FEATURED_SIEGELINGS.length;
+            const entry = FEATURED_SIEGELINGS[activeIndex];
+            const element = entry.element.toLowerCase();
+            host.style.setProperty('--feature-color', `var(--element-${element})`);
+            host.style.setProperty('--feature-glow', `var(--element-${element}-glow, rgba(117, 218, 255, .4))`);
+            host.innerHTML = `
+                <article class="featured-slide" aria-live="polite">
+                    <div class="featured-slide-art featured-model-card" data-element="${escapeAttr(element)}" data-model="${escapeAttr(entry.model || '')}">
+                        <div class="featured-model-viewport" data-model-viewport data-active-element="${escapeAttr(element)}">
+                            <canvas aria-label="Animated ${escapeAttr(entry.name)} model viewport"></canvas>
+                            <img class="featured-model-poster" ${landingImgAttrs(entry.art)} alt="${escapeAttr(entry.name)}, legendary ${escapeAttr(entry.element)} Siegling" loading="eager">
+                            <div class="legendary-loading">Summoning model</div>
+                        </div>
+                    </div>
+                    <div class="featured-slide-copy">
+                        <span class="featured-element">Legendary · ${escapeHtml(entry.element)}</span>
+                        <h3>${escapeHtml(entry.name)}</h3>
+                        <p>${escapeHtml(entry.description)}</p>
+                        <div class="featured-controls" aria-label="Featured Siegeling controls">
+                            <button class="featured-control" type="button" data-rotator-prev aria-label="Previous featured Siegeling">←</button>
+                            <button class="featured-control" type="button" data-rotator-next aria-label="Next featured Siegeling">→</button>
+                        </div>
+                    </div>
+                </article>`;
+            host.querySelector('[data-rotator-prev]')?.addEventListener('click', () => render(activeIndex - 1));
+            host.querySelector('[data-rotator-next]')?.addEventListener('click', () => render(activeIndex + 1));
+            document.querySelectorAll('[data-featured-index]').forEach((button) => {
+                const selected = Number(button.dataset.featuredIndex) === activeIndex;
+                button.classList.toggle('is-selected', selected);
+                button.setAttribute('aria-pressed', String(selected));
+            });
+            document.dispatchEvent(new CustomEvent('sieglings:featured-legendary-rendered'));
+        }
+
+        document.addEventListener('sieglings:featured-legendary-select', (event) => render(Number(event.detail?.index) || 0));
+        render(0);
+    }
+
+    function bindLandingFab() {
+        const nav = document.querySelector('.landing-fab');
+        const toggle = nav?.querySelector('.landing-fab-toggle');
+        const menu = nav?.querySelector('.landing-fab-menu');
+        if (!nav || !toggle || !menu) return;
+        function close() { menu.hidden = true; toggle.setAttribute('aria-expanded', 'false'); }
+        function open() { menu.hidden = false; toggle.setAttribute('aria-expanded', 'true'); }
+        toggle.addEventListener('click', () => menu.hidden ? open() : close());
+        menu.querySelectorAll('a').forEach((link) => link.addEventListener('click', close));
+        document.addEventListener('click', (event) => { if (!nav.contains(event.target)) close(); });
+        document.addEventListener('keydown', (event) => { if (event.key === 'Escape') close(); });
     }
 
     function escapeHtml(value) {
@@ -449,6 +624,9 @@
 
     function init() {
         renderCreatureGrid();
+        bindRosterRotator();
+        bindFeaturedRotator();
+        bindLandingFab();
         bindParallax();
         bindTrailerModal();
         bindLoginModal();

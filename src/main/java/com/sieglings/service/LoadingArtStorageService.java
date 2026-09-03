@@ -52,6 +52,7 @@ public class LoadingArtStorageService {
     private final String storageBucket;
     private final String storageProjectId;
     private final String storageServiceAccountPath;
+    private final boolean hostedRuntime;
     private volatile StorageClientContext storageContext;
     private volatile boolean storageInitializationAttempted;
     private volatile String storageInitializationError;
@@ -64,11 +65,23 @@ public class LoadingArtStorageService {
             @Value("${app.loading-art.storage-project-id:}") String storageProjectId,
             @Value("${app.loading-art.storage-service-account-path:}") String storageServiceAccountPath
     ) {
+        this(objectMapper, cloudStorageEnabled, storageBucket, storageProjectId, storageServiceAccountPath, isHostedRuntime());
+    }
+
+    LoadingArtStorageService(
+            ObjectMapper objectMapper,
+            boolean cloudStorageEnabled,
+            String storageBucket,
+            String storageProjectId,
+            String storageServiceAccountPath,
+            boolean hostedRuntime
+    ) {
         this.objectMapper = objectMapper;
         this.cloudStorageEnabled = cloudStorageEnabled;
         this.storageBucket = firstNonBlank(storageBucket, System.getenv("STORAGE_BUCKET"), DEFAULT_BUCKET);
         this.storageProjectId = storageProjectId == null ? "" : storageProjectId.trim();
         this.storageServiceAccountPath = storageServiceAccountPath == null ? "" : storageServiceAccountPath.trim();
+        this.hostedRuntime = hostedRuntime;
     }
 
     public Path getArtDirectory() {
@@ -127,6 +140,9 @@ public class LoadingArtStorageService {
         StorageClientContext context = ensureCloudStorageInitialized();
         if (context != null) {
             return saveCloudStorageArt(context, baseName, extension, file);
+        }
+        if (hostedRuntime) {
+            throw new IOException(hostedStorageUnavailableMessage());
         }
         return saveLocalArt(baseName, extension, file);
     }
@@ -187,23 +203,34 @@ public class LoadingArtStorageService {
         if (!cloudStorageEnabled) {
             return null;
         }
-        if (storageContext != null || storageInitializationAttempted) {
+        if (storageContext != null || (storageInitializationAttempted && !hostedRuntime)) {
             return storageContext;
         }
         synchronized (this) {
-            if (storageContext != null || storageInitializationAttempted) {
+            if (storageContext != null || (storageInitializationAttempted && !hostedRuntime)) {
                 return storageContext;
             }
-            storageInitializationAttempted = true;
             try {
                 storageContext = createCloudStorageContext();
+                storageInitializationAttempted = true;
                 storageInitializationError = null;
             } catch (Exception ex) {
                 storageInitializationError = ex.getMessage();
                 storageContext = null;
+                storageInitializationAttempted = !hostedRuntime;
             }
             return storageContext;
         }
+    }
+
+    private String hostedStorageUnavailableMessage() {
+        if (!cloudStorageEnabled) {
+            return "Cloud loading art storage is disabled in the hosted runtime.";
+        }
+        String detail = storageInitializationError == null || storageInitializationError.isBlank()
+                ? ""
+                : " " + storageInitializationError;
+        return "Cloud loading art storage is unavailable; refusing to save to ephemeral local disk." + detail;
     }
 
     private StorageClientContext createCloudStorageContext() throws IOException {
@@ -377,6 +404,14 @@ public class LoadingArtStorageService {
             }
         }
         return null;
+    }
+
+    private static boolean isHostedRuntime() {
+        return firstNonBlank(
+                System.getenv("K_SERVICE"),
+                System.getenv("GAE_SERVICE"),
+                System.getenv("FUNCTION_TARGET")
+        ) != null;
     }
 
     private record StorageClientContext(Storage storage, String bucketName) {}

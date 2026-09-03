@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Arena Mobile Layout Fixture</title>
+    <link rel="stylesheet" href="/css/home.css?v=121">
+</head>
+<body>
+<div class="home-shell">
+    <nav class="home-nav">
+        <a class="brand" href="#">
+            <span class="brand-mark"></span>
+            <span><strong>Siegelings TCG</strong><small>Card Binder Home</small></span>
+        </a>
+        <button class="hud-notif-btn" type="button" aria-label="Notifications">!</button>
+        <div class="nav-tabs">
+            <a href="#">Home</a><a href="#">Play</a><a href="#">Keep</a><a href="#">Cards</a>
+            <a href="#">Decks</a><a class="active" href="#">Social</a><a href="#">Profile</a><a href="#">Shop</a>
+        </div>
+        <div class="nav-actions">
+            <span class="gold-pill">809 Siegecoins</span>
+            <button class="ghost-btn" type="button">Filters</button>
+            <button class="primary-btn" type="button">Play</button>
+            <button class="ghost-btn" type="button">Friends</button>
+            <button class="ghost-btn" type="button">Join With Code</button>
+            <button class="ghost-btn" type="button">Log Out</button>
+        </div>
+        <button class="hud-minimize-btn" type="button" aria-label="Minimize HUD">⌄</button>
+    </nav>
+
+    <main class="home-main">
+        <section class="browser-panel panel lobby-section" id="lobbySection">
+            <div class="lobby-waiting-root" id="lobbyWaitingRoot">
+                <div class="lobby-waiting-head">
+                    <div>
+                        <span class="eyebrow">1v1 Waiting Room</span>
+                        <h1>My Arena</h1>
+                        <span class="social-muted-inline">Room 9DXNQ3 · Waiting for opponent to join</span>
+                    </div>
+                    <span class="lobby-status-pill">1 / 2 players</span>
+                </div>
+                <div class="lobby-waiting-grid">
+                    <section class="lobby-panel">
+                        <div class="social-panel-head"><div><span class="eyebrow">Players</span><h2>Lobby roster</h2></div></div>
+                        <div class="lobby-players">
+                            <article class="lobby-player-card"><strong>Roc</strong><span>Choosing loadout</span></article>
+                            <article class="lobby-player-card empty"><strong>Waiting for player...</strong><span>Invite a friend or share your link</span></article>
+                        </div>
+                        <form class="lobby-loadout-form">
+                            <label>Deck<select class="search-input"><option>Blazing Core With A Long Deck Name</option></select></label>
+                            <label>Knight<select class="search-input"><option>Pyla The Flame Commander</option></select></label>
+                        </form>
+                        <div class="lobby-actions-row">
+                            <button class="primary-btn" type="button">Start Match</button>
+                            <button class="ghost-btn" type="button">Back to Lobbies</button>
+                            <button class="ghost-btn" type="button">Close Lobby</button>
+                        </div>
+                    </section>
+                    <section class="lobby-panel">
+                        <div class="social-panel-head"><div><span class="eyebrow">Lobby Chat</span><h2>Say hello</h2></div></div>
+                        <div class="lobby-chat-log"><div class="lobby-chat-line system">Say hello while you wait.</div></div>
+                        <form class="lobby-chat-compose">
+                            <input class="search-input" type="text" placeholder="Message the lobby">
+                            <button class="primary-btn" type="submit">Send</button>
+                        </form>
+                        <p class="social-muted-inline" id="lobbyInviteLink">Invite link: <a href="#">https://siegelingstcgtesting.web.app/social/lobby/9DXNQ3</a></p>
+                    </section>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
+<script>
+window.render_game_to_text = function () {
+    return JSON.stringify({
+        screen: 'lobbyWaitingRoom',
+        room: '9DXNQ3',
+        players: ['Roc', 'Open slot'],
+        controls: ['Start Match', 'Back to Lobbies', 'Close Lobby', 'Send']
+    });
+};
+</script>
+</body>
+</html>

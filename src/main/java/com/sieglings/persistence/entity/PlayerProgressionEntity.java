@@ -21,6 +21,8 @@ public class PlayerProgressionEntity {
     private Map<String, Integer> trainerPoints = new LinkedHashMap<>();
     private String starterPackId;
     private boolean tutorialCompleted;
+    /** Siege tutorial is a separate first-time claim from the Arena tutorial above. */
+    private boolean siegeTutorialCompleted;
     private List<String> rewardedMatchIds = new ArrayList<>();
     private List<String> purchasedDeckIds = new ArrayList<>();
     private List<String> purchasedDailyOfferIds = new ArrayList<>();
@@ -34,6 +36,8 @@ public class PlayerProgressionEntity {
     private List<String> holographicCardIds = new ArrayList<>();
     /** SiegeKnight ids unlocked for expedition warband selection (gold purchase). */
     private List<String> siegeUnlockedKnights = new ArrayList<>();
+    /** Siegeling card ids unlocked as expedition starters by finding them on a run. */
+    private List<String> siegeUnlockedSieglings = new ArrayList<>();
     /** Lifetime Siege / Adventure expedition stats, powering siege achievements and titles. */
     private int siegeRuns;
     private int siegeWins;
@@ -81,6 +85,8 @@ public class PlayerProgressionEntity {
 
     public boolean isTutorialCompleted() { return tutorialCompleted; }
     public void setTutorialCompleted(boolean tutorialCompleted) { this.tutorialCompleted = tutorialCompleted; }
+    public boolean isSiegeTutorialCompleted() { return siegeTutorialCompleted; }
+    public void setSiegeTutorialCompleted(boolean siegeTutorialCompleted) { this.siegeTutorialCompleted = siegeTutorialCompleted; }
     public List<String> getRewardedMatchIds() { return rewardedMatchIds; }
     public void setRewardedMatchIds(List<String> rewardedMatchIds) {
         this.rewardedMatchIds = rewardedMatchIds == null ? new ArrayList<>() : new ArrayList<>(rewardedMatchIds);
@@ -118,6 +124,10 @@ public class PlayerProgressionEntity {
     public List<String> getSiegeUnlockedKnights() { return siegeUnlockedKnights; }
     public void setSiegeUnlockedKnights(List<String> siegeUnlockedKnights) {
         this.siegeUnlockedKnights = siegeUnlockedKnights == null ? new ArrayList<>() : new ArrayList<>(siegeUnlockedKnights);
+    }
+    public List<String> getSiegeUnlockedSieglings() { return siegeUnlockedSieglings; }
+    public void setSiegeUnlockedSieglings(List<String> siegeUnlockedSieglings) {
+        this.siegeUnlockedSieglings = siegeUnlockedSieglings == null ? new ArrayList<>() : new ArrayList<>(siegeUnlockedSieglings);
     }
     public int getSiegeRuns() { return siegeRuns; }
     public void setSiegeRuns(int siegeRuns) { this.siegeRuns = Math.max(0, siegeRuns); }

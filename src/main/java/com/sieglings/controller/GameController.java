@@ -1,5 +1,6 @@
 package com.sieglings.controller;
 
+import com.sieglings.diagnostics.FirestoreReadMetrics;
 import com.sieglings.model.Ability;
 import com.sieglings.model.AbilityEffectKeys;
 import com.sieglings.model.BattleAbilityOption;
@@ -13,6 +14,7 @@ import com.sieglings.model.SieglingCard;
 import com.sieglings.model.SpellCard;
 import com.sieglings.model.TrapCard;
 import com.sieglings.model.TrainerCard;
+import com.sieglings.model.enums.ElementalAffliction;
 import com.sieglings.model.enums.Phase;
 import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.MatchHistoryEntity;
@@ -108,6 +110,46 @@ public class GameController {
         return resp;
     }
 
+    /**
+     * Diagnostic: where does /api/game/options actually spend its time?
+     *
+     * Builds the same payload twice in one request and reports elapsed time plus
+     * the Firestore reads each build performed. The second build runs while every
+     * catalog TTL is certainly warm, so a second pass that still reads is a cache
+     * that is not holding. Read-only, and it returns counters and timings only.
+     */
+    @GetMapping("/api/game/options-timing")
+    @ResponseBody
+    public Map<String, Object> getOptionsTiming(@RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+        Map<String, Object> resp = new LinkedHashMap<>();
+
+        Map<String, Map<String, Long>> beforeFirst = FirestoreReadMetrics.snapshot();
+        long firstStart = System.nanoTime();
+        Map<String, Object> firstPayload = getOptions(authorizationHeader);
+        long firstMillis = (System.nanoTime() - firstStart) / 1_000_000L;
+        Map<String, Map<String, Long>> afterFirst = FirestoreReadMetrics.snapshot();
+
+        long secondStart = System.nanoTime();
+        getOptions(authorizationHeader);
+        long secondMillis = (System.nanoTime() - secondStart) / 1_000_000L;
+        Map<String, Map<String, Long>> afterSecond = FirestoreReadMetrics.snapshot();
+
+        Map<String, Object> first = new LinkedHashMap<>();
+        first.put("elapsedMillis", firstMillis);
+        first.put("firestore", FirestoreReadMetrics.delta(beforeFirst, afterFirst));
+        resp.put("firstBuild", first);
+
+        Map<String, Object> second = new LinkedHashMap<>();
+        second.put("elapsedMillis", secondMillis);
+        second.put("firestore", FirestoreReadMetrics.delta(afterFirst, afterSecond));
+        resp.put("secondBuild", second);
+
+        Object catalog = firstPayload.get("cardCatalog");
+        resp.put("cardCatalogSize", catalog instanceof List<?> list ? list.size() : -1);
+        resp.put("firestoreReady", cardOverrideStorageService.isFirestoreReady());
+        return resp;
+    }
+
     @GetMapping("/api/game/catalog-version")
     @ResponseBody
     public Map<String, Object> getCatalogVersion() {
@@ -176,7 +218,10 @@ public class GameController {
         try {
             String roomId = req == null ? null : (String) req.get("roomId");
             String playerName = req == null ? null : (String) req.get("playerName");
-            GameService.StartOptions options = parseStartOptions(req, "deck_water_wind", "trainer06");
+            // Fallback deck must be one of the always-free main-element decks —
+            // Stormtide (Water/Wind) is now a locked deck for most accounts, so a
+            // join that omits its deck would be rejected by the unlock check.
+            GameService.StartOptions options = parseStartOptions(req, "deck_fire_earth", "trainer06");
             AccountUser user = accountService.findUser(authorizationHeader);
             validateStartOwnership(user, options);
             // Battle is a flat-power mode: SiegeKnight levels do not apply here. The
@@ -312,23 +357,26 @@ public class GameController {
     public Map<String, Object> newGame(@RequestBody(required = false) Map<String, Object> req,
                                        @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
         try {
-            GameService.StartOptions options = parseStartOptions(req, "deck_fire_earth", "trainer05");
             AccountUser user = accountService.findUser(authorizationHeader);
-            validateStartOwnership(user, options);
-            // Battle is a flat-power mode: SiegeKnight levels do not apply here. The
-            // leveling glue (withPlayerTrainerLevel) is kept for the upcoming Siege
-            // roguelike mode, where levels will carry into every fight.
             Object rawPlayerName = req == null ? null : req.get("playerName");
             String playerName = rawPlayerName == null ? null : String.valueOf(rawPlayerName);
-            GameService.SoloHandle handle = gameService.newSoloGame(options,
-                    user == null && (playerName == null || playerName.isBlank()) ? "Guest" : playerName);
-            attachAuthenticatedSoloUser(handle.state(), authorizationHeader);
-            // Tutorial matches face a 10 HP enemy so new players can finish
-            // the guided objectives quickly.
+            String resolvedName = user == null && (playerName == null || playerName.isBlank()) ? "Guest" : playerName;
+            // Tutorial matches ignore the submitted loadout entirely: both sides are
+            // pinned to the free starter knight/deck so the lesson is identical on
+            // every replay, which also means there is nothing to ownership-check.
             boolean tutorial = req != null && Boolean.TRUE.equals(req.get("tutorial"));
+            GameService.SoloHandle handle;
             if (tutorial) {
-                handle.state().getEnemy().setHealth(10);
+                handle = gameService.newTutorialGame(resolvedName);
+            } else {
+                GameService.StartOptions options = parseStartOptions(req, "deck_fire_earth", "trainer05");
+                validateStartOwnership(user, options);
+                // Battle is a flat-power mode: SiegeKnight levels do not apply here. The
+                // leveling glue (withPlayerTrainerLevel) is kept for the upcoming Siege
+                // roguelike mode, where levels will carry into every fight.
+                handle = gameService.newSoloGame(options, resolvedName);
             }
+            attachAuthenticatedSoloUser(handle.state(), authorizationHeader);
             Map<String, Object> resp = new LinkedHashMap<>(buildStateResponse(handle.state(), true, null));
             resp.put("soloToken", handle.token());
             if (tutorial) {
@@ -858,13 +906,19 @@ public class GameController {
         resp.put("playerPlacementUsed", gs.isSieglingSetupBudgetExhausted(viewerIsPlayer));
         resp.put("setupSieglingActionsUsed", gs.getSieglingSetupActionsUsed(viewerIsPlayer));
         resp.put("setupSieglingActionBudget", gs.getSieglingSetupActionBudget(viewerIsPlayer));
-        resp.put("mulligan", Map.of(
-                "active", mulliganActive,
-                "youPending", viewerPendingMulligan,
-                "opponentPending", opponentPendingMulligan,
-                "youUsed", gs.hasUsedMulligan(viewerIsPlayer),
-                "opponentUsed", gs.hasUsedMulligan(!viewerIsPlayer)
-        ));
+        Map<String, Object> mulligan = new LinkedHashMap<>();
+        mulligan.put("active", mulliganActive);
+        mulligan.put("youPending", viewerPendingMulligan);
+        mulligan.put("opponentPending", opponentPendingMulligan);
+        mulligan.put("youUsed", gs.hasUsedMulligan(viewerIsPlayer));
+        mulligan.put("opponentUsed", gs.hasUsedMulligan(!viewerIsPlayer));
+        if (gs.isTutorialMatch()) {
+            // Scripted opening: only one practice slot may be redrawn; the rest stay locked.
+            mulligan.put("tutorialScripted", true);
+            mulligan.put("allowedIndices", List.of(GameService.TUTORIAL_SCRIPTED_MULLIGAN_INDEX));
+            resp.put("tutorialMode", true);
+        }
+        resp.put("mulligan", mulligan);
 
         CardInstance pendingAttacker = gameService.getPendingBattleAttacker(gs);
         if (pendingAttacker != null && pendingAttacker.isOwner() == viewerIsPlayer) {
@@ -1149,6 +1203,16 @@ public class GameController {
         info.put("shadowExternal", energy.shadowExternal());
         info.put("electricInternal", energy.electricInternal());
         info.put("electricExternal", energy.electricExternal());
+        // Link-free energy from energy_boost passives, keyed by element name so the energy
+        // panel can show why a pool is bigger than its links and sockets explain.
+        Map<String, Object> passiveEnergy = new LinkedHashMap<>();
+        energy.passiveEnergy().forEach((element, amount) -> passiveEnergy.put(element.name(), amount));
+        info.put("passiveEnergy", passiveEnergy);
+        // Overcharge: the live surge from an active energy buff, which the HUD lights up on.
+        Map<String, Object> overchargeEnergy = new LinkedHashMap<>();
+        player.getOverchargeEnergyTotals().forEach((element, amount) -> overchargeEnergy.put(element.name(), amount));
+        info.put("overchargeEnergy", overchargeEnergy);
+        info.put("overcharged", player.isOvercharged());
         info.put("comboTwoCount", energy.comboTwoCount());
         info.put("comboThreeCount", energy.comboThreeCount());
         info.put("comboFourCount", energy.comboFourCount());
@@ -1186,21 +1250,7 @@ public class GameController {
 
     /** Ordered id+count summary of a preset deck so clients can preview its contents. */
     private List<Map<String, Object>> deckCardCounts(String deckId) {
-        try {
-            List<Card> cards = gameService.buildDeckById(deckId);
-            Map<String, Long> counts = new LinkedHashMap<>();
-            for (Card card : cards) {
-                counts.merge(card.getId(), 1L, Long::sum);
-            }
-            return counts.entrySet().stream().map(entry -> {
-                Map<String, Object> m = new LinkedHashMap<>();
-                m.put("id", entry.getKey());
-                m.put("count", entry.getValue());
-                return (Map<String, Object>) m;
-            }).toList();
-        } catch (RuntimeException ex) {
-            return List.of();
-        }
+        return gameService.deckCardCounts(deckId);
     }
 
     private List<Map<String, Object>> serializeCards(List<Card> cards) {
@@ -1425,6 +1475,7 @@ public class GameController {
                 m.put("spd", ci.getEffectiveSpeed());
                 m.put("battlePhasesSeen", ci.getBattlePhasesSeen());
                 m.put("statuses", ci.getStatusEffects().stream().map(Enum::name).toList());
+                m.put("afflictions", serializeAfflictions(ci));
                 m.put("notches", serializeNotches(ci.getNotches()));
                 if (ci.getCard().isHolographic()) {
                     m.put("holographic", true);
@@ -1456,6 +1507,23 @@ public class GameController {
             ));
         }
         return serialized;
+    }
+
+    private List<Map<String, Object>> serializeAfflictions(CardInstance ci) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        if (ci == null || ci.getAfflictionStacks() == null) {
+            return out;
+        }
+        for (Map.Entry<ElementalAffliction, Integer> entry : ci.getAfflictionStacks().entrySet()) {
+            if (entry.getKey() == null || entry.getValue() == null || entry.getValue() <= 0) {
+                continue;
+            }
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("kind", entry.getKey().name());
+            row.put("stacks", entry.getValue());
+            out.add(row);
+        }
+        return out;
     }
 
     private String describeBoardDamageAbility(CardInstance ci, Ability ability) {
@@ -1579,7 +1647,16 @@ public class GameController {
             ability.put("targetType", option.getTargetType().name());
             ability.put("targetRow", option.getAbility().getTargetRow() == null ? null : option.getAbility().getTargetRow().name());
             ability.put("effectType", option.getAbility().getEffectType());
-            ability.put("effectValue", option.getAbility().getEffectValue());
+            int effectValue = option.getAbility().getEffectValue();
+            // Blind is already reflected in resolution; surface the reduced value in the panel too.
+            if (com.sieglings.model.ElementalAfflictions.isEnabled()
+                    && attacker.getAfflictionStacks(ElementalAffliction.BLIND) > 0 && effectValue > 0) {
+                effectValue = Math.max(0, effectValue - attacker.getAfflictionStacks(ElementalAffliction.BLIND));
+                if (AbilityEffectKeys.DAMAGE.equals(option.getAbility().getEffectType())) {
+                    effectValue = Math.max(1, effectValue);
+                }
+            }
+            ability.put("effectValue", effectValue);
             ability.put("requiredElement", option.getRequiredElement() == null ? null : option.getRequiredElement().name());
             ability.put("requiredEnergy", option.getRequiredEnergy());
             ability.put("affordable", option.isAffordable());
@@ -1626,12 +1703,28 @@ public class GameController {
             throw new IllegalArgumentException("You haven't unlocked that SiegeKnight yet. Pull it from a pack first.");
         }
         if (options.customDeckCards() == null || options.customDeckCards().isEmpty()) {
+            validatePremadeDeckUnlocked(user, options.playerDeckId());
             return;
         }
         if (user == null) {
             throw new IllegalArgumentException("Sign in to use custom decks.");
         }
         playerProgressionService.validateCustomDeckOwnership(user, options.customDeckCards());
+    }
+
+    /**
+     * Premade decks outside the free main-four (plus the player's starter element)
+     * have to be bought first. Guests are held to the free set — they have no
+     * starter element and nowhere to store a purchase.
+     */
+    private void validatePremadeDeckUnlocked(AccountUser user, String deckId) {
+        if (deckId == null || deckId.isBlank()) {
+            return;
+        }
+        if (!playerProgressionService.isPremadeDeckUnlockedForUser(user, deckId)) {
+            throw new IllegalArgumentException("That premade deck is locked. Unlock it for "
+                    + PlayerProgressionService.PREMADE_DECK_PRICE + " Siegecoins in Decks.");
+        }
     }
 
     private static String normalizeTrainerId(String trainerId) {

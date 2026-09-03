@@ -72,6 +72,7 @@ public class CardOverrideEditorService {
         String updatedByEmail = null;
         if (storageService.isFirestoreReady()) {
             updatedByEmail = authService.requireEditor(editorToken).email();
+            assertCatalogRevisionIsCurrent(data);
         }
         CardOverrideStorageService.LoadSnapshot currentCardSnapshot = storageService.loadSnapshot();
         PresetDeckCatalogService.LoadSnapshot currentDeckSnapshot = presetDeckCatalogService.loadSnapshot();
@@ -96,6 +97,18 @@ public class CardOverrideEditorService {
             storageService.markLivePublish(updatedByEmail);
         }
         return buildEditorState(cardSnapshot, deckSnapshot, trainerSnapshot, liveSnapshot, authService.describe(editorToken));
+    }
+
+    private void assertCatalogRevisionIsCurrent(JsonNode data) {
+        JsonNode versionNode = data == null ? null : data.get("catalogVersion");
+        if (versionNode == null || !versionNode.canConvertToLong()) {
+            throw new IllegalArgumentException("The live catalog changed or your dashboard is out of date. Reload the dashboard before publishing.");
+        }
+        long submittedVersion = versionNode.asLong();
+        long currentVersion = storageService.getCatalogRevision();
+        if (submittedVersion != currentVersion) {
+            throw new IllegalArgumentException("The live catalog changed since this dashboard loaded. Reload the latest data before publishing.");
+        }
     }
 
     public Map<String, Object> bootstrapEditor(String email, String password, String displayName) {
@@ -207,7 +220,8 @@ public class CardOverrideEditorService {
         ObjectNode live = objectMapper.createObjectNode();
         live.set("elements", objectMapper.valueToTree(liveElementCatalogService.buildEditorPayload()));
         data.set("liveElements", live);
-        data.set("packs", objectMapper.valueToTree(packCatalogService.serializePacks()));
+        // Editors need to see deactivated packs too, so they can switch them back on.
+        data.set("packs", objectMapper.valueToTree(packCatalogService.serializeAllPacks()));
         return data;
     }
 
@@ -262,6 +276,7 @@ public class CardOverrideEditorService {
     private List<Map<String, Object>> buildEffectTypes() {
         return List.of(
                 effect(AbilityEffectKeys.DAMAGE, "Damage", "Deals damage to the resolved target or targets.", List.of("SINGLE_ENEMY", "ROW_ENEMIES", "ROW_SELECT_ENEMIES", "ALL_ENEMIES", "ENEMY_PLAYER")),
+                effect(AbilityEffectKeys.CHAIN_DAMAGE, "Chain Damage", "Damages the picked target and every Siegling directly linked to it by an active notch link.", List.of("SINGLE_ENEMY", "ROW_SELECT_ENEMIES", "ALL_ENEMIES")),
                 effect(AbilityEffectKeys.PLAYER_DAMAGE, "Player Damage", "Deals direct damage to the opposing player.", List.of("ENEMY_PLAYER")),
                 effect(AbilityEffectKeys.DRAW, "Draw", "Draws cards from the user's deck equal to the effect value.", List.of("SELF")),
                 effect(AbilityEffectKeys.HEAL, "Heal", "Restores health up to the target's max health.", List.of("SINGLE_ALLY", "ALL_ALLIES", "ROW_ALLIES", "ROW_SELECT_ALLIES", "SELF")),
@@ -273,8 +288,10 @@ public class CardOverrideEditorService {
                 effect(AbilityEffectKeys.HEALTH_BOOST, "Max Health Boost", "Permanently raises current and max health.", List.of("SINGLE_ALLY", "ALL_ALLIES", "ROW_ALLIES", "ROW_SELECT_ALLIES", "PASSIVE")),
                 effect(AbilityEffectKeys.CONNECTED_ALLIES_DAMAGE_BOOST, "Connected Allies Damage Boost", "Buffs allied Sieglings that share a direct active link with the source card.", List.of("SELF")),
                 effect(AbilityEffectKeys.CONNECTED_ALLIES_HEALTH_BOOST, "Connected Allies Health Boost", "Gives directly linked allied Sieglings extra max health.", List.of("SELF")),
+                effect(AbilityEffectKeys.CONNECTED_ALLIES_HEAL, "Connected Allies Heal", "Restores current health on directly linked allied Sieglings without raising max health.", List.of("SELF")),
                 effect(AbilityEffectKeys.CONNECTED_ALLIES_SHIELD, "Connected Allies Shield", "Grants temporary shield health to directly linked allied Sieglings.", List.of("SELF")),
                 effect(AbilityEffectKeys.SPEED_BOOST, "Speed Boost", "Adds temporary speed.", List.of("SINGLE_ALLY", "ALL_ALLIES", "ROW_ALLIES", "ROW_SELECT_ALLIES", "PASSIVE")),
+                effect(AbilityEffectKeys.ENERGY_BOOST, "Energy Boost", "Generates energy with no notch link or socket needed. Pick the energy type, or leave it on Card element to generate the element of whichever card the ability names — the targeted card when it points at one, otherwise the card carrying it. Passive pays out every turn the card is on the board; an action overcharges the owner until the battle phase begins.", List.of("PASSIVE", "SELF", "SINGLE_ALLY", "ALL_ALLIES", "ROW_ALLIES", "ROW_SELECT_ALLIES")),
                 effect(AbilityEffectKeys.CONNECTED_ALLIES_SLOW, "Connected Allies Slow", "Reduces directly linked allied Sieglings' Speed by the effect value for the turn.", List.of("SELF")),
                 effect(AbilityEffectKeys.CONNECTED_ALLIES_SPEED_BOOST, "Connected Allies Speed Boost", "Gives directly linked allied Sieglings extra speed.", List.of("SELF")),
                 effect(AbilityEffectKeys.DESTROY, "Destroy", "Defeats the resolved target immediately.", List.of("SINGLE_ENEMY", "ROW_SELECT_ENEMIES")),

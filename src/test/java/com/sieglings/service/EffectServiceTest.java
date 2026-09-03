@@ -268,6 +268,71 @@ class EffectServiceTest {
     }
 
     @Test
+    void connectedAlliesHealRestoresCurrentHealthWithoutRaisingMax() {
+        GameState state = new GameState();
+        state.setPlayer(new Player("Player", true));
+        state.setEnemy(new Player("AI", false));
+        state.setCurrentPhase(Phase.BATTLE);
+
+        CardInstance source = instance("source", List.of(
+                new Notch(NotchDirection.LEFT, Element.EARTH),
+                new Notch(NotchDirection.RIGHT, Element.EARTH)
+        ), 1, 1);
+        source.setPlacementOrder(1);
+        state.setAt(true, 1, 1, source);
+
+        CardInstance linkedLeft = instance("linked-left", List.of(
+                new Notch(NotchDirection.RIGHT, Element.EARTH),
+                new Notch(NotchDirection.TOP, Element.EARTH)
+        ), 1, 0);
+        linkedLeft.setPlacementOrder(2);
+        linkedLeft.takeRawDamage(5);
+        state.setAt(true, 1, 0, linkedLeft);
+
+        CardInstance linkedRight = instance("linked-right", List.of(
+                new Notch(NotchDirection.LEFT, Element.EARTH)
+        ), 1, 2);
+        linkedRight.setPlacementOrder(3);
+        linkedRight.takeRawDamage(5);
+        state.setAt(true, 1, 2, linkedRight);
+
+        CardInstance isolated = instance("isolated", List.of(
+                new Notch(NotchDirection.TOP, Element.EARTH)
+        ), 0, 2);
+        isolated.setPlacementOrder(4);
+        isolated.takeRawDamage(5);
+        state.setAt(true, 0, 2, isolated);
+
+        CardInstance chained = instance("chained", List.of(
+                new Notch(NotchDirection.BOTTOM, Element.EARTH)
+        ), 0, 0);
+        chained.setPlacementOrder(5);
+        chained.takeRawDamage(5);
+        state.setAt(true, 0, 0, chained);
+
+        Ability mend = Ability.connectedAlliesHeal(
+                "Charge Mend",
+                "Heal connected allies for 3",
+                3
+        );
+
+        effectService.resolveAbility(state, mend, source, true, source.getBoardRow(), source.getBoardCol());
+
+        assertEquals(10, source.getCurrentHealth(), "Source card should not heal itself.");
+        assertEquals(10, source.getEffectiveMaxHealth(), "Source max Health stays unchanged.");
+        assertEquals(8, linkedLeft.getCurrentHealth(), "Linked ally should restore current HP.");
+        assertEquals(10, linkedLeft.getEffectiveMaxHealth(), "Linked ally max Health must not rise.");
+        assertEquals(8, linkedRight.getCurrentHealth(), "Linked ally should restore current HP.");
+        assertEquals(10, linkedRight.getEffectiveMaxHealth(), "Linked ally max Health must not rise.");
+        assertEquals(5, chained.getCurrentHealth(), "Indirect chain allies should stay damaged.");
+        assertEquals(10, chained.getEffectiveMaxHealth(), "Indirect chain max Health stays unchanged.");
+        assertEquals(5, isolated.getCurrentHealth(), "Unlinked ally should stay damaged.");
+        assertEquals(10, isolated.getEffectiveMaxHealth(), "Unlinked ally max Health stays unchanged.");
+        assertTrue(state.getGameLog().stream().anyMatch(line -> line.contains("heals linked-left for 3")),
+                "Heal log should use the standard heal phrasing for playback.");
+    }
+
+    @Test
     void connectedAlliesDamageBoostOnlyAffectsLinkedAllies() {
         GameState state = new GameState();
         state.setPlayer(new Player("Player", true));
@@ -741,6 +806,171 @@ class EffectServiceTest {
         assertEquals(10, back.getCurrentHealth());
     }
 
+    @Test
+    void chainDamageHitsPickedEnemyAndItsDirectlyLinkedAllies() {
+        GameState state = battleState();
+        CardInstance source = instance("source", 1, 0, true);
+        state.setAt(true, 1, 0, source);
+
+        // Enemy middle row is wired left-to-right: hub links to both neighbours.
+        CardInstance hub = enemyInstance("hub", List.of(
+                new Notch(NotchDirection.LEFT, Element.EARTH),
+                new Notch(NotchDirection.RIGHT, Element.EARTH)
+        ), 1, 1);
+        CardInstance linkedLeft = enemyInstance("linked-left", List.of(
+                new Notch(NotchDirection.RIGHT, Element.EARTH),
+                new Notch(NotchDirection.TOP, Element.EARTH)
+        ), 1, 0);
+        CardInstance linkedRight = enemyInstance("linked-right", List.of(
+                new Notch(NotchDirection.LEFT, Element.EARTH)
+        ), 1, 2);
+        // Two hops out from the hub — chain damage stops at the first ring.
+        CardInstance secondHop = enemyInstance("second-hop", List.of(
+                new Notch(NotchDirection.BOTTOM, Element.EARTH)
+        ), 0, 0);
+        CardInstance isolated = enemyInstance("isolated", List.of(
+                new Notch(NotchDirection.TOP, Element.EARTH)
+        ), 0, 2);
+        state.setAt(false, 1, 1, hub);
+        state.setAt(false, 1, 0, linkedLeft);
+        state.setAt(false, 1, 2, linkedRight);
+        state.setAt(false, 0, 0, secondHop);
+        state.setAt(false, 0, 2, isolated);
+
+        Ability arc = Ability.chainDamage(
+                "Arc Chain",
+                "Chain 3 damage to 1 enemy and its connected allies",
+                TargetType.SINGLE_ENEMY,
+                null,
+                1,
+                3
+        );
+
+        effectService.resolveAbility(state, arc, source, true, 1, 1);
+
+        assertEquals(7, hub.getCurrentHealth(), "Picked target takes the hit.");
+        assertEquals(7, linkedLeft.getCurrentHealth(), "Directly linked ally is chained.");
+        assertEquals(7, linkedRight.getCurrentHealth(), "Directly linked ally is chained.");
+        assertEquals(10, secondHop.getCurrentHealth(), "Second-degree links stay untouched.");
+        assertEquals(10, isolated.getCurrentHealth(), "Unlinked enemies stay untouched.");
+    }
+
+    @Test
+    void chainDamageAutoTargetPicksTheBusiestLinkHub() {
+        GameState state = battleState();
+        CardInstance source = instance("source", 1, 0, true);
+        state.setAt(true, 1, 0, source);
+
+        CardInstance hub = enemyInstance("hub", List.of(
+                new Notch(NotchDirection.LEFT, Element.EARTH),
+                new Notch(NotchDirection.RIGHT, Element.EARTH)
+        ), 1, 1);
+        CardInstance linkedLeft = enemyInstance("linked-left", List.of(
+                new Notch(NotchDirection.RIGHT, Element.EARTH)
+        ), 1, 0);
+        CardInstance linkedRight = enemyInstance("linked-right", List.of(
+                new Notch(NotchDirection.LEFT, Element.EARTH)
+        ), 1, 2);
+        // Weakest enemy on the board, but linked to nothing — plain damage would pick it.
+        CardInstance woundedLoner = enemyInstance("wounded-loner", List.of(), 2, 2);
+        woundedLoner.setCurrentHealth(2);
+        state.setAt(false, 1, 1, hub);
+        state.setAt(false, 1, 0, linkedLeft);
+        state.setAt(false, 1, 2, linkedRight);
+        state.setAt(false, 2, 2, woundedLoner);
+
+        Ability arc = Ability.chainDamage(
+                "Arc Chain",
+                "Chain 3 damage to 1 enemy and its connected allies",
+                TargetType.SINGLE_ENEMY,
+                null,
+                1,
+                3
+        );
+
+        effectService.resolveAbility(state, arc, source, true, -1, -1);
+
+        assertEquals(7, hub.getCurrentHealth(), "Auto-target should pick the enemy carrying the most links.");
+        assertEquals(7, linkedLeft.getCurrentHealth());
+        assertEquals(7, linkedRight.getCurrentHealth());
+        assertEquals(2, woundedLoner.getCurrentHealth(), "Unlinked weakling is not worth chaining into.");
+    }
+
+    @Test
+    void chainDamageHitsEachEnemyOnceWhenPrimaryTargetsShareLinks() {
+        GameState state = battleState();
+        CardInstance source = instance("source", 1, 0, true);
+        state.setAt(true, 1, 0, source);
+
+        CardInstance left = enemyInstance("left", List.of(
+                new Notch(NotchDirection.RIGHT, Element.EARTH)
+        ), 1, 0);
+        CardInstance middle = enemyInstance("middle", List.of(
+                new Notch(NotchDirection.LEFT, Element.EARTH),
+                new Notch(NotchDirection.RIGHT, Element.EARTH)
+        ), 1, 1);
+        CardInstance right = enemyInstance("right", List.of(
+                new Notch(NotchDirection.LEFT, Element.EARTH)
+        ), 1, 2);
+        state.setAt(false, 1, 0, left);
+        state.setAt(false, 1, 1, middle);
+        state.setAt(false, 1, 2, right);
+
+        Ability storm = Ability.chainDamage(
+                "Chain Storm",
+                "Chain 2 damage to all enemies and their connected allies",
+                TargetType.ALL_ENEMIES,
+                null,
+                0,
+                2
+        );
+
+        effectService.resolveAbility(state, storm, source, true, -1, -1);
+
+        assertEquals(8, left.getCurrentHealth(), "Overlapping chains must not double-dip.");
+        assertEquals(8, middle.getCurrentHealth(), "Overlapping chains must not double-dip.");
+        assertEquals(8, right.getCurrentHealth(), "Overlapping chains must not double-dip.");
+    }
+
+    @Test
+    void chainDamageAppliesWeaknessPerVictim() {
+        GameState state = battleState();
+        CardInstance source = instance("fire-source", Element.FIRE, 1, 0, true);
+        state.setAt(true, 1, 0, source);
+
+        CardInstance icyHub = enemyInstance("icy-hub", Element.ICE, List.of(
+                new Notch(NotchDirection.RIGHT, Element.ICE)
+        ), 1, 1);
+        CardInstance waterLink = enemyInstance("water-link", Element.WATER, List.of(
+                new Notch(NotchDirection.LEFT, Element.ICE)
+        ), 1, 2);
+        state.setAt(false, 1, 1, icyHub);
+        state.setAt(false, 1, 2, waterLink);
+
+        Ability arc = Ability.chainDamage(
+                "Arc Chain",
+                "Chain 3 damage to 1 enemy and its connected allies",
+                TargetType.SINGLE_ENEMY,
+                null,
+                1,
+                3
+        );
+
+        effectService.resolveAbility(state, arc, source, true, 1, 1);
+
+        assertEquals(6, icyHub.getCurrentHealth(), "Fire into Ice keeps the weakness bonus on the primary hit.");
+        assertEquals(7, waterLink.getCurrentHealth(), "Chained victim is scored on its own element.");
+    }
+
+    private CardInstance enemyInstance(String id, List<Notch> notches, int row, int col) {
+        return enemyInstance(id, Element.EARTH, notches, row, col);
+    }
+
+    private CardInstance enemyInstance(String id, Element element, List<Notch> notches, int row, int col) {
+        SieglingCard card = new SieglingCard(id, id, element, Rarity.COMMON, 10, 4, notches, Row.MIDDLE);
+        return new CardInstance(card, row, col, false);
+    }
+
     private CardInstance instance(String id, List<Notch> notches, int row, int col) {
         SieglingCard card = new SieglingCard(id, id, Element.EARTH, Rarity.COMMON, 10, 4, notches, Row.MIDDLE);
         return new CardInstance(card, row, col, true);
@@ -793,6 +1023,135 @@ class EffectServiceTest {
                 1,
                 1
         );
+    }
+
+    @Test
+    void activeEnergyBoostOverchargesTheCasterImmediately() {
+        GameState state = battleState();
+        CardInstance source = instance("well-tender", Element.WATER, 1, 1, true);
+        state.setAt(true, 1, 1, source);
+
+        Ability charge = new Ability("Charge", "Generate 2 water energy",
+                TargetType.SELF, null, 0, AbilityEffectKeys.ENERGY_BOOST, 2, false);
+
+        effectService.resolveAbility(state, charge, source, true, -1, -1);
+
+        // Spendable right away — trainer actives never trigger an energy recalculation.
+        assertTrue(state.getPlayer().isOvercharged());
+        assertEquals(2, state.getPlayer().getOverchargeEnergy(Element.WATER));
+        assertEquals(2, state.getPlayer().getWaterEnergy());
+        assertFalse(state.getEnemy().isOvercharged());
+        assertEquals(0, state.getEnemy().getWaterEnergy());
+    }
+
+    @Test
+    void energyBoostAimedAtAnAllyGeneratesThatAllysElement() {
+        GameState state = battleState();
+        CardInstance source = instance("conduit", Element.FIRE, 1, 1, true);
+        CardInstance ally = instance("frostling", Element.ICE, 2, 0, true);
+        state.setAt(true, 1, 1, source);
+        state.setAt(true, 2, 0, ally);
+
+        // No energy type picked ("Card element"), so it follows the card it names.
+        Ability tap = new Ability("Tap", "Generate energy from 1 ally",
+                TargetType.SINGLE_ALLY, null, 1, AbilityEffectKeys.ENERGY_BOOST, 2, false);
+
+        effectService.resolveAbility(state, tap, source, true, 2, 0);
+
+        assertEquals(2, state.getPlayer().getIceEnergy(), "The targeted ally's element is what it generates.");
+        assertEquals(0, state.getPlayer().getFireEnergy(), "The source's own element must not be used.");
+    }
+
+    @Test
+    void energyBoostAimedAtAlliesGeneratesEachAllysElement() {
+        GameState state = battleState();
+        CardInstance source = instance("dynamo", Element.FIRE, 1, 1, true);
+        CardInstance ice = instance("frostling", Element.ICE, 2, 0, true);
+        CardInstance earth = instance("boulder", Element.EARTH, 2, 1, true);
+        state.setAt(true, 1, 1, source);
+        state.setAt(true, 2, 0, ice);
+        state.setAt(true, 2, 1, earth);
+
+        Ability surge = new Ability("Surge", "Generate energy from every ally",
+                TargetType.ALL_ALLIES, null, 0, AbilityEffectKeys.ENERGY_BOOST, 1, false);
+
+        effectService.resolveAbility(state, surge, source, true, -1, -1);
+
+        // One grant per named card, each of that card's own element — the source included,
+        // because ALL_ALLIES names it too.
+        assertEquals(1, state.getPlayer().getIceEnergy());
+        assertEquals(1, state.getPlayer().getEarthEnergy());
+        assertEquals(1, state.getPlayer().getFireEnergy());
+    }
+
+    @Test
+    void anExplicitEnergyTypeStillWinsOverTheTargetedCardsElement() {
+        GameState state = battleState();
+        CardInstance source = instance("conduit", Element.FIRE, 1, 1, true);
+        CardInstance ally = instance("frostling", Element.ICE, 2, 0, true);
+        state.setAt(true, 1, 1, source);
+        state.setAt(true, 2, 0, ally);
+
+        Ability tap = new Ability("Tap", "Generate 2 water energy",
+                TargetType.SINGLE_ALLY, null, 1, AbilityEffectKeys.ENERGY_BOOST, 2, false);
+        tap.setTargetElement(Element.WATER);
+
+        effectService.resolveAbility(state, tap, source, true, 2, 0);
+
+        assertEquals(2, state.getPlayer().getWaterEnergy());
+        assertEquals(0, state.getPlayer().getIceEnergy(), "A picked energy type is not a target filter.");
+    }
+
+    @Test
+    void aPickedEnergyTypeDoesNotFilterWhichCardsAnEnergyBoostNames() {
+        GameState state = battleState();
+        CardInstance source = instance("dynamo", Element.FIRE, 1, 1, true);
+        CardInstance ice = instance("frostling", Element.ICE, 2, 0, true);
+        state.setAt(true, 1, 1, source);
+        state.setAt(true, 2, 0, ice);
+
+        Ability surge = new Ability("Surge", "Generate 1 water energy per ally",
+                TargetType.ALL_ALLIES, null, 0, AbilityEffectKeys.ENERGY_BOOST, 1, false);
+        surge.setTargetElement(Element.WATER);
+
+        effectService.resolveAbility(state, surge, source, true, -1, -1);
+
+        // Both allies are named even though neither is Water; the element is the energy type.
+        assertEquals(2, state.getPlayer().getWaterEnergy());
+    }
+
+    @Test
+    void energyBoostOnASelfTargetStillGeneratesTheSourcesElement() {
+        GameState state = battleState();
+        CardInstance source = instance("emberpup", Element.FIRE, 1, 1, true);
+        CardInstance ally = instance("frostling", Element.ICE, 2, 0, true);
+        state.setAt(true, 1, 1, source);
+        state.setAt(true, 2, 0, ally);
+
+        Ability charge = new Ability("Charge", "Generate 2 energy",
+                TargetType.SELF, null, 0, AbilityEffectKeys.ENERGY_BOOST, 2, false);
+
+        effectService.resolveAbility(state, charge, source, true, -1, -1);
+
+        assertEquals(2, state.getPlayer().getFireEnergy());
+        assertEquals(0, state.getPlayer().getIceEnergy());
+    }
+
+    @Test
+    void activeEnergyBoostUsesTheChosenEnergyTypeOverTheSourceElement() {
+        GameState state = battleState();
+        CardInstance source = instance("conduit", Element.FIRE, 1, 1, true);
+        state.setAt(true, 1, 1, source);
+
+        Ability charge = new Ability("Conduct", "Generate 1 electric energy",
+                TargetType.SELF, null, 0, AbilityEffectKeys.ENERGY_BOOST, 1, false);
+        charge.setTargetElement(Element.ELECTRIC);
+
+        effectService.resolveAbility(state, charge, source, true, -1, -1);
+
+        assertEquals(1, state.getPlayer().getOverchargeEnergy(Element.ELECTRIC));
+        assertEquals(0, state.getPlayer().getOverchargeEnergy(Element.FIRE));
+        assertEquals(1, state.getPlayer().getElectricEnergy());
     }
 
     private GameState battleState() {

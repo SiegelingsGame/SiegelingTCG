@@ -35,15 +35,13 @@ class SiegeEvolutionSigilTest {
 
     @BeforeEach
     void setUp() {
-        TrainerCard knight = content.selectableKnights().stream()
-                .filter(k -> "squire-bob".equalsIgnoreCase(k.getId()))
-                .findFirst()
-                .orElseGet(() -> content.selectableKnights().getFirst());
+        TrainerCard knight = SiegeStarterTestSupport.starterKnight(content);
         SieglingCard base = content.selectableSieglings().stream()
                 .filter(s -> content.evolutionOf(s.getId()).isPresent())
                 .findFirst()
                 .orElseGet(() -> content.selectableSieglings().getFirst());
-        Map<String, Object> run = siegeService.newRun(null, knight.getId(), List.of(base.getId()), "STANDARD");
+        Map<String, Object> run = siegeService.newRun(
+                null, knight.getId(), SiegeStarterTestSupport.starterIds(content, knight, base), "STANDARD");
         token = (String) run.get("token");
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> party = (List<Map<String, Object>>) run.get("party");
@@ -57,11 +55,9 @@ class SiegeEvolutionSigilTest {
                 .findFirst();
         if (noEvo.isEmpty()) return;
 
-        TrainerCard knight = content.selectableKnights().stream()
-                .filter(k -> "squire-bob".equalsIgnoreCase(k.getId()))
-                .findFirst()
-                .orElseGet(() -> content.selectableKnights().getFirst());
-        Map<String, Object> run = siegeService.newRun(null, knight.getId(), List.of(noEvo.get().getId()), "STANDARD");
+        TrainerCard knight = SiegeStarterTestSupport.starterKnight(content);
+        Map<String, Object> run = siegeService.newRun(null, knight.getId(),
+                SiegeStarterTestSupport.starterIds(content, knight, noEvo.get()), "STANDARD");
         String t = (String) run.get("token");
         @SuppressWarnings("unchecked")
         String id = ((List<Map<String, Object>>) run.get("party")).getFirst().get("id").toString();
@@ -79,11 +75,9 @@ class SiegeEvolutionSigilTest {
                 .findFirst();
         if (noStage3.isEmpty()) return;
 
-        TrainerCard knight = content.selectableKnights().stream()
-                .filter(k -> "squire-bob".equalsIgnoreCase(k.getId()))
-                .findFirst()
-                .orElseGet(() -> content.selectableKnights().getFirst());
-        Map<String, Object> run = siegeService.newRun(null, knight.getId(), List.of(noStage3.get().getId()), "STANDARD");
+        TrainerCard knight = SiegeStarterTestSupport.starterKnight(content);
+        Map<String, Object> run = siegeService.newRun(null, knight.getId(),
+                SiegeStarterTestSupport.starterIds(content, knight, noStage3.get()), "STANDARD");
         String t = (String) run.get("token");
         @SuppressWarnings("unchecked")
         String id = ((List<Map<String, Object>>) run.get("party")).getFirst().get("id").toString();
@@ -148,6 +142,37 @@ class SiegeEvolutionSigilTest {
         assertEquals(BattlePhase.WON, restored.getPhase());
         assertEquals(baseCardId, run.getParty().getFirst().getSourceCardId(),
                 "evolution is battle-scoped and must revert after the battle");
+    }
+
+    /**
+     * Evolved forms copy level/XP without re-deriving max HP from base. A naive
+     * restore that always calls {@code loadLeveling} would re-scale the already
+     * elevated evolve pool and inflate HP after every mid-battle resume.
+     */
+    @Test
+    void leveledEvolutionKeepsSnapshottedHpAcrossCheckpointRestore() throws Exception {
+        SiegeRun run = siegeService.lookup(token).orElseThrow();
+        Combatant ally = run.getParty().getFirst();
+        ally.addXp(SiegeTuning.xpForLevel(3));
+        assertTrue(ally.getLevel() >= 3, "precondition: ally must be leveled before evolving");
+
+        run.getInventory().add("evolution-sigil");
+        siegeService.equipItem(token, "evolution-sigil", memberId);
+        invokeStartBattle(run, List.of(
+                new Combatant("foe-0", "Raider", ally.getElement(), Side.ENEMY, 20, 4, null)));
+
+        Combatant evolved = run.getParty().getFirst();
+        assertNotNull(evolved.getEvolvedFrom());
+        int maxBefore = evolved.getMaxHp();
+        int hpBefore = evolved.getHp();
+
+        SiegeBattle restored = roundTripBattle(run.getBattle());
+        Combatant restoredMember = restored.findCombatant(memberId);
+        assertNotNull(restoredMember);
+        assertEquals(maxBefore, restoredMember.getMaxHp(),
+                "evolved max HP must not be re-scaled by loadLeveling on resume");
+        assertEquals(hpBefore, restoredMember.getHp(),
+                "evolved current HP must match the checkpoint");
     }
 
     @SuppressWarnings("unchecked")

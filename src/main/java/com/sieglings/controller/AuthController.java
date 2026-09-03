@@ -6,6 +6,7 @@ import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.MatchHistoryEntity;
 import com.sieglings.persistence.entity.ProfileSettingsEntity;
 import com.sieglings.persistence.entity.SavedDeckEntity;
+import com.sieglings.service.DeckValidationException;
 import com.sieglings.service.AccountService;
 import com.sieglings.service.CardDefinitionService;
 import com.sieglings.service.MatchHistoryService;
@@ -25,6 +26,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -220,12 +222,39 @@ public class AuthController {
                     (String) req.get("trainerId"),
                     customDeckCards,
                     (String) req.get("name"),
-                    (String) req.get("id")
+                    (String) req.get("id"),
+                    (String) req.get("clientDeckId")
             );
             return buildProfileResponse(user, null);
         } catch (IllegalArgumentException ex) {
-            return Map.of("error", ex.getMessage());
+            return deckError(ex);
+        } catch (RuntimeException ex) {
+            // A storage or catalog failure used to surface as a bare 500, which the
+            // client could only render as "Request failed" — name it instead.
+            log.error("Saving deck failed", ex);
+            return Map.of("error", "We couldn't save this deck right now. Try again in a moment; if it keeps failing, reload the page.");
         }
+    }
+
+    private List<String> requestedDeckIds(Map<String, Object> req) {
+        List<String> ids = new ArrayList<>();
+        if (req.get("ids") instanceof List<?> raw) {
+            raw.stream().filter(String.class::isInstance).map(String.class::cast).forEach(ids::add);
+        }
+        if (req.get("id") instanceof String single && !single.isBlank()) {
+            ids.add(single);
+        }
+        return ids;
+    }
+
+    // Validation errors carry the deck-builder control the player must fix so the
+    // client can scroll to and highlight it rather than only popping a message.
+    private Map<String, Object> deckError(IllegalArgumentException ex) {
+        String message = ex.getMessage() == null ? "That deck could not be saved." : ex.getMessage();
+        if (ex instanceof DeckValidationException validation && validation.getField() != null) {
+            return Map.of("error", message, "field", validation.getField());
+        }
+        return Map.of("error", message);
     }
 
     @PostMapping("/api/profile/decks/delete")
@@ -233,10 +262,23 @@ public class AuthController {
                                           @RequestBody Map<String, Object> req) {
         try {
             AccountUser user = accountService.requireUser(authorizationHeader);
-            savedDeckService.deleteDeck(user, (String) req.get("id"));
-            return buildProfileResponse(user, null);
+            // Accepts one id or a batch, so clearing a binder full of decks is a
+            // single round trip instead of one request (and one full profile
+            // rebuild) per tile.
+            List<String> ids = requestedDeckIds(req);
+            int removed = savedDeckService.deleteDecks(user, ids);
+            Map<String, Object> response = new LinkedHashMap<>(buildProfileResponse(user, null));
+            response.put("deletedCount", removed);
+            // Decks that were already gone are not an error — the binder just held
+            // stale rows. Say so, so the client can drop them silently instead of
+            // restoring tiles the player can never delete.
+            response.put("deckMissing", removed < ids.size());
+            return response;
         } catch (IllegalArgumentException ex) {
-            return Map.of("error", ex.getMessage());
+            return deckError(ex);
+        } catch (RuntimeException ex) {
+            log.error("Deleting deck failed", ex);
+            return Map.of("error", "We couldn't delete this deck right now. Try again in a moment.");
         }
     }
 

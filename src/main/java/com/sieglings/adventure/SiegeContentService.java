@@ -1,6 +1,9 @@
 package com.sieglings.adventure;
 
+import com.sieglings.model.AbilityEffectKeys;
 import com.sieglings.model.Card;
+import com.sieglings.model.ElementalAfflictionCatalog;
+import com.sieglings.model.ElementalAfflictionDef;
 import com.sieglings.model.Move;
 import com.sieglings.model.SieglingCard;
 import com.sieglings.model.TrainerCard;
@@ -13,11 +16,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
+import java.util.Set;
 
 /**
  * Builds all Siege content from the existing card catalog: the selectable
@@ -100,6 +106,13 @@ public class SiegeContentService {
 
     @Autowired
     private MovesPoolService movesPool;
+
+    /**
+     * Live per-effect settings from the dashboard. Optional so tests and any
+     * caller building this service directly keep the shipped defaults.
+     */
+    @Autowired(required = false)
+    private SiegeEffectTuningService effectTuning;
 
     // ---- Roster ---------------------------------------------------------
 
@@ -342,19 +355,19 @@ public class SiegeContentService {
     }
 
     /**
-     * Element → status mapping. Elements do NOT have rock-paper-scissors
-     * strengths or weaknesses; they only provide these status effects:
-     * Fire→Burn, Ice→Slow, Earth→Stun, Sky (Wind/Electric)→Shock.
+     * Element → status mapping from the shared
+     * {@link ElementalAfflictionCatalog}. Elements do NOT have rock-paper-scissors
+     * strengths or weaknesses here — only these status riders on damage cards.
      */
     static StatusKind statusFor(Element element) {
         if (element == null) return null;
-        return switch (element) {
-            case FIRE -> StatusKind.BURN;
-            case ICE -> StatusKind.SLOW;
-            case EARTH -> StatusKind.STUN;
-            case WIND, ELECTRIC -> StatusKind.SHOCK;
-            default -> null;
-        };
+        ElementalAfflictionDef def = ElementalAfflictionCatalog.forElement(element).orElse(null);
+        if (def == null || !def.hasSiegeMapping()) return null;
+        try {
+            return StatusKind.valueOf(def.siegeStatusKind());
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
     }
 
     /** Status application chance written on a damage card, by its AP cost. */
@@ -390,16 +403,21 @@ public class SiegeContentService {
         if (knight.getActiveAbility() != null) {
             var a = knight.getActiveAbility();
             Effect effect = effectFor(a.getEffectType());
-            TargetKind target = effect == Effect.SWAP ? TargetKind.ALLY_SINGLE : targetFor(a.getTargetType());
-            int value = Math.max(3, a.getEffectValue() + 2);
+            TargetKind target = targetFor(a.getTargetType(), effect, a.getEffectType());
+            int value = effect == Effect.DRAW
+                    ? Math.min(MAX_DRAW_CARDS, Math.max(1, a.getEffectValue()))
+                    : Math.max(3, a.getEffectValue() + 2);
             StatusKind status = effect == Effect.DAMAGE ? statusFor(knight.getElement()) : null;
             return new AbilitySpec(kid, knight.getName() + ": " + a.getName(), knight.getElement(),
                     effect, value, target, 2, a.getDescription() == null ? "" : a.getDescription(),
-                    status, status == null ? 0 : 30);
+                    status, status == null ? 0 : 30, AmpRider.NONE, 0, buffRounds(effect));
         }
         // Fallback knight card: a rallying strike.
+        int rallyRounds = buffRounds(Effect.BUFF_ATK);
         return new AbilitySpec(kid, knight.getName() + ": Rally", knight.getElement(),
-                Effect.BUFF_ATK, 2, TargetKind.ALLY_ALL, 2, "All Siegelings gain +2 attack this battle.");
+                Effect.BUFF_ATK, 2, TargetKind.ALLY_ALL, 2,
+                "All Siegelings gain +2 attack for " + rallyRounds + " rounds.",
+                null, 0, AmpRider.NONE, 0, rallyRounds);
     }
 
     /**
@@ -416,6 +434,18 @@ public class SiegeContentService {
         return all[Math.floorMod(h, all.length)];
     }
 
+    /**
+     * The passive magnitude a knight actually leads with: its base value scaled by
+     * the level the account has raised that SiegeKnight card to and by its rarity.
+     * MARSHAL is a headcount, not a magnitude, so it never scales — a bigger
+     * warband would blow past the party cap.
+     */
+    int knightPassiveValue(KnightPassive kind, int accountLevel, Rarity rarity) {
+        int base = knightPassiveValue(kind);
+        if (kind == KnightPassive.MARSHAL) return base;
+        return SiegeTuning.scalePower(base, accountLevel, rarity, 1);
+    }
+
     int knightPassiveValue(KnightPassive kind) {
         return switch (kind) {
             case SHIELD -> 4;   // +4 shield to each Siegeling at battle start
@@ -423,8 +453,20 @@ public class SiegeContentService {
             case SPEED -> 2;    // +2 speed to each Siegeling at battle start
             case HEALTH -> 8;   // +8 max HP to each Siegeling all expedition
             case LOOT -> 40;    // +40% gold from spoils and caches
-            case MARSHAL -> 1;  // starts the run with 1 extra Siegeling
+            case MARSHAL -> 1;  // picks 1 extra Siegeling at warband assembly
         };
+    }
+
+    /**
+     * How many Siegelings the player picks before the run starts. A MARSHAL knight
+     * musters its extra Siegeling up front — the player chooses it at warband
+     * assembly rather than waiting on a mid-run join.
+     */
+    int startingPartySize(TrainerCard knight) {
+        int extra = knight != null && knightPassiveKind(knight) == KnightPassive.MARSHAL
+                ? knightPassiveValue(KnightPassive.MARSHAL)
+                : 0;
+        return Math.min(PARTY_MAX, PARTY_SIZE + extra);
     }
 
     String knightPassiveName(KnightPassive kind) {
@@ -439,15 +481,89 @@ public class SiegeContentService {
     }
 
     String knightPassiveDescription(TrainerCard knight) {
+        return knightPassiveDescription(knight, 1);
+    }
+
+    String knightPassiveDescription(TrainerCard knight, int accountLevel) {
         KnightPassive kind = knightPassiveKind(knight);
-        int v = knightPassiveValue(kind);
+        int v = knightPassiveValue(kind, accountLevel, knight == null ? null : knight.getRarity());
         return switch (kind) {
             case SHIELD -> "The party begins each battle with +" + v + " shield.";
             case ATTACK -> "The party begins each battle with +" + v + " attack.";
             case SPEED -> "The party begins each battle with +" + v + " speed.";
             case HEALTH -> "Every Siegeling has +" + v + " max HP all expedition.";
             case LOOT -> "+" + v + "% gold from spoils and caches.";
-            case MARSHAL -> "Musters an extra Siegeling at the start of the expedition.";
+            case MARSHAL -> "Musters an extra Siegeling: choose " + Math.min(PARTY_MAX, PARTY_SIZE + v)
+                    + " starting Siegelings instead of " + PARTY_SIZE + ".";
+        };
+    }
+
+    // ---- Knight Ultimates (one per leadership class) --------------------
+    // Each class unleashes its own Ultimate instead of the shared elemental
+    // sweep, so the class a player picks shapes the whole battle plan and not
+    // just the opening buff. Every magnitude below is a BASE value: the fired
+    // Ultimate scales it by account level, rarity and in-run knight level
+    // through {@link SiegeTuning#scalePower}.
+
+    /** HP the Warden Ultimate restores to every ally and the Knight. */
+    static final int ULT_WARDEN_HEAL = 12;
+    /** Shield the Bulwark Ultimate grants every ally and the Knight. */
+    static final int ULT_BULWARK_SHIELD = 14;
+    /** Percent of each enemy's max HP the Warlord Ultimate tears off. */
+    static final int ULT_WARLORD_PCT = 25;
+    /** Floor on Warlord Ultimate damage, so it still bites low-HP foes. */
+    static final int ULT_WARLORD_MIN = 8;
+    /** Speed the Vanguard Ultimate grants every ally for the rest of the battle. */
+    static final int ULT_VANGUARD_SPEED = 4;
+    /** Allies the Marshal Ultimate evolves for free (no AP gauge, no card). */
+    static final int ULT_MARSHAL_EVOLVES = 2;
+    /** Items the Quartermaster Ultimate pulls out of the baggage train. */
+    static final int ULT_QUARTERMASTER_ITEMS = 1;
+
+    String knightUltimateName(KnightPassive kind) {
+        if (kind == null) return "Knight Ultimate";
+        return switch (kind) {
+            case HEALTH -> "Warden's Vigil";
+            case MARSHAL -> "Muster the Line";
+            case ATTACK -> "Warlord's Reckoning";
+            case SPEED -> "Vanguard Charge";
+            case SHIELD -> "Bulwark Aegis";
+            case LOOT -> "Baggage Train";
+        };
+    }
+
+    /** Ultimate magnitude at the given knight standing (base value for kind, scaled). */
+    int knightUltimateValue(KnightPassive kind, int accountLevel, Rarity rarity, int runLevel) {
+        int base = switch (kind == null ? KnightPassive.SHIELD : kind) {
+            case HEALTH -> ULT_WARDEN_HEAL;
+            case SHIELD -> ULT_BULWARK_SHIELD;
+            case ATTACK -> ULT_WARLORD_PCT;
+            case SPEED -> ULT_VANGUARD_SPEED;
+            case MARSHAL -> ULT_MARSHAL_EVOLVES;
+            case LOOT -> ULT_QUARTERMASTER_ITEMS;
+        };
+        // Headcount Ultimates (allies evolved, items found) grow a step at a
+        // time rather than by percentage — a 15% bigger "1 item" is still 1.
+        if (kind == KnightPassive.MARSHAL || kind == KnightPassive.LOOT) {
+            return base + (SiegeTuning.clampAccountLevel(accountLevel) - 1) / 2
+                    + SiegeTuning.rarityStep(rarity) / 3;
+        }
+        return SiegeTuning.scalePower(base, accountLevel, rarity, runLevel);
+    }
+
+    String knightUltimateDescription(KnightPassive kind, int accountLevel, Rarity rarity, int runLevel) {
+        KnightPassive k = kind == null ? KnightPassive.SHIELD : kind;
+        int v = knightUltimateValue(k, accountLevel, rarity, runLevel);
+        return switch (k) {
+            case HEALTH -> "Restores " + v + " HP to the whole warband and the Knight.";
+            case SHIELD -> "Grants the whole warband and the Knight a " + v + " shield.";
+            case ATTACK -> "Tears " + v + "% of max HP (at least " + ULT_WARLORD_MIN
+                    + ") off every enemy.";
+            case SPEED -> "Stuns every enemy — their next action is cancelled — and grants the warband +"
+                    + v + " speed for the battle.";
+            case MARSHAL -> "Evolves up to " + v + " Siegeling" + (v == 1 ? "" : "s")
+                    + " on the spot — no AP gauge, no card.";
+            case LOOT -> "Pulls " + v + " random item" + (v == 1 ? "" : "s") + " from the baggage train.";
         };
     }
 
@@ -455,27 +571,70 @@ public class SiegeContentService {
 
     private AbilitySpec toSpec(Move move) {
         Effect effect = effectFor(move.effectType());
-        // A notch-move card targets the ally it trades places with.
-        TargetKind target = effect == Effect.SWAP ? TargetKind.ALLY_SINGLE : targetFor(move.targetType());
+        TargetKind target = targetFor(move.targetType(), effect, move.effectType());
         int value = combatValue(move, effect);
-        int actionCost = actionCostFor(move.energyCost());
+        int actionCost = actionCostFor(move.energyCost(), effect);
         StatusKind status = effect == Effect.DAMAGE ? statusFor(move.element()) : null;
         return new AbilitySpec(move.id(), move.name(), move.element(), effect, value, target, actionCost,
                 move.description() == null ? "" : move.description(),
-                status, statusChanceFor(status, actionCost));
+                status, statusChanceFor(status, actionCost), AmpRider.NONE, 0,
+                buffRounds(effect));
     }
 
+    /**
+     * Scales a raw board value into a Siege magnitude. The per-effect bonus and
+     * ceiling are shared by every card using that effect and are editable in the
+     * dashboard ("Siege Mode → Ability Effects"); the values below are only the
+     * fallback when no live tuning is available.
+     */
     private int combatValue(Move move, Effect effect) {
         int base = Math.max(1, move.effectValue());
-        // Scale raw board values up a little so combat numbers feel meaningful
-        // against the larger HP pools used in Siege.
         return switch (effect) {
-            case DAMAGE -> base + 2;
-            case HEAL, SHIELD -> base + 3;
-            case BUFF_ATK, BUFF_SPD -> Math.max(1, base);
-            case SLOW -> Math.max(1, base);
-            case SWAP, EVOLVE -> 0;
+            // Effects with no magnitude of their own: they do what they do.
+            case STUN, EXECUTE, SWAP, EVOLVE -> 0;
+            // A draw card's value is a card count and AP is scarce, so both are
+            // capped: "draw 2" must not become "draw 5", nor 2 energy 5 AP.
+            case DRAW -> Math.min(valueCap(effect, MAX_DRAW_CARDS), base + valueBonus(effect, 0));
+            case GAIN_AP -> Math.min(valueCap(effect, MAX_AP_GAIN), base + valueBonus(effect, 0));
+            // Everything else is the board value plus its effect's bonus, scaled
+            // up so combat numbers feel meaningful against Siege's larger HP pools.
+            case DAMAGE -> Math.max(1, base + valueBonus(effect, 2));
+            case HEAL, SHIELD, MAX_HP_BOOST -> Math.max(1, base + valueBonus(effect, 3));
+            case BUFF_ATK, BUFF_SPD, SLOW -> Math.max(1, base + valueBonus(effect, 0));
         };
+    }
+
+    /** Live per-effect value bonus, or the shipped default when tuning is absent. */
+    private int valueBonus(Effect effect, int fallback) {
+        return effectTuning != null ? effectTuning.valueBonus(effect) : fallback;
+    }
+
+    /** Live per-effect value ceiling, or the shipped default when tuning is absent. */
+    private int valueCap(Effect effect, int fallback) {
+        int cap = effectTuning != null ? effectTuning.valueCap(effect) : fallback;
+        return cap > 0 ? cap : fallback;
+    }
+
+    /** Live per-effect buff window, or the shipped default when tuning is absent. */
+    int buffRounds(Effect effect) {
+        return effectTuning != null ? effectTuning.durationRounds(effect)
+                : SiegeTuning.defaultBuffRounds(effect);
+    }
+
+    /** Ceiling on cards a single draw card may pull; the hand is only 8 wide. */
+    static final int MAX_DRAW_CARDS = 3;
+    /** Ceiling on AP a single energy card may add; a turn only starts with 3. */
+    static final int MAX_AP_GAIN = 2;
+    /** Floor on what an instant-defeat card costs, however cheap its board version is. */
+    static final int EXECUTE_MIN_AP = 3;
+
+    private int actionCostFor(int energyCost, Effect effect) {
+        int cost = actionCostFor(energyCost);
+        // A destroy card that happened to be printed at 0 energy would otherwise
+        // be a free kill every turn; the floor is per-effect and dashboard-tuned.
+        int floor = effectTuning != null ? effectTuning.minActionCost(effect)
+                : (effect == Effect.EXECUTE ? EXECUTE_MIN_AP : 0);
+        return Math.max(floor, cost);
     }
 
     private int actionCostFor(int energyCost) {
@@ -485,26 +644,109 @@ public class SiegeContentService {
         return 3;
     }
 
-    private Effect effectFor(String effectType) {
-        String key = effectType == null ? "" : effectType.toLowerCase();
-        if (key.contains("heal")) return Effect.HEAL;
-        if (key.contains("health_boost") || key.contains("shield")) return Effect.SHIELD;
-        if (key.contains("damage_boost")) return Effect.BUFF_ATK;
+    /**
+     * Translates a battle-table effect key into its Siege equivalent. Registered
+     * keys ({@link AbilityEffectKeys}) match exactly; the substring fallbacks below
+     * catch keys authored in the live dashboard that the registry hasn't caught up
+     * with yet, so a support card never silently degrades into an attack.
+     */
+    Effect effectFor(String effectType) {
+        String key = effectType == null ? "" : effectType.trim().toLowerCase(Locale.ROOT);
+        Effect exact = switch (key) {
+            case AbilityEffectKeys.DAMAGE, AbilityEffectKeys.CHAIN_DAMAGE, AbilityEffectKeys.PLAYER_DAMAGE -> Effect.DAMAGE;
+            case AbilityEffectKeys.DRAW -> Effect.DRAW;
+            // Siege has no elemental pools; AP is the resource a card would be paying for.
+            case AbilityEffectKeys.ENERGY_BOOST -> Effect.GAIN_AP;
+            case AbilityEffectKeys.HEAL, AbilityEffectKeys.CONNECTED_ALLIES_HEAL -> Effect.HEAL;
+            case AbilityEffectKeys.SHIELD, AbilityEffectKeys.CONNECTED_ALLIES_SHIELD -> Effect.SHIELD;
+            case AbilityEffectKeys.HEALTH_BOOST, AbilityEffectKeys.CONNECTED_ALLIES_HEALTH_BOOST -> Effect.MAX_HP_BOOST;
+            case AbilityEffectKeys.DAMAGE_BOOST, AbilityEffectKeys.CONNECTED_ALLIES_DAMAGE_BOOST -> Effect.BUFF_ATK;
+            case AbilityEffectKeys.SPEED_BOOST, AbilityEffectKeys.CONNECTED_ALLIES_SPEED_BOOST -> Effect.BUFF_SPD;
+            // Freeze skips a turn on the board, so it stuns here; speed_zero/slow
+            // only take Speed away, which is what the Slow status does.
+            case AbilityEffectKeys.FREEZE -> Effect.STUN;
+            case AbilityEffectKeys.SPEED_ZERO, AbilityEffectKeys.SLOW, AbilityEffectKeys.CONNECTED_ALLIES_SLOW -> Effect.SLOW;
+            case AbilityEffectKeys.DESTROY -> Effect.EXECUTE;
+            case AbilityEffectKeys.MOVE_LINK -> Effect.SWAP;
+            default -> null;
+        };
+        if (exact != null) return exact;
+
+        // Fallbacks, longest/most specific first — "damage_boost" must not read as "damage".
+        if (key.contains("damage_boost") || key.contains("attack_boost")) return Effect.BUFF_ATK;
+        if (key.contains("health_boost") || key.contains("max_hp")) return Effect.MAX_HP_BOOST;
         if (key.contains("speed_boost")) return Effect.BUFF_SPD;
-        if (key.contains("freeze") || key.contains("speed_zero")) return Effect.SLOW;
-        if (key.contains("move_link") || key.contains("notch")) return Effect.SWAP;
+        if (key.contains("draw")) return Effect.DRAW;
+        if (key.contains("energy")) return Effect.GAIN_AP;
+        if (key.contains("heal")) return Effect.HEAL;
+        if (key.contains("shield")) return Effect.SHIELD;
+        if (key.contains("destroy") || key.contains("execute")) return Effect.EXECUTE;
+        if (key.contains("freeze") || key.contains("stun")) return Effect.STUN;
+        if (key.contains("slow") || key.contains("speed_zero")) return Effect.SLOW;
+        if (key.contains("move_link") || key.contains("notch") || key.contains("swap")) return Effect.SWAP;
         return Effect.DAMAGE;
     }
 
-    private TargetKind targetFor(TargetType t) {
-        return switch (t) {
+    /** Effects that help whoever they land on. */
+    private static boolean isSupportive(Effect effect) {
+        return switch (effect) {
+            case HEAL, SHIELD, MAX_HP_BOOST, BUFF_ATK, BUFF_SPD, DRAW, GAIN_AP, EVOLVE -> true;
+            default -> false;
+        };
+    }
+
+    /** Effects that hurt whoever they land on. */
+    private static boolean isHostile(Effect effect) {
+        return effect == Effect.DAMAGE || effect == Effect.EXECUTE || effect == Effect.STUN;
+    }
+
+    TargetKind targetFor(TargetType t, Effect effect, String effectType) {
+        TargetKind base = switch (t) {
             case SINGLE_ENEMY -> TargetKind.ENEMY_SINGLE;
             case ALL_ENEMIES, ROW_ENEMIES, ROW_SELECT_ENEMIES, ENEMY_PLAYER -> TargetKind.ALL_ENEMIES;
             case SINGLE_ALLY -> TargetKind.ALLY_SINGLE;
             case ALL_ALLIES, ROW_ALLIES, ROW_SELECT_ALLIES -> TargetKind.ALLY_ALL;
-            case SELF -> TargetKind.SELF;
-            case PASSIVE -> TargetKind.SELF;
+            case SELF, PASSIVE -> TargetKind.SELF;
         };
+        // A connected-allies card is written as SELF on the board because it walks
+        // the source's notch links. Siege has no board links, so the warband IS the
+        // linked network and the card reaches all of it.
+        String key = effectType == null ? "" : effectType.trim().toLowerCase(Locale.ROOT);
+        if (key.contains("connected_allies")) base = TargetKind.ALLY_ALL;
+        return alignTarget(effect, base);
+    }
+
+    /**
+     * Keeps a card pointed at the side its effect belongs to. Board target types
+     * carry board meanings ({@code ENEMY_PLAYER} is the opposing player, {@code SELF}
+     * is the card doing the walking) that don't survive the trip intact, and an
+     * unregistered effect key falls back to DAMAGE — without this, a self-targeted
+     * draw card resolves as the caster hitting itself.
+     */
+    private static TargetKind alignTarget(Effect effect, TargetKind target) {
+        // Drawing, evolving, and topping up AP all act on the caster's own side.
+        if (effect == Effect.DRAW || effect == Effect.EVOLVE || effect == Effect.GAIN_AP) return TargetKind.SELF;
+        // A notch-move card targets the ally it trades places with.
+        if (effect == Effect.SWAP) return TargetKind.ALLY_SINGLE;
+        // Wiping a whole enemy line at once is not a thing Siege can survive.
+        if (effect == Effect.EXECUTE) return TargetKind.ENEMY_SINGLE;
+        if (isHostile(effect)) {
+            return switch (target) {
+                case ALLY_ALL -> TargetKind.ALL_ENEMIES;
+                case ALLY_SINGLE, SELF -> TargetKind.ENEMY_SINGLE;
+                default -> target;
+            };
+        }
+        if (isSupportive(effect)) {
+            return switch (target) {
+                case ALL_ENEMIES -> TargetKind.ALLY_ALL;
+                case ENEMY_SINGLE -> TargetKind.ALLY_SINGLE;
+                default -> target;
+            };
+        }
+        // SLOW stays where the card aimed it: freeze/speed_zero point at enemies,
+        // connected_allies_slow deliberately points at your own line.
+        return target;
     }
 
     // ---- Enemies --------------------------------------------------------
@@ -543,20 +785,41 @@ public class SiegeContentService {
     List<Combatant> generateEnemies(NodeType type, int floor, int partySize, int segment, Random rng,
                                     List<Element> palette, double bgHpScalar, double bgDmgScalar) {
         List<Combatant> enemies = new ArrayList<>();
-        int count = switch (type) {
-            case ELITE -> partySize <= 1 ? 1 : 2;
-            case BOSS -> 1;
-            default -> 1 + (floor >= 3 && partySize >= 2 ? rng.nextInt(2) : 0); // 1–2 for battles
-        };
+        // Every encounter is a squad of 2–3. A lone foe telegraphs the same one or
+        // two moves every round, so bosses and elites field an escort of minions
+        // instead of standing alone and the incoming pattern stays varied. A
+        // warband down to its last Siegeling still faces only the smaller squad.
+        boolean escorted = type == NodeType.BOSS || type == NodeType.ELITE;
+        int count;
+        if (partySize <= 1) count = 2;
+        else if (escorted) count = 3;
+        else count = floor >= 3 ? 2 + rng.nextInt(2) : 2;
+
         int tier = Math.min(segment, 2);
         double bossHp = switch (tier) { case 0 -> 1.9; case 1 -> 2.2; default -> 2.6; };
         double bossDmg = switch (tier) { case 0 -> 1.15; case 1 -> 1.25; default -> 1.35; };
         // Difficulty tracks warband size: a lone Siegeling faces ~2/3-strength foes.
         double partyMul = 0.48 + 0.175 * Math.max(1, partySize);
-        double hpMul = (switch (type) { case ELITE -> 1.5; case BOSS -> bossHp; default -> 1.0; })
-                * partyMul * Math.max(1.0, bgHpScalar);
-        double dmgMul = (switch (type) { case ELITE -> 1.2; case BOSS -> bossDmg; default -> 1.0; })
-                * Math.min(1.0, 0.62 + 0.13 * partySize) * Math.max(1.0, bgDmgScalar);
+        double partyDmgMul = Math.min(1.0, 0.62 + 0.13 * partySize);
+
+        // Per-foe share of the encounter's budget, relative to what a single
+        // rank-and-file foe used to be worth (1.0 hp / 1.0 dmg). Splitting a budget
+        // across more bodies makes an encounter *easier* at equal totals — focus
+        // fire removes attackers as the fight runs, which costs a squad of n roughly
+        // (n+1)/2n of the damage it would otherwise land — so these shares sum to
+        // more than the old one/two-foe totals while landing within ~15% of the old
+        // encounters once that decay is folded in. Rank-and-file are ~⅔ of the old
+        // solo foe, an elite keeps its old stat block, and a boss keeps ~85% of its
+        // own with two chip-damage escorts alongside.
+        double leaderHp;
+        double leaderDmg;
+        double minionHp;
+        double minionDmg;
+        switch (type) {
+            case BOSS -> { leaderHp = bossHp * 0.85; leaderDmg = bossDmg * 0.90; minionHp = 0.38; minionDmg = 0.35; }
+            case ELITE -> { leaderHp = 1.5; leaderDmg = 1.15; minionHp = 0.85; minionDmg = 0.70; }
+            default -> { leaderHp = 0.62; leaderDmg = 0.62; minionHp = 0.62; minionDmg = 0.62; }
+        }
         int abilityCount = switch (type) {
             case BOSS -> 3;
             case ELITE -> 2 + (floor >= 5 ? 1 : 0);
@@ -564,31 +827,198 @@ public class SiegeContentService {
         };
         abilityCount = Math.min(3, abilityCount);
 
+        // Deeper foes are drawn from later evolution stages, so the silhouette
+        // escalates with the encounter even though the numbers come from the
+        // scaling above rather than from the card. Escorts take the rank-and-file
+        // stage rather than their leader's, so a boss still towers over its minions
+        // — the authored size band is the only thing that sets sprite height.
+        int rankShadeStage = floor >= 5 ? 2 : 1;
+        int leaderShadeStage = switch (type) { case BOSS -> 3; case ELITE -> 2; default -> rankShadeStage; };
+        // Shades draw from their OWN stream, seeded once from the encounter's. Picking
+        // a shade consumes a roll only when the catalog has art to offer, so drawing it
+        // from the shared stream let the first foe's shade shift the second foe's HP,
+        // speed and damage — appearance silently changing the fight, which is exactly
+        // what this change must not do. The seed draw happens either way, so the
+        // encounter rolls are identical whatever the catalog holds.
+        Random shadeRng = new Random(rng.nextLong());
+
+        // Spread the squad across the palette so the telegraphs on screen are
+        // different elements — and so different statuses — wherever possible.
+        List<Element> unused = new ArrayList<>(palette);
+        Set<String> takenNames = new HashSet<>();
+        boolean sweepTaken = false;
         for (int i = 0; i < count; i++) {
-            Element element = palette.get(rng.nextInt(palette.size()));
+            boolean leader = escorted && i == 0;
+            if (unused.isEmpty()) unused.addAll(palette);
+            Element element = unused.remove(rng.nextInt(unused.size()));
+            double hpMul = (leader ? leaderHp : minionHp) * partyMul * Math.max(1.0, bgHpScalar);
+            double dmgMul = (leader ? leaderDmg : minionDmg) * partyDmgMul * Math.max(1.0, bgDmgScalar);
             // Tuned up for the fresh-hand-per-turn economy (a full 6 cards every
             // turn hits much harder than the old draw-1 flow).
             int hp = (int) Math.round((30 + floor * 9 + rng.nextInt(10)) * hpMul);
-            int speed = 6 + rng.nextInt(8) + (type == NodeType.BOSS ? 2 : 0);
-            String[] names = ENEMY_NAMES_BY_ELEMENT.getOrDefault(element, ENEMY_NAMES_FALLBACK);
-            String name = type == NodeType.BOSS
-                    ? bossName(tier, rng)
-                    : names[rng.nextInt(names.length)];
+            int speed = 6 + rng.nextInt(8) + (leader && type == NodeType.BOSS ? 2 : 0);
+            // Rolled even when a shade will replace it, so the roll stream — and with
+            // it every number below — is identical whether or not the catalog has art.
+            // Deduped within the squad so two escorts never share a label; the dedupe
+            // reads only this stream, never the catalog.
+            String fallbackName = squadName(element, takenNames, rng);
+            takenNames.add(fallbackName);
+            // Bosses keep their own title: they are named antagonists (a Squire, a
+            // rogue SiegeKnight, the Siegelord), not corrupted Siegelings. Only the
+            // boss itself — its escorts are ordinary shades.
+            String bossTitle = leader && type == NodeType.BOSS ? bossName(tier, rng) : null;
+            // Escorts run a shorter kit than the unit they guard, and at most one foe
+            // per squad gets the party-wide Sweep: three sweepers would multiply
+            // line damage by the squad size.
+            int kitSize = leader || !escorted ? abilityCount : Math.max(1, abilityCount - 1);
+            List<AbilitySpec> abilities = enemyAbilities(element, floor, kitSize, dmgMul, !sweepTaken, rng);
+            if (abilities.stream().anyMatch(a -> "ea-sweep".equals(a.id()))) sweepTaken = true;
+            Optional<SieglingCard> shade = shadeCard(element,
+                    leader ? leaderShadeStage : rankShadeStage, shadeRng);
             String id = "foe-" + floor + "-" + i;
-            Combatant foe = new Combatant(id, name, element, Side.ENEMY, hp, speed, null);
-            foe.getAbilities().addAll(enemyAbilities(element, floor, abilityCount, dmgMul, rng));
+            // A boss still gets the cutout — otherwise it is the one fight in the run
+            // rendered as a bare element glyph.
+            Combatant foe = new Combatant(id,
+                    bossTitle != null ? bossTitle : shade.map(SiegeContentService::shadeName).orElse(fallbackName),
+                    element, Side.ENEMY, hp, speed,
+                    shade.map(SieglingCard::getCardArtUrl).orElse(null));
+            foe.setLeader(leader);
+            if (bossTitle == null) shade.map(SieglingCard::getName).ifPresent(foe::setShadeOf);
+            // Sizing only (Combatant#artCardId): the shade stage above already escalates
+            // the silhouette with the encounter, and this is what carries that stage to
+            // the client. Bosses need it most and are the one case with no shadeOf to
+            // fall back on, so it is set regardless of bossTitle.
+            shade.map(SieglingCard::getId).ifPresent(foe::setArtCardId);
+            foe.getAbilities().addAll(abilities);
             enemies.add(foe);
         }
         return enemies;
     }
 
-    private List<AbilitySpec> enemyAbilities(Element element, int floor, int count, double dmgMul, Random rng) {
+    /** An element-themed name, avoiding duplicates within the same squad. */
+    private String squadName(Element element, Set<String> taken, Random rng) {
+        String[] names = ENEMY_NAMES_BY_ELEMENT.getOrDefault(element, ENEMY_NAMES_FALLBACK);
+        int start = rng.nextInt(names.length);
+        for (int i = 0; i < names.length; i++) {
+            String candidate = names[(start + i) % names.length];
+            if (!taken.contains(candidate)) return candidate;
+        }
+        return names[start];
+    }
+
+    // ---- Enemy appearance: corrupted Siegelings from the real catalog ------
+
+    /**
+     * Enemies are corrupted Siegelings pulled from the live card catalog, the same
+     * treatment Akhar's Front gives its raiders in the Keep
+     * ({@code KeepService#akharsFrontRaiderPool}) — real card art, named
+     * {@code Shade of X}, recoloured to a violet-black cutout client-side. This is
+     * appearance only: HP, speed and the ability set still come from the encounter
+     * scaling in {@link #generateEnemies}, so a shade hits exactly as hard as the
+     * generic foe it replaced and the difficulty curve is untouched.
+     *
+     * <p>Only cards with uploaded art qualify — art is the whole point, and a card
+     * without it would render as the element glyph this replaced. A catalog with no
+     * art at all falls back to the themed synthetic names, so nothing regresses.
+     *
+     * <p>The element stays the one the run's palette rolled (it decides the status
+     * the foe inflicts); the card is only searched for within it. When the catalog
+     * has no art-bearing card of that element the search widens to any element, so
+     * a sparse catalog shows a mismatched creature rather than no creature.
+     */
+    private Optional<SieglingCard> shadeCard(Element element, int stage, Random rng) {
+        // Deliberately not sieglingsAtStage() per stage/element pass: that walks the
+        // whole catalog and calls stageOf (itself several catalog scans) for every
+        // card, and this runs on every battle entry. Filter on art FIRST — the cheap
+        // test that rejects nearly everything — then pay for stageOf only on what
+        // survives. A catalog with no uploaded art costs exactly one walk and no
+        // stageOf at all.
+        List<SieglingCard> withArt = new ArrayList<>();
+        for (Card card : cardDefs.getDeckBuilderCatalog()) {
+            if (card instanceof SieglingCard s
+                    && s.getCardArtUrl() != null && !s.getCardArtUrl().isBlank()
+                    && !playableMoves(s).isEmpty()) {
+                withArt.add(s);
+            }
+        }
+        if (withArt.isEmpty()) return Optional.empty();
+
+        Map<Integer, List<SieglingCard>> byStage = new LinkedHashMap<>();
+        for (SieglingCard s : withArt) {
+            byStage.computeIfAbsent(stageOf(s), ignored -> new ArrayList<>()).add(s);
+        }
+        for (int s = Math.max(1, stage); s >= 1; s--) {
+            Optional<SieglingCard> match = pick(byStage.get(s), element, rng);
+            if (match.isPresent()) return match;
+        }
+        for (int s = Math.max(1, stage); s >= 1; s--) {
+            Optional<SieglingCard> any = pick(byStage.get(s), null, rng);
+            if (any.isPresent()) return any;
+        }
+        return Optional.empty();
+    }
+
+    private static Optional<SieglingCard> pick(List<SieglingCard> candidates, Element element, Random rng) {
+        if (candidates == null || candidates.isEmpty()) return Optional.empty();
+        List<SieglingCard> pool = new ArrayList<>();
+        for (SieglingCard cand : candidates) {
+            if (element == null || cand.getElement() == element) pool.add(cand);
+        }
+        return pool.isEmpty() ? Optional.empty() : Optional.of(pool.get(rng.nextInt(pool.size())));
+    }
+
+    /** Matches the Keep's vocabulary for a corrupted Siegeling. */
+    private static String shadeName(SieglingCard card) {
+        return "Shade of " + card.getName();
+    }
+
+    /**
+     * The run's opening fight — a fixed yardstick, not a scaled encounter. Element
+     * and name still vary so the fight looks different each run, but every number
+     * that decides how hard it is (foe count, HP, damage, speed, one ability) is
+     * pinned in {@link SiegeTuning}, so a lone Siegeling and a Marshal's pair face
+     * exactly the same opener. From the second fight on, encounters run through
+     * {@link #generateEnemies} and scale off warband size and depth as before.
+     */
+    List<Combatant> generateOpeningEnemies(Random rng, List<Element> palette) {
+        List<Combatant> enemies = new ArrayList<>();
+        // Its own stream, for the same reason as generateEnemies: what the catalog
+        // holds must not reach the rolls (see there).
+        Random shadeRng = new Random(rng.nextLong());
+        // Distinct elements and names across the pair, as for any other squad.
+        List<Element> unused = new ArrayList<>(palette);
+        Set<String> takenNames = new HashSet<>();
+        for (int i = 0; i < SiegeTuning.OPENING_FIGHT_FOES; i++) {
+            if (unused.isEmpty()) unused.addAll(palette);
+            Element element = unused.remove(rng.nextInt(unused.size()));
+            String fallbackName = squadName(element, takenNames, rng);
+            takenNames.add(fallbackName);
+            // Which shade shows up varies like the element and name always have; none
+            // of the pinned numbers below depend on it.
+            Optional<SieglingCard> shade = shadeCard(element, 1, shadeRng);
+            Combatant foe = new Combatant("foe-1-" + i,
+                    shade.map(SiegeContentService::shadeName).orElse(fallbackName),
+                    element, Side.ENEMY,
+                    SiegeTuning.OPENING_FIGHT_HP, SiegeTuning.OPENING_FIGHT_SPEED,
+                    shade.map(SieglingCard::getCardArtUrl).orElse(null));
+            shade.map(SieglingCard::getName).ifPresent(foe::setShadeOf);
+            shade.map(SieglingCard::getId).ifPresent(foe::setArtCardId);
+            int dmg = SiegeTuning.OPENING_FIGHT_DAMAGE;
+            foe.getAbilities().add(new AbilitySpec("ea-strike", "Strike", element, Effect.DAMAGE, dmg,
+                    TargetKind.ENEMY_SINGLE, 0, "Deals " + dmg + " damage to one Siegeling."));
+            enemies.add(foe);
+        }
+        return enemies;
+    }
+
+    private List<AbilitySpec> enemyAbilities(Element element, int floor, int count, double dmgMul,
+                                             boolean allowSweep, Random rng) {
         List<AbilitySpec> abilities = new ArrayList<>();
         int dmg = (int) Math.round((5 + (int) (floor * 0.9) + rng.nextInt(3)) * dmgMul);
         abilities.add(new AbilitySpec("ea-strike", "Strike", element, Effect.DAMAGE, dmg,
                 TargetKind.ENEMY_SINGLE, 0, "Deals " + dmg + " damage to one Siegeling."));
         if (count >= 2) {
-            if (rng.nextBoolean()) {
+            if (allowSweep && rng.nextBoolean()) {
                 int sweep = Math.max(2, dmg - 2);
                 abilities.add(new AbilitySpec("ea-sweep", "Sweep", element, Effect.DAMAGE, sweep,
                         TargetKind.ALL_ENEMIES, 0, "Deals " + sweep + " damage to the whole party."));
@@ -797,6 +1227,25 @@ public class SiegeContentService {
         return stage;
     }
 
+    /**
+     * Walks an evolution chain down to its stage-1 root. Finding a Siegeling at
+     * any stage earns its whole line, and warband select only ever lists stage-1
+     * cards, so the root is the id that actually becomes pickable. Returns the
+     * id unchanged when it is already a root or is not in the catalog.
+     */
+    String baseFormId(String cardId) {
+        String id = cardId;
+        int guard = 0;
+        while (id != null && guard++ < 6) {
+            String from = findAnySiegling(id).map(SieglingCard::getEvolvesFromId).orElse(null);
+            if (from == null || from.isBlank()) {
+                return id;
+            }
+            id = from;
+        }
+        return id;
+    }
+
     private List<SieglingCard> sieglingsAtStage(int stage) {
         List<SieglingCard> out = new ArrayList<>();
         for (Card card : cardDefs.getDeckBuilderCatalog()) {
@@ -877,6 +1326,9 @@ public class SiegeContentService {
         Combatant merc = new Combatant("merc-" + s.getId(), s.getName() + " (Merc)", s.getElement(),
                 Side.PLAYER, hp, Math.max(4, s.getSpeed()) + 3, s.getCardArtUrl());
         // No sourceCardId: mercs don't get evolution cards; they're already elite.
+        // artCardId still points at the card, so a merc hired off a stage-2/3 Siegeling
+        // stands as tall as one — sizing reads it, evolution lookups don't.
+        merc.setArtCardId(s.getId());
         return merc;
     }
 
@@ -889,7 +1341,10 @@ public class SiegeContentService {
         }
         cards.add(new SiegeCard(merc.getId() + "-boon-war", merc.getId(),
                 new AbilitySpec("boon-warcry", "Boon: Warcry", s.getElement(), Effect.BUFF_ATK, 3,
-                        TargetKind.ALLY_ALL, 1, merc.getName() + " rallies the warband: +3 attack this battle.")));
+                        TargetKind.ALLY_ALL, 1,
+                        merc.getName() + " rallies the warband: +3 attack for "
+                                + boonRounds() + " rounds.",
+                        null, 0, AmpRider.NONE, 0, boonRounds())));
         cards.add(new SiegeCard(merc.getId() + "-boon-wall", merc.getId(),
                 new AbilitySpec("boon-bulwark", "Boon: Bulwark", s.getElement(), Effect.SHIELD, 8,
                         TargetKind.ALLY_ALL, 1, merc.getName() + " shields the whole warband for 8.")));
@@ -903,6 +1358,15 @@ public class SiegeContentService {
         List<Card> catalog = cardDefs.getDeckBuilderCatalog();
         if (catalog.isEmpty()) return Optional.empty();
         return Optional.of(catalog.get(rng.nextInt(catalog.size())));
+    }
+
+    /** Looks up a collection card by id so a failed end-reward claim can retry the same prize. */
+    Optional<Card> findCollectionCard(String cardId) {
+        if (cardId == null || cardId.isBlank()) return Optional.empty();
+        for (Card card : cardDefs.getDeckBuilderCatalog()) {
+            if (cardId.equals(card.getId())) return Optional.of(card);
+        }
+        return Optional.empty();
     }
 
     Map<String, KnightPassive> classOverrides() { return classOverrides; }
@@ -970,11 +1434,11 @@ public class SiegeContentService {
         out.add(new EventDef("bandit-toll", "Bandit Toll", "\uD83E\uDD77", // 🥷
                 "Bandits block the pass. \u201CPay the toll \u2014 or bleed for it.\u201D", List.of(
                 new EventChoice("Pay 30 gold", "PAY_GOLD", 30, "They step aside, grinning."),
-                new EventChoice("Fight them (ambush!)", "AMBUSH", 0, "Steel rings out \u2014 they strike first!"),
+                new EventChoice("Draw steel", "AMBUSH", 0, "Steel rings out \u2014 they strike first!"),
                 new EventChoice("Try to sneak past", "SNEAK", 12, "You slip into the brush\u2026"))));
         out.add(new EventDef("stranger", "Mysterious Stranger", "\uD83E\uDDD9", // 🧙
                 "A cloaked figure offers a bargain. \u201CYour blood for my treasure.\u201D", List.of(
-                new EventChoice("Bleed for a relic (\u221215 HP)", "BLEED_ITEM", 15, "The pain is worth it."),
+                new EventChoice("Accept the bargain", "BLEED_ITEM", 15, "The pain is worth it."),
                 new EventChoice("Decline", "NOTHING", 0, "The figure fades into mist."))));
         out.add(new EventDef("lost-child", "Lost Siegeling", "\uD83D\uDC23", // 🐣
                 "A frightened wild Siegeling watches from the ferns.", List.of(
@@ -987,7 +1451,7 @@ public class SiegeContentService {
                 new EventChoice("Move on", "NOTHING", 0, "Best not linger."))));
         out.add(new EventDef("monster-tracks", "Monster Tracks", "\uD83D\uDC3E", // 🐾
                 "Huge tracks lead off the path \u2014 fresh, and deep.", List.of(
-                new EventChoice("Follow them (elite ambush!)", "AMBUSH_ELITE", 0, "You corner the beast \u2014 it lunges!"),
+                new EventChoice("Follow the tracks", "AMBUSH_ELITE", 0, "You corner the beast \u2014 it lunges!"),
                 new EventChoice("Avoid them", "GOLD", 10, "You skirt danger and pocket some scrap."))));
         out.add(new EventDef("treasure-map", "Treasure Map", "\uD83D\uDDFA\uFE0F", // 🗺️
                 "A tattered map marks an X not far off.", List.of(
@@ -995,7 +1459,7 @@ public class SiegeContentService {
                 new EventChoice("Sell the map", "GOLD", 35, "A passing trader pays well."))));
         out.add(new EventDef("oracle", "Wandering Oracle", "\uD83D\uDD2E", // 🔮
                 "An oracle reads the threads of fate for a fee.", List.of(
-                new EventChoice("Pay 15 for a blessing", "BLESS_SPEED", 15, "Foresight quickens your warband."),
+                new EventChoice("Pay the oracle's fee (15 gold)", "BLESS_SPEED", 15, "Foresight quickens your warband."),
                 new EventChoice("Ask nothing", "NOTHING", 0, "You trust your own path."))));
         return out;
     }
@@ -1041,13 +1505,26 @@ public class SiegeContentService {
         return out;
     }
 
-    /** Random move previews from an evolved form — powers the client card-morph FX. */
-    List<Map<String, Object>> previewMovesFor(SieglingCard evo, int count, Random rng) {
+    /**
+     * Rewrites the evolved unit's move cards that are already in hand into moves of its new
+     * stage, and returns previews of what each became. The client's morph FX flips those cards
+     * to the new art, so the underlying cards have to change with them — otherwise the next
+     * render pulls the untouched precursor cards straight back.
+     *
+     * <p>Evolution cards are left alone: the next stage's unlock is dealt from the deck.
+     * Instance ids are preserved so the morph animation keeps the same DOM nodes.</p>
+     */
+    List<Map<String, Object>> upgradeHandCards(SieglingCard evo, String ownerId,
+                                               List<SiegeCard> hand, Random rng) {
         List<Move> moves = playableMoves(evo);
-        if (moves.isEmpty() || count <= 0) return List.of();
+        if (moves.isEmpty()) return List.of();
         List<Map<String, Object>> out = new ArrayList<>();
-        for (int i = 0; i < count; i++) {
-            out.add(specToPreviewMap(toSpec(moves.get(rng.nextInt(moves.size())))));
+        for (int i = 0; i < hand.size(); i++) {
+            SiegeCard card = hand.get(i);
+            if (!ownerId.equals(card.getOwnerId()) || card.getSpec().effect() == Effect.EVOLVE) continue;
+            AbilitySpec spec = toSpec(moves.get(rng.nextInt(moves.size())));
+            hand.set(i, new SiegeCard(card.getInstanceId(), ownerId, spec));
+            out.add(specToPreviewMap(spec));
         }
         return out;
     }
@@ -1119,12 +1596,25 @@ public class SiegeContentService {
 
     /** A strengthened copy of a card spec: +2 power, or cheaper for utility cards. */
     AbilitySpec upgradeSpec(AbilitySpec spec) {
-        boolean scaling = spec.effect() == Effect.DAMAGE || spec.effect() == Effect.HEAL || spec.effect() == Effect.SHIELD;
+        boolean scaling = spec.effect() == Effect.DAMAGE || spec.effect() == Effect.HEAL
+                || spec.effect() == Effect.SHIELD || spec.effect() == Effect.MAX_HP_BOOST;
         int value = scaling ? spec.value() + 2 : spec.value() + 1;
+        if (spec.effect() == Effect.DRAW) value = Math.min(MAX_DRAW_CARDS, value);
         int cost = scaling ? spec.actionCost() : Math.max(0, spec.actionCost() - 1);
+        if (spec.effect() == Effect.EXECUTE) cost = Math.max(EXECUTE_MIN_AP, cost);
         return new AbilitySpec(spec.id(), spec.name() + " +", spec.element(),
                 spec.effect(), value, spec.target(), cost, spec.description(),
-                spec.status(), spec.statusChance());
+                // An upgrade raises the magnitude, never the window: a buff card that
+                // also bought more rounds is how the old permanent buffs compounded.
+                spec.status(), spec.statusChance(), spec.rider(), spec.riderValue(),
+                spec.durationRounds());
+    }
+
+    /** Live mercenary Boon window, or the shipped default when tuning is absent. */
+    private int boonRounds() {
+        return effectTuning != null
+                ? Math.max(1, effectTuning.globalValue("boonBuffRounds"))
+                : SiegeTuning.BOON_BUFF_ROUNDS;
     }
 
     /** A random selectable Siegeling not already in the warband, if any. */

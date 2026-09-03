@@ -8,6 +8,7 @@ import java.util.Set;
 public final class AbilityEffectKeys {
 
     public static final String DAMAGE = "damage";
+    public static final String CHAIN_DAMAGE = "chain_damage";
     public static final String PLAYER_DAMAGE = "player_damage";
     public static final String DRAW = "draw";
     public static final String HEAL = "heal";
@@ -19,8 +20,11 @@ public final class AbilityEffectKeys {
     public static final String HEALTH_BOOST = "health_boost";
     public static final String CONNECTED_ALLIES_DAMAGE_BOOST = "connected_allies_damage_boost";
     public static final String CONNECTED_ALLIES_HEALTH_BOOST = "connected_allies_health_boost";
+    public static final String CONNECTED_ALLIES_HEAL = "connected_allies_heal";
     public static final String CONNECTED_ALLIES_SHIELD = "connected_allies_shield";
     public static final String SPEED_BOOST = "speed_boost";
+    /** Generates elemental energy with no notch link or socket required. */
+    public static final String ENERGY_BOOST = "energy_boost";
     public static final String CONNECTED_ALLIES_SLOW = "connected_allies_slow";
     public static final String CONNECTED_ALLIES_SPEED_BOOST = "connected_allies_speed_boost";
     public static final String DESTROY = "destroy";
@@ -28,6 +32,7 @@ public final class AbilityEffectKeys {
 
     private static final Set<String> ALL = Set.of(
             DAMAGE,
+            CHAIN_DAMAGE,
             PLAYER_DAMAGE,
             DRAW,
             HEAL,
@@ -39,8 +44,10 @@ public final class AbilityEffectKeys {
             HEALTH_BOOST,
             CONNECTED_ALLIES_DAMAGE_BOOST,
             CONNECTED_ALLIES_HEALTH_BOOST,
+            CONNECTED_ALLIES_HEAL,
             CONNECTED_ALLIES_SHIELD,
             SPEED_BOOST,
+            ENERGY_BOOST,
             CONNECTED_ALLIES_SLOW,
             CONNECTED_ALLIES_SPEED_BOOST,
             DESTROY,

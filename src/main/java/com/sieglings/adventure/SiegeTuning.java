@@ -57,6 +57,65 @@ final class SiegeTuning {
     /** Max-HP growth per level for the SiegeKnight (+5% of base per level). */
     static final int KNIGHT_HP_PCT_PER_LEVEL = 5;
 
+    // ---- Level-up rewards -------------------------------------------------
+
+    /**
+     * Flat max HP a Siegeling gains per level, on top of the percentage curve
+     * above. Flat so a level still feels like something on a small starter.
+     * Part of the derived curve rather than folded into base HP on the way past,
+     * so every route to level N — XP in a run, a checkpoint reload, a
+     * Battlegrounds squad rebuilt from extracted veterans — lands on the same
+     * max HP.
+     */
+    static final int LEVELUP_BONUS_HP = 5;
+
+    /** Extra magnitude an amplified move gains (damage, heal, shield, buff). */
+    static final int AMP_VALUE_BONUS = 4;
+    /** AP an amplified move costs less; never below 0. */
+    static final int AMP_COST_REDUCTION = 1;
+    /** Healing a swap move's HEAL rider restores to both units it moved. */
+    static final int AMP_SWAP_HEAL = 6;
+    /** Shield a swap move's SHIELD rider grants to both units it moved. */
+    static final int AMP_SWAP_SHIELD = 5;
+    /** Attack a swap move's ATTACK rider adds to both units it moved. */
+    static final int AMP_SWAP_ATTACK = 2;
+
+    // ---- Buff durations ---------------------------------------------------
+
+    /**
+     * Rounds a card-granted attack buff lasts. Stat buffs used to run for the
+     * whole battle, so a repeatable buff card compounded every turn and every
+     * later attack cashed the whole stack — an upgraded booster was worth more
+     * than any damage card by round three. A short window keeps the buff a
+     * setup play (buff, then swing) instead of a permanent stat purchase.
+     */
+    static final int BUFF_ATK_ROUNDS = 2;
+    /** Rounds a card-granted speed buff lasts; same reasoning as {@link #BUFF_ATK_ROUNDS}. */
+    static final int BUFF_SPD_ROUNDS = 2;
+    /** Rounds the buff half of a once-per-battle Knight ultimate lasts — longer, since it costs the ultimate. */
+    static final int ULTIMATE_BUFF_ROUNDS = 3;
+    /** Rounds a swap move's ATTACK amp rider lasts; it rides a positioning move, so it matches a card buff. */
+    static final int RIDER_BUFF_ROUNDS = 2;
+    /** Rounds a mercenary's signature Boon buff lasts — one round longer than a stock card buff. */
+    static final int BOON_BUFF_ROUNDS = 3;
+
+    /**
+     * Default duration for a buff granted by an ability that does not state one.
+     * Non-buff effects get 0: they have nothing to expire.
+     *
+     * <p>Battle-long buffs still exist, but they are loadout, not plays — the
+     * Knight's ATTACK/SPEED leadership passive and carried items grant theirs at
+     * battle start and are applied through the untimed buff path instead.
+     */
+    static int defaultBuffRounds(Effect effect) {
+        if (effect == null) return 0;
+        return switch (effect) {
+            case BUFF_ATK -> BUFF_ATK_ROUNDS;
+            case BUFF_SPD -> BUFF_SPD_ROUNDS;
+            default -> 0;
+        };
+    }
+
     /**
      * The level derived from a cumulative XP total, clamped to
      * {@link #MAX_LEVEL}. Level 1 is the floor (0 XP).
@@ -97,7 +156,9 @@ final class SiegeTuning {
 
     /** A Siegeling's base max HP scaled to the given level (rounded up, exact integer math). */
     static int scaledMaxHp(int baseMaxHp, int level) {
-        return ceilPercent(baseMaxHp, percentAtLevel(HP_PCT_PER_LEVEL, level));
+        int clamped = Math.max(1, Math.min(MAX_LEVEL, level));
+        return ceilPercent(baseMaxHp, percentAtLevel(HP_PCT_PER_LEVEL, level))
+                + LEVELUP_BONUS_HP * (clamped - 1);
     }
 
     /** The SiegeKnight's base max HP scaled to the given level (rounded up). */
@@ -130,6 +191,54 @@ final class SiegeTuning {
         return (clampLevel(level) - 1) / 2;
     }
 
+    // ---- Account SiegeKnight level / rarity crossover ---------------------
+    // A knight levelled in the collection (PlayerProgressionService trainer
+    // levels, 1..TRAINER_MAX_LEVEL) marches into Siege at that rank: the same
+    // card is stronger here once it has been levelled there. Rarity rides
+    // along so a Legendary leads harder than a Common at the same level.
+
+    /** Highest account (collection) knight level the crossover scales against. */
+    static final int ACCOUNT_MAX_LEVEL = 5;
+    /** Percent added to Siege leadership power per account level above 1. */
+    static final int ACCOUNT_PCT_PER_LEVEL = 15;
+    /** Percent added per rarity step above Common. */
+    static final int RARITY_PCT_PER_STEP = 10;
+    /** Percent added per in-run knight level above 1. */
+    static final int RUN_PCT_PER_LEVEL = 5;
+
+    static int clampAccountLevel(int level) {
+        return Math.max(1, Math.min(ACCOUNT_MAX_LEVEL, level));
+    }
+
+    /** 0 for Common … 4 for Legendary; unknown rarity reads as Common. */
+    static int rarityStep(com.sieglings.model.enums.Rarity rarity) {
+        if (rarity == null) return 0;
+        return switch (rarity) {
+            case COMMON -> 0;
+            case UNCOMMON -> 1;
+            case RARE -> 2;
+            case EPIC -> 3;
+            case LEGENDARY -> 4;
+        };
+    }
+
+    /**
+     * Multiplier on a knight's Siege leadership power (passive magnitude and
+     * Ultimate strength) from its collection level, its rarity, and the level it
+     * has reached inside the current run. 1.0 for a Common at account level 1.
+     */
+    static double knightPowerScale(int accountLevel, com.sieglings.model.enums.Rarity rarity, int runLevel) {
+        int pct = ACCOUNT_PCT_PER_LEVEL * (clampAccountLevel(accountLevel) - 1)
+                + RARITY_PCT_PER_STEP * rarityStep(rarity)
+                + RUN_PCT_PER_LEVEL * (clampLevel(runLevel) - 1);
+        return 1.0 + pct / 100.0;
+    }
+
+    /** Scales a base magnitude by {@link #knightPowerScale}, never below the base. */
+    static int scalePower(int base, int accountLevel, com.sieglings.model.enums.Rarity rarity, int runLevel) {
+        return Math.max(base, (int) Math.round(base * knightPowerScale(accountLevel, rarity, runLevel)));
+    }
+
     // ---- Battlegrounds (secondary "extraction" mode) ----------------------
     // Phase 3 core. Phase 4 will parameterize the tier scalar (I–V) so the same
     // formulas below drive every tier — the {@code tierScalar} argument is the
@@ -137,6 +246,30 @@ final class SiegeTuning {
 
     /** Minimum banked veteran Siegelings required to open the Battlegrounds lobby. */
     static final int BG_MIN_VETERANS = 3;
+    // ---- Opening fight ----------------------------------------------------
+    // The run's first battle is a fixed yardstick rather than a scaled encounter:
+    // every warband meets the same foe, so a Marshal's pair and a lone Siegeling
+    // start from an identical difficulty. Every later fight goes back through the
+    // usual party-size/floor scaling in SiegeContentService#generateEnemies, which
+    // is anchored on these numbers. Values sit mid-band of what a solo warband
+    // used to roll at floor 1, so the opening feels unchanged for a solo start.
+    //
+    // The opener is a pair because every Siege encounter is now a squad of 2–3
+    // (SiegeContentService#generateEnemies) and the first fight should teach the
+    // real shape of a battle. Its difficulty is unchanged: the per-foe numbers are
+    // the old single foe's split across two bodies and then raised ~15% for the
+    // focus-fire decay a squad pays (see the budget note in generateEnemies), so
+    // 2x17 HP / 2x3 damage lands on the same yardstick as one 30 HP / 5 damage foe.
+
+    /** Foes in the opening fight. */
+    static final int OPENING_FIGHT_FOES = 2;
+    /** Max HP of each opening-fight foe. */
+    static final int OPENING_FIGHT_HP = 17;
+    /** Damage of the opening foe's single attack. */
+    static final int OPENING_FIGHT_DAMAGE = 3;
+    /** Speed of each opening-fight foe (decides who acts first). */
+    static final int OPENING_FIGHT_SPEED = 8;
+
     /** How many veterans (and one veteran knight) a Battlegrounds squad fields. */
     static final int BG_SQUAD_SIZE = 3;
 

@@ -78,6 +78,13 @@
     // from cache, and the cheap /api/game/catalog-version check revalidates it in
     // the background, re-downloading the full catalog only when it actually moved.
     const STATIC_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+    // The pack catalog is not really static: designers switch individual packs on
+    // and off from the dashboard (Shop > Pack Availability), and the live element
+    // roster adds or removes whole elemental packs. fetchCachedJson serves a fresh
+    // cache without revalidating, so the static TTL would hide those changes from
+    // returning players for a full day. Keep the payload cached long enough to
+    // still paint instantly, short enough that a toggle lands the same session.
+    const PACK_CACHE_TTL_MS = 10 * 60 * 1000;
     // Leaderboards change as matches finish today, so cache them briefly rather
     // than reusing the same snapshot for the full static TTL.
     const LEADERBOARD_CACHE_TTL_MS = 60 * 1000;
@@ -103,10 +110,13 @@
     // Bump when elemental card-back / starter pack art changes so CSS
     // backgrounds and pack reveals pick up the new files.
     const PACK_CARD_BACK_VERSION = 3;
-    const ELEMENTAL_CARD_BACK_VERSION = 5;
+    const ELEMENTAL_CARD_BACK_VERSION = 6;
     // Starter SiegeKnights guests can command in Play. Keep in sync with
     // GameController.GUEST_TRAINER_IDS and game.js.
     const GUEST_TRAINER_IDS = new Set(['squire-bob', 'pyla', 'ser-airek']);
+    // Free main-four singleton decks — guests may browse only these card lists
+    // in the Cards binder (full catalog requires sign-in).
+    const FREE_DECK_ELEMENTS = new Set(['FIRE', 'ICE', 'EARTH', 'WIND']);
 
     function versionedPackAsset(path) {
         if (!path) return '';
@@ -166,7 +176,7 @@
     const ENERGY_COST_FILTERS = ['ALL', 'FREE', '1', '2', '3', '4', '5+'];
     const NOTCH_DIRECTIONS = ['TOP_LEFT', 'TOP', 'TOP_RIGHT', 'LEFT', 'RIGHT', 'BOTTOM_LEFT', 'BOTTOM', 'BOTTOM_RIGHT'];
     const DECK_ASSET_KEYS = [
-        'FIRE', 'ICE', 'WATER', 'EARTH', 'WIND', 'SHADOW',
+        'FIRE', 'ICE', 'EARTH', 'WIND', 'WATER', 'SHADOW',
         'ELECTRIC', 'METAL', 'UNDEAD', 'PSYCHIC', 'POISON', 'LIGHT'
     ];
     // Element defaults for hub decks, shop packs, and profile card backs.
@@ -408,8 +418,12 @@
         options: null,
         packs: [],
         dailyOffers: [],
+        dailyTitleOffers: [],
         titleCatalog: [],
         shopPacksError: '',
+        // The pack catalog is fetched on boot, so the shop starts out loading.
+        // Cleared by applyShopPacksPayload once an attempt resolves either way.
+        shopPacksLoading: true,
         creatureDescriptions: {},
         rooms: [],
         selectedCardId: null,
@@ -425,7 +439,7 @@
         rarityFilter: 'ALL',
         finishFilter: 'ALL',
         energyCostFilter: 'ALL',
-        showUnowned: initialCollectionAuthMode === 'guest',
+        showUnowned: false,
         collectionAuthMode: initialCollectionAuthMode,
         collectionFilterTouched: false,
         sortField: 'owned',
@@ -439,13 +453,24 @@
         builderCounts: {},
         builderPreviewCardId: null,
         editingSavedDeckId: '',
+        builderClientDeckId: '',
+        deckSelectMode: false,
+        deckSelection: [],
         builderSearch: '',
         builderElementFilter: 'ALL',
         builderTypeFilter: 'ALL',
         builderRarityFilter: 'ALL',
         builderSort: 'owned-desc',
+        builderTab: 'binder',
+        builderCardTab: 'card',
+        builderDeckSettingsOpen: false,
+        builderIssue: null,
         builderVisibleLimit: 0,
         builderRenderTimer: null,
+        // Guest binders default to Show unowned (full catalog). Mounting every
+        // framed tile at once freezes phones for seconds even when /api/game/options
+        // is warm — page the grid the same way the deck builder already does.
+        binderVisibleLimit: 24,
         notifications: [],
         newCards: new Set(),
         newCardsSnapshot: null,
@@ -483,6 +508,9 @@
         lobbyBusy: false,
         packReveal: null,
         packOpeningPending: null,
+        deckPurchasePendingId: '',
+        deckUnlockCelebration: null,
+        progressionRecoveryPending: false,
         dailyOfferPurchasePending: null,
         packOpeningDismissedKey: '',
         shopView: 'browse',
@@ -494,6 +522,13 @@
         achievementCategory: '',
         leaderboardTab: 'wins',
         leaderboardPeriod: 'daily',
+        leaderboardsRetrying: false,
+        leaderboards: null,
+        leaderboardsError: '',
+        // The panel paints before loadAll() has fetched anything, so "not asked
+        // yet" has to be its own state. Treated as failed, a 25s cold start
+        // showed every player a retry banner for a board that was still loading.
+        leaderboardsLoading: true,
         dailyMissions: null,
         dailyMissionsError: '',
         showAllMissions: false,
@@ -521,6 +556,7 @@
 
     let liveCatalogRefreshPromise = null;
     let gachaParticleField = null;
+    let deckUnlockCelebrationTimer = null;
 
     function setHudMinimized(minimized) {
         document.body.classList.toggle('hud-minimized', minimized);
@@ -545,6 +581,16 @@
         if (height > 0) {
             document.documentElement.style.setProperty('--bottom-hud-height', `${height}px`);
         }
+    }
+
+    // The explicit call sites only cover the height changes we thought to name.
+    // The nav also grows when signing in adds action buttons, when a badge
+    // appears, or when a webfont lands — and a stale measurement puts every
+    // popup anchored to it back under the HUD. Watch the element instead.
+    function observeBottomHud() {
+        const nav = document.querySelector('.home-nav');
+        if (!nav || typeof window.ResizeObserver !== 'function') return;
+        new window.ResizeObserver(() => measureBottomHud()).observe(nav);
     }
 
     function openFriendsModal() {
@@ -768,6 +814,8 @@
         panel.classList.toggle('hidden', !open);
         document.getElementById('hudNotifBtn')?.classList.toggle('active', open);
         if (!open) return;
+        // Help and notifications share the left HUD cluster — only one open.
+        toggleHelpModal(false);
         renderNotifications();
         // Opening the panel marks everything read; rows keep their unread
         // styling until the next open so the player can still spot what's new.
@@ -775,6 +823,28 @@
             state.notifications.forEach(n => { n.read = true; });
             saveNotifications();
             [document.getElementById('hudNotifBadge'), document.getElementById('hudFabBadge')].forEach(badge => badge?.classList.add('hidden'));
+        }
+    }
+
+    function toggleHelpModal(force) {
+        const modal = document.getElementById('helpModal');
+        const btn = document.getElementById('hudHelpBtn');
+        const frame = document.getElementById('helpModalFrame');
+        if (!modal) return;
+        const open = typeof force === 'boolean' ? force : modal.classList.contains('hidden');
+        modal.classList.toggle('hidden', !open);
+        modal.setAttribute('aria-hidden', open ? 'false' : 'true');
+        btn?.classList.toggle('active', open);
+        btn?.setAttribute('aria-expanded', open ? 'true' : 'false');
+        document.body.classList.toggle('help-modal-open', open);
+        if (!open) return;
+        toggleNotifPanel(false);
+        // Lazy-load the Field Guide once so reopen is instant.
+        if (frame && (!frame.dataset.loaded || frame.getAttribute('src') === 'about:blank')) {
+            // Load the static file (not the /help rewrite) so the popup works
+            // under Firebase, Spring, and plain static servers alike.
+            frame.src = '/help.html?embed=1';
+            frame.dataset.loaded = '1';
         }
     }
 
@@ -1005,8 +1075,9 @@
         { target: '#goldPill', title: 'Siegecoins', text: 'Earn coins from matches and daily missions, then spend them on card packs in the Shop.' },
         { target: '#friendsBtn', title: 'Friends & Chat', text: 'Add friends by email, accept invites, and message them from any page.' },
         { target: '#hudNotifBtn', title: 'Notifications', text: 'Match results, rewards, mission completions, and unlocks collect here.' },
+        { target: '#hudHelpBtn', title: 'Field Guide', text: 'Open the help popup anytime for card types, buffs, energy, and elemental afflictions.' },
         { target: '#optionsBtn', title: 'Settings', text: 'Game guides, the Art Gallery, profile sharing, and support live in Settings.' },
-        { target: null, title: 'Ready for your first siege?', text: 'Play the tutorial match: place a Siegeling, use a Strategy and a Deception, destroy an enemy Siegeling, and fire your Knight ability. Win and you earn a second starter pack plus bonus Siegecoins.' }
+        { target: null, title: 'Ready for your first siege?', text: 'Play the tutorial match: a fixed practice battle where a coach panel walks you through phases, notch links, energy, targeting, and Deceptions while you play. Place a Siegeling, use a Strategy and a Deception, destroy an enemy Siegeling, and fire your Knight ability. Win your first one and you earn a second starter pack plus bonus Siegecoins - after that it stays open as practice.' }
     ];
     let tourStepIndex = -1;
 
@@ -1066,7 +1137,9 @@
         const target = step.target ? document.querySelector(step.target) : null;
         const visibleTarget = target && !target.classList.contains('hidden') && target.getBoundingClientRect().width > 0 ? target : null;
         if (finalStep) {
-            if (nextBtn) nextBtn.textContent = state.progression?.tutorialCompleted ? 'Finish' : 'Play Tutorial Match';
+            // The tutorial match is repeatable, so a player who already claimed
+            // its reward is still offered the practice run rather than a dead end.
+            if (nextBtn) nextBtn.textContent = state.progression?.tutorialCompleted ? 'Replay Tutorial Match' : 'Play Tutorial Match';
         } else if (nextBtn) {
             nextBtn.textContent = 'Next';
         }
@@ -1086,10 +1159,10 @@
             bubble.classList.add('is-centered');
         }
         if (!nextBtn) return;
-        if (finalStep && !state.progression?.tutorialCompleted) {
+        if (finalStep) {
             nextBtn.onclick = () => {
                 endOnboardingTour(true);
-                goPlay({ mode: 'solo', tutorial: true, loadoutLabel: 'Tutorial Match' });
+                goPlay({ mode: 'tutorial', tutorial: true, loadoutLabel: 'Tutorial Match' });
             };
         } else {
             nextBtn.onclick = advanceOnboardingTour;
@@ -1104,6 +1177,12 @@
 
     function isMobileDeckBuilderViewport() {
         return Boolean(window.matchMedia?.('(max-width: 900px)').matches);
+    }
+
+    const BINDER_PAGE_SIZE = 24;
+
+    function resetBinderVisibleLimit() {
+        state.binderVisibleLimit = BINDER_PAGE_SIZE;
     }
 
     function resetBuilderVisibleLimit() {
@@ -1156,10 +1235,11 @@
         };
         window.addEventListener('orientationchange', handleOrientationArtChange);
         window.matchMedia?.('(orientation: portrait)')?.addEventListener?.('change', handleOrientationArtChange);
-        // Keep the docked-HUD height measurement current for the tray anchor.
+        // Keep the docked-HUD height measurement current for every popup anchored to it.
         window.addEventListener('resize', measureBottomHud);
         window.addEventListener('orientationchange', measureBottomHud);
         measureBottomHud();
+        observeBottomHud();
         // Only show the top loading bar when there's nothing cached to paint yet;
         // otherwise the page is already populated and the refresh is silent.
         setHubLoading(!state.options);
@@ -1207,25 +1287,42 @@
     function bindEvents() {
         document.getElementById('cardSearchInput')?.addEventListener('input', (event) => {
             state.search = event.target.value.trim().toLowerCase();
+            resetBinderVisibleLimit();
             renderCards();
         });
         document.getElementById('cardSortSelect')?.addEventListener('change', (event) => {
             state.sortField = event.target.value;
+            resetBinderVisibleLimit();
             renderCards();
         });
         document.getElementById('cardSortDirToggle')?.addEventListener('click', () => {
             state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
             updateSortDirToggle();
+            resetBinderVisibleLimit();
             renderCards();
         });
         updateSortDirToggle();
         document.getElementById('showUnownedToggle')?.addEventListener('click', () => {
+            // Guests only browse free preset-deck cards; the control is their
+            // path into the full binder, not an unowned toggle.
+            if (!state.profile?.authenticated) {
+                openAuth();
+                return;
+            }
             state.collectionFilterTouched = true;
             state.showUnowned = !state.showUnowned;
+            resetBinderVisibleLimit();
             renderFilters();
             renderCards();
         });
-        document.getElementById('playNowBtn')?.addEventListener('click', () => goPlay({ mode: 'solo', directLoadout: true }));
+        // The primary Play button asks where first: launching Arena straight from
+        // it left Siege and the Keep with no route off the one control labelled
+        // "play". Arena is still the first, primary choice in the picker.
+        document.getElementById('playNowBtn')?.addEventListener('click', () => {
+            const picker = window.SieglingsPlayModePicker;
+            if (!picker) { goPlay({ mode: 'solo', directLoadout: true }); return; }
+            picker.open({ onArena: () => goPlay({ mode: 'solo', directLoadout: true }) });
+        });
         document.getElementById('startPveBtn')?.addEventListener('click', () => goPlay({ mode: 'solo', directLoadout: true }));
         document.getElementById('createLobbyBtn')?.addEventListener('click', createLobbyFromHome);
         document.getElementById('shopShortcutBtn')?.addEventListener('click', () => navigateHub('shop'));
@@ -1259,6 +1356,7 @@
         });
         document.getElementById('friendAddForm')?.addEventListener('submit', addFriendFromSocial);
         document.getElementById('createCustomDeckBtn')?.addEventListener('click', () => openDeckBuilder({ reset: true }));
+        bindDeckSelectionControls();
         document.getElementById('deckBuilderBackBtn')?.addEventListener('click', () => navigateHub('decks'));
         document.getElementById('saveDeckBuilderPageBtn')?.addEventListener('click', saveCustomDeck);
         document.getElementById('filterTrayBtn')?.addEventListener('click', () => toggleTray('filter'));
@@ -1285,11 +1383,24 @@
         });
         document.getElementById('artLightbox')?.addEventListener('click', closeArtLightbox);
         document.getElementById('hudNotifBtn')?.addEventListener('click', () => toggleNotifPanel());
+        document.getElementById('hudHelpBtn')?.addEventListener('click', () => toggleHelpModal());
+        document.getElementById('helpModal')?.addEventListener('click', (event) => {
+            if (event.target.closest('[data-help-close]')) toggleHelpModal(false);
+        });
         document.getElementById('clearNotifsBtn')?.addEventListener('click', clearNotifications);
         document.addEventListener('click', (event) => {
             const panel = document.getElementById('notifPanel');
             if (!panel || panel.classList.contains('hidden')) return;
             if (panel.contains(event.target) || document.getElementById('hudNotifBtn')?.contains(event.target)) return;
+            toggleNotifPanel(false);
+        });
+        document.addEventListener('keydown', (event) => {
+            if (event.key !== 'Escape') return;
+            const helpModal = document.getElementById('helpModal');
+            if (helpModal && !helpModal.classList.contains('hidden')) {
+                toggleHelpModal(false);
+                return;
+            }
             toggleNotifPanel(false);
         });
         loadNotifications();
@@ -1355,6 +1466,11 @@
         document.getElementById('deckPreviewModal')?.addEventListener('click', (event) => {
             if (event.target === event.currentTarget) closeDeckPreview();
         });
+        document.getElementById('deckUnlockCelebrationHost')?.addEventListener('click', (event) => {
+            if (event.target.closest('[data-dismiss-deck-unlock]')) {
+                dismissDeckUnlockCelebration();
+            }
+        });
         document.getElementById('matchReviewOverlay')?.addEventListener('click', closeMatchReview);
         document.querySelectorAll('[data-match-review-close]').forEach(btn => btn.addEventListener('click', closeMatchReview));
         document.addEventListener('keydown', (event) => {
@@ -1363,6 +1479,7 @@
                 closeDeckPreview();
                 closeMatchReview();
                 closeAchievementDetail();
+                dismissDeckUnlockCelebration();
             }
         });
         document.querySelectorAll('[data-home-focus]').forEach((btn) => {
@@ -1404,19 +1521,25 @@
     }
 
     async function loadAll() {
-        const [options, packs, descriptions, profile, leaderboards, dailyMissions] = await Promise.all([
+        // Leaderboards settle on their own promise: a slow catalog fetch must not
+        // hold the panel in its loading state, and a sibling that rejects must not
+        // strand it there forever (Promise.all would skip the apply below).
+        const leaderboardsLoad = loadLeaderboardsWithRetry()
+            .then((data) => {
+                applyLeaderboardsPayload(data);
+                renderHomeDashboard();
+            });
+        const [options, packs, descriptions, profile, dailyMissions] = await Promise.all([
             fetchGameOptions(),
-            fetchCachedJson('shopPacks', '/api/shop/packs', STATIC_CACHE_TTL_MS, isValidShopPacksPayload),
+            fetchCachedJson('shopPacks', '/api/shop/packs', PACK_CACHE_TTL_MS, isValidShopPacksPayload),
             fetchCachedJson('creatureDescriptions', '/assets/creature-descriptions.json', STATIC_CACHE_TTL_MS),
             syncProfile(),
-            fetchCachedJson('leaderboards', '/api/leaderboards', LEADERBOARD_CACHE_TTL_MS),
             loadDailyMissions()
         ]);
+        await leaderboardsLoad;
         applyGameOptions(options);
         applyShopPacksPayload(packs);
         state.creatureDescriptions = indexCreatureDescriptions(descriptions);
-        state.leaderboards = leaderboards || null;
-        state.leaderboardsError = leaderboards?.error || '';
         if (dailyMissions && !dailyMissions.error) {
             state.dailyMissions = dailyMissions;
             state.dailyMissionsError = '';
@@ -1493,9 +1616,18 @@
             state.token = COOKIE_SESSION_VALUE;
             try { localStorage.setItem(AUTH_TOKEN_KEY, state.token); } catch (e) { /* ignore */ }
         }
-        state.profile = data;
-        state.progression = data.progression || null;
-        state.profileSynced = true;
+        // Auth profile assembly intentionally tolerates an isolated progression
+        // read failure. Recover through the authoritative progression endpoint
+        // before deciding whether this account still needs a starter pack.
+        if (!data.progression) {
+            const recovered = await recoverProgressionSnapshot();
+            if (recovered) data.progression = recovered.progression;
+        }
+        const sameUser = state.profile?.user?.id && state.profile.user.id === data.user?.id;
+        const progression = data.progression || (sameUser ? state.progression : null);
+        state.profile = progression && !data.progression ? { ...data, progression } : data;
+        state.progression = progression || null;
+        state.profileSynced = Boolean(state.progression);
         syncCollectionVisibilityDefault();
         saveCachedAuthProfile(data);
         await loadDailyMissions();
@@ -1517,13 +1649,27 @@
         return data;
     }
 
-    async function loadDailyMissions() {
+    // A Home paint can happen before the profile-initiated mission request has
+    // returned (especially on mobile after a restored page). Share that request
+    // between callers and repaint the panel once the complete three-period
+    // snapshot arrives so a tab never needs a second tap to populate.
+    let dailyMissionsLoadPromise = null;
+
+    function loadDailyMissions() {
         if (!state.token) {
             state.dailyMissions = null;
             state.dailyMissionsError = '';
             stopMissionResetTimer();
-            return null;
+            return Promise.resolve(null);
         }
+        if (dailyMissionsLoadPromise) return dailyMissionsLoadPromise;
+        dailyMissionsLoadPromise = loadDailyMissionsNow().finally(() => {
+            dailyMissionsLoadPromise = null;
+        });
+        return dailyMissionsLoadPromise;
+    }
+
+    async function loadDailyMissionsNow() {
         try {
             const data = await fetchJson('/api/missions/daily');
             if (data?.error) {
@@ -1533,6 +1679,7 @@
             state.dailyMissions = data;
             state.dailyMissionsError = '';
             startMissionResetTimer();
+            if (state.route === 'home') safeRender(renderHomeDashboard);
             return data;
         } catch (error) {
             state.dailyMissionsError = 'Could not load daily missions.';
@@ -1611,7 +1758,8 @@
     async function ensurePacksLoaded(force = false) {
         if (!force && state.packs?.length) return true;
         if (force) clearCache('shopPacks');
-        const packs = await fetchCachedJson('shopPacks', '/api/shop/packs', STATIC_CACHE_TTL_MS, isValidShopPacksPayload);
+        state.shopPacksLoading = true;
+        const packs = await fetchCachedJson('shopPacks', '/api/shop/packs', PACK_CACHE_TTL_MS, isValidShopPacksPayload);
         return applyShopPacksPayload(packs);
     }
 
@@ -1622,6 +1770,7 @@
         safeRender(renderStarterGate);
         safeRender(renderCards);
         safeRender(renderDecks);
+        safeRender(renderDeckUnlockCelebration);
         safeRender(renderDeckBuilderPage);
         safeRender(renderHomeDashboard);
         safeRender(renderShop);
@@ -1684,12 +1833,22 @@
     function renderStarterGate() {
         const gate = document.getElementById('starterGate');
         const hub = document.getElementById('hubGrid');
+        const progressionMissing = Boolean(state.profile?.authenticated && !state.progression);
         const mustChoose = Boolean(state.profile?.authenticated && state.progression && !state.progression.starterChosen);
-        document.body.classList.toggle('starter-onboarding-active', mustChoose);
-        gate.classList.toggle('hidden', !mustChoose);
-        hub.classList.toggle('hidden', mustChoose);
+        const gateActive = progressionMissing || mustChoose;
+        document.body.classList.toggle('starter-onboarding-active', gateActive);
+        gate.classList.toggle('hidden', !gateActive);
+        hub.classList.toggle('hidden', gateActive);
         const grid = document.getElementById('starterPackGrid');
         if (!grid) return;
+        if (progressionMissing) {
+            grid.innerHTML = `<div class="empty-state" role="status">
+                <strong>${state.progressionRecoveryPending ? 'Loading your starter progress…' : 'Starter progress is temporarily unavailable.'}</strong>
+                <span>${state.progressionRecoveryPending ? 'Checking your collection now.' : 'Retry before choosing a pack so your first cards are granted safely.'}</span>
+                <button class="primary-btn" type="button" data-retry-progression${state.progressionRecoveryPending ? ' disabled' : ''}>${state.progressionRecoveryPending ? 'Loading…' : 'Retry'}</button>
+            </div>`;
+            return;
+        }
         grid.innerHTML = state.packs.filter(pack => pack.starterEligible).map(renderPackTile).join('');
     }
 
@@ -1722,32 +1881,43 @@
     function renderFilters() {
         const showUnownedToggle = document.getElementById('showUnownedToggle');
         if (showUnownedToggle) {
-            showUnownedToggle.classList.toggle('active', state.showUnowned);
-            showUnownedToggle.setAttribute('aria-pressed', String(state.showUnowned));
-            showUnownedToggle.textContent = state.showUnowned ? 'Showing unowned' : 'Show unowned';
+            if (isGuestCollection()) {
+                showUnownedToggle.classList.remove('active');
+                showUnownedToggle.setAttribute('aria-pressed', 'false');
+                showUnownedToggle.textContent = 'Sign in to access cards';
+            } else {
+                showUnownedToggle.classList.toggle('active', state.showUnowned);
+                showUnownedToggle.setAttribute('aria-pressed', String(state.showUnowned));
+                showUnownedToggle.textContent = state.showUnowned ? 'Showing unowned' : 'Show unowned';
+            }
         }
         renderFilter('elementFilters', elementFilterValues(), state.elementFilter, (value) => {
             state.elementFilter = value;
+            resetBinderVisibleLimit();
             renderFilters();
             renderCards();
         });
         renderFilter('typeFilters', ['ALL', 'SIEGLING', 'SIEGEKNIGHT', 'SPELL', 'TRAP'], state.typeFilter, (value) => {
             state.typeFilter = value;
+            resetBinderVisibleLimit();
             renderFilters();
             renderCards();
         });
         renderFilter('rarityFilters', ['ALL', 'COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'], state.rarityFilter, (value) => {
             state.rarityFilter = value;
+            resetBinderVisibleLimit();
             renderFilters();
             renderCards();
         });
         renderFilter('energyCostFilters', ENERGY_COST_FILTERS, state.energyCostFilter, (value) => {
             state.energyCostFilter = value;
+            resetBinderVisibleLimit();
             renderFilters();
             renderCards();
         }, formatEnergyCostFilter);
         renderFilter('finishFilters', ['ALL', 'HOLOGRAPHIC', 'STANDARD'], state.finishFilter, (value) => {
             state.finishFilter = value;
+            resetBinderVisibleLimit();
             renderFilters();
             renderCards();
         }, formatFinishFilter);
@@ -1776,12 +1946,15 @@
             state.collectionFilterTouched = false;
         }
         if (!state.collectionFilterTouched) {
-            state.showUnowned = authMode === 'guest';
+            // Guests browse the free Fire/Ice/Earth/Wind deck lists instead of
+            // the full unowned catalog; signed-in players start on owned only.
+            state.showUnowned = false;
         }
     }
 
-    function cardsRenderSignature(cards) {
+    function cardsRenderSignature(cards, visibleCount) {
         return [
+            isGuestCollection() ? 'guest' : 'signed-in',
             state.showUnowned,
             state.elementFilter,
             state.typeFilter,
@@ -1792,6 +1965,8 @@
             state.sortDir,
             state.search,
             state.selectedCardId,
+            state.binderVisibleLimit,
+            visibleCount,
             Array.from(state.newCards || []).sort().join(','),
             (state.progression?.holographicCards || []).join(','),
             cards.map(card => `${card.id}:${ownedCount(card.id)}`).join(',')
@@ -1800,21 +1975,33 @@
 
     // Signed in but the owned-cards/decks snapshot hasn't arrived yet this session
     // (and nothing usable was painted from cache). Older/partial cached profiles can
-    // identify the player without containing progression, so the ownedCards map is
-    // the reliable signal that the binder data is actually ready.
+    // identify the player without containing progression, and an empty cached
+    // ownedCards map is indistinguishable from "collection not loaded yet" — so
+    // only a cache that actually has owned cards may skip the loader before the
+    // first authoritative sync finishes. After sync, a present (even empty) map
+    // means the account truly owns nothing; a missing map stays in the loading
+    // state rather than flashing "0 owned cards".
     function ownedDataLoading() {
+        if (!state.token) return false;
         const ownedCards = state.progression?.ownedCards;
         const hasOwnedCardsSnapshot = Boolean(ownedCards)
             && typeof ownedCards === 'object'
             && !Array.isArray(ownedCards);
-        return Boolean(state.token) && !state.profileSynced && !hasOwnedCardsSnapshot;
+        const hasOwnedCards = hasOwnedCardsSnapshot
+            && Object.keys(ownedCards).some(id => Number(ownedCards[id]) > 0);
+        if (!state.profileSynced) {
+            return !hasOwnedCards;
+        }
+        return !hasOwnedCardsSnapshot;
     }
 
-    function binderLoadingMarkup(label) {
-        return `<div class="binder-loading" role="status" aria-live="polite">
-            <span class="binder-loading-spinner" aria-hidden="true"></span>
+    // compact trims the 64px browser-panel padding for small dashboard panels,
+    // which would otherwise grow taller while loading than they are with content.
+    function panelLoadingMarkup(label, compact = false) {
+        return `<div class="panel-loading${compact ? ' compact' : ''}" role="status" aria-live="polite">
+            <span class="panel-loading-spinner" aria-hidden="true"></span>
             <strong>${escapeHtml(label)}</strong>
-            <span class="binder-loading-bar" aria-hidden="true"><span></span></span>
+            <span class="panel-loading-bar" aria-hidden="true"><span></span></span>
         </div>`;
     }
 
@@ -1823,25 +2010,48 @@
         if (!grid) return;
         const allCount = document.getElementById('allCardCount');
         // Catalog not loaded yet, or owned cards still loading for a signed-in
-        // player — show explicit progress instead of a blank/empty panel.
-        if (!state.options || ownedDataLoading()) {
+        // player — show explicit progress instead of a blank/empty panel. An
+        // options object with no cards counts as "not loaded": the game always has
+        // a catalog, so an empty one means the fetch failed, and rendering it would
+        // filter every owned card away into "0 owned cards".
+        if (!hasCardCatalog(state.options) || ownedDataLoading()) {
             grid.setAttribute('aria-busy', 'true');
-            grid.innerHTML = binderLoadingMarkup('Loading your card binder…');
+            grid.innerHTML = panelLoadingMarkup('Loading your card binder…');
             if (allCount) allCount.textContent = 'Loading cards…';
             state._cardsRenderSig = '';
             return;
         }
         grid.setAttribute('aria-busy', 'false');
         const cards = filteredCards();
+        const guest = isGuestCollection();
+        if (!state.binderVisibleLimit || state.binderVisibleLimit < BINDER_PAGE_SIZE) {
+            state.binderVisibleLimit = BINDER_PAGE_SIZE;
+        }
+        const visibleCards = cards.slice(0, Math.min(state.binderVisibleLimit, cards.length));
+        const hasMoreCards = visibleCards.length < cards.length;
         // Skip the expensive innerHTML teardown/rebuild (hundreds of tiles + their
         // images) when nothing that affects the grid changed. Navigating away and
         // back leaves the section's DOM intact, so re-entry is then instant rather
         // than flashing blank while every tile re-mounts and re-decodes its art.
-        const signature = cardsRenderSignature(cards);
+        const signature = cardsRenderSignature(cards, visibleCards.length);
         if (signature !== state._cardsRenderSig || !grid.children.length) {
-            grid.innerHTML = cards.length
-                ? cards.map(renderCardTile).join('')
+            const guestNote = guest
+                ? `<div class="unlock-card binder-guest-note">
+                    <strong>Starter decks only</strong>
+                    <span>Guests can browse cards from the free Fire, Ice, Earth, and Wind decks. Sign in to access the full card binder.</span>
+                    <button class="primary-btn" type="button" data-guest-binder-signin>Sign in to access cards</button>
+                   </div>`
+                : '';
+            const emptyCopy = guest
+                ? `<div class="unlock-card binder-empty"><strong>No starter-deck cards match these filters</strong><span>Clear a filter, or sign in to browse the full binder.</span></div>`
                 : `<div class="unlock-card binder-empty"><strong>No owned cards match these filters</strong><span>${state.showUnowned ? 'Try another search or filter.' : 'Use Show unowned to browse the full catalog.'}</span></div>`;
+            const tiles = visibleCards.length
+                ? visibleCards.map(renderCardTile).join('')
+                : emptyCopy;
+            const loadMore = hasMoreCards
+                ? `<button class="ghost-btn binder-load-more" type="button" data-binder-load-more>Load more cards (${cards.length - visibleCards.length})</button>`
+                : '';
+            grid.innerHTML = guestNote + tiles + loadMore;
             grid.querySelectorAll('[data-card-id]').forEach(tile => tile.addEventListener('click', () => {
                 state.selectedCardId = tile.dataset.cardId;
                 markCardViewed(tile.dataset.cardId);
@@ -1849,6 +2059,11 @@
                 renderCards();
                 renderDetail();
             }));
+            grid.querySelector('[data-binder-load-more]')?.addEventListener('click', () => {
+                state.binderVisibleLimit = Math.max(state.binderVisibleLimit || BINDER_PAGE_SIZE, BINDER_PAGE_SIZE) + BINDER_PAGE_SIZE;
+                renderCards();
+            });
+            grid.querySelector('[data-guest-binder-signin]')?.addEventListener('click', () => openAuth());
             state._cardsRenderSig = signature;
             window.SieglingsCardShowcase?.scheduleFramedSummaryFit?.();
         window.SieglingsCardBinderVisual?.scheduleDescriptionFit?.();
@@ -1856,7 +2071,14 @@
         }
         if (allCount) {
             const ownedVisible = cards.filter(card => ownedCount(card.id) > 0).length;
-            allCount.textContent = state.showUnowned ? `${cards.length} cards / ${ownedVisible} owned` : `${cards.length} owned cards`;
+            const shown = `${visibleCards.length}${hasMoreCards ? ` / ${cards.length}` : ''}`;
+            if (guest) {
+                allCount.textContent = `${shown} starter cards`;
+            } else {
+                allCount.textContent = state.showUnowned
+                    ? `${shown} cards / ${ownedVisible} owned`
+                    : `${shown} owned cards`;
+            }
         }
         renderDetail();
         renderUnlock();
@@ -1909,6 +2131,26 @@
         </div>`;
     }
 
+    function isGuestCollection() {
+        return !state.profile?.authenticated;
+    }
+
+    // Card ids that appear in the free main-four singleton decks. Guests browse
+    // only this set so Cards stays light without loading the full catalog UI.
+    function freePresetDeckCardIdSet() {
+        const ids = new Set();
+        (state.options?.decks || []).forEach((deck) => {
+            const elements = deck?.elements || [];
+            if (elements.length !== 1) return;
+            if (!FREE_DECK_ELEMENTS.has(String(elements[0] || '').toUpperCase())) return;
+            (deck.cards || []).forEach((entry) => {
+                const id = String(entry?.id || '').trim();
+                if (id) ids.add(id.toLowerCase());
+            });
+        });
+        return ids;
+    }
+
     function siegeknightBinderCards() {
         return (state.options?.trainers || []).map(trainer => {
             const level = Math.max(1, Number(trainer.level) || trainerOwnedLevel(trainer.id) || 1);
@@ -1944,12 +2186,25 @@
     }
 
     function binderCatalog() {
-        return [...(state.options?.cardCatalog || []), ...siegeknightBinderCards()];
+        const catalog = state.options?.cardCatalog || [];
+        const knights = siegeknightBinderCards();
+        if (!isGuestCollection()) {
+            return [...catalog, ...knights];
+        }
+        const allowed = freePresetDeckCardIdSet();
+        const starterCards = catalog.filter((card) => allowed.has(String(card.id || '').toLowerCase()));
+        // Guests can already field the free starter knights in Play; keep those
+        // visible in Cards without pulling in the paid SiegeKnight roster.
+        const starterKnights = knights.filter((card) => GUEST_TRAINER_IDS.has(String(card.id || '').toLowerCase()));
+        return [...starterCards, ...starterKnights];
     }
 
     function filteredCards() {
+        const guest = isGuestCollection();
         const cards = binderCatalog().filter(card => {
-            if (!state.showUnowned && ownedCount(card.id) <= 0) return false;
+            // Guest binderCatalog is already the free-deck subset; show it even
+            // though the account owns nothing yet.
+            if (!guest && !state.showUnowned && ownedCount(card.id) <= 0) return false;
             if (state.elementFilter !== 'ALL' && card.element !== state.elementFilter) return false;
             if (state.typeFilter !== 'ALL' && card.type !== state.typeFilter) return false;
             if (state.rarityFilter !== 'ALL' && card.rarity !== state.rarityFilter) return false;
@@ -2100,24 +2355,19 @@
         const backStyle = typeof siegeknightCardBackStyle === 'function'
             ? siegeknightCardBackStyle()
             : "--knight-card-back:url('/img/knights/card-back-siegeknight.png');--knight-card-template:url('/img/knights/siegeknight-card-template.png')";
-        const iconPath = (typeof ELEMENT_KEY_ICON_PATHS !== 'undefined'
-            && ELEMENT_KEY_ICON_PATHS[String(card.element || '').toUpperCase()]) || '';
-        const elementIconStyle = iconPath ? `--knight-element-icon:url('${iconPath}');` : '';
         const holoClass = card.holographic ? ' is-holographic' : '';
         const holoOverlay = card.holographic ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
         if (window.SieglingsCardBinderVisual?.usesKnightOverlayArt?.(card)) {
-            return `<div class="knight-card knight-full-card-art knight-overlay-art knight-binder-card${extraClassAttr} rarity-frame-${escapeAttr(rarityClass)} el-${escapeAttr(elClass)}${holoClass}" style="--knight-color:${elHex};--knight-glow:${elHex}5c;${backStyle};${elementIconStyle}" role="img" aria-label="${escapeAttr(card.name || 'SiegeKnight card')}">
+            return `<div class="knight-card knight-full-card-art knight-overlay-art knight-binder-card${extraClassAttr} rarity-frame-${escapeAttr(rarityClass)} el-${escapeAttr(elClass)}${holoClass}" style="--knight-color:${elHex};--knight-glow:${elHex}5c;${backStyle}" role="img" aria-label="${escapeAttr(card.name || 'SiegeKnight card')}">
                 ${window.SieglingsCardBinderVisual.renderKnightOverlayArtWindow(card)}
                 <div class="knight-card-template" aria-hidden="true"></div>
-                <div class="knight-shield-element" aria-label="${escapeAttr(format(card.element))}"></div>
                 ${holoOverlay}
                 <div class="knight-card-body">${renderKnightBinderCardBody(card, options)}</div>
             </div>`;
         }
-        return `<div class="knight-card has-knight-back knight-binder-card${extraClassAttr} rarity-frame-${escapeAttr(rarityClass)} el-${escapeAttr(elClass)}${holoClass}" style="--knight-color:${elHex};--knight-glow:${elHex}5c;${backStyle};${elementIconStyle}">
+        return `<div class="knight-card has-knight-back knight-binder-card${extraClassAttr} rarity-frame-${escapeAttr(rarityClass)} el-${escapeAttr(elClass)}${holoClass}" style="--knight-color:${elHex};--knight-glow:${elHex}5c;${backStyle}">
             <div class="knight-card-portrait has-knight-back" aria-hidden="true"></div>
             <div class="knight-card-template" aria-hidden="true"></div>
-            <div class="knight-shield-element" aria-label="${escapeAttr(format(card.element))}"></div>
             ${holoOverlay}
             <div class="knight-card-body">${renderKnightBinderCardBody(card, options)}</div>
         </div>`;
@@ -2533,6 +2783,45 @@
         bindHomeDashboardActions(el);
     }
 
+    // A failed fetch returns { error } — a truthy object. Storing that as the
+    // payload made "the request failed" indistinguishable from "nobody has
+    // scored yet", so a cold-start blip rendered as an empty board that never
+    // recovered. Only a real payload becomes state; the error stays separate.
+    function applyLeaderboardsPayload(payload) {
+        const failed = !payload || Boolean(payload.error);
+        state.leaderboardsLoading = false;
+        state.leaderboards = failed ? null : payload;
+        state.leaderboardsError = payload?.error || (payload ? '' : 'Leaderboards are unavailable right now.');
+    }
+
+    // A cold Cloud Run instance answers "warming up" for its first few seconds,
+    // and the only thing the Retry button did was ask again a moment later. Make
+    // those attempts on the player's behalf — the panel stays in its loading
+    // state throughout, so the button is now a last resort, not the happy path.
+    const LEADERBOARD_RETRY_DELAYS_MS = [2500, 6000];
+
+    async function loadLeaderboardsWithRetry() {
+        let data = await fetchCachedJson('leaderboards', '/api/leaderboards', LEADERBOARD_CACHE_TTL_MS);
+        for (const delayMs of LEADERBOARD_RETRY_DELAYS_MS) {
+            if (data && !data.error) break;
+            await new Promise((resolve) => window.setTimeout(resolve, delayMs));
+            data = await fetchJson('/api/leaderboards');
+            if (data && !data.error) writeCache('leaderboards', data);
+        }
+        return data;
+    }
+
+    async function retryLeaderboards() {
+        if (state.leaderboardsRetrying) return;
+        state.leaderboardsRetrying = true;
+        renderHomeDashboard();
+        const data = await fetchJson('/api/leaderboards');
+        state.leaderboardsRetrying = false;
+        applyLeaderboardsPayload(data);
+        if (state.leaderboards) writeCache('leaderboards', state.leaderboards);
+        renderHomeDashboard();
+    }
+
     function leaderboardBoardsForPeriod(period) {
         const activePeriod = LEADERBOARD_PERIODS.some(([id]) => id === period) ? period : 'daily';
         const periods = state.leaderboards?.periods;
@@ -2582,13 +2871,31 @@
                 ${tabs.map(([id, label]) => `<button class="home-lb-tab${activeTab === id ? ' active' : ''}" type="button" data-home-lb="${escapeAttr(id)}" role="tab" aria-selected="${activeTab === id}">${escapeHtml(label)}</button>`).join('')}
             </div>
             <div class="home-lb-list">
-                ${state.leaderboardsError && !state.leaderboards ? `<div class="home-empty-emblem">${escapeHtml(state.leaderboardsError)}</div>` : ''}
-                ${activeRows.length ? activeRows.slice(0, 6).map(row => {
-                    const value = activeTab === 'pvpWinRate' && row.detail ? row.detail : row.value;
-                    return `<div class="home-lb-row"><strong>#${escapeHtml(row.rank)}</strong><span>${escapeHtml(row.displayName || 'Player')}</span><em>${escapeHtml(value ?? '')}</em></div>`;
-                }).join('') : '<div class="home-empty-emblem">No leaderboard results yet.</div>'}
+                ${leaderboardListMarkup(activeRows, activeTab)}
             </div>
         </article>`;
+    }
+
+    function leaderboardListMarkup(rows, activeTab) {
+        if (state.leaderboardsRetrying || state.leaderboardsLoading) {
+            return panelLoadingMarkup('Loading leaderboards…', true);
+        }
+        // "Couldn't load" and "nobody has scored" are different answers and the
+        // player can act on the first one, so the failed state offers a retry
+        // instead of quietly claiming the board is empty.
+        if (!state.leaderboards) {
+            return `<div class="home-lb-error">
+                <span>${escapeHtml(state.leaderboardsError || 'Leaderboards are unavailable right now.')}</span>
+                <button class="ghost-btn compact-btn" type="button" data-home-lb-retry>Retry</button>
+            </div>`;
+        }
+        if (!rows.length) {
+            return '<div class="home-empty-emblem">No leaderboard results yet.</div>';
+        }
+        return rows.slice(0, 6).map(row => {
+            const value = activeTab === 'pvpWinRate' && row.detail ? row.detail : row.value;
+            return `<div class="home-lb-row"><strong>#${escapeHtml(row.rank)}</strong><span>${escapeHtml(row.displayName || 'Player')}</span><em>${escapeHtml(value ?? '')}</em></div>`;
+        }).join('');
     }
 
     function formatDateTime(value) {
@@ -2647,9 +2954,15 @@
 
     function homeDailyMissions() {
         const snapshot = state.dailyMissions;
+        // `featured` is a filtered view of `missions`, so an empty one still has to
+        // fall through to the full list — `[] || missions` would not, because an
+        // empty array is truthy, and the Daily tab would read as "no objectives"
+        // while holding a full snapshot.
+        const featured = snapshot?.featured;
+        const all = snapshot?.missions;
         const list = state.showAllMissions
-            ? (snapshot?.missions || [])
-            : (snapshot?.featured || snapshot?.missions || []);
+            ? (all || [])
+            : ((featured && featured.length ? featured : all) || []);
         if (list.length) {
             return list.map(mission => ({
                 ...mission,
@@ -2658,7 +2971,7 @@
             }));
         }
         if (!state.profile?.authenticated) {
-            return (snapshot?.featured || []).map(mission => ({
+            return (featured && featured.length ? featured : []).map(mission => ({
                 ...mission,
                 iconMarkup: mission.coinIcon,
                 icon: mission.coinIcon ? coinIconMarkup() : mission.icon,
@@ -2700,7 +3013,7 @@
         if (tab === 'lifetime') return 'Milestones — never reset';
         if (tab === 'weekly') {
             return snapshot?.weeklyResetAt
-                ? `Resets ${formatMissionResetCountdown(snapshot.weeklyResetAt)}`
+                ? formatMissionResetCountdown(snapshot.weeklyResetAt)
                 : 'Resets weekly (Monday UTC)';
         }
         return snapshot?.resetAt
@@ -2724,7 +3037,121 @@
                 <small class="mission-subline">${escapeHtml(streakLabel)}</small>
             </div>
             <span class="mission-reward">${renderCoinAmount(login.reward || 100, '')}</span>
+            ${login.points ? `<span class="mission-points" title="+${escapeAttr(login.points)} track points on claim">+${escapeHtml(login.points)}<small>pts</small></span>` : ''}
             ${action}
+        </div>`;
+    }
+
+    function remnantIconMarkup() {
+        return `<img class="remnant-icon" src="${HERO_STAT_ICONS.remnants}" alt="" aria-hidden="true">`;
+    }
+
+    /** Compact "120 coins · 40 Remnants · 1 card" line used by chests and Knight Levels. */
+    function rewardBundleMarkup(gold, remnants, cardPulls) {
+        const parts = [];
+        if (gold > 0) parts.push(`${coinIconMarkup()}<span>${escapeHtml(Number(gold).toLocaleString())}</span>`);
+        if (remnants > 0) parts.push(`${remnantIconMarkup()}<span>${escapeHtml(Number(remnants).toLocaleString())}</span>`);
+        if (cardPulls > 0) parts.push(`<span class="reward-card-chip">${cardPulls > 1 ? `${cardPulls} cards` : 'Random card'}</span>`);
+        return parts.length ? `<span class="reward-bundle">${parts.join('')}</span>` : '';
+    }
+
+    function rewardBundleText(gold, remnants, cardPulls) {
+        const parts = [];
+        if (gold > 0) parts.push(`${Number(gold).toLocaleString()} Siegecoins`);
+        if (remnants > 0) parts.push(`${Number(remnants).toLocaleString()} Remnants`);
+        if (cardPulls > 0) parts.push(cardPulls > 1 ? `${cardPulls} random cards` : '1 random card');
+        return parts.join(' · ');
+    }
+
+    function trackForTab(tab) {
+        const snapshot = state.dailyMissions;
+        if (tab === 'weekly') return snapshot?.weeklyTrack || null;
+        if (tab === 'daily') return snapshot?.dailyTrack || null;
+        return null;
+    }
+
+    /**
+     * Point ladder above the daily/weekly lists. Chests are absolutely positioned
+     * at their threshold's share of the bar so the rail stays honest if the
+     * thresholds are ever retuned to uneven spacing.
+     */
+    function renderMissionTrack(tab) {
+        const track = trackForTab(tab);
+        const chests = track?.chests || [];
+        if (!chests.length) return '';
+        const points = Number(track.points) || 0;
+        const maxPoints = Number(track.maxPoints) || 1;
+        const fill = Math.min(100, Math.round((points / maxPoints) * 100));
+        const label = tab === 'weekly' ? 'Weekly Points' : 'Daily Points';
+        const next = chests.find(chest => !chest.claimed && !chest.unlocked);
+        const ready = chests.filter(chest => chest.claimable).length;
+        const hint = ready
+            ? `${ready} chest${ready > 1 ? 's' : ''} ready to open`
+            : (next
+                ? `${Math.max(0, next.threshold - points)} more points for the next chest`
+                : 'Every chest collected — nice work');
+        return `<div class="mission-track" data-track-period="${escapeAttr(tab)}">
+            <div class="mission-track-head">
+                <span class="mission-track-points"><strong>${escapeHtml(points.toLocaleString())}</strong><small>${escapeHtml(label)}</small></span>
+                <span class="mission-track-hint">${escapeHtml(hint)}</span>
+            </div>
+            <div class="mission-track-rail">
+                <div class="mission-track-inner">
+                    <div class="mission-track-line"><span style="width:${fill}%"></span></div>
+                    ${chests.map(chest => renderTrackChest(tab, chest, maxPoints)).join('')}
+                </div>
+            </div>
+        </div>`;
+    }
+
+    function renderTrackChest(tab, chest, maxPoints) {
+        const pct = Math.min(100, Math.max(0, (Number(chest.threshold) / maxPoints) * 100));
+        const stateClass = chest.claimed ? ' is-claimed' : (chest.claimable ? ' is-claimable' : (chest.unlocked ? ' is-unlocked' : ''));
+        const title = `${chest.threshold} points — ${rewardBundleText(chest.gold, chest.remnants, chest.cardPulls)}`;
+        const attrs = chest.claimable
+            ? `data-chest-period="${escapeAttr(tab)}" data-chest-threshold="${escapeAttr(chest.threshold)}"`
+            : 'disabled';
+        return `<button class="mission-chest${stateClass}" type="button" style="left:${pct}%" title="${escapeAttr(title)}" aria-label="${escapeAttr(title)}" ${attrs}>
+            <span class="mission-chest-lid"></span>
+            <span class="mission-chest-body">${chest.cardPulls > 0 ? '★' : ''}</span>
+            <span class="mission-chest-label">${escapeHtml(chest.threshold)}</span>
+        </button>`;
+    }
+
+    /** Career track on the Lifetime tab — lifetime mission points raise the Knight Level. */
+    function renderKnightPanel() {
+        const knight = state.dailyMissions?.knight;
+        if (!knight) return '';
+        const level = Number(knight.level) || 1;
+        const maxLevel = Number(knight.maxLevel) || level;
+        const into = Number(knight.pointsIntoLevel) || 0;
+        const forNext = Number(knight.pointsForNext) || 0;
+        const maxed = level >= maxLevel || forNext <= 0;
+        const fill = maxed ? 100 : Math.min(100, Math.round((into / forNext) * 100));
+        const pending = knight.pendingLevels || [];
+        const pendingGold = pending.reduce((sum, row) => sum + (Number(row.gold) || 0), 0);
+        const pendingRemnants = pending.reduce((sum, row) => sum + (Number(row.remnants) || 0), 0);
+        const pendingCards = pending.reduce((sum, row) => sum + (Number(row.cardPulls) || 0), 0);
+        const nextReward = knight.nextReward;
+        const footer = pending.length
+            ? `<button class="mission-claim-btn knight-claim-btn" type="button" data-knight-claim>Claim ${pending.length} level${pending.length > 1 ? 's' : ''}</button>`
+            : (maxed
+                ? '<span class="knight-next">Knight Level maxed</span>'
+                : `<span class="knight-next">Level ${level + 1} grants ${rewardBundleMarkup(nextReward?.gold, nextReward?.remnants, nextReward?.cardPulls)}</span>`);
+        const pendingLine = pending.length
+            ? `<div class="knight-pending">Unclaimed: ${rewardBundleMarkup(pendingGold, pendingRemnants, pendingCards)}</div>`
+            : '';
+        return `<div class="knight-panel${pending.length ? ' is-claimable' : ''}">
+            <div class="knight-crest"><small>Knight</small><strong>${escapeHtml(level)}</strong></div>
+            <div class="knight-body">
+                <div class="knight-head">
+                    <strong>Knight Level ${escapeHtml(level)}</strong>
+                    <span>${maxed ? `${escapeHtml(Number(knight.points || 0).toLocaleString())} lifetime points` : `${escapeHtml(into.toLocaleString())} / ${escapeHtml(forNext.toLocaleString())} to Level ${escapeHtml(level + 1)}`}</span>
+                </div>
+                <div class="mission-progress knight-progress"><span style="width:${fill}%"></span></div>
+                ${pendingLine}
+                <div class="knight-foot">${footer}</div>
+            </div>
         </div>`;
     }
 
@@ -2733,9 +3160,18 @@
         const missions = missionsForTab(tab);
         const eyebrow = tab === 'weekly' ? 'Weekly Missions' : (tab === 'lifetime' ? 'Lifetime Rewards' : 'Daily Missions');
         const heading = tab === 'weekly' ? "This week's objectives" : (tab === 'lifetime' ? 'Career milestones' : "Today's objectives");
-        const emptyLabel = state.profile?.authenticated
-            ? 'No objectives to show right now.'
-            : `Sign in to track ${tab} missions.`;
+        const needsSnapshot = Boolean(state.profile?.authenticated && !state.dailyMissions && !state.dailyMissionsError);
+        if (needsSnapshot) void loadDailyMissions();
+        // A failed mission request used to be rendered as a genuine empty state,
+        // which made every tab look as though the account had no missions. Keep
+        // the problem actionable instead of hiding it behind that fallback.
+        const emptyLabel = needsSnapshot
+            ? 'Loading mission objectives…'
+            : state.dailyMissionsError
+            ? `${state.dailyMissionsError} Refresh to try again.`
+            : (state.profile?.authenticated
+                ? 'No objectives to show right now.'
+                : `Sign in to track ${tab} missions.`);
         const loginTile = tab === 'daily' ? renderLoginRewardTile() : '';
         const showAllBtn = tab === 'daily'
             ? `<button class="ghost-btn command-wide-btn" type="button" data-home-action="missions">${state.showAllMissions ? 'Show Featured Missions' : 'View All Missions'}</button>`
@@ -2748,6 +3184,7 @@
             <div class="mission-tabs" role="tablist" aria-label="Mission time range">
                 ${MISSION_TABS.map(([id, label]) => `<button class="mission-tab${tab === id ? ' active' : ''}" type="button" data-mission-tab="${escapeAttr(id)}" role="tab" aria-selected="${tab === id}">${escapeHtml(label)}</button>`).join('')}
             </div>
+            ${tab === 'lifetime' ? renderKnightPanel() : renderMissionTrack(tab)}
             <div class="mission-list">
                 ${loginTile}
                 ${missions.length ? missions.map(renderMissionRow).join('') : `<div class="home-empty-emblem">${escapeHtml(emptyLabel)}</div>`}
@@ -2762,6 +3199,10 @@
         const claimBtn = mission.claimable
             ? `<button class="mission-claim-btn" type="button" data-mission-claim="${escapeAttr(mission.id)}">Claim</button>`
             : (mission.claimed ? '<span class="mission-claimed-label">Claimed</span>' : '');
+        const pointsLabel = mission.period === 'LIFETIME' ? 'Knight points' : 'track points';
+        const pointsChip = mission.points
+            ? `<span class="mission-points" title="+${escapeAttr(mission.points)} ${escapeAttr(pointsLabel)} on claim">+${escapeHtml(mission.points)}<small>pts</small></span>`
+            : '';
         return `<div class="mission-row${statusClass}" data-mission-id="${escapeAttr(mission.id)}">
             <span class="mission-icon">${mission.iconMarkup ? mission.icon : escapeHtml(mission.icon)}</span>
             <div class="mission-copy">
@@ -2769,7 +3210,10 @@
                 <div class="mission-progress"><span style="width:${pct}%"></span></div>
             </div>
             <span class="mission-count">${escapeHtml(mission.current)} / ${escapeHtml(mission.target)}</span>
-            <span class="mission-reward">${renderCoinAmount(mission.reward, '')}</span>
+            <span class="mission-rewards">
+                <span class="mission-reward">${renderCoinAmount(mission.reward, '')}</span>
+                ${pointsChip}
+            </span>
             ${claimBtn}
         </div>`;
     }
@@ -2798,6 +3242,72 @@
         if (notifSnapshot) notifSnapshot.gold = Number(state.progression?.gold) || notifSnapshot.gold;
         safeRender(renderGold);
         safeRender(renderHomeDashboard);
+    }
+
+    /** Applies the wallet/collection deltas every mission-track claim returns. */
+    function applyRewardClaim(data) {
+        if (data?.dailyMissions) state.dailyMissions = data.dailyMissions;
+        if (state.progression) {
+            if (typeof data?.gold === 'number') state.progression.gold = data.gold;
+            if (typeof data?.remnantsTotal === 'number') state.progression.remnants = data.remnantsTotal;
+        }
+        if (notifSnapshot) notifSnapshot.gold = Number(state.progression?.gold) || notifSnapshot.gold;
+    }
+
+    function claimedCardsDetail(cards) {
+        const names = (cards || []).map(card => card?.name).filter(Boolean);
+        return names.length ? ` Cards pulled: ${names.join(', ')}.` : '';
+    }
+
+    // Claim requests are guarded against re-entry: the buttons stay in the DOM
+    // while the POST is in flight, and a double-tap would otherwise send two
+    // claims for the same reward.
+    const claimsInFlight = new Set();
+
+    async function claimMissionChest(period, threshold) {
+        if (!state.token || !period || !threshold) return;
+        const key = `chest:${period}:${threshold}`;
+        if (claimsInFlight.has(key)) return;
+        claimsInFlight.add(key);
+        try {
+        const data = await fetchJson('/api/missions/claim-chest', {
+            method: 'POST',
+            body: JSON.stringify({ period, threshold: Number(threshold) })
+        });
+        if (data?.error) {
+            window.alert(data.error);
+            return;
+        }
+        applyRewardClaim(data);
+        if (!data?.dailyMissions) await loadDailyMissions();
+        const summary = rewardBundleText(data?.reward, data?.remnants, (data?.cards || []).length);
+        pushNotification('gold', `${period === 'weekly' ? 'Weekly' : 'Daily'} chest opened — ${threshold} points`,
+            `${summary}.${claimedCardsDetail(data?.cards)}`);
+        safeRender(renderGold);
+        safeRender(renderHomeDashboard);
+        } finally {
+            claimsInFlight.delete(key);
+        }
+    }
+
+    async function claimKnightLevel() {
+        if (!state.token || claimsInFlight.has('knight')) return;
+        claimsInFlight.add('knight');
+        try {
+        const data = await fetchJson('/api/missions/claim-knight', { method: 'POST', body: JSON.stringify({}) });
+        if (data?.error) {
+            window.alert(data.error);
+            return;
+        }
+        applyRewardClaim(data);
+        if (!data?.dailyMissions) await loadDailyMissions();
+        const summary = rewardBundleText(data?.reward, data?.remnants, (data?.cards || []).length);
+        pushNotification('gold', `Knight Level ${data?.level || ''} reached`, `${summary}.${claimedCardsDetail(data?.cards)}`);
+        safeRender(renderGold);
+        safeRender(renderHomeDashboard);
+        } finally {
+            claimsInFlight.delete('knight');
+        }
     }
 
     async function claimLoginReward() {
@@ -2924,12 +3434,26 @@
             void claimDailyMission(btn.dataset.missionClaim);
         }));
         root.querySelectorAll('[data-mission-tab]').forEach(btn => btn.addEventListener('click', () => {
-            state.missionTab = btn.dataset.missionTab || 'daily';
+            const tab = btn.dataset.missionTab || 'daily';
+            state.missionTab = tab;
             renderHomeDashboard();
             startMissionResetTimer();
+            const snapshot = state.dailyMissions;
+            const periodMissions = tab === 'weekly'
+                ? snapshot?.weekly
+                : (tab === 'lifetime' ? snapshot?.lifetime : snapshot?.daily);
+            if (!Array.isArray(periodMissions)) {
+                void loadDailyMissions();
+            }
         }));
         root.querySelector('[data-login-claim]')?.addEventListener('click', () => {
             void claimLoginReward();
+        });
+        root.querySelectorAll('[data-chest-threshold]').forEach(btn => btn.addEventListener('click', () => {
+            void claimMissionChest(btn.dataset.chestPeriod, btn.dataset.chestThreshold);
+        }));
+        root.querySelector('[data-knight-claim]')?.addEventListener('click', () => {
+            void claimKnightLevel();
         });
         root.querySelectorAll('[data-home-lb-period]').forEach(btn => btn.addEventListener('click', () => {
             state.leaderboardPeriod = btn.dataset.homeLbPeriod || 'daily';
@@ -2939,52 +3463,236 @@
             state.leaderboardTab = btn.dataset.homeLb || 'wins';
             renderHomeDashboard();
         }));
+        root.querySelector('[data-home-lb-retry]')?.addEventListener('click', () => {
+            void retryLeaderboards();
+        });
     }
 
     function renderDecks() {
         const grid = document.getElementById('deckGrid');
         if (!grid) return;
         // Catalog or owned decks still loading — show a spinner instead of an
-        // empty grid that would imply the player has no decks.
-        if (!state.options || ownedDataLoading()) {
-            grid.innerHTML = binderLoadingMarkup('Loading your decks…');
+        // empty grid that would imply the player has no decks. An empty card
+        // catalog means the options payload never arrived, so its deck list is
+        // empty for the same reason.
+        if (decksLoading()) {
+            grid.innerHTML = panelLoadingMarkup('Loading your decks…');
+            // Nothing below the spinner can act on a deck yet — the create button
+            // and saved tiles would open a builder with no catalog — so the whole
+            // custom block stays hidden until the data lands.
+            setCustomDeckBlockVisible(false);
+            setPremadeHeadVisible(false);
             renderSavedDecks();
             return;
         }
+        setCustomDeckBlockVisible(true);
+        setPremadeHeadVisible(true);
         grid.innerHTML = (state.options?.decks || []).map(renderPremadeDeckTile).join('');
         grid.querySelectorAll('[data-preview-deck]').forEach(tile => {
-            tile.addEventListener('click', () => {
-                state.selectedDeckId = tile.dataset.previewDeck || '';
-                openDeckPreview(tile.dataset.previewDeck);
+            const select = () => {
+                const deckId = tile.dataset.previewDeck || '';
+                // Locked decks still open their preview so the player can see
+                // what 500 Siegecoins buys, but they never become the active deck.
+                if (!isPremadeDeckLocked(findPremadeDeck(deckId))) {
+                    state.selectedDeckId = deckId;
+                }
+                openDeckPreview(deckId);
                 renderDecks();
-            });
+            };
+            tile.addEventListener('click', select);
             tile.addEventListener('keydown', (event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
-                    state.selectedDeckId = tile.dataset.previewDeck || '';
-                    openDeckPreview(tile.dataset.previewDeck);
-                    renderDecks();
+                    select();
                 }
+            });
+        });
+        grid.querySelectorAll('[data-unlock-deck]').forEach(btn => {
+            btn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                purchaseDeck(btn.dataset.unlockDeck || '');
             });
         });
         renderSavedDecks();
     }
 
+    // The main four are free for everyone; the starter pack's element comes with
+    // the starter choice. The backend is the authority (progression.unlockedDeckIds)
+    // — FREE_DECK_ELEMENTS only covers the signed-out / not-yet-loaded case.
+
+    function premadeDeckPrice() {
+        return Number(state.progression?.premadeDeckPrice) || 500;
+    }
+
+    function findPremadeDeck(deckId) {
+        return (state.options?.decks || []).find(deck => deck.id === deckId) || null;
+    }
+
+    function isPremadeDeckLocked(deck) {
+        if (!deck) return false;
+        const progression = state.progression;
+        const unlocked = progression?.unlockedDeckIds;
+        if (Array.isArray(unlocked)) {
+            return !unlocked.includes(deck.id);
+        }
+        // Stale cache / pre-unlock payload: honor purchases + starter element so a
+        // Water starter is not locked out of Water decks while auth is catching up.
+        if (Array.isArray(progression?.purchasedDeckIds) && progression.purchasedDeckIds.includes(deck.id)) {
+            return false;
+        }
+        const free = new Set(FREE_DECK_ELEMENTS);
+        const starter = starterElementFromPackId(progression?.starterPackId);
+        if (starter) {
+            free.add(String(starter).toUpperCase());
+        }
+        return !(deck.elements || []).every(element => free.has(String(element).toUpperCase()));
+    }
+
+    const DECK_UNLOCK_THEMES = {
+        FIRE: { label: 'Emberbound', motif: 'Flame', particle: '&#10022;', accent: '#ff6a22', glow: '#ffc04a' },
+        ICE: { label: 'Frostforged', motif: 'Crystal', particle: '&#10052;', accent: '#66d8ff', glow: '#d9f8ff' },
+        EARTH: { label: 'Rootsworn', motif: 'Stone', particle: '&#10070;', accent: '#9dca57', glow: '#e6c865' },
+        WIND: { label: 'Galeborn', motif: 'Current', particle: '&#8767;', accent: '#48e0c2', glow: '#c2fff3' },
+        WATER: { label: 'Tidecalled', motif: 'Wave', particle: '&#9675;', accent: '#35bfff', glow: '#8dfff1' },
+        ELECTRIC: { label: 'Stormcharged', motif: 'Lightning', particle: '&#9889;', accent: '#55d8ff', glow: '#fff45c' },
+        METAL: { label: 'Ironsealed', motif: 'Spark', particle: '&#10022;', accent: '#b8c8d8', glow: '#fff1b0' },
+        POISON: { label: 'Venommarked', motif: 'Spore', particle: '&#9679;', accent: '#a8e34b', glow: '#d8ff76' },
+        UNDEAD: { label: 'Soulbound', motif: 'Wisp', particle: '&#9674;', accent: '#a7e8db', glow: '#e2fff6' },
+        PSYCHIC: { label: 'Mindwoven', motif: 'Orbit', particle: '&#10023;', accent: '#d77cff', glow: '#ffd1ff' },
+        SHADOW: { label: 'Umbral', motif: 'Shade', particle: '&#10022;', accent: '#9c74e8', glow: '#d9baff' },
+        LIGHT: { label: 'Radiant', motif: 'Ray', particle: '&#10022;', accent: '#ffd45f', glow: '#fff8cf' },
+        NEUTRAL: { label: 'Sigilbound', motif: 'Rune', particle: '&#9671;', accent: '#b9c3d3', glow: '#f4f7ff' }
+    };
+
+    function deckUnlockTheme(element) {
+        return DECK_UNLOCK_THEMES[String(element || 'NEUTRAL').toUpperCase()] || DECK_UNLOCK_THEMES.NEUTRAL;
+    }
+
+    // A successful purchase response is authoritative even if a rolling deploy or
+    // stale serializer returns the old derived unlockedDeckIds array. Add the deck
+    // to both durable client lists before the first repaint so the tile, lobby and
+    // Play-page cache all agree immediately; the next profile sync still replaces
+    // this snapshot with the persisted server state.
+    function progressionWithUnlockedDeck(progression, deckId) {
+        const base = progression && typeof progression === 'object'
+            ? progression
+            : (state.progression || {});
+        const union = (...lists) => Array.from(new Set(lists.flat().filter(Boolean).map(String)));
+        return {
+            ...base,
+            purchasedDeckIds: union(state.progression?.purchasedDeckIds || [], base.purchasedDeckIds || [], [deckId]),
+            unlockedDeckIds: union(state.progression?.unlockedDeckIds || [], base.unlockedDeckIds || [], [deckId])
+        };
+    }
+
+    function dismissDeckUnlockCelebration() {
+        if (deckUnlockCelebrationTimer) {
+            window.clearTimeout(deckUnlockCelebrationTimer);
+            deckUnlockCelebrationTimer = null;
+        }
+        state.deckUnlockCelebration = null;
+        const host = document.getElementById('deckUnlockCelebrationHost');
+        if (host) {
+            host.innerHTML = '';
+            delete host.dataset.unlockToken;
+        }
+    }
+
+    function startDeckUnlockCelebration(deck) {
+        if (!deck) return;
+        if (deckUnlockCelebrationTimer) window.clearTimeout(deckUnlockCelebrationTimer);
+        state.deckUnlockCelebration = {
+            deckId: deck.id,
+            token: `${deck.id}-${Date.now()}`
+        };
+        render();
+        deckUnlockCelebrationTimer = window.setTimeout(dismissDeckUnlockCelebration, 3600);
+    }
+
+    function renderDeckUnlockCelebration() {
+        const host = document.getElementById('deckUnlockCelebrationHost');
+        if (!host) return;
+        const celebration = state.deckUnlockCelebration;
+        if (!celebration) {
+            if (host.innerHTML) host.innerHTML = '';
+            delete host.dataset.unlockToken;
+            return;
+        }
+        if (host.dataset.unlockToken === celebration.token) return;
+        const deck = findPremadeDeck(celebration.deckId);
+        if (!deck) return dismissDeckUnlockCelebration();
+        const primary = String(deck.elements?.[0] || 'NEUTRAL').toUpperCase();
+        const secondary = String(deck.elements?.[1] || primary).toUpperCase();
+        const theme = deckUnlockTheme(primary);
+        const visual = deckAssetForElements(deck.elements);
+        const particles = Array.from({ length: 22 }, (_, index) =>
+            `<i style="--particle-x:${(index * 47 + 11) % 100}%;--particle-drift:${((index * 29) % 61) - 30}px;--particle-delay:${-(index % 8) * 0.18}s;--particle-scale:${0.62 + (index % 5) * 0.14}">${theme.particle}</i>`
+        ).join('');
+        const icon = notchIconPath(primary);
+        const artStyle = visual?.back ? `--unlock-deck-art:url('${escapeAttr(visual.back)}');` : '';
+        host.dataset.unlockToken = celebration.token;
+        host.innerHTML = `<section class="deck-unlock-celebration" data-element="${escapeAttr(primary.toLowerCase())}" role="dialog" aria-modal="true" aria-labelledby="deckUnlockTitle" style="--unlock-accent:${theme.accent};--unlock-glow:${theme.glow};--unlock-secondary:${elementColor(secondary)};${artStyle}">
+            <button class="deck-unlock-backdrop" type="button" data-dismiss-deck-unlock aria-label="Skip deck unlock animation"></button>
+            <div class="deck-unlock-radiance" aria-hidden="true"></div>
+            <div class="deck-unlock-particles" aria-hidden="true">${particles}</div>
+            <div class="deck-unlock-stage">
+                <span class="deck-unlock-kicker">${escapeHtml(theme.label)} deck unlocked</span>
+                <div class="deck-unlock-card" aria-hidden="true">
+                    <span class="deck-unlock-ring"></span>
+                    <span class="deck-unlock-card-art"></span>
+                    ${icon ? `<img class="deck-unlock-element-icon" src="${escapeAttr(icon)}" alt="">` : ''}
+                </div>
+                <h2 id="deckUnlockTitle">${escapeHtml(deck.name)}</h2>
+                <p>${escapeHtml(theme.motif)} energy has answered. This premade deck is ready for battle.</p>
+                <button class="primary-btn deck-unlock-continue" type="button" data-dismiss-deck-unlock>Continue</button>
+            </div>
+        </section>`;
+    }
+
     function renderPremadeDeckTile(deck) {
-        const isSelected = state.selectedDeckId === deck.id;
+        const locked = isPremadeDeckLocked(deck);
+        const isSelected = !locked && state.selectedDeckId === deck.id;
+        const purchasing = locked && state.deckPurchasePendingId === deck.id;
         const primary = deck.elements?.[0] || 'FIRE';
         const accent = elementColor(primary);
         const elementLabels = deck.elements.map(format).join(' / ');
         const visual = deckAssetForElements(deck.elements);
         const artStyle = visual?.back ? `;--deck-art:url('${visual.back}')` : '';
-        return `<article class="deck-tile hub-deck-card deck-tile--clickable${isSelected ? ' is-selected' : ''}${visual ? ' has-deck-art' : ''}" data-preview-deck="${escapeAttr(deck.id)}" role="button" tabindex="0" aria-selected="${isSelected}" style="--deck-accent:${accent};--deck-bg:${deckGradient(deck.elements)}${artStyle}">
-            <span class="deck-card-state">Premade</span>
+        const price = premadeDeckPrice();
+        const affordable = Number(state.progression?.gold || 0) >= price;
+        const unlockRow = locked
+            ? `<div class="deck-card-actions deck-unlock-row">
+                <button class="primary-btn deck-unlock-btn" type="button" data-unlock-deck="${escapeAttr(deck.id)}"${affordable && !purchasing ? '' : ' disabled'}>${purchasing ? 'Unlocking&hellip;' : `Unlock ${price} Coin`}</button>
+            </div>`
+            : '';
+        return `<article class="deck-tile hub-deck-card deck-tile--clickable${isSelected ? ' is-selected' : ''}${locked ? ' is-locked' : ''}${purchasing ? ' is-purchasing' : ''}${visual ? ' has-deck-art' : ''}" data-preview-deck="${escapeAttr(deck.id)}" role="button" tabindex="0" aria-selected="${isSelected}" style="--deck-accent:${accent};--deck-bg:${deckGradient(deck.elements)}${artStyle}">
+            <span class="deck-card-state">${locked ? 'Locked' : 'Premade'}</span>
             <div class="deck-card-body">
                 <strong class="deck-card-name">${escapeHtml(deck.name)}</strong>
                 <span class="deck-card-elements">${escapeHtml(elementLabels)}</span>
                 <span class="deck-card-desc">${escapeHtml(deck.description || 'Ready-to-play battle deck.')}</span>
             </div>
+            ${unlockRow}
         </article>`;
+    }
+
+    function decksLoading() {
+        return !hasCardCatalog(state.options) || ownedDataLoading();
+    }
+
+    // The custom block's header carries the Create Custom Deck button; hiding the
+    // whole block (not just the grid) keeps a dead presser off screen while the
+    // deck data is still in flight.
+    function setCustomDeckBlockVisible(visible) {
+        const block = document.querySelector('#decksSection .builder-browser');
+        if (block) block.classList.toggle('hidden', !visible);
+    }
+
+    // The premade heading labels a row that has nothing in it yet, so it hides
+    // with the rest of the chrome and the spinner stands alone.
+    function setPremadeHeadVisible(visible) {
+        const head = document.querySelector('#decksSection .decks-browser-block:not(.builder-browser) .decks-row-head');
+        if (head) head.classList.toggle('hidden', !visible);
     }
 
     function renderSavedDecks() {
@@ -2993,24 +3701,39 @@
         if (!grid) return;
         // Signed in but saved decks haven't loaded yet — show a spinner rather
         // than "No saved custom decks yet", which would be misleading mid-load.
-        if (ownedDataLoading()) {
+        if (decksLoading()) {
             if (count) count.textContent = '';
-            grid.innerHTML = binderLoadingMarkup('Loading your saved decks…');
+            grid.innerHTML = panelLoadingMarkup('Loading your saved decks…');
+            setCustomDeckBlockVisible(false);
             return;
         }
+        setCustomDeckBlockVisible(true);
         const savedDecks = state.profile?.savedDecks || [];
         if (count) count.textContent = `${savedDecks.length} saved`;
+        renderDeckSelectionControls();
         if (!state.profile?.authenticated) {
             grid.innerHTML = '<div class="unlock-card"><strong>Sign in to save custom decks</strong><span>Your deck binder will show saved custom decks after login.</span></div>';
             return;
         }
-        grid.innerHTML = savedDecks.length ? savedDecks.map(renderSavedDeckTile).join('') : '<div class="unlock-card"><strong>No saved custom decks yet</strong><span>Tap Create Custom Deck to build a 30-card list from your binder.</span></div>';
+        const notice = state.savedDeckNotice
+            ? `<div class="builder-issue" role="alert"><div class="builder-issue-copy"><strong>Deck not deleted</strong><span>${escapeHtml(state.savedDeckNotice)}</span></div><button class="ghost-btn builder-issue-dismiss" type="button" data-saved-deck-notice-dismiss aria-label="Dismiss">&times;</button></div>`
+            : '';
+        grid.innerHTML = notice + (savedDecks.length ? savedDecks.map(renderSavedDeckTile).join('') : '<div class="unlock-card"><strong>No saved custom decks yet</strong><span>Tap Create Custom Deck to build a 30-card list from your binder.</span></div>');
+        grid.querySelector('[data-saved-deck-notice-dismiss]')?.addEventListener('click', () => {
+            state.savedDeckNotice = null;
+            renderSavedDecks();
+        });
+        grid.querySelectorAll('[data-delete-custom-deck]').forEach(btn => btn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            deleteSavedDeck(btn.dataset.deleteCustomDeck || '');
+        }));
         grid.querySelectorAll('[data-edit-custom-deck]').forEach(btn => btn.addEventListener('click', (event) => {
             event.stopPropagation();
             openDeckBuilder({ savedDeckId: btn.dataset.editCustomDeck });
         }));
         grid.querySelectorAll('[data-preview-saved-deck]').forEach(tile => {
             tile.addEventListener('click', () => {
+                if (state.deckSelectMode) return void toggleDeckSelection(tile.dataset.previewSavedDeck || '');
                 const deck = savedDecks.find(item => item.id === tile.dataset.previewSavedDeck);
                 state.selectedDeckId = deck?.deckId || tile.dataset.previewSavedDeck || '';
                 if (deck) openSavedDeckPreview(deck);
@@ -3019,6 +3742,7 @@
             tile.addEventListener('keydown', (event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
+                    if (state.deckSelectMode) return void toggleDeckSelection(tile.dataset.previewSavedDeck || '');
                     const deck = savedDecks.find(item => item.id === tile.dataset.previewSavedDeck);
                     state.selectedDeckId = deck?.deckId || tile.dataset.previewSavedDeck || '';
                     if (deck) openSavedDeckPreview(deck);
@@ -3037,17 +3761,212 @@
         const accent = elementColor(displayElements[0]);
         const visual = deckAssetForElements(displayElements);
         const artStyle = visual?.back ? `;--deck-art:url('${visual.back}')` : '';
-        return `<article class="deck-tile hub-deck-card custom-saved-deck deck-tile--clickable${isSelected ? ' is-selected' : ''}${visual ? ' has-deck-art' : ''}" data-preview-saved-deck="${escapeAttr(deck.id)}" role="button" tabindex="0" aria-selected="${isSelected}" style="--deck-accent:${accent};--deck-bg:${deckGradient(displayElements)}${artStyle}">
+        const picking = Boolean(state.deckSelectMode) && Boolean(deck.custom);
+        const picked = picking && (state.deckSelection || []).includes(deck.id);
+        return `<article class="deck-tile hub-deck-card custom-saved-deck deck-tile--clickable${isSelected ? ' is-selected' : ''}${visual ? ' has-deck-art' : ''}${picking ? ' is-selectable' : ''}${picked ? ' is-picked' : ''}" data-preview-saved-deck="${escapeAttr(deck.id)}" role="${picking ? 'checkbox' : 'button'}" tabindex="0" aria-${picking ? 'checked' : 'selected'}="${picking ? picked : isSelected}" style="--deck-accent:${accent};--deck-bg:${deckGradient(displayElements)}${artStyle}">
+            ${picking ? '<span class="deck-pick-mark" aria-hidden="true">&#10003;</span>' : ''}
             <span class="deck-card-state">${deck.custom ? 'Custom' : 'Saved'}</span>
             <div class="deck-card-body">
                 <strong class="deck-card-name">${escapeHtml(deck.name || 'Saved Deck')}</strong>
                 <span class="deck-card-elements">${displayElements.map(format).join(' / ')}</span>
                 <span class="deck-card-desc">${deck.custom ? `${cardIds.length} owned cards` : escapeHtml(deck.deckName || 'Premade loadout')} / ${escapeHtml(deck.trainerName || 'SiegeKnight')}</span>
             </div>
-            <div class="deck-card-actions">
+            <div class="deck-card-actions${deck.custom ? ' has-delete' : ''}">
                 ${deck.custom ? `<button class="ghost-btn" type="button" data-edit-custom-deck="${escapeAttr(deck.id)}">Edit</button>` : ''}
+                ${deck.custom ? renderSavedDeckDeleteButton(deck) : ''}
             </div>
         </article>`;
+    }
+
+    // Deleting asks once, in a dialog the player dismisses or confirms. The old
+    // two-tap arming had no visible commit step, disarmed itself on a timer, and
+    // depended on the second tap landing on the same button — on a phone it read
+    // as "Delete -> Delete? -> nothing happened".
+    let deckDeleteConfirmResolver = null;
+
+    function renderSavedDeckDeleteButton(deck) {
+        const busy = state.deckDeleteBusy === deck.id;
+        return `<button class="ghost-btn deck-delete-btn" type="button"
+            data-delete-custom-deck="${escapeAttr(deck.id)}"${busy ? ' disabled' : ''}
+            aria-label="Delete ${escapeAttr(deck.name || 'this deck')}"
+        >${busy ? 'Deleting…' : 'Delete'}</button>`;
+    }
+
+    function closeDeckDeleteConfirm(confirmed) {
+        const resolver = deckDeleteConfirmResolver;
+        deckDeleteConfirmResolver = null;
+        document.getElementById('deckDeleteConfirmModal')?.classList.add('hidden');
+        if (resolver) resolver(Boolean(confirmed));
+    }
+
+    function confirmDeckDelete(decks) {
+        const many = decks.length > 1;
+        const name = decks[0]?.name || 'this deck';
+        const modal = document.getElementById('deckDeleteConfirmModal');
+        const title = document.getElementById('deckDeleteConfirmTitle');
+        const copy = document.getElementById('deckDeleteConfirmCopy');
+        const goBtn = document.getElementById('deckDeleteConfirmGo');
+        if (!modal || !title || !copy || !goBtn) {
+            // Older cached HTML has no dialog shell; the native prompt still asks.
+            return Promise.resolve(window.confirm(many
+                ? `Delete ${decks.length} custom decks? This cannot be undone.`
+                : `Delete ${name}? This cannot be undone.`));
+        }
+        title.textContent = many ? `Delete ${decks.length} decks?` : `Delete ${name}?`;
+        copy.textContent = many
+            ? 'These saved decks are removed from your binder. This cannot be undone.'
+            : 'This saved deck is removed from your binder. This cannot be undone.';
+        goBtn.textContent = many ? `Delete ${decks.length}` : 'Delete';
+        modal.classList.remove('hidden');
+        goBtn.focus();
+        return new Promise(resolve => {
+            deckDeleteConfirmResolver = resolve;
+        });
+    }
+
+    // Selection mode turns every custom tile into a picker so a binder full of
+    // duplicates can be cleared in one pass instead of one dialog per deck.
+    function customSavedDecks() {
+        return (state.profile?.savedDecks || []).filter(deck => deck.custom);
+    }
+
+    function setDeckSelectMode(on) {
+        state.deckSelectMode = Boolean(on);
+        if (!state.deckSelectMode) state.deckSelection = [];
+        renderSavedDecks();
+    }
+
+    // Repaints the one tile rather than the grid: rebuilding it re-decodes every
+    // deck's art, which on a full binder is exactly the lag that makes a tap feel
+    // like it never landed.
+    function toggleDeckSelection(deckId) {
+        const picked = new Set(state.deckSelection || []);
+        if (picked.has(deckId)) {
+            picked.delete(deckId);
+        } else {
+            picked.add(deckId);
+        }
+        state.deckSelection = [...picked];
+        paintDeckSelection(deckId);
+        renderDeckSelectionControls();
+    }
+
+    function paintDeckSelection(deckId) {
+        const tile = [...document.querySelectorAll('[data-preview-saved-deck]')]
+            .find(node => node.dataset.previewSavedDeck === deckId);
+        if (!tile) return renderSavedDecks();
+        const picked = (state.deckSelection || []).includes(deckId);
+        tile.classList.toggle('is-picked', picked);
+        tile.setAttribute('aria-checked', String(picked));
+    }
+
+    function renderDeckSelectionControls() {
+        const decks = customSavedDecks();
+        const selectBtn = document.getElementById('selectDecksBtn');
+        const deleteBtn = document.getElementById('deleteSelectedDecksBtn');
+        const allBtn = document.getElementById('selectAllDecksBtn');
+        if (!selectBtn || !deleteBtn || !allBtn) return;
+        const active = Boolean(state.deckSelectMode);
+        const picked = (state.deckSelection || []).length;
+        selectBtn.hidden = decks.length === 0;
+        selectBtn.textContent = active ? 'Done' : 'Select';
+        deleteBtn.hidden = !active;
+        deleteBtn.disabled = picked === 0 || Boolean(state.deckDeleteBusy);
+        deleteBtn.textContent = picked ? `Delete ${picked}` : 'Delete selected';
+        allBtn.hidden = !active;
+        allBtn.textContent = picked === decks.length && decks.length > 0 ? 'Clear' : 'Select all';
+    }
+
+    function bindDeckSelectionControls() {
+        document.getElementById('selectDecksBtn')?.addEventListener('click', () => {
+            setDeckSelectMode(!state.deckSelectMode);
+        });
+        document.getElementById('selectAllDecksBtn')?.addEventListener('click', () => {
+            const decks = customSavedDecks();
+            const all = (state.deckSelection || []).length === decks.length;
+            state.deckSelection = all ? [] : decks.map(deck => deck.id);
+            decks.forEach(deck => paintDeckSelection(deck.id));
+            renderDeckSelectionControls();
+        });
+        document.getElementById('deleteSelectedDecksBtn')?.addEventListener('click', () => {
+            deleteSavedDecks(state.deckSelection || []);
+        });
+        document.getElementById('deckDeleteConfirmCancel')?.addEventListener('click', () => closeDeckDeleteConfirm(false));
+        document.getElementById('deckDeleteConfirmGo')?.addEventListener('click', () => closeDeckDeleteConfirm(true));
+        document.getElementById('deckDeleteConfirmModal')?.addEventListener('click', (event) => {
+            if (event.target?.id === 'deckDeleteConfirmModal') closeDeckDeleteConfirm(false);
+        });
+    }
+
+    // Older builds answered a delete for an unknown deck with a bare error; current
+    // ones answer with the refreshed profile and deckMissing. Both mean "already gone".
+    function deckAlreadyGone(data) {
+        return Boolean(data?.deckMissing) || /saved deck not found/i.test(data?.error || '');
+    }
+
+    function deleteSavedDeck(deckId) {
+        return deleteSavedDecks([deckId]);
+    }
+
+    async function deleteSavedDecks(deckIds) {
+        const ids = (deckIds || []).filter(Boolean);
+        if (!ids.length || state.deckDeleteBusy) return;
+        const savedDecks = state.profile?.savedDecks || [];
+        const doomed = ids
+            .map(id => savedDecks.find(deck => deck.id === id))
+            .filter(Boolean);
+        if (!doomed.length) return;
+        if (!await confirmDeckDelete(doomed)) return;
+
+        state.deckDeleteBusy = ids.length === 1 ? ids[0] : 'batch';
+        state.savedDeckNotice = null;
+        // The tiles go the moment the player confirms; the request only has to
+        // confirm it. A failure puts them back with the reason attached.
+        const remaining = savedDecks.filter(deck => !ids.includes(deck.id));
+        state.profile = { ...state.profile, savedDecks: remaining };
+        state.deckSelection = (state.deckSelection || []).filter(id => !ids.includes(id));
+        renderSavedDecks();
+
+        let data = null;
+        try {
+            data = await fetchJson('/api/profile/decks/delete', {
+                method: 'POST',
+                body: JSON.stringify(ids.length === 1 ? { id: ids[0] } : { ids })
+            });
+        } finally {
+            // Never leave the busy flag set on an unexpected throw — it would make
+            // deleting impossible until the page reloads.
+            state.deckDeleteBusy = null;
+        }
+        if (!data || data.error) {
+            // The server reporting a deck as missing means the binder was holding a
+            // stale row — the delete already happened, or it never existed. Restoring
+            // it would strand a tile that fails the same way on every retry, so let it
+            // go and resync from the server instead.
+            if (deckAlreadyGone(data)) {
+                state.savedDeckNotice = null;
+                renderSavedDecks();
+                syncProfile().then(() => { renderProfile(); renderDecks(); });
+                return;
+            }
+            state.profile = { ...state.profile, savedDecks };
+            state.savedDeckNotice = data?.error || (ids.length === 1
+                ? 'That deck could not be deleted. Check your connection and try again.'
+                : 'Those decks could not be deleted. Check your connection and try again.');
+            renderSavedDecks();
+            return;
+        }
+        state.profile = data;
+        state.progression = data.progression || state.progression;
+        // The saved-deck list is served to the Play page out of this cache, so a
+        // delete that only touches in-memory state comes back on the next load.
+        saveCachedAuthProfile(data);
+        // The active loadout cannot point at a deck that no longer exists, or the
+        // next Play tap starts a match against a missing deck id.
+        if (ids.includes(state.selectedDeckId)) state.selectedDeckId = '';
+        if (!customSavedDecks().length) setDeckSelectMode(false);
+        renderProfile();
+        renderDecks();
     }
 
     function cardCountsFromIdList(cardIds) {
@@ -3088,6 +4007,25 @@
         }, {});
     }
 
+    // Held across retries of the same save, and only across those: a fresh id is
+    // minted when the builder is reset for a new deck or after one is banked.
+    function builderClientDeckId() {
+        if (!state.builderClientDeckId) {
+            state.builderClientDeckId = randomDeckId();
+        }
+        return state.builderClientDeckId;
+    }
+
+    function randomDeckId() {
+        if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+        // iOS Safari only exposes randomUUID on secure origins; the server accepts
+        // this shape either way and falls back to its own id if it ever does not.
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (ch) => {
+            const rand = Math.random() * 16 | 0;
+            return (ch === 'x' ? rand : (rand & 0x3 | 0x8)).toString(16);
+        });
+    }
+
     function openDeckBuilder(options = {}) {
         if (!state.options?.cardCatalog?.length) {
             return navigateHub('decks');
@@ -3096,6 +4034,10 @@
             state.builderCounts = {};
             state.builderPreviewCardId = null;
             state.editingSavedDeckId = '';
+            state.builderClientDeckId = '';
+            state.builderTab = 'binder';
+            state.builderCardTab = 'card';
+            state.builderDeckSettingsOpen = false;
             resetBuilderVisibleLimit();
             localStorage.setItem('sieglingsBuilderDeckName', 'Custom Binder Deck');
         }
@@ -3288,30 +4230,30 @@
             page.innerHTML = '<div class="unlock-card"><strong>Catalog loading</strong><span>Your binder will appear here once card data is ready.</span></div>';
             return;
         }
-        page.innerHTML = `<div class="deck-builder-layout" style="--builder-accent:${elementColor(primaryElement)}">
-            <section class="deck-builder-binder deck-builder-workbench">
+        const scroll = captureBuilderScroll();
+        const activeTab = builderActiveTab();
+        page.innerHTML = `<div class="deck-builder-layout" data-builder-tab-active="${activeTab}" style="--builder-accent:${elementColor(primaryElement)}">
+            <nav class="deck-builder-tabs" role="tablist" aria-label="Deck builder sections">
+                <button type="button" role="tab" class="deck-builder-tab${activeTab === 'binder' ? ' is-active' : ''}" data-builder-tab="binder" aria-selected="${activeTab === 'binder'}">Binder<span class="deck-builder-tab-badge">${catalogCards.length}</span></button>
+                <button type="button" role="tab" class="deck-builder-tab${activeTab === 'deck' ? ' is-active' : ''}" data-builder-tab="deck" aria-selected="${activeTab === 'deck'}">Deck<span class="deck-builder-tab-badge${total >= 30 ? ' is-complete' : ''}">${total}/30</span></button>
+                <button type="button" role="tab" class="deck-builder-tab${activeTab === 'card' ? ' is-active' : ''}" data-builder-tab="card" aria-selected="${activeTab === 'card'}">Card${previewCard ? `<span class="deck-builder-tab-badge">${escapeHtml(shortBuilderName(previewCard.name))}</span>` : ''}</button>
+            </nav>
+            <section class="deck-builder-binder deck-builder-workbench" data-builder-pane="binder">
                 <div class="section-head decks-row-head">
                     <div><span class="eyebrow">Binder</span><h2>Your owned cards</h2></div>
                     <span>${mobileBuilder && catalogCards.length ? `${visibleCatalogCards.length} / ${catalogCards.length}` : `${catalogCards.length} cards`}</span>
                 </div>
-                <div class="deck-builder-binder-list">
+                ${renderBuilderFilterBar()}
+                <div class="deck-builder-binder-list" data-scroll-key="binder">
                     ${catalogCards.length ? visibleCatalogCards.map(renderBuilderBinderRow).join('') : '<div class="unlock-card builder-empty">No owned cards match these filters.</div>'}
                     ${hasMoreCatalogCards ? `<button class="ghost-btn deck-builder-load-more" type="button" data-builder-load-more>Load more cards (${catalogCards.length - visibleCatalogCards.length})</button>` : ''}
                 </div>
             </section>
-            <section class="deck-builder-inspector deck-builder-workbench">
-                <div class="section-head decks-row-head">
-                    <div><span class="eyebrow">Card View</span><h2>${previewCard ? escapeHtml(previewCard.name) : 'Select a card'}</h2></div>
-                </div>
-                <div class="deck-builder-preview-panel">${renderBuilderPreviewPanel(previewCard)}</div>
-                <div class="deck-builder-recommendations">
-                    <div class="section-head decks-row-head">
-                        <div><span class="eyebrow">Recommended</span><h3>Evolution tree picks</h3></div>
-                    </div>
-                    ${renderBuilderRecommendations(previewCard)}
-                </div>
+            <section class="deck-builder-inspector deck-builder-workbench" data-builder-pane="card">
+                <div class="deck-builder-preview-panel" data-scroll-key="card">${renderBuilderPreviewPanel(previewCard)}</div>
             </section>
-            <aside class="deck-builder-deck-pane deck-builder-workbench">
+            <aside class="deck-builder-deck-pane deck-builder-workbench" data-builder-pane="deck">
+                ${renderBuilderIssueBanner()}
                 <div class="deck-builder-deck-head">
                     <div class="builder-total-ring${total >= 30 ? ' complete' : ''}">
                         <strong>${total}</strong><span>/30</span>
@@ -3322,10 +4264,16 @@
                         <div class="builder-progress-track"><span class="builder-progress-fill" style="width:${Math.min(100, Math.round((total / 30) * 100))}%"></span></div>
                     </div>
                 </div>
-                <div class="deck-builder-deck-list">${renderBuilderDeckListRows()}</div>
-                <div class="builder-form-grid deck-builder-deck-form">
-                    <label><span>Deck name</span><input class="search-input" id="builderDeckName" maxlength="40" value="${escapeAttr(builderDeckName())}" placeholder="Custom Binder Deck"></label>
-                    <label><span>SiegeKnight</span><select class="search-input" id="builderTrainerSelect">${builderTrainerOptions(trainerId)}</select></label>
+                <div class="deck-builder-deck-list" data-scroll-key="deck">${renderBuilderDeckListRows()}</div>
+                <div class="deck-builder-deck-settings${state.builderDeckSettingsOpen ? ' is-open' : ''}">
+                    <button class="ghost-btn deck-builder-settings-toggle" type="button" data-builder-toggle-settings aria-expanded="${state.builderDeckSettingsOpen}">
+                        <span>Deck name &amp; SiegeKnight</span>
+                        <small>${escapeHtml(builderDeckName())} / ${escapeHtml(builderTrainerName(trainerId))}</small>
+                    </button>
+                    ${state.builderDeckSettingsOpen ? `<div class="builder-form-grid deck-builder-deck-form">
+                        <label><span>Deck name</span><input class="search-input" id="builderDeckName" maxlength="40" value="${escapeAttr(builderDeckName())}" placeholder="Custom Binder Deck"></label>
+                        <label><span>SiegeKnight</span><select class="search-input" id="builderTrainerSelect">${builderTrainerOptions(trainerId)}</select></label>
+                    </div>` : ''}
                 </div>
                 <div class="builder-actions-row">
                     <button class="ghost-btn" type="button" id="playCustomBtn"${total < 30 ? ' disabled' : ''}>Play Custom</button>
@@ -3335,6 +4283,124 @@
         </div>`;
         renderBuilderFilterTray(catalogCards);
         bindDeckBuilderPageEvents(page);
+        restoreBuilderScroll(scroll);
+        focusBuilderIssueTarget();
+    }
+
+    // Rebuilding the whole builder page on every +/- tap used to throw away the
+    // binder and deck scroll offsets, forcing players back to the top of the
+    // list after each card they added.
+    function captureBuilderScroll() {
+        const map = { window: window.scrollY };
+        document.querySelectorAll('#deckBuilderPage [data-scroll-key]').forEach(el => {
+            map[el.dataset.scrollKey] = el.scrollTop;
+        });
+        return map;
+    }
+
+    function restoreBuilderScroll(map) {
+        if (!map) return;
+        document.querySelectorAll('#deckBuilderPage [data-scroll-key]').forEach(el => {
+            const value = map[el.dataset.scrollKey];
+            if (typeof value === 'number') el.scrollTop = value;
+        });
+        if (typeof map.window === 'number' && Math.abs(window.scrollY - map.window) > 1) {
+            window.scrollTo({ top: map.window });
+        }
+    }
+
+    // Desktop shows every pane at once, so the tab state only steers mobile.
+    // A bare alert() told the player something was wrong but not where to fix it.
+    // Deck problems now raise an in-page callout in the builder, open the pane and
+    // field that owns the problem, and flash a highlight on that control.
+    const BUILDER_ISSUE_FIELDS = {
+        name: { tab: 'deck', settings: true, selector: '#builderDeckName' },
+        trainer: { tab: 'deck', settings: true, selector: '#builderTrainerSelect' },
+        cards: { tab: 'deck', settings: false, selector: '.deck-builder-deck-head' }
+    };
+
+    function setBuilderIssue(message, field) {
+        const target = BUILDER_ISSUE_FIELDS[field] ? field : 'cards';
+        state.builderIssue = { message: String(message || 'That deck could not be saved.'), field: target };
+        const spec = BUILDER_ISSUE_FIELDS[target];
+        state.builderTab = spec.tab;
+        if (spec.settings) state.builderDeckSettingsOpen = true;
+        if (state.route !== 'deck-builder') navigateHub('deck-builder');
+        else renderDeckBuilderPage();
+    }
+
+    function clearBuilderIssue(rerender = true) {
+        if (!state.builderIssue) return;
+        state.builderIssue = null;
+        if (rerender && state.route === 'deck-builder') renderDeckBuilderPage();
+    }
+
+    function renderBuilderIssueBanner() {
+        const issue = state.builderIssue;
+        if (!issue) return '';
+        return `<div class="builder-issue" role="alert" data-builder-issue>
+            <div class="builder-issue-copy">
+                <strong>Deck needs a fix</strong>
+                <span>${escapeHtml(issue.message)}</span>
+            </div>
+            <button class="ghost-btn builder-issue-dismiss" type="button" data-builder-issue-dismiss aria-label="Dismiss">&times;</button>
+        </div>`;
+    }
+
+    // Runs after the builder re-renders: point the player at the control to fix.
+    function focusBuilderIssueTarget() {
+        const issue = state.builderIssue;
+        if (!issue) return;
+        const spec = BUILDER_ISSUE_FIELDS[issue.field] || BUILDER_ISSUE_FIELDS.cards;
+        const target = document.querySelector(`#deckBuilderPage ${spec.selector}`);
+        const banner = document.querySelector('#deckBuilderPage [data-builder-issue]');
+        (banner || target)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (!target) return;
+        target.classList.add('needs-fix');
+        if (typeof target.focus === 'function' && spec.selector !== '.deck-builder-deck-head') {
+            try { target.focus({ preventScroll: true }); } catch (error) { target.focus(); }
+        }
+    }
+
+    function builderActiveTab() {
+        const tab = state.builderTab;
+        return ['binder', 'deck', 'card'].includes(tab) ? tab : 'binder';
+    }
+
+    function shortBuilderName(name) {
+        const value = String(name || '');
+        return value.length > 12 ? `${value.slice(0, 11)}…` : value;
+    }
+
+    function builderTrainerName(trainerId) {
+        const trainer = (state.options?.trainers || []).find(item => item.id === trainerId);
+        return trainer?.name || 'No SiegeKnight';
+    }
+
+    function builderActiveFilterCount() {
+        return [
+            state.builderElementFilter !== 'ALL',
+            state.builderTypeFilter !== 'ALL',
+            state.builderRarityFilter !== 'ALL',
+            Boolean(state.builderSearch)
+        ].filter(Boolean).length;
+    }
+
+    // Filter controls native to the page (the HUD tray is a long reach on a
+    // phone), while the "More" button still opens the same tray so there is
+    // exactly one source of truth for filter state.
+    function renderBuilderFilterBar() {
+        const activeFilters = builderActiveFilterCount();
+        const types = [['ALL', 'All'], ['SIEGLING', 'Siegelings'], ['SPELL', 'Strategies'], ['TRAP', 'Deceptions']];
+        return `<div class="builder-filter-bar">
+            <div class="builder-filter-chips">
+                ${types.map(([value, label]) => `<button type="button" class="builder-chip${state.builderTypeFilter === value ? ' is-active' : ''}" data-builder-type="${escapeAttr(value)}">${escapeHtml(label)}</button>`).join('')}
+            </div>
+            <div class="builder-filter-chips">
+                <button type="button" class="builder-chip builder-chip-more" data-open-builder-filters>More filters${activeFilters ? `<span class="builder-chip-badge">${activeFilters}</span>` : ''}</button>
+                ${activeFilters ? '<button type="button" class="builder-chip" data-clear-builder-filters>Reset</button>' : ''}
+            </div>
+        </div>`;
     }
 
     // Builder binder filters live in the HUD Filters tray (like the Cards
@@ -3390,6 +4456,22 @@
             state.builderSort = event.target.value;
             resetBuilderVisibleLimit();
             renderDeckBuilderPage();
+        });
+    }
+
+    // The tray controls are rendered once and kept in the DOM, so inline
+    // filter changes have to be mirrored back onto them by hand.
+    function syncBuilderFilterTrayControls() {
+        const pairs = [
+            ['builderSearchInput', state.builderSearch],
+            ['builderElementSelect', state.builderElementFilter],
+            ['builderTypeSelect', state.builderTypeFilter],
+            ['builderRaritySelect', state.builderRarityFilter],
+            ['builderSortSelect', state.builderSort]
+        ];
+        pairs.forEach(([id, value]) => {
+            const el = document.getElementById(id);
+            if (el) el.value = value;
         });
     }
 
@@ -3456,26 +4538,36 @@
                     const inDeck = state.builderCounts[card.id] || 0;
                     const maxCopies = builderCardLimit(card.id);
                     const canAdd = inDeck < maxCopies && builderTotal() < 30;
+                    // Deliberately not a "select this card" button: tapping a
+                    // recommendation used to replace the card being inspected,
+                    // which yanked the evolution list out from under the
+                    // player. Add keeps them on the card they are building
+                    // around; View is the explicit way to switch.
                     return `<article class="builder-recommendation-card" style="--el:${elementColor(card.element)}">
-                        <button type="button" class="builder-recommendation-main" data-select-builder-card="${escapeAttr(card.id)}">
+                        <div class="builder-recommendation-main">
                             <div class="builder-row-copy">
                                 <strong>${escapeHtml(card.name)}</strong>
-                                <span>${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))}</span>
+                                <span>${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))}${inDeck ? ` / In deck x${inDeck}` : ''}</span>
                                 <small>${card.evolvesFromId ? `Evolves from ${escapeHtml(card.evolvesFromName || findCard(card.evolvesFromId)?.name || 'base')}` : 'Base form'}</small>
                             </div>
-                        </button>
-                        <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>Add</button>
+                        </div>
+                        <div class="builder-recommendation-actions">
+                            <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>Add</button>
+                            <button class="ghost-btn compact-btn" type="button" data-select-builder-card="${escapeAttr(card.id)}">View</button>
+                        </div>
                     </article>`;
                 }).join('')}
             </div>`;
     }
 
+    // The Card View used to render the art, flavor, stats, every move and every
+    // ability in one column, which pushed the add controls a full screen down.
+    // The art + identity + stepper now stay pinned and the detail lives behind
+    // sub-tabs.
     function renderBuilderPreviewPanel(card) {
         if (!card) {
             return '<div class="unlock-card builder-empty">Tap a binder card to inspect it and add copies to your deck.</div>';
         }
-        const abilities = card.abilities || (card.ability ? [card.ability] : []);
-        const flavorText = creatureDescriptionFor(card);
         const inDeck = state.builderCounts[card.id] || 0;
         const maxCopies = builderCardLimit(card.id);
         const canAdd = maxCopies > 0 && inDeck < maxCopies && builderTotal() < 30;
@@ -3490,27 +4582,76 @@
                 descriptionText: shopCardDescriptionFor(card)
             })
             : `<div class="binder-card detail-card-preview" style="--el:${elementColor(card.element)}">${renderBinderCardShell(card)}</div>`;
+        const cardTab = builderActiveCardTab(card);
+        const tabs = builderCardTabsFor(card);
         return `<div class="deck-builder-preview-card" style="--el:${elementColor(card.element)}">
-            <div class="detail-card-preview-wrap">${cardPreview}</div>
-            <div class="detail-cost-block">
-                <span class="detail-cost-label">Energy cost</span>
-                ${renderBinderCardEnergyCost(cost, costElement)}
+            <div class="deck-builder-card-hero">
+                <div class="detail-card-preview-wrap">${cardPreview}</div>
+                <div class="deck-builder-card-identity">
+                    <strong>${escapeHtml(card.name)}</strong>
+                    <span>${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))} / ${escapeHtml(format(card.rarity))}</span>
+                    <div class="deck-builder-card-quickstats">
+                        ${card.type === 'SIEGLING'
+                            ? `<span><small>HP</small><b>${card.health ?? '-'}</b></span><span><small>SPD</small><b>${card.speed ?? '-'}</b></span>`
+                            : ''}
+                        <span class="deck-builder-cost-pill"><small>Cost</small>${renderBuilderCostEmblems(cost, costElement)}</span>
+                        <span><small>Owned</small><b>${ownedCount(card.id)}</b></span>
+                    </div>
+                    <div class="builder-stepper deck-builder-preview-actions">
+                        <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(card.id)}"${inDeck <= 0 ? ' disabled' : ''}>-</button>
+                        <strong>${inDeck} / ${maxCopies}</strong>
+                        <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>${addLabel}</button>
+                    </div>
+                </div>
             </div>
-            ${flavorText ? `<p class="deck-builder-preview-flavor">${escapeHtml(flavorText)}</p>` : ''}
-            <div class="detail-grid">
-                ${card.type === 'SIEGLING' ? `<div><span>Health</span><strong>${card.health ?? '-'}</strong></div>
-                <div><span>Speed</span><strong>${card.speed ?? '-'}</strong></div>
-                <div><span>Evolution</span><strong>${escapeHtml(card.evolvesFromName || card.evolvesFromId || 'Base')}</strong></div>` : ''}
-                ${card.type !== 'SIEGLING' ? `<div><span>Cost</span><strong>${card.costAmount ?? 0} ${format(card.costElement || card.element)}</strong></div>` : ''}
-            </div>
-            ${renderBuilderMoves(card)}
-            ${abilities.length ? `<div class="deck-builder-preview-abilities detail-abilities">${abilities.map(a => `<div class="detail-ability-row"><strong>${escapeHtml(a.name || 'Ability')}</strong><p>${escapeHtml(a.description || '')}</p></div>`).join('')}</div>` : ''}
-            <div class="builder-stepper deck-builder-preview-actions">
-                <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(card.id)}"${inDeck <= 0 ? ' disabled' : ''}>-</button>
-                <strong>${inDeck} / ${maxCopies}</strong>
-                <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>${addLabel}</button>
-            </div>
+            <nav class="deck-builder-card-tabs" role="tablist" aria-label="Card details">
+                ${tabs.map(tab => `<button type="button" role="tab" class="deck-builder-card-tab${tab.id === cardTab ? ' is-active' : ''}" data-builder-card-tab="${tab.id}" aria-selected="${tab.id === cardTab}">${escapeHtml(tab.label)}</button>`).join('')}
+            </nav>
+            <div class="deck-builder-card-tabpanel" role="tabpanel">${renderBuilderCardTabBody(card, cardTab)}</div>
         </div>`;
+    }
+
+    const BUILDER_COST_EMBLEM_CAP = 5;
+
+    function renderBuilderCostEmblems(cost, element) {
+        const amount = Number(cost);
+        if (!Number.isFinite(amount) || amount <= 0) return '<b>Free</b>';
+        const normalized = String(element || 'NEUTRAL').toLowerCase();
+        const shown = Math.min(amount, BUILDER_COST_EMBLEM_CAP);
+        const token = `<span class="energy-token notch-token token-${escapeAttr(normalized)}" style="${notchIconStyle(element || 'NEUTRAL')}"></span>`;
+        const overflow = amount > shown ? `<b class="builder-cost-overflow">+${amount - shown}</b>` : '';
+        return `<span class="builder-cost-emblems" aria-label="Cost ${amount} ${escapeAttr(format(element || 'NEUTRAL'))} energy">${token.repeat(shown)}${overflow}</span>`;
+    }
+
+    function builderCardTabsFor(card) {
+        const tabs = [{ id: 'card', label: 'Overview' }];
+        if ((card?.moves || []).filter(Boolean).length || (card?.abilities || []).length || card?.ability) {
+            tabs.push({ id: 'moves', label: 'Moves' });
+        }
+        tabs.push({ id: 'evo', label: 'Evolution' });
+        return tabs;
+    }
+
+    function builderActiveCardTab(card) {
+        const available = builderCardTabsFor(card).map(tab => tab.id);
+        return available.includes(state.builderCardTab) ? state.builderCardTab : 'card';
+    }
+
+    function renderBuilderCardTabBody(card, tab) {
+        if (tab === 'evo') return renderBuilderRecommendations(card);
+        if (tab === 'moves') {
+            const abilities = card.abilities || (card.ability ? [card.ability] : []);
+            return `${renderBuilderMoves(card)}
+                ${abilities.length ? `<div class="deck-builder-preview-abilities detail-abilities">${abilities.map(a => `<div class="detail-ability-row"><strong>${escapeHtml(a.name || 'Ability')}</strong><p>${escapeHtml(a.description || '')}</p></div>`).join('')}</div>` : ''}`;
+        }
+        const flavorText = creatureDescriptionFor(card);
+        const stats = card.type === 'SIEGLING'
+            ? `<div><span>Health</span><strong>${card.health ?? '-'}</strong></div>
+                <div><span>Speed</span><strong>${card.speed ?? '-'}</strong></div>
+                <div><span>Evolution</span><strong>${escapeHtml(card.evolvesFromName || card.evolvesFromId || 'Base')}</strong></div>`
+            : '';
+        return `${flavorText ? `<p class="deck-builder-preview-flavor">${escapeHtml(flavorText)}</p>` : ''}
+            ${stats ? `<div class="detail-grid">${stats}</div>` : ''}`;
     }
 
     function builderAddLabel(cardId) {
@@ -3554,7 +4695,7 @@
         const costElement = card.costElement || card.trapBucketElement || card.element || 'NEUTRAL';
         return `<div class="deck-builder-preview-card deck-builder-preview-card-compact" style="--el:${elementColor(card.element)}">
             <div class="deck-builder-compact-head">
-                <div class="builder-card-mark">${renderElementIcon(card.element)}</div>
+                <div class="builder-card-mark">${renderBuilderRowThumb(card)}</div>
                 <div>
                     <strong>${escapeHtml(card.name)}</strong>
                     <span>${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))} / ${escapeHtml(format(card.rarity))}</span>
@@ -3581,8 +4722,13 @@
         </div>`;
     }
 
+    function renderBuilderRowThumb(card) {
+        return (window.SieglingsCardBinderVisual?.renderCardRowThumb)
+            ? window.SieglingsCardBinderVisual.renderCardRowThumb(card)
+            : renderElementIcon(card?.element);
+    }
+
     function renderBuilderBinderRow(card) {
-        const owned = ownedCount(card.id);
         const count = state.builderCounts[card.id] || 0;
         const maxCopies = builderCardLimit(card.id);
         const total = builderTotal();
@@ -3590,10 +4736,10 @@
         const activeClass = card.id === state.builderPreviewCardId ? ' is-active' : '';
         return `<article class="deck-builder-binder-row${activeClass}" style="--el:${elementColor(card.element)}">
             <button type="button" class="deck-builder-binder-main" data-select-builder-card="${escapeAttr(card.id)}">
-                <div class="builder-card-mark">${renderElementIcon(card.element)}</div>
+                <div class="builder-card-mark">${renderBuilderRowThumb(card)}</div>
                 <div class="builder-row-copy">
                     <strong>${escapeHtml(card.name)}</strong>
-                    <span>${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))} / Owned x${owned}</span>
+                    <span>${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))}</span>
                     <small>${escapeHtml(format(card.rarity))}${card.evolvesFromId ? ` / Evolves from ${escapeHtml(card.evolvesFromName || findCard(card.evolvesFromId)?.name || 'base')}` : ''}</small>
                 </div>
                 ${count > 0 ? `<span class="deck-builder-binder-count${count >= maxCopies ? ' is-max' : ''}">In deck x${count}</span>` : ''}
@@ -3616,7 +4762,7 @@
             const activeClass = cardId === state.builderPreviewCardId ? ' is-active' : '';
             return `<div class="deck-builder-deck-row${activeClass}" style="--el:${elementColor(card?.element)}">
                 <button type="button" class="deck-builder-deck-row-main" data-select-builder-card="${escapeAttr(cardId)}">
-                    <div class="builder-card-mark">${renderElementIcon(card?.element)}</div>
+                    <div class="builder-card-mark">${renderBuilderRowThumb(card)}</div>
                     <div class="builder-row-copy">
                         <strong>${escapeHtml(card?.name || cardId)}</strong>
                         <span>${card ? `${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))}` : 'Card'}</span>
@@ -3633,8 +4779,40 @@
 
     function bindDeckBuilderPageEvents(root) {
         if (!root) return;
+        root.querySelectorAll('[data-builder-tab]').forEach(btn => btn.addEventListener('click', () => {
+            state.builderTab = btn.dataset.builderTab;
+            renderDeckBuilderPage();
+        }));
+        root.querySelectorAll('[data-builder-card-tab]').forEach(btn => btn.addEventListener('click', () => {
+            state.builderCardTab = btn.dataset.builderCardTab;
+            renderDeckBuilderPage();
+        }));
+        root.querySelectorAll('[data-builder-type]').forEach(btn => btn.addEventListener('click', () => {
+            state.builderTypeFilter = btn.dataset.builderType;
+            const select = document.getElementById('builderTypeSelect');
+            if (select) select.value = state.builderTypeFilter;
+            resetBuilderVisibleLimit();
+            renderDeckBuilderPage();
+        }));
+        root.querySelector('[data-open-builder-filters]')?.addEventListener('click', () => toggleTray('filter'));
+        root.querySelector('[data-clear-builder-filters]')?.addEventListener('click', () => {
+            state.builderSearch = '';
+            state.builderElementFilter = 'ALL';
+            state.builderTypeFilter = 'ALL';
+            state.builderRarityFilter = 'ALL';
+            syncBuilderFilterTrayControls();
+            resetBuilderVisibleLimit();
+            renderDeckBuilderPage();
+        });
+        root.querySelector('[data-builder-toggle-settings]')?.addEventListener('click', () => {
+            state.builderDeckSettingsOpen = !state.builderDeckSettingsOpen;
+            renderDeckBuilderPage();
+        });
         root.querySelectorAll('[data-select-builder-card]').forEach(btn => btn.addEventListener('click', () => {
             state.builderPreviewCardId = btn.dataset.selectBuilderCard;
+            // Jump straight to the Card pane on mobile so a tap on a binder row
+            // does not silently update an off-screen panel.
+            if (isMobileDeckBuilderViewport()) state.builderTab = 'card';
             renderDeckBuilderPage();
         }));
         root.querySelectorAll('[data-add-builder-card]').forEach(btn => btn.addEventListener('click', (event) => {
@@ -3651,12 +4829,20 @@
         });
         root.querySelector('#builderTrainerSelect')?.addEventListener('change', (event) => {
             localStorage.setItem('sieglingsBuilderTrainerId', event.target.value);
+            event.target.classList.remove('needs-fix');
+            if (state.builderIssue?.field === 'trainer') clearBuilderIssue(false);
         });
         root.querySelector('#builderDeckName')?.addEventListener('input', (event) => {
             localStorage.setItem('sieglingsBuilderDeckName', event.target.value);
+            event.target.classList.remove('needs-fix');
+            if (state.builderIssue?.field === 'name') clearBuilderIssue(false);
         });
+        root.querySelector('[data-builder-issue-dismiss]')?.addEventListener('click', () => clearBuilderIssue());
         root.querySelector('#playCustomBtn')?.addEventListener('click', () => {
-            if (builderTotal() < 30) return alert('Custom decks need 30 cards.');
+            if (builderTotal() < 30) {
+                return setBuilderIssue(`Custom decks need 30 cards — you have ${builderTotal()}. Add ${30 - builderTotal()} more from your binder.`, 'cards');
+            }
+            clearBuilderIssue(false);
             goPlay({ mode: 'solo', customDeckCards: builderCards(), trainerId: builderTrainerId(), loadoutLabel: builderDeckName() });
         });
         root.querySelector('#clearBuilderBtn')?.addEventListener('click', () => {
@@ -3736,9 +4922,9 @@
 
     function shopTitleOffers() {
         const unlocked = new Set((state.progression?.playerTitles || []).filter(title => title.unlocked).map(title => title.id));
-        return (state.titleCatalog || [])
+        const offers = state.dailyTitleOffers?.length ? state.dailyTitleOffers : (state.titleCatalog || [])
             .filter(title => title.source === 'SHOP')
-            .map(title => ({ ...title, unlocked: unlocked.has(title.id) || Boolean(title.unlocked) }));
+        return offers.map(title => ({ ...title, unlocked: unlocked.has(title.id) || Boolean(title.unlocked) }));
     }
 
     function renderShopPacksEmptyState() {
@@ -3748,9 +4934,29 @@
         return '<div class="unlock-card"><strong>No packs available</strong><span>Pack groups will appear here once the catalog loads.</span></div>';
     }
 
+    // Packs, daily card offers and daily titles all arrive in the one
+    // /api/shop/packs payload, and prices/Owned badges need the signed-in
+    // progression snapshot, so either gap means the shop cannot be trusted yet.
+    function shopDataLoading() {
+        if (state.shopPacksLoading && !state.packs.length) return true;
+        return Boolean(state.token) && !state.profileSynced && !state.progression;
+    }
+
     function renderShop() {
         const grid = document.getElementById('shopPackGrid');
         if (!grid) return;
+        const goldLabel = document.getElementById('shopGoldLabel');
+        // Catalog or progression still in flight — show explicit progress instead
+        // of an empty "No packs available" panel that reads like a dead shop.
+        if (shopDataLoading()) {
+            grid.setAttribute('aria-busy', 'true');
+            grid.innerHTML = panelLoadingMarkup('Loading the shop…');
+            if (goldLabel) goldLabel.textContent = 'Loading…';
+            renderShopCardPreviewModal();
+            renderHudTools();
+            return;
+        }
+        grid.setAttribute('aria-busy', 'false');
         const starterMode = state.profile?.authenticated && state.progression && !state.progression.starterChosen;
         const starterPacks = state.packs.filter(pack => pack.starterEligible);
         const packs = starterMode ? starterPacks : state.packs;
@@ -3765,11 +4971,11 @@
         }
         grid.innerHTML = `
             ${dailyOffers.length ? `<div class="shop-row-head"><div><span class="eyebrow">Daily Rotation</span><h2>Five cards today</h2></div><span>Refreshes daily</span></div><div class="daily-offer-grid">${dailyOffers.map(renderDailyOfferTile).join('')}</div>` : ''}
-            ${shopTitles.length && !starterMode ? `<div class="shop-row-head"><div><span class="eyebrow">Profile Flair</span><h2>Player titles</h2></div><span>Unlock by playing or buy with Siegecoins</span></div><div class="shop-title-grid">${shopTitles.map(renderShopTitleTile).join('')}</div>` : ''}
+            ${shopTitles.length && !starterMode ? `<div class="shop-row-head"><div><span class="eyebrow">Profile Flair</span><h2>Player titles</h2></div><span>Four titles today · Refreshes daily</span></div><div class="shop-title-grid">${shopTitles.map(renderShopTitleTile).join('')}</div>` : ''}
             <div class="shop-row-head"><div><span class="eyebrow">${starterMode ? 'Starter Pack' : 'Packs'}</span><h2>${starterMode ? 'Choose your first pack' : 'Elemental and type pulls'}</h2></div></div>
             ${packs.length ? packs.map(renderPackTile).join('') : renderShopPacksEmptyState()}
         `;
-        document.getElementById('shopGoldLabel').innerHTML = renderCoinAmount(state.progression?.gold || 0);
+        if (goldLabel) goldLabel.innerHTML = renderCoinAmount(state.progression?.gold || 0);
         renderShopCardPreviewModal();
         renderHudTools();
     }
@@ -3803,6 +5009,7 @@
         if (data?.error) return alert(data.error);
         state.progression = data.progression;
         state.titleCatalog = data.titleCatalog || state.titleCatalog;
+        state.dailyTitleOffers = data.dailyTitleOffers || state.dailyTitleOffers;
         renderShop();
         renderGold();
         renderProfile();
@@ -4582,18 +5789,18 @@
         body.innerHTML = `<div class="profile-dashboard" style="${profileThemeStyle(view.theme)}">
             ${renderProfileHero(view)}
             ${renderProfileStats(view)}
-            <div class="profile-main-grid">
-                ${renderBattleRecordPanel(view)}
-                ${renderCollectionSnapshot(view)}
-            </div>
-            <div class="profile-main-grid profile-main-grid-wide">
-                ${renderBattleHistoryList(view)}
-                <div class="profile-side-stack">
+            <div class="profile-main-grid profile-main-grid-overview">
+                <div class="profile-overview-stack">
+                    ${renderBattleRecordPanel(view)}
                     ${renderDeckSnapshot(view)}
                     ${renderFriendsPanel(view)}
                 </div>
+                ${renderCollectionSnapshot(view)}
             </div>
-            ${renderAchievementBadges(view)}
+            <div class="profile-main-grid profile-main-grid-bottom">
+                ${renderBattleHistoryList(view)}
+                ${renderAchievementBadges(view)}
+            </div>
         </div>`;
         renderEditProfileModalHost(view);
         renderBattleHistoryModalHost(view);
@@ -6318,18 +7525,41 @@
         writePendingPackOpenRequests(remaining);
     }
 
-    async function recoverStarterPackProgression() {
+    async function recoverProgressionSnapshot() {
         try {
             const recovered = await fetchJson('/api/player/progression', {
                 timeoutMs: STARTER_PACK_TIMEOUT_MS
             });
-            if (recovered && !recovered.error && recovered.progression?.starterChosen) {
+            if (recovered && !recovered.error && recovered.progression) {
                 return recovered;
             }
         } catch (error) {
             console.error(error);
         }
         return null;
+    }
+
+    async function retryMissingProgression() {
+        if (!state.profile?.authenticated || state.progression || state.progressionRecoveryPending) return;
+        state.progressionRecoveryPending = true;
+        renderStarterGate();
+        try {
+            const recovered = await recoverProgressionSnapshot();
+            if (!recovered) return;
+            state.progression = recovered.progression;
+            state.profile = { ...state.profile, progression: state.progression };
+            state.profileSynced = true;
+            saveCachedAuthProfile(state.profile);
+            render();
+        } finally {
+            state.progressionRecoveryPending = false;
+            renderStarterGate();
+        }
+    }
+
+    async function recoverStarterPackProgression() {
+        const recovered = await recoverProgressionSnapshot();
+        return recovered?.progression?.starterChosen ? recovered : null;
     }
 
     // Shop pack opens can charge/grant before the HTTP body arrives. On timeout
@@ -6366,6 +7596,7 @@
         state.packs = data.packs || state.packs;
         state.dailyOffers = data.dailyOffers || state.dailyOffers;
         state.titleCatalog = data.titleCatalog || state.titleCatalog || state.progression?.playerTitles || [];
+        state.dailyTitleOffers = data.dailyTitleOffers || state.dailyTitleOffers || [];
         clearPackOpenRequestId(requestId);
         const latest = data._recoveredPackEntry || state.progression?.packHistory?.[0];
         if (latest && data._recoveredPackEntry && state.progression?.packHistory?.[0]?.requestId !== requestId) {
@@ -6398,6 +7629,14 @@
         if (!state.profile?.authenticated) {
             openAuth();
             return;
+        }
+        // A partial auth response must never fall through to the paid shop path:
+        // the server rejects shop purchases until a starter exists, stranding new
+        // accounts without the starter gate. Recover first and keep a retry UI if
+        // progression is still unavailable.
+        if (!state.progression) {
+            await retryMissingProgression();
+            if (!state.progression) return;
         }
         if (state.packOpeningPending) {
             return;
@@ -6469,6 +7708,7 @@
             state.packs = data.packs || state.packs;
             state.dailyOffers = data.dailyOffers || state.dailyOffers;
             state.titleCatalog = data.titleCatalog || state.titleCatalog || state.progression?.playerTitles || [];
+            state.dailyTitleOffers = data.dailyTitleOffers || state.dailyTitleOffers || [];
             clearPackOpenRequestId(requestId);
             latest = state.progression?.packHistory?.[0];
             if (latest) {
@@ -6614,6 +7854,7 @@
             state.packs = data.packs || state.packs;
             state.dailyOffers = data.dailyOffers || state.dailyOffers;
             state.titleCatalog = data.titleCatalog || state.titleCatalog || state.progression?.playerTitles || [];
+            state.dailyTitleOffers = data.dailyTitleOffers || state.dailyTitleOffers || [];
             detectNewCards();
             render();
         } finally {
@@ -7283,10 +8524,31 @@
 
     async function purchaseDeck(deckId) {
         if (!state.profile?.authenticated) return openAuth();
-        const data = await fetchJson('/api/shop/purchase-deck', { method: 'POST', body: JSON.stringify({ deckId }) });
-        if (data?.error) return alert(data.error);
-        state.progression = data.progression;
-        render();
+        const deck = findPremadeDeck(deckId);
+        if (!deck || !isPremadeDeckLocked(deck) || state.deckPurchasePendingId) return;
+        const price = premadeDeckPrice();
+        if (!confirm(`Unlock ${deck.name} for ${price} Siegecoins?`)) return;
+        state.deckPurchasePendingId = deck.id;
+        renderDecks();
+        let data;
+        try {
+            data = await fetchJson('/api/shop/purchase-deck', { method: 'POST', body: JSON.stringify({ deckId }) });
+        } catch (error) {
+            console.error(error);
+            data = { error: 'The deck could not be unlocked. Please try again.' };
+        } finally {
+            state.deckPurchasePendingId = '';
+        }
+        if (data?.error || !data) {
+            renderDecks();
+            return alert(data?.error || 'The deck could not be unlocked. Please try again.');
+        }
+        // Update both the live state and the cross-page profile cache before the
+        // celebration starts. This makes Decks, Social and Play see the purchase
+        // immediately, even if this response carries a stale derived unlock list.
+        applyProgressionUpdate(progressionWithUnlockedDeck(data.progression, deck.id));
+        state.selectedDeckId = deck.id;
+        startDeckUnlockCelebration(deck);
     }
 
     async function craftSelectedCard(cardId) {
@@ -7359,21 +8621,49 @@
 
     async function saveCustomDeck() {
         if (!state.profile?.authenticated) return openAuth();
-        if (!state.progression?.customDeckUnlocked) return alert('Save-ready custom decks unlock once you own 30 total card copies.');
+        if (!state.progression?.customDeckUnlocked) {
+            return setBuilderIssue(`Save-ready custom decks unlock once you own 30 total card copies — your binder has ${state.progression?.ownedTotal || 0}. Open packs in the Shop, then save.`, 'cards');
+        }
         const cards = builderCards();
-        if (cards.length < 30) return alert('Custom decks need 30 cards.');
+        if (cards.length < 30) {
+            return setBuilderIssue(`Custom decks need 30 cards — you have ${cards.length}. Add ${30 - cards.length} more from your binder.`, 'cards');
+        }
         const trainerId = builderTrainerId();
         const name = builderDeckName();
+        if (!trainerId) {
+            return setBuilderIssue('Pick a SiegeKnight you own under Deck name & SiegeKnight before saving.', 'trainer');
+        }
+        if (!name.trim()) {
+            return setBuilderIssue('Give this deck a name before saving.', 'name');
+        }
         const payload = { trainerId, customDeckCards: cards, name };
-        if (state.editingSavedDeckId) payload.id = state.editingSavedDeckId;
+        if (state.editingSavedDeckId) {
+            payload.id = state.editingSavedDeckId;
+        } else {
+            // Minted once per deck being composed, so a save whose response is lost in
+            // transit is retried onto the same document instead of creating a copy.
+            payload.clientDeckId = builderClientDeckId();
+        }
+        const saveBtn = document.getElementById('saveDeckBuilderPageBtn');
+        if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
         const data = await fetchJson('/api/profile/decks', {
             method: 'POST',
             body: JSON.stringify(payload)
         });
-        if (data?.error) return alert(data.error);
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.textContent = state.editingSavedDeckId ? 'Update Deck' : 'Save Deck';
+        }
+        if (!data || data.error) {
+            return setBuilderIssue(data?.error || 'The save request did not reach the server. Check your connection and try again.', data?.field);
+        }
+        clearBuilderIssue(false);
         state.profile = data;
         state.progression = data.progression;
+        saveCachedAuthProfile(data);
         state.editingSavedDeckId = '';
+        // The deck is banked; the next new deck composed here needs its own id.
+        state.builderClientDeckId = '';
         renderProfile();
         renderDecks();
         navigateHub('decks');
@@ -7513,6 +8803,9 @@
     }
 
     function queuePlayLoadout(payload = {}) {
+        // The tutorial match is pinned server-side, so carrying the hub's current
+        // deck/knight selection into it would only be misleading on the loadout.
+        const tutorial = Boolean(payload.tutorial) || payload.mode === 'tutorial';
         const savedDeck = selectedSavedDeck();
         const customDeckCards = payload.customDeckCards
             || (!payload.directLoadout && savedDeck?.custom && savedDeck.customDeckCards?.length ? savedDeck.customDeckCards : null);
@@ -7520,15 +8813,15 @@
             || (customDeckCards?.length ? (savedDeck?.name || 'Custom Loadout') : '');
         localStorage.setItem(PENDING_LOADOUT_KEY, JSON.stringify({
             createdAt: Date.now(),
-            deckId: payload.deckId || selectedDeckId(),
-            trainerId: payload.trainerId || selectedTrainerId(),
-            mode: payload.mode || 'solo',
+            deckId: tutorial ? '' : (payload.deckId || selectedDeckId()),
+            trainerId: tutorial ? '' : (payload.trainerId || selectedTrainerId()),
+            mode: tutorial ? 'tutorial' : (payload.mode || 'solo'),
             onlineRoomMode: payload.onlineRoomMode || 'join',
             roomId: payload.roomId || '',
             battleLaunch: Boolean(payload.battleLaunch),
             directLoadout: Boolean(payload.directLoadout),
-            tutorial: Boolean(payload.tutorial),
-            customDeckCards,
+            tutorial,
+            customDeckCards: tutorial ? null : customDeckCards,
             loadoutLabel,
             playerName: payload.playerName
                 || (state.profile?.authenticated ? (state.profile?.user?.displayName || '') : 'Guest')
@@ -7760,16 +9053,34 @@
 
     async function fetchGameOptions() {
         const cacheKey = gameOptionsCacheKey();
-        if (!state.token) {
-            const cached = readCache(cacheKey, STATIC_CACHE_TTL_MS);
-            if (cached) return cached;
-        }
+        // Both guest and signed-in keys are identity-scoped. Serving a warm
+        // cache lets Cards/Decks paint immediately; syncCatalogIfVersionChanged
+        // (and a dashboard publish) still force a full refresh when the live
+        // catalog moves. Skipping the cache for signed-in players used to make
+        // every hub visit wait on the ~9s /api/game/options build.
+        const cached = readCache(cacheKey, STATIC_CACHE_TTL_MS);
+        if (cached && hasCardCatalog(cached)) return cached;
         const data = await fetchJson('/api/game/options');
-        if (data) writeCache(cacheKey, data);
-        return data;
+        if (data) {
+            writeCache(cacheKey, data);
+            return data;
+        }
+        // The request failed — offline, a cold-start timeout, or aborted because the
+        // player reloaded while it was in flight. Fall back to the last good
+        // snapshot for this identity instead of handing applyGameOptions an empty catalog.
+        return readCache(cacheKey, STATIC_CACHE_TTL_MS);
     }
 
+    function hasCardCatalog(options) {
+        return Array.isArray(options?.cardCatalog) && options.cardCatalog.length > 0;
+    }
+
+    // A failed fetch must never replace a populated catalog with an empty one.
+    // state.options stays truthy either way, so every consumer — the binder above
+    // all — reads the empty catalog as "loaded" and reports that the player owns
+    // nothing, over a collection that is sitting right there in the cache.
     function applyGameOptions(options) {
+        if (!hasCardCatalog(options) && hasCardCatalog(state.options)) return;
         const next = options || { decks: [], trainers: [], cardCatalog: [], liveElements: [] };
         state.options = next;
         state.catalogVersion = Number(next.catalogVersion) || 0;
@@ -7783,12 +9094,16 @@
         if (options) {
             applyGameOptions(options);
         }
-        const packs = readCache('shopPacks', STATIC_CACHE_TTL_MS, isValidShopPacksPayload);
+        const packs = readCache('shopPacks', PACK_CACHE_TTL_MS, isValidShopPacksPayload);
         if (packs) applyShopPacksPayload(packs);
         const descriptions = readCache('creatureDescriptions', STATIC_CACHE_TTL_MS);
         if (descriptions) {
             state.creatureDescriptions = indexCreatureDescriptions(descriptions);
         }
+        // Paint the last board within its TTL instead of a loading emblem; the
+        // fetch in loadAll() replaces it as soon as it lands.
+        const leaderboards = readCache('leaderboards', LEADERBOARD_CACHE_TTL_MS);
+        if (leaderboards && !leaderboards.error) applyLeaderboardsPayload(leaderboards);
         if (state.options && !state.selectedCardId) {
             state.selectedCardId = state.options.cardCatalog?.[0]?.id || null;
         }
@@ -7856,6 +9171,7 @@
     }
 
     function applyShopPacksPayload(data) {
+        state.shopPacksLoading = false;
         if (!isValidShopPacksPayload(data)) {
             if (data?.error) state.shopPacksError = data.error;
             else if (data) state.shopPacksError = 'The pack catalog returned no available packs.';
@@ -7865,6 +9181,7 @@
         state.packs = data.packs;
         state.dailyOffers = data.dailyOffers || [];
         state.titleCatalog = data.titleCatalog || state.titleCatalog || [];
+        state.dailyTitleOffers = data.dailyTitleOffers || [];
         return true;
     }
 
@@ -8060,6 +9377,12 @@
             renderAuthModal();
             return alert(data.error);
         }
+        // Auth profile assembly intentionally tolerates an isolated progression
+        // read failure. Recover before deciding starter-gate / shop eligibility.
+        if (!data.progression) {
+            const recovered = await recoverProgressionSnapshot();
+            if (recovered) data.progression = recovered.progression;
+        }
         state.authLoading = false;
         // Keep the real token + Bearer header unless the server has already proven a
         // session cookie reaches it, so auth survives the full-page navigations to
@@ -8068,7 +9391,8 @@
         localStorage.setItem(AUTH_TOKEN_KEY, state.token);
         state.profile = data;
         saveCachedAuthProfile(data);
-        state.progression = data.progression;
+        state.progression = data.progression || null;
+        state.profileSynced = Boolean(state.progression);
         syncCollectionVisibilityDefault();
         state.profilePrefs = applyProfileSettingsFromServer(data.profileSettings) || defaultProfilePrefs(data.user || {});
         cacheProfilePrefs(state.profilePrefs);
@@ -8085,6 +9409,11 @@
         try {
             await refreshLiveCatalog();
             await ensurePacksLoaded();
+            // Login receives the profile directly, so it does not pass through
+            // syncProfile(), which normally loads this snapshot. Without this
+            // request the Home panel re-renders with null data until a full page
+            // reload, leaving daily, weekly, and lifetime tabs blank.
+            await loadDailyMissions();
             render();
         } finally {
             hideLoadingArtScreen(loadingShownAt);
@@ -8101,14 +9430,31 @@
         localStorage.removeItem(AUTH_TOKEN_KEY);
         localStorage.removeItem(PROFILE_PREFS_CACHE_KEY);
         clearCachedAuthProfile();
-        clearGameOptionsCaches();
+        // Keep the already-loaded catalog as the guest cache. Wiping every
+        // gameOptions:* key forced Cards/Decks through a cold rebuild + a full
+        // unowned binder mount right after sign-out — the path that felt like a
+        // 60s hang for logged-out players.
+        const catalog = hasCardCatalog(state.options) ? state.options : null;
+        try {
+            hubCacheStorage()?.removeItem(HUB_CACHE_PREFIX + 'gameOptions:signed-in');
+            hubCacheStorage()?.removeItem(HUB_CACHE_PREFIX + 'gameOptions');
+        } catch (_ignored) {
+            // Cache cleanup is best-effort.
+        }
         state.token = '';
         state.profile = null;
         state.progression = null;
         state.profilePrefs = null;
         state.profileEditOpen = false;
+        state.profileSynced = true;
+        resetBinderVisibleLimit();
         syncCollectionVisibilityDefault();
-        await refreshLiveCatalog();
+        if (catalog) {
+            writeCache('gameOptions:guest', catalog);
+            applyGameOptions(catalog);
+        } else {
+            await refreshLiveCatalog();
+        }
         render();
     }
 
@@ -8129,13 +9475,23 @@
         localStorage.removeItem(AUTH_TOKEN_KEY);
         localStorage.removeItem(PROFILE_PREFS_CACHE_KEY);
         clearCachedAuthProfile();
-        clearGameOptionsCaches();
+        const catalog = hasCardCatalog(state.options) ? state.options : null;
+        try {
+            hubCacheStorage()?.removeItem(HUB_CACHE_PREFIX + 'gameOptions:signed-in');
+            hubCacheStorage()?.removeItem(HUB_CACHE_PREFIX + 'gameOptions');
+        } catch (_ignored) {
+            // Cache cleanup is best-effort.
+        }
+        if (catalog) writeCache('gameOptions:guest', catalog);
         state.token = '';
         state.profile = null;
         state.progression = null;
         state.profilePrefs = null;
         state.profileEditOpen = false;
+        state.profileSynced = true;
+        resetBinderVisibleLimit();
         syncCollectionVisibilityDefault();
+        if (catalog) applyGameOptions(catalog);
         closeOptions();
         render();
         alert('Your account and all associated data have been permanently deleted.');
@@ -8150,7 +9506,12 @@
         const next = Math.max(0, Math.min(copyLimit, current + delta));
         if (next) state.builderCounts[cardId] = next;
         else delete state.builderCounts[cardId];
-        if (delta > 0 || !state.builderPreviewCardId) state.builderPreviewCardId = cardId;
+        // Adding a copy must never hijack the Card View. Players add several
+        // cards in a row from the binder/recommendation lists, and swapping the
+        // inspected card under them also re-flowed the recommendations they
+        // were working through.
+        if (!state.builderPreviewCardId) state.builderPreviewCardId = cardId;
+        if (state.builderIssue?.field === 'cards') state.builderIssue = null;
         if (state.route === 'deck-builder') {
             renderDeckBuilderPage();
         }
@@ -8188,10 +9549,17 @@
     function selectedDeckId() {
         const savedDeck = selectedSavedDeck();
         if (savedDeck?.deckId) return savedDeck.deckId;
-        if (state.selectedDeckId && (state.options?.decks || []).some(deck => deck.id === state.selectedDeckId)) {
-            return state.selectedDeckId;
+        const selected = findPremadeDeck(state.selectedDeckId);
+        if (selected && !isPremadeDeckLocked(selected)) {
+            return selected.id;
         }
-        return state.options?.defaultDeckId || state.options?.decks?.[0]?.id || 'deck_fire_earth';
+        // Never hand a locked deck to match start — the backend rejects it.
+        const fallback = findPremadeDeck(state.options?.defaultDeckId);
+        if (fallback && !isPremadeDeckLocked(fallback)) {
+            return fallback.id;
+        }
+        const firstUnlocked = (state.options?.decks || []).find(deck => !isPremadeDeckLocked(deck));
+        return firstUnlocked?.id || state.options?.defaultDeckId || state.options?.decks?.[0]?.id || 'deck_fire_earth';
     }
     function indexCreatureDescriptions(descriptions) {
         const entries = Array.isArray(descriptions) ? descriptions : [];
@@ -8298,7 +9666,18 @@
     }
     function deckAssetForElements(elements = []) {
         const key = elements.find(element => DECK_ASSET_KEYS.includes(element));
-        return key ? DECK_ASSET_PATHS[key] : null;
+        if (!key) {
+            return null;
+        }
+        // Deck art is injected as a CSS url(), where the <img onerror> WebP
+        // fallback cannot reach it — resolve the twin here instead. The
+        // literals stay .png so the cross-file asset contract keeps holding.
+        const asset = DECK_ASSET_PATHS[key];
+        const preferWebp = window.SieglingsCardBinderVisual?.preferWebp;
+        if (!asset || !preferWebp) {
+            return asset || null;
+        }
+        return { ...asset, back: preferWebp(asset.back), icon: preferWebp(asset.icon) };
     }
     function parseHubRoute(path) {
         const segments = String(path || '/home').replace(/^\/+/, '').split('/').filter(Boolean);
@@ -8912,7 +10291,10 @@
         const trainers = state.options?.trainers || [];
         const selectedDeck = status?.players?.find(player => player.role === (isHost ? 'host' : 'guest'))?.deckId || selectedDeckId();
         const selectedTrainer = status?.players?.find(player => player.role === (isHost ? 'host' : 'guest'))?.trainerId || selectedTrainerId();
-        const deckOptions = decks.map(deck => `<option value="${escapeAttr(deck.id)}" ${deck.id === selectedDeck ? 'selected' : ''}>${escapeHtml(deck.name)}</option>`).join('');
+        // Battle selection only lists unlocked presets; purchases stay on the Decks page.
+        const deckOptions = decks.filter(deck => !isPremadeDeckLocked(deck)).map(deck => {
+            return `<option value="${escapeAttr(deck.id)}" ${deck.id === selectedDeck ? 'selected' : ''}>${escapeHtml(deck.name)}</option>`;
+        }).join('');
         const trainerOptions = trainers.map(trainer => {
             const owned = isTrainerOwned(trainer.id);
             const level = Math.max(1, trainerOwnedLevel(trainer.id) || Number(trainer.level) || 1);
@@ -9684,86 +11066,165 @@
         document.getElementById('viewProfileModal')?.classList.add('hidden');
     }
 
+    const GUIDE_AFFLICTIONS = [
+        { element: 'Fire', status: 'Burn', cap: 5, icon: '🔥', color: '#ff501e', copy: 'Owner Setup: 1 damage per stack, then clear.' },
+        { element: 'Ice', status: 'Chill', cap: 3, icon: '❄', color: '#76e6ff', copy: '−1 Speed each; at 3, Freeze until owner Setup.' },
+        { element: 'Earth', status: 'Leech', cap: 2, icon: '♥', color: '#8fbd58', copy: 'First hit marks; second hit heals its attacker for HP dealt, then clears.' },
+        { element: 'Wind', status: 'Disorient', cap: 3, icon: '↝', color: '#96ffb4', copy: 'Raises this card’s lowest-cost ability by 1 per stack.' },
+        { element: 'Water', status: 'Soak', cap: 5, icon: '◆', color: '#3296ff', copy: 'Incoming attacks deal +1 damage per stack.' },
+        { element: 'Electric', status: 'Shock', cap: 5, icon: 'ϟ', color: '#ffe63c', copy: 'This card can spend 1 less energy per stack.' },
+        { element: 'Metal', status: 'Rust', cap: 3, icon: '⚙', color: '#a0aab4', copy: 'Next Metal hit gains +1 per stack, then clears.' },
+        { element: 'Poison', status: 'Toxin', cap: 5, icon: '☠', color: '#78dc50', copy: 'Blocks healing; heal value removes stacks instead.' },
+        { element: 'Shadow', status: 'Curse', cap: 2, icon: '☾', color: '#9a63d6', copy: 'The marked Siegeling cannot be claimed or evolved.' },
+        { element: 'Psychic', status: 'Insight', cap: 3, icon: '◉', color: '#c896ff', copy: 'At 3, the inflicter draws 1 card and Insight clears.' },
+        { element: 'Light', status: 'Blind', cap: 3, icon: '✦', color: '#fff0b0', copy: 'Outgoing ability values fall by 1 per stack.' },
+        { element: 'Undead', status: 'Wither', cap: 3, icon: '♱', color: '#8c78a0', copy: 'Owner Setup: clamp HP by stacks, then clear.' }
+    ];
+
+    function renderGuideAfflictions() {
+        return `<div class="guide-affliction-grid">${GUIDE_AFFLICTIONS.map(item => `
+            <article class="guide-affliction-card" style="--guide-el:${item.color}">
+                <div class="guide-affliction-top">
+                    <span class="guide-affliction-icon" aria-hidden="true">${item.icon}</span>
+                    <span><small>${item.element}</small><strong>${item.status}</strong></span>
+                    <b title="Stack cap">${item.cap}</b>
+                </div>
+                <p>${item.copy}</p>
+            </article>`).join('')}</div>`;
+    }
+
+    function renderGuideElements() {
+        const rows = GUIDE_AFFLICTIONS.concat([
+            { element: 'Neutral', status: 'No affliction', icon: '◇', color: '#95a5a6' }
+        ]);
+        return `<div class="guide-element-grid">${rows.map(item => `
+            <div class="guide-element-card" style="--guide-el:${item.color}">
+                <span class="guide-element-icon" aria-hidden="true">${item.icon}</span>
+                <span><strong>${item.element}</strong><small>${item.status}</small></span>
+            </div>`).join('')}</div>`;
+    }
+
     const GUIDE_SECTIONS = [
         {
             id: 'arena',
-            label: 'The Arena',
-            title: 'Build links, wake sockets, command momentum',
-            html: `<p>Siegelings is a board-first card battle game. Place Siegelings during setup, connect matching notches, then spend the elemental energy those links create.</p>
-                <ol class="guide-list">
-                    <li><strong>Notches wake sockets.</strong> Each Siegeling has notches on its edges. When a notch lines up with an open socket on the board, it wakes and feeds your energy pool.</li>
-                    <li><strong>Matching links strengthen the network.</strong> Connecting notches of the same element between your Siegelings reinforces your board and unlocks stronger plays.</li>
-                    <li><strong>Deck choice and SiegeKnight timing shape the plan.</strong> Lead with the right deck, then time your SiegeKnight to swing momentum when the board is set.</li>
-                </ol>`
+            icon: '✦',
+            label: 'Start Here',
+            eyebrow: 'Quick reference',
+            title: 'Build a network. Spend its energy. Win the battle.',
+            summary: 'Standard Battle is a 3×3 tactical card fight where placement creates the resources your Siegelings use.',
+            html: `<div class="guide-stat-grid">
+                    <div class="guide-stat"><strong>50</strong><span>Player Health</span></div>
+                    <div class="guide-stat"><strong>3×3</strong><span>Your board half</span></div>
+                    <div class="guide-stat"><strong>5</strong><span>Siegelings max</span></div>
+                    <div class="guide-stat"><strong>+1</strong><span>Weakness damage</span></div>
+                </div>
+                <div class="guide-phase-strip" aria-label="Battle turn phases">
+                    <div class="guide-phase"><b>1</b><span><strong>Draw</strong><small>Refill your hand</small></span></div>
+                    <div class="guide-phase"><b>2</b><span><strong>Setup</strong><small>Place, claim, Strategy, Deception</small></span></div>
+                    <div class="guide-phase"><b>3</b><span><strong>Battle</strong><small>Act in Speed order</small></span></div>
+                </div>
+                <p class="guide-note"><strong>Win condition:</strong> reduce the opposing player from 50 Health to 0. Defeated Siegelings also deal rarity-based bounty damage to their owner.</p>`
         },
         {
             id: 'app',
-            label: 'Using the App',
-            title: 'Find your way around the binder hub',
-            html: `<ul class="guide-list">
-                    <li><strong>Home</strong> — your command hub with collection stats, daily leaderboards, and quick play.</li>
-                    <li><strong>Play</strong> — solo PVE and live 1v1 battles after a Social lobby fills.</li>
-                    <li><strong>Cards</strong> — guests browse the full catalog by default; signed-in players start on owned cards. Use the collection toggle in Filters to switch between owned-only and full-catalog views, then filter by element, type, rarity, and energy cost.</li>
-                    <li><strong>Decks</strong> — run premade decks right away; custom deckbuilding unlocks once your binder holds 30 owned copies. Save custom lists to your deck binder.</li>
-                    <li><strong>Social</strong> — create and join 1v1 lobbies, friends, messaging, and player profiles.</li>
-                    <li><strong>Shop</strong> — spend Siegecoins on packs. Opening a pack starts the gacha reveal; tap each card to flip it.</li>
-                    <li><strong>Profile</strong> — customize your avatar, favorite element, title, bio, and card back.</li>
-                    <li><strong>Options</strong> — this menu: the full guide, your shareable profile QR, and admin access.</li>
-                </ul>
-                <p class="guide-note">Earn <strong>Remnants</strong> from opening packs and winning matches, then craft specific cards from the Cards menu.</p>`
+            icon: '⌂',
+            label: 'Hub',
+            eyebrow: 'Where things live',
+            title: 'Use the hub as your command map',
+            summary: 'Your binder hub connects every part of the game, from deck prep to live matchmaking.',
+            html: `<div class="guide-route-grid">
+                    <div><strong>Home</strong><span>Stats, daily leaders, and quick play</span></div>
+                    <div><strong>Play</strong><span>Standard Battle against AI or players</span></div>
+                    <div><strong>Siege</strong><span>Level-driven solo expeditions</span></div>
+                    <div><strong>Cards</strong><span>Browse, filter, inspect, and craft</span></div>
+                    <div><strong>Decks</strong><span>Premade lists and custom builds</span></div>
+                    <div><strong>Keep</strong><span>Progression, collection, and rewards</span></div>
+                    <div><strong>Social</strong><span>Lobbies, friends, messages, profiles</span></div>
+                    <div><strong>Shop</strong><span>Spend Siegecoins and reveal packs</span></div>
+                </div>
+                <p class="guide-note">Earn <strong>Remnants</strong> from packs and match wins, then craft specific cards from the Cards screen. Your profile, gallery, sharing tools, and account controls live in Settings.</p>`
         },
         {
             id: 'modes',
-            label: 'Game Modes',
-            title: 'Battle now, Siege coming soon',
-            html: `<ul class="guide-list">
-                    <li><strong>Battle</strong> — the live mode on the Play table: solo PVE against the AI and live 1v1 PvP once a Social lobby fills. Battle is <em>flat power</em> — every SiegeKnight fights at its base ability values, so matches come down to your deck, your links, and your reads, not your account progress.</li>
-                    <li><strong>Siege</strong> (coming soon) — a roguelike run where your SiegeKnight levels matter. The XP you bank on the Cards screen powers up a knight's passive and active abilities, and those bonuses carry into every fight of the run.</li>
-                </ul>
-                <p class="guide-note">SiegeKnight leveling only affects Siege — it has no effect in Battle, so a fresh account and a maxed one stand on equal footing there. Level your knights now so they are ready when Siege opens.</p>`
+            icon: '⚔',
+            label: 'Modes',
+            eyebrow: 'Ways to play',
+            title: 'Battle and Siege are both live — with different progression rules',
+            summary: 'Pick the mode that matches the kind of challenge you want. Your deck matters in both; account progression only changes Siege power.',
+            html: `<div class="guide-mode-grid">
+                    <article class="guide-mode-card is-battle">
+                        <span class="guide-mode-state">Live · Solo + PvP</span>
+                        <h4>Battle</h4>
+                        <p>Standard 3×3 combat with the weakness chart active. SiegeKnights use flat base values, keeping new and veteran accounts on equal footing.</p>
+                    </article>
+                    <article class="guide-mode-card is-siege">
+                        <span class="guide-mode-state">Live · Solo expedition</span>
+                        <h4>Siege</h4>
+                        <p>A run-based mode where SiegeKnight levels and upgraded abilities matter. Siege does not use the Standard Battle weakness chart.</p>
+                    </article>
+                </div>
+                <p class="guide-note"><strong>Progression split:</strong> XP banked on the Cards screen powers SiegeKnight passives and actives in Siege only. It never increases their Battle values.</p>`
         },
         {
             id: 'elements',
-            label: 'Elemental Affinity',
-            title: 'Elements and how they connect',
-            html: `<p>Every Siegeling, spell, and trap belongs to an element. Notches carry an element too — matching the element of a notch to its neighbor forms a stronger link and a cleaner energy feed.</p>
-                <div class="guide-elements">
-                    <span class="guide-el" style="--gc:#f05b2f">Fire</span>
-                    <span class="guide-el" style="--gc:#3c8ed8">Water</span>
-                    <span class="guide-el" style="--gc:#7ad9e7">Ice</span>
-                    <span class="guide-el" style="--gc:#64c987">Wind</span>
-                    <span class="guide-el" style="--gc:#a7773d">Earth</span>
-                    <span class="guide-el" style="--gc:#6d4a9e">Shadow</span>
-                    <span class="guide-el" style="--gc:#f5cf3d">Electric</span>
-                    <span class="guide-el" style="--gc:#aeb5b8">Metal</span>
-                    <span class="guide-el" style="--gc:#9f7c73">Undead</span>
-                    <span class="guide-el" style="--gc:#db73b4">Psychic</span>
-                    <span class="guide-el" style="--gc:#95a5a6">Neutral</span>
-                </div>
-                <p class="guide-note">Lean into one or two elements so your notches line up and your energy pool stays focused, or splash for flexible answers at the cost of weaker links.</p>`
+            icon: '⬡',
+            label: 'Elements',
+            eyebrow: 'Affinity map',
+            title: 'Thirteen affinities, twelve damage riders',
+            summary: 'An attack’s element determines the affliction it builds. Neutral is the exception: it has no affliction.',
+            html: `${renderGuideElements()}
+                <p class="guide-note"><strong>Energy exception:</strong> Poison and Light attacks still apply Toxin and Blind, but those elements do not have dedicated energy pools. Their action cards use Neutral costs.</p>`
         },
         {
             id: 'energy',
-            label: 'Energy in Battle',
-            title: 'How energy is made and spent',
-            html: `<ol class="guide-list">
-                    <li><strong>Place a Siegeling.</strong> During setup and each turn you commit Siegelings to the board.</li>
-                    <li><strong>Notches wake sockets.</strong> A notch touching an open socket wakes it, generating elemental energy of that notch's element into your pool.</li>
-                    <li><strong>Matching links compound.</strong> When two Siegelings connect on a shared element, the link feeds energy more efficiently and reinforces both cards.</li>
-                    <li><strong>Spend energy.</strong> Energy in your pool pays for abilities, spells, and traps. Most cards cost a specific amount of a specific element — build the pool that matches your hand.</li>
-                </ol>
-                <p class="guide-note">Energy is generated by your board, not handed out for free — the better your notch network, the more you can spend each turn.</p>`
+            icon: '⌘',
+            label: 'Board & Energy',
+            eyebrow: 'Standard Battle',
+            title: 'Every placement shapes your energy network',
+            summary: 'The 3×3 board is both your formation and your resource engine. Read the notches before committing a card.',
+            html: `<div class="guide-board-layout">
+                    <div class="guide-mini-board" aria-label="Example three by three board">
+                        <span></span><span class="is-card el-water">W</span><span></span>
+                        <span class="is-card el-earth">E</span><span class="is-card el-fire">F</span><span class="is-card el-wind">W</span>
+                        <span></span><span class="is-card el-metal">M</span><span></span>
+                    </div>
+                    <ol class="guide-list is-compact">
+                        <li><strong>Place.</strong> Commit a Siegeling during Setup.</li>
+                        <li><strong>Connect.</strong> Reciprocal notches form links between neighbors.</li>
+                        <li><strong>Call.</strong> Open notches wake edge wells and add that element to your pool.</li>
+                        <li><strong>Spend.</strong> Pay ability, Strategy, and Deception costs from the pool.</li>
+                    </ol>
+                </div>
+                <div class="guide-energy-row" aria-label="Dedicated energy pools">
+                    <span style="--guide-el:#ff501e">F</span><span style="--guide-el:#76e6ff">I</span><span style="--guide-el:#8fbd58">E</span><span style="--guide-el:#96ffb4">W</span><span style="--guide-el:#3296ff">W</span><span style="--guide-el:#ffe63c">E</span><span style="--guide-el:#a0aab4">M</span><span style="--guide-el:#9a63d6">S</span><span style="--guide-el:#c896ff">P</span><span style="--guide-el:#8c78a0">U</span>
+                </div>
+                <p class="guide-note">The ten dedicated pools are Fire, Ice, Earth, Wind, Water, Electric, Metal, Shadow, Psychic, and Undead. Poison and Light action cards spend Neutral energy.</p>`
         },
         {
             id: 'spells-traps',
-            label: 'Strategies & Deceptions',
-            title: 'One-shot effects and reactive defense',
-            html: `<ul class="guide-list">
-                    <li><strong>Strategies</strong> are played from your hand for an immediate effect — damage, buffs, energy swings, or board control. They cost energy from your pool and resolve right away.</li>
-                    <li><strong>Deceptions</strong> are concealed ahead of time and spring when their condition is met (such as an opponent attacking or playing into them). Set them early, then let your opponent walk into the trigger.</li>
-                    <li><strong>Reactions</strong> — some cards require a specific reaction or combo to fire. Check a card's detail panel for its cost element, required reaction, and ability text.</li>
-                </ul>
-                <p class="guide-note">Hold a trap when you read an incoming play, and chain spells off a strong energy turn for a momentum swing.</p>`
+            icon: '▤',
+            label: 'Cards',
+            eyebrow: 'Card language',
+            title: 'Five roles, one board plan',
+            summary: 'The game’s current labels are Strategy and Deception. Older card data may still call those roles Spell and Trap internally.',
+            html: `<div class="guide-card-grid">
+                    <div class="guide-card-role"><span>Unit</span><strong>Siegeling</strong><p>Occupies a board space, forms links, and acts in Speed order.</p></div>
+                    <div class="guide-card-role"><span>Immediate</span><strong>Strategy</strong><p>Spend energy for damage, buffs, energy swings, or control.</p></div>
+                    <div class="guide-card-role"><span>Hidden</span><strong>Deception</strong><p>Set a condition, then reveal when the opponent triggers it.</p></div>
+                    <div class="guide-card-role"><span>Upgrade</span><strong>Evolution</strong><p>Advances an eligible Siegeling into its evolved form.</p></div>
+                    <div class="guide-card-role"><span>Commander</span><strong>SiegeKnight</strong><p>Brings passive and active abilities; leveling matters in Siege.</p></div>
+                </div>
+                <p class="guide-note"><strong>Deck shape:</strong> premade lists contain 40 cards — 20 Siegelings, 10 Strategies, and 10 Deceptions. Custom deckbuilding unlocks at 30 owned card copies.</p>`
+        },
+        {
+            id: 'afflictions',
+            icon: '◉',
+            label: 'Afflictions',
+            eyebrow: 'Elemental badges',
+            title: 'Know what every badge is building toward',
+            summary: 'Elemental HP hits add the matching badge up to its stack cap. Shields can prevent the hit—and therefore the affliction—from landing.',
+            html: `${renderGuideAfflictions()}
+                <p class="guide-note"><strong>Leech:</strong> the first Earth HP hit marks the defender. The second Earth HP hit heals that hit’s attacker for the actual HP damage dealt, then clears Leech. Toxin removes healing before HP is restored.</p>`
         }
     ];
 
@@ -9781,6 +11242,7 @@
         const body = document.getElementById('optionsBody');
         if (!body) return;
         const view = state.optionsView || 'menu';
+        body.classList.toggle('options-panel--guide', view === 'guide');
         if (view === 'menu') {
             body.innerHTML = `<div class="view-profile-modal-head">
                     <div><span class="eyebrow">Home</span><h2 id="optionsTitle">Settings</h2></div>
@@ -9789,7 +11251,7 @@
                 <div class="options-menu">
                     <button class="options-menu-item" type="button" data-options-view="guide">
                         <span class="options-menu-icon">&#128214;</span>
-                        <span><strong>Guide</strong><small>Arena, app, modes, elements, energy, spells &amp; traps</small></span>
+                        <span><strong>Guide</strong><small>Quick start, board, cards, elements, afflictions, modes &amp; hub</small></span>
                     </button>
                     <button class="options-menu-item" type="button" data-options-view="share">
                         <span class="options-menu-icon">&#128279;</span>
@@ -9821,13 +11283,20 @@
             const section = GUIDE_SECTIONS.find(s => s.id === activeId);
             body.innerHTML = `<div class="view-profile-modal-head">
                     <div><span class="eyebrow">Options</span><h2 id="optionsTitle">Guide</h2></div>
-                    <button class="ghost-btn compact-btn" type="button" data-options-view="menu">Back</button>
+                    <div class="guide-head-actions">
+                        <button class="ghost-btn compact-btn" type="button" data-options-help>Full Field Guide</button>
+                        <button class="ghost-btn compact-btn" type="button" data-options-view="menu">Back</button>
+                    </div>
                 </div>
                 <div class="guide-tabs">
-                    ${GUIDE_SECTIONS.map(s => `<button class="guide-tab${s.id === activeId ? ' active' : ''}" type="button" data-guide-tab="${s.id}">${escapeHtml(s.label)}</button>`).join('')}
+                    ${GUIDE_SECTIONS.map(s => `<button class="guide-tab${s.id === activeId ? ' active' : ''}" type="button" data-guide-tab="${s.id}"><span aria-hidden="true">${s.icon || '•'}</span><span>${escapeHtml(s.label)}</span></button>`).join('')}
                 </div>
                 <div class="guide-content">
-                    <h3>${escapeHtml(section.title)}</h3>
+                    <div class="guide-section-head">
+                        <span class="guide-section-icon" aria-hidden="true">${section.icon || '•'}</span>
+                        <div><span class="guide-section-eyebrow">${escapeHtml(section.eyebrow || 'Field guide')}</span><h3>${escapeHtml(section.title)}</h3></div>
+                    </div>
+                    <p class="guide-summary">${escapeHtml(section.summary || '')}</p>
                     ${section.html}
                 </div>`;
         } else if (view === 'gallery') {
@@ -9925,6 +11394,11 @@
 
     function handleOptionsClick(event) {
         if (event.target.closest('[data-options-close]')) { closeOptions(); return; }
+        if (event.target.closest('[data-options-help]')) {
+            closeOptions();
+            toggleHelpModal(true);
+            return;
+        }
         if (event.target.closest('[data-options-tour]')) {
             closeOptions();
             startOnboardingTour();
@@ -10059,6 +11533,9 @@
             return;
         }
         if (event.target.closest('[data-retry-shop-packs]')) {
+            state.shopPacksError = '';
+            state.shopPacksLoading = true;
+            renderShop();
             void ensurePacksLoaded(true).then(() => renderShop());
             return;
         }
@@ -10069,6 +11546,11 @@
         }
         const packButton = event.target.closest('[data-pack-id]');
         if (packButton) choosePack(packButton.dataset.packId, Number(packButton.dataset.packCount) || 1);
+        const progressionRetry = event.target.closest('[data-retry-progression]');
+        if (progressionRetry) {
+            void retryMissingProgression();
+            return;
+        }
         const dailyOfferButton = event.target.closest('[data-daily-offer-id]');
         if (dailyOfferButton) purchaseDailyOffer(dailyOfferButton.dataset.dailyOfferId);
         const titleButton = event.target.closest('[data-purchase-title-id]');
@@ -10098,6 +11580,11 @@
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape' && state.shopCardPreviewOpen) {
             closeShopCardPreview();
+        }
+        if (event.key === 'Escape' && deckDeleteConfirmResolver) {
+            event.preventDefault();
+            closeDeckDeleteConfirm(false);
+            return;
         }
         if (event.key === 'Escape' && shopPurchaseConfirmResolver) {
             closeShopPurchaseConfirm(false);

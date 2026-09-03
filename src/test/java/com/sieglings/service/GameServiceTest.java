@@ -2,6 +2,7 @@ package com.sieglings.service;
 
 import com.sieglings.model.Ability;
 import com.sieglings.model.AbilityEffectKeys;
+import com.sieglings.model.Card;
 import com.sieglings.model.CardInstance;
 import com.sieglings.model.GameState;
 import com.sieglings.model.Notch;
@@ -11,6 +12,7 @@ import com.sieglings.model.SpellCard;
 import com.sieglings.model.TrapCard;
 import com.sieglings.model.TrainerCard;
 import com.sieglings.model.enums.Element;
+import com.sieglings.model.enums.ElementalAffliction;
 import com.sieglings.model.enums.NotchDirection;
 import com.sieglings.model.enums.Phase;
 import com.sieglings.model.enums.Rarity;
@@ -21,9 +23,11 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -105,6 +109,195 @@ class GameServiceTest {
 
         assertEquals(12, placed.getCurrentHealth(), "Recalculating the passive should not repeatedly heal an already-buffed Siegling.");
         assertEquals(16, placed.getEffectiveMaxHealth());
+    }
+
+    @Test
+    void placedEnergyBoostPassiveFeedsThePoolAndSurvivesTheNextDraw() throws Exception {
+        GameService gameService = new GameService();
+        PlacementService placementService = new PlacementService();
+        MovesPoolService pool = new MovesPoolService(new com.fasterxml.jackson.databind.ObjectMapper(), null);
+        setField(gameService, "energyService", new EnergyService(placementService, pool));
+        setField(gameService, "placementService", placementService);
+        setField(gameService, "effectService", new EffectService());
+
+        Player player = new Player("Player", true);
+        Player enemy = new Player("Enemy", false);
+        GameState state = new GameState();
+        state.setPlayer(player);
+        state.setEnemy(enemy);
+        state.setCurrentPhase(Phase.SETUP);
+        state.setPlayerTurn(true);
+
+        // The shipped pool move: passive, 1 Fire energy, no notch link and no socket involved.
+        SieglingCard card = new SieglingCard("wellspring", "Wellspring", Element.FIRE, Rarity.COMMON, 10, 3,
+                List.of(new Notch(NotchDirection.TOP, Element.FIRE)), Row.MIDDLE);
+        card.setMoveIds(List.of("fire-energy-boost"));
+        player.getHand().add(card);
+
+        gameService.placeSiegling(state, true, "wellspring", 1, 1);
+
+        assertEquals(1, player.getFireEnergy(), "The passive should pay into the pool as soon as the card lands.");
+
+        // The Draw phase clears claim-style temporary energy; a board passive must outlive it.
+        state.setCurrentPhase(Phase.DRAW);
+        gameService.draw(state, true);
+
+        assertEquals(1, player.getFireEnergy());
+        assertEquals(0, enemy.getFireEnergy());
+    }
+
+    /**
+     * An active energy buff is immediate, rides through the owner's Setup phase, and is gone
+     * before the fight: the whole point is that it pays for placements, not for attacks.
+     */
+    @Test
+    void activeEnergyBuffIsImmediateAndFadesWhenTheBattlePhaseBegins() throws Exception {
+        GameService gameService = newGameServiceWithBattleStack();
+        EnergyService energyService = getField(gameService, "energyService");
+        EffectService effectService = getField(gameService, "effectService");
+
+        Player player = new Player("Player", true);
+        Player enemy = new Player("Enemy", false);
+        GameState state = new GameState();
+        state.setPlayer(player);
+        state.setEnemy(enemy);
+        state.setCurrentPhase(Phase.SETUP);
+        state.setPlayerTurn(true);
+
+        SieglingCard card = new SieglingCard("dynamo", "Dynamo", Element.ELECTRIC, Rarity.COMMON, 10, 3,
+                List.of(), Row.MIDDLE);
+        CardInstance source = new CardInstance(card, 1, 1, true);
+        state.setAt(true, 1, 1, source);
+
+        Ability charge = new Ability("Overcharge", "Generate 2 electric energy",
+                TargetType.SELF, null, 0, AbilityEffectKeys.ENERGY_BOOST, 2, false);
+        effectService.resolveAbility(state, charge, source, true, -1, -1);
+
+        // Immediate: spendable in the setup phase it was used in, before any recalculation.
+        assertTrue(player.isOvercharged());
+        assertEquals(2, player.getElectricEnergy());
+        assertEquals(0, enemy.getElectricEnergy());
+
+        // Still there after a mid-setup recalculation (placing a card triggers one).
+        energyService.recalculateEnergy(state);
+        assertEquals(2, player.getElectricEnergy());
+
+        // Carries through the owner's next Setup phase.
+        state.setCurrentPhase(Phase.DRAW);
+        gameService.draw(state, true);
+        assertTrue(player.isOvercharged());
+        assertEquals(2, player.getElectricEnergy());
+
+        // ...and is gone the moment the battle phase opens.
+        state.setSetupTurnsTakenThisRound(1);
+        gameService.endTurn(state, true);
+
+        assertEquals(Phase.BATTLE, state.getCurrentPhase());
+        assertFalse(player.isOvercharged());
+        assertEquals(0, player.getElectricEnergy());
+        assertTrue(state.getGameLog().stream()
+                .anyMatch(line -> line.contains("Overcharge fades as the battle phase begins")));
+    }
+
+    @Test
+    void spendingOverchargedEnergyStaysSpentForTheRestOfTheTurn() throws Exception {
+        GameService gameService = new GameService();
+        PlacementService placementService = new PlacementService();
+        EnergyService energyService = new EnergyService(placementService);
+        setField(gameService, "energyService", energyService);
+        setField(gameService, "placementService", placementService);
+        setField(gameService, "effectService", new EffectService());
+
+        Player player = new Player("Player", true);
+        GameState state = new GameState();
+        state.setPlayer(player);
+        state.setEnemy(new Player("Enemy", false));
+        state.setCurrentPhase(Phase.DRAW);
+        state.setPlayerTurn(true);
+
+        EnergyService.grantOverchargeEnergy(player, Element.FIRE, 3);
+        gameService.draw(state, true);
+        assertEquals(3, player.getFireEnergy());
+
+        energyService.spendEnergy(state, true, Element.FIRE, 2);
+        assertEquals(1, player.getFireEnergy());
+        assertEquals(1, player.getOverchargeEnergy(Element.FIRE),
+                "Spends must drain the overcharge ledger, not only the live pool.");
+
+        // A later recalculation must not refund the spend, only keep the surge.
+        energyService.recalculateEnergy(state);
+        assertEquals(1, player.getFireEnergy());
+    }
+
+    /**
+     * Spending an overcharge during Setup must not leave temporary debt that steals board
+     * energy when the surge fades at Battle. Concrete trigger: board has 2 fire from links,
+     * active boost grants +2, player spends those 2 on a cast, Battle opens — board fire must
+     * still read 2 (the spent surge is gone; the links are not).
+     */
+    @Test
+    void spendingOverchargeDoesNotStealBoardEnergyWhenBattleBegins() throws Exception {
+        GameService gameService = newGameServiceWithBattleStack();
+        EnergyService energyService = getField(gameService, "energyService");
+
+        GameState state = new GameState();
+        Player player = new Player("Player", true);
+        state.setPlayer(player);
+        state.setEnemy(new Player("Enemy", false));
+        state.setCurrentPhase(Phase.SETUP);
+        state.setPlayerTurn(true);
+
+        SieglingCard rooted = new SieglingCard(
+                "rooted-fire",
+                "Rooted Fire",
+                Element.FIRE,
+                Rarity.COMMON,
+                10,
+                1,
+                List.of(
+                        new Notch(NotchDirection.TOP, Element.FIRE),
+                        new Notch(NotchDirection.BOTTOM, Element.FIRE)
+                ),
+                Row.BACK
+        );
+        SieglingCard linked = new SieglingCard(
+                "linked-fire",
+                "Linked Fire",
+                Element.FIRE,
+                Rarity.COMMON,
+                10,
+                1,
+                List.of(new Notch(NotchDirection.BOTTOM, Element.FIRE)),
+                Row.MIDDLE
+        );
+        CardInstance rootInstance = new CardInstance(rooted.copy(), 0, 0, true);
+        rootInstance.setPlacementOrder(1);
+        rootInstance.setBattlePhasesSeen(1);
+        CardInstance linkedInstance = new CardInstance(linked.copy(), 1, 0, true);
+        linkedInstance.setPlacementOrder(2);
+        linkedInstance.setBattlePhasesSeen(1);
+        state.setAt(true, 0, 0, rootInstance);
+        state.setAt(true, 1, 0, linkedInstance);
+
+        energyService.recalculateEnergy(state);
+        assertEquals(2, player.getFireEnergy(), "Board links should supply 2 fire before the surge.");
+
+        EnergyService.grantOverchargeEnergy(player, Element.FIRE, 2);
+        assertEquals(4, player.getFireEnergy());
+
+        energyService.spendEnergy(state, true, Element.FIRE, 2);
+        assertEquals(2, player.getFireEnergy());
+        assertFalse(player.isOvercharged(), "The spent surge should be fully consumed.");
+        assertEquals(0, player.getTemporaryEnergyAdjustment(Element.FIRE),
+                "Spending only overcharge must not book claim-style temporary debt.");
+
+        Method startBattlePhase = GameService.class.getDeclaredMethod("startBattlePhase", GameState.class);
+        startBattlePhase.setAccessible(true);
+        startBattlePhase.invoke(gameService, state);
+
+        assertEquals(Phase.BATTLE, state.getCurrentPhase());
+        assertEquals(2, player.getFireEnergy(),
+                "Battle restore must keep board link energy after a spent overcharge fades.");
     }
 
     @Test
@@ -298,6 +491,31 @@ class GameServiceTest {
         assertEquals(50, player.getHealth(), "AI should not cast after spending its last setup action.");
         assertTrue(enemy.getHand().contains(spell), "AI spell should remain in hand.");
         assertFalse(enemy.getDiscard().contains(spell), "AI spell should not be discarded.");
+    }
+
+    @Test
+    void aiOverchargeSurvivesItsOwnDrawAndSetupPhase() throws Exception {
+        AIService aiService = new AIService();
+        PlacementService placementService = new PlacementService();
+        setField(aiService, "placementService", placementService);
+        setField(aiService, "energyService", new EnergyService(placementService));
+        setField(aiService, "effectService", new EffectService());
+
+        Player player = new Player("Player", true);
+        Player enemy = new Player("Enemy", false);
+        GameState state = new GameState();
+        state.setPlayer(player);
+        state.setEnemy(enemy);
+
+        EnergyService.grantOverchargeEnergy(enemy, Element.FIRE, 2);
+
+        // The AI runs its own draw phase instead of GameService.draw; the surge must ride
+        // through it rather than being wiped by the AI's own energy recalculation.
+        aiService.executeAITurn(state);
+
+        assertTrue(enemy.isOvercharged());
+        assertEquals(2, enemy.getFireEnergy());
+        assertEquals(0, player.getFireEnergy());
     }
 
     @Test
@@ -561,6 +779,31 @@ class GameServiceTest {
     }
 
     @Test
+    void chillFreezeOutlivesTheBattlePhaseWithoutItsBadges() throws Exception {
+        GameService gameService = new GameService();
+
+        GameState state = new GameState();
+        state.setPlayer(new Player("Player", true));
+        state.setEnemy(new Player("Enemy", false));
+        state.setCurrentPhase(Phase.BATTLE);
+
+        SieglingCard card = new SieglingCard("frosty", "Frosty", Element.ICE, Rarity.COMMON, 13, 6, List.of(), Row.FRONT);
+        CardInstance chillFrozen = new CardInstance(card, 0, 0, true);
+        // The stacks are already spent by the freeze they triggered — only the flag carries it.
+        chillFrozen.setChillFrozen(true);
+        chillFrozen.getStatusEffects().add(StatusEffect.FREEZE);
+        state.setAt(true, 0, 0, chillFrozen);
+
+        Method clearTempEffects = GameService.class.getDeclaredMethod("clearTempEffects", GameState.class);
+        clearTempEffects.setAccessible(true);
+        clearTempEffects.invoke(gameService, state);
+
+        assertTrue(chillFrozen.getStatusEffects().contains(StatusEffect.FREEZE),
+                "Chill-freeze must survive the end of battle and thaw at its owner's next Setup.");
+        assertEquals(0, chillFrozen.getAfflictionStacks(ElementalAffliction.CHILL));
+    }
+
+    @Test
     void shieldFromSetupPersistsIntoBattlePhase() throws Exception {
         GameService gameService = new GameService();
         EffectService effectService = new EffectService();
@@ -605,6 +848,179 @@ class GameServiceTest {
         assertEquals(Phase.BATTLE, state.getCurrentPhase());
         CardInstance onBoard = state.getAt(true, 1, 1);
         assertEquals(2, onBoard.getTemporaryShield(), "Shield should persist when battle phase begins.");
+    }
+
+    @Test
+    void tutorialPlayerDeckPutsLessonCardsOnTopInOrder() throws Exception {
+        GameService gameService = new GameService();
+        CardDefinitionService stubs = new CardDefinitionService() {
+            @Override
+            public java.util.Optional<Card> findCardCopy(String cardId) {
+                if ("trap13".equals(cardId)) {
+                    return java.util.Optional.of(new TrapCard(
+                            "trap13", "Shatter Seal", Element.FIRE, Rarity.RARE,
+                            Element.ICE, 3,
+                            Ability.damage("Shatter", "Deal 4 if opponent has 3 Ice",
+                                    TargetType.SINGLE_ENEMY, null, 1, 4)));
+                }
+                if ("spell_fire_09".equals(cardId)) {
+                    return java.util.Optional.of(new SpellCard("spell_fire_09", "Cinder Volley", Element.FIRE, Rarity.COMMON, 1,
+                            new Ability("Volley", "Allies +1 attack", TargetType.ALL_ALLIES, null, 0,
+                                    AbilityEffectKeys.DAMAGE_BOOST, 1, false)));
+                }
+                if ("spell_earth_02".equals(cardId)) {
+                    return java.util.Optional.of(new SpellCard("spell_earth_02", "Root Guard", Element.EARTH, Rarity.COMMON, 1,
+                            new Ability("Guard", "Allies +3 max Health", TargetType.ALL_ALLIES, null, 0,
+                                    AbilityEffectKeys.HEALTH_BOOST, 3, false)));
+                }
+                if ("spell_earth_01".equals(cardId)) {
+                    return java.util.Optional.of(new SpellCard("spell_earth_01", "Root Bind", Element.EARTH, Rarity.COMMON, 1,
+                            new Ability("Bind", "Set Speed to 0", TargetType.SINGLE_ENEMY, null, 1,
+                                    AbilityEffectKeys.SPEED_ZERO, 1, false)));
+                }
+                return java.util.Optional.empty();
+            }
+        };
+        setField(gameService, "cardDefs", stubs);
+
+        Player player = new Player("Roc", true);
+        List<Card> mixed = new ArrayList<>();
+        mixed.add(new SpellCard("spell_fire_06", "Cinder Bolt", Element.FIRE, Rarity.COMMON, 1,
+                Ability.damage("Bolt", "Deal 4", TargetType.SINGLE_ENEMY, null, 1, 4)));
+        mixed.add(baseSiegling("pylook", "Pylook", Element.FIRE));
+        mixed.add(baseSiegling("squirebud", "Squire Bud", Element.EARTH));
+        mixed.add(baseSiegling("sundile", "Sundile", Element.FIRE));
+        mixed.add(new TrapCard("trap01", "Backfire", Element.FIRE, Rarity.UNCOMMON,
+                Element.FIRE, 3, Ability.damage("Boom", "Deal 4", TargetType.SINGLE_ENEMY, null, 1, 4)));
+        player.setDeck(mixed);
+
+        Method prepare = GameService.class.getDeclaredMethod("prepareTutorialPlayerDeck", Player.class);
+        prepare.setAccessible(true);
+        prepare.invoke(gameService, player);
+
+        List<String> top = player.getDeck().stream().limit(5).map(Card::getId).toList();
+        assertEquals(List.of("sundile", "squirebud", "spell_fire_06", "trap13", "pylook"), top);
+        assertTrue(player.getDeck().stream().anyMatch(c -> "trap13".equals(c.getId())));
+        assertTrue(player.getDeck().stream().anyMatch(c -> "tutorial_ashen_ward".equals(c.getId())),
+                "Advanced shield Strategy should be injected");
+        assertTrue(player.getDeck().stream().anyMatch(c -> "spell_fire_09".equals(c.getId()) || "spell_earth_02".equals(c.getId())),
+                "Advanced buff Strategies should be seeded when available");
+    }
+
+    @Test
+    void tutorialMulliganLocksLessonCardsAndPreservesDeckOrder() throws Exception {
+        GameService gameService = new GameService();
+        CardDefinitionService stubs = new CardDefinitionService() {
+            @Override
+            public java.util.Optional<Card> findCardCopy(String cardId) {
+                if ("trap13".equals(cardId)) {
+                    return java.util.Optional.of(new TrapCard(
+                            "trap13", "Shatter Seal", Element.FIRE, Rarity.RARE,
+                            Element.ICE, 3,
+                            Ability.damage("Shatter", "Deal 4 if opponent has 3 Ice",
+                                    TargetType.SINGLE_ENEMY, null, 1, 4)));
+                }
+                return java.util.Optional.empty();
+            }
+        };
+        setField(gameService, "cardDefs", stubs);
+
+        Player player = new Player("Roc", true);
+        List<Card> mixed = new ArrayList<>();
+        mixed.add(baseSiegling("sundile", "Sundile", Element.FIRE));
+        mixed.add(baseSiegling("squirebud", "Squire Bud", Element.EARTH));
+        mixed.add(new SpellCard("spell_fire_06", "Cinder Bolt", Element.FIRE, Rarity.COMMON, 1,
+                Ability.damage("Bolt", "Deal 4", TargetType.SINGLE_ENEMY, null, 1, 4)));
+        mixed.add(baseSiegling("pylook", "Pylook", Element.FIRE));
+        mixed.add(baseSiegling("raydile", "Raydile", Element.FIRE));
+        mixed.add(baseSiegling("floraknight", "Flora Knight", Element.EARTH));
+        player.setDeck(mixed);
+
+        Method prepare = GameService.class.getDeclaredMethod("prepareTutorialPlayerDeck", Player.class);
+        prepare.setAccessible(true);
+        prepare.invoke(gameService, player);
+
+        GameState state = new GameState();
+        state.setTutorialMatch(true);
+        state.setPlayer(player);
+        state.setEnemy(new Player("Dummy", false));
+        state.setCurrentPhase(Phase.MULLIGAN);
+        state.setMulliganPending(true, true);
+        // Keep the enemy pending so completing the player side does not advance phases
+        // (this unit test only asserts hand/deck scripting).
+        state.setMulliganPending(false, true);
+        for (int i = 0; i < 5; i++) {
+            player.drawCard();
+        }
+
+        List<String> opening = player.getHand().stream().map(Card::getId).toList();
+        assertEquals(List.of("sundile", "squirebud", "spell_fire_06", "trap13", "pylook"), opening);
+        assertEquals("raydile", player.getDeck().get(0).getId());
+
+        // Dumping lesson cards is ignored — treated as a keep.
+        gameService.resolveOpeningMulligan(state, true, List.of(0, 1, 2));
+        assertEquals(opening, player.getHand().stream().map(Card::getId).toList());
+        assertFalse(state.isMulliganPending(true));
+        assertFalse(state.hasUsedMulligan(true));
+
+        // Fresh opening hand for the practice redraw path.
+        state = new GameState();
+        state.setTutorialMatch(true);
+        player = new Player("Roc", true);
+        List<Card> mixed2 = new ArrayList<>();
+        mixed2.add(baseSiegling("sundile", "Sundile", Element.FIRE));
+        mixed2.add(baseSiegling("squirebud", "Squire Bud", Element.EARTH));
+        mixed2.add(new SpellCard("spell_fire_06", "Cinder Bolt", Element.FIRE, Rarity.COMMON, 1,
+                Ability.damage("Bolt", "Deal 4", TargetType.SINGLE_ENEMY, null, 1, 4)));
+        mixed2.add(baseSiegling("pylook", "Pylook", Element.FIRE));
+        mixed2.add(baseSiegling("raydile", "Raydile", Element.FIRE));
+        mixed2.add(baseSiegling("floraknight", "Flora Knight", Element.EARTH));
+        player.setDeck(mixed2);
+        prepare.invoke(gameService, player);
+        state.setPlayer(player);
+        state.setEnemy(new Player("Dummy", false));
+        state.setCurrentPhase(Phase.MULLIGAN);
+        state.setMulliganPending(true, true);
+        state.setMulliganPending(false, true);
+        for (int i = 0; i < 5; i++) {
+            player.drawCard();
+        }
+
+        gameService.resolveOpeningMulligan(state, true, List.of(4));
+        List<String> after = player.getHand().stream().map(Card::getId).toList();
+        assertEquals(List.of("sundile", "squirebud", "spell_fire_06", "trap13", "raydile"), after);
+        assertEquals("floraknight", player.getDeck().get(0).getId(),
+                "Deck order must stay intact after a non-shuffling tutorial mulligan");
+        assertTrue(state.hasUsedMulligan(true));
+    }
+
+    private SieglingCard baseSiegling(String id, String name, Element element) {
+        return new SieglingCard(id, name, element, Rarity.COMMON, 8, 4, List.of(), Row.FRONT);
+    }
+
+    /** A GameService wired far enough to run a setup turn all the way into the battle phase. */
+    private GameService newGameServiceWithBattleStack() throws Exception {
+        GameService gameService = new GameService();
+        EffectService effectService = new EffectService();
+        PlacementService placementService = new PlacementService();
+        EnergyService energyService = new EnergyService(placementService);
+        BattleService battleService = new BattleService();
+        setField(battleService, "effectService", effectService);
+        setField(battleService, "energyService", energyService);
+        setField(battleService, "movesPoolService",
+                new MovesPoolService(new com.fasterxml.jackson.databind.ObjectMapper(), null));
+        setField(gameService, "effectService", effectService);
+        setField(gameService, "battleService", battleService);
+        setField(gameService, "energyService", energyService);
+        setField(gameService, "placementService", placementService);
+        return gameService;
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T getField(Object target, String fieldName) throws Exception {
+        Field field = target.getClass().getDeclaredField(fieldName);
+        field.setAccessible(true);
+        return (T) field.get(target);
     }
 
     private void setField(Object target, String fieldName, Object value) throws Exception {

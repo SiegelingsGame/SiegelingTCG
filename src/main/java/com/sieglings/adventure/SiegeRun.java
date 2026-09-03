@@ -1,6 +1,7 @@
 package com.sieglings.adventure;
 
 import com.sieglings.model.enums.Element;
+import com.sieglings.model.enums.Rarity;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -12,6 +13,8 @@ import java.util.List;
  */
 class SiegeRun {
     private final String token;
+    /** Account that owns this run; blank only for legacy/guest expeditions. */
+    private String ownerId = "";
 
     // SiegeKnight (run leader — provides a deck card + a battle-start passive).
     private String knightId;
@@ -22,6 +25,14 @@ class SiegeRun {
     /** The knight's run-long leadership passive and its magnitude. */
     private KnightPassive knightPassive = KnightPassive.SHIELD;
     private int knightPassiveValue;
+    /**
+     * The level this account has raised the SiegeKnight card to in the collection
+     * (1..TRAINER_MAX_LEVEL), carried into the run so leadership passives and the
+     * Ultimate scale with the work already done outside Siege.
+     */
+    private int knightAccountLevel = 1;
+    /** Rarity of the chosen knight card — the other half of the power scale. */
+    private Rarity knightRarity;
     /** The Knight on the battlefield — persistent HP; the run is lost if it falls. */
     private Combatant knightUnit;
 
@@ -98,6 +109,21 @@ class SiegeRun {
     private java.util.Map<String, Object> lastXpRecap;
     /** A just-joined Siegeling awaiting its gacha-style reveal (null when none). */
     private java.util.Map<String, Object> pendingRecruit;
+    /**
+     * One entry per Siegeling that levelled up and still owes the player an
+     * amplification pick, oldest first. Wire-shaped maps rather than a record:
+     * the client renders them as-is and the run snapshot stores them as-is, so a
+     * player who closes the app on the pick screen still owes the same pick.
+     */
+    private final java.util.List<java.util.Map<String, Object>> pendingAmps = new java.util.ArrayList<>();
+
+    /**
+     * Every Siegeling catalog card this run has met — recruits, broker hires, and
+     * the forms they evolve into. Banked as permanent starter unlocks when the run
+     * ends (see SiegeService#bankSieglingDiscoveries), so it must survive a
+     * resume: insertion-ordered and carried in the run snapshot.
+     */
+    private final java.util.Set<String> discoveredSieglingIds = new java.util.LinkedHashSet<>();
 
     /** Unequipped items carried by the warband (equipped items live on Combatants). */
     private final List<String> inventory = new ArrayList<>();
@@ -139,6 +165,8 @@ class SiegeRun {
     }
 
     String getToken() { return token; }
+    String getOwnerId() { return ownerId; }
+    void setOwnerId(String ownerId) { this.ownerId = ownerId == null ? "" : ownerId; }
 
     String getKnightId() { return knightId; }
     void setKnightId(String knightId) { this.knightId = knightId; }
@@ -154,6 +182,10 @@ class SiegeRun {
     void setKnightPassive(KnightPassive knightPassive) { this.knightPassive = knightPassive; }
     int getKnightPassiveValue() { return knightPassiveValue; }
     void setKnightPassiveValue(int knightPassiveValue) { this.knightPassiveValue = knightPassiveValue; }
+    int getKnightAccountLevel() { return knightAccountLevel; }
+    void setKnightAccountLevel(int level) { this.knightAccountLevel = SiegeTuning.clampAccountLevel(level); }
+    Rarity getKnightRarity() { return knightRarity; }
+    void setKnightRarity(Rarity knightRarity) { this.knightRarity = knightRarity; }
     Combatant getKnightUnit() { return knightUnit; }
     void setKnightUnit(Combatant knightUnit) { this.knightUnit = knightUnit; }
 
@@ -216,6 +248,7 @@ class SiegeRun {
     boolean isAwaitingBoonPick() { return awaitingBoonPick; }
     void setAwaitingBoonPick(boolean awaitingBoonPick) { this.awaitingBoonPick = awaitingBoonPick; }
     List<String> getSourceTeamIds() { return sourceTeamIds; }
+    java.util.Set<String> getDiscoveredSieglingIds() { return discoveredSieglingIds; }
     java.util.Map<String, Object> getBossReveal() { return bossReveal; }
     void setBossReveal(java.util.Map<String, Object> bossReveal) { this.bossReveal = bossReveal; }
     long getScore() { return score; }
@@ -235,6 +268,7 @@ class SiegeRun {
     void setEndRewardsGranted(boolean endRewardsGranted) { this.endRewardsGranted = endRewardsGranted; }
     java.util.Map<String, Object> getEndRewards() { return endRewards; }
     void setEndRewards(java.util.Map<String, Object> endRewards) { this.endRewards = endRewards; }
+    java.util.List<java.util.Map<String, Object>> getPendingAmps() { return pendingAmps; }
     java.util.Map<String, Object> getLastXpRecap() { return lastXpRecap; }
     void setLastXpRecap(java.util.Map<String, Object> lastXpRecap) { this.lastXpRecap = lastXpRecap; }
     java.util.Map<String, Object> getPendingRecruit() { return pendingRecruit; }

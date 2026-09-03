@@ -54,6 +54,32 @@ public class KeepController {
                 string(body, "requestId"), version(body)));
     }
 
+    @PostMapping("/api/keep/build/purchase")
+    public ResponseEntity<Map<String, Object>> purchaseBuild(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody Map<String, Object> body) {
+        return respond(authorizationHeader, user -> keepService.purchaseBuild(user, string(body, "buildId"),
+                string(body, "requestId"), version(body)));
+    }
+
+    @PostMapping("/api/keep/construction/speedup")
+    public ResponseEntity<Map<String, Object>> speedUpConstruction(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody Map<String, Object> body) {
+        return respond(authorizationHeader, user -> keepService.speedUpConstruction(user,
+                string(body, "buildId"), string(body, "payment"),
+                string(body, "requestId"), version(body)));
+    }
+
+    @PostMapping("/api/keep/event/repair")
+    public ResponseEntity<Map<String, Object>> repairKeepEvent(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody Map<String, Object> body) {
+        return respond(authorizationHeader, user -> keepService.repairKeepEvent(user,
+                string(body, "eventId"), string(body, "payment"),
+                string(body, "requestId"), version(body)));
+    }
+
     @PostMapping("/api/keep/lore/read")
     public ResponseEntity<Map<String, Object>> readLore(
             @RequestHeader(value = "Authorization", required = false) String authorizationHeader,

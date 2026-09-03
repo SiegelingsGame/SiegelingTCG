@@ -8,6 +8,12 @@ const EFFECT_TYPES = [
     targetHints: ['SINGLE_ENEMY', 'ROW_ENEMIES', 'ROW_SELECT_ENEMIES', 'ALL_ENEMIES', 'ENEMY_PLAYER']
   },
   {
+    key: 'chain_damage',
+    label: 'Chain Damage',
+    description: 'Damages the picked target and every Siegling directly linked to it by an active notch link.',
+    targetHints: ['SINGLE_ENEMY', 'ROW_SELECT_ENEMIES', 'ALL_ENEMIES']
+  },
+  {
     key: 'player_damage',
     label: 'Player Damage',
     description: 'Deals direct damage to the opposing player.',
@@ -74,6 +80,12 @@ const EFFECT_TYPES = [
     targetHints: ['SELF']
   },
   {
+    key: 'connected_allies_heal',
+    label: 'Connected Allies Heal',
+    description: 'Restores current health on directly linked allied Sieglings without raising max health.',
+    targetHints: ['SELF']
+  },
+  {
     key: 'connected_allies_shield',
     label: 'Connected Allies Shield',
     description: 'Grants temporary shield health to directly linked allied Sieglings.',
@@ -84,6 +96,12 @@ const EFFECT_TYPES = [
     label: 'Speed Boost',
     description: 'Adds temporary speed.',
     targetHints: ['SINGLE_ALLY', 'ALL_ALLIES', 'ROW_ALLIES', 'ROW_SELECT_ALLIES', 'PASSIVE']
+  },
+  {
+    key: 'energy_boost',
+    label: 'Energy Boost',
+    description: 'Generates energy with no notch link or socket needed. Pick the energy type, or leave it on Card element to generate the element of whichever card the ability names — the targeted card when it points at one, otherwise the card carrying it. Passive pays out every turn the card is on the board; an action overcharges the owner until the battle phase begins.',
+    targetHints: ['PASSIVE', 'SELF', 'SINGLE_ALLY', 'ALL_ALLIES', 'ROW_ALLIES', 'ROW_SELECT_ALLIES']
   },
   {
     key: 'connected_allies_slow',
@@ -171,7 +189,7 @@ const TARGET_RULES = {
 
 function buildMetadata(trainers) {
   return {
-    elements: ['FIRE', 'ICE', 'WATER', 'EARTH', 'WIND', 'SHADOW', 'ELECTRIC', 'METAL', 'UNDEAD', 'PSYCHIC', 'POISON', 'LIGHT', 'NEUTRAL'],
+    elements: ['FIRE', 'ICE', 'EARTH', 'WIND', 'WATER', 'SHADOW', 'ELECTRIC', 'METAL', 'UNDEAD', 'PSYCHIC', 'POISON', 'LIGHT', 'NEUTRAL'],
     cardTypes: ['SIEGLING', 'SPELL', 'TRAP'],
     rarities: ['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'],
     rows: ['BACK', 'MIDDLE', 'FRONT'],

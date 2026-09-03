@@ -17,15 +17,25 @@ public class DailyMissionProgressEntity {
     private String dateKey;
     private Map<String, Integer> counters = new LinkedHashMap<>();
     private List<String> claimedMissionIds = new ArrayList<>();
+    /** Points banked from claimed daily missions; fills the daily chest ladder. */
+    private int dailyPoints;
+    /** Chest thresholds already collected on the daily ladder. */
+    private List<Integer> claimedDailyChests = new ArrayList<>();
 
     // Weekly scope (resets each ISO week).
     private String weekKey;
     private Map<String, Integer> weeklyCounters = new LinkedHashMap<>();
     private List<String> claimedWeeklyIds = new ArrayList<>();
+    private int weeklyPoints;
+    private List<Integer> claimedWeeklyChests = new ArrayList<>();
 
     // Lifetime scope (never resets).
     private Map<String, Integer> lifetimeCounters = new LinkedHashMap<>();
     private List<String> claimedLifetimeIds = new ArrayList<>();
+    /** Lifetime mission points feeding the account-wide Knight Level. */
+    private int knightPoints;
+    /** High-water mark of Knight Levels already paid out (1 = nothing claimed yet). */
+    private int claimedKnightLevel = 1;
 
     // Daily login reward — survives the daily/weekly counter resets.
     private String lastLoginClaimKey = "";
@@ -119,6 +129,88 @@ public class DailyMissionProgressEntity {
 
     public void setLoginStreak(int loginStreak) {
         this.loginStreak = Math.max(0, loginStreak);
+    }
+
+    public int getDailyPoints() {
+        return dailyPoints;
+    }
+
+    public void setDailyPoints(int dailyPoints) {
+        this.dailyPoints = Math.max(0, dailyPoints);
+    }
+
+    public List<Integer> getClaimedDailyChests() {
+        return claimedDailyChests;
+    }
+
+    public void setClaimedDailyChests(List<Integer> claimedDailyChests) {
+        this.claimedDailyChests = claimedDailyChests == null ? new ArrayList<>() : new ArrayList<>(claimedDailyChests);
+    }
+
+    public int getWeeklyPoints() {
+        return weeklyPoints;
+    }
+
+    public void setWeeklyPoints(int weeklyPoints) {
+        this.weeklyPoints = Math.max(0, weeklyPoints);
+    }
+
+    public List<Integer> getClaimedWeeklyChests() {
+        return claimedWeeklyChests;
+    }
+
+    public void setClaimedWeeklyChests(List<Integer> claimedWeeklyChests) {
+        this.claimedWeeklyChests = claimedWeeklyChests == null ? new ArrayList<>() : new ArrayList<>(claimedWeeklyChests);
+    }
+
+    public int getKnightPoints() {
+        return knightPoints;
+    }
+
+    public void setKnightPoints(int knightPoints) {
+        this.knightPoints = Math.max(0, knightPoints);
+    }
+
+    public int getClaimedKnightLevel() {
+        return claimedKnightLevel;
+    }
+
+    public void setClaimedKnightLevel(int claimedKnightLevel) {
+        this.claimedKnightLevel = Math.max(1, claimedKnightLevel);
+    }
+
+    /** Banks mission points into the pool backing {@code period}'s reward track. */
+    public void addPoints(MissionPeriod period, int delta) {
+        if (delta <= 0) {
+            return;
+        }
+        switch (period) {
+            case WEEKLY -> setWeeklyPoints(weeklyPoints + delta);
+            case LIFETIME -> setKnightPoints(knightPoints + delta);
+            default -> setDailyPoints(dailyPoints + delta);
+        }
+    }
+
+    public int points(MissionPeriod period) {
+        return switch (period) {
+            case WEEKLY -> weeklyPoints;
+            case LIFETIME -> knightPoints;
+            default -> dailyPoints;
+        };
+    }
+
+    /**
+     * Only the daily and weekly periods have a chest ladder. LIFETIME feeds the
+     * Knight Level instead, so it throws rather than silently handing back the
+     * daily list — a caller that forgot to filter would otherwise read and mark
+     * daily chests while believing it was working on a lifetime track.
+     */
+    public List<Integer> claimedChests(MissionPeriod period) {
+        return switch (period) {
+            case WEEKLY -> claimedWeeklyChests;
+            case DAILY -> claimedDailyChests;
+            default -> throw new IllegalArgumentException("No chest ladder exists for period " + period + ".");
+        };
     }
 
     public Instant getUpdatedAt() {

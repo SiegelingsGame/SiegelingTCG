@@ -1,0 +1,166 @@
+package com.sieglings.adventure;
+
+import com.sieglings.model.enums.Element;
+import org.junit.jupiter.api.Test;
+
+import java.lang.reflect.Method;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class SiegeAdvantageTest {
+
+    @Test
+    void buildsSharedOrderBySpeedThenPositionAndWrapsUsingCurrentSpeed() {
+        SiegeBattle battle = new SiegeBattle(NodeType.BATTLE);
+        battle.setPlayerActsFirst(true);
+        Combatant fastFoe = unit("foe-fast", "Foe", Element.ICE, Side.ENEMY, 8, 1);
+        Combatant tiedLater = unit("ally-later", "Later", Element.FIRE, Side.PLAYER, 6, 2);
+        Combatant tiedEarlier = unit("ally-earlier", "Earlier", Element.EARTH, Side.PLAYER, 6, 0);
+        battle.getCombatants().addAll(List.of(tiedLater, fastFoe, tiedEarlier));
+
+        SiegeAdvantage.ensureOrder(battle);
+
+        assertEquals(List.of("foe-fast", "ally-earlier", "ally-later"), battle.getAdvantageOrder());
+        assertEquals("foe-fast", battle.getAdvantageHolderId());
+
+        SiegeAdvantage.advance(battle);
+        assertEquals("ally-earlier", battle.getAdvantageHolderId());
+        tiedLater.setSpeed(12);
+        SiegeAdvantage.advance(battle);
+        assertEquals("ally-later", battle.getAdvantageHolderId(), "the current cycle stays frozen");
+        SiegeAdvantage.advance(battle);
+
+        assertEquals("ally-later", battle.getAdvantageHolderId(), "wrap rebuilds from current effective Speed");
+        assertEquals(2, battle.getAdvantageCycle());
+    }
+
+    @Test
+    void skipsDefeatedEntriesWhenPassingTheToken() {
+        SiegeBattle battle = new SiegeBattle(NodeType.BATTLE);
+        Combatant first = unit("first", "First", Element.WIND, Side.PLAYER, 9, 0);
+        Combatant fallen = unit("fallen", "Fallen", Element.WATER, Side.ENEMY, 7, 0);
+        Combatant third = unit("third", "Third", Element.METAL, Side.PLAYER, 5, 1);
+        battle.getCombatants().addAll(List.of(first, fallen, third));
+        SiegeAdvantage.ensureOrder(battle);
+        fallen.setHp(0);
+
+        SiegeAdvantage.advance(battle);
+
+        assertEquals("third", battle.getAdvantageHolderId());
+    }
+
+    @Test
+    void fireHolderAddsItsHostileRiderAfterTheCardResolves() {
+        SiegeRun run = new SiegeRun("advantage-test");
+        SiegeBattle battle = new SiegeBattle(NodeType.BATTLE);
+        battle.setPhase(BattlePhase.PLAYER_INPUT);
+        battle.setActionPoints(5);
+        Combatant attacker = unit("draco", "Draco", Element.FIRE, Side.PLAYER, 9, 0);
+        Combatant target = unit("target", "Target", Element.EARTH, Side.ENEMY, 4, 0);
+        target.setMaxHp(20);
+        target.setHp(20);
+        battle.getCombatants().addAll(List.of(attacker, target));
+        SiegeAdvantage.ensureOrder(battle);
+        AbilitySpec strike = new AbilitySpec("strike", "Strike", Element.FIRE, Effect.DAMAGE, 4,
+                TargetKind.ENEMY_SINGLE, 1, "Deal 4 damage.");
+        battle.getHand().add(new SiegeCard("card-1", attacker.getId(), strike));
+        run.setBattle(battle);
+
+        SiegeCombatEngine.PlayResult result = new SiegeCombatEngine()
+                .playCard(run, "card-1", target.getId(), new Random(1));
+
+        assertTrue(result.ok);
+        assertEquals(14, target.getHp());
+        assertTrue(battle.getEvents().stream().anyMatch(e -> "advantage-trigger".equals(e.get("type"))));
+    }
+
+    @Test
+    void everyActiveElementHasHostileAndFriendlyInlineCopy() {
+        List<Element> active = List.of(Element.FIRE, Element.ICE, Element.WATER, Element.EARTH, Element.WIND,
+                Element.SHADOW, Element.ELECTRIC, Element.METAL, Element.UNDEAD, Element.PSYCHIC);
+        for (Element element : active) {
+            String hostile = SiegeAdvantage.riderText(element, TargetKind.ENEMY_SINGLE);
+            String friendly = SiegeAdvantage.riderText(element, TargetKind.ALLY_SINGLE);
+            assertNotNull(hostile, element.name());
+            assertNotNull(friendly, element.name());
+            assertFalse(hostile.isBlank(), element.name());
+            assertFalse(friendly.isBlank(), element.name());
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void battlePayloadMarksHolderAndItsCardsWithInlineRiderCopy() throws Exception {
+        SiegeRun run = new SiegeRun("payload-test");
+        run.setKnightName("Knight");
+        SiegeBattle battle = new SiegeBattle(NodeType.BATTLE);
+        battle.setPhase(BattlePhase.PLAYER_INPUT);
+        Combatant holder = unit("holder", "Holder", Element.WATER, Side.PLAYER, 9, 0);
+        Combatant foe = unit("foe", "Foe", Element.FIRE, Side.ENEMY, 5, 0);
+        battle.getCombatants().addAll(List.of(holder, foe));
+        SiegeAdvantage.ensureOrder(battle);
+        battle.getHand().add(new SiegeCard("card-1", holder.getId(),
+                new AbilitySpec("mend", "Mend", Element.WATER, Effect.HEAL, 3,
+                        TargetKind.ALLY_SINGLE, 1, "Heal 3.")));
+        run.setBattle(battle);
+
+        Method method = SiegeService.class.getDeclaredMethod("serializeBattle", SiegeRun.class, SiegeBattle.class);
+        method.setAccessible(true);
+        SiegeService service = new SiegeService();
+        var contentField = SiegeService.class.getDeclaredField("content");
+        contentField.setAccessible(true);
+        contentField.set(service, new SiegeContentService());
+        var engineField = SiegeService.class.getDeclaredField("engine");
+        engineField.setAccessible(true);
+        engineField.set(service, new SiegeCombatEngine());
+        Map<String, Object> payload = (Map<String, Object>) method.invoke(service, run, battle);
+        List<Map<String, Object>> hand = (List<Map<String, Object>>) payload.get("hand");
+
+        assertEquals("holder", payload.get("advantageHolderId"));
+        assertEquals(true, payload.get("advantageActiveForPlayer"));
+        assertEquals(2, ((List<?>) payload.get("advantageOrder")).size());
+        assertEquals(true, hand.getFirst().get("advantaged"));
+        assertTrue(String.valueOf(hand.getFirst().get("advantageText")).contains("Mend"));
+    }
+
+    @Test
+    void everyActiveElementExecutesBothRiderBranches() throws Exception {
+        Method method = SiegeCombatEngine.class.getDeclaredMethod("applyAdvantageRider", SiegeBattle.class,
+                Combatant.class, AbilitySpec.class, List.class, Random.class);
+        method.setAccessible(true);
+        List<Element> active = List.of(Element.FIRE, Element.ICE, Element.WATER, Element.EARTH, Element.WIND,
+                Element.SHADOW, Element.ELECTRIC, Element.METAL, Element.UNDEAD, Element.PSYCHIC);
+
+        for (Element element : active) {
+            for (boolean friendly : List.of(false, true)) {
+                SiegeBattle battle = new SiegeBattle(NodeType.BATTLE);
+                Combatant source = unit("source", "Source", element, Side.PLAYER, 10, 0);
+                Combatant target = unit("target", "Target", Element.NEUTRAL,
+                        friendly ? Side.PLAYER : Side.ENEMY, 5, 1);
+                target.setHp(6);
+                battle.getCombatants().addAll(List.of(source, target));
+                SiegeAdvantage.ensureOrder(battle);
+                AbilitySpec spec = new AbilitySpec("test", "Test", element,
+                        friendly ? Effect.HEAL : Effect.DAMAGE, 1,
+                        friendly ? TargetKind.ALLY_SINGLE : TargetKind.ENEMY_SINGLE, 1, "Test.");
+
+                method.invoke(new SiegeCombatEngine(), battle, source, spec, List.of(target), new Random(1));
+
+                assertTrue(battle.getEvents().stream().anyMatch(e -> "advantage-trigger".equals(e.get("type"))),
+                        element + " " + (friendly ? "friendly" : "hostile"));
+            }
+        }
+    }
+
+    private static Combatant unit(String id, String name, Element element, Side side, int speed, int position) {
+        Combatant c = new Combatant(id, name, element, side, 20, speed, null);
+        c.setPosition(position);
+        return c;
+    }
+}

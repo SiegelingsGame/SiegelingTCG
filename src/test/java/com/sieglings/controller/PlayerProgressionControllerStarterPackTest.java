@@ -122,6 +122,11 @@ class PlayerProgressionControllerStarterPackTest {
             public List<Map<String, Object>> serializeCatalog() {
                 return List.of();
             }
+
+            @Override
+            public List<Map<String, Object>> serializeDailyShopTitles() {
+                return List.of();
+            }
         });
         return controller;
     }

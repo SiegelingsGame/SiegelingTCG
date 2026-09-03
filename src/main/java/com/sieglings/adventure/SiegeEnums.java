@@ -8,27 +8,48 @@ package com.sieglings.adventure;
 /** Which team a combatant fights for. */
 enum Side { PLAYER, ENEMY }
 
-/** What a card / enemy ability does when resolved. */
+/**
+ * What a card / enemy ability does when resolved. Each value is the Siege
+ * translation of a battle-table effect key (see {@code AbilityEffectKeys} and
+ * the Siege column in {@code ABILITY_EFFECT_KEYS.md}) — a card should do the
+ * same thing here that its text promises on the board.
+ */
 enum Effect {
-    DAMAGE,     // deal value damage (through shield first)
-    HEAL,       // restore value HP up to max
-    SHIELD,     // grant value temporary shield HP
-    BUFF_ATK,   // grant target +value flat attack for the battle
-    BUFF_SPD,   // grant target +value speed for the battle
-    SLOW,       // apply the Slow status (freeze / speed_zero flavored)
-    SWAP,       // move to a new notch: swap positions with another Siegeling
-    EVOLVE      // evolution card: transform the owner into its next stage (this battle)
+    DAMAGE,       // damage       — deal value damage (through shield first)
+    HEAL,         // heal         — restore value HP up to max
+    SHIELD,       // shield       — temporary shield HP, gone at the start of your next turn
+    MAX_HP_BOOST, // health_boost — raise max HP for the battle and heal the same amount
+    BUFF_ATK,     // damage_boost — grant target +value flat attack for a few rounds (AbilitySpec#durationRounds)
+    BUFF_SPD,     // speed_boost  — grant target +value speed for a few rounds (AbilitySpec#durationRounds)
+    SLOW,         // slow/speed_zero — apply the Slow status
+    STUN,         // freeze       — the target skips its next action
+    DRAW,         // draw         — pull value cards into the hand
+    GAIN_AP,      // energy_boost — AP is Siege's energy, so the turn gets value more of it
+    EXECUTE,      // destroy      — defeat the target outright (capped against elites/bosses)
+    SWAP,         // move_link    — move to a new notch: swap positions with another Siegeling
+    EVOLVE        // evolution card: transform the owner into its next stage (this battle)
 }
 
 /**
  * Elemental status effects. Elements have no rock-paper-scissors weakness
  * chart — they only carry these statuses, applied by chance written on cards.
+ * Identity is shared with battle-table {@code ElementalAfflictionCatalog};
+ * timing/numbers stay Siege-specific.
  */
 enum StatusKind {
-    BURN,   // Fire:  1 damage at the end of each round
-    SLOW,   // Ice:   -2 Speed for 2 rounds
-    STUN,   // Earth: skip the next action
-    SHOCK   // Sky:   party loses 1 AP next turn / enemy's next hit is weakened
+    BURN,       // Fire:     1 damage at the end of each round
+    SLOW,       // Ice:      -2 Speed for 2 rounds; reapply freezes (Stun)
+    STUN,       // Freeze:   skip the next action
+    LEECH,      // Earth:    heals the attacker for HP damage dealt when it triggers
+    SHOCK,      // Electric: −1 party AP (player) / next hit −2 (enemy)
+    DISORIENT,  // Wind:     owner's cards cost +1 AP
+    POISON,     // Poison:   end-round DoT; heals clear the toxin instead
+    SOAK,       // Water:    +1 damage taken from attacks
+    RUST,       // Metal:    next Metal hit +1, then clear
+    CURSE,      // Shadow:   cannot evolve
+    INSIGHT,    // Psychic:  second hit draws (player) / heals 2 (enemy)
+    BLIND,      // Light:    outgoing ability values −1
+    WITHER      // Undead:   −1 HP at turn open, then clear
 }
 
 /** Who a card / enemy ability can be aimed at. */
@@ -57,6 +78,33 @@ enum KnightPassive { SHIELD, ATTACK, SPEED, HEALTH, LOOT, MARSHAL }
  * veterans for greater rewards (higher difficulty, gold/score multipliers).
  */
 enum RunMode { STANDARD, ENDLESS, BATTLEGROUNDS }
+
+/**
+ * Which account save a run occupies. Every mode gets its own slot so a player can
+ * hold one expedition and one Battlegrounds march at the same time — a single
+ * account checkpoint meant starting either mode silently threw the other away.
+ * STANDARD and ENDLESS share the EXPEDITION slot: both are "the expedition", and
+ * the client offers them as one save.
+ */
+enum RunSlot {
+    EXPEDITION("siege", "Siege Expedition"),
+    BATTLEGROUNDS("bg", "Battlegrounds");
+
+    private final String suffix;
+    private final String label;
+
+    RunSlot(String suffix, String label) {
+        this.suffix = suffix;
+        this.label = label;
+    }
+
+    String suffix() { return suffix; }
+    String label() { return label; }
+
+    static RunSlot of(RunMode mode) {
+        return mode == RunMode.BATTLEGROUNDS ? BATTLEGROUNDS : EXPEDITION;
+    }
+}
 
 /** Battle turn phase driving what the client may submit. */
 enum BattlePhase { PLAYER_INPUT, ENEMY_RESOLVING, WON, LOST }

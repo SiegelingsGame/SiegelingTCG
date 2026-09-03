@@ -1,5 +1,6 @@
 package com.sieglings.service;
 
+import com.sieglings.diagnostics.FirestoreReadMetrics;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -266,7 +267,9 @@ public class TrainerCatalogService {
 
             try {
                 DocumentReference docRef = fireStoreDocRef();
+                long __fsReadStart = System.nanoTime();
                 DocumentSnapshot snapshot = docRef.get().get(10, TimeUnit.SECONDS);
+                FirestoreReadMetrics.record("trainers", System.nanoTime() - __fsReadStart);
                 LoadSnapshot loadSnapshot;
                 if (!snapshot.exists() || snapshot.get("trainers") == null) {
                     loadSnapshot = persistFirestoreData(docRef, new TrainerFile(defaultDefinitions()), "system@bootstrap");
@@ -420,6 +423,8 @@ public class TrainerCatalogService {
                         normalizeCardArtMode(definition.cardArtMode()),
                         definition.cardArtOffsetX(),
                         definition.cardArtOffsetY(),
+                        definition.cardArtOffsetXPct(),
+                        definition.cardArtOffsetYPct(),
                         definition.cardArtScale(),
                         definition.cardArtRotation(),
                         definition.holographic(),
@@ -440,6 +445,7 @@ public class TrainerCatalogService {
                 normalizeText(definition.name()),
                 normalizeText(definition.description()),
                 definition.targetType(),
+                definition.targetElement(),
                 definition.targetRow(),
                 definition.targetCount() == null ? 0 : definition.targetCount(),
                 normalizeEffectKey(definition.effectType()),
@@ -499,6 +505,8 @@ public class TrainerCatalogService {
                 null,
                 null,
                 null,
+                null,
+                null,
                 null
         );
     }
@@ -529,6 +537,8 @@ public class TrainerCatalogService {
                 null,
                 null,
                 null,
+                null,
+                null,
                 holographic,
                 expeditionStarter,
                 null
@@ -543,6 +553,7 @@ public class TrainerCatalogService {
                 ability.getName(),
                 ability.getDescription(),
                 ability.getTargetType(),
+                ability.getTargetElement(),
                 ability.getTargetRow(),
                 ability.getTargetCount(),
                 ability.getEffectType(),
@@ -601,6 +612,8 @@ public class TrainerCatalogService {
             String cardArtMode,
             Double cardArtOffsetX,
             Double cardArtOffsetY,
+            Double cardArtOffsetXPct,
+            Double cardArtOffsetYPct,
             Double cardArtScale,
             Double cardArtRotation,
             Boolean holographic,
@@ -612,7 +625,7 @@ public class TrainerCatalogService {
                                  ManualSieglingCatalog.ManualAbilityDefinition passiveAbility,
                                  ManualSieglingCatalog.ManualAbilityDefinition activeAbility) {
             this(id, name, element, rarity, tier, active, oncePerGame, passiveAbility, activeAbility,
-                    null, null, null, null, null, null, null, null, null);
+                    null, null, null, null, null, null, null, null, null, null, null);
         }
     }
 }

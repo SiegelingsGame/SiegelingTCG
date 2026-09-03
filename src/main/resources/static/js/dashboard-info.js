@@ -240,7 +240,7 @@
                 row(['<strong>Vanguard</strong>', '+2 speed to each Siegeling at battle start.']),
                 row(['<strong>Warden</strong>', '+8 max HP to each Siegeling for the whole expedition.']),
                 row(['<strong>Quartermaster</strong>', '+40% gold from spoils and caches.']),
-                row(['<strong>Marshal</strong>', 'Starts the run with an extra Siegeling in the warband.']),
+                row(['<strong>Marshal</strong>', 'Picks an extra starting Siegeling at warband assembly (2 instead of 1).']),
                 row(['<strong>Default</strong>', 'Uses the knight’s built-in hash assignment — no override.'])
             ])
     };
@@ -260,10 +260,31 @@
             ], ['Kind', 'Effect'])
     };
 
+    topics['siege-effects'] = {
+        title: 'Shared Ability Effects',
+        html: '<p>These settings are shared by <strong>every Siege card of a given effect</strong>. A Siegeling move keeps its printed board value; this page decides how that value is translated into Siege and how long what it grants lasts. Changing a row rebalances every card using that effect at once, without touching a single card.</p>' +
+            table([
+                row(['<strong>Value bonus</strong>', 'Added to the printed board value when a move becomes a Siege card — Siege HP pools are larger than the board\'s, so damage and healing are scaled up here.']),
+                row(['<strong>Value cap</strong>', 'Ceiling on the magnitude. Draw and AP gain are capped so a board card reading "draw 2" cannot become "draw 5". 0 means uncapped.']),
+                row(['<strong>Min AP</strong>', 'Price floor for cards with this effect, however cheap the board version is — an execute printed at 0 energy would otherwise be a free kill every turn.']),
+                row(['<strong>Duration</strong>', 'Rounds a buff or shield from this effect holds, counted from the buffed side\'s own turn. Attack and speed buffs expire; a card replayed inside its own window refreshes it rather than stacking a second copy.'])
+            ], ['Setting', 'What it does']) +
+            '<p>A tile with no boxes means the effect does not read those knobs — stun, swap, and evolve have no magnitude of their own, so there is nothing to scale. Edit as many tiles as you like and press <strong>Publish changes</strong> once; <strong>Discard</strong> throws away everything unsaved, and a tile\'s <strong>reset</strong> returns that effect to the values this build ships with. Clearing a box returns that one setting to its default.</p>' +
+            '<p><strong>Cross-effect settings</strong> are the windows and magnitudes that do not belong to any one card effect: how long a Knight Ultimate\'s buff half holds, the amp rider window on an amplified swap move, a hired mercenary\'s Boon window, what a level-up amplification adds or saves, and what an execute takes off an elite or Siegelord instead of killing it.</p>' +
+            '<p>Saves apply to <em>battles started afterwards</em> — a run already mid-battle keeps the numbers it started with, because its cards were built when the battle opened.</p>'
+    };
+
     topics['shop-prices'] = {
         title: 'Shop Prices',
         html: '<p>Each card\'s shop price is looked up by <strong>rarity + card type</strong>. Set an override for a cell to replace the default for every card of that combination; reset it to fall back to the default again.</p>' +
             '<p>SiegeKnight (TRAINER) defaults start at <strong>300</strong> Siegecoins and scale up with rarity; Siegelings, spells, and traps use a lower rarity ladder. Overrides apply immediately to packs and daily card offers. Premade decks are priced separately and are not affected here.</p>'
+    };
+
+    topics['pack-availability'] = {
+        title: 'Pack Availability',
+        html: '<p>Every pack this build ships is listed here. Unchecking <strong>Available</strong> removes that pack from the hub shop immediately — it can no longer be bought, opened in bulk, or picked as a starter — and re-checking it brings it straight back. Nothing about the pack\'s contents or price changes.</p>' +
+            '<p>A pack only appears in this list when <em>all</em> of its elements are live in the <strong>Live Elements</strong> roster. Turning an element off there hides its packs too (Water off hides both the Water pack and Stormtide), so check that page first if a pack you expect is missing.</p>' +
+            '<p>At least one pack, and at least one starter-eligible pack, must stay active — the shop cannot render an empty list and new accounts cannot finish onboarding without a starter. The hub caches the pack catalog in the browser for up to 24 hours, so returning players may keep seeing the previous list until their cache expires.</p>'
     };
 
     topics['keep-tuning'] = {

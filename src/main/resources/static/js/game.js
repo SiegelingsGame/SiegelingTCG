@@ -51,6 +51,7 @@ let hoveredHandIndex = null;
 let hoveredBoardCard = null;
 /** Persisted board selection for live preview / drawer ({ isPlayer, row, col, instanceId }). */
 let arenaSelection = null;
+let lastActingPreviewInstanceId = null;
 /** Cached overlay structure fingerprint per side; skips link/nexus rebuild when board topology is unchanged. */
 const boardOverlayFingerprints = { player: '', enemy: '' };
 let pendingClaimTarget = null;
@@ -62,25 +63,39 @@ let phaseTransitionTimer = null;
 // down — a never-resolved await here would wedge the battle action queue and
 // freeze the game (auto-advance is gated on the queue being idle).
 let phaseTransitionResolve = null;
+let drawAbilityRevealTimer = null;
+let drawAbilityRevealRun = 0;
 let coinFlipDismissedRoomId = null;
 let handTouchGesture = null;
-/** @type {null | { handIndex: number, pointerId: number, startX: number, startY: number, active: boolean, ghost: HTMLElement | null, sourceEl: HTMLElement | null }} */
+/** @type {null | { handIndex: number, pointerId: number, startX: number, startY: number, active: boolean, ghost: HTMLElement | null, sourceEl: HTMLElement | null, captureEl: HTMLElement | null }} */
 let cardDragSession = null;
 let cardDragSuppressClickUntil = 0;
+// A placement POST is in flight. The hand still shows the card until the server
+// answers, so without this guard a second tap/drop fires a duplicate `place`
+// that the server rejects — leaving the client with a dead selection and a card
+// that looks stuck in hand while its twin is already on the board.
+let placementRequestInFlight = false;
+// Hand slot committed to the server but not yet confirmed; hidden from the hand
+// for the duration so the card cannot be picked up twice.
+let pendingHandRemovalIndex = null;
 const CARD_DRAG_THRESHOLD_PX = 10;
 let handAutoScrollFrame = null;
 let handAutoScrollDirection = 0;
 let handAutoScrollAxis = null;
 let handSelectorScaleFrame = null;
+// Fixed number of hand slots the desktop hand selector sizes itself around, so
+// a card keeps the same footprint whether the player holds two or nine. Matches
+// the opening hand plus the first few draws; anything past it scrolls.
+const HAND_SELECTOR_DESKTOP_CARD_SLOTS = 6;
 let previewCardScaleFrame = null;
 let framedSummaryFitFrame = null;
 let siegeKnightCardFitFrame = null;
 const DECK_ART_ASSET_KEYS = [
-    'FIRE', 'ICE', 'WATER', 'EARTH', 'WIND', 'SHADOW',
+    'FIRE', 'ICE', 'EARTH', 'WIND', 'WATER', 'SHADOW',
     'ELECTRIC', 'METAL', 'UNDEAD', 'PSYCHIC', 'POISON', 'LIGHT'
 ];
 // Bump with home.js ELEMENTAL_CARD_BACK_VERSION when default card-back art changes.
-const DECK_ART_ASSET_VERSION = 5;
+const DECK_ART_ASSET_VERSION = 6;
 function versionedDeckArtAsset(path) {
     if (!path) return '';
     const separator = path.includes('?') ? '&' : '?';
@@ -347,6 +362,7 @@ const TARGET_TYPES = {
 };
 const EFFECT_KIND_MAP = {
     damage: 'damage',
+    chain_damage: 'damage',
     player_damage: 'damage',
     destroy: 'damage',
     draw: 'buff',
@@ -355,8 +371,10 @@ const EFFECT_KIND_MAP = {
     damage_boost: 'buff',
     health_boost: 'buff',
     speed_boost: 'buff',
+    energy_boost: 'buff',
     connected_allies_damage_boost: 'buff',
     connected_allies_health_boost: 'buff',
+    connected_allies_heal: 'heal',
     connected_allies_shield: 'buff',
     connected_allies_slow: 'freeze',
     connected_allies_speed_boost: 'buff',
@@ -508,19 +526,185 @@ const STATUS_BADGE_PALETTE = {
     DAMAGE_BOOST: '#ff5544',
     SPEED_BOOST:  '#7adfff',
     WEAK:         '#ff6080',
-    STRONG:       '#ffd060'
+    STRONG:       '#ffd060',
+    // Elemental damage afflictions (see docs/ELEMENTAL_STATUS_EFFECTS.md)
+    BURN:         '#ff501e',
+    CHILL:        '#76e6ff',
+    LEECH:        '#8fbd58',
+    DISORIENT:    '#96ffb4',
+    SOAK:         '#3296ff',
+    SHOCK:        '#ffe63c',
+    RUST:         '#a0aab4',
+    TOXIN:        '#78dc50',
+    CURSE:        '#7832b4',
+    INSIGHT:      '#c896ff',
+    BLIND:        '#fffac8',
+    WITHER:       '#8c78a0'
 };
 
-const STATUS_BADGE_LABEL = {
-    FREEZE: 'Frozen — cannot act',
-    SPEED_ZERO: 'Speed Zero — acts last',
-    HEALTH_BOOST: 'Shield',
-    MAX_HEALTH: 'Max Health Increased',
-    DAMAGE_BOOST: 'Damage Boost',
-    SPEED_BOOST: 'Speed Boost',
-    WEAK: 'Weak to Attack',
-    STRONG: 'Strong Against Enemy'
+// Single source of truth for every badge the battle table can show: the short
+// tooltip line, the long player-facing explanation behind the tappable pills,
+// and which section of the "All Effects" key the row belongs to. Affliction
+// copy mirrors docs/ELEMENTAL_STATUS_EFFECTS.md — update both together.
+const STATUS_EFFECT_KEY = {
+    MAX_HEALTH: {
+        name: 'Max HP Up',
+        group: 'buff',
+        summary: 'Max Health increased',
+        detail: 'Permanently raises this Siegeling\'s maximum Health for the rest of the match. Current HP rises with it when the boost is granted, so the extra points are immediately usable.'
+    },
+    HEALTH_BOOST: {
+        name: 'Shield',
+        group: 'buff',
+        summary: 'absorbs damage before HP',
+        detail: 'Temporary hit points layered over Health. Incoming damage eats the shield first and only spills into HP once the shield is gone. The badge clears as soon as the shield is fully spent.'
+    },
+    DAMAGE_BOOST: {
+        name: 'Damage Boost',
+        group: 'buff',
+        summary: 'abilities deal extra damage',
+        detail: 'Every damaging ability this Siegeling uses deals additional damage equal to the boost value shown on the badge.'
+    },
+    SPEED_BOOST: {
+        name: 'Speed Boost',
+        group: 'buff',
+        summary: 'acts earlier in the battle queue',
+        detail: 'Raises effective Speed by the amount shown. Battle order is sorted by Speed, so a boosted Siegeling acts before slower cards in the same Battle phase.'
+    },
+    STRONG: {
+        name: 'Strong',
+        group: 'matchup',
+        summary: 'element beats the defender',
+        detail: 'This Siegeling\'s element is strong against the highlighted target, so its attack deals +1 damage. Matchups: Fire > Ice > Wind > Earth > Fire; Water > Fire/Ice; Metal > Earth/Wind; Electric > Wind/Fire; Poison > Ice/Earth; Shadow > Psychic > Light > Undead > Shadow.'
+    },
+    WEAK: {
+        name: 'Weak',
+        group: 'matchup',
+        summary: 'takes extra damage from the attacker',
+        detail: 'The incoming attacker\'s element beats this Siegeling\'s element, so the hit lands for +1 damage.'
+    },
+    FREEZE: {
+        name: 'Frozen',
+        group: 'control',
+        summary: 'cannot act',
+        detail: 'A frozen Siegeling skips its action entirely. Freeze from Chill thaws when its owner reaches their next Setup phase; Freeze from an ability lasts a single action.'
+    },
+    SPEED_ZERO: {
+        name: 'Stunned',
+        group: 'control',
+        summary: 'Speed set to zero, acts last',
+        detail: 'Effective Speed drops to 0, pushing this Siegeling to the very end of the battle queue for the phase.'
+    },
+    BURN: {
+        name: 'Burn',
+        group: 'affliction',
+        element: 'FIRE',
+        cap: 5,
+        summary: 'flat damage per badge at next Setup',
+        detail: 'Inflicted by Fire damage. At the start of the owner\'s next Setup phase the burning Siegeling takes 1 damage per stack, then every Burn stack clears.'
+    },
+    CHILL: {
+        name: 'Chill',
+        group: 'affliction',
+        element: 'ICE',
+        cap: 3,
+        summary: 'Slow per badge; Freeze at 3',
+        detail: 'Inflicted by Ice damage. At 1–2 stacks it slows the Siegeling by 1 effective Speed per stack. The 3rd stack spends every Chill badge to freeze it outright — the badges clear and the Frozen status takes over until the owner\'s next Setup.'
+    },
+    LEECH: {
+        name: 'Leech',
+        group: 'affliction',
+        element: 'EARTH',
+        cap: 2,
+        summary: 'second Earth hit heals its attacker',
+        detail: 'Inflicted by Earth HP damage. The first hit marks the defender. The second heals that hit\'s attacker for the actual HP damage dealt, then clears Leech. Toxin removes healing before HP is restored.'
+    },
+    DISORIENT: {
+        name: 'Disorient',
+        group: 'affliction',
+        element: 'WIND',
+        cap: 3,
+        summary: 'raises the cost of its cheapest ability',
+        detail: 'Inflicted by Wind damage. The energy cost of this Siegeling\'s lowest-cost ability goes up by 1 per stack. When several abilities tie for cheapest, the first one in the card\'s ability order is taxed.'
+    },
+    SOAK: {
+        name: 'Soak',
+        group: 'affliction',
+        element: 'WATER',
+        cap: 5,
+        summary: 'attacks against it deal +1 per badge',
+        detail: 'Inflicted by Water damage. Every attack that hits this Siegeling deals +1 damage per stack. Stacks persist — they are not consumed by the hits they amplify.'
+    },
+    SHOCK: {
+        name: 'Shock',
+        group: 'affliction',
+        element: 'ELECTRIC',
+        cap: 5,
+        summary: 'can spend 1 less energy per badge',
+        detail: 'Inflicted by Electric damage. This card\'s personal spending cap for paying ability costs drops by 1 per stack. The owner\'s energy pool is untouched — only what this Siegeling may spend is limited.'
+    },
+    RUST: {
+        name: 'Rust',
+        group: 'affliction',
+        element: 'METAL',
+        cap: 3,
+        summary: 'next Metal attack hits harder, then clears',
+        detail: 'Inflicted by Metal damage. The next Metal attack against this Siegeling deals +1 damage per stack and then removes all Rust. Attacks of other elements neither benefit from nor consume it.'
+    },
+    TOXIN: {
+        name: 'Toxin',
+        group: 'affliction',
+        element: 'POISON',
+        cap: 5,
+        summary: 'cannot heal; heals burn off stacks instead',
+        detail: 'Inflicted by Poison damage. While any stack remains the Siegeling cannot gain HP. A heal removes 1 stack per point of healing instead of restoring Health; once Toxin hits 0, later heals work normally again.'
+    },
+    CURSE: {
+        name: 'Curse',
+        group: 'affliction',
+        element: 'SHADOW',
+        cap: 2,
+        summary: 'cannot be claimed or evolved',
+        detail: 'Inflicted by Shadow damage. While any stack remains the Siegeling cannot be claimed for temporary energy during Setup, and no evolution card may be placed onto it.'
+    },
+    INSIGHT: {
+        name: 'Insight',
+        group: 'affliction',
+        element: 'PSYCHIC',
+        cap: 3,
+        summary: 'at 3 stacks the inflicter draws',
+        detail: 'Inflicted by Psychic damage. Stacks 1–2 carry no penalty. When the third stack lands, the player who inflicted it draws a card and every Insight stack on the target is consumed.'
+    },
+    BLIND: {
+        name: 'Blind',
+        group: 'affliction',
+        element: 'LIGHT',
+        cap: 3,
+        summary: 'ability values reduced per badge',
+        detail: 'Inflicted by Light damage. The numbers on this Siegeling\'s abilities — damage, healing, shielding — are each reduced by 1 per stack when the ability resolves.'
+    },
+    WITHER: {
+        name: 'Wither',
+        group: 'affliction',
+        element: 'UNDEAD',
+        cap: 3,
+        summary: 'max HP reduced at Setup',
+        detail: 'Inflicted by Undead damage. At the owner\'s next Setup, current Health is clamped as if maximum HP were 1 lower per stack (the overflow is lost), then Wither clears.'
+    }
 };
+
+const STATUS_EFFECT_GROUPS = [
+    { id: 'buff', title: 'Buffs', blurb: 'Granted by abilities, spells and SiegeKnights.' },
+    { id: 'control', title: 'Control', blurb: 'Statuses that take a turn away.' },
+    { id: 'matchup', title: 'Elemental Matchup', blurb: 'Shown while targeting an attack.' },
+    { id: 'affliction', title: 'Elemental Afflictions', blurb: 'Stacking badges inflicted by elemental damage.' }
+];
+
+const STATUS_BADGE_LABEL = Object.keys(STATUS_EFFECT_KEY).reduce((acc, kind) => {
+    const info = STATUS_EFFECT_KEY[kind];
+    acc[kind] = info.summary ? `${info.name} — ${info.summary}` : info.name;
+    return acc;
+}, {});
 
 const STATUS_BADGE_SVG = {
     FREEZE: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-fz-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#dff6ff"/><stop offset="50%" stop-color="#5fb8e8"/><stop offset="100%" stop-color="#1a4a7a"/></radialGradient></defs><circle cx="42" cy="42" r="40" fill="#5fb8e8" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-fz-bg)" stroke="#dff6ff" stroke-width="2"/><g stroke="#fff" stroke-width="2.5" stroke-linecap="round" fill="none" class="sb-spin"><line x1="42" y1="20" x2="42" y2="64"/><line x1="22" y1="42" x2="62" y2="42"/><line x1="27" y1="27" x2="57" y2="57"/><line x1="57" y1="27" x2="27" y2="57"/><path d="M42 20 L37 26 M42 20 L47 26 M42 64 L37 58 M42 64 L47 58 M22 42 L28 37 M22 42 L28 47 M62 42 L56 37 M62 42 L56 47"/></g><circle cx="42" cy="42" r="3" fill="#fff"/></svg>`,
@@ -528,9 +712,36 @@ const STATUS_BADGE_SVG = {
     HEALTH_BOOST: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-sh-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#f3f6fa"/><stop offset="55%" stop-color="#a8b0ba"/><stop offset="100%" stop-color="#4a5360"/></radialGradient><linearGradient id="sb-sh-face" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#b8c0ca"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#a8b0ba" opacity=".25" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-sh-bg)" stroke="#f3f6fa" stroke-width="2"/><path d="M42 18 L62 26 L62 42 C 62 54 54 64 42 70 C 30 64 22 54 22 42 L22 26 Z" fill="url(#sb-sh-face)" stroke="#fff" stroke-width="2.5" stroke-linejoin="round" class="sb-float"/><path d="M42 23 L42 64" stroke="#77808c" stroke-width="2" opacity=".55"/></svg>`,
     MAX_HEALTH: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-mh-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#d8ffe6"/><stop offset="50%" stop-color="#3ad87a"/><stop offset="100%" stop-color="#0a5a2a"/></radialGradient><linearGradient id="sb-mh-heart" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#8effb0"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#3ad87a" opacity=".28" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-mh-bg)" stroke="#d8ffe6" stroke-width="2"/><path d="M42 62 C 24 50 18 40 18 31 C 18 24 23 20 29 20 C 34 20 39 23 42 28 C 45 23 50 20 55 20 C 61 20 66 24 66 31 C 66 40 60 50 42 62 Z" fill="url(#sb-mh-heart)" stroke="#fff" stroke-width="2" stroke-linejoin="round" class="sb-float"/><g stroke="#0a5a2a" stroke-width="3.5" stroke-linecap="round"><line x1="42" y1="33" x2="42" y2="45"/><line x1="36" y1="39" x2="48" y2="39"/></g></svg>`,
     DAMAGE_BOOST: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-dmg-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#ffe0c0"/><stop offset="50%" stop-color="#ff6633"/><stop offset="100%" stop-color="#5a1a0a"/></radialGradient><linearGradient id="sb-dmg-sword" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#fff"/><stop offset="50%" stop-color="#ffd8a0"/><stop offset="100%" stop-color="#c87040"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#ff5533" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-dmg-bg)" stroke="#ffe0c0" stroke-width="2"/><g stroke="#fff" stroke-width="1.5" stroke-linejoin="round"><g transform="rotate(45 42 42)"><rect x="40.5" y="20" width="3" height="34" fill="url(#sb-dmg-sword)"/><polygon points="42,16 39,22 45,22" fill="#ffd8a0"/><rect x="36" y="54" width="12" height="3" fill="#5a1a0a"/><rect x="40" y="56" width="4" height="6" fill="#5a1a0a"/></g><g transform="rotate(-45 42 42)"><rect x="40.5" y="20" width="3" height="34" fill="url(#sb-dmg-sword)"/><polygon points="42,16 39,22 45,22" fill="#ffd8a0"/><rect x="36" y="54" width="12" height="3" fill="#5a1a0a"/><rect x="40" y="56" width="4" height="6" fill="#5a1a0a"/></g></g><circle cx="42" cy="42" r="4" fill="#fff8c0" class="sb-flicker"/></svg>`,
-    SPEED_BOOST: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-sp-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#dff8ff"/><stop offset="50%" stop-color="#3ad8ff"/><stop offset="100%" stop-color="#1a5a7a"/></radialGradient><linearGradient id="sb-sp-bolt" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#fff"/><stop offset="50%" stop-color="#fff8c0"/><stop offset="100%" stop-color="#7adfff"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#3ad8ff" opacity=".25" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-sp-bg)" stroke="#dff8ff" stroke-width="2"/><g stroke="#dff8ff" stroke-width="1.5" stroke-linecap="round" opacity=".5"><line x1="22" y1="32" x2="30" y2="32"/><line x1="20" y1="42" x2="32" y2="42"/><line x1="22" y1="52" x2="30" y2="52"/></g><path d="M48 18 L32 44 L42 44 L36 64 L56 36 L46 36 Z" fill="url(#sb-sp-bolt)" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" class="sb-flicker"/></svg>`,
-    WEAK: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-wk-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#ffd0d8"/><stop offset="50%" stop-color="#a02038"/><stop offset="100%" stop-color="#3a0a18"/></radialGradient><linearGradient id="sb-wk-shield" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#ff6080"/><stop offset="100%" stop-color="#5a0a18"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#a02038" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-wk-bg)" stroke="#ffd0d8" stroke-width="2"/><g class="sb-floatdn"><path d="M42 22 L58 28 L58 44 C 58 54 50 60 42 64 C 34 60 26 54 26 44 L26 28 Z" fill="url(#sb-wk-shield)" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M42 24 L38 34 L44 38 L36 48 L46 52 L40 62" stroke="#fff8c0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g><g transform="translate(60 60)"><circle r="9" fill="#1a0a18" stroke="#ff6080" stroke-width="1.5"/><path d="M0 -4 L0 4 M-3 1 L0 4 L3 1" stroke="#ff6080" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g></svg>`,
-    STRONG: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-st-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#fff4c0"/><stop offset="50%" stop-color="#e8a020"/><stop offset="100%" stop-color="#5a3a08"/></radialGradient><linearGradient id="sb-st-star" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#fff"/><stop offset="60%" stop-color="#ffe080"/><stop offset="100%" stop-color="#e8a020"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#ffd060" opacity=".3" class="sb-pulse"/><g class="sb-spin-rev" opacity=".55"><line x1="42" y1="6" x2="42" y2="14" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/><line x1="42" y1="70" x2="42" y2="78" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/><line x1="6" y1="42" x2="14" y2="42" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/><line x1="70" y1="42" x2="78" y2="42" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/></g><circle cx="42" cy="42" r="34" fill="url(#sb-st-bg)" stroke="#fff4c0" stroke-width="2"/><polygon points="42,20 47,35 63,35 50,44 55,60 42,51 29,60 34,44 21,35 37,35" fill="url(#sb-st-star)" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" class="sb-float"/><g transform="translate(60 60)"><circle r="9" fill="#3a2008" stroke="#ffe080" stroke-width="1.5"/><path d="M0 4 L0 -4 M-3 -1 L0 -4 L3 -1" stroke="#ffe080" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g></svg>`
+    // Winged runner, not a bolt: Speed Boost sat next to Shock's electric bolt
+    // and the two read as the same badge at board size.
+    SPEED_BOOST: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-sp-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#dff8ff"/><stop offset="50%" stop-color="#3ad8ff"/><stop offset="100%" stop-color="#1a5a7a"/></radialGradient><linearGradient id="sb-sp-shoe" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#ffffff"/><stop offset="60%" stop-color="#eaf9ff"/><stop offset="100%" stop-color="#8fd8f5"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#3ad8ff" opacity=".25" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-sp-bg)" stroke="#dff8ff" stroke-width="2"/><g stroke="#dff8ff" stroke-width="2" stroke-linecap="round" opacity=".55" class="sb-flicker"><line x1="19" y1="27" x2="31" y2="27"/><line x1="17" y1="35" x2="27" y2="35"/><line x1="21" y1="43" x2="29" y2="43"/></g><g transform="translate(0 -4)"><g class="sb-float"><path d="M26 54 C 26 44 29 36 34 34 L39 34 L41 43 C 43 48 50 51 57 52 C 61 52.5 63 53 63 54 Z" fill="url(#sb-sp-shoe)" stroke="#ffffff" stroke-width="1.6" stroke-linejoin="round"/><path d="M23 53 L64 53 C 66 53 66 59 64 59 L26 59 C 23 59 22.5 56 23 53 Z" fill="#2a86b4" stroke="#ffffff" stroke-width="1.6" stroke-linejoin="round"/><g stroke="#2a86b4" stroke-width="2" stroke-linecap="round"><line x1="34" y1="40" x2="41" y2="38"/><line x1="35" y1="46" x2="44" y2="44"/><line x1="39" y1="51" x2="48" y2="49"/></g></g></g></svg>`,
+    WEAK: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-wk-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#ffd0d8"/><stop offset="50%" stop-color="#a02038"/><stop offset="100%" stop-color="#3a0a18"/></radialGradient><linearGradient id="sb-wk-shield" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#ff6080"/><stop offset="100%" stop-color="#5a0a18"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#a02038" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-wk-bg)" stroke="#ffd0d8" stroke-width="2"/><g class="sb-floatdn"><path d="M42 22 L58 28 L58 44 C 58 54 50 60 42 64 C 34 60 26 54 26 44 L26 28 Z" fill="url(#sb-wk-shield)" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M42 24 L38 34 L44 38 L36 48 L46 52 L40 62" stroke="#fff8c0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g><g transform="translate(57 57)"><circle r="8" fill="#1a0a18" stroke="#ff6080" stroke-width="1.5"/><path d="M0 -4 L0 4 M-3 1 L0 4 L3 1" stroke="#ff6080" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g></svg>`,
+    STRONG: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-st-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#fff4c0"/><stop offset="50%" stop-color="#e8a020"/><stop offset="100%" stop-color="#5a3a08"/></radialGradient><linearGradient id="sb-st-star" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#fff"/><stop offset="60%" stop-color="#ffe080"/><stop offset="100%" stop-color="#e8a020"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#ffd060" opacity=".3" class="sb-pulse"/><g class="sb-spin-rev sb-behind" opacity=".55"><line x1="42" y1="6" x2="42" y2="14" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/><line x1="42" y1="70" x2="42" y2="78" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/><line x1="6" y1="42" x2="14" y2="42" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/><line x1="70" y1="42" x2="78" y2="42" stroke="#ffe080" stroke-width="2" stroke-linecap="round"/></g><circle cx="42" cy="42" r="34" fill="url(#sb-st-bg)" stroke="#fff4c0" stroke-width="2"/><polygon points="42,20 47,35 63,35 50,44 55,60 42,51 29,60 34,44 21,35 37,35" fill="url(#sb-st-star)" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" class="sb-float"/><g transform="translate(57 57)"><circle r="8" fill="#3a2008" stroke="#ffe080" stroke-width="1.5"/><path d="M0 4 L0 -4 M-3 -1 L0 -4 L3 -1" stroke="#ffe080" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g></svg>`,
+    // --- Elemental afflictions: one silhouette per element so a badge is
+    // readable at 22px without reading the stack number or the tooltip. ---
+    BURN: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-burn-bg" cx="50%" cy="40%" r="65%"><stop offset="0%" stop-color="#ffe0a0"/><stop offset="45%" stop-color="#ff501e"/><stop offset="100%" stop-color="#5a1208"/></radialGradient></defs><circle cx="42" cy="42" r="40" fill="#ff501e" opacity=".28" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-burn-bg)" stroke="#ffe0a0" stroke-width="2"/><path d="M42 18 C 48 28 56 32 56 44 C 56 54 50 62 42 66 C 34 62 28 54 28 44 C 28 36 34 30 38 26 C 36 34 40 38 44 36 C 42 30 42 24 42 18 Z" fill="#fff4c0" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" class="sb-flicker"/></svg>`,
+    // Ice — frosted thermometer dropping, distinct from FREEZE's snowflake.
+    CHILL: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-chl-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#e4fbff"/><stop offset="50%" stop-color="#4fc4e8"/><stop offset="100%" stop-color="#123c60"/></radialGradient><linearGradient id="sb-chl-tube" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#bfe9f8"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#76e6ff" opacity=".28" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-chl-bg)" stroke="#e4fbff" stroke-width="2"/><g class="sb-float"><rect x="35" y="16" width="14" height="36" rx="7" fill="url(#sb-chl-tube)" stroke="#fff" stroke-width="2"/><circle cx="42" cy="58" r="11" fill="url(#sb-chl-tube)" stroke="#fff" stroke-width="2"/><circle cx="42" cy="58" r="6" fill="#2a8fc0"/><rect x="39" y="40" width="6" height="14" fill="#2a8fc0"/></g><g stroke="#ffffff" stroke-width="2" stroke-linecap="round" opacity=".9" class="sb-flicker"><line x1="20" y1="24" x2="30" y2="24"/><line x1="25" y1="19" x2="25" y2="29"/><line x1="21.5" y1="20.5" x2="28.5" y2="27.5"/><line x1="28.5" y1="20.5" x2="21.5" y2="27.5"/></g><g stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" opacity=".75"><line x1="56" y1="60" x2="64" y2="60"/><line x1="60" y1="56" x2="60" y2="64"/></g></svg>`,
+    // Earth — restorative heart rooted into the ground.
+    LEECH: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-leech-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#e8ffc9"/><stop offset="52%" stop-color="#719b3d"/><stop offset="100%" stop-color="#273614"/></radialGradient><linearGradient id="sb-leech-heart" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#fff6d8"/><stop offset="100%" stop-color="#a9dd68"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#8fbd58" opacity=".28" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-leech-bg)" stroke="#e8ffc9" stroke-width="2"/><path d="M42 57 C28 48 24 40 24 33 C24 27 28 23 34 23 C38 23 41 25 42 29 C44 25 47 23 51 23 C57 23 61 27 61 33 C61 40 56 48 42 57Z" fill="url(#sb-leech-heart)" stroke="#fff" stroke-width="2" class="sb-float"/><path d="M42 58 C42 65 35 66 32 70 M42 58 C43 65 50 66 53 70" fill="none" stroke="#dfffb8" stroke-width="3" stroke-linecap="round"/></svg>`,
+    // Wind — spiral vortex; the badge the user saw wearing Burn's flame.
+    DISORIENT: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-dso-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#e6fff0"/><stop offset="50%" stop-color="#4cc87c"/><stop offset="100%" stop-color="#0c3a24"/></radialGradient></defs><circle cx="42" cy="42" r="40" fill="#96ffb4" opacity=".28" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-dso-bg)" stroke="#e6fff0" stroke-width="2"/><g class="sb-spin"><path d="M42 42 C 42 32 50 25 58 28 C 65 32 65 43 55 48 C 43 54 28 48 25 37 C 22 27 30 19 40 21" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/></g><g stroke="#e6fff0" stroke-width="2.4" stroke-linecap="round" opacity=".85" class="sb-flicker"><path d="M21 58 C 27 55 32 61 38 58" fill="none"/><path d="M46 64 C 52 61 56 66 61 62" fill="none"/></g><circle cx="42" cy="42" r="4" fill="#ffffff"/></svg>`,
+    // Water — droplet over a rippling pool.
+    SOAK: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-sk-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#d6ecff"/><stop offset="50%" stop-color="#3296ff"/><stop offset="100%" stop-color="#0a2c60"/></radialGradient><linearGradient id="sb-sk-drop" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#7ec4ff"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#3296ff" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-sk-bg)" stroke="#d6ecff" stroke-width="2"/><path d="M42 14 C 52 30 60 38 60 47 C 60 57 52 64 42 64 C 32 64 24 57 24 47 C 24 38 32 30 42 14 Z" fill="url(#sb-sk-drop)" stroke="#fff" stroke-width="2" stroke-linejoin="round" class="sb-float"/><path d="M30 50 C 34 46 38 54 42 50 C 46 46 50 54 54 50" fill="none" stroke="#2a72c8" stroke-width="2.6" stroke-linecap="round" class="sb-flicker"/><path d="M30 58 C 34 54 38 62 42 58 C 46 54 50 62 54 58" fill="none" stroke="#2a72c8" stroke-width="2.2" stroke-linecap="round" opacity=".7"/></svg>`,
+    // Electric — drained energy cell with a bolt cut through it.
+    SHOCK: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-shk-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#fffbd0"/><stop offset="50%" stop-color="#e8c81e"/><stop offset="100%" stop-color="#4a3a02"/></radialGradient></defs><circle cx="42" cy="42" r="40" fill="#ffe63c" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-shk-bg)" stroke="#fffbd0" stroke-width="2"/><g><rect x="24" y="26" width="34" height="34" rx="6" fill="#3a2f04" stroke="#fff" stroke-width="2.5"/><rect x="35" y="20" width="12" height="6" rx="2" fill="#fff"/><rect x="29" y="48" width="24" height="8" rx="2" fill="#ffe63c" opacity=".9"/><rect x="29" y="38" width="24" height="8" rx="2" fill="#ffe63c" opacity=".25"/><rect x="29" y="28" width="24" height="8" rx="2" fill="#ffe63c" opacity=".18"/></g><path d="M50 16 L30 44 L41 44 L34 70 L58 38 L46 38 Z" fill="#fffbd0" stroke="#fff" stroke-width="1.6" stroke-linejoin="round" class="sb-flicker"/></svg>`,
+    // Metal — corroding hex nut shedding flakes.
+    RUST: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-rst-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#e8eef4"/><stop offset="50%" stop-color="#8e9aa6"/><stop offset="100%" stop-color="#2c3540"/></radialGradient><linearGradient id="sb-rst-nut" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#e2e8ee"/><stop offset="55%" stop-color="#9aa6b2"/><stop offset="100%" stop-color="#a05a28"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#a0aab4" opacity=".28" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-rst-bg)" stroke="#e8eef4" stroke-width="2"/><polygon points="42,16 64,29 64,55 42,68 20,55 20,29" fill="url(#sb-rst-nut)" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><circle cx="42" cy="42" r="11" fill="#2c3540" stroke="#e8eef4" stroke-width="2"/><g fill="#b4501e" opacity=".92"><path d="M24 50 L32 46 L30 56 Z"/><path d="M52 26 L60 30 L52 34 Z"/><circle cx="56" cy="52" r="3.4"/><circle cx="30" cy="32" r="2.6"/></g><g fill="#c8641e" class="sb-floatdn"><circle cx="37" cy="66" r="2.6"/><circle cx="49" cy="68" r="2"/></g></svg>`,
+    // Poison — bubbling flask.
+    TOXIN: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-tox-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#e4ffd4"/><stop offset="50%" stop-color="#5aba38"/><stop offset="100%" stop-color="#0e3a08"/></radialGradient><linearGradient id="sb-tox-fl" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#ffffff" stop-opacity=".85"/><stop offset="55%" stop-color="#a8f078"/><stop offset="100%" stop-color="#3f9e22"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#78dc50" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-tox-bg)" stroke="#e4ffd4" stroke-width="2"/><path d="M36 21 L48 21 L48 35 L60 57 C 63 62 59 66 53 66 L31 66 C 25 66 21 62 24 57 L36 35 Z" fill="url(#sb-tox-fl)" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"/><path d="M28 52 L56 52 L60 57 C 63 62 59 66 53 66 L31 66 C 25 66 21 62 24 57 Z" fill="#2e8a16"/><g fill="#eaffd8" class="sb-float"><circle cx="36" cy="58" r="3.4"/><circle cx="47" cy="60" r="2.6"/><circle cx="42" cy="46" r="2.4" opacity=".8"/></g><rect x="33" y="17" width="18" height="6" rx="3" fill="#fff"/></svg>`,
+    // Shadow — sealed sigil eye behind a shadow crescent.
+    CURSE: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-crs-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#d8bcff"/><stop offset="50%" stop-color="#7832b4"/><stop offset="100%" stop-color="#1a0630"/></radialGradient></defs><circle cx="42" cy="42" r="40" fill="#7832b4" opacity=".32" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-crs-bg)" stroke="#d8bcff" stroke-width="2"/><g class="sb-spin-rev" opacity=".9"><polygon points="42,20 50,37 67,38 55,49 58,65 42,56 26,65 29,49 17,38 36,37" fill="none" stroke="#e0c8ff" stroke-width="2.2" stroke-linejoin="round"/></g><path d="M51 24 C 39 28 32 38 34 49 C 36 58 44 63 52 62 C 42 67 29 61 26 51 C 22 38 32 26 51 24 Z" fill="#1a0630" stroke="#e0c8ff" stroke-width="2" stroke-linejoin="round" class="sb-float"/><circle cx="42" cy="42" r="5" fill="#e0c8ff" class="sb-flicker"/></svg>`,
+    // Psychic — third eye with radiating awareness.
+    INSIGHT: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-ins-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#f0e0ff"/><stop offset="50%" stop-color="#a86cf0"/><stop offset="100%" stop-color="#2a0a50"/></radialGradient></defs><circle cx="42" cy="42" r="40" fill="#c896ff" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-ins-bg)" stroke="#f0e0ff" stroke-width="2"/><g class="sb-spin-rev" opacity=".7" stroke="#f0e0ff" stroke-width="2" stroke-linecap="round"><line x1="42" y1="14" x2="42" y2="21"/><line x1="42" y1="70" x2="42" y2="63"/><line x1="22" y1="22" x2="27" y2="27"/><line x1="62" y1="62" x2="57" y2="57"/><line x1="22" y1="62" x2="27" y2="57"/><line x1="62" y1="22" x2="57" y2="27"/></g><path d="M20 42 C 29 30 55 30 64 42 C 55 54 29 54 20 42 Z" fill="#fff" stroke="#2a0a50" stroke-width="2" stroke-linejoin="round"/><circle cx="42" cy="42" r="11" fill="#7a30d8"/><circle cx="42" cy="42" r="5" fill="#1a0430"/><circle cx="38" cy="38" r="2.4" fill="#fff" class="sb-flicker"/></svg>`,
+    // Light — eye struck out by a glare bar.
+    BLIND: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-bld-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#ffffff"/><stop offset="45%" stop-color="#f2e28c"/><stop offset="100%" stop-color="#5a5020"/></radialGradient></defs><circle cx="42" cy="42" r="40" fill="#fffac8" opacity=".32" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-bld-bg)" stroke="#ffffff" stroke-width="2"/><g class="sb-flicker" opacity=".75" stroke="#fffbe0" stroke-width="2.4" stroke-linecap="round"><line x1="42" y1="15" x2="42" y2="22"/><line x1="17" y1="42" x2="24" y2="42"/><line x1="67" y1="42" x2="60" y2="42"/><line x1="23" y1="23" x2="28" y2="28"/><line x1="61" y1="23" x2="56" y2="28"/></g><path d="M20 44 C 29 32 55 32 64 44 C 55 56 29 56 20 44 Z" fill="#fffdf0" stroke="#6a5c20" stroke-width="2" stroke-linejoin="round"/><circle cx="42" cy="44" r="10" fill="#8a7420"/><circle cx="42" cy="44" r="4.5" fill="#3a3008"/><line x1="22" y1="60" x2="62" y2="28" stroke="#3a3008" stroke-width="6" stroke-linecap="round"/><line x1="22" y1="60" x2="62" y2="28" stroke="#fffbe0" stroke-width="2.6" stroke-linecap="round"/></svg>`,
+    // Undead — cracked heart shrinking with a falling shard.
+    WITHER: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-wth-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#d8ccec"/><stop offset="50%" stop-color="#8c78a0"/><stop offset="100%" stop-color="#241a34"/></radialGradient><linearGradient id="sb-wth-heart" x1="50%" y1="0%" x2="50%" y2="100%"><stop offset="0%" stop-color="#c8b4dc"/><stop offset="100%" stop-color="#4a3a60"/></linearGradient></defs><circle cx="42" cy="42" r="40" fill="#8c78a0" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-wth-bg)" stroke="#d8ccec" stroke-width="2"/><path d="M42 64 C 25 52 19 42 19 33 C 19 26 24 22 30 22 C 35 22 39 25 42 30 C 45 25 49 22 54 22 C 60 22 65 26 65 33 C 65 42 59 52 42 64 Z" fill="url(#sb-wth-heart)" stroke="#e0d4f0" stroke-width="2" stroke-linejoin="round" class="sb-floatdn"/><path d="M42 28 L36 40 L46 44 L38 60" fill="none" stroke="#1c1228" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><g stroke="#e0d4f0" stroke-width="2.6" stroke-linecap="round" class="sb-flicker"><line x1="58" y1="52" x2="58" y2="66"/><path d="M53 60 L58 66 L63 60" fill="none" stroke-linejoin="round"/></g></svg>`
 };
 
 // Compact heart / bolt glyphs that replace the "HP:" / "SPD:" text labels on
@@ -561,8 +772,13 @@ function renderShieldChip(info) {
     return `<span class="stat-shield${stateClass}" title="${title}" data-shield-state="${info.state}" style="--shield-intact-pct:${info.intactPct}%"><span class="stat-shield-icon" aria-hidden="true"></span><span class="stat-shield-value">+${info.total}</span></span>`;
 }
 
+// Neutral fallback sigil. A future catalog row with no art must NOT borrow
+// another status' silhouette — a Wind badge wearing Burn's flame reads as Fire.
+const STATUS_BADGE_SVG_GENERIC = `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><circle cx="42" cy="42" r="40" fill="currentColor" opacity=".22" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="rgba(12,18,34,0.92)" stroke="currentColor" stroke-width="3"/><circle cx="42" cy="42" r="20" fill="none" stroke="currentColor" stroke-width="3" stroke-dasharray="7 6" class="sb-spin"/><circle cx="42" cy="42" r="6" fill="currentColor" class="sb-flicker"/></svg>`;
+
 function renderStatusBadge(kind, amount, options = {}) {
-    const svg = STATUS_BADGE_SVG[kind];
+    const svg = STATUS_BADGE_SVG[kind]
+        || (STATUS_BADGE_PALETTE[kind] || STATUS_EFFECT_KEY[kind] ? STATUS_BADGE_SVG_GENERIC : null);
     if (!svg) return '';
     const color = STATUS_BADGE_PALETTE[kind] || '#fff';
     const label = STATUS_BADGE_LABEL[kind] || kind;
@@ -570,9 +786,12 @@ function renderStatusBadge(kind, amount, options = {}) {
     const shieldStateText = kind === 'HEALTH_BOOST' && shieldState && shieldState !== 'intact'
         ? ` (${shieldState})`
         : '';
-    const tooltip = amount > 0 ? `${label} +${amount}${shieldStateText}` : `${label}${shieldStateText}`;
+    const stackMode = !!options.stackMode;
+    const tooltip = amount > 0
+        ? (stackMode ? `${label} ×${amount}${shieldStateText}` : `${label} +${amount}${shieldStateText}`)
+        : `${label}${shieldStateText}`;
     const numHtml = amount > 0
-        ? `<span class="sb-num" style="--sb-color:${color}">+${amount}</span>`
+        ? `<span class="sb-num" style="--sb-color:${color}">${stackMode ? amount : `+${amount}`}</span>`
         : '';
     const shieldAttr = shieldState ? ` data-shield-state="${shieldState}"` : '';
     return `<span class="sb-badge" style="--sb-color:${color}" title="${tooltip}" data-status="${kind}"${shieldAttr}>${svg}${numHtml}</span>`;
@@ -581,6 +800,7 @@ function renderStatusBadge(kind, amount, options = {}) {
 function renderStatusBadgesForCell(cell) {
     if (!cell) return '';
     const statuses = Array.isArray(cell.statuses) ? cell.statuses : [];
+    const afflictions = Array.isArray(cell.afflictions) ? cell.afflictions : [];
     const printedSpd = Number(cell.printedSpeed);
     const spd = Number(cell.spd);
     const dmgBoost = Number(cell.damageBoost) || 0;
@@ -593,6 +813,14 @@ function renderStatusBadgesForCell(cell) {
         seen.add(kind);
         items.push(renderStatusBadge(kind, amount, options));
     };
+
+    // Elemental damage badges (Burn stacks, etc.) — separate from ability statuses.
+    afflictions.forEach((row) => {
+        const kind = String(row?.kind || '').toUpperCase();
+        const stacks = Number(row?.stacks) || 0;
+        if (!kind || stacks <= 0) return;
+        push(kind, stacks, { stackMode: true });
+    });
 
     statuses.forEach((raw) => {
         const kind = String(raw || '').toUpperCase();
@@ -786,8 +1014,19 @@ const SPELL_TRAP_FRAME_CLASS = {
     FIRE: 'frame-spell-fire',
     EARTH: 'frame-spell-earth',
     ICE: 'frame-spell-ice',
-    WIND: 'frame-spell-wind'
+    WIND: 'frame-spell-wind',
+    WATER: 'frame-spell-water',
+    ELECTRIC: 'frame-spell-electric',
+    METAL: 'frame-spell-metal',
+    PSYCHIC: 'frame-spell-psychic',
+    NEUTRAL: 'frame-spell-neutral'
 };
+
+// Spell/trap templates whose info panel is a pale wash, so panel type has to
+// invert to dark ink (see getCompactSummaryInkPalette and the matching
+// .card-summary-row rule in style.css). Neutral is deliberately absent: it
+// moved to the black template and takes the default light-on-dark ink.
+const PALE_SPELL_TRAP_FRAMES = new Set(['WATER', 'ELECTRIC', 'METAL', 'PSYCHIC']);
 
 function hasElementFrame(element) {
     return Boolean(ELEMENT_FRAME_CLASS[String(element || '').toUpperCase()]);
@@ -921,9 +1160,9 @@ if (typeof window.matchMedia === 'function') {
 const ENERGY_ORDER = [
     ['fire', 'Fire'],
     ['ice', 'Ice'],
-    ['water', 'Water'],
     ['earth', 'Earth'],
     ['wind', 'Wind'],
+    ['water', 'Water'],
     ['shadow', 'Shadow'],
     ['electric', 'Electric'],
     ['metal', 'Metal'],
@@ -1002,6 +1241,51 @@ function getFilteredGameLog(entries) {
     return entries.filter((e) => logEntryMatchesFilters(e, filters));
 }
 
+function describeGameLogEntry(entry) {
+    const raw = String(entry || '');
+    const prefix = raw.match(/^\[Turn\s+(\d+)\s+(\w+)\]\s*/i);
+    const round = raw.match(/---\s*Round\s+(\d+)/i);
+    const isOrder = /Turn order this round/i.test(raw);
+    let phase = prefix ? prefix[2].toUpperCase() : '';
+    let copy = prefix ? raw.slice(prefix[0].length) : raw;
+    let kind = 'note';
+    let icon = '✦';
+
+    if (round || isOrder) {
+        phase = 'ROUND';
+        kind = 'round';
+        icon = '✦';
+        copy = round ? `Round ${round[1]}` : 'Turn order locked in';
+    } else if (phase === 'DRAW') {
+        kind = 'draw';
+        icon = '↗';
+    } else if (phase === 'SETUP') {
+        kind = 'setup';
+        icon = /afflicted|burn|poison|chill|stun|shield/i.test(copy) ? '✹' : '◆';
+    } else if (phase === 'BATTLE') {
+        kind = /deals?\s+\d+\s+damage|defeat|destroy|bounty/i.test(copy) ? 'impact' : 'battle';
+        icon = kind === 'impact' ? '✹' : '⚔';
+    }
+    if (/phase end/i.test(copy)) {
+        kind = 'milestone';
+        icon = '—';
+    }
+    return { phase, kind, icon, copy, turn: prefix ? prefix[1] : '' };
+}
+
+function gameLogEntryMarkup(entry, isLatest) {
+    const event = describeGameLogEntry(entry);
+    if (event.kind === 'round') {
+        return `<div class="log-round-divider"><span></span><strong>${escapeHtml(event.copy)}</strong><span></span></div>`;
+    }
+    const phaseLabel = event.phase || 'EVENT';
+    const turnLabel = event.turn ? `<span class="log-turn">T${escapeHtml(event.turn)}</span>` : '';
+    return `<article class="log-entry log-entry-${event.kind}${isLatest ? ' is-latest' : ''}">
+        <span class="log-entry-icon" aria-hidden="true">${event.icon}</span>
+        <div class="log-entry-copy"><div class="log-entry-meta"><span class="log-phase">${escapeHtml(phaseLabel)}</span>${turnLabel}</div><p>${escapeHtml(event.copy)}</p></div>
+    </article>`;
+}
+
 function renderGameLogToolbar() {
     const bars = [
         document.getElementById('gameLogToolbar'),
@@ -1049,10 +1333,8 @@ function renderLog() {
         return;
     }
 
-    let html = '';
-    for (const entry of getFilteredGameLog(gameState.gameLog)) {
-        html += `<div class="log-entry">${escapeHtml(entry)}</div>`;
-    }
+    const entries = getFilteredGameLog(gameState.gameLog);
+    const html = entries.map((entry, index) => gameLogEntryMarkup(entry, index === 0)).join('');
     logs.forEach((log) => {
         log.innerHTML = html;
         log.scrollTop = 0;
@@ -1972,7 +2254,108 @@ function getBattleAbilityBaseDamage(ability) {
 
 function isBattleDamageAbility(ability) {
     const effectType = String(ability?.effectType || '').trim().toLowerCase();
-    return effectType === 'damage' || getBattleAbilityBaseDamage(ability) > 0;
+    return effectType === 'damage' || effectType === 'chain_damage' || getBattleAbilityBaseDamage(ability) > 0;
+}
+
+function isChainTargetAbility(ability) {
+    return String(ability?.effectType || '').trim().toLowerCase() === 'chain_damage';
+}
+
+/**
+ * Cells wired to (row, col) by an active reciprocal notch link — the extra victims a chain
+ * effect arcs to. Mirrors PlacementService.getDirectlyConnectedAllies so the highlight cannot
+ * promise a hit the server will not deal.
+ */
+function getLinkedBoardCells(board, isPlayer, row, col) {
+    const origin = board?.[row]?.[col];
+    if (!origin) {
+        return [];
+    }
+    const linked = [];
+    for (const notch of (origin.notches || [])) {
+        const delta = directionDelta(notch.direction, isPlayer);
+        const nextRow = row + delta.dy;
+        const nextCol = col + delta.dx;
+        if (nextRow < 0 || nextRow > 2 || nextCol < 0 || nextCol > 2) {
+            continue;
+        }
+        const neighbor = board?.[nextRow]?.[nextCol];
+        if (!neighbor || !hasOppositeNotch(neighbor.notches, notch.direction)) {
+            continue;
+        }
+        if (linked.some((cell) => cell.row === nextRow && cell.col === nextCol)) {
+            continue;
+        }
+        linked.push({ isPlayer, row: nextRow, col: nextCol });
+    }
+    return linked;
+}
+
+/** Primary picks plus everything the chain jumps to, deduped, for arrow previews. */
+function expandChainTargetCells(ability, cells) {
+    if (!isChainTargetAbility(ability)) {
+        return (cells || []).filter(Boolean);
+    }
+    const out = [];
+    const seen = new Set();
+    const push = (cell) => {
+        const key = `${cell.isPlayer ? 'p' : 'e'}:${cell.row}:${cell.col}`;
+        if (seen.has(key)) {
+            return;
+        }
+        seen.add(key);
+        out.push(cell);
+    };
+    (cells || []).filter(Boolean).forEach((cell) => {
+        push(cell);
+        const board = cell.isPlayer ? gameState?.playerBoard : gameState?.enemyBoard;
+        getLinkedBoardCells(board || [], cell.isPlayer, cell.row, cell.col).forEach(push);
+    });
+    return out;
+}
+
+function clearChainTargetHighlights() {
+    document.querySelectorAll('.board-cell.chain-target').forEach((el) => el.classList.remove('chain-target'));
+}
+
+/** Light up the linked cells a chain would splash to from the given primary picks. */
+function applyChainTargetHighlights(ability, primaryCells) {
+    clearChainTargetHighlights();
+    if (!isChainTargetAbility(ability)) {
+        return;
+    }
+    (primaryCells || []).filter(Boolean).forEach((cell) => {
+        const board = cell.isPlayer ? gameState?.playerBoard : gameState?.enemyBoard;
+        getLinkedBoardCells(board || [], cell.isPlayer, cell.row, cell.col).forEach((linked) => {
+            findBoardCellEl(linked.isPlayer, linked.row, linked.col)?.classList.add('chain-target');
+        });
+    });
+}
+
+/**
+ * Untargeted chain damage lands on the busiest link hub, ties going to the weakest unit —
+ * the same pick EffectService.findBestChainTarget makes, so the preview matches resolution.
+ */
+function findBestChainPreviewCell(board) {
+    let best = null;
+    let bestLinks = -1;
+    let bestHp = 0;
+    for (const row of [2, 1, 0]) {
+        for (let col = 0; col < 3; col++) {
+            const cell = board?.[row]?.[col];
+            if (!cell) {
+                continue;
+            }
+            const links = getLinkedBoardCells(board, false, row, col).length;
+            const hp = Number(cell.hp) || 0;
+            if (links > bestLinks || (links === bestLinks && best && hp < bestHp)) {
+                best = { isPlayer: false, row, col };
+                bestLinks = links;
+                bestHp = hp;
+            }
+        }
+    }
+    return best;
 }
 
 function getBattleAbilityEnemyTargets(ability, selectedRow = -1) {
@@ -2358,6 +2741,7 @@ window.addEventListener('scroll', refreshTargetingPreviewOnLayoutChange, true);
 function clearTargetingPreview() {
     targetPreviewController.clear();
     clearMatchupBadges();
+    clearChainTargetHighlights();
 }
 
 function sourceCellCenter() {
@@ -2421,6 +2805,12 @@ function previewTargetsFor(ability, selectedRow = -1) {
     const targetType = String(ability.targetType || '').trim().toUpperCase();
     switch (targetType) {
         case 'SINGLE_ENEMY': {
+            if (isChainTargetAbility(ability)) {
+                const hub = findBestChainPreviewCell(enemyBoard);
+                if (hub) {
+                    return [hub];
+                }
+            }
             const preferredRow = rowNameToIndex(ability.targetRow);
             if (preferredRow >= 0) {
                 const preferred = firstPreviewCellByRows(enemyBoard, false, [preferredRow]);
@@ -2466,15 +2856,23 @@ function showBattleAbilityPreview(ability, selectedRow = -1) {
     showBattleTargetCellsPreview(ability, previewTargetsFor(ability, selectedRow));
 }
 
-function showBattleTargetCellsPreview(ability, cells) {
+/**
+ * @param cells the primary picks; chain effects expand these to their linked cells here.
+ * @param options.chained pass false when `cells` is the whole "any of these" option list rather
+ *        than a committed pick — every enemy is already lit, so arcing off each one says nothing.
+ */
+function showBattleTargetCellsPreview(ability, cells, options = {}) {
     const sourceCell = sourceCellDescriptor();
-    const targetCells = (cells || []).filter(Boolean);
+    const chained = options.chained !== false;
+    const primaryCells = (cells || []).filter(Boolean);
+    const targetCells = chained ? expandChainTargetCells(ability, primaryCells) : primaryCells;
     if (!sourceCell || targetCells.length === 0) {
         clearTargetingPreview();
         return;
     }
     targetPreviewController.show(sourceCell, targetCells, resolveTargetingArrowPalette(ability));
-    applyMatchupBadgesForCells(ability, cells || []);
+    applyMatchupBadgesForCells(ability, targetCells);
+    applyChainTargetHighlights(chained ? ability : null, primaryCells);
 }
 
 function getMatchupKindForTarget(attackerElement, defenderElement) {
@@ -2517,20 +2915,21 @@ function applyMatchupBadgesForCells(ability, cells) {
     });
 }
 
+/** @returns {{cells: Array, chained: boolean}} chained=false for the broad "pick any of these" list. */
 function getBattleTargetingPreviewCells(ability) {
     if (!ability || !targetMode || !targetContext || targetContext.mode !== 'battle') {
-        return [];
+        return { cells: [], chained: true };
     }
     if (isRowSelectTargetSide(targetContext.side)) {
-        return previewTargetsFor(ability, getRowSelectSelectedRow());
+        return { cells: previewTargetsFor(ability, getRowSelectSelectedRow()), chained: getRowSelectSelectedRow() >= 0 };
     }
     if (targetContext.side === 'enemy') {
-        return collectPreviewCells(gameState?.enemyBoard || [], false);
+        return { cells: collectPreviewCells(gameState?.enemyBoard || [], false), chained: false };
     }
     if (targetContext.side === 'ally') {
-        return collectPreviewCells(gameState?.playerBoard || [], true);
+        return { cells: collectPreviewCells(gameState?.playerBoard || [], true), chained: false };
     }
-    return previewTargetsFor(ability);
+    return { cells: previewTargetsFor(ability), chained: true };
 }
 
 function scheduleBattleTargetingPreview(ability) {
@@ -2543,7 +2942,8 @@ function scheduleBattleTargetingPreview(ability) {
             if (!activeAbility || activeAbility.index !== ability.index) {
                 return;
             }
-            showBattleTargetCellsPreview(activeAbility, getBattleTargetingPreviewCells(activeAbility));
+            const preview = getBattleTargetingPreviewCells(activeAbility);
+            showBattleTargetCellsPreview(activeAbility, preview.cells, { chained: preview.chained });
         });
     });
 }
@@ -2684,8 +3084,25 @@ function handleTargetCellPointerLeave() {
     clearTargetingPreview();
 }
 
+/** The ability driving the current target selection, whatever started it (move, spell, trainer). */
+function getActiveTargetContextAbility() {
+    if (!targetMode || !targetContext) {
+        return null;
+    }
+    if (targetContext.mode === 'battle') {
+        return getActiveBattleTargetAbility();
+    }
+    return targetContext.ability || null;
+}
+
 function previewCellHover(isPlayer, row, col) {
-    if (!targetMode || !targetContext || targetContext.mode !== 'battle') {
+    if (!targetMode || !targetContext) {
+        return;
+    }
+    if (targetContext.mode !== 'battle') {
+        // Spells, traps, and trainer actives have no board source cell to draw arrows from, so a
+        // chain effect just lights up the links it would arc through from the hovered target.
+        applyChainTargetHighlights(getActiveTargetContextAbility(), [{ isPlayer, row, col }]);
         return;
     }
     const ability = gameState?.pendingBattle?.abilities?.find((a) => a.index === targetContext.abilityIndex);
@@ -2754,8 +3171,8 @@ function getBattleTargetingEffectCategory(ability) {
 
 function buildBattleTargetingArrowHint(ability, targetSide, selectedRow = -1) {
     const category = getBattleTargetingEffectCategory(ability);
-    const previewCells = getBattleTargetingPreviewCells(ability);
-    const hasArrowPreview = previewCells.length > 0 && Boolean(sourceCellCenter());
+    const preview = getBattleTargetingPreviewCells(ability);
+    const hasArrowPreview = (preview.cells || []).length > 0 && Boolean(sourceCellCenter());
 
     if (targetSide === 'row-enemy' || targetSide === 'row-ally') {
         if (selectedRow < 0) {
@@ -2925,10 +3342,8 @@ function renderBattleTargetingTray(pending, ability) {
     const selectedRow = getRowSelectSelectedRow();
     const instructions = buildBattleTargetingInstruction(targetSide, ability, selectedRow);
 
-    // Landscape keeps targeting in view beside the arena. The board highlights
-    // and preview arrows already explain the selection, so repeating the full
-    // walkthrough in the narrow dock just competes with the board. The fixed
-    // confirmation bar supplies the row actions instead.
+    // The landscape board already shows highlighted rows and preview arrows.
+    // Keep the dock brief and put row confirmation in the fixed board overlay.
     if (isCompactLandscapeLayout()) {
         let compactHtml = '<div class="battle-targeting-tray battle-targeting-tray-compact-landscape">';
         compactHtml += '<div class="battle-targeting-move">';
@@ -3190,8 +3605,22 @@ function getCompactEffectLabel(kind) {
     }
 }
 
-function getCompactSummaryInkPalette(element) {
+// Dark type with a light halo, for the spell/trap templates whose info panel
+// is a pale wash instead of the usual dark band.
+const PALE_PANEL_INK_PALETTE = {
+    ink: '#1b2231',
+    strong: '#8a4b06',
+    muted: '#3d4658',
+    shadow: 'rgba(255, 255, 255, 0.85)'
+};
+
+function getCompactSummaryInkPalette(element, card) {
     const normalized = String(element || 'NEUTRAL').toUpperCase();
+    // Element alone cannot decide this: a metal Siegling keeps the dark painted
+    // creature frame while a metal spell sits on the pale grey template.
+    if (isSpellTrapCard(card) && PALE_SPELL_TRAP_FRAMES.has(normalized)) {
+        return PALE_PANEL_INK_PALETTE;
+    }
     switch (normalized) {
         case 'FIRE':
             return { ink: '#a8f4ff', strong: '#fff7b0', muted: '#dafbff', shadow: 'rgba(5, 18, 28, 0.94)' };
@@ -3222,8 +3651,8 @@ function getCompactSummaryInkPalette(element) {
     }
 }
 
-function getCompactSummaryInkStyle(element) {
-    const palette = getCompactSummaryInkPalette(element);
+function getCompactSummaryInkStyle(element, card) {
+    const palette = getCompactSummaryInkPalette(element, card);
     return [
         `--summary-ink:${palette.ink}`,
         `--summary-strong:${palette.strong}`,
@@ -3301,6 +3730,11 @@ function getCompactAbilityClause(ability) {
     const target = getCompactAbilityTargetPhrase(ability);
     const isBuff = /grant|gain|\+\d/.test(description);
     let clause = '';
+    if (isChainTargetAbility(ability)) {
+        return value > 0
+            ? `Chain ${value} to ${target || 'an enemy'} + links`
+            : `Chain ${target || 'an enemy'} + links`;
+    }
     switch (kind) {
         case 'damage':
             if (isBuff) {
@@ -3417,7 +3851,7 @@ function renderCompactCardSummary(card, options = {}) {
     if (rows.length === 0) {
         return '';
     }
-    return `<div class="card-summary-list" style="${escapeHtmlAttribute(getCompactSummaryInkStyle(card.element))}">${rows.join('')}</div>`;
+    return `<div class="card-summary-list" style="${escapeHtmlAttribute(getCompactSummaryInkStyle(card.element, card))}">${rows.join('')}</div>`;
 }
 
 // Binder/collection variant of the painted-frame info panel: the card's
@@ -3426,7 +3860,7 @@ function renderCompactCardSummary(card, options = {}) {
 // the text to the panel.
 function renderCompactDescriptionSummary(card, descriptionText) {
     const description = String(descriptionText || card?.description || '').trim() || 'Description coming soon.';
-    return `<div class="card-summary-list card-summary-description-list" style="${escapeHtmlAttribute(getCompactSummaryInkStyle(card.element))}" title="${escapeHtmlAttribute(description)}">`
+    return `<div class="card-summary-list card-summary-description-list" style="${escapeHtmlAttribute(getCompactSummaryInkStyle(card.element, card))}" title="${escapeHtmlAttribute(description)}">`
         + `<div class="card-summary-description">${escapeHtml(description)}</div>`
         + '</div>';
 }
@@ -3575,7 +4009,10 @@ function renderShowcaseCard(card, options = {}) {
     const showcaseShield = getShieldInfo(card);
     const showcaseHasShield = showcaseShield.active && showcaseShield.intact > 0;
     const frameClass = cardFrameClass(card).trim();
-    const useCompactSummary = hasElementFrame(card.element) || options.compactSummary;
+    // Painted frames reserve a fixed info panel, so the panel content must be
+    // the compact summary — keyed off the frame the card actually got, since
+    // neutral spells/traps have a spell template but no creature frame.
+    const useCompactSummary = Boolean(frameClass) || options.compactSummary;
     const classes = ['hand-card', elemClass, cardTypeClass(card), options.cardClass, frameClass,
         showcaseHasShield ? 'has-shield' : '', holographicCardClass(card)].filter(Boolean).join(' ');
     const detailEntries = useCompactSummary ? [] : getCardPreviewEntries(card);
@@ -4415,8 +4852,23 @@ function resolvePhaseTransitionBanner() {
     }
 }
 
+// The scrim is what makes the banner a beat rather than decoration: it blocks
+// taps on the board and the battle dock for as long as the banner holds.
+function setPhaseTransitionScrimVisible(visible) {
+    const scrim = document.getElementById('phaseTransitionScrim');
+    if (!scrim) return;
+    if (visible) {
+        scrim.classList.remove('hidden');
+        requestAnimationFrame(() => scrim.classList.add('visible'));
+    } else {
+        scrim.classList.remove('visible');
+        scrim.classList.add('hidden');
+    }
+}
+
 function hidePhaseTransitionBanner() {
     const banner = document.getElementById('phaseTransitionBanner');
+    setPhaseTransitionScrimVisible(false);
     if (!banner) return;
     if (phaseTransitionTimer) {
         clearTimeout(phaseTransitionTimer);
@@ -4448,6 +4900,7 @@ function showPhaseTransitionBanner(phase, activeSide, durationMs = 2000) {
     kicker.textContent = getPhaseTransitionKicker(phase, activeSide);
     title.textContent = formatPhaseLabel(phase);
     banner.classList.remove('hidden');
+    setPhaseTransitionScrimVisible(true);
     window.SieglingsSounds?.play('phase', 0.5);
     requestAnimationFrame(() => banner.classList.add('visible'));
 
@@ -4455,6 +4908,7 @@ function showPhaseTransitionBanner(phase, activeSide, durationMs = 2000) {
         phaseTransitionResolve = resolve;
         phaseTransitionTimer = setTimeout(() => {
             banner.classList.remove('visible');
+            setPhaseTransitionScrimVisible(false);
             phaseTransitionTimer = setTimeout(() => {
                 banner.classList.add('hidden');
                 phaseTransitionTimer = null;
@@ -4465,8 +4919,15 @@ function showPhaseTransitionBanner(phase, activeSide, durationMs = 2000) {
     });
 }
 
+// True while a phase banner is on screen and still holding its beat. The action
+// queue reads this as half of its "presentation is busy" gate.
+function isPhaseTransitionBannerActive() {
+    return phaseTransitionTimer != null || phaseTransitionResolve != null;
+}
+
 window.showPhaseTransitionBanner = showPhaseTransitionBanner;
 window.hidePhaseTransitionBanner = hidePhaseTransitionBanner;
+window.isPhaseTransitionBannerActive = isPhaseTransitionBannerActive;
 
 function showTurnChangeToast(state) {
     if (!state || state.gameOver) {
@@ -4527,7 +4988,17 @@ function maybeNotifyTurnChange(prevState, nextState) {
     if (nextState.currentPhase !== 'SETUP') {
         return;
     }
-    showTurnChangeToast(nextState);
+    const onIdle = window.SieglingsActionQueue?.onIdle;
+    if (typeof onIdle !== 'function') {
+        showTurnChangeToast(nextState);
+        return;
+    }
+    window.SieglingsActionQueue.onIdle().then(() => {
+        // A newer snapshot may have landed while playback drained; announcing a
+        // turn the player has already moved past would be worse than silence.
+        if (gameState !== nextState) return;
+        showTurnChangeToast(nextState);
+    });
 }
 
 function applyStartedMultiplayerState(data) {
@@ -4715,6 +5186,26 @@ function closeCardPreviewSurfaces() {
     }
 }
 
+/**
+ * True while the opponent (AI or the other player) owns the initiative, so no
+ * local input may reach the server. The backend rejects these actions anyway;
+ * the point here is that the controls must not *look* live while the other side
+ * is thinking — a Knight tap or a card drop that silently no-ops reads as a bug.
+ */
+function isOpponentControlLocked() {
+    if (!gameState || gameState.gameOver) {
+        return false;
+    }
+    const phase = gameState.currentPhase;
+    if (phase === 'MULLIGAN') {
+        return false;
+    }
+    if (phase === 'BATTLE') {
+        return gameState.battleWaitingOn === 'ENEMY';
+    }
+    return gameState.activeSide !== 'PLAYER';
+}
+
 function getTrainerAbilityLockReason(trainer = gameState?.player?.trainer) {
     if (!gameState || !trainer?.active) {
         return 'No active SiegeKnight ability is available right now.';
@@ -4797,6 +5288,7 @@ function renderTrainerAbilityPopup() {
     const tier = document.getElementById('trainerAbilityTier');
     const description = document.getElementById('trainerAbilityDescription');
     const copy = document.getElementById('trainerAbilityCopy');
+    const status = document.getElementById('trainerAbilityStatus');
     const useBtn = document.getElementById('btnUseTrainerAbility');
 
     if (title) {
@@ -4815,13 +5307,16 @@ function renderTrainerAbilityPopup() {
             : 'No passive effect listed.';
     }
     if (copy) {
-        const activeDescription = trainer.active?.description
+        copy.textContent = trainer.active?.description
             ? `Active: ${trainer.active.description}`
             : 'No active ability listed.';
+    }
+    if (status) {
         const availability = trainer.active
             ? buildTrainerAbilityHint(trainer)
             : 'No active SiegeKnight ability is available right now.';
-        copy.textContent = `${activeDescription} ${availability}`.trim();
+        status.textContent = availability || '';
+        status.classList.toggle('hidden', !availability);
     }
     if (useBtn) {
         const lockReason = getTrainerAbilityLockReason(trainer);
@@ -4836,7 +5331,7 @@ function renderTrainerAbilityPopup() {
 }
 function openTrainerAbilityPopup() {
     const trainer = gameState?.player?.trainer;
-    if (!trainer) {
+    if (!trainer || isOpponentControlLocked()) {
         return;
     }
     const overlay = document.getElementById('trainerAbilityOverlay');
@@ -4855,6 +5350,142 @@ function closeTrainerAbilityPopup(event) {
     if (overlay) {
         overlay.classList.add('hidden');
     }
+}
+
+// Which single effect the key was opened from, so "All Effects" can offer a way
+// back to it instead of dead-ending on the full list.
+let effectKeyOriginKind = null;
+
+function effectKeyBadgeHtml(kind) {
+    const color = STATUS_BADGE_PALETTE[kind] || '#cbd5f5';
+    const svg = STATUS_BADGE_SVG[kind] || STATUS_BADGE_SVG_GENERIC;
+    return `<span class="effect-key-badge" style="--sb-color:${color}">${svg}</span>`;
+}
+
+function effectKeyMetaHtml(info) {
+    const bits = [];
+    if (info.element) {
+        bits.push(`<span class="effect-key-tag" style="--et:${getElementHex(info.element)}">${escapeHtml(formatElementLabel(info.element))} damage</span>`);
+    }
+    if (info.cap) {
+        bits.push(`<span class="effect-key-tag effect-key-tag--cap">Max ${info.cap} badge${info.cap === 1 ? '' : 's'}</span>`);
+    }
+    return bits.length ? `<div class="effect-key-meta">${bits.join('')}</div>` : '';
+}
+
+function openEffectKey(kind, event) {
+    if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+    }
+    const info = STATUS_EFFECT_KEY[kind];
+    if (!info) {
+        showAllEffectsKey(null);
+        return;
+    }
+    effectKeyOriginKind = kind;
+    const overlay = document.getElementById('effectKeyOverlay');
+    const kicker = document.getElementById('effectKeyKicker');
+    const title = document.getElementById('effectKeyTitle');
+    const body = document.getElementById('effectKeyBody');
+    const allBtn = document.getElementById('btnEffectKeyAll');
+    if (!overlay || !body) return;
+
+    const group = STATUS_EFFECT_GROUPS.find((g) => g.id === info.group);
+    if (kicker) kicker.textContent = group ? group.title : 'Status Effect';
+    if (title) title.textContent = info.name;
+    const color = STATUS_BADGE_PALETTE[kind] || '#cbd5f5';
+    body.innerHTML = `<div class="effect-key-single" style="--ek:${color}">`
+        + effectKeyBadgeHtml(kind)
+        + `<div class="effect-key-single-copy">`
+        + (info.summary ? `<div class="effect-key-summary">${escapeHtml(info.summary)}</div>` : '')
+        + effectKeyMetaHtml(info)
+        + `<p class="effect-key-detail">${escapeHtml(info.detail)}</p>`
+        + `</div></div>`;
+    if (allBtn) {
+        allBtn.textContent = 'All Effects';
+        allBtn.hidden = false;
+    }
+    overlay.classList.remove('hidden');
+}
+
+function showAllEffectsKey(event) {
+    if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+    }
+    const overlay = document.getElementById('effectKeyOverlay');
+    const kicker = document.getElementById('effectKeyKicker');
+    const title = document.getElementById('effectKeyTitle');
+    const body = document.getElementById('effectKeyBody');
+    const allBtn = document.getElementById('btnEffectKeyAll');
+    if (!overlay || !body) return;
+
+    if (kicker) kicker.textContent = 'Reference';
+    if (title) title.textContent = 'All Effects';
+
+    let html = '';
+    STATUS_EFFECT_GROUPS.forEach((group) => {
+        const kinds = Object.keys(STATUS_EFFECT_KEY).filter((k) => STATUS_EFFECT_KEY[k].group === group.id);
+        if (kinds.length === 0) return;
+        html += `<section class="effect-key-section">`;
+        html += `<div class="effect-key-heading">${escapeHtml(group.title)}<span class="effect-key-sub">${escapeHtml(group.blurb)}</span></div>`;
+        kinds.forEach((kind) => {
+            const info = STATUS_EFFECT_KEY[kind];
+            const color = STATUS_BADGE_PALETTE[kind] || '#cbd5f5';
+            html += `<div class="effect-key-row" style="--ek:${color}">`
+                + effectKeyBadgeHtml(kind)
+                + `<div class="effect-key-row-copy">`
+                + `<div class="effect-key-name">${escapeHtml(info.name)}`
+                + (info.element ? `<span class="effect-key-el" style="--et:${getElementHex(info.element)}">${escapeHtml(formatElementLabel(info.element))}</span>` : '')
+                + (info.cap ? `<span class="effect-key-cap">max ${info.cap}</span>` : '')
+                + `</div>`
+                + `<div class="effect-key-text">${escapeHtml(info.detail)}</div>`
+                + `</div></div>`;
+        });
+        html += `</section>`;
+    });
+    body.innerHTML = html;
+
+    if (allBtn) {
+        if (effectKeyOriginKind && STATUS_EFFECT_KEY[effectKeyOriginKind]) {
+            allBtn.hidden = false;
+            allBtn.textContent = `Back to ${STATUS_EFFECT_KEY[effectKeyOriginKind].name}`;
+        } else {
+            allBtn.hidden = true;
+        }
+    }
+    overlay.classList.remove('hidden');
+    body.scrollTop = 0;
+}
+
+// Entry point for the standalone "All Effects" affordances (preview pill, key
+// panel link) — no single effect to return to, so drop any stale origin.
+function openAllEffectsKey(event) {
+    effectKeyOriginKind = null;
+    showAllEffectsKey(event);
+}
+
+// The single footer button flips role depending on which view is showing.
+function toggleEffectKeyView(event) {
+    const body = document.getElementById('effectKeyBody');
+    const showingAll = !!body?.querySelector('.effect-key-section');
+    if (showingAll && effectKeyOriginKind) {
+        openEffectKey(effectKeyOriginKind, event);
+    } else {
+        showAllEffectsKey(event);
+    }
+}
+
+function closeEffectKey(event) {
+    if (event) {
+        event.stopPropagation();
+    }
+    const overlay = document.getElementById('effectKeyOverlay');
+    if (overlay) {
+        overlay.classList.add('hidden');
+    }
+    effectKeyOriginKind = null;
 }
 
 function openDashboardAccess() {
@@ -5196,7 +5827,58 @@ function getFocusedPreviewCard() {
     }
     const hand = gameState?.player?.hand;
     const hoveredCard = hoveredHandIndex != null && hand ? hand[hoveredHandIndex] : null;
-    return hoveredCard || selectedCard || null;
+    if (hoveredCard) {
+        return hoveredCard;
+    }
+    // Battle docks the hand away, so whatever card was selected back in Setup is
+    // stale — the Siegeling that is actually acting is what the preview is for.
+    const actingCell = getActingPreviewCell();
+    if (actingCell) {
+        return boardCellToPreviewCard(actingCell);
+    }
+    if (isHandHiddenForPhase()) {
+        return null;
+    }
+    return selectedCard || null;
+}
+
+/**
+ * Board cell for the Siegeling the battle queue is on. Falls back to the last
+ * actor while the opponent resolves its own action (the server only hands us a
+ * pendingBattle for our side), so the preview holds steady between actors
+ * instead of flicking back to a hand card.
+ */
+function getActingPreviewCell() {
+    if (!gameState || !isHandHiddenForPhase()) {
+        return null;
+    }
+    const pendingId = gameState.pendingBattle?.instanceId;
+    if (pendingId) {
+        return findBoardCellByInstanceId(pendingId);
+    }
+    return lastActingPreviewInstanceId
+        ? findBoardCellByInstanceId(lastActingPreviewInstanceId)
+        : null;
+}
+
+/**
+ * Hand the preview back to the queue whenever it advances to a new actor. A
+ * board card the player clicked mid-battle still wins until that happens;
+ * without this an arena selection made during Setup would pin the preview to a
+ * bystander for the whole battle phase.
+ */
+function syncActingPreviewFocus() {
+    if (!isHandHiddenForPhase()) {
+        lastActingPreviewInstanceId = null;
+        return;
+    }
+    const pendingId = gameState?.pendingBattle?.instanceId || null;
+    if (!pendingId || pendingId === lastActingPreviewInstanceId) {
+        return;
+    }
+    lastActingPreviewInstanceId = pendingId;
+    clearArenaSelection();
+    hoveredBoardCard = null;
 }
 
 // Distinct, value-adding hints for whatever card is currently focused. Each
@@ -5744,9 +6426,15 @@ function renderDesktopCardPreviewPanel() {
         return;
     }
 
-    const focusedCard = getFocusedPreviewCard() || gameState?.player?.hand?.[0] || null;
+    // The first hand card is only a sensible default while the hand is on
+    // screen; during battle it is an arbitrary card the player cannot act on.
+    const focusedCard = getFocusedPreviewCard()
+        || (isHandHiddenForPhase() ? null : gameState?.player?.hand?.[0])
+        || null;
     if (!focusedCard) {
-        panel.innerHTML = '<div class="desktop-empty-state">Hover or click a Siegeling on either board, or select a hand card, to inspect it here.</div>';
+        panel.innerHTML = isHandHiddenForPhase()
+            ? '<div class="desktop-empty-state">The acting Siegeling shows here as the battle queue advances. Click any card on either board to inspect it instead.</div>'
+            : '<div class="desktop-empty-state">Hover or click a Siegeling on either board, or select a hand card, to inspect it here.</div>';
         return;
     }
 
@@ -5980,7 +6668,7 @@ function fitCardFrameTitle(title) {
     const card = title.closest('.hand-card');
     const computed = window.getComputedStyle(title);
     const maxPx = parseFloat(computed.fontSize) || (title.closest('.desktop-preview-card') ? 15 : 13);
-    const minPx = card?.closest('#playerHand, .hand-lift-layer')
+    const minPx = card?.closest('#playerHand, .hand-lift-layer, #drawAbilityRevealCards')
         ? 6
         : title.closest('.mulligan-showcase')
         ? 7
@@ -6053,7 +6741,7 @@ function fitFramedSummaryList(list) {
 
     const isDesktopPreview = card.classList.contains('desktop-preview-card');
     const isMulligan = card.classList.contains('mulligan-showcase');
-    const isHandTray = Boolean(card.closest('#playerHand'));
+    const isHandTray = Boolean(card.closest('#playerHand, #drawAbilityRevealCards'));
     const minPx = isMulligan ? 7 : isHandTray ? 6 : 8;
     const maxPx = isDesktopPreview ? 15 : isMulligan ? 11.5 : isHandTray ? 8 : 12;
     // The list is a flex child with overflow:hidden, so it can shrink and
@@ -6464,6 +7152,40 @@ async function closeUnfilledLobby(message = '') {
 
 async function leaveOnlineMatch() {
     const session = multiplayerSession;
+    // Mulligan "Leave match" runs after the match has already started. /api/match/close
+    // is a host-only lobby teardown with no started-match guard — host leave deletes the
+    // room without a forfeit, and guest leave gets "Only the host…" then still cleared
+    // local state, leaving the host stranded until Quit awards the absentee. Forfeit
+    // first (same contract as Quit Match / Join With Code), then return to loadout.
+    if (gameState?.multiplayer && session?.roomId && session?.playerToken) {
+        if (!window.confirm('Leave this match? Your opponent will be notified and wins by forfeit.')) {
+            return;
+        }
+        try {
+            const data = await fetchJson(apiUrls('/api/match/forfeit'), {
+                method: 'POST',
+                headers: getAuthHeaders({
+                    'Content-Type': 'application/json',
+                    'X-Room-Id': session.roomId,
+                    'X-Player-Token': session.playerToken
+                })
+            });
+            if (!data || data.error) {
+                window.alert(data?.error || 'Could not leave the match.');
+                return;
+            }
+        } catch (e) {
+            console.warn(e);
+            window.alert('Could not leave the match.');
+            return;
+        }
+        clearMultiplayerSession();
+        gameState = null;
+        mulliganSelectedIndices.clear();
+        mulliganHandSig = '';
+        openLoadoutSelector();
+        return;
+    }
     if (session?.roomId && session?.playerToken) {
         try {
             await fetchJson(apiUrls('/api/match/close'), {
@@ -7007,6 +7729,9 @@ function bindAuthStorageSync() {
 }
 
 function renderPlayHubAuth() {
+    // Coins / friends badges in the play HUD ride the same account snapshot
+    // (play-hud.js is only present on play.html).
+    window.SieglingsPlayHud?.syncAuth();
     const pill = document.querySelector('.play-hub-pill');
     if (!pill) {
         return;
@@ -7353,6 +8078,7 @@ function playAsGuest() {
 
 function startPlaySolo() {
     matchMode = 'solo';
+    tutorialMatchActive = false;
     onlineRoomMode = 'create';
     resetPlayLobbyState(false);
     dropStaleGuestToken();
@@ -7438,6 +8164,7 @@ function resetPlayLobbyState(shouldRender = true) {
 
 function openPlayLobby(mode = 'create') {
     matchMode = 'online';
+    tutorialMatchActive = false;
     onlineRoomMode = mode === 'join' ? 'join' : 'create';
     playLobbyState.active = true;
     playLobbyState.mode = onlineRoomMode;
@@ -7883,13 +8610,25 @@ async function syncAuthProfileNow(silent = false) {
         saveAuthToken(COOKIE_SESSION_VALUE);
     }
 
-    authState.profile = data;
+    // /api/auth/me omits progression when that isolated Firestore read fails.
+    // Keep the prior same-user snapshot so Play does not write a progression-
+    // less authenticated profile into the shared sieglingsAuthProfile cache
+    // (Home would then treat the account as starter-gate locked).
+    const previous = authState.profile;
+    const sameUser = previous?.user?.id && previous.user.id === data.user?.id;
+    const progression = data.progression || (sameUser ? previous.progression : null);
+    const merged = progression && !data.progression ? { ...data, progression } : data;
+    authState.profile = merged;
     authState.error = '';
     authState.profileResolved = true;
-    saveCachedAuthProfile(data);
+    saveCachedAuthProfile(merged);
     renderWelcomeAuth();
     renderSavedDecks();
     hydrateSavedPlayerName();
+    // Fresh unlockedDeckIds / purchases must redraw the loadout — otherwise a
+    // stale cached profile can leave bought or starter decks looking locked.
+    renderLoadoutOptions();
+    updateLoadoutSummary();
     return true;
 }
 
@@ -8302,6 +9041,13 @@ function countBoardSieglings(board = gameState?.playerBoard || []) {
     return (board || []).reduce((count, row) => count + (row || []).filter(Boolean).length, 0);
 }
 
+function cellHasAffliction(cell, kind) {
+    const want = String(kind || '').toUpperCase();
+    if (!cell || !want) return false;
+    const rows = Array.isArray(cell.afflictions) ? cell.afflictions : [];
+    return rows.some((row) => String(row?.kind || '').toUpperCase() === want && Number(row?.stacks) > 0);
+}
+
 function getClaimableSieglings(board = gameState?.playerBoard || []) {
     if (!gameState || gameState.currentPhase !== 'SETUP' || gameState.activeSide !== 'PLAYER' || targetMode) {
         return [];
@@ -8310,7 +9056,8 @@ function getClaimableSieglings(board = gameState?.playerBoard || []) {
     for (let row = 0; row < 3; row++) {
         for (let col = 0; col < 3; col++) {
             const cell = board?.[row]?.[col];
-            if (cell && Number(cell.battlePhasesSeen || 0) > 0) {
+            // Curse blocks claim — mirror GameService.claimSiegling.
+            if (cell && Number(cell.battlePhasesSeen || 0) > 0 && !cellHasAffliction(cell, 'CURSE')) {
                 claimable.push([row, col]);
             }
         }
@@ -8329,7 +9076,8 @@ function getEvolutionPlacements(card, board = gameState?.playerBoard || []) {
             const cell = board?.[row]?.[col];
             if (cell
                 && cell.cardId === card.evolvesFromId
-                && Number(cell.battlePhasesSeen || 0) > 0) {
+                && Number(cell.battlePhasesSeen || 0) > 0
+                && !cellHasAffliction(cell, 'CURSE')) {
                 placements.push([row, col]);
             }
         }
@@ -8413,7 +9161,24 @@ function getSpellPlayRequirementLockReason(card) {
     return '';
 }
 
+/**
+ * Why this hand card cannot be played right now, or '' when it can.
+ *
+ * Wrapped so one card's lock check can never abort renderHand: the hand is
+ * built as a single string and only assigned at the end, so a throw here used
+ * to leave the entire hand frozen on its previous contents — cards the player
+ * had already played stayed on screen.
+ */
 function getHandCardLockReason(card) {
+    try {
+        return computeHandCardLockReason(card);
+    } catch (e) {
+        console.error('Hand card lock check failed; treating as playable:', e);
+        return '';
+    }
+}
+
+function computeHandCardLockReason(card) {
     if (!gameState || !card) {
         return '';
     }
@@ -8441,6 +9206,9 @@ function getHandCardLockReason(card) {
     if (gameState.currentPhase !== 'SETUP') {
         return 'Cards can only be played during setup.';
     }
+    if (isSetupResolutionPending()) {
+        return 'Resolving setup effects before the board opens.';
+    }
     if (card.type === 'SIEGLING' && countBoardSieglings() >= 5 && !card.evolvesFromId) {
         return 'Maxed out.';
     }
@@ -8466,6 +9234,13 @@ function getHandCardLockReason(card) {
             return `Needs ${card.evolvesFromName || 'its base form'} on your board first.`;
         }
         if (getEvolutionPlacements(card).length === 0) {
+            // getEvolutionBaseCells yields board cells, not [row, col] pairs —
+            // destructuring them as pairs threw out of renderHand and froze the
+            // whole hand on its previous contents.
+            const cursedBase = baseCells.some((cell) => cellHasAffliction(cell, 'CURSE'));
+            if (cursedBase) {
+                return `${card.evolvesFromName || 'Base form'} is Cursed and cannot evolve.`;
+            }
             return `${card.evolvesFromName || 'Base form'} must complete a full battle phase in its current form before it can evolve.`;
         }
     }
@@ -8713,6 +9488,7 @@ function scheduleBattleAutoAdvance() {
     }, BATTLE_AUTO_ADVANCE_DELAY_MS);
 }
 window.scheduleBattleAutoAdvance = scheduleBattleAutoAdvance;
+window.renderBattlePanel = renderBattlePanel;
 
 // Surface a server/application error to the player as an on-screen toast, so
 // failed actions give visible feedback instead of only a console message.
@@ -8833,7 +9609,11 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
     }
 
     const prevState = gameState;
+    const drawAbilityUsed = didRequestUsePlayerDrawAbility(endpoint, body, prevState);
     gameState = data;
+    // Server state is authoritative for the hand; any optimistic slot hide is
+    // superseded by it (whether the action landed or was rejected).
+    pendingHandRemovalIndex = null;
     if (gameState?.gameOver && gameState.multiplayer && multiplayerSession?.roomId) {
         const status = await fetchRoomStatus();
         if (status && !status.error) {
@@ -8842,9 +9622,6 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
         }
     }
     if (endpoint !== 'new' && prevState) {
-        if (!playbackContext?.soloAiEndTurn) {
-            maybeNotifyTurnChange(prevState, data);
-        }
         // The animation/diff layer must never block the state update below. If
         // it throws, the new gameState would otherwise never render and the
         // interaction state never resets, freezing the client on the previous
@@ -8858,6 +9635,13 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
         } catch (e) {
             console.error('Battle animation queue failed; continuing without it:', e);
         }
+        // Announced only once the batch we just enqueued has played, so "your
+        // turn" lands after the previous turn's damage and phase banner rather
+        // than on top of them. Deliberately after enqueueFromStateDiff: asking
+        // for idle before the actions exist would resolve immediately.
+        if (!playbackContext?.soloAiEndTurn) {
+            maybeNotifyTurnChange(prevState, data);
+        }
     }
     try {
         render();
@@ -8870,7 +9654,129 @@ async function api(endpoint, method = 'POST', body = null, timeoutMs = DEFAULT_R
         }
         throw e;
     }
+    if (drawAbilityUsed) {
+        showDrawAbilityReveal(prevState, data);
+    }
+    // Setup-entry effects are resolved by the server before it returns this
+    // snapshot. Do not reopen placement until their queued destruction and
+    // damage visuals have caught up with that authoritative board state.
+    if (gameState?.currentPhase === 'SETUP' && window.SieglingsActionQueue?.isProcessing?.()) {
+        window.SieglingsActionQueue.onIdle?.().then(() => {
+            if (gameState === data) render();
+        });
+    }
     return data;
+}
+
+function isDrawAbility(ability) {
+    const effect = String(ability?.effectType || ability?.effect || '').trim().toUpperCase();
+    return effect === 'DRAW';
+}
+
+// Only ability-originated draws use the reveal. The regular draw-phase button
+// intentionally remains quick, so turns do not feel delayed.
+function didRequestUsePlayerDrawAbility(endpoint, body, state) {
+    if (!state || !body) return false;
+    if (endpoint === 'cast') {
+        return isDrawAbility((state.player?.hand || []).find((card) => card.id === body.cardId)?.ability);
+    }
+    if (endpoint === 'battle/action') {
+        return isDrawAbility((state.pendingBattle?.abilities || []).find((ability) => ability.index === body.abilityIndex));
+    }
+    if (endpoint === 'trainer') {
+        return isDrawAbility(state.player?.trainer?.active);
+    }
+    return false;
+}
+
+function getNewDrawnHandIndices(previousState, nextState) {
+    const priorCounts = new Map();
+    (previousState?.player?.hand || []).forEach((card) => {
+        priorCounts.set(card.id, (priorCounts.get(card.id) || 0) + 1);
+    });
+    const drawn = [];
+    (nextState?.player?.hand || []).forEach((card, index) => {
+        const count = priorCounts.get(card.id) || 0;
+        if (count > 0) priorCounts.set(card.id, count - 1);
+        else drawn.push(index);
+    });
+    return drawn;
+}
+
+function showDrawAbilityReveal(previousState, nextState) {
+    const drawnIndices = getNewDrawnHandIndices(previousState, nextState);
+    if (drawnIndices.length === 0) return;
+    const reveal = document.getElementById('drawAbilityReveal');
+    const cards = document.getElementById('drawAbilityRevealCards');
+    const title = document.getElementById('drawAbilityRevealTitle');
+    if (!reveal || !cards || !title) return;
+    const run = ++drawAbilityRevealRun;
+    if (drawAbilityRevealTimer) clearTimeout(drawAbilityRevealTimer);
+
+    const hand = document.getElementById('playerHand');
+    // Render the reveal from the drawn cards in state, not from the hand DOM:
+    // battle-phase and SiegeKnight draws happen while the hand tray is in queue
+    // mode, so the matching .hand-card nodes may not exist and the reveal would
+    // silently never appear.
+    const drawnCards = drawnIndices
+        .map((index) => nextState?.player?.hand?.[index])
+        .filter(Boolean);
+    if (drawnCards.length === 0) return;
+    // Same template as the hand selector, so a card looks identical in the
+    // reveal and in the hand it lands in.
+    const markup = drawnCards.map((card) => {
+        const face = renderHandCardFace(card, { summaryBody: true });
+        const elemClass = String(card.element || 'NEUTRAL').toLowerCase();
+        return `<div class="hand-card ${elemClass} ${cardTypeClass(card)}${face.faceClass}">${face.html}</div>`;
+    }).join('');
+    if (!markup) return;
+    cards.innerHTML = markup;
+    const count = drawnCards.length;
+    // Cards sit side by side with real spacing; only a wide fan needs to tuck
+    // in, so shrink/overlap scales with the count instead of a fixed offset.
+    cards.dataset.count = String(Math.min(count, 6));
+    title.textContent = `${count} card${count === 1 ? '' : 's'} drawn`;
+    reveal.className = 'draw-ability-reveal';
+    requestAnimationFrame(() => {
+        reveal.classList.add('visible');
+        // Framed cards size their title and summary text by measurement, as the
+        // hand does after it renders — but only once the reveal is off
+        // `display:none`, or every box measures zero and the fit is skipped.
+        fitFramedSummaryText(cards);
+    });
+
+    // Aim at the real hand when it is open. During battle, the hand is tucked
+    // away, so use the player hand counter as an honest, visible destination.
+    const destination = !hand?.classList.contains('hidden')
+        ? hand.getBoundingClientRect()
+        : document.getElementById('mobilePlayerHandSize')?.getBoundingClientRect()
+            || document.getElementById('playerDeckSize')?.getBoundingClientRect();
+    const targetX = destination ? destination.left + destination.width / 2 : window.innerWidth / 2;
+    const targetY = destination ? destination.top + destination.height / 2 : window.innerHeight - 34;
+    const revealCenterX = window.innerWidth / 2;
+    const revealCenterY = window.innerHeight / 2;
+    cards.querySelectorAll('.hand-card').forEach((card, index) => {
+        const spread = (index - (count - 1) / 2) * 18;
+        card.style.setProperty('--draw-fly-x', `${targetX - revealCenterX + spread}px`);
+        card.style.setProperty('--draw-fly-y', `${targetY - revealCenterY}px`);
+    });
+    // The last card finishes its entrance around 620ms in; hold a full second of
+    // still, fully-readable cards after that before they fly into the hand.
+    const ENTRANCE_MS = 620;
+    const HOLD_MS = 1000;
+    const FLY_MS = 460;
+    drawAbilityRevealTimer = setTimeout(() => {
+        if (run === drawAbilityRevealRun) reveal.classList.add('flying');
+    }, ENTRANCE_MS + HOLD_MS);
+    setTimeout(() => {
+        if (run !== drawAbilityRevealRun) return;
+        reveal.classList.remove('visible', 'flying');
+        drawAbilityRevealTimer = setTimeout(() => {
+            if (run !== drawAbilityRevealRun) return;
+            reveal.classList.add('hidden');
+            drawAbilityRevealTimer = null;
+        }, 260);
+    }, ENTRANCE_MS + HOLD_MS + FLY_MS);
 }
 
 async function fetchJson(urlOrUrls, options = {}, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS) {
@@ -9092,7 +9998,9 @@ async function newGame() {
             minDurationMs: 2200
         });
     }
-    const body = getSelectedLoadoutBody();
+    // The server pins both tutorial loadouts, so sending deck/knight ids here
+    // would only invite an ownership check the tutorial does not need.
+    const body = tutorialMatchActive ? {} : getSelectedLoadoutBody();
     body.playerName = getCurrentPlayerName() || (authState.profile?.user?.displayName || 'Player');
     if (tutorialMatchActive) {
         body.tutorial = true;
@@ -9128,7 +10036,9 @@ async function newGame() {
         return;
     }
     if (tutorialMatchActive) {
-        showTutorialGoalsPanel();
+        window.ArenaTutorial?.start();
+    } else {
+        window.ArenaTutorial?.stop();
     }
 }
 
@@ -9146,6 +10056,7 @@ function openLoadoutSelector() {
     resolvePhaseTransitionBanner();
     document.getElementById('phaseTransitionBanner')?.classList.add('hidden');
     document.getElementById('phaseTransitionBanner')?.classList.remove('visible');
+    setPhaseTransitionScrimVisible(false);
     welcomeDismissed = true;
     resetGameOverOverlayState();
     if (!gameOptions) {
@@ -9178,10 +10089,51 @@ function returnToPlayMain() {
 }
 
 function selectDeckOption(deckId) {
+    if (isPremadeDeckLocked(gameOptions?.decks?.find((deck) => deck.id === deckId))) {
+        return;
+    }
     detachSavedDeckSelection();
     selectedDeckId = deckId;
     renderLoadoutOptions();
     updateLoadoutSummary();
+}
+
+// The main four elements are free for everyone and the starter pack's element
+// comes with the starter choice; everything else is bought in Decks. The
+// backend is the authority (progression.unlockedDeckIds) and rejects locked
+// decks at match start — this mirror keeps the picker honest.
+const FREE_DECK_ELEMENTS = new Set(['FIRE', 'ICE', 'EARTH', 'WIND']);
+
+function isPremadeDeckLocked(deck) {
+    if (!deck) {
+        return false;
+    }
+    const progression = authState.profile?.progression;
+    const unlocked = progression?.unlockedDeckIds;
+    if (Array.isArray(unlocked)) {
+        return !unlocked.includes(deck.id);
+    }
+    // Stale cache / pre-unlock payload: honor purchases + starter element so a
+    // Water starter is not locked out of Water decks while /me is still catching up.
+    if (Array.isArray(progression?.purchasedDeckIds) && progression.purchasedDeckIds.includes(deck.id)) {
+        return false;
+    }
+    const free = new Set(FREE_DECK_ELEMENTS);
+    const starter = String(progression?.starterPackId || '').match(/^pack_([a-z0-9]+)/i);
+    if (starter) {
+        free.add(starter[1].toUpperCase());
+    }
+    return !(deck.elements || []).every((element) => free.has(String(element).toUpperCase()));
+}
+
+/** Premade decks available in battle loadout — locked presets stay in Decks to unlock. */
+function getVisibleLoadoutDecks() {
+    return (gameOptions?.decks || []).filter((deck) => !isPremadeDeckLocked(deck));
+}
+
+/** First deck the player can actually take into a match. */
+function firstUnlockedDeckId() {
+    return getVisibleLoadoutDecks()[0]?.id || null;
 }
 
 function getOwnedTrainerIdSet() {
@@ -9298,13 +10250,24 @@ function setMatchMode(mode) {
     matchMode = mode;
     currentRoomStatus = null;
     loadoutErrorMessage = '';
-    if (mode === 'solo') {
-        clearMultiplayerSession();
-    } else {
+    tutorialMatchActive = mode === 'tutorial';
+    if (mode === 'online') {
         hydrateOnlineStateFromUrl();
+    } else {
+        clearMultiplayerSession();
+    }
+    if (mode === 'tutorial') {
+        // The tutorial is a fixed rehearsal, so the deck/knight steps are skipped
+        // entirely and the server pins the loadout regardless of what is selected.
+        loadoutStep = 'setup';
+        loadoutMode = 'preset';
     }
     renderLoadoutOptions();
     updateLoadoutSummary();
+}
+
+function isTutorialMatchMode() {
+    return matchMode === 'tutorial';
 }
 
 function setOnlineRoomMode(mode) {
@@ -9326,29 +10289,29 @@ function hydrateOnlineStateFromUrl() {
 
 // ── Tutorial match (new player onboarding) ──────────────────────────────
 // Activated by the home hub's pending loadout carrying tutorial:true. The
-// server starts the AI at 10 HP; winning claims the one-time reward.
+// server pins both loadouts and starts the sparring partner on reduced health;
+// winning claims the one-time reward.
 let tutorialMatchActive = false;
 let tutorialRewardRequested = false;
 
-const TUTORIAL_GOALS = [
-    'Place a Siegeling on your board',
-    'Play a Strategy card',
-    'Play a Deception card',
-    'Destroy an enemy Siegeling',
-    'Use your SiegeKnight ability',
-    'Win the match'
-];
 
-function showTutorialGoalsPanel() {
-    if (document.getElementById('tutorialGoalsPanel')) return;
-    const panel = document.createElement('aside');
-    panel.id = 'tutorialGoalsPanel';
-    panel.className = 'tutorial-goals-panel';
-    panel.innerHTML = `<button class="tutorial-goals-head" type="button">Tutorial Goals<span aria-hidden="true">&#9662;</span></button>
-        <ul>${TUTORIAL_GOALS.map(goal => `<li>${goal}</li>`).join('')}</ul>`;
-    document.body.appendChild(panel);
-    panel.querySelector('.tutorial-goals-head')?.addEventListener('click', () => panel.classList.toggle('is-collapsed'));
-}
+/**
+ * The guided Tutorial Match coach (js/arena-tutorial.js) needs to read the live
+ * match to know when the player has actually done the thing a step asks for.
+ * game.js declares its state with `let`, which in a classic script is
+ * script-scoped and never appears on window, so the reader is published here
+ * explicitly. It is read-only by design: the coach observes the match, it never
+ * drives it.
+ */
+window.ArenaTutorialBridge = {
+    state: () => gameState,
+    selected: () => selectedCard,
+    // The cells the game itself would accept right now, so the coach can
+    // recommend one instead of guessing. Same source the .legal highlight uses.
+    legalPlacements: () => getSelectedLegalPlacements(),
+    authHeaders: (extra) => getAuthHeaders(extra || {})
+};
+
 
 async function claimTutorialReward() {
     if (tutorialRewardRequested) return;
@@ -9402,7 +10365,7 @@ function applyPendingHomeLoadout() {
         return;
     }
     const directLoadout = Boolean(pending.directLoadout);
-    tutorialMatchActive = Boolean(pending.tutorial);
+    tutorialMatchActive = Boolean(pending.tutorial) || pending.mode === 'tutorial';
     // Arrived from the Home hub with a chosen loadout — skip the welcome and go straight to the loadout.
     welcomeDismissed = true;
     if (directLoadout) {
@@ -9428,7 +10391,7 @@ function applyPendingHomeLoadout() {
         loadoutMode = 'preset';
         selectedDeckId = pending.deckId;
     }
-    matchMode = pending.mode === 'online' ? 'online' : 'solo';
+    matchMode = tutorialMatchActive ? 'tutorial' : (pending.mode === 'online' ? 'online' : 'solo');
     if (matchMode === 'online') {
         welcomeDismissed = true;
         onlineRoomMode = pending.roomId ? 'join' : 'create';
@@ -9673,7 +10636,7 @@ function syncLoadoutStepChrome() {
         if (!chip) return;
         chip.classList.toggle('active', step === loadoutStep);
         chip.classList.toggle('done', idx < currentIdx);
-        const locked = idx > reachable;
+        const locked = idx > reachable || (isTutorialMatchMode() && step !== 'setup');
         chip.classList.toggle('locked', locked);
         chip.disabled = locked;
         chip.setAttribute('aria-selected', step === loadoutStep ? 'true' : 'false');
@@ -9685,6 +10648,12 @@ function syncLoadoutStepChrome() {
     }
 
     const primary = document.getElementById('btnStartLoadout');
+    if (gameOptions && primary && isTutorialMatchMode()) {
+        primary.onclick = startSelectedGame;
+        syncLoadoutStartButton(primary, loadoutStartPending,
+            loadoutStartPending ? 'Starting Tutorial...' : 'Start Tutorial Match');
+        return;
+    }
     if (gameOptions && primary && loadoutStep !== 'review') {
         const labels = { setup: 'Choose Deck', deck: 'Select SiegeKnight', knight: 'To Battle' };
         primary.onclick = () => setLoadoutStep(LOADOUT_STEPS[currentIdx + 1]);
@@ -9706,7 +10675,7 @@ function renderLoadoutSwaps() {
             html += `<option value="" selected disabled>Custom Build (edit on Deck step)</option>`;
         }
         html += `<optgroup label="Preset Decks">`;
-        html += gameOptions.decks.map(deck => {
+        html += getVisibleLoadoutDecks().map(deck => {
             const selected = loadoutMode === 'preset' && deck.id === selectedDeckId ? ' selected' : '';
             return `<option value="preset:${escapeHtmlAttribute(deck.id)}"${selected}>${escapeHtml(deck.name)}</option>`;
         }).join('');
@@ -9893,7 +10862,13 @@ function renderLoadoutOptions() {
     const selectedDeck = gameOptions.decks.find(deck => deck.id === selectedDeckId);
     const recommendedTrainerIds = new Set(getRecommendedTrainerIdsForDeck(selectedDeck));
 
-    deckEl.innerHTML = gameOptions.decks.map(deck => {
+    // Locked presets unlock in Decks — battle selection only lists playable ones.
+    // A locked deck must never stay selected — the backend rejects it at match start.
+    if (isPremadeDeckLocked(gameOptions.decks.find(deck => deck.id === selectedDeckId))) {
+        selectedDeckId = firstUnlockedDeckId() || selectedDeckId;
+    }
+
+    deckEl.innerHTML = getVisibleLoadoutDecks().map(deck => {
         const selected = deck.id === selectedDeckId ? ' selected' : '';
         const bg = buildDeckBackground(deck.elements);
         const borderColor = buildDeckBorderColors(deck.elements);
@@ -9942,8 +10917,6 @@ function renderLoadoutOptions() {
         // SiegeKnight levels do not apply in Battle, so the loadout no longer shows a
         // level badge. The level data still arrives from the backend and the progression
         // logic stays intact for the upcoming Siege roguelike mode.
-        const elementIconPath = ELEMENT_KEY_ICON_PATHS[String(trainer.element || '').toUpperCase()] || '';
-        const elementIconStyle = elementIconPath ? `--knight-element-icon:url('${elementIconPath}');` : '';
         const levelBadge = '';
         let topRibbon = '';
         if (trainer.id === selectedTrainerId) {
@@ -9982,23 +10955,21 @@ function renderLoadoutOptions() {
             // does not load that module.
             const holoClass = cardShowsPlayerHolographic(trainer) ? ' is-holographic' : '';
             const holoOverlay = cardShowsPlayerHolographic(trainer) ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
-            return `<button type="button" class="knight-card knight-full-card-art knight-overlay-art${holoClass}${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" data-trainer-id="${escapeHtmlAttribute(trainer.id)}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)};${siegeknightCardBackStyle()};${elementIconStyle}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
+            return `<button type="button" class="knight-card knight-full-card-art knight-overlay-art${holoClass}${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" data-trainer-id="${escapeHtmlAttribute(trainer.id)}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)};${siegeknightCardBackStyle()}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
                 ${topRibbon}
                 ${levelBadge}
                 <div class="knight-overlay-art-window"><img class="knight-overlay-art-img" ${webpImgAttrs(fullCardArtUrl)} alt="" loading="eager" decoding="async"${knightArtStyleAttr(trainer)}></div>
                 <div class="knight-card-template" aria-hidden="true"></div>
-                <div class="knight-shield-element" aria-label="${escapeHtmlAttribute(formatElementLabel(trainer.element))}">${getElementSigil(trainer.element)}</div>
                 ${holoOverlay}
                 ${knightCardBody}
             </button>`;
         }
-        return `<button type="button" class="knight-card has-knight-back${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" data-trainer-id="${escapeHtmlAttribute(trainer.id)}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)};${siegeknightCardBackStyle()};${elementIconStyle}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
+        return `<button type="button" class="knight-card has-knight-back${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" data-trainer-id="${escapeHtmlAttribute(trainer.id)}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)};${siegeknightCardBackStyle()}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
             ${topRibbon}
             ${levelBadge}
             <div class="knight-card-sigil">${sigil}</div>
             <div class="knight-card-portrait has-knight-back" aria-hidden="true"></div>
             <div class="knight-card-template" aria-hidden="true"></div>
-            <div class="knight-shield-element" aria-label="${escapeHtmlAttribute(formatElementLabel(trainer.element))}">${getElementSigil(trainer.element)}</div>
             ${knightCardBody}
         </button>`;
     }).join('');
@@ -10035,6 +11006,12 @@ function renderLoadoutOptions() {
         }
         inviteRoomBadge.classList.add('hidden');
         playerIdentityNote.textContent = 'This name is shown in online matches and saved on this device.';
+    } else if (isTutorialMatchMode()) {
+        loadoutKicker.textContent = 'Training Grounds';
+        loadoutTitle.textContent = 'Tutorial Match';
+        loadoutSubtitle.textContent = 'Name yourself, then learn the arena in a repeatable practice battle.';
+        inviteRoomBadge.classList.add('hidden');
+        playerIdentityNote.textContent = 'This name is shown on your side of the training board.';
     } else {
         loadoutKicker.textContent = 'Battle Loadout';
         loadoutTitle.textContent = 'Prepare for Battle';
@@ -10049,6 +11026,14 @@ function renderLoadoutOptions() {
     onlineMatchTab.setAttribute('aria-pressed', matchMode === 'online' ? 'true' : 'false');
     soloMatchTab.classList.toggle('hidden', inviteFlow);
     onlineMatchTab.classList.toggle('hidden', inviteFlow);
+    const tutorialMatchTab = document.getElementById('tutorialMatchTab');
+    const tutorialMatchPanel = document.getElementById('tutorialMatchPanel');
+    if (tutorialMatchTab) {
+        tutorialMatchTab.classList.toggle('active', isTutorialMatchMode());
+        tutorialMatchTab.setAttribute('aria-pressed', isTutorialMatchMode() ? 'true' : 'false');
+        tutorialMatchTab.classList.toggle('hidden', inviteFlow);
+    }
+    tutorialMatchPanel?.classList.toggle('hidden', !isTutorialMatchMode());
     onlineMatchPanel.classList.toggle('hidden', matchMode !== 'online' || hideOnlineLoadout);
     hostRoomTab.classList.toggle('active', onlineRoomMode === 'create');
     joinRoomTab.classList.toggle('active', onlineRoomMode === 'join');
@@ -10396,6 +11381,9 @@ function renderDeckBuilder() {
 }
 
 function getLoadoutStartButtonLabel() {
+    if (isTutorialMatchMode()) {
+        return 'Start Tutorial Match';
+    }
     if (matchMode === 'online') {
         if (currentRoomStatus?.loadoutPhase) {
             return currentRoomStatus.viewerLoadoutReady ? 'Waiting for opponent...' : 'Lock Loadout';
@@ -10406,6 +11394,9 @@ function getLoadoutStartButtonLabel() {
 }
 
 function getLoadoutStartButtonBusyLabel() {
+    if (isTutorialMatchMode()) {
+        return 'Starting Tutorial...';
+    }
     if (matchMode === 'online') {
         if (currentRoomStatus?.loadoutPhase) {
             return 'Locking loadout...';
@@ -10451,6 +11442,14 @@ function applyLoadoutSummary() {
 
     renderSelectedLoadoutPreview();
     const startButtonLabel = loadoutStartPending ? getLoadoutStartButtonBusyLabel() : getLoadoutStartButtonLabel();
+    if (isTutorialMatchMode()) {
+        summary.innerHTML = 'Tutorial: <strong>Ashen Roots</strong> with <strong>Squire Bob</strong> versus the Training Dummy. Replay it as often as you like.';
+        if (startBtn) {
+            startBtn.onclick = startSelectedGame;
+            syncLoadoutStartButton(startBtn, loadoutStartPending, startButtonLabel);
+        }
+        return;
+    }
     if (startBtn) {
         startBtn.onclick = startSelectedGame;
         syncLoadoutStartButton(startBtn, false, startButtonLabel);
@@ -10565,6 +11564,17 @@ function applyLoadoutSummary() {
 
 async function startSelectedGame() {
     if (loadoutStartPending) return;
+    if (isTutorialMatchMode()) {
+        loadoutStartPending = true;
+        updateLoadoutSummary();
+        try {
+            await newGame();
+        } finally {
+            loadoutStartPending = false;
+            updateLoadoutSummary();
+        }
+        return;
+    }
     if (!selectedTrainerId) return;
     if (loadoutMode === 'preset' && !selectedDeckId) return;
     if ((loadoutMode === 'builder' || loadoutMode === 'saved') && !authState.profile?.authenticated) {
@@ -10572,11 +11582,27 @@ async function startSelectedGame() {
         return;
     }
     if (loadoutMode === 'builder' && getBuilderCardCount() < gameOptions.deckBuilder.minDeckSize) return;
+    if (loadoutMode === 'builder') {
+        const missing = getUnknownLoadoutCardIds(Object.keys(builderCounts));
+        if (missing.length) {
+            loadoutErrorMessage = unknownLoadoutCardMessage(missing);
+            showErrorToast(loadoutErrorMessage);
+            updateLoadoutSummary();
+            return;
+        }
+    }
     if (loadoutMode === 'saved') {
         const savedDeck = getSelectedSavedDeck();
         if (!savedDeck) return;
         if (savedDeck.custom && (savedDeck.customDeckCards || []).length < gameOptions.deckBuilder.minDeckSize) return;
         if (!savedDeck.custom && !savedDeck.deckId) return;
+        const missing = savedDeck.custom ? getUnknownLoadoutCardIds(savedDeck.customDeckCards || []) : [];
+        if (missing.length) {
+            loadoutErrorMessage = unknownLoadoutCardMessage(missing);
+            showErrorToast(loadoutErrorMessage);
+            updateLoadoutSummary();
+            return;
+        }
     }
 
     loadoutStartPending = true;
@@ -10910,6 +11936,22 @@ function getBuilderSelectedCards() {
     return cards;
 }
 
+// Cards the loadout is carrying that this page's catalog does not know about.
+// They used to be dropped without a word, so a saved 30-card deck could reach the
+// server as a short list and come back rejected as if the deck were empty.
+function getUnknownLoadoutCardIds(cardIds) {
+    if (!gameOptions?.cardCatalog?.length) return [];
+    const availableIds = new Set(gameOptions.cardCatalog.map(card => card.id));
+    return [...new Set((cardIds || []).filter(cardId => !availableIds.has(cardId)))];
+}
+
+function unknownLoadoutCardMessage(missingIds) {
+    const shown = missingIds.slice(0, 3).join(', ');
+    const rest = missingIds.length > 3 ? ` and ${missingIds.length - 3} more` : '';
+    return `${missingIds.length} card${missingIds.length === 1 ? '' : 's'} in this deck (${shown}${rest}) `
+        + 'are no longer in the card catalog, so the deck cannot start. Open Decks \u2192 edit this deck and replace them.';
+}
+
 function getChosenBuilderCards() {
     return Object.entries(builderCounts)
         .map(([cardId, count]) => ({
@@ -10932,6 +11974,9 @@ function collectBuilderElements() {
 }
 
 async function playerDraw() {
+    if (isOpponentControlLocked()) {
+        return;
+    }
     const data = await api('draw');
     if (data) {
         window.SieglingsSounds?.play('draw');
@@ -10943,9 +11988,17 @@ function toggleMulliganCard(index) {
     if (!gameState?.mulligan?.youPending) {
         return;
     }
+    const allowed = mulliganAllowedIndexSet();
+    if (allowed && !allowed.has(index)) {
+        return;
+    }
     if (mulliganSelectedIndices.has(index)) {
         mulliganSelectedIndices.delete(index);
     } else {
+        // Tutorial script: at most one practice redraw.
+        if (allowed && allowed.size === 1) {
+            mulliganSelectedIndices.clear();
+        }
         mulliganSelectedIndices.add(index);
     }
     // The hand has not changed, so keep its live card/image nodes in place.
@@ -10954,25 +12007,45 @@ function toggleMulliganCard(index) {
     updateMulliganSelectionUI();
 }
 
+/** null = any card; otherwise only those indices may be selected for redraw. */
+function mulliganAllowedIndexSet() {
+    const allowed = gameState?.mulligan?.allowedIndices;
+    if (Array.isArray(allowed) && allowed.length > 0) {
+        return new Set(allowed.map((n) => Number(n)).filter((n) => Number.isInteger(n)));
+    }
+    if (gameState?.mulligan?.tutorialScripted || (typeof tutorialMatchActive !== 'undefined' && tutorialMatchActive)) {
+        return new Set([4]);
+    }
+    return null;
+}
+
 function updateMulliganSelectionUI() {
     const preview = document.getElementById('mulliganHandPreview');
+    const allowed = mulliganAllowedIndexSet();
+    const scripted = Boolean(gameState?.mulligan?.tutorialScripted) || (allowed && allowed.size === 1);
     if (preview) {
         preview.querySelectorAll('.mulligan-card-slot').forEach((slot) => {
             const index = Number(slot.dataset.index);
             const isSelected = mulliganSelectedIndices.has(index);
+            const slotAllowed = !allowed || allowed.has(index);
+            const locked = Boolean(allowed) && !slotAllowed;
             slot.classList.toggle('is-selected', isSelected);
             if (slot.getAttribute('role') === 'button') {
                 slot.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
             }
-            let badge = slot.querySelector('.mulligan-redraw-badge');
-            if (isSelected && !badge) {
-                badge = document.createElement('div');
+            slot.querySelectorAll('.mulligan-redraw-badge, .mulligan-practice-badge').forEach((el) => el.remove());
+            if (isSelected) {
+                const badge = document.createElement('div');
                 badge.className = 'mulligan-redraw-badge';
                 badge.setAttribute('aria-hidden', 'true');
                 badge.textContent = 'Redraw';
                 slot.insertBefore(badge, slot.firstChild);
-            } else if (!isSelected && badge) {
-                badge.remove();
+            } else if (scripted && slotAllowed && gameState?.mulligan?.youPending && !locked) {
+                const badge = document.createElement('div');
+                badge.className = 'mulligan-practice-badge';
+                badge.setAttribute('aria-hidden', 'true');
+                badge.textContent = 'Practice';
+                slot.insertBefore(badge, slot.firstChild);
             }
         });
     }
@@ -10994,7 +12067,14 @@ function submitMulliganSelected() {
     if (mulliganSelectedIndices.size === 0) {
         return;
     }
-    const sorted = Array.from(mulliganSelectedIndices).sort((a, b) => a - b);
+    const allowed = mulliganAllowedIndexSet();
+    let sorted = Array.from(mulliganSelectedIndices).sort((a, b) => a - b);
+    if (allowed) {
+        sorted = sorted.filter((i) => allowed.has(i));
+        if (sorted.length === 0) {
+            return;
+        }
+    }
     submitMulligan(sorted);
 }
 
@@ -11109,12 +12189,43 @@ async function endTurn() {
 }
 
 async function placeCard(row, col) {
-    if (!selectedCard) return;
+    if (!selectedCard || placementRequestInFlight || isOpponentControlLocked() || isSetupResolutionPending()) return;
+    placementRequestInFlight = true;
     window.SieglingsSounds?.play('place');
-    const data = await api('place', 'POST', { cardId: selectedCard.id, row, col });
-    if (!data) return;
-    closeCardPreviewSurfaces();
-    resetInteractionState();
+    // Drop the card out of the hand immediately. The server is authoritative and
+    // its response replaces this state wholesale, but on a slow connection the
+    // optimistic removal is what stops the player from re-dropping a card that
+    // is already on its way to the board.
+    const pendingCardId = selectedCard.id;
+    applyOptimisticHandRemoval(selectedHandIndex);
+    try {
+        const data = await api('place', 'POST', { cardId: pendingCardId, row, col });
+        if (data) {
+            closeCardPreviewSurfaces();
+        }
+    } finally {
+        placementRequestInFlight = false;
+        // A successful call already replaced the hand from server state; a
+        // failed one must put the optimistically hidden card back. Either way
+        // the player ends up with a live hand and no stale selection, so a
+        // rejected placement can never wedge the UI.
+        pendingHandRemovalIndex = null;
+        resetInteractionState();
+    }
+}
+
+/**
+ * Hide a hand slot that has been committed to the server but not yet confirmed.
+ * Tracked by slot index rather than card id because hand cards carry definition
+ * ids, so three copies of a Siegling all share one id. The flag is cleared by
+ * the next authoritative state, which is what actually removes the card.
+ */
+function applyOptimisticHandRemoval(handIndex) {
+    pendingHandRemovalIndex = Number.isInteger(handIndex) ? handIndex : null;
+    selectedCard = null;
+    selectedHandIndex = null;
+    clearTargetMode();
+    render();
 }
 
 async function claimBoardCard(row, col) {
@@ -11250,7 +12361,8 @@ function renderDomLegacy() {
     } else {
         resetDrawButton();
     }
-    btnDraw.disabled = over || opponentSetupTurn || !playerActive || (phase !== 'DRAW' && !drawButtonActsAsEndTurn);
+    btnDraw.disabled = over || opponentSetupTurn || !playerActive || isOpponentControlLocked()
+        || (phase !== 'DRAW' && !drawButtonActsAsEndTurn);
     if (btnEndTurn) {
         btnEndTurn.textContent = playerActive ? 'End Turn' : 'Opponents Turn';
     }
@@ -11326,13 +12438,16 @@ function renderDomLegacy() {
         const trainer = gameState.player.trainer;
         const hasTrainer = Boolean(trainer);
         const canUse = canUseTrainerAbility(trainer);
+        const oppLocked = isOpponentControlLocked();
         btnTrainerAbility.classList.toggle('hidden', !hasTrainer);
-        btnTrainerAbility.disabled = !hasTrainer;
-        btnTrainerAbility.classList.toggle('ab-ability-ready', canUse);
+        btnTrainerAbility.disabled = !hasTrainer || oppLocked;
+        btnTrainerAbility.classList.toggle('ab-ability-ready', canUse && !oppLocked);
         btnTrainerAbility.innerHTML = trainer?.tier === 'SiegeLord' ? '&#9876; Lord' : '&#9876; Knight';
-        btnTrainerAbility.title = trainer
-            ? `${trainer.name}${trainer.active?.name ? `: ${trainer.active.name}` : ''}${canUse ? '' : ' (details only)'}`
-            : 'No SiegeKnight selected';
+        btnTrainerAbility.title = !trainer
+            ? 'No SiegeKnight selected'
+            : oppLocked
+                ? `${trainer.name} — wait for your turn`
+                : `${trainer.name}${trainer.active?.name ? `: ${trainer.active.name}` : ''}${canUse ? '' : ' (details only)'}`;
     }
     renderTrainerAbilityPopup();
     renderClaimPopup();
@@ -11384,8 +12499,11 @@ function getBoardCellMarkers(board, markers) {
 }
 
 function render() {
+    if (tutorialMatchActive) {
+    }
     if (gameState) {
         pruneInvalidArenaSelection();
+        syncActingPreviewFocus();
         // Warm the art cache before the innerHTML rebuild below tears down
         // the current <img> elements, so the recreated ones paint instantly.
         preloadBattleArt();
@@ -11425,11 +12543,37 @@ function renderEnergy(containerId, playerData) {
     el.innerHTML = html;
 }
 
-function formatBreakdown(internal, external) {
+function formatBreakdown(internal, external, passive = 0, overcharge = 0) {
     const parts = [];
     if (internal > 0) parts.push(`${internal} internal`);
     if (external > 0) parts.push(`${external} external`);
+    // energy_boost passives generate without a link, so they read as their own source.
+    if (passive > 0) parts.push(`${passive} passive`);
+    if (overcharge > 0) parts.push(`${overcharge} overcharge`);
     return parts.length > 0 ? parts.join(' + ') : '0';
+}
+
+function getEnergyMapAmount(map, key) {
+    if (!map) return 0;
+    return Number(map[String(key).toUpperCase()] || 0);
+}
+
+function getPassiveEnergyAmount(playerData, key) {
+    return getEnergyMapAmount(playerData?.passiveEnergy, key);
+}
+
+function getOverchargeEnergyAmount(playerData, key) {
+    return getEnergyMapAmount(playerData?.overchargeEnergy, key);
+}
+
+function isSideOvercharged(playerData) {
+    if (!playerData) return false;
+    if (typeof playerData.overcharged === 'boolean') return playerData.overcharged;
+    return ENERGY_ORDER.some(([key]) => getOverchargeEnergyAmount(playerData, key) > 0);
+}
+
+function getOverchargeTotal(playerData) {
+    return ENERGY_ORDER.reduce((sum, [key]) => sum + getOverchargeEnergyAmount(playerData, key), 0);
 }
 
 function energyDetailElementRows(playerData) {
@@ -11439,15 +12583,35 @@ function energyDetailElementRows(playerData) {
         if (total <= 0) continue;
         const intl = playerData[`${key}Internal`];
         const ext = playerData[`${key}External`];
+        const passive = getPassiveEnergyAmount(playerData, key);
+        const overcharge = getOverchargeEnergyAmount(playerData, key);
         let sub = '';
         if (typeof intl === 'number' && typeof ext === 'number') {
-            sub = ` — ${formatBreakdown(intl, ext)}`;
+            sub = ` — ${formatBreakdown(intl, ext, passive, overcharge)}`;
+        } else if (passive > 0 || overcharge > 0) {
+            sub = ` — ${formatBreakdown(0, 0, passive, overcharge)}`;
         }
-        rows.push(`<div class="energy-detail-row"><span>${label}</span><span>${total}${sub}</span></div>`);
+        const overchargeClass = overcharge > 0 ? ' is-overcharged' : '';
+        rows.push(`<div class="energy-detail-row${overchargeClass}"><span>${label}</span><span>${total}${sub}</span></div>`);
     }
     return rows.length > 0
         ? rows.join('')
         : '<div class="energy-detail-muted">No elemental energy</div>';
+}
+
+/** Surge banner for the energy view while an active energy buff is running. */
+function energyDetailOverchargeBlock(playerData) {
+    if (!isSideOvercharged(playerData)) {
+        return '';
+    }
+    const parts = ENERGY_ORDER
+        .filter(([key]) => getOverchargeEnergyAmount(playerData, key) > 0)
+        .map(([key, label]) => `+${getOverchargeEnergyAmount(playerData, key)} ${label}`);
+    return `<div class="energy-overcharge-banner" role="status">
+        <span class="energy-overcharge-spark" aria-hidden="true"></span>
+        <span class="energy-overcharge-text">Overcharged${parts.length > 0 ? ` — ${escapeHtml(parts.join(', '))}` : ''}</span>
+        <span class="energy-overcharge-note">Lasts through Setup — fades when the battle phase begins</span>
+    </div>`;
 }
 
 function energyDetailComboBlock(playerData) {
@@ -11490,9 +12654,9 @@ function renderEnergyDetailPanel() {
     const enemyTitle = escapeHtml(gameState.enemyName || 'Opponent');
     let html = '';
     html += '<div class="energy-detail-columns">';
-    html += '<div class="energy-detail-section">';
-    html += `<div class="energy-detail-h2">${escapeHtml(gameState.playerName || 'You')}</div>`;
-    html += `<div class="energy-detail-hp">${pHealth} HP</div>`;
+    html += '<div class="energy-detail-section energy-detail-player">';
+    html += `<div class="energy-detail-sidehead"><span class="energy-detail-sideicon">✦</span><div><div class="energy-detail-h2">${escapeHtml(gameState.playerName || 'You')}</div><div class="energy-detail-hp">${pHealth} <span>HP</span></div></div></div>`;
+    html += energyDetailOverchargeBlock(p);
     html += energyDetailElementRows(p);
     html += '<div class="energy-detail-subh">Combos</div>';
     html += energyDetailComboBlock(p);
@@ -11503,9 +12667,9 @@ function renderEnergyDetailPanel() {
     }
     html += '</div>';
 
-    html += '<div class="energy-detail-section">';
-    html += `<div class="energy-detail-h2">${enemyTitle}</div>`;
-    html += `<div class="energy-detail-hp">${eHealth} HP</div>`;
+    html += '<div class="energy-detail-section energy-detail-enemy">';
+    html += `<div class="energy-detail-sidehead"><span class="energy-detail-sideicon">⚔</span><div><div class="energy-detail-h2">${enemyTitle}</div><div class="energy-detail-hp">${eHealth} <span>HP</span></div></div></div>`;
+    html += energyDetailOverchargeBlock(e);
     html += energyDetailElementRows(e);
     html += '<div class="energy-detail-subh">Combos</div>';
     html += energyDetailComboBlock(e);
@@ -11517,8 +12681,10 @@ function renderEnergyDetailPanel() {
     html += '</div>';
     html += '</div>';
 
+    const anyOvercharged = isSideOvercharged(p) || isSideOvercharged(e);
     panels.forEach((panel) => {
         panel.innerHTML = html;
+        panel.classList.toggle('is-overcharged', anyOvercharged);
     });
 }
 
@@ -11715,6 +12881,7 @@ function updateMobileHud(state) {
         isPlayer: true,
         name: state.playerName || p.name || 'Player',
         hpBarId: 'mobilePlayerHpBar',
+        hpValueId: 'mobilePlayerHpValue',
         nameId: 'mobilePlayerName',
         handId: 'mobilePlayerHandSize',
         deckId: 'mobilePlayerDeckSize',
@@ -11733,6 +12900,7 @@ function updateMobileHud(state) {
         isPlayer: false,
         name: state.enemyName || e.name || 'AI',
         hpBarId: 'mobileEnemyHpBar',
+        hpValueId: 'mobileEnemyHpValue',
         nameId: 'mobileEnemyName',
         handId: 'mobileEnemyHandSize',
         deckId: 'mobileEnemyDeckSize',
@@ -11754,6 +12922,23 @@ function updateMobileHud(state) {
     updateSafeAreaHpStrip(state);
 }
 
+/**
+ * Lights the portrait HUD's energy number while an active energy buff is riding that
+ * side's pool. The title carries the same information for anyone who can't see the glow.
+ */
+function syncOverchargeCue(elementId, playerData) {
+    const el = elementId ? document.getElementById(elementId) : null;
+    if (!el) return;
+    const overcharged = isSideOvercharged(playerData);
+    el.classList.toggle('is-overcharged', overcharged);
+    const total = getOverchargeTotal(playerData);
+    if (overcharged) {
+        el.title = `Overcharged${total > 0 ? ` (+${total})` : ''} — extra energy until the battle phase begins`;
+    } else {
+        el.removeAttribute('title');
+    }
+}
+
 function updateMobileHudSide(label, playerData, ids) {
     const health = getDisplayedSideHealth(!!ids.isPlayer, playerData?.health ?? 0);
     const pct = Math.max(0, Math.min(100, Math.round((health / 50) * 100)));
@@ -11767,6 +12952,8 @@ function updateMobileHudSide(label, playerData, ids) {
     setTextIfExists(ids.handId, handSize);
     setTextIfExists(ids.deckId, deckSize);
     setTextIfExists(ids.energyId, energyTotal);
+    setTextIfExists(ids.hpValueId, health);
+    syncOverchargeCue(ids.energyId, playerData);
     setTextIfExists(ids.statHealthId, health);
     setTextIfExists(ids.statHandId, handSize);
     setTextIfExists(ids.statDeckId, deckSize);
@@ -11834,16 +13021,10 @@ function knightHudCardInnerHtml(trainer) {
 function knightHudOverlayCardInnerHtml(trainer, url) {
     const element = String(trainer?.element || 'NEUTRAL').toUpperCase();
     const elementHex = getElementHex(element);
-    const elementLabel = formatElementLabel(element);
-    const elementIconPath = ELEMENT_KEY_ICON_PATHS[element] || '';
     const cardStyle = `--knight-color:${elementHex};--knight-glow:${hexToRgba(elementHex, 0.36)};${siegeknightCardBackStyle()}`;
-    const shieldStyle = elementIconPath
-        ? ` style="--knight-element-icon:url('${escapeHtmlAttribute(elementIconPath)}')"`
-        : '';
     return `<span class="hud-knight-art-card hud-knight-art-overlay" role="img" aria-label="${escapeHtmlAttribute(trainer?.name || 'SiegeKnight card')}" style="${escapeHtmlAttribute(cardStyle)}">
         <span class="knight-overlay-art-window"><img class="knight-overlay-art-img" ${webpImgAttrs(url)} alt="" loading="lazy"${knightArtStyleAttr(trainer)}></span>
         <span class="knight-card-template" aria-hidden="true"></span>
-        <span class="knight-shield-element" aria-label="${escapeHtmlAttribute(elementLabel)}"${shieldStyle}>${getElementSigil(element)}</span>
     </span>`;
 }
 
@@ -12227,7 +13408,14 @@ function buildDeckFaceSigils(elements) {
 
 function deckArtAssetForElements(elements = []) {
     const key = elements.find(element => DECK_ART_ASSET_KEYS.includes(element));
-    return key ? DECK_ART_ASSETS[key] : null;
+    if (!key) {
+        return null;
+    }
+    // Deck art is injected as a CSS url(), where the <img onerror> WebP
+    // fallback cannot reach it — resolve the twin here instead. The literals
+    // stay .png so the cross-file asset contract keeps holding.
+    const asset = DECK_ART_ASSETS[key];
+    return asset ? { ...asset, back: sgPreferWebp(asset.back), icon: sgPreferWebp(asset.icon) } : null;
 }
 
 function getDeckSigilPlacements(count) {
@@ -12463,6 +13651,14 @@ function renderElementKey() {
             + `</div>`;
     }
     html += `<div class="element-key-note">Strong attacker = weak defender. Other elements deal normal damage (no bonus yet).</div>`;
+    html += `</section>`;
+
+    // Half 3 — jump into the status/affliction key without needing a card that
+    // happens to be carrying a badge.
+    html += `<section class="element-key-section">`;
+    html += `<div class="element-key-heading">Status Effects</div>`;
+    html += `<button type="button" class="element-key-link" onclick="openAllEffectsKey(event)">`
+        + `View all buffs &amp; afflictions</button>`;
     html += `</section>`;
 
     panels.forEach((el) => {
@@ -13451,6 +14647,81 @@ function hasOppositeNotch(notches, direction) {
     return notches.some(n => n.direction === opposite);
 }
 
+/**
+ * The hand-selector card face — everything inside the `.hand-card` wrapper, plus
+ * the wrapper classes that face needs. Shared so any surface that shows a hand
+ * card (the hand selector, the draw-ability reveal) renders the identical
+ * template rather than a lookalike.
+ */
+function renderHandCardFace(card, options = {}) {
+    const lockReason = options.lockReason || '';
+    // The hand tray hides the card body (its cards are too small to read), so it
+    // renders the verbose flavor block. Surfaces that show the body — the draw
+    // reveal — ask for the compact summary that fits a frame's info panel.
+    const summaryBody = Boolean(options.summaryBody);
+    const fallbackArtLabel = card.type === 'SIEGLING'
+        ? formatElementLabel(card.element)
+        : `${formatElementLabel(card.element)} ${card.type}`.trim();
+    const handFrameClass = cardFrameClass(card);
+    // Holographic full-card art replaces the framed hand face with the
+    // complete painted card (frame + notches + stats baked/overlaid by the
+    // binder renderer). Keep the .hand-card wrapper so the drag/click
+    // handlers, lock states, and sizing all stay intact.
+    const holoFace = renderHolographicFullArtFace(card, {
+        descriptionText: card.description || card.ability?.description || ''
+    });
+    const faceClass = `${handFrameClass}${holographicCardClass(card)}${holoFace ? ' has-holo-full-art' : ''}`;
+    if (holoFace) {
+        return { faceClass, html: holoFace };
+    }
+
+    let html = '';
+    if (card.type === 'SIEGLING') {
+        html += renderHandNotches(card.notches);
+    }
+    html += `<div class="hand-card-shell">`;
+    if (isSpellTrapCard(card) && handFrameClass) {
+        html += renderCardCornerChips(card);
+    }
+    html += `<div class="hand-card-header">`;
+    html += `<div class="card-title">${escapeHtml(card.name)}</div>`;
+    const handLabel = card.type === 'SIEGLING'
+        ? `SIEGELING / ${formatElementLabel(card.element)}`
+        : `${card.type} / ${card.rarity}`;
+    html += `<div class="card-label">${escapeHtml(handLabel)}</div>`;
+    html += `</div>`;
+    html += renderCardArt(card, 'hand', fallbackArtLabel);
+    if (card.type === 'SIEGLING') {
+        html += renderCardStatPills(card, { mode: 'hand' });
+    }
+    html += `<div class="hand-card-body">`;
+    if (summaryBody || (isSpellTrapCard(card) && handFrameClass)) {
+        html += renderCompactCardSummary(card, { abilityLimit: summaryBody ? 1 : 3, omitCostEvolution: true });
+    } else {
+        html += renderCardAbilitiesFlavorSection(card);
+        if (card.type === 'TRAP' && card.trapBucketElement) {
+            html += `<div class="card-cost">Can Trigger when opponent has ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)} Energy</div>`;
+        } else if (card.costElement) {
+            html += `<div class="card-cost">Play Cost: ${card.costAmount} ${formatElementLabel(card.costElement)}</div>`;
+        } else if (card.requiredComboSize) {
+            html += `<div class="card-cost">Combo: ${card.requiredComboSignature ? card.requiredComboSignature.replaceAll('+', ' / ') : `${card.requiredComboSize}-element combo`}</div>`;
+        }
+        if (card.requiredReaction) {
+            html += `<div class="card-cost">Requires: ${escapeHtml(card.requiredReaction)}</div>`;
+        }
+        if (card.evolvesFromName) {
+            html += `<div class="card-cost">Evolution: ${escapeHtml(card.evolvesFromName)}</div>`;
+        }
+    }
+    if (lockReason) {
+        html += `<div class="card-cost interaction-lock-copy">${escapeHtml(lockReason)}</div>`;
+    }
+    html += `</div>`; /* body */
+    html += `</div>`; /* shell */
+    html += holographicCardOverlay(card);
+    return { faceClass, html };
+}
+
 function renderHand() {
     const container = document.getElementById('playerHand');
     const handTray = document.getElementById('handTray');
@@ -13494,6 +14765,9 @@ function renderHand() {
     const hand = gameState.player.hand;
     for (let handIndex = 0; handIndex < hand.length; handIndex++) {
         const card = hand[handIndex];
+        if (handIndex === pendingHandRemovalIndex) {
+            continue;
+        }
         const elemClass = card.element.toLowerCase();
         const isSelected = selectedHandIndex === handIndex;
         const lockReason = getHandCardLockReason(card);
@@ -13515,67 +14789,9 @@ function renderHand() {
             : '';
         const hoverEvents = `onmouseenter="handleHandCardPointerEnter(event, ${handIndex})" onmouseleave="handleHandCardPointerLeave(${handIndex})"`;
         const touchEvents = `ontouchstart="handleHandCardTouchStart(event, ${handIndex})" ontouchmove="handleHandCardTouchMove(event, ${handIndex})" ontouchend="handleHandCardTouchEnd(event, ${handIndex})"`;
-        const fallbackArtLabel = card.type === 'SIEGLING'
-            ? formatElementLabel(card.element)
-            : `${formatElementLabel(card.element)} ${card.type}`.trim();
-        const handFrameClass = cardFrameClass(card);
-        // Holographic full-card art replaces the framed hand face with the
-        // complete painted card (frame + notches + stats baked/overlaid by the
-        // binder renderer). Keep the .hand-card wrapper so the drag/click
-        // handlers, lock states, and sizing all stay intact.
-        const holoFace = renderHolographicFullArtFace(card, {
-            descriptionText: card.description || card.ability?.description || ''
-        });
-        const holoFaceClass = holoFace ? ' has-holo-full-art' : '';
-        html += `<div class="hand-card ${elemClass} ${cardTypeClass(card)}${interactionClass}${handFrameClass}${holographicCardClass(card)}${holoFaceClass}" data-card-id="${escapeHtml(card.id)}" data-hand-index="${handIndex}" ${onclick} ${pointerEvents} ${hoverEvents} ${touchEvents}>`;
-        if (holoFace) {
-            html += holoFace;
-            html += `</div>`; /* card */
-            continue;
-        }
-        if (card.type === 'SIEGLING') {
-            html += renderHandNotches(card.notches);
-        }
-        html += `<div class="hand-card-shell">`;
-        if (isSpellTrapCard(card) && handFrameClass) {
-            html += renderCardCornerChips(card);
-        }
-        html += `<div class="hand-card-header">`;
-        html += `<div class="card-title">${escapeHtml(card.name)}</div>`;
-        const handLabel = card.type === 'SIEGLING'
-            ? `SIEGELING / ${formatElementLabel(card.element)}`
-            : `${card.type} / ${card.rarity}`;
-        html += `<div class="card-label">${escapeHtml(handLabel)}</div>`;
-        html += `</div>`;
-        html += renderCardArt(card, 'hand', fallbackArtLabel);
-        if (card.type === 'SIEGLING') {
-            html += renderCardStatPills(card, { mode: 'hand' });
-        }
-        html += `<div class="hand-card-body">`;
-        if (isSpellTrapCard(card) && handFrameClass) {
-            html += renderCompactCardSummary(card, { abilityLimit: 3, omitCostEvolution: true });
-        } else {
-            html += renderCardAbilitiesFlavorSection(card);
-            if (card.type === 'TRAP' && card.trapBucketElement) {
-                html += `<div class="card-cost">Can Trigger when opponent has ${card.trapBucketAmount} ${formatElementLabel(card.trapBucketElement)} Energy</div>`;
-            } else if (card.costElement) {
-                html += `<div class="card-cost">Play Cost: ${card.costAmount} ${formatElementLabel(card.costElement)}</div>`;
-            } else if (card.requiredComboSize) {
-                html += `<div class="card-cost">Combo: ${card.requiredComboSignature ? card.requiredComboSignature.replaceAll('+', ' / ') : `${card.requiredComboSize}-element combo`}</div>`;
-            }
-            if (card.requiredReaction) {
-                html += `<div class="card-cost">Requires: ${escapeHtml(card.requiredReaction)}</div>`;
-            }
-            if (card.evolvesFromName) {
-                html += `<div class="card-cost">Evolution: ${escapeHtml(card.evolvesFromName)}</div>`;
-            }
-        }
-        if (lockReason) {
-            html += `<div class="card-cost interaction-lock-copy">${escapeHtml(lockReason)}</div>`;
-        }
-        html += `</div>`; /* body */
-        html += `</div>`; /* shell */
-        html += holographicCardOverlay(card);
+        const face = renderHandCardFace(card, { lockReason });
+        html += `<div class="hand-card ${elemClass} ${cardTypeClass(card)}${interactionClass}${face.faceClass}" data-card-id="${escapeHtml(card.id)}" data-hand-index="${handIndex}" ${onclick} ${pointerEvents} ${hoverEvents} ${touchEvents}>`;
+        html += face.html;
         html += `</div>`; /* card */
     }
 
@@ -13689,7 +14905,12 @@ function syncDesktopHandSelectorCardScale() {
         return;
     }
 
-    const visibleCards = Math.max(1, handCards.querySelectorAll('.hand-card').length || 5);
+    // Desktop holds one card size for the whole match. Dividing the rail by the
+    // live hand count made every card grow or shrink each time a card was drawn,
+    // played, or discarded; the rail scrolls past the reference row instead.
+    const visibleCards = isDesktopSidebarLayout()
+        ? HAND_SELECTOR_DESKTOP_CARD_SLOTS
+        : Math.max(1, handCards.querySelectorAll('.hand-card').length || 5);
     const root = document.documentElement;
 
     if (isVerticalHand) {
@@ -13752,6 +14973,9 @@ function handleHandCardPointerLeave(handIndex) {
 
 function canHandCardDragPlace(handIndex) {
     if (!gameState || gameState.currentPhase !== 'SETUP' || gameState.activeSide !== 'PLAYER' || targetMode) {
+        return false;
+    }
+    if (placementRequestInFlight || handIndex === pendingHandRemovalIndex) {
         return false;
     }
     const card = gameState.player.hand?.[handIndex];
@@ -13859,6 +15083,12 @@ function activateCardDragSession() {
     if (activeDrawer === 'selected') {
         closeDrawer(true);
     }
+    // Selecting the card re-renders the hand, which destroys the element that
+    // pointerdown captured. WebKit answers an implicit capture release on a
+    // removed node with pointercancel, which would abort the drag the instant
+    // it starts. Hand the capture back first — the drag tracks pointer events
+    // on document, so it does not need capture to keep working.
+    releaseCardDragPointerCapture();
     ensureHandCardSelectedForDrag(handIndex);
     // Selection re-renders the hand and normally defers its responsive sizing
     // to the next animation frame. Resolve that sizing before measuring the
@@ -13926,12 +15156,32 @@ function activateCardDragSession() {
     updateHandLiftLayer();
 }
 
+function releaseCardDragPointerCapture() {
+    const captureEl = cardDragSession?.captureEl;
+    if (!captureEl || cardDragSession.pointerId == null) {
+        return;
+    }
+    try {
+        if (captureEl.hasPointerCapture?.(cardDragSession.pointerId)) {
+            captureEl.releasePointerCapture(cardDragSession.pointerId);
+        }
+    } catch (_) {
+        /* capture already gone */
+    }
+    cardDragSession.captureEl = null;
+}
+
 function cleanupCardDragSession() {
     if (!cardDragSession) {
         return;
     }
+    releaseCardDragPointerCapture();
     cardDragSession.sourceEl?.classList?.remove('is-drag-source');
     cardDragSession.ghost?.remove();
+    // Sweep any ghost the session lost track of (interrupted gesture, a second
+    // pointer starting a new session) so a dragged card can never be left
+    // floating over the hand after the drag ends.
+    document.querySelectorAll('.card-drag-ghost').forEach((el) => el.remove());
     const layer = document.getElementById('handLiftLayer');
     if (layer && !layer.querySelector('.lifted-card-clone')) {
         layer.innerHTML = '';
@@ -13970,13 +15220,25 @@ function handleHandCardPointerDown(event, handIndex) {
         startY: event.clientY,
         active: false,
         ghost: null,
-        sourceEl: event.currentTarget
+        sourceEl: event.currentTarget,
+        captureEl: null
     };
     try {
         event.currentTarget.setPointerCapture(event.pointerId);
+        cardDragSession.captureEl = event.currentTarget;
     } catch (_) {
         /* ignore */
     }
+}
+
+// A cancelled gesture is not a drop. iOS Safari fires pointercancel whenever it
+// takes the touch over for its own scrolling/zoom handling, and treating that
+// as a drop placed cards the player never released.
+function handleCardDragPointerCancel(event) {
+    if (!cardDragSession || event.pointerId !== cardDragSession.pointerId) {
+        return;
+    }
+    cleanupCardDragSession();
 }
 
 function handleCardDragPointerMove(event) {
@@ -14007,15 +15269,15 @@ function handleCardDragPointerEnd(event) {
 
     if (wasActive) {
         const targetCell = findLegalPlacementCellAt(event.clientX, event.clientY);
-        if (targetCell) {
-            const row = Number(targetCell.dataset.row);
-            const col = Number(targetCell.dataset.col);
-            if (Number.isInteger(row) && Number.isInteger(col)) {
-                ensureHandCardSelectedForDrag(handIndex);
-                placeCard(row, col);
-            }
-        }
+        const row = targetCell ? Number(targetCell.dataset.row) : NaN;
+        const col = targetCell ? Number(targetCell.dataset.col) : NaN;
+        // Tear the drag down before submitting: placeCard re-renders the hand,
+        // and an active session would keep the drag ghost pinned over it.
         cleanupCardDragSession();
+        if (Number.isInteger(row) && Number.isInteger(col)) {
+            ensureHandCardSelectedForDrag(handIndex);
+            placeCard(row, col);
+        }
         event.preventDefault();
         return;
     }
@@ -14158,13 +15420,26 @@ function renderMulliganOverlay() {
 
     overlay.classList.add('visible');
     const hand = gameState.player.hand || [];
+    const allowedSet = mulliganAllowedIndexSet();
+    const scriptedTutorial = Boolean(gameState.mulligan?.tutorialScripted) || (allowedSet && allowedSet.size === 1);
     if (gameState.mulligan.youPending) {
         const sig = hand.map((c, i) => i + ':' + c.id).join(',');
         if (sig !== mulliganHandSig) {
             mulliganSelectedIndices.clear();
             mulliganHandSig = sig;
         }
-        copy.textContent = 'Select any cards to shuffle back into your deck; you draw the same number of new cards. Leave none selected to keep your whole hand. You get one mulligan before the first draw phase.';
+        if (scriptedTutorial) {
+            // Name the card the player can actually swap, read from the hand
+            // rather than baked in: the tutorial deal is fixed but the copy
+            // hard-coded "Pylook" and the slot holds whatever was dealt there.
+            const swapIndex = allowedSet ? [...allowedSet][0] : hand.length - 1;
+            const swapName = hand[swapIndex]?.name;
+            copy.textContent = swapName
+                ? `Not sure about ${swapName}? Tap it, then Redraw selected — or take the hand as dealt with Keep hand.`
+                : 'Tap a card to swap it, then Redraw selected — or take the hand as dealt with Keep hand.';
+        } else {
+            copy.textContent = 'Select any cards to shuffle back into your deck; you draw the same number of new cards. Leave none selected to keep your whole hand. You get one mulligan before the first draw phase.';
+        }
     } else if (gameState.mulligan.opponentPending) {
         mulliganHandSig = '';
         copy.textContent = 'Your hand is locked. Waiting for the other player to finish their mulligan decision.';
@@ -14184,12 +15459,15 @@ function renderMulliganOverlay() {
 
     preview.innerHTML = hand.map((card, index) => {
         const isSelected = mulliganSelectedIndices.has(index);
-        const interactive = gameState.mulligan.youPending;
+        const slotAllowed = !allowedSet || allowedSet.has(index);
+        const interactive = gameState.mulligan.youPending && slotAllowed;
+        const locked = gameState.mulligan.youPending && allowedSet && !slotAllowed;
         const slotClasses = [
             'mulligan-card-slot',
             (card.element || 'NEUTRAL').toLowerCase(),
             isSelected ? 'is-selected' : '',
-            interactive ? 'is-interactive' : ''
+            interactive ? 'is-interactive' : '',
+            locked ? 'is-locked' : ''
         ].filter(Boolean).join(' ');
         const role = interactive ? ' role="button" tabindex="0" aria-pressed="' + (isSelected ? 'true' : 'false') + '"' : '';
         const click = interactive ? ` onclick="toggleMulliganCard(${index})"` : '';
@@ -14200,9 +15478,14 @@ function renderMulliganOverlay() {
         const showcase = renderHolographicFullArtFace(card, {
             descriptionText: card.description || card.ability?.description || ''
         }) || renderShowcaseCard(card, { artVariant: 'preview', cardClass: 'mulligan-showcase', compactAbilityLimit: 2 });
-        const badge = isSelected
-            ? `<div class="mulligan-redraw-badge" aria-hidden="true">Redraw</div>`
-            : '';
+        let badge = '';
+        if (isSelected) {
+            badge = `<div class="mulligan-redraw-badge" aria-hidden="true">Redraw</div>`;
+        } else if (locked) {
+            badge = `<div class="mulligan-keep-badge" aria-hidden="true">Keep</div>`;
+        } else if (scriptedTutorial && slotAllowed && gameState.mulligan.youPending) {
+            badge = `<div class="mulligan-practice-badge" aria-hidden="true">Tap to redraw</div>`;
+        }
         return `
         <div class="${slotClasses}" data-index="${index}"${role}${click}>
             ${badge}
@@ -14494,19 +15777,27 @@ function getSelectedCardBattlePreviewMeta(card) {
     return parts.join(' | ');
 }
 
-function renderSelectedCardBattlePreview(card) {
+function renderSelectedCardBattlePreview(card, options = {}) {
     const elementClass = String(card?.element || 'neutral').toLowerCase();
     const abilities = getSelectedCardBattlePreviewAbilities(card);
-    const lockReason = getHandCardLockReason(card);
+    const boardCard = isBoardPreviewCard(card);
+    const lockReason = boardCard ? '' : getHandCardLockReason(card);
     const fallback = card?.type === 'SIEGLING'
         ? 'Basic strike only. No printed battle ability is available for this Siegeling.'
         : 'No printed ability text is available for this card.';
+    const intro = options.introHtml
+        || (boardCard
+            ? `<div class="battle-attacker"><strong>Battle moves.</strong> Every printed action this Siegeling can queue once battle starts.</div>`
+            : `<div class="battle-attacker"><strong>Battle View — selected card.</strong> Simulate the moves and effects this hand card could use once it is in play.</div>`);
+    const label = boardCard
+        ? (boardCardOwnershipLabel(card) === 'Your' ? 'Your board' : 'Enemy board')
+        : 'Selected';
 
     let html = '<div class="battle-standby-preview battle-selected-preview">';
-    html += '<div class="battle-attacker"><strong>Battle View — selected card.</strong> Simulate the moves and effects this hand card could use once it is in play.</div>';
+    html += intro;
     html += `<article class="battle-standby-card battle-selected-card ${elementClass}">`;
     html += '<div class="battle-standby-card-head">';
-    html += `<div><div class="battle-standby-selected-label">Selected</div><div class="battle-standby-card-name">${escapeHtml(card?.name || 'Card')}</div><div class="battle-standby-card-meta">${escapeHtml(getSelectedCardBattlePreviewMeta(card))}</div></div>`;
+    html += `<div><div class="battle-standby-selected-label">${escapeHtml(label)}</div><div class="battle-standby-card-name">${escapeHtml(card?.name || 'Card')}</div><div class="battle-standby-card-meta">${escapeHtml(getSelectedCardBattlePreviewMeta(card))}</div></div>`;
     html += `<div class="battle-standby-order">${escapeHtml(String(card?.type || 'Card'))}</div>`;
     html += '</div>';
     if (lockReason) {
@@ -14516,6 +15807,67 @@ function renderSelectedCardBattlePreview(card) {
     html += '</article>';
     html += '</div>';
     return html;
+}
+
+function renderSelectedPreviewMovesPage(card) {
+    return renderSelectedCardBattlePreview(card, {
+        introHtml: '<div class="battle-attacker"><strong>Battle Action.</strong> Swipe back for the card summary.</div>'
+    });
+}
+
+function syncSelectedPreviewDrawerTitle(pageIndex = 0) {
+    const title = document.querySelector('#drawerSelected > h3');
+    if (!title) return;
+    title.textContent = pageIndex >= 1 ? 'Battle Action' : 'Card Preview';
+}
+
+function bindSelectedPreviewPager(root) {
+    const pager = root?.querySelector?.('[data-selected-preview-pager]');
+    const pages = pager?.querySelector?.('[data-selected-preview-pages]');
+    if (!pager || !pages) return;
+
+    const dots = Array.from(pager.querySelectorAll('[data-page-dot]'));
+    const hint = pager.querySelector('.selected-preview-swipe-hint');
+    const pageCount = Math.max(1, pages.querySelectorAll('[data-selected-preview-page]').length);
+    let activeIndex = 0;
+
+    const setActive = (index, { scroll = false } = {}) => {
+        const next = Math.max(0, Math.min(pageCount - 1, Number(index) || 0));
+        activeIndex = next;
+        dots.forEach((dot) => {
+            const on = Number(dot.dataset.pageDot) === next;
+            dot.classList.toggle('is-active', on);
+            dot.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
+        pager.dataset.activePage = String(next);
+        if (hint) {
+            hint.textContent = next >= 1 ? 'Swipe for summary' : 'Swipe for moves';
+        }
+        syncSelectedPreviewDrawerTitle(next);
+        if (scroll) {
+            // Instant jump: smooth scrollTo fights scroll-snap inside the
+            // shrink-to-fit desktop drawer and can stall mid-page.
+            const width = pages.clientWidth || 1;
+            pages.scrollLeft = next * width;
+        }
+    };
+
+    const syncFromScroll = () => {
+        const width = pages.clientWidth || 1;
+        setActive(Math.round(pages.scrollLeft / width));
+    };
+
+    pages.addEventListener('scroll', syncFromScroll, { passive: true });
+    dots.forEach((dot) => {
+        dot.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setActive(dot.dataset.pageDot, { scroll: true });
+        });
+    });
+    // Fresh card always opens on the summary page.
+    setActive(0);
+    pages.scrollLeft = 0;
 }
 
 function renderStandbyBattleAbilityPreview() {
@@ -14637,6 +15989,29 @@ function renderBattlePanel() {
             </div>`;
         return `<div class="${shellClass}">${headerHtml}${bodyHtml}</div>`;
     };
+
+    // The acting Siegeling's move buttons must not appear before the phase
+    // banner that introduces them. render() paints from authoritative state the
+    // instant it lands, so this panel — and only this panel — waits on the
+    // presentation clock; the board, HP bars and hand keep updating live
+    // because the queue's pending-state layer is built around render() running.
+    // Targeting is exempt: it is player-driven, so playback is never mid-flight.
+    const presentationBusy = Boolean(window.SieglingsActionQueue?.isPresentationBusy?.())
+        && !isBattleTargetSelectionActive();
+
+    // Hold the actionable panels in standby while playback runs. Scoped to the
+    // drawer and hand docks on purpose: the left inspector is only rewritten
+    // below when the landscape dock is in use, so writing standby into it here
+    // would strand "Queue is resolving" on that rail after playback ends.
+    if (pending && presentationBusy) {
+        const holdHtml = buildQueueShell(
+            'Resolving',
+            'waiting',
+            '<div class="battle-attacker"><strong>Queue is resolving.</strong> The next available Siegeling will surface here in speed order.</div><div class="battle-hint">Stay ready. When your next acting Siegeling arrives, this panel flips into queue mode automatically.</div>'
+        );
+        setPanelHtml([...drawerPanels, handPanel].filter(Boolean), holdHtml);
+        return;
+    }
 
     if (!pending) {
         let standbyHtml;
@@ -14951,6 +16326,11 @@ function abilityHasAvailableTarget(ability) {
 }
 
 function getSelectedLegalPlacements() {
+    // No legal cells while the opponent holds initiative — this is what kills
+    // both the click-to-place highlights and the drag-drop landing zones.
+    if (isOpponentControlLocked() || isSetupResolutionPending()) {
+        return [];
+    }
     const evolutionCardSelected = Boolean(selectedCard?.evolvesFromId);
     if (isPlacementBudgetLockedForCard(selectedCard) || (countBoardSieglings() >= 5 && !evolutionCardSelected)) {
         return [];
@@ -14960,6 +16340,11 @@ function getSelectedLegalPlacements() {
         return gameState.legalPlacements || [];
     }
     return getLegalPlacementsForCard(selectedCard);
+}
+
+function isSetupResolutionPending() {
+    return gameState?.currentPhase === 'SETUP'
+        && Boolean(window.SieglingsActionQueue?.isProcessing?.());
 }
 
 function canCardLinkAt(card, row, col, board) {
@@ -15079,7 +16464,7 @@ function selectCard(handIndexOrCardId) {
  * by the desktop single-tap path and the mobile confirm button.
  */
 function activateActionCard(card) {
-    if (!card) {
+    if (!card || isOpponentControlLocked()) {
         return;
     }
     const targetSide = getAbilityTargetSide(card.ability);
@@ -15101,6 +16486,7 @@ function activateActionCard(card) {
         targetContext = {
             mode: 'spell',
             side: targetSide,
+            ability: card.ability,
             message: `Select a target for ${card.name}.`,
             callback: (row, col) => castSpell(card.id, row, col)
         };
@@ -15302,6 +16688,7 @@ function onTrainerUse() {
         targetContext = {
             mode: 'trainer',
             side: targetSide,
+            ability: trainer.active,
             message: `Select a target for ${trainer.active.name}.`,
             callback: (row, col) => useTrainer(row, col)
         };
@@ -15344,7 +16731,9 @@ function renderBoardCardBuffsList(card) {
     const printedHp = Number(card.printedHealth);
     const maxHp = Number(card.maxHp);
     if (Number.isFinite(printedHp) && Number.isFinite(maxHp) && maxHp > printedHp) {
-        entries.push({ kind: 'HEALTH_BOOST', label: 'Max HP', amount: maxHp - printedHp });
+        // MAX_HEALTH, not HEALTH_BOOST: this is the permanent max-HP raise, and
+        // the pill has to match the green heart badge the board card shows.
+        entries.push({ kind: 'MAX_HEALTH', label: 'Max HP', amount: maxHp - printedHp });
     }
 
     if (has('FREEZE')) entries.push({ kind: 'FREEZE', label: 'Frozen' });
@@ -15352,22 +16741,46 @@ function renderBoardCardBuffsList(card) {
     if (has('WEAK')) entries.push({ kind: 'WEAK', label: 'Weak' });
     if (has('STRONG')) entries.push({ kind: 'STRONG', label: 'Strong' });
 
+    const afflictions = Array.isArray(card.afflictions) ? card.afflictions : [];
+    afflictions.forEach((row) => {
+        const kind = String(row?.kind || '').toUpperCase();
+        const stacks = Number(row?.stacks) || 0;
+        if (!kind || stacks <= 0) return;
+        const shortLabel = kind.charAt(0) + kind.slice(1).toLowerCase();
+        entries.push({
+            kind,
+            label: shortLabel,
+            amount: stacks,
+            stackMode: true
+        });
+    });
+
     if (entries.length === 0) return '';
     const items = entries.map((e) => {
         const color = STATUS_BADGE_PALETTE[e.kind] || '#cbd5f5';
         const amount = (typeof e.amount === 'number' && e.amount > 0)
-            ? `<span class="buff-pill-amount">+${e.amount}</span>`
+            ? `<span class="buff-pill-amount">${e.stackMode ? e.amount : `+${e.amount}`}</span>`
             : '';
-        const title = STATUS_BADGE_LABEL[e.kind] || e.label;
-        return `<span class="buff-pill" style="--bp:${color}" title="${escapeHtmlAttribute(title)}"><span class="buff-pill-label">${escapeHtml(e.label)}</span>${amount}</span>`;
+        const title = `${STATUS_BADGE_LABEL[e.kind] || e.label} — tap for details`;
+        return `<button type="button" class="buff-pill" style="--bp:${color}" title="${escapeHtmlAttribute(title)}"`
+            + ` onclick="openEffectKey('${escapeHtmlAttribute(e.kind)}', event)">`
+            + `<span class="buff-pill-icon" aria-hidden="true">${STATUS_BADGE_SVG[e.kind] || STATUS_BADGE_SVG_GENERIC}</span>`
+            + `<span class="buff-pill-label">${escapeHtml(e.label)}</span>${amount}</button>`;
     }).join('');
-    return `<div class="selected-copy-buffs" aria-label="Active buffs and debuffs">${items}</div>`;
+    return `<div class="selected-copy-buffs" aria-label="Active buffs and debuffs">${items}`
+        + `<button type="button" class="buff-pill buff-pill-all" title="Open the full status effect key"`
+        + ` onclick="openAllEffectsKey(event)"><span class="buff-pill-label">All Effects</span></button>`
+        + `</div>`;
 }
 
 function updateSelectedInfo(card, msg) {
     const el = document.getElementById('selectedCardInfo');
+    // game.js is also loaded by the hub, which has no battle table: the global
+    // Escape handler reaches this with nothing to write into.
+    if (!el) return;
     if (!card && !msg) {
         el.innerHTML = 'Select a hand card or click a Siegeling on either board to preview it here.';
+        syncSelectedPreviewDrawerTitle(0);
         return;
     }
 
@@ -15381,22 +16794,27 @@ function updateSelectedInfo(card, msg) {
     }
     if (card) {
         const lockReason = isBoardPreviewCard(card) ? '' : getHandCardLockReason(card);
-        html += `<div class="selected-card-panel">`;
-        html += renderShowcaseCard(card, {
+        const spellConfirm = mobileSpellPreviewPending && isActionCard(card) && !lockReason
+            ? renderSpellPreviewConfirmation(card)
+            : '';
+        // Two swipe pages: summary (card art + copy) and battle-action moves.
+        // Spell confirm stays on page 1 so the cast buttons never hide behind a swipe.
+        let summary = `<div class="selected-card-panel">`;
+        summary += renderShowcaseCard(card, {
             cardClass: 'selected-preview-card',
             artVariant: 'selected'
         });
-        html += `<div class="selected-preview-copy">`;
+        summary += `<div class="selected-preview-copy">`;
         if (lockReason) {
-            html += `<span style="color:var(--accent)">${escapeHtml(lockReason)}</span>`;
+            summary += `<span style="color:var(--accent)">${escapeHtml(lockReason)}</span>`;
         } else if (isBoardPreviewCard(card)) {
             const own = boardCardOwnershipLabel(card);
             const phases = Number(card.battlePhasesSeen || 0);
-            html += `<span style="color:var(--accent)">${escapeHtml(own)} Siegeling — ${card.hp}/${card.maxHp} HP · Speed ${card.spd ?? card.speed ?? '?'} · ${phases} battle phase(s).</span>`;
-            html += renderBoardCardBuffsList(card);
-            html += renderPreviewClaimControl(card);
+            summary += `<span style="color:var(--accent)">${escapeHtml(own)} Siegeling — ${card.hp}/${card.maxHp} HP · Speed ${card.spd ?? card.speed ?? '?'} · ${phases} battle phase(s).</span>`;
+            summary += renderBoardCardBuffsList(card);
+            summary += renderPreviewClaimControl(card);
         } else if (card.type === 'SIEGLING') {
-            html += card.evolvesFromName
+            summary += card.evolvesFromName
                 ? `<span style="color:var(--accent)">After ${card.evolvesFromName} completes a full battle phase in that form, place this on it to evolve.</span>`
                 : gameState.playerPlacementUsed
                 ? `<span style="color:var(--accent)">${escapeHtml(sieglingPlacementLockMessage())}</span>`
@@ -15405,23 +16823,34 @@ function updateSelectedInfo(card, msg) {
         // Stat line and ability/move details in the right panel (body hidden inside compact card).
         const statLine = getCardSummaryStatLine(card);
         if (statLine) {
-            html += `<div class="selected-copy-stats">${escapeHtml(statLine)}</div>`;
+            summary += `<div class="selected-copy-stats">${escapeHtml(statLine)}</div>`;
         }
         getCardPreviewEntries(card).forEach(entry => {
             if (entry.html) {
-                html += `<div class="selected-copy-detail">${entry.html}</div>`;
+                summary += `<div class="selected-copy-detail">${entry.html}</div>`;
             } else {
-                html += `<div class="selected-copy-detail">${escapeHtml(entry.text)}</div>`;
+                summary += `<div class="selected-copy-detail">${escapeHtml(entry.text)}</div>`;
             }
         });
-        if (mobileSpellPreviewPending && isActionCard(card) && !lockReason) {
-            html += renderSpellPreviewConfirmation(card);
-        }
+        summary += spellConfirm;
+        summary += `</div></div>`;
+
+        html += `<div class="selected-preview-pager" data-selected-preview-pager data-active-page="0">`;
+        html += `<div class="selected-preview-pages" data-selected-preview-pages role="region" aria-label="Card preview pages">`;
+        html += `<section class="selected-preview-page" data-selected-preview-page="summary" aria-label="Card summary">${summary}</section>`;
+        html += `<section class="selected-preview-page" data-selected-preview-page="moves" aria-label="Battle moves">${renderSelectedPreviewMovesPage(card)}</section>`;
         html += `</div>`;
+        html += `<div class="selected-preview-pager-chrome">`;
+        html += `<div class="selected-preview-dots" role="tablist" aria-label="Preview pages">`;
+        html += `<button type="button" class="selected-preview-dot is-active" data-page-dot="0" role="tab" aria-selected="true" aria-label="Card summary"></button>`;
+        html += `<button type="button" class="selected-preview-dot" data-page-dot="1" role="tab" aria-selected="false" aria-label="Battle moves"></button>`;
         html += `</div>`;
+        html += `<span class="selected-preview-swipe-hint">Swipe for moves</span>`;
+        html += `</div></div>`;
     }
 
     el.innerHTML = html;
+    bindSelectedPreviewPager(el);
     scheduleFramedSummaryFit();
 }
 
@@ -15922,6 +17351,13 @@ document.addEventListener('keydown', (e) => {
             cancelBattleTargetSelection();
             return;
         }
+        // The effect key sits on top of the card preview — one Escape should
+        // dismiss it without also clearing the selection behind it.
+        const effectKeyOverlay = document.getElementById('effectKeyOverlay');
+        if (effectKeyOverlay && !effectKeyOverlay.classList.contains('hidden')) {
+            closeEffectKey();
+            return;
+        }
         closeDrawer(true);
         closeMobileHudSheet();
         closeClaimPopup();
@@ -16053,7 +17489,7 @@ syncDesktopInspectTabUi();
 (function setupCardDragPointerListeners() {
     document.addEventListener('pointermove', handleCardDragPointerMove, { passive: false });
     document.addEventListener('pointerup', handleCardDragPointerEnd);
-    document.addEventListener('pointercancel', handleCardDragPointerEnd);
+    document.addEventListener('pointercancel', handleCardDragPointerCancel);
 })();
 
 // Drag-to-close for every slide-up drawer tray (Card Preview, Element Key, Hints, Log, Battle).
@@ -16069,6 +17505,9 @@ syncDesktopInspectTabUi();
         if (!target || !target.closest) return;
         const drawer = target.closest('.drawer.visible');
         if (!drawer) return;
+        // Horizontal card-preview pager owns left/right swipes — don't steal
+        // those gestures for the vertical drag-to-close.
+        if (target.closest('[data-selected-preview-pages]')) return;
         // Start a drag from the grip/header always; from scrollable content only when at the top.
         const fromGrip = !!target.closest('.drawer-handle, .drawer > h3');
         if (!fromGrip && drawer.scrollTop > 0) return;
@@ -16161,6 +17600,54 @@ window.advanceTime = function () {
     refreshBoardLinkConnectors();
     return renderBattleGameToText();
 };
+
+// The animation queue resolves after the API response has already replaced
+// gameState and rendered the board. Give it a live, read-only route back to the
+// authoritative cell so shield application playback cannot mistake a missing
+// bridge for zero shield and remove a freshly-rendered badge.
+window.SieglingsBoardCellState = {
+    getCell(isPlayer, row, col) {
+        const board = isPlayer ? gameState?.playerBoard : gameState?.enemyBoard;
+        return board?.[Number(row)]?.[Number(col)] || null;
+    }
+};
+
+// Spells, traps and trainer actives never sit on the board, so the playback
+// queue cannot read their element off a cell the way it does for a Siegling's
+// ability — it only has the name the server logged. Expose a name → element
+// lookup over the loaded catalog so effect damage still lights the right
+// elemental border. Keyed by card name *and* ability name, because the damage
+// line names the ability while the cast/spring line names the card.
+window.SieglingsCardElements = (() => {
+    let cachedCatalog = null;
+    let index = null;
+    const rebuild = (catalog) => {
+        const map = new Map();
+        for (const card of catalog) {
+            const element = String(card?.element || '').toUpperCase();
+            if (!element) continue;
+            const cardName = String(card?.name || '').trim().toLowerCase();
+            const abilityName = String(card?.ability?.name || '').trim().toLowerCase();
+            // Card name wins: an ability name can be shared across cards.
+            if (abilityName && !map.has(abilityName)) map.set(abilityName, element);
+            if (cardName) map.set(cardName, element);
+        }
+        return map;
+    };
+    return {
+        elementFor(name) {
+            const want = String(name == null ? '' : name).trim().toLowerCase();
+            if (!want) return null;
+            const catalog = Array.isArray(gameOptions?.cardCatalog) ? gameOptions.cardCatalog : [];
+            if (!catalog.length) return null;
+            if (catalog !== cachedCatalog) {
+                cachedCatalog = catalog;
+                index = rebuild(catalog);
+            }
+            return index.get(want) || null;
+        }
+    };
+})();
 
 window.SieglingsCardShowcase = {
     renderShowcaseCard,

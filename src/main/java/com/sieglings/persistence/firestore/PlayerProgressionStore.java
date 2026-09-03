@@ -41,6 +41,17 @@ public class PlayerProgressionStore {
         if (progression.getUserId() == null || progression.getUserId().isBlank()) {
             throw new IllegalArgumentException("Progression user id is required.");
         }
+        Map<String, Object> payload = toPayload(progression);
+        try {
+            doc(progression.getUserId()).set(payload).get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            return progression;
+        } catch (Exception ex) {
+            throw new IllegalStateException("Unable to save player progression to Firestore.", ex);
+        }
+    }
+
+    /** Shared with {@link RewardClaimStore} so a transactional write serializes identically. */
+    Map<String, Object> toPayload(PlayerProgressionEntity progression) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("gold", progression.getGold());
         payload.put("remnants", progression.getRemnants());
@@ -52,6 +63,7 @@ public class PlayerProgressionStore {
         payload.put("trainerPoints", progression.getTrainerPoints());
         payload.put("starterPackId", progression.getStarterPackId());
         payload.put("tutorialCompleted", progression.isTutorialCompleted());
+        payload.put("siegeTutorialCompleted", progression.isSiegeTutorialCompleted());
         payload.put("rewardedMatchIds", progression.getRewardedMatchIds());
         payload.put("purchasedDeckIds", progression.getPurchasedDeckIds());
         payload.put("purchasedDailyOfferIds", progression.getPurchasedDailyOfferIds());
@@ -60,6 +72,7 @@ public class PlayerProgressionStore {
         payload.put("craftCount", progression.getCraftCount());
         payload.put("holographicCardIds", progression.getHolographicCardIds());
         payload.put("siegeUnlockedKnights", progression.getSiegeUnlockedKnights());
+        payload.put("siegeUnlockedSieglings", progression.getSiegeUnlockedSieglings());
         payload.put("siegeRuns", progression.getSiegeRuns());
         payload.put("siegeWins", progression.getSiegeWins());
         payload.put("siegeBossKills", progression.getSiegeBossKills());
@@ -75,12 +88,7 @@ public class PlayerProgressionStore {
         payload.put("soloWinStreak", progression.getSoloWinStreak());
         payload.put("onlineWinStreak", progression.getOnlineWinStreak());
         payload.put("updatedAt", toTimestamp(progression.getUpdatedAt()));
-        try {
-            doc(progression.getUserId()).set(payload).get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            return progression;
-        } catch (Exception ex) {
-            throw new IllegalStateException("Unable to save player progression to Firestore.", ex);
-        }
+        return payload;
     }
 
     public void deleteByUserId(String userId) {
@@ -94,12 +102,12 @@ public class PlayerProgressionStore {
         }
     }
 
-    private DocumentReference doc(String userId) {
+    DocumentReference doc(String userId) {
         return client.requireFirestore().collection(client.progressionCollection()).document(userId);
     }
 
     @SuppressWarnings("unchecked")
-    private PlayerProgressionEntity toProgression(String userId, DocumentSnapshot snapshot) {
+    PlayerProgressionEntity toProgression(String userId, DocumentSnapshot snapshot) {
         PlayerProgressionEntity progression = new PlayerProgressionEntity();
         progression.setUserId(userId);
         Long gold = snapshot.getLong("gold");
@@ -116,6 +124,7 @@ public class PlayerProgressionStore {
         progression.setTrainerPoints(readIntMap(snapshot.get("trainerPoints")));
         progression.setStarterPackId(snapshot.getString("starterPackId"));
         progression.setTutorialCompleted(Boolean.TRUE.equals(snapshot.getBoolean("tutorialCompleted")));
+        progression.setSiegeTutorialCompleted(Boolean.TRUE.equals(snapshot.getBoolean("siegeTutorialCompleted")));
         progression.setRewardedMatchIds(readStringList(snapshot.get("rewardedMatchIds")));
         progression.setPurchasedDeckIds(readStringList(snapshot.get("purchasedDeckIds")));
         progression.setPurchasedDailyOfferIds(readStringList(snapshot.get("purchasedDailyOfferIds")));
@@ -124,6 +133,7 @@ public class PlayerProgressionStore {
         progression.setCraftCount(craftCount == null ? 0 : craftCount.intValue());
         progression.setHolographicCardIds(readStringList(snapshot.get("holographicCardIds")));
         progression.setSiegeUnlockedKnights(readStringList(snapshot.get("siegeUnlockedKnights")));
+        progression.setSiegeUnlockedSieglings(readStringList(snapshot.get("siegeUnlockedSieglings")));
         progression.setSiegeRuns(intValue(snapshot.getLong("siegeRuns")));
         progression.setSiegeWins(intValue(snapshot.getLong("siegeWins")));
         progression.setSiegeBossKills(intValue(snapshot.getLong("siegeBossKills")));

@@ -22,6 +22,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -29,6 +30,38 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class CardDefinitionServiceTest {
 
     private final CardDefinitionService cardDefinitions = new CardDefinitionService();
+
+    @Test
+    void deckOptionsLeadWithTheMainFourElements() {
+        List<CardDefinitionService.DeckOption> options = cardDefinitions.getDeckOptions();
+        List<Element> leadingSingletons = options.stream()
+                .filter(option -> option.elements().size() == 1)
+                .map(option -> option.elements().get(0))
+                .distinct()
+                .toList();
+
+        assertEquals(
+                List.of(Element.FIRE, Element.ICE, Element.EARTH, Element.WIND),
+                leadingSingletons.subList(0, 4),
+                "Fire, Ice, Earth, and Wind singleton decks must lead the list."
+        );
+        assertTrue(
+                options.stream().limit(4).allMatch(option -> option.elements().size() == 1
+                        && PlayerProgressionService.FREE_DECK_ELEMENTS.contains(option.elements().get(0))),
+                "The first four options should be the free main-four singletons, not mixed Fire decks."
+        );
+        List<Element> leadingElements = options.stream()
+                .map(option -> option.elements().get(0))
+                .distinct()
+                .toList();
+        assertIterableEquals(
+                LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER.stream()
+                        .filter(leadingElements::contains)
+                        .toList(),
+                leadingElements,
+                "Deck order follows the canonical roster order among leading elements."
+        );
+    }
 
     @Test
     void everyPresetDeckUsesBalancedPresetComposition() {
@@ -131,6 +164,68 @@ class CardDefinitionServiceTest {
 
         assertEquals(30, builtDeck.size());
         assertIterableEquals(explicitDeck, builtDeck.stream().map(Card::getId).toList());
+
+        List<Map<String, Object>> counts = service.deckCardCounts("exact_list");
+        assertEquals(10, counts.size());
+        assertTrue(counts.stream().allMatch(row -> ((Number) row.get("count")).intValue() == 3));
+    }
+
+    @Test
+    void deckBuilderCatalogIsMemoizedAndCopiedForCallers() {
+        List<String> seedIds = cardDefinitions.getDeckBuilderCatalog().stream()
+                .map(Card::getId)
+                .limit(10)
+                .toList();
+        List<String> explicitDeck = new ArrayList<>();
+        for (String cardId : seedIds) {
+            explicitDeck.add(cardId);
+            explicitDeck.add(cardId);
+            explicitDeck.add(cardId);
+        }
+        // Mirror production: live preset decks author an explicit cardIds list.
+        // Counting those must not rebuild the catalog per id the way the old
+        // findCardDefinition → getDeckBuilderCatalog path did (~9s warm).
+        CardDefinitionService service = serviceWithPresetDecks(List.of(
+                new PresetDeckCatalogService.PresetDeckDefinition(
+                        "perf_a", "Perf A", "Explicit.", List.of(Element.FIRE), "trainer05", true, explicitDeck),
+                new PresetDeckCatalogService.PresetDeckDefinition(
+                        "perf_b", "Perf B", "Explicit.", List.of(Element.ICE), "trainer05", true, explicitDeck),
+                new PresetDeckCatalogService.PresetDeckDefinition(
+                        "perf_c", "Perf C", "Explicit.", List.of(Element.EARTH), "trainer05", true, explicitDeck),
+                new PresetDeckCatalogService.PresetDeckDefinition(
+                        "perf_d", "Perf D", "Explicit.", List.of(Element.WIND), "trainer05", true, explicitDeck),
+                new PresetDeckCatalogService.PresetDeckDefinition(
+                        "perf_e", "Perf E", "Explicit.", List.of(Element.WATER), "trainer05", true, explicitDeck),
+                new PresetDeckCatalogService.PresetDeckDefinition(
+                        "perf_f", "Perf F", "Explicit.", List.of(Element.ELECTRIC), "trainer05", true, explicitDeck)
+        ));
+
+        List<Card> first = service.getDeckBuilderCatalog();
+        assertTrue(first.size() > 50, "Catalog should include the live roster.");
+
+        Card firstCard = first.get(0);
+        String originalName = firstCard.getName();
+        firstCard.setName("CORRUPTED-MEMO-PROBE");
+
+        List<Card> second = service.getDeckBuilderCatalog();
+        assertEquals(first.size(), second.size());
+        assertEquals(originalName, second.get(0).getName(),
+                "getDeckBuilderCatalog must return defensive copies from the memo.");
+
+        long started = System.nanoTime();
+        for (int i = 0; i < 200; i++) {
+            for (CardDefinitionService.DeckOption option : service.getDeckOptions()) {
+                List<Map<String, Object>> counts = service.deckCardCounts(option.id());
+                assertEquals(10, counts.size(), option.id() + " should summarize the explicit list.");
+            }
+        }
+        long elapsedMs = (System.nanoTime() - started) / 1_000_000L;
+        System.out.println("deckCardCounts_200_passes_ms=" + elapsedMs
+                + " decks=" + service.getDeckOptions().size()
+                + " catalog=" + second.size());
+        assertTrue(elapsedMs < 500L,
+                "Repeated deckCardCounts over authored cardIds should finish in under 500ms, took "
+                        + elapsedMs + "ms");
     }
 
     @Test
@@ -158,6 +253,7 @@ class CardDefinitionServiceTest {
                                 "All Fire allies gain +1 attack damage",
                                 TargetType.PASSIVE,
                                 null,
+                                null,
                                 0,
                                 "damage_boost",
                                 1,
@@ -170,6 +266,7 @@ class CardDefinitionServiceTest {
                                 "Flare Call",
                                 "Deal 3 damage to 1 enemy",
                                 TargetType.SINGLE_ENEMY,
+                                null,
                                 null,
                                 1,
                                 "damage",
@@ -193,6 +290,7 @@ class CardDefinitionServiceTest {
                                 "All Water allies gain +1 max Health",
                                 TargetType.PASSIVE,
                                 null,
+                                null,
                                 0,
                                 "health_boost",
                                 1,
@@ -205,6 +303,7 @@ class CardDefinitionServiceTest {
                                 "Tidal Seal",
                                 "Freeze 1 enemy",
                                 TargetType.SINGLE_ENEMY,
+                                null,
                                 null,
                                 1,
                                 "freeze",
@@ -222,6 +321,41 @@ class CardDefinitionServiceTest {
         assertEquals("Retired Marshal", service.getTrainerById("trainer_inactive").getName());
         assertEquals(true, service.hasTrainer("trainer_inactive"));
         assertEquals(false, service.isTrainerActive("trainer_inactive"));
+    }
+
+    @Test
+    void trainerArtCropKeepsDashboardPercentageOffsetsInGameCatalog() {
+        CardDefinitionService service = serviceWithTrainerDefinitions(List.of(
+                new TrainerCatalogService.TrainerDefinition(
+                        "isaac-tesla",
+                        "Isaac Tesla",
+                        Element.ELECTRIC,
+                        Rarity.COMMON,
+                        "Raider",
+                        true,
+                        false,
+                        null,
+                        null,
+                        "https://example.test/isaac-tesla.png",
+                        "OVERLAY",
+                        -12.0,
+                        8.0,
+                        4.5,
+                        -7.25,
+                        1.43,
+                        0.0,
+                        false,
+                        false,
+                        null
+                )
+        ));
+
+        var trainer = service.getTrainerById("isaac-tesla");
+
+        assertEquals(4.5, trainer.getCardArtOffsetXPct());
+        assertEquals(-7.25, trainer.getCardArtOffsetYPct());
+        assertEquals(1.43, trainer.getCardArtScale());
+        assertEquals("OVERLAY", trainer.getCardArtMode());
     }
 
     @Test

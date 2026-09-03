@@ -8,6 +8,7 @@ import com.sieglings.model.enums.Rarity;
 import com.sieglings.model.enums.Row;
 import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.PlayerProgressionEntity;
+import com.sieglings.persistence.firestore.PlayerProgressionStore;
 import com.sieglings.service.CardDefinitionService;
 import com.sieglings.service.PlayerProgressionService;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,8 +19,10 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
@@ -28,6 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -61,7 +65,9 @@ class KeepServiceTest {
         };
         KeepLoreCatalog lore = new KeepLoreCatalog(new ObjectMapper());
         lore.load();
-        service = new KeepService(store, progressionService, cards, lore);
+        KeepEventCatalog events = new KeepEventCatalog(new ObjectMapper());
+        events.load();
+        service = new KeepService(store, progressionService, cards, lore, events);
         service.setClock(clock);
         service.setRandom(new Random(7));
 
@@ -88,6 +94,147 @@ class KeepServiceTest {
         assertTrue(conversationIds(snapshot).stream().anyMatch(id ->
                         id.startsWith("visitor_") || id.startsWith("interaction_")),
                 "A lore-tied road visitor or Interaction NPC should appear on the first sanctuary visit.");
+    }
+
+    @Test
+    void adverseEventCatalogHasTwentyShortCoinOrTimedRepairs() {
+        KeepEventCatalog catalog = new KeepEventCatalog(new ObjectMapper());
+        catalog.load();
+
+        assertEquals(20, catalog.allEvents().size());
+        assertEquals(10, catalog.allEvents().stream()
+                .filter(event -> KeepEventCatalog.TARGET_UPGRADE.equals(event.targetType())).count());
+        assertEquals(10, catalog.allEvents().stream()
+                .filter(event -> KeepEventCatalog.TARGET_DECORATION.equals(event.targetType())).count());
+        assertTrue(catalog.allEvents().stream().allMatch(event -> event.repairSeconds() > 0
+                && event.repairSeconds() < 600 && event.coinCost() > 0));
+    }
+
+    @Test
+    void timedEventRepairPausesProductionThenRestoresTargetInUnderTenMinutes() {
+        service.getSnapshot(user);
+        store.state.setHallLevel(2);
+        store.state.setWoodlotLevel(2);
+        store.state.setActiveKeepEventId("woodlot_washout");
+        store.state.setKeepEventOccurredAt(clock.instant());
+
+        Map<String, Object> damaged = service.getSnapshot(user);
+        assertEquals("woodlot_washout", valueAt(damaged, "activeKeepEvent", "id"));
+        assertEquals(0.0, ((Number) valueAt(damaged, "station", "ratePerMinute")).doubleValue(), .0001);
+
+        Map<String, Object> repairing = service.repairKeepEvent(user, "woodlot_washout", "TIME",
+                "event-time-repair", ((Number) damaged.get("stateVersion")).longValue());
+        assertEquals(true, valueAt(repairing, "activeKeepEvent", "repairInProgress"));
+        assertEquals(300, intAt(repairing, "activeKeepEvent", "repairSeconds"));
+
+        clock.advance(Duration.ofSeconds(301));
+        Map<String, Object> restored = service.getSnapshot(user);
+        assertNull(restored.get("activeKeepEvent"));
+        assertEquals(2.0, ((Number) valueAt(restored, "station", "ratePerMinute")).doubleValue(), .0001);
+    }
+
+    @Test
+    void damagedProductionStationBlocksCollectUntilRepaired() {
+        progression.setGold(100);
+        service.getSnapshot(user);
+        store.state.setHallLevel(2);
+        store.state.setWoodlotLevel(2);
+        store.state.setTimber(0);
+        store.state.setWoodlotStored(90);
+        store.state.setWoodlotLastAccruedAt(clock.instant());
+        store.state.getFacilityLevels().put("garden", 1);
+        store.state.getFacilityStored().put("garden", 40);
+        store.state.getFacilityLastAccruedAt().put("garden", clock.instant());
+        store.state.setActiveKeepEventId("woodlot_washout");
+        store.state.setKeepEventOccurredAt(clock.instant());
+
+        Map<String, Object> damaged = service.getSnapshot(user);
+        assertEquals(90, ((Number) valueAt(damaged, "station", "available")).intValue());
+        IllegalArgumentException woodlotError = assertThrows(IllegalArgumentException.class,
+                () -> service.collect(user, "woodlot", "damaged-woodlot-collect", store.state.getVersion()));
+        assertTrue(woodlotError.getMessage().toLowerCase().contains("rebuild"));
+        assertEquals(90, store.state.getWoodlotStored(), "Damage must keep the stockpile locked, not clear it.");
+
+        Map<String, Object> gardenCollect = service.collect(user, "garden", "undamaged-garden-collect",
+                store.state.getVersion());
+        assertEquals(40, ((Number) valueAt(gardenCollect, "collected", "amount")).intValue());
+
+        store.state.getFacilityStored().put("garden", 0);
+        IllegalArgumentException allError = assertThrows(IllegalArgumentException.class,
+                () -> service.collect(user, "all", "damaged-collect-all", store.state.getVersion()));
+        assertTrue(allError.getMessage().contains("Restorative Woodlot"));
+
+        Map<String, Object> repaired = service.repairKeepEvent(user, "woodlot_washout", "SIEGECOINS",
+                "repair-then-collect", store.state.getVersion());
+        assertNull(repaired.get("activeKeepEvent"));
+        Map<String, Object> collected = service.collect(user, "woodlot", "post-repair-collect",
+                store.state.getVersion());
+        assertEquals(90, ((Number) valueAt(collected, "collected", "amount")).intValue());
+        assertEquals(0, store.state.getWoodlotStored());
+    }
+
+    @Test
+    void eligibleKeepSometimesRollsAnAdverseEventAfterCooldown() {
+        service.getSnapshot(user);
+        store.state.setHallLevel(2);
+        store.state.setWoodlotLevel(2);
+        service.setRandom(new Random() {
+            @Override public int nextInt(int bound) { return 0; }
+        });
+        clock.advance(Duration.ofMinutes(46));
+
+        Map<String, Object> snapshot = service.getSnapshot(user);
+
+        assertNotNull(snapshot.get("activeKeepEvent"));
+        assertEquals(20, intAt(snapshot, "keepEvents", "catalogSize"));
+        assertEquals(1, intAt(snapshot, "keepEvents", "occurredCount"));
+    }
+
+    @Test
+    void siegecoinsResolveEventImmediatelyAtServerOwnedPrice() {
+        progression.setGold(100);
+        Map<String, Object> first = service.getSnapshot(user);
+        store.state.setActiveKeepEventId("hall_rooffall");
+        store.state.setKeepEventOccurredAt(clock.instant());
+
+        Map<String, Object> repaired = service.repairKeepEvent(user, "hall_rooffall", "SIEGECOINS",
+                "event-coin-repair", ((Number) first.get("stateVersion")).longValue());
+
+        assertNull(repaired.get("activeKeepEvent"));
+        assertEquals(28, progression.getGold());
+        assertEquals(72, intAt(repaired, "keepEventRepair", "coinCost"));
+
+        service.repairKeepEvent(user, "hall_rooffall", "SIEGECOINS",
+                "event-coin-repair", ((Number) first.get("stateVersion")).longValue());
+        assertEquals(28, progression.getGold(), "An idempotent replay must not charge the repair twice.");
+    }
+
+    @Test
+    void twentyBadVoiceChoicesEachHaveAOneTimeInteractionConsequence() {
+        KeepLoreCatalog catalog = new KeepLoreCatalog(new ObjectMapper());
+        catalog.load();
+        List<KeepLoreCatalog.Conversation> followups = catalog.allConversations().stream()
+                .filter(catalog::isInteraction).filter(KeepLoreCatalog.Conversation::oneTime).toList();
+        assertEquals(20, followups.size());
+        assertTrue(followups.stream().allMatch(item -> item.requiresFlags().size() == 1
+                && item.requiresFlags().get(0).startsWith("bad_choice_")));
+
+        Map<String, Object> first = service.getSnapshot(user);
+        if (!store.state.getActiveVisitorIds().contains("interaction_elara_yard_rounds")) {
+            store.state.getActiveVisitorIds().add("interaction_elara_yard_rounds");
+        }
+        Map<String, Object> consequence = service.chooseDialogue(user, "interaction_elara_yard_rounds", "press_duty",
+                "bad-choice", ((Number) first.get("stateVersion")).longValue());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> result = (Map<String, Object>) consequence.get("dialogueResult");
+        assertEquals(true, result.get("badChoice"));
+        assertEquals("followup_elara_wall", result.get("followupConversationId"));
+        assertTrue(conversationIds(consequence).contains("followup_elara_wall"));
+
+        Map<String, Object> resolved = service.chooseDialogue(user, "followup_elara_wall", "restore_rounds",
+                "followup-choice", ((Number) consequence.get("stateVersion")).longValue());
+        assertFalse(conversationIds(resolved).contains("followup_elara_wall"));
+        assertTrue(store.state.getCompletedConversationIds().contains("followup_elara_wall"));
     }
 
     @Test
@@ -147,6 +294,121 @@ class KeepServiceTest {
         assertTrue(conversationIds(completed).contains("steward_first_promise"));
         assertTrue(conversationIds(completed).contains("archivist_living_elements"),
                 "The archive conversation unlocks after both recovered records.");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void constructionTimeSaversSpendMaterialsByPercentageOrAccountCoinsToComplete() {
+        progression.setGold(20);
+        service.getSnapshot(user);
+        store.state.getMaterialInventory().put("verdant_fiber", 7);
+        store.state.getMaterialInventory().put("ember_ingot", 5);
+        service.collect(user, "collect-for-build", store.state.getVersion());
+
+        Map<String, Object> started = service.startBuild(user, "restore_archive", "build-speedup", store.state.getVersion());
+        Map<String, Object> active = (Map<String, Object>) started.get("activeConstruction");
+        long xpBeforeCompletion = ((Number) valueAt(started, "keeper", "totalXp")).longValue();
+        Map<String, Object> offers = (Map<String, Object>) active.get("timeSavers");
+        assertEquals(10, ((Number) offers.get("materialCost")).intValue());
+        assertEquals(25, ((Number) offers.get("materialPercent")).intValue());
+        assertEquals(Boolean.TRUE, offers.get("canUseMaterials"));
+        assertEquals(1, ((Number) offers.get("coinCost")).intValue());
+
+        Map<String, Object> spedUp = service.speedUpConstruction(user, "restore_archive", "materials",
+                "materials-speedup", store.state.getVersion());
+        Map<String, Object> materialResult = (Map<String, Object>) spedUp.get("timeSaverApplied");
+        assertEquals(30, ((Number) materialResult.get("savedSeconds")).longValue());
+        assertEquals(90, ((Number) materialResult.get("remainingSeconds")).longValue());
+        assertEquals(2, materialAmount(spedUp, "ember_ingot") + materialAmount(spedUp, "verdant_fiber"));
+
+        Map<String, Object> completed = service.speedUpConstruction(user, "restore_archive", "siegecoins",
+                "coin-speedup", store.state.getVersion());
+        assertEquals(Boolean.TRUE, valueAt(completed, "visualState", "archiveRestored"));
+        assertTrue(((List<?>) completed.get("activeConstructions")).isEmpty());
+        assertEquals(19, intAt(completed, "resources", "gold"));
+        assertEquals(1, progression.getKeepProjectsCompleted());
+        assertEquals(xpBeforeCompletion + 40, ((Number) valueAt(completed, "keeper", "totalXp")).longValue());
+    }
+
+    @Test
+    void constructionCoinTimeSaverRejectsAnInsufficientAccountBalance() {
+        progression.setGold(0);
+        service.getSnapshot(user);
+        service.collect(user, "collect-for-build", store.state.getVersion());
+        service.startBuild(user, "restore_archive", "build-speedup", store.state.getVersion());
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> service.speedUpConstruction(user, "restore_archive", "siegecoins",
+                        "coin-speedup", store.state.getVersion()));
+        assertTrue(error.getMessage().contains("more Siegecoins"));
+        assertFalse(store.state.getActiveConstructionId().isBlank());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void instantProjectPurchaseUsesOnlyAccountCoinsAndBypassesABusyCrew() {
+        progression.setGold(5_000);
+        service.getSnapshot(user);
+        store.state.setArchiveLevel(1);
+        store.state.setWoodlotLevel(2);
+        store.state.setStorehouseLevel(1);
+        store.state.setTimber(2_000);
+
+        Map<String, Object> optionsSnapshot = service.getSnapshot(user);
+        Map<String, Object> forgeOption = ((List<Map<String, Object>>) optionsSnapshot.get("buildOptions")).stream()
+                .filter(item -> "build_forge".equals(item.get("id"))).findFirst().orElseThrow();
+        int instantCost = ((Number) forgeOption.get("instantCoinCost")).intValue();
+        assertTrue(instantCost >= 500, "Buying a whole building must cost significant Siegecoins.");
+        assertEquals(Boolean.TRUE, forgeOption.get("canPurchase"));
+
+        service.startBuild(user, "build_fridge", "busy-crew", store.state.getVersion());
+        int timberAfterStartingCrew = store.state.getTimber();
+        Map<String, Integer> materialsBefore = Map.copyOf(store.state.getMaterialInventory());
+        Map<String, Object> purchased = service.purchaseBuild(user, "build_forge", "buy-forge", store.state.getVersion());
+
+        assertEquals(1, ((Number) station(purchased, "forge").get("level")).intValue());
+        assertEquals(1, ((List<?>) purchased.get("activeConstructions")).size(),
+                "The unrelated Fridge crew remains active; instant purchase never consumes or clears a crew.");
+        assertEquals("build_fridge", valueAt(purchased, "activeConstruction", "id"));
+        assertEquals(timberAfterStartingCrew, store.state.getTimber());
+        assertEquals(materialsBefore, store.state.getMaterialInventory());
+        assertEquals(5_000 - instantCost, intAt(purchased, "resources", "gold"));
+        assertEquals(1, progression.getKeepProjectsCompleted());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void instantUpgradePurchasePreservesProjectMaterialsAndRejectsInsufficientCoins() {
+        progression.setGold(10_000);
+        service.getSnapshot(user);
+        store.state.setArchiveLevel(1);
+        store.state.setWoodlotLevel(2);
+        store.state.setStorehouseLevel(1);
+        store.state.setBuildersYardLevel(1);
+        store.state.getFacilityLevels().put("garden", 1);
+        store.state.getFacilityLastAccruedAt().put("garden", clock.instant());
+        store.state.setTimber(500);
+        store.state.getMaterialInventory().put("ember_ingot", 40);
+        store.state.getMaterialInventory().put("frost_crystal", 40);
+
+        Map<String, Object> before = service.getSnapshot(user);
+        Map<String, Object> option = ((List<Map<String, Object>>) before.get("buildOptions")).stream()
+                .filter(item -> "garden_level_2".equals(item.get("id"))).findFirst().orElseThrow();
+        int cost = ((Number) option.get("instantCoinCost")).intValue();
+        int timberBefore = store.state.getTimber();
+        Map<String, Integer> materialsBefore = Map.copyOf(store.state.getMaterialInventory());
+
+        Map<String, Object> purchased = service.purchaseBuild(user, "garden_level_2", "buy-upgrade", store.state.getVersion());
+        assertEquals(2, ((Number) station(purchased, "garden").get("level")).intValue());
+        assertEquals(timberBefore, store.state.getTimber());
+        assertEquals(materialsBefore, store.state.getMaterialInventory());
+        assertEquals(10_000 - cost, intAt(purchased, "resources", "gold"));
+
+        progression.setGold(0);
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> service.purchaseBuild(user, "build_forge", "buy-without-coins", store.state.getVersion()));
+        assertTrue(error.getMessage().contains("more Siegecoins"));
+        assertEquals(0, store.state.getFacilityLevels().getOrDefault("forge", 0));
     }
 
     @Test
@@ -769,6 +1031,44 @@ class KeepServiceTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void collectAllGathersEveryReadyProductionPointInOneAction() {
+        service.getSnapshot(user);
+        store.state.setStorehouseLevel(1);
+        store.state.setTimber(0);
+        store.state.setWoodlotStored(0);
+        store.state.setWoodlotLastAccruedAt(clock.instant());
+        store.state.getFacilityLevels().put("quarry", 1);
+        store.state.getFacilityLevels().put("kitchen", 1);
+        store.state.getFacilityLastAccruedAt().put("quarry", clock.instant());
+        store.state.getFacilityLastAccruedAt().put("kitchen", clock.instant());
+        clock.advance(Duration.ofMinutes(100));
+
+        Map<String, Object> before = service.getSnapshot(user);
+        int timberReady = ((Number) station(before, "woodlot").get("available")).intValue();
+        int stoneReady = ((Number) station(before, "quarry").get("available")).intValue();
+        int provisionsReady = ((Number) station(before, "kitchen").get("available")).intValue();
+        assertTrue(timberReady > 0 && stoneReady > 0 && provisionsReady > 0);
+
+        Map<String, Object> collected = service.collect(user, "all", "collect-all-points", store.state.getVersion());
+        Map<String, Object> summary = (Map<String, Object>) collected.get("collected");
+        assertEquals("all", summary.get("stationId"));
+        assertEquals(timberReady + stoneReady + provisionsReady, ((Number) summary.get("amount")).intValue());
+        List<Map<String, Object>> grants = (List<Map<String, Object>>) summary.get("stations");
+        assertEquals(3, grants.size());
+        assertEquals(timberReady, intAt(collected, "resources", "timber"));
+        assertEquals(stoneReady, materialAmount(collected, "stone"));
+        assertEquals(provisionsReady, materialAmount(collected, "provisions"));
+        assertEquals(0, ((Number) station(collected, "woodlot").get("available")).intValue());
+        assertEquals(0, ((Number) station(collected, "quarry").get("available")).intValue());
+        assertEquals(0, ((Number) station(collected, "kitchen").get("available")).intValue());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.collect(user, "all", "collect-all-empty", store.state.getVersion()),
+                "A second collect-all with empty stockpiles must refuse rather than no-op.");
+    }
+
+    @Test
     void weeklyOrderSpendsMaterialsOncePerWeekForBoostedIncome() {
         service.getSnapshot(user);
         assertThrows(IllegalArgumentException.class,
@@ -800,6 +1100,55 @@ class KeepServiceTest {
         assertThrows(IllegalArgumentException.class,
                 () -> service.claimReward(user, "weekly_order", "order-2", store.state.getVersion()),
                 "The order can only be filled once per week.");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void weeklyOrderDoesNotCreditGoldWhenKeepSaveFails() {
+        service.getSnapshot(user);
+        store.state.getFacilityLevels().put("kitchen", 1);
+        store.state.getFacilityLastAccruedAt().put("kitchen", clock.instant());
+        for (String materialId : List.of("verdant_fiber", "ember_ingot", "frost_crystal", "storm_cell", "stone", "provisions")) {
+            store.state.getMaterialInventory().put(materialId, 60);
+        }
+        Map<String, Object> snapshot = service.getSnapshot(user);
+        Map<String, Object> order = (Map<String, Object>) snapshot.get("weeklyOrder");
+        List<Map<String, Object>> requirements = (List<Map<String, Object>>) order.get("requirements");
+        assertFalse(requirements.isEmpty());
+
+        int goldBefore = progression.getGold();
+        int remnantsBefore = progression.getRemnants();
+        java.util.concurrent.atomic.AtomicInteger progressionSaves = new java.util.concurrent.atomic.AtomicInteger();
+        service.setProgressionStore(new PlayerProgressionStore() {
+            @Override public PlayerProgressionEntity save(PlayerProgressionEntity entity) {
+                progressionSaves.incrementAndGet();
+                return entity;
+            }
+        });
+        store.failNextSave = true;
+
+        assertThrows(IllegalStateException.class,
+                () -> service.claimReward(user, "weekly_order", "order-fail", store.state.getVersion()));
+        assertEquals(goldBefore, progression.getGold(),
+                "Weekly-order Siegecoins must not mint before Keep persists the spent materials.");
+        assertEquals(remnantsBefore, progression.getRemnants());
+        assertTrue(progression.getKeepRewardClaimIds().stream().noneMatch(id -> id.startsWith("weekly_order:")),
+                "The claim marker must not land without the Keep spend.");
+        assertEquals(0, progressionSaves.get());
+
+        // Simulate Cloud Run reload: Firestore still has the unspent materials and no claim.
+        for (String materialId : List.of("verdant_fiber", "ember_ingot", "frost_crystal", "storm_cell", "stone", "provisions")) {
+            store.state.getMaterialInventory().put(materialId, 60);
+        }
+        store.failNextSave = false;
+
+        Map<String, Object> claimed = service.claimReward(user, "weekly_order", "order-retry", store.state.getVersion());
+        assertTrue(progression.getGold() > goldBefore);
+        assertEquals(1, progressionSaves.get());
+        Map<String, Object> orderAfter = (Map<String, Object>) claimed.get("weeklyOrder");
+        assertEquals(Boolean.TRUE, orderAfter.get("claimed"));
+        assertTrue(((List<Map<String, Object>>) orderAfter.get("requirements")).stream()
+                .allMatch(item -> ((Number) item.get("have")).intValue() < 60));
     }
 
     @Test
@@ -888,6 +1237,18 @@ class KeepServiceTest {
         assertEquals("Carved Covenant Waypost", reward.get("decorationName"));
         assertTrue(store.state.getCraftedItemCounts().getOrDefault("carved_waypost", 0) >= 1,
                 "Claiming a decoration level grants the decoration as an owned, placeable item.");
+    }
+
+    @Test
+    void claimedKeeperDecorationIsRepairedAfterSplitPersistenceFailure() {
+        service.getSnapshot(user);
+        progression.getKeepRewardClaimIds().add("keeper_level:3");
+        store.state.getCraftedItemCounts().remove("carved_waypost");
+
+        service.getSnapshot(user);
+
+        assertEquals(1, store.state.getCraftedItemCounts().get("carved_waypost"),
+                "A durable claim marker must restore a decoration lost when the Keep document failed to save.");
     }
 
     @Test
@@ -1064,22 +1425,280 @@ class KeepServiceTest {
         clock.advance(Duration.ofSeconds(KeepService.AKHARS_FRONT_BUILD_SECONDS + 1));
         Map<String, Object> built = service.getSnapshot(user);
         assertEquals(Boolean.TRUE, valueAt(built, "akharsFront", "built"));
-        assertEquals(3, intAt(built, "akharsFront", "capacity"));
+        assertEquals(1, intAt(built, "akharsFront", "capacity"), "A new rampart opens exactly one post.");
+        assertEquals("Timber Palisade", valueAt(built, "akharsFront", "wallName"));
+        assertEquals(120, intAt(built, "akharsFront", "storageCapacity"));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.setAkharsFrontResident(user, 1, "mossling", "front-slot-two", store.state.getVersion()),
+                "Post two only exists after the walls are upgraded.");
+
+        service.inviteResident(user, "quarry", "mossling", "front-worker", store.state.getVersion());
+        assertEquals("mossling", station(service.getSnapshot(user), "quarry").get("residentId"));
 
         Map<String, Object> posted = service.setAkharsFrontResident(
                 user, 0, "mossling", "front-post", store.state.getVersion());
         assertEquals(1, intAt(posted, "akharsFront", "residentCount"));
-        assertEquals(1.0, ((Number) valueAt(posted, "akharsFront", "ratePerMinute")).doubleValue(), .0001);
+        assertEquals(1.0, ((Number) valueAt(posted, "akharsFront", "passiveRatePerMinute")).doubleValue(), .0001);
+        assertEquals(4.0, ((Number) valueAt(posted, "akharsFront", "combatRatePerMinute")).doubleValue(), .0001);
+        assertEquals(5.0, ((Number) valueAt(posted, "akharsFront", "ratePerMinute")).doubleValue(), .0001);
+        assertEquals(1, intAt(posted, "akharsFront", "coinsPerDefeat"));
+        assertEquals("", station(posted, "quarry").get("residentId"),
+                "Posting a Keep worker on the wall must vacate its building.");
+        assertNull(station(posted, "quarry").get("resident"));
+        assertEquals(1, intAt(posted, "siegelingSlots", "active"),
+                "A reassignment is one occupied role, not two active slots.");
+        Map<String, Object> assignment = (Map<String, Object>) residentPayload(posted, "mossling").get("assignment");
+        assertEquals("FRONT", assignment.get("type"));
+        assertEquals("Akhar's Front post 1", assignment.get("label"));
 
         clock.advance(Duration.ofMinutes(10));
         Map<String, Object> accrued = service.getSnapshot(user);
-        assertEquals(10, intAt(accrued, "akharsFront", "available"));
+        assertEquals(50, intAt(accrued, "akharsFront", "available"));
         int goldBefore = progression.getGold();
         Map<String, Object> collected = service.collect(
                 user, "akhars_front", "front-collect", store.state.getVersion());
-        assertEquals(goldBefore + 10, progression.getGold());
+        assertEquals(goldBefore + 50, progression.getGold());
         assertEquals(0, intAt(collected, "akharsFront", "available"));
         assertEquals("SIEGECOINS", valueAt(collected, "collected", "resource"));
+
+        Map<String, Object> returned = service.inviteResident(
+                user, "quarry", "mossling", "front-return-worker", store.state.getVersion());
+        assertEquals(0, intAt(returned, "akharsFront", "residentCount"));
+        assertEquals("mossling", station(returned, "quarry").get("residentId"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void rampartUpgradesOpenOnePostPerTierUpToFour() {
+        service.getSnapshot(user);
+        // A Keep far enough along to own the Front at all: the early build ladder is done.
+        store.state.setArchiveLevel(1);
+        store.state.setWoodlotLevel(2);
+        store.state.setStorehouseLevel(1);
+        store.state.setEnclaveLevel(1);
+        store.state.getFacilityLevels().put("quarry", 1);
+        store.state.getFacilityLastAccruedAt().put("quarry", clock.instant());
+        store.state.setAkharsFrontLevel(1);
+        store.state.setAkharsFrontLastAccruedAt(clock.instant());
+        store.state.setBuildersYardLevel(1);
+        store.state.setHallLevel(5);
+        store.state.setTimber(5_000);
+        store.state.getMaterialInventory().put("stone", 200);
+        store.state.getMaterialInventory().put("ember_ingot", 100);
+        store.state.getMaterialInventory().put("frost_crystal", 100);
+
+        Map<String, Object> tierOne = service.getSnapshot(user);
+        assertEquals(1, ((List<Map<String, Object>>) valueAt(tierOne, "akharsFront", "slots")).size());
+        Map<String, Object> upgrade = (Map<String, Object>) valueAt(tierOne, "akharsFront", "upgrade");
+        assertEquals("akhars_front_level_2", upgrade.get("id"));
+        assertEquals("Stone Rampart", upgrade.get("wallName"));
+        assertEquals(Boolean.TRUE, upgrade.get("gateMet"));
+
+        for (int level = 2; level <= KeepService.AKHARS_FRONT_MAX_LEVEL; level++) {
+            String projectId = "akhars_front_level_" + level;
+            buildOption(service.getSnapshot(user), projectId); // offered before it is started
+            service.startBuild(user, projectId, "rampart-" + level, store.state.getVersion());
+            clock.advance(Duration.ofDays(2));
+            Map<String, Object> raised = service.getSnapshot(user);
+            assertEquals(level, intAt(raised, "akharsFront", "level"));
+            assertEquals(level, intAt(raised, "akharsFront", "capacity"));
+            assertEquals(level, ((List<Map<String, Object>>) valueAt(raised, "akharsFront", "slots")).size());
+        }
+
+        Map<String, Object> bastion = service.getSnapshot(user);
+        assertEquals("Bastion Battlements", valueAt(bastion, "akharsFront", "wallName"));
+        assertEquals(35, intAt(bastion, "akharsFront", "wallBonusPercent"));
+        assertEquals(480, intAt(bastion, "akharsFront", "storageCapacity"));
+        assertNull(valueAt(bastion, "akharsFront", "upgrade"), "The fourth tier is the last one.");
+        assertThrows(NoSuchElementException.class, () -> buildOption(bastion, "akhars_front_level_5"));
+
+        // A fully raised wall pays its defender the tier bonus on both income components.
+        service.inviteResident(user, "woodlot", "mossling", "front-hire", store.state.getVersion());
+        Map<String, Object> posted = service.setAkharsFrontResident(
+                user, 3, "mossling", "front-post-four", store.state.getVersion());
+        assertEquals(1, intAt(posted, "akharsFront", "residentCount"));
+        assertEquals(1.35, ((Number) valueAt(posted, "akharsFront", "passiveRatePerMinute")).doubleValue(), .0001);
+        assertEquals(5.4, ((Number) valueAt(posted, "akharsFront", "combatRatePerMinute")).doubleValue(), .0001);
+        assertEquals("Akhar's Front post 4",
+                ((Map<String, Object>) residentPayload(posted, "mossling").get("assignment")).get("label"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void rampartUpgradesStayGatedUntilTheKeepCanSupportThem() {
+        service.getSnapshot(user);
+        store.state.setArchiveLevel(1);
+        store.state.setWoodlotLevel(2);
+        store.state.setStorehouseLevel(1);
+        store.state.setEnclaveLevel(1);
+        store.state.getFacilityLevels().put("quarry", 1);
+        store.state.getFacilityLastAccruedAt().put("quarry", clock.instant());
+        store.state.setAkharsFrontLevel(1);
+        store.state.setAkharsFrontLastAccruedAt(clock.instant());
+        store.state.setTimber(5_000);
+        store.state.getMaterialInventory().put("stone", 200);
+        store.state.getMaterialInventory().put("ember_ingot", 100);
+
+        Map<String, Object> noYard = service.getSnapshot(user);
+        assertEquals(Boolean.FALSE, ((Map<String, Object>) valueAt(noYard, "akharsFront", "upgrade")).get("gateMet"));
+        assertThrows(NoSuchElementException.class, () -> buildOption(noYard, "akhars_front_level_2"));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.startBuild(user, "akhars_front_level_2", "rampart-early", store.state.getVersion()));
+
+        store.state.setBuildersYardLevel(1);
+        service.startBuild(user, "akhars_front_level_2", "rampart-two", store.state.getVersion());
+        clock.advance(Duration.ofDays(2));
+        assertEquals(2, intAt(service.getSnapshot(user), "akharsFront", "level"));
+
+        // Tier three additionally needs a Stonehold keep, so it stays previewed but unbuildable.
+        Map<String, Object> gated = service.getSnapshot(user);
+        Map<String, Object> upgrade = (Map<String, Object>) valueAt(gated, "akharsFront", "upgrade");
+        assertEquals("akhars_front_level_3", upgrade.get("id"));
+        assertEquals(Boolean.FALSE, upgrade.get("gateMet"));
+        assertEquals("Needs the Builder's Yard and a Stonehold keep.", upgrade.get("requirement"));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.startBuild(user, "akhars_front_level_3", "rampart-three-early", store.state.getVersion()));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void legacyThreePostRampartsKeepTheirDefendersAtTheMatchingTier() {
+        service.getSnapshot(user);
+        // A pre-upgrade Keep document: level 1, but three fixed posts, the third occupied.
+        store.state.setAkharsFrontLevel(1);
+        store.state.setAkharsFrontLastAccruedAt(clock.instant());
+        store.state.setAkharsFrontResidentIds(List.of("", "", "mossling"));
+
+        Map<String, Object> migrated = service.getSnapshot(user);
+        assertEquals(3, intAt(migrated, "akharsFront", "level"), "Three posts means the walls were tier three.");
+        assertEquals(3, intAt(migrated, "akharsFront", "capacity"));
+        List<Map<String, Object>> slots = (List<Map<String, Object>>) valueAt(migrated, "akharsFront", "slots");
+        assertEquals("mossling", slots.get(2).get("residentId"), "The posted defender must survive the migration.");
+        assertEquals(1, intAt(migrated, "akharsFront", "residentCount"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void raiderShadesComeFromRealSiegelingArtAndAreRandomised() {
+        Map<String, Object> pool = (Map<String, Object>) service.getSnapshot(user).get("akharsFront");
+        assertEquals(List.of(), pool.get("raiders"),
+                "Cards without uploaded art cannot be shaded, so the pool stays empty.");
+
+        // A catalog wide enough that a 12-card pool is a real sample rather than everything.
+        List<Card> catalog = new ArrayList<>();
+        for (int index = 0; index < 30; index++) {
+            SieglingCard card = card("shade_" + index, "Siegeling " + index, Element.SHADOW);
+            card.setCardArtUrl("/img/cards/shade_" + index + ".png");
+            catalog.add(card);
+        }
+        SieglingCard artless = card("artless", "Artless", Element.EARTH);
+        catalog.add(artless);
+        KeepService shaded = new KeepService(new InMemoryKeepStore(),
+                new PlayerProgressionService() {
+                    @Override public PlayerProgressionEntity getOrCreate(AccountUser ignored) { return progression; }
+                },
+                new CardDefinitionService() {
+                    @Override public List<Card> getDeckBuilderCatalog() { return catalog; }
+                },
+                loreCatalog(), eventCatalog());
+        shaded.setClock(clock);
+        shaded.setRandom(new Random(11));
+
+        List<Map<String, Object>> raiders =
+                (List<Map<String, Object>>) ((Map<String, Object>) shaded.getSnapshot(user).get("akharsFront")).get("raiders");
+        assertEquals(12, raiders.size(), "The pool is capped so a huge catalog does not bloat the snapshot.");
+        assertTrue(raiders.stream().noneMatch(raider -> "artless".equals(raider.get("id"))),
+                "A card with no art cannot be recoloured into a raider.");
+        for (Map<String, Object> raider : raiders) {
+            assertTrue(String.valueOf(raider.get("artUrl")).startsWith("/img/cards/"),
+                    "Raiders carry real card art, not a generated ghost.");
+            assertTrue(String.valueOf(raider.get("name")).startsWith("Shade of "),
+                    "A raider is named as the corrupted form of the Siegeling it is drawn from.");
+            assertEquals("SHADOW", raider.get("element"));
+        }
+        assertEquals(raiders.size(), raiders.stream().map(raider -> raider.get("id")).distinct().count(),
+                "One pool must never offer the same Siegeling twice.");
+
+        // Two different seeds must not produce the same twelve, or "randomised" is a lie.
+        shaded.setRandom(new Random(4));
+        List<Map<String, Object>> reroll =
+                (List<Map<String, Object>>) ((Map<String, Object>) shaded.getSnapshot(user).get("akharsFront")).get("raiders");
+        assertNotEquals(raiders.stream().map(raider -> raider.get("id")).toList(),
+                reroll.stream().map(raider -> raider.get("id")).toList());
+    }
+
+    @Test
+    void akharsFrontCollectDoesNotCreditGoldWhenKeepSaveFails() {
+        service.getSnapshot(user);
+        store.state.setAkharsFrontLevel(1);
+        store.state.setAkharsFrontLastAccruedAt(clock.instant());
+        store.state.setAkharsFrontStoredGold(25);
+        progression.setGold(100);
+
+        java.util.concurrent.atomic.AtomicInteger progressionSaves = new java.util.concurrent.atomic.AtomicInteger();
+        service.setProgressionStore(new PlayerProgressionStore() {
+            @Override public PlayerProgressionEntity save(PlayerProgressionEntity entity) {
+                progressionSaves.incrementAndGet();
+                return entity;
+            }
+        });
+        store.failNextSave = true;
+
+        assertThrows(IllegalStateException.class,
+                () -> service.collect(user, "akhars_front", "front-collect-fail", store.state.getVersion()));
+        assertEquals(100, progression.getGold(), "Gold must not mint before the Keep bank is persisted.");
+        assertEquals(0, progressionSaves.get(), "Progression must not save when Keep persistence fails.");
+
+        // Simulate Cloud Run reload: Keep document still has the uncleared bank.
+        store.state.setAkharsFrontStoredGold(25);
+        store.failNextSave = false;
+
+        Map<String, Object> collected = service.collect(
+                user, "akhars_front", "front-collect-retry", store.state.getVersion());
+        assertEquals(125, progression.getGold());
+        assertEquals(1, progressionSaves.get());
+        assertEquals(0, intAt(collected, "akharsFront", "available"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void instantPurchaseDoesNotChargeGoldWhenKeepSaveFails() {
+        progression.setGold(5_000);
+        service.getSnapshot(user);
+        store.state.setArchiveLevel(1);
+        store.state.setWoodlotLevel(2);
+        store.state.setStorehouseLevel(1);
+        store.state.setTimber(2_000);
+
+        Map<String, Object> optionsSnapshot = service.getSnapshot(user);
+        Map<String, Object> forgeOption = ((List<Map<String, Object>>) optionsSnapshot.get("buildOptions")).stream()
+                .filter(item -> "build_forge".equals(item.get("id"))).findFirst().orElseThrow();
+        int instantCost = ((Number) forgeOption.get("instantCoinCost")).intValue();
+
+        java.util.concurrent.atomic.AtomicInteger progressionSaves = new java.util.concurrent.atomic.AtomicInteger();
+        service.setProgressionStore(new PlayerProgressionStore() {
+            @Override public PlayerProgressionEntity save(PlayerProgressionEntity entity) {
+                progressionSaves.incrementAndGet();
+                return entity;
+            }
+        });
+        store.failNextSave = true;
+
+        assertThrows(IllegalStateException.class,
+                () -> service.purchaseBuild(user, "build_forge", "buy-forge-fail", store.state.getVersion()));
+        assertEquals(5_000, progression.getGold(), "Siegecoins must not charge before Keep persists the building.");
+        assertEquals(0, progressionSaves.get());
+
+        // Simulate Firestore reload of the pre-purchase Keep document.
+        store.state.getFacilityLevels().remove("forge");
+        store.state.getFacilityLastAccruedAt().remove("forge");
+        store.state.getFacilityStored().remove("forge");
+        store.failNextSave = false;
+
+        Map<String, Object> purchased = service.purchaseBuild(user, "build_forge", "buy-forge-retry", store.state.getVersion());
+        assertEquals(1, ((Number) station(purchased, "forge").get("level")).intValue());
+        assertEquals(5_000 - instantCost, progression.getGold());
+        assertEquals(1, progressionSaves.get());
     }
 
     private void buildEnclave() {
@@ -1168,6 +1787,18 @@ class KeepServiceTest {
                 .map(item -> String.valueOf(item.get("id"))).toList();
     }
 
+    private static KeepLoreCatalog loreCatalog() {
+        KeepLoreCatalog lore = new KeepLoreCatalog(new ObjectMapper());
+        lore.load();
+        return lore;
+    }
+
+    private static KeepEventCatalog eventCatalog() {
+        KeepEventCatalog events = new KeepEventCatalog(new ObjectMapper());
+        events.load();
+        return events;
+    }
+
     private static SieglingCard card(String id, String name, Element element) {
         return card(id, name, element, Rarity.COMMON);
     }
@@ -1178,8 +1809,16 @@ class KeepServiceTest {
 
     private static class InMemoryKeepStore extends KeepStore {
         private KeepState state;
+        private boolean failNextSave;
         @Override public Optional<KeepState> findByUserId(String userId) { return Optional.ofNullable(state); }
-        @Override public KeepState save(KeepState value) { state = value; return value; }
+        @Override public KeepState save(KeepState value) {
+            if (failNextSave) {
+                failNextSave = false;
+                throw new IllegalStateException("Keep persistence failed.");
+            }
+            state = value;
+            return value;
+        }
         @Override public void deleteByUserId(String userId) { state = null; }
     }
 

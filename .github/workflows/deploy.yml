@@ -6,6 +6,23 @@ on:
       - main
   workflow_dispatch:
 
+# Two pushes to main landing minutes apart used to deploy in parallel, and
+# whichever job finished last won *per surface* — that is how #604/#605 put a
+# new frontend on Firebase Hosting in front of an old API on Cloud Run, with
+# two green runs and nothing to show anything had gone wrong. Serialize instead:
+# one deploy at a time, for the whole workflow (a job-level group would still
+# let run B's Cloud Run job overlap run A's Hosting job, which is the same race).
+#
+# cancel-in-progress is false on purpose — killing a half-finished deploy is
+# worse than the queue. GitHub still cancels a *pending* run when a newer one
+# joins the group, so a burst of pushes deploys the first and then the newest,
+# never an older commit last. The group is a fixed string rather than a ref, so
+# a workflow_dispatch redeploy queues behind a push deploy: both target the same
+# production project.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
@@ -26,6 +43,11 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Deploy Backend To Cloud Run
+        # Cloud Build occasionally returns EXPIRED (~10m) with no actionable
+        # log — seen on consecutive #662/#663 deploys. Retry once in-job so a
+        # transient builder timeout does not strand the pipeline; Hosting still
+        # proceeds below even if both attempts fail (frontend-only fixes must
+        # still be able to ship).
         run: |
           # Match state (solo games in GameService.soloGames, multiplayer rooms
           # in MultiplayerService.rooms) lives only in one JVM's memory. Default
@@ -36,17 +58,41 @@ jobs:
           # service to a single always-warm instance so every request hits the
           # same in-memory store. min-instances=1 also removes the 10-30s cold
           # start on /api/game/new.
-          gcloud run deploy sieglings-tcg-api \
-            --source . \
-            --region us-central1 \
-            --project siegelingstcgtesting \
-            --min-instances 1 \
-            --max-instances 1 \
-            --quiet
+          attempt=0
+          for wait in 0 45; do
+            if [ "$wait" -gt 0 ]; then
+              echo "Retrying Cloud Run deploy in ${wait}s after prior failure..."
+              sleep "$wait"
+            fi
+            attempt=$((attempt + 1))
+            echo "::group::gcloud run deploy (attempt $attempt)"
+            set +e
+            gcloud run deploy sieglings-tcg-api \
+              --source . \
+              --region us-central1 \
+              --project siegelingstcgtesting \
+              --min-instances 1 \
+              --max-instances 1 \
+              --quiet
+            code=$?
+            set -e
+            echo "::endgroup::"
+            if [ "$code" -eq 0 ]; then
+              echo "Cloud Run deploy succeeded on attempt $attempt."
+              exit 0
+            fi
+            echo "Cloud Run deploy attempt $attempt failed (exit $code)."
+          done
+          echo "Cloud Run deploy failed after $attempt attempts."
+          exit 1
 
   deploy-firebase:
     name: Firebase Deploy
+    # Hosting must still ship when Cloud Run's container build expires
+    # (EXPIRED) — otherwise a frontend-only pin bump (e.g. adventure.css)
+    # stays stuck behind a backend builder outage. Skip only on cancel.
     needs: deploy-cloud-run
+    if: ${{ always() && needs.deploy-cloud-run.result != 'cancelled' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

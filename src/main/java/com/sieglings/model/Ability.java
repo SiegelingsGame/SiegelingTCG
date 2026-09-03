@@ -47,6 +47,10 @@ public class Ability {
         return new Ability(name, desc, target, row, count, AbilityEffectKeys.DAMAGE, value, false);
     }
 
+    public static Ability chainDamage(String name, String desc, TargetType target, Row row, int count, int value) {
+        return new Ability(name, desc, target, row, count, AbilityEffectKeys.CHAIN_DAMAGE, value, false);
+    }
+
     public static Ability heal(String name, String desc, TargetType target, Row row, int count, int value) {
         return new Ability(name, desc, target, row, count, AbilityEffectKeys.HEAL, value, false);
     }
@@ -63,6 +67,18 @@ public class Ability {
         return new Ability(name, desc, target, row, 0, effectType, value, true);
     }
 
+    /**
+     * Passive energy generation: the owner's pool gains {@code value} energy of
+     * {@code energyElement} every turn while the card is on the board, with no notch
+     * link or socket involved. A null element means "use the source card's element".
+     */
+    public static Ability passiveEnergyBoost(String name, String desc, Element energyElement, int value) {
+        Ability ability = new Ability(name, desc, TargetType.PASSIVE, null, 0,
+                AbilityEffectKeys.ENERGY_BOOST, value, true);
+        ability.setTargetElement(energyElement);
+        return ability;
+    }
+
     public static Ability connectedAlliesHealthBoost(String name, String desc, int value) {
         return new Ability(name, desc, TargetType.SELF, null, 0, AbilityEffectKeys.CONNECTED_ALLIES_HEALTH_BOOST, value, false);
     }
@@ -72,6 +88,11 @@ public class Ability {
     // recalculation in GameService picks it up.
     public static Ability passiveConnectedAlliesHealthBoost(String name, String desc, int value) {
         return new Ability(name, desc, TargetType.PASSIVE, null, 0, AbilityEffectKeys.CONNECTED_ALLIES_HEALTH_BOOST, value, true);
+    }
+
+    /** Restores current HP on directly linked allies without raising max Health. */
+    public static Ability connectedAlliesHeal(String name, String desc, int value) {
+        return new Ability(name, desc, TargetType.SELF, null, 0, AbilityEffectKeys.CONNECTED_ALLIES_HEAL, value, false);
     }
 
     public static Ability connectedAlliesShield(String name, String desc, int value) {

@@ -37,6 +37,11 @@ class SiegeBattle {
     private final List<Map<String, Object>> events = new ArrayList<>();
     /** Structured turn ledger: every action with the card behind it, grouped by round. */
     private final List<Map<String, Object>> turnLog = new ArrayList<>();
+    private boolean tallying;
+    private int tallyDamage;
+    private int tallyHeal;
+    private int tallyShield;
+    private int tallyKo;
     /**
      * Kills landed this battle, keyed by the combatant id that struck the blow.
      * Drained at battle-won time to hand out the killing-blow XP bonus. Keyed by
@@ -53,6 +58,10 @@ class SiegeBattle {
     private int knightCharge;
     /** Combatant id of the fastest ready Siegeling (cosmetic "lead" for the UI). */
     private String leadId;
+    /** Shared fastest-to-slowest queue, stable until it wraps. */
+    private final List<String> advantageOrder = new ArrayList<>();
+    private int advantageIndex = -1;
+    private long advantageCycle;
     /** Active run-wide Battlegrounds boon ids for this battle (empty outside Battlegrounds). */
     private java.util.Set<String> boons = java.util.Set.of();
     /** Whether the BATTLE_REVIVE boon has already fired this battle (once per battle). */
@@ -87,6 +96,15 @@ class SiegeBattle {
     void addKnightCharge(int amount) { setKnightCharge(knightCharge + amount); }
     String getLeadId() { return leadId; }
     void setLeadId(String leadId) { this.leadId = leadId; }
+    List<String> getAdvantageOrder() { return advantageOrder; }
+    int getAdvantageIndex() { return advantageIndex; }
+    void setAdvantageIndex(int advantageIndex) { this.advantageIndex = advantageIndex; }
+    long getAdvantageCycle() { return advantageCycle; }
+    void setAdvantageCycle(long advantageCycle) { this.advantageCycle = Math.max(0, advantageCycle); }
+    String getAdvantageHolderId() {
+        return advantageIndex >= 0 && advantageIndex < advantageOrder.size()
+                ? advantageOrder.get(advantageIndex) : null;
+    }
     void setBoons(java.util.Collection<String> boonIds) {
         this.boons = boonIds == null ? java.util.Set.of() : new java.util.HashSet<>(boonIds);
     }
@@ -113,7 +131,7 @@ class SiegeBattle {
     Map<String, Integer> getKillCredit() { return killCredit; }
 
     /** Records a ledger step: who acted, with which card, and what happened. */
-    void turnEntry(String side, String actor, String card, int cost, String text) {
+    Map<String, Object> turnEntry(String side, String actor, String card, int cost, String text) {
         Map<String, Object> e = new LinkedHashMap<>();
         e.put("round", roundNumber);
         e.put("side", side);        // "you" | "foe" | "sys"
@@ -125,7 +143,55 @@ class SiegeBattle {
         if (turnLog.size() > 120) {
             turnLog.remove(0);
         }
+        return e;
     }
+
+    /**
+     * Opens a tally window: presentation events fired from here on add their
+     * magnitudes up, so a ledger row can carry what the action actually did
+     * rather than only what it was aimed at. Bracketed explicitly (rather than
+     * riding on the newest ledger row) because between-action ticks — poison,
+     * wither, shield lapses — fire events too and must not be credited to
+     * whoever acted last.
+     */
+    void beginTally() {
+        tallying = true;
+        tallyDamage = 0;
+        tallyHeal = 0;
+        tallyShield = 0;
+        tallyKo = 0;
+    }
+
+    /** Closes the tally window and writes its non-zero totals onto {@code entry}. */
+    void stampTally(Map<String, Object> entry) {
+        tallying = false;
+        if (entry == null) return;
+        if (tallyDamage > 0) entry.put("dmg", tallyDamage);
+        if (tallyHeal > 0) entry.put("heal", tallyHeal);
+        if (tallyShield > 0) entry.put("shield", tallyShield);
+        if (tallyKo > 0) entry.put("ko", tallyKo);
+    }
+
+    private void tally(Map<String, Object> e) {
+        if (!tallying) return;
+        int amount = e.get("amount") instanceof Number n ? n.intValue() : 0;
+        switch (String.valueOf(e.get("type"))) {
+            case "hit", "knightHit" -> {
+                tallyDamage += Math.max(0, amount);
+                if (Boolean.TRUE.equals(e.get("ko"))) tallyKo++;
+            }
+            case "heal", "revive" -> tallyHeal += Math.max(0, amount);
+            case "shield" -> tallyShield += Math.max(0, amount);
+            default -> { }
+        }
+    }
+
+    /**
+     * Event keys naming a combatant whose vitals this event changes. Deliberately
+     * excludes {@code sourceId}: an attacker's own HP moves on its own event
+     * (leech, recoil), and stamping it here would leak that change into the hit.
+     */
+    private static final String[] VITAL_KEYS = { "targetId", "aId", "bId" };
 
     /** Records a presentation event for client playback (varargs key/value pairs). */
     void event(String type, Object... kv) {
@@ -134,6 +200,29 @@ class SiegeBattle {
         for (int i = 0; i + 1 < kv.length; i += 2) {
             e.put(String.valueOf(kv[i]), kv[i + 1]);
         }
+        // The whole turn resolves server-side before the client sees anything, so
+        // the run state it renders from already holds post-turn HP — bars snapped
+        // to their end value before the first projectile even flew. Stamping each
+        // event with its targets' vitals *as of this moment* lets the client hold
+        // the old numbers and step them forward exactly when the hit, tick or heal
+        // lands on screen.
+        List<Map<String, Object>> vitals = new ArrayList<>();
+        for (String key : VITAL_KEYS) {
+            if (!(e.get(key) instanceof String id)) continue;
+            for (Combatant c : combatants) {
+                if (!c.getId().equals(id)) continue;
+                Map<String, Object> v = new LinkedHashMap<>();
+                v.put("id", c.getId());
+                v.put("hp", c.getHp());
+                v.put("maxHp", c.getMaxHp());
+                v.put("shield", c.getShield());
+                v.put("alive", c.isAlive());
+                vitals.add(v);
+                break;
+            }
+        }
+        if (!vitals.isEmpty()) e.put("vitals", vitals);
+        tally(e);
         events.add(e);
         if (events.size() > 80) {
             events.remove(0);

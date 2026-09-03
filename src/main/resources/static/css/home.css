@@ -577,13 +577,22 @@ body.card-fullscreen-open {
 }
 
 /* ── Notification center ──────────────────────────────────────────────── */
-/* Auto margins keep the tabs centered while the bell hugs the brand on the
-   left; mobile stretches the tabs full-width so the margins are inert there. */
+/* Auto margins keep the tabs centered while the bell/help cluster hugs the
+   brand on the left; mobile stretches the tabs full-width so the margins
+   are inert there. */
 .home-nav .nav-tabs {
     margin-inline: auto;
 }
 
-.hud-notif-btn {
+.hud-icon-cluster {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+}
+
+.hud-notif-btn,
+.hud-help-btn {
     position: relative;
     display: inline-grid;
     place-items: center;
@@ -598,10 +607,86 @@ body.card-fullscreen-open {
     cursor: pointer;
 }
 
+.hud-help-btn {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1;
+}
+
 .hud-notif-btn:hover,
-.hud-notif-btn.active {
+.hud-notif-btn.active,
+.hud-help-btn:hover,
+.hud-help-btn.active {
     border-color: rgba(255, 215, 0, 0.62);
     background: rgba(255, 215, 0, 0.12);
+}
+
+.help-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 2200;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    padding: calc(10px + env(safe-area-inset-top, 0px)) 12px calc(12px + env(safe-area-inset-bottom, 0px));
+}
+
+.help-modal.hidden {
+    display: none;
+}
+
+.help-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(4, 8, 18, 0.72);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+.help-modal-panel {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    width: min(920px, 100%);
+    max-height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    border: 1px solid rgba(255, 215, 0, 0.38);
+    border-radius: 16px;
+    background: #0b1224;
+    box-shadow: 0 28px 80px rgba(0, 0, 0, 0.65);
+}
+
+.help-modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex: 0 0 auto;
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(10, 16, 32, 0.96);
+}
+
+.help-modal-head strong {
+    color: #fff7d9;
+    font-size: 14px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.help-modal-frame {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    border: 0;
+    background: #0c1224;
+}
+
+body.help-modal-open {
+    overflow: hidden;
 }
 
 .notif-badge {
@@ -1301,8 +1386,8 @@ body.card-fullscreen-open {
     100% { transform: translateX(360%); }
 }
 
-/* In-grid status while the card catalog or signed-in collection is loading. */
-.binder-loading {
+/* In-grid status while a browser panel (binder, decks, shop) is still loading. */
+.panel-loading {
     grid-column: 1 / -1;
     display: flex;
     flex-direction: column;
@@ -1314,16 +1399,30 @@ body.card-fullscreen-open {
     font-weight: 700;
 }
 
-.binder-loading-spinner {
+/* Dashboard panels are short: the browser-panel padding would make the
+   leaderboard taller while loading than it is once its rows land. */
+.panel-loading.compact {
+    gap: 10px;
+    padding: 20px 12px;
+    font-size: 0.9rem;
+}
+
+.panel-loading.compact .panel-loading-spinner {
+    width: 26px;
+    height: 26px;
+    border-width: 2px;
+}
+
+.panel-loading-spinner {
     width: 40px;
     height: 40px;
     border-radius: 50%;
     border: 3px solid rgba(255, 255, 255, 0.16);
     border-top-color: var(--profile-accent, #ff9a3c);
-    animation: binder-spin 0.8s linear infinite;
+    animation: panel-spin 0.8s linear infinite;
 }
 
-.binder-loading-bar {
+.panel-loading-bar {
     width: min(220px, 70vw);
     height: 5px;
     overflow: hidden;
@@ -1332,28 +1431,28 @@ body.card-fullscreen-open {
     background: rgba(255, 255, 255, 0.08);
 }
 
-.binder-loading-bar > span {
+.panel-loading-bar > span {
     display: block;
     width: 42%;
     height: 100%;
     border-radius: inherit;
     background: linear-gradient(90deg, #ff7a1a, #ffd700);
     box-shadow: 0 0 12px rgba(255, 174, 34, 0.55);
-    animation: binder-loading-slide 1.15s ease-in-out infinite;
+    animation: panel-loading-slide 1.15s ease-in-out infinite;
 }
 
-@keyframes binder-spin {
+@keyframes panel-spin {
     to { transform: rotate(360deg); }
 }
 
-@keyframes binder-loading-slide {
+@keyframes panel-loading-slide {
     from { transform: translateX(-110%); }
     to { transform: translateX(250%); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .binder-loading-spinner,
-    .binder-loading-bar > span {
+    .panel-loading-spinner,
+    .panel-loading-bar > span {
         animation: none;
     }
 }
@@ -1574,6 +1673,66 @@ select.search-input { color-scheme: dark; }
 .shop-purchase-confirm-actions .primary-btn,
 .shop-purchase-confirm-actions .ghost-btn {
     min-width: 96px;
+}
+
+/* Mobile Safari holds every tap for ~300ms waiting to see whether it is the
+   first half of a double-tap zoom. The body's `touch-action: pan-x pan-y`
+   (style.css, which this page also loads) does not release that wait — only
+   `manipulation` on the tapped element does, which is why the battle screen
+   already opts its controls in. The hub never did, so every button here felt
+   like it needed a second, harder tap before anything happened.
+   `:where()` keeps this at zero specificity, so the few surfaces that set their
+   own touch-action for drag or carousel gestures still win. */
+:where(button, a, summary, label, input, select, [role="button"], [role="checkbox"], [role="tab"]) {
+    touch-action: manipulation;
+}
+
+/* Acknowledge the press in the same frame as the touch, before any handler,
+   render or request runs — a tap that lights up is a tap that registered. */
+:where(.primary-btn, .ghost-btn, .deck-delete-btn):active {
+    filter: brightness(1.22);
+}
+
+/* The delete confirm reuses the purchase-confirm shell; only the go button's
+   meaning differs, so it carries the same red as the Delete buttons it replaces. */
+.deck-delete-confirm-go {
+    background: linear-gradient(180deg, #ff6a5c, #d92f1f);
+    color: #fff5f3;
+    box-shadow: 0 8px 20px rgba(217, 47, 31, 0.32);
+}
+
+/* Selection mode: the whole tile is the checkbox target, so the mark only has to
+   read as state — the tile's own tap handler does the toggling. */
+.custom-saved-deck.is-selectable {
+    outline: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.custom-saved-deck.is-picked {
+    outline: 2px solid #ffcc4d;
+    outline-offset: 1px;
+}
+
+.deck-pick-mark {
+    position: absolute;
+    z-index: 4;
+    top: 10px;
+    left: 10px;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border: 2px solid rgba(255, 255, 255, 0.6);
+    border-radius: 50%;
+    background: rgba(6, 10, 24, 0.72);
+    color: transparent;
+    font-size: 0.85rem;
+    line-height: 1;
+}
+
+.custom-saved-deck.is-picked .deck-pick-mark {
+    border-color: #ffcc4d;
+    background: #ffcc4d;
+    color: #241a02;
 }
 
 .shop-card-preview-panel {
@@ -1873,7 +2032,7 @@ select.search-input { color-scheme: dark; }
     min-height: 118px;
     flex: 1 1 auto;
     border-radius: 10px;
-    background-image: var(--knight-card-back, url('/img/knights/card-back-siegeknight.png'));
+    background-image: var(--knight-card-back, url('/img/knights/card-back-siegeknight.webp'));
     background-size: cover;
     background-position: center;
 }
@@ -2719,6 +2878,19 @@ select.search-input { color-scheme: dark; }
     line-height: 1.45;
 }
 
+.binder-guest-note {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.binder-guest-note .primary-btn {
+    align-self: flex-start;
+    margin-top: 2px;
+}
+
 /* Full-card holo tiles bring template-relative typography. The generic tile
    span rule above must not inflate HP/SPD pills inside the smaller grid card. */
 .card-tile .holographic-card-stats .holographic-card-stat {
@@ -2826,6 +2998,352 @@ select.search-input { color-scheme: dark; }
     background: linear-gradient(180deg, #fff8c9, color-mix(in srgb, var(--deck-accent, var(--accent)) 60%, #ffffff));
 }
 
+/* Locked premade decks stay browsable (tap opens the preview). The grey wash
+   sits on the art layer only, so the Locked badge and unlock button read as
+   live controls instead of being desaturated with the rest of the tile. */
+.hub-deck-card.is-locked {
+    border-color: rgba(255, 255, 255, 0.16);
+}
+
+.hub-deck-card.is-locked::before {
+    filter: grayscale(0.9) brightness(0.62);
+}
+
+.hub-deck-card.is-locked .deck-card-state {
+    color: #f6f8ff;
+    background: linear-gradient(180deg, #55607a, #2b3245);
+}
+
+.hub-deck-card.is-locked .deck-card-body {
+    padding-bottom: 96px;
+}
+
+.hub-deck-card .deck-unlock-row {
+    position: absolute;
+    z-index: 3;
+    right: 14px;
+    bottom: 14px;
+    left: 14px;
+}
+
+.hub-deck-card .deck-unlock-btn {
+    width: 100%;
+}
+
+.hub-deck-card .deck-unlock-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.hub-deck-card.is-purchasing {
+    border-color: color-mix(in srgb, var(--deck-accent, var(--accent)) 75%, #ffffff);
+    animation: deck-purchase-pulse 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes deck-purchase-pulse {
+    from { box-shadow: 0 0 0 rgba(255, 255, 255, 0); }
+    to { box-shadow: 0 0 0 2px color-mix(in srgb, var(--deck-accent, var(--accent)) 38%, transparent), 0 0 26px color-mix(in srgb, var(--deck-accent, var(--accent)) 32%, transparent); }
+}
+
+/* Premade-deck purchase celebration. The same lightweight DOM particles take
+   on different silhouettes per element, avoiding video/canvas work while still
+   giving each deck family its own unlock language. */
+.deck-unlock-celebration {
+    position: fixed;
+    z-index: 5200;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    padding: max(20px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+    color: #fff;
+    isolation: isolate;
+    animation: deck-unlock-scene 3.6s ease both;
+}
+
+.deck-unlock-backdrop {
+    position: absolute;
+    z-index: -3;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background:
+        radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--unlock-accent) 35%, transparent), transparent 46%),
+        linear-gradient(180deg, rgba(3, 7, 18, 0.9), rgba(1, 4, 12, 0.98));
+    cursor: default;
+}
+
+.deck-unlock-radiance {
+    position: absolute;
+    z-index: -2;
+    width: min(116vw, 900px);
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: repeating-conic-gradient(from 0deg, transparent 0 8deg, color-mix(in srgb, var(--unlock-glow) 15%, transparent) 8deg 10deg, transparent 10deg 18deg);
+    filter: blur(1px);
+    opacity: 0;
+    animation: deck-unlock-rays 2.8s cubic-bezier(.16, .78, .2, 1) 0.2s both;
+}
+
+.deck-unlock-particles {
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.deck-unlock-particles i {
+    position: absolute;
+    left: var(--particle-x);
+    bottom: -8%;
+    color: var(--unlock-glow);
+    font-style: normal;
+    font-size: calc(12px * var(--particle-scale));
+    text-shadow: 0 0 12px var(--unlock-accent), 0 0 24px var(--unlock-glow);
+    opacity: 0;
+    animation: deck-unlock-particle-rise 2.5s cubic-bezier(.18, .55, .28, 1) var(--particle-delay) both;
+}
+
+.deck-unlock-stage {
+    display: grid;
+    width: min(100%, 440px);
+    justify-items: center;
+    text-align: center;
+    filter: drop-shadow(0 18px 36px rgba(0, 0, 0, 0.62));
+    animation: deck-unlock-copy-in 0.75s cubic-bezier(.15, .85, .25, 1) 0.35s both;
+}
+
+.deck-unlock-kicker {
+    margin-bottom: 12px;
+    color: var(--unlock-glow);
+    font-size: clamp(11px, 2.8vw, 14px);
+    font-weight: 950;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    text-shadow: 0 0 18px var(--unlock-accent);
+}
+
+.deck-unlock-card {
+    position: relative;
+    width: clamp(142px, 39vw, 210px);
+    aspect-ratio: 0.68;
+    margin: 2px 0 16px;
+    border: 2px solid color-mix(in srgb, var(--unlock-glow) 72%, #ffffff);
+    border-radius: 15px;
+    background: #071226;
+    box-shadow: 0 0 0 5px rgba(4, 9, 20, 0.86), 0 0 0 7px color-mix(in srgb, var(--unlock-accent) 62%, transparent), 0 0 38px var(--unlock-accent), 0 26px 60px rgba(0, 0, 0, 0.66);
+    transform-style: preserve-3d;
+    animation: deck-unlock-card-enter 1s cubic-bezier(.12, .82, .2, 1.1) both;
+}
+
+.deck-unlock-card::after {
+    content: "";
+    position: absolute;
+    z-index: 4;
+    inset: -2px;
+    border-radius: inherit;
+    background: linear-gradient(110deg, transparent 25%, color-mix(in srgb, var(--unlock-glow) 72%, #ffffff) 46%, transparent 66%);
+    mix-blend-mode: screen;
+    opacity: 0;
+    transform: translateX(-120%);
+    animation: deck-unlock-sheen 1.05s ease 0.75s both;
+}
+
+.deck-unlock-card-art {
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    background-image: var(--unlock-deck-art), radial-gradient(circle, var(--unlock-accent), #071226 68%);
+    background-position: center;
+    background-size: cover;
+}
+
+.deck-unlock-ring {
+    position: absolute;
+    z-index: -1;
+    inset: -34px;
+    border-radius: 50%;
+    background: conic-gradient(from 0deg, transparent, var(--unlock-accent), var(--unlock-glow), transparent 42%, var(--unlock-secondary), transparent 75%);
+    filter: blur(8px);
+    opacity: 0.7;
+    animation: deck-unlock-ring-spin 2.2s linear both;
+}
+
+.deck-unlock-element-icon {
+    position: absolute;
+    z-index: 5;
+    top: 50%;
+    left: 50%;
+    width: 34%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: 50%;
+    box-shadow: 0 0 0 3px rgba(5, 10, 24, 0.9), 0 0 26px 8px var(--unlock-accent);
+    transform: translate(-50%, -50%) scale(0);
+    animation: deck-unlock-icon-bloom 0.65s cubic-bezier(.12, .85, .2, 1.2) 0.64s both;
+}
+
+.deck-unlock-stage h2 {
+    margin: 0;
+    color: #fff8df;
+    font-size: clamp(28px, 8vw, 44px);
+    line-height: 1;
+    text-shadow: 0 0 24px var(--unlock-accent), 0 4px 0 rgba(0, 0, 0, 0.45);
+}
+
+.deck-unlock-stage p {
+    max-width: 360px;
+    margin: 10px 0 15px;
+    color: rgba(246, 249, 255, 0.82);
+    font-size: clamp(13px, 3.5vw, 16px);
+    line-height: 1.45;
+}
+
+.deck-unlock-continue {
+    min-width: 142px;
+    min-height: 44px;
+    margin: 0;
+    border-color: color-mix(in srgb, var(--unlock-glow) 72%, #ffffff);
+    background: linear-gradient(135deg, var(--unlock-accent), var(--unlock-secondary));
+    box-shadow: 0 0 22px color-mix(in srgb, var(--unlock-accent) 45%, transparent);
+}
+
+.deck-unlock-celebration[data-element="water"] .deck-unlock-particles i {
+    width: calc(9px * var(--particle-scale));
+    height: calc(9px * var(--particle-scale));
+    border: 1.5px solid var(--unlock-glow);
+    border-radius: 50%;
+    color: transparent;
+}
+
+.deck-unlock-celebration[data-element="wind"] .deck-unlock-particles i {
+    width: calc(38px * var(--particle-scale));
+    height: 2px;
+    border-radius: 999px;
+    color: transparent;
+    background: linear-gradient(90deg, transparent, var(--unlock-glow));
+    animation-name: deck-unlock-particle-sweep;
+}
+
+.deck-unlock-celebration[data-element="earth"] .deck-unlock-particles i {
+    width: calc(10px * var(--particle-scale));
+    height: calc(16px * var(--particle-scale));
+    border-radius: 90% 0 90% 0;
+    color: transparent;
+    background: linear-gradient(135deg, var(--unlock-glow), var(--unlock-accent));
+}
+
+.deck-unlock-celebration[data-element="ice"] .deck-unlock-particles i {
+    width: calc(10px * var(--particle-scale));
+    height: calc(18px * var(--particle-scale));
+    color: transparent;
+    background: linear-gradient(180deg, #ffffff, var(--unlock-accent));
+    clip-path: polygon(50% 0, 100% 70%, 50% 100%, 0 70%);
+}
+
+.deck-unlock-celebration[data-element="electric"] .deck-unlock-particles i {
+    animation-name: deck-unlock-particle-spark;
+}
+
+.deck-unlock-celebration[data-element="shadow"] .deck-unlock-particles i,
+.deck-unlock-celebration[data-element="undead"] .deck-unlock-particles i,
+.deck-unlock-celebration[data-element="psychic"] .deck-unlock-particles i {
+    filter: blur(1px);
+    animation-name: deck-unlock-particle-wisp;
+}
+
+@keyframes deck-unlock-scene {
+    0% { opacity: 0; }
+    8%, 88% { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+@keyframes deck-unlock-rays {
+    0% { opacity: 0; transform: scale(0.35) rotate(-16deg); }
+    35% { opacity: 0.9; }
+    100% { opacity: 0.22; transform: scale(1.05) rotate(18deg); }
+}
+
+@keyframes deck-unlock-card-enter {
+    0% { opacity: 0; transform: translateY(52px) scale(0.55) rotateY(110deg); }
+    62% { opacity: 1; transform: translateY(-7px) scale(1.04) rotateY(-7deg); }
+    100% { opacity: 1; transform: translateY(0) scale(1) rotateY(0); }
+}
+
+@keyframes deck-unlock-copy-in {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes deck-unlock-icon-bloom {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(0) rotate(-45deg); }
+    72% { opacity: 1; transform: translate(-50%, -50%) scale(1.15) rotate(6deg); }
+    100% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0); }
+}
+
+@keyframes deck-unlock-ring-spin {
+    from { transform: rotate(0deg) scale(0.45); opacity: 0; }
+    25% { opacity: 0.8; }
+    to { transform: rotate(220deg) scale(1.08); opacity: 0.2; }
+}
+
+@keyframes deck-unlock-sheen {
+    0%, 18% { opacity: 0; transform: translateX(-120%); }
+    40% { opacity: 0.9; }
+    70%, 100% { opacity: 0; transform: translateX(120%); }
+}
+
+@keyframes deck-unlock-particle-rise {
+    0% { opacity: 0; transform: translate3d(0, 0, 0) scale(0.5); }
+    18% { opacity: 0.9; }
+    100% { opacity: 0; transform: translate3d(var(--particle-drift), -112vh, 0) scale(1.35) rotate(190deg); }
+}
+
+@keyframes deck-unlock-particle-sweep {
+    0% { opacity: 0; transform: translate3d(-42vw, -10vh, 0) rotate(-12deg); }
+    22% { opacity: 0.85; }
+    100% { opacity: 0; transform: translate3d(70vw, -96vh, 0) rotate(12deg); }
+}
+
+@keyframes deck-unlock-particle-spark {
+    0% { opacity: 0; transform: translate(0, 0) scale(0.4); }
+    20% { opacity: 1; transform: translate(10px, -20vh) scale(1.25); }
+    42% { transform: translate(-12px, -44vh) scale(0.8); }
+    64% { transform: translate(16px, -67vh) scale(1.4); }
+    100% { opacity: 0; transform: translate(-8px, -112vh) scale(0.5); }
+}
+
+@keyframes deck-unlock-particle-wisp {
+    0% { opacity: 0; transform: translate(0, 0) scale(0.45); }
+    25% { opacity: 0.8; }
+    55% { transform: translate(28px, -56vh) scale(1.3); }
+    100% { opacity: 0; transform: translate(-22px, -110vh) scale(1.7); }
+}
+
+@media (max-height: 650px) {
+    .deck-unlock-card { width: min(128px, 27vh); margin-bottom: 10px; }
+    .deck-unlock-kicker { margin-bottom: 8px; }
+    .deck-unlock-stage p { margin: 7px 0 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .hub-deck-card.is-purchasing,
+    .deck-unlock-celebration,
+    .deck-unlock-radiance,
+    .deck-unlock-stage,
+    .deck-unlock-card,
+    .deck-unlock-card::after,
+    .deck-unlock-ring,
+    .deck-unlock-element-icon {
+        animation: none;
+    }
+    .deck-unlock-particles { display: none; }
+}
+
 .hub-deck-card .deck-card-name {
     margin-top: 0;
     color: #fff6da;
@@ -2864,6 +3382,23 @@ select.search-input { color-scheme: dark; }
 
 .custom-saved-deck .deck-card-actions {
     grid-template-columns: 1fr;
+}
+
+/* Edit stays the wide default action; Delete sits beside it at thumb size. */
+.custom-saved-deck .deck-card-actions.has-delete {
+    grid-template-columns: 1fr minmax(72px, 0.62fr);
+}
+
+.deck-delete-btn {
+    border-color: rgba(255, 106, 92, 0.55);
+    color: #ffb4ac;
+}
+
+.deck-delete-btn:hover,
+.deck-delete-btn:focus-visible {
+    border-color: rgba(255, 106, 92, 0.9);
+    color: #fff0ed;
+    background: rgba(255, 76, 62, 0.22);
 }
 
 .hub-deck-card:not(.custom-saved-deck) .deck-card-actions:empty,
@@ -3722,6 +4257,25 @@ select.search-input { color-scheme: dark; }
     white-space: nowrap;
 }
 
+.home-lb-error {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 14px;
+    border: 1px solid rgba(255, 138, 138, 0.34);
+    border-radius: 8px;
+    background: rgba(255, 90, 90, 0.07);
+}
+
+.home-lb-error span {
+    min-width: 0;
+    flex: 1 1 180px;
+    color: #f3d9d9;
+    font-weight: 800;
+}
+
 .command-panel-head {
     display: flex;
     align-items: flex-start;
@@ -3837,9 +4391,300 @@ select.search-input { color-scheme: dark; }
     background: rgba(255, 215, 0, 0.1);
 }
 
+/* Points banked toward the chest ladder (daily/weekly) or Knight Level (lifetime). */
+.mission-points {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 2px;
+    min-width: 40px;
+    padding: 4px 6px;
+    border: 1px solid rgba(122, 217, 231, 0.28);
+    border-radius: 6px;
+    color: var(--ice, #7ad9e7);
+    background: rgba(122, 217, 231, 0.09);
+    font-size: 11px;
+    font-weight: 900;
+    white-space: nowrap;
+    justify-content: center;
+}
+
+.mission-points small {
+    font-size: 8px;
+    font-weight: 800;
+    opacity: 0.72;
+}
+
+/* Keep a mission's two currencies together. On narrow phones this avoids
+   spending one full line for coins and another for points. */
+.mission-rewards {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+/* ── Daily / weekly point chest ladder ──────────────────────────────────── */
+.mission-track {
+    margin-bottom: 14px;
+    padding: 10px 4px 4px;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 10px;
+    background: linear-gradient(160deg, rgba(60, 142, 216, 0.12), rgba(255, 255, 255, 0.03));
+}
+
+.mission-track-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 0 10px;
+}
+
+.mission-track-points {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.mission-track-points strong {
+    color: var(--accent);
+    font-size: 20px;
+    font-weight: 950;
+    line-height: 1;
+}
+
+.mission-track-points small {
+    font-size: 10px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-dim);
+}
+
+.mission-track-hint {
+    font-size: 10px;
+    font-weight: 800;
+    text-align: right;
+    color: var(--text-dim);
+}
+
+/* Chests sit centred on the bar at their share of the max threshold, so the
+   rail stays correct if thresholds are ever retuned to uneven spacing. */
+.mission-track-rail {
+    position: relative;
+    height: 66px;
+}
+
+.mission-track-inner {
+    position: absolute;
+    top: 28px;
+    right: 26px;
+    left: 26px;
+    height: 7px;
+}
+
+.mission-track-line {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.11);
+}
+
+.mission-track-line span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--water), var(--accent));
+    transition: width 0.35s ease;
+}
+
+.mission-chest {
+    position: absolute;
+    top: 50%;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    transform: translate(-50%, -50%);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 8px;
+    background: rgba(12, 18, 34, 0.94);
+    color: var(--text-dim);
+    cursor: default;
+}
+
+.mission-chest-lid {
+    position: absolute;
+    top: 6px;
+    right: 5px;
+    left: 5px;
+    height: 7px;
+    border-radius: 3px 3px 0 0;
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.mission-chest-body {
+    position: absolute;
+    top: 14px;
+    right: 5px;
+    bottom: 5px;
+    left: 5px;
+    display: grid;
+    place-items: center;
+    border-radius: 0 0 3px 3px;
+    background: rgba(255, 255, 255, 0.11);
+    font-size: 10px;
+    line-height: 1;
+}
+
+.mission-chest-label {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    font-weight: 900;
+    color: var(--text-dim);
+}
+
+.mission-chest.is-unlocked,
+.mission-chest.is-claimable {
+    border-color: rgba(255, 215, 0, 0.5);
+}
+
+.mission-chest.is-unlocked .mission-chest-lid,
+.mission-chest.is-claimable .mission-chest-lid {
+    background: var(--accent);
+}
+
+.mission-chest.is-unlocked .mission-chest-body,
+.mission-chest.is-claimable .mission-chest-body {
+    color: #101828;
+    background: rgba(255, 215, 0, 0.72);
+}
+
+.mission-chest.is-claimable {
+    cursor: pointer;
+    box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.16), 0 0 14px rgba(255, 215, 0, 0.35);
+}
+
+.mission-chest.is-claimable .mission-chest-label {
+    color: var(--accent);
+}
+
+.mission-chest.is-claimed {
+    border-color: rgba(90, 180, 255, 0.34);
+    opacity: 0.55;
+}
+
+/* ── Knight Level (Lifetime tab) ────────────────────────────────────────── */
+.knight-panel {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 14px;
+    padding: 11px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    background: linear-gradient(150deg, rgba(109, 74, 158, 0.24), rgba(255, 255, 255, 0.03));
+}
+
+.knight-panel.is-claimable {
+    border-color: rgba(255, 215, 0, 0.45);
+}
+
+.knight-crest {
+    display: grid;
+    place-items: center;
+    width: 54px;
+    height: 54px;
+    border: 1px solid rgba(255, 215, 0, 0.4);
+    border-radius: 12px;
+    background: radial-gradient(circle at 50% 30%, rgba(255, 215, 0, 0.28), rgba(12, 18, 34, 0.95));
+}
+
+.knight-crest small {
+    font-size: 8px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+}
+
+.knight-crest strong {
+    color: var(--accent);
+    font-size: 22px;
+    font-weight: 950;
+    line-height: 1;
+}
+
+.knight-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 6px;
+}
+
+.knight-head strong {
+    color: #f7f0df;
+    font-size: 12px;
+}
+
+.knight-head span {
+    font-size: 10px;
+    font-weight: 800;
+    color: var(--text-dim);
+}
+
+.knight-progress {
+    margin-top: 7px;
+}
+
+.knight-pending,
+.knight-next {
+    display: block;
+    margin-top: 7px;
+    font-size: 10px;
+    font-weight: 800;
+    color: var(--text-dim);
+}
+
+.knight-foot {
+    margin-top: 8px;
+}
+
+.knight-claim-btn {
+    width: 100%;
+}
+
+.reward-bundle {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    color: var(--accent);
+    font-weight: 900;
+}
+
+.reward-bundle .coin-icon,
+.reward-bundle .remnant-icon {
+    width: 14px;
+    height: 14px;
+}
+
+.reward-card-chip {
+    padding: 1px 5px;
+    border: 1px solid rgba(122, 217, 231, 0.34);
+    border-radius: 5px;
+    color: var(--ice, #7ad9e7);
+    background: rgba(122, 217, 231, 0.1);
+}
+
 /* Daily login reward tile sits at the top of the Daily mission list. */
 .login-reward-row {
-    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-columns: auto minmax(0, 1fr) auto auto auto;
     border-color: rgba(255, 215, 0, 0.4);
     background: linear-gradient(135deg, rgba(255, 215, 0, 0.12), rgba(255, 255, 255, 0.035));
 }
@@ -4554,21 +5399,29 @@ body.starter-onboarding-active .starter-gate h1 {
 }
 
 .lobby-section {
+    width: 100%;
+    min-width: 0;
     max-width: 1100px;
     margin: 0 auto;
 }
 
 .lobby-waiting-root {
     display: grid;
+    min-width: 0;
     gap: 16px;
 }
 
 .lobby-waiting-head {
     display: flex;
+    min-width: 0;
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
+}
+
+.lobby-waiting-head > div {
+    min-width: 0;
 }
 
 .lobby-waiting-head h1 {
@@ -4579,11 +5432,13 @@ body.starter-onboarding-active .starter-gate h1 {
 
 .lobby-waiting-grid {
     display: grid;
+    min-width: 0;
     grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
     gap: 14px;
 }
 
 .lobby-panel {
+    min-width: 0;
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 12px;
     background: rgba(3, 8, 20, 0.78);
@@ -4597,6 +5452,7 @@ body.starter-onboarding-active .starter-gate h1 {
 }
 
 .lobby-player-card {
+    min-width: 0;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 10px;
     padding: 12px;
@@ -4694,8 +5550,82 @@ body.starter-onboarding-active .starter-gate h1 {
 }
 
 @media (max-width: 900px) {
+    .lobby-section {
+        padding: 12px;
+    }
+    .lobby-waiting-root {
+        gap: 12px;
+    }
+    .lobby-waiting-head {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: start;
+        gap: 8px;
+    }
+    .lobby-waiting-head h1 {
+        font-size: 22px;
+    }
+    .lobby-waiting-head .social-muted-inline {
+        overflow-wrap: anywhere;
+    }
     .lobby-waiting-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 12px;
+    }
+    .lobby-panel {
+        padding: 12px;
+    }
+    .lobby-player-card {
+        padding: 10px;
+    }
+    .lobby-player-card strong,
+    .lobby-player-card span {
+        overflow-wrap: anywhere;
+    }
+    .lobby-loadout-form label,
+    .lobby-loadout-form .search-input,
+    .lobby-chat-compose .search-input {
+        min-width: 0;
+        max-width: 100%;
+    }
+    .lobby-actions-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .lobby-actions-row > button {
+        width: 100%;
+        min-width: 0;
+        white-space: normal;
+    }
+    .lobby-actions-row > button:last-child:nth-child(odd) {
+        grid-column: 1 / -1;
+    }
+    .lobby-chat-compose {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+    .lobby-chat-compose .search-input {
+        margin-bottom: 0;
+    }
+    #lobbyInviteLink,
+    #lobbyInviteLink a {
+        max-width: 100%;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+}
+
+@media (max-width: 360px) {
+    .lobby-waiting-head,
+    .lobby-players,
+    .lobby-actions-row,
+    .lobby-chat-compose {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .lobby-status-pill {
+        justify-self: start;
+    }
+    .lobby-actions-row > button:last-child:nth-child(odd) {
+        grid-column: auto;
     }
 }
 
@@ -4971,6 +5901,36 @@ body.starter-onboarding-active .starter-gate h1 {
     isolation: isolate;
 }
 
+/* Row thumbnails: the Siegling cutout (or a Strategy/Deception's notch art)
+   in place of the element badge. Same absolute-inset contract as
+   .element-icon-art — .builder-card-mark is the sized, clipped, positioned
+   box these are measured against. */
+.builder-card-mark .card-row-thumb-art,
+.builder-card-mark .card-row-thumb-notch {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    pointer-events: none;
+}
+
+/* Show the whole cutout rather than cropping into it: the illustration has a
+   transparent background, so letterboxing it costs nothing visually and keeps
+   the creature recognisable at 36px. */
+.builder-card-mark .card-row-thumb-art {
+    object-fit: contain;
+    object-position: center;
+    transform: none;
+}
+
+.builder-card-mark .card-row-thumb-notch {
+    object-fit: contain;
+    padding: 4px;
+}
+
 .builder-card-mark .element-icon-art,
 .builder-catalog-art .element-icon-art {
     width: 100%;
@@ -5076,6 +6036,269 @@ body.starter-onboarding-active .starter-gate h1 {
     grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(280px, 0.85fr);
     gap: 12px;
     align-items: start;
+}
+
+/* Grid and flex children default to min-width:auto, so a nowrap chip row or a
+   long card name sizes the track to its content and pushes the pane past the
+   page. Every builder pane and list gets an explicit floor instead. */
+.deck-builder-layout > *,
+.builder-filter-bar,
+.builder-filter-chips,
+.deck-builder-binder-list,
+.deck-builder-deck-list,
+.deck-builder-preview-panel {
+    min-width: 0;
+}
+
+/* Tab strip only drives the single-pane mobile builder; on desktop every pane
+   is visible at once so the strip is hidden there. */
+.deck-builder-tabs {
+    display: none;
+}
+
+.builder-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.builder-filter-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.builder-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 0;
+    cursor: pointer;
+    padding: 7px 12px;
+    min-height: 34px;
+    border-radius: 999px;
+    font: inherit;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.builder-chip.is-active {
+    color: #0b1220;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--builder-accent, var(--accent)) 82%, #fff6c8), var(--builder-accent, var(--accent)));
+    box-shadow: 0 0 12px color-mix(in srgb, var(--builder-accent, var(--accent)) 45%, transparent);
+}
+
+.builder-chip-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    font-size: 10px;
+    background: var(--builder-accent, var(--accent));
+    color: #0b1220;
+}
+
+.deck-builder-card-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 150px) minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+    margin-bottom: 10px;
+}
+
+/* The hero art is a thumbnail beside the identity block, not a showcase card.
+   A definite 1fr track is required or width:100% collapses to the card's
+   min-content and overruns the column (same trap as the Card View tray). */
+.deck-builder-card-hero .detail-card-preview-wrap {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+}
+
+.deck-builder-card-hero .detail-card-preview {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    min-height: 0;
+    margin: 0;
+}
+
+/* The card's stat/cost/description body is content-sized, so in the hero's
+   narrow column it forced a 120x326 sliver instead of a card shape. Everything
+   in it is already beside the art (the quickstat pills) or one tab away
+   (Overview), so the hero keeps just the frame, notches and illustration. */
+.deck-builder-card-hero .detail-card-preview .binder-card-body {
+    display: none;
+}
+
+.deck-builder-card-hero .detail-card-preview .binder-card-art {
+    height: clamp(96px, 26vw, 132px);
+}
+
+.deck-builder-card-hero .detail-card-preview .binder-card-header {
+    min-height: 0;
+}
+
+/* OVERLAY cutouts carry the designer's card-window framing (most sit around
+   scale 1.67). At hero size that painted the creature 40px into the identity
+   column beside it, so the hero fits the art to the card instead. Scoped to
+   the hero: the full-size card face elsewhere keeps its authored framing. */
+/* !important because renderBinderCardPreview writes the framing as an inline
+   transform, which no stylesheet rule can outrank otherwise. */
+.deck-builder-card-hero .detail-card-preview .binder-card-overlay-art-card,
+.deck-builder-card-hero .detail-card-preview .binder-card-custom-art {
+    transform: none !important;
+    object-fit: contain;
+}
+
+.deck-builder-card-identity {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.deck-builder-card-identity strong {
+    font-size: 16px;
+    line-height: 1.2;
+}
+
+.deck-builder-card-identity > span {
+    color: var(--text-dim);
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.deck-builder-card-quickstats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+/* Direct children only: the cost pill nests emblem <span>s, and the generic
+   descendant form gave each token the pill's padding (a 12px token measured
+   20px wide). */
+.deck-builder-card-quickstats > span {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 5px;
+    padding: 4px 9px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+}
+
+.deck-builder-card-quickstats small {
+    color: var(--text-dim);
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.deck-builder-card-quickstats b {
+    font-size: 13px;
+}
+
+/* Cost reads as notch emblems, one per energy, matching how the cost is shown
+   on the card face itself. The count is capped in JS so the row cannot wrap
+   and grow the hero, pushing the add stepper off screen. */
+.builder-cost-emblems {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 2px;
+}
+
+/* style.css's .energy-token carries an 18px box and a 2px border; both width
+   and min-width have to be reset or the token stays full size in the pill. */
+.builder-cost-emblems .energy-token {
+    width: 12px;
+    height: 12px;
+    min-width: 12px;
+    max-width: 12px;
+    margin: 0;
+    border-width: 1px;
+    border-radius: 50%;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.38);
+    background: var(--notch-icon, none), var(--notch, #8a96a8);
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.builder-cost-overflow {
+    margin-left: 1px;
+}
+
+.deck-builder-card-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 3px;
+    margin-bottom: 10px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.deck-builder-card-tab {
+    flex: 1;
+    border: 0;
+    cursor: pointer;
+    padding: 8px 6px;
+    min-height: 34px;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-dim);
+    font: inherit;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.deck-builder-card-tab.is-active {
+    color: #0b1220;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--builder-accent, var(--accent)) 82%, #fff6c8), var(--builder-accent, var(--accent)));
+}
+
+.deck-builder-settings-toggle {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    width: 100%;
+    text-align: left;
+    margin-bottom: 10px;
+}
+
+.deck-builder-settings-toggle small {
+    color: var(--text-dim);
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: none;
+    letter-spacing: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+}
+
+.builder-recommendation-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
 .deck-builder-binder-list,
@@ -5373,7 +6596,8 @@ body.starter-onboarding-active .starter-gate h1 {
     margin-bottom: 10px;
 }
 
-.deck-builder-load-more {
+.deck-builder-load-more,
+.binder-load-more {
     width: 100%;
 }
 
@@ -6853,8 +8077,14 @@ body.gacha-active {
     gap: 14px;
 }
 
-.profile-main-grid-wide {
-    grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.8fr);
+.profile-main-grid-bottom {
+    align-items: start;
+}
+
+.profile-overview-stack {
+    display: grid;
+    gap: 14px;
+    align-content: start;
 }
 
 .profile-panel {
@@ -7464,12 +8694,6 @@ body.gacha-active {
 .profile-lobby-main span {
     color: var(--text-dim);
     font-size: 11px;
-}
-
-.profile-side-stack {
-    display: grid;
-    gap: 14px;
-    align-content: start;
 }
 
 .friend-search-row {
@@ -8269,6 +9493,13 @@ body.gacha-active {
     overflow-y: auto;
     margin-top: 0;
     padding: 10px 10px 12px;
+    /* Unlike the binder grid this one is a scroll container with a definite
+       height, so `auto` rows resolve to each tile's min-content. Framed card
+       tiles carry their whole height through aspect-ratio on a percentage-width
+       slot whose innards are absolutely positioned, so that min-content is 0 —
+       every framed row collapsed and only legacy shell tiles stayed visible. */
+    grid-auto-rows: max-content;
+    align-content: start;
 }
 
 .card-tile.preview-focused {
@@ -8308,10 +9539,10 @@ body.gacha-active {
 
     .profile-modal {
         align-items: start;
-        padding: 12px 10px calc(16px + env(safe-area-inset-bottom, 0px));
+        padding: 12px 10px calc(4px + var(--hud-clearance));
     }
     .profile-edit-panel {
-        max-height: calc(100dvh - 28px - env(safe-area-inset-bottom, 0px));
+        max-height: calc(100dvh - var(--hud-clearance) - 16px);
     }
 }
 
@@ -8328,7 +9559,7 @@ body.gacha-active {
     .command-grid,
     .social-grid,
     .profile-main-grid,
-    .profile-main-grid-wide {
+    .profile-main-grid-bottom {
         grid-template-columns: 1fr;
     }
     .social-grid {
@@ -8372,6 +9603,16 @@ body.gacha-active {
         height: 100dvh;
         min-height: 0;
         overflow: hidden;
+    }
+    /* One clearance for every popup that shares the screen with the docked HUD.
+       --bottom-hud-height is measured from the nav itself (JS), so it already
+       carries the nav's own bottom safe-area padding — never add the inset on
+       top of it. The fallback matches a signed-out four-row HUD and only
+       applies for the frame before the first measurement; the nav grows past it
+       once a session's extra action buttons appear, which is exactly why the
+       measured value has to drive this rather than a constant. */
+    :root {
+        --hud-clearance: calc(var(--bottom-hud-height, 205px) + 8px);
     }
     .home-nav {
         position: fixed;
@@ -8453,31 +9694,62 @@ body.gacha-active {
     .hud-minimize-btn svg {
         transform: none;
     }
-    /* The brand row is centered in the bottom dock, so the bell tucks into
-       the free top-left corner. */
-    .hud-notif-btn {
+    /* The brand row is centered in the bottom dock, so the bell + help
+       cluster tucks into the free top-left corner. */
+    .hud-icon-cluster {
         position: absolute;
         top: 10px;
         left: 10px;
+        z-index: 2;
     }
     .notif-panel {
         top: auto;
         right: 10px;
-        bottom: calc(200px + env(safe-area-inset-bottom, 0px));
+        /* Sit above the HUD's top edge rather than 200px off the bottom: that
+           constant was shorter than the nav is in practice, so the list ran
+           under it. */
+        bottom: var(--hud-clearance);
         left: 10px;
         width: auto;
-        max-height: calc(100vh - 240px - env(safe-area-inset-bottom, 0px));
+        /* The panel is anchored to the docked HUD and grows upward, so this
+           ceiling is the only thing keeping a full list out of the status bar.
+           Subtracting the top inset is what keeps that 40px gap measured from
+           the bottom of the safe area rather than the bottom of the display.
+           dvh rather than vh: when browser chrome is visible vh is the taller
+           number, which would put the top edge back under the inset. */
+        max-height: calc(100vh - var(--hud-clearance) - env(safe-area-inset-top, 0px) - 40px);
+        max-height: calc(100dvh - var(--hud-clearance) - env(safe-area-inset-top, 0px) - 40px);
     }
-    /* Full-screen takeover on phones: the modal owns the viewport so the
-       chat reads like a native messaging screen. */
-    .friends-modal {
+    .help-modal {
         padding: 0;
     }
-    .friends-panel {
+    .help-modal-panel {
         width: 100%;
         height: 100dvh;
         max-height: none;
         border-radius: 0;
+        border: 0;
+    }
+    /* A popup card, not a takeover: the hub page stays visible behind the
+       backdrop so Friends reads as an overlay you dismiss, not a screen you
+       navigated to. Height is capped well under the viewport and the panel
+       clears the docked HUD at the bottom. */
+    .friends-modal {
+        align-content: center;
+        /* The old bottom padding cleared the home indicator but not the HUD, so
+           the centred card overlapped it by ~90px. The clearance already covers
+           the inset, so it replaces that term rather than stacking with it. */
+        padding: calc(12px + env(safe-area-inset-top, 0px)) 10px calc(12px + var(--hud-clearance));
+    }
+    .friends-panel {
+        width: 100%;
+        height: min(74dvh, 620px);
+        /* Padding shrinks the flex box, but max-height is resolved against the
+           viewport, so it needs the same clearance or a tall card overflows the
+           padding it was supposed to respect. */
+        max-height: calc(100dvh - var(--hud-clearance) - env(safe-area-inset-top, 0px) - 40px);
+        border-radius: 16px;
+        box-shadow: 0 28px 80px rgba(0, 0, 0, 0.66);
     }
     .friends-body {
         -webkit-overflow-scrolling: touch;
@@ -8493,14 +9765,13 @@ body.gacha-active {
     .detail-panel {
         top: auto;
         right: 10px;
-        /* Sit 8px above the docked HUD's top (the yellow accent line). The HUD
-           height is measured into --bottom-hud-height by JS; 170px is a safe
-           fallback before the first measurement. */
-        bottom: calc(var(--bottom-hud-height, 170px) + 8px);
+        /* Sit above the docked HUD's top (the yellow accent line) via the
+           shared clearance, so trays and popups can never drift apart. */
+        bottom: var(--hud-clearance);
         left: 10px;
         width: auto;
-        max-height: calc(100vh - var(--bottom-hud-height, 170px) - env(safe-area-inset-top, 0px) - 84px);
-        max-height: calc(100dvh - var(--bottom-hud-height, 170px) - env(safe-area-inset-top, 0px) - 84px);
+        max-height: calc(100vh - var(--hud-clearance) - env(safe-area-inset-top, 0px) - 76px);
+        max-height: calc(100dvh - var(--hud-clearance) - env(safe-area-inset-top, 0px) - 76px);
         transform: translateY(0);
         background:
             linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 40%),
@@ -8516,7 +9787,7 @@ body.gacha-active {
        the screen — the panel scrolls internally instead. */
     .detail-panel {
         top: calc(env(safe-area-inset-top, 0px) + 64px);
-        bottom: calc(var(--bottom-hud-height, 170px) + 8px);
+        bottom: var(--hud-clearance);
         max-height: none;
     }
     .tray-backdrop {
@@ -8547,32 +9818,142 @@ body.gacha-active {
     .deck-builder-layout {
         grid-template-columns: 1fr;
     }
-    /* Card View leads the stack so adding cards never shifts it; the deck
-       pane sits last so its list growing doesn't push the binder around. */
-    .deck-builder-inspector {
-        order: 1;
+    /* One pane at a time on phones. Stacking binder + card view + deck list in
+       one column meant every add was followed by a long scroll hunt; the tab
+       strip gives each list the full viewport instead. */
+    .deck-builder-tabs {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 4px;
+        padding: 3px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.04);
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+        position: sticky;
+        top: 0;
+        z-index: 3;
     }
-    .deck-builder-binder {
-        order: 2;
+    .deck-builder-tab {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        border: 0;
+        cursor: pointer;
+        min-height: 44px;
+        padding: 6px 4px;
+        border-radius: 10px;
+        background: transparent;
+        color: var(--text-dim);
+        font: inherit;
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
     }
-    .deck-builder-deck-pane {
-        order: 3;
+    .deck-builder-tab.is-active {
+        color: #0b1220;
+        background: linear-gradient(180deg, color-mix(in srgb, var(--builder-accent, var(--accent)) 82%, #fff6c8), var(--builder-accent, var(--accent)));
     }
-    /* Keep the lists bounded + scrollable on mobile. Unbounded height made the
-       page enormous in portrait (layout broke after rotation and iOS Safari
-       could crash under the paint load). */
+    .deck-builder-tab-badge {
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0;
+        text-transform: none;
+        opacity: 0.85;
+    }
+    .deck-builder-tab-badge.is-complete {
+        color: #0b3d1f;
+    }
+    .deck-builder-layout[data-builder-tab-active="binder"] .deck-builder-inspector,
+    .deck-builder-layout[data-builder-tab-active="binder"] .deck-builder-deck-pane,
+    .deck-builder-layout[data-builder-tab-active="deck"] .deck-builder-binder,
+    .deck-builder-layout[data-builder-tab-active="deck"] .deck-builder-inspector,
+    .deck-builder-layout[data-builder-tab-active="card"] .deck-builder-binder,
+    .deck-builder-layout[data-builder-tab-active="card"] .deck-builder-deck-pane {
+        display: none;
+    }
+    /* With only one pane on screen the lists get the viewport instead of a
+       22vh sliver, which is what forced the constant scrolling. */
     .deck-builder-binder-list {
-        max-height: min(22vh, 200px);
+        max-height: min(58vh, 620px);
         -webkit-overflow-scrolling: touch;
     }
     .deck-builder-deck-list {
-        max-height: min(30vh, 300px);
+        max-height: min(52vh, 560px);
         margin-bottom: 10px;
+        -webkit-overflow-scrolling: touch;
+    }
+    .deck-builder-card-hero {
+        grid-template-columns: minmax(0, 120px) minmax(0, 1fr);
+        gap: 10px;
+    }
+    .deck-builder-page-head {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+    .deck-builder-page-head h1 {
+        font-size: 18px;
+    }
+    .deck-builder-page-head .eyebrow {
+        display: none;
+    }
+    .deck-builder-back-btn {
+        margin-bottom: 4px;
+        padding: 5px 10px;
+        font-size: 11px;
+    }
+    .deck-builder-lock .unlock-card {
+        padding: 8px 10px;
+    }
+    .deck-builder-lock .unlock-card span {
+        font-size: 10px;
+    }
+    .deck-builder-page {
+        margin-top: 8px;
+    }
+    /* The tab strip already names the pane and carries its count, so the
+       per-pane section heads are pure duplication on a phone. */
+    .deck-builder-binder > .section-head {
+        display: none;
+    }
+    /* One scrolling row instead of three wrapped rows of chips. */
+    .builder-filter-bar {
+        flex-wrap: nowrap;
+        /* space-between on a nowrap overflow row drives the two chip groups
+           into each other once they exceed the width; pack them instead. */
+        justify-content: flex-start;
+        overflow-x: auto;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+        margin-bottom: 8px;
+    }
+    .builder-filter-bar::-webkit-scrollbar {
+        display: none;
+    }
+    /* The groups are flex items with min-width:0, so they shrank below their
+       own chips and the two collided. Dissolve them so every chip is a direct
+       item of the scrolling row and none of them shrink. */
+    .builder-filter-chips {
+        display: contents;
+    }
+    .builder-chip {
+        white-space: nowrap;
+        flex: 0 0 auto;
+    }
+    .deck-builder-preview-panel {
+        max-height: min(64vh, 680px);
+        overflow: auto;
         -webkit-overflow-scrolling: touch;
     }
     .deck-builder-binder-row,
     .deck-builder-deck-row {
-        grid-template-columns: minmax(0, 1fr);
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
         gap: 7px;
     }
     .deck-builder-binder-main,
@@ -8588,7 +9969,7 @@ body.gacha-active {
     }
     .deck-builder-binder-row .builder-stepper,
     .deck-builder-deck-row .builder-stepper {
-        width: 100%;
+        width: auto;
         justify-content: flex-end;
         gap: 5px;
     }
@@ -8600,15 +9981,14 @@ body.gacha-active {
     }
     .deck-builder-preview-panel .binder-card,
     .deck-builder-preview-panel .card-tile {
-        width: min(100%, 190px);
+        width: 100%;
         min-height: 0;
-        margin: 0 auto;
+        margin: 0;
     }
     .deck-builder-preview-card .detail-card-preview {
-        width: min(100%, 190px);
-        transform: scale(0.76);
-        transform-origin: top center;
-        margin-bottom: -52px;
+        width: 100%;
+        transform: none;
+        margin-bottom: 0;
     }
     .deck-builder-preview-card .detail-card-preview .binder-card-art {
         height: clamp(72px, 22vw, 96px);
@@ -8620,11 +10000,7 @@ body.gacha-active {
     .deck-builder-preview-card .detail-card-preview-wrap {
         margin-bottom: 6px;
     }
-    .deck-builder-preview-card .detail-cost-block,
-    .deck-builder-preview-card .detail-grid,
-    .deck-builder-preview-card .detail-abilities {
-        display: none;
-    }
+
     .room-emblem {
         width: 56px;
         height: 56px;
@@ -8735,7 +10111,7 @@ body.gacha-active {
         grid-template-columns: auto minmax(0, 1fr);
     }
     .mission-count,
-    .mission-reward {
+    .mission-rewards {
         grid-column: 2;
         justify-self: start;
     }
@@ -8771,11 +10147,59 @@ body.gacha-active {
     }
     .shop-card-preview-modal {
         align-items: end;
-        padding: 10px 10px calc(194px + env(safe-area-inset-bottom, 0px));
+        /* 194px was a stand-in for the HUD; the measured height replaces both it
+           and the inset, which the measurement already includes. */
+        padding: 10px 10px var(--hud-clearance);
     }
-    .shop-card-preview-panel {
-        max-height: calc(100dvh - 216px - env(safe-area-inset-bottom, 0px));
+    /* The delete confirm reuses the purchase-confirm shell; only the go button's
+   meaning differs, so it carries the same red as the Delete buttons it replaces. */
+.deck-delete-confirm-go {
+    background: linear-gradient(180deg, #ff6a5c, #d92f1f);
+    color: #fff5f3;
+    box-shadow: 0 8px 20px rgba(217, 47, 31, 0.32);
+}
+
+/* Selection mode: the whole tile is the checkbox target, so the mark only has to
+   read as state — the tile's own tap handler does the toggling. */
+.custom-saved-deck.is-selectable {
+    outline: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.custom-saved-deck.is-picked {
+    outline: 2px solid #ffcc4d;
+    outline-offset: 1px;
+}
+
+.deck-pick-mark {
+    position: absolute;
+    z-index: 4;
+    top: 10px;
+    left: 10px;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border: 2px solid rgba(255, 255, 255, 0.6);
+    border-radius: 50%;
+    background: rgba(6, 10, 24, 0.72);
+    color: transparent;
+    font-size: 0.85rem;
+    line-height: 1;
+}
+
+.custom-saved-deck.is-picked .deck-pick-mark {
+    border-color: #ffcc4d;
+    background: #ffcc4d;
+    color: #241a02;
+}
+
+.shop-card-preview-panel {
+        max-height: calc(100dvh - var(--hud-clearance) - env(safe-area-inset-top, 0px) - 24px);
         padding: 12px;
+    }
+    .shop-purchase-confirm-modal {
+        align-items: center;
+        padding: 18px 18px calc(18px + var(--hud-clearance));
     }
     .shop-card-preview-layout {
         grid-template-columns: 1fr;
@@ -8918,6 +10342,9 @@ body.gacha-active {
         right: 8px;
         bottom: 8px;
         gap: 5px;
+    }
+    .custom-saved-deck .deck-card-actions.has-delete {
+        grid-template-columns: 1fr minmax(58px, 0.6fr);
     }
     .deck-card-actions button {
         min-height: 34px;
@@ -9213,6 +10640,7 @@ body.gacha-active {
 .options-icon { vertical-align: -3px; margin-right: 4px; }
 
 .options-panel { max-width: 560px; }
+.options-panel.options-panel--guide { max-width: min(920px, calc(100vw - 28px)); }
 
 .options-menu {
     display: grid;
@@ -9246,13 +10674,22 @@ body.gacha-active {
 
 .guide-tabs {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 8px;
     margin: 10px 0 14px;
+    padding-bottom: 3px;
+    overflow-x: auto;
+    scrollbar-width: none;
 }
 
+.guide-tabs::-webkit-scrollbar { display: none; }
+
 .guide-tab {
-    padding: 6px 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+    padding: 7px 12px;
     border-radius: 999px;
     border: 1px solid var(--line);
     background: transparent;
@@ -9268,9 +10705,44 @@ body.gacha-active {
     font-weight: 700;
 }
 
-.guide-content h3 { margin: 0 0 10px; }
+.guide-head-actions { display: flex; gap: 8px; }
+.guide-content {
+    padding: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 18px;
+    background:
+        radial-gradient(circle at 100% 0%, rgba(255, 215, 0, 0.09), transparent 34%),
+        linear-gradient(145deg, rgba(24, 35, 60, 0.96), rgba(10, 17, 32, 0.98));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.guide-section-head { display: flex; align-items: center; gap: 12px; }
+.guide-section-icon {
+    display: grid;
+    place-items: center;
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
+    border-radius: 13px;
+    color: #0b1020;
+    background: linear-gradient(145deg, #ffe96a, var(--accent));
+    box-shadow: 0 7px 18px rgba(255, 215, 0, 0.18);
+    font-size: 22px;
+    font-weight: 900;
+}
+.guide-section-eyebrow {
+    display: block;
+    margin-bottom: 3px;
+    color: var(--accent);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+.guide-content h3 { margin: 0; font-size: clamp(19px, 2.6vw, 25px); line-height: 1.12; }
 .guide-content p { color: var(--text); line-height: 1.55; }
+.guide-summary { margin: 12px 0 16px; color: var(--text-dim) !important; }
 .guide-list { margin: 0; padding-left: 18px; display: grid; gap: 8px; line-height: 1.5; }
+.guide-list.is-compact { gap: 6px; font-size: 13px; }
 .guide-list li strong { color: var(--accent); }
 .guide-note {
     margin-top: 12px;
@@ -9281,14 +10753,78 @@ body.gacha-active {
     color: var(--text-dim);
 }
 
-.guide-elements { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
-.guide-el {
-    padding: 5px 12px;
-    border-radius: 999px;
-    font-size: 13px;
-    font-weight: 700;
-    color: #0b1020;
-    background: var(--gc, #95a5a6);
+.guide-stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; }
+.guide-stat {
+    display: grid;
+    gap: 3px;
+    padding: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.035);
+}
+.guide-stat strong { color: var(--accent); font-size: 22px; }
+.guide-stat span { color: var(--text-dim); font-size: 11px; }
+.guide-phase-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin-top: 12px; }
+.guide-phase { display: flex; align-items: center; gap: 9px; padding: 11px; border-radius: 12px; background: rgba(77, 135, 222, 0.09); }
+.guide-phase > b { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: rgba(77, 135, 222, 0.26); color: #b9d9ff; }
+.guide-phase span, .guide-phase strong, .guide-phase small { display: block; }
+.guide-phase small { margin-top: 2px; color: var(--text-dim); font-size: 10px; }
+
+.guide-board-layout { display: grid; grid-template-columns: minmax(170px, 0.7fr) 1.3fr; gap: 18px; align-items: center; }
+.guide-mini-board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; aspect-ratio: 1; max-width: 190px; margin: auto; }
+.guide-mini-board span { display: grid; place-items: center; border: 1px dashed rgba(125, 171, 224, 0.3); border-radius: 7px; background: rgba(25, 57, 100, 0.25); }
+.guide-mini-board .is-card { border: 2px solid var(--guide-el); background: color-mix(in srgb, var(--guide-el) 17%, #111c31); color: var(--guide-el); font-weight: 900; box-shadow: 0 0 12px color-mix(in srgb, var(--guide-el) 26%, transparent); }
+.guide-mini-board .el-water { --guide-el: #3296ff; }
+.guide-mini-board .el-earth { --guide-el: #8fbd58; }
+.guide-mini-board .el-fire { --guide-el: #ff501e; }
+.guide-mini-board .el-wind { --guide-el: #96ffb4; }
+.guide-mini-board .el-metal { --guide-el: #a0aab4; }
+.guide-energy-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.guide-energy-row span { display: grid; place-items: center; width: 28px; height: 28px; border: 2px solid var(--guide-el); border-radius: 50%; color: var(--guide-el); background: rgba(5, 10, 20, 0.62); font-size: 10px; font-weight: 900; }
+
+.guide-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 9px; }
+.guide-card-role { min-height: 116px; padding: 12px; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; background: rgba(255, 255, 255, 0.035); }
+.guide-card-role span { display: block; color: var(--accent); font-size: 9px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
+.guide-card-role strong { display: block; margin-top: 4px; font-size: 15px; }
+.guide-card-role p { margin: 6px 0 0; color: var(--text-dim); font-size: 11px; line-height: 1.4; }
+
+.guide-element-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+.guide-element-card { display: flex; align-items: center; gap: 9px; padding: 9px; border: 1px solid color-mix(in srgb, var(--guide-el) 38%, transparent); border-radius: 11px; background: color-mix(in srgb, var(--guide-el) 8%, transparent); }
+.guide-element-icon { display: grid; place-items: center; width: 31px; height: 31px; border-radius: 9px; color: #07101b; background: var(--guide-el); font-weight: 900; }
+.guide-element-card strong, .guide-element-card small { display: block; }
+.guide-element-card small { margin-top: 2px; color: var(--text-dim); font-size: 9px; }
+
+.guide-affliction-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 9px; }
+.guide-affliction-card { padding: 11px; border: 1px solid color-mix(in srgb, var(--guide-el) 35%, transparent); border-radius: 12px; background: linear-gradient(145deg, color-mix(in srgb, var(--guide-el) 9%, transparent), rgba(255,255,255,0.02)); }
+.guide-affliction-top { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 8px; }
+.guide-affliction-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; color: #06101a; background: var(--guide-el); font-weight: 900; }
+.guide-affliction-top small, .guide-affliction-top strong { display: block; }
+.guide-affliction-top small { color: var(--guide-el); font-size: 9px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.guide-affliction-top b { display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid var(--guide-el); border-radius: 50%; color: var(--guide-el); font-size: 11px; }
+.guide-affliction-card p { margin: 8px 0 0; color: var(--text-dim); font-size: 11px; line-height: 1.4; }
+
+.guide-mode-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.guide-mode-card { padding: 15px; border: 1px solid rgba(255, 255, 255, 0.09); border-radius: 14px; background: rgba(255, 255, 255, 0.035); }
+.guide-mode-card.is-battle { border-top: 3px solid #4d87de; }
+.guide-mode-card.is-siege { border-top: 3px solid var(--accent); }
+.guide-mode-state { color: var(--accent); font-size: 9px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
+.guide-mode-card h4 { margin: 6px 0; font-size: 19px; }
+.guide-mode-card p { margin: 0; color: var(--text-dim); font-size: 12px; }
+
+.guide-route-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; }
+.guide-route-grid > div { padding: 10px; border-left: 2px solid var(--accent); border-radius: 0 9px 9px 0; background: rgba(255, 255, 255, 0.035); }
+.guide-route-grid strong, .guide-route-grid span { display: block; }
+.guide-route-grid span { margin-top: 3px; color: var(--text-dim); font-size: 10px; }
+
+@media (max-width: 620px) {
+    .options-panel.options-panel--guide { max-width: calc(100vw - 18px); padding: 14px; }
+    .guide-head-actions { align-items: flex-end; flex-direction: column-reverse; gap: 5px; }
+    .guide-content { padding: 14px; }
+    .guide-stat-grid { grid-template-columns: repeat(2, 1fr); }
+    .guide-phase-strip, .guide-mode-grid, .guide-board-layout { grid-template-columns: 1fr; }
+    .guide-phase-strip { gap: 6px; }
+    .guide-mini-board { width: 155px; }
+    .guide-affliction-grid { grid-template-columns: 1fr; }
 }
 
 .share-profile { display: grid; gap: 14px; justify-items: center; text-align: center; }
@@ -9495,5 +11031,53 @@ body.gacha-active {
     .detail-panel {
         top: calc(env(safe-area-inset-top, 0px) + 8px);
         max-height: calc(100dvh - 16px);
+    }
+}
+
+/* Deck-builder problem callout: a save/play rejection has to say what to fix and
+   point at the control that owns it, not vanish with a dismissed alert. */
+.builder-issue {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 0 0 10px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 106, 34, 0.55);
+    background: linear-gradient(180deg, rgba(255, 106, 34, 0.18), rgba(255, 106, 34, 0.06));
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+.builder-issue-copy { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.builder-issue-copy strong { color: #ffc04a; font-size: 0.82rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.builder-issue-copy span { color: #ffeede; font-size: 0.9rem; line-height: 1.35; overflow-wrap: anywhere; }
+.builder-issue-dismiss {
+    margin-left: auto;
+    flex: 0 0 auto;
+    padding: 2px 10px;
+    font-size: 1.1rem;
+    line-height: 1.4;
+}
+
+.needs-fix {
+    outline: 2px solid #ff6a22;
+    outline-offset: 2px;
+    border-radius: 12px;
+    animation: builderNeedsFixPulse 1.1s ease-in-out 3;
+}
+@keyframes builderNeedsFixPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255, 106, 34, 0); }
+    50% { box-shadow: 0 0 0 6px rgba(255, 106, 34, 0.32); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .needs-fix { animation: none; }
+}
+
+/* iOS Safari zooms focused inputs under 16px. Touch-primary devices only. */
+@media (hover: none) and (pointer: coarse) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="hidden"]):not([type="file"]),
+    select,
+    textarea,
+    .search-input {
+        font-size: 16px;
     }
 }
