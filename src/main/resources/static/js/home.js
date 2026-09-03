@@ -464,6 +464,10 @@
         builderIssue: null,
         builderVisibleLimit: 0,
         builderRenderTimer: null,
+        // Guest binders default to Show unowned (full catalog). Mounting every
+        // framed tile at once freezes phones for seconds even when /api/game/options
+        // is warm — page the grid the same way the deck builder already does.
+        binderVisibleLimit: 24,
         notifications: [],
         newCards: new Set(),
         newCardsSnapshot: null,
@@ -1172,6 +1176,12 @@
         return Boolean(window.matchMedia?.('(max-width: 900px)').matches);
     }
 
+    const BINDER_PAGE_SIZE = 24;
+
+    function resetBinderVisibleLimit() {
+        state.binderVisibleLimit = BINDER_PAGE_SIZE;
+    }
+
     function resetBuilderVisibleLimit() {
         state.builderVisibleLimit = isMobileDeckBuilderViewport() ? 24 : 0;
     }
@@ -1274,21 +1284,25 @@
     function bindEvents() {
         document.getElementById('cardSearchInput')?.addEventListener('input', (event) => {
             state.search = event.target.value.trim().toLowerCase();
+            resetBinderVisibleLimit();
             renderCards();
         });
         document.getElementById('cardSortSelect')?.addEventListener('change', (event) => {
             state.sortField = event.target.value;
+            resetBinderVisibleLimit();
             renderCards();
         });
         document.getElementById('cardSortDirToggle')?.addEventListener('click', () => {
             state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
             updateSortDirToggle();
+            resetBinderVisibleLimit();
             renderCards();
         });
         updateSortDirToggle();
         document.getElementById('showUnownedToggle')?.addEventListener('click', () => {
             state.collectionFilterTouched = true;
             state.showUnowned = !state.showUnowned;
+            resetBinderVisibleLimit();
             renderFilters();
             renderCards();
         });
@@ -1864,26 +1878,31 @@
         }
         renderFilter('elementFilters', elementFilterValues(), state.elementFilter, (value) => {
             state.elementFilter = value;
+            resetBinderVisibleLimit();
             renderFilters();
             renderCards();
         });
         renderFilter('typeFilters', ['ALL', 'SIEGLING', 'SIEGEKNIGHT', 'SPELL', 'TRAP'], state.typeFilter, (value) => {
             state.typeFilter = value;
+            resetBinderVisibleLimit();
             renderFilters();
             renderCards();
         });
         renderFilter('rarityFilters', ['ALL', 'COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'], state.rarityFilter, (value) => {
             state.rarityFilter = value;
+            resetBinderVisibleLimit();
             renderFilters();
             renderCards();
         });
         renderFilter('energyCostFilters', ENERGY_COST_FILTERS, state.energyCostFilter, (value) => {
             state.energyCostFilter = value;
+            resetBinderVisibleLimit();
             renderFilters();
             renderCards();
         }, formatEnergyCostFilter);
         renderFilter('finishFilters', ['ALL', 'HOLOGRAPHIC', 'STANDARD'], state.finishFilter, (value) => {
             state.finishFilter = value;
+            resetBinderVisibleLimit();
             renderFilters();
             renderCards();
         }, formatFinishFilter);
@@ -1916,7 +1935,7 @@
         }
     }
 
-    function cardsRenderSignature(cards) {
+    function cardsRenderSignature(cards, visibleCount) {
         return [
             state.showUnowned,
             state.elementFilter,
@@ -1928,6 +1947,8 @@
             state.sortDir,
             state.search,
             state.selectedCardId,
+            state.binderVisibleLimit,
+            visibleCount,
             Array.from(state.newCards || []).sort().join(','),
             (state.progression?.holographicCards || []).join(','),
             cards.map(card => `${card.id}:${ownedCount(card.id)}`).join(',')
@@ -1984,15 +2005,24 @@
         }
         grid.setAttribute('aria-busy', 'false');
         const cards = filteredCards();
+        if (!state.binderVisibleLimit || state.binderVisibleLimit < BINDER_PAGE_SIZE) {
+            state.binderVisibleLimit = BINDER_PAGE_SIZE;
+        }
+        const visibleCards = cards.slice(0, Math.min(state.binderVisibleLimit, cards.length));
+        const hasMoreCards = visibleCards.length < cards.length;
         // Skip the expensive innerHTML teardown/rebuild (hundreds of tiles + their
         // images) when nothing that affects the grid changed. Navigating away and
         // back leaves the section's DOM intact, so re-entry is then instant rather
         // than flashing blank while every tile re-mounts and re-decodes its art.
-        const signature = cardsRenderSignature(cards);
+        const signature = cardsRenderSignature(cards, visibleCards.length);
         if (signature !== state._cardsRenderSig || !grid.children.length) {
-            grid.innerHTML = cards.length
-                ? cards.map(renderCardTile).join('')
+            const tiles = visibleCards.length
+                ? visibleCards.map(renderCardTile).join('')
                 : `<div class="unlock-card binder-empty"><strong>No owned cards match these filters</strong><span>${state.showUnowned ? 'Try another search or filter.' : 'Use Show unowned to browse the full catalog.'}</span></div>`;
+            const loadMore = hasMoreCards
+                ? `<button class="ghost-btn binder-load-more" type="button" data-binder-load-more>Load more cards (${cards.length - visibleCards.length})</button>`
+                : '';
+            grid.innerHTML = tiles + loadMore;
             grid.querySelectorAll('[data-card-id]').forEach(tile => tile.addEventListener('click', () => {
                 state.selectedCardId = tile.dataset.cardId;
                 markCardViewed(tile.dataset.cardId);
@@ -2000,6 +2030,10 @@
                 renderCards();
                 renderDetail();
             }));
+            grid.querySelector('[data-binder-load-more]')?.addEventListener('click', () => {
+                state.binderVisibleLimit = Math.max(state.binderVisibleLimit || BINDER_PAGE_SIZE, BINDER_PAGE_SIZE) + BINDER_PAGE_SIZE;
+                renderCards();
+            });
             state._cardsRenderSig = signature;
             window.SieglingsCardShowcase?.scheduleFramedSummaryFit?.();
         window.SieglingsCardBinderVisual?.scheduleDescriptionFit?.();
@@ -2007,7 +2041,10 @@
         }
         if (allCount) {
             const ownedVisible = cards.filter(card => ownedCount(card.id) > 0).length;
-            allCount.textContent = state.showUnowned ? `${cards.length} cards / ${ownedVisible} owned` : `${cards.length} owned cards`;
+            const shown = `${visibleCards.length}${hasMoreCards ? ` / ${cards.length}` : ''}`;
+            allCount.textContent = state.showUnowned
+                ? `${shown} cards / ${ownedVisible} owned`
+                : `${shown} owned cards`;
         }
         renderDetail();
         renderUnlock();
@@ -9327,14 +9364,31 @@
         localStorage.removeItem(AUTH_TOKEN_KEY);
         localStorage.removeItem(PROFILE_PREFS_CACHE_KEY);
         clearCachedAuthProfile();
-        clearGameOptionsCaches();
+        // Keep the already-loaded catalog as the guest cache. Wiping every
+        // gameOptions:* key forced Cards/Decks through a cold rebuild + a full
+        // unowned binder mount right after sign-out — the path that felt like a
+        // 60s hang for logged-out players.
+        const catalog = hasCardCatalog(state.options) ? state.options : null;
+        try {
+            hubCacheStorage()?.removeItem(HUB_CACHE_PREFIX + 'gameOptions:signed-in');
+            hubCacheStorage()?.removeItem(HUB_CACHE_PREFIX + 'gameOptions');
+        } catch (_ignored) {
+            // Cache cleanup is best-effort.
+        }
         state.token = '';
         state.profile = null;
         state.progression = null;
         state.profilePrefs = null;
         state.profileEditOpen = false;
+        state.profileSynced = true;
+        resetBinderVisibleLimit();
         syncCollectionVisibilityDefault();
-        await refreshLiveCatalog();
+        if (catalog) {
+            writeCache('gameOptions:guest', catalog);
+            applyGameOptions(catalog);
+        } else {
+            await refreshLiveCatalog();
+        }
         render();
     }
 
@@ -9355,13 +9409,23 @@
         localStorage.removeItem(AUTH_TOKEN_KEY);
         localStorage.removeItem(PROFILE_PREFS_CACHE_KEY);
         clearCachedAuthProfile();
-        clearGameOptionsCaches();
+        const catalog = hasCardCatalog(state.options) ? state.options : null;
+        try {
+            hubCacheStorage()?.removeItem(HUB_CACHE_PREFIX + 'gameOptions:signed-in');
+            hubCacheStorage()?.removeItem(HUB_CACHE_PREFIX + 'gameOptions');
+        } catch (_ignored) {
+            // Cache cleanup is best-effort.
+        }
+        if (catalog) writeCache('gameOptions:guest', catalog);
         state.token = '';
         state.profile = null;
         state.progression = null;
         state.profilePrefs = null;
         state.profileEditOpen = false;
+        state.profileSynced = true;
+        resetBinderVisibleLimit();
         syncCollectionVisibilityDefault();
+        if (catalog) applyGameOptions(catalog);
         closeOptions();
         render();
         alert('Your account and all associated data have been permanently deleted.');

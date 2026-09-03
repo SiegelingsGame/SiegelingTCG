@@ -6583,7 +6583,8 @@ body.starter-onboarding-active .starter-gate h1 {
     margin-bottom: 10px;
 }
 
-.deck-builder-load-more {
+.deck-builder-load-more,
+.binder-load-more {
     width: 100%;
 }
 
