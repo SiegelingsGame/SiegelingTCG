@@ -59,8 +59,14 @@ class TutorialRuleParityTest {
         assertTrue(tutorial.contains("survived a full battle phase"),
                 "The evolution lesson must keep naming the battle-phase requirement.");
         // Both link kinds are taught, and each waits on the payout it teaches.
-        assertTrue(tutorial.contains("t2-link-same") && tutorial.contains("t2-link-combo"),
-                "Both the same-element link and the combo link must be walked through.");
+        assertTrue(tutorial.contains("t2-link-same") && tutorial.contains("t3-link-combo"),
+                "Both the same-element link and the combo link must be walked through — the "
+                        + "matching link in round two, the combo in round three.");
+        // One Setup affords one placement, so round two is link-then-evolve and the
+        // combo (which needs a third Siegling) belongs to round three, where
+        // GameService hoists the off-element partner onto the draw.
+        assertTrue(tutorial.contains("{ id: 'gate-t3'"),
+                "The combo/Strategy/Deception lessons must sit behind a round-three gate.");
         // Waiting on "energy > 0" completed instantly, because a turn-one socket has
         // already banked some; the lesson must wait on the INCREASE a new link pays.
         assertTrue(tutorial.contains("elementalEnergy() > linkBaseline || phase() !== 'SETUP'"),

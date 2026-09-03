@@ -23,9 +23,11 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.IntStream;
 
@@ -237,6 +239,12 @@ public class GameService {
         }
         state.resetPlacementsForTurn(isPlayerSide);
 
+        // Round three is the combo lesson, and a combo needs a second ELEMENT on the
+        // board. The mulligan shifts every later draw by one card, so a fixed stack
+        // cannot promise the Earth partner lands on turn three — hoist it instead.
+        if (state.isTutorialMatch() && isPlayerSide && state.getTurnNumber() == 3) {
+            hoistTutorialComboPartner(state, isPlayerSide, actor);
+        }
         Card drawn = actor.drawCard();
         if (drawn != null) {
             state.log(sideName(state, isPlayerSide) + " draws a card.");
@@ -662,22 +670,27 @@ public class GameService {
 
     /**
      * Opening-hand index the tutorial student may redraw (0-based). Indices 0–3 are
-     * the locked lesson cards (Sundile, Squire Bud, Strategy, Shatter Seal); index 4
-     * is the practice redraw (Pylook). A redraw does not shuffle — the next scripted
-     * card comes off the top of the deck.
+     * the locked lesson cards (Sundile, Pylook, Strategy, Shatter Seal); index 4 is
+     * a SPARE copy of Pylook, there purely to be thrown away. A redraw does not
+     * shuffle — the next scripted card comes off the top of the deck, which is
+     * Raydile, the evolution round two needs.
      */
     public static final int TUTORIAL_SCRIPTED_MULLIGAN_INDEX = 4;
 
     private static final List<String> TUTORIAL_REQUIRED_OPENING_IDS = List.of(
-            "sundile", "squirebud", "spell_fire_06", "trap13");
+            "sundile", "pylook", "spell_fire_06", "trap13");
 
     /**
-     * Tutorial draw stack (top drawn first into the opening five, then T1/T2 draws):
-     * Sundile (Fire socket opener), Squire Bud (Earth linker for combo), a cheap
-     * Strategy, Shatter Seal (Ice Deception vs the Dummy), spare Pylook (the only
-     * card the scripted mulligan may redraw), Raydile (evolve Sundile), Flora Knight
-     * (Rootbind status), then Advanced-lesson cards: damage-boost Strategy,
-     * health-boost Strategy, Root Bind, and an injected Ashen Ward shield Strategy.
+     * Tutorial draw stack, in the order the lessons need it. The opening five are
+     * Sundile (Fire socket opener), Pylook (the Fire partner round two links to),
+     * a cheap Strategy, Shatter Seal (Ice Deception vs the Dummy) and a SPARE
+     * Pylook in the practice-redraw slot. Under them: Raydile (evolves Sundile in
+     * round two), then two Strategies, deliberately, so the rounds-one-and-two
+     * draws do NOT hand over an off-element Siegling early — the combo lesson is
+     * round three, and `hoistTutorialComboPartner` puts the Earth partner on top
+     * for that draw whether or not the student took the mulligan. Under those sit
+     * the Earth combo partners and the remaining Advanced-lesson cards (Root
+     * Guard, Root Bind; the Ashen Ward shield Strategy is injected).
      */
     private void prepareTutorialPlayerDeck(Player player) {
         if (player == null) {
@@ -686,8 +699,9 @@ public class GameService {
         List<Card> pool = new ArrayList<>(player.getDeck());
         List<Card> ordered = new ArrayList<>();
         for (String id : List.of(
-                "sundile", "squirebud", "spell_fire_06", "trap13", "pylook", "raydile", "floraknight",
-                "spell_fire_09", "spell_earth_02", "spell_earth_01", "tutorial_ashen_ward")) {
+                "sundile", "pylook", "spell_fire_06", "trap13", "pylook", "raydile",
+                "spell_fire_09", "tutorial_ashen_ward", "squirebud", "floraknight",
+                "spell_earth_02", "spell_earth_01")) {
             Card taken = takeNamedCard(pool, id);
             if (taken == null && "trap13".equals(id)) {
                 taken = cardDefs.findCardCopy("trap13").orElse(null);
@@ -743,6 +757,38 @@ public class GameService {
         }
         ordered.addAll(pool);
         enemy.setDeck(ordered);
+    }
+
+    /**
+     * Move the first off-element Siegling in the tutorial deck to the top, so the
+     * round-three draw hands the student a combo partner. Elements already on the
+     * player's board are skipped — a second Fire card would link, but it would pay
+     * Fire energy, not the combo point the lesson is about.
+     */
+    private void hoistTutorialComboPartner(GameState state, boolean isPlayerSide, Player actor) {
+        if (actor == null || actor.getDeck() == null || actor.getDeck().isEmpty()) {
+            return;
+        }
+        Set<Element> onBoard = new HashSet<>();
+        for (int r = 0; r < 3; r++) {
+            for (int c = 0; c < 3; c++) {
+                CardInstance slot = state.getAt(isPlayerSide, r, c);
+                if (slot != null && slot.getCard() != null && slot.getCard().getElement() != null) {
+                    onBoard.add(slot.getCard().getElement());
+                }
+            }
+        }
+        for (int i = 0; i < actor.getDeck().size(); i++) {
+            Card card = actor.getDeck().get(i);
+            if (!(card instanceof SieglingCard siegling) || siegling.isEvolutionCard()) {
+                continue;
+            }
+            if (siegling.getElement() == null || onBoard.contains(siegling.getElement())) {
+                continue;
+            }
+            actor.getDeck().add(0, actor.getDeck().remove(i));
+            return;
+        }
     }
 
     private Card takeNamedCard(List<Card> pool, String cardId) {
