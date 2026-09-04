@@ -45,6 +45,31 @@
     return n;
   }
 
+  /**
+   * The live status badge to ring, preferring the player's OWN board: the lesson
+   * is about what just happened to their Siegling, so pointing at the enemy's
+   * card (or at the whole board, as it used to) makes the student hunt for the
+   * thing being described. Falls back through the enemy's badge to the grid so
+   * the ring always lands on something real — a badge is transient and the board
+   * re-renders under it.
+   *
+   * Selector-based, so it follows the badge wherever the layout puts it: phone
+   * portrait, landscape and desktop all position the ring off the element's own
+   * rect, and both tutorials share this script.
+   */
+  function badgeSelector() {
+    return firstOf(['#playerGrid .sb-badge', '#enemyGrid .sb-badge', '#playerGrid', '#boardArea']);
+  }
+
+  function badgeHighlight() {
+    var sel = badgeSelector();
+    // Ring the badge together with the card carrying it when we found a real
+    // one; the badge alone is a ~20px dot and reads as a stray speck.
+    if (sel === '#playerGrid .sb-badge') return ['#playerGrid .sb-badge', '#playerGrid'];
+    if (sel === '#enemyGrid .sb-badge') return ['#enemyGrid .sb-badge', '#enemyGrid'];
+    return [sel];
+  }
+
   /** True while the mulligan's redraw reveal is still playing. The server ends
    *  the MULLIGAN phase the moment the redraw lands, so any step that waits on
    *  the phase alone would open on top of the cards turning over. */
@@ -525,7 +550,8 @@
       { id: 'kill', title: 'Knocking one out hurts them', target: '#enemyGrid',
         body: 'Drop a Siegeling and its owner takes <b>Siege Damage</b> straight to the face — more the rarer it was. You can win through their board.' },
 
-      { id: 'status', title: 'Little icons, big deal', target: '#boardArea',
+      { id: 'status', title: 'Little icons, big deal',
+        target: badgeSelector, highlight: badgeHighlight,
         body: 'Fire leaves them <b>Burning</b>, Ice leaves them <b>Chilled</b>, and shields and boosts ride along the same way. They all show up as <b>badges</b> on the card, and they keep working after your turn ends.' },
 
       // Deliberately NOT a waiting step. A badge is transient — it expires, and
@@ -534,8 +560,8 @@
       // hostage while they ignore it. It points at a live badge and invites the
       // tap; the two steps below pick the thread up only if they took it.
       { id: 'badge-open', title: 'Look one up',
-        target: function () { return firstOf(['#playerGrid .sb-badge', '#enemyGrid .sb-badge', '#playerGrid']); },
-        highlight: ['#playerGrid', '#enemyGrid'],
+        target: badgeSelector,
+        highlight: badgeHighlight,
         body: 'Never guess what a badge is doing. <b>Tap the card</b> wearing one and its preview opens underneath, with the badge listed as a chip.',
         skipIf: function () { return !visible('.sb-badge'); } },
 

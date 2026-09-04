@@ -83,5 +83,17 @@ class TutorialRuleParityTest {
                 "The same-element lesson must be skipped when a matching link already stands.");
         assertTrue(tutorial.contains("!seen.sawBattle2 || comboCount() > 0"),
                 "The combo lesson must be skipped when a combo point has already been banked.");
+
+        // The badge lesson used to ring #boardArea — 71% of a phone screen, which
+        // points at nothing in particular. It rings the badge on the player's OWN
+        // Siegling now, through one shared reader so the lesson that explains a
+        // badge and the lesson that opens one cannot point at different things.
+        assertTrue(tutorial.contains("function badgeSelector()")
+                        && tutorial.contains("'#playerGrid .sb-badge', '#enemyGrid .sb-badge'"),
+                "The badge target must prefer the player's own badge, then the enemy's.");
+        assertTrue(tutorial.contains("{ id: 'status', title: 'Little icons, big deal',\n        target: badgeSelector, highlight: badgeHighlight,"),
+                "The badge lesson must ring the badge itself, not the whole board area.");
+        assertTrue(!tutorial.contains("title: 'Little icons, big deal', target: '#boardArea'"),
+                "The badge lesson must no longer spotlight the entire board.");
     }
 }
