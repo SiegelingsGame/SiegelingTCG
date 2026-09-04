@@ -4037,14 +4037,22 @@ function renderShowcaseCard(card, options = {}) {
     html += `<div class="card-label">${escapeHtml(labelText)}</div>`;
     html += `</div>`;
     html += renderCardArt(card, options.artVariant || 'preview', fallbackArtLabel);
+    // Surface status badges (shield, buffs, and the max-health badge) when this
+    // preview reflects a board card. Board cards carry a numeric maxHp; hand
+    // cards don't, so this renders nothing for those.
+    //
+    // The row sits in the shell, not in .hand-card-body: on a painted frame the
+    // body is a fixed box (top 69.8%) that clips and shares its height between
+    // the HP/SPD line and the description, so a badge row in there pushed both
+    // down and squeezed the description to a clipped single line. As a shell
+    // child it floats in the dead space at the foot of the art instead — the
+    // same separation the on-board card already uses for .arena-board-badges.
+    if (bodyMode !== 'hidden'
+            && ((Array.isArray(card.statuses) && card.statuses.length > 0) || Number.isFinite(Number(card.maxHp)))) {
+        html += renderStatusBadgesForCell(card);
+    }
     if (bodyMode !== 'hidden') {
         html += `<div class="hand-card-body">`;
-        // Surface status badges (shield, buffs, and the max-health badge) when
-        // this preview reflects a board card. Board cards carry a numeric maxHp;
-        // hand cards don't, so this renders nothing for those.
-        if ((Array.isArray(card.statuses) && card.statuses.length > 0) || Number.isFinite(Number(card.maxHp))) {
-            html += renderStatusBadgesForCell(card);
-        }
         if (card.type === 'SIEGLING') {
             html += renderCardStatPills(card, { mode: 'hand', shielded: showcaseHasShield });
         } else if (statLine) {

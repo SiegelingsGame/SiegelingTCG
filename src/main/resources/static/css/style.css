@@ -9082,6 +9082,25 @@ body.placement-active .board-cell.legal {
     overflow: hidden;
 }
 
+/* Status badges sit in the dead space at the foot of the art, directly above
+   the info panel — not inside it. The panel above is a fixed box whose height
+   is shared by the HP/SPD line and the description, so a badge row in flow
+   pushed both down and clipped the description to part of a line. Anchored to
+   the panel's own top edge (69.8%) so the two stay together if that moves. */
+.card-preview-card.element-frame .hand-card-shell > .status-icons,
+.selected-preview-card.element-frame .hand-card-shell > .status-icons,
+.mulligan-showcase.element-frame .hand-card-shell > .status-icons {
+    position: absolute;
+    left: 11.5%;
+    right: 11.5%;
+    bottom: 30.2%;
+    width: auto;
+    margin: 0;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 3;
+}
+
 .card-preview-card.element-frame .card-stat-pills,
 .selected-preview-card.element-frame .card-stat-pills,
 .mulligan-showcase.element-frame .card-stat-pills {
