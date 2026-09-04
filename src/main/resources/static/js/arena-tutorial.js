@@ -92,10 +92,14 @@
     return cards[0] || null;
   }
 
-  /** The cost chip the game actually renders — `.card-corner-cost`, not the
-   *  summary row, which the hand fan does not use. */
+  /** The cost the game actually renders in the fan. `.hand-cost-badge` is the
+   *  hand's own compact cost pip; `.card-corner-cost` is the painted frame's
+   *  chip, which style.css hides inside #playerHand — so the badge has to be
+   *  tried first or the lesson rings the whole hand instead of the number it
+   *  is talking about. */
   function costTarget() {
-    return firstOf(['#playerHand .card-corner-cost', '#handTray .card-corner-cost', '#playerHand']);
+    return firstOf(['#playerHand .hand-cost-badge', '#handTray .hand-cost-badge',
+      '#playerHand .card-corner-cost', '#handTray .card-corner-cost', '#playerHand']);
   }
 
   function comboCount() {
@@ -201,6 +205,70 @@
     if (!evo) return null;
     var base = h.filter(function (c) { return c && c.id === evo.evolvesFromId; })[0];
     return base ? { base: base, evolution: evo } : null;
+  }
+
+  /** The evolution sitting in hand, if any. */
+  function evolutionInHand() {
+    return hand().filter(function (c) { return c && c.type === 'SIEGLING' && c.evolvesFromId; })[0] || null;
+  }
+
+  /** Board coords of the bases an in-hand evolution could actually go down on.
+   *  Mirrors game.js getEvolutionPlacements — same cardId, at least one battle
+   *  phase survived, not cursed — because a coach that rings a cell the game
+   *  would refuse is worse than no ring at all. Board cells carry `cardId`
+   *  where hand cards carry `id`; that asymmetry is the server's, not a typo. */
+  function evolutionBaseCells(evo) {
+    var g = gs();
+    var board = (g && g.playerBoard) || [];
+    var out = [];
+    if (!evo || !evo.evolvesFromId) return out;
+    for (var r = 0; r < board.length; r++) {
+      for (var c = 0; c < (board[r] || []).length; c++) {
+        var cell = board[r][c];
+        if (!cell || cell.cardId !== evo.evolvesFromId) continue;
+        if (!(Number(cell.battlePhasesSeen || 0) > 0)) continue;
+        if (hasCurse(cell)) continue;
+        out.push([r, c, cell]);
+      }
+    }
+    return out;
+  }
+
+  function hasCurse(cell) {
+    var rows = (cell && cell.afflictions) || [];
+    return rows.some(function (row) {
+      return row && String(row.kind || '').toUpperCase() === 'CURSE' && Number(row.stacks) > 0;
+    });
+  }
+
+  /** The base cell the evolve lesson rings — the actual card on the board the
+   *  evolution grows out of, not the grid at large. */
+  function evolutionBaseTarget() {
+    var cells = evolutionBaseCells(evolutionInHand());
+    if (cells.length) {
+      var sel = '#playerGrid .board-cell[data-row="' + cells[0][0] + '"][data-col="' + cells[0][1] + '"]';
+      if (visible(sel)) return sel;
+    }
+    return firstOf(['#playerGrid .board-cell.legal', '#playerGrid']);
+  }
+
+  function evolutionBaseName() {
+    var cells = evolutionBaseCells(evolutionInHand());
+    return (cells.length && cells[0][2] && cells[0][2].name) || '';
+  }
+
+  /** Both halves of the evolution are on the table: the card is in hand AND a
+   *  base it may legally land on is on the board. The guided pick/place pair
+   *  only runs when this holds — otherwise the coach would ask for a move the
+   *  match cannot accept, which is how a lesson strands itself. */
+  function evolutionReady() {
+    return evolutionBaseCells(evolutionInHand()).length > 0;
+  }
+
+  function selectedIsEvolution() {
+    var b = bridge();
+    var card = b ? b.selected() : null;
+    return !!(card && card.evolvesFromId);
   }
 
   /** Where a given hand card is rendered, so a step can mark that one card.
@@ -661,17 +729,80 @@
           return sameElementLinkCount() > linkBaseline || phase() !== 'SETUP';
         } },
 
-      { id: 't2-evolve', hint: 'Play an evolution onto its base', title: 'Grow one up', target: '#playerHand',
-        highlight: ['#playerHand', '#handTray'],
+      // Evolving is the one move the coach used to describe and then leave the
+      // player to find: a single step ringing the whole hand, with no wait, so
+      // the script walked on to "End Turn" whether or not anything evolved.
+      // It is now the same taught-then-guided shape as the placement lesson —
+      // the rule, then "tap this card", then "tap that cell" — because it is
+      // a TWO-tap move on a board where the only legal cell is already
+      // occupied, which reads as illegal until you have done it once.
+      { id: 't2-evolve', hint: 'Play an evolution onto its base', title: 'Grow one up',
+        target: function () { return handCardTarget(evolutionInHand()) || '#playerHand'; },
+        highlight: function () {
+          var sel = handCardTarget(evolutionInHand());
+          return sel ? [sel, '#playerHand', '#handTray'] : ['#playerHand', '#handTray'];
+        },
         body: function () {
-          var evo = hand().filter(function (c) { return c && c.type === 'SIEGLING' && c.evolvesFromId; })[0];
+          var evo = evolutionInHand();
+          var base = evolutionBaseName();
           var named = evo ? 'Your opener fought last round and this link is paying — so <b>' + esc(evo.name) +
-            '</b> can go down on top of it right now. ' : '';
+            '</b> can go down on top of ' + (base ? '<b>' + esc(base) + '</b>' : 'it') + ' right now. ' : '';
           return named + 'Two things before a Siegeling can <b>evolve</b>: it has to have <b>survived a full battle phase</b> in its current form, and you need the evolution\'s own <b>energy</b> on tap. Play the bigger card straight onto it — evolutions ignore the one-per-turn limit <em>and</em> the five-on-board cap.';
         },
         skipIf: function () {
           if (turn() < 2) return true;
-          return !hand().some(function (c) { return c && c.type === 'SIEGLING' && c.evolvesFromId; });
+          return !evolutionInHand();
+        } },
+
+      { id: 't2-evolve-pick', title: 'Pick the evolution up',
+        hint: function () {
+          var evo = evolutionInHand();
+          return evo ? 'Tap <b>' + esc(evo.name) + '</b> in your hand' : 'Tap the evolution in your hand';
+        },
+        target: function () { return handCardTarget(evolutionInHand()) || '#playerHand'; },
+        highlight: function () {
+          var sel = handCardTarget(evolutionInHand());
+          return sel ? [sel, '#playerHand', '#handTray'] : ['#playerHand', '#handTray'];
+        },
+        body: function () {
+          var evo = evolutionInHand();
+          return 'Tap ' + (evo ? '<b>' + esc(evo.name) + '</b>' : 'the evolution') +
+            ' to pick it up. The board will light the <b>one</b> cell it can go on — and that cell already has a Siegeling standing in it. That is the point: an evolution lands <b>on top of</b> its base, it does not take an empty square.';
+        },
+        // Only runs when the move is genuinely available — the card in hand AND
+        // a base it may legally land on. Anything else and this pair is skipped
+        // rather than asking for a tap the game would reject.
+        skipIf: function () {
+          return turn() < 2 || !evolutionReady() || selectedIsEvolution();
+        },
+        until: function () {
+          return selectedIsEvolution() || !evolutionInHand() || phase() !== 'SETUP';
+        } },
+
+      { id: 't2-evolve-place', title: 'Drop it on the base',
+        hint: function () {
+          var base = evolutionBaseName();
+          return base ? 'Tap <b>' + esc(base) + '</b> on your board' : 'Tap the lit cell on your board';
+        },
+        target: evolutionBaseTarget,
+        highlight: function () {
+          var sel = evolutionBaseTarget();
+          return sel === '#playerGrid' ? ['#playerGrid'] : [sel, '#playerGrid .board-cell.legal'];
+        },
+        body: function () {
+          var evo = evolutionInHand();
+          var base = evolutionBaseName();
+          return 'Now tap ' + (base ? '<b>' + esc(base) + '</b>' : 'the lit cell') + '. ' +
+            (evo ? '<b>' + esc(evo.name) + '</b>' : 'The evolution') +
+            ' takes its place — same square, same links, bigger Siegeling — and it keeps every notch it is drawn with, so check what your link does after it grows.';
+        },
+        skipIf: function () {
+          return turn() < 2 || !evolutionInHand() || !evolutionReady();
+        },
+        until: function () {
+          // Placed (the card left the hand), or Setup ended — the lesson never
+          // holds the match hostage over a move the player chose to skip.
+          return !evolutionInHand() || phase() !== 'SETUP';
         } },
 
       { id: 't2-end', hint: 'Tap <b>End Turn</b>', title: 'Send it', target: actionBtn,
