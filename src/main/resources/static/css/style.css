@@ -1700,9 +1700,15 @@ body:has(.welcome-overlay.visible) .safe-hp-strip {
     align-items: stretch;
 }
 
+/* One frame for every SiegeKnight card in the HUD rail. Uploaded full-card art,
+   overlay art and the default template all print at 5:7, so sizing the frame
+   (not the child) keeps both art modes exactly the same width. */
 .hud-knight-art {
     position: relative;
     width: 100%;
+    max-width: calc(280px * 5 / 7);
+    aspect-ratio: 5 / 7;
+    margin: 0 auto;
     overflow: hidden;
     border-radius: 10px 10px 0 0;
     background: rgba(255, 255, 255, 0.04);
@@ -1712,9 +1718,9 @@ body:has(.welcome-overlay.visible) .safe-hp-strip {
 .hud-knight-art-img {
     display: block;
     width: 100%;
-    height: auto;
-    max-height: 280px;
-    object-fit: contain;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
 }
 
 .hud-knight-art-template {
@@ -1735,8 +1741,8 @@ body:has(.welcome-overlay.visible) .safe-hp-strip {
     position: relative;
     display: block;
     width: 100%;
+    height: 100%;
     aspect-ratio: 5 / 7;
-    max-height: 280px;
     margin: 0 auto;
     overflow: hidden;
     line-height: 0;
@@ -4958,7 +4964,6 @@ body.battle-phase-active .battlefield::after {
     .m-knight-icon.has-knight-card .hud-knight-art-card {
         width: 100%;
         height: 100%;
-        max-height: none;
         aspect-ratio: auto;
     }
 
@@ -11584,7 +11589,6 @@ body.placement-active .board-cell.legal {
 .preview-knight-icon.has-knight-overlay-art .hud-knight-art-card {
     width: 100%;
     height: 100%;
-    max-height: none;
     aspect-ratio: auto;
 }
 

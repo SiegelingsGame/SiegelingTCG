@@ -13163,9 +13163,9 @@ function knightHudCardInnerHtml(trainer) {
         if (knightHasOverlayCardArt(trainer)) {
             return knightHudOverlayCardInnerHtml(trainer, url);
         }
-        // The HUD shows the full card at natural aspect (no fixed 5:7 frame), so the
-        // dashboard crop/scale transform — tuned for the framed loadout/binder — is
-        // intentionally not applied here.
+        // The HUD frame is a fixed 5:7 box shared with overlay art so both modes
+        // size identically; the dashboard crop/scale transform — tuned for the
+        // framed loadout/binder — is intentionally not applied here.
         return `<img class="hud-knight-art-img" ${webpImgAttrs(url)} alt="${escapeHtmlAttribute(trainer?.name || 'SiegeKnight card')}" decoding="async">`;
     }
     return `<img class="hud-knight-art-img hud-knight-art-template" ${webpImgAttrs(SIEGEKNIGHT_CARD_TEMPLATE)} alt="" aria-hidden="true"><span class="hud-knight-art-sigil">${elementEmoji(trainer?.element)}</span>`;
