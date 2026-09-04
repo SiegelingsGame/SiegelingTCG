@@ -16113,14 +16113,15 @@ function renderRowSelectBattleOverlay() {
     if (overlays.length === 0) {
         return;
     }
-    if (isBattleTargetSelectionActive()) {
-        overlays.forEach((overlay) => {
-            overlay.className = 'battle-row-confirm-overlay hidden';
-            overlay.innerHTML = '';
-        });
-        return;
-    }
-    const html = renderRowSelectBattleConfirm();
+    // Compact landscape dropped Confirm from the dock on purpose: the board
+    // overlay is the confirm surface there. The previous version hid this
+    // overlay whenever targeting was active, which is exactly when a row
+    // ability needs it — so landscape had Cancel in the dock and no Confirm
+    // anywhere. Portrait/desktop still use the tray or the targeting HUD.
+    const showOnBoard = isCompactLandscapeLayout()
+        && isBattleTargetSelectionActive()
+        && isRowSelectBattleTargetContext();
+    const html = showOnBoard ? renderRowSelectBattleConfirm() : '';
     overlays.forEach((overlay) => {
         if (!html) {
             overlay.className = 'battle-row-confirm-overlay hidden';
