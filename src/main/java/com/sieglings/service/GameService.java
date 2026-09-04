@@ -708,25 +708,33 @@ public class GameService {
      * the Earth combo partners and the remaining Advanced-lesson cards (Root
      * Guard, Root Bind; the Ashen Ward shield Strategy is injected).
      */
-    private void prepareTutorialPlayerDeck(Player player) {
+    /* Package-private so a test can reproduce the production shape directly:
+       the tutorial's own preset deck can be missing from the dashboard, and the
+       scripted stack has to survive being built over any other deck's pool. */
+    void prepareTutorialPlayerDeck(Player player) {
         if (player == null) {
             return;
         }
         List<Card> pool = new ArrayList<>(player.getDeck());
         List<Card> ordered = new ArrayList<>();
+        // Every scripted card falls back to the catalog, not just a hand-picked
+        // few. The tutorial asks for deck_fire_earth ("Ashen Roots"), but a preset
+        // deck is dashboard data and can simply stop existing: buildDeckById then
+        // falls back to the FIRST playable preset, which in production is the
+        // mono-Fire "Blazing Core". Taking the scripted cards only from that pool
+        // silently dropped squirebud and the Earth Strategies, so the round-three
+        // combo lesson asked for an off-element Siegling the deck could not
+        // contain. Pulling from the pool first still preserves any dashboard
+        // tuning of that copy; the catalog is the guarantee behind it.
         for (String id : List.of(
                 "sundile", "pylook", "spell_fire_06", "trap13", "pylook", "raydile",
                 "spell_fire_09", "tutorial_ashen_ward", "squirebud", "floraknight",
                 "spell_earth_02", "spell_earth_01")) {
             Card taken = takeNamedCard(pool, id);
-            if (taken == null && "trap13".equals(id)) {
-                taken = cardDefs.findCardCopy("trap13").orElse(null);
-            }
-            if (taken == null && "tutorial_ashen_ward".equals(id)) {
-                taken = buildTutorialAshenWard();
-            }
-            if (taken == null && ("spell_fire_09".equals(id) || "spell_earth_02".equals(id) || "spell_earth_01".equals(id))) {
-                taken = cardDefs.findCardCopy(id).orElse(null);
+            if (taken == null) {
+                taken = "tutorial_ashen_ward".equals(id)
+                        ? buildTutorialAshenWard()
+                        : cardDefs.findCardCopy(id).orElse(null);
             }
             if (taken != null) {
                 ordered.add(taken);

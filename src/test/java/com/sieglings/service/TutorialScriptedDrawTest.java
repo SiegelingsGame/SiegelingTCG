@@ -1,6 +1,7 @@
 package com.sieglings.service;
 
 import com.sieglings.model.Card;
+import com.sieglings.model.Player;
 import com.sieglings.model.GameState;
 import com.sieglings.model.SieglingCard;
 import com.sieglings.model.enums.Element;
@@ -28,6 +29,9 @@ class TutorialScriptedDrawTest {
 
     @Autowired
     private GameService gameService;
+
+    @Autowired
+    private CardDefinitionService cardDefs;
 
     private static boolean handHas(GameState state, String id) {
         return state.getPlayer().getHand().stream()
@@ -132,6 +136,41 @@ class TutorialScriptedDrawTest {
                     "Round " + turnNumber + " must re-deal an off-element partner while the hand holds none.");
             state.getPlayer().getHand().removeIf(c ->
                     c instanceof SieglingCard s && s.getElement() != Element.FIRE);
+        }
+    }
+
+    /**
+     * Reproduces production. The tutorial asks for the deck "deck_fire_earth"
+     * (Ashen Roots), but a preset deck is dashboard data and that one is NOT in
+     * the live set — so `buildDeckById` falls back to the FIRST playable preset,
+     * which live is the mono-Fire "Blazing Core". The scripted cards used to be
+     * taken only from that pool, so squirebud and the Earth Strategies were
+     * silently dropped and the combo lesson asked for an off-element Siegling the
+     * deck could not contain. Reported from a real run: no Earth card ever drawn.
+     *
+     * The local catalog still has deck_fire_earth, which is exactly why this could
+     * not be caught by starting a normal tutorial game here — the pool has to be
+     * the mono-element one on purpose.
+     */
+    @Test
+    void theScriptedStackSurvivesABackingDeckThatHasNoneOfItsCards() {
+        Player player = new Player("Student", true);
+        player.setDeck(cardDefs.buildDeckById("deck_fire"));
+        assertTrue(player.getDeck().stream().noneMatch(c ->
+                        c instanceof SieglingCard s && s.getElement() == Element.EARTH),
+                "Precondition: the fallback deck is mono-Fire, as it is in production.");
+
+        gameService.prepareTutorialPlayerDeck(player);
+
+        assertTrue(player.getDeck().stream().anyMatch(c -> "squirebud".equalsIgnoreCase(c.getId())),
+                "The Earth combo partner must be supplied from the catalog when the backing "
+                        + "deck has none — otherwise the round-three lesson is unwinnable.");
+        assertTrue(player.getDeck().stream().anyMatch(c ->
+                        c instanceof SieglingCard s && !s.isEvolutionCard() && s.getElement() == Element.EARTH),
+                "A placeable off-element Siegling must exist in the tutorial deck.");
+        for (String id : List.of("sundile", "pylook", "raydile", "trap13", "tutorial_ashen_ward")) {
+            assertTrue(player.getDeck().stream().anyMatch(c -> id.equalsIgnoreCase(c.getId())),
+                    "Scripted lesson card '" + id + "' must survive a foreign backing deck too.");
         }
     }
 
