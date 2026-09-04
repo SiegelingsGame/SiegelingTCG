@@ -242,7 +242,16 @@ public class GameService {
         // Round three is the combo lesson, and a combo needs a second ELEMENT on the
         // board. The mulligan shifts every later draw by one card, so a fixed stack
         // cannot promise the Earth partner lands on turn three — hoist it instead.
-        if (state.isTutorialMatch() && isPlayerSide && state.getTurnNumber() == 3) {
+        //
+        // Kept up from round three rather than fired once ON it: the lesson is
+        // gated on the student's own progress, so it can be reached later than
+        // round three, and the partner drawn then can be spent before it opens.
+        // Either way the coach ends up saying "tap a Siegling of a different
+        // element" over an all-Fire hand, with no way to comply. Re-hoisting
+        // while the hand holds no partner makes the lesson's precondition an
+        // invariant instead of a one-shot bet; it no-ops once one is in hand.
+        if (state.isTutorialMatch() && isPlayerSide && state.getTurnNumber() >= 3
+                && !tutorialCanFormCombo(state, isPlayerSide, actor)) {
             hoistTutorialComboPartner(state, isPlayerSide, actor);
         }
         Card drawn = actor.drawCard();
@@ -776,6 +785,62 @@ public class GameService {
         if (actor == null || actor.getDeck() == null || actor.getDeck().isEmpty()) {
             return;
         }
+        // Held elements, not just board elements: on an empty board the board-only
+        // rule matches the first Siegling in the deck whatever its element, which
+        // hoists another Fire card and leaves the lesson exactly as stuck.
+        Set<Element> held = tutorialVisibleElements(state, isPlayerSide, actor);
+        for (int i = 0; i < actor.getDeck().size(); i++) {
+            if (isComboPartnerFor(actor.getDeck().get(i), held)) {
+                actor.getDeck().add(0, actor.getDeck().remove(i));
+                return;
+            }
+        }
+    }
+
+    /**
+     * Can the student build a combo at all from what they can see — the board plus
+     * the hand? A combo needs two DIFFERENT elements facing each other, so one
+     * distinct element across both is a dead end no matter how well they play.
+     *
+     * Deliberately not "is there a card in hand whose element is missing from the
+     * board": on an empty board that is true of every Siegling, so it reads as
+     * satisfied while the student holds nothing but Fire — the exact state that was
+     * reported.
+     */
+    private boolean tutorialCanFormCombo(GameState state, boolean isPlayerSide, Player actor) {
+        return tutorialVisibleElements(state, isPlayerSide, actor).size() >= 2;
+    }
+
+    /** Every element the student can already play with: board plus hand. */
+    private Set<Element> tutorialVisibleElements(GameState state, boolean isPlayerSide, Player actor) {
+        Set<Element> elements = elementsOnBoard(state, isPlayerSide);
+        if (actor != null && actor.getHand() != null) {
+            for (Card card : actor.getHand()) {
+                if (card instanceof SieglingCard siegling
+                        && !siegling.isEvolutionCard()
+                        && siegling.getElement() != null) {
+                    elements.add(siegling.getElement());
+                }
+            }
+        }
+        return elements;
+    }
+
+    /**
+     * One rule, shared by the hoist and the combo check, so "what counts as a combo
+     * partner" cannot drift between deciding to hoist and deciding it is no longer
+     * needed. An evolution is excluded because it cannot be placed on its own, and
+     * an element already on the board would link for that element's energy rather
+     * than the combo point the lesson is about.
+     */
+    private boolean isComboPartnerFor(Card card, Set<Element> alreadyHeld) {
+        if (!(card instanceof SieglingCard siegling) || siegling.isEvolutionCard()) {
+            return false;
+        }
+        return siegling.getElement() != null && !alreadyHeld.contains(siegling.getElement());
+    }
+
+    private Set<Element> elementsOnBoard(GameState state, boolean isPlayerSide) {
         Set<Element> onBoard = new HashSet<>();
         for (int r = 0; r < 3; r++) {
             for (int c = 0; c < 3; c++) {
@@ -785,17 +850,7 @@ public class GameService {
                 }
             }
         }
-        for (int i = 0; i < actor.getDeck().size(); i++) {
-            Card card = actor.getDeck().get(i);
-            if (!(card instanceof SieglingCard siegling) || siegling.isEvolutionCard()) {
-                continue;
-            }
-            if (siegling.getElement() == null || onBoard.contains(siegling.getElement())) {
-                continue;
-            }
-            actor.getDeck().add(0, actor.getDeck().remove(i));
-            return;
-        }
+        return onBoard;
     }
 
     private Card takeNamedCard(List<Card> pool, String cardId) {

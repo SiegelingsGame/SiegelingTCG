@@ -89,4 +89,73 @@ class TutorialScriptedDrawTest {
                     "Round three's draw is the combo partner — a different element to the Fire board.");
         }
     }
+
+    /**
+     * The combo lesson is gated on the student's own progress, so it can open well
+     * after round three — and the partner drawn on round three can be spent before
+     * it does. Reported from a real run: the coach said "tap a Siegling of a
+     * different element" over an all-Fire hand, which cannot be complied with. The
+     * partner is therefore re-hoisted on every draw from round three onward until
+     * one is actually in hand.
+     */
+    @Test
+    void aComboPartnerKeepsArrivingWhileTheHandHasNone() {
+        GameState state = gameService.newTutorialGame("Student").state();
+        gameService.resolveOpeningMulligan(state, true, List.of());
+
+        for (int turnNumber = 1; turnNumber <= 2; turnNumber++) {
+            state.setTurnNumber(turnNumber);
+            state.setCurrentPhase(Phase.DRAW);
+            gameService.draw(state, true);
+        }
+
+        // Round three deals one, then it is spent — the student places or loses it.
+        state.setTurnNumber(3);
+        state.setCurrentPhase(Phase.DRAW);
+        gameService.draw(state, true);
+        state.getPlayer().getHand().removeIf(c ->
+                c instanceof SieglingCard s && s.getElement() != Element.FIRE);
+        assertTrue(state.getPlayer().getHand().stream().noneMatch(c ->
+                        c instanceof SieglingCard s && s.getElement() != Element.FIRE),
+                "Precondition: the hand is all Fire once the partner is spent.");
+
+        // Every later draw must keep offering one, or the lesson is unwinnable.
+        for (int turnNumber = 4; turnNumber <= 6; turnNumber++) {
+            state.setTurnNumber(turnNumber);
+            state.setCurrentPhase(Phase.DRAW);
+            int before = state.getPlayer().getHand().size();
+            gameService.draw(state, true);
+            Card drawn = state.getPlayer().getHand().get(before);
+            SieglingCard partner = assertInstanceOf(SieglingCard.class, drawn,
+                    "Round " + turnNumber + " must re-deal a combo partner, not a spell.");
+            assertEquals(Element.EARTH, partner.getElement(),
+                    "Round " + turnNumber + " must re-deal an off-element partner while the hand holds none.");
+            state.getPlayer().getHand().removeIf(c ->
+                    c instanceof SieglingCard s && s.getElement() != Element.FIRE);
+        }
+    }
+
+    /** ...but it must stop once the student is holding one, or every later draw is Earth. */
+    @Test
+    void theHoistStopsOnceThePartnerIsInHand() {
+        GameState state = gameService.newTutorialGame("Student").state();
+        gameService.resolveOpeningMulligan(state, true, List.of());
+        for (int turnNumber = 1; turnNumber <= 3; turnNumber++) {
+            state.setTurnNumber(turnNumber);
+            state.setCurrentPhase(Phase.DRAW);
+            gameService.draw(state, true);
+        }
+        assertTrue(state.getPlayer().getHand().stream().anyMatch(c ->
+                        c instanceof SieglingCard s && s.getElement() == Element.EARTH),
+                "Precondition: round three dealt the partner and it is still held.");
+
+        state.setTurnNumber(4);
+        state.setCurrentPhase(Phase.DRAW);
+        int before = state.getPlayer().getHand().size();
+        gameService.draw(state, true);
+        Card drawn = state.getPlayer().getHand().get(before);
+        assertTrue(!(drawn instanceof SieglingCard s) || s.getElement() != Element.EARTH,
+                "With a partner already in hand the deck must run normally, not keep hoisting Earth "
+                        + "(got " + drawn.getId() + ").");
+    }
 }
