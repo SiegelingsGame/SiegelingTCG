@@ -10395,6 +10395,10 @@ window.ArenaTutorialBridge = {
     // The cells the game itself would accept right now, so the coach can
     // recommend one instead of guessing. Same source the .legal highlight uses.
     legalPlacements: () => getSelectedLegalPlacements(),
+    // True while the redraw reveal still owns the screen. The server ends the
+    // MULLIGAN phase the instant the redraw lands, so a coach step that waits on
+    // the phase alone advances on top of the cards turning over.
+    mulliganRevealing: () => mulliganRevealHold,
     authHeaders: (extra) => getAuthHeaders(extra || {})
 };
 
