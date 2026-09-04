@@ -61,12 +61,36 @@
     return firstOf(['#playerGrid .sb-badge', '#enemyGrid .sb-badge', '#playerGrid', '#boardArea']);
   }
 
+  /**
+   * The board cell holding the badge, as a selector. Walks up from the live badge
+   * to its cell and rebuilds the selector from data-row/data-col, the same way
+   * linkedCellSelectors() names a cell — the coach re-resolves highlights every
+   * frame, so it needs a selector it can look up again, not a node reference.
+   */
+  function badgeCellSelector() {
+    var badge = null;
+    try {
+      badge = document.querySelector('#playerGrid .sb-badge') || document.querySelector('#enemyGrid .sb-badge');
+    } catch (e) { return null; }
+    if (!badge || !badge.closest) return null;
+    var cell = badge.closest('.board-cell');
+    if (!cell) return null;
+    var grid = badge.closest('#playerGrid') ? '#playerGrid' : '#enemyGrid';
+    var r = cell.getAttribute('data-row'), c = cell.getAttribute('data-col');
+    if (r == null || c == null) return null;
+    var sel = grid + ' .board-cell[data-row="' + r + '"][data-col="' + c + '"]';
+    return visible(sel) ? sel : null;
+  }
+
   function badgeHighlight() {
+    // Ring the CARD wearing the badge, not the grid it sits in. Ringing badge +
+    // grid together spanned the whole board, because the union of the two is the
+    // grid — so the spotlight was back to "somewhere on your half". The cell
+    // contains the badge, so one selector covers both and the ring closes right
+    // down onto the card being talked about.
+    var cell = badgeCellSelector();
+    if (cell) return [cell];
     var sel = badgeSelector();
-    // Ring the badge together with the card carrying it when we found a real
-    // one; the badge alone is a ~20px dot and reads as a stray speck.
-    if (sel === '#playerGrid .sb-badge') return ['#playerGrid .sb-badge', '#playerGrid'];
-    if (sel === '#enemyGrid .sb-badge') return ['#enemyGrid .sb-badge', '#enemyGrid'];
     return [sel];
   }
 
