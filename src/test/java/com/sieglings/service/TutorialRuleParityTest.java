@@ -67,13 +67,21 @@ class TutorialRuleParityTest {
         // GameService hoists the off-element partner onto the draw.
         assertTrue(tutorial.contains("{ id: 'gate-t3'"),
                 "The combo/Strategy/Deception lessons must sit behind a round-three gate.");
-        // Waiting on "energy > 0" completed instantly, because a turn-one socket has
-        // already banked some; the lesson must wait on the INCREASE a new link pays.
-        assertTrue(tutorial.contains("elementalEnergy() > linkBaseline || phase() !== 'SETUP'"),
-                "The same-element lesson must wait on energy rising above where it stood when the "
-                        + "lesson opened, and must give that wait up when Setup ends so it cannot "
-                        + "hold the match hostage.");
+        // The wait reads the BOARD, not the energy pool. An energy test cannot tell a
+        // new link from a socket or an ability payout, so it either fired early or
+        // waited on the wrong thing; counting the links themselves is exact.
+        assertTrue(tutorial.contains("sameElementLinkCount() > linkBaseline || phase() !== 'SETUP'"),
+                "The same-element lesson must wait on a new matching link appearing on the board, "
+                        + "and must give that wait up when Setup ends so it cannot hold the match "
+                        + "hostage.");
         assertTrue(tutorial.contains("comboCount() > 0 || phase() !== 'SETUP'"),
                 "The combo lesson must wait on a real combo point, with the same escape.");
+        // Neither link lesson may ask for a connection the board already has. The
+        // placement step before each one commonly makes it outright, which left the
+        // coach demanding something the player had just done.
+        assertTrue(tutorial.contains("mine() < 2 || sameElementLinkCount() > 0"),
+                "The same-element lesson must be skipped when a matching link already stands.");
+        assertTrue(tutorial.contains("!seen.sawBattle2 || comboCount() > 0"),
+                "The combo lesson must be skipped when a combo point has already been banked.");
     }
 }

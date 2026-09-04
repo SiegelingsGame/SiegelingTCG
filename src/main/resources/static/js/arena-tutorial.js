@@ -25,7 +25,7 @@
   /** Latched observations: things a single state snapshot cannot show, such as
    *  "a Siegeling died at some point during that battle phase". */
   var seen = null;
-  var linkBaseline = null;   // elemental energy when the same-element lesson opened
+  var linkBaseline = null;   // same-element links standing when that lesson opened
   var watchRaf = 0;
 
   /** game.js declares its state with `let`, which in a classic script is
@@ -275,39 +275,68 @@
     }
   }
 
+  /** Walks every live reciprocal link on the player's board, calling back with
+   *  both cells and the two facing notches. One adjacency rule for the whole
+   *  file: the lesson that spotlights a link and the check for whether one
+   *  already exists must never disagree about what counts as linked. */
+  function forEachPlayerLink(cb) {
+    var g = gs();
+    var board = (g && g.playerBoard) || [];
+    for (var r = 0; r < board.length; r++) {
+      for (var c = 0; c < (board[r] || []).length; c++) {
+        var card = board[r][c];
+        if (!card) continue;
+        /* jshint loopfunc:true */
+        (function (row, col, self) {
+          (self.notches || []).forEach(function (notch) {
+            if (!notch || !notch.direction) return;
+            var d = playerDelta(notch.direction);
+            var nr = row + d[0], nc = col + d[1];
+            if (nr < 0 || nr > 2 || nc < 0 || nc > 2) return;
+            var neighbour = board[nr] && board[nr][nc];
+            if (!neighbour) return;
+            var wanted = OPPOSITE_DIR[notch.direction];
+            var facing = null;
+            (neighbour.notches || []).forEach(function (n) {
+              if (!facing && n && n.direction === wanted) facing = n;
+            });
+            if (!facing) return;
+            cb({ row: row, col: col }, { row: nr, col: nc }, notch, facing);
+          });
+        }(r, c, card));
+      }
+    }
+  }
+
   /** Selectors for every player cell holding a Siegeling that is in a live
    *  reciprocal link. The link lesson spotlights the two cards it is talking
    *  about; ringing the whole grid left the player hunting for them. */
   function linkedCellSelectors() {
-    var g = gs();
-    var board = (g && g.playerBoard) || [];
     var out = [];
     function push(r, c) {
       var sel = '#playerGrid .board-cell[data-row="' + r + '"][data-col="' + c + '"]';
       if (out.indexOf(sel) < 0 && visible(sel)) out.push(sel);
     }
-    for (var r = 0; r < board.length; r++) {
-      for (var c = 0; c < (board[r] || []).length; c++) {
-        var card = board[r][c];
-        if (!card) continue;
-        (card.notches || []).forEach(function (notch) {
-          if (!notch || !notch.direction) return;
-          var d = playerDelta(notch.direction);
-          var nr = r + d[0], nc = c + d[1];
-          if (nr < 0 || nr > 2 || nc < 0 || nc > 2) return;
-          var neighbour = board[nr] && board[nr][nc];
-          if (!neighbour) return;
-          var wanted = OPPOSITE_DIR[notch.direction];
-          var reciprocal = (neighbour.notches || []).some(function (n) {
-            return n && n.direction === wanted;
-          });
-          if (!reciprocal) return;
-          push(r, c);
-          push(nr, nc);
-        });
-      }
-    }
+    forEachPlayerLink(function (a, b) {
+      push(a.row, a.col);
+      push(b.row, b.col);
+    });
     return out;
+  }
+
+  /** How many live links already pay a single element — both facing notches
+   *  carrying the same one. The same-element lesson must not ask for a link the
+   *  board already has: the natural play of dropping the second Siegeling
+   *  beside the first usually makes one on the spot, which left the coach
+   *  demanding something the player had already done. */
+  function sameElementLinkCount() {
+    var n = 0;
+    forEachPlayerLink(function (a, b, notch, facing) {
+      var one = String((notch && notch.element) || '').toUpperCase();
+      var two = String((facing && facing.element) || '').toUpperCase();
+      if (one && one === two) n++;
+    });
+    return n / 2 || 0;   // each link is walked from both ends
   }
 
   /** The turn-three combo partner: a hand Siegeling whose element is NOT already
@@ -605,14 +634,20 @@
         title: 'Your first same-element link', target: '#playerGrid',
         highlight: ['#playerGrid .board-cell.legal', '#playerGrid'],
         body: 'Two notches of the <b>same element</b> pointing at each other bank that element, every single round. That is the steady income — build it first.',
-        skipIf: function () { return turn() < 2 || mine() < 2; },
+        // Skipped outright once a matching link is already standing. The step
+        // before this one has the player place beside their opener, and with a
+        // mono-element opening hand that placement IS the same-element link —
+        // so the coach was asking for a connection the board already had, and
+        // the hint sat there through a link it could see.
+        skipIf: function () {
+          return turn() < 2 || mine() < 2 || sameElementLinkCount() > 0;
+        },
         until: function () {
-          // Latch where the pools stood when the lesson opened. Waiting on
-          // "energy > 0" completed instantly, because a turn-one socket has
-          // already banked some — the step never rendered. What is being
-          // taught is the INCREASE a new matching link pays.
-          if (linkBaseline == null) linkBaseline = elementalEnergy();
-          return elementalEnergy() > linkBaseline || phase() !== 'SETUP';
+          // Ask the board, not the energy pool. The pool moves for sockets and
+          // abilities too, and a turn-one socket has already banked some, so an
+          // energy test either fired early or waited on the wrong thing.
+          if (linkBaseline == null) linkBaseline = sameElementLinkCount();
+          return sameElementLinkCount() > linkBaseline || phase() !== 'SETUP';
         } },
 
       { id: 't2-evolve', hint: 'Play an evolution onto its base', title: 'Grow one up', target: '#playerHand',
@@ -678,7 +713,10 @@
         title: 'Your first combo link', target: '#playerGrid',
         highlight: ['#playerGrid .board-cell.legal', '#playerGrid'],
         body: 'Point <b>two different</b> elements at each other and you bank a <b>combo</b> instead — a split-colour point. Your heaviest cards take nothing else, so it is worth building for.',
-        skipIf: function () { return turn() < 3 || !seen.sawBattle2; },
+        // Same redundancy guard as the same-element lesson: the placement step
+        // before this one often banks the combo on its own, and asking for one
+        // already sitting in the pool reads as the coach not watching.
+        skipIf: function () { return turn() < 3 || !seen.sawBattle2 || comboCount() > 0; },
         until: function () { return comboCount() > 0 || phase() !== 'SETUP'; } },
 
       { id: 't3-energy', hint: 'Tap <b>◈</b>', title: 'Look what you made', target: '#btnEnergyDetail',
