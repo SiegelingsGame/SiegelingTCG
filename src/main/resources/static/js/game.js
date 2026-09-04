@@ -42,6 +42,30 @@ let mobileHudSheetSide = 'enemy';
 let mobileHudSheetOpen = false;
 let mulliganSelectedIndices = new Set();
 let mulliganHandSig = '';
+// Redraw reveal: the swapped slots turn face-down, the server's new cards land
+// behind the backs, then they turn back to show what was drawn. Slot classes are
+// driven from this set rather than poked onto the DOM afterwards, because the
+// state update re-renders the whole preview the moment the POST resolves — a
+// post-hoc class would be wiped out mid-animation (and in multiplayer the
+// waiting-room poll re-renders again on top of that).
+const MULLIGAN_FLIP_MS = 260;      // one half-turn; matches the CSS transition
+const MULLIGAN_REVEAL_HOLD_MS = 1000;   // the beat spent reading the new cards
+let mulliganFlipIndices = new Set();
+let mulliganFlipBackArt = '';
+// Whether those slots are currently turned away. Kept apart from the set above
+// so the turn back can be a class removal on the live nodes — rebuilding the
+// preview would replace the elements and the transition would never run.
+let mulliganFaceDown = false;
+// Keeps the overlay up while the reveal plays, after the server has already
+// called the mulligan over. Both hide paths honour it, and anything that would
+// draw over the overlay can await mulliganRevealSettled() to queue behind it.
+let mulliganRevealHold = false;
+let mulliganRevealDone = null;      // resolver for the promise below
+let mulliganRevealPromise = null;
+
+function mulliganRevealSettled() {
+    return mulliganRevealHold && mulliganRevealPromise ? mulliganRevealPromise : Promise.resolve();
+}
 let loadoutErrorMessage = '';
 let liveCatalogRefreshPromise = null;
 let loadoutStartPending = false;
@@ -4888,6 +4912,15 @@ function hidePhaseTransitionBanner() {
 }
 
 function showPhaseTransitionBanner(phase, activeSide, durationMs = 2000) {
+    // The redraw reveal still owns the screen. This banner is fixed at z-index
+    // 860 against the mulligan overlay's 70, so it would punch straight through
+    // and announce a phase the player has not been let into yet. Queue it behind
+    // the reveal rather than dropping it — the action queue awaits this promise,
+    // so the board's own animations wait with it.
+    if (mulliganRevealHold) {
+        return mulliganRevealSettled()
+            .then(() => showPhaseTransitionBanner(phase, activeSide, durationMs));
+    }
     const banner = document.getElementById('phaseTransitionBanner');
     const kicker = document.getElementById('phaseTransitionKicker');
     const title = document.getElementById('phaseTransitionTitle');
@@ -7191,6 +7224,9 @@ async function leaveOnlineMatch() {
         gameState = null;
         mulliganSelectedIndices.clear();
         mulliganHandSig = '';
+        // Quitting mid-reveal would otherwise leave the hold set and pin the
+        // overlay open over the loadout screen.
+        clearMulliganReveal();
         openLoadoutSelector();
         return;
     }
@@ -7213,6 +7249,9 @@ async function leaveOnlineMatch() {
     gameState = null;
     mulliganSelectedIndices.clear();
     mulliganHandSig = '';
+    // Quitting mid-reveal would otherwise leave the hold set and pin the
+    // overlay open over the loadout screen.
+    clearMulliganReveal();
     openLoadoutSelector();
 }
 window.leaveOnlineMatch = leaveOnlineMatch;
@@ -7855,7 +7894,10 @@ function syncEntryOverlays() {
     document.body?.classList.toggle('gameplay-active', showingGameplay);
     welcomeOverlay?.classList.toggle('visible', welcomeVisible);
     loadoutOverlay?.classList.toggle('visible', !showingGameplay && welcomeDismissed);
-    if (!gameState?.mulligan?.active) {
+    // Second hide path. The redraw reveal outlives the server's mulligan, so it
+    // has to be honoured here too or the overlay would be pulled out from under
+    // the cards the player is being shown.
+    if (!gameState?.mulligan?.active && !mulliganRevealHold) {
         mulliganOverlay?.classList.remove('visible');
     }
     if (welcomeVisible) {
@@ -12122,14 +12164,77 @@ function submitMulliganSelected() {
     submitMulligan(sorted);
 }
 
+function mulliganWait(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** One card back for the whole reveal, latched before the hand changes. Picking
+ *  it per card would pop to a different colour the instant the new cards land,
+ *  while the slots are still face-down and the back is what's on screen. */
+function latchMulliganFlipBack(hand) {
+    const elements = (hand || []).map((c) => String(c?.element || '').toUpperCase()).filter(Boolean);
+    mulliganFlipBackArt = deckArtAssetForElements(elements)?.back || '';
+}
+
+function clearMulliganReveal() {
+    mulliganFlipIndices = new Set();
+    mulliganFlipBackArt = '';
+    mulliganFaceDown = false;
+    mulliganRevealHold = false;
+    if (mulliganRevealDone) {
+        const done = mulliganRevealDone;
+        mulliganRevealDone = null;
+        mulliganRevealPromise = null;
+        done();
+    }
+}
+
+/** Turn the flipped slots back over in place. Removing the class from the live
+ *  nodes is what makes the CSS transition run; a re-render would hand back new
+ *  elements already at rest and the turn would simply snap. */
+function revealMulliganFlippedSlots() {
+    mulliganFaceDown = false;
+    document.querySelectorAll('#mulliganHandPreview .mulligan-card-slot.is-face-down')
+        .forEach((slot) => slot.classList.remove('is-face-down'));
+}
+
 async function submitMulligan(indices) {
+    const swapped = Array.isArray(indices) ? indices.filter((i) => Number.isInteger(i)) : [];
+    if (swapped.length) {
+        latchMulliganFlipBack(gameState?.player?.hand);
+        mulliganFlipIndices = new Set(swapped);
+        mulliganFaceDown = true;
+        mulliganRevealHold = true;
+        mulliganRevealPromise = new Promise((resolve) => { mulliganRevealDone = resolve; });
+        renderMulliganOverlay();          // turn the swapped cards face-down
+    }
+    // Start the half-turn clock now so the request's latency runs underneath it
+    // rather than after: on a fast reply the flip still reads as a flip, on a
+    // slow one the player has been watching the backs the whole time.
+    const turnedAway = swapped.length ? mulliganWait(MULLIGAN_FLIP_MS) : Promise.resolve();
+
     const data = await api('mulligan', 'POST', { mulliganIndices: indices });
     if (!data) {
+        clearMulliganReveal();
+        renderMulliganOverlay();
         return;
     }
     mulliganSelectedIndices.clear();
     mulliganHandSig = '';
+    if (!swapped.length) {
+        renderMulliganOverlay();
+        return;
+    }
+
+    // The new cards are already rendered by now — behind the backs, hidden by
+    // backface-visibility — so turning back reveals them with no second swap.
+    await turnedAway;
+    revealMulliganFlippedSlots();
+    window.SieglingsSounds?.play('draw', 0.5);
+    await mulliganWait(MULLIGAN_FLIP_MS + MULLIGAN_REVEAL_HOLD_MS);
+    clearMulliganReveal();
     renderMulliganOverlay();
+    syncEntryOverlays();
 }
 
 async function executeBattle() {
@@ -15454,6 +15559,17 @@ function renderMulliganOverlay() {
         return;
     }
 
+    // The server calls the mulligan over the moment the redraw lands, but the
+    // player has not seen what they drew yet — hold the overlay open, without
+    // its controls, until the reveal finishes.
+    if (!gameState?.mulligan?.active && mulliganRevealHold) {
+        overlay.classList.add('visible');
+        actions.classList.add('hidden');
+        waitActions?.classList.add('hidden');
+        renderMulliganHandSlots(preview, gameState?.player?.hand || [], null, false, false);
+        return;
+    }
+
     if (!gameState?.mulligan?.active) {
         overlay.classList.remove('visible');
         preview.innerHTML = '';
@@ -15501,18 +15617,34 @@ function renderMulliganOverlay() {
         redrawBtn.textContent = n === 0 ? 'Redraw selected' : `Redraw ${n} card${n === 1 ? '' : 's'}`;
     }
 
+    renderMulliganHandSlots(preview, hand, allowedSet, gameState.mulligan.youPending, scriptedTutorial);
+}
+
+/**
+ * The five opening-hand slots. Shared by the live mulligan and by the redraw
+ * reveal that plays after the server has closed the mulligan, so both draw the
+ * same card faces — and so the flip classes come from state on every render
+ * rather than being pushed onto the DOM once and lost to the next one.
+ */
+function renderMulliganHandSlots(preview, hand, allowedSet, youPending, scriptedTutorial) {
     preview.innerHTML = hand.map((card, index) => {
         const isSelected = mulliganSelectedIndices.has(index);
         const slotAllowed = !allowedSet || allowedSet.has(index);
-        const interactive = gameState.mulligan.youPending && slotAllowed;
-        const locked = gameState.mulligan.youPending && allowedSet && !slotAllowed;
+        const interactive = youPending && slotAllowed;
+        const locked = youPending && allowedSet && !slotAllowed;
+        const flipping = mulliganFlipIndices.has(index);
         const slotClasses = [
             'mulligan-card-slot',
             (card.element || 'NEUTRAL').toLowerCase(),
             isSelected ? 'is-selected' : '',
             interactive ? 'is-interactive' : '',
-            locked ? 'is-locked' : ''
+            locked ? 'is-locked' : '',
+            flipping ? 'is-flipping' : '',
+            flipping && mulliganFaceDown ? 'is-face-down' : ''
         ].filter(Boolean).join(' ');
+        const backStyle = flipping && mulliganFlipBackArt
+            ? ` style="--mulligan-card-back:url('${escapeHtmlAttribute(mulliganFlipBackArt)}')"`
+            : '';
         const role = interactive ? ' role="button" tabindex="0" aria-pressed="' + (isSelected ? 'true' : 'false') + '"' : '';
         const click = interactive ? ` onclick="toggleMulliganCard(${index})"` : '';
         // Holographic cards with full-card art show the complete painted face
@@ -15522,18 +15654,22 @@ function renderMulliganOverlay() {
         const showcase = renderHolographicFullArtFace(card, {
             descriptionText: card.description || card.ability?.description || ''
         }) || renderShowcaseCard(card, { artVariant: 'preview', cardClass: 'mulligan-showcase', compactAbilityLimit: 2 });
+        // No badge on a card mid-flip: it names a choice already taken, and it
+        // would ride the turn round with the card.
         let badge = '';
-        if (isSelected) {
+        if (flipping) {
+            badge = '';
+        } else if (isSelected) {
             badge = `<div class="mulligan-redraw-badge" aria-hidden="true">Redraw</div>`;
         } else if (locked) {
             badge = `<div class="mulligan-keep-badge" aria-hidden="true">Keep</div>`;
-        } else if (scriptedTutorial && slotAllowed && gameState.mulligan.youPending) {
+        } else if (scriptedTutorial && slotAllowed && youPending) {
             badge = `<div class="mulligan-practice-badge" aria-hidden="true">Tap to redraw</div>`;
         }
         return `
-        <div class="${slotClasses}" data-index="${index}"${role}${click}>
+        <div class="${slotClasses}" data-index="${index}"${role}${click}${backStyle}>
             ${badge}
-            ${showcase}
+            <div class="mulligan-card-face">${showcase}</div>
         </div>`;
     }).join('');
 
