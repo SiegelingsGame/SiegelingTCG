@@ -63,6 +63,26 @@ class MulliganRedrawRevealTest {
     }
 
     @Test
+    void theTutorialWaitsForTheRevealBeforeItsNextTip() throws Exception {
+        String game = read("src/main/resources/static/js/game.js");
+        String tutorial = read("src/main/resources/static/js/arena-tutorial.js");
+
+        // game.js declares its state with `let`, which in a classic script never
+        // lands on window — the coach can only see the reveal through the bridge.
+        assertTrue(game.contains("mulliganRevealing: () => mulliganRevealHold"),
+                "The bridge must expose the reveal so the coach can wait on it.");
+
+        // The server ends the MULLIGAN phase the moment the redraw lands, so a step
+        // that waits on the phase alone opened its next tip over the cards while
+        // they were still turning — measured at 1534ms early before this guard.
+        assertTrue(tutorial.contains("function revealingMulligan()"),
+                "The tutorial needs a reader for the reveal state.");
+        assertTrue(tutorial.contains("until: function () { return phase() !== 'MULLIGAN' && !revealingMulligan(); } },"),
+                "The mulligan lesson must hold through the reveal, not just the phase, "
+                        + "or the board lesson opens on top of the animation.");
+    }
+
+    @Test
     void theTurnItselfIsLayoutAgnostic() throws Exception {
         String css = read("src/main/resources/static/css/style.css");
 

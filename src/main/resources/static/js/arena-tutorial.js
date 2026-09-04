@@ -45,6 +45,14 @@
     return n;
   }
 
+  /** True while the mulligan's redraw reveal is still playing. The server ends
+   *  the MULLIGAN phase the moment the redraw lands, so any step that waits on
+   *  the phase alone would open on top of the cards turning over. */
+  function revealingMulligan() {
+    var b = bridge();
+    try { return !!(b && b.mulliganRevealing && b.mulliganRevealing()); } catch (e) { return false; }
+  }
+
   function mine() { var g = gs(); return g ? boardCount(g.playerBoard) : 0; }
   function theirs() { var g = gs(); return g ? boardCount(g.enemyBoard) : 0; }
 
@@ -431,8 +439,11 @@
             'Let\'s try it with ' + (n ? '<b>' + esc(n) + '</b> — the card marked <b>Tap to redraw</b>. ' : 'the marked card. ') +
             'Tap it, then hit <b>Redraw selected</b> and see what you get.';
         },
-        skipIf: function () { return phase() !== 'MULLIGAN'; },
-        until: function () { return phase() !== 'MULLIGAN'; } },
+        skipIf: function () { return phase() !== 'MULLIGAN' && !revealingMulligan(); },
+        // Hold through the reveal as well as the phase: the redraw ends MULLIGAN
+        // server-side straight away, and letting the next tip open there put the
+        // board lesson on screen while the cards were still turning over.
+        until: function () { return phase() !== 'MULLIGAN' && !revealingMulligan(); } },
 
       { id: 'hud', title: 'Your half, their half', target: '#boardArea',
         body: 'Dummy up top, you down below, <b>3×3</b> each. The bars track <b>HP</b>, deck and energy.' },
