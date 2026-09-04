@@ -95,6 +95,16 @@ class TutorialRuleParityTest {
                 "The badge lesson must ring the badge itself, not the whole board area.");
         assertTrue(!tutorial.contains("title: 'Little icons, big deal', target: '#boardArea'"),
                 "The badge lesson must no longer spotlight the entire board.");
+
+        // Ringing badge + grid together was still the whole grid, because the union
+        // of the two IS the grid. The spotlight closes onto the CELL holding the
+        // badge instead — 14% of the grid on a phone, down from 113%.
+        assertTrue(tutorial.contains("function badgeCellSelector()")
+                        && tutorial.contains("grid + ' .board-cell[data-row=\"' + r + '\"][data-col=\"' + c + '\"]'"),
+                "The badge highlight must resolve the cell wearing the badge, by selector, so the "
+                        + "coach can re-look it up on every frame.");
+        assertTrue(tutorial.contains("var cell = badgeCellSelector();\n    if (cell) return [cell];"),
+                "The badge highlight must ring that cell alone, not the cell plus its grid.");
     }
 
     /**
