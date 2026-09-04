@@ -14806,6 +14806,36 @@ function hasOppositeNotch(notches, direction) {
  * card (the hand selector, the draw-ability reveal) renders the identical
  * template rather than a lookalike.
  */
+// The hand fan is far too small for the painted frame's corner chips (they are
+// hidden outright in #playerHand), so a card's play cost used to be readable
+// only after opening the enlarged card view. This badge is the compact
+// stand-in: one element pip plus the number, tucked into the art's top-left.
+function renderHandCostBadge(card) {
+    if (!card) {
+        return '';
+    }
+    let element = '';
+    let amount = 0;
+    let label = '';
+    if (card.type === 'TRAP' && card.trapBucketElement && Number(card.trapBucketAmount) > 0) {
+        element = card.trapBucketElement;
+        amount = Number(card.trapBucketAmount);
+        label = `Trigger: opponent holds ${amount} ${formatElementLabel(element)} energy`;
+    } else if (card.costElement && Number(card.costAmount) > 0) {
+        element = card.costElement;
+        amount = Number(card.costAmount);
+        label = `Play cost: ${amount} ${formatElementLabel(element)}`;
+    }
+    if (amount <= 0) {
+        return '';
+    }
+    const triggerClass = card.type === 'TRAP' ? ' is-trigger' : '';
+    return `<div class="hand-cost-badge${triggerClass}" style="${notchIconStyle(element)}" title="${escapeHtmlAttribute(label)}" aria-label="${escapeHtmlAttribute(label)}">`
+        + '<span class="hand-cost-badge-icon"></span>'
+        + `<span class="hand-cost-badge-amount">${amount}</span>`
+        + '</div>';
+}
+
 function renderHandCardFace(card, options = {}) {
     const lockReason = options.lockReason || '';
     // The hand tray hides the card body (its cards are too small to read), so it
@@ -14825,7 +14855,7 @@ function renderHandCardFace(card, options = {}) {
     });
     const faceClass = `${handFrameClass}${holographicCardClass(card)}${holoFace ? ' has-holo-full-art' : ''}`;
     if (holoFace) {
-        return { faceClass, html: holoFace };
+        return { faceClass, html: holoFace + renderHandCostBadge(card) };
     }
 
     let html = '';
@@ -14871,6 +14901,7 @@ function renderHandCardFace(card, options = {}) {
     }
     html += `</div>`; /* body */
     html += `</div>`; /* shell */
+    html += renderHandCostBadge(card);
     html += holographicCardOverlay(card);
     return { faceClass, html };
 }

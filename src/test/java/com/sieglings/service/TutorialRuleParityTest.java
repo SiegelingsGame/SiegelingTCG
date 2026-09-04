@@ -96,4 +96,50 @@ class TutorialRuleParityTest {
         assertTrue(!tutorial.contains("title: 'Little icons, big deal', target: '#boardArea'"),
                 "The badge lesson must no longer spotlight the entire board.");
     }
+
+    /**
+     * Evolving is a two-tap move onto an occupied cell, which reads as illegal
+     * until you have done it once. The coach used to describe it and walk on,
+     * so a player who did not work it out was carried past the lesson with the
+     * evolution still in hand.
+     */
+    @Test
+    void theEvolutionLessonGuidesBothTapsAndWaitsForEach() throws Exception {
+        String tutorial = read("src/main/resources/static/js/arena-tutorial.js");
+
+        assertTrue(tutorial.contains("{ id: 't2-evolve-pick'") && tutorial.contains("{ id: 't2-evolve-place'"),
+                "The evolution lesson must guide both taps — picking the card up, then dropping it "
+                        + "on its base — not just state the rule.");
+
+        // Each half has to WAIT, or the script walks on to End Turn with the
+        // evolution still in hand, which is the bug being fixed.
+        assertTrue(tutorial.contains("return selectedIsEvolution() || !evolutionInHand() || phase() !== 'SETUP';"),
+                "The pick step must wait for the evolution to actually be selected, and give that "
+                        + "wait up when Setup ends so it cannot hold the match hostage.");
+        assertTrue(tutorial.contains("return !evolutionInHand() || phase() !== 'SETUP';"),
+                "The place step must wait for the evolution to leave the hand, with the same escape.");
+
+        // Both halves are skipped unless the move is genuinely available, so the
+        // coach never asks for a tap the engine would reject.
+        assertTrue(tutorial.contains("turn() < 2 || !evolutionReady() || selectedIsEvolution()"),
+                "The pick step must be skipped when there is no evolution the board can accept.");
+
+        // The rings must mirror the engine's own legality rule for the cell they
+        // point at — see GameService/game.js getEvolutionPlacements.
+        assertTrue(tutorial.contains("cell.cardId !== evo.evolvesFromId")
+                        && tutorial.contains("Number(cell.battlePhasesSeen || 0) > 0")
+                        && tutorial.contains("hasCurse(cell)"),
+                "The base cell the coach rings must satisfy the same conditions the game uses to "
+                        + "allow the evolution: matching base, a survived battle phase, and no curse.");
+    }
+
+    @Test
+    void evolutionBaseLegalityMatchesTheEngine() throws Exception {
+        String gameJs = read("src/main/resources/static/js/game.js");
+        assertTrue(gameJs.contains("cell.cardId === card.evolvesFromId")
+                        && gameJs.contains("Number(cell.battlePhasesSeen || 0) > 0")
+                        && gameJs.contains("!cellHasAffliction(cell, 'CURSE')"),
+                "getEvolutionPlacements is the rule the tutorial's ring mirrors — if it changes, "
+                        + "the coach's base-cell check has to change with it.");
+    }
 }
