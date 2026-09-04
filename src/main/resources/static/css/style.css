@@ -20308,3 +20308,59 @@ body.has-custom-art::before {
         font-size: 16px;
     }
 }
+
+/* ---- hand-card cost badge -------------------------------------------------
+   The frame's corner chips are hidden in the hand fan (see the
+   #playerHand/.hand-lift-layer rule above), which left the play cost visible
+   only in the enlarged card view. This badge restores it at fan size: a single
+   element pip plus the number, seated inside the art's top-left so it clears
+   the perimeter notch ring on every side. */
+.hand-card .hand-cost-badge {
+    position: absolute;
+    left: 12%;
+    top: 12.4%;
+    z-index: 13;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.16em;
+    padding: 0.1em 0.34em 0.1em 0.24em;
+    border-radius: 999px;
+    background: rgba(6, 9, 18, 0.78);
+    border: 1px solid color-mix(in srgb, var(--notch, var(--el)) 62%, rgba(255, 244, 214, 0.5));
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.55);
+    font-size: 0.56em;
+    line-height: 1;
+    pointer-events: none;
+}
+
+/* Unframed cards keep the art in normal flow, so the badge rides the card's
+   own padded edge instead of the frame's painted art window. */
+.hand-card:not(.element-frame) .hand-cost-badge {
+    left: 9%;
+    top: 9%;
+}
+
+.hand-card .hand-cost-badge-icon {
+    flex: 0 0 auto;
+    width: 1.15em;
+    height: 1.15em;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 245, 220, 0.5);
+    background:
+        var(--notch-icon) center / 100% 100% no-repeat,
+        radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.7), var(--notch) 60%, rgba(30, 10, 6, 0.95));
+    box-shadow: 0 0 4px color-mix(in srgb, var(--notch) 60%, transparent);
+}
+
+.hand-card .hand-cost-badge-amount {
+    font-weight: 800;
+    color: #fff6dc;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+    letter-spacing: 0.01em;
+}
+
+/* A trap's number is the opponent's energy threshold, not a spend — tint it
+   so the two never read as the same thing. */
+.hand-card .hand-cost-badge.is-trigger .hand-cost-badge-amount {
+    color: #ffd9a8;
+}
