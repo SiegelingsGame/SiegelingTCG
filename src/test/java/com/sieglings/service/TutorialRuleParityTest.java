@@ -105,6 +105,24 @@ class TutorialRuleParityTest {
                         + "coach can re-look it up on every frame.");
         assertTrue(tutorial.contains("var cell = badgeCellSelector();\n    if (cell) return [cell];"),
                 "The badge highlight must ring that cell alone, not the cell plus its grid.");
+
+        // Round two: name the cell that actually connects. Ringing every legal cell
+        // left the player to guess which of three makes the link.
+        assertTrue(tutorial.contains("function linkCell()") && tutorial.contains("recommend: linkCell,"),
+                "The round-two placement must recommend the cell where the selected card "
+                        + "would actually link, not just spotlight every legal cell.");
+        assertTrue(tutorial.contains("score = Math.max(score, same ? 2 : 1);"),
+                "A same-element pairing must outrank a mixed one — the lesson that follows the "
+                        + "placement is the same-element link.");
+
+        // The row-attack lesson exists and stays out of the way for a single-target
+        // attacker, so it fires on Pylook and not on Sundile.
+        assertTrue(tutorial.contains("{ id: 'row-attack'") && tutorial.contains("function actingRowAbility()"),
+                "The multi-target lesson must exist and read the acting Siegeling's row move.");
+        assertTrue(tutorial.contains("t === 'ROW_ENEMIES' || t === 'ROW_SELECT_ENEMIES'"),
+                "A row move must be identified by its target type, not by card name.");
+        assertTrue(tutorial.contains("skipIf: function () { return !actingRowAbility(); } },"),
+                "The row lesson must skip when whoever is acting has no row move.");
     }
 
     /**

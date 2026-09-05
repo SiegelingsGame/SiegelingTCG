@@ -728,13 +728,17 @@ public class GameService {
         // tuning of that copy; the catalog is the guarantee behind it.
         for (String id : List.of(
                 "sundile", "pylook", "spell_fire_06", "trap13", "pylook", "raydile",
-                "spell_fire_09", "tutorial_ashen_ward", "squirebud", "floraknight",
+                "spell_fire_09", "tutorial_ashen_ward", "squirebud", "tutorial_ashfall", "floraknight",
                 "spell_earth_02", "spell_earth_01")) {
             Card taken = takeNamedCard(pool, id);
             if (taken == null) {
-                taken = "tutorial_ashen_ward".equals(id)
-                        ? buildTutorialAshenWard()
-                        : cardDefs.findCardCopy(id).orElse(null);
+                if ("tutorial_ashen_ward".equals(id)) {
+                    taken = buildTutorialAshenWard();
+                } else if ("tutorial_ashfall".equals(id)) {
+                    taken = buildTutorialAshfall();
+                } else {
+                    taken = cardDefs.findCardCopy(id).orElse(null);
+                }
             }
             if (taken != null) {
                 ordered.add(taken);
@@ -764,6 +768,41 @@ public class GameService {
                 shield);
         ward.setDescription("A training ward — temporary Shield that absorbs damage before HP.");
         return ward;
+    }
+
+    /**
+     * Tutorial-only Strategy: wipes the Dummy's board outright.
+     *
+     * It exists to give the CLAIM lesson a reason. Claiming pays one unit of the
+     * claimed card's element, so cashing in Raydile takes the student from 2 Fire
+     * to 3 — exactly this card's cost. Asking them to bin their best Siegeling for
+     * energy they had no use for was the part that did not make sense; here the
+     * claim is the only way to afford the swing that follows it.
+     *
+     * ALL_ENEMIES + DESTROY is a real combination: EffectService resolves
+     * ALL_ENEMIES to every enemy Siegeling and runs the effect per target. Priced
+     * at 3 so it cannot be cast without the claim, and kept out of every real deck
+     * — a free board wipe is a tutorial prop, not a card.
+     */
+    private SpellCard buildTutorialAshfall() {
+        Ability wipe = new Ability(
+                "Ashfall",
+                "Destroy every enemy Siegeling",
+                TargetType.ALL_ENEMIES,
+                null,
+                3,
+                AbilityEffectKeys.DESTROY,
+                0,
+                false);
+        SpellCard ashfall = new SpellCard(
+                "tutorial_ashfall",
+                "Ashfall",
+                Element.FIRE,
+                com.sieglings.model.enums.Rarity.EPIC,
+                3,
+                wipe);
+        ashfall.setDescription("A training Strategy — burns the whole enemy board away. Costs 3 Fire.");
+        return ashfall;
     }
 
     /** Dummy opens on Cozycub so turn-1 Ice sockets are reliable for the Deception lesson. */

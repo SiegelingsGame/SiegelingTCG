@@ -10399,6 +10399,10 @@ window.ArenaTutorialBridge = {
     // MULLIGAN phase the instant the redraw lands, so a coach step that waits on
     // the phase alone advances on top of the cards turning over.
     mulliganRevealing: () => mulliganRevealHold,
+    // The Setup action budget, from the same function the counter's popover uses.
+    // The tutorial teaches "one placement plus one per pooled energy", and a
+    // second copy of that rule in the coach would be free to drift from this one.
+    setupActions: () => getSetupActionsBreakdown(),
     authHeaders: (extra) => getAuthHeaders(extra || {})
 };
 
