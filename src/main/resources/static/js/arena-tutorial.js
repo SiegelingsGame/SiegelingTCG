@@ -224,6 +224,107 @@
     return visible(sel) ? sel : firstOf(['#playerGrid .board-cell.legal', '#playerGrid']);
   }
 
+  /**
+   * The legal cell where the SELECTED card would actually connect: one of its
+   * notches and a neighbour's facing each other. Round two's lesson is "point
+   * them at each other", and ringing every legal cell left the player to work
+   * out which one of three actually makes the link — so the coach names it.
+   *
+   * Same-element pairs score above mixed ones, because the lesson that follows
+   * this placement is the same-element link; a mixed pair still connects, so it
+   * is taken when nothing matches. Returns null when no legal cell links at all,
+   * which leaves the broad legal-cell spotlight as the only guidance rather than
+   * pointing confidently at a cell that would teach nothing.
+   *
+   * Same adjacency rule as forEachPlayerLink, one board deeper: that walks links
+   * that EXIST, this scores links a placement WOULD make.
+   */
+  function linkCell() {
+    var b = bridge();
+    var card = b && b.selected ? b.selected() : null;
+    var cells = (b && b.legalPlacements) ? (b.legalPlacements() || []) : [];
+    var g = gs();
+    var board = (g && g.playerBoard) || [];
+    if (!card || !cells.length) return null;
+    var best = null, bestScore = 0;
+    cells.forEach(function (p) {
+      var r = p[0], c = p[1], score = 0;
+      (card.notches || []).forEach(function (notch) {
+        if (!notch || !notch.direction) return;
+        var d = playerDelta(notch.direction);
+        var nr = r + d[0], nc = c + d[1];
+        if (nr < 0 || nr > 2 || nc < 0 || nc > 2) return;
+        var neighbour = board[nr] && board[nr][nc];
+        if (!neighbour) return;
+        var wanted = OPPOSITE_DIR[notch.direction];
+        (neighbour.notches || []).forEach(function (n) {
+          if (!n || n.direction !== wanted) return;
+          var same = notch.element && n.element
+            && String(notch.element).toUpperCase() === String(n.element).toUpperCase();
+          score = Math.max(score, same ? 2 : 1);
+        });
+      });
+      if (score > bestScore) { bestScore = score; best = p; }
+    });
+    if (!best) return null;
+    var sel = '#playerGrid .board-cell[data-row="' + best[0] + '"][data-col="' + best[1] + '"]';
+    return visible(sel) ? sel : null;
+  }
+
+  // ---- multi-target lesson --------------------------------------------------
+
+  /** The Siegeling whose turn to act it is, read from the battle queue's pick. */
+  function actingCard() {
+    var g = gs();
+    var p = g && g.pendingBattle;
+    if (!p) return null;
+    var board = (g.playerBoard) || [];
+    var cell = board[p.row] && board[p.row][p.col];
+    return cell || null;
+  }
+
+  function abilitiesOf(card) {
+    if (!card) return [];
+    if (Array.isArray(card.abilities) && card.abilities.length) return card.abilities.filter(Boolean);
+    return card.ability ? [card.ability] : [];
+  }
+
+  function isRowAbility(a) {
+    var t = String((a && a.targetType) || '').trim().toUpperCase();
+    return t === 'ROW_ENEMIES' || t === 'ROW_SELECT_ENEMIES';
+  }
+
+  /** A row-hitting move on whoever is acting, or null. Pylook's Flameburst and
+   *  Lavaburst are the first ones the student meets. */
+  function actingRowAbility() {
+    var list = abilitiesOf(actingCard()).filter(isRowAbility);
+    return list[0] || null;
+  }
+
+  /** A single-target move already seen, to contrast against — Sundile's Strike
+   *  in the pinned deck, but read from the board so the copy cannot go stale. */
+  function singleTargetExample() {
+    var g = gs();
+    var board = (g && g.playerBoard) || [];
+    var found = null;
+    board.forEach(function (row) {
+      (row || []).forEach(function (cell) {
+        if (found || !cell) return;
+        abilitiesOf(cell).forEach(function (a) {
+          if (found) return;
+          var t = String((a && a.targetType) || '').trim().toUpperCase();
+          if (t === 'SINGLE_ENEMY') found = { card: cell, ability: a };
+        });
+      });
+    });
+    return found;
+  }
+
+  /** The linking cell when there is one, else whatever legal cells are lit. */
+  function linkCellOrLegal() {
+    return linkCell() || firstOf(['#playerGrid .board-cell.legal', '#playerGrid']);
+  }
+
   /** Card names come from the catalog and land inside tip HTML, so escape them
    *  here rather than trusting them. coach.js has its own copy in its closure;
    *  this file cannot see it. */
@@ -636,6 +737,36 @@
         skipIf: function () { return !visible('#enemyGrid .board-cell.targetable'); },
         until: function () { return !visible('#enemyGrid .board-cell.targetable'); } },
 
+      // Opens only when the acting Siegeling actually carries a row move, so it
+      // fires on Pylook (Flameburst / Lavaburst) and stays out of the way for a
+      // single-target attacker like Sundile.
+      { id: 'row-attack', title: 'One swing, a whole row',
+        target: function () {
+          return firstOf(['#battleActionPanel', '#desktopBattleActionPanel', '#boardArea']);
+        },
+        highlight: function () {
+          return [firstOf(['#battleActionPanel', '#desktopBattleActionPanel', '#boardArea']),
+                  '#enemyGrid .board-cell.targetable'];
+        },
+        body: function () {
+          var row = actingRowAbility();
+          var single = singleTargetExample();
+          var actor = actingCard();
+          var lead = actor && actor.name
+            ? '<b>' + esc(actor.name) + '</b> does not pick one card — '
+            : 'This one does not pick one card — ';
+          var named = row && row.name
+            ? '<b>' + esc(row.name) + '</b> hits <b>every Siegeling in the enemy row</b> you choose.'
+            : 'its attack hits <b>every Siegeling in the enemy row</b> you choose.';
+          var contrast = single && single.card && single.card.name && single.ability && single.ability.name
+            ? ' <b>' + esc(single.card.name) + '</b>\'s <b>' + esc(single.ability.name) +
+              '</b> spends its whole hit on one target; this spreads the same swing across the row.'
+            : ' A single-target move spends its whole hit on one card; this spreads it across the row.';
+          return lead + named + contrast +
+            ' Fire burns what it touches, so <b>every card in that row</b> walks away <b>Burning</b>, not just one.';
+        },
+        skipIf: function () { return !actingRowAbility(); } },
+
       { id: 'damage', title: 'Where damage comes from', target: '#boardArea',
         body: 'Every point of it comes from <b>abilities</b> — there is no attack stat. Hit an element you beat and you get <b>+1</b> for free.' },
 
@@ -734,7 +865,10 @@
         until: function () { return selectedType() === 'SIEGLING' || mine() >= 2; } },
 
       { id: 't2-place', hint: 'Place next to your first', title: 'Point them at each other',
-        target: function () { return firstOf(['#playerGrid .board-cell.legal', '#playerGrid']); },
+        // The spotlight stays on every legal cell — the placement is still the
+        // player's to make — but the one that actually connects is marked.
+        target: linkCellOrLegal,
+        recommend: linkCell,
         highlight: ['#playerGrid .board-cell.legal'],
         body: 'Line the notches up so they face <b>each other</b>. Matching elements pay energy; mixed ones pay a <b>combo</b>.',
         skipIf: function () { return turn() < 2 || mine() >= 2; },
