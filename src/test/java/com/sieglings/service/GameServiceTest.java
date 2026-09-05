@@ -200,7 +200,7 @@ class GameServiceTest {
     }
 
     @Test
-    void battlePhaseBoundaryDoesNotSurfaceOrResolveFirstActorUntilAdvanced() throws Exception {
+    void battlePhaseBoundarySurfacesAHumanChoiceButDefersAnAiStrike() throws Exception {
         GameService gameService = newGameServiceWithBattleStack();
         Method startBattlePhase = GameService.class.getDeclaredMethod("startBattlePhase", GameState.class);
         startBattlePhase.setAccessible(true);
@@ -209,11 +209,9 @@ class GameServiceTest {
         CardInstance playerLead = playerFirst.getAt(true, 1, 1);
         startBattlePhase.invoke(gameService, playerFirst);
         assertEquals(Phase.BATTLE, playerFirst.getCurrentPhase());
-        assertEquals(0, playerFirst.getBattleCursor(), "The banner boundary must keep the full speed order untouched.");
-        assertNull(playerFirst.getPendingBattleInstanceId(), "A player-first action must not be exposed under the banner.");
-        gameService.executeBattle(playerFirst);
         assertEquals(playerLead.getInstanceId(), playerFirst.getPendingBattleInstanceId(),
-                "The player choice should surface only after the client advances beyond the banner.");
+                "A human-first action is only a prompt — surface it with the phase change so a "
+                        + "multiplayer opponent is not stuck waiting for the other client to advance.");
 
         GameState enemyFirst = battleBoundaryState(3, 7);
         int playerHpBefore = enemyFirst.getAt(true, 1, 1).getCurrentHealth();
@@ -226,6 +224,26 @@ class GameServiceTest {
         assertTrue(enemyFirst.getBattleCursor() > 0, "The AI actor should advance after the banner gate opens.");
         assertTrue(enemyFirst.getAt(true, 1, 1).getCurrentHealth() < playerHpBefore,
                 "The deferred AI action should resolve when battle is explicitly advanced.");
+    }
+
+    @Test
+    void battlePhaseBoundarySurfacesAGuestFirstActionInMultiplayer() throws Exception {
+        GameService gameService = newGameServiceWithBattleStack();
+        Method startBattlePhase = GameService.class.getDeclaredMethod("startBattlePhase", GameState.class);
+        startBattlePhase.setAccessible(true);
+
+        GameState pvpGuestFirst = battleBoundaryState(3, 7);
+        pvpGuestFirst.setEnemyHumanControlled(true);
+        CardInstance guestLead = pvpGuestFirst.getAt(false, 1, 1);
+        int hostHpBefore = pvpGuestFirst.getAt(true, 1, 1).getCurrentHealth();
+        startBattlePhase.invoke(gameService, pvpGuestFirst);
+        assertEquals(Phase.BATTLE, pvpGuestFirst.getCurrentPhase());
+        assertEquals(guestLead.getInstanceId(), pvpGuestFirst.getPendingBattleInstanceId(),
+                "The guest's first action must be pending in the setup-complete response. "
+                        + "Only the host client auto-calls executeBattle; a backgrounded host would "
+                        + "otherwise freeze the guest on an empty battle prompt.");
+        assertEquals(hostHpBefore, pvpGuestFirst.getAt(true, 1, 1).getCurrentHealth(),
+                "Surfacing a human prompt must not deal damage.");
     }
 
     @Test
