@@ -294,6 +294,30 @@
     return Math.max(0, Number(data.remaining));
   }
 
+  /** Any Siegeling on either board wearing a status/affliction whose kind
+   *  matches. The advanced lessons wait on the EFFECT appearing, not on a
+   *  particular card being played, so any route to it counts. */
+  function anyStatus(re) {
+    var g = gs();
+    if (!g) return false;
+    var found = false;
+    [g.playerBoard, g.enemyBoard].forEach(function (board) {
+      (board || []).forEach(function (row) {
+        (row || []).forEach(function (c) {
+          if (!c || found) return;
+          (c.statuses || []).concat(c.afflictions || []).forEach(function (st) {
+            if (found || !st) return;
+            var kind = String(st.kind || st.type || st).toUpperCase();
+            if (re.test(kind)) found = true;
+          });
+          if (!found && re.test('SHIELD') && Number(c.shield) > 0) found = true;
+          if (!found && re.test('DAMAGE_BOOST') && Number(c.damageBoost) > 0) found = true;
+        });
+      });
+    });
+    return found;
+  }
+
   // ---- multi-target lesson --------------------------------------------------
 
   /** The Siegeling whose turn to act it is, read from the battle queue's pick. */
@@ -760,36 +784,6 @@
         skipIf: function () { return !visible('#enemyGrid .board-cell.targetable'); },
         until: function () { return !visible('#enemyGrid .board-cell.targetable'); } },
 
-      // Opens only when the acting Siegeling actually carries a row move, so it
-      // fires on Pylook (Flameburst / Lavaburst) and stays out of the way for a
-      // single-target attacker like Sundile.
-      { id: 'row-attack', title: 'One swing, a whole row',
-        target: function () {
-          return firstOf(['#battleActionPanel', '#desktopBattleActionPanel', '#boardArea']);
-        },
-        highlight: function () {
-          return [firstOf(['#battleActionPanel', '#desktopBattleActionPanel', '#boardArea']),
-                  '#enemyGrid .board-cell.targetable'];
-        },
-        body: function () {
-          var row = actingRowAbility();
-          var single = singleTargetExample();
-          var actor = actingCard();
-          var lead = actor && actor.name
-            ? '<b>' + esc(actor.name) + '</b> does not pick one card — '
-            : 'This one does not pick one card — ';
-          var named = row && row.name
-            ? '<b>' + esc(row.name) + '</b> hits <b>every Siegeling in the enemy row</b> you choose.'
-            : 'its attack hits <b>every Siegeling in the enemy row</b> you choose.';
-          var contrast = single && single.card && single.card.name && single.ability && single.ability.name
-            ? ' <b>' + esc(single.card.name) + '</b>\'s <b>' + esc(single.ability.name) +
-              '</b> spends its whole hit on one target; this spreads the same swing across the row.'
-            : ' A single-target move spends its whole hit on one card; this spreads it across the row.';
-          return lead + named + contrast +
-            ' Fire burns what it touches, so <b>every card in that row</b> walks away <b>Burning</b>, not just one.';
-        },
-        skipIf: function () { return !actingRowAbility(); } },
-
       { id: 'damage', title: 'Where damage comes from', target: '#boardArea',
         body: 'Every point of it comes from <b>abilities</b> — there is no attack stat. Hit an element you beat and you get <b>+1</b> for free.' },
 
@@ -1017,6 +1011,44 @@
         skipIf: function () { return turn() < 2 || phase() === 'BATTLE' || seen.sawBattle2; },
         until: function () { return !myTurn() || phase() === 'BATTLE' || seen.sawBattle2; } },
 
+      // Round TWO's battle, not round one's. This lived in the round-one chapter
+      // and was skipped permanently the moment the coach arrived there: only
+      // Sundile is down in round one, so actingRowAbility() was null and skipIf
+      // fires once, on arrival. Pylook is placed in round two, so the lesson
+      // belongs to that battle — and it is GATED rather than skipped, so it waits
+      // for a row attacker to actually take the floor instead of giving up.
+      { id: 'gate-row', skipTo: 't2-battle',
+        hint: 'Watch Pylook take its swing',
+        gate: function () { return !!actingRowAbility() || seen.sawBattle2 || seen.ended; } },
+
+      { id: 'row-attack', title: 'One swing, a whole row',
+        target: function () {
+          return firstOf(['#battleActionPanel', '#desktopBattleActionPanel', '#boardArea']);
+        },
+        highlight: function () {
+          return [firstOf(['#battleActionPanel', '#desktopBattleActionPanel', '#boardArea']),
+                  '#enemyGrid .board-cell.targetable'];
+        },
+        body: function () {
+          var row = actingRowAbility();
+          var single = singleTargetExample();
+          var actor = actingCard();
+          var lead = actor && actor.name
+            ? '<b>' + esc(actor.name) + '</b> does not pick one card — '
+            : 'This one does not pick one card — ';
+          var named = row && row.name
+            ? '<b>' + esc(row.name) + '</b> hits <b>every Siegeling in the enemy row</b> you choose.'
+            : 'its attack hits <b>every Siegeling in the enemy row</b> you choose.';
+          var contrast = single && single.card && single.card.name && single.ability && single.ability.name
+            ? ' <b>' + esc(single.card.name) + '</b>\'s <b>' + esc(single.ability.name) +
+              '</b> spends its whole hit on one target; this spreads the same swing across the row.'
+            : ' A single-target move spends its whole hit on one card; this spreads it across the row.';
+          return lead + named + contrast +
+            ' Fire burns what it touches, so <b>every card in that row</b> walks away <b>Burning</b>, not just one.';
+        },
+        skipIf: function () { return !actingRowAbility(); } },
+
+
       { id: 't2-battle', title: 'Now watch', target: '#boardArea',
         body: 'Same rhythm, bigger board. Watch what your link and your evolution bought you.',
         skipIf: function () { return !seen.sawBattle; },
@@ -1202,10 +1234,43 @@
   function buildAdvancedSteps() {
     return [
       { id: 'adv-welcome', kicker: 'Advanced', title: 'The sneaky stuff',
-        body: 'Same match, deeper cuts — burns, buffs, shields and debuffs, and every button along the bottom of your screen.' },
+        body: 'A <b>fresh match</b> — you need a live board for this half. Burns, buffs, shields and '
+          + 'debuffs, and every button along the bottom. Play it out and I will point as they happen.' },
 
-      { id: 'adv-burn', title: 'Elemental afflictions', target: '#boardArea',
-        body: 'Fire leaves them <b>Burning</b>, Ice leaves them <b>Chilled</b>, and it keeps biting on their own turn. Free damage while you do something else.' },
+      // A fresh match starts at the mulligan, so the advanced script has to get
+      // the student playing before it has anything to point at. These are the
+      // basics compressed to one line each — they have already been taught.
+      { id: 'adv-open-mull', hint: 'Keep or redraw, then start', title: 'Same opening',
+        target: '#mulliganHandPreview', highlight: ['#mulliganHandPreview', '#mulliganActions'],
+        body: 'You know this one. Keep the hand or swap a card, and we are away.',
+        skipIf: function () { return phase() !== 'MULLIGAN'; },
+        until: function () { return phase() !== 'MULLIGAN'; } },
+
+      { id: 'adv-open-place', hint: 'Place a Siegeling', title: 'Get a board down',
+        target: function () { return firstOf(['#playerGrid .board-cell.legal', '#playerGrid']); },
+        highlight: ['#playerHand', '#handTray', '#playerGrid .board-cell.legal'],
+        recommend: linkCell,
+        body: 'Put something down and end the turn — afflictions and shields need bodies on the '
+          + 'board before they mean anything.',
+        skipIf: function () { return mine() >= 1; },
+        until: function () { return mine() >= 1; } },
+
+      { id: 'adv-open-end', hint: 'Tap <b>End Turn</b>', title: 'Let them swing',
+        target: actionBtn,
+        body: 'End the turn and let the Dummy hit back — that first exchange is where the '
+          + 'badges come from.',
+        skipIf: function () { return phase() === 'BATTLE' || seen.sawBattle; },
+        until: function () { return phase() === 'BATTLE' || seen.sawBattle; } },
+
+      // Everything below needs a fought round behind it, so hold rather than skip.
+      { id: 'gate-adv', skipTo: 'adv-hud',
+        hint: 'Play the round out — the deeper lessons need a fight first',
+        gate: function () { return seen.sawBattle || seen.ended; } },
+
+      { id: 'adv-burn', title: 'Elemental afflictions',
+        target: badgeSelector, highlight: badgeHighlight,
+        body: 'Fire leaves them <b>Burning</b>, Ice leaves them <b>Chilled</b>, and it keeps biting on their own turn. Free damage while you do something else.',
+        until: function () { return anyStatus(/BURN|CHILL|POISON|FROZEN/) || seen.sawBadge || seen.ended; } },
 
       { id: 'adv-buff', title: 'Make one hit harder', target: '#playerHand',
         highlight: ['#playerHand', '#handTray'],
@@ -1218,7 +1283,8 @@
           return n
             ? '<b>' + esc(n) + '</b> pins a badge on an ally — more punch, or more health. Got the energy? Stack it up.'
             : 'Some Strategies pin a badge on an ally — more punch, or more health. None in your hand this second; when one turns up, that is what it does.';
-        } },
+        },
+        until: function () { return anyStatus(/BOOST|BUFF/) || phase() === 'BATTLE' || seen.ended; } },
 
       { id: 'adv-shield', title: 'Shields', target: '#playerHand',
         highlight: ['#playerHand', '#handTray'],
@@ -1228,7 +1294,10 @@
           return n
             ? '<b>' + esc(n) + '</b> drops a <b>Shield</b> that eats damage before HP does. Put it on whoever is about to get hit.'
             : 'A <b>Shield</b> eats damage before HP does — worth saving for whoever is about to get hit.';
-        } },
+        },
+        // Waits for a shield to actually exist, by any route, and gives the wait
+        // up when the round ends so a student without the card is never stuck.
+        until: function () { return anyStatus(/SHIELD/) || phase() === 'BATTLE' || seen.ended; } },
 
       { id: 'adv-debuff', title: 'Slow them down', target: '#playerHand',
         highlight: ['#playerHand', '#handTray'],
@@ -1340,7 +1409,15 @@
 
   // ---- lifecycle ----------------------------------------------------------
 
-  function start() {
+  function start() { begin(buildSteps, startAdvanced); }
+
+  /** Boot straight into the advanced script on a FRESH match. The end screen
+   *  deals a new tutorial game before calling this, because the advanced lessons
+   *  (shields, afflictions, the HUD in use) need a live board to happen on —
+   *  swapping the script over a finished match left it a slideshow. */
+  function startAdvancedFromFreshMatch() { begin(buildAdvancedSteps, null); }
+
+  function begin(stepsFn, altHandler) {
     if (ACTIVE || !window.TutorialCoach) return;
     if (window.TutorialCoach.active()) return;
     ACTIVE = true;
@@ -1358,10 +1435,10 @@
     }
     watchRaf = window.requestAnimationFrame(watch);
     window.TutorialCoach.start({
-      steps: buildSteps(),
+      steps: stepsFn(),
       playAreas: PLAY_AREAS,
       onFinale: claimReward,
-      onAlt: startAdvanced,
+      onAlt: altHandler,
       onStop: function () {
         ACTIVE = false;
         if (watchRaf) window.cancelAnimationFrame(watchRaf);
@@ -1432,6 +1509,7 @@
 
   window.ArenaTutorial = {
     start: start,
+    startAdvanced: startAdvancedFromFreshMatch,
     stop: stop,
     active: function () { return ACTIVE; }
   };
