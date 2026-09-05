@@ -1627,6 +1627,12 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
 }
 .playcard .pc-advantage b{display:block; color:#ffd066; font-size:8px; letter-spacing:.35px;}
 .sprite .sp-advantage-intent{font-size:8px; line-height:1.2; color:#ffd066; margin-top:2px; max-height:20px; overflow:hidden;}
+/* On a phone the rider wraps to two lines and pushes the plate off the top of
+   the arena, which clips the creature's name. One line plus the title tooltip
+   keeps the plate the height the row was laid out for. */
+@media (max-width:640px){
+  .sprite .sp-advantage-intent{max-height:10px; white-space:nowrap; text-overflow:ellipsis;}
+}
 /* Evolution cards glow gold so they stand out in the fan */
 .playcard.evo-card{border-top-color:#ffd066; box-shadow:0 6px 16px rgba(0,0,0,.35), 0 0 12px rgba(255,208,102,.35);}
 .playcard .pc-gauge{position:relative; height:12px; border-radius:6px; background:#0c1017; margin-top:4px; overflow:hidden; border:1px solid rgba(255,208,102,.4);}

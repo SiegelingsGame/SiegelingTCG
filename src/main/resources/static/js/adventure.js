@@ -3433,8 +3433,17 @@
         intentLine = '<div class="sp-intent-line is-stunned">' +
           STATUS_META.STUN.icon + ' Stunned</div>';
       } else if (side === 'enemy' && u.alive && u.intent) {
+        // A shade holding Advantage telegraphs its rider under the intent. The text
+        // is derived from the intent when the server did not spell it out, so the
+        // plate and the card sheets always read the same rider.
+        var holdsAdvantage = u.advantaged || u.id === b.advantageHolderId;
+        var rider = holdsAdvantage
+          ? (u.advantageText || advantageRiderText(u.intent)) : '';
         intentLine = '<div class="sp-intent-line">' + intentLabel(u.intent, b) + '</div>' +
-          (u.advantaged && u.advantageText ? '<div class="sp-advantage-intent">◆ ' + esc(u.advantageText) + '</div>' : '');
+          (rider
+            ? '<div class="sp-advantage-intent" title="Advantage — ' + esc(rider) + '">◆ ' +
+              esc(rider) + '</div>'
+            : '');
       }
       var notch = side === 'ally' && u.position >= 0 ? '<div class="sp-notch">' + (u.position + 1) + '</div>' : '';
       // Level badge + XP bar for player Siegelings.
@@ -3661,7 +3670,12 @@
         flashSprite(ev.holderId, 'advantage-flash');
         return 420;
       case 'advantage-trigger':
-        showBanner('◆ ' + ev.text, ev.friendly ? 'you' : 'advantage', ev.element);
+        // The rider text is derived when an event omits it, so the banner never
+        // reads "◆ null" — friendly/hostile decides which half of the pair prints.
+        var riderText = ev.text || advantageRiderText({
+          element: ev.element, target: ev.friendly ? 'SELF' : 'ENEMY_SINGLE'
+        }) || 'Advantage';
+        showBanner('◆ ' + riderText, ev.friendly ? 'you' : 'advantage', ev.element);
         flashSprite(ev.sourceId, 'advantage-flash');
         return 520;
       case 'ultimate':
@@ -5517,6 +5531,9 @@
     // The tutorial casts its expedition from the live roster, so the cards it
     // teaches are the ones the dashboard currently ships.
     roster: function () { return state.roster; },
+    // The tutorial sim resolves its own riders; it reads the wording from here so
+    // the copy cannot drift from what a real run prints.
+    advantageRiderText: function (spec) { return advantageRiderText(spec); },
     exitTutorial: function () {
       state.run = null; state.party = []; state.knightId = null;
       state.setupStep = 'mode';
