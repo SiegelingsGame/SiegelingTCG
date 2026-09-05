@@ -98,7 +98,7 @@ class TutorialRuleParityTest {
         assertTrue(tutorial.contains("function badgeSelector()")
                         && tutorial.contains("'#playerGrid .sb-badge', '#enemyGrid .sb-badge'"),
                 "The badge target must prefer the player's own badge, then the enemy's.");
-        assertTrue(tutorial.contains("{ id: 'status', title: 'Little icons, big deal',\n        target: badgeSelector, highlight: badgeHighlight,"),
+        assertTrue(tutorial.contains("title: 'Little icons, big deal',\n        target: badgeSelector, highlight: badgeHighlight,"),
                 "The badge lesson must ring the badge itself, not the whole board area.");
         assertTrue(!tutorial.contains("title: 'Little icons, big deal', target: '#boardArea'"),
                 "The badge lesson must no longer spotlight the entire board.");
@@ -110,6 +110,37 @@ class TutorialRuleParityTest {
                         && tutorial.contains("grid + ' .board-cell[data-row=\"' + r + '\"][data-col=\"' + c + '\"]'"),
                 "The badge highlight must resolve the cell wearing the badge, by selector, so the "
                         + "coach can re-look it up on every frame.");
+        // The badge chapter is three taps now — open the card view, read the chip
+        // inside it, open the full reference — and each beat waits for its own.
+        // It used to state all of it and walk on: `status` had no `until` at all,
+        // so Got it went straight past, and the spotlight never left the board.
+        assertTrue(tutorial.contains("{ id: 'status', hint: 'Tap the card wearing a <b>badge</b>'")
+                        && tutorial.contains("until: function () { return cardViewOpen() || !visible('.sb-badge'); } },"),
+                "The badge lesson must ask for the tap that opens the card view and wait for it — "
+                        + "with an escape for the badge expiring, since a badge is transient and the "
+                        + "board re-renders under it.");
+        assertTrue(tutorial.contains("{ id: 'badge-chip'") && tutorial.contains("{ id: 'badge-all'"),
+                "The chip and the full reference must be their own beats.");
+        assertTrue(tutorial.contains("target: function () { return chipButton() || allEffectsSelector(); },"),
+                "The chip lesson must ring the chip itself — the card view also carries the card's "
+                        + "stats and its whole move list.");
+        assertTrue(tutorial.contains("until: function () { return allEffectsOpen() || (!cardViewOpen() && !effectKeyOpen()); } },"),
+                "The All Effects beat must wait for the REFERENCE specifically, not merely for the "
+                        + "overlay — the single-affliction sheet uses the same element.");
+        assertTrue(tutorial.contains("function allEffectsOpen()") && tutorial.contains("/reference/i.test(k.textContent"),
+                "Reference-vs-affliction must be read off the kicker the overlay swaps, since both "
+                        + "views share one element.");
+        // The two layouts offer different controls, and the coach decides whether
+        // a step waits from whether `until` exists — which one step cannot vary.
+        assertTrue(tutorial.contains("{ id: 'badge-chip-read'")
+                        && tutorial.contains("skipIf: function () { return !!chipButton() || !previewChipSelector(); } },"),
+                "The desktop panel's pills are spans, not buttons, so the chip lesson needs a "
+                        + "read-and-continue twin that runs when there is nothing to tap — otherwise "
+                        + "the waiting version either strands that player or skips the lesson.");
+        assertTrue(tutorial.contains("function chipButton()")
+                        && tutorial.contains("firstOf2(['.selected-copy-buffs .buff-pill:not(.buff-pill-all)'])"),
+                "Tappability must be decided by the button the phone actually renders.");
+
         assertTrue(tutorial.contains("var cell = badgeCellSelector();\n    if (cell) return [cell];"),
                 "The badge highlight must ring that cell alone, not the cell plus its grid.");
 
@@ -177,6 +208,14 @@ class TutorialRuleParityTest {
 
         assertTrue(tutorial.contains("recommend: partnerTarget,\n        lock: HAND_CARDS,"),
                 "The round-two pick must mark AND lock the hand to the partner it names.");
+        // The evolution pick is the third step whose choice the script is built
+        // on, and the worst one to get wrong: the lesson is "an evolution lands
+        // ON TOP OF its base", and picking any other card lights a set of empty
+        // cells and demonstrates the opposite.
+        assertTrue(tutorial.contains("recommend: function () { return handCardTarget(evolutionInHand()); },\n"
+                        + "        lock: function () { return handCardTarget(evolutionInHand()) ? HAND_CARDS : null; },"),
+                "The evolution pick must mark and lock the hand to the evolution, gated on that card "
+                        + "being findable — its target falls back to the whole hand.");
         assertTrue(tutorial.contains("lock: function () { return handCardTarget(openerCard()) ? HAND_CARDS : null; },"),
                 "The opener pick must lock too, but only when the named card is actually findable "
                         + "— openerTarget falls back to the FIRST hand card, and locking every other "
@@ -189,6 +228,27 @@ class TutorialRuleParityTest {
                         && !tutorial.contains("var mate = partnerSiegling();"),
                 "The round-two hint and body must both read the partner through partnerCard(), so "
                         + "the named card and the unlocked card cannot disagree.");
+
+        // A gate whose escape is already true when the coach arrives is not a
+        // gate. `seen.sawBattle2` is set on round two's FIRST battle frame —
+        // the same signal `t2-end` releases on — so the gate opened on arrival
+        // every time, before anyone had taken the floor, and row-attack's skipIf
+        // then found no actor and dropped the lesson for good. The escape has to
+        // be strictly later than the moment it is reached.
+        assertTrue(tutorial.contains("gate: function () { return !!actingRowAbility() || battleTwoDone(); } },"),
+                "The row gate must wait out the battle, not open on the signal that the battle "
+                        + "started.");
+        assertTrue(tutorial.contains("function battleTwoDone()")
+                        && tutorial.contains("return phase() !== 'BATTLE' || turn() >= 3;"),
+                "'Round two's battle is over' must mean the phase has left BATTLE or the round has "
+                        + "moved on — not seen.sawBattle2, which means it began.");
+        assertTrue(!tutorial.contains("gate: function () { return !!actingRowAbility() || seen.sawBattle2 || seen.ended; } },"),
+                "The self-defeating escape must be gone.");
+        assertTrue(tutorial.contains("body: 'Same rhythm, bigger board. Watch what your link and your evolution bought you.',\n"
+                        + "        skipIf: function () { return !seen.sawBattle; },\n"
+                        + "        until: function () { return battleTwoDone(); } },"),
+                "'Now watch' had the same defect — it resolved on the first frame of the battle it "
+                        + "was asking the player to watch.");
 
         assertTrue(tutorial.contains("{ id: 'gate-row', skipTo: 't2-battle',"),
                 "It must be GATED, not skipped: the gate waits for a row attacker to take the "
