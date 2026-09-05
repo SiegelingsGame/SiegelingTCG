@@ -18,6 +18,14 @@ class TutorialRuleParityTest {
         return Files.readString(Path.of(path));
     }
 
+    private static int countOf(String haystack, String needle) {
+        int n = 0;
+        for (int i = haystack.indexOf(needle); i >= 0; i = haystack.indexOf(needle, i + needle.length())) {
+            n++;
+        }
+        return n;
+    }
+
     @Test
     void sieglingCostIsCheckedButNeverSpentWhileSpellsAndTrapsSpend() throws Exception {
         String gameService = read("src/main/java/com/sieglings/service/GameService.java");
@@ -216,6 +224,30 @@ class TutorialRuleParityTest {
                         + "        lock: function () { return handCardTarget(evolutionInHand()) ? HAND_CARDS : null; },"),
                 "The evolution pick must mark and lock the hand to the evolution, gated on that card "
                         + "being findable — its target falls back to the whole hand.");
+        // Both halves, not just the pick: 't2-evolve' names the evolution while
+        // lighting the whole hand behind it, so it was the one place left where
+        // the player could still take the wrong card.
+        assertTrue(countOf(tutorial,
+                        "lock: function () { return handCardTarget(evolutionInHand()) ? HAND_CARDS : null; },") == 2,
+                "Both the evolve lesson and the pick that follows it must lock the hand.");
+
+        // The reader behind every evolution lesson must mean "playable now".
+        // Returning the first evolution in hand regardless stranded the chapter:
+        // the tutorial hand holds two (Raydile over Sundile, Flora Knight over
+        // Squire Bud), so once Raydile was played the place step's `until` kept
+        // waiting on Flora Knight — whose base is not on the board — with no
+        // cell able to light for it and no way forward.
+        assertTrue(tutorial.contains("return c && c.type === 'SIEGLING' && c.evolvesFromId && evolutionBaseCells(c).length > 0;"),
+                "evolutionInHand must only return an evolution that has a legal base on the board — "
+                        + "a lesson about a move must only name a move the game would allow.");
+        assertTrue(!tutorial.contains("return hand().filter(function (c) { return c && c.type === 'SIEGLING' && c.evolvesFromId; })[0] || null;"),
+                "The unfiltered reader must be gone.");
+        // The round-one lesson names a base still in HAND, so it keeps its own
+        // scan — filtering it by board cells would break it.
+        assertTrue(tutorial.contains("function baseOfEvolutionInHand()")
+                        && tutorial.contains("var evo = h.filter(function (c) { return c && c.type === 'SIEGLING' && c.evolvesFromId; })[0];"),
+                "baseOfEvolutionInHand must keep its own unfiltered scan — in round one the base is "
+                        + "in hand and no board cell exists yet.");
         assertTrue(tutorial.contains("lock: function () { return handCardTarget(openerCard()) ? HAND_CARDS : null; },"),
                 "The opener pick must lock too, but only when the named card is actually findable "
                         + "— openerTarget falls back to the FIRST hand card, and locking every other "
