@@ -94,6 +94,65 @@
     return [sel];
   }
 
+  // ---- the card view, and the badge chips inside it -------------------------
+  //
+  // Two layouts render the same lesson differently. The phone puts the preview
+  // in a bottom drawer whose chips are BUTTONS that open the affliction sheet;
+  // the desktop panel renders its effect list as plain spans and offers only
+  // "View All Effects". So the chip lesson has to know which one it is looking
+  // at, and must not demand a tap the desktop layout has no control for.
+
+  /** The badge chip in the open card view — the "Chill 1" pill. Null when the
+   *  view is closed or the card is wearing nothing. */
+  function previewChipSelector() {
+    return firstOf2([
+      '.selected-copy-buffs .buff-pill:not(.buff-pill-all)',
+      '.desktop-preview-effect-pill'
+    ]);
+  }
+
+  /** The chip only where it is a real button that opens the affliction sheet.
+   *  The desktop panel's pills are spans, so this is null there and the lesson
+   *  that asks for a tap steps aside for the one that does not. */
+  function chipButton() {
+    return firstOf2(['.selected-copy-buffs .buff-pill:not(.buff-pill-all)']);
+  }
+
+  /** firstOf, but null rather than the last entry when nothing is on screen —
+   *  a step that must SKIP when its subject is absent cannot be handed a
+   *  fallback selector that always resolves. */
+  function firstOf2(list) {
+    for (var i = 0; i < list.length; i++) { if (visible(list[i])) return list[i]; }
+    return null;
+  }
+
+  /** True once tapping a card has opened its preview. Keyed on the effects
+   *  block rather than the drawer, because that block is what the next two
+   *  lessons point at, and it is the same class in both layouts' markup. */
+  function cardViewOpen() {
+    return visible('.selected-copy-buffs') || visible('.desktop-preview-effects-body');
+  }
+
+  /** The control that opens the full reference. Inside the effect sheet once
+   *  that is open, otherwise the one sitting in the card view. */
+  function allEffectsSelector() {
+    if (effectKeyOpen()) return firstOf(['#btnEffectKeyAll', '#effectKeyOverlay']);
+    return firstOf(['.buff-pill-all', '.desktop-preview-effects-all', '.selected-copy-buffs', '#boardArea']);
+  }
+
+  function effectKeyOpen() {
+    return visible('#effectKeyOverlay:not(.hidden)');
+  }
+
+  /** The reference list, as opposed to the single-affliction sheet. The overlay
+   *  is the same element for both, so read the kicker it swaps. */
+  function allEffectsOpen() {
+    if (!effectKeyOpen()) return false;
+    var k = null;
+    try { k = document.getElementById('effectKeyKicker'); } catch (e) { return false; }
+    return !!k && /reference/i.test(k.textContent || '');
+  }
+
   /** True while the mulligan's redraw reveal is still playing. The server ends
    *  the MULLIGAN phase the moment the redraw lands, so any step that waits on
    *  the phase alone would open on top of the cards turning over. */
@@ -817,33 +876,54 @@
       { id: 'kill', title: 'Knocking one out hurts them', target: '#enemyGrid',
         body: 'Drop a Siegeling and its owner takes <b>Siege Damage</b> straight to the face — more the rarer it was. You can win through their board.' },
 
-      { id: 'status', title: 'Little icons, big deal',
+      // Three beats, each one tap: open the card view, read the chip inside it,
+      // then open the full reference. Every wait releases when its subject
+      // leaves the screen — a badge is transient, it expires and the board
+      // re-renders under it, so a wait with no escape would either strand the
+      // player on a tap that is no longer possible or hold the match hostage.
+      { id: 'status', hint: 'Tap the card wearing a <b>badge</b>', title: 'Little icons, big deal',
         target: badgeSelector, highlight: badgeHighlight,
-        body: 'Fire leaves them <b>Burning</b>, Ice leaves them <b>Chilled</b>, and shields and boosts ride along the same way. They all show up as <b>badges</b> on the card, and they keep working after your turn ends.' },
+        body: 'Fire leaves them <b>Burning</b>, Ice leaves them <b>Chilled</b>, and shields and boosts ride along the same way. They all show up as <b>badges</b> on the card, and they keep working after your turn ends. <b>Tap the card</b> wearing one to open its card view.',
+        until: function () { return cardViewOpen() || !visible('.sb-badge'); } },
 
-      // Deliberately NOT a waiting step. A badge is transient — it expires, and
-      // the board re-renders under it — so gating on "now tap it" either strands
-      // the player on a tap that is no longer possible or holds the match
-      // hostage while they ignore it. It points at a live badge and invites the
-      // tap; the two steps below pick the thread up only if they took it.
-      { id: 'badge-open', title: 'Look one up',
-        target: badgeSelector,
-        highlight: badgeHighlight,
-        body: 'Never guess what a badge is doing. <b>Tap the card</b> wearing one and its preview opens underneath, with the badge listed as a chip.',
-        skipIf: function () { return !visible('.sb-badge'); } },
-
-      { id: 'badge-key', hint: 'Tap the badge chip', title: 'The badge screen',
-        target: function () { return firstOf(['.buff-pill:not(.buff-pill-all)', '.buff-pill-all', '#boardArea']); },
-        highlight: ['.selected-copy-buffs .buff-pill'],
+      // The chip lesson exists twice on purpose, because the two layouts offer
+      // different controls: the phone's chips are BUTTONS that open the
+      // affliction sheet, while the desktop panel renders plain spans and only
+      // its reference button is clickable. One step with a layout branch cannot
+      // express that — the coach decides "does this step wait?" from whether
+      // `until` exists at all, so a single step either strands the desktop
+      // player on a tap they cannot make or, as first written, satisfied its own
+      // wait on arrival and skipped the lesson there entirely. Two steps with
+      // complementary skipIf let the layout on screen pick one, which is exactly
+      // what skipIf-evaluated-once is good for.
+      { id: 'badge-chip', hint: 'Tap the <b>badge chip</b>', title: 'The badge, spelled out',
+        // Ring the chip itself. The card view also carries the card's stats and
+        // its whole move list, so spotlighting the panel points at everything.
+        target: function () { return chipButton() || allEffectsSelector(); },
+        highlight: function () { return [chipButton() || allEffectsSelector()]; },
         avoid: '.trainer-ability-close',
-        body: 'Tap the chip. It spells out exactly what that badge does — how hard it bites, how long it lasts, what happens if it stacks. <b>All Effects</b> lists every one in the game.',
-        skipIf: function () { return !visible('.buff-pill') && !visible('#effectKeyOverlay:not(.hidden)'); },
-        until: function () { return visible('#effectKeyOverlay:not(.hidden)') || !visible('.buff-pill'); } },
+        body: 'There it is again in the card view, as a <b>chip</b>. <b>Tap the chip</b> and it spells the badge out — how hard it bites, how long it lasts, what happens when it stacks.',
+        skipIf: function () { return !chipButton(); },
+        until: function () { return effectKeyOpen() || !cardViewOpen(); } },
+
+      { id: 'badge-chip-read', title: 'The badge, spelled out',
+        target: function () { return previewChipSelector() || allEffectsSelector(); },
+        highlight: function () { return [previewChipSelector() || allEffectsSelector()]; },
+        body: 'There it is again in the card view, as a <b>chip</b>, naming the badge and how many stacks are riding on the card.',
+        skipIf: function () { return !!chipButton() || !previewChipSelector(); } },
+
+      { id: 'badge-all', hint: 'Tap <b>All Effects</b>', title: 'Every badge in one list',
+        target: allEffectsSelector,
+        highlight: function () { return [allEffectsSelector()]; },
+        avoid: '.trainer-ability-close',
+        body: '<b>All Effects</b> opens the full reference — every buff, every affliction, what each one does. It is here mid-fight for any badge on any card, yours or theirs.',
+        skipIf: function () { return !cardViewOpen() && !effectKeyOpen(); },
+        until: function () { return allEffectsOpen() || (!cardViewOpen() && !effectKeyOpen()); } },
 
       { id: 'badge-close', hint: 'Tap <b>Close</b>', title: 'Always one tap away',
         target: function () { return firstOf(['#effectKeyOverlay .trainer-ability-close', '#boardArea']); },
         avoid: '.trainer-ability-close',
-        body: 'That key is open to you mid-fight, for any badge on any card, yours or theirs. Close it and let us finish the round.',
+        body: 'Nothing here is hidden from you — the list is one tap away whenever you want it. Close it and let us finish the round.',
         skipIf: function () { return !visible('#effectKeyOverlay:not(.hidden)'); },
         until: function () { return !visible('#effectKeyOverlay:not(.hidden)'); } },
 
