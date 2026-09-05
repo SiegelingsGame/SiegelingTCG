@@ -198,8 +198,11 @@ Then open <http://localhost:8080>.
 
 Local overrides (Firestore credentials, demo user seeding, etc.) go in
 `application-local.properties` — copy `application-local.properties.example`.
-Without Firestore credentials the app falls back to in-memory persistence for
-lobbies and card data, which is fine for gameplay work.
+Without Firestore credentials the app still boots and the card catalogs fall back
+to the classpath baseline, and multiplayer lobbies fall back to in-memory rooms —
+but the user-data stores (accounts, saved decks, progression, match history,
+social) throw rather than degrading, so anything behind a login needs real
+credentials even locally.
 
 Frontend-only iteration can skip Spring Boot entirely:
 

@@ -46,9 +46,17 @@ Firestore.
 ## Stack and deploy topology
 
 - **Backend**: Spring Boot (Java 21), Maven wrapper (`./mvnw`). In-memory game
-  state for matches; file-backed H2 + JPA for accounts/decks/history; Firestore
-  (project `siegelingstcgtesting`, database `siegedb`, doc
-  `appConfig/cardOverrides`) for live card/deck/trainer overrides.
+  state for matches. Everything persistent lives in Firestore (project
+  `siegelingstcgtesting`, database `siegedb`) — there is **no SQL database, no
+  JPA, and no H2**; `persistence/entity/` holds plain POJOs and
+  `persistence/firestore/` holds the stores that map them to collections
+  (`accountUsers`, `authSessions`, `savedDecks`, `matchHistory`,
+  `playerProgression`, `userPresence`, `openLobbies`, `directMessages`,
+  `friendRequests`, `dailyMissionProgress`, …, overridable via `app.user-data.*`).
+  Live card/deck/trainer overrides are a separate doc, `appConfig/cardOverrides`.
+  Note the fallback asymmetry: the user-data stores **throw** when Firestore is
+  unavailable, so accounts/decks/history need real credentials even locally;
+  only lobbies degrade gracefully (see below).
 - **Frontend**: hand-written static HTML/CSS/JS (no framework, no bundler) in
   `src/main/resources/static/`, served both by Spring Boot and Firebase Hosting.
 - **Live**: Firebase Hosting (`https://siegelingstcgtesting.web.app`) rewrites
