@@ -1069,10 +1069,38 @@ public class GameService {
         recalculateTrainerPassiveStatBuffs(state);
         effectService.recalculateBoardAuraDamageBoosts(state);
         battleService.initializeBattle(state);
-        // Stop at the phase boundary. The client presents the Battle Phase
-        // banner (starter + speed order) and only then calls executeBattle to
-        // surface a human choice or resolve the first AI action. Advancing here
-        // let a fast AI attack arrive in the same response as the banner.
+        // Hold an AI-first strike behind the client's Battle Phase banner —
+        // advancing here used to land the attack in the same response as the
+        // phase change. A human-first action is only a choice prompt: surface
+        // it now. In multiplayer only the host client auto-calls executeBattle,
+        // so leaving a guest-first prompt unsurfaced freezes the match until
+        // that other browser is foregrounded.
+        if (firstLivingBattleActorIsAi(state)) {
+            return;
+        }
+        battleService.advanceBattle(state);
+        recalculateTrainerPassiveStatBuffs(state);
+        effectService.recalculateBoardAuraDamageBoosts(state);
+        completeBattleIfFinished(state);
+    }
+
+    /**
+     * True when the first living actor in the freshly built speed order is the
+     * solo AI. Dead entries are skipped the same way {@code advanceBattle}
+     * skips them; an empty / all-dead queue is not AI, so the phase can close.
+     */
+    private boolean firstLivingBattleActorIsAi(GameState state) {
+        if (state == null || state.getBattleQueue() == null) {
+            return false;
+        }
+        for (String instanceId : state.getBattleQueue()) {
+            CardInstance actor = state.findByInstanceId(instanceId);
+            if (actor == null || !actor.isAlive()) {
+                continue;
+            }
+            return !isHumanControlledSide(state, actor.isOwner());
+        }
+        return false;
     }
 
     private void startNextRound(GameState state) {
