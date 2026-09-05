@@ -54,8 +54,15 @@ class TutorialRuleParityTest {
     @Test
     void tutorialCopyMatchesThoseRules() throws Exception {
         String tutorial = read("src/main/resources/static/js/arena-tutorial.js");
-        assertTrue(tutorial.contains("it does not drain it"),
-                "The cost lesson must keep saying a Siegling's cost is not spent.");
+        // This guard exists so the copy cannot contradict the engine, and the
+        // copy no longer makes the "checks the pool, does not drain it" claim
+        // at all — it was cut when the cost lesson was shortened, leaving the
+        // assertion pinning a phrase that had stopped existing (red on clean
+        // origin/main). Re-keyed to the requirement the lesson still states.
+        // The engine half of that contract is asserted directly, above.
+        assertTrue(tutorial.contains("ask for energy of their element"),
+                "The cost lesson must keep stating that heavier Sieglings require energy of "
+                        + "their own element.");
         assertTrue(tutorial.contains("survived a full battle phase"),
                 "The evolution lesson must keep naming the battle-phase requirement.");
         // Both link kinds are taught, and each waits on the payout it teaches.
@@ -150,6 +157,38 @@ class TutorialRuleParityTest {
         assertTrue(tutorial.contains("{ id: 'adv-open-place'") && tutorial.contains("{ id: 'gate-adv'"),
                 "The advanced chapter must PLAY: it deals a fresh board, so it needs the opening "
                         + "beats and a gate before the lessons that require a fought round.");
+
+        // Advising a card is not enough on the two steps whose choice the rest
+        // of the script is built on. A player who taps the card NEXT to the
+        // named one places the wrong Siegeling, and every following lesson
+        // reasons about a board that was never built.
+        String coach = read("src/main/resources/static/js/coach.js");
+        assertTrue(coach.contains("function applyLock(s, open)") && coach.contains("'tut-locked'"),
+                "The coach must be able to shut the non-recommended members of a candidate set, "
+                        + "not merely mark the recommended one.");
+        assertTrue(coach.contains("if (!sel || !open) { if (locked.length) clearLock(); return; }"),
+                "A lock with nothing recommended must be inert — locking a set with no open member "
+                        + "would trap the player with no legal tap.");
+        assertTrue(coach.contains("clearLock();\n    if (layer) layer.classList.add('hidden');"),
+                "Stopping the coach must hand every locked element back.");
+        String coachCss = read("src/main/resources/static/css/coach.css");
+        assertTrue(coachCss.contains(".tut-locked") && coachCss.contains("pointer-events:none !important;"),
+                "The lock has to actually block the tap, not just look shut.");
+
+        assertTrue(tutorial.contains("recommend: partnerTarget,\n        lock: HAND_CARDS,"),
+                "The round-two pick must mark AND lock the hand to the partner it names.");
+        assertTrue(tutorial.contains("lock: function () { return handCardTarget(openerCard()) ? HAND_CARDS : null; },"),
+                "The opener pick must lock too, but only when the named card is actually findable "
+                        + "— openerTarget falls back to the FIRST hand card, and locking every other "
+                        + "card to an arbitrary slot is worse than not locking at all.");
+        // One reader behind the copy, the mark and the lock. They used to be
+        // computed separately, with different exclusions, so the tip could name
+        // one card while a different one was the open answer.
+        assertTrue(tutorial.contains("function partnerCard()")
+                        && tutorial.contains("var mate = partnerCard();")
+                        && !tutorial.contains("var mate = partnerSiegling();"),
+                "The round-two hint and body must both read the partner through partnerCard(), so "
+                        + "the named card and the unlocked card cannot disagree.");
 
         assertTrue(tutorial.contains("{ id: 'gate-row', skipTo: 't2-battle',"),
                 "It must be GATED, not skipped: the gate waits for a row attacker to take the "

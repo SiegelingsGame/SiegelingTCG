@@ -53,7 +53,9 @@ class SiegeAdvantageTutorialJavaScriptTest {
         // and adventure.js to 92 while the assertions still named 88 and 91,
         // so the test was red for everyone. Brought back in line, with
         // siege-tutorial at 16 for the evolved-card fix.
-        assertTrue(html.contains("/css/coach.css?v=3"), "coach.css pin");
+        // 4 for the .tut-locked rule: Siege shares coach.css, so a stale pin
+        // here would leave the Siege coach without it.
+        assertTrue(html.contains("/css/coach.css?v=4"), "coach.css pin");
         assertTrue(html.contains("/css/adventure.css?v=89"), "adventure.css pin");
         assertTrue(html.contains("/js/siege-tutorial.js?v=16"), "siege-tutorial.js pin");
         assertTrue(html.contains("/js/adventure.js?v=92"), "adventure.js pin");

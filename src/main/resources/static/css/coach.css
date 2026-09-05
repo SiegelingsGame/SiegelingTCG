@@ -180,3 +180,14 @@
   0%,100%{box-shadow:0 0 10px rgba(240,180,41,.45), inset 0 0 14px rgba(240,180,41,.14);}
   50%{box-shadow:0 0 20px rgba(240,180,41,.75), inset 0 0 22px rgba(240,180,41,.26);}
 }
+
+/* The other members of a `lock` set. Untappable, and visibly so — a card that
+   silently swallows taps reads as a broken hand rather than a closed door.
+   Kept lighter than the spotlight dim, which means "not part of this step";
+   this means "part of it, but not your move". */
+.tut-locked{
+  pointer-events:none !important;
+  filter:grayscale(.75) brightness(.62);
+  opacity:.55;
+  transition:opacity .18s ease, filter .18s ease;
+}
