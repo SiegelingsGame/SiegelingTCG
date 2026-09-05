@@ -133,6 +133,24 @@ class TutorialRuleParityTest {
         assertTrue(tutorial.indexOf("{ id: 'row-attack'") < tutorial.indexOf("{ id: 't2-battle'"),
                 "It must come BEFORE the round-two battle wrap-up, which waits for the battle to "
                         + "finish — after it, Pylook has already swung.");
+        // The Advanced chapter is offered on the WIN screen and runs on a FRESH
+        // match: shields, afflictions and the HUD-in-use all need a live board,
+        // and swapping the script over a finished match left it a slideshow.
+        String game = read("src/main/resources/static/js/game.js");
+        assertTrue(game.contains("async function startAdvancedTutorialMatch()")
+                        && game.contains("setMatchMode('tutorial')"),
+                "The end screen must be able to deal a fresh tutorial match for the advanced run.");
+        assertTrue(game.contains("btnAdvanced.hidden = !(tutorialMatchActive && result === 'WIN');"),
+                "The advanced offer belongs on a tutorial WIN only — offering it after a loss "
+                        + "reads as a taunt, and outside the tutorial it makes no sense.");
+        assertTrue(game.contains("sessionStorage.getItem(ADVANCED_TUTORIAL_KEY)"),
+                "The request must survive the match restart, which rebuilds this page state.");
+        assertTrue(tutorial.contains("startAdvanced: startAdvancedFromFreshMatch,"),
+                "The tutorial must expose an entry that opens the advanced script from turn one.");
+        assertTrue(tutorial.contains("{ id: 'adv-open-place'") && tutorial.contains("{ id: 'gate-adv'"),
+                "The advanced chapter must PLAY: it deals a fresh board, so it needs the opening "
+                        + "beats and a gate before the lessons that require a fought round.");
+
         assertTrue(tutorial.contains("{ id: 'gate-row', skipTo: 't2-battle',"),
                 "It must be GATED, not skipped: the gate waits for a row attacker to take the "
                         + "floor instead of giving up the first time it is evaluated.");

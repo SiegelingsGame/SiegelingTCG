@@ -7521,6 +7521,15 @@ function renderGameOverOverlay() {
         btnRematch.textContent = youReady ? 'Rematch selected' : 'Rematch';
         btnRematch.classList.toggle('btn-primary', !youReady);
     }
+    // The tutorial's win is the natural moment to offer the deeper chapter, and
+    // it needs a REAL match to be taught in — the finished one cannot be played.
+    // Only on a win: losing the practice match and being offered "advanced" reads
+    // as a taunt.
+    const btnAdvanced = document.getElementById('btnGameOverAdvanced');
+    if (btnAdvanced) {
+        btnAdvanced.hidden = !(tutorialMatchActive && result === 'WIN');
+    }
+
     if (btnPlayAgain) {
         btnPlayAgain.hidden = isOnline;
     }
@@ -10147,11 +10156,39 @@ async function newGame() {
         return;
     }
     if (tutorialMatchActive) {
-        window.ArenaTutorial?.start();
+        // A pending advanced request survives the match restart in sessionStorage,
+        // because starting the new match tears this page state down and rebuilds
+        // it from the server's response.
+        let wantsAdvanced = false;
+        try {
+            wantsAdvanced = sessionStorage.getItem(ADVANCED_TUTORIAL_KEY) === '1';
+            if (wantsAdvanced) sessionStorage.removeItem(ADVANCED_TUTORIAL_KEY);
+        } catch (e) { wantsAdvanced = false; }
+        if (wantsAdvanced && window.ArenaTutorial?.startAdvanced) {
+            window.ArenaTutorial.startAdvanced();
+        } else {
+            window.ArenaTutorial?.start();
+        }
     } else {
         window.ArenaTutorial?.stop();
     }
 }
+
+const ADVANCED_TUTORIAL_KEY = 'sieglingsAdvancedTutorialPending';
+
+/**
+ * Deal a fresh tutorial match and open it on the ADVANCED script. The advanced
+ * chapter teaches shields, afflictions and the HUD, all of which need a board to
+ * happen on — running it over the finished match left it a slideshow.
+ */
+async function startAdvancedTutorialMatch() {
+    try { sessionStorage.setItem(ADVANCED_TUTORIAL_KEY, '1'); } catch (e) { /* private mode */ }
+    document.getElementById('gameOverOverlay')?.classList.remove('visible');
+    window.ArenaTutorial?.stop();
+    setMatchMode('tutorial');
+    await newGame();
+}
+window.startAdvancedTutorialMatch = startAdvancedTutorialMatch;
 
 function openLoadoutSelector() {
     clearMultiplayerSession();
