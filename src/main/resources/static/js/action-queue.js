@@ -2623,12 +2623,19 @@
             const enqueuePhaseTransitionAction = (force = false) => {
                 if ((!phaseChanged && !force) || phaseTransitionQueued) return;
                 phaseTransitionQueued = true;
+                const battleOrder = nextState.currentPhase === 'BATTLE' && Array.isArray(nextState.battleQueue)
+                    ? nextState.battleQueue
+                    : [];
+                const startingSide = battleOrder[0]?.ownerSide || nextState.activeSide || 'PLAYER';
                 this.enqueueAction({
                     kind: 'PHASE',
                     phase: nextState.currentPhase,
-                    activeSide: nextState.activeSide || 'PLAYER',
-                    side: nextState.activeSide || 'PLAYER',
-                    holdMs: PHASE_BANNER_MS,
+                    activeSide: startingSide,
+                    side: startingSide,
+                    battleOrder,
+                    holdMs: nextState.currentPhase === 'BATTLE'
+                        ? (this.speed === 'fast' ? 2200 : 3200)
+                        : PHASE_BANNER_MS,
                     gapAfterMs: PHASE_GAP_MS
                 });
             };
@@ -3484,7 +3491,8 @@
                     await window.showPhaseTransitionBanner(
                         action.phase,
                         action.activeSide,
-                        holdMs
+                        holdMs,
+                        action.battleOrder
                     );
                 } else {
                     const phaseLabel = formatPhaseLabelFallback(action.phase);
