@@ -448,6 +448,12 @@
     });
     var holder = findUnit(b.advantageHolderId);
     b.advantageActiveForPlayer = b.phase === 'PLAYER_INPUT' && holder && holder.side === 'PLAYER' && holder.alive;
+    // A shade that holds Advantage telegraphs its rider next to its intent, the
+    // same way an advantaged hand card prints one (SiegeService#combatantView).
+    livingAllies().concat(livingFoes()).forEach(function (u) {
+      u.advantaged = !!holder && u.id === holder.id;
+      u.advantageText = u.advantaged && u.intent ? riderTextFor(u.intent) : null;
+    });
   }
 
   function advanceAdvantage(events) {
@@ -476,12 +482,15 @@
       var mark = allies.length ? allies[i % allies.length] : null;
       f.intent = {
         name: ability.name, effect: 'DAMAGE', value: ability.value,
+        element: ability.element || f.element, target: 'ENEMY_SINGLE',
         sweep: false, position: mark ? mark.position : -1
       };
     });
     M.battle.targetedPositions = livingFoes()
       .map(function (f) { return f.intent ? f.intent.position : -1; })
       .filter(function (p) { return p >= 0; });
+    // Rider copy on a plate is derived from the intent, so it is refreshed here too.
+    syncAdvantageFlags();
   }
 
   function drawTo(n) {
@@ -501,7 +510,7 @@
     b.hand = b._hand.map(function (c) { return handCard(c, b.actionPoints); });
     b.hand.forEach(function (c) {
       c.advantaged = c.ownerId === b.advantageHolderId;
-      if (c.advantaged) c.advantageText = tutorialAdvantageText(c);
+      if (c.advantaged) c.advantageText = riderTextFor(c);
     });
     b.deck = b._draw.map(pileCard);
     b.discard = b._discard.slice().reverse().map(pileCard);
@@ -536,44 +545,132 @@
 
   function logLine(line) { M.battle.log.push(line); }
 
-  function tutorialAdvantageText(c) {
-    var friendly = c.target === 'ALLY_SINGLE' || c.target === 'ALLY_ALL' || c.target === 'SELF';
-    if (c.element === 'FIRE') return friendly
-      ? 'Kindle: target gains +1 Attack for this battle.'
-      : 'Sear: deal 2 additional damage.';
-    if (c.element === 'ELECTRIC') return friendly
-      ? 'Charge: gain 1 Knight Ultimate Charge.'
-      : 'Arc: deal 2 damage to another enemy.';
-    return null;
+  function isFriendlyTarget(target) {
+    return target === 'ALLY_SINGLE' || target === 'ALLY_ALL' || target === 'SELF';
+  }
+
+  /* One source of rider wording: adventure.js already prints it on every card
+   * sheet, and the server's SiegeAdvantage#riderText is the original. The rider
+   * itself is gated on the element list below, not on this copy, so a rider
+   * still lands if the wording is unavailable. */
+  var ADVANTAGE_ELEMENTS = ['FIRE', 'EARTH', 'WIND', 'WATER', 'ICE',
+    'ELECTRIC', 'METAL', 'SHADOW', 'UNDEAD', 'PSYCHIC'];
+
+  /* A step whose condition is met the instant the sim resolves would open its
+   * successor's tip over the projectile it just asked the player to fire, so a
+   * battle wait also holds until the presentation has finished playing. */
+  function settled(condition) {
+    return function () {
+      if (!condition()) return false;
+      return !(window.SiegeClient && window.SiegeClient.presentationBusy
+        && window.SiegeClient.presentationBusy());
+    };
+  }
+
+  function riderTextFor(spec) {
+    return (window.SiegeClient && window.SiegeClient.advantageRiderText
+      ? window.SiegeClient.advantageRiderText(spec) : '') || null;
+  }
+
+  function healUnit(target, amount, events) {
+    if (!target || !target.alive || amount <= 0) return;
+    target.hp = Math.min(target.maxHp, target.hp + amount);
+    events.push({ type: 'heal', targetId: target.id, amount: amount, vitals: vitalsOf([target.id]) });
+  }
+
+  function shieldUnit(target, amount, events) {
+    if (!target || !target.alive || amount <= 0) return;
+    target.shield = (target.shield || 0) + amount;
+    events.push({ type: 'shield', targetId: target.id, amount: amount, vitals: vitalsOf([target.id]) });
+  }
+
+  function inflict(target, status, events, element) {
+    if (!target || !target.alive) return;
+    if ((target.statuses || []).indexOf(status) >= 0) return;
+    target.statuses.push(status);
+    target.statusRounds[status] = 2;
+    events.push({ type: 'status', targetId: target.id, status: status, element: element, vitals: vitalsOf([target.id]) });
   }
 
   function triggerAdvantage(owner, c, targets, events) {
     var b = M.battle;
     targets = (targets || []).filter(function (target) { return target && target.alive; });
     if (!owner || owner.id !== b.advantageHolderId || !targets.length) return;
-    var friendly = c.target === 'ALLY_SINGLE' || c.target === 'ALLY_ALL' || c.target === 'SELF';
-    var text = tutorialAdvantageText(c);
-    if (!text) return;
-    if (c.element === 'FIRE') {
-      targets.forEach(function (target) {
+    var friendly = isFriendlyTarget(c.target);
+    if (ADVANTAGE_ELEMENTS.indexOf(c.element) < 0) return;
+    var text = riderTextFor(c);
+    // The rider lands on the single worst-off resolved target, as the server does,
+    // except where the printed wording says "target" of a multi-hit card.
+    var focus = targets.slice().sort(function (a, d) {
+      return (a.hp / Math.max(1, a.maxHp)) - (d.hp / Math.max(1, d.maxHp));
+    })[0];
+    var others = (owner.side === 'PLAYER' ? livingFoes() : livingAllies()).filter(function (u) {
+      return targets.indexOf(u) < 0;
+    });
+    switch (c.element) {
+      case 'FIRE':
         if (friendly) {
-          target.attackBuff = (target.attackBuff || 0) + 1;
-          events.push({ type: 'buff', kind: 'atk', amount: 1, targetIds: [target.id] });
+          targets.forEach(function (target) {
+            target.attackBuff = (target.attackBuff || 0) + 1;
+            events.push({ type: 'buff', kind: 'atk', amount: 1, targetIds: [target.id] });
+          });
         } else {
-          damage(target, 2, events, owner.id, c.element);
+          targets.forEach(function (target) { damage(target, 2, events, owner.id, c.element); });
         }
-      });
-    } else if (c.element === 'ELECTRIC' && !friendly) {
-      var arc = (owner.side === 'PLAYER' ? livingFoes() : livingAllies()).filter(function (u) {
-        return targets.indexOf(u) < 0;
-      })[0];
-      if (arc) damage(arc, 2, events, owner.id, c.element);
+        break;
+      case 'EARTH':
+        if (friendly) shieldUnit(focus, 4, events);
+        else inflict(focus, 'SLOW', events, c.element);
+        break;
+      case 'WIND':
+        if (friendly) {
+          if (owner.side === 'PLAYER') b.actionPoints += 1;
+        } else inflict(focus, 'SHOCK', events, c.element);
+        break;
+      case 'WATER':
+        if (friendly) healUnit(focus, 3, events);
+        else healUnit(owner, 2, events);
+        break;
+      case 'ICE':
+        if (friendly) shieldUnit(focus, 3, events);
+        else if ((focus.statuses || []).indexOf('SLOW') >= 0) inflict(focus, 'STUN', events, c.element);
+        else inflict(focus, 'SLOW', events, c.element);
+        break;
+      case 'ELECTRIC':
+        if (friendly) {
+          if (owner.side === 'PLAYER') b.knight.charge = Math.min(b.knight.ultCost, b.knight.charge + 1);
+        } else if (others[0]) damage(others[0], 2, events, owner.id, c.element);
+        break;
+      case 'METAL':
+        if (friendly) shieldUnit(focus, 5, events);
+        else if ((focus.shield || 0) > 0) {
+          focus.shield = Math.max(0, focus.shield - 4);
+          events.push({ type: 'shield', targetId: focus.id, amount: 0, vitals: vitalsOf([focus.id]) });
+        } else damage(focus, 1, events, owner.id, c.element);
+        break;
+      case 'SHADOW':
+        if (friendly) { healUnit(focus, 2, events); shieldUnit(focus, 2, events); }
+        else { damage(focus, 2, events, owner.id, c.element); healUnit(owner, 2, events); }
+        break;
+      case 'UNDEAD':
+        if (focus.hp * 2 < focus.maxHp) {
+          if (friendly) healUnit(focus, 3, events);
+          else damage(focus, 3, events, owner.id, c.element);
+        }
+        break;
+      case 'PSYCHIC':
+        if (friendly) {
+          if (owner.side === 'PLAYER') drawTo(b._hand.length + 1);
+        } else inflict(focus, 'SHOCK', events, c.element);
+        break;
+      default:
+        return;
     }
     events.push({
-      type: 'advantage-trigger', sourceId: owner.id, targetId: targets[0].id,
+      type: 'advantage-trigger', sourceId: owner.id, targetId: focus.id,
       element: c.element, friendly: friendly, text: text
     });
-    logLine('Advantage — ' + text);
+    if (text) logLine('Advantage — ' + text);
   }
 
   function playCard(cardId, targetId) {
@@ -1339,16 +1436,16 @@
         body: 'These are corrupted Siegelings — <b>shades</b>. Each shows its <b>intent</b>: the move it will use and the notch it will hit. A ▼ over one of your Siegelings means that blow is aimed at it — heal it, or kill the attacker first.' },
       { id: 'targeting', hint: 'Drag an attack card <b>onto a foe</b>', title: 'Targeting', target: '#handRow', highlight: ['#handRow', '#enemyRow', '#allyRow'],
         body: '<b>Drag an attack card onto a foe</b> to play it. Cards that need a target draw an arrow while you drag; drop it on the enemy you want.',
-        until: function () { return flags.played > 0; } },
+        until: settled(function () { return flags.played > 0; }) },
       { id: 'endturn', hint: 'Tap <b>End Turn</b>', title: 'End the turn', target: '#endTurnBtn',
         body: 'Spend what is worth spending, then <b>End Turn</b>: the foes act on the intents they showed you, and a fresh hand is dealt.' +
           '<span class="tut-p">Watch <b>⚡ Charge</b> on the Knight\'s plate. It comes from three places — <b>unspent AP</b> at end of turn, <b>+1 every turn</b> whatever you do, and <b>+1 per Knight card</b>. Banking AP buys the Ultimate sooner.</span>',
-        until: function () { return M.battle && M.battle.roundNumber > 1; } },
+        until: settled(function () { return M.battle && M.battle.roundNumber > 1; }) },
       { id: 'ultimate', hint: 'Tap <b>⚡ ULT!</b>', title: 'The Ultimate', target: '#knightUltBtn',
         body: 'The charge bar is full. <b>Tap ⚡ ULT!</b> — ' + esc(k.ultimateName) + ' ' +
           esc(String(k.ultimateDesc || '').charAt(0).toLowerCase() + String(k.ultimateDesc || '').slice(1)) +
           ' Watch your line when it lands.',
-        until: function () { return flags.ulted; },
+        until: settled(function () { return flags.ulted; }),
         skipIf: function () { return !M.battle; } },
       { id: 'evolved', title: 'Evolution', target: '#allyRow',
         body: 'An <b>evolution</b>: the next form, with more HP and a stronger kit. It holds <b>until this battle ends</b>, then reverts, keeping the damage it took.' +
@@ -1356,7 +1453,7 @@
         skipIf: function () { return !flags.ulted; } },
       { id: 'finish', hint: 'Attack, <b>End Turn</b>, repeat', title: 'Finish the fight', nodim: true, target: '#handRow', highlight: ['#handRow', '#enemyRow', '#allyRow'],
         body: 'Play out the rest of the fight — attack, end turn, repeat — until both shades are down.',
-        until: function () { return !M.battle || M.battle.phase === 'WON'; } },
+        until: settled(function () { return !M.battle || M.battle.phase === 'WON'; }) },
       { id: 'spoils', hint: 'Tap <b>Claim Rewards</b>', title: 'Claim the spoils', target: '#handRow',
         body: 'Victory. Tap <b>Claim Rewards</b> to collect XP, gold and a pick.',
         until: function () { return !screenIs('battleScreen'); } },
