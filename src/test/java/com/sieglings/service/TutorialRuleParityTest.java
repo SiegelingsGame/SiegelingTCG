@@ -54,8 +54,15 @@ class TutorialRuleParityTest {
     @Test
     void tutorialCopyMatchesThoseRules() throws Exception {
         String tutorial = read("src/main/resources/static/js/arena-tutorial.js");
-        assertTrue(tutorial.contains("it does not drain it"),
-                "The cost lesson must keep saying a Siegling's cost is not spent.");
+        // This guard exists so the copy cannot contradict the engine, and the
+        // copy no longer makes the "checks the pool, does not drain it" claim
+        // at all — it was cut when the cost lesson was shortened, leaving the
+        // assertion pinning a phrase that had stopped existing (red on clean
+        // origin/main). Re-keyed to the requirement the lesson still states.
+        // The engine half of that contract is asserted directly, above.
+        assertTrue(tutorial.contains("ask for energy of their element"),
+                "The cost lesson must keep stating that heavier Sieglings require energy of "
+                        + "their own element.");
         assertTrue(tutorial.contains("survived a full battle phase"),
                 "The evolution lesson must keep naming the battle-phase requirement.");
         // Both link kinds are taught, and each waits on the payout it teaches.
