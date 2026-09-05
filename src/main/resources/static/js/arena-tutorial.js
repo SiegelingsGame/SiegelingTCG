@@ -1078,6 +1078,15 @@
           var sel = handCardTarget(evolutionInHand());
           return sel ? [sel, '#playerHand', '#handTray'] : ['#playerHand', '#handTray'];
         },
+        // Marked AND locked, for the same reason as the two pick steps. The
+        // lesson is "an evolution lands ON TOP OF its base", and it can only be
+        // shown with the evolution in hand: picking any other card lights a set
+        // of empty cells instead and demonstrates the opposite. Gated on the
+        // card being findable, because the target falls back to the whole hand
+        // and locking every card against that fallback would leave nothing to
+        // tap.
+        recommend: function () { return handCardTarget(evolutionInHand()); },
+        lock: function () { return handCardTarget(evolutionInHand()) ? HAND_CARDS : null; },
         body: function () {
           var evo = evolutionInHand();
           return 'Tap ' + (evo ? '<b>' + esc(evo.name) + '</b>' : 'the evolution') +

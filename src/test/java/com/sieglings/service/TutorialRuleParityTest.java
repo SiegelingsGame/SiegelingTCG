@@ -208,6 +208,14 @@ class TutorialRuleParityTest {
 
         assertTrue(tutorial.contains("recommend: partnerTarget,\n        lock: HAND_CARDS,"),
                 "The round-two pick must mark AND lock the hand to the partner it names.");
+        // The evolution pick is the third step whose choice the script is built
+        // on, and the worst one to get wrong: the lesson is "an evolution lands
+        // ON TOP OF its base", and picking any other card lights a set of empty
+        // cells and demonstrates the opposite.
+        assertTrue(tutorial.contains("recommend: function () { return handCardTarget(evolutionInHand()); },\n"
+                        + "        lock: function () { return handCardTarget(evolutionInHand()) ? HAND_CARDS : null; },"),
+                "The evolution pick must mark and lock the hand to the evolution, gated on that card "
+                        + "being findable — its target falls back to the whole hand.");
         assertTrue(tutorial.contains("lock: function () { return handCardTarget(openerCard()) ? HAND_CARDS : null; },"),
                 "The opener pick must lock too, but only when the named card is actually findable "
                         + "— openerTarget falls back to the FIRST hand card, and locking every other "
