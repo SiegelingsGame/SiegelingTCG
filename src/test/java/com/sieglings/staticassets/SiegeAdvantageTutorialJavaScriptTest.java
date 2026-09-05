@@ -101,6 +101,34 @@ class SiegeAdvantageTutorialJavaScriptTest {
         assertTrue(tutorial.contains("<b>Team Speed</b>"));
         assertTrue(tutorial.contains("<b>Advantage key</b>"));
         assertTrue(tutorial.contains("fastest to slowest"));
+
+        // The SiegeKnight lesson told the player to tap the plate and then walked
+        // straight on, so the sheet it was describing never opened and the two
+        // effects it named were never seen. It waits for the tap, and the lesson
+        // that explains them rings the effect cards inside the sheet.
+        assertTrue(tutorial.contains("{ id: 'passive', hint: 'Tap your <b>SiegeKnight</b>'"),
+                "The knight step must ask for the tap, not just mention it.");
+        assertTrue(tutorial.contains("{ id: 'passive', hint: 'Tap your <b>SiegeKnight</b>', title: 'Passive and Ultimate', "
+                        + "target: '#knightPlate',\n        body: 'Your SiegeKnight does not attack."
+                        + " He gives a <b>passive</b> that is always running, and charges an <b>Ultimate</b>"
+                        + " on the bar under his HP. <b>Tap the plate</b> to read both.',\n"
+                        + "        until: function () { return !hidden('unitModal'); } },"),
+                "It must WAIT for the sheet to open — without the wait, Got it skips the lesson that "
+                        + "explains what the tap was for.");
+        assertTrue(tutorial.contains("{ id: 'passive-cards'")
+                        && tutorial.contains("target: '.um-effects', highlight: ['.um-effects'], avoid: '#unitModalClose',"),
+                "The explanation must ring the two effect cards themselves. The sheet also lists the "
+                        + "knight's own cards, so spotlighting the whole sheet points at the wrong half.");
+        assertTrue(tutorial.contains("<b>' + esc(k.passiveName) + '</b> is the <b>passive</b>")
+                        && tutorial.contains("<b>' + esc(k.ultimateName) +\n          '</b> is the <b>Ultimate</b>"),
+                "Both effects must be named from the knight data the sheet itself renders from, so the "
+                        + "copy cannot name something the player is not looking at.");
+        // .um-effects is what adventure.js actually emits; a rename there would
+        // leave the coach ringing nothing, silently.
+        String adventureJs = Files.readString(Path.of("src/main/resources/static/js/adventure.js"));
+        assertTrue(adventureJs.contains("<div class=\"um-cards-title\">Active effects</div><div class=\"um-effects\">"),
+                "The unit sheet must still render its effects into .um-effects — that is the element "
+                        + "the knight lesson spotlights.");
         // These pins are asserted so a content change cannot ship without a
         // refresh. They had gone stale on main — adventure.css had moved to 89
         // and adventure.js to 92 while the assertions still named 88 and 91,
@@ -110,7 +138,10 @@ class SiegeAdvantageTutorialJavaScriptTest {
         // here would leave the Siege coach without it.
         assertTrue(html.contains("/css/coach.css?v=4"), "coach.css pin");
         assertTrue(html.contains("/css/adventure.css?v=90"), "adventure.css pin");
-        assertTrue(html.contains("/js/siege-tutorial.js?v=18"), "siege-tutorial.js pin");
+        // 19, not 18: main bumped to 18 for its own siege-tutorial change and
+        // this branch edits the same file, so the merged bytes need a number
+        // neither side has shipped.
+        assertTrue(html.contains("/js/siege-tutorial.js?v=19"), "siege-tutorial.js pin");
         assertTrue(html.contains("/js/adventure.js?v=94"), "adventure.js pin");
     }
 }
