@@ -229,6 +229,27 @@ class TutorialRuleParityTest {
                 "The round-two hint and body must both read the partner through partnerCard(), so "
                         + "the named card and the unlocked card cannot disagree.");
 
+        // A gate whose escape is already true when the coach arrives is not a
+        // gate. `seen.sawBattle2` is set on round two's FIRST battle frame —
+        // the same signal `t2-end` releases on — so the gate opened on arrival
+        // every time, before anyone had taken the floor, and row-attack's skipIf
+        // then found no actor and dropped the lesson for good. The escape has to
+        // be strictly later than the moment it is reached.
+        assertTrue(tutorial.contains("gate: function () { return !!actingRowAbility() || battleTwoDone(); } },"),
+                "The row gate must wait out the battle, not open on the signal that the battle "
+                        + "started.");
+        assertTrue(tutorial.contains("function battleTwoDone()")
+                        && tutorial.contains("return phase() !== 'BATTLE' || turn() >= 3;"),
+                "'Round two's battle is over' must mean the phase has left BATTLE or the round has "
+                        + "moved on — not seen.sawBattle2, which means it began.");
+        assertTrue(!tutorial.contains("gate: function () { return !!actingRowAbility() || seen.sawBattle2 || seen.ended; } },"),
+                "The self-defeating escape must be gone.");
+        assertTrue(tutorial.contains("body: 'Same rhythm, bigger board. Watch what your link and your evolution bought you.',\n"
+                        + "        skipIf: function () { return !seen.sawBattle; },\n"
+                        + "        until: function () { return battleTwoDone(); } },"),
+                "'Now watch' had the same defect — it resolved on the first frame of the battle it "
+                        + "was asking the player to watch.");
+
         assertTrue(tutorial.contains("{ id: 'gate-row', skipTo: 't2-battle',"),
                 "It must be GATED, not skipped: the gate waits for a row attacker to take the "
                         + "floor instead of giving up the first time it is evaluated.");

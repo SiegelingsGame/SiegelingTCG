@@ -407,6 +407,19 @@
     return list[0] || null;
   }
 
+  /**
+   * Round two's battle is OVER — the escape for the lessons that play out
+   * during it. Deliberately not `seen.sawBattle2`, which means "it started":
+   * that latches on the battle's first frame, so any wait keyed to it is
+   * already satisfied when the coach gets there. The battle is done once the
+   * phase has left BATTLE again, or the round counter has moved on.
+   */
+  function battleTwoDone() {
+    if (seen.ended) return true;
+    if (!seen.sawBattle2) return false;
+    return phase() !== 'BATTLE' || turn() >= 3;
+  }
+
   /** A single-target move already seen, to contrast against — Sundile's Strike
    *  in the pinned deck, but read from the board so the copy cannot go stale. */
   function singleTargetExample() {
@@ -1139,9 +1152,16 @@
       // fires once, on arrival. Pylook is placed in round two, so the lesson
       // belongs to that battle — and it is GATED rather than skipped, so it waits
       // for a row attacker to actually take the floor instead of giving up.
+      // The escape used to be `seen.sawBattle2`, which is set the instant round
+      // two's BATTLE phase opens — the exact moment the coach arrives here,
+      // because `t2-end` releases on the same signal. So the gate opened on
+      // arrival every time, before any Siegeling had taken the floor, and
+      // `row-attack`'s skipIf then found nobody acting and dropped the lesson
+      // for good. A gate's escape has to be strictly LATER than the moment it
+      // is reached, or it is not a gate: it now waits out the whole battle.
       { id: 'gate-row', skipTo: 't2-battle',
         hint: 'Watch Pylook take its swing',
-        gate: function () { return !!actingRowAbility() || seen.sawBattle2 || seen.ended; } },
+        gate: function () { return !!actingRowAbility() || battleTwoDone(); } },
 
       { id: 'row-attack', title: 'One swing, a whole row',
         target: function () {
@@ -1171,10 +1191,13 @@
         skipIf: function () { return !actingRowAbility(); } },
 
 
+      // Same defect as the gate above: `seen.sawBattle2` is true from the first
+      // frame of the battle this step is asking the player to watch, so it
+      // resolved immediately and the tip flashed past the fight it named.
       { id: 't2-battle', title: 'Now watch', target: '#boardArea',
         body: 'Same rhythm, bigger board. Watch what your link and your evolution bought you.',
         skipIf: function () { return !seen.sawBattle; },
-        until: function () { return seen.sawBattle2 || seen.ended; } },
+        until: function () { return battleTwoDone(); } },
 
       // ---- Turn 3 ---------------------------------------------------------
       //
