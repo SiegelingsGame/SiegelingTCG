@@ -271,6 +271,29 @@
     return visible(sel) ? sel : null;
   }
 
+  /** Fire in the pool — the claim lesson is about reaching Ashfall's cost of 3. */
+  function fireEnergy() {
+    var g = gs();
+    return (g && g.player && Number(g.player.fireEnergy)) || 0;
+  }
+
+  /** A hand card by id, so copy can name it without hard-coding the name. */
+  function handCardNamed(id) {
+    return hand().filter(function (c) {
+      return c && String(c.id || '').toLowerCase() === String(id).toLowerCase();
+    })[0] || null;
+  }
+
+  /** Placements still available this Setup. The budget is one placement plus one
+   *  per unit of pooled energy, and the lesson after the wipe reads it back. */
+  function actsRemaining() {
+    var b = bridge();
+    var data = null;
+    try { data = b && b.setupActions ? b.setupActions() : null; } catch (e) { data = null; }
+    if (!data || !Number.isFinite(Number(data.remaining))) return 1;
+    return Math.max(0, Number(data.remaining));
+  }
+
   // ---- multi-target lesson --------------------------------------------------
 
   /** The Siegeling whose turn to act it is, read from the battle queue's pick. */
@@ -1064,14 +1087,72 @@
         body: 'Here is the sneaky one: a <b>Deception</b> is paid for with <b>their</b> energy, not yours. Play one if you have it.',
         skipIf: function () { return turn() < 3 || !handHas('TRAP'); } },
 
-      { id: 't3-claim', title: 'Cash one in',
+      // Claiming used to be taught in a vacuum: "cash in a survivor" with nothing
+      // to spend it on, which asked the student to bin their best Siegeling for
+      // no reason. The claim now BUYS something — it is the last Fire needed for
+      // Ashfall — so the cost reads as a trade instead of a sacrifice.
+      { id: 't3-claim', hint: 'Claim your survivor', title: 'Trade a body for the win',
         target: function () { return firstOf(['#playerGrid .board-cell.claimable', '#playerGrid']); },
         highlight: ['#playerGrid .board-cell.claimable'],
-        body: 'Need energy right now? <b>Claim</b> a survivor and cash it in. You lose the body — worth it sometimes.',
-        skipIf: function () { return turn() < 3 || !visible('#playerGrid .board-cell.claimable'); } },
+        recommend: function () { return firstOf(['#playerGrid .board-cell.claimable', '']) || null; },
+        body: function () {
+          var f = fireEnergy();
+          var wipe = handCardNamed('tutorial_ashfall');
+          var have = f > 0 ? 'You are on <b>' + f + ' Fire</b>. ' : '';
+          return have + 'Claiming a survivor cashes it in for <b>+1 energy of its element</b> — '
+            + 'you lose the body, and that is the point: it is the last Fire you need for '
+            + (wipe ? '<b>' + esc(wipe.name) + '</b>' : 'the Strategy in your hand') + '.';
+        },
+        skipIf: function () { return turn() < 3 || !visible('#playerGrid .board-cell.claimable'); },
+        until: function () { return fireEnergy() >= 3 || phase() !== 'SETUP'; } },
+
+      { id: 't3-wipe', hint: 'Cast it', title: 'Spend it all at once',
+        target: '#playerHand', highlight: ['#playerHand', '#handTray'],
+        body: function () {
+          var wipe = handCardNamed('tutorial_ashfall');
+          return (wipe ? '<b>' + esc(wipe.name) + '</b>' : 'That Strategy')
+            + ' costs every Fire you just scraped together and <b>destroys their whole board</b>. '
+            + 'Each one that drops pays you <b>Siege Damage</b> on the way out.';
+        },
+        skipIf: function () { return turn() < 3 || !handCardNamed('tutorial_ashfall'); },
+        until: function () { return theirs() === 0 || phase() !== 'SETUP'; } },
+
+      // One act left after the wipe, and a card worth spending it on. This is
+      // also the first time the budget MATTERS, so the next step reads it back.
+      { id: 't3-summon', hint: 'Place your last Siegeling', title: 'One act left',
+        target: function () { return firstOf(['#playerHand', '#handTray']); },
+        highlight: ['#playerHand', '#handTray', '#playerGrid .board-cell.legal'],
+        body: function () {
+          var next = hand().filter(function (c) {
+            return c && c.type === 'SIEGLING' && !c.evolvesFromId;
+          })[0];
+          return 'Their side is empty and you still have an action. '
+            + (next ? 'Put <b>' + esc(next.name) + '</b> down' : 'Put another Siegeling down')
+            + ' — an empty board is the safest time to grow yours.';
+        },
+        skipIf: function () { return turn() < 3 || actsRemaining() <= 0; },
+        until: function () { return actsRemaining() <= 0 || phase() !== 'SETUP'; } },
+
+      { id: 't3-acts', title: 'That is the whole budget', target: actionBtn,
+        highlight: function () { return [actionBtn()]; },
+        body: 'Every Setup gives you <b>one placement</b>, plus one more for each unit of '
+          + 'pooled energy. You just spent all of it — the <b>action counter</b> is where you '
+          + 'check what is left before you commit.' },
+
+      // The knight has been READY since round one and never been used; with the
+      // board cleared there is nothing to lose by spending it.
+      { id: 't3-knight', hint: 'Tap <b>Knight</b>', title: 'Your Knight has been waiting',
+        target: '#btnTrainerAbility', highlight: ['#btnTrainerAbility'],
+        body: function () {
+          var k = knightName();
+          return (k ? '<b>' + esc(k) + '</b> has' : 'Your SiegeKnight has')
+            + ' been <b>READY</b> since round one. It costs no action — spend it now.';
+        },
+        skipIf: function () { return turn() < 3 || seen.knightSpent; },
+        until: function () { return seen.knightSpent || seen.knightOpened || phase() !== 'SETUP'; } },
 
       { id: 't3-end', hint: 'Tap <b>End Turn</b>', title: 'Send it', target: actionBtn,
-        body: 'That is everything a round can hold — board, links, spells. <b>End Turn</b>.',
+        body: 'Board cleared, board rebuilt, Knight spent. <b>End Turn</b>.',
         skipIf: function () { return turn() < 3 || phase() === 'BATTLE'; },
         until: function () { return !myTurn() || phase() === 'BATTLE'; } },
 
