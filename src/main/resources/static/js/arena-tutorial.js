@@ -526,6 +526,26 @@
     })[0] || null;
   }
 
+  /**
+   * The one card the round-two pick step names, marks and leaves open. It used
+   * to be worked out three times in that step — the hint excluding nothing, the
+   * body excluding the evolution's base — so the tip could name one card while
+   * a different one was the "right" answer. One reader now, and the lock is fed
+   * from the same place as the copy.
+   */
+  function partnerCard() {
+    var pair = baseOfEvolutionInHand();
+    return partnerSiegling(pair && pair.base ? pair.base.id : null);
+  }
+
+  function partnerTarget() {
+    return handCardTarget(partnerCard());
+  }
+
+  /** Every card in the hand, as one selector — the candidate set a pick step
+   *  narrows to its recommendation. */
+  var HAND_CARDS = '#playerHand .hand-card';
+
   var OPPOSITE_DIR = {
     TOP: 'BOTTOM', TOP_RIGHT: 'BOTTOM_LEFT', RIGHT: 'LEFT', BOTTOM_RIGHT: 'TOP_LEFT',
     BOTTOM: 'TOP', BOTTOM_LEFT: 'TOP_RIGHT', LEFT: 'RIGHT', TOP_LEFT: 'BOTTOM_RIGHT'
@@ -732,6 +752,13 @@
         // computed for a card they had never been aimed at. The marker the
         // placement step uses for its cell now also lands on this card.
         recommend: openerTarget,
+        // Same reason as t2-pick: the opener is the base the round-two
+        // evolution grows out of, so opening with a different card costs the
+        // player the evolution lesson entirely. Gated on the real card being
+        // findable, because openerTarget falls back to the FIRST hand card —
+        // locking every other card to an arbitrary slot is worse than not
+        // locking at all.
+        lock: function () { return handCardTarget(openerCard()) ? HAND_CARDS : null; },
         hint: function () {
           var c = openerCard();
           return c ? 'Tap <b>' + esc(c.name) + '</b>' : 'Tap a <b>Siegeling</b>';
@@ -861,13 +888,19 @@
 
       { id: 't2-pick', title: 'Bring a friend', target: '#playerHand',
         highlight: ['#playerHand', '#handTray'],
+        // Marked AND locked. The placement step after this one scores cells for
+        // whichever Siegeling is selected, and every lesson downstream reads a
+        // board built from this choice — so a player who taps the card next to
+        // the named one does not lose a beat, they derail the chapter.
+        recommend: partnerTarget,
+        lock: HAND_CARDS,
         hint: function () {
-          var mate = partnerSiegling();
+          var mate = partnerCard();
           return mate ? 'Tap <b>' + esc(mate.name) + '</b>' : 'Tap a <b>Siegeling</b>';
         },
         body: function () {
           var pair = baseOfEvolutionInHand();
-          var mate = partnerSiegling(pair && pair.base ? pair.base.id : null);
+          var mate = partnerCard();
           var evo = pair ? pair.evolution : hand().filter(function (c) {
             return c && c.type === 'SIEGLING' && c.evolvesFromId;
           })[0];

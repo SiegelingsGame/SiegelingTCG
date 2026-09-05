@@ -8,7 +8,7 @@
  * hint sitting on the hand — and a second copy would rediscover all of them.
  *
  * A step is:
- *   { id, kicker, title, body, hint, target, highlight, avoid,
+ *   { id, kicker, title, body, hint, target, highlight, avoid, lock,
  *     until, next, route, skipIf, gate, skipTo, finish, finale, altLabel }
  * `altLabel` adds a second foot button on a finale (e.g. Advanced Tutorial);
  * the caller handles it via `onAlt`.
@@ -18,6 +18,13 @@
  * `recommend` marks ONE element as the suggested choice — needed precisely
  * because lifting the union makes the spotlight too broad to single anything
  * out, and a step can both keep every option available and still advise.
+ * `lock` names the candidate set that the `recommend` mark chooses from, and
+ * makes the rest of that set untappable for the duration of the step. Advice
+ * alone is not enough where the wrong choice derails the script rather than
+ * merely costing a beat: the coach names one card, the player taps a different
+ * one, and every following step is reasoning about a board that was never
+ * built. It is deliberately inert without a resolvable `recommend` — locking a
+ * set with nothing left open would trap the player.
  * `until` makes the step wait on the player: the full tip renders, "Got it"
  * collapses it to a one-line hint so the play area is clear, and the step
  * advances itself the moment `until()` comes true.
@@ -261,10 +268,47 @@
     if (typeof sel === 'function') { try { sel = sel(); } catch (e) { sel = null; } }
     var node = null;
     if (sel) { try { node = document.querySelector(sel); } catch (e) { node = null; } }
-    if (node === recommended) return;
+    if (node === recommended) { applyLock(s, node); return; }
     if (recommended) recommended.classList.remove('tut-pick');
     recommended = node;
     if (recommended) recommended.classList.add('tut-pick');
+    applyLock(s, node);
+  }
+
+  var locked = [];
+
+  function clearLock() {
+    for (var i = 0; i < locked.length; i++) locked[i].classList.remove('tut-locked');
+    locked = [];
+  }
+
+  /**
+   * Shuts every member of the step's candidate set except the recommended one.
+   * Re-run each frame off the same node `recommend` just resolved, so the two
+   * can never disagree about which card is the open one, and so a re-rendered
+   * hand (new nodes, same indices) is re-locked rather than left live.
+   */
+  function applyLock(s, open) {
+    var sel = s && s.lock;
+    if (typeof sel === 'function') { try { sel = sel(); } catch (e) { sel = null; } }
+    // No set, or nothing recommended to leave open: lock nothing.
+    if (!sel || !open) { if (locked.length) clearLock(); return; }
+    var nodes;
+    try { nodes = document.querySelectorAll(sel); } catch (e) { clearLock(); return; }
+    var next = [];
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      if (n === open || n.contains(open) || open.contains(n)) continue;
+      next.push(n);
+    }
+    var same = next.length === locked.length;
+    if (same) {
+      for (var j = 0; j < next.length; j++) { if (next[j] !== locked[j]) { same = false; break; } }
+    }
+    if (same) return;
+    clearLock();
+    locked = next;
+    for (var k = 0; k < locked.length; k++) locked[k].classList.add('tut-locked');
   }
 
   function targetNode(s) {
@@ -611,6 +655,7 @@
     watchViewport(false);
     if (viewportTimer) { clearTimeout(viewportTimer); viewportTimer = 0; }
     if (recommended) { recommended.classList.remove('tut-pick'); recommended = null; }
+    clearLock();
     if (layer) layer.classList.add('hidden');
     var done = cfg;
     if (done && done.bodyClass) document.body.classList.remove(done.bodyClass);
