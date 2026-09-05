@@ -861,7 +861,7 @@
             ? '<b>' + esc(c.name) + '</b> wants <b>' + c.costAmount + ' ' + esc(String(c.costElement).toLowerCase()) + '</b>. '
             : '';
           return 'That little corner number is the <b>cost</b>. ' + named +
-            'Your starters are free, but the heavier Siegelings — <b>evolutions especially</b> — ask for energy of their element, and you must <b>have</b> it on tap: a Siegeling checks the pool, it does not drain it. <b>Strategies</b> and <b>Deceptions</b> are what actually spend.';
+            'Your starters are free, but the heavier Siegelings — <b>evolutions especially</b> — ask for energy of their element.';
         },
         skipIf: function () { return !costedCard() && !visible('#playerHand .card-corner-cost'); } },
 
@@ -954,7 +954,7 @@
           var base = evolutionBaseName();
           var named = evo ? 'Your opener fought last round and this link is paying — so <b>' + esc(evo.name) +
             '</b> can go down on top of ' + (base ? '<b>' + esc(base) + '</b>' : 'it') + ' right now. ' : '';
-          return named + 'Two things before a Siegeling can <b>evolve</b>: it has to have <b>survived a full battle phase</b> in its current form, and you need the evolution\'s own <b>energy</b> on tap. Play the bigger card straight onto it — evolutions ignore the one-per-turn limit <em>and</em> the five-on-board cap.';
+          return named + 'Two things before a Siegeling can <b>evolve</b>: it has to have <b>survived a full battle phase</b> in its current form, and you need the evolution\'s own <b>energy</b> on tap. Play the bigger card straight onto it.';
         },
         skipIf: function () {
           if (turn() < 2) return true;
