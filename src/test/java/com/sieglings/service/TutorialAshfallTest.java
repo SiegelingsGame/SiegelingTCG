@@ -13,9 +13,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The claim lesson only makes sense if claiming BUYS something. Ashfall is that
- * something: it costs exactly the 3 Fire the student reaches by cashing in
- * Raydile, and it clears the Dummy's board so the swing is visible.
+ * Ashfall is the payoff of round three's COMBO lesson: it is bought with a
+ * Fire/Earth combo point standing on the board rather than out of an energy
+ * pool, and it clears the Dummy's board so the swing is visible.
  *
  * These assertions cover the two things the lesson's copy promises and the one
  * thing that would quietly ruin the rest of the game if it leaked.
@@ -29,6 +29,9 @@ class TutorialAshfallTest {
     @Autowired
     private CardDefinitionService cardDefs;
 
+    @Autowired
+    private EnergyService energyService;
+
     private static Card findInDeck(GameState state, String id) {
         return state.getPlayer().getDeck().stream()
                 .filter(c -> c != null && id.equalsIgnoreCase(c.getId()))
@@ -36,28 +39,130 @@ class TutorialAshfallTest {
     }
 
     @Test
-    void theTutorialDeckCarriesAshfallPricedAtTheClaimPayoff() {
+    void theTutorialDeckCarriesAshfallPricedAsAFireEarthCombo() {
         GameState state = gameService.newTutorialGame("Student").state();
         Card card = findInDeck(state, "tutorial_ashfall");
-        assertNotNull(card, "The claim lesson needs Ashfall in the tutorial deck to pay for.");
+        assertNotNull(card, "The combo lesson needs Ashfall in the tutorial deck to unlock.");
         SpellCard spell = (SpellCard) card;
-        assertEquals(Element.FIRE, spell.getCostElement(), "Ashfall is paid in Fire.");
-        assertEquals(3, spell.getCostAmount(),
-                "Priced at 3 so it cannot be cast WITHOUT claiming — the claim is what affords it.");
+        assertEquals(0, spell.getCostAmount(),
+                "Ashfall is bought with a combo, not a pool — no energy is spent on it.");
+        assertEquals(2, spell.getRequiredComboSize(), "It takes a two-element combo.");
+        // Sorted by element name, which is how EnergyService builds the key this
+        // is compared against — "FIRE+EARTH" would never match anything.
+        assertEquals("EARTH+FIRE", spell.getRequiredComboSignature(),
+                "The signature must be sorted the way EnergyService writes it.");
     }
 
     /**
-     * Claiming pays ONE unit of the claimed card's element. That is the whole
-     * reason the lesson works — 2 Fire on the board plus the claim is 3, exactly
-     * Ashfall's cost — so it is pinned against the engine rather than described.
+     * The gate is the whole point of the change, so it is exercised rather than
+     * described: the same spell is refused on a board with no combo and allowed
+     * once a real Fire/Earth point stands on it.
+     */
+    @Test
+    void theFireEarthComboIsWhatUnlocksTheCast() {
+        GameState state = gameService.newTutorialGame("Student").state();
+        SpellCard ashfall = (SpellCard) findInDeck(state, "tutorial_ashfall");
+        assertNotNull(ashfall, "Ashfall must be in the tutorial deck.");
+
+        // Empty board: no combo point anywhere, so the spell is barred.
+        state.setPlayer(new com.sieglings.model.Player("Player", true));
+        state.setEnemy(new com.sieglings.model.Player("AI Opponent", false));
+        assertTrue(!energyService.canCastSpell(state, true, ashfall),
+                "With no combo on the board, Ashfall must be uncastable — otherwise the lesson "
+                        + "teaches a gate that is not there.");
+
+        // A mismatched reciprocal pair makes exactly one combo point, and Fire
+        // beside Earth signs as EARTH+FIRE.
+        var earth = new com.sieglings.model.SieglingCard(
+                "combo-earth", "Combo Earth", Element.EARTH, com.sieglings.model.enums.Rarity.COMMON,
+                10, 1, java.util.List.of(new com.sieglings.model.Notch(
+                        com.sieglings.model.enums.NotchDirection.RIGHT, Element.EARTH)),
+                com.sieglings.model.enums.Row.MIDDLE);
+        var fire = new com.sieglings.model.SieglingCard(
+                "combo-fire", "Combo Fire", Element.FIRE, com.sieglings.model.enums.Rarity.COMMON,
+                10, 1, java.util.List.of(new com.sieglings.model.Notch(
+                        com.sieglings.model.enums.NotchDirection.LEFT, Element.FIRE)),
+                com.sieglings.model.enums.Row.MIDDLE);
+        state.setAt(true, 1, 0, new com.sieglings.model.CardInstance(earth.copy(), 1, 0, true));
+        state.setAt(true, 1, 1, new com.sieglings.model.CardInstance(fire.copy(), 1, 1, true));
+
+        var breakdown = energyService.getBreakdown(state, true);
+        assertEquals(1, breakdown.comboPoints().size(), "Precondition: the pair makes one combo.");
+        assertEquals("EARTH+FIRE", breakdown.comboPoints().get(0).signature(),
+                "Precondition: and it signs the way the card asks for.");
+
+        assertTrue(energyService.canCastSpell(state, true, ashfall),
+                "With the Fire/Earth combo standing, Ashfall must be castable — that combo IS its "
+                        + "price.");
+    }
+
+    /**
+     * Pricing Ashfall in a combo makes it DEAD if the tutorial deck cannot build
+     * that combo. Combo signatures are built from NOTCH elements, not card
+     * elements, so this checks the deck actually holds both halves the signature
+     * needs — otherwise a deck retune would silently strand round three's wipe.
+     */
+    @Test
+    void theTutorialDeckCanActuallyBuildTheComboAshfallAsksFor() {
+        GameState state = gameService.newTutorialGame("Student").state();
+        boolean hasFireNotch = false;
+        boolean hasEarthNotch = false;
+        for (Card c : state.getPlayer().getDeck()) {
+            if (!(c instanceof com.sieglings.model.SieglingCard sc)) continue;
+            for (var notch : sc.getNotches()) {
+                if (notch == null) continue;
+                if (notch.element() == Element.FIRE) hasFireNotch = true;
+                if (notch.element() == Element.EARTH) hasEarthNotch = true;
+            }
+        }
+        assertTrue(hasFireNotch,
+                "Ashfall needs a FIRE notch in the tutorial deck to make its combo half.");
+        assertTrue(hasEarthNotch,
+                "Ashfall needs an EARTH notch in the tutorial deck — without one the combo it is "
+                        + "priced in can never be built and the round-three wipe is dead.");
+    }
+
+    /** A combo of the wrong elements must not pay for it. */
+    @Test
+    void aDifferentComboDoesNotPayForIt() {
+        GameState state = gameService.newTutorialGame("Student").state();
+        SpellCard ashfall = (SpellCard) findInDeck(state, "tutorial_ashfall");
+        state.setPlayer(new com.sieglings.model.Player("Player", true));
+        state.setEnemy(new com.sieglings.model.Player("AI Opponent", false));
+
+        var ice = new com.sieglings.model.SieglingCard(
+                "combo-ice", "Combo Ice", Element.ICE, com.sieglings.model.enums.Rarity.COMMON,
+                10, 1, java.util.List.of(new com.sieglings.model.Notch(
+                        com.sieglings.model.enums.NotchDirection.RIGHT, Element.ICE)),
+                com.sieglings.model.enums.Row.MIDDLE);
+        var fire = new com.sieglings.model.SieglingCard(
+                "combo-fire2", "Combo Fire", Element.FIRE, com.sieglings.model.enums.Rarity.COMMON,
+                10, 1, java.util.List.of(new com.sieglings.model.Notch(
+                        com.sieglings.model.enums.NotchDirection.LEFT, Element.FIRE)),
+                com.sieglings.model.enums.Row.MIDDLE);
+        state.setAt(true, 1, 0, new com.sieglings.model.CardInstance(ice.copy(), 1, 0, true));
+        state.setAt(true, 1, 1, new com.sieglings.model.CardInstance(fire.copy(), 1, 1, true));
+
+        assertEquals("FIRE+ICE", energyService.getBreakdown(state, true)
+                .comboPoints().get(0).signature(), "Precondition: this is a Fire/Ice combo.");
+        assertTrue(!energyService.canCastSpell(state, true, ashfall),
+                "Only a Fire/Earth combo pays for Ashfall — any-combo-will-do would make the "
+                        + "round-three lesson about the wrong thing.");
+    }
+
+    /**
+     * Claiming pays ONE unit of the claimed card's element. Ashfall no longer
+     * rides on that, but the claim lesson still promises it — and pooled energy
+     * is what buys the extra Setup action the summon step spends.
      */
     @Test
     void claimingPaysOneUnitOfTheClaimedElement() throws Exception {
         String gameService = java.nio.file.Files.readString(
                 java.nio.file.Path.of("src/main/java/com/sieglings/service/GameService.java"));
         assertTrue(gameService.contains("actor.adjustTemporaryEnergy(claimed.getElement(), 1);"),
-                "Claiming must still pay exactly one unit of the claimed element — Ashfall is "
-                        + "priced so the claim is what completes its cost.");
+                "Claiming must still pay exactly one unit of the claimed element — the claim "
+                        + "lesson's copy promises that, and pooled energy is what buys the extra "
+                        + "Setup action the summon step spends.");
     }
 
     /** The lesson promises the board clears. Cast it and check that it does. */
@@ -90,9 +195,20 @@ class TutorialAshfallTest {
         assertNotNull(ashfall, "Ashfall must be in the tutorial deck.");
         state.getPlayer().getDeck().remove(ashfall);
         state.getPlayer().getHand().add(ashfall);
-        // canAfford reads the resolved pool, and temporary energy is recomputed
-        // from the board — so set the pool the claim would have produced.
-        state.getPlayer().setFireEnergy(3);
+        // Ashfall is bought with a combo now, not a pool, so stand a Fire/Earth
+        // pair up to satisfy the gate the way round three's link does.
+        var earth = new com.sieglings.model.SieglingCard(
+                "wipe-earth", "Wipe Earth", Element.EARTH, com.sieglings.model.enums.Rarity.COMMON,
+                10, 1, java.util.List.of(new com.sieglings.model.Notch(
+                        com.sieglings.model.enums.NotchDirection.RIGHT, Element.EARTH)),
+                com.sieglings.model.enums.Row.MIDDLE);
+        var fireMate = new com.sieglings.model.SieglingCard(
+                "wipe-fire", "Wipe Fire", Element.FIRE, com.sieglings.model.enums.Rarity.COMMON,
+                10, 1, java.util.List.of(new com.sieglings.model.Notch(
+                        com.sieglings.model.enums.NotchDirection.LEFT, Element.FIRE)),
+                com.sieglings.model.enums.Row.MIDDLE);
+        state.setAt(true, 1, 0, new com.sieglings.model.CardInstance(earth.copy(), 1, 0, true));
+        state.setAt(true, 1, 1, new com.sieglings.model.CardInstance(fireMate.copy(), 1, 1, true));
 
         gameService.castSpell(state, true, "tutorial_ashfall", -1, -1);
 
@@ -109,7 +225,7 @@ class TutorialAshfallTest {
     void ashfallIsTutorialOnly() {
         assertTrue(cardDefs.findCardCopy("tutorial_ashfall").isEmpty(),
                 "Ashfall must not exist in the shared catalog — it is a tutorial prop, and a "
-                        + "3-cost board wipe in a real deck would be indefensible.");
+                        + "combo-gated board wipe in a real deck would be indefensible.");
         for (var deck : cardDefs.getDeckOptions()) {
             boolean leaked = cardDefs.buildDeckById(deck.id()).stream()
                     .anyMatch(c -> c != null && "tutorial_ashfall".equalsIgnoreCase(c.getId()));

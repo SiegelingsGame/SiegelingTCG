@@ -799,9 +799,18 @@ public class GameService {
                 "Ashfall",
                 Element.FIRE,
                 com.sieglings.model.enums.Rarity.EPIC,
-                3,
+                0,
                 wipe);
-        ashfall.setDescription("A training Strategy — burns the whole enemy board away. Costs 3 Fire.");
+        // Paid for with a COMBO rather than a pool: it needs a mixed Fire/Earth
+        // point standing on the board. That is deliberate — round three is where
+        // the tutorial teaches combos, and this makes the lesson the thing that
+        // unlocks the wipe instead of a fact stated beside it. Signature elements
+        // are sorted by name, which is how EnergyService builds the key it is
+        // compared against.
+        ashfall.setRequiredComboSize(2);
+        ashfall.setRequiredComboSignature("EARTH+FIRE");
+        ashfall.setDescription(
+                "A training Strategy — burns the whole enemy board away. Needs a Fire/Earth combo on your board.");
         return ashfall;
     }
 
