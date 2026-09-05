@@ -167,8 +167,42 @@ class TutorialRuleParityTest {
                 "The multi-target lesson must exist and read the acting Siegeling's row move.");
         assertTrue(tutorial.contains("t === 'ROW_ENEMIES' || t === 'ROW_SELECT_ENEMIES'"),
                 "A row move must be identified by its target type, not by card name.");
-        assertTrue(tutorial.contains("skipIf: function () { return !actingRowAbility(); } },"),
+        assertTrue(tutorial.contains("skipIf: function () { return !actingRowAbility(); },"),
                 "The row lesson must skip when whoever is acting has no row move.");
+
+        // The battle phase is NOT a cutscene — the player picks a move and then
+        // a row for every Siegeling. The lesson used to describe the row move
+        // and walk on to "Now watch" while the board was still waiting on both
+        // choices, which is what the report was about.
+        String game = read("src/main/resources/static/js/game.js");
+        assertTrue(game.contains("battleTargeting: () => isBattleTargetSelectionActive(),"),
+                "The coach needs to be able to tell 'pick your move' from 'pick a target'.");
+        assertTrue(tutorial.contains("recommend: rowMoveButton,")
+                        && tutorial.contains("lock: function () { return rowMoveButton() ? MOVE_BTNS : null; },"),
+                "The row lesson must mark and lock the move panel to the row move — the single-target "
+                        + "move sits right beside it.");
+        assertTrue(tutorial.contains("until: function () { return battleTargeting() || !actingRowAbility() || battleTwoDone(); } },"),
+                "It must wait for the move to actually be chosen, and let go when the actor loses the "
+                        + "floor or the battle ends.");
+        assertTrue(tutorial.contains("{ id: 'row-target'") && tutorial.contains("recommend: fullestRowTarget,"),
+                "Choosing the row is its own beat, and the coach must mark the row worth choosing.");
+        assertTrue(tutorial.contains("function fullestEnemyRow()")
+                        && tutorial.contains("if (n > 0 && (!best || n > best.count)) best = { row: r, count: n };"),
+                "The row must be computed from the enemies actually standing there — a fixed 'middle' "
+                        + "is wrong the moment the board differs.");
+        assertTrue(tutorial.contains("'Now choose <b>where</b>. The marked row is holding <b>' + n + '</b> '"),
+                "The copy must say how many the swing catches, read from the board — that number is "
+                        + "the point of the lesson.");
+        assertTrue(tutorial.contains("until: function () { return !battleTargeting() || battleTwoDone(); } },"),
+                "The target beat must release once the attack resolves.");
+        // Found by the printed move NAME, not the panel's ability index: that
+        // index comes from a different walk than this file does.
+        assertTrue(tutorial.contains("function rowMoveButton()")
+                        && tutorial.contains(".battle-ability-move-name"),
+                "The row move's button must be matched on the name the player can read.");
+        assertTrue(!tutorial.contains("{ id: 't2-battle', title: 'Now watch'"),
+                "'Now watch' alone was misleading — the rest of the battle still asks for a move per "
+                        + "Siegeling.");
 
         // It has to live in ROUND TWO's battle. Filed in round one it was skipped
         // permanently on arrival — only Sundile is down then, so actingRowAbility()
@@ -182,7 +216,6 @@ class TutorialRuleParityTest {
         // The Advanced chapter is offered on the WIN screen and runs on a FRESH
         // match: shields, afflictions and the HUD-in-use all need a live board,
         // and swapping the script over a finished match left it a slideshow.
-        String game = read("src/main/resources/static/js/game.js");
         assertTrue(game.contains("async function startAdvancedTutorialMatch()")
                         && game.contains("setMatchMode('tutorial')"),
                 "The end screen must be able to deal a fresh tutorial match for the advanced run.");
@@ -276,11 +309,12 @@ class TutorialRuleParityTest {
                         + "moved on — not seen.sawBattle2, which means it began.");
         assertTrue(!tutorial.contains("gate: function () { return !!actingRowAbility() || seen.sawBattle2 || seen.ended; } },"),
                 "The self-defeating escape must be gone.");
-        assertTrue(tutorial.contains("body: 'Same rhythm, bigger board. Watch what your link and your evolution bought you.',\n"
-                        + "        skipIf: function () { return !seen.sawBattle; },\n"
+        // Keyed to the wait, not the copy: the copy has since been reworded and
+        // pinning a whole prose block makes every edit look like a regression.
+        assertTrue(tutorial.contains("        skipIf: function () { return !seen.sawBattle; },\n"
                         + "        until: function () { return battleTwoDone(); } },"),
-                "'Now watch' had the same defect — it resolved on the first frame of the battle it "
-                        + "was asking the player to watch.");
+                "The round-two battle step had the same defect — it resolved on the first frame of "
+                        + "the battle it was asking the player to play out.");
 
         assertTrue(tutorial.contains("{ id: 'gate-row', skipTo: 't2-battle',"),
                 "It must be GATED, not skipped: the gate waits for a row attacker to take the "

@@ -407,6 +407,63 @@
     return list[0] || null;
   }
 
+  function battleTargeting() {
+    var b = bridge();
+    try { return !!(b && b.battleTargeting && b.battleTargeting()); } catch (e) { return false; }
+  }
+
+  /** Every move button on the acting Siegeling's panel, whichever layout is up. */
+  var MOVE_BTNS = '#battleActionPanel .battle-ability-btn, #desktopBattleActionPanel .battle-ability-btn';
+
+  /**
+   * The button for the acting Siegeling's row move, found by the move NAME the
+   * button prints rather than by ability index. The index the panel renders is
+   * assigned while it walks the card's usable moves, which is not the same walk
+   * this file does — matching on the name the player can actually read keeps the
+   * two from drifting.
+   */
+  function rowMoveButton() {
+    var row = actingRowAbility();
+    if (!row || !row.name) return null;
+    var want = String(row.name).trim().toLowerCase();
+    var btns;
+    try { btns = document.querySelectorAll(MOVE_BTNS); } catch (e) { return null; }
+    for (var i = 0; i < btns.length; i++) {
+      var label = btns[i].querySelector('.battle-ability-move-name');
+      if (!label || String(label.textContent || '').trim().toLowerCase() !== want) continue;
+      var idx = btns[i].getAttribute('data-ability-index');
+      if (idx == null) continue;
+      var sel = '.battle-ability-btn[data-ability-index="' + idx + '"]';
+      return visible(sel) ? sel : null;
+    }
+    return null;
+  }
+
+  /**
+   * The enemy row currently offering the most targets, as {row, count}. This is
+   * the whole point of the lesson — a row move is worth picking when the row is
+   * full — so the coach names the row that actually pays rather than a fixed
+   * "middle", which would be wrong the moment the board differs.
+   */
+  function fullestEnemyRow() {
+    var best = null;
+    for (var r = 0; r < 3; r++) {
+      var sel = '#enemyGrid .board-cell.targetable[data-row="' + r + '"]';
+      var n = 0;
+      try { n = document.querySelectorAll(sel).length; } catch (e) { n = 0; }
+      if (n > 0 && (!best || n > best.count)) best = { row: r, count: n };
+    }
+    return best;
+  }
+
+  /** One targetable card in that row, for the coach to mark. */
+  function fullestRowTarget() {
+    var best = fullestEnemyRow();
+    if (!best) return null;
+    var sel = '#enemyGrid .board-cell.targetable[data-row="' + best.row + '"]';
+    return visible(sel) ? sel : null;
+  }
+
   /**
    * Round two's battle is OVER — the escape for the lessons that play out
    * during it. Deliberately not `seen.sawBattle2`, which means "it started":
@@ -1205,16 +1262,63 @@
               '</b> spends its whole hit on one target; this spreads the same swing across the row.'
             : ' A single-target move spends its whole hit on one card; this spreads it across the row.';
           return lead + named + contrast +
-            ' Fire burns what it touches, so <b>every card in that row</b> walks away <b>Burning</b>, not just one.';
+            ' Fire burns what it touches, so <b>every card in that row</b> walks away <b>Burning</b>, not just one.' +
+            ' <b>Tap it</b> and the board will ask you which row.';
         },
-        skipIf: function () { return !actingRowAbility(); } },
+        // Marked and locked to the row move. The battle phase is not a
+        // cutscene — the player picks the move — and the whole lesson is about
+        // this move rather than the single-target one sitting beside it.
+        recommend: rowMoveButton,
+        lock: function () { return rowMoveButton() ? MOVE_BTNS : null; },
+        hint: function () {
+          var row = actingRowAbility();
+          return row && row.name ? 'Tap <b>' + esc(row.name) + '</b>' : 'Tap the row move';
+        },
+        skipIf: function () { return !actingRowAbility(); },
+        // Released by the move being chosen, or by the actor losing the floor —
+        // never held past the moment it is about.
+        until: function () { return battleTargeting() || !actingRowAbility() || battleTwoDone(); } },
+
+      // The payoff. A row move is worth picking when the row is full, so the
+      // coach marks the row actually holding the most enemies and says how many
+      // the swing will catch. Computed from the board, never a fixed "middle" —
+      // that would be wrong the moment the enemy stands somewhere else.
+      { id: 'row-target', title: 'Pick the fullest row',
+        target: function () { return fullestRowTarget() || '#enemyGrid'; },
+        highlight: function () {
+          var best = fullestEnemyRow();
+          return best
+            ? ['#enemyGrid .board-cell.targetable[data-row="' + best.row + '"]']
+            : ['#enemyGrid .board-cell.targetable', '#enemyGrid'];
+        },
+        recommend: fullestRowTarget,
+        hint: 'Tap a card in the <b>marked row</b>',
+        body: function () {
+          var best = fullestEnemyRow();
+          var row = actingRowAbility();
+          var named = row && row.name ? '<b>' + esc(row.name) + '</b>' : 'This move';
+          if (!best) {
+            return named + ' needs a row. <b>Tap any highlighted card</b> and everything standing in ' +
+              'that row takes the hit.';
+          }
+          var n = best.count;
+          return 'Now choose <b>where</b>. The marked row is holding <b>' + n + '</b> ' +
+            (n === 1 ? 'Siegeling' : 'Siegelings') + ', so ' + named + ' lands on ' +
+            (n === 1 ? 'it' : 'all ' + n + ' of them') + ' for the same cost — that is the whole point of a ' +
+            'row move. <b>Tap any card in the marked row</b>.';
+        },
+        skipIf: function () { return !battleTargeting(); },
+        until: function () { return !battleTargeting() || battleTwoDone(); } },
 
 
       // Same defect as the gate above: `seen.sawBattle2` is true from the first
       // frame of the battle this step is asking the player to watch, so it
       // resolved immediately and the tip flashed past the fight it named.
-      { id: 't2-battle', title: 'Now watch', target: '#boardArea',
-        body: 'Same rhythm, bigger board. Watch what your link and your evolution bought you.',
+      // "Now watch" alone was misleading: the rest of the battle still asks the
+      // player to pick a move and a target for every Siegeling they own.
+      { id: 't2-battle', title: 'Play the round out', target: '#boardArea',
+        hint: 'Choose each Siegeling\'s move',
+        body: 'Same rhythm, bigger board. Every Siegeling you own gets its turn in speed order — <b>pick a move</b> for each one as it comes up, and watch what your link and your evolution bought you.',
         skipIf: function () { return !seen.sawBattle; },
         until: function () { return battleTwoDone(); } },
 

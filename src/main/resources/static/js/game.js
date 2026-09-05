@@ -10536,6 +10536,10 @@ window.ArenaTutorialBridge = {
     // The tutorial teaches "one placement plus one per pooled energy", and a
     // second copy of that rule in the coach would be free to drift from this one.
     setupActions: () => getSetupActionsBreakdown(),
+    // True once a battle move is picked and the board is waiting for a target.
+    // The battle phase is not a cutscene — the player chooses a move and a row —
+    // so the coach has to be able to tell "pick your move" from "pick a target".
+    battleTargeting: () => isBattleTargetSelectionActive(),
     authHeaders: (extra) => getAuthHeaders(extra || {})
 };
 
