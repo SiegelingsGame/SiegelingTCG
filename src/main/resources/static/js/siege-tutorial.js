@@ -1327,10 +1327,25 @@
             '<span>💀 <b>Undead</b> Below half: Ally heal 3 · Foe +3 dmg</span>' +
             '<span>🔮 <b>Psychic</b> Ally draw 1 · Foe Shock</span>' +
           '</span>' },
-      { id: 'passive', title: 'Passive and Ultimate', target: '#knightPlate',
-        body: 'Your SiegeKnight does not attack. He gives a <b>passive</b> — ' + esc(k.passiveName) + ' — and charges an <b>Ultimate</b> on the bar under his HP: <em>' +
-          esc(k.ultimateName) + '</em>, which ' + esc(String(k.ultimateDesc || '').charAt(0).toLowerCase() + String(k.ultimateDesc || '').slice(1)) +
-          ' Tap the plate to read both.' },
+      // The step used to say "tap the plate to read both" and then walk on, so
+      // the sheet it was describing never opened and the two effects it named
+      // were never seen. It waits for the tap now, and the lesson that explains
+      // them rings the effect cards themselves.
+      { id: 'passive', hint: 'Tap your <b>SiegeKnight</b>', title: 'Passive and Ultimate', target: '#knightPlate',
+        body: 'Your SiegeKnight does not attack. He gives a <b>passive</b> that is always running, and charges an <b>Ultimate</b> on the bar under his HP. <b>Tap the plate</b> to read both.',
+        until: function () { return !hidden('unitModal'); } },
+      // Title is NOT esc()'d — the coach escapes titles itself, so a name with
+      // an apostrophe would come out as an entity.
+      { id: 'passive-cards', hint: 'Close with <b>✕</b>', title: knightName() + '’s two effects',
+        // Ring the effect cards, not the whole sheet: the sheet also lists his
+        // own cards, and the lesson is about the two above them.
+        target: '.um-effects', highlight: ['.um-effects'], avoid: '#unitModalClose',
+        body: 'Under <b>Active effects</b> sit the two. <b>' + esc(k.passiveName) + '</b> is the <b>passive</b> — ' +
+          esc(k.passive) + ' It costs nothing and never runs out. <b>' + esc(k.ultimateName) +
+          '</b> is the <b>Ultimate</b>: it fills the charge bar as the fight goes on, and once full it ' +
+          esc(String(k.ultimateDesc || '').charAt(0).toLowerCase() + String(k.ultimateDesc || '').slice(1)) +
+          ' Close this with the ✕ when you have read them.',
+        until: function () { return hidden('unitModal'); } },
       { id: 'ap', title: 'Action Points', target: '#apDisplay',
         body: 'You get ' + MAX_AP + ' AP a turn, and a card costs whatever is printed in its corner. AP does not carry over — but it is never wasted either, and the next steps show where it goes.' },
       { id: 'hand', title: 'Your hand', target: '#handRow',
