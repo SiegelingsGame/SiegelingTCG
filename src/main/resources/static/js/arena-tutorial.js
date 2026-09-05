@@ -476,9 +476,22 @@
     return base ? { base: base, evolution: evo } : null;
   }
 
-  /** The evolution sitting in hand, if any. */
+  /**
+   * The evolution in hand that can actually go down RIGHT NOW — one whose base
+   * is standing on the board, has survived a battle phase and is not cursed.
+   *
+   * This used to be "the first evolution in hand", full stop, and that stranded
+   * the chapter outright: the tutorial hand holds two of them (Raydile over
+   * Sundile, Flora Knight over Squire Bud). Play Raydile and the reader still
+   * answered Flora Knight — whose base is not on the board — so the place step's
+   * `until` never came true, no cell could light for it, and the hint fell back
+   * to "Tap the lit cell on your board" with nothing lit and no way forward.
+   * A lesson about a move must only ever name a move the game would allow.
+   */
   function evolutionInHand() {
-    return hand().filter(function (c) { return c && c.type === 'SIEGLING' && c.evolvesFromId; })[0] || null;
+    return hand().filter(function (c) {
+      return c && c.type === 'SIEGLING' && c.evolvesFromId && evolutionBaseCells(c).length > 0;
+    })[0] || null;
   }
 
   /** Board coords of the bases an in-hand evolution could actually go down on.
@@ -1069,6 +1082,12 @@
           var sel = handCardTarget(evolutionInHand());
           return sel ? [sel, '#playerHand', '#handTray'] : ['#playerHand', '#handTray'];
         },
+        // Locked here too, not just on the pick that follows. This step names
+        // the evolution and lights the whole hand behind it, so it was the one
+        // place the player could still pick the wrong card — and the two steps
+        // after it are written entirely around the evolution going down.
+        recommend: function () { return handCardTarget(evolutionInHand()); },
+        lock: function () { return handCardTarget(evolutionInHand()) ? HAND_CARDS : null; },
         body: function () {
           var evo = evolutionInHand();
           var base = evolutionBaseName();
