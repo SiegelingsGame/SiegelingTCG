@@ -41,6 +41,59 @@ class SiegeAdvantageTutorialJavaScriptTest {
     }
 
     @Test
+    void anAdvantagedShadePrintsItsRiderInsideItsIntentWindow() throws IOException {
+        String adventure = Files.readString(ADVENTURE_JS);
+        String tutorial = Files.readString(TUTORIAL_JS);
+
+        // The plate derives the rider from the telegraphed intent when the state
+        // does not spell it out, so a shade holding Advantage never shows a bare
+        // intent while its card sheet explains a rider.
+        assertTrue(adventure.contains("u.advantaged || u.id === b.advantageHolderId"),
+                "The plate must treat the Advantage holder as advantaged.");
+        assertTrue(adventure.contains("(u.advantageText || advantageRiderText(u.intent))"),
+                "The plate must fall back to the shared rider table for a shade's intent.");
+        assertTrue(adventure.contains("advantageRiderText: function (spec)"),
+                "The rider wording must be shared with the tutorial sim, not copied.");
+
+        // The tutorial's shades telegraph element and target, which is what the
+        // rider text is derived from, and they resolve every element's rider.
+        assertTrue(tutorial.contains("element: ability.element || f.element, target: 'ENEMY_SINGLE',"),
+                "Tutorial intents must carry the element and target their rider reads.");
+        assertTrue(tutorial.contains("u.advantageText = u.advantaged && u.intent ? riderTextFor(u.intent) : null;"),
+                "An advantaged tutorial shade must publish its rider text.");
+        for (String element : new String[] {
+                "FIRE", "EARTH", "WIND", "WATER", "ICE",
+                "ELECTRIC", "METAL", "SHADOW", "UNDEAD", "PSYCHIC"
+        }) {
+            assertTrue(tutorial.contains("case '" + element + "':"),
+                    element + " needs a resolved Advantage rider in the tutorial sim.");
+        }
+    }
+
+    @Test
+    void aBattleStepWaitsForItsOwnProjectileBeforeTheNextTipOpens() throws IOException {
+        String adventure = Files.readString(ADVENTURE_JS);
+        String tutorial = Files.readString(TUTORIAL_JS);
+
+        assertTrue(adventure.contains("presentationBusy: function () { return !!state.busy; }"),
+                "The coach needs a reader for playback still running.");
+        assertTrue(tutorial.contains("function settled(condition)"),
+                "Battle waits must be wrapped so a tip cannot open over a projectile.");
+        assertTrue(tutorial.contains("window.SiegeClient.presentationBusy()"),
+                "The wrapper must consult the live presentation, not a timer.");
+        // Every in-battle wait releases on an action whose animation is still
+        // playing when the sim resolves it.
+        assertTrue(tutorial.contains("until: settled(function () { return flags.played > 0; }) },"),
+                "The targeting step must outlast the attack it asked for.");
+        assertTrue(tutorial.contains("until: settled(function () { return M.battle && M.battle.roundNumber > 1; }) },"),
+                "The end-turn step must outlast the foes' answering blows.");
+        assertTrue(tutorial.contains("until: settled(function () { return flags.ulted; }),"),
+                "The Ultimate step must outlast its own cinematic.");
+        assertTrue(tutorial.contains("until: settled(function () { return !M.battle || M.battle.phase === 'WON'; }) },"),
+                "The free-play step must outlast the killing blow.");
+    }
+
+    @Test
     void speedLessonShipsTeamSpeedAdvantageAndACompleteKeyUnderFreshPins() throws IOException {
         String tutorial = Files.readString(TUTORIAL_JS);
         String html = Files.readString(ADVENTURE_HTML);
@@ -84,8 +137,11 @@ class SiegeAdvantageTutorialJavaScriptTest {
         // 4 for the .tut-locked rule: Siege shares coach.css, so a stale pin
         // here would leave the Siege coach without it.
         assertTrue(html.contains("/css/coach.css?v=4"), "coach.css pin");
-        assertTrue(html.contains("/css/adventure.css?v=89"), "adventure.css pin");
-        assertTrue(html.contains("/js/siege-tutorial.js?v=17"), "siege-tutorial.js pin");
-        assertTrue(html.contains("/js/adventure.js?v=92"), "adventure.js pin");
+        assertTrue(html.contains("/css/adventure.css?v=90"), "adventure.css pin");
+        // 19, not 18: main bumped to 18 for its own siege-tutorial change and
+        // this branch edits the same file, so the merged bytes need a number
+        // neither side has shipped.
+        assertTrue(html.contains("/js/siege-tutorial.js?v=19"), "siege-tutorial.js pin");
+        assertTrue(html.contains("/js/adventure.js?v=94"), "adventure.js pin");
     }
 }
