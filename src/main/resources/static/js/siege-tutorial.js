@@ -556,6 +556,17 @@
   var ADVANTAGE_ELEMENTS = ['FIRE', 'EARTH', 'WIND', 'WATER', 'ICE',
     'ELECTRIC', 'METAL', 'SHADOW', 'UNDEAD', 'PSYCHIC'];
 
+  /* A step whose condition is met the instant the sim resolves would open its
+   * successor's tip over the projectile it just asked the player to fire, so a
+   * battle wait also holds until the presentation has finished playing. */
+  function settled(condition) {
+    return function () {
+      if (!condition()) return false;
+      return !(window.SiegeClient && window.SiegeClient.presentationBusy
+        && window.SiegeClient.presentationBusy());
+    };
+  }
+
   function riderTextFor(spec) {
     return (window.SiegeClient && window.SiegeClient.advantageRiderText
       ? window.SiegeClient.advantageRiderText(spec) : '') || null;
@@ -1425,16 +1436,16 @@
         body: 'These are corrupted Siegelings — <b>shades</b>. Each shows its <b>intent</b>: the move it will use and the notch it will hit. A ▼ over one of your Siegelings means that blow is aimed at it — heal it, or kill the attacker first.' },
       { id: 'targeting', hint: 'Drag an attack card <b>onto a foe</b>', title: 'Targeting', target: '#handRow', highlight: ['#handRow', '#enemyRow', '#allyRow'],
         body: '<b>Drag an attack card onto a foe</b> to play it. Cards that need a target draw an arrow while you drag; drop it on the enemy you want.',
-        until: function () { return flags.played > 0; } },
+        until: settled(function () { return flags.played > 0; }) },
       { id: 'endturn', hint: 'Tap <b>End Turn</b>', title: 'End the turn', target: '#endTurnBtn',
         body: 'Spend what is worth spending, then <b>End Turn</b>: the foes act on the intents they showed you, and a fresh hand is dealt.' +
           '<span class="tut-p">Watch <b>⚡ Charge</b> on the Knight\'s plate. It comes from three places — <b>unspent AP</b> at end of turn, <b>+1 every turn</b> whatever you do, and <b>+1 per Knight card</b>. Banking AP buys the Ultimate sooner.</span>',
-        until: function () { return M.battle && M.battle.roundNumber > 1; } },
+        until: settled(function () { return M.battle && M.battle.roundNumber > 1; }) },
       { id: 'ultimate', hint: 'Tap <b>⚡ ULT!</b>', title: 'The Ultimate', target: '#knightUltBtn',
         body: 'The charge bar is full. <b>Tap ⚡ ULT!</b> — ' + esc(k.ultimateName) + ' ' +
           esc(String(k.ultimateDesc || '').charAt(0).toLowerCase() + String(k.ultimateDesc || '').slice(1)) +
           ' Watch your line when it lands.',
-        until: function () { return flags.ulted; },
+        until: settled(function () { return flags.ulted; }),
         skipIf: function () { return !M.battle; } },
       { id: 'evolved', title: 'Evolution', target: '#allyRow',
         body: 'An <b>evolution</b>: the next form, with more HP and a stronger kit. It holds <b>until this battle ends</b>, then reverts, keeping the damage it took.' +
@@ -1442,7 +1453,7 @@
         skipIf: function () { return !flags.ulted; } },
       { id: 'finish', hint: 'Attack, <b>End Turn</b>, repeat', title: 'Finish the fight', nodim: true, target: '#handRow', highlight: ['#handRow', '#enemyRow', '#allyRow'],
         body: 'Play out the rest of the fight — attack, end turn, repeat — until both shades are down.',
-        until: function () { return !M.battle || M.battle.phase === 'WON'; } },
+        until: settled(function () { return !M.battle || M.battle.phase === 'WON'; }) },
       { id: 'spoils', hint: 'Tap <b>Claim Rewards</b>', title: 'Claim the spoils', target: '#handRow',
         body: 'Victory. Tap <b>Claim Rewards</b> to collect XP, gold and a pick.',
         until: function () { return !screenIs('battleScreen'); } },

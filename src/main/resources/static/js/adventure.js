@@ -5534,6 +5534,9 @@
     // The tutorial sim resolves its own riders; it reads the wording from here so
     // the copy cannot drift from what a real run prints.
     advantageRiderText: function (spec) { return advantageRiderText(spec); },
+    // True while projectiles and banners are still playing. The coach reads it so
+    // a tip cannot open over the blow the previous step asked for.
+    presentationBusy: function () { return !!state.busy; },
     exitTutorial: function () {
       state.run = null; state.party = []; state.knightId = null;
       state.setupStep = 'mode';

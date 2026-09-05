@@ -71,6 +71,29 @@ class SiegeAdvantageTutorialJavaScriptTest {
     }
 
     @Test
+    void aBattleStepWaitsForItsOwnProjectileBeforeTheNextTipOpens() throws IOException {
+        String adventure = Files.readString(ADVENTURE_JS);
+        String tutorial = Files.readString(TUTORIAL_JS);
+
+        assertTrue(adventure.contains("presentationBusy: function () { return !!state.busy; }"),
+                "The coach needs a reader for playback still running.");
+        assertTrue(tutorial.contains("function settled(condition)"),
+                "Battle waits must be wrapped so a tip cannot open over a projectile.");
+        assertTrue(tutorial.contains("window.SiegeClient.presentationBusy()"),
+                "The wrapper must consult the live presentation, not a timer.");
+        // Every in-battle wait releases on an action whose animation is still
+        // playing when the sim resolves it.
+        assertTrue(tutorial.contains("until: settled(function () { return flags.played > 0; }) },"),
+                "The targeting step must outlast the attack it asked for.");
+        assertTrue(tutorial.contains("until: settled(function () { return M.battle && M.battle.roundNumber > 1; }) },"),
+                "The end-turn step must outlast the foes' answering blows.");
+        assertTrue(tutorial.contains("until: settled(function () { return flags.ulted; }),"),
+                "The Ultimate step must outlast its own cinematic.");
+        assertTrue(tutorial.contains("until: settled(function () { return !M.battle || M.battle.phase === 'WON'; }) },"),
+                "The free-play step must outlast the killing blow.");
+    }
+
+    @Test
     void speedLessonShipsTeamSpeedAdvantageAndACompleteKeyUnderFreshPins() throws IOException {
         String tutorial = Files.readString(TUTORIAL_JS);
         String html = Files.readString(ADVENTURE_HTML);
@@ -87,7 +110,7 @@ class SiegeAdvantageTutorialJavaScriptTest {
         // here would leave the Siege coach without it.
         assertTrue(html.contains("/css/coach.css?v=4"), "coach.css pin");
         assertTrue(html.contains("/css/adventure.css?v=90"), "adventure.css pin");
-        assertTrue(html.contains("/js/siege-tutorial.js?v=17"), "siege-tutorial.js pin");
-        assertTrue(html.contains("/js/adventure.js?v=93"), "adventure.js pin");
+        assertTrue(html.contains("/js/siege-tutorial.js?v=18"), "siege-tutorial.js pin");
+        assertTrue(html.contains("/js/adventure.js?v=94"), "adventure.js pin");
     }
 }
