@@ -123,6 +123,19 @@ class TutorialRuleParityTest {
                 "A row move must be identified by its target type, not by card name.");
         assertTrue(tutorial.contains("skipIf: function () { return !actingRowAbility(); } },"),
                 "The row lesson must skip when whoever is acting has no row move.");
+
+        // It has to live in ROUND TWO's battle. Filed in round one it was skipped
+        // permanently on arrival — only Sundile is down then, so actingRowAbility()
+        // was null and skipIf fires once. Pylook is placed in round two.
+        assertTrue(tutorial.indexOf("{ id: 'row-attack'") > tutorial.indexOf("{ id: 'gate-t2'"),
+                "The row lesson must sit after the round-two gate — Pylook is not on the board "
+                        + "during round one, so a round-one placement is skipped forever.");
+        assertTrue(tutorial.indexOf("{ id: 'row-attack'") < tutorial.indexOf("{ id: 't2-battle'"),
+                "It must come BEFORE the round-two battle wrap-up, which waits for the battle to "
+                        + "finish — after it, Pylook has already swung.");
+        assertTrue(tutorial.contains("{ id: 'gate-row', skipTo: 't2-battle',"),
+                "It must be GATED, not skipped: the gate waits for a row attacker to take the "
+                        + "floor instead of giving up the first time it is evaluated.");
     }
 
     /**

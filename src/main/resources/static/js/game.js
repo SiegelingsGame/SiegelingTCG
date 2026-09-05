@@ -7373,12 +7373,37 @@ function resetGameOverOverlayState() {
     lastEndGameNoticeSeq = 0;
 }
 
+// Set while the end screen is waiting on the death animations, so repeated
+// renders (the state re-renders several times as the queue drains) queue exactly
+// one wait instead of stacking a timer per render.
+let gameOverAwaitingPlayback = false;
+
 function renderGameOverOverlay() {
     const overlay = document.getElementById('gameOverOverlay');
     if (!overlay || !gameState?.gameOver) {
         overlay?.classList.remove('visible');
+        gameOverAwaitingPlayback = false;
         return;
     }
+
+    // The server declares the win the moment the last Siegeling drops, but the
+    // action queue is still playing those deaths and the Siege Damage that
+    // finishes the opponent off. Showing VICTORY over the top of that hides the
+    // very thing the player earned — so wait for the playback to drain first.
+    // Applies to every Arena match, not just the tutorial.
+    const queue = window.SieglingsActionQueue;
+    if (queue?.isPresentationBusy?.()) {
+        if (!gameOverAwaitingPlayback) {
+            gameOverAwaitingPlayback = true;
+            queue.onIdle().then(() => {
+                gameOverAwaitingPlayback = false;
+                // Re-check: a rematch may have cleared the result while we waited.
+                if (gameState?.gameOver) renderGameOverOverlay();
+            });
+        }
+        return;
+    }
+    gameOverAwaitingPlayback = false;
 
     overlay.classList.add('visible');
     const endScreen = gameState.endScreen || {};

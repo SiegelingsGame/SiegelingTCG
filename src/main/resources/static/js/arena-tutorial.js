@@ -760,36 +760,6 @@
         skipIf: function () { return !visible('#enemyGrid .board-cell.targetable'); },
         until: function () { return !visible('#enemyGrid .board-cell.targetable'); } },
 
-      // Opens only when the acting Siegeling actually carries a row move, so it
-      // fires on Pylook (Flameburst / Lavaburst) and stays out of the way for a
-      // single-target attacker like Sundile.
-      { id: 'row-attack', title: 'One swing, a whole row',
-        target: function () {
-          return firstOf(['#battleActionPanel', '#desktopBattleActionPanel', '#boardArea']);
-        },
-        highlight: function () {
-          return [firstOf(['#battleActionPanel', '#desktopBattleActionPanel', '#boardArea']),
-                  '#enemyGrid .board-cell.targetable'];
-        },
-        body: function () {
-          var row = actingRowAbility();
-          var single = singleTargetExample();
-          var actor = actingCard();
-          var lead = actor && actor.name
-            ? '<b>' + esc(actor.name) + '</b> does not pick one card — '
-            : 'This one does not pick one card — ';
-          var named = row && row.name
-            ? '<b>' + esc(row.name) + '</b> hits <b>every Siegeling in the enemy row</b> you choose.'
-            : 'its attack hits <b>every Siegeling in the enemy row</b> you choose.';
-          var contrast = single && single.card && single.card.name && single.ability && single.ability.name
-            ? ' <b>' + esc(single.card.name) + '</b>\'s <b>' + esc(single.ability.name) +
-              '</b> spends its whole hit on one target; this spreads the same swing across the row.'
-            : ' A single-target move spends its whole hit on one card; this spreads it across the row.';
-          return lead + named + contrast +
-            ' Fire burns what it touches, so <b>every card in that row</b> walks away <b>Burning</b>, not just one.';
-        },
-        skipIf: function () { return !actingRowAbility(); } },
-
       { id: 'damage', title: 'Where damage comes from', target: '#boardArea',
         body: 'Every point of it comes from <b>abilities</b> — there is no attack stat. Hit an element you beat and you get <b>+1</b> for free.' },
 
@@ -1016,6 +986,44 @@
         body: 'Linked and evolved — that is round two spent. <b>End Turn</b> and watch it fight.',
         skipIf: function () { return turn() < 2 || phase() === 'BATTLE' || seen.sawBattle2; },
         until: function () { return !myTurn() || phase() === 'BATTLE' || seen.sawBattle2; } },
+
+      // Round TWO's battle, not round one's. This lived in the round-one chapter
+      // and was skipped permanently the moment the coach arrived there: only
+      // Sundile is down in round one, so actingRowAbility() was null and skipIf
+      // fires once, on arrival. Pylook is placed in round two, so the lesson
+      // belongs to that battle — and it is GATED rather than skipped, so it waits
+      // for a row attacker to actually take the floor instead of giving up.
+      { id: 'gate-row', skipTo: 't2-battle',
+        hint: 'Watch Pylook take its swing',
+        gate: function () { return !!actingRowAbility() || seen.sawBattle2 || seen.ended; } },
+
+      { id: 'row-attack', title: 'One swing, a whole row',
+        target: function () {
+          return firstOf(['#battleActionPanel', '#desktopBattleActionPanel', '#boardArea']);
+        },
+        highlight: function () {
+          return [firstOf(['#battleActionPanel', '#desktopBattleActionPanel', '#boardArea']),
+                  '#enemyGrid .board-cell.targetable'];
+        },
+        body: function () {
+          var row = actingRowAbility();
+          var single = singleTargetExample();
+          var actor = actingCard();
+          var lead = actor && actor.name
+            ? '<b>' + esc(actor.name) + '</b> does not pick one card — '
+            : 'This one does not pick one card — ';
+          var named = row && row.name
+            ? '<b>' + esc(row.name) + '</b> hits <b>every Siegeling in the enemy row</b> you choose.'
+            : 'its attack hits <b>every Siegeling in the enemy row</b> you choose.';
+          var contrast = single && single.card && single.card.name && single.ability && single.ability.name
+            ? ' <b>' + esc(single.card.name) + '</b>\'s <b>' + esc(single.ability.name) +
+              '</b> spends its whole hit on one target; this spreads the same swing across the row.'
+            : ' A single-target move spends its whole hit on one card; this spreads it across the row.';
+          return lead + named + contrast +
+            ' Fire burns what it touches, so <b>every card in that row</b> walks away <b>Burning</b>, not just one.';
+        },
+        skipIf: function () { return !actingRowAbility(); } },
+
 
       { id: 't2-battle', title: 'Now watch', target: '#boardArea',
         body: 'Same rhythm, bigger board. Watch what your link and your evolution bought you.',
