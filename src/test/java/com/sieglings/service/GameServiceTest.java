@@ -200,6 +200,35 @@ class GameServiceTest {
     }
 
     @Test
+    void battlePhaseBoundaryDoesNotSurfaceOrResolveFirstActorUntilAdvanced() throws Exception {
+        GameService gameService = newGameServiceWithBattleStack();
+        Method startBattlePhase = GameService.class.getDeclaredMethod("startBattlePhase", GameState.class);
+        startBattlePhase.setAccessible(true);
+
+        GameState playerFirst = battleBoundaryState(7, 3);
+        CardInstance playerLead = playerFirst.getAt(true, 1, 1);
+        startBattlePhase.invoke(gameService, playerFirst);
+        assertEquals(Phase.BATTLE, playerFirst.getCurrentPhase());
+        assertEquals(0, playerFirst.getBattleCursor(), "The banner boundary must keep the full speed order untouched.");
+        assertNull(playerFirst.getPendingBattleInstanceId(), "A player-first action must not be exposed under the banner.");
+        gameService.executeBattle(playerFirst);
+        assertEquals(playerLead.getInstanceId(), playerFirst.getPendingBattleInstanceId(),
+                "The player choice should surface only after the client advances beyond the banner.");
+
+        GameState enemyFirst = battleBoundaryState(3, 7);
+        int playerHpBefore = enemyFirst.getAt(true, 1, 1).getCurrentHealth();
+        startBattlePhase.invoke(gameService, enemyFirst);
+        assertEquals(0, enemyFirst.getBattleCursor());
+        assertNull(enemyFirst.getPendingBattleInstanceId());
+        assertEquals(playerHpBefore, enemyFirst.getAt(true, 1, 1).getCurrentHealth(),
+                "An AI-first attack must not resolve in the same response as the phase banner.");
+        gameService.executeBattle(enemyFirst);
+        assertTrue(enemyFirst.getBattleCursor() > 0, "The AI actor should advance after the banner gate opens.");
+        assertTrue(enemyFirst.getAt(true, 1, 1).getCurrentHealth() < playerHpBefore,
+                "The deferred AI action should resolve when battle is explicitly advanced.");
+    }
+
+    @Test
     void spendingOverchargedEnergyStaysSpentForTheRestOfTheTurn() throws Exception {
         GameService gameService = new GameService();
         PlacementService placementService = new PlacementService();
@@ -747,6 +776,7 @@ class GameServiceTest {
 
         assertEquals(2, state.getPlayer().getFireEnergy(), "Claim energy should persist through the next battle phase and into the following draw step.");
 
+        gameService.executeBattle(state);
         gameService.draw(state, true);
 
         assertEquals(1, state.getPlayer().getFireEnergy(), "Temporary claim energy should expire when that side starts its next draw phase.");
@@ -1004,6 +1034,25 @@ class GameServiceTest {
 
     private SieglingCard baseSiegling(String id, String name, Element element) {
         return new SieglingCard(id, name, element, Rarity.COMMON, 8, 4, List.of(), Row.FRONT);
+    }
+
+    private GameState battleBoundaryState(int playerSpeed, int enemySpeed) {
+        GameState state = new GameState();
+        state.setPlayer(new Player("Player", true));
+        state.setEnemy(new Player("Enemy", false));
+        state.setCurrentPhase(Phase.SETUP);
+        state.setPlayerTurn(true);
+
+        Ability strike = Ability.damage("Strike", "Deal 1 damage", TargetType.SINGLE_ENEMY, null, 0, 1);
+        SieglingCard playerCard = new SieglingCard(
+                "emberfox", "Emberfox", Element.FIRE, Rarity.COMMON, 8, playerSpeed, List.of(), Row.MIDDLE);
+        SieglingCard enemyCard = new SieglingCard(
+                "splashfin", "Splashfin", Element.WATER, Rarity.COMMON, 8, enemySpeed, List.of(), Row.MIDDLE);
+        playerCard.setAbility(strike);
+        enemyCard.setAbility(strike.copy());
+        state.setAt(true, 1, 1, new CardInstance(playerCard, 1, 1, true));
+        state.setAt(false, 1, 1, new CardInstance(enemyCard, 1, 1, false));
+        return state;
     }
 
     /** A GameService wired far enough to run a setup turn all the way into the battle phase. */

@@ -4910,7 +4910,22 @@ function hidePhaseTransitionBanner() {
     banner.classList.add('hidden');
 }
 
-function showPhaseTransitionBanner(phase, activeSide, durationMs = 2000) {
+function renderBattlePhaseOrder(order) {
+    const rows = Array.isArray(order) ? order.filter((entry) => entry?.name) : [];
+    if (rows.length === 0) return '';
+    return rows.map((entry, index) => {
+        const side = entry.ownerSide === 'PLAYER' ? 'player' : 'enemy';
+        const owner = entry.ownerLabel || (side === 'player' ? 'You' : 'Opponent');
+        const speed = Number(entry.speed);
+        return `<span class="phase-order-step phase-order-step-${side}" title="${escapeHtmlAttribute(`${owner} · Speed ${Number.isFinite(speed) ? speed : '—'}`)}">`
+            + `<span class="phase-order-index">${index + 1}</span>`
+            + `<span class="phase-order-name">${escapeHtml(entry.name)}</span>`
+            + `<span class="phase-order-speed">SPD ${Number.isFinite(speed) ? escapeHtml(String(speed)) : '—'}</span>`
+            + `</span>`;
+    }).join('<span class="phase-order-arrow" aria-hidden="true">›</span>');
+}
+
+function showPhaseTransitionBanner(phase, activeSide, durationMs = 2000, battleOrder = null) {
     // The redraw reveal still owns the screen. This banner is fixed at z-index
     // 860 against the mulligan overlay's 70, so it would punch straight through
     // and announce a phase the player has not been let into yet. Queue it behind
@@ -4918,11 +4933,13 @@ function showPhaseTransitionBanner(phase, activeSide, durationMs = 2000) {
     // so the board's own animations wait with it.
     if (mulliganRevealHold) {
         return mulliganRevealSettled()
-            .then(() => showPhaseTransitionBanner(phase, activeSide, durationMs));
+            .then(() => showPhaseTransitionBanner(phase, activeSide, durationMs, battleOrder));
     }
     const banner = document.getElementById('phaseTransitionBanner');
     const kicker = document.getElementById('phaseTransitionKicker');
     const title = document.getElementById('phaseTransitionTitle');
+    const starter = document.getElementById('phaseTransitionStarter');
+    const order = document.getElementById('phaseTransitionOrder');
     if (!banner || !kicker || !title || !phase) {
         return Promise.resolve();
     }
@@ -4935,10 +4952,25 @@ function showPhaseTransitionBanner(phase, activeSide, durationMs = 2000) {
     // awaiter (the action queue) is never left hanging.
     resolvePhaseTransitionBanner();
 
-    const holdMs = Math.max(1200, Number(durationMs) || 2000);
+    const holdMs = Math.max(phase === 'BATTLE' ? 2800 : 1200, Number(durationMs) || 2000);
     banner.className = `phase-transition-banner ${String(phase).toLowerCase()}`;
     kicker.textContent = getPhaseTransitionKicker(phase, activeSide);
     title.textContent = formatPhaseLabel(phase);
+    const orderedCreatures = Array.isArray(battleOrder) ? battleOrder : [];
+    const first = orderedCreatures[0] || null;
+    if (starter) {
+        const firstOwner = first?.ownerLabel || (first?.ownerSide === 'PLAYER' ? 'You' : 'Opponent');
+        starter.textContent = phase === 'BATTLE' && first
+            ? (first.ownerSide === 'PLAYER'
+                ? 'You start the Battle Phase'
+                : `${firstOwner} starts the Battle Phase`)
+            : '';
+        starter.classList.toggle('hidden', phase !== 'BATTLE' || !first);
+    }
+    if (order) {
+        order.innerHTML = phase === 'BATTLE' ? renderBattlePhaseOrder(orderedCreatures) : '';
+        order.classList.toggle('hidden', phase !== 'BATTLE' || orderedCreatures.length === 0);
+    }
     banner.classList.remove('hidden');
     setPhaseTransitionScrimVisible(true);
     window.SieglingsSounds?.play('phase', 0.5);
@@ -5274,6 +5306,16 @@ function getTrainerAbilityLockReason(trainer = gameState?.player?.trainer) {
         }
     }
     if (gameState.currentPhase === 'BATTLE') {
+        if (window.SieglingsActionQueue?.isPresentationBusy?.()) {
+            return 'Wait for the Battle Phase announcement to finish.';
+        }
+        if (Number(gameState.battleCursor || 0) === 0
+            && !gameState.pendingBattle
+            && !gameState.battleWaitingOn
+            && Array.isArray(gameState.battleQueue)
+            && gameState.battleQueue.length > 0) {
+            return 'Wait for the first battle action to begin.';
+        }
         if (gameState.battleWaitingOn === 'ENEMY') {
             return 'Wait for the opponent to finish the current battle action.';
         }
@@ -12666,7 +12708,7 @@ function renderDomLegacy() {
         closeDrawer(true);
     }
     if (phaseChanged && !window.SieglingsActionQueue) {
-        showPhaseTransitionBanner(phase, gameState.activeSide);
+        showPhaseTransitionBanner(phase, gameState.activeSide, 2000, gameState.battleQueue);
     }
 
     renderGameOverOverlay();
@@ -17829,6 +17871,16 @@ function renderBattleGameToText() {
         phase: gameState.currentPhase,
         turn: gameState.turnNumber,
         activeSide: gameState.activeSide,
+        presentation: {
+            phaseBannerActive: !document.getElementById('phaseTransitionBanner')?.classList.contains('hidden'),
+            battleCursor: Number(gameState.battleCursor || 0),
+            battleOrder: (gameState.battleQueue || []).map((entry) => ({
+                name: entry?.name,
+                speed: entry?.speed,
+                ownerSide: entry?.ownerSide,
+                ownerLabel: entry?.ownerLabel
+            }))
+        },
         player: {
             health: gameState.player?.health,
             energy: getPlayerTotalSpendableEnergy(),

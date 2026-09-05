@@ -1069,10 +1069,10 @@ public class GameService {
         recalculateTrainerPassiveStatBuffs(state);
         effectService.recalculateBoardAuraDamageBoosts(state);
         battleService.initializeBattle(state);
-        battleService.advanceBattle(state);
-        recalculateTrainerPassiveStatBuffs(state);
-        effectService.recalculateBoardAuraDamageBoosts(state);
-        completeBattleIfFinished(state);
+        // Stop at the phase boundary. The client presents the Battle Phase
+        // banner (starter + speed order) and only then calls executeBattle to
+        // surface a human choice or resolve the first AI action. Advancing here
+        // let a fast AI attack arrive in the same response as the banner.
     }
 
     private void startNextRound(GameState state) {
