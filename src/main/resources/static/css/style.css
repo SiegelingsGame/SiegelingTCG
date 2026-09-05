@@ -6009,6 +6009,102 @@ body.battle-phase-active .battlefield::after {
         color: rgba(167, 255, 203, 0.86);
     }
 
+    .desktop-preview-effects {
+        align-self: end;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-top: 2px;
+        padding-top: 8px;
+        border-top: 1px solid rgba(139, 194, 255, 0.16);
+    }
+
+    .desktop-preview-effects-head,
+    .desktop-preview-effects-body {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        min-width: 0;
+    }
+
+    .desktop-preview-effects-head {
+        flex: 0 0 auto;
+        color: rgba(202, 216, 255, 0.72);
+        font-size: 0.64em;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    .desktop-preview-effects-all {
+        flex: 0 0 auto;
+        min-height: 38px;
+        padding: 7px 13px;
+        border: 1px solid rgba(91, 155, 255, 0.75);
+        border-radius: 999px;
+        color: #8bc2ff;
+        background: linear-gradient(180deg, rgba(53, 103, 181, 0.27), rgba(23, 55, 112, 0.34));
+        box-shadow: inset 0 0 0 1px rgba(166, 205, 255, 0.08), 0 5px 14px rgba(5, 15, 42, 0.26);
+        font: inherit;
+        font-size: 0.68em;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        text-transform: none;
+        cursor: pointer;
+    }
+
+    .desktop-preview-effects-all:hover,
+    .desktop-preview-effects-all:focus-visible {
+        color: #d8ecff;
+        border-color: #9bcaff;
+        background: rgba(73, 135, 232, 0.28);
+    }
+
+    .desktop-preview-effects-body {
+        flex: 1 1 auto;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        padding-left: 10px;
+        border-left: 1px solid rgba(139, 194, 255, 0.2);
+    }
+
+    .desktop-preview-effect-list {
+        display: inline-flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 5px;
+        min-width: 0;
+    }
+
+    .desktop-preview-effect-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 36px;
+        padding: 4px 11px 4px 5px;
+        border: 1px solid color-mix(in srgb, var(--sb-color, #8bc2ff) 62%, rgba(255, 255, 255, 0.2));
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--sb-color, #8bc2ff) 13%, rgba(10, 18, 39, 0.82));
+        color: color-mix(in srgb, var(--sb-color, #8bc2ff) 70%, white);
+        font-size: 0.7em;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+
+    .desktop-preview-effect-pill[data-status="HEALTH_BOOST"] { --sb-color: #e6edf7; }
+    .desktop-preview-effect-pill[data-status="SPEED_BOOST"] { --sb-color: #54d9ff; }
+    .desktop-preview-effect-pill .sb-badge {
+        width: 29px;
+        height: 29px;
+    }
+
+    .desktop-preview-effects-empty {
+        color: rgba(202, 216, 255, 0.45);
+        font-size: 0.63em;
+        font-style: italic;
+    }
+
     .desktop-menu .hand-tray {
         padding: 0;
         border: none;
@@ -17798,6 +17894,7 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     background: rgba(226, 183, 20, 0.14);
     box-shadow: 0 0 0 1px rgba(226, 183, 20, 0.12), 0 0 18px rgba(226, 183, 20, 0.26);
 }
+
 
 .ab-icon-preview-live {
     color: var(--water);
