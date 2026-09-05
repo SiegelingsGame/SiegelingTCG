@@ -729,7 +729,6 @@ const STATUS_BADGE_LABEL = Object.keys(STATUS_EFFECT_KEY).reduce((acc, kind) => 
     acc[kind] = info.summary ? `${info.name} — ${info.summary}` : info.name;
     return acc;
 }, {});
-
 const STATUS_BADGE_SVG = {
     FREEZE: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-fz-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#dff6ff"/><stop offset="50%" stop-color="#5fb8e8"/><stop offset="100%" stop-color="#1a4a7a"/></radialGradient></defs><circle cx="42" cy="42" r="40" fill="#5fb8e8" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-fz-bg)" stroke="#dff6ff" stroke-width="2"/><g stroke="#fff" stroke-width="2.5" stroke-linecap="round" fill="none" class="sb-spin"><line x1="42" y1="20" x2="42" y2="64"/><line x1="22" y1="42" x2="62" y2="42"/><line x1="27" y1="27" x2="57" y2="57"/><line x1="57" y1="27" x2="27" y2="57"/><path d="M42 20 L37 26 M42 20 L47 26 M42 64 L37 58 M42 64 L47 58 M22 42 L28 37 M22 42 L28 47 M62 42 L56 37 M62 42 L56 47"/></g><circle cx="42" cy="42" r="3" fill="#fff"/></svg>`,
     SPEED_ZERO: `<svg viewBox="0 0 84 84" class="sb-svg" aria-hidden="true"><defs><radialGradient id="sb-sz-bg" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#a0b0c0"/><stop offset="50%" stop-color="#4a5a78"/><stop offset="100%" stop-color="#1a2030"/></radialGradient></defs><circle cx="42" cy="42" r="40" fill="#4a5a78" opacity=".3" class="sb-pulse"/><circle cx="42" cy="42" r="34" fill="url(#sb-sz-bg)" stroke="#a0b0c0" stroke-width="2"/><g stroke="#5a6a80" stroke-width="2" stroke-linejoin="round" fill="#7a8aa0" opacity=".7"><path d="M48 18 L34 40 L42 40 L36 50"/><path d="M40 50 L48 38 L42 38 L48 28"/></g><circle cx="42" cy="46" r="14" fill="none" stroke="#fff" stroke-width="3.5"/><line x1="32" y1="36" x2="52" y2="56" stroke="#ff5544" stroke-width="3.5" stroke-linecap="round"/></svg>`,
@@ -6401,6 +6400,35 @@ function getFocusedCardSummary(card, lockReason) {
     return 'Ready to inspect or play.';
 }
 
+function renderDesktopPreviewEffects(card) {
+    const activeEffects = [];
+    const liveBadges = isBoardPreviewCard(card) ? renderStatusBadgesForCell(card) : '';
+    if (liveBadges) {
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = liveBadges;
+        wrapper.querySelectorAll('.sb-badge').forEach((badge) => {
+            const kind = badge.getAttribute('data-status');
+            const amount = badge.querySelector('.sb-num')?.textContent || '';
+            if (kind) {
+                activeEffects.push({ kind, amount });
+            }
+        });
+    }
+    return `<section class="desktop-preview-effects" aria-label="Element and active effects">
+        <div class="desktop-preview-effects-head">
+            <span>Active effects</span>
+        </div>
+        <div class="desktop-preview-effects-body">
+            <div class="desktop-preview-effect-list">
+                ${activeEffects.length
+                    ? activeEffects.map(({ kind, amount }) => `<span class="desktop-preview-effect-pill" data-status="${escapeHtmlAttribute(kind)}" style="--sb-color:${escapeHtmlAttribute(STATUS_BADGE_PALETTE[kind] || '#8bc2ff')}">${renderStatusBadge(kind, 0)}<span>${escapeHtml(STATUS_EFFECT_KEY[kind]?.name || STATUS_BADGE_LABEL[kind] || kind)}${amount ? ` ${escapeHtml(amount.replace(/^\+/, ''))}` : ''}</span></span>`).join('')
+                    : '<span class="desktop-preview-effects-empty">No active effects</span>'}
+            </div>
+            <button type="button" class="desktop-preview-effects-all" onclick="openAllEffectsKey(event)">View All Effects <span aria-hidden="true">›</span></button>
+        </div>
+    </section>`;
+}
+
 function renderDesktopMenuMeta() {
     const viewportChip = document.getElementById('desktopMenuViewport');
     const focusChip = document.getElementById('desktopMenuFocus');
@@ -6549,6 +6577,7 @@ function renderDesktopCardPreviewPanel() {
     }
     html += `<div class="desktop-preview-note">${escapeHtml(getDesktopPreviewNote(focusedCard, lockReason))}</div>`;
     html += renderPreviewClaimControl(focusedCard);
+    html += renderDesktopPreviewEffects(focusedCard);
     html += '</div>';
     html += '</div>';
 
