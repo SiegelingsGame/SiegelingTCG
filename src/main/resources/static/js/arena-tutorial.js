@@ -1397,32 +1397,22 @@
         recommend: function () { return firstOf(['#playerGrid .board-cell.claimable', '']) || null; },
         body: function () {
           var f = fireEnergy();
+          var wipe = handCardNamed('tutorial_ashfall');
           var have = f > 0 ? 'You are on <b>' + f + ' Fire</b>. ' : '';
-          // Reframed off "this pays for Ashfall": the wipe is bought with a
-          // COMBO now, not a pool. Claiming still earns its beat because pooled
-          // energy buys extra Setup actions — which is the very action the
-          // summon two steps down spends.
-          return have + 'Claiming a survivor cashes it in for <b>+1 energy of its element</b>. '
-            + 'You lose the body — and you gain an <b>extra action</b> this Setup, because your '
-            + 'budget is one placement plus one per pooled energy. That is the action you are about '
-            + 'to spend.';
+          return have + 'Claiming a survivor cashes it in for <b>+1 energy of its element</b> — '
+            + 'you lose the body, and that is the point: it is the last Fire you need for '
+            + (wipe ? '<b>' + esc(wipe.name) + '</b>' : 'the Strategy in your hand') + '.';
         },
         skipIf: function () { return turn() < 3 || !visible('#playerGrid .board-cell.claimable'); },
-        // The wait was `fireEnergy() >= 3` — the old Ashfall price. It waits on
-        // the claim itself now: the claimable card leaving the board.
-        until: function () {
-          return !visible('#playerGrid .board-cell.claimable') || phase() !== 'SETUP';
-        } },
+        until: function () { return fireEnergy() >= 3 || phase() !== 'SETUP'; } },
 
       { id: 't3-wipe', hint: 'Cast it', title: 'Spend it all at once',
         target: '#playerHand', highlight: ['#playerHand', '#handTray'],
         body: function () {
           var wipe = handCardNamed('tutorial_ashfall');
           return (wipe ? '<b>' + esc(wipe.name) + '</b>' : 'That Strategy')
-            + ' is not bought with a pool — it is bought with the <b>combo</b> you just built. '
-            + 'It wants a <b>Fire/Earth</b> point standing on your board, which is exactly what that '
-            + 'mixed link is making. Cast it and it <b>destroys their whole board</b>; each one that '
-            + 'drops pays you <b>Siege Damage</b> on the way out.';
+            + ' costs every Fire you just scraped together and <b>destroys their whole board</b>. '
+            + 'Each one that drops pays you <b>Siege Damage</b> on the way out.';
         },
         skipIf: function () { return turn() < 3 || !handCardNamed('tutorial_ashfall'); },
         until: function () { return theirs() === 0 || phase() !== 'SETUP'; } },
