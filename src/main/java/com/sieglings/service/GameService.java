@@ -799,18 +799,16 @@ public class GameService {
                 "Ashfall",
                 Element.FIRE,
                 com.sieglings.model.enums.Rarity.EPIC,
-                0,
+                3,
                 wipe);
-        // Paid for with a COMBO rather than a pool: it needs a mixed Fire/Earth
-        // point standing on the board. That is deliberate — round three is where
-        // the tutorial teaches combos, and this makes the lesson the thing that
-        // unlocks the wipe instead of a fact stated beside it. Signature elements
-        // are sorted by name, which is how EnergyService builds the key it is
-        // compared against.
-        ashfall.setRequiredComboSize(2);
-        ashfall.setRequiredComboSignature("EARTH+FIRE");
-        ashfall.setDescription(
-                "A training Strategy — burns the whole enemy board away. Needs a Fire/Earth combo on your board.");
+        // Priced in a POOL, not a combo. Pricing it as a Fire/Earth combo was
+        // tried and reverted: EnergyService recomputes combo points from the
+        // connected foundation network, so the claim step — which takes a
+        // Siegling off the board one beat earlier — breaks the very link the
+        // combo was standing on, and the wipe became uncastable at the exact
+        // moment the script asks for it. A pool survives the claim; a link does
+        // not, and the claim is what pays for this.
+        ashfall.setDescription("A training Strategy — burns the whole enemy board away. Costs 3 Fire.");
         return ashfall;
     }
 
