@@ -10540,6 +10540,15 @@ window.ArenaTutorialBridge = {
     // The battle phase is not a cutscene — the player chooses a move and a row —
     // so the coach has to be able to tell "pick your move" from "pick a target".
     battleTargeting: () => isBattleTargetSelectionActive(),
+    // Row-select moves take a SECOND tap: pick the row, then confirm it. The
+    // coach has to be able to tell those two apart, or its "pick a row" tip
+    // stays up over a board that is already waiting on Confirm.
+    battleRowPicked: () => isRowSelectBattleTargetContext() && getRowSelectSelectedRow() >= 0,
+    // The confirm button's own wording ("Confirm: Middle Row - A, B, C"), so the
+    // coach names the row the player actually marked instead of guessing.
+    battleRowConfirmText: () => (isRowSelectBattleTargetContext() && getRowSelectSelectedRow() >= 0
+        ? formatRowSelectConfirmText()
+        : ''),
     authHeaders: (extra) => getAuthHeaders(extra || {})
 };
 

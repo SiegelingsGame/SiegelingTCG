@@ -193,8 +193,25 @@ class TutorialRuleParityTest {
         assertTrue(tutorial.contains("'Now choose <b>where</b>. The marked row is holding <b>' + n + '</b> '"),
                 "The copy must say how many the swing catches, read from the board — that number is "
                         + "the point of the lesson.");
-        assertTrue(tutorial.contains("until: function () { return !battleTargeting() || battleTwoDone(); } },"),
-                "The target beat must release once the attack resolves.");
+        assertTrue(tutorial.contains("until: function () { return rowPicked() || !battleTargeting() || battleTwoDone(); } },"),
+                "Picking the row only arms the Confirm prompt, so the target beat must hand over to it "
+                        + "rather than waiting for the attack to resolve.");
+
+        // A row move costs two taps: mark the row, then confirm it. The coach
+        // used to hold "tap a card in the marked row" over a board that was
+        // already showing Confirm / Change Row.
+        assertTrue(game.contains("battleRowPicked: () => isRowSelectBattleTargetContext() && getRowSelectSelectedRow() >= 0,"),
+                "The coach needs to be able to tell 'pick a row' from 'confirm the row'.");
+        assertTrue(game.contains("battleRowConfirmText: () => (isRowSelectBattleTargetContext() && getRowSelectSelectedRow() >= 0"),
+                "The confirm copy must come from the button's own wording, not a second guess at it.");
+        assertTrue(tutorial.contains("{ id: 'row-confirm'") && tutorial.contains("recommend: rowConfirmButton,"),
+                "Confirming the swing must be its own beat, marked on the Confirm button.");
+        assertTrue(tutorial.contains("lock: function () { return rowConfirmButton() ? ROW_CONFIRM_BTNS : null; },"),
+                "The confirm beat must lock to the confirm pair — Confirm and Change Row are the only "
+                        + "moves left on the board.");
+        assertTrue(tutorial.contains("skipIf: function () { return !rowPicked(); },")
+                        && tutorial.contains("until: function () { return !rowPicked() || !battleTargeting() || battleTwoDone(); } },"),
+                "The confirm beat must only run while a row is marked, and let go the moment it is not.");
         // Found by the printed move NAME, not the panel's ability index: that
         // index comes from a different walk than this file does.
         assertTrue(tutorial.contains("function rowMoveButton()")

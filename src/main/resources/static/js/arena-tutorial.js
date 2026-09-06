@@ -412,6 +412,29 @@
     try { return !!(b && b.battleTargeting && b.battleTargeting()); } catch (e) { return false; }
   }
 
+  /** True once a row is marked and the board is waiting on Confirm. A row move
+   *  costs two taps, so "pick a row" and "confirm the row" are separate lessons
+   *  — one tip covering both would sit over a board that already moved on. */
+  function rowPicked() {
+    var b = bridge();
+    try { return !!(b && b.battleRowPicked && b.battleRowPicked()); } catch (e) { return false; }
+  }
+
+  /** The confirm button's own label, so the coach quotes what the player sees. */
+  function rowConfirmText() {
+    var b = bridge();
+    try { return String((b && b.battleRowConfirmText && b.battleRowConfirmText()) || ''); } catch (e) { return ''; }
+  }
+
+  /** Both layouts render the confirm pair; the overlay copy is the one on
+   *  screen on a phone, the panel copy on desktop. */
+  var ROW_CONFIRM_BTNS = '.battle-row-confirm-btn';
+
+  function rowConfirmButton() {
+    return firstOf2(['#battleRowConfirmOverlay .battle-row-confirm-primary',
+                     '.battle-row-confirm-primary']);
+  }
+
   /** Every move button on the acting Siegeling's panel, whichever layout is up. */
   var MOVE_BTNS = '#battleActionPanel .battle-ability-btn, #desktopBattleActionPanel .battle-ability-btn';
 
@@ -1308,7 +1331,36 @@
             'row move. <b>Tap any card in the marked row</b>.';
         },
         skipIf: function () { return !battleTargeting(); },
-        until: function () { return !battleTargeting() || battleTwoDone(); } },
+        // Picking the row does not fire the move — it arms the Confirm prompt,
+        // which the next step teaches. Releasing on `!battleTargeting()` alone
+        // left this tip up over that prompt, still asking for a row the player
+        // had already marked.
+        until: function () { return rowPicked() || !battleTargeting() || battleTwoDone(); } },
+
+      // The second half of a row move: the swing is not spent until it is
+      // confirmed, so the player can compare rows before committing.
+      { id: 'row-confirm', title: 'Confirm the swing',
+        target: function () { return rowConfirmButton() || firstOf(['#battleRowConfirmOverlay', '#enemyGrid']); },
+        highlight: function () {
+          var btn = rowConfirmButton();
+          var best = fullestEnemyRow();
+          var marks = best ? ['#enemyGrid .board-cell.targetable[data-row="' + best.row + '"]'] : [];
+          return btn ? [btn].concat(marks) : marks;
+        },
+        recommend: rowConfirmButton,
+        lock: function () { return rowConfirmButton() ? ROW_CONFIRM_BTNS : null; },
+        hint: 'Tap <b>Confirm</b>',
+        body: function () {
+          var row = actingRowAbility();
+          var named = row && row.name ? '<b>' + esc(row.name) + '</b>' : 'The move';
+          var label = rowConfirmText();
+          var quoted = label ? ' The button spells out exactly who it catches — <b>' + esc(label) + '</b>.' : '';
+          return 'Marking a row does not swing yet. The arrows show every card ' + named +
+            ' is about to hit, so you can check the row before you spend the energy.' + quoted +
+            ' <b>Confirm</b> to send it, or <b>Change Row</b> to look somewhere else.';
+        },
+        skipIf: function () { return !rowPicked(); },
+        until: function () { return !rowPicked() || !battleTargeting() || battleTwoDone(); } },
 
 
       // Same defect as the gate above: `seen.sawBattle2` is true from the first
