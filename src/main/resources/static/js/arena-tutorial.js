@@ -412,6 +412,81 @@
     try { return !!(b && b.battleTargeting && b.battleTargeting()); } catch (e) { return false; }
   }
 
+  /** True once a row is marked and the board is waiting on Confirm. A row move
+   *  costs two taps, so "pick a row" and "confirm the row" are separate lessons
+   *  — one tip covering both would sit over a board that already moved on. */
+  function rowPicked() {
+    var b = bridge();
+    try { return !!(b && b.battleRowPicked && b.battleRowPicked()); } catch (e) { return false; }
+  }
+
+  /** The confirm button's own label, so the coach quotes what the player sees. */
+  function rowConfirmText() {
+    var b = bridge();
+    try { return String((b && b.battleRowConfirmText && b.battleRowConfirmText()) || ''); } catch (e) { return ''; }
+  }
+
+  /** Both layouts render the confirm pair; the overlay copy is the one on
+   *  screen on a phone, the panel copy on desktop. */
+  var ROW_CONFIRM_BTNS = '.battle-row-confirm-btn';
+
+  function rowConfirmButton() {
+    return firstOf2(['#battleRowConfirmOverlay .battle-row-confirm-primary',
+                     '.battle-row-confirm-primary']);
+  }
+
+  // ---- burn-kill lesson -----------------------------------------------------
+
+  /** The best "the swing does not kill it, the Burn does" play on the board, as
+   *  {abilityName, target, row, col, hp, hit, weak, burn, left} — or null when
+   *  no such play exists. game.js computes it from the same damage/weakness
+   *  helpers the move panel prints, so the coach never promises a kill the
+   *  board disagrees with. */
+  function burnPlan() {
+    var b = bridge();
+    try { return (b && b.burnKillPlan && b.burnKillPlan()) || null; } catch (e) { return null; }
+  }
+
+  /** The plan's move button, matched on the printed name for the same reason
+   *  rowMoveButton() is: the panel's ability index comes from a different walk
+   *  than this file does. */
+  function burnMoveButton() {
+    var plan = burnPlan();
+    if (!plan || !plan.abilityName) return null;
+    var want = String(plan.abilityName).trim().toLowerCase();
+    var btns;
+    try { btns = document.querySelectorAll(MOVE_BTNS); } catch (e) { return null; }
+    for (var i = 0; i < btns.length; i++) {
+      var label = btns[i].querySelector('.battle-ability-move-name');
+      if (!label || String(label.textContent || '').trim().toLowerCase() !== want) continue;
+      var idx = btns[i].getAttribute('data-ability-index');
+      if (idx == null) continue;
+      var sel = '.battle-ability-btn[data-ability-index="' + idx + '"]';
+      return visible(sel) ? sel : null;
+    }
+    return null;
+  }
+
+  /** The plan's victim on the enemy grid. */
+  function burnTargetCell() {
+    var plan = burnPlan();
+    if (!plan) return null;
+    var sel = '#enemyGrid .board-cell.targetable[data-row="' + plan.row + '"][data-col="' + plan.col + '"]';
+    return visible(sel) ? sel : null;
+  }
+
+  /** The arithmetic, said out loud: hit, weakness bonus, burn tick, HP. */
+  function burnMathSentence(plan) {
+    if (!plan) return '';
+    var target = plan.target ? '<b>' + esc(plan.target) + '</b>' : 'it';
+    var weak = plan.weak
+      ? ' — it is <b>weak to Fire</b>, so the hit lands for <b>' + plan.hit + '</b> instead of ' + (plan.hit - 1) + ' —'
+      : ' for <b>' + plan.hit + '</b>';
+    return target + ' is on <b>' + plan.hp + ' HP</b>' + weak + ' leaving <b>' + plan.left + '</b>. ' +
+      'Fire also leaves <b>Burn</b>, and burn ticks for <b>' + plan.burn + '</b> at the start of their next Setup — ' +
+      'so ' + target + ' is dead before it acts again, without spending a second swing on it.';
+  }
+
   /** Every move button on the acting Siegeling's panel, whichever layout is up. */
   var MOVE_BTNS = '#battleActionPanel .battle-ability-btn, #desktopBattleActionPanel .battle-ability-btn';
 
@@ -1308,7 +1383,98 @@
             'row move. <b>Tap any card in the marked row</b>.';
         },
         skipIf: function () { return !battleTargeting(); },
-        until: function () { return !battleTargeting() || battleTwoDone(); } },
+        // Picking the row does not fire the move — it arms the Confirm prompt,
+        // which the next step teaches. Releasing on `!battleTargeting()` alone
+        // left this tip up over that prompt, still asking for a row the player
+        // had already marked.
+        until: function () { return rowPicked() || !battleTargeting() || battleTwoDone(); } },
+
+      // The second half of a row move: the swing is not spent until it is
+      // confirmed, so the player can compare rows before committing.
+      { id: 'row-confirm', title: 'Confirm the swing',
+        target: function () { return rowConfirmButton() || firstOf(['#battleRowConfirmOverlay', '#enemyGrid']); },
+        highlight: function () {
+          var btn = rowConfirmButton();
+          var best = fullestEnemyRow();
+          var marks = best ? ['#enemyGrid .board-cell.targetable[data-row="' + best.row + '"]'] : [];
+          return btn ? [btn].concat(marks) : marks;
+        },
+        recommend: rowConfirmButton,
+        lock: function () { return rowConfirmButton() ? ROW_CONFIRM_BTNS : null; },
+        hint: 'Tap <b>Confirm</b>',
+        body: function () {
+          var row = actingRowAbility();
+          var named = row && row.name ? '<b>' + esc(row.name) + '</b>' : 'The move';
+          var label = rowConfirmText();
+          var quoted = label ? ' The button spells out exactly who it catches — <b>' + esc(label) + '</b>.' : '';
+          return 'Marking a row does not swing yet. The arrows show every card ' + named +
+            ' is about to hit, so you can check the row before you spend the energy.' + quoted +
+            ' <b>Confirm</b> to send it, or <b>Change Row</b> to look somewhere else.';
+        },
+        skipIf: function () { return !rowPicked(); },
+        until: function () { return !rowPicked() || !battleTargeting() || battleTwoDone(); } },
+
+      // The row swing spread Burn across a row; the next Fire attacker can cash
+      // that in. Gated rather than skipped for the same reason `gate-row` is:
+      // whoever acts next has not taken the floor yet when the coach arrives
+      // here, so a skipIf would drop the lesson before it could ever be true.
+      { id: 'gate-burn', skipTo: 't2-battle',
+        hint: 'Watch for your next Fire attacker',
+        gate: function () { return !!burnPlan() || battleTwoDone(); } },
+
+      { id: 'burn-kill', title: 'Let the burn finish it',
+        target: function () {
+          return burnMoveButton()
+            || firstOf(['#battleActionPanel', '#desktopBattleActionPanel', '#boardArea']);
+        },
+        highlight: function () {
+          var btn = burnMoveButton();
+          var cell = burnTargetCell();
+          var marks = [];
+          if (btn) marks.push(btn);
+          if (cell) marks.push(cell);
+          return marks.length ? marks : [firstOf(['#battleActionPanel', '#desktopBattleActionPanel', '#boardArea'])];
+        },
+        recommend: burnMoveButton,
+        lock: function () { return burnMoveButton() ? MOVE_BTNS : null; },
+        hint: function () {
+          var plan = burnPlan();
+          return plan && plan.abilityName ? 'Tap <b>' + esc(plan.abilityName) + '</b>' : 'Tap the bigger Fire move';
+        },
+        body: function () {
+          var plan = burnPlan();
+          if (!plan) return 'Damage is not the whole number — <b>weakness</b> adds to the hit, and <b>Burn</b> ticks after it.';
+          var actor = plan.attacker ? '<b>' + esc(plan.attacker) + '</b>' : 'This one';
+          var move = plan.abilityName ? '<b>' + esc(plan.abilityName) + '</b>' : 'the bigger move';
+          return actor + ' picks <b>one</b> card, so pick the one the numbers already finish. ' +
+            burnMathSentence(plan) + ' Tap ' + move + '.';
+        },
+        skipIf: function () { return !burnPlan(); },
+        // Released by the move being chosen, or by the plan going away — the
+        // board moved on, the target died to something else, the battle ended.
+        until: function () { return battleTargeting() || !burnPlan() || battleTwoDone(); } },
+
+      { id: 'burn-target', title: 'Spend it on the right card',
+        target: function () { return burnTargetCell() || '#enemyGrid'; },
+        highlight: function () {
+          var cell = burnTargetCell();
+          return cell ? [cell] : ['#enemyGrid .board-cell.targetable', '#enemyGrid'];
+        },
+        recommend: burnTargetCell,
+        hint: function () {
+          var plan = burnPlan();
+          return plan && plan.target ? 'Tap <b>' + esc(plan.target) + '</b>' : 'Tap the marked card';
+        },
+        body: function () {
+          var plan = burnPlan();
+          if (!plan) return 'Choose the card the hit and the burn finish together.';
+          var target = plan.target ? '<b>' + esc(plan.target) + '</b>' : 'the marked card';
+          return 'Now spend it on ' + target + '. Anything else soaks the same damage and lives; ' +
+            target + ' is the one that <b>' + plan.hit + '</b> plus <b>' + plan.burn + '</b> burn adds up to kill. ' +
+            'That is a whole enemy removed for one move — <b>tap it</b>.';
+        },
+        skipIf: function () { return !battleTargeting() || !burnPlan(); },
+        until: function () { return !battleTargeting() || !burnPlan() || battleTwoDone(); } },
 
 
       // Same defect as the gate above: `seen.sawBattle2` is true from the first

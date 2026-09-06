@@ -193,8 +193,56 @@ class TutorialRuleParityTest {
         assertTrue(tutorial.contains("'Now choose <b>where</b>. The marked row is holding <b>' + n + '</b> '"),
                 "The copy must say how many the swing catches, read from the board — that number is "
                         + "the point of the lesson.");
-        assertTrue(tutorial.contains("until: function () { return !battleTargeting() || battleTwoDone(); } },"),
-                "The target beat must release once the attack resolves.");
+        assertTrue(tutorial.contains("until: function () { return rowPicked() || !battleTargeting() || battleTwoDone(); } },"),
+                "Picking the row only arms the Confirm prompt, so the target beat must hand over to it "
+                        + "rather than waiting for the attack to resolve.");
+
+        // A row move costs two taps: mark the row, then confirm it. The coach
+        // used to hold "tap a card in the marked row" over a board that was
+        // already showing Confirm / Change Row.
+        assertTrue(game.contains("battleRowPicked: () => isRowSelectBattleTargetContext() && getRowSelectSelectedRow() >= 0,"),
+                "The coach needs to be able to tell 'pick a row' from 'confirm the row'.");
+        assertTrue(game.contains("battleRowConfirmText: () => (isRowSelectBattleTargetContext() && getRowSelectSelectedRow() >= 0"),
+                "The confirm copy must come from the button's own wording, not a second guess at it.");
+        assertTrue(tutorial.contains("{ id: 'row-confirm'") && tutorial.contains("recommend: rowConfirmButton,"),
+                "Confirming the swing must be its own beat, marked on the Confirm button.");
+        assertTrue(tutorial.contains("lock: function () { return rowConfirmButton() ? ROW_CONFIRM_BTNS : null; },"),
+                "The confirm beat must lock to the confirm pair — Confirm and Change Row are the only "
+                        + "moves left on the board.");
+        assertTrue(tutorial.contains("skipIf: function () { return !rowPicked(); },")
+                        && tutorial.contains("until: function () { return !rowPicked() || !battleTargeting() || battleTwoDone(); } },"),
+                "The confirm beat must only run while a row is marked, and let go the moment it is not.");
+
+        // Burn payoff: a Fire hit is worth more than its printed damage, and the
+        // lesson is to spend the swing where weakness + burn already add up to a
+        // kill. The plan is COMPUTED — a hard-coded "hit Cozycub" would be wrong
+        // the moment the board differs.
+        assertTrue(game.contains("function getBattleBurnKillPlan()")
+                        && game.contains("burnKillPlan: () => getBattleBurnKillPlan(),"),
+                "The coach needs the burn-kill plan, computed in game.js off the same helpers the "
+                        + "move panel prints.");
+        assertTrue(game.contains("const weak = isElementWeakTo(element, cell.element);")
+                        && game.contains("const hit = base + (weak ? 1 : 0);"),
+                "Weakness must come from the shared chart and add the same +1 the panel previews.");
+        assertTrue(game.contains("if (left <= 0) continue;"),
+                "A target the swing kills outright is not this lesson — it teaches nothing about burn.");
+        assertTrue(game.contains("if (left > stacks) continue;"),
+                "The plan must only claim a kill the burn tick actually completes.");
+        assertTrue(tutorial.contains("{ id: 'burn-kill'") && tutorial.contains("{ id: 'burn-target'")
+                        && tutorial.contains("{ id: 'gate-burn'"),
+                "Picking the move and picking the victim are separate beats, and they must be gated "
+                        + "until a Fire attacker with such a play takes the floor.");
+        assertTrue(tutorial.contains("recommend: burnMoveButton,")
+                        && tutorial.contains("lock: function () { return burnMoveButton() ? MOVE_BTNS : null; },")
+                        && tutorial.contains("recommend: burnTargetCell,"),
+                "Both beats must mark what to tap — the bigger Fire move, then the card the numbers "
+                        + "finish.");
+        assertTrue(tutorial.contains("function burnMathSentence(plan)")
+                        && tutorial.contains("'Fire also leaves <b>Burn</b>, and burn ticks for <b>' + plan.burn + '</b> at the start of their next Setup — '"),
+                "The copy must say the arithmetic — hit, weakness, burn tick, HP — read from the "
+                        + "board rather than baked into the prose.");
+        assertTrue(tutorial.contains("skipIf: function () { return !burnPlan(); },"),
+                "The burn lesson must stay out of the way when no such play exists.");
         // Found by the printed move NAME, not the panel's ability index: that
         // index comes from a different walk than this file does.
         assertTrue(tutorial.contains("function rowMoveButton()")

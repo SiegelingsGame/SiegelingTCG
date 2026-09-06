@@ -2447,6 +2447,88 @@ function formatBattleAbilityWeaknessPreview(ability, selectedRow = -1) {
     return `Weakness +1: ${formatWeakTargetNames(weakTargets)} take ${baseDamage + 1}.`;
 }
 
+/**
+ * The best "the hit does not kill it, the Burn that follows does" single-target
+ * play available to whoever is acting, or null.
+ *
+ * This is the lesson the tutorial teaches on a Fire attacker: raw damage is not
+ * the whole number. Weakness adds 1, and Fire damage leaves a Burn stack that
+ * ticks at the start of the owner's next Setup — so a target that survives the
+ * swing by a point or two is already dead, and the swing is better spent there
+ * than on something the burn cannot finish.
+ *
+ * Deliberately only reports a kill the BURN completes: a move that kills
+ * outright teaches nothing about burn, and one that leaves the target standing
+ * afterwards is not a plan. Damage, weakness and burn all read from the same
+ * helpers/state the move panel and its badges render from, so the coach cannot
+ * promise a kill the board disagrees with. Stack maths mirrors
+ * ElementalAfflictionCatalog's FIRE row (1 damage per stack, 1 per hit, cap 5).
+ */
+function getBattleBurnKillPlan() {
+    const pending = gameState?.pendingBattle;
+    if (!pending || gameState?.currentPhase !== 'BATTLE' || gameState?.activeSide !== 'PLAYER') {
+        return null;
+    }
+    const element = String(pending.element || '').trim().toUpperCase();
+    if (element !== 'FIRE') {
+        return null;
+    }
+    const burnDef = STATUS_EFFECT_KEY?.BURN || {};
+    const burnCap = Number(burnDef.cap) || 5;
+    const abilities = (pending.abilities || [])
+        .filter((a) => a && a.affordable && !a.fromPrintedPassive)
+        .filter((a) => String(a.targetType || '').trim().toUpperCase() === 'SINGLE_ENEMY')
+        .filter((a) => isBattleDamageAbility(a) && getBattleAbilityBaseDamage(a) > 0);
+    let best = null;
+    for (const ability of abilities) {
+        const base = getBattleAbilityBaseDamage(ability);
+        for (let row = 0; row < 3; row++) {
+            for (let col = 0; col < 3; col++) {
+                const cell = gameState?.enemyBoard?.[row]?.[col];
+                const hp = Number(cell?.hp ?? cell?.currentHealth);
+                if (!cell || !Number.isFinite(hp) || hp <= 0) continue;
+                const weak = isElementWeakTo(element, cell.element);
+                const hit = base + (weak ? 1 : 0);
+                const left = hp - hit;
+                // Already dead on the swing — a fine play, but not this lesson.
+                if (left <= 0) continue;
+                const stacks = Math.min(burnCap, getCellAfflictionStacks(cell, 'BURN') + 1);
+                if (left > stacks) continue;
+                const plan = {
+                    abilityIndex: ability.index,
+                    abilityName: getBattleAbilityDisplayName(ability),
+                    attacker: pending.name || null,
+                    target: cell.name || null,
+                    row,
+                    col,
+                    hp,
+                    hit,
+                    weak,
+                    burn: stacks,
+                    left
+                };
+                // Prefer the biggest hit, then the target with the least slack —
+                // the tightest kill is the clearest demonstration.
+                if (!best || plan.hit > best.hit || (plan.hit === best.hit && plan.left < best.left)) {
+                    best = plan;
+                }
+            }
+        }
+    }
+    return best;
+}
+
+function getCellAfflictionStacks(cell, kind) {
+    const want = String(kind || '').toUpperCase();
+    const rows = Array.isArray(cell?.afflictions) ? cell.afflictions : [];
+    for (const row of rows) {
+        if (String(row?.kind || '').toUpperCase() === want) {
+            return Math.max(0, Number(row?.stacks) || 0);
+        }
+    }
+    return 0;
+}
+
 function effectKindFor(ability) {
     const effectType = String(ability?.effectType || '').trim().toLowerCase();
     return EFFECT_KIND_MAP[effectType] || 'default';
@@ -10540,6 +10622,20 @@ window.ArenaTutorialBridge = {
     // The battle phase is not a cutscene — the player chooses a move and a row —
     // so the coach has to be able to tell "pick your move" from "pick a target".
     battleTargeting: () => isBattleTargetSelectionActive(),
+    // Row-select moves take a SECOND tap: pick the row, then confirm it. The
+    // coach has to be able to tell those two apart, or its "pick a row" tip
+    // stays up over a board that is already waiting on Confirm.
+    battleRowPicked: () => isRowSelectBattleTargetContext() && getRowSelectSelectedRow() >= 0,
+    // The confirm button's own wording ("Confirm: Middle Row - A, B, C"), so the
+    // coach names the row the player actually marked instead of guessing.
+    battleRowConfirmText: () => (isRowSelectBattleTargetContext() && getRowSelectSelectedRow() >= 0
+        ? formatRowSelectConfirmText()
+        : ''),
+    // The "raw damage is not the whole number" play: weakness plus the Burn a
+    // Fire hit leaves behind. Computed off the same helpers the move panel and
+    // the badges render from, so the coach cannot promise a kill the board
+    // disagrees with.
+    burnKillPlan: () => getBattleBurnKillPlan(),
     authHeaders: (extra) => getAuthHeaders(extra || {})
 };
 
