@@ -2884,6 +2884,34 @@ body.card-drag-active #playerGrid {
     padding: 22px 20px 18px;
 }
 
+#trainerAbilityModal {
+    max-height: calc(100dvh - 36px);
+    overflow-y: auto;
+}
+
+.trainer-ability-card-preview {
+    position: relative;
+    width: fit-content;
+    max-width: 100%;
+    margin: 0 auto 14px;
+    line-height: 0;
+}
+
+.trainer-ability-card-preview > .hud-knight-art-img {
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: min(160px, 28dvh);
+    object-fit: contain;
+    border-radius: 8px;
+}
+
+.trainer-ability-card-preview > .hud-knight-art-card {
+    width: min(114px, 20dvh);
+    max-height: none;
+    border-radius: 8px;
+}
+
 .claim-confirm-modal {
     border-color: rgba(123, 255, 180, 0.36);
     box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(123, 255, 180, 0.08);
