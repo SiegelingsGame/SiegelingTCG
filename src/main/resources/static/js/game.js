@@ -5449,6 +5449,11 @@ function renderTrainerAbilityPopup() {
     }
 
     const title = document.getElementById('trainerAbilityTitle');
+    const preview = document.getElementById('trainerAbilityCardPreview');
+    if (preview) {
+        preview.innerHTML = knightHudCardInnerHtml(trainer);
+        preview.setAttribute('aria-label', `${trainer.name || 'Player SiegeKnight'} card`);
+    }
     const tier = document.getElementById('trainerAbilityTier');
     const description = document.getElementById('trainerAbilityDescription');
     const copy = document.getElementById('trainerAbilityCopy');
