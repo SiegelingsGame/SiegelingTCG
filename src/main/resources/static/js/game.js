@@ -13399,18 +13399,29 @@ function knightHasFullCardArt(trainer) {
 
 // Inner markup for a SiegeKnight card shown in the battle HUD: uploaded art
 // when available, otherwise the default card-front template with an element sigil.
+function knightHudCardDetailsHtml(trainer) {
+    const meta = [formatTrainerTier(trainer?.tier), formatElementLabel(trainer?.element), trainer?.rarity].filter(Boolean).join(' • ');
+    return `<span class="hud-knight-card-details">
+        <span class="hud-knight-card-name">${escapeHtml(trainer?.name || 'SiegeKnight')}</span>
+        <span class="hud-knight-card-meta">${escapeHtml(meta)}</span>
+        <span class="hud-knight-card-ability"><b>Passive:</b> ${escapeHtml(readTrainerAbilityText(trainer?.passive))}</span>
+        <span class="hud-knight-card-ability"><b>${trainer?.oncePerGame ? 'Ultimate' : 'Active'}:</b> ${escapeHtml(readTrainerAbilityText(trainer?.active))}</span>
+    </span>`;
+}
+
 function knightHudCardInnerHtml(trainer) {
     const url = knightUploadedCardArtUrl(trainer);
+    const details = knightHudCardDetailsHtml(trainer);
     if (url) {
         if (knightHasOverlayCardArt(trainer)) {
-            return knightHudOverlayCardInnerHtml(trainer, url);
+            return knightHudOverlayCardInnerHtml(trainer, url) + details;
         }
         // The HUD frame is a fixed 5:7 box shared with overlay art so both modes
         // size identically; the dashboard crop/scale transform — tuned for the
         // framed loadout/binder — is intentionally not applied here.
-        return `<img class="hud-knight-art-img" ${webpImgAttrs(url)} alt="${escapeHtmlAttribute(trainer?.name || 'SiegeKnight card')}" decoding="async">`;
+        return `<img class="hud-knight-art-img" ${webpImgAttrs(url)} alt="${escapeHtmlAttribute(trainer?.name || 'SiegeKnight card')}" decoding="async">${details}`;
     }
-    return `<img class="hud-knight-art-img hud-knight-art-template" ${webpImgAttrs(SIEGEKNIGHT_CARD_TEMPLATE)} alt="" aria-hidden="true"><span class="hud-knight-art-sigil">${elementEmoji(trainer?.element)}</span>`;
+    return `<img class="hud-knight-art-img hud-knight-art-template" ${webpImgAttrs(SIEGEKNIGHT_CARD_TEMPLATE)} alt="" aria-hidden="true"><span class="hud-knight-art-sigil">${elementEmoji(trainer?.element)}</span>${details}`;
 }
 
 function knightHudOverlayCardInnerHtml(trainer, url) {

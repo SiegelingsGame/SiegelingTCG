@@ -152,7 +152,9 @@ public class PlacementService {
     private void carryBadgesForward(CardInstance from, CardInstance to) {
         to.setAfflictionStacks(from.getAfflictionStacks());
         to.setChillFrozen(from.isChillFrozen());
-        to.addShield(from.getTemporaryShield());
+        // Preserve the passive grant ledger too, so evolution cannot refill it
+        // or turn it into a spell shield and then receive a second passive grant.
+        to.carryShieldFrom(from);
         to.addDamageBuff(from.getTemporaryDamageBuff());
         to.getStatusEffects().addAll(from.getStatusEffects());
     }

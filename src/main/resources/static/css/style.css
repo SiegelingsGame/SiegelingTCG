@@ -20588,3 +20588,41 @@ body.has-custom-art::before {
 .hand-card .hand-cost-badge.is-trigger .hand-cost-badge-amount {
     color: #ffd9a8;
 }
+
+/* Printed details share the artwork's lower text window across battle previews. */
+.hud-knight-card-details {
+    position: absolute;
+    z-index: 4;
+    left: 9.8%;
+    right: 10%;
+    top: 70.9%;
+    bottom: 7.3%;
+    container-type: inline-size;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 1px;
+    padding: 2px;
+    overflow: hidden;
+    color: #fff6d8;
+    background: rgba(8, 15, 28, 0.72);
+    text-shadow: 0 1px 1px #000;
+    text-align: left;
+    pointer-events: none;
+}
+.hud-knight-card-details > span {
+    display: block;
+    font-size: 4.6cqw;
+    line-height: 1.08;
+    overflow-wrap: anywhere;
+}
+.hud-knight-card-details .hud-knight-card-name {
+    font-size: 5.5cqw;
+    font-weight: 800;
+    text-align: center;
+}
+.hud-knight-card-details .hud-knight-card-meta {
+    font-size: 3.6cqw;
+    text-align: center;
+}
+.hud-knight-card-ability b { color: #ffea5c; }

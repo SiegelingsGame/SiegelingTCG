@@ -1130,6 +1130,7 @@ public class GameService {
             int healthBuff = 0;
             int damageBuff = 0;
             int speedBuff = 0;
+            int shieldBuff = 0;
             if (activePassive) {
                 int value = Math.max(1, passive.getEffectValue());
                 if (connectedHealthPassive) {
@@ -1141,12 +1142,14 @@ public class GameService {
                         case AbilityEffectKeys.DAMAGE_BOOST -> damageBuff += value;
                         case AbilityEffectKeys.HEALTH_BOOST -> healthBuff += value;
                         case AbilityEffectKeys.SPEED_BOOST -> speedBuff += value;
+                        case AbilityEffectKeys.SHIELD -> shieldBuff += value;
                     }
                 }
             }
             ci.setTrainerPassiveHealthBuff(healthBuff);
             ci.setTrainerPassiveDamageBuff(damageBuff);
             ci.setTrainerPassiveSpeedBuff(speedBuff);
+            ci.setTrainerPassiveShieldBuff(shieldBuff);
         }
     }
 
