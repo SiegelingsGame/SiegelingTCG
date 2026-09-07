@@ -404,7 +404,9 @@
    *  Lavaburst are the first ones the student meets. */
   function actingRowAbility() {
     var list = abilitiesOf(actingCard()).filter(isRowAbility);
-    return list[0] || null;
+    return list.find(function (ability) {
+      return String(ability.name || '').trim().toLowerCase() === 'lavaburst';
+    }) || list[0] || null;
   }
 
   function battleTargeting() {
@@ -508,8 +510,10 @@
       if (!label || String(label.textContent || '').trim().toLowerCase() !== want) continue;
       var idx = btns[i].getAttribute('data-ability-index');
       if (idx == null) continue;
-      var sel = '.battle-ability-btn[data-ability-index="' + idx + '"]';
-      return visible(sel) ? sel : null;
+      var panel = btns[i].closest('#battleActionPanel, #desktopBattleActionPanel');
+      if (!panel) continue;
+      var sel = '#' + panel.id + ' .battle-ability-btn[data-ability-index="' + idx + '"]';
+      if (visible(sel)) return sel;
     }
     return null;
   }
@@ -1315,12 +1319,10 @@
         gate: function () { return !!actingRowAbility() || battleTwoDone(); } },
 
       { id: 'row-attack', title: 'One swing, a whole row',
-        target: function () {
-          return firstOf(['#battleActionPanel', '#desktopBattleActionPanel', '#boardArea']);
-        },
+        target: rowMoveButton,
         highlight: function () {
-          return [firstOf(['#battleActionPanel', '#desktopBattleActionPanel', '#boardArea']),
-                  '#enemyGrid .board-cell.targetable'];
+          var button = rowMoveButton();
+          return button ? [button] : [];
         },
         body: function () {
           var row = actingRowAbility();
