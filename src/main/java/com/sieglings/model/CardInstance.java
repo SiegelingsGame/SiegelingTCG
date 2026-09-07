@@ -26,6 +26,8 @@ public class CardInstance {
     private int trainerPassiveHealthBuff;
     private int trainerPassiveDamageBuff;
     private int trainerPassiveSpeedBuff;
+    private int trainerPassiveShieldBuff;
+    private int trainerPassiveShieldRemaining;
     /** Passive team-aura attack damage from allied Sieglings on the board (recomputed when the board changes). */
     private int auraDamageBoost;
     private Set<StatusEffect> statusEffects = new HashSet<>();
@@ -151,10 +153,32 @@ public class CardInstance {
         }
     }
 
+    public void carryShieldFrom(CardInstance source) {
+        temporaryShield = source.temporaryShield;
+        trainerPassiveShieldBuff = source.trainerPassiveShieldBuff;
+        trainerPassiveShieldRemaining = source.trainerPassiveShieldRemaining;
+        setTrainerPassiveShieldBuff(trainerPassiveShieldBuff);
+    }
+
+    public void setTrainerPassiveShieldBuff(int amount) {
+        int next = Math.max(0, amount);
+        // Track the grant separately from what remains: routine recalculation
+        // must not refill absorbed damage or stack another copy of the shield.
+        trainerPassiveShieldRemaining = Math.max(0,
+                trainerPassiveShieldRemaining + next - trainerPassiveShieldBuff);
+        trainerPassiveShieldBuff = next;
+        if (getTemporaryShield() > 0) {
+            statusEffects.add(StatusEffect.HEALTH_BOOST);
+        } else {
+            statusEffects.remove(StatusEffect.HEALTH_BOOST);
+        }
+    }
+
     public void clearTrainerPassiveEffects() {
         setTrainerPassiveHealthBuff(0);
         setTrainerPassiveDamageBuff(0);
         setTrainerPassiveSpeedBuff(0);
+        setTrainerPassiveShieldBuff(0);
     }
 
     public void takeRawDamage(int amount) {
@@ -163,9 +187,12 @@ public class CardInstance {
             int blocked = Math.min(temporaryShield, remaining);
             temporaryShield -= blocked;
             remaining -= blocked;
-            if (temporaryShield == 0) {
-                statusEffects.remove(StatusEffect.HEALTH_BOOST);
-            }
+        }
+        int passiveBlocked = Math.min(trainerPassiveShieldRemaining, remaining);
+        trainerPassiveShieldRemaining -= passiveBlocked;
+        remaining -= passiveBlocked;
+        if (getTemporaryShield() == 0) {
+            statusEffects.remove(StatusEffect.HEALTH_BOOST);
         }
         currentHealth = Math.max(0, currentHealth - remaining);
     }
@@ -177,6 +204,8 @@ public class CardInstance {
     public void clearTemporaryEffects() {
         temporaryDamageBuff = 0;
         temporaryShield = 0;
+        trainerPassiveShieldBuff = 0;
+        trainerPassiveShieldRemaining = 0;
         statusEffects.remove(StatusEffect.HEALTH_BOOST);
         if (trainerPassiveDamageBuff == 0 && auraDamageBoost == 0) {
             statusEffects.remove(StatusEffect.DAMAGE_BOOST);
@@ -243,7 +272,7 @@ public class CardInstance {
     public void setCurrentSpeed(int currentSpeed) { this.currentSpeed = Math.max(0, currentSpeed); }
     public int getTemporaryHealthBuff() { return permanentHealthBoost; }
     public int getPermanentHealthBoost() { return permanentHealthBoost; }
-    public int getTemporaryShield() { return temporaryShield; }
+    public int getTemporaryShield() { return temporaryShield + trainerPassiveShieldRemaining; }
     public int getTemporaryDamageBuff() { return temporaryDamageBuff; }
     public int getTrainerPassiveHealthBuff() { return trainerPassiveHealthBuff; }
     public int getTrainerPassiveDamageBuff() { return trainerPassiveDamageBuff; }

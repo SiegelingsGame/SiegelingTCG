@@ -35,6 +35,62 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class GameServiceTest {
 
     @Test
+    void fireShieldPassiveGrantsAbsorbsAndRefreshesWithoutStacking() throws Exception {
+        GameService service = new GameService();
+        setField(service, "energyService", new EnergyService(new PlacementService()));
+        setField(service, "placementService", new PlacementService());
+        setField(service, "effectService", new EffectService());
+        Player player = new Player("Player", true);
+        Player enemy = new Player("Enemy", false);
+        TrainerCard pyla = new TrainerCard("pyla", "Pyla", Element.FIRE, Rarity.UNCOMMON,
+                Ability.passive("Heat Shield", "All Fire allies gain +2 Shield", AbilityEffectKeys.SHIELD, 2), null, false);
+        player.setActiveTrainer(pyla);
+        GameState state = new GameState();
+        state.setPlayer(player);
+        state.setEnemy(enemy);
+        state.setCurrentPhase(Phase.SETUP);
+        state.setPlayerTurn(true);
+        SieglingCard fire = new SieglingCard("fire", "Fire Ally", Element.FIRE, Rarity.COMMON, 10, 3, List.of(), Row.FRONT);
+        player.getHand().add(fire);
+        service.placeSiegling(state, true, "fire", 2, 0);
+        CardInstance ally = state.getAt(true, 2, 0);
+        assertNotNull(ally);
+        assertEquals(2, ally.getTemporaryShield(), "Grant the shield immediately on placement.");
+        CardInstance water = new CardInstance(new SieglingCard("water", "Water", Element.WATER, Rarity.COMMON, 10, 3, List.of(), Row.BACK), 0, 0, true);
+        CardInstance foe = new CardInstance(fire, 0, 0, false);
+        state.setAt(true, 0, 0, water);
+        state.setAt(false, 0, 0, foe);
+        Method recalculate = GameService.class.getDeclaredMethod("recalculateTrainerPassiveStatBuffs", GameState.class);
+        recalculate.setAccessible(true);
+        recalculate.invoke(service, state);
+        assertEquals(2, ally.getTemporaryShield());
+        assertEquals(0, water.getTemporaryShield());
+        assertEquals(0, foe.getTemporaryShield());
+        ally.takeRawDamage(1);
+        recalculate.invoke(service, state);
+        assertEquals(1, ally.getTemporaryShield(), "Recalculation must not refill consumed shield.");
+        assertEquals(10, ally.getCurrentHealth());
+        ally.takeRawDamage(3);
+        recalculate.invoke(service, state);
+        assertEquals(0, ally.getTemporaryShield());
+        assertEquals(8, ally.getCurrentHealth(), "Only damage beyond the shield reaches HP.");
+        CardInstance evolved = new CardInstance(fire, 2, 0, true);
+        evolved.carryShieldFrom(ally);
+        evolved.setTrainerPassiveShieldBuff(2);
+        assertEquals(0, evolved.getTemporaryShield(), "Evolution must not refill a consumed passive grant.");
+        ally.clearTemporaryEffects();
+        recalculate.invoke(service, state);
+        assertEquals(2, ally.getTemporaryShield(), "Refresh with the existing end-of-battle temporary-effect reset.");
+        ally.addShield(3);
+        player.setActiveTrainer(null);
+        recalculate.invoke(service, state);
+        assertEquals(3, ally.getTemporaryShield(), "Removing the passive preserves spell shields.");
+        enemy.setActiveTrainer(pyla);
+        recalculate.invoke(service, state);
+        assertEquals(2, foe.getTemporaryShield(), "The opponent's passive uses the same rules.");
+    }
+
+    @Test
     void maxHealthBoostStaysPermanentWhileShieldAbsorbsDamageSeparately() {
         SieglingCard card = new SieglingCard("leaf", "Leaf", Element.EARTH, Rarity.COMMON, 10, 4, List.of(), Row.FRONT);
         CardInstance instance = new CardInstance(card, 0, 0, true);
