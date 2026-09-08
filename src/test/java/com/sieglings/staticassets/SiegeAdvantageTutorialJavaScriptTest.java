@@ -33,7 +33,10 @@ class SiegeAdvantageTutorialJavaScriptTest {
         String source = Files.readString(TUTORIAL_JS);
 
         assertTrue(source.contains("rebuildAdvantage(false);"), "The first battle must start with the fastest holder.");
-        assertTrue(source.contains("advanceAdvantage(events);"), "Advantage must pass between team turns.");
+        assertTrue(source.contains("advanceAdvantage(events, 'PLAYER');"));
+        assertTrue(source.contains("advanceAdvantage(events, 'ENEMY');"));
+        assertTrue(source.contains("holder.side !== completedSide"),
+                "A holder must keep the token until its own team finishes a turn.");
         assertTrue(source.contains("damage(target, 2, events, owner.id, c.element);"),
                 "Fire's tutorial rider must deal its additional two damage.");
         assertTrue(source.contains("triggerAdvantage(owner, c, marks, events);"),
@@ -108,19 +111,22 @@ class SiegeAdvantageTutorialJavaScriptTest {
         // that explains them rings the effect cards inside the sheet.
         assertTrue(tutorial.contains("{ id: 'passive', hint: 'Tap your <b>SiegeKnight</b>'"),
                 "The knight step must ask for the tap, not just mention it.");
-        assertTrue(tutorial.contains("{ id: 'passive', hint: 'Tap your <b>SiegeKnight</b>', title: 'Passive and Ultimate', "
-                        + "target: '#knightPlate',\n        body: 'Your SiegeKnight does not attack."
-                        + " He gives a <b>passive</b> that is always running, and charges an <b>Ultimate</b>"
-                        + " on the bar under his HP. <b>Tap the plate</b> to read both.',\n"
-                        + "        until: function () { return !hidden('unitModal'); } },"),
+        int passiveStart = tutorial.indexOf("{ id: 'passive', hint: 'Tap your <b>SiegeKnight</b>'");
+        int passiveEnd = tutorial.indexOf("{ id: 'passive-cards'", passiveStart);
+        String passiveStep = tutorial.substring(passiveStart, passiveEnd);
+        int passiveCardsEnd = tutorial.indexOf("{ id: 'ap'", passiveEnd);
+        String passiveCardsStep = tutorial.substring(passiveEnd, passiveCardsEnd);
+        assertTrue(passiveStep.contains("target: '#knightPlate'")
+                        && passiveStep.contains("until: function () { return !hidden('unitModal'); }"),
                 "It must WAIT for the sheet to open — without the wait, Got it skips the lesson that "
                         + "explains what the tap was for.");
-        assertTrue(tutorial.contains("{ id: 'passive-cards'")
-                        && tutorial.contains("target: '.um-effects', highlight: ['.um-effects'], avoid: '#unitModalClose',"),
+        assertTrue(passiveCardsStep.contains("target: '.um-effects', highlight: ['.um-effects'], avoid: '#unitModalClose',"),
                 "The explanation must ring the two effect cards themselves. The sheet also lists the "
                         + "knight's own cards, so spotlighting the whole sheet points at the wrong half.");
-        assertTrue(tutorial.contains("<b>' + esc(k.passiveName) + '</b> is the <b>passive</b>")
-                        && tutorial.contains("<b>' + esc(k.ultimateName) +\n          '</b> is the <b>Ultimate</b>"),
+        assertTrue(passiveCardsStep.contains("esc(k.passiveName)")
+                        && passiveCardsStep.contains("the <b>passive</b>")
+                        && passiveCardsStep.contains("esc(k.ultimateName)")
+                        && passiveCardsStep.contains("the <b>Ultimate</b>"),
                 "Both effects must be named from the knight data the sheet itself renders from, so the "
                         + "copy cannot name something the player is not looking at.");
         // .um-effects is what adventure.js actually emits; a rename there would
@@ -138,10 +144,7 @@ class SiegeAdvantageTutorialJavaScriptTest {
         // here would leave the Siege coach without it.
         assertTrue(html.contains("/css/coach.css?v=4"), "coach.css pin");
         assertTrue(html.contains("/css/adventure.css?v=90"), "adventure.css pin");
-        // 19, not 18: main bumped to 18 for its own siege-tutorial change and
-        // this branch edits the same file, so the merged bytes need a number
-        // neither side has shipped.
-        assertTrue(html.contains("/js/siege-tutorial.js?v=19"), "siege-tutorial.js pin");
+        assertTrue(html.contains("/js/siege-tutorial.js?v=20"), "siege-tutorial.js pin");
         assertTrue(html.contains("/js/adventure.js?v=94"), "adventure.js pin");
     }
 }
