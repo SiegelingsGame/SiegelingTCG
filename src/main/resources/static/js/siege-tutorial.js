@@ -270,6 +270,13 @@
 
   function buildModel() {
     var k = knightCard();
+    var land = {
+      id: 'fire', name: 'Emberfall', kind: 'ELEMENTAL', elements: ['FIRE'],
+      background: '/img/lands/fire.webp', feature: 'Ember Forge', featureType: 'SMITH',
+      terrain: 'Cinder heat', effect: 'FIRE Siegelings start battles with +1 Attack.',
+      encounters: 'Favored Siegelings have 4× draw weight in recruits, broker stock and card prizes.',
+      eventTitle: 'The Cinder Smith'
+    };
     var dracoSrc = card('draco');
     var fawnySrc = card('fawny');
     var draco = unitFrom(dracoSrc, { id: 'ally-draco', position: 0 });
@@ -296,6 +303,8 @@
       token: 'tutorial', status: 'ACTIVE', currentNodeId: -1, lastReward: '',
       deckSize: deck.length, gold: 140, mode: 'STANDARD', slot: 'SIEGE',
       slotLabel: 'Tutorial', score: 0, loop: 0, partyMax: 3, tutorial: true,
+      land: land, landHistory: [land], landSegment: 0, landSegmentRows: 8,
+      landBoons: [], boonOffer: null,
       stats: { nodesCleared: 0, bossKills: 0, enemiesDefeated: 0, goldEarned: 0 },
       endRewards: null, xpRecap: null, ampChoice: null, ampsPending: 0,
       extraction: null, recruit: null, mercenary: null,
@@ -1389,6 +1398,17 @@
         body: 'A full practice expedition, fought with real cards — ' + esc(knightName()) +
           ' leading ' + esc(M.party[0].name) + ' and ' + esc(M.party[1].name) +
           '. Nothing here touches your account: no gold spent, no saves written. I will walk you to every kind of stop on the map.' },
+      { id: 'land', kicker: 'Lands', title: 'Every stage has a Land', target: '#mapLand',
+        body: 'The banner names your current <b>Land</b>, and the painted terrain behind the route belongs to it. This practice stage is <b>' + esc(M.land.name) + '</b>, a Fire Land.' +
+          '<span class="tut-p">A Land changes which Siegelings, people, events and map stops you are more likely to find.</span>' },
+      { id: 'land-open', hint: 'Tap <b>Details ↗</b>', title: 'Read the Land before choosing a path', target: '#mapLand',
+        body: 'Every Land also changes combat or rewards. Tap the <b>' + esc(M.land.name) + '</b> banner to open its rules.',
+        until: function () { return !hidden('landModal'); } },
+      { id: 'land-rules', hint: 'Tap <b>Close</b>', title: 'Terrain, encounters and landmarks', target: '.land-modal-card', avoid: '#landClose',
+        body: '<b>Terrain</b> is the battle bonus. <b>Encounters & discoveries</b> tells you which elements are favored. The final section names this Land’s special map feature and event. Close the panel when you are ready.',
+        until: function () { return hidden('landModal'); } },
+      { id: 'land-change', title: 'Bosses lead to new Lands', target: '#mapLand',
+        body: 'Defeat a Land’s boss and the next stage rolls a <b>different Land</b>. Later bosses can reveal <b>Rare Lands</b> with mixed elements or richer drops — or the <b>Badlands</b>, where enemies are stronger and you choose a special boon for the run.' },
       // Naming BOTH readings rather than the current one: the map genuinely
       // transposes (adventure.js isPhoneLandscape -> "start left, boss right"),
       // and a step's body is built once, so a tip that named only the live
