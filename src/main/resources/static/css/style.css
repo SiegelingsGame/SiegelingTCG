@@ -20626,3 +20626,36 @@ body.has-custom-art::before {
     text-align: center;
 }
 .hud-knight-card-ability b { color: #ffea5c; }
+
+.knight-tour { position: fixed; inset: 0; z-index: 1400; pointer-events: none; }
+.knight-tour svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.knight-tour-arrow { stroke: #80ffc1; stroke-width: 2.5; fill: none; }
+.knight-tour-ring { position: absolute; border: 2px solid #80ffc1; border-radius: 8px; box-shadow: 0 0 0 3px rgba(128,255,193,.16); }
+.knight-tour-tip { position: absolute; width: min(300px, calc(100vw - 20px)); padding: 12px 14px; border: 1px solid #80ffc1; border-radius: 12px; background: #142238; color: #f2f7ff; box-shadow: 0 8px 24px #0008; pointer-events: auto; }
+.knight-tour-tip h4 { margin: 2px 24px 5px 0; font-size: 15px; color: #80ffc1; }
+.knight-tour-tip p { margin: 0; font-size: 12px; line-height: 1.4; }
+.knight-tour-count { font-size: 10px; color: #a6bed8; }
+.knight-tour-tip nav { display: flex; justify-content: space-between; margin-top: 9px; }
+.knight-tour-tip button { padding: 5px 12px; border: 1px solid #65829d; border-radius: 6px; background: #223c59; color: white; cursor: pointer; }
+.knight-tour-tip button:disabled { opacity: .4; cursor: default; }
+.knight-tour-tip [data-next] { background: #80ffc1; color: #112238; font-weight: 700; }
+.knight-tour-tip .knight-tour-dismiss { position: absolute; top: 8px; right: 8px; padding: 0 6px; font-size: 20px; border: 0; background: transparent; }
+
+/* Cost lesson: separate highlights instead of one ring around the whole hand. */
+body:has(.tut-layer:not(.hidden) .tut-card[data-step-id="t2-cost"]) :is(.hand-card, .board-card) > * {
+    filter: grayscale(1) brightness(.45);
+}
+body:has(.tut-layer:not(.hidden) .tut-card[data-step-id="t2-cost"]) .tutorial-cost-card > .hand-cost-badge {
+    filter: none;
+    opacity: 1;
+    box-shadow: 0 0 0 3px #80ffc1;
+}
+body:has(.tut-layer:not(.hidden) .tut-card[data-step-id="t2-cost"]) :is(#mobilePlayerEnergySummary, #playerEnergy) {
+    outline: 2px solid #80ffc1;
+    outline-offset: 4px;
+    border-radius: 4px;
+    background: #18382a;
+}
+
+/* Card-preview lessons stay above the drawer they explain. */
+.tut-layer:has(.tut-card[data-step-id^="ashfall-"]) { z-index: 1390; }

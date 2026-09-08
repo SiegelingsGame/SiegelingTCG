@@ -61,7 +61,7 @@ class TutorialRuleParityTest {
 
     @Test
     void tutorialCopyMatchesThoseRules() throws Exception {
-        String tutorial = read("src/main/resources/static/js/arena-tutorial.js");
+        String tutorial = read("src/main/resources/static/js/arena-tutorial.js").replace("\r\n", "\n");
         // This guard exists so the copy cannot contradict the engine, and the
         // copy no longer makes the "checks the pool, does not drain it" claim
         // at all — it was cut when the cost lesson was shortened, leaving the
@@ -106,7 +106,7 @@ class TutorialRuleParityTest {
         assertTrue(tutorial.contains("function badgeSelector()")
                         && tutorial.contains("'#playerGrid .sb-badge', '#enemyGrid .sb-badge'"),
                 "The badge target must prefer the player's own badge, then the enemy's.");
-        assertTrue(tutorial.contains("title: 'Little icons, big deal',\n        target: badgeSelector, highlight: badgeHighlight,"),
+        assertTrue(tutorial.matches("(?s).*title: 'Little icons, big deal',\\R        target: badgeSelector, highlight: badgeHighlight,.*"),
                 "The badge lesson must ring the badge itself, not the whole board area.");
         assertTrue(!tutorial.contains("title: 'Little icons, big deal', target: '#boardArea'"),
                 "The badge lesson must no longer spotlight the entire board.");
@@ -274,15 +274,17 @@ class TutorialRuleParityTest {
                 "The request must survive the match restart, which rebuilds this page state.");
         assertTrue(tutorial.contains("startAdvanced: startAdvancedFromFreshMatch,"),
                 "The tutorial must expose an entry that opens the advanced script from turn one.");
-        assertTrue(tutorial.contains("{ id: 'adv-open-place'") && tutorial.contains("{ id: 'gate-adv'"),
-                "The advanced chapter must PLAY: it deals a fresh board, so it needs the opening "
-                        + "beats and a gate before the lessons that require a fought round.");
+        assertTrue(tutorial.contains("{ id: 'adv-welcome'")
+                        && tutorial.contains("{ id: 'adv-cast-deception'")
+                        && tutorial.contains("{ id: 'adv-wait-action'"),
+                "The advanced chapter must PLAY: it opens a prepared board, casts a Deception, "
+                        + "then waits for a real battle action before teaching the action panel.");
 
         // Advising a card is not enough on the two steps whose choice the rest
         // of the script is built on. A player who taps the card NEXT to the
         // named one places the wrong Siegeling, and every following lesson
         // reasons about a board that was never built.
-        String coach = read("src/main/resources/static/js/coach.js");
+        String coach = read("src/main/resources/static/js/coach.js").replace("\r\n", "\n");
         assertTrue(coach.contains("function applyLock(s, open)") && coach.contains("'tut-locked'"),
                 "The coach must be able to shut the non-recommended members of a candidate set, "
                         + "not merely mark the recommended one.");

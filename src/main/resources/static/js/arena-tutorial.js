@@ -197,17 +197,16 @@
    *  rather than assume a Siegling costs something. */
   function costedCard() {
     var cards = hand().filter(function (c) { return c && c.costAmount > 0 && c.costElement; });
-    return cards[0] || null;
+    return cards.find(function (c) { return String(c.id || c.name).toLowerCase() === 'raydile'; }) || cards[0] || null;
   }
 
-  /** The cost the game actually renders in the fan. `.hand-cost-badge` is the
-   *  hand's own compact cost pip; `.card-corner-cost` is the painted frame's
-   *  chip, which style.css hides inside #playerHand — so the badge has to be
-   *  tried first or the lesson rings the whole hand instead of the number it
-   *  is talking about. */
   function costTarget() {
-    return firstOf(['#playerHand .hand-cost-badge', '#handTray .hand-cost-badge',
-      '#playerHand .card-corner-cost', '#handTray .card-corner-cost', '#playerHand']);
+    var card = handCardTarget(costedCard());
+    document.querySelectorAll('.tutorial-cost-card').forEach(function (node) { node.classList.remove('tutorial-cost-card'); });
+    if (!card) return null;
+    var node = document.querySelector(card);
+    node.classList.add('tutorial-cost-card');
+    return firstOf([card + ' .hand-cost-badge', card + ' .card-corner-cost']);
   }
 
   function comboCount() {
@@ -375,6 +374,43 @@
       });
     });
     return found;
+  }
+
+  // Scope every action-bar tip to the visible layout, never a hidden duplicate.
+  function firstBattleField(field) {
+    var panels = ['#battleActionPanel', '#desktopHandBattlePanel', '#desktopBattleActionPanel'];
+    for (var i = 0; i < panels.length; i++) {
+      var selector = panels[i] + ' ' + field;
+      if (visible(selector)) return selector;
+    }
+    return null;
+  }
+
+  function ashfallTarget() {
+    return handCardTarget(hand().find(function (c) { return c.id === 'tutorial_ashfall'; }));
+  }
+  function previewField(mobile, desktop) {
+    return firstOf2(['#drawerSelected ' + mobile, '#desktopCardPreviewPanel ' + mobile, '#desktopCardPreviewPanel ' + desktop]);
+  }
+  function ashfallPreviewOpen() {
+    var b = bridge();
+    var card = b && b.previewCard ? b.previewCard() : null;
+    return card && card.id === 'tutorial_ashfall' && !!previewField('.selected-preview-card', '.desktop-preview-card');
+  }
+
+  function firstStackTarget() {
+    return firstBattleField('.sb-badge') ||
+      (visible('#playerGrid .sb-badge') ? '#playerGrid .sb-badge' :
+        (visible('#enemyGrid .sb-badge') ? '#enemyGrid .sb-badge' : null));
+  }
+
+  function firstStackCopy() {
+    var selector = firstStackTarget();
+    var badge = selector && document.querySelector(selector);
+    var detail = badge && badge.getAttribute('title');
+    return (detail ? '<b>' + esc(detail) + '</b><br>' : '') +
+      'This badge shows an effect already on the creature. Its number is the current stack count (or shield amount for a shield badge). ' +
+      'Ice adds Chill; Fire adds Burn. Further applications can add stacks. Tap the creature to read its effects in the card view.';
   }
 
   // ---- multi-target lesson --------------------------------------------------
@@ -709,7 +745,7 @@
    * phase, so it must go down now.
    *
    * Not every deal holds the evolution at this point though (the tutorial hand
-   * after a Keep is Sundile, Squire Bud, Cinder Bolt, Shatter Seal, Pylook —
+   * after a Keep is Sundile, Pylook, Ashfall, Shatter Seal, Pylook —
    * no Raydile), and there the tip falls back to generic wording. Rather than
    * mark an arbitrary card, fall back to the rule the very next step teaches:
    * whichever playable Siegeling reaches the most perimeter sockets.
@@ -1025,12 +1061,53 @@
         body: 'Fastest acts first, all the way down the line. Your Fire is very rude to their Ice.',
         until: function () { return seen.sawBattle; } },
 
+      { id: 'first-action-ready', skipTo: 'target',
+        hint: 'Watch for your creature’s action',
+        gate: function () { return !!actingCard() || phase() !== 'BATTLE'; } },
+
+      { id: 'first-actor', title: 'Who is acting?',
+        target: function () { return firstBattleField('.battle-queue-card-title'); },
+        body: 'This is the <b>active creature’s name</b>. The board marks the same creature <b>Acting</b>. These moves belong to it.',
+        skipIf: function () { return !actingCard(); } },
+      { id: 'first-health', title: 'Current health',
+        target: function () { return firstBattleField('.card-stat-pill-hp'); },
+        body: 'The heart shows this creature’s <b>current Health</b>. Damage lowers it; reaching zero knocks the creature out.',
+        skipIf: function () { return !actingCard(); } },
+      { id: 'first-speed', title: 'Current speed',
+        target: function () { return firstBattleField('.card-stat-pill-spd'); },
+        body: 'The lightning number is <b>Speed</b>, including current effects. Speed determines the battle order; it is not attack damage.',
+        skipIf: function () { return !actingCard(); } },
+      { id: 'first-action-badges', title: 'Badges travel with the creature',
+        target: function () { return firstBattleField('.sb-badge'); },
+        body: firstStackCopy,
+        skipIf: function () { return !firstBattleField('.sb-badge'); } },
+      { id: 'first-options', title: 'Your ability options',
+        target: function () { return firstBattleField('.battle-queue-actions'); },
+        body: 'Each button is an <b>ability choice</b>. Read its damage and target, then its energy cost on the right. <b>Free</b> costs no energy. The weakness line previews any bonus damage.',
+        skipIf: function () { return !actingCard(); } },
+      { id: 'first-pass', title: 'Pass this action', target: '#btnBattlePass',
+        body: '<b>Pass</b> skips this creature’s action without using an ability. It does not end the whole battle. You can keep your attack for this lesson — you do not need to pass.',
+        skipIf: function () { return !visible('#btnBattlePass'); } },
+      { id: 'first-next', title: 'Who acts next?', target: '#btnBattlePassNext',
+        body: 'The <b>Next</b> line names the next acting creature and its owner. It previews who follows after your action or a pass.',
+        skipIf: function () { return !visible('#btnBattlePassNext'); } },
+      { id: 'first-choose', title: 'Choose your first move',
+        target: function () { return firstBattleField('.battle-queue-actions'); },
+        hint: 'Tap an <b>ability</b>',
+        body: 'Tap a move that targets an enemy creature to try targeting. A move aimed directly at the enemy player resolves without choosing a board card.',
+        skipIf: function () { return !actingCard(); },
+        until: function () { return battleTargeting() || !actingCard() || phase() !== 'BATTLE'; } },
+
       { id: 'target', hint: 'Pick a <b>target</b>', title: 'Pick your victim',
         target: function () { return firstOf(['#enemyGrid .board-cell.targetable', '#enemyGrid']); },
         highlight: ['#enemyGrid .board-cell.targetable', '#playerGrid .board-cell.targetable'],
-        body: 'Lit cells are fair game. Pick one.',
+        body: 'The <b>highlighted cells</b> are valid targets for your chosen ability. Tap one to select it. A single-target move hits that creature; a row move asks you to select and confirm a row. Read the arrows before confirming.',
         skipIf: function () { return !visible('#enemyGrid .board-cell.targetable'); },
         until: function () { return !visible('#enemyGrid .board-cell.targetable'); } },
+
+      { id: 'first-stack', title: 'Your first effect stack',
+        target: firstStackTarget, body: firstStackCopy,
+        skipIf: function () { return !firstStackTarget(); } },
 
       { id: 'damage', title: 'Where damage comes from', target: '#boardArea',
         body: 'Every point of it comes from <b>abilities</b> — there is no attack stat. Hit an element you beat and you get <b>+1</b> for free.' },
@@ -1117,13 +1194,13 @@
       // (energy is recomputed from links each turn), while a spell or trap goes
       // through `spendEnergy`. Saying "pay" for a Siegling would be wrong.
       { id: 't2-cost', title: 'What a card asks for', target: costTarget,
-        highlight: ['#playerHand', '#handTray'],
+        nodim: true,
         body: function () {
           var c = costedCard();
           var named = c
             ? '<b>' + esc(c.name) + '</b> wants <b>' + c.costAmount + ' ' + esc(String(c.costElement).toLowerCase()) + '</b>. '
             : '';
-          return 'That little corner number is the <b>cost</b>. ' + named +
+          return 'Compare your <b>available energy at the top</b> with the marked <b>cost</b>. ' + named +
             'Your starters are free, but the heavier Siegelings — <b>evolutions especially</b> — ask for energy of their element.';
         },
         skipIf: function () { return !costedCard() && !visible('#playerHand .card-corner-cost'); } },
@@ -1545,14 +1622,32 @@
         body: 'Mixed links bank a split-colour <b>combo</b>. Your heaviest cards only take these — worth building for.',
         skipIf: function () { return turn() < 3 || !seen.sawBattle2; } },
 
-      { id: 't3-strategy', hint: 'Cast a <b>Strategy</b> you can afford', title: 'Now you can afford things',
-        target: '#playerHand', highlight: ['#playerHand', '#handTray'],
-        body: 'Two rounds of link energy have piled up, so now you can actually pay for one. <b>Strategies</b> spend your own energy and resolve the moment you play them — cast one.',
-        skipIf: function () { return turn() < 3 || !handHas('SPELL'); } },
+      { id: 't3-strategy', hint: 'Tap <b>Ashfall</b> to inspect it', title: 'Review Ashfall before casting',
+        target: ashfallTarget, recommend: ashfallTarget,
+        lock: function () { return ashfallTarget() ? HAND_CARDS : null; },
+        body: '<b>Tap Ashfall</b> to open its card preview. Check the Strategy’s cost and effect before choosing what to play. You can inspect it even when you cannot afford it.',
+        skipIf: function () { return turn() < 3 || !ashfallTarget(); },
+        until: function () { return ashfallPreviewOpen() || !ashfallTarget(); } },
+      { id: 'ashfall-art', title: 'Card preview',
+        target: function () { return previewField('.selected-preview-card', '.desktop-preview-card'); },
+        body: 'This is Ashfall’s card. Its name and cost symbol identify the Strategy you are reviewing.',
+        skipIf: function () { return !ashfallPreviewOpen(); } },
+      { id: 'ashfall-cost', title: 'Three Fire, not three total energy',
+        target: function () { return previewField('.selected-copy-cost', '.desktop-preview-stats'); },
+        body: '<b>Play Cost: 3 Fire</b> means three Fire energy. Earth energy and combo points do not replace Fire. The availability message tells you what is missing.',
+        skipIf: function () { return !ashfallPreviewOpen(); } },
+      { id: 'ashfall-effect', title: 'Read the effect',
+        target: function () { return previewField('.selected-copy-detail', '.desktop-preview-description'); },
+        body: 'Ashfall <b>destroys every enemy Siegeling</b>. It is a tutorial Strategy for the upcoming claim lesson. Reviewing it does not cast it or spend energy.',
+        skipIf: function () { return !ashfallPreviewOpen(); } },
+      { id: 'ashfall-pages', title: 'Preview pages',
+        target: function () { return previewField('.selected-preview-dots', '.desktop-preview-card'); },
+        body: 'On phones, swipe or tap the page dots to switch between the card summary and moves. Review the effect and cost, then tap Got it to continue. On desktop, the inspector keeps the summary alongside the board.',
+        skipIf: function () { return !ashfallPreviewOpen(); } },
 
-      { id: 't3-deception', title: 'Spend their energy', target: '#playerHand',
+      { id: 't3-deception', title: 'Check their energy', target: '#playerHand',
         highlight: ['#playerHand', '#handTray'],
-        body: 'Here is the sneaky one: a <b>Deception</b> is paid for with <b>their</b> energy, not yours. Play one if you have it.',
+        body: 'Here is the sneaky one: a <b>Deception</b> requires a matching amount in the <b>opponent’s energy pool</b>. Play one if you have it.',
         skipIf: function () { return turn() < 3 || !handHas('TRAP'); } },
 
       // Claiming used to be taught in a vacuum: "cash in a survivor" with nothing
@@ -1669,80 +1764,32 @@
 
   function buildAdvancedSteps() {
     return [
-      { id: 'adv-welcome', kicker: 'Advanced', title: 'The sneaky stuff',
-        body: 'A <b>fresh match</b> — you need a live board for this half. Burns, buffs, shields and '
-          + 'debuffs, and every button along the bottom. Play it out and I will point as they happen.' },
+      { id: 'adv-welcome', kicker: 'Advanced', title: 'A prepared five-versus-five battle',
+        target: '#boardArea',
+        body: 'Both teams already have <b>five Siegelings</b>. You start in <b>Setup</b> with Fire and Earth energy, and the opponent has Ice energy. No opening placement or mulligan is needed.' },
+      { id: 'adv-enemy-energy', title: 'Deceptions check enemy energy',
+        target: function () { return firstOf(['#mobileEnemyEnergyCount', '#enemyEnergy']); },
+        body: 'Your <b>Shatter Seal</b> requires the opponent to have <b>3 Ice energy</b>. Read their pool here, rather than your own Fire or Earth pool.' },
+      { id: 'adv-cast-deception', title: 'Cast Shatter Seal',
+        target: function () { return handCardTarget(hand().find(function(c) { return c.id === 'trap13'; })); },
+        body: 'Tap <b>Shatter Seal</b>, review its enemy-energy requirement, and cast it at a highlighted enemy. The prepared Ice pool makes it available.',
+        skipIf: function () { return !hand().some(function(c) { return c.id === 'trap13'; }); },
+        until: function () { return !hand().some(function(c) { return c.id === 'trap13'; }) || phase() !== 'SETUP'; } },
+      { id: 'adv-start-battle', title: 'Open the battle queue', target: actionBtn,
+        body: 'Finish Setup with <b>End Turn</b>. After the opponent’s Setup, the battle action bar shows the acting creature and its available moves.',
+        until: function () { return phase() === 'BATTLE' || seen.ended; } },
+      { id: 'adv-wait-action', hint: 'Watch for your next acting creature', skipTo: 'adv-hud',
+        gate: function () { return !!actingCard() || seen.ended; } },
+      { id: 'adv-action-preview', title: 'Battle action preview',
+        target: function () { return firstBattleField('.battle-queue-topbar'); },
+        body: 'The header shows the active creature, current Health, Speed and badges. This is the creature choosing an action now.' },
+      { id: 'adv-action-moves', title: 'Choose a battle ability',
+        target: function () { return firstBattleField('.battle-queue-actions'); },
+        body: 'Each move shows its effect, energy cost and damage preview. Targeted moves light valid cells; direct-player moves resolve without a board target. Pass skips this creature and names the next actor.' },
 
-      // A fresh match starts at the mulligan, so the advanced script has to get
-      // the student playing before it has anything to point at. These are the
-      // basics compressed to one line each — they have already been taught.
-      { id: 'adv-open-mull', hint: 'Keep or redraw, then start', title: 'Same opening',
-        target: '#mulliganHandPreview', highlight: ['#mulliganHandPreview', '#mulliganActions'],
-        body: 'You know this one. Keep the hand or swap a card, and we are away.',
-        skipIf: function () { return phase() !== 'MULLIGAN'; },
-        until: function () { return phase() !== 'MULLIGAN'; } },
-
-      { id: 'adv-open-place', hint: 'Place a Siegeling', title: 'Get a board down',
-        target: function () { return firstOf(['#playerGrid .board-cell.legal', '#playerGrid']); },
-        highlight: ['#playerHand', '#handTray', '#playerGrid .board-cell.legal'],
-        recommend: linkCell,
-        body: 'Put something down and end the turn — afflictions and shields need bodies on the '
-          + 'board before they mean anything.',
-        skipIf: function () { return mine() >= 1; },
-        until: function () { return mine() >= 1; } },
-
-      { id: 'adv-open-end', hint: 'Tap <b>End Turn</b>', title: 'Let them swing',
-        target: actionBtn,
-        body: 'End the turn and let the Dummy hit back — that first exchange is where the '
-          + 'badges come from.',
-        skipIf: function () { return phase() === 'BATTLE' || seen.sawBattle; },
-        until: function () { return phase() === 'BATTLE' || seen.sawBattle; } },
-
-      // Everything below needs a fought round behind it, so hold rather than skip.
-      { id: 'gate-adv', skipTo: 'adv-hud',
-        hint: 'Play the round out — the deeper lessons need a fight first',
-        gate: function () { return seen.sawBattle || seen.ended; } },
-
-      { id: 'adv-burn', title: 'Elemental afflictions',
-        target: badgeSelector, highlight: badgeHighlight,
-        body: 'Fire leaves them <b>Burning</b>, Ice leaves them <b>Chilled</b>, and it keeps biting on their own turn. Free damage while you do something else.',
-        until: function () { return anyStatus(/BURN|CHILL|POISON|FROZEN/) || seen.sawBadge || seen.ended; } },
-
-      { id: 'adv-buff', title: 'Make one hit harder', target: '#playerHand',
-        highlight: ['#playerHand', '#handTray'],
-        hint: function () {
-          return castLine('SPELL', /boost|attack|damage|strength|max health|health up/,
-            'Cast a boost Strategy when you draw one');
-        },
-        body: function () {
-          var n = handCardName('SPELL', /boost|attack|damage|strength|max health|health up/);
-          return n
-            ? '<b>' + esc(n) + '</b> pins a badge on an ally — more punch, or more health. Got the energy? Stack it up.'
-            : 'Some Strategies pin a badge on an ally — more punch, or more health. None in your hand this second; when one turns up, that is what it does.';
-        },
-        until: function () { return anyStatus(/BOOST|BUFF/) || phase() === 'BATTLE' || seen.ended; } },
-
-      { id: 'adv-shield', title: 'Shields', target: '#playerHand',
-        highlight: ['#playerHand', '#handTray'],
-        hint: function () { return castLine('SPELL', /shield|ward|absorb|guard/, 'Cast a shield Strategy when you draw one'); },
-        body: function () {
-          var n = handCardName('SPELL', /shield|ward|absorb|guard/);
-          return n
-            ? '<b>' + esc(n) + '</b> drops a <b>Shield</b> that eats damage before HP does. Put it on whoever is about to get hit.'
-            : 'A <b>Shield</b> eats damage before HP does — worth saving for whoever is about to get hit.';
-        },
-        // Waits for a shield to actually exist, by any route, and gives the wait
-        // up when the round ends so a student without the card is never stuck.
-        until: function () { return anyStatus(/SHIELD/) || phase() === 'BATTLE' || seen.ended; } },
-
-      { id: 'adv-debuff', title: 'Slow them down', target: '#playerHand',
-        highlight: ['#playerHand', '#handTray'],
-        body: function () {
-          var n = handCardName('SPELL', /bind|slow|speed|root/) || handCardName('TRAP', /bind|slow|speed|root/);
-          return n
-            ? '<b>' + esc(n) + '</b> drags a foe down the Speed order — they act last, or not at all. Look for the badge on their card.'
-            : 'Some cards drag a foe down to <b>0 Speed</b> — they act dead last, or not at all. Look for the badge on their card.';
-        } },
+      { id: 'adv-shield', title: 'Read the badges',
+        target: firstStackTarget,
+        body: 'Both lead creatures start with <b>3 Shield</b>, which absorbs damage before Health. Tap a badge to read its effect. New afflictions and boosts appear as badges too.' },
 
       // ---- The HUD ---------------------------------------------------------
       //
@@ -1788,6 +1835,13 @@
       { id: 'adv-hud-cancel', title: 'Cancel Move', target: '#btnCancelBattleMove',
         body: 'Backs out of a move you have picked but not aimed yet — no cost, pick again.',
         skipIf: function () { return !visible('#btnCancelBattleMove'); } },
+
+      { id: 'adv-hud-home', title: 'Back to Home', target: '.action-bar-aux a[aria-label="Back to Home"]',
+        body: 'The back arrow returns to Home. Stay here while practicing this battle.',
+        skipIf: function () { return !visible('.action-bar-aux a[aria-label="Back to Home"]'); } },
+      { id: 'adv-hud-menu', title: 'Site menu', target: '#playHubMenuFlyout summary',
+        body: 'The site menu opens navigation to your Keep, cards, decks and other pages.',
+        skipIf: function () { return !visible('#playHubMenuFlyout summary'); } },
 
       { id: 'adv-hud-act', title: 'Act — your Setup budget', target: '#setupActionsCounter',
         body: 'How many Setup actions you have left this round. It ticks down as you place, cast and claim.',
@@ -1885,20 +1939,9 @@
   }
 
   function startAdvanced() {
-    if (!window.TutorialCoach || !window.TutorialCoach.continueWith) return;
-    // Keep the live match and the watcher; swap the script to the badge chapter.
-    window.TutorialCoach.continueWith(buildAdvancedSteps(), {
-      onFinale: function (box, reposition) {
-        if (!box) return;
-        box.className = 'tut-reward is-claimed';
-        // The finale body already says keep playing or Finish, and this box sits
-        // directly under it — repeating the sentence read like a stutter.
-        box.innerHTML = '<b>Nothing left to teach</b> the rest is practice.';
-        if (reposition) reposition();
-      },
-      onAlt: null
-    });
+    if (window.startAdvancedTutorialMatch) window.startAdvancedTutorialMatch();
   }
+
 
   var rewardClaim = null;
 
@@ -1947,6 +1990,12 @@
     start: start,
     startAdvanced: startAdvancedFromFreshMatch,
     stop: stop,
-    active: function () { return ACTIVE; }
+    active: function () { return ACTIVE; },
+    shouldPreviewCard: function (card) {
+      var step = document.querySelector('.tut-layer:not(.hidden) .tut-card');
+      var id = step && step.getAttribute('data-step-id');
+      return ACTIVE && card && card.id === 'tutorial_ashfall' &&
+        (id === 't3-strategy' || (id && id.indexOf('ashfall-') === 0));
+    }
   };
 })();

@@ -39,8 +39,42 @@ class TutorialScriptedDrawTest {
     }
 
     @Test
+    void advancedStartsWithFivePerSideAndAPlayableDeceptionThenReachesBattle() {
+        GameState state = gameService.newAdvancedTutorialGame("Student").state();
+        assertEquals(Phase.SETUP, state.getCurrentPhase());
+        assertEquals(6, state.getTurnNumber());
+        for (boolean side : new boolean[]{true, false}) {
+            int count = 0;
+            for (int row = 0; row < 3; row++) {
+                for (int col = 0; col < 3; col++) {
+                    if (state.getAt(side, row, col) != null) count++;
+                }
+            }
+            assertEquals(5, count);
+        }
+        assertTrue(state.getPlayer().getFireEnergy() >= 6);
+        assertTrue(state.getPlayer().getEarthEnergy() >= 6);
+        assertTrue(state.getEnemy().getIceEnergy() >= 3);
+        int health = state.getAt(false, 1, 0).getCurrentHealth();
+        gameService.castSpell(state, true, "trap13", 1, 0);
+        assertTrue(!handHas(state, "trap13"), "Deception must be playable immediately.");
+        assertTrue(state.getAt(false, 1, 0).getCurrentHealth() < health);
+        gameService.endTurn(state, true);
+        if (state.getCurrentPhase() == Phase.DRAW) gameService.draw(state, false);
+        if (state.getCurrentPhase() == Phase.SETUP) gameService.endTurn(state, false);
+        assertEquals(Phase.BATTLE, state.getCurrentPhase());
+        for (int i = 0; i < 10 && state.getPendingBattleInstanceId() == null; i++) {
+            gameService.executeBattle(state);
+        }
+        assertNotNull(state.getPendingBattleInstanceId(), "Prepared match must reach a player action.");
+        assertTrue(!gameService.getPendingBattleAbilities(state).isEmpty());
+    }
+
+    @Test
     void openingHandHoldsTheRoundOneAndRoundTwoLessonCards() {
         GameState state = gameService.newTutorialGame("Student").state();
+        assertTrue(!handHas(state, "squirebud"), "No Squire Bud in the opening hand.");
+        assertTrue(handHas(state, "tutorial_ashfall"), "Ashfall starts in hand for its preview lesson.");
         assertTrue(handHas(state, "sundile"), "Round one opens with Sundile.");
         assertTrue(handHas(state, "pylook"), "Round two links Pylook to Sundile, so it must be dealt.");
         assertEquals("pylook",
@@ -49,11 +83,11 @@ class TutorialScriptedDrawTest {
     }
 
     @Test
-    void theScriptedMulliganHandsOverTheEvolutionRoundTwoNeeds() {
+    void theScriptedMulliganHandsOverGeneroot() {
         GameState state = gameService.newTutorialGame("Student").state();
         gameService.resolveOpeningMulligan(state, true, List.of(GameService.TUTORIAL_SCRIPTED_MULLIGAN_INDEX));
-        assertTrue(handHas(state, "raydile"),
-                "Redrawing the spare must deal Raydile — round two evolves Sundile with it.");
+        assertTrue(handHas(state, "generoot"),
+                "Redrawing the spare must deal Generoot.");
         assertTrue(handHas(state, "pylook"), "The kept Pylook must survive the redraw.");
     }
 
@@ -77,8 +111,8 @@ class TutorialScriptedDrawTest {
                 int before = state.getPlayer().getHand().size();
                 gameService.draw(state, true);
                 Card drawn = state.getPlayer().getHand().get(before);
-                assertTrue(!(drawn instanceof SieglingCard s) || s.getElement() == Element.FIRE,
-                        "Round " + turnNumber + " must not deal an off-element Siegling (got " + drawn.getId() + ").");
+                assertEquals(turnNumber == 1 ? "raydile" : "floraknight", drawn.getId());
+                assertTrue(!handHas(state, "squirebud"), "Squire Bud must wait until turn three.");
             }
 
             state.setTurnNumber(3);
@@ -87,6 +121,8 @@ class TutorialScriptedDrawTest {
             gameService.draw(state, true);
             Card drawn = state.getPlayer().getHand().get(before);
             assertNotNull(drawn);
+            assertEquals("squirebud", drawn.getId());
+            assertTrue(handHas(state, "tutorial_ashfall"), "Ashfall must be available for its preview lesson.");
             SieglingCard partner = assertInstanceOf(SieglingCard.class, drawn,
                     "Round three must draw a Siegling to link a combo with.");
             assertEquals(Element.EARTH, partner.getElement(),
@@ -190,10 +226,11 @@ class TutorialScriptedDrawTest {
 
         state.setTurnNumber(4);
         state.setCurrentPhase(Phase.DRAW);
+        String expectedNext = state.getPlayer().getDeck().get(0).getId();
         int before = state.getPlayer().getHand().size();
         gameService.draw(state, true);
         Card drawn = state.getPlayer().getHand().get(before);
-        assertTrue(!(drawn instanceof SieglingCard s) || s.getElement() != Element.EARTH,
+        assertEquals(expectedNext, drawn.getId(),
                 "With a partner already in hand the deck must run normally, not keep hoisting Earth "
                         + "(got " + drawn.getId() + ").");
     }

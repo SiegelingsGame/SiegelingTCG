@@ -367,7 +367,9 @@ public class GameController {
             boolean tutorial = req != null && Boolean.TRUE.equals(req.get("tutorial"));
             GameService.SoloHandle handle;
             if (tutorial) {
-                handle = gameService.newTutorialGame(resolvedName);
+                handle = Boolean.TRUE.equals(req.get("advancedTutorial"))
+                        ? gameService.newAdvancedTutorialGame(resolvedName)
+                        : gameService.newTutorialGame(resolvedName);
             } else {
                 GameService.StartOptions options = parseStartOptions(req, "deck_fire_earth", "trainer05");
                 validateStartOwnership(user, options);
