@@ -2701,7 +2701,7 @@
                     </div>
                     <div class="command-hero-actions">
                         <button class="ghost-btn command-hero-btn" type="button" data-home-action="cards"><span>Cards</span>Owned Cards</button>
-                        <button class="primary-btn command-hero-btn command-hero-btn-primary" type="button" data-home-action="pve"><span>Play</span>Start Match</button>
+                        <button class="primary-btn command-hero-btn command-hero-btn-primary" type="button" data-home-action="pve"><span>Play</span>Start Arena Match</button>
                         <button class="ghost-btn command-hero-btn" type="button" data-home-action="deck-builder"><span>Deck</span>Deck Builder</button>
                     </div>
                 </div>
