@@ -62,7 +62,7 @@ enum TargetKind {
 }
 
 /** Map node categories for a Siege run. */
-enum NodeType { BATTLE, ELITE, REST, TREASURE, BROKER, SMITH, CARAVAN, EVENT, BOSS }
+enum NodeType { BATTLE, ELITE, REST, TREASURE, BROKER, SMITH, CARAVAN, EVENT, RIFT, BOSS }
 
 /**
  * A SiegeKnight's run-long leadership passive — every knight grants a different

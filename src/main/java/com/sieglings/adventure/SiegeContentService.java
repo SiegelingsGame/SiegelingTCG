@@ -1162,6 +1162,8 @@ public class SiegeContentService {
         if (row == SEGMENT_ROWS - 2) return NodeType.REST;
         // Guaranteed variety anchors: a cache early, a broker and an elite mid-run.
         if (row == 2 && col == rowCount - 1) return NodeType.TREASURE;
+        // Rare Rift beside the cache when the row has room — players choose one lane.
+        if (row == 2 && col == 0 && rowCount >= 2 && rng.nextInt(100) < 22) return NodeType.RIFT;
         if (row == 3 && col == 0) return NodeType.BROKER;
         if (row == 4 && col == 0) return NodeType.ELITE;
         // Guaranteed variety anchors for the new stops.
@@ -1170,6 +1172,8 @@ public class SiegeContentService {
         int roll = rng.nextInt(100);
         // Battlegrounds packs in more elites (+50% density).
         int eliteThreshold = battlegrounds ? (int) Math.round(14 * SiegeTuning.BG_ELITE_DENSITY_MULT) : 14;
+        // Sparse mid-map Rifts: a single-digit chance so they stay rare.
+        if (row >= 2 && roll < 5) return NodeType.RIFT;
         if (row >= 3 && roll < eliteThreshold) return NodeType.ELITE;
         if (roll < 24) return NodeType.EVENT;
         if (roll < 36) return NodeType.TREASURE;
@@ -1190,6 +1194,7 @@ public class SiegeContentService {
             case SMITH -> "Smith";
             case CARAVAN -> "Caravan";
             case EVENT -> "Event";
+            case RIFT -> "Rift";
             case BOSS -> "Boss";
         };
     }

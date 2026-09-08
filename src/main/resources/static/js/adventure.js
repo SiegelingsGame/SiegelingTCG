@@ -84,8 +84,8 @@
     DISORIENT: 'WIND', POISON: 'POISON', SOAK: 'WATER', RUST: 'METAL',
     CURSE: 'SHADOW', INSIGHT: 'PSYCHIC', BLIND: 'LIGHT', WITHER: 'UNDEAD'
   };
-  var NODE_ICON = { BATTLE: '⚔️', ELITE: '🔺', REST: '🏕️', TREASURE: '💎', BROKER: '🐾', SMITH: '🔨', CARAVAN: '🐫', EVENT: '❔', BOSS: '👑' };
-  var NODE_TINT = { BATTLE: '#8fa3bf', ELITE: '#ff6e6e', REST: '#7ee787', TREASURE: '#ffd066', BROKER: '#c896ff', BOSS: '#ff9a3c' };
+  var NODE_ICON = { BATTLE: '⚔️', ELITE: '🔺', REST: '🏕️', TREASURE: '💎', BROKER: '🐾', SMITH: '🔨', CARAVAN: '🐫', EVENT: '❔', RIFT: '🌀', BOSS: '👑' };
+  var NODE_TINT = { BATTLE: '#8fa3bf', ELITE: '#ff6e6e', REST: '#7ee787', TREASURE: '#ffd066', BROKER: '#c896ff', RIFT: '#5eead4', BOSS: '#ff9a3c' };
   // One line per emblem, shown in the map key (🗝️ Key on the map HUD). Kept
   // beside NODE_ICON so a new node type is obvious when it has no entry here.
   var NODE_LEGEND = [
@@ -94,6 +94,7 @@
     ['REST', 'Rest camp', 'Heal the warband, upgrade a card or shop the camp stock.'],
     ['TREASURE', 'Cache', 'Dig for loot. Digging deeper pays more and wakes trouble.'],
     ['EVENT', 'Event', 'An encounter with a choice; outcomes vary.'],
+    ['RIFT', 'Rift', 'A rare portal. One step — and a random new Land.'],
     ['BROKER', 'Broker', 'Recruit or hire an extra Siegeling for the run.'],
     ['SMITH', 'Smith', 'Forge and upgrade gear for the warband.'],
     ['CARAVAN', 'Caravan', 'Trade goods and buy items with run gold.'],
@@ -207,7 +208,7 @@
       // survive to fire on the first turn of the next one.
       state.pendingEndTurn = false;
     }
-    ['loadingScreen', 'resumeScreen', 'setupScreen', 'mapScreen', 'campScreen', 'cacheScreen', 'brokerScreen', 'smithScreen', 'caravanScreen', 'eventScreen', 'minigameScreen', 'interactionResultScreen', 'battleScreen', 'recruitScreen', 'ampScreen', 'rewardScreen', 'resultScreen'].forEach(function (s) {
+    ['loadingScreen', 'resumeScreen', 'setupScreen', 'mapScreen', 'campScreen', 'cacheScreen', 'brokerScreen', 'smithScreen', 'caravanScreen', 'eventScreen', 'riftScreen', 'minigameScreen', 'interactionResultScreen', 'battleScreen', 'recruitScreen', 'ampScreen', 'rewardScreen', 'resultScreen'].forEach(function (s) {
       var node = $(s); if (node) node.classList.toggle('hidden', s !== id);
     });
     // Battle and map are static, full-viewport screens (no page scroll —
@@ -742,6 +743,7 @@
     $('campLeaveBtn').addEventListener('click', campPrimaryAction);
     $('cacheDigBtn').addEventListener('click', cacheDig);
     $('cacheTakeBtn').addEventListener('click', cacheTake);
+    $('riftCrossBtn').addEventListener('click', riftCross);
     $('brokerLeaveBtn').addEventListener('click', brokerLeave);
     $('battleLog').addEventListener('click', function () { toggleLedger(true); });
     $('ledgerClose').addEventListener('click', function () { toggleLedger(false); });
@@ -1712,6 +1714,7 @@
   // ---- run router ----------------------------------------------------
   function interactionClosed(run, source) {
     if (source === 'event') return true;
+    if (source === 'rift') return !run.rift;
     if (source === 'camp') return !run.camp;
     if (source === 'cache') return !run.cache;
     if (source === 'broker') return !run.broker;
@@ -1800,6 +1803,7 @@
     if (run.smith) { renderSmith(); return; }
     if (run.caravan) { renderCaravan(); return; }
     if (run.event) { renderEvent(); return; }
+    if (run.rift) { renderRift(); return; }
     if (run.minigame) { renderMinigame(); return; }
     renderMap();
   }
@@ -1899,7 +1903,7 @@
       '<div class="land-rule"><b>Encounters &amp; discoveries</b><p>' + esc(land.encounters) + '</p></div>' +
       '<div class="land-rule"><b>' + esc(land.feature) + '</b><p>More ' + esc(String(land.featureType || '').toLowerCase()) + ' stops. Look for ' + esc(land.eventTitle) + ' at events.</p></div>' +
       ((run.landBoons || []).length ? '<div class="land-rule"><b>Badlands boons</b>' + run.landBoons.map(function (b) { return '<p><strong>' + esc(b.name) + '</strong> — ' + esc(b.desc) + '</p>'; }).join('') + '</div>' : '') +
-      '<p class="land-footnote">Defeat this land’s boss to enter a different land. Rare lands and Badlands can appear after a boss; their chances rise as you progress.</p>';
+      '<p class="land-footnote">Defeat this land’s boss to enter a different land. Rare <b>Rifts</b> on the map can also tear you into another Land mid-run. Rare lands and Badlands can appear after a boss; their chances rise as you progress.</p>';
     $('landModal').classList.remove('hidden');
     $('landClose').focus();
   }
@@ -2590,6 +2594,23 @@
       });
       box.appendChild(b);
     });
+  }
+
+  // ---- Rift (rare mid-run Land change) ---------------------------------
+  function renderRift() {
+    showScreen('riftScreen');
+    var run = state.run;
+    renderLocationParty('riftParty', displayParty(run));
+    $('riftGold').textContent = '🪙 ' + (run.gold || 0);
+  }
+
+  function riftCross() {
+    if (state.busy) return;
+    state.busy = true;
+    api('/api/siege/rift/cross', { method: 'POST', body: { token: token() } })
+      .then(function (run) { applyInteractionResponse(run, { source: 'rift', title: 'Rift', icon: '🌀' }); })
+      .catch(function (e) { toast(e.message); })
+      .then(function () { state.busy = false; });
   }
 
   // ---- Puzzle mini-games (LINE / RPS / MATCH) --------------------------

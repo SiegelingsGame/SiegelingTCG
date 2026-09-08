@@ -538,6 +538,14 @@ public class SiegeService {
         // Replaying an older battle checkpoint must not let a player reroll the next land.
         Random landRng = new Random(java.util.Objects.hash(run.getToken(), run.getBossKills(), "lands-v1"));
         SiegeLand land = SiegeLand.roll(run.getLand(), run.getBossKills(), content.defaultPalette(), landRng);
+        applyLandChange(run, land, landRng);
+    }
+
+    /**
+     * Swaps the active Land and rethemes uncleared nodes in the current segment.
+     * Used by boss transitions and by rare Rift stops mid-run.
+     */
+    private void applyLandChange(SiegeRun run, SiegeLand land, Random landRng) {
         run.setLand(land);
         run.getLandHistory().add(land.id());
         land.themeMap(run, run.getBossKills(), landRng);
@@ -1608,6 +1616,8 @@ public class SiegeService {
             openCaravan(run);
         } else if (node.getType() == NodeType.EVENT) {
             openEvent(run);
+        } else if (node.getType() == NodeType.RIFT) {
+            openRift(run);
         } else {
             node.setCleared(true);
             checkpoint(run);
@@ -3323,6 +3333,33 @@ public class SiegeService {
         return serialize(run);
     }
 
+    // ---- Rift nodes (rare mid-run Land change) -----------------------------
+
+    private void openRift(SiegeRun run) {
+        run.setInRift(true);
+    }
+
+    /**
+     * The Rift offers one action: cross. Destination Land is rolled server-side
+     * (never chosen by the player) and uncleared nodes in the current segment
+     * are rethemed to match — same seam as a boss transition, without a boss kill.
+     */
+    Map<String, Object> riftCross(String token) {
+        SiegeRun run = require(token);
+        if (!run.isInRift()) throw new IllegalArgumentException("There is no Rift here.");
+        run.setInRift(false);
+        SiegeNode node = run.currentNode();
+        if (node != null) node.setCleared(true);
+        // Seed on history size so each Rift in a run is stable across retries but
+        // cannot collide with the boss-transition land roll (lands-v1 / bossKills).
+        Random landRng = new Random(java.util.Objects.hash(run.getToken(), run.getLandHistory().size(), "rift-v1"));
+        SiegeLand next = SiegeLand.roll(run.getLand(), run.getBossKills(), content.defaultPalette(), landRng);
+        applyLandChange(run, next, landRng);
+        run.setLastReward("The Rift closes. You stand in " + next.name() + ".");
+        checkpoint(run);
+        return serialize(run);
+    }
+
     // ---- Items (equip / unequip) ------------------------------------------
 
     Map<String, Object> equipItem(String token, String itemId, String memberId) {
@@ -4100,6 +4137,7 @@ public class SiegeService {
         } else {
             m.put("event", null);
         }
+        m.put("rift", run.isInRift() ? java.util.Map.of("open", true) : null);
 
         // Cache/event puzzle mini-game (LINE / RPS / MATCH).
         m.put("minigame", run.isInMinigame() ? serializeMinigame(run) : null);

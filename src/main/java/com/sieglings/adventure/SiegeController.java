@@ -279,6 +279,12 @@ public class SiegeController {
         return siege.eventChoose(str(body.get("token")), str(body.get("optionId")));
     }
 
+    /** Cross a Rift: rolls a new Land. Body { token }. */
+    @PostMapping("/api/siege/rift/cross")
+    public Map<String, Object> riftCross(@RequestBody Map<String, Object> body) {
+        return siege.riftCross(str(body.get("token")));
+    }
+
     /** LINE puzzle: submit connected paths: body { token, paths:[{color, cells:[[r,c],…]}] }. */
     @PostMapping("/api/siege/minigame/line")
     public Map<String, Object> minigameLine(@RequestBody Map<String, Object> body) {

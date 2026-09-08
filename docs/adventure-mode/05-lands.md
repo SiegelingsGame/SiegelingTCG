@@ -31,6 +31,10 @@ Each Land also supplies a named event with choices tailored to its terrain. Land
 
 After the first boss, Rare Land chance starts at 18% and rises by four percentage points per boss, capped at 30%. Only Lands supported by the live element catalog can roll.
 
+## Rifts
+
+A **Rift** is a rare map stop (🌀). It offers a single action — step through — and the destination Land is rolled server-side (never chosen by the player). Crossing rethemes uncleared nodes in the current segment the same way a boss transition does, without ending the stage or incrementing boss kills. Early-run Rifts stay within elemental Lands; after bosses, Rare Lands and the Badlands can appear. Map generation places them sparsely mid-route and sometimes as a sibling choice beside a Cache.
+
 ## The Badlands
 
 Badlands enemies have 25% more HP and deal 15% more damage. The zone pays 25% more gold, features extra Elite encounters, and grants one persistent boon on entry:
