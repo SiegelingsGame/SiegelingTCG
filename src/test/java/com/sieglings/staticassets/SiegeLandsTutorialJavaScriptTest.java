@@ -50,7 +50,10 @@ class SiegeLandsTutorialJavaScriptTest {
         assertTrue(tutorial.contains("/api/siege/rift/cross")
                         && tutorial.contains("Frostveil"),
                 "the simulated Rift must cross through the real endpoint and show a new Land");
-        assertTrue(html.contains("/js/siege-tutorial.js?v=23"),
+        assertTrue(tutorial.contains("artUrl: '/img/knights/squire-bob-full-card.png'")
+                        && tutorial.contains("artUrl: k.artUrl || null"),
+                "tutorial Squire Bob must carry the same knight card art a live run uses");
+        assertTrue(html.contains("/js/siege-tutorial.js?v=24"),
                 "the changed tutorial bundle needs a fresh production cache pin");
         assertTrue(html.contains("id=\"riftScreen\"") && html.contains("id=\"riftCrossBtn\""),
                 "the Rift location screen must ship with the adventure page");

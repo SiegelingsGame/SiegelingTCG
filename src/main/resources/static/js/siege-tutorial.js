@@ -87,6 +87,9 @@
   var BAKED = {
     'squire-bob': {
       id: 'squire-bob', name: 'Squire Bob', element: 'NEUTRAL',
+      // Same path a live run puts on knight.artUrl — party strip falls back to a
+      // shield glyph when this is missing (the tutorial used to hardcode null).
+      artUrl: '/img/knights/squire-bob-full-card.png',
       passive: 'Musters an extra Siegeling: choose 2 starting Siegelings instead of 1.',
       passiveKind: 'MARSHAL', passiveName: 'Marshal', level: 1,
       ultimateName: 'Muster the Line',
@@ -157,7 +160,20 @@
   }
   function knightCard() {
     var r = roster();
-    return (r && fromRoster(r.knights, 'squire-bob')) || BAKED['squire-bob'];
+    var live = r && fromRoster(r.knights, 'squire-bob');
+    var baked = BAKED['squire-bob'];
+    if (!live) return baked;
+    // Roster knights omit artUrl today; keep the baked floor so the party strip
+    // matches a real expedition (which resolves art via knightArtUrl).
+    if (!live.artUrl && baked && baked.artUrl) {
+      var out = {};
+      for (var key in live) {
+        if (Object.prototype.hasOwnProperty.call(live, key)) out[key] = live[key];
+      }
+      out.artUrl = baked.artUrl;
+      return out;
+    }
+    return live;
   }
 
   // ---- wire-shape builders ----------------------------------------------
@@ -321,7 +337,7 @@
         active: active.name, activeSpec: active,
         ultimateName: k.ultimateName, ultimateDesc: k.ultimateDesc,
         ultimateValue: 2, accountLevel: k.level || 1,
-        unitId: 'knight-unit', hp: 40, maxHp: 40, artUrl: null, alive: true,
+        unitId: 'knight-unit', hp: 40, maxHp: 40, artUrl: k.artUrl || null, alive: true,
         level: 1, xp: 0, xpToNext: 60, xpInLevel: 0, xpSpan: 60, leveledThisBattle: false
       },
       party: [draco, fawny],
@@ -406,7 +422,7 @@
     var k = M.knight;
     M.battle.knight = {
       id: 'knight-unit', name: k.name, element: k.element, hp: k.hp, maxHp: k.maxHp,
-      artUrl: null, level: k.level, xp: k.xp, xpToNext: k.xpToNext,
+      artUrl: k.artUrl || null, level: k.level, xp: k.xp, xpToNext: k.xpToNext,
       xpInLevel: k.xpInLevel, xpSpan: k.xpSpan, leveledThisBattle: false,
       charge: 1, ultCost: ULT_COST,
       passiveKind: k.passiveKind, passiveName: k.passiveName, passive: k.passive,
