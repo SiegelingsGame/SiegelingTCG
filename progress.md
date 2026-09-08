@@ -1,3 +1,6 @@
+- September 8, 2026 — Siege tutorial party strip was showing a shield glyph for Squire Bob instead of his card art. Root cause: `siege-tutorial.js` hardcoded `artUrl: null` on the simulated knight (and again in `refillKnight`), while a live run sets `/img/knights/squire-bob-full-card.png`. Fixed by baking that path on BAKED `squire-bob`, merging it when the live roster omits art, and wiring `k.artUrl` through `buildModel` / `refillKnight`. Cache pin `siege-tutorial.js` 23→24.
+- Verification: `node --check` on `siege-tutorial.js`; pin tests updated; headless check that tutorial model `knight.artUrl` is the full-card path and the party strip thumb uses it (not the shield fallback).
+
 - September 8, 2026 — Merged PR #840 (Siege Rift + tutorial Cache/Rift diamond) to `main`; Deploy workflow https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/34232160419 succeeded.
 - Verification (live): Hosting `adventure.html` serves `siege-tutorial.js?v=23`, `adventure.js?v=96`, `adventure.css?v=92` with `riftScreen`/`riftCrossBtn`; live tutorial bundle has Buried Cache→Deep Rift / Rift→Sealed Cache; `adventure.js` exposes RIFT legend + `rift/cross`; `POST /api/siege/rift/cross` returns 400 “Run not found” (routed, not 404); `/api/cards/editor` on Hosting and Cloud Run both `source=FIRESTORE`, `liveEditingEnabled=true`; `config.js` `apiBaseUrl: ''`.
 
