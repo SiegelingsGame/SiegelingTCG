@@ -105,6 +105,14 @@ async function runViewport(browser, viewport) {
   assert(changeCopy.includes('Rare Lands') && changeCopy.includes('Badlands'));
   await page.locator('.tut-next').click();
   await step('map');
+  const types = await page.locator('.map-node-g').evaluateAll(function (nodes) {
+    return nodes.map(function (n) {
+      const m = (n.getAttribute('class') || '').match(/type-([A-Z]+)/);
+      return m ? m[1] : null;
+    }).filter(Boolean);
+  });
+  assert(types.includes('TREASURE') && types.includes('RIFT'),
+    'tutorial map must place Cache and Rift together: ' + JSON.stringify(types));
   assert.deepEqual(errors, []);
   await page.screenshot({ path: path.join(ROOT, 'output/lands/tutorial-' + viewport.width + 'x' + viewport.height + '.png') });
   await page.close();
@@ -117,7 +125,7 @@ async function runViewport(browser, viewport) {
     console.log('Lands tutorial preview at http://127.0.0.1:' + PORT + '/adventure.html');
     return;
   }
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM || '/usr/local/bin/google-chrome', args: ['--no-sandbox'] });
   try {
     for (const viewport of [{ width: 320, height: 568 }, { width: 390, height: 844 }, { width: 844, height: 390 }, { width: 1920, height: 1080 }]) {
       await runViewport(browser, viewport);
