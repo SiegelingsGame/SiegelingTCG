@@ -40,26 +40,39 @@
         return (cookieAuthConfirmed() && !isStandalonePWA()) ? COOKIE_SESSION_VALUE : (loginToken || '');
     }
     const TUTORIAL_KEY = 'sieglingsKeepTutorialSeen';
+    // Keep Guide — shown on first visit and reopenable from the gate or the ? button.
     const TUTORIAL_STEPS = [
         {
             art: '⌂', kicker: 'Welcome, Keeper', title: 'The Wounded Ground',
-            body: 'This land was stripped bare by the war. Your Keep is a promise to give more than you take. Rebuild at your own pace — everything here keeps growing while you are away.'
+            body: 'My Keep is your elemental sanctuary. Rebuild at your own pace — workshops keep producing and construction timers keep ticking while you are away. Nothing here forces a Siegeling to labor; they volunteer by invitation.'
         },
         {
-            art: '▰', kicker: 'Grow and gather', title: 'The Woodlot works for you',
-            body: 'Workshops produce timber and materials over time — the READY counter at the top shows how much is waiting across every point. Tap Collect to store it all. Cultivation, never clear-cutting.'
+            art: '⚒', kicker: 'Raise the ruins', title: 'Projects restore the land',
+            body: 'Open Projects to spend timber (and later materials) raising ruined buildings. Each project uses a construction team and a timer. Finished work changes the sanctuary scene itself — halls rise, workshops appear, the Archive wakes.'
         },
         {
-            art: '⚒', kicker: 'Restore the sanctuary', title: 'Spend timber on Projects',
-            body: 'Open Projects and spend timber to raise ruined buildings. Construction finishes on its own, even while you are offline, and every finished project changes the land itself.'
+            art: '⏱', kicker: 'Time keeps working', title: 'Timers & speed-ups',
+            body: 'Construction finishes on its own, even offline. Watch active builds in the construction banner or Keep activity tray. Need it sooner? Spend mixed workshop materials to cut the remaining time, or Siegecoins to complete a project immediately.'
         },
         {
-            art: '▤', kicker: 'Step inside and listen', title: 'Buildings open up',
-            body: 'Tap any building to step inside it. Read recovered letters in the Chronicle, display memorabilia, and answer the Voices — your choices shape trust, never your production.'
+            art: '▰', kicker: 'Grow and gather', title: 'Collect materials',
+            body: 'The Woodlot and elemental workshops produce timber and materials over time. The READY counter at the top shows how much is waiting across every station. Tap Collect to store it all at once, or collect from inside a single building.'
         },
         {
-            art: '✦', kicker: 'Choose what comes next', title: 'Build an elemental workshop',
-            body: 'After restoring the Storehouse, choose which elemental workshop to build first. Each makes a different material used to craft other buildings, production tools, Keep bonuses, and decorations you can place inside.'
+            art: '◎', kicker: 'Partners, not tools', title: 'Assign Siegelings',
+            body: 'Owned Siegeling cards introduce their families as residents. Invite them to workshops for affinity bonuses, house them in the Enclave for rapport tasks, or post volunteers on Akhar\'s Front. Assigned Siegelings stay available for decks and expeditions.'
+        },
+        {
+            art: '▤', kicker: 'Step inside', title: 'Build inside your buildings',
+            body: 'Tap any restored building to enter it. Inside you can craft tools and decorations from gathered materials, start interior upgrades, place memorabilia, and manage the residents who live or work there.'
+        },
+        {
+            art: '◌', kicker: 'Listen and choose', title: 'Voices & the Chronicle',
+            body: 'Visitors and Voices bring conversations — your answers shape trust and rapport, never production rates. The Chronicle holds recovered letters and lore. Weekly tribute, caravan orders, and milestones pay Siegecoins and Remnants for tending the land.'
+        },
+        {
+            art: '✦', kicker: 'Choose what comes next', title: 'Elemental workshops',
+            body: 'After restoring the Storehouse, choose which elemental workshop to raise first. Each makes a different material used to craft other buildings, production tools, Keep bonuses, and decorations. Reopen this Keep Guide anytime from the ? button.'
         }
     ];
 
@@ -69,6 +82,9 @@
         interior: '',
         frontView: false,
         tutorialStep: -1,
+        // True when the guide was opened from the gate (pre-signin) or the ? button —
+        // the finale says "Got it" instead of "Begin", since the keep may not be loaded yet.
+        tutorialManual: false,
         loreFilter: 'ALL',
         expandedLoreId: '',
         // Entries read during this Chronicle visit stay filed under Unread until the panel is
@@ -210,7 +226,8 @@
         document.getElementById('noticeButton')?.addEventListener('click', toggleNoticeTray);
         document.getElementById('noticeClose')?.addEventListener('click', closeNoticeTray);
         document.getElementById('interiorExit')?.addEventListener('click', closeInterior);
-        document.getElementById('helpButton')?.addEventListener('click', () => openTutorial(0));
+        document.getElementById('helpButton')?.addEventListener('click', () => openTutorial(0, true));
+        document.getElementById('gateKeepGuide')?.addEventListener('click', () => openTutorial(0, true));
         document.getElementById('tutorialSkip')?.addEventListener('click', finishTutorial);
         document.getElementById('tutorialNext')?.addEventListener('click', tutorialAdvance);
         document.getElementById('offlineDismiss')?.addEventListener('click', dismissOfflineReport);
@@ -2766,10 +2783,11 @@
         if (!state.snapshot) return;
         let seen = '';
         try { seen = localStorage.getItem(TUTORIAL_KEY) || ''; } catch (error) { seen = ''; }
-        if (!seen) openTutorial(0);
+        if (!seen) openTutorial(0, false);
     }
 
-    function openTutorial(step) {
+    function openTutorial(step, manual) {
+        state.tutorialManual = Boolean(manual);
         state.tutorialStep = clamp(number(step), 0, TUTORIAL_STEPS.length - 1);
         renderTutorial();
         document.getElementById('keepTutorial')?.classList.remove('hidden');
@@ -2785,17 +2803,23 @@
         const dots = document.getElementById('tutorialDots');
         if (dots) dots.innerHTML = TUTORIAL_STEPS.map((item, index) => `<i class="${index === state.tutorialStep ? 'active' : ''}"></i>`).join('');
         const next = document.getElementById('tutorialNext');
-        if (next) next.textContent = state.tutorialStep >= TUTORIAL_STEPS.length - 1 ? 'Begin' : 'Next';
-        document.getElementById('tutorialSkip')?.classList.toggle('hidden', state.tutorialStep >= TUTORIAL_STEPS.length - 1);
+        const onFinale = state.tutorialStep >= TUTORIAL_STEPS.length - 1;
+        if (next) {
+            // First-visit auto-open ends with Begin (enter the keep). Manual Keep Guide
+            // reopen (gate or ?) ends with Got it so it never implies a fresh start.
+            next.textContent = onFinale ? (state.tutorialManual ? 'Got it' : 'Begin') : 'Next';
+        }
+        document.getElementById('tutorialSkip')?.classList.toggle('hidden', onFinale);
     }
 
     function tutorialAdvance() {
         if (state.tutorialStep >= TUTORIAL_STEPS.length - 1) finishTutorial();
-        else openTutorial(state.tutorialStep + 1);
+        else openTutorial(state.tutorialStep + 1, state.tutorialManual);
     }
 
     function finishTutorial() {
         state.tutorialStep = -1;
+        state.tutorialManual = false;
         try { localStorage.setItem(TUTORIAL_KEY, '1'); } catch (error) { /* private browsing */ }
         document.getElementById('keepTutorial')?.classList.add('hidden');
         maybeShowOfflineReport();

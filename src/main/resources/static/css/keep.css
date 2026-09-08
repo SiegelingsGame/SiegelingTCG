@@ -2741,11 +2741,12 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
 }
 .facility-room-resident small { color: #ffe9a8; font-size: 9px; text-shadow: 0 1px 3px #172333; }
 
-/* —— First-visit tutorial —— */
+/* —— Keep Guide (first visit + reopen from gate / ?) —— */
+/* z-index sits above the gate (100) and loading shell so Keep Guide works before sign-in. */
 .keep-tutorial {
     position: fixed;
     inset: 0;
-    z-index: 90;
+    z-index: 130;
     display: grid;
     place-items: center;
     padding: calc(18px + var(--safe-top)) calc(18px + var(--safe-right)) calc(18px + var(--safe-bottom)) calc(18px + var(--safe-left));
@@ -2787,9 +2788,12 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
 .gate-card { width: min(520px, calc(100vw - 30px)); padding: 34px; border: 1px solid rgba(244, 204, 98, .38); border-radius: 22px; background: rgba(19, 34, 44, .92); box-shadow: 0 25px 80px rgba(0, 0, 0, .42); text-align: center; }
 .gate-seal { width: 70px; height: 70px; display: grid; place-items: center; margin: 0 auto 18px; border: 1px solid rgba(244, 204, 98, .6); border-radius: 50%; color: var(--gold); background: rgba(244, 204, 98, .06); font-size: 28px; }
 .gate-card h1 { margin: 5px 0 10px; font: 700 32px Georgia, serif; }
-.gate-card p { margin: 0 auto 22px; color: rgba(255, 247, 220, .68); line-height: 1.55; }
-.gate-card > div { display: flex; justify-content: center; gap: 8px; }
-.gate-card .primary-action { cursor: pointer; font: inherit; }
+.gate-card > p { margin: 0 auto 22px; color: rgba(255, 247, 220, .68); line-height: 1.55; }
+.gate-actions { display: flex; flex-direction: column; align-items: stretch; gap: 10px; }
+.gate-actions-row { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+.gate-card .primary-action,
+.gate-card .secondary-action { cursor: pointer; font: inherit; text-decoration: none; }
+.gate-guide-action { width: 100%; min-height: 42px; font-size: 12px; letter-spacing: .02em; }
 
 /* In-page sign-in modal (keeps the keeper on My Keep). */
 .keep-login { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 18px; }

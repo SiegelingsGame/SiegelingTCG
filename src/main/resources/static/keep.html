@@ -9,7 +9,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#173f54">
-    <link rel="stylesheet" href="/css/keep.css?v=55">
+    <link rel="stylesheet" href="/css/keep.css?v=56">
 </head>
 <body>
 <svg class="keep-svg-defs" width="0" height="0" aria-hidden="true" focusable="false">
@@ -109,7 +109,7 @@
                 <span aria-hidden="true">✦</span><span class="unread-badge hidden" id="noticeBadge">0</span>
             </button>
             <button class="icon-button music-toggle" id="musicToggle" type="button" aria-pressed="false" aria-label="Toggle theme music" title="Play theme music"><span aria-hidden="true">♪</span></button>
-            <button class="icon-button" id="helpButton" type="button" aria-label="How My Keep works" title="How My Keep works">?</button>
+            <button class="icon-button" id="helpButton" type="button" aria-label="Keep Guide" title="Keep Guide">?</button>
             <button class="icon-button" id="fullscreenButton" type="button" aria-label="Toggle fullscreen" title="Fullscreen (F)">⛶</button>
         </div>
     </header>
@@ -658,7 +658,7 @@
         <div id="noticeList"></div>
     </aside>
 
-    <div class="keep-tutorial hidden" id="keepTutorial" role="dialog" aria-modal="true" aria-labelledby="tutorialTitle">
+    <div class="keep-tutorial hidden" id="keepTutorial" role="dialog" aria-modal="true" aria-labelledby="tutorialTitle" aria-describedby="tutorialBody">
         <div class="tutorial-card">
             <span class="tutorial-art" id="tutorialArt" aria-hidden="true">✦</span>
             <span class="eyebrow" id="tutorialKicker">Welcome, Keeper</span>
@@ -706,7 +706,13 @@
             <span class="eyebrow">A covenant requires a keeper</span>
             <h1>Found your sanctuary</h1>
             <p id="gateMessage">Sign in and choose a starter pack to begin rebuilding My Keep.</p>
-            <div><button class="primary-action" id="gateSignIn" type="button">Sign in</button><a class="secondary-action" href="/home">Return home</a></div>
+            <div class="gate-actions">
+                <div class="gate-actions-row">
+                    <button class="primary-action" id="gateSignIn" type="button">Sign in</button>
+                    <a class="secondary-action" href="/home">Return home</a>
+                </div>
+                <button class="secondary-action gate-guide-action" id="gateKeepGuide" type="button">Keep Guide</button>
+            </div>
         </div>
     </div>
 
@@ -726,7 +732,7 @@
        data-front-src="/audio/sieglings-battle-theme.mp3?v=1"
        src="/audio/sieglings-theme.mp3?v=1"></audio>
 <script src="/js/config.js?v=1"></script>
-<script src="/js/keep.js?v=54"></script>
+<script src="/js/keep.js?v=55"></script>
 <script src="/js/sw-register.js?v=1"></script>
 </body>
 </html>
