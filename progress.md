@@ -1,3 +1,6 @@
+- September 8, 2026 — Home command-hero arena quick play button label: "Start Match" → "Start Arena Match" (`data-home-action="pve"` under The Arena Awaits). Cache pin `home.js` 162→163.
+- Verification: pending headless check of the Home hero button text.
+
 - September 8, 2026 — Merged PR #843 (Keep Guide tutorial) to `main`; Deploy workflow https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/34269668002 succeeded.
 - Verification (live): Hosting `keep.html` serves `keep.css?v=56`, `keep.js?v=56` with `#gateKeepGuide` / "Keep Guide is free to browse"; live `keep.js` exposes `hasKeepSession`, Timers & speed-ups, Assign Siegelings; `/api/cards/editor` on Hosting and Cloud Run both `source=FIRESTORE`, `liveEditingEnabled=true`; `config.js` `apiBaseUrl: ''`.
 
