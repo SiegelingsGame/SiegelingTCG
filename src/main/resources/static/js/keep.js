@@ -85,6 +85,10 @@
         // True when the guide was opened from the gate (pre-signin) or the ? button —
         // the finale says "Got it" instead of "Begin", since the keep may not be loaded yet.
         tutorialManual: false,
+        // Guest Keep Guide runs on a local demo sanctuary; restore the gate when it ends.
+        guideDemo: false,
+        guideWasTestMode: false,
+        guideReturnToGate: false,
         loreFilter: 'ALL',
         expandedLoreId: '',
         // Entries read during this Chronicle visit stay filed under Unread until the panel is
@@ -242,8 +246,9 @@
         document.getElementById('noticeButton')?.addEventListener('click', toggleNoticeTray);
         document.getElementById('noticeClose')?.addEventListener('click', closeNoticeTray);
         document.getElementById('interiorExit')?.addEventListener('click', closeInterior);
-        document.getElementById('helpButton')?.addEventListener('click', () => openTutorial(0, true));
-        document.getElementById('gateKeepGuide')?.addEventListener('click', () => openTutorial(0, true));
+        document.getElementById('helpButton')?.addEventListener('click', () => openKeepGuide(true));
+        document.getElementById('gateKeepGuide')?.addEventListener('click', () => openKeepGuide(true));
+        // Legacy modal buttons — kept for the rare case coach scripts fail to load.
         document.getElementById('tutorialSkip')?.addEventListener('click', finishTutorial);
         document.getElementById('tutorialNext')?.addEventListener('click', tutorialAdvance);
         document.getElementById('offlineDismiss')?.addEventListener('click', dismissOfflineReport);
@@ -279,7 +284,9 @@
                 stepInterior(event.key === 'ArrowLeft' ? -1 : 1);
             }
             if (event.key === 'Escape') {
-                if (!document.getElementById('keepTutorial')?.classList.contains('hidden')) finishTutorial();
+                if (window.KeepGuide && window.KeepGuide.active()) {
+                    window.KeepGuide.stop();
+                } else if (!document.getElementById('keepTutorial')?.classList.contains('hidden')) finishTutorial();
                 else if (!document.getElementById('collectOverlay')?.classList.contains('hidden')) closeCollectPopup();
                 else if (!document.getElementById('favorOverlay')?.classList.contains('hidden')) closeFavorConfirm();
                 else if (!document.getElementById('journeyOverlay')?.classList.contains('hidden')) closeJourney();
@@ -2797,9 +2804,22 @@
 
     function maybeShowTutorial() {
         if (!state.snapshot) return;
+        if (state.guideDemo) return;
         let seen = '';
         try { seen = localStorage.getItem(TUTORIAL_KEY) || ''; } catch (error) { seen = ''; }
-        if (!seen) openTutorial(0, false);
+        if (!seen) openKeepGuide(false);
+    }
+
+    function openKeepGuide(manual) {
+        state.tutorialManual = Boolean(manual);
+        if (window.KeepGuide && typeof window.KeepGuide.start === 'function') {
+            // Hide the legacy card modal if a prior visit left it open.
+            document.getElementById('keepTutorial')?.classList.add('hidden');
+            window.KeepGuide.start({ manual: state.tutorialManual });
+            return;
+        }
+        // Coach scripts missing — fall back to the static card tour.
+        openTutorial(0, state.tutorialManual);
     }
 
     function openTutorial(step, manual) {
@@ -2821,8 +2841,6 @@
         const next = document.getElementById('tutorialNext');
         const onFinale = state.tutorialStep >= TUTORIAL_STEPS.length - 1;
         if (next) {
-            // First-visit auto-open ends with Begin (enter the keep). Manual Keep Guide
-            // reopen (gate or ?) ends with Got it so it never implies a fresh start.
             next.textContent = onFinale ? (state.tutorialManual ? 'Got it' : 'Begin') : 'Next';
         }
         document.getElementById('tutorialSkip')?.classList.toggle('hidden', onFinale);
@@ -2840,6 +2858,60 @@
         document.getElementById('keepTutorial')?.classList.add('hidden');
         maybeShowOfflineReport();
     }
+
+    // Bridge for keep-tutorial.js — the coach walks the real Keep chrome, so guests
+    // need a local demo sanctuary and signed-in keepers keep their live snapshot.
+    window.KeepGuideHost = {
+        panel: () => state.panel || '',
+        interior: () => state.interior || '',
+        isGuideDemo: () => Boolean(state.guideDemo),
+        prepareGuide(opts) {
+            opts = opts || {};
+            document.getElementById('keepLogin')?.classList.add('hidden');
+            document.getElementById('keepTutorial')?.classList.add('hidden');
+            document.getElementById('offlineOverlay')?.classList.add('hidden');
+            document.getElementById('collectOverlay')?.classList.add('hidden');
+            closePanel();
+            closeInterior();
+            if (state.frontView) exitAkharsFront();
+            const needsDemo = !hasKeepSession() || !state.snapshot || Boolean(opts.forceDemo);
+            if (needsDemo && typeof opts.demo === 'function') {
+                state.guideDemo = true;
+                state.guideWasTestMode = state.testMode;
+                state.testMode = true;
+                state.guideReturnToGate = !document.getElementById('keepGate')?.classList.contains('hidden')
+                    || !hasKeepSession();
+                hideGate();
+                hideLoading();
+                applySnapshot(clone(opts.demo()), false);
+            } else {
+                state.guideDemo = false;
+                state.guideReturnToGate = false;
+                hideGate();
+                hideLoading();
+            }
+        },
+        restoreAfterGuide() {
+            closePanel();
+            closeInterior();
+            if (state.frontView) exitAkharsFront();
+            if (state.guideDemo) {
+                state.guideDemo = false;
+                state.testMode = Boolean(state.guideWasTestMode);
+                state.guideWasTestMode = false;
+                state.snapshot = null;
+                // Guests leave the demo sanctuary and return to the sign-in gate.
+                // Signed-in keepers who somehow ran the demo still need their real Keep.
+                if (state.guideReturnToGate || !hasKeepSession()) {
+                    state.guideReturnToGate = false;
+                    showGate('Sign in to found your sanctuary. The Keep Guide is free to browse.', 'signin');
+                } else {
+                    void loadSnapshot();
+                }
+            }
+            maybeShowOfflineReport();
+        }
+    };
 
     async function craftRecipe(recipeId) {
         const data = await perform('/api/keep/craft', { recipeId });
