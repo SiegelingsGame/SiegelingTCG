@@ -241,11 +241,12 @@
 
   // ---- the branching map -------------------------------------------------
 
-  /* Two diamonds, then a Cache/Rift fork, then the shared tail. Each lane of a
-   * diamond carries the same two node types in the opposite order, so whichever
-   * way the player goes they still meet every kind of stop — the tutorial can
-   * teach branching without a route that skips a lesson. A real expedition's
-   * lanes differ in what they hold; the coach says so. */
+  /* Three diamonds, then the shared tail. Each lane of a diamond carries the
+   * same two node types in the opposite order, so whichever way the player goes
+   * they still meet every kind of stop — the tutorial can teach branching
+   * without a route that skips a lesson. A real expedition's lanes differ in
+   * what they hold; the coach says so. Cache/Rift mirrors broker/smith:
+   * Buried Cache → Deep Rift, and Rift → Sealed Cache. */
   var NODES = [
     { id: 0, row: 0, col: 0, type: 'BATTLE', label: 'Ruined Gate', next: [1, 2] },
     { id: 1, row: 1, col: 0, type: 'REST', label: 'Ember Camp', next: [3] },
@@ -257,9 +258,11 @@
     { id: 7, row: 4, col: 0, type: 'SMITH', label: 'Ember Forge', next: [9, 10] },
     { id: 8, row: 4, col: 1, type: 'BROKER', label: 'Hedge Broker', next: [9, 10] },
     { id: 9, row: 5, col: 0, type: 'TREASURE', label: 'Buried Cache', next: [11] },
-    { id: 10, row: 5, col: 1, type: 'RIFT', label: 'Rift', next: [11] },
-    { id: 11, row: 6, col: 0, type: 'EVENT', label: 'Standing Stone', next: [12] },
-    { id: 12, row: 7, col: 0, type: 'BOSS', label: 'The Siegelord', next: [] }
+    { id: 10, row: 5, col: 1, type: 'RIFT', label: 'Rift', next: [12] },
+    { id: 11, row: 6, col: 0, type: 'RIFT', label: 'Deep Rift', next: [13] },
+    { id: 12, row: 6, col: 1, type: 'TREASURE', label: 'Sealed Cache', next: [13] },
+    { id: 13, row: 7, col: 0, type: 'EVENT', label: 'Standing Stone', next: [14] },
+    { id: 14, row: 8, col: 0, type: 'BOSS', label: 'The Siegelord', next: [] }
   ];
 
   function nodeById(id) {
@@ -1608,7 +1611,7 @@
 
       // ---- cache / rift fork -----------------------------------------------
       { id: 'branch-3', hint: 'Pick <b>either</b> lane', title: 'Cache or Rift', target: '#mapSvg',
-        body: 'The path splits one last time: a <b>💎 cache</b> and a rare <b>🌀 Rift</b>. Same deal as the forks before — both lanes visit both, in opposite order. <b>Pick one.</b>',
+        body: 'The path splits one last time between a <b>💎 cache</b> and a rare <b>🌀 Rift</b>. Same deal as Merc Post → Ember Forge: each lane visits both, in opposite order — Buried Cache leads to a Rift, and the Rift leads to a Cache. <b>Pick one.</b>',
         until: function () { return screenIs('cacheScreen') || screenIs('riftScreen'); } },
       { id: 'branch-3-route', route: function () { return lane3(); } },
 
@@ -1626,8 +1629,8 @@
       { id: 'stop-3-done', route: function () {
         return (visited['cache-a'] && visited['rift-a']) ? 'event-a' : 'other-lane-3';
       } },
-      { id: 'other-lane-3', hint: 'Tap the <b>open node</b>', title: 'The other lane', target: '.map-node-g.reachable', highlight: ['.map-node-g.reachable'],
-        body: 'One stop left on this fork. <b>Travel there.</b>',
+      { id: 'other-lane-3', hint: 'Tap the <b>open node</b>', title: 'The other stop', target: '.map-node-g.reachable', highlight: ['.map-node-g.reachable'],
+        body: 'This lane carries the stop you have not visited yet — just like Ember Forge after Merc Post. <b>Travel there.</b>',
         until: function () { return screenIs('cacheScreen') || screenIs('riftScreen'); },
         next: 'other-lane-3-route' },
       { id: 'other-lane-3-route', route: function () { return lane3(); } },

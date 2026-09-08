@@ -38,6 +38,11 @@ class SiegeLandsTutorialJavaScriptTest {
                 "the boss transition lesson must name both later Land categories");
         assertTrue(tutorial.contains("type: 'RIFT'") && tutorial.contains("label: 'Rift'"),
                 "the tutorial map must place a Rift beside the cache");
+        assertTrue(tutorial.contains("label: 'Buried Cache', next: [11]")
+                        && tutorial.contains("label: 'Rift', next: [12]")
+                        && tutorial.contains("label: 'Deep Rift', next: [13]")
+                        && tutorial.contains("label: 'Sealed Cache', next: [13]"),
+                "Cache/Rift must be a Merc-Post→Ember-Forge diamond: each first pick edges to the other type");
         assertTrue(tutorial.contains("{ id: 'branch-3'")
                         && tutorial.contains("{ id: 'rift-a'")
                         && tutorial.contains("{ id: 'other-lane-3'"),
@@ -45,7 +50,7 @@ class SiegeLandsTutorialJavaScriptTest {
         assertTrue(tutorial.contains("/api/siege/rift/cross")
                         && tutorial.contains("Frostveil"),
                 "the simulated Rift must cross through the real endpoint and show a new Land");
-        assertTrue(html.contains("/js/siege-tutorial.js?v=22"),
+        assertTrue(html.contains("/js/siege-tutorial.js?v=23"),
                 "the changed tutorial bundle needs a fresh production cache pin");
         assertTrue(html.contains("id=\"riftScreen\"") && html.contains("id=\"riftCrossBtn\""),
                 "the Rift location screen must ship with the adventure page");
