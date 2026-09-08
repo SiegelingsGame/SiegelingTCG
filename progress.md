@@ -1,3 +1,6 @@
+- September 8, 2026 — Rifts now offer two actions: **Step through** (random new Land, existing behaviour) or **Travel past** (clear the stop, stay in the current Land). New API `POST /api/siege/rift/pass`, second button on `riftScreen`, legend/tutorial copy updated; tutorial still requires stepping through so Frostveil is demonstrated. Cache pins: `siege-tutorial.js` 24→25, `adventure.js` 96→97.
+- Verification: pending focused tests + live deploy after merge.
+
 - September 8, 2026 — Merged PR #841 (Siege tutorial knight card art) to `main`; Deploy workflow https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/34242886052 succeeded.
 - Verification (live): Hosting `adventure.html` serves `siege-tutorial.js?v=24`; live tutorial bundle bakes `/img/knights/squire-bob-full-card.png` and wires `artUrl: k.artUrl || null` in `buildModel`/`refillKnight`; knight art asset HTTP 200 (584862 bytes); `/api/cards/editor` on Hosting and Cloud Run both `source=FIRESTORE`, `liveEditingEnabled=true`; `config.js` `apiBaseUrl: ''`.
 

@@ -1348,6 +1348,13 @@
         clearStop('rift');
         return;
       }
+      case '/api/siege/rift/pass': {
+        var stay = (M.land && M.land.name) || 'this Land';
+        M.lastReward = 'You travel past the Rift. ' + stay + ' still holds.';
+        flags.rifted = true;
+        clearStop('rift');
+        return;
+      }
 
       case '/api/siege/event/choose': {
         var eopt = null;
@@ -1457,7 +1464,7 @@
         until: function () { return hidden('landModal'); } },
       { id: 'land-change', title: 'Bosses — and Rifts — lead to new Lands', target: '#mapLand',
         body: 'Defeat a Land’s boss and the next stage rolls a <b>different Land</b>. Later bosses can reveal <b>Rare Lands</b> with mixed elements or richer drops — or the <b>Badlands</b>, where enemies are stronger and you choose a special boon for the run.' +
-          '<span class="tut-p">A rare <b>🌀 Rift</b> on the map can also tear you into another Land mid-run. One step; the destination is random.</span>' },
+          '<span class="tut-p">A rare <b>🌀 Rift</b> on the map can also tear you into another Land mid-run — or you can travel past and stay put. Stepping through lands you somewhere random.</span>' },
       // Naming BOTH readings rather than the current one: the map genuinely
       // transposes (adventure.js isPhoneLandscape -> "start left, boss right"),
       // and a step's body is built once, so a tip that named only the live
@@ -1639,7 +1646,7 @@
         until: function () { return screenIs('mapScreen'); }, next: 'stop-3-done' },
 
       { id: 'rift-a', hint: 'Tap <b>Step through the Rift</b>', title: 'A tear between Lands', target: '#riftCrossBtn',
-        body: 'A Rift is rare. There is only <b>one</b> choice — step through — and the Land you land in is <b>random</b>. In a real run it can be elemental, Rare, or even the Badlands once bosses are behind you. <b>Step through</b> — this practice Rift opens onto <b>Frostveil</b>.',
+        body: 'A Rift is rare. You can <b>step through</b> into a <b>random</b> new Land, or <b>travel past</b> and keep the one you are in. In a real run a cross can land elemental, Rare, or even the Badlands once bosses are behind you. <b>Step through</b> — this practice Rift opens onto <b>Frostveil</b>.',
         until: function () { return screenIs('mapScreen') && flags.rifted; }, next: 'stop-3-done' },
 
       { id: 'stop-3-done', route: function () {

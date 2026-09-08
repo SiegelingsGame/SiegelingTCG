@@ -285,6 +285,12 @@ public class SiegeController {
         return siege.riftCross(str(body.get("token")));
     }
 
+    /** Travel past a Rift: clear the stop, stay in the current Land. Body { token }. */
+    @PostMapping("/api/siege/rift/pass")
+    public Map<String, Object> riftPass(@RequestBody Map<String, Object> body) {
+        return siege.riftPass(str(body.get("token")));
+    }
+
     /** LINE puzzle: submit connected paths: body { token, paths:[{color, cells:[[r,c],…]}] }. */
     @PostMapping("/api/siege/minigame/line")
     public Map<String, Object> minigameLine(@RequestBody Map<String, Object> body) {

@@ -63,6 +63,27 @@ class SiegeRiftTest {
     }
 
     @Test
+    void passingARiftClearsTheStopWithoutChangingLand() throws Exception {
+        SiegeRun run = newRun("STANDARD");
+        String before = run.getLand().id();
+        int history = run.getLandHistory().size();
+        SiegeNode rift = placeRift(run);
+        run.setCurrentNodeId(rift.getId());
+        invoke("openRift", new Class<?>[]{SiegeRun.class}, run);
+        assertTrue(run.isInRift());
+
+        Map<?, ?> out = service.riftPass(run.getToken());
+        assertFalse(run.isInRift());
+        assertTrue(rift.isCleared());
+        assertEquals(before, run.getLand().id());
+        assertEquals(history, run.getLandHistory().size());
+        assertEquals(before, ((Map<?, ?>) out.get("land")).get("id"));
+        assertTrue(String.valueOf(out.get("lastReward")).contains("travel past"));
+        assertTrue(String.valueOf(out.get("lastReward")).contains(run.getLand().name()));
+        assertNull(out.get("rift"));
+    }
+
+    @Test
     void riftRethemesOnlyUnclearedNodesInTheCurrentSegment() throws Exception {
         SiegeRun run = newRun("STANDARD");
         SiegeNode rift = placeRift(run);
