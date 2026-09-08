@@ -194,6 +194,12 @@
         if (state.testMode) {
             applySnapshot(clone(window.__KEEP_TEST_SNAPSHOT__), false);
             hideLoading();
+        } else if (!hasKeepSession()) {
+            // Guests can read the Keep Guide immediately; the sanctuary itself
+            // still requires sign-in. Skip the /api/keep round-trip so the gate
+            // (and Guide) are not blocked behind a loading spinner or a 401.
+            showGate('Sign in to found your sanctuary. The Keep Guide is free to browse.', 'signin');
+            hideLoading();
         } else {
             await loadSnapshot();
         }
@@ -201,6 +207,16 @@
         maybeShowOfflineReport();
         window.setInterval(updateLiveState, 1000);
         startFrontCombatLoop();
+    }
+
+    // Any stored auth token (Bearer or cookie sentinel) means we should try the Keep API.
+    // Guests have none — they get the gate + Keep Guide without a network wait.
+    function hasKeepSession() {
+        try {
+            return Boolean(localStorage.getItem(AUTH_TOKEN_KEY) || '');
+        } catch (e) {
+            return false;
+        }
     }
 
     function bindEvents() {
@@ -3517,11 +3533,16 @@
     function showGate(message, mode) {
         state.gateMode = mode === 'retry' ? 'retry' : 'signin';
         const retry = state.gateMode === 'retry';
-        text('gateMessage', message || 'Sign in and choose a starter pack to begin rebuilding My Keep.');
+        text('gateMessage', message || (retry
+            ? 'The sanctuary could not be reached. Try again, or open the Keep Guide while you wait.'
+            : 'Sign in to found your sanctuary. The Keep Guide is free to browse.'));
         const heading = document.querySelector('#keepGate h1');
         if (heading) heading.textContent = retry ? 'The road is quiet' : 'Found your sanctuary';
         const action = document.getElementById('gateSignIn');
         if (action) action.textContent = retry ? 'Try again' : 'Sign in';
+        // Keep Guide stays on the gate for guests and for signed-in keepers who
+        // hit a transient load failure — official Keep play still needs a session.
+        document.getElementById('gateKeepGuide')?.classList.remove('hidden');
         document.getElementById('keepGate')?.classList.remove('hidden');
     }
 
