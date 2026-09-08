@@ -473,6 +473,7 @@ body[data-screen="brokerScreen"],
 body[data-screen="smithScreen"],
 body[data-screen="caravanScreen"],
 body[data-screen="eventScreen"],
+body[data-screen="riftScreen"],
 body[data-screen="rewardScreen"]{
   background:#05070b; height:var(--siege-vh,100dvh); overflow:hidden;
 }
@@ -482,6 +483,7 @@ body[data-screen="brokerScreen"] .siege-app,
 body[data-screen="smithScreen"] .siege-app,
 body[data-screen="caravanScreen"] .siege-app,
 body[data-screen="eventScreen"] .siege-app,
+body[data-screen="riftScreen"] .siege-app,
 body[data-screen="rewardScreen"] .siege-app{
   position:relative; max-width:none; width:100%;
   height:var(--siege-vh,100dvh); min-height:0; overflow:hidden; padding:0;
@@ -495,6 +497,7 @@ body[data-screen="brokerScreen"] .siege-topbar,
 body[data-screen="smithScreen"] .siege-topbar,
 body[data-screen="caravanScreen"] .siege-topbar,
 body[data-screen="eventScreen"] .siege-topbar,
+body[data-screen="riftScreen"] .siege-topbar,
 body[data-screen="rewardScreen"] .siege-topbar{
   position:absolute; top:0; left:0; right:0; z-index:14; pointer-events:none;
   padding:
@@ -510,6 +513,7 @@ body[data-screen="brokerScreen"] .siege-topbar > *,
 body[data-screen="smithScreen"] .siege-topbar > *,
 body[data-screen="caravanScreen"] .siege-topbar > *,
 body[data-screen="eventScreen"] .siege-topbar > *,
+body[data-screen="riftScreen"] .siege-topbar > *,
 body[data-screen="rewardScreen"] .siege-topbar > *{ pointer-events:auto; }
 body[data-screen="campScreen"] .siege-title span,
 body[data-screen="cacheScreen"] .siege-title span,
@@ -517,6 +521,7 @@ body[data-screen="brokerScreen"] .siege-title span,
 body[data-screen="smithScreen"] .siege-title span,
 body[data-screen="caravanScreen"] .siege-title span,
 body[data-screen="eventScreen"] .siege-title span,
+body[data-screen="riftScreen"] .siege-title span,
 body[data-screen="rewardScreen"] .siege-title span{ display:none; }
 body[data-screen="campScreen"] .siege-title,
 body[data-screen="cacheScreen"] .siege-title,
@@ -524,6 +529,7 @@ body[data-screen="brokerScreen"] .siege-title,
 body[data-screen="smithScreen"] .siege-title,
 body[data-screen="caravanScreen"] .siege-title,
 body[data-screen="eventScreen"] .siege-title,
+body[data-screen="riftScreen"] .siege-title,
 body[data-screen="rewardScreen"] .siege-title{
   font-size:13px; letter-spacing:3px; color:rgba(232,236,243,.86);
   text-shadow:0 2px 10px rgba(0,0,0,.8);
@@ -534,6 +540,7 @@ body[data-screen="brokerScreen"] .siege-back,
 body[data-screen="smithScreen"] .siege-back,
 body[data-screen="caravanScreen"] .siege-back,
 body[data-screen="eventScreen"] .siege-back,
+body[data-screen="riftScreen"] .siege-back,
 body[data-screen="rewardScreen"] .siege-back,
 body[data-screen="campScreen"] .siege-abandon,
 body[data-screen="cacheScreen"] .siege-abandon,
@@ -541,6 +548,7 @@ body[data-screen="brokerScreen"] .siege-abandon,
 body[data-screen="smithScreen"] .siege-abandon,
 body[data-screen="caravanScreen"] .siege-abandon,
 body[data-screen="eventScreen"] .siege-abandon,
+body[data-screen="riftScreen"] .siege-abandon,
 body[data-screen="rewardScreen"] .siege-abandon{
   padding:5px 12px; border-radius:999px; font-size:12px;
   border:1px solid rgba(226,238,255,.22); background:rgba(8,12,18,.42);
@@ -552,6 +560,7 @@ body[data-screen="brokerScreen"] .siege-screen,
 body[data-screen="smithScreen"] .siege-screen,
 body[data-screen="caravanScreen"] .siege-screen,
 body[data-screen="eventScreen"] .siege-screen,
+body[data-screen="riftScreen"] .siege-screen,
 body[data-screen="rewardScreen"] .siege-screen{
   flex:1 1 auto; min-height:0; padding:0; display:flex; flex-direction:column;
 }

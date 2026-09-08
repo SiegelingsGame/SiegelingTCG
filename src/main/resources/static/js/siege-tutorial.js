@@ -241,10 +241,12 @@
 
   // ---- the branching map -------------------------------------------------
 
-  /* Two diamonds. Each lane of a diamond carries the same two node types in the
-   * opposite order, so whichever way the player goes they still meet every kind
-   * of stop — the tutorial can teach branching without a route that skips a
-   * lesson. A real expedition's lanes differ in what they hold; the coach says so. */
+  /* Three diamonds, then the shared tail. Each lane of a diamond carries the
+   * same two node types in the opposite order, so whichever way the player goes
+   * they still meet every kind of stop — the tutorial can teach branching
+   * without a route that skips a lesson. A real expedition's lanes differ in
+   * what they hold; the coach says so. Cache/Rift mirrors broker/smith:
+   * Buried Cache → Deep Rift, and Rift → Sealed Cache. */
   var NODES = [
     { id: 0, row: 0, col: 0, type: 'BATTLE', label: 'Ruined Gate', next: [1, 2] },
     { id: 1, row: 1, col: 0, type: 'REST', label: 'Ember Camp', next: [3] },
@@ -253,11 +255,14 @@
     { id: 4, row: 2, col: 1, type: 'REST', label: 'Quiet Hollow', next: [5, 6] },
     { id: 5, row: 3, col: 0, type: 'BROKER', label: 'Merc Post', next: [7] },
     { id: 6, row: 3, col: 1, type: 'SMITH', label: 'Old Forge', next: [8] },
-    { id: 7, row: 4, col: 0, type: 'SMITH', label: 'Ember Forge', next: [9] },
-    { id: 8, row: 4, col: 1, type: 'BROKER', label: 'Hedge Broker', next: [9] },
-    { id: 9, row: 5, col: 0, type: 'TREASURE', label: 'Buried Cache', next: [10] },
-    { id: 10, row: 6, col: 0, type: 'EVENT', label: 'Standing Stone', next: [11] },
-    { id: 11, row: 7, col: 0, type: 'BOSS', label: 'The Siegelord', next: [] }
+    { id: 7, row: 4, col: 0, type: 'SMITH', label: 'Ember Forge', next: [9, 10] },
+    { id: 8, row: 4, col: 1, type: 'BROKER', label: 'Hedge Broker', next: [9, 10] },
+    { id: 9, row: 5, col: 0, type: 'TREASURE', label: 'Buried Cache', next: [11] },
+    { id: 10, row: 5, col: 1, type: 'RIFT', label: 'Rift', next: [12] },
+    { id: 11, row: 6, col: 0, type: 'RIFT', label: 'Deep Rift', next: [13] },
+    { id: 12, row: 6, col: 1, type: 'TREASURE', label: 'Sealed Cache', next: [13] },
+    { id: 13, row: 7, col: 0, type: 'EVENT', label: 'Standing Stone', next: [14] },
+    { id: 14, row: 8, col: 0, type: 'BOSS', label: 'The Siegelord', next: [] }
   ];
 
   function nodeById(id) {
@@ -309,7 +314,7 @@
       endRewards: null, xpRecap: null, ampChoice: null, ampsPending: 0,
       extraction: null, recruit: null, mercenary: null,
       camp: null, cache: null, broker: null, smith: null, caravan: null,
-      event: null, minigame: null, checkpoint: false,
+      event: null, rift: null, minigame: null, checkpoint: false,
       knight: {
         id: k.id, name: k.name, element: k.element,
         passive: k.passive, passiveKind: k.passiveKind, passiveName: k.passiveName,
@@ -1030,7 +1035,7 @@
   /** Reachability mirrors SiegeRun#reachableNodeIds: nothing is open mid-stop. */
   function refreshReachable() {
     var busy = M.battle || M.camp || M.cache || M.broker || M.smith || M.caravan ||
-      M.event || M.recruit || M.ampChoice || (M.pendingRewards && M.pendingRewards.length);
+      M.event || M.rift || M.recruit || M.ampChoice || (M.pendingRewards && M.pendingRewards.length);
     var current = null;
     M.map.forEach(function (n) {
       n.current = n.id === M.currentNodeId;
@@ -1112,6 +1117,10 @@
     }
     if (node.type === 'TREASURE') {
       M.cache = { game: 'DIG', options: [], loot: 0, digs: 0, maxDigs: 4, bustChance: 15 };
+      return;
+    }
+    if (node.type === 'RIFT') {
+      M.rift = { open: true };
       return;
     }
     if (node.type === 'EVENT') {
@@ -1307,6 +1316,23 @@
         return;
       case '/api/siege/cache/choose': clearStop('cache'); return;
 
+      case '/api/siege/rift/cross': {
+        // Deterministic destination so the lesson names a Land the banner will show.
+        var frost = {
+          id: 'ice', name: 'Frostveil', kind: 'ELEMENTAL', elements: ['ICE'],
+          background: '/img/lands/ice.webp', feature: 'Frost Shelter', featureType: 'REST',
+          terrain: 'Glacial cover', effect: 'ICE Siegelings start battles with +5 Shield.',
+          encounters: 'Favored Siegelings have 4× draw weight in recruits, broker stock and card prizes.',
+          eventTitle: 'The Frozen Waystation'
+        };
+        M.land = frost;
+        M.landHistory = (M.landHistory || []).concat([frost]);
+        M.lastReward = 'The Rift closes. You stand in Frostveil.';
+        flags.rifted = true;
+        clearStop('rift');
+        return;
+      }
+
       case '/api/siege/event/choose': {
         var eopt = null;
         (M.event.options || []).forEach(function (o) { if (o.id === body.optionId) eopt = o; });
@@ -1387,6 +1413,12 @@
     if (screenIs('smithScreen')) return 'smith-a';
     return visited['broker-a'] ? 'smith-a' : 'broker-a';
   }
+  function lane3() {
+    visited = window.TutorialCoach.visited();
+    if (screenIs('cacheScreen')) return 'cache-a';
+    if (screenIs('riftScreen')) return 'rift-a';
+    return visited['cache-a'] ? 'rift-a' : 'cache-a';
+  }
 
   function leadName() { return M.party[0] ? M.party[0].name : 'your Siegeling'; }
   function knightName() { return M.knight.name; }
@@ -1407,8 +1439,9 @@
       { id: 'land-rules', hint: 'Tap <b>Close</b>', title: 'Terrain, encounters and landmarks', target: '.land-modal-card', avoid: '#landClose',
         body: '<b>Terrain</b> is the battle bonus. <b>Encounters & discoveries</b> tells you which elements are favored. The final section names this Land’s special map feature and event. Close the panel when you are ready.',
         until: function () { return hidden('landModal'); } },
-      { id: 'land-change', title: 'Bosses lead to new Lands', target: '#mapLand',
-        body: 'Defeat a Land’s boss and the next stage rolls a <b>different Land</b>. Later bosses can reveal <b>Rare Lands</b> with mixed elements or richer drops — or the <b>Badlands</b>, where enemies are stronger and you choose a special boon for the run.' },
+      { id: 'land-change', title: 'Bosses — and Rifts — lead to new Lands', target: '#mapLand',
+        body: 'Defeat a Land’s boss and the next stage rolls a <b>different Land</b>. Later bosses can reveal <b>Rare Lands</b> with mixed elements or richer drops — or the <b>Badlands</b>, where enemies are stronger and you choose a special boon for the run.' +
+          '<span class="tut-p">A rare <b>🌀 Rift</b> on the map can also tear you into another Land mid-run. One step; the destination is random.</span>' },
       // Naming BOTH readings rather than the current one: the map genuinely
       // transposes (adventure.js isPhoneLandscape -> "start left, boss right"),
       // and a step's body is built once, so a tip that named only the live
@@ -1420,7 +1453,7 @@
         body: 'Each node type has its own emblem. Tap <b>🗝️ Key</b> to read them.',
         until: function () { return !hidden('legendOverlay'); } },
       { id: 'key-read', hint: 'Close the key with <b>✕</b>', title: 'Read the key', target: '.legend-panel', avoid: '#legendClose',
-        body: 'Fights, camps, caches, shops and the Siegelord all live on this list, along with what the ring around a node means. Close it with the ✕ when you are done.',
+        body: 'Fights, camps, caches, Rifts, shops and the Siegelord all live on this list, along with what the ring around a node means. Close it with the ✕ when you are done.',
         until: function () { return hidden('legendOverlay'); } },
       { id: 'warband', hint: 'Tap a <b>Siegeling</b>', title: 'Your warband', target: '#partyStrip',
         body: esc(knightName()) + ' is a <b>' + esc(k.passiveName) + '</b>: ' + esc(k.passive) +
@@ -1568,7 +1601,7 @@
         until: function () { return screenIs('mapScreen'); }, next: 'stop-2-done' },
 
       { id: 'stop-2-done', route: function () {
-        return (visited['broker-a'] && visited['smith-a']) ? 'cache-a' : 'other-lane-2';
+        return (visited['broker-a'] && visited['smith-a']) ? 'branch-3' : 'other-lane-2';
       } },
       { id: 'other-lane-2', hint: 'Tap the <b>open node</b>', title: 'The other lane', target: '.map-node-g.reachable', highlight: ['.map-node-g.reachable'],
         body: 'And this lane carries the stop you skipped. <b>Travel there.</b>',
@@ -1576,19 +1609,35 @@
         next: 'other-lane-2-route' },
       { id: 'other-lane-2-route', route: function () { return lane2(); } },
 
-      // ---- the shared tail --------------------------------------------------
-      { id: 'cache-a', hint: 'Travel to the <b>💎 cache</b>', title: 'The cache', target: '.map-node-g.reachable', highlight: ['.map-node-g.reachable'],
-        body: 'The lanes have rejoined — from here there is one road. <b>Travel to the 💎 Buried Cache.</b>',
-        until: function () { return screenIs('cacheScreen'); } },
-      { id: 'cache-b', hint: 'Tap <b>Dig Deeper</b>', title: 'Press your luck', target: '#cacheDigBtn',
-        body: 'A cache is a gamble: every dig adds gold and raises the collapse risk on the bar. <b>Dig Deeper</b> once.',
-        until: function () { return flags.dug > 0; } },
-      { id: 'cache-c', hint: 'Tap <b>Bank the Loot</b>', title: 'Know when to stop', target: '#cacheTakeBtn',
-        body: 'Loot is unbanked until you take it — a collapse costs you everything in the shaft. <b>Bank the Loot.</b>',
-        until: function () { return screenIs('mapScreen'); } },
+      // ---- cache / rift fork -----------------------------------------------
+      { id: 'branch-3', hint: 'Pick <b>either</b> lane', title: 'Cache or Rift', target: '#mapSvg',
+        body: 'The path splits one last time between a <b>💎 cache</b> and a rare <b>🌀 Rift</b>. Same deal as Merc Post → Ember Forge: each lane visits both, in opposite order — Buried Cache leads to a Rift, and the Rift leads to a Cache. <b>Pick one.</b>',
+        until: function () { return screenIs('cacheScreen') || screenIs('riftScreen'); } },
+      { id: 'branch-3-route', route: function () { return lane3(); } },
 
+      { id: 'cache-a', hint: 'Tap <b>Dig Deeper</b>', title: 'Press your luck', target: '#cacheDigBtn',
+        body: 'A cache is a gamble: every dig adds gold and raises the collapse risk on the bar. <b>Dig Deeper</b> once.',
+        until: function () { return flags.dug > 0; }, next: 'cache-b' },
+      { id: 'cache-b', hint: 'Tap <b>Bank the Loot</b>', title: 'Know when to stop', target: '#cacheTakeBtn',
+        body: 'Loot is unbanked until you take it — a collapse costs you everything in the shaft. <b>Bank the Loot.</b>',
+        until: function () { return screenIs('mapScreen'); }, next: 'stop-3-done' },
+
+      { id: 'rift-a', hint: 'Tap <b>Step through the Rift</b>', title: 'A tear between Lands', target: '#riftCrossBtn',
+        body: 'A Rift is rare. There is only <b>one</b> choice — step through — and the Land you land in is <b>random</b>. In a real run it can be elemental, Rare, or even the Badlands once bosses are behind you. <b>Step through</b> — this practice Rift opens onto <b>Frostveil</b>.',
+        until: function () { return screenIs('mapScreen') && flags.rifted; }, next: 'stop-3-done' },
+
+      { id: 'stop-3-done', route: function () {
+        return (visited['cache-a'] && visited['rift-a']) ? 'event-a' : 'other-lane-3';
+      } },
+      { id: 'other-lane-3', hint: 'Tap the <b>open node</b>', title: 'The other stop', target: '.map-node-g.reachable', highlight: ['.map-node-g.reachable'],
+        body: 'This lane carries the stop you have not visited yet — just like Ember Forge after Merc Post. <b>Travel there.</b>',
+        until: function () { return screenIs('cacheScreen') || screenIs('riftScreen'); },
+        next: 'other-lane-3-route' },
+      { id: 'other-lane-3-route', route: function () { return lane3(); } },
+
+      // ---- the shared tail --------------------------------------------------
       { id: 'event-a', hint: 'Travel to the <b>❔ stone</b>', title: 'Events', target: '.map-node-g.reachable', highlight: ['.map-node-g.reachable'],
-        body: '<b>Travel to the ❔ Standing Stone.</b>',
+        body: 'The lanes have rejoined. <b>Travel to the ❔ Standing Stone.</b>',
         until: function () { return screenIs('eventScreen'); } },
       { id: 'event-b', hint: 'Choose an <b>option</b>', title: 'Choices with a price', target: '#eventChoices',
         body: 'Events trade something for something: HP for power, safety for coin. A choice names only the <b>action</b> — never what it pays — so read the scene and commit. <b>Choose one.</b>',
@@ -1651,7 +1700,7 @@
    *  lying across the foe line blocks the drop itself. */
   var PLAY_AREAS = ['#handRow', '#enemyRow', '#allyRow', '#campGrid', '#smithGrid',
     '#caravanGrid', '#brokerGrid', '#rewardGrid', '#ampGrid', '#eventChoices',
-    '#invBag', '#cacheOptions'];
+    '#riftChoices', '#invBag', '#cacheOptions'];
 
   // ---- lifecycle ----------------------------------------------------------
 
@@ -1661,7 +1710,7 @@
     M = buildModel();
     flags = {
       played: 0, dug: 0, ulted: false, claimed: false, rewarded: false, camped: false,
-      bought: false, equipped: false, rented: false, smithed: false, reachedBoss: false
+      bought: false, equipped: false, rented: false, smithed: false, rifted: false, reachedBoss: false
     };
     visited = {};
     rewardClaim = null;   // a second run must re-ask the server, not replay the first answer

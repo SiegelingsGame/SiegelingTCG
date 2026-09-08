@@ -145,6 +145,9 @@ class SiegeRun {
     private String eventIcon = "";
     private final List<CampOption> eventOptions = new ArrayList<>();
 
+    /** Rare mid-run land portal — short-lived like cache/event (not checkpointed). */
+    private boolean inRift;
+
     // Puzzle mini-game state (LINE / RPS / MATCH) — server-authoritative hidden state.
     // Short-lived like the cache: skipped by checkpoints so a resume lands on the map
     // with the node still uncleared. Reachable from both cache and event nodes, so it
@@ -299,6 +302,8 @@ class SiegeRun {
     void setInEvent(boolean inEvent) { this.inEvent = inEvent; }
     String getEventTitle() { return eventTitle; }
     void setEventTitle(String eventTitle) { this.eventTitle = eventTitle == null ? "" : eventTitle; }
+    boolean isInRift() { return inRift; }
+    void setInRift(boolean inRift) { this.inRift = inRift; }
     String getEventPrompt() { return eventPrompt; }
     void setEventPrompt(String eventPrompt) { this.eventPrompt = eventPrompt == null ? "" : eventPrompt; }
     String getEventIcon() { return eventIcon; }
@@ -342,7 +347,7 @@ class SiegeRun {
     List<Integer> reachableNodeIds() {
         List<Integer> out = new ArrayList<>();
         if (status != RunStatus.ACTIVE || battle != null || !pendingRewards.isEmpty()
-                || inCamp || inCache || inBroker || inSmith || inCaravan || inEvent || inMinigame
+                || inCamp || inCache || inBroker || inSmith || inCaravan || inEvent || inRift || inMinigame
                 || pendingRecruit != null || awaitingBoonPick || !landBoonOffer.isEmpty()) return out;
         SiegeNode current = currentNode();
         if (current == null) {

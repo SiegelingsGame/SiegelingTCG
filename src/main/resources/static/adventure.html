@@ -6,7 +6,7 @@
 <title>Siege — Siegelings Adventure</title>
 <link rel="icon" href="/favicon.png">
 <link rel="stylesheet" href="/css/coach.css?v=4">
-<link rel="stylesheet" href="/css/adventure.css?v=91">
+<link rel="stylesheet" href="/css/adventure.css?v=92">
 </head>
 <body>
 <!-- Enemy Siegelings are corrupted card art, so they need the same die-cut shade
@@ -565,6 +565,46 @@
     </div>
   </section>
 
+  <section class="siege-screen hidden" id="riftScreen">
+    <div class="location-stage location-rift">
+      <svg class="location-art location-art-wide" viewBox="0 0 1200 680" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <defs>
+          <linearGradient id="riftMist" x2="0" y2="1"><stop stop-color="#0c1524"/><stop offset=".5" stop-color="#16324a"/><stop offset="1" stop-color="#0a1a22"/></linearGradient>
+          <radialGradient id="riftAura"><stop stop-color="#5eead4" stop-opacity=".55"/><stop offset="1" stop-color="#5eead4" stop-opacity="0"/></radialGradient>
+        </defs>
+        <rect width="1200" height="680" fill="url(#riftMist)"/>
+        <circle cx="600" cy="300" r="220" fill="url(#riftAura)"/>
+        <ellipse cx="600" cy="300" rx="92" ry="150" fill="none" stroke="#5eead4" stroke-width="10" opacity=".9"/>
+        <ellipse cx="600" cy="300" rx="48" ry="110" fill="#0a1620" stroke="#67e8f9" stroke-width="6"/>
+        <path d="M0 480Q220 400 420 470T820 450T1200 420V680H0Z" fill="#102433"/>
+      </svg>
+      <svg class="location-art location-art-tall" viewBox="0 0 720 1280" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <defs>
+          <linearGradient id="riftMistP" x2="0" y2="1"><stop stop-color="#0c1524"/><stop offset=".5" stop-color="#16324a"/><stop offset="1" stop-color="#0a1a22"/></linearGradient>
+          <radialGradient id="riftAuraP"><stop stop-color="#5eead4" stop-opacity=".55"/><stop offset="1" stop-color="#5eead4" stop-opacity="0"/></radialGradient>
+        </defs>
+        <rect width="720" height="1280" fill="url(#riftMistP)"/>
+        <circle cx="360" cy="480" r="260" fill="url(#riftAuraP)"/>
+        <ellipse cx="360" cy="480" rx="100" ry="170" fill="none" stroke="#5eead4" stroke-width="10" opacity=".9"/>
+        <ellipse cx="360" cy="480" rx="52" ry="120" fill="#0a1620" stroke="#67e8f9" stroke-width="6"/>
+        <path d="M0 760Q180 680 360 750T720 720V1280H0Z" fill="#102433"/>
+      </svg>
+      <div class="location-party" id="riftParty"></div>
+      <div class="event-focus"><span class="event-icon" id="riftIcon">🌀</span></div>
+      <div class="location-overlay">
+        <div class="location-copy">
+          <span class="location-kicker">Rare portal</span>
+          <h1 id="riftTitle">Rift</h1>
+          <p id="riftPrompt">A tear in the Land. Crossing it drops you into another Land at random — one step, no map of where you land.</p>
+        </div>
+        <div class="location-meta"><span class="gold-chip" id="riftGold">🪙 0</span></div>
+        <div class="event-choices location-choice-grid" id="riftChoices">
+          <button class="siege-btn event-choice" id="riftCrossBtn" type="button"><span class="ec-label">Step through the Rift</span></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- Cache/event puzzle mini-games (LINE / RPS / MATCH) -->
   <section class="siege-screen hidden" id="minigameScreen">
     <div class="event-scene"><span class="event-icon" id="mgIcon">🧩</span></div>
@@ -669,7 +709,7 @@
 </div>
 <script src="/js/siege-maps.js?v=3"></script>
 <script src="/js/coach.js?v=6"></script>
-<script src="/js/siege-tutorial.js?v=21"></script>
-<script src="/js/adventure.js?v=95"></script>
+<script src="/js/siege-tutorial.js?v=23"></script>
+<script src="/js/adventure.js?v=96"></script>
 </body>
 </html>
