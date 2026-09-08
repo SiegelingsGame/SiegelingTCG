@@ -1,3 +1,6 @@
+- September 8, 2026 — Keep Guide is now a guided visual walkthrough using the shared TutorialCoach spotlight (same ring + tip card as Arena/Siege). Guests run a local demo sanctuary so Projects / Collect / Residents / Woodlot interiors can be highlighted without signing in; ending the guide returns the gate. Signed-in keepers walk their live Keep via gate **Keep Guide** or header `?`. New `keep-tutorial.js`; `keep.js` exposes `KeepGuideHost`; cache pins `keep.css` 56→57, `keep.js` 56→57, coach assets included on `keep.html`.
+- Verification: pending coach walkthrough checks at phone/desktop.
+
 - September 8, 2026 — Merged PR #843 (Keep Guide tutorial) to `main`; Deploy workflow https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/34269668002 succeeded.
 - Verification (live): Hosting `keep.html` serves `keep.css?v=56`, `keep.js?v=56` with `#gateKeepGuide` / "Keep Guide is free to browse"; live `keep.js` exposes `hasKeepSession`, Timers & speed-ups, Assign Siegelings; `/api/cards/editor` on Hosting and Cloud Run both `source=FIRESTORE`, `liveEditingEnabled=true`; `config.js` `apiBaseUrl: ''`.
 
