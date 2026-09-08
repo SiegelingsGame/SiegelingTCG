@@ -47,6 +47,20 @@ final class SiegeAdvantage {
         rebuild(battle, true);
     }
 
+    /**
+     * The token belongs to one Siegeling, not to the clock. It only passes once
+     * that holder's team has had its turn; otherwise a mixed-side speed order
+     * can give a player Siegeling the token during the enemy turn and take it
+     * away before any of its cards are playable.
+     */
+    static void advanceAfterTeamTurn(SiegeBattle battle, Side completedSide) {
+        ensureOrder(battle);
+        Combatant holder = battle.findCombatant(battle.getAdvantageHolderId());
+        if (!eligible(holder) || holder.getSide() == completedSide) {
+            advance(battle);
+        }
+    }
+
     static boolean holds(SiegeBattle battle, Combatant combatant) {
         return combatant != null && combatant.getId().equals(battle.getAdvantageHolderId())
                 && eligible(combatant);

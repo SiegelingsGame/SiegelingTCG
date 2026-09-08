@@ -986,7 +986,7 @@ class GameServiceTest {
         prepare.invoke(gameService, player);
 
         List<String> top = player.getDeck().stream().limit(5).map(Card::getId).toList();
-        assertEquals(List.of("sundile", "pylook", "spell_fire_06", "trap13", "pylook"), top,
+        assertEquals(List.of("sundile", "pylook", "tutorial_ashfall", "trap13", "pylook"), top,
                 "Round two links Pylook to Sundile, so Pylook is dealt and the spare copy sits "
                         + "in the practice-redraw slot; Squire Bud waits for the round-three combo.");
         assertTrue(player.getDeck().stream().anyMatch(c -> "trap13".equals(c.getId())));
@@ -1022,6 +1022,7 @@ class GameServiceTest {
                 Ability.damage("Bolt", "Deal 4", TargetType.SINGLE_ENEMY, null, 1, 4)));
         mixed.add(baseSiegling("pylook", "Pylook", Element.FIRE));
         mixed.add(baseSiegling("pylook", "Pylook", Element.FIRE));
+        mixed.add(baseSiegling("generoot", "Generoot", Element.EARTH));
         mixed.add(baseSiegling("raydile", "Raydile", Element.FIRE));
         mixed.add(baseSiegling("floraknight", "Flora Knight", Element.EARTH));
         player.setDeck(mixed);
@@ -1044,8 +1045,8 @@ class GameServiceTest {
         }
 
         List<String> opening = player.getHand().stream().map(Card::getId).toList();
-        assertEquals(List.of("sundile", "pylook", "spell_fire_06", "trap13", "pylook"), opening);
-        assertEquals("raydile", player.getDeck().get(0).getId());
+        assertEquals(List.of("sundile", "pylook", "tutorial_ashfall", "trap13", "pylook"), opening);
+        assertEquals("generoot", player.getDeck().get(0).getId());
 
         // Dumping lesson cards is ignored — treated as a keep.
         gameService.resolveOpeningMulligan(state, true, List.of(0, 1, 2));
@@ -1064,6 +1065,7 @@ class GameServiceTest {
                 Ability.damage("Bolt", "Deal 4", TargetType.SINGLE_ENEMY, null, 1, 4)));
         mixed2.add(baseSiegling("pylook", "Pylook", Element.FIRE));
         mixed2.add(baseSiegling("pylook", "Pylook", Element.FIRE));
+        mixed2.add(baseSiegling("generoot", "Generoot", Element.EARTH));
         mixed2.add(baseSiegling("raydile", "Raydile", Element.FIRE));
         mixed2.add(baseSiegling("floraknight", "Flora Knight", Element.EARTH));
         player.setDeck(mixed2);
@@ -1079,11 +1081,9 @@ class GameServiceTest {
 
         gameService.resolveOpeningMulligan(state, true, List.of(4));
         List<String> after = player.getHand().stream().map(Card::getId).toList();
-        assertEquals(List.of("sundile", "pylook", "spell_fire_06", "trap13", "raydile"), after);
-        // Raydile came off the top into the hand; the injected Ashen Ward is next in
-        // this stub (its Strategy ids are not stubbed here), and Squire Bud — the
-        // round-three combo partner — stays buried under it.
-        assertEquals("tutorial_ashen_ward", player.getDeck().get(0).getId(),
+        assertEquals(List.of("sundile", "pylook", "tutorial_ashfall", "trap13", "generoot"), after);
+        // Generoot is the replacement; Raydile stays ready for the first normal draw.
+        assertEquals("raydile", player.getDeck().get(0).getId(),
                 "Deck order must stay intact after a non-shuffling tutorial mulligan");
         assertTrue(state.hasUsedMulligan(true));
     }
