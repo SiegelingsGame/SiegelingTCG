@@ -1,0 +1,98 @@
+[
+  {
+    "id": "fire",
+    "name": "Emberfall",
+    "prompt": "Use case: stylized-concept. Asset type: production background for the scrollable Lands route map of a mobile fantasy roguelike called Siegelings. Create one beautiful hand-painted stylized fantasy environment, portrait 1024x1536. Elevated aerial view down a valley, readable terrain with rich atmospheric depth, refined storybook game art. Composition: environmental detail concentrated around outer thirds, broad calm open center to place branching route nodes over later; keep center lower contrast, no single road/path that would conflict with route lines. Full bleed illustration. No text, letters, symbols, UI, map nodes, borders, characters or watermark. Environment: volcanic basalt canyon, flowing ember-orange lava around the side cliffs, obsidian stepping stones and drifting sparks; palette ember red #ff501e and charcoal. Land name for mood only: Emberfall (do not write the name).",
+    "path": "src/main/resources/static/img/lands/fire.webp"
+  },
+  {
+    "id": "ice",
+    "name": "Frostveil",
+    "prompt": "Use case: stylized-concept. Asset type: production background for the scrollable Lands route map of a mobile fantasy roguelike called Siegelings. Create one beautiful hand-painted stylized fantasy environment, portrait 1024x1536. Elevated aerial view down a valley, readable terrain with rich atmospheric depth, refined storybook game art. Composition: environmental detail concentrated around outer thirds, broad calm open center to place branching route nodes over later; keep center lower contrast, no single road/path that would conflict with route lines. Full bleed illustration. No text, letters, symbols, UI, map nodes, borders, characters or watermark. Environment: glacial valley, faceted ice spires along the edges, frozen river and soft snow; palette cyan #76e6ff and midnight blue. Land name for mood only: Frostveil (do not write the name).",
+    "path": "src/main/resources/static/img/lands/ice.webp"
+  },
+  {
+    "id": "wind",
+    "name": "Zephyr Reach",
+    "prompt": "Use case: stylized-concept. Asset type: production background for the scrollable Lands route map of a mobile fantasy roguelike called Siegelings. Create one beautiful hand-painted stylized fantasy environment, portrait 1024x1536. Elevated aerial view down a valley, readable terrain with rich atmospheric depth, refined storybook game art. Composition: environmental detail concentrated around outer thirds, broad calm open center to place branching route nodes over later; keep center lower contrast, no single road/path that would conflict with route lines. Full bleed illustration. No text, letters, symbols, UI, map nodes, borders, characters or watermark. Environment: high windswept floating grass islands above mist, stone arches and swirling cloud ribbons along the edges; palette mint #96ffb4 and deep teal. Land name for mood only: Zephyr Reach (do not write the name).",
+    "path": "src/main/resources/static/img/lands/wind.webp"
+  },
+  {
+    "id": "earth",
+    "name": "Rootwild",
+    "prompt": "Use case: stylized-concept. Asset type: production background for the scrollable Lands route map of a mobile fantasy roguelike called Siegelings. Create one beautiful hand-painted stylized fantasy environment, portrait 1024x1536. Elevated aerial view down a valley, readable terrain with rich atmospheric depth, refined storybook game art. Composition: environmental detail concentrated around outer thirds, broad calm open center to place branching route nodes over later; keep center lower contrast, no single road/path that would conflict with route lines. Full bleed illustration. No text, letters, symbols, UI, map nodes, borders, characters or watermark. Environment: ancient woodland canyon, gigantic roots and mossy rock terraces around an open forest clearing; palette ochre #b48c50 and forest green. Land name for mood only: Rootwild (do not write the name).",
+    "path": "src/main/resources/static/img/lands/earth.webp"
+  },
+  {
+    "id": "water",
+    "name": "Tideglass",
+    "prompt": "Use case: stylized-concept. Asset type: production background for the scrollable Lands route map of a mobile fantasy roguelike called Siegelings. Create one beautiful hand-painted stylized fantasy environment, portrait 1024x1536. Elevated aerial view down a valley, readable terrain with rich atmospheric depth, refined storybook game art. Composition: environmental detail concentrated around outer thirds, broad calm open center to place branching route nodes over later; keep center lower contrast, no single road/path that would conflict with route lines. Full bleed illustration. No text, letters, symbols, UI, map nodes, borders, characters or watermark. Environment: flooded coastal ruins, turquoise tidal pools, weathered pillars and coral along the edges; palette blue #3296ff and deep navy. Land name for mood only: Tideglass (do not write the name).",
+    "path": "src/main/resources/static/img/lands/water.webp"
+  },
+  {
+    "id": "electric",
+    "name": "Stormspire",
+    "prompt": "Use case: stylized-concept. Asset type: production background for the scrollable Lands route map of a mobile fantasy roguelike called Siegelings. Create one beautiful hand-painted stylized fantasy environment, portrait 1024x1536. Elevated aerial view down a valley, readable terrain with rich atmospheric depth, refined storybook game art. Composition: environmental detail concentrated around outer thirds, broad calm open center to place branching route nodes over later; keep center lower contrast, no single road/path that would conflict with route lines. Full bleed illustration. No text, letters, symbols, UI, map nodes, borders, characters or watermark. Environment: storm-swept rocky plateau, lightning striking tall natural crystal spires along the outer edges; palette yellow #ffe63c and slate indigo. Land name for mood only: Stormspire (do not write the name).",
+    "path": "src/main/resources/static/img/lands/electric.webp"
+  },
+  {
+    "id": "metal",
+    "name": "Ironhold",
+    "prompt": "Use case: stylized-concept. Asset type: production background for the scrollable Lands route map of a mobile fantasy roguelike called Siegelings. Create one beautiful hand-painted stylized fantasy environment, portrait 1024x1536. Elevated aerial view down a valley, readable terrain with rich atmospheric depth, refined storybook game art. Composition: environmental detail concentrated around outer thirds, broad calm open center to place branching route nodes over later; keep center lower contrast, no single road/path that would conflict with route lines. Full bleed illustration. No text, letters, symbols, UI, map nodes, borders, characters or watermark. Environment: ancient iron fortress valley, monumental forge walls, riveted bridges and steel cliffs along the edges; palette steel #a0aab4 and blue charcoal. Land name for mood only: Ironhold (do not write the name).",
+    "path": "src/main/resources/static/img/lands/metal.webp"
+  },
+  {
+    "id": "shadow",
+    "name": "Gloamwood",
+    "prompt": "Use case: stylized-concept. Asset type: production background for the scrollable Lands route map of a mobile fantasy roguelike called Siegelings. Create one beautiful hand-painted stylized fantasy environment, portrait 1024x1536. Elevated aerial view down a valley, readable terrain with rich atmospheric depth, refined storybook game art. Composition: environmental detail concentrated around outer thirds, broad calm open center to place branching route nodes over later; keep center lower contrast, no single road/path that would conflict with route lines. Full bleed illustration. No text, letters, symbols, UI, map nodes, borders, characters or watermark. Environment: enchanted twilight forest, curling black trees, violet mist and shadowy ruins along the outer edges; palette violet #9a63d6 and deep plum. Land name for mood only: Gloamwood (do not write the name).",
+    "path": "src/main/resources/static/img/lands/shadow.webp"
+  },
+  {
+    "id": "undead",
+    "name": "Hollow March",
+    "prompt": "Use case: stylized-concept. Asset type: production background for the scrollable Lands route map of a mobile fantasy roguelike called Siegelings. Create one beautiful hand-painted stylized fantasy environment, portrait 1024x1536. Elevated aerial view down a valley, readable terrain with rich atmospheric depth, refined storybook game art. Composition: environmental detail concentrated around outer thirds, broad calm open center to place branching route nodes over later; keep center lower contrast, no single road/path that would conflict with route lines. Full bleed illustration. No text, letters, symbols, UI, map nodes, borders, characters or watermark. Environment: silent ancient necropolis, crooked grave stones, bone-white ruins and spectral mist around an empty valley; palette dusty lavender #8c78a0 and muted charcoal. Land name for mood only: Hollow March (do not write the name).",
+    "path": "src/main/resources/static/img/lands/undead.webp"
+  },
+  {
+    "id": "psychic",
+    "name": "Dreamfold",
+    "prompt": "Use case: stylized-concept. Asset type: production background for the scrollable Lands route map of a mobile fantasy roguelike called Siegelings. Create one beautiful hand-painted stylized fantasy environment, portrait 1024x1536. Elevated aerial view down a valley, readable terrain with rich atmospheric depth, refined storybook game art. Composition: environmental detail concentrated around outer thirds, broad calm open center to place branching route nodes over later; keep center lower contrast, no single road/path that would conflict with route lines. Full bleed illustration. No text, letters, symbols, UI, map nodes, borders, characters or watermark. Environment: surreal dream valley with levitating purple crystals, broken floating stairs and faint cosmic mist along the edges; palette lavender #c896ff and midnight violet. Land name for mood only: Dreamfold (do not write the name).",
+    "path": "src/main/resources/static/img/lands/psychic.webp"
+  },
+  {
+    "id": "poison",
+    "name": "Venomfen",
+    "prompt": "Use case: stylized-concept. Asset type: production background for the scrollable Lands route map of a mobile fantasy roguelike called Siegelings. Create one beautiful hand-painted stylized fantasy environment, portrait 1024x1536. Elevated aerial view down a valley, readable terrain with rich atmospheric depth, refined storybook game art. Composition: environmental detail concentrated around outer thirds, broad calm open center to place branching route nodes over later; keep center lower contrast, no single road/path that would conflict with route lines. Full bleed illustration. No text, letters, symbols, UI, map nodes, borders, characters or watermark. Environment: mysterious glowing swamp, moss draped trees and luminous green mushrooms around still pools; palette acid green #78dc50 and deep olive. Land name for mood only: Venomfen (do not write the name).",
+    "path": "src/main/resources/static/img/lands/poison.webp"
+  },
+  {
+    "id": "light",
+    "name": "Dawnhaven",
+    "prompt": "Use case: stylized-concept. Asset type: production background for the scrollable Lands route map of a mobile fantasy roguelike called Siegelings. Create one beautiful hand-painted stylized fantasy environment, portrait 1024x1536. Elevated aerial view down a valley, readable terrain with rich atmospheric depth, refined storybook game art. Composition: environmental detail concentrated around outer thirds, broad calm open center to place branching route nodes over later; keep center lower contrast, no single road/path that would conflict with route lines. Full bleed illustration. No text, letters, symbols, UI, map nodes, borders, characters or watermark. Environment: sunlit sacred ruins high above clouds, pale gold stone arches and shafts of warm light along edges; palette ivory gold #fff0b0 and warm deep bronze. Land name for mood only: Dawnhaven (do not write the name).",
+    "path": "src/main/resources/static/img/lands/light.webp"
+  },
+  {
+    "id": "obsidian",
+    "name": "Obsidian Grove",
+    "prompt": "Use case: stylized-concept. Asset type: production background for the scrollable Lands route map of a mobile fantasy roguelike called Siegelings. Create one beautiful hand-painted stylized fantasy environment, portrait 1024x1536. Elevated aerial view down a valley, readable terrain with rich atmospheric depth, refined storybook game art. Composition: environmental detail concentrated around outer thirds, broad calm open center to place branching route nodes over later; keep center lower contrast, no single road/path that would conflict with route lines. Full bleed illustration. No text, letters, symbols, UI, map nodes, borders, characters or watermark. Environment: rare fire and earth woodland where roots weave through basalt and small lava channels, amber leaves and embers at edges; palette burnt orange, ochre and dark forest. Land name for mood only: Obsidian Grove (do not write the name).",
+    "path": "src/main/resources/static/img/lands/obsidian.webp"
+  },
+  {
+    "id": "aurora",
+    "name": "Aurora Expanse",
+    "prompt": "Use case: stylized-concept. Asset type: production background for the scrollable Lands route map of a mobile fantasy roguelike called Siegelings. Create one beautiful hand-painted stylized fantasy environment, portrait 1024x1536. Elevated aerial view down a valley, readable terrain with rich atmospheric depth, refined storybook game art. Composition: environmental detail concentrated around outer thirds, broad calm open center to place branching route nodes over later; keep center lower contrast, no single road/path that would conflict with route lines. Full bleed illustration. No text, letters, symbols, UI, map nodes, borders, characters or watermark. Environment: rare ice and wind realm, floating frozen islands under luminous mint and cyan aurora curtains, crisp icy arches at edges; palette cyan, mint and navy. Land name for mood only: Aurora Expanse (do not write the name).",
+    "path": "src/main/resources/static/img/lands/aurora.webp"
+  },
+  {
+    "id": "relic",
+    "name": "Gilded Hollow",
+    "prompt": "Use case: stylized-concept. Asset type: production background for the scrollable Lands route map of a mobile fantasy roguelike called Siegelings. Create one beautiful hand-painted stylized fantasy environment, portrait 1024x1536. Elevated aerial view down a valley, readable terrain with rich atmospheric depth, refined storybook game art. Composition: environmental detail concentrated around outer thirds, broad calm open center to place branching route nodes over later; keep center lower contrast, no single road/path that would conflict with route lines. Full bleed illustration. No text, letters, symbols, UI, map nodes, borders, characters or watermark. Environment: rare treasure valley, abandoned golden vault ruins with clusters of jewels and ancient chests tucked at edges; palette warm gold and deep teal. Land name for mood only: Gilded Hollow (do not write the name).",
+    "path": "src/main/resources/static/img/lands/relic.webp"
+  },
+  {
+    "id": "badlands",
+    "name": "The Badlands",
+    "prompt": "Use case: stylized-concept. Asset type: production background for the scrollable Lands route map of a mobile fantasy roguelike called Siegelings. Create one beautiful hand-painted stylized fantasy environment, portrait 1024x1536. Elevated aerial view down a valley, readable terrain with rich atmospheric depth, refined storybook game art. Composition: environmental detail concentrated around outer thirds, broad calm open center to place branching route nodes over later; keep center lower contrast, no single road/path that would conflict with route lines. Full bleed illustration. No text, letters, symbols, UI, map nodes, borders, characters or watermark. Environment: dangerous crimson wasteland, jagged red rock pillars, dark fortress ruins and violet fissures around an empty ash plain; palette blood red, violet and charcoal. Land name for mood only: The Badlands (do not write the name).",
+    "path": "src/main/resources/static/img/lands/badlands.webp"
+  }
+]

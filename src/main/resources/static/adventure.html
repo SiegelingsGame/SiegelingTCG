@@ -6,7 +6,7 @@
 <title>Siege — Siegelings Adventure</title>
 <link rel="icon" href="/favicon.png">
 <link rel="stylesheet" href="/css/coach.css?v=4">
-<link rel="stylesheet" href="/css/adventure.css?v=90">
+<link rel="stylesheet" href="/css/adventure.css?v=91">
 </head>
 <body>
 <!-- Enemy Siegelings are corrupted card art, so they need the same die-cut shade
@@ -156,6 +156,7 @@
 
   <!-- Map (the map fills the screen; team info + HUD live at the bottom) -->
   <section class="siege-screen hidden" id="mapScreen">
+    <button class="map-land hidden" id="mapLand" type="button" aria-haspopup="dialog" aria-controls="landModal"></button>
     <div class="map-scroll" id="mapScroll">
       <svg id="mapSvg" xmlns="http://www.w3.org/2000/svg"></svg>
     </div>
@@ -175,6 +176,13 @@
       <div class="party-strip" id="partyStrip"></div>
     </div>
   </section>
+
+  <div class="unit-modal hidden" id="landModal" role="dialog" aria-modal="true" aria-labelledby="landModalTitle">
+    <div class="unit-modal-card land-modal-card">
+      <div class="land-modal-head"><h2 id="landModalTitle">Current Land</h2><button class="siege-btn" id="landClose" type="button" aria-label="Close land details">Close</button></div>
+      <div id="landDetails"></div>
+    </div>
+  </div>
 
   <!-- Rest Camp (interactive stop) -->
   <section class="siege-screen hidden" id="campScreen">
@@ -624,7 +632,7 @@
   <!-- Battlegrounds boon pick (run start + post-boss on tiers III+). -->
   <div class="unit-modal hidden" id="boonModal" role="dialog" aria-modal="true" aria-labelledby="boonModalTitle">
     <div class="unit-modal-card knight-lock-modal-card bg-modal-card">
-      <div class="knight-lock-kicker">Battlegrounds boon</div>
+      <div class="knight-lock-kicker" id="boonSource">Battlegrounds boon</div>
       <h2 class="knight-lock-title" id="boonModalTitle">Choose a boon</h2>
       <p class="knight-lock-msg">A run-wide amp for your whole squad. Pick one.</p>
       <div class="boon-choices" id="boonChoices"></div>
@@ -662,6 +670,6 @@
 <script src="/js/siege-maps.js?v=3"></script>
 <script src="/js/coach.js?v=6"></script>
 <script src="/js/siege-tutorial.js?v=19"></script>
-<script src="/js/adventure.js?v=94"></script>
+<script src="/js/adventure.js?v=95"></script>
 </body>
 </html>

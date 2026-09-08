@@ -1260,7 +1260,9 @@ public class SiegeContentService {
      * A post-battle joiner: 1% chance of a stage-3, 5% of a stage-2, otherwise a
      * stage-1 Siegeling (falling back down a stage when a tier has no entries).
      */
-    Optional<SieglingCard> randomStagedRecruit(List<String> excludedNames, Random rng) {
+    Optional<SieglingCard> randomStagedRecruit(List<String> excludedNames, Random rng) { return randomStagedRecruit(excludedNames, rng, null); }
+
+    Optional<SieglingCard> randomStagedRecruit(List<String> excludedNames, Random rng, SiegeLand land) {
         int roll = rng.nextInt(100);
         int stage = roll < 1 ? 3 : roll < 6 ? 2 : 1;
         for (int s = stage; s >= 1; s--) {
@@ -1268,7 +1270,7 @@ public class SiegeContentService {
             for (SieglingCard cand : sieglingsAtStage(s)) {
                 if (!excludedNames.contains(cand.getName())) pool.add(cand);
             }
-            if (!pool.isEmpty()) return Optional.of(pool.get(rng.nextInt(pool.size())));
+            if (!pool.isEmpty()) return Optional.of(pool.get(weightedCardIndex(pool, land, rng)));
         }
         return Optional.empty();
     }
@@ -1278,44 +1280,48 @@ public class SiegeContentService {
      * prefers a stage-3 half the time when available, else the highest stage on hand,
      * falling back down a stage when a tier has no entries. Excludes names already in play.
      */
-    Optional<SieglingCard> randomRevealAtLeastStage(int minStage, List<String> excludedNames, Random rng) {
+    Optional<SieglingCard> randomRevealAtLeastStage(int minStage, List<String> excludedNames, Random rng) { return randomRevealAtLeastStage(minStage, excludedNames, rng, null); }
+
+    Optional<SieglingCard> randomRevealAtLeastStage(int minStage, List<String> excludedNames, Random rng, SiegeLand land) {
         int floor = Math.max(1, minStage);
         // Bias toward the top stage: a coin-flip try at stage 3 first when asking for >=2.
         if (floor <= 2 && rng.nextBoolean()) {
-            Optional<SieglingCard> three = pickAtStage(3, excludedNames, rng);
+            Optional<SieglingCard> three = pickAtStage(3, excludedNames, rng, land);
             if (three.isPresent()) return three;
         }
         for (int s = 3; s >= floor; s--) {
-            Optional<SieglingCard> pick = pickAtStage(s, excludedNames, rng);
+            Optional<SieglingCard> pick = pickAtStage(s, excludedNames, rng, land);
             if (pick.isPresent()) return pick;
         }
         // Nothing at/above the floor: settle for the best available below it.
         for (int s = floor - 1; s >= 1; s--) {
-            Optional<SieglingCard> pick = pickAtStage(s, excludedNames, rng);
+            Optional<SieglingCard> pick = pickAtStage(s, excludedNames, rng, land);
             if (pick.isPresent()) return pick;
         }
         return Optional.empty();
     }
 
-    private Optional<SieglingCard> pickAtStage(int stage, List<String> excludedNames, Random rng) {
+    private Optional<SieglingCard> pickAtStage(int stage, List<String> excludedNames, Random rng, SiegeLand land) {
         List<SieglingCard> pool = new ArrayList<>();
         for (SieglingCard cand : sieglingsAtStage(stage)) {
             if (excludedNames == null || !excludedNames.contains(cand.getName())) pool.add(cand);
         }
-        return pool.isEmpty() ? Optional.empty() : Optional.of(pool.get(rng.nextInt(pool.size())));
+        return pool.isEmpty() ? Optional.empty() : Optional.of(pool.get(weightedCardIndex(pool, land, rng)));
     }
 
     // ---- Mercenaries (broker rentals) --------------------------------------
 
     /** Broker stall stock: prefer evolved forms — mercenaries are elite muscle. */
-    List<SieglingCard> mercOffers(int count, Random rng) {
+    List<SieglingCard> mercOffers(int count, Random rng) { return mercOffers(count, rng, null); }
+
+    List<SieglingCard> mercOffers(int count, Random rng, SiegeLand land) {
         List<SieglingCard> pool = sieglingsAtStage(3);
         if (pool.size() < count) pool.addAll(sieglingsAtStage(2));
         if (pool.size() < count) pool.addAll(sieglingsAtStage(1));
         List<SieglingCard> out = new ArrayList<>();
         List<SieglingCard> work = new ArrayList<>(pool);
         while (out.size() < count && !work.isEmpty()) {
-            out.add(work.remove(rng.nextInt(work.size())));
+            out.add(work.remove(weightedCardIndex(work, land, rng)));
         }
         return out;
     }
@@ -1354,10 +1360,12 @@ public class SiegeContentService {
     // ---- Knight class assignment (dashboard) --------------------------------
 
     /** A random card from the full collection catalog — the end-of-run card prize. */
-    Optional<Card> randomCollectionCard(Random rng) {
+    Optional<Card> randomCollectionCard(Random rng) { return randomCollectionCard(rng, null); }
+
+    Optional<Card> randomCollectionCard(Random rng, SiegeLand land) {
         List<Card> catalog = cardDefs.getDeckBuilderCatalog();
         if (catalog.isEmpty()) return Optional.empty();
-        return Optional.of(catalog.get(rng.nextInt(catalog.size())));
+        return Optional.of(catalog.get(weightedCardIndex(catalog, land, rng)));
     }
 
     /** Looks up a collection card by id so a failed end-reward claim can retry the same prize. */
@@ -1617,25 +1625,40 @@ public class SiegeContentService {
                 : SiegeTuning.BOON_BUFF_ROUNDS;
     }
 
+    static int weightedCardIndex(List<? extends Card> cards, SiegeLand land, Random rng) {
+        if (land == null) return rng.nextInt(cards.size());
+        int total = cards.stream().mapToInt(c -> land.weight(c.getElement())).sum();
+        int ticket = rng.nextInt(total);
+        for (int i = 0; i < cards.size(); i++) {
+            ticket -= land.weight(cards.get(i).getElement());
+            if (ticket < 0) return i;
+        }
+        return cards.size() - 1;
+    }
+
     /** A random selectable Siegeling not already in the warband, if any. */
-    Optional<SieglingCard> randomRecruit(List<String> excludedNames, Random rng) {
+    Optional<SieglingCard> randomRecruit(List<String> excludedNames, Random rng) { return randomRecruit(excludedNames, rng, null); }
+
+    Optional<SieglingCard> randomRecruit(List<String> excludedNames, Random rng, SiegeLand land) {
         List<SieglingCard> pool = new ArrayList<>();
         for (SieglingCard s : selectableSieglings()) {
             if (!excludedNames.contains(s.getName())) pool.add(s);
         }
         if (pool.isEmpty()) return Optional.empty();
-        return Optional.of(pool.get(rng.nextInt(pool.size())));
+        return Optional.of(pool.get(weightedCardIndex(pool, land, rng)));
     }
 
     /** Up to {@code count} distinct recruits for a broker stall. */
-    List<SieglingCard> randomRecruits(int count, List<String> excludedNames, Random rng) {
+    List<SieglingCard> randomRecruits(int count, List<String> excludedNames, Random rng) { return randomRecruits(count, excludedNames, rng, null); }
+
+    List<SieglingCard> randomRecruits(int count, List<String> excludedNames, Random rng, SiegeLand land) {
         List<SieglingCard> pool = new ArrayList<>();
         for (SieglingCard s : selectableSieglings()) {
             if (!excludedNames.contains(s.getName())) pool.add(s);
         }
         List<SieglingCard> out = new ArrayList<>();
         while (out.size() < count && !pool.isEmpty()) {
-            out.add(pool.remove(rng.nextInt(pool.size())));
+            out.add(pool.remove(weightedCardIndex(pool, land, rng)));
         }
         return out;
     }

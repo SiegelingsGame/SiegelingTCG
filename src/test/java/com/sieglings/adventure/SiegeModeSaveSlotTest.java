@@ -181,6 +181,9 @@ class SiegeModeSaveSlotTest {
         private final SieglingCard card = card();
         private final TrainerCard knight = knight();
 
+        @Override
+        List<Element> defaultPalette() { return List.of(Element.EARTH); }
+
         private static SieglingCard card() {
             SieglingCard s = new SieglingCard("rooty", "Rooty", Element.EARTH, Rarity.COMMON, 10, 6,
                     new ArrayList<>(), null);
