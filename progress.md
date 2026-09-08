@@ -1,3 +1,6 @@
+- September 8, 2026 — Merged PR #842 (Rift travel-past) to `main`; Deploy workflow https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/34250619034 succeeded.
+- Verification (live): Hosting `adventure.html` serves `siege-tutorial.js?v=25`, `adventure.js?v=97` with `riftPassBtn` / "Travel past"; live bundles expose `/api/siege/rift/pass`; `POST /api/siege/rift/pass` returns 400 (routed, not 404); `/api/cards/editor` `source=FIRESTORE`, `liveEditingEnabled=true`.
+
 - September 8, 2026 — Rifts now offer two actions: **Step through** (random new Land, existing behaviour) or **Travel past** (clear the stop, stay in the current Land). New API `POST /api/siege/rift/pass`, second button on `riftScreen`, legend/tutorial copy updated; tutorial still requires stepping through so Frostveil is demonstrated. Cache pins: `siege-tutorial.js` 24→25, `adventure.js` 96→97.
 - Verification: pending focused tests + live deploy after merge.
 
