@@ -53,9 +53,16 @@ class SiegeLandsTutorialJavaScriptTest {
         assertTrue(tutorial.contains("artUrl: '/img/knights/squire-bob-full-card.png'")
                         && tutorial.contains("artUrl: k.artUrl || null"),
                 "tutorial Squire Bob must carry the same knight card art a live run uses");
-        assertTrue(html.contains("/js/siege-tutorial.js?v=24"),
+        assertTrue(tutorial.contains("/api/siege/rift/pass")
+                        && tutorial.contains("travel past"),
+                "tutorial must teach that a Rift can be passed without changing Land");
+        assertTrue(html.contains("/js/siege-tutorial.js?v=25"),
                 "the changed tutorial bundle needs a fresh production cache pin");
-        assertTrue(html.contains("id=\"riftScreen\"") && html.contains("id=\"riftCrossBtn\""),
-                "the Rift location screen must ship with the adventure page");
+        assertTrue(html.contains("id=\"riftScreen\"") && html.contains("id=\"riftCrossBtn\"")
+                        && html.contains("id=\"riftPassBtn\"")
+                        && html.contains("Travel past"),
+                "the Rift location screen must offer step-through and travel-past");
+        assertTrue(html.contains("/js/adventure.js?v=97"),
+                "adventure.js must be cache-bumped with the Rift pass handler");
     }
 }

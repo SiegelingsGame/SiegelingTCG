@@ -3340,9 +3340,10 @@ public class SiegeService {
     }
 
     /**
-     * The Rift offers one action: cross. Destination Land is rolled server-side
-     * (never chosen by the player) and uncleared nodes in the current segment
-     * are rethemed to match — same seam as a boss transition, without a boss kill.
+     * Step through the Rift. Destination Land is rolled server-side (never chosen
+     * by the player) and uncleared nodes in the current segment are rethemed to
+     * match — same seam as a boss transition, without a boss kill. Players who
+     * want to keep the current Land use {@link #riftPass} instead.
      */
     Map<String, Object> riftCross(String token) {
         SiegeRun run = require(token);
@@ -3356,6 +3357,22 @@ public class SiegeService {
         SiegeLand next = SiegeLand.roll(run.getLand(), run.getBossKills(), content.defaultPalette(), landRng);
         applyLandChange(run, next, landRng);
         run.setLastReward("The Rift closes. You stand in " + next.name() + ".");
+        checkpoint(run);
+        return serialize(run);
+    }
+
+    /**
+     * Travel past the Rift without crossing: clear the node, keep the current Land.
+     * Same leave shape as broker/smith — the stop is spent either way.
+     */
+    Map<String, Object> riftPass(String token) {
+        SiegeRun run = require(token);
+        if (!run.isInRift()) throw new IllegalArgumentException("There is no Rift here.");
+        run.setInRift(false);
+        SiegeNode node = run.currentNode();
+        if (node != null) node.setCleared(true);
+        String landName = run.getLand() == null ? "this Land" : run.getLand().name();
+        run.setLastReward("You travel past the Rift. " + landName + " still holds.");
         checkpoint(run);
         return serialize(run);
     }

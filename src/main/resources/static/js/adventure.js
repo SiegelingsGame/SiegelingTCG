@@ -94,7 +94,7 @@
     ['REST', 'Rest camp', 'Heal the warband, upgrade a card or shop the camp stock.'],
     ['TREASURE', 'Cache', 'Dig for loot. Digging deeper pays more and wakes trouble.'],
     ['EVENT', 'Event', 'An encounter with a choice; outcomes vary.'],
-    ['RIFT', 'Rift', 'A rare portal. One step — and a random new Land.'],
+    ['RIFT', 'Rift', 'A rare portal. Step through for a random new Land, or travel past to stay.'],
     ['BROKER', 'Broker', 'Recruit or hire an extra Siegeling for the run.'],
     ['SMITH', 'Smith', 'Forge and upgrade gear for the warband.'],
     ['CARAVAN', 'Caravan', 'Trade goods and buy items with run gold.'],
@@ -744,6 +744,7 @@
     $('cacheDigBtn').addEventListener('click', cacheDig);
     $('cacheTakeBtn').addEventListener('click', cacheTake);
     $('riftCrossBtn').addEventListener('click', riftCross);
+    $('riftPassBtn').addEventListener('click', riftPass);
     $('brokerLeaveBtn').addEventListener('click', brokerLeave);
     $('battleLog').addEventListener('click', function () { toggleLedger(true); });
     $('ledgerClose').addEventListener('click', function () { toggleLedger(false); });
@@ -2608,6 +2609,15 @@
     if (state.busy) return;
     state.busy = true;
     api('/api/siege/rift/cross', { method: 'POST', body: { token: token() } })
+      .then(function (run) { applyInteractionResponse(run, { source: 'rift', title: 'Rift', icon: '🌀' }); })
+      .catch(function (e) { toast(e.message); })
+      .then(function () { state.busy = false; });
+  }
+
+  function riftPass() {
+    if (state.busy) return;
+    state.busy = true;
+    api('/api/siege/rift/pass', { method: 'POST', body: { token: token() } })
       .then(function (run) { applyInteractionResponse(run, { source: 'rift', title: 'Rift', icon: '🌀' }); })
       .catch(function (e) { toast(e.message); })
       .then(function () { state.busy = false; });
