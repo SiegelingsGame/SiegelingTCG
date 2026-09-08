@@ -114,6 +114,52 @@ public class GameService {
     /** Result of starting a solo game: the opaque token the client must echo back, plus the fresh state. */
     public record SoloHandle(String token, GameState state) {}
 
+    /** A playable late-game sandbox for the advanced chapter, without a mulligan. */
+    public SoloHandle newAdvancedTutorialGame(String playerName) {
+        SoloHandle handle = newTutorialGame(playerName);
+        GameState state = handle.state();
+        state.setTurnNumber(6);
+        state.setFirstTurn(false);
+        state.setCurrentPhase(Phase.SETUP);
+        state.setPlayerTurn(true);
+        state.setSetupTurnsTakenThisRound(0);
+        state.setMulliganPending(true, false);
+        state.setMulliganPending(false, false);
+        state.getPlayer().setHealth(50);
+        state.getEnemy().setHealth(50);
+        String[][] teams = {
+                {"dracoil", "raydile", "pylook", "floraknight", "generoot"},
+                {"cozycub", "falcool", "frostfly", "icewee", "fawny"}
+        };
+        int[][] positions = {{0, 0}, {1, 0}, {1, 1}, {1, 2}, {2, 0}};
+        for (int side = 0; side < teams.length; side++) {
+            for (int i = 0; i < teams[side].length; i++) {
+                Card card = cardDefs.findCardCopy(teams[side][i]).orElseThrow();
+                if (!(card instanceof SieglingCard creature)) throw new IllegalStateException("Missing tutorial creature");
+                CardInstance placed = new CardInstance(creature, positions[i][0], positions[i][1], side == 0);
+                placed.setBattlePhasesSeen(2);
+                placed.setPlacementOrder(state.consumePlacementOrder());
+                if (i == 0) placed.addShield(3);
+                state.setAt(side == 0, positions[i][0], positions[i][1], placed);
+            }
+        }
+        Player player = state.getPlayer();
+        player.getHand().clear();
+        for (String id : List.of("trap13", "spell_fire_06", "spell_earth_02", "spell_earth_01")) {
+            player.getHand().add(cardDefs.findCardCopy(id).orElseThrow());
+        }
+        player.getHand().add(buildTutorialAshenWard());
+        player.adjustTemporaryEnergy(Element.FIRE, 6);
+        player.adjustTemporaryEnergy(Element.EARTH, 6);
+        state.getEnemy().adjustTemporaryEnergy(Element.ICE, 8);
+        recalculateTrainerPassiveStatBuffs(state);
+        energyService.recalculateEnergy(state);
+        state.resetPlacementsForTurn(true);
+        state.captureSieglingSetupPlacementBonusFromEnergy(true);
+        state.log("Advanced tutorial: five creatures per side, prepared energy, and a Deception ready to practice.");
+        return handle;
+    }
+
     /** Starts a brand-new solo game scoped to a freshly generated token. */
     public SoloHandle newSoloGame(StartOptions options) {
         return newSoloGame(options, "Player");
@@ -239,18 +285,18 @@ public class GameService {
         }
         state.resetPlacementsForTurn(isPlayerSide);
 
-        // Round three is the combo lesson, and a combo needs a second ELEMENT on the
-        // board. The mulligan shifts every later draw by one card, so a fixed stack
-        // cannot promise the Earth partner lands on turn three — hoist it instead.
-        //
-        // Kept up from round three rather than fired once ON it: the lesson is
-        // gated on the student's own progress, so it can be reached later than
-        // round three, and the partner drawn then can be spent before it opens.
-        // Either way the coach ends up saying "tap a Siegling of a different
-        // element" over an all-Fire hand, with no way to comply. Re-hoisting
-        // while the hand holds no partner makes the lesson's precondition an
-        // invariant instead of a one-shot bet; it no-ops once one is in hand.
-        if (state.isTutorialMatch() && isPlayerSide && state.getTurnNumber() >= 3
+        // Pin the early lesson cards independently of whether the player mulligans.
+        // From turn four onward, retain the recovery path for a missing combo partner.
+        if (state.isTutorialMatch() && isPlayerSide && state.getTurnNumber() <= 3) {
+            String scriptedDraw = switch (state.getTurnNumber()) {
+                case 1 -> "raydile";
+                case 2 -> "floraknight";
+                default -> "squirebud";
+            };
+            Card lessonCard = takeNamedCard(actor.getDeck(), scriptedDraw);
+            if (lessonCard == null) lessonCard = cardDefs.findCardCopy(scriptedDraw).orElse(null);
+            if (lessonCard != null) actor.getDeck().add(0, lessonCard);
+        } else if (state.isTutorialMatch() && isPlayerSide && state.getTurnNumber() >= 4
                 && !tutorialCanFormCombo(state, isPlayerSide, actor)) {
             hoistTutorialComboPartner(state, isPlayerSide, actor);
         }
@@ -261,6 +307,11 @@ public class GameService {
             state.log(sideName(state, isPlayerSide) + "'s deck is empty!");
         }
 
+        if (state.isTutorialMatch() && isPlayerSide && state.getTurnNumber() == 3
+                && actor.getHand().stream().noneMatch(c -> "tutorial_ashfall".equals(c.getId()))) {
+            Card ashfall = takeNamedCard(actor.getDeck(), "tutorial_ashfall");
+            actor.getHand().add(ashfall == null ? buildTutorialAshfall() : ashfall);
+        }
         state.setCurrentPhase(Phase.SETUP);
         // Burn (and future Setup-tick afflictions) resolve as this side enters Setup.
         if (elementalAfflictionService != null) {
@@ -686,12 +737,12 @@ public class GameService {
      * the locked lesson cards (Sundile, Pylook, Strategy, Shatter Seal); index 4 is
      * a SPARE copy of Pylook, there purely to be thrown away. A redraw does not
      * shuffle — the next scripted card comes off the top of the deck, which is
-     * Raydile, the evolution round two needs.
+     * Generoot. The normal turn draws are pinned separately from this replacement.
      */
     public static final int TUTORIAL_SCRIPTED_MULLIGAN_INDEX = 4;
 
     private static final List<String> TUTORIAL_REQUIRED_OPENING_IDS = List.of(
-            "sundile", "pylook", "spell_fire_06", "trap13");
+            "sundile", "pylook", "tutorial_ashfall", "trap13");
 
     /** Single source of truth for the turn-one opener; see GameState. */
     public static final String TUTORIAL_TURN_ONE_OPENER_ID = GameState.TUTORIAL_TURN_ONE_OPENER_ID;
@@ -699,14 +750,11 @@ public class GameService {
     /**
      * Tutorial draw stack, in the order the lessons need it. The opening five are
      * Sundile (Fire socket opener), Pylook (the Fire partner round two links to),
-     * a cheap Strategy, Shatter Seal (Ice Deception vs the Dummy) and a SPARE
-     * Pylook in the practice-redraw slot. Under them: Raydile (evolves Sundile in
-     * round two), then two Strategies, deliberately, so the rounds-one-and-two
-     * draws do NOT hand over an off-element Siegling early — the combo lesson is
-     * round three, and `hoistTutorialComboPartner` puts the Earth partner on top
-     * for that draw whether or not the student took the mulligan. Under those sit
-     * the Earth combo partners and the remaining Advanced-lesson cards (Root
-     * Guard, Root Bind; the Ashen Ward shield Strategy is injected).
+     * Ashfall (the cost-preview lesson), Shatter Seal (Ice Deception vs the Dummy) and a SPARE
+     * Pylook in the practice-redraw slot. Generoot is its replacement. Normal
+     * draws are pinned by turn: Raydile on one, Flora Knight on two, Squire Bud
+     * on three. Keeping the opening hand does not shift these lesson draws.
+     * Remaining Strategies support the later lessons.
      */
     /* Package-private so a test can reproduce the production shape directly:
        the tutorial's own preset deck can be missing from the dashboard, and the
@@ -727,8 +775,8 @@ public class GameService {
         // contain. Pulling from the pool first still preserves any dashboard
         // tuning of that copy; the catalog is the guarantee behind it.
         for (String id : List.of(
-                "sundile", "pylook", "spell_fire_06", "trap13", "pylook", "raydile",
-                "spell_fire_09", "tutorial_ashen_ward", "squirebud", "tutorial_ashfall", "floraknight",
+                "sundile", "pylook", "tutorial_ashfall", "trap13", "pylook", "generoot", "raydile", "floraknight", "squirebud",
+                "spell_fire_09", "tutorial_ashen_ward", "tutorial_ashfall",
                 "spell_earth_02", "spell_earth_01")) {
             Card taken = takeNamedCard(pool, id);
             if (taken == null) {

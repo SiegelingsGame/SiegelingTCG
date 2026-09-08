@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
-    <link rel="stylesheet" href="/css/style.css?v=255">
+    <link rel="stylesheet" href="/css/style.css?v=258">
     <link rel="stylesheet" href="/css/coach.css?v=4">
     <!-- Pre-load loading-gate styles so the splash covers the loadout
          screen on the very first Start Battle press - the lazy-injected
@@ -174,7 +174,7 @@
     <button class="mobile-hud-side right mobile-hud-player" type="button" onclick="toggleMobileHudSheet('player')" aria-controls="mobileStatSheet" aria-expanded="false">
         <div class="m-name" id="mobilePlayerName">Player</div>
         <div class="m-hp-bar"><div class="m-hp-fill" id="mobilePlayerHpBar" style="width:100%"></div><span class="m-hp-value" id="mobilePlayerHpValue">50</span></div>
-        <div class="m-counts">H:<strong id="mobilePlayerHandSize">0</strong> D:<strong id="mobilePlayerDeckSize">0</strong> E:<strong id="mobilePlayerEnergyCount">0</strong><span class="m-elements" id="mobilePlayerElements"></span></div>
+        <div class="m-counts">H:<strong id="mobilePlayerHandSize">0</strong> D:<strong id="mobilePlayerDeckSize">0</strong> <span id="mobilePlayerEnergySummary">E:<strong id="mobilePlayerEnergyCount">0</strong><span class="m-elements" id="mobilePlayerElements"></span></span></div>
     </button>
 </div>
 
@@ -936,8 +936,9 @@
 <script type="module" src="/js/firebase-init.js?v=2"></script>
     <script src="/js/catalog-sync.js?v=1"></script>
     <script src="/js/coach.js?v=6"></script>
-    <script src="/js/arena-tutorial.js?v=30"></script>
-    <script src="/js/game.js?v=280"></script>
+    <script src="/js/arena-tutorial.js?v=34"></script>
+    <script src="/js/knight-tutorial.js?v=1"></script>
+    <script src="/js/game.js?v=283"></script>
     <script src="/js/play-mode-picker.js?v=4"></script>
     <script src="/js/play-hud.js?v=4"></script>
     <!-- Defines window.SieglingsCardBinderVisual (buildArtTransformStyle). Without it,

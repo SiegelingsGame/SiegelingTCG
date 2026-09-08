@@ -5464,11 +5464,12 @@ function renderTrainerAbilityPopup() {
         title.textContent = trainer.name || 'SiegeKnight';
     }
     if (tier) {
-        tier.textContent = [
-            formatTrainerTier(trainer.tier),
-            formatElementLabel(trainer.element),
-            trainer.rarity || null
-        ].filter(Boolean).join(' • ');
+        tier.innerHTML = [
+            ['trainerAbilityRank', formatTrainerTier(trainer.tier)],
+            ['trainerAbilityElement', formatElementLabel(trainer.element)],
+            ['trainerAbilityRarity', trainer.rarity]
+        ].filter(([, value]) => value).map(([id, value]) =>
+            `<span id="${id}">${escapeHtml(value)}</span>`).join(' • ');
     }
     if (description) {
         description.textContent = trainer.passive?.description
@@ -5509,9 +5510,11 @@ function openTrainerAbilityPopup() {
     }
     renderTrainerAbilityPopup();
     overlay.classList.remove('hidden');
+    if (tutorialMatchActive || gameState?.tutorialMode) window.KnightTutorial?.start();
 }
 
 function closeTrainerAbilityPopup(event) {
+    window.KnightTutorial?.stop();
     if (event) {
         event.stopPropagation();
     }
@@ -6504,6 +6507,9 @@ function getFocusedCardSummary(card, lockReason) {
     }
     if (lockReason) {
         return lockReason;
+    }
+    if (card.type === 'TRAP' && card.costAmount > 0) {
+        return `Requires ${card.costAmount} ${formatElementLabel(card.costElement)} in the opponent’s energy pool.`;
     }
     if (card.costElement && card.costAmount > 0) {
         return canAffordCard(card)
@@ -9273,6 +9279,13 @@ function canAffordCard(card) {
         return true;
     }
     const costAmount = Number(card.costAmount);
+    if (card.type === 'TRAP') {
+        const opponent = gameState?.enemy || {};
+        const available = String(card.costElement).toUpperCase() === 'NEUTRAL'
+            ? ENERGY_ORDER.reduce((total, [key]) => total + Number(opponent[`${key}Energy`] || 0), 0)
+            : Number(opponent[`${String(card.costElement).toLowerCase()}Energy`] || 0);
+        return available >= costAmount;
+    }
     if (String(card.costElement).toUpperCase() === 'NEUTRAL') {
         return getPlayerTotalSpendableEnergy() >= costAmount;
     }
@@ -9473,6 +9486,7 @@ function computeHandCardLockReason(card) {
         return 'Maxed out.';
     }
     if (!canAffordCard(card)) {
+        if (card.type === 'TRAP') return `Opponent needs ${card.costAmount} ${formatElementLabel(card.costElement)} energy to trigger this.`;
         return `Need ${card.costAmount} ${formatElementLabel(card.costElement)} energy to play this.`;
     }
     if (card.type === 'SPELL') {
@@ -10284,6 +10298,7 @@ async function newGame() {
     body.playerName = getCurrentPlayerName() || (authState.profile?.user?.displayName || 'Player');
     if (tutorialMatchActive) {
         body.tutorial = true;
+        try { body.advancedTutorial = sessionStorage.getItem(ADVANCED_TUTORIAL_KEY) === '1'; } catch (e) { /* storage unavailable */ }
     }
     let started = null;
     try {
@@ -10612,6 +10627,7 @@ let tutorialRewardRequested = false;
 window.ArenaTutorialBridge = {
     state: () => gameState,
     selected: () => selectedCard,
+    previewCard: () => getFocusedPreviewCard(),
     // The cells the game itself would accept right now, so the coach can
     // recommend one instead of guessing. Same source the .legal highlight uses.
     legalPlacements: () => getSelectedLegalPlacements(),
@@ -16859,6 +16875,11 @@ function selectCard(handIndexOrCardId) {
         card = handIndex >= 0 ? hand[handIndex] : null;
     }
     if (!card) return;
+    if (window.ArenaTutorial?.shouldPreviewCard?.(card)) {
+        openHandCardPreview(handIndex);
+        return;
+    }
+
 
     if (isMobileLayout() && handTouchSuppressHandIndex === handIndex && Date.now() < handTouchSuppressUntil) {
         handTouchSuppressHandIndex = null;
@@ -17297,7 +17318,7 @@ function updateSelectedInfo(card, msg) {
             if (entry.html) {
                 summary += `<div class="selected-copy-detail">${entry.html}</div>`;
             } else {
-                summary += `<div class="selected-copy-detail">${escapeHtml(entry.text)}</div>`;
+                summary += `<div class="selected-copy-detail${entry.className === 'card-cost' ? ' selected-copy-cost' : ''}">${escapeHtml(entry.text)}</div>`;
             }
         });
         summary += spellConfirm;
