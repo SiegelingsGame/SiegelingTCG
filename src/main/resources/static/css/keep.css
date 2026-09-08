@@ -17,6 +17,13 @@
     --green: #6fcf8b;
     --panel: rgba(20, 31, 43, .96);
     --line: rgba(255, 247, 220, .18);
+    /* Coach spotlight palette (shared TutorialCoach on Arena/Siege/Keep). */
+    --panel-2: #14232b;
+    --border: rgba(244, 204, 98, .35);
+    --text: #fff7dc;
+    --dim: rgba(255, 247, 220, .72);
+    --faint: rgba(255, 247, 220, .48);
+    --good: #f4cc62;
     --safe-top: env(safe-area-inset-top, 0px);
     --safe-right: env(safe-area-inset-right, 0px);
     --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -2740,6 +2747,13 @@ button.notice-item:hover { background: rgba(244, 204, 98, .08); }
     object-fit: cover;
 }
 .facility-room-resident small { color: #ffe9a8; font-size: 9px; text-shadow: 0 1px 3px #172333; }
+
+/* Keep Guide coach — dim the gate/login while the demo sanctuary is showing. */
+body.keep-guide-active #keepGate,
+body.keep-guide-active #keepLogin,
+body.keep-guide-active #keepLoading,
+body.keep-guide-active #keepTutorial { display: none !important; }
+body.keep-guide-active .tut-layer { z-index: 240; }
 
 /* —— Keep Guide (first visit + reopen from gate / ?) —— */
 /* z-index sits above the gate (100) and loading shell so Keep Guide works before sign-in. */
