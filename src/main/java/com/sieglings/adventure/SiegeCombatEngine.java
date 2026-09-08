@@ -847,7 +847,7 @@ public class SiegeCombatEngine {
             }
         }
 
-        SiegeAdvantage.advance(battle);
+        SiegeAdvantage.advanceAfterTeamTurn(battle, Side.PLAYER);
 
         battle.setPhase(BattlePhase.ENEMY_RESOLVING);
         if (battle.isPlayerActsFirst()) {
@@ -1401,7 +1401,7 @@ public class SiegeCombatEngine {
             executeEnemyAbility(battle, foe, choice, foe.getIntentPosition(), rng);
         }
 
-        SiegeAdvantage.advance(battle);
+        SiegeAdvantage.advanceAfterTeamTurn(battle, Side.ENEMY);
 
         // Telegraph next round's moves so the player sees what is coming.
         if (!battle.isOver()) {

@@ -456,9 +456,13 @@
     });
   }
 
-  function advanceAdvantage(events) {
+  function advanceAdvantage(events, completedSide) {
     var b = M.battle;
     var previous = b.advantageHolderId;
+    var holder = findUnit(previous);
+    // Hold the token through the other team's turn. Passing on every team turn
+    // made some Siegelings hold it only while their cards were unplayable.
+    if (holder && holder.alive && holder.side !== completedSide) return;
     for (var i = b.advantageIndex + 1; i < (b.advantageOrder || []).length; i++) {
       var next = findUnit(b.advantageOrder[i].id);
       if (next && next.alive) {
@@ -858,7 +862,7 @@
       events.push({ type: 'apCharge', amount: b.actionPoints, total: b.knight.charge });
     }
 
-    advanceAdvantage(events);
+    advanceAdvantage(events, 'PLAYER');
 
     livingFoes().forEach(function (f) {
       if (!f.intent) return;
@@ -875,7 +879,7 @@
       }
     });
 
-    advanceAdvantage(events);
+    advanceAdvantage(events, 'ENEMY');
 
     // End-of-round damage-over-time on whatever is still standing.
     livingFoes().concat(livingAllies()).forEach(function (u) {
@@ -1410,7 +1414,7 @@
         until: function () { return screenIs('battleScreen'); } },
 
       { id: 'speed', title: 'Who moves first', target: '#speedTrack',
-        body: '<b>Team Speed</b> is every living Siegeling\'s Speed added together; the higher team takes the first turn each round. The <b>Advantage</b> token is separate: it cycles through every Siegeling, fastest to slowest, after each team turn. If the holder belongs to the team taking its turn, every card owned by that Siegeling gains its elemental rider.' +
+        body: '<b>Team Speed</b> is every living Siegeling\'s Speed added together; the higher team takes the first turn each round. The <b>Advantage</b> token is separate: it cycles through every Siegeling, fastest to slowest. A holder keeps it until their team completes a turn, so every Siegeling gets to use it; then it passes to the next holder. Every card owned by the active holder gains its elemental rider.' +
           '<span class="tut-p"><b>Advantage key</b> · Ally = friendly target · Foe = enemy target</span>' +
           '<span class="tut-adv-key">' +
             '<span>🔥 <b>Fire</b> Ally +1 ATK · Foe +2 dmg</span>' +
