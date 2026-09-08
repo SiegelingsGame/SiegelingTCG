@@ -1,3 +1,6 @@
+- September 8, 2026 — Keep Guide tutorial is now reachable from the My Keep gate (pre-signin) and expanded to cover the full sanctuary loop. Added a full-width **Keep Guide** button under Sign in / Return home on `#keepGate`; raised `.keep-tutorial` above the gate (`z-index` 90→130) so the guide works before auth; expanded `TUTORIAL_STEPS` to eight pages (welcome, projects, timers/speed-ups, collect materials, assign Siegelings, craft/build inside buildings, Voices/Chronicle, elemental workshops); manual opens (gate or `?`) end with **Got it** instead of Begin. Cache pins: `keep.css` 55→56, `keep.js` 54→55. Help `?` button retitled Keep Guide.
+- Verification: pending headless Chromium gate + guide walkthrough at phone/desktop viewports.
+
 - September 8, 2026 — Merged PR #842 (Rift travel-past) to `main`; Deploy workflow https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/34250619034 succeeded.
 - Verification (live): Hosting `adventure.html` serves `siege-tutorial.js?v=25`, `adventure.js?v=97` with `riftPassBtn` / "Travel past"; live bundles expose `/api/siege/rift/pass`; `POST /api/siege/rift/pass` returns 400 (routed, not 404); `/api/cards/editor` `source=FIRESTORE`, `liveEditingEnabled=true`.
 
