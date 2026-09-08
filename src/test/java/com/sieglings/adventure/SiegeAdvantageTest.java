@@ -56,6 +56,36 @@ class SiegeAdvantageTest {
     }
 
     @Test
+    void eachHolderKeepsAdvantageUntilItsOwnTeamCompletesATurn() {
+        SiegeBattle battle = new SiegeBattle(NodeType.BATTLE);
+        battle.setPlayerActsFirst(true);
+        Combatant breezee = unit("breezee", "Breezee", Element.WIND, Side.PLAYER, 12, 0);
+        Combatant draco = unit("draco", "Draco", Element.FIRE, Side.PLAYER, 10, 1);
+        Combatant shellshock = unit("shellshock", "Shellshock", Element.WATER, Side.ENEMY, 8, 0);
+        battle.getCombatants().addAll(List.of(draco, shellshock, breezee));
+        SiegeAdvantage.ensureOrder(battle);
+
+        assertEquals(List.of("breezee", "draco", "shellshock"), battle.getAdvantageOrder());
+        assertEquals("breezee", battle.getAdvantageHolderId());
+
+        SiegeAdvantage.advanceAfterTeamTurn(battle, Side.PLAYER);
+        assertEquals("draco", battle.getAdvantageHolderId(), "the next overall Siegeling receives the token");
+
+        SiegeAdvantage.advanceAfterTeamTurn(battle, Side.ENEMY);
+        assertEquals("draco", battle.getAdvantageHolderId(),
+                "Draco must keep Advantage through the enemy turn so his cards can use it");
+
+        SiegeAdvantage.advanceAfterTeamTurn(battle, Side.PLAYER);
+        assertEquals("shellshock", battle.getAdvantageHolderId());
+        SiegeAdvantage.advanceAfterTeamTurn(battle, Side.PLAYER);
+        assertEquals("shellshock", battle.getAdvantageHolderId(),
+                "an enemy holder likewise waits for the enemy team's turn");
+        SiegeAdvantage.advanceAfterTeamTurn(battle, Side.ENEMY);
+        assertEquals("breezee", battle.getAdvantageHolderId());
+        assertEquals(2, battle.getAdvantageCycle());
+    }
+
+    @Test
     void fireHolderAddsItsHostileRiderAfterTheCardResolves() {
         SiegeRun run = new SiegeRun("advantage-test");
         SiegeBattle battle = new SiegeBattle(NodeType.BATTLE);
