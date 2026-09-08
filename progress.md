@@ -1,3 +1,6 @@
+- September 8, 2026 — Merged PR #840 (Siege Rift + tutorial Cache/Rift diamond) to `main`; Deploy workflow https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/34232160419 succeeded.
+- Verification (live): Hosting `adventure.html` serves `siege-tutorial.js?v=23`, `adventure.js?v=96`, `adventure.css?v=92` with `riftScreen`/`riftCrossBtn`; live tutorial bundle has Buried Cache→Deep Rift / Rift→Sealed Cache; `adventure.js` exposes RIFT legend + `rift/cross`; `POST /api/siege/rift/cross` returns 400 “Run not found” (routed, not 404); `/api/cards/editor` on Hosting and Cloud Run both `source=FIRESTORE`, `liveEditingEnabled=true`; `config.js` `apiBaseUrl: ''`.
+
 - September 8, 2026 (follow-up) Tutorial Cache/Rift fork is now a true Merc-Post→Ember-Forge diamond: **Buried Cache → Deep Rift** and **Rift → Sealed Cache**, so each first pick edges to the other type and the coach’s other-lane-3 step has a real open node. Cache pin `siege-tutorial.js` 22→23.
 - Verification: headless geometry check asserts those edges and that all four labels render on the map; `SiegeLandsTutorialJavaScriptTest` / Advantage pin tests green; screenshot `tutorial_cache_rift_diamond.png`.
 
