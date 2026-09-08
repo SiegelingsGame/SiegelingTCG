@@ -239,6 +239,9 @@
       busy: !!state.busy,
       campMenu: state.campMenu,
       gold: Number(run.gold || 0),
+      land: run.land || null,
+      landBoons: run.landBoons || [],
+      reachableNodes: (run.map || []).filter(function (n) { return n.reachable; }).map(function (n) { return { id: n.id, type: n.type, label: n.label }; }),
       party: (run.party || []).map(function (p) {
         return { id: p.id, name: p.name, element: p.element, hp: p.hp, maxHp: p.maxHp, alive: !!p.alive };
       }),
@@ -619,6 +622,7 @@
         state.run = run;
         setToken(run.token);
         renderRun();
+        afterRunApplied(run);
       });
       var drop = el('button', 'siege-btn', 'Start Over');
       drop.type = 'button';
@@ -785,6 +789,14 @@
     if (bgTierRow) bgTierRow.addEventListener('click', function (e) { onBgTierPick(e); });
     var bgEnterBtn = $('bgEnterBtn');
     if (bgEnterBtn) bgEnterBtn.addEventListener('click', enterBattlegrounds);
+    $('mapLand').addEventListener('click', openLandDetails);
+    $('landClose').addEventListener('click', closeLandDetails);
+    $('landModal').addEventListener('click', function (e) { if (e.target === this) closeLandDetails(); });
+    document.addEventListener('keydown', function (e) {
+      if ($('landModal').classList.contains('hidden')) return;
+      if (e.key === 'Escape') { e.preventDefault(); closeLandDetails(); }
+      if (e.key === 'Tab') { e.preventDefault(); $('landClose').focus(); }
+    });
     var boonChoices = $('boonChoices');
     if (boonChoices) boonChoices.addEventListener('click', function (e) {
       var b = e.target.closest ? e.target.closest('.boon-choice') : null;
@@ -1308,6 +1320,7 @@
     if (!modal) return false;
     var offer = run && run.boonOffer;
     if (!offer || !offer.length) { modal.classList.add('hidden'); return false; }
+    if ($('boonSource')) $('boonSource').textContent = run.boonSource === 'BADLANDS' ? 'Badlands boon · lasts this run' : 'Battlegrounds boon';
     var host = $('boonChoices');
     if (host) {
       host.innerHTML = offer.map(function (b) {
@@ -1854,10 +1867,49 @@
   // renderMap() baked. Set by renderMap; a no-op before the first map render.
   var mapFocusScroll = null;
 
+  function renderLand(run) {
+    var land = run.land;
+    var banner = $('mapLand');
+    var scroll = $('mapScroll');
+    banner.classList.toggle('hidden', !land);
+    scroll.classList.toggle('has-land', !!land);
+    $('mapScreen').classList.toggle('has-land', !!land);
+    if (!land) { scroll.style.removeProperty('--land-art'); return; }
+    var color = land.kind === 'BADLANDS' ? '#ff6e6e' : land.kind === 'RARE' ? '#ffd066' : elColor((land.elements || [])[0]);
+    $('mapScreen').style.setProperty('--land-color', color);
+    // Only server-owned project assets can be used as a map background.
+    var art = /^\/img\/lands\/[a-z-]+\.webp$/.test(land.background || '') ? land.background : '';
+    scroll.style.setProperty('--land-art', art ? 'url("' + art + '")' : 'none');
+    var icons = (land.elements || []).map(icon).join(' ');
+    if (!icons) icons = land.kind === 'BADLANDS' ? '🌋' : '💎';
+    banner.innerHTML = '<span class="land-emblem" aria-hidden="true">' + icons + '</span>' +
+      '<span class="land-copy"><span class="land-eyebrow">LAND ' + ((run.landSegment || 0) + 1) + ' · ' + esc(land.kind) + '</span>' +
+      '<strong>' + esc(land.name) + '</strong><span class="land-summary">' + esc(land.feature) + ' · ' + esc(land.terrain) + '</span></span>' +
+      '<span class="land-more">Details <span aria-hidden="true">↗</span></span>';
+    banner.setAttribute('aria-label', land.name + ', ' + land.kind + ' land. View terrain and encounter effects.');
+  }
+
+  function openLandDetails() {
+    var run = state.run || {}, land = run.land;
+    if (!land) return;
+    $('landModalTitle').textContent = land.name;
+    var elements = (land.elements || []).map(function (e) { return icon(e) + ' ' + e; }).join(' · ');
+    $('landDetails').innerHTML = '<p class="land-detail-kind">' + esc(land.kind) + (elements ? ' · ' + elements : '') + '</p>' +
+      '<div class="land-rule"><b>Terrain · ' + esc(land.terrain) + '</b><p>' + esc(land.effect) + '</p></div>' +
+      '<div class="land-rule"><b>Encounters &amp; discoveries</b><p>' + esc(land.encounters) + '</p></div>' +
+      '<div class="land-rule"><b>' + esc(land.feature) + '</b><p>More ' + esc(String(land.featureType || '').toLowerCase()) + ' stops. Look for ' + esc(land.eventTitle) + ' at events.</p></div>' +
+      ((run.landBoons || []).length ? '<div class="land-rule"><b>Badlands boons</b>' + run.landBoons.map(function (b) { return '<p><strong>' + esc(b.name) + '</strong> — ' + esc(b.desc) + '</p>'; }).join('') + '</div>' : '') +
+      '<p class="land-footnote">Defeat this land’s boss to enter a different land. Rare lands and Badlands can appear after a boss; their chances rise as you progress.</p>';
+    $('landModal').classList.remove('hidden');
+    $('landClose').focus();
+  }
+  function closeLandDetails() { $('landModal').classList.add('hidden'); $('mapLand').focus(); }
+
   function renderMap() {
     showScreen('mapScreen');
     clearBattleMap();
     var run = state.run;
+    renderLand(run);
     renderPartyStrip($('partyStrip'), displayParty(run), run.knight);
     // The mode lives in its own badge — the same badge the resume prompt uses — so
     // Siege and Battlegrounds share one HUD shape instead of Battlegrounds smuggling
@@ -1881,6 +1933,14 @@
     }
 
     var nodes = run.map || [];
+    // Present the active land as one readable chapter. Future lands are rolled after the boss.
+    if (run.land) {
+      var segmentRows = run.landSegmentRows || 8;
+      var startRow = (run.landSegment || 0) * segmentRows;
+      nodes = nodes.filter(function (n) { return n.row >= startRow && n.row < startRow + segmentRows; }).map(function (n) {
+        return Object.assign({}, n, { row: n.row - startRow });
+      });
+    }
     var rows = 1 + Math.max.apply(null, nodes.map(function (n) { return n.row; }));
     var byId = {};
     nodes.forEach(function (n) { byId[n.id] = n; });
@@ -1921,6 +1981,7 @@
     nodes.forEach(function (n) {
       var from = pos(n);
       (n.next || []).forEach(function (toId) {
+        if (!byId[toId]) return;
         var to = pos(byId[toId]);
         var path = document.createElementNS(NS, 'path');
         if (land) {
@@ -1987,6 +2048,10 @@
       }
 
       if (n.reachable) {
+        g.setAttribute('role', 'button');
+        g.setAttribute('tabindex', '0');
+        g.setAttribute('aria-label', 'Travel to ' + n.label);
+        g.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); travelTo(n.id); } });
         g.addEventListener('click', function () { travelTo(n.id); });
       }
       svg.appendChild(g);

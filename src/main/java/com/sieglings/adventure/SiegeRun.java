@@ -101,6 +101,10 @@ class SiegeRun {
     private int loop;
     private int nodesCleared;
     private int bossKills;
+    private String landId;
+    private final List<String> landHistory = new ArrayList<>();
+    private final List<String> landBoons = new ArrayList<>();
+    private final List<String> landBoonOffer = new ArrayList<>();
     private int enemiesDefeated;
     private int goldEarnedTotal;
     private boolean endRewardsGranted;
@@ -259,6 +263,12 @@ class SiegeRun {
     int getNodesCleared() { return nodesCleared; }
     void setNodesCleared(int nodesCleared) { this.nodesCleared = Math.max(0, nodesCleared); }
     int getBossKills() { return bossKills; }
+    SiegeLand getLand() { return SiegeLand.byId(landId); }
+    void setLand(SiegeLand land) { landId = land == null ? null : land.id(); }
+    List<String> getLandHistory() { return landHistory; }
+    List<String> getLandBoons() { return landBoons; }
+    List<String> getLandBoonOffer() { return landBoonOffer; }
+    boolean hasLandBoon(SiegeLandBoon boon) { return landBoons.contains(boon.id); }
     void setBossKills(int bossKills) { this.bossKills = Math.max(0, bossKills); }
     int getEnemiesDefeated() { return enemiesDefeated; }
     void setEnemiesDefeated(int enemiesDefeated) { this.enemiesDefeated = Math.max(0, enemiesDefeated); }
@@ -333,7 +343,7 @@ class SiegeRun {
         List<Integer> out = new ArrayList<>();
         if (status != RunStatus.ACTIVE || battle != null || !pendingRewards.isEmpty()
                 || inCamp || inCache || inBroker || inSmith || inCaravan || inEvent || inMinigame
-                || pendingRecruit != null || awaitingBoonPick) return out;
+                || pendingRecruit != null || awaitingBoonPick || !landBoonOffer.isEmpty()) return out;
         SiegeNode current = currentNode();
         if (current == null) {
             for (SiegeNode n : map) {

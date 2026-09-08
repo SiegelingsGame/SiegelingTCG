@@ -3087,3 +3087,41 @@ body[data-screen="minigameScreen"] #mgActions{ margin-top:12px; }
   }
 }
 
+
+/* Lands: a still environment behind the scrollable routes, with compact persistent identity. */
+.map-land{flex:0 0 auto;display:flex;align-items:center;gap:10px;width:100%;margin:0 0 8px;padding:9px 12px;text-align:left;cursor:pointer;color:var(--text);background:linear-gradient(110deg,#18212e,#0e141e);border:1px solid var(--border);border-left:3px solid var(--land-color,var(--accent));border-radius:12px;font:inherit;}
+.map-land:focus-visible,.map-node-g:focus-visible{outline:2px solid var(--land-color,var(--accent-2));outline-offset:3px;}
+.land-emblem{font-size:25px;flex:0 0 auto;}
+.land-copy{display:flex;flex-direction:column;gap:2px;min-width:0;}
+.land-eyebrow{font-size:9px;font-weight:800;letter-spacing:1.6px;color:var(--land-color);}
+.land-copy strong{font-size:18px;line-height:1.15;color:#f3f5f8;}
+.land-summary{font-size:11px;color:#b8c6d6;}
+.land-more{margin-left:auto;flex-shrink:0;font-size:11px;color:var(--land-color);}
+.map-scroll.has-land{background-image:linear-gradient(180deg,rgba(5,10,18,.27),rgba(5,10,18,.43)),var(--land-art);background-size:cover;background-position:center;background-repeat:no-repeat;background-color:#101923;border-color:var(--land-color);}
+.has-land .map-edge{stroke:#b8c6d6;stroke-width:2.5;opacity:.72;filter:drop-shadow(0 1px 2px #050911);}
+.has-land .map-edge.open{stroke:var(--accent-2);opacity:1;}
+.has-land .map-edge.walked{stroke:var(--land-color);opacity:1;}
+.has-land .map-circle{fill:rgba(10,17,29,.94);stroke-width:2.8;filter:drop-shadow(0 3px 5px #03070ccc);}
+.has-land .map-label{fill:#f0f4fa;paint-order:stroke;stroke:#080e18;stroke-width:3.5px;stroke-linejoin:round;letter-spacing:0;font-weight:750;}
+.has-land .map-node-g.reachable .map-label{fill:#85d1ff;}
+.has-land .map-node-g.current .map-label{fill:#ffe2a9;}
+.land-modal-card{width:min(520px,94vw);max-height:86dvh;overflow:auto;padding:20px;}
+.land-modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;}
+.land-modal-head h2{margin:0;font-size:22px;}
+.land-detail-kind{font-size:11px;letter-spacing:1px;color:#c5d4e8;}
+.land-rule{padding:12px 0;border-top:1px solid var(--border);}
+.land-rule b{font-size:14px;color:#e8edf5;}
+.land-rule p{font-size:13px;line-height:1.55;color:#bcc9da;margin:5px 0 0;}
+.land-footnote{font-size:12px;line-height:1.5;color:#94a7bc;}
+@media (orientation:landscape) and (max-width:979px) and (max-height:600px){
+  #mapScreen.has-land .map-land{position:absolute;top:34px;left:max(8px,env(safe-area-inset-left,0px));z-index:12;width:auto;max-width:calc(100% - 20px);padding:5px 10px;background:rgba(8,14,23,.94);margin:0;}
+  .has-land .land-copy{flex-direction:row;align-items:center;gap:8px;}
+  .has-land .land-copy strong{font-size:14px;}
+  .has-land .land-eyebrow{font-size:8px;letter-spacing:.6px;}
+  .has-land .land-summary{display:none;}
+  .has-land .land-emblem{font-size:17px;}
+  #mapScreen.has-land .map-scroll{padding-top:78px;}
+  .land-modal-card{padding:12px 18px;max-height:92dvh;}
+}
+@media (max-width:360px) and (orientation:portrait){.land-copy strong{font-size:16px;}.land-summary{font-size:10px;}.map-land{padding:7px 9px;gap:8px;}}
+@media (prefers-reduced-motion:reduce){.has-land .map-halo,.has-land .map-edge.open{animation:none;}}

@@ -174,6 +174,7 @@ public class SiegeCombatEngine {
             battle.log(passiveBanner);
         }
         run.setBattle(battle);
+        applyLandTerrain(run, battle);
 
         drawOpeningHand(run, battle, rng);
         // Sigil-evolved allies refresh their hand cards after the opening draw.
@@ -184,6 +185,45 @@ public class SiegeCombatEngine {
         }
         rollEnemyIntents(battle, rng);
         beginRound(run, rng);
+    }
+
+    static void applyLandTerrain(SiegeRun run, SiegeBattle battle) {
+        SiegeLand land = run.getLand();
+        if (land == null) return;
+        for (Combatant ally : battle.living(Side.PLAYER)) {
+            if (ally.isKnight() || !land.favors(ally.getElement())) continue;
+            switch (land.perk()) {
+                case "ATTACK" -> ally.addAttackBuff(1);
+                case "SHIELD" -> ally.addShield(5, BATTLE_START_SHIELD_EXPIRY);
+                case "SPEED" -> ally.setSpeed(ally.getSpeed() + 2);
+                case "HEAL" -> ally.heal(4);
+                default -> { }
+            }
+        }
+        battle.log("✦ " + land.name() + " — " + land.effectText());
+    }
+
+    static int applyLandBoons(SiegeRun run, SiegeBattle battle) {
+        boolean badlands = run.getLand() != null && run.getLand().badlands();
+        if (run.hasLandBoon(SiegeLandBoon.ASHEN_RESOLVE)) {
+            for (Combatant ally : battle.living(Side.PLAYER)) {
+                if (ally.getHp() * 2 >= ally.getMaxHp()) continue;
+                int before = ally.getHp();
+                ally.heal(badlands ? 5 : 3);
+                int heal = ally.getHp() - before;
+                int shield = badlands ? 6 : 4;
+                ally.addShield(shield, battle.getRoundNumber() + 1);
+                battle.event("heal", "targetId", ally.getId(), "amount", heal);
+                battle.event("shield", "targetId", ally.getId(), "amount", shield);
+                battle.log("Ashen Resolve restores " + ally.getName() + " and grants " + shield + " Shield.");
+            }
+        }
+        if (run.hasLandBoon(SiegeLandBoon.RISKRUNNER) && battle.getRoundNumber() == 1 && !battle.isPlayerActsFirst()) {
+            int ap = badlands ? 3 : 2;
+            battle.log("Riskrunner — +" + ap + " AP after the enemy's opening turn.");
+            return ap;
+        }
+        return 0;
     }
 
     /**
@@ -374,7 +414,7 @@ public class SiegeCombatEngine {
         }
 
         // Shock: each shocked Siegeling drains 1 AP from the shared pool.
-        int ap = SiegeBattle.ACTIONS_PER_TURN;
+        int ap = SiegeBattle.ACTIONS_PER_TURN + applyLandBoons(run, battle);
         // Boon (Vanguard Rush): +2 AP on the first round of each battle.
         if (battle.getRoundNumber() <= 1 && battle.hasBoon(SiegeBoon.FIRST_ROUND_AP)) {
             ap += SiegeBoon.FIRST_ROUND_AP_BONUS;

@@ -524,12 +524,29 @@ public class SiegeService {
         seedStartingKnightBag(run);
 
         run.getMap().addAll(content.generateMap(rng));
+        enterNextLand(run);
         // Drop the previous expedition in this account slot so a leftover phone
         // session cannot keep checkpointing the abandoned token over the new save.
         evictSupersededAccountRun(run.getOwnerId(), RunSlot.of(run.getMode()));
         runs.put(token, new Session(run));
         run.setCheckpointSaved(saveCheckpoint(run, true));
         return serialize(run);
+    }
+
+    /** Called only at creation or once after a won boss, after awarding that land's spoils. */
+    private void enterNextLand(SiegeRun run) {
+        // Replaying an older battle checkpoint must not let a player reroll the next land.
+        Random landRng = new Random(java.util.Objects.hash(run.getToken(), run.getBossKills(), "lands-v1"));
+        SiegeLand land = SiegeLand.roll(run.getLand(), run.getBossKills(), content.defaultPalette(), landRng);
+        run.setLand(land);
+        run.getLandHistory().add(land.id());
+        land.themeMap(run, run.getBossKills(), landRng);
+        if (land.badlands()) {
+            run.getLandBoonOffer().clear();
+            for (SiegeLandBoon boon : SiegeLandBoon.values()) {
+                if (!run.hasLandBoon(boon)) run.getLandBoonOffer().add(boon.id);
+            }
+        }
     }
 
     /** Applies the knight's HEALTH passive to a member as it joins the warband. */
@@ -815,6 +832,7 @@ public class SiegeService {
         if (run.isBattlegrounds()) {
             amount = SiegeTuning.bgGold(amount);
         }
+        if (run.getLand() != null) amount = (int) Math.round(amount * run.getLand().goldMultiplier());
         run.addGold(amount);
         run.setGoldEarnedTotal(run.getGoldEarnedTotal() + amount);
         run.addScore(amount);
@@ -844,7 +862,7 @@ public class SiegeService {
             return;
         }
         List<String> names = run.getParty().stream().map(Combatant::getName).toList();
-        content.randomStagedRecruit(names, rng).ifPresent(s -> {
+        content.randomStagedRecruit(names, rng, run.getLand()).ifPresent(s -> {
             Combatant member = content.toPartyCombatant(s, run.getParty().size());
             member.setPosition(run.getParty().size());
             applyJoinBonus(run, member);
@@ -1075,6 +1093,10 @@ public class SiegeService {
         s.put("knightAccountLevel", run.getKnightAccountLevel());
         s.put("gold", run.getGold());
         s.put("mode", run.getMode().name());
+        s.put("landId", run.getLand() == null ? null : run.getLand().id());
+        s.put("landHistory", new ArrayList<>(run.getLandHistory()));
+        s.put("landBoons", new ArrayList<>(run.getLandBoons()));
+        s.put("landBoonOffer", new ArrayList<>(run.getLandBoonOffer()));
         if (run.isBattlegrounds()) {
             s.put("bgTier", run.getBgTier());
             s.put("averageVeteranLevel", run.getAverageVeteranLevel());
@@ -1428,6 +1450,22 @@ public class SiegeService {
             run.setLoop(intVal(s.get("loop"), 0));
             run.setNodesCleared(intVal(s.get("nodesCleared"), 0));
             run.setBossKills(intVal(s.get("bossKills"), 0));
+            run.setLand(SiegeLand.byId(str(s.get("landId"))));
+            if (s.get("landHistory") instanceof List<?> history) {
+                for (Object id : history) if (SiegeLand.byId(String.valueOf(id)) != null) run.getLandHistory().add(String.valueOf(id));
+            }
+            if (s.get("landBoons") instanceof List<?> boons) {
+                for (Object id : boons) if (SiegeLandBoon.byId(String.valueOf(id)) != null && !run.getLandBoons().contains(String.valueOf(id))) run.getLandBoons().add(String.valueOf(id));
+            }
+            if (s.get("landBoonOffer") instanceof List<?> offer) {
+                for (Object id : offer) if (SiegeLandBoon.byId(String.valueOf(id)) != null && !run.getLandBoons().contains(String.valueOf(id))) run.getLandBoonOffer().add(String.valueOf(id));
+            }
+            // Old saves get a stable elemental land without rerolling their map or battle.
+            if (run.getLand() == null) {
+                run.setLand(SiegeLand.byId(knight.getElement() == null ? "fire" : knight.getElement().name().toLowerCase(java.util.Locale.ROOT)));
+                if (run.getLand() == null) run.setLand(SiegeLand.byId("fire"));
+                run.getLandHistory().add(run.getLand().id());
+            }
             run.setEnemiesDefeated(intVal(s.get("enemiesDefeated"), 0));
             run.setGoldEarnedTotal(intVal(s.get("goldEarnedTotal"), 0));
             run.setCurrentNodeId(intVal(s.get("currentNodeId"), -1));
@@ -1580,6 +1618,7 @@ public class SiegeService {
     /** Generates and starts a battle at the current node, optionally as an ambush. */
     private void startNodeBattle(SiegeRun run, SiegeNode node, NodeType battleType, boolean ambush) {
         List<Element> palette = elementPaletteFor(run);
+        if (run.getLand() != null) palette = run.getLand().weightedPalette(palette);
         int segment = SiegeContentService.segmentOf(node.getRow());
         int effFloor = node.getRow() % SiegeContentService.SEGMENT_ROWS + 1
                 + segment * 4 + run.getLoop() * 4;
@@ -1591,6 +1630,7 @@ public class SiegeService {
                 ? SiegeTuning.bgEnemyHpScalar(run.getAverageVeteranLevel(), run.getBgTierScalar()) : 1.0;
         double bgDmg = run.isBattlegrounds()
                 ? SiegeTuning.bgEnemyDamageScalar(run.getAverageVeteranLevel(), run.getBgTierScalar()) : 1.0;
+        if (run.getLand() != null && run.getLand().badlands()) { bgHp *= 1.25; bgDmg *= 1.15; }
         // The run's opening fight is a fixed yardstick — same foe for every warband,
         // so the difficulty curve starts from one known point instead of moving with
         // the starting party size. Everything after it scales as usual. Row 0 is
@@ -1632,18 +1672,18 @@ public class SiegeService {
         int oid = 0;
         boolean full = run.getParty().size() >= content.partyMax();
         if (full) {
-            for (SieglingCard s : content.mercOffers(2, rng)) {
+            for (SieglingCard s : content.mercOffers(2, rng, run.getLand())) {
                 run.getBrokerOptions().add(CampOption.merc("b" + (oid++), s.getName(), s.getElement(),
                         s.getCardArtUrl(), s.getId(), MERC_RENT_COST));
             }
         } else {
             List<String> names = run.getParty().stream().map(Combatant::getName).toList();
-            for (SieglingCard s : content.randomRecruits(3, names, rng)) {
+            for (SieglingCard s : content.randomRecruits(3, names, rng, run.getLand())) {
                 run.getBrokerOptions().add(CampOption.broker("b" + (oid++), s.getName(), s.getElement(),
                         s.getCardArtUrl(), s.getId(), BROKER_HIRE_COST));
             }
             // One mercenary is always available as an alternative.
-            for (SieglingCard s : content.mercOffers(1, rng)) {
+            for (SieglingCard s : content.mercOffers(1, rng, run.getLand())) {
                 run.getBrokerOptions().add(CampOption.merc("b" + (oid++), s.getName(), s.getElement(),
                         s.getCardArtUrl(), s.getId(), MERC_RENT_COST));
             }
@@ -1769,7 +1809,7 @@ public class SiegeService {
         if (broker) {
             List<String> names = run.getParty().stream().map(Combatant::getName).toList();
             String brokerId = "c" + oid;
-            content.randomRecruit(names, rng).ifPresent(s ->
+            content.randomRecruit(names, rng, run.getLand()).ifPresent(s ->
                     run.getCampOptions().add(CampOption.broker(brokerId, s.getName(), s.getElement(),
                             s.getCardArtUrl(), s.getId(), 45)));
         }
@@ -2337,6 +2377,8 @@ public class SiegeService {
             // Spoils: gold scales with how deep the fight was; elites pay more.
             int floor = node == null ? 1 : node.getRow() % SiegeContentService.SEGMENT_ROWS + 1;
             int base = 10 + floor * 2 + (wasElite ? 10 : 0) + rng.nextInt(5);
+            boolean defiantSpoils = (wasElite || wasBoss) && run.hasLandBoon(SiegeLandBoon.DEFIANT_SPOILS);
+            if (defiantSpoils && run.getLand() != null && run.getLand().badlands()) grantRandomItem(run);
 
             if (wasBoss) {
                 run.setBossKills(run.getBossKills() + 1);
@@ -2350,7 +2392,7 @@ public class SiegeService {
                         offerBoon(run);
                     }
                 }
-                int gold = earnGold(run, base + 30);
+                int gold = earnGold(run, defiantSpoils ? (int) Math.round((base + 30) * 1.25) : base + 30);
                 boolean finalRow = node.getRow() >= run.getMap().get(run.getMap().size() - 1).getRow();
                 // STANDARD and BATTLEGROUNDS are both fixed 3-boss expeditions: beating
                 // the final boss wins the run and auto-extracts the (now higher-level)
@@ -2383,7 +2425,7 @@ public class SiegeService {
                     generateRewards(run, true);
                 }
             } else {
-                int gold = earnGold(run, base);
+                int gold = earnGold(run, defiantSpoils ? (int) Math.round(base * 1.25) : base);
                 run.setLastReward("Victory! +" + gold + " gold. Choose your spoils." + mercNote);
                 generateRewards(run, wasElite);
             }
@@ -2394,6 +2436,10 @@ public class SiegeService {
             // that knight picks its extra Siegeling at warband assembly instead.
             if (run.getStatus() == RunStatus.ACTIVE && run.getParty().size() < content.partyMax()) {
                 joinStagedRecruit(run, " emerges from the battlefield and joins the warband!", true);
+            }
+            if (wasBoss && run.getStatus() == RunStatus.ACTIVE) {
+                enterNextLand(run);
+                run.setLastReward(run.getLastReward() + " Entering " + run.getLand().name() + ".");
             }
         } else if (battle.getPhase() == BattlePhase.LOST) {
             run.setStatus(RunStatus.LOST);
@@ -2474,7 +2520,7 @@ public class SiegeService {
             coins = (int) Math.round((15 + run.getNodesCleared() * 3 + run.getBossKills() * 20
                     + (won ? 60 : 0) + (int) Math.min(200, run.getScore() / 40)) * mult);
             remnants = (int) Math.round((10 + run.getNodesCleared() * 2 + run.getBossKills() * 10 + (won ? 40 : 0)) * mult);
-            cardPrize = (won || run.getLoop() >= 1) ? content.randomCollectionCard(rng).orElse(null) : null;
+            cardPrize = (won || run.getLoop() >= 1) ? content.randomCollectionCard(rng, run.getLand()).orElse(null) : null;
             out = new LinkedHashMap<>();
             out.put("gold", coins);
             out.put("remnants", remnants);
@@ -2663,7 +2709,7 @@ public class SiegeService {
      */
     private void grantBossReveal(SiegeRun run) {
         List<String> inPlay = run.getParty().stream().map(Combatant::getName).toList();
-        content.randomRevealAtLeastStage(2, inPlay, rng).ifPresent(s -> {
+        content.randomRevealAtLeastStage(2, inPlay, rng, run.getLand()).ifPresent(s -> {
             Map<String, Object> reveal = new LinkedHashMap<>();
             reveal.put("name", s.getName());
             reveal.put("element", s.getElement() == null ? null : s.getElement().name());
@@ -2728,6 +2774,7 @@ public class SiegeService {
         run.setOwnerId(user.getId());
         seedStartingKnightBag(run);
         run.getMap().addAll(content.generateMap(rng, true));
+        enterNextLand(run);
         runs.put(token, new Session(run));
         checkpoint(run);
         return serialize(run);
@@ -2736,6 +2783,15 @@ public class SiegeService {
     /** Picks the pending run-start (or post-boss) Battlegrounds boon by id. */
     Map<String, Object> pickBoon(String token, String boonId) {
         SiegeRun run = require(token);
+        if (!run.isAwaitingBoonPick() && !run.getLandBoonOffer().isEmpty()) {
+            SiegeLandBoon boon = SiegeLandBoon.byId(boonId);
+            if (boon == null || !run.getLandBoonOffer().contains(boonId)) throw new IllegalArgumentException("That boon is not on offer.");
+            run.getLandBoons().add(boonId);
+            run.getLandBoonOffer().clear();
+            run.setLastReward(boon.name + " is active for the rest of this run.");
+            checkpoint(run);
+            return serialize(run);
+        }
         if (!run.isBattlegrounds() || !run.isAwaitingBoonPick()) {
             throw new IllegalArgumentException("There is no boon to choose right now.");
         }
@@ -3151,7 +3207,7 @@ public class SiegeService {
     private void openEvent(SiegeRun run) {
         // Roughly a third of events are actually a warden's puzzle in disguise,
         // framed with a matching event title/prompt instead of a choice list.
-        if (rng.nextInt(100) < 35) {
+        if (rng.nextInt(100) < (run.getLand() == null ? 35 : 15)) {
             String type = rollPuzzleType();
             String title;
             String prompt;
@@ -3176,7 +3232,8 @@ public class SiegeService {
             openPuzzleMinigame(run, type, title, icon, prompt);
             return;
         }
-        SiegeContentService.EventDef def = content.randomEvent(rng);
+        SiegeContentService.EventDef def = run.getLand() != null && rng.nextInt(100) < 75
+                ? run.getLand().event() : content.randomEvent(rng);
         run.setInEvent(true);
         run.setEventTitle(def.title());
         run.setEventIcon(def.icon());
@@ -3457,7 +3514,7 @@ public class SiegeService {
         boolean offerRecruit = elite && run.getParty().size() < content.partyMax();
         if (offerRecruit) {
             List<String> names = run.getParty().stream().map(Combatant::getName).toList();
-            var recruit = content.randomRecruit(names, rng);
+            var recruit = content.randomRecruit(names, rng, run.getLand());
             if (recruit.isPresent()) {
                 var s = recruit.get();
                 run.getPendingRewards().add(RewardOption.recruit(
@@ -3478,6 +3535,13 @@ public class SiegeService {
                     target.getSpec().name() + " becomes " + upgraded.name() + " ("
                             + describeUpgrade(target.getSpec(), upgraded) + ").",
                     target.getSpec().element(), idx));
+        }
+        if (run.getLand() != null && "GOLD".equals(run.getLand().perk())) {
+            List<SiegeItem> items = content.randomItems(1, rng);
+            if (!items.isEmpty()) {
+                SiegeItem item = items.get(0);
+                run.getPendingRewards().add(RewardOption.item("r" + (optId++), item.icon() + " " + item.name(), item.effectText(), item.id()));
+            }
         }
         addEvolutionSigilOffer(run, living, elite, optId);
     }
@@ -3796,6 +3860,15 @@ public class SiegeService {
                 m.put("boonOffer", null);
             }
             m.put("bossReveal", run.getBossReveal());
+        }
+        m.put("land", run.getLand() == null ? null : run.getLand().toMap());
+        m.put("landHistory", run.getLandHistory().stream().map(SiegeLand::byId).filter(java.util.Objects::nonNull).map(SiegeLand::toMap).toList());
+        m.put("landSegment", run.getBossKills());
+        m.put("landSegmentRows", SiegeContentService.SEGMENT_ROWS);
+        m.put("landBoons", run.getLandBoons().stream().map(SiegeLandBoon::byId).filter(java.util.Objects::nonNull).map(SiegeLandBoon::toMap).toList());
+        if (!run.isAwaitingBoonPick() && !run.getLandBoonOffer().isEmpty()) {
+            m.put("boonOffer", run.getLandBoonOffer().stream().map(SiegeLandBoon::byId).filter(java.util.Objects::nonNull).map(SiegeLandBoon::toMap).toList());
+            m.put("boonSource", "BADLANDS");
         }
         Map<String, Object> stats = new LinkedHashMap<>();
         stats.put("nodesCleared", run.getNodesCleared());
