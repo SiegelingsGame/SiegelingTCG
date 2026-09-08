@@ -62,7 +62,15 @@
         resident: { id: 'demo-emberkit', name: 'Emberkit', element: 'FIRE', rarity: 'COMMON' },
         resource: 'TIMBER', resourceName: 'Timber', affinities: ['EARTH', 'FIRE']
       },
-      stations: [],
+      // Keep counters iterate `stations || [station]`; an empty array is truthy and
+      // would hide the Woodlot from Ready / Siegeling pills during the demo.
+      stations: [{
+        id: 'woodlot', name: 'Restorative Woodlot', level: 1,
+        available: 7, storageCapacity: 40, ratePerMinute: 1,
+        residentId: 'demo-emberkit',
+        resident: { id: 'demo-emberkit', name: 'Emberkit', element: 'FIRE', rarity: 'COMMON' },
+        resource: 'TIMBER', resourceName: 'Timber', affinities: ['EARTH', 'FIRE']
+      }],
       residents: [
         { id: 'demo-emberkit', name: 'Emberkit', element: 'FIRE', rarity: 'COMMON',
           assignment: { assigned: true, type: 'STATION', id: 'woodlot', label: 'Restorative Woodlot' },
