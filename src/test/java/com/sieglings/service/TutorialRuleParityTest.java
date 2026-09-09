@@ -156,6 +156,11 @@ class TutorialRuleParityTest {
 
         assertTrue(tutorial.contains("{ id: 'badge-chip'") && tutorial.contains("{ id: 'badge-all'"),
                 "The chip and the full reference must be their own beats.");
+        assertTrue(tutorial.contains("{ id: 'badge-all-browse'")
+                        && tutorial.contains("nodim: true")
+                        && tutorial.contains("Take a look at the list"),
+                "After All Effects opens, a browse beat must leave the list readable (no dim grey-out) "
+                        + "and wait for Close — not jump straight to Tap Close.");
         assertTrue(tutorial.contains("{ id: 'badge-burn-sheet'")
                         && tutorial.contains("function burnSheetOpen()")
                         && tutorial.contains("1 damage per stack"),
