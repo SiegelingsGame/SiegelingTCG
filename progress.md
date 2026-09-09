@@ -1,3 +1,6 @@
+- September 9, 2026 — Merged PR #846 (Keep Guide Cacty cutouts) to `main`; Deploy workflow https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/34294952789 succeeded.
+- Verification (live): Hosting `keep.html` serves `keep-tutorial.js?v=3` (no Emberkit); demo Woodlot resident is Cacty with Firebase `cacty.png` cutout; Applehead also cutout-backed; guest Keep Guide on live shows Cacty cutout on grounds Woodlot and inside Restorative Woodlot interior (CURRENT PARTNER: Cacty); `/api/cards/editor` `source=FIRESTORE`, `liveEditingEnabled=true`.
+
 - September 9, 2026 — Keep Guide demo sanctuary now uses Siegeling cutouts only: Woodlot resident is **Cacty** (with `artUrl` card art), second resident is **Applehead**; letter-token placeholders removed from the guest coach. Cache pin `keep-tutorial.js` 2→3.
 - Verification: `node --check` on `keep-tutorial.js`. Headless Chromium guest guide → Woodlot interior: resident name Cacty, `#interiorResidentArt` is `is-paper-cutout` with cacty.png img (no initials); Residents panel shows Cacty + Applehead cutouts only.
 
