@@ -221,6 +221,15 @@
     resetViewportScroll();
   }
 
+  /** Resolve a Land scene image. Runs served before location art shipped — and
+      the tutorial's simulated Lands — carry only an id, so derive the path from
+      the fixed naming convention rather than dropping back to the flat arenas. */
+  function landLocationUrl(land, kind) {
+    if (!land || !kind) return null;
+    if (land.locations && land.locations[kind]) return land.locations[kind];
+    return land.id ? '/img/lands/locations/' + land.id + '-' + kind + '.webp' : null;
+  }
+
   /** Paint non-combat journey stops with the active Land's matching scene. */
   function applyLandLocation(screenId) {
     var kinds = {
@@ -232,7 +241,7 @@
     if (!stage) return;
     var land = state.run && state.run.land;
     var kind = kinds[screenId];
-    var url = kind && land && land.locations && land.locations[kind];
+    var url = landLocationUrl(land, kind);
     if (!url) {
       stage.style.removeProperty('--location-land-art');
       delete stage.dataset.landLocation;
@@ -3113,7 +3122,7 @@
   function battleMapSpec(node) {
     var land = state.run && state.run.land;
     var kind = node && node.type === 'BOSS' ? 'boss' : node && node.type === 'ELITE' ? 'elite' : 'journey';
-    var landUrl = land && land.locations && land.locations[kind];
+    var landUrl = landLocationUrl(land, kind);
     if (landUrl) {
       return { id: (land.id || 'land') + '-' + kind, landscape: landUrl + '?v=' + LAND_LOCATION_ASSET_V,
         portrait: landUrl + '?v=' + LAND_LOCATION_ASSET_V };
