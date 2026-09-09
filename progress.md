@@ -1,3 +1,6 @@
+- September 9, 2026 — Keep Guide demo sanctuary now uses Siegeling cutouts only: Woodlot resident is **Cacty** (with `artUrl` card art), second resident is **Applehead**; letter-token placeholders removed from the guest coach. Cache pin `keep-tutorial.js` 2→3.
+- Verification: pending headless Chromium woodlot interior cutout check.
+
 - September 8, 2026 — Merged PR #845 (Keep Guide coach spotlight walkthrough) to `main`; Deploy workflow https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/34283353652 succeeded.
 - Verification (live): Hosting `keep.html` serves `keep.css?v=57`, `coach.css?v=4`, `coach.js?v=6`, `keep.js?v=57`, `keep-tutorial.js?v=2` with `#gateKeepGuide`; live `keep-tutorial.js` exposes `KeepGuide` / `TutorialCoach.start` / demo sanctuary; `keep.js` exposes `KeepGuideHost` / `openKeepGuide`; `/api/cards/editor` on Hosting and Cloud Run both `source=FIRESTORE`, `liveEditingEnabled=true`.
 

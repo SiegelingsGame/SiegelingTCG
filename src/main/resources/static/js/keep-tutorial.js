@@ -36,9 +36,40 @@
   }
 
   /** Demo sanctuary for guests — early keep with ready timber, a live build timer,
-   *  and a resident so every spotlight has something real to point at. */
+   *  and cutout Siegelings (never letter placeholders) so every spotlight looks real. */
+  var CACTY_ART = 'https://firebasestorage.googleapis.com/v0/b/siegelingstcgtesting.firebasestorage.app/o/cards%2Fcacty.png?alt=media&token=4cbc5e6f-99bb-4738-812e-232c786d681e';
+  var APPLEHEAD_ART = 'https://firebasestorage.googleapis.com/v0/b/siegelingstcgtesting.firebasestorage.app/o/cards%2Fapplehead.png?alt=media&token=09eacc10-6181-4238-b116-c7ade334b437';
+
+  function demoResident(spec) {
+    return {
+      id: spec.id,
+      name: spec.name,
+      element: spec.element,
+      rarity: spec.rarity || 'COMMON',
+      size: spec.size || 'SMALL',
+      artUrl: spec.artUrl,
+      assignment: spec.assignment || { assigned: false },
+      rapport: spec.rapport || { level: 0 }
+    };
+  }
+
   function demoSnapshot() {
     var now = Date.now();
+    var cacty = demoResident({
+      id: 'cacty', name: 'Cacty', element: 'EARTH', artUrl: CACTY_ART,
+      assignment: { assigned: true, type: 'STATION', id: 'woodlot', label: 'Restorative Woodlot' },
+      rapport: { level: 1 }
+    });
+    var applehead = demoResident({
+      id: 'applehead', name: 'Applehead', element: 'EARTH', artUrl: APPLEHEAD_ART
+    });
+    var woodlot = {
+      id: 'woodlot', name: 'Restorative Woodlot', level: 1,
+      available: 7, storageCapacity: 40, ratePerMinute: 1,
+      residentId: cacty.id,
+      resident: cacty,
+      resource: 'TIMBER', resourceName: 'Timber', affinities: ['EARTH', 'FIRE']
+    };
     return {
       serverTime: new Date(now).toISOString(),
       stateVersion: 1,
@@ -55,29 +86,11 @@
         gold: 100,
         remnants: 0
       },
-      station: {
-        id: 'woodlot', name: 'Restorative Woodlot', level: 1,
-        available: 7, storageCapacity: 40, ratePerMinute: 1,
-        residentId: 'demo-emberkit',
-        resident: { id: 'demo-emberkit', name: 'Emberkit', element: 'FIRE', rarity: 'COMMON' },
-        resource: 'TIMBER', resourceName: 'Timber', affinities: ['EARTH', 'FIRE']
-      },
+      station: woodlot,
       // Keep counters iterate `stations || [station]`; an empty array is truthy and
       // would hide the Woodlot from Ready / Siegeling pills during the demo.
-      stations: [{
-        id: 'woodlot', name: 'Restorative Woodlot', level: 1,
-        available: 7, storageCapacity: 40, ratePerMinute: 1,
-        residentId: 'demo-emberkit',
-        resident: { id: 'demo-emberkit', name: 'Emberkit', element: 'FIRE', rarity: 'COMMON' },
-        resource: 'TIMBER', resourceName: 'Timber', affinities: ['EARTH', 'FIRE']
-      }],
-      residents: [
-        { id: 'demo-emberkit', name: 'Emberkit', element: 'FIRE', rarity: 'COMMON',
-          assignment: { assigned: true, type: 'STATION', id: 'woodlot', label: 'Restorative Woodlot' },
-          rapport: { level: 1 } },
-        { id: 'demo-brookpaw', name: 'Brookpaw', element: 'WATER', rarity: 'COMMON',
-          assignment: { assigned: false }, rapport: { level: 0 } }
-      ],
+      stations: [woodlot],
+      residents: [cacty, applehead],
       siegelingSlots: { active: 1, capacity: 3, available: 2 },
       constructionTeams: { active: 1, capacity: 1, available: 0 },
       buildings: [
