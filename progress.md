@@ -1,7 +1,7 @@
 Original prompt: In tutorial this would be a great moment to talk about the weakness badge when targeting you can see who is weak and who is strong against your attack based on the badge
 
 - September 9, 2026 — Arena tutorial now teaches **matchup badges** at the first damage-targeting moment. A gated `matchup` beat (after ability choose, before target pick) rings the enemy card wearing a Weak/Strong overlay and explains: red **Weak** = your element beats theirs (+1 damage); gold **Strong** = their element beats yours (no bonus). The following `target` tip reinforces preferring Weak. Battle targeting tip in `game.js` updated to name both badge colors. Cache pins: `arena-tutorial.js` 36→37, `game.js` 284→285 (`play.html`; `home.html` / `card-dashboard.html` game pin brought to 285).
-- Verification: pending — syntax check, `TutorialRuleParityTest`, headless coach render of the matchup tip with a live badge overlay.
+- Verification: `node --check` on `arena-tutorial.js` and `game.js`. `TutorialRuleParityTest` — 5 tests pass (new assertions for `gate-matchup` / `matchup` / Weak+Strong copy / prefer-Weak target tip). Live tutorial on Spring Boot (`localhost:8080`): walked to Battle, chose Strike, coach showed **STEP 20 Weakness badges** with red Weak badge on the Ice target, then **STEP 21 Choose a target** reinforcing Weak; right panel tip also reads "Red Weak badges mean +1 damage; gold Strong badges mean no bonus." Artifacts: `/opt/cursor/artifacts/matchup-weakness-badges-step20.webp`, `matchup-choose-target-step21.webp`, `matchup-badge-tutorial-demo.mp4`.
 
 Original prompt: Edge and deploy (HUD Play/Filters/Friends layout)
 
