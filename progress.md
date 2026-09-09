@@ -1,3 +1,9 @@
+Original prompt: Merge and deploy (trap13 live verify)
+
+- September 9, 2026 — Deploy of #868 was cancelled by a later main push; #869 Deploy (https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/34396901028) succeeded and includes the trap13 ancestor. Live `POST /api/game/new {tutorial}` opening hand is `sundile, pylook, tutorial_ashfall, trap13, pylook` even though the dashboard catalog still lacks `trap13`; mulligan index 4 deals `raydile`; `/api/game/draw` adds `floraknight`. Editor remains `source=FIRESTORE`, `liveEditingEnabled=true`.
+
+Original prompt: Merge and deploy
+
 Original prompt: Merge and deploy (advanced tutorial live verification)
 
 - September 9, 2026 — Merged PR #867 (trap + no duplicates in the advanced tutorial hand) to `main` as `95301a9d`, after #864 (`5a6884b3`) and #865 (`64976e23`) earlier in the session. All three deploys succeeded.
