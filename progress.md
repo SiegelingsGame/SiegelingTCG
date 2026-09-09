@@ -1,3 +1,8 @@
+Original prompt: Merge and deploy
+
+- September 9, 2026 — Live Flora-first-draw contract was still broken after #863/#866: the dashboard trap roster (7 traps) omits generated id `trap13` (Shatter Seal), so `prepareTutorialPlayerDeck` skipped that slot, Raydile slid into the opening five, and mulligan/turn-one draws shifted. `GameService` now synthesizes Shatter Seal (same Ice Deception as the base catalog) when the live copy is missing, and `ensureTutorialLessonOpeningHand` can restore it the same way.
+- Verification: `GameServiceTest` (new missing-catalog case + mulligan order) and `TutorialScriptedDrawTest` / `AdvancedTutorialGameTest` — 12 pass.
+
 Original prompt: Merge and deploy (advanced tutorial hand composition)
 
 - September 9, 2026 — Live probe after #865 deployed showed the advanced chapter dealing a five-card hand that was **all spells, with a duplicate Ashen Ward** — the top-up scanned the deck in order and the tutorial deck is spell-heavy up front, even though three traps sat further down. The top-up now takes a trap first and skips a card whose name is already held, so the chapter always has a Deception to practise and never deals a visible duplicate.
