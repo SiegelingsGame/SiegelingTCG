@@ -62,7 +62,7 @@ class SiegeLandsTutorialJavaScriptTest {
                         && html.contains("id=\"riftPassBtn\"")
                         && html.contains("Travel past"),
                 "the Rift location screen must offer step-through and travel-past");
-        assertTrue(html.contains("/js/adventure.js?v=99"),
+        assertTrue(html.contains("/js/adventure.js?v=100"),
                 "adventure.js must be cache-bumped with the Rift pass handler");
     }
 }

@@ -18,6 +18,18 @@ class SiegeLandTest {
     @Autowired SiegeCombatEngine engine;
     @Autowired ObjectMapper json;
 
+    @Test void everyLandPublishesFourDistinctJourneyLocationBackgrounds() {
+        for (SiegeLand land : SiegeLand.ALL) {
+            Map<String,String> art = land.locations();
+            assertEquals(Set.of("journey", "shelter", "elite", "boss"), art.keySet());
+            assertEquals(4, new HashSet<>(art.values()).size());
+            art.forEach((scene, path) -> {
+                assertEquals("/img/lands/locations/" + land.id() + "-" + scene + ".webp", path);
+                assertTrue(Files.isRegularFile(Path.of("src/main/resources/static" + path)), path);
+            });
+        }
+    }
+
     @Test void everyElementHasALandAndLaterRollsIncludeRareAndBadlandsWithoutRepeats() {
         for (Element e : Element.values()) if (e != Element.NEUTRAL)
             assertTrue(SiegeLand.ALL.stream().anyMatch(l -> l.kind().equals("ELEMENTAL") && l.favors(e)), e.name());
