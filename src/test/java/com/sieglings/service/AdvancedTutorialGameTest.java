@@ -69,7 +69,28 @@ class AdvancedTutorialGameTest {
             assertNull(state.getAt(true, 1, 2));
             assertEquals(4, creatureCount(state, true));
             assertEquals(5, creatureCount(state, false));
-            assertEquals(4, state.getPlayer().getHand().size());
+            // The hand tops itself up from the (live) tutorial deck, so a missing
+            // pinned spell does not shrink the chapter's five plays.
+            assertEquals(5, state.getPlayer().getHand().size());
+        } finally {
+            ReflectionTestUtils.setField(gameService, "cardDefs", original);
+        }
+    }
+
+    @Test
+    void topsTheHandUpWhenEveryPinnedSpellIsGoneFromLiveData() {
+        // Production reality: the live dashboard catalog carries none of the pinned
+        // spell/trap ids, so the chapter used to deal a one-card hand.
+        CardDefinitionService spy = Mockito.spy(cardDefs);
+        for (String id : new String[]{"trap13", "spell_fire_06", "spell_earth_02", "spell_earth_01"}) {
+            Mockito.doReturn(Optional.<Card>empty()).when(spy).findCardCopy(id);
+        }
+        Object original = ReflectionTestUtils.getField(gameService, "cardDefs");
+        ReflectionTestUtils.setField(gameService, "cardDefs", spy);
+        try {
+            GameState state = gameService.newAdvancedTutorialGame("Player").state();
+            assertEquals(5, state.getPlayer().getHand().size());
+            assertEquals(5, creatureCount(state, true));
         } finally {
             ReflectionTestUtils.setField(gameService, "cardDefs", original);
         }
