@@ -37,8 +37,11 @@ class SiegeAdvantageTutorialJavaScriptTest {
         assertTrue(source.contains("advanceAdvantage(events, 'ENEMY');"));
         assertTrue(source.contains("holder.side !== completedSide"),
                 "A holder must keep the token until its own team finishes a turn.");
-        assertTrue(source.contains("damage(target, 2, events, owner.id, c.element);"),
-                "Fire's tutorial rider must deal its additional two damage.");
+        assertTrue(source.contains("damage(target, 2, events, owner.id, c.element, BURN_FX);"),
+                "Fire's tutorial rider must deal its additional two damage, and burn it on the card "
+                        + "the attack already struck rather than flying a second projectile.");
+        assertTrue(source.contains("var BURN_FX = { visual: 'burn' };"),
+                "The burn presentation flag must stay in step with SiegeCombatEngine.advantageDamage.");
         assertTrue(source.contains("triggerAdvantage(owner, c, marks, events);"),
                 "Damage cards must resolve their Advantage rider after their base hit.");
     }
@@ -144,7 +147,7 @@ class SiegeAdvantageTutorialJavaScriptTest {
         // here would leave the Siege coach without it.
         assertTrue(html.contains("/css/coach.css?v=4"), "coach.css pin");
         assertTrue(html.contains("/css/adventure.css?v=92"), "adventure.css pin");
-        assertTrue(html.contains("/js/siege-tutorial.js?v=25"), "siege-tutorial.js pin");
-        assertTrue(html.contains("/js/adventure.js?v=97"), "adventure.js pin");
+        assertTrue(html.contains("/js/siege-tutorial.js?v=27"), "siege-tutorial.js pin");
+        assertTrue(html.contains("/js/adventure.js?v=99"), "adventure.js pin");
     }
 }
