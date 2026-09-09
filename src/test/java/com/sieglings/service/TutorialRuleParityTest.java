@@ -156,6 +156,14 @@ class TutorialRuleParityTest {
 
         assertTrue(tutorial.contains("{ id: 'badge-chip'") && tutorial.contains("{ id: 'badge-all'"),
                 "The chip and the full reference must be their own beats.");
+        assertTrue(tutorial.contains("{ id: 'badge-burn-sheet'")
+                        && tutorial.contains("function burnSheetOpen()")
+                        && tutorial.contains("1 damage per stack"),
+                "After the Burn tag opens, a visible sheet tip must teach Burn before All Effects.");
+        assertTrue(tutorial.contains("{ id: 'preview-close'")
+                        && tutorial.contains("function selectedDrawerOpen()")
+                        && tutorial.contains("Swipe the card preview <b>down</b>"),
+                "Before board tips (damage/kill), the coach must ask to close the phone card preview.");
         assertTrue(tutorial.contains("hint: 'Tap the <b>Burn</b> tag'")
                         && tutorial.contains("Fire</b> element tag"),
                 "The chip beat must name the Burn tag and the Fire element tag.");

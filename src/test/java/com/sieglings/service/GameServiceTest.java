@@ -1046,7 +1046,7 @@ class GameServiceTest {
 
         List<String> opening = player.getHand().stream().map(Card::getId).toList();
         assertEquals(List.of("sundile", "pylook", "tutorial_ashfall", "trap13", "pylook"), opening);
-        assertEquals("generoot", player.getDeck().get(0).getId());
+        assertEquals("raydile", player.getDeck().get(0).getId());
 
         // Dumping lesson cards is ignored — treated as a keep.
         gameService.resolveOpeningMulligan(state, true, List.of(0, 1, 2));
@@ -1081,9 +1081,9 @@ class GameServiceTest {
 
         gameService.resolveOpeningMulligan(state, true, List.of(4));
         List<String> after = player.getHand().stream().map(Card::getId).toList();
-        assertEquals(List.of("sundile", "pylook", "tutorial_ashfall", "trap13", "generoot"), after);
-        // Generoot is the replacement; Raydile stays ready for the first normal draw.
-        assertEquals("raydile", player.getDeck().get(0).getId(),
+        assertEquals(List.of("sundile", "pylook", "tutorial_ashfall", "trap13", "raydile"), after);
+        // Raydile is the mulligan replacement; Flora Knight is ready for the first normal draw.
+        assertEquals("floraknight", player.getDeck().get(0).getId(),
                 "Deck order must stay intact after a non-shuffling tutorial mulligan");
         assertTrue(state.hasUsedMulligan(true));
     }

@@ -316,10 +316,12 @@ public class GameService {
 
         // Pin the early lesson cards independently of whether the player mulligans.
         // From turn four onward, retain the recovery path for a missing combo partner.
+        // Mulligan already hands Raydile (the practice-redraw slot), so the first
+        // normal draw is Flora Knight — not a second Raydile.
         if (state.isTutorialMatch() && isPlayerSide && state.getTurnNumber() <= 3) {
             String scriptedDraw = switch (state.getTurnNumber()) {
-                case 1 -> "raydile";
-                case 2 -> "floraknight";
+                case 1 -> "floraknight";
+                case 2 -> "generoot";
                 default -> "squirebud";
             };
             Card lessonCard = takeNamedCard(actor.getDeck(), scriptedDraw);
@@ -766,7 +768,8 @@ public class GameService {
      * the locked lesson cards (Sundile, Pylook, Strategy, Shatter Seal); index 4 is
      * a SPARE copy of Pylook, there purely to be thrown away. A redraw does not
      * shuffle — the next scripted card comes off the top of the deck, which is
-     * Generoot. The normal turn draws are pinned separately from this replacement.
+     * Raydile (the round-two evolution). The normal turn draws are pinned
+     * separately: Flora Knight on one, Generoot on two, Squire Bud on three.
      */
     public static final int TUTORIAL_SCRIPTED_MULLIGAN_INDEX = 4;
 
@@ -780,9 +783,10 @@ public class GameService {
      * Tutorial draw stack, in the order the lessons need it. The opening five are
      * Sundile (Fire socket opener), Pylook (the Fire partner round two links to),
      * Ashfall (the cost-preview lesson), Shatter Seal (Ice Deception vs the Dummy) and a SPARE
-     * Pylook in the practice-redraw slot. Generoot is its replacement. Normal
-     * draws are pinned by turn: Raydile on one, Flora Knight on two, Squire Bud
-     * on three. Keeping the opening hand does not shift these lesson draws.
+     * Pylook in the practice-redraw slot. Raydile is its replacement — the evolution
+     * for round two — so the first normal draw is Flora Knight rather than a second
+     * Raydile. Generoot follows on turn two; Squire Bud on turn three for the combo
+     * lesson. Keeping the opening hand does not shift these lesson draws.
      * Remaining Strategies support the later lessons.
      */
     /* Package-private so a test can reproduce the production shape directly:
@@ -804,7 +808,7 @@ public class GameService {
         // contain. Pulling from the pool first still preserves any dashboard
         // tuning of that copy; the catalog is the guarantee behind it.
         for (String id : List.of(
-                "sundile", "pylook", "tutorial_ashfall", "trap13", "pylook", "generoot", "raydile", "floraknight", "squirebud",
+                "sundile", "pylook", "tutorial_ashfall", "trap13", "pylook", "raydile", "floraknight", "generoot", "squirebud",
                 "spell_fire_09", "tutorial_ashen_ward", "tutorial_ashfall",
                 "spell_earth_02", "spell_earth_01")) {
             Card taken = takeNamedCard(pool, id);

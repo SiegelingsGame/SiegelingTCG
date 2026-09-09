@@ -20657,5 +20657,25 @@ body:has(.tut-layer:not(.hidden) .tut-card[data-step-id="t2-cost"]) :is(#mobileP
     background: #18382a;
 }
 
-/* Card-preview lessons stay above the drawer they explain. */
-.tut-layer:has(.tut-card[data-step-id^="ashfall-"]) { z-index: 1390; }
+/* Card-preview and Burn-sheet lessons stay above the drawer / effect sheet they
+   explain. Coach default z-index (200) sits under #drawerSelected (510) and under
+   .trainer-ability-overlay (1250), which buried the Burn / All Effects / damage tips
+   on phone portrait. */
+.tut-layer:has(.tut-card[data-step-id^="ashfall-"]),
+.tut-layer:has(.tut-card[data-step-id^="badge-"]),
+.tut-layer:has(.tut-card[data-step-id="first-stack"]),
+.tut-layer:has(.tut-card[data-step-id="status"]),
+.tut-layer:has(.tut-card[data-step-id="preview-close"]),
+.tut-layer:has(.tut-card[data-step-id="damage"]),
+.tut-layer:has(.tut-card[data-step-id="kill"]) {
+    z-index: 1390;
+}
+
+/* Prefer the upper half for tips that teach a bottom sheet, so the card is not
+   crushed into the drawer / modal footer. */
+.tut-layer:has(.tut-card[data-step-id="badge-burn-sheet"]) .tut-card,
+.tut-layer:has(.tut-card[data-step-id="badge-all"]) .tut-card,
+.tut-layer:has(.tut-card[data-step-id="badge-close"]) .tut-card {
+    top: max(12px, env(safe-area-inset-top, 0px) + 12px) !important;
+    bottom: auto !important;
+}
