@@ -553,16 +553,23 @@
     syncUlt();
   }
 
-  /* originId (optional) is presentation only: a chain-lightning arc launches its
-   * projectile from the card that was just struck while credit stays with the
-   * attacker. Mirrors advantageDamage in SiegeCombatEngine. */
-  function damage(target, amount, events, sourceId, element, originId) {
+  /* Rider damage on a card the attack already struck — Sear, Expose, Drain, Reap. */
+  var BURN_FX = { visual: 'burn' };
+
+  /* fx (optional) is presentation only, mirroring advantageDamage in
+   * SiegeCombatEngine: { origin: id } launches a chain-lightning arc from the card
+   * that was just struck, { visual: 'burn' } drops the projectile entirely for
+   * rider damage landing on a card the attack already hit. Credit stays with
+   * sourceId either way. A plain attack passes nothing and flies as normal. */
+  function damage(target, amount, events, sourceId, element, fx) {
     var absorbed = Math.min(target.shield || 0, amount);
     target.shield = (target.shield || 0) - absorbed;
     target.hp = Math.max(0, target.hp - (amount - absorbed));
     if (target.hp <= 0) target.alive = false;
     events.push({
-      type: 'hit', sourceId: sourceId, originId: originId || null,
+      type: 'hit', sourceId: sourceId,
+      originId: (fx && fx.origin) || null,
+      visual: (fx && fx.visual) || null,
       targetId: target.id, element: element,
       amount: amount, ko: !target.alive, vitals: vitalsOf([target.id])
     });
@@ -653,7 +660,7 @@
             events.push({ type: 'buff', kind: 'atk', amount: 1, targetIds: [target.id] });
           });
         } else {
-          targets.forEach(function (target) { damage(target, 2, events, owner.id, c.element); });
+          targets.forEach(function (target) { damage(target, 2, events, owner.id, c.element, BURN_FX); });
         }
         break;
       case 'EARTH':
@@ -677,23 +684,23 @@
       case 'ELECTRIC':
         if (friendly) {
           if (owner.side === 'PLAYER') b.knight.charge = Math.min(b.knight.ultCost, b.knight.charge + 1);
-        } else if (others[0]) damage(others[0], 2, events, owner.id, c.element, focus.id);
+        } else if (others[0]) damage(others[0], 2, events, owner.id, c.element, { origin: focus.id });
         break;
       case 'METAL':
         if (friendly) shieldUnit(focus, 5, events);
         else if ((focus.shield || 0) > 0) {
           focus.shield = Math.max(0, focus.shield - 4);
           events.push({ type: 'shield', targetId: focus.id, amount: 0, vitals: vitalsOf([focus.id]) });
-        } else damage(focus, 1, events, owner.id, c.element);
+        } else damage(focus, 1, events, owner.id, c.element, BURN_FX);
         break;
       case 'SHADOW':
         if (friendly) { healUnit(focus, 2, events); shieldUnit(focus, 2, events); }
-        else { damage(focus, 2, events, owner.id, c.element); healUnit(owner, 2, events); }
+        else { damage(focus, 2, events, owner.id, c.element, BURN_FX); healUnit(owner, 2, events); }
         break;
       case 'UNDEAD':
         if (focus.hp * 2 < focus.maxHp) {
           if (friendly) healUnit(focus, 3, events);
-          else damage(focus, 3, events, owner.id, c.element);
+          else damage(focus, 3, events, owner.id, c.element, BURN_FX);
         }
         break;
       case 'PSYCHIC':

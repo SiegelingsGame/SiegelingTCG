@@ -108,6 +108,14 @@ class SiegeAdvantageTest {
         assertTrue(result.ok);
         assertEquals(14, target.getHp());
         assertTrue(battle.getEvents().stream().anyMatch(e -> "advantage-trigger".equals(e.get("type"))));
+
+        // The card's own strike must keep its projectile; only the Sear rider that
+        // follows it burns. Stamping every hit would mute all of Siege's combat.
+        List<Map<String, Object>> hits = battle.getEvents().stream()
+                .filter(e -> "hit".equals(e.get("type"))).toList();
+        assertEquals(2, hits.size(), "the strike and its Sear rider");
+        assertEquals(null, hits.getFirst().get("visual"), "the card's own strike still flies");
+        assertEquals("burn", hits.getLast().get("visual"), "Sear burns on the card already struck");
     }
 
     @Test
@@ -219,33 +227,48 @@ class SiegeAdvantageTest {
         assertEquals("bystander", arc.get("targetId"));
         assertEquals("struck", arc.get("originId"), "the bolt jumps off the card that was hit");
         assertEquals("source", arc.get("sourceId"), "credit still belongs to the attacker");
+        assertEquals(null, arc.get("visual"), "the arc really does cross the stage, so it keeps its projectile");
         assertEquals(2, bystander.getHp(), "the arc still deals its 2 damage");
     }
 
-    /** Non-chaining riders keep the attacker as their origin. */
+    /**
+     * Sear and the other riders that add damage to the card the attack already
+     * struck must not fire a second projectile down the path the attacker's own
+     * bolt just travelled — they burn the element around the target instead.
+     */
     @Test
-    void nonChainRiderDamageHasNoSeparateOrigin() throws Exception {
+    void sameTargetRiderDamageBurnsOnTheTargetInsteadOfFiringAProjectile() throws Exception {
         Method method = SiegeCombatEngine.class.getDeclaredMethod("applyAdvantageRider", SiegeBattle.class,
                 Combatant.class, AbilitySpec.class, List.class, Random.class);
         method.setAccessible(true);
+        // Every hostile rider that lands on the focus, with the HP each one needs
+        // to actually fire: Reap only triggers below half HP.
+        Map<Element, Integer> sameTargetRiders = Map.of(
+                Element.FIRE, 6, Element.METAL, 6, Element.SHADOW, 6, Element.UNDEAD, 4);
 
-        SiegeBattle battle = new SiegeBattle(NodeType.BATTLE);
-        Combatant source = unit("source", "Source", Element.FIRE, Side.PLAYER, 10, 0);
-        Combatant target = unit("target", "Target", Element.NEUTRAL, Side.ENEMY, 5, 0);
-        target.setHp(6);
-        battle.getCombatants().addAll(List.of(source, target));
-        SiegeAdvantage.ensureOrder(battle);
-        AbilitySpec spec = new AbilitySpec("sear", "Sear", Element.FIRE, Effect.DAMAGE, 1,
-                TargetKind.ENEMY_SINGLE, 1, "Deal 1 damage.");
+        for (Map.Entry<Element, Integer> entry : sameTargetRiders.entrySet()) {
+            Element element = entry.getKey();
+            SiegeBattle battle = new SiegeBattle(NodeType.BATTLE);
+            Combatant source = unit("source", "Source", element, Side.PLAYER, 10, 0);
+            Combatant target = unit("target", "Target", Element.NEUTRAL, Side.ENEMY, 5, 0);
+            target.setHp(entry.getValue());
+            battle.getCombatants().addAll(List.of(source, target));
+            SiegeAdvantage.ensureOrder(battle);
+            AbilitySpec spec = new AbilitySpec("hit", "Hit", element, Effect.DAMAGE, 1,
+                    TargetKind.ENEMY_SINGLE, 1, "Deal 1 damage.");
 
-        method.invoke(new SiegeCombatEngine(), battle, source, spec, List.of(target), new Random(1));
+            method.invoke(new SiegeCombatEngine(), battle, source, spec, List.of(target), new Random(1));
 
-        Map<String, Object> hit = battle.getEvents().stream()
-                .filter(e -> "hit".equals(e.get("type")))
-                .reduce((a, b) -> b).orElse(null);
-        assertNotNull(hit);
-        assertEquals("target", hit.get("targetId"));
-        assertEquals(null, hit.get("originId"));
+            Map<String, Object> hit = battle.getEvents().stream()
+                    .filter(e -> "hit".equals(e.get("type")))
+                    .reduce((a, b) -> b).orElse(null);
+            assertNotNull(hit, element + " rider should have dealt its damage");
+            assertEquals("target", hit.get("targetId"), element.name());
+            assertEquals("burn", hit.get("visual"),
+                    element + " lands on the card already struck, so it must not fly a projectile");
+            assertEquals(null, hit.get("originId"), element.name());
+            assertEquals("source", hit.get("sourceId"), element + " keeps the attacker's kill credit");
+        }
     }
 
     private static Combatant unit(String id, String name, Element element, Side side, int speed, int position) {

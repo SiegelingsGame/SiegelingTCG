@@ -3780,6 +3780,17 @@
       // The bar drops in the projectile's arrival callback, never before: the
       // orb has to be seen striking before the number it caused moves.
       case 'hit':
+        // Advantage riders that add damage to the card the attack already struck
+        // (Sear, Expose, Drain, Reap) never crossed the stage — the attacker's own
+        // projectile landed a beat ago. A second orb flying the same path read as
+        // a whole extra attack, so these burn the element around the target the
+        // way affliction ticks do, and the HP follows the aura catching.
+        if (ev.visual === 'burn') {
+          elementBorder(ev.targetId, ev.element);
+          impact(ev.targetId, ev.amount, ev.ko);
+          commitVitalsAfter(ev, 200);
+          return 460;
+        }
         // Chain lightning: a hit stamped with originId leaps off the card that
         // was just struck instead of firing a second bolt from the attacker, so
         // the arc reads as one shock travelling between targets. The origin's

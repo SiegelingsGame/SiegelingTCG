@@ -1624,8 +1624,16 @@ public class SiegeCombatEngine {
                 "advantage", true);
     }
 
+    /**
+     * Rider damage that lands on the card the attack already struck (Sear, Expose,
+     * Drain, Reap — every rider whose target is the {@code focus}). Nothing crosses
+     * the stage for these: the attacker's own projectile arrived a beat ago, so the
+     * hit is stamped {@code visual=burn} and the client burns the element around the
+     * target the way affliction ticks do. Callers that damage a *different* card
+     * must use the origin overload instead, or the bolt will appear from nowhere.
+     */
     private void advantageDamage(SiegeBattle battle, Combatant source, Combatant target, int amount) {
-        advantageDamage(battle, source, null, target, amount);
+        advantageDamage(battle, source, null, "burn", target, amount);
     }
 
     /**
@@ -1635,12 +1643,18 @@ public class SiegeCombatEngine {
      */
     private void advantageDamage(SiegeBattle battle, Combatant source, Combatant origin,
                                  Combatant target, int amount) {
+        advantageDamage(battle, source, origin, null, target, amount);
+    }
+
+    private void advantageDamage(SiegeBattle battle, Combatant source, Combatant origin,
+                                 String visual, Combatant target, int amount) {
         if (target == null || !target.isAlive()) return;
         boolean wasAlive = target.isAlive();
         int dealt = target.takeDamage(amount);
         boolean killed = wasAlive && !target.isAlive();
         battle.event("hit", "sourceId", source.getId(),
                 "originId", origin == null ? null : origin.getId(),
+                "visual", visual,
                 "targetId", target.getId(), "amount", dealt,
                 "element", source.getElement() == null ? null : source.getElement().name(),
                 "ko", killed, "advantage", true);
