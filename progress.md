@@ -1,5 +1,8 @@
+- September 9, 2026 — Merged PR #872 (Arena All Effects browse tip) to `main`; Deploy workflow https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/34405416406 succeeded.
+- Verification (live): Hosting `play.html` serves `arena-tutorial.js?v=39`, `style.css?v=261`; live tutorial exposes `badge-all-browse` / “Take a look at the list” / `nodim: true`; `/api/cards/editor` `source=FIRESTORE`, `liveEditingEnabled=true`.
+
 - September 9, 2026 — Arena tutorial All Effects chapter: after tapping **All Effects**, a new **`badge-all-browse`** tip sits between open and dismiss — “take a look at the list… Hit × when ready” — with `nodim: true` so the reference rows are not greyed out by the close-button spotlight. `badge-close` also lifts the whole sheet (`nodim` + modal highlight) as a fallback. Cache pins: `arena-tutorial.js` 38→39, `style.css` 260→261.
-- Verification: `node --check` on `arena-tutorial.js`. `TutorialRuleParityTest` green (asserts `badge-all-browse` + readable-list copy).
+- Verification: `node --check` on `arena-tutorial.js`. `TutorialRuleParityTest` green (asserts `badge-all-browse` + readable-list copy). Phone harness: coach step `badge-all-browse` sets `tut-nodim`, ring has no dim shade, tip hint “Tap × when ready”; source order is `badge-all` → `badge-all-browse` → `badge-close`.
 
 Original prompt: Merge and deploy (trap13 live verify)
 
