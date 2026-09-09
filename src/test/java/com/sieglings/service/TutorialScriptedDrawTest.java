@@ -21,8 +21,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * The Arena tutorial's lesson order is only true if the cards arrive on the turns
  * the coach talks about them: Sundile and Pylook in the opening hand (round two
  * links them), Raydile off the top the moment the scripted mulligan fires (round
- * two evolves with it), and an off-element partner on the round-three draw, which
- * is where the combo lesson lives.
+ * two evolves with it), Flora Knight on the first normal draw, and an off-element
+ * partner on the round-three draw, which is where the combo lesson lives.
  */
 @SpringBootTest
 class TutorialScriptedDrawTest {
@@ -83,11 +83,11 @@ class TutorialScriptedDrawTest {
     }
 
     @Test
-    void theScriptedMulliganHandsOverGeneroot() {
+    void theScriptedMulliganHandsOverRaydile() {
         GameState state = gameService.newTutorialGame("Student").state();
         gameService.resolveOpeningMulligan(state, true, List.of(GameService.TUTORIAL_SCRIPTED_MULLIGAN_INDEX));
-        assertTrue(handHas(state, "generoot"),
-                "Redrawing the spare must deal Generoot.");
+        assertTrue(handHas(state, "raydile"),
+                "Redrawing the spare must deal Raydile.");
         assertTrue(handHas(state, "pylook"), "The kept Pylook must survive the redraw.");
     }
 
@@ -111,7 +111,7 @@ class TutorialScriptedDrawTest {
                 int before = state.getPlayer().getHand().size();
                 gameService.draw(state, true);
                 Card drawn = state.getPlayer().getHand().get(before);
-                assertEquals(turnNumber == 1 ? "raydile" : "floraknight", drawn.getId());
+                assertEquals(turnNumber == 1 ? "floraknight" : "generoot", drawn.getId());
                 assertTrue(!handHas(state, "squirebud"), "Squire Bud must wait until turn three.");
             }
 

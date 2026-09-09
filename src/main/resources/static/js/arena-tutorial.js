@@ -153,6 +153,14 @@
     return visible('#effectKeyOverlay:not(.hidden)');
   }
 
+  /** Phone card-preview drawer is open — tips that sit on the board hide under it. */
+  function selectedDrawerOpen() {
+    var n = null;
+    try { n = document.getElementById('drawerSelected'); } catch (e) { return false; }
+    return !!n && n.classList && n.classList.contains('visible')
+      && !!n.getClientRects && n.getClientRects().length > 0;
+  }
+
   /** The reference list, as opposed to the single-affliction sheet. The overlay
    *  is the same element for both, so read the kicker it swaps. */
   function allEffectsOpen() {
@@ -160,6 +168,11 @@
     var k = null;
     try { k = document.getElementById('effectKeyKicker'); } catch (e) { return false; }
     return !!k && /reference/i.test(k.textContent || '');
+  }
+
+  /** True while the single Burn (or other) affliction sheet is open — not the full reference. */
+  function burnSheetOpen() {
+    return effectKeyOpen() && !allEffectsOpen();
   }
 
   /** True while the mulligan's redraw reveal is still playing. The server ends
@@ -1253,6 +1266,27 @@
         body: 'The <b>Burn tag</b> shows the effect name and stack count. Open <b>All Effects</b> to see its Fire element and damage rules.',
         skipIf: function () { return !!chipButton() || !previewChipSelector(); } },
 
+      // After the Burn tag opens the affliction sheet, hold on that sheet so the
+      // tip is not buried under the card preview and the player actually reads it.
+      { id: 'badge-burn-sheet', title: 'Burn',
+        target: function () {
+          return firstOf([
+            '#effectKeyOverlay .effect-key-single',
+            '#effectKeyOverlay .trainer-ability-modal',
+            '#effectKeyOverlay'
+          ]);
+        },
+        highlight: function () {
+          return [firstOf([
+            '#effectKeyOverlay .effect-key-single',
+            '#effectKeyOverlay .trainer-ability-modal',
+            '#effectKeyOverlay'
+          ])];
+        },
+        avoid: '.trainer-ability-close',
+        body: 'Burn deals <b>1 damage per stack</b> at the start of the owner’s next Setup, then the stacks clear. The <b>Fire</b> tag marks it as a Fire affliction.',
+        skipIf: function () { return !burnSheetOpen(); } },
+
       { id: 'badge-all', hint: 'Tap <b>All Effects</b>', title: 'Effect reference',
         target: allEffectsSelector,
         highlight: function () { return [allEffectsSelector()]; },
@@ -1264,9 +1298,22 @@
       { id: 'badge-close', hint: 'Tap <b>Close</b>', title: 'Return to the battle',
         target: function () { return firstOf(['#effectKeyOverlay .trainer-ability-close', '#boardArea']); },
         avoid: '.trainer-ability-close',
-        body: 'Tap <b>Close</b> to return to the battle. You can open this reference again from a card’s effects.',
+        body: 'Tap <b>Close</b> to leave the effect sheet. Next, close the card preview so the board tips are visible.',
         skipIf: function () { return !visible('#effectKeyOverlay:not(.hidden)'); },
         until: function () { return !visible('#effectKeyOverlay:not(.hidden)'); } },
+
+      // Damage / kill tips target the board; on phones the card preview drawer
+      // covers that region (and sat above the coach layer). Ask to dismiss it.
+      { id: 'preview-close', hint: 'Swipe down to close', title: 'Close the card preview',
+        target: function () {
+          return firstOf(['#drawerSelected .drawer-handle', '#drawerSelected h3', '#drawerSelected']);
+        },
+        highlight: function () {
+          return [firstOf(['#drawerSelected .drawer-handle', '#drawerSelected'])];
+        },
+        body: 'Swipe the card preview <b>down</b> to close it (or tap the handle). The next tips sit on the board behind it.',
+        skipIf: function () { return !selectedDrawerOpen(); },
+        until: function () { return !selectedDrawerOpen(); } },
 
       { id: 'damage', title: 'Ability damage', target: '#boardArea',
         body: 'An <b>ability</b> determines how much damage a hit deals. Elemental advantage adds <b>1 damage</b> against a Siegeling that is weak to the attacking element.' },

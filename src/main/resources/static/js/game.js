@@ -17342,7 +17342,7 @@ function updateSelectedInfo(card, msg) {
         html += `<button type="button" class="selected-preview-dot is-active" data-page-dot="0" role="tab" aria-selected="true" aria-label="Card summary"></button>`;
         html += `<button type="button" class="selected-preview-dot" data-page-dot="1" role="tab" aria-selected="false" aria-label="Battle moves"></button>`;
         html += `</div>`;
-        html += `<span class="selected-preview-swipe-hint">Swipe for moves</span>`;
+        html += `<span class="selected-preview-swipe-hint">Swipe down to close · swipe for moves</span>`;
         html += `</div></div>`;
     }
 
