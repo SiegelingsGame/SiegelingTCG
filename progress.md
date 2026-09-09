@@ -2383,3 +2383,21 @@ both return 200, with same-origin API configuration intact.
 - Verification: all 64 assets are unique 1536×1024 WebPs and serve HTTP 200 as `image/webp`; targeted 18 tests pass (`SiegeLandTest`, `SiegeAdvantageTutorialJavaScriptTest`, `SiegeLandsTutorialJavaScriptTest`); `node --check adventure.js`; browser checks at 390×844, 844×390, and 1920×1080 show `wind-journey` in live combat and `wind-shelter` on the stop stage, with no console or request failures and `render_game_to_text` matching the live Land. Full `mvnw test`: 671 tests initially reported 7 failures and 4 Java 25 Mockito instrumentation errors; after updating the two intentional Siege cache-pin assertions, the 18 targeted tests pass. An untouched `origin/main` checkout reproduces the remaining 5 static-asset failures and all 4 Mockito errors.
 
 - September 9, 2026 Land location art production release: PR #854 merged as `c855817d983da2293450b385e98c5e1c4ef4098b`; deploy run `34347535855` completed successfully with Cloud Run, Firebase Hosting, and Firebase Functions green. Live `/siege` serves `adventure.css?v=93`, `adventure.js?v=100`, and `siege-tutorial.js?v=27`. Sampled `/img/lands/locations/fire-journey.webp` and `/img/lands/locations/badlands-boss.webp` both return 200 `image/webp`. Hosting and direct Cloud Run `/api/cards/editor` report `source: FIRESTORE`, live editing enabled, and Firestore available; `js/config.js` retains same-origin `apiBaseUrl: ''`; hosted `/api/game/options` returns 200 with six decks.
+
+## 2026-09-09 — Land location art in tutorial battles
+The Siege tutorial's simulated Lands (Emberfall, and Frostveil after the Rift)
+are built client-side in `siege-tutorial.js` and carry no `locations` map, so
+`adventure.js` fell back to the flat SVG arenas while real runs already showed
+the new painted battlefields. Added `landLocationUrl(land, kind)` in
+`adventure.js`, which prefers the server-supplied `land.locations` and otherwise
+derives `/img/lands/locations/<landId>-<scene>.webp` from the fixed naming
+convention; both `applyBattleMap` (battle stage) and `applyLandLocation`
+(camp/broker/smith/caravan/cache/event stages) now go through it, so the
+tutorial and any pre-`locations` run payload get the same art. Bumped
+`adventure.js` to `?v=101`.
+
+Verified with `node --check js/adventure.js` and headless Chromium at 390x844:
+started the tutorial, walked to the first battle node, and asserted
+`body[data-battle-map]="fire-journey"` with `.battle-map` resolving to
+`/img/lands/locations/fire-journey.webp`, with no 4xx on any `/img/lands/`
+request; screenshot shows the Emberfall painting behind the tutorial battle.
