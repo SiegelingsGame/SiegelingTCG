@@ -155,7 +155,7 @@ class EffectServiceTest {
     }
 
     @Test
-    void resistedAttackNeverFallsBelowOneDamage() {
+    void resistedOneDamagePokeIsReducedToNothing() {
         GameState state = battleState();
         CardInstance source = instance("earth-source", Element.EARTH, 1, 1, true);
         CardInstance target = instance("wind-target", Element.WIND, 1, 1, false);
@@ -164,7 +164,7 @@ class EffectServiceTest {
 
         effectService.resolveAbility(state, oneDamageAbility(), source, true, 1, 1);
 
-        assertEquals(9, target.getCurrentHealth(), "a resisted 1-damage hit still lands for 1");
+        assertEquals(10, target.getCurrentHealth(), "a resisted 1-damage hit is reduced to nothing");
         assertTrue(state.getGameLog().stream().anyMatch(line -> line.contains("resist -1")));
     }
 

@@ -1,5 +1,5 @@
 {
-  "token" : "RMu077jXUdxx6fbWQbWy_h9mBH2uN7De",
+  "token" : "UEwHR_o_4iFxDWmXOaxbYuTMh-YJyRmE",
   "status" : "ACTIVE",
   "currentNodeId" : -1,
   "lastReward" : "",
@@ -31,23 +31,23 @@
     "eventTitle" : "The Cinder Smith"
   },
   "landHistory" : [ {
-    "id" : "earth",
-    "name" : "Rootwild",
+    "id" : "ice",
+    "name" : "Frostveil",
     "kind" : "ELEMENTAL",
-    "elements" : [ "EARTH" ],
-    "background" : "/img/lands/earth.webp",
+    "elements" : [ "ICE" ],
+    "background" : "/img/lands/ice.webp",
     "locations" : {
-      "journey" : "/img/lands/locations/earth-journey.webp",
-      "shelter" : "/img/lands/locations/earth-shelter.webp",
-      "elite" : "/img/lands/locations/earth-elite.webp",
-      "boss" : "/img/lands/locations/earth-boss.webp"
+      "journey" : "/img/lands/locations/ice-journey.webp",
+      "shelter" : "/img/lands/locations/ice-shelter.webp",
+      "elite" : "/img/lands/locations/ice-elite.webp",
+      "boss" : "/img/lands/locations/ice-boss.webp"
     },
-    "feature" : "Root Refuge",
+    "feature" : "Frost Shelter",
     "featureType" : "REST",
-    "terrain" : "Living roots",
-    "effect" : "EARTH Siegelings recover 4 HP at battle start.",
+    "terrain" : "Glacial cover",
+    "effect" : "ICE Siegelings start battles with +5 Shield.",
     "encounters" : "Favored Siegelings have 4× draw weight in recruits, broker stock and card prizes.",
-    "eventTitle" : "The Root Tender"
+    "eventTitle" : "The Frozen Waystation"
   } ],
   "landSegment" : 0,
   "landSegmentRows" : 8,

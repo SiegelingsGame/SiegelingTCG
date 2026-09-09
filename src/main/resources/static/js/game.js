@@ -599,7 +599,7 @@ const STATUS_EFFECT_KEY = {
         name: 'Strong',
         group: 'matchup',
         summary: 'resists the attacker for -1 damage',
-        detail: 'This Siegeling\'s element beats the incoming attacker\'s, so the hit is resisted and lands for -1 damage (never below 1). Matchups: Fire > Ice > Wind > Earth > Fire; Water > Fire/Ice; Metal > Earth/Wind; Electric > Wind/Fire; Poison > Ice/Earth; Shadow > Psychic > Light > Undead > Shadow.'
+        detail: 'This Siegeling\'s element beats the incoming attacker\'s, so the hit is resisted and lands for -1 damage — a 1-damage hit is reduced to nothing. Matchups: Fire > Ice > Wind > Earth > Fire; Water > Fire/Ice; Metal > Earth/Wind; Electric > Wind/Fire; Poison > Ice/Earth; Shadow > Psychic > Light > Undead > Shadow.'
     },
     WEAK: {
         name: 'Weak',
@@ -2447,8 +2447,8 @@ function formatBattleAbilityWeaknessPreview(ability, selectedRow = -1) {
         parts.push(`Weakness +1: ${formatWeakTargetNames(weakTargets)} take ${baseDamage + 1}.`);
     }
     if (resistTargets.length > 0) {
-        // Resistance mirrors EffectService: -1, but a real hit never drops below 1.
-        parts.push(`Resist -1: ${formatWeakTargetNames(resistTargets)} take ${Math.max(1, baseDamage - 1)}.`);
+        // Resistance mirrors EffectService: -1, which can zero out a 1-damage hit.
+        parts.push(`Resist -1: ${formatWeakTargetNames(resistTargets)} take ${Math.max(0, baseDamage - 1)}.`);
     }
     return parts.join(' ');
 }
@@ -2495,7 +2495,7 @@ function getBattleBurnKillPlan() {
                 if (!cell || !Number.isFinite(hp) || hp <= 0) continue;
                 const weak = isElementWeakTo(element, cell.element);
                 const resists = !weak && isElementWeakTo(cell.element, element);
-                const hit = Math.max(1, base + (weak ? 1 : 0) - (resists ? 1 : 0));
+                const hit = Math.max(0, base + (weak ? 1 : 0) - (resists ? 1 : 0));
                 const left = hp - hit;
                 // Already dead on the swing — a fine play, but not this lesson.
                 if (left <= 0) continue;
@@ -14088,7 +14088,7 @@ function renderElementKey() {
             + `<span class="matchup-targets">${targets}</span>`
             + `</div>`;
     }
-    html += `<div class="element-key-note">Strong attacker = weak defender: +1 damage. Reversed, the defender resists for -1 (never below 1). Elements with no relationship deal flat damage.</div>`;
+    html += `<div class="element-key-note">Strong attacker = weak defender: +1 damage. Reversed, the defender resists for -1 (a 1-damage hit is reduced to nothing). Elements with no relationship deal flat damage.</div>`;
     html += `</section>`;
 
     // Half 3 — jump into the status/affliction key without needing a card that

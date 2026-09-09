@@ -355,10 +355,8 @@ public class EffectService {
             damage -= 1;
             resisted = true;
         }
-        // Resistance never turns a real hit into a whiff, matching the Blind floor above.
-        if (value > 0) {
-            damage = Math.max(1, damage);
-        }
+        // Resistance can take a 1-damage poke down to a whiff; it just cannot go negative.
+        damage = Math.max(0, damage);
         int soak = 0;
         int rust = 0;
         if (elementalAfflictionService != null) {

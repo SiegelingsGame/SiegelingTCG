@@ -262,7 +262,7 @@ class TutorialRuleParityTest {
                         + "move panel prints.");
         assertTrue(game.contains("const weak = isElementWeakTo(element, cell.element);")
                         && game.contains("const resists = !weak && isElementWeakTo(cell.element, element);")
-                        && game.contains("const hit = Math.max(1, base + (weak ? 1 : 0) - (resists ? 1 : 0));"),
+                        && game.contains("const hit = Math.max(0, base + (weak ? 1 : 0) - (resists ? 1 : 0));"),
                 "Weakness and resistance must come from the shared chart and move the hit by the same "
                         + "+1/-1 the panel previews.");
         assertTrue(game.contains("if (left <= 0) continue;"),
