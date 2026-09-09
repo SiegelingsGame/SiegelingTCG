@@ -46,19 +46,25 @@
   }
 
   /**
-   * The live status badge to ring, preferring the player's OWN board: the lesson
-   * is about what just happened to their Siegling, so pointing at the enemy's
-   * card (or at the whole board, as it used to) makes the student hunt for the
-   * thing being described. Falls back through the enemy's badge to the grid so
-   * the ring always lands on something real — a badge is transient and the board
-   * re-renders under it.
+   * The live status badge to ring. Prefer opponent Burn — that is the Fire hit
+   * the student just landed, and the first-stack / badge chapter walks that
+   * card into the Burn tag. Falls back through any enemy badge, then the
+   * player's, then the grid so the ring always lands on something real — a
+   * badge is transient and the board re-renders under it.
    *
    * Selector-based, so it follows the badge wherever the layout puts it: phone
    * portrait, landscape and desktop all position the ring off the element's own
    * rect, and both tutorials share this script.
    */
   function badgeSelector() {
-    return firstOf(['#playerGrid .sb-badge', '#enemyGrid .sb-badge', '#playerGrid', '#boardArea']);
+    return firstOf([
+      '#enemyGrid .sb-badge[data-status="BURN"]',
+      '#enemyGrid .sb-badge',
+      '#playerGrid .sb-badge',
+      '#enemyGrid',
+      '#playerGrid',
+      '#boardArea'
+    ]);
   }
 
   /**
@@ -66,11 +72,14 @@
    * to its cell and rebuilds the selector from data-row/data-col, the same way
    * linkedCellSelectors() names a cell — the coach re-resolves highlights every
    * frame, so it needs a selector it can look up again, not a node reference.
+   * Prefer opponent Burn so the ring stays on the card first-stack introduced.
    */
   function badgeCellSelector() {
     var badge = null;
     try {
-      badge = document.querySelector('#playerGrid .sb-badge') || document.querySelector('#enemyGrid .sb-badge');
+      badge = document.querySelector('#enemyGrid .sb-badge[data-status="BURN"]')
+        || document.querySelector('#enemyGrid .sb-badge')
+        || document.querySelector('#playerGrid .sb-badge');
     } catch (e) { return null; }
     if (!badge || !badge.closest) return null;
     var cell = badge.closest('.board-cell');
@@ -398,19 +407,63 @@
     return card && card.id === 'tutorial_ashfall' && !!previewField('.selected-preview-card', '.desktop-preview-card');
   }
 
-  function firstStackTarget() {
-    return firstBattleField('.sb-badge') ||
-      (visible('#playerGrid .sb-badge') ? '#playerGrid .sb-badge' :
-        (visible('#enemyGrid .sb-badge') ? '#enemyGrid .sb-badge' : null));
+  /**
+   * Opponent Burn on the board — the Fire hit you just landed. Prefer the
+   * CELL (card) over the badge node so the ring closes onto Cozycub itself,
+   * matching the later badge chapter's badgeCellSelector pattern.
+   */
+  function enemyBurnCellSelector() {
+    var badge = null;
+    try { badge = document.querySelector('#enemyGrid .sb-badge[data-status="BURN"]'); } catch (e) { return null; }
+    if (!badge || !badge.closest) return null;
+    var cell = badge.closest('.board-cell');
+    if (!cell) return null;
+    var r = cell.getAttribute('data-row'), c = cell.getAttribute('data-col');
+    if (r == null || c == null) return null;
+    var sel = '#enemyGrid .board-cell[data-row="' + r + '"][data-col="' + c + '"]';
+    return visible(sel) ? sel : null;
   }
 
+  function enemyBurnBadgeSelector() {
+    return visible('#enemyGrid .sb-badge[data-status="BURN"]')
+      ? '#enemyGrid .sb-badge[data-status="BURN"]'
+      : null;
+  }
+
+  /** First-stack lesson: always the opponent's Burn when present. Never the
+   *  battle-panel badge or your own Chill — those are a different lesson. */
+  function firstStackTarget() {
+    return enemyBurnCellSelector() ||
+      enemyBurnBadgeSelector() ||
+      (visible('#enemyGrid .sb-badge') ? '#enemyGrid .sb-badge' : null);
+  }
+
+  function firstStackHighlight() {
+    var cell = enemyBurnCellSelector();
+    if (cell) return [cell];
+    var sel = firstStackTarget();
+    return sel ? [sel] : ['#enemyGrid'];
+  }
+
+  /** Burn intro on the opponent card — leads into the Burn tag / Fire element
+   *  tag / full burn sheet in the next beats. */
   function firstStackCopy() {
-    var selector = firstStackTarget();
+    var badge = null;
+    try { badge = document.querySelector('#enemyGrid .sb-badge[data-status="BURN"]'); } catch (e) { badge = null; }
+    var detail = badge && badge.getAttribute('title');
+    return (detail ? '<b>' + esc(detail) + '</b><br>' : '<b>Burn</b><br>') +
+      'Your Fire hit left that flame on the <b>opponent card</b>. The number is the Burn stack count — more stacks, more damage at their next Setup. ' +
+      '<b>Tap the card</b> to open it, then its Burn tag, to see the Fire element tag and the full burn rules.';
+  }
+
+  /** Battle-panel badge copy — separate from the opponent-Burn lesson above. */
+  function actingBadgeCopy() {
+    var selector = firstBattleField('.sb-badge');
     var badge = selector && document.querySelector(selector);
     var detail = badge && badge.getAttribute('title');
     return (detail ? '<b>' + esc(detail) + '</b><br>' : '') +
       'This badge shows an effect already on the creature. Its number is the current stack count (or shield amount for a shield badge). ' +
-      'Ice adds Chill; Fire adds Burn. Further applications can add stacks. Tap the creature to read its effects in the card view.';
+      'Ice adds Chill; Fire adds Burn. Further applications can add stacks.';
   }
 
   // ---- multi-target lesson --------------------------------------------------
@@ -1079,7 +1132,7 @@
         skipIf: function () { return !actingCard(); } },
       { id: 'first-action-badges', title: 'Badges travel with the creature',
         target: function () { return firstBattleField('.sb-badge'); },
-        body: firstStackCopy,
+        body: actingBadgeCopy,
         skipIf: function () { return !firstBattleField('.sb-badge'); } },
       { id: 'first-options', title: 'Your ability options',
         target: function () { return firstBattleField('.battle-queue-actions'); },
@@ -1105,24 +1158,23 @@
         skipIf: function () { return !visible('#enemyGrid .board-cell.targetable'); },
         until: function () { return !visible('#enemyGrid .board-cell.targetable'); } },
 
-      { id: 'first-stack', title: 'Your first effect stack',
-        target: firstStackTarget, body: firstStackCopy,
-        skipIf: function () { return !firstStackTarget(); } },
+      // Opponent Burn first: ring the enemy card wearing the flame, wait for the
+      // card view, then the chip / All Effects beats open the Fire element tag
+      // and the full burn sheet. Damage and kill come after that chapter so the
+      // drawer is not covering the board tips. `status` keeps its id for parity
+      // with the older badge chapter — first-stack is the Burn-specific opener.
+      { id: 'first-stack', hint: 'Tap the <b>opponent</b> card', title: 'Your first effect stack',
+        target: firstStackTarget, highlight: firstStackHighlight,
+        body: firstStackCopy,
+        skipIf: function () { return !firstStackTarget(); },
+        until: function () { return cardViewOpen() || !firstStackTarget(); } },
 
-      { id: 'damage', title: 'Where damage comes from', target: '#boardArea',
-        body: 'Every point of it comes from <b>abilities</b> — there is no attack stat. Hit an element you beat and you get <b>+1</b> for free.' },
-
-      { id: 'kill', title: 'Knocking one out hurts them', target: '#enemyGrid',
-        body: 'Drop a Siegeling and its owner takes <b>Siege Damage</b> straight to the face — more the rarer it was. You can win through their board.' },
-
-      // Three beats, each one tap: open the card view, read the chip inside it,
-      // then open the full reference. Every wait releases when its subject
-      // leaves the screen — a badge is transient, it expires and the board
-      // re-renders under it, so a wait with no escape would either strand the
-      // player on a tap that is no longer possible or hold the match hostage.
       { id: 'status', hint: 'Tap the card wearing a <b>badge</b>', title: 'Little icons, big deal',
         target: badgeSelector, highlight: badgeHighlight,
-        body: 'Fire leaves them <b>Burning</b>, Ice leaves them <b>Chilled</b>, and shields and boosts ride along the same way. They all show up as <b>badges</b> on the card, and they keep working after your turn ends. <b>Tap the card</b> wearing one to open its card view.',
+        body: 'Fire leaves them <b>Burning</b>, Ice leaves them <b>Chilled</b>, and shields and boosts ride along the same way. They all show up as <b>badges</b> on the card. <b>Tap the opponent card</b> wearing Burn if its card view is not open yet.',
+        // Already opened from first-stack — do not ask again. Escape if the
+        // badge expired so a wait cannot hold the match hostage.
+        skipIf: function () { return cardViewOpen() || !visible('.sb-badge'); },
         until: function () { return cardViewOpen() || !visible('.sb-badge'); } },
 
       // The chip lesson exists twice on purpose, because the two layouts offer
@@ -1135,27 +1187,27 @@
       // wait on arrival and skipped the lesson there entirely. Two steps with
       // complementary skipIf let the layout on screen pick one, which is exactly
       // what skipIf-evaluated-once is good for.
-      { id: 'badge-chip', hint: 'Tap the <b>badge chip</b>', title: 'The badge, spelled out',
+      { id: 'badge-chip', hint: 'Tap the <b>Burn</b> tag', title: 'The Burn tag',
         // Ring the chip itself. The card view also carries the card's stats and
         // its whole move list, so spotlighting the panel points at everything.
         target: function () { return chipButton() || allEffectsSelector(); },
         highlight: function () { return [chipButton() || allEffectsSelector()]; },
         avoid: '.trainer-ability-close',
-        body: 'There it is again in the card view, as a <b>chip</b>. <b>Tap the chip</b> and it spells the badge out — how hard it bites, how long it lasts, what happens when it stacks.',
+        body: 'That chip is the <b>Burn tag</b>. <b>Tap it</b> — the sheet names Burn, shows the <b>Fire</b> element tag, and spells out the stacks: flat damage per badge at their next Setup, then clear.',
         skipIf: function () { return !chipButton(); },
         until: function () { return effectKeyOpen() || !cardViewOpen(); } },
 
-      { id: 'badge-chip-read', title: 'The badge, spelled out',
+      { id: 'badge-chip-read', title: 'The Burn tag',
         target: function () { return previewChipSelector() || allEffectsSelector(); },
         highlight: function () { return [previewChipSelector() || allEffectsSelector()]; },
-        body: 'There it is again in the card view, as a <b>chip</b>, naming the badge and how many stacks are riding on the card.',
+        body: 'That chip is the <b>Burn tag</b> — name and stack count. Open <b>All Effects</b> next for the Fire element tag and the full burn rules.',
         skipIf: function () { return !!chipButton() || !previewChipSelector(); } },
 
       { id: 'badge-all', hint: 'Tap <b>All Effects</b>', title: 'Every badge in one list',
         target: allEffectsSelector,
         highlight: function () { return [allEffectsSelector()]; },
         avoid: '.trainer-ability-close',
-        body: '<b>All Effects</b> opens the full reference — every buff, every affliction, what each one does. It is here mid-fight for any badge on any card, yours or theirs.',
+        body: '<b>All Effects</b> opens the full reference — Burn under Fire, Chill under Ice, every buff and affliction. It is here mid-fight for any badge on any card, yours or theirs.',
         skipIf: function () { return !cardViewOpen() && !effectKeyOpen(); },
         until: function () { return allEffectsOpen() || (!cardViewOpen() && !effectKeyOpen()); } },
 
@@ -1165,6 +1217,12 @@
         body: 'Nothing here is hidden from you — the list is one tap away whenever you want it. Close it and let us finish the round.',
         skipIf: function () { return !visible('#effectKeyOverlay:not(.hidden)'); },
         until: function () { return !visible('#effectKeyOverlay:not(.hidden)'); } },
+
+      { id: 'damage', title: 'Where damage comes from', target: '#boardArea',
+        body: 'Every point of it comes from <b>abilities</b> — there is no attack stat. Hit an element you beat and you get <b>+1</b> for free.' },
+
+      { id: 'kill', title: 'Knocking one out hurts them', target: '#enemyGrid',
+        body: 'Drop a Siegeling and its owner takes <b>Siege Damage</b> straight to the face — more the rarer it was. You can win through their board.' },
 
       // ---- Turn 2 ---------------------------------------------------------
       //
@@ -1788,7 +1846,7 @@
         body: 'Each move shows its effect, energy cost and damage preview. Targeted moves light valid cells; direct-player moves resolve without a board target. Pass skips this creature and names the next actor.' },
 
       { id: 'adv-shield', title: 'Read the badges',
-        target: firstStackTarget,
+        target: function () { return badgeCellSelector() || badgeSelector(); },
         body: 'Both lead creatures start with <b>3 Shield</b>, which absorbs damage before Health. Tap a badge to read its effect. New afflictions and boosts appear as badges too.' },
 
       // ---- The HUD ---------------------------------------------------------

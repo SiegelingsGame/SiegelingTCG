@@ -214,10 +214,41 @@
     // Battle and map are static, full-viewport screens (no page scroll —
     // only their own internal regions, like the map canvas, scroll).
     document.body.dataset.screen = id;
+    applyLandLocation(id);
     // Every screen opens at its top. Arriving from a scrolled screen used to
     // carry that offset over, which on the puzzle screen meant landing halfway
     // down the board with the title hidden under the top bar.
     resetViewportScroll();
+  }
+
+  /** Resolve a Land scene image. Runs served before location art shipped — and
+      the tutorial's simulated Lands — carry only an id, so derive the path from
+      the fixed naming convention rather than dropping back to the flat arenas. */
+  function landLocationUrl(land, kind) {
+    if (!land || !kind) return null;
+    if (land.locations && land.locations[kind]) return land.locations[kind];
+    return land.id ? '/img/lands/locations/' + land.id + '-' + kind + '.webp' : null;
+  }
+
+  /** Paint non-combat journey stops with the active Land's matching scene. */
+  function applyLandLocation(screenId) {
+    var kinds = {
+      campScreen: 'shelter', brokerScreen: 'shelter', smithScreen: 'shelter', caravanScreen: 'shelter',
+      cacheScreen: 'journey', eventScreen: 'journey'
+    };
+    var screen = $(screenId);
+    var stage = screen && screen.querySelector('.location-stage');
+    if (!stage) return;
+    var land = state.run && state.run.land;
+    var kind = kinds[screenId];
+    var url = landLocationUrl(land, kind);
+    if (!url) {
+      stage.style.removeProperty('--location-land-art');
+      delete stage.dataset.landLocation;
+      return;
+    }
+    stage.style.setProperty('--location-land-art', 'url("' + artCss(url) + '?v=1")');
+    stage.dataset.landLocation = (land.id || 'land') + '-' + kind;
   }
 
   function renderGameToText() {
@@ -3074,6 +3105,7 @@
 
   // ---- battle stage ----------------------------------------------------
   var MAP_ASSET_V = '1';
+  var LAND_LOCATION_ASSET_V = '1';
   var battleMapPreload = null;
 
   /** Deterministic index into a pool from a node id (stable across reloads). */
@@ -3085,6 +3117,18 @@
 
   function mapUrl(id, orient) {
     return '/img/maps/' + id + '-' + orient + '.svg?v=' + MAP_ASSET_V;
+  }
+
+  function battleMapSpec(node) {
+    var land = state.run && state.run.land;
+    var kind = node && node.type === 'BOSS' ? 'boss' : node && node.type === 'ELITE' ? 'elite' : 'journey';
+    var landUrl = landLocationUrl(land, kind);
+    if (landUrl) {
+      return { id: (land.id || 'land') + '-' + kind, landscape: landUrl + '?v=' + LAND_LOCATION_ASSET_V,
+        portrait: landUrl + '?v=' + LAND_LOCATION_ASSET_V };
+    }
+    var id = battleMapId(node);
+    return id ? { id: id, landscape: mapUrl(id, 'landscape'), portrait: mapUrl(id, 'portrait') } : null;
   }
 
   /** Resolve a node to one stable arena id, shared by paint and preload. */
@@ -3113,24 +3157,24 @@
 
   /** Resolve and paint the illustrated battlefield for a map node. */
   function applyBattleMap(node) {
-    var id = battleMapId(node);
-    if (!id) { clearBattleMap(); return; }
+    var spec = battleMapSpec(node);
+    if (!spec) { clearBattleMap(); return; }
 
     var stage = $('battleStage');
     if (!stage) return;
-    stage.style.setProperty('--map-landscape', 'url("' + mapUrl(id, 'landscape') + '")');
-    stage.style.setProperty('--map-portrait', 'url("' + mapUrl(id, 'portrait') + '")');
-    document.body.dataset.battleMap = id;
+    stage.style.setProperty('--map-landscape', 'url("' + artCss(spec.landscape) + '")');
+    stage.style.setProperty('--map-portrait', 'url("' + artCss(spec.portrait) + '")');
+    document.body.dataset.battleMap = spec.id;
     document.body.dataset.battleNode = node.type || '';
   }
 
   /** Preload the composition matching current orientation for an upcoming fight. */
   function preloadBattleMap(node) {
     if (typeof document === 'undefined') return;
-    var id = battleMapId(node);
-    if (!id) return;
+    var spec = battleMapSpec(node);
+    if (!spec) return;
     var land = matchMedia('(orientation: landscape)').matches;
-    var href = mapUrl(id, land ? 'landscape' : 'portrait');
+    var href = land ? spec.landscape : spec.portrait;
     if (battleMapPreload && battleMapPreload.getAttribute('href') === href) return;
     if (battleMapPreload && battleMapPreload.parentNode) {
       battleMapPreload.parentNode.removeChild(battleMapPreload);
@@ -3780,7 +3824,25 @@
       // The bar drops in the projectile's arrival callback, never before: the
       // orb has to be seen striking before the number it caused moves.
       case 'hit':
-        fireProjectile(stage, ev.sourceId, ev.targetId, ev.element, function () {
+        // Advantage riders that add damage to the card the attack already struck
+        // (Sear, Expose, Drain, Reap) never crossed the stage — the attacker's own
+        // projectile landed a beat ago. A second orb flying the same path read as
+        // a whole extra attack, so these burn the element around the target the
+        // way affliction ticks do, and the HP follows the aura catching.
+        if (ev.visual === 'burn') {
+          elementBorder(ev.targetId, ev.element);
+          impact(ev.targetId, ev.amount, ev.ko);
+          commitVitalsAfter(ev, 200);
+          return 460;
+        }
+        // Chain lightning: a hit stamped with originId leaps off the card that
+        // was just struck instead of firing a second bolt from the attacker, so
+        // the arc reads as one shock travelling between targets. The origin's
+        // sprite can already be gone (the first hit KO'd it) — fall back to the
+        // attacker rather than dropping the projectile entirely.
+        var hitOrigin = (ev.originId && spriteOf(ev.originId)) ? ev.originId : ev.sourceId;
+        if (hitOrigin !== ev.sourceId) elementBorder(hitOrigin, ev.element);
+        fireProjectile(stage, hitOrigin, ev.targetId, ev.element, function () {
           impact(ev.targetId, ev.amount, ev.ko);
           commitVitals(ev);
         });

@@ -569,6 +569,17 @@ body[data-screen="rewardScreen"] .siege-screen{
   overflow:hidden; isolation:isolate; border:0; border-radius:0;
   background:#17212a; box-shadow:none;
 }
+.location-stage[data-land-location]{
+  background-color:#111923;
+  background-image:var(--location-land-art);
+  background-size:cover; background-position:center; background-repeat:no-repeat;
+}
+.location-stage[data-land-location] .location-art{opacity:0; visibility:hidden;}
+@media (orientation:portrait){
+  /* Shelter props live in the painted outer third; bias the phone crop toward
+     that landmark instead of showing only the deliberately calm play field. */
+  .location-stage[data-land-location]{background-position:28% center;}
+}
 .location-art{position:absolute; inset:0; width:100%; height:100%; z-index:-2;}
 /* Each stage ships two compositions. The 1200x680 board is drawn for a wide
    stage; slicing it into a tall phone stage crops the sides away and leaves the
@@ -1015,6 +1026,9 @@ body[data-screen="rewardScreen"] .siege-screen{
   background-size:cover; background-position:center; background-repeat:no-repeat;
   contain:paint; isolation:isolate;
 }
+body[data-battle-map*="-journey"] .battle-map,
+body[data-battle-map*="-elite"] .battle-map,
+body[data-battle-map*="-boss"] .battle-map{background-position:center 48%;}
 .battle-map::after{
   content:''; position:absolute; inset:0; pointer-events:none;
   background:
