@@ -553,13 +553,17 @@
     syncUlt();
   }
 
-  function damage(target, amount, events, sourceId, element) {
+  /* originId (optional) is presentation only: a chain-lightning arc launches its
+   * projectile from the card that was just struck while credit stays with the
+   * attacker. Mirrors advantageDamage in SiegeCombatEngine. */
+  function damage(target, amount, events, sourceId, element, originId) {
     var absorbed = Math.min(target.shield || 0, amount);
     target.shield = (target.shield || 0) - absorbed;
     target.hp = Math.max(0, target.hp - (amount - absorbed));
     if (target.hp <= 0) target.alive = false;
     events.push({
-      type: 'hit', sourceId: sourceId, targetId: target.id, element: element,
+      type: 'hit', sourceId: sourceId, originId: originId || null,
+      targetId: target.id, element: element,
       amount: amount, ko: !target.alive, vitals: vitalsOf([target.id])
     });
     return !target.alive;
@@ -673,7 +677,7 @@
       case 'ELECTRIC':
         if (friendly) {
           if (owner.side === 'PLAYER') b.knight.charge = Math.min(b.knight.ultCost, b.knight.charge + 1);
-        } else if (others[0]) damage(others[0], 2, events, owner.id, c.element);
+        } else if (others[0]) damage(others[0], 2, events, owner.id, c.element, focus.id);
         break;
       case 'METAL':
         if (friendly) shieldUnit(focus, 5, events);

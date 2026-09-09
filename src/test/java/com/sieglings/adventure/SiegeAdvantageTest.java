@@ -188,6 +188,66 @@ class SiegeAdvantageTest {
         }
     }
 
+    /**
+     * The Electric rider is chain lightning: the arc's projectile has to leave
+     * the enemy the attack just struck, not the attacker, so the hit it emits
+     * carries that card as its presentation origin.
+     */
+    @Test
+    void electricArcLaunchesFromTheStruckTargetNotTheAttacker() throws Exception {
+        Method method = SiegeCombatEngine.class.getDeclaredMethod("applyAdvantageRider", SiegeBattle.class,
+                Combatant.class, AbilitySpec.class, List.class, Random.class);
+        method.setAccessible(true);
+
+        SiegeBattle battle = new SiegeBattle(NodeType.BATTLE);
+        Combatant source = unit("source", "Source", Element.ELECTRIC, Side.PLAYER, 10, 0);
+        Combatant struck = unit("struck", "Struck", Element.NEUTRAL, Side.ENEMY, 5, 0);
+        Combatant bystander = unit("bystander", "Bystander", Element.NEUTRAL, Side.ENEMY, 4, 1);
+        struck.setHp(6);
+        bystander.setHp(4);
+        battle.getCombatants().addAll(List.of(source, struck, bystander));
+        SiegeAdvantage.ensureOrder(battle);
+        AbilitySpec spec = new AbilitySpec("bolt", "Bolt", Element.ELECTRIC, Effect.DAMAGE, 1,
+                TargetKind.ENEMY_SINGLE, 1, "Deal 1 damage.");
+
+        method.invoke(new SiegeCombatEngine(), battle, source, spec, List.of(struck), new Random(1));
+
+        Map<String, Object> arc = battle.getEvents().stream()
+                .filter(e -> "hit".equals(e.get("type")))
+                .reduce((a, b) -> b).orElse(null);
+        assertNotNull(arc, "the Electric rider should arc into a second enemy");
+        assertEquals("bystander", arc.get("targetId"));
+        assertEquals("struck", arc.get("originId"), "the bolt jumps off the card that was hit");
+        assertEquals("source", arc.get("sourceId"), "credit still belongs to the attacker");
+        assertEquals(2, bystander.getHp(), "the arc still deals its 2 damage");
+    }
+
+    /** Non-chaining riders keep the attacker as their origin. */
+    @Test
+    void nonChainRiderDamageHasNoSeparateOrigin() throws Exception {
+        Method method = SiegeCombatEngine.class.getDeclaredMethod("applyAdvantageRider", SiegeBattle.class,
+                Combatant.class, AbilitySpec.class, List.class, Random.class);
+        method.setAccessible(true);
+
+        SiegeBattle battle = new SiegeBattle(NodeType.BATTLE);
+        Combatant source = unit("source", "Source", Element.FIRE, Side.PLAYER, 10, 0);
+        Combatant target = unit("target", "Target", Element.NEUTRAL, Side.ENEMY, 5, 0);
+        target.setHp(6);
+        battle.getCombatants().addAll(List.of(source, target));
+        SiegeAdvantage.ensureOrder(battle);
+        AbilitySpec spec = new AbilitySpec("sear", "Sear", Element.FIRE, Effect.DAMAGE, 1,
+                TargetKind.ENEMY_SINGLE, 1, "Deal 1 damage.");
+
+        method.invoke(new SiegeCombatEngine(), battle, source, spec, List.of(target), new Random(1));
+
+        Map<String, Object> hit = battle.getEvents().stream()
+                .filter(e -> "hit".equals(e.get("type")))
+                .reduce((a, b) -> b).orElse(null);
+        assertNotNull(hit);
+        assertEquals("target", hit.get("targetId"));
+        assertEquals(null, hit.get("originId"));
+    }
+
     private static Combatant unit(String id, String name, Element element, Side side, int speed, int position) {
         Combatant c = new Combatant(id, name, element, side, 20, speed, null);
         c.setPosition(position);
