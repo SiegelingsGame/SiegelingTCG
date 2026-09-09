@@ -53,6 +53,8 @@ import java.util.stream.IntStream;
 @Controller
 public class GameController {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(GameController.class);
+
     private static final Set<String> GUEST_TRAINER_IDS = Set.of("squire-bob", "pyla", "ser-airek");
 
     @Autowired
@@ -387,6 +389,12 @@ public class GameController {
             return resp;
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage());
+        } catch (RuntimeException ex) {
+            // A 500 here is invisible to the client's error handling (fetchJson only
+            // sees "HTTP 500"), which is how a failed tutorial start left the previous
+            // match on screen. Report it as a normal error payload instead.
+            log.error("Failed to start match", ex);
+            return Map.of("error", "Could not start the match. Please try again.");
         }
     }
 
