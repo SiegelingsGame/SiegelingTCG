@@ -68,7 +68,7 @@ class TutorialRuleParityTest {
         // assertion pinning a phrase that had stopped existing (red on clean
         // origin/main). Re-keyed to the requirement the lesson still states.
         // The engine half of that contract is asserted directly, above.
-        assertTrue(tutorial.contains("ask for energy of their element"),
+        assertTrue(tutorial.contains("require energy of their element"),
                 "The cost lesson must keep stating that heavier Sieglings require energy of "
                         + "their own element.");
         assertTrue(tutorial.contains("survived a full battle phase"),
@@ -109,10 +109,8 @@ class TutorialRuleParityTest {
                         && tutorial.contains("'#enemyGrid .sb-badge'")
                         && tutorial.contains("'#playerGrid .sb-badge'"),
                 "The badge target must prefer opponent Burn, then any enemy badge, then the player's.");
-        assertTrue(tutorial.matches("(?s).*title: 'Little icons, big deal',\\R        target: badgeSelector, highlight: badgeHighlight,.*"),
+        assertTrue(tutorial.matches("(?s).*\\{ id: 'status',[^\\r\\n]*\\R        target: badgeSelector, highlight: badgeHighlight,.*"),
                 "The badge lesson must ring the badge itself, not the whole board area.");
-        assertTrue(!tutorial.contains("title: 'Little icons, big deal', target: '#boardArea'"),
-                "The badge lesson must no longer spotlight the entire board.");
 
         // Ringing badge + grid together was still the whole grid, because the union
         // of the two IS the grid. The spotlight closes onto the CELL holding the
@@ -204,7 +202,7 @@ class TutorialRuleParityTest {
                         && tutorial.contains("if (n > 0 && (!best || n > best.count)) best = { row: r, count: n };"),
                 "The row must be computed from the enemies actually standing there — a fixed 'middle' "
                         + "is wrong the moment the board differs.");
-        assertTrue(tutorial.contains("'Now choose <b>where</b>. The marked row is holding <b>' + n + '</b> '"),
+        assertTrue(tutorial.contains("'The marked row has <b>' + n + '</b> '"),
                 "The copy must say how many the swing catches, read from the board — that number is "
                         + "the point of the lesson.");
         assertTrue(tutorial.contains("until: function () { return rowPicked() || !battleTargeting() || battleTwoDone(); } },"),
@@ -252,7 +250,8 @@ class TutorialRuleParityTest {
                 "Both beats must mark what to tap — the bigger Fire move, then the card the numbers "
                         + "finish.");
         assertTrue(tutorial.contains("function burnMathSentence(plan)")
-                        && tutorial.contains("'Fire also leaves <b>Burn</b>, and burn ticks for <b>' + plan.burn + '</b> at the start of their next Setup — '"),
+                        && tutorial.contains("', leaving <b>' + plan.left + ' HP</b>. <b>Burn</b> deals <b>' + plan.burn +")
+                        && tutorial.contains("at the start of its owner’s next Setup"),
                 "The copy must say the arithmetic — hit, weakness, burn tick, HP — read from the "
                         + "board rather than baked into the prose.");
         assertTrue(tutorial.contains("skipIf: function () { return !burnPlan(); },"),

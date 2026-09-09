@@ -1,12 +1,12 @@
 /* A focused tour above the Knight popup; the arena coach stays underneath. */
 (() => {
     const steps = [
-        ['trainerAbilityCardPreview', 'Card View', 'This is your SiegeKnight card, with its artwork and printed abilities.'],
-        ['trainerAbilityRank', 'Rank (Squire)', 'This is your Knight’s rank. Squire Bob is a SiegeSquire.'],
-        ['trainerAbilityElement', 'Element', 'The card’s element helps you understand which allies its abilities support. Read each ability for its targets.'],
-        ['trainerAbilityRarity', 'Rarity of Card', 'This is the card’s rarity, such as Common, Uncommon, or Rare.'],
-        ['trainerAbilityDescription', 'Passive', 'Your passive works automatically when its conditions are met. You do not need to press Use.'],
-        ['trainerAbilityCopy', 'Active', 'This ability is used manually. The message below explains when it is available and whether it needs a target.']
+        ['trainerAbilityCardPreview', 'Card view', 'Your SiegeKnight’s card shows its artwork and abilities.'],
+        ['trainerAbilityRank', 'Rank', 'This shows your Knight’s rank. Squire Bob is a SiegeSquire.'],
+        ['trainerAbilityElement', 'Element', 'This is your Knight’s element. Each ability explains which allies or targets it affects.'],
+        ['trainerAbilityRarity', 'Rarity', 'This shows the card’s rarity, such as Common, Uncommon or Rare.'],
+        ['trainerAbilityDescription', 'Passive ability', 'Your passive ability works automatically whenever its conditions are met.'],
+        ['trainerAbilityCopy', 'Active ability', 'Tap Use to activate this ability. The message below shows when it is available and whether you need to choose a target.']
     ];
     let layer, frame, index = 0;
     function stop() {
