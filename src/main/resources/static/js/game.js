@@ -10326,6 +10326,14 @@ async function newGame() {
         }
     }
     if (!started) {
+        // The advanced chapter dismissed the end screen before asking for a new
+        // match, so a failed start would otherwise strand the player on the
+        // finished board with its dead opponent still at 0 HP. Put the end
+        // screen back and drop the pending flag so the next match is normal.
+        try { sessionStorage.removeItem(ADVANCED_TUTORIAL_KEY); } catch (e) { /* storage unavailable */ }
+        if (gameState?.gameOver) {
+            document.getElementById('gameOverOverlay')?.classList.add('visible');
+        }
         return;
     }
     if (tutorialMatchActive) {

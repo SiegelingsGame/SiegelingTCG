@@ -134,8 +134,16 @@ public class GameService {
         int[][] positions = {{0, 0}, {1, 0}, {1, 1}, {1, 2}, {2, 0}};
         for (int side = 0; side < teams.length; side++) {
             for (int i = 0; i < teams[side].length; i++) {
-                Card card = cardDefs.findCardCopy(teams[side][i]).orElseThrow();
-                if (!(card instanceof SieglingCard creature)) throw new IllegalStateException("Missing tutorial creature");
+                // Card ids can disappear from under us: the live dashboard overrides the
+                // generated catalog, so a card renamed or deleted there is simply absent
+                // at runtime. Skipping the slot leaves the sandbox one creature short,
+                // which is a lesson worth teaching; throwing 500'd /api/game/new and left
+                // the player staring at the finished previous match.
+                Card card = cardDefs.findCardCopy(teams[side][i]).orElse(null);
+                if (!(card instanceof SieglingCard creature)) {
+                    state.log("Advanced tutorial: skipped missing creature " + teams[side][i] + ".");
+                    continue;
+                }
                 CardInstance placed = new CardInstance(creature, positions[i][0], positions[i][1], side == 0);
                 placed.setBattlePhasesSeen(2);
                 placed.setPlacementOrder(state.consumePlacementOrder());
@@ -146,7 +154,7 @@ public class GameService {
         Player player = state.getPlayer();
         player.getHand().clear();
         for (String id : List.of("trap13", "spell_fire_06", "spell_earth_02", "spell_earth_01")) {
-            player.getHand().add(cardDefs.findCardCopy(id).orElseThrow());
+            cardDefs.findCardCopy(id).ifPresent(player.getHand()::add);
         }
         player.getHand().add(buildTutorialAshenWard());
         player.adjustTemporaryEnergy(Element.FIRE, 6);
