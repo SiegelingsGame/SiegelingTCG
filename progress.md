@@ -1,7 +1,12 @@
 Original prompt: Tutorial Flora Knight first draw; Burn/All Effects tips above card preview; swipe down to close preview
 
+<<<<<<< HEAD
 - September 9, 2026 — Arena tutorial draw order: scripted mulligan now deals **Raydile** (was Generoot); first normal draw is **Flora Knight** (was a second Raydile); turn two draws Generoot; turn three still Squire Bud. Burn chapter: coach tips for badge/first-stack/status/preview-close/damage/kill raise above the phone card preview (`z-index: 1390`); new **`badge-burn-sheet`** tip after tapping Burn; Burn/All Effects/Close tips pin toward the top of the screen; new **`preview-close`** asks to swipe the drawer down before Ability damage. Card preview swipe hint: "Swipe down to close · swipe for moves". Cache pins: `arena-tutorial.js` 37→38, `game.js` 286→287 (after advanced-tutorial fix already claimed 286 on main), `style.css` 259→260.
 - Verification: pending — focused Java tests, JS syntax, mobile-portrait coach layering check.
+=======
+- September 9, 2026 — Arena tutorial draw order: scripted mulligan now deals **Raydile** (was Generoot); first normal draw is **Flora Knight** (was a second Raydile); turn two draws Generoot; turn three still Squire Bud. Burn chapter: coach tips for badge/first-stack/status/preview-close/damage/kill raise above the phone card preview (`z-index: 1390`); new **`badge-burn-sheet`** tip after tapping Burn; Burn/All Effects/Close tips pin toward the top of the screen; new **`preview-close`** asks to swipe the drawer down before Ability damage. Card preview swipe hint: "Swipe down to close · swipe for moves". Cache pins: `arena-tutorial.js` 37→38, `game.js` 285→286, `style.css` 259→260.
+- Verification: `node --check` on `arena-tutorial.js` / `game.js`. `TutorialScriptedDrawTest` 7/7, `TutorialRuleParityTest` 5/5, `GameServiceTest` 22/22. Live API: mulligan index 4 deals `raydile`; following draw adds `floraknight`. Phone 390×844 harness: coach layer z=1390 above drawer (510) and effect overlay (1250); `badge-burn-sheet` / `badge-all` tips pinned at top=12; `preview-close` copy present; swipe hint reads "Swipe down to close · swipe for moves". Screenshots: `/opt/cursor/artifacts/burn-sheet-tip-above-preview-390.png`, `preview-close-tip-390.png`.
+>>>>>>> 2f941753 (Record Flora Knight / Burn preview tip verification)
 
 Original prompt: Merge and deploy
 
