@@ -114,6 +114,9 @@ public class GameService {
     /** Result of starting a solo game: the opaque token the client must echo back, plus the fresh state. */
     public record SoloHandle(String token, GameState state) {}
 
+    /** Hand size the advanced chapter is scripted around (four plays plus the Deception). */
+    private static final int ADVANCED_TUTORIAL_HAND_SIZE = 5;
+
     /** A playable late-game sandbox for the advanced chapter, without a mulligan. */
     public SoloHandle newAdvancedTutorialGame(String playerName) {
         SoloHandle handle = newTutorialGame(playerName);
@@ -157,6 +160,12 @@ public class GameService {
             cardDefs.findCardCopy(id).ifPresent(player.getHand()::add);
         }
         player.getHand().add(buildTutorialAshenWard());
+        // Live card data is the dashboard's, not the generated catalog's, and none of
+        // the pinned spell/trap ids survive there — which left the chapter holding a
+        // single card. The tutorial deck is built from whatever is live, so top the
+        // hand up from it: the lesson needs spells and traps to cast, not these
+        // specific ones.
+        topUpAdvancedTutorialHand(player);
         player.adjustTemporaryEnergy(Element.FIRE, 6);
         player.adjustTemporaryEnergy(Element.EARTH, 6);
         state.getEnemy().adjustTemporaryEnergy(Element.ICE, 8);
@@ -166,6 +175,18 @@ public class GameService {
         state.captureSieglingSetupPlacementBonusFromEnergy(true);
         state.log("Advanced tutorial: five creatures per side, prepared energy, and a Deception ready to practice.");
         return handle;
+    }
+
+    /** Fills the advanced sandbox hand out of the player's own (live) deck. */
+    private void topUpAdvancedTutorialHand(Player player) {
+        for (java.util.Iterator<Card> it = player.getDeck().iterator();
+                it.hasNext() && player.getHand().size() < ADVANCED_TUTORIAL_HAND_SIZE; ) {
+            Card next = it.next();
+            if (next instanceof SpellCard || next instanceof TrapCard) {
+                it.remove();
+                player.getHand().add(next);
+            }
+        }
     }
 
     /** Starts a brand-new solo game scoped to a freshly generated token. */
