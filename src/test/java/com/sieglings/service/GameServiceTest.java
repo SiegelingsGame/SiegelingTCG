@@ -997,6 +997,45 @@ class GameServiceTest {
     }
 
     @Test
+    void tutorialPlayerDeckSynthesizesShatterSealWhenLiveCatalogOmitsIt() throws Exception {
+        // Production shape: Firestore trap overrides replace the generated roster,
+        // so findCardCopy("trap13") is empty and the opening pool has no Shatter Seal.
+        GameService gameService = new GameService();
+        CardDefinitionService stubs = new CardDefinitionService() {
+            @Override
+            public java.util.Optional<Card> findCardCopy(String cardId) {
+                return java.util.Optional.empty();
+            }
+        };
+        setField(gameService, "cardDefs", stubs);
+
+        Player player = new Player("Roc", true);
+        List<Card> mixed = new ArrayList<>();
+        mixed.add(baseSiegling("sundile", "Sundile", Element.FIRE));
+        mixed.add(baseSiegling("pylook", "Pylook", Element.FIRE));
+        mixed.add(baseSiegling("pylook", "Pylook", Element.FIRE));
+        mixed.add(baseSiegling("raydile", "Raydile", Element.FIRE));
+        mixed.add(baseSiegling("floraknight", "Flora Knight", Element.EARTH));
+        mixed.add(baseSiegling("generoot", "Generoot", Element.EARTH));
+        mixed.add(baseSiegling("squirebud", "Squire Bud", Element.EARTH));
+        player.setDeck(mixed);
+
+        Method prepare = GameService.class.getDeclaredMethod("prepareTutorialPlayerDeck", Player.class);
+        prepare.setAccessible(true);
+        prepare.invoke(gameService, player);
+
+        List<String> top = player.getDeck().stream().limit(7).map(Card::getId).toList();
+        assertEquals(
+                List.of("sundile", "pylook", "tutorial_ashfall", "trap13", "pylook", "raydile", "floraknight"),
+                top,
+                "Missing live trap13 must not collapse the stack — Raydile stays for mulligan, Flora for turn one");
+        Card seal = player.getDeck().get(3);
+        assertTrue(seal instanceof TrapCard);
+        assertEquals("Shatter Seal", seal.getName());
+        assertEquals(Element.ICE, seal.getElement());
+    }
+
+    @Test
     void tutorialMulliganLocksLessonCardsAndPreservesDeckOrder() throws Exception {
         GameService gameService = new GameService();
         CardDefinitionService stubs = new CardDefinitionService() {

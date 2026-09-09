@@ -833,6 +833,13 @@ public class GameService {
                     taken = buildTutorialAshenWard();
                 } else if ("tutorial_ashfall".equals(id)) {
                     taken = buildTutorialAshfall();
+                } else if ("trap13".equals(id)) {
+                    // Live dashboard trap overrides replace the generated roster
+                    // wholesale — Shatter Seal (trap13) is often absent there.
+                    // Skipping the slot shifts Raydile into the opening five and
+                    // Flora Knight off the first normal draw; synthesize the
+                    // catalog copy so the scripted stack stays intact.
+                    taken = cardDefs.findCardCopy(id).orElseGet(this::buildTutorialShatterSeal);
                 } else {
                     taken = cardDefs.findCardCopy(id).orElse(null);
                 }
@@ -843,6 +850,30 @@ public class GameService {
         }
         ordered.addAll(pool);
         player.setDeck(ordered);
+    }
+
+    /**
+     * Catalog Shatter Seal when the live trap roster omitted it. Same numbers as
+     * {@code CardDefinitionService.createBaseTraps()} — Ice Deception vs the Dummy's
+     * Ice energy — kept here so the opening-hand slot cannot collapse.
+     */
+    private TrapCard buildTutorialShatterSeal() {
+        TrapCard seal = new TrapCard(
+                "trap13",
+                "Shatter Seal",
+                Element.ICE,
+                com.sieglings.model.enums.Rarity.UNCOMMON,
+                Element.ICE,
+                3,
+                Ability.damage(
+                        "Shatter Seal",
+                        "Deal 4 damage to 1 enemy if the opponent has 3 Ice energy",
+                        TargetType.SINGLE_ENEMY,
+                        null,
+                        1,
+                        4));
+        seal.setDescription("A training Deception — breaks an Ice target when the Dummy holds 3 Ice.");
+        return seal;
     }
 
     /** Tutorial-only Strategy so the Advanced chapter can teach shields on-board. */
@@ -1416,7 +1447,13 @@ public class GameService {
             }
             Card restored = takeNamedCard(player.getDeck(), id);
             if (restored == null) {
-                continue;
+                if ("trap13".equalsIgnoreCase(id)) {
+                    restored = buildTutorialShatterSeal();
+                } else if ("tutorial_ashfall".equalsIgnoreCase(id)) {
+                    restored = buildTutorialAshfall();
+                } else {
+                    continue;
+                }
             }
             // Keep hand size stable: park a non-required card under the deck.
             int swapIndex = -1;
