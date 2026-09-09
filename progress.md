@@ -1,3 +1,9 @@
+Original prompt: Merge and deploy (advanced tutorial live verification)
+
+- September 9, 2026 — Merged PR #867 (trap + no duplicates in the advanced tutorial hand) to `main` as `95301a9d`, after #864 (`5a6884b3`) and #865 (`64976e23`) earlier in the session. All three deploys succeeded.
+- Verification (live, `POST /api/game/new {tutorial, advancedTutorial}` against Hosting): **200**, `SETUP` / turn 6, 50-50 health, full board both sides (Dracoil / Raydile / Pylook / Flora Knight / Generoot vs Cozycub / Falcool / Frostfly / Ice-Wee / Fawny), and a five-card hand of five distinct cards including a trap — `Ashen Ward` (spell), `Ashen Air` (**trap**), `Ashfall`, `Shield of Fire`, `FirelinQ`. Before this session the same call was an HTTP 500, which is what left the finished match on screen with the dead opponent at 0 HP.
+- Root condition worth remembering: the live dashboard catalog shares **no** spell/trap ids with the generated catalog the tutorial is pinned to (`trap13`, `spell_fire_06`, `spell_earth_02`, `spell_earth_01` are all absent live; all ten pinned creature ids do exist). Any future hardcoded card id in server-side setup code must tolerate absence. The advanced chapter's *coach copy* still names the pinned cards — re-pinning the script to ids that exist in the dashboard is the durable follow-up, and the deployed advanced tutorial has not yet been walked end-to-end in a browser.
+
 Original prompt: Merge and deploy
 
 - September 9, 2026 — Live Flora-first-draw contract was still broken after #863/#866: the dashboard trap roster (7 traps) omits generated id `trap13` (Shatter Seal), so `prepareTutorialPlayerDeck` skipped that slot, Raydile slid into the opening five, and mulligan/turn-one draws shifted. `GameService` now synthesizes Shatter Seal (same Ice Deception as the base catalog) when the live copy is missing, and `ensureTutorialLessonOpeningHand` can restore it the same way.
