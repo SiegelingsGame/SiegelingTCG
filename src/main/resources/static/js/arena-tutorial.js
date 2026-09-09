@@ -1211,7 +1211,7 @@
       { id: 'matchup', title: 'Weakness badges',
         target: function () { return matchupCellSelector() || matchupBadgeSelector() || '#enemyGrid'; },
         highlight: matchupHighlight,
-        body: 'While you aim, <b>matchup badges</b> appear on enemy cards. A red <b>Weak</b> badge means your element beats theirs — the hit deals <b>+1 damage</b>. A gold <b>Strong</b> badge means their element beats yours, so you get no bonus. Read the badges to see who is weak or strong against this attack.',
+        body: 'While you aim, <b>matchup badges</b> appear on enemy cards. A red <b>Weak</b> badge means your element beats theirs — the hit deals <b>+1 damage</b>. A gold <b>Strong</b> badge means their element beats yours, so the hit is resisted for <b>-1 damage</b>. No badge means the elements share no matchup and the hit deals flat damage. Read the badges to see who is weak or strong against this attack.',
         skipIf: function () { return !hasMatchupBadge(); } },
 
       { id: 'target', hint: 'Pick a <b>target</b>', title: 'Choose a target',

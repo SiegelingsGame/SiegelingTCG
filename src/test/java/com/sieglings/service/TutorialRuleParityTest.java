@@ -149,8 +149,9 @@ class TutorialRuleParityTest {
                 "The matchup lesson must wait for a live badge (or targeting ending) before teaching.");
         assertTrue(tutorial.contains("red <b>Weak</b> badge")
                         && tutorial.contains("gold <b>Strong</b> badge")
-                        && tutorial.contains("+1 damage"),
-                "Matchup copy must name Weak (+1) and Strong (no bonus) for the targeting moment.");
+                        && tutorial.contains("+1 damage")
+                        && tutorial.contains("-1 damage"),
+                "Matchup copy must name Weak (+1) and Strong (resisted, -1) for the targeting moment.");
         assertTrue(tutorial.contains("Prefer a card with a <b>Weak</b> badge"),
                 "The choose-target beat that follows must reinforce picking Weak when possible.");
 
@@ -260,8 +261,10 @@ class TutorialRuleParityTest {
                 "The coach needs the burn-kill plan, computed in game.js off the same helpers the "
                         + "move panel prints.");
         assertTrue(game.contains("const weak = isElementWeakTo(element, cell.element);")
-                        && game.contains("const hit = base + (weak ? 1 : 0);"),
-                "Weakness must come from the shared chart and add the same +1 the panel previews.");
+                        && game.contains("const resists = !weak && isElementWeakTo(cell.element, element);")
+                        && game.contains("const hit = Math.max(1, base + (weak ? 1 : 0) - (resists ? 1 : 0));"),
+                "Weakness and resistance must come from the shared chart and move the hit by the same "
+                        + "+1/-1 the panel previews.");
         assertTrue(game.contains("if (left <= 0) continue;"),
                 "A target the swing kills outright is not this lesson — it teaches nothing about burn.");
         assertTrue(game.contains("if (left > stacks) continue;"),

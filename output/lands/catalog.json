@@ -1,0 +1,289 @@
+[ {
+  "id" : "fire",
+  "name" : "Emberfall",
+  "kind" : "ELEMENTAL",
+  "elements" : [ "FIRE" ],
+  "background" : "/img/lands/fire.webp",
+  "locations" : {
+    "journey" : "/img/lands/locations/fire-journey.webp",
+    "shelter" : "/img/lands/locations/fire-shelter.webp",
+    "elite" : "/img/lands/locations/fire-elite.webp",
+    "boss" : "/img/lands/locations/fire-boss.webp"
+  },
+  "feature" : "Ember Forge",
+  "featureType" : "SMITH",
+  "terrain" : "Cinder heat",
+  "effect" : "FIRE Siegelings start battles with +1 Attack.",
+  "encounters" : "Favored Siegelings have 4× draw weight in recruits, broker stock and card prizes.",
+  "eventTitle" : "The Cinder Smith"
+}, {
+  "id" : "ice",
+  "name" : "Frostveil",
+  "kind" : "ELEMENTAL",
+  "elements" : [ "ICE" ],
+  "background" : "/img/lands/ice.webp",
+  "locations" : {
+    "journey" : "/img/lands/locations/ice-journey.webp",
+    "shelter" : "/img/lands/locations/ice-shelter.webp",
+    "elite" : "/img/lands/locations/ice-elite.webp",
+    "boss" : "/img/lands/locations/ice-boss.webp"
+  },
+  "feature" : "Frost Shelter",
+  "featureType" : "REST",
+  "terrain" : "Glacial cover",
+  "effect" : "ICE Siegelings start battles with +5 Shield.",
+  "encounters" : "Favored Siegelings have 4× draw weight in recruits, broker stock and card prizes.",
+  "eventTitle" : "The Frozen Waystation"
+}, {
+  "id" : "wind",
+  "name" : "Zephyr Reach",
+  "kind" : "ELEMENTAL",
+  "elements" : [ "WIND" ],
+  "background" : "/img/lands/wind.webp",
+  "locations" : {
+    "journey" : "/img/lands/locations/wind-journey.webp",
+    "shelter" : "/img/lands/locations/wind-shelter.webp",
+    "elite" : "/img/lands/locations/wind-elite.webp",
+    "boss" : "/img/lands/locations/wind-boss.webp"
+  },
+  "feature" : "Sky Caravan",
+  "featureType" : "CARAVAN",
+  "terrain" : "Tailwinds",
+  "effect" : "WIND Siegelings gain +2 Speed for each battle.",
+  "encounters" : "Favored Siegelings have 4× draw weight in recruits, broker stock and card prizes.",
+  "eventTitle" : "The Sky Courier"
+}, {
+  "id" : "earth",
+  "name" : "Rootwild",
+  "kind" : "ELEMENTAL",
+  "elements" : [ "EARTH" ],
+  "background" : "/img/lands/earth.webp",
+  "locations" : {
+    "journey" : "/img/lands/locations/earth-journey.webp",
+    "shelter" : "/img/lands/locations/earth-shelter.webp",
+    "elite" : "/img/lands/locations/earth-elite.webp",
+    "boss" : "/img/lands/locations/earth-boss.webp"
+  },
+  "feature" : "Root Refuge",
+  "featureType" : "REST",
+  "terrain" : "Living roots",
+  "effect" : "EARTH Siegelings recover 4 HP at battle start.",
+  "encounters" : "Favored Siegelings have 4× draw weight in recruits, broker stock and card prizes.",
+  "eventTitle" : "The Root Tender"
+}, {
+  "id" : "water",
+  "name" : "Tideglass",
+  "kind" : "ELEMENTAL",
+  "elements" : [ "WATER" ],
+  "background" : "/img/lands/water.webp",
+  "locations" : {
+    "journey" : "/img/lands/locations/water-journey.webp",
+    "shelter" : "/img/lands/locations/water-shelter.webp",
+    "elite" : "/img/lands/locations/water-elite.webp",
+    "boss" : "/img/lands/locations/water-boss.webp"
+  },
+  "feature" : "Tide Traders",
+  "featureType" : "CARAVAN",
+  "terrain" : "Healing tides",
+  "effect" : "WATER Siegelings recover 4 HP at battle start.",
+  "encounters" : "Favored Siegelings have 4× draw weight in recruits, broker stock and card prizes.",
+  "eventTitle" : "The Tide Salvager"
+}, {
+  "id" : "electric",
+  "name" : "Stormspire",
+  "kind" : "ELEMENTAL",
+  "elements" : [ "ELECTRIC" ],
+  "background" : "/img/lands/electric.webp",
+  "locations" : {
+    "journey" : "/img/lands/locations/electric-journey.webp",
+    "shelter" : "/img/lands/locations/electric-shelter.webp",
+    "elite" : "/img/lands/locations/electric-elite.webp",
+    "boss" : "/img/lands/locations/electric-boss.webp"
+  },
+  "feature" : "Storm Beacon",
+  "featureType" : "EVENT",
+  "terrain" : "Charged air",
+  "effect" : "ELECTRIC Siegelings gain +2 Speed for each battle.",
+  "encounters" : "Favored Siegelings have 4× draw weight in recruits, broker stock and card prizes.",
+  "eventTitle" : "The Storm Chaser"
+}, {
+  "id" : "metal",
+  "name" : "Ironhold",
+  "kind" : "ELEMENTAL",
+  "elements" : [ "METAL" ],
+  "background" : "/img/lands/metal.webp",
+  "locations" : {
+    "journey" : "/img/lands/locations/metal-journey.webp",
+    "shelter" : "/img/lands/locations/metal-shelter.webp",
+    "elite" : "/img/lands/locations/metal-elite.webp",
+    "boss" : "/img/lands/locations/metal-boss.webp"
+  },
+  "feature" : "Iron Foundry",
+  "featureType" : "SMITH",
+  "terrain" : "Iron cover",
+  "effect" : "METAL Siegelings start battles with +5 Shield.",
+  "encounters" : "Favored Siegelings have 4× draw weight in recruits, broker stock and card prizes.",
+  "eventTitle" : "The Foundry Keeper"
+}, {
+  "id" : "shadow",
+  "name" : "Gloamwood",
+  "kind" : "ELEMENTAL",
+  "elements" : [ "SHADOW" ],
+  "background" : "/img/lands/shadow.webp",
+  "locations" : {
+    "journey" : "/img/lands/locations/shadow-journey.webp",
+    "shelter" : "/img/lands/locations/shadow-shelter.webp",
+    "elite" : "/img/lands/locations/shadow-elite.webp",
+    "boss" : "/img/lands/locations/shadow-boss.webp"
+  },
+  "feature" : "Veil Broker",
+  "featureType" : "BROKER",
+  "terrain" : "Hidden blades",
+  "effect" : "SHADOW Siegelings start battles with +1 Attack.",
+  "encounters" : "Favored Siegelings have 4× draw weight in recruits, broker stock and card prizes.",
+  "eventTitle" : "The Veiled Dealer"
+}, {
+  "id" : "undead",
+  "name" : "Hollow March",
+  "kind" : "ELEMENTAL",
+  "elements" : [ "UNDEAD" ],
+  "background" : "/img/lands/undead.webp",
+  "locations" : {
+    "journey" : "/img/lands/locations/undead-journey.webp",
+    "shelter" : "/img/lands/locations/undead-shelter.webp",
+    "elite" : "/img/lands/locations/undead-elite.webp",
+    "boss" : "/img/lands/locations/undead-boss.webp"
+  },
+  "feature" : "Grave Lantern",
+  "featureType" : "EVENT",
+  "terrain" : "Grave shelter",
+  "effect" : "UNDEAD Siegelings start battles with +5 Shield.",
+  "encounters" : "Favored Siegelings have 4× draw weight in recruits, broker stock and card prizes.",
+  "eventTitle" : "The Lantern Bearer"
+}, {
+  "id" : "psychic",
+  "name" : "Dreamfold",
+  "kind" : "ELEMENTAL",
+  "elements" : [ "PSYCHIC" ],
+  "background" : "/img/lands/psychic.webp",
+  "locations" : {
+    "journey" : "/img/lands/locations/psychic-journey.webp",
+    "shelter" : "/img/lands/locations/psychic-shelter.webp",
+    "elite" : "/img/lands/locations/psychic-elite.webp",
+    "boss" : "/img/lands/locations/psychic-boss.webp"
+  },
+  "feature" : "Dream Oracle",
+  "featureType" : "EVENT",
+  "terrain" : "Foresight",
+  "effect" : "PSYCHIC Siegelings gain +2 Speed for each battle.",
+  "encounters" : "Favored Siegelings have 4× draw weight in recruits, broker stock and card prizes.",
+  "eventTitle" : "The Dream Weaver"
+}, {
+  "id" : "poison",
+  "name" : "Venomfen",
+  "kind" : "ELEMENTAL",
+  "elements" : [ "POISON" ],
+  "background" : "/img/lands/poison.webp",
+  "locations" : {
+    "journey" : "/img/lands/locations/poison-journey.webp",
+    "shelter" : "/img/lands/locations/poison-shelter.webp",
+    "elite" : "/img/lands/locations/poison-elite.webp",
+    "boss" : "/img/lands/locations/poison-boss.webp"
+  },
+  "feature" : "Fen Broker",
+  "featureType" : "BROKER",
+  "terrain" : "Venomous edge",
+  "effect" : "POISON Siegelings start battles with +1 Attack.",
+  "encounters" : "Favored Siegelings have 4× draw weight in recruits, broker stock and card prizes.",
+  "eventTitle" : "The Fen Herbalist"
+}, {
+  "id" : "light",
+  "name" : "Dawnhaven",
+  "kind" : "ELEMENTAL",
+  "elements" : [ "LIGHT" ],
+  "background" : "/img/lands/light.webp",
+  "locations" : {
+    "journey" : "/img/lands/locations/light-journey.webp",
+    "shelter" : "/img/lands/locations/light-shelter.webp",
+    "elite" : "/img/lands/locations/light-elite.webp",
+    "boss" : "/img/lands/locations/light-boss.webp"
+  },
+  "feature" : "Dawn Sanctuary",
+  "featureType" : "REST",
+  "terrain" : "Restoring light",
+  "effect" : "LIGHT Siegelings recover 4 HP at battle start.",
+  "encounters" : "Favored Siegelings have 4× draw weight in recruits, broker stock and card prizes.",
+  "eventTitle" : "The Dawn Pilgrim"
+}, {
+  "id" : "obsidian",
+  "name" : "Obsidian Grove",
+  "kind" : "RARE",
+  "elements" : [ "FIRE", "EARTH" ],
+  "background" : "/img/lands/obsidian.webp",
+  "locations" : {
+    "journey" : "/img/lands/locations/obsidian-journey.webp",
+    "shelter" : "/img/lands/locations/obsidian-shelter.webp",
+    "elite" : "/img/lands/locations/obsidian-elite.webp",
+    "boss" : "/img/lands/locations/obsidian-boss.webp"
+  },
+  "feature" : "Rootfire Forge",
+  "featureType" : "SMITH",
+  "terrain" : "Rootfire",
+  "effect" : "FIRE / EARTH Siegelings start battles with +1 Attack.",
+  "encounters" : "Favored Siegelings have 4× draw weight in recruits, broker stock and card prizes.",
+  "eventTitle" : "The Rootfire Artisan"
+}, {
+  "id" : "aurora",
+  "name" : "Aurora Expanse",
+  "kind" : "RARE",
+  "elements" : [ "ICE", "WIND" ],
+  "background" : "/img/lands/aurora.webp",
+  "locations" : {
+    "journey" : "/img/lands/locations/aurora-journey.webp",
+    "shelter" : "/img/lands/locations/aurora-shelter.webp",
+    "elite" : "/img/lands/locations/aurora-elite.webp",
+    "boss" : "/img/lands/locations/aurora-boss.webp"
+  },
+  "feature" : "Aurora Shrine",
+  "featureType" : "EVENT",
+  "terrain" : "Aurora winds",
+  "effect" : "ICE / WIND Siegelings gain +2 Speed for each battle.",
+  "encounters" : "Favored Siegelings have 4× draw weight in recruits, broker stock and card prizes.",
+  "eventTitle" : "The Aurora Watcher"
+}, {
+  "id" : "relic",
+  "name" : "Gilded Hollow",
+  "kind" : "RARE",
+  "elements" : [ ],
+  "background" : "/img/lands/relic.webp",
+  "locations" : {
+    "journey" : "/img/lands/locations/relic-journey.webp",
+    "shelter" : "/img/lands/locations/relic-shelter.webp",
+    "elite" : "/img/lands/locations/relic-elite.webp",
+    "boss" : "/img/lands/locations/relic-boss.webp"
+  },
+  "feature" : "Relic Cache",
+  "featureType" : "TREASURE",
+  "terrain" : "Buried riches",
+  "effect" : "+50% earned gold; every battle offers an extra item choice.",
+  "encounters" : "More caches and relic rewards",
+  "eventTitle" : "The Vault Cartographer"
+}, {
+  "id" : "badlands",
+  "name" : "The Badlands",
+  "kind" : "BADLANDS",
+  "elements" : [ ],
+  "background" : "/img/lands/badlands.webp",
+  "locations" : {
+    "journey" : "/img/lands/locations/badlands-journey.webp",
+    "shelter" : "/img/lands/locations/badlands-shelter.webp",
+    "elite" : "/img/lands/locations/badlands-elite.webp",
+    "boss" : "/img/lands/locations/badlands-boss.webp"
+  },
+  "feature" : "Dread Siege",
+  "featureType" : "ELITE",
+  "terrain" : "Hostile ground",
+  "effect" : "Enemies have +25% HP and +15% damage. Earn +25% gold and choose a Badlands boon.",
+  "encounters" : "More elite encounters",
+  "eventTitle" : "The Ashbound Survivor"
+} ]
