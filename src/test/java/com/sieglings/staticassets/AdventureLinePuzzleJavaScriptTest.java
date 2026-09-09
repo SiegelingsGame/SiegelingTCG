@@ -53,6 +53,15 @@ class AdventureLinePuzzleJavaScriptTest {
     }
 
     @Test
+    void acknowledgingAnInteractionResultAppliesTheRunSoAPendingBoonCanOpen() throws IOException {
+        String ack = extractFunction(Files.readString(ADVENTURE_JS), "function ackInteractionResult()");
+        assertTrue(ack.contains("applyRun(run)"),
+                "Acking a Rift (or any lastReward popup) must go through applyRun so afterRunApplied can open a Badlands boon.");
+        assertFalse(ack.contains("renderMap()"),
+                "renderMap skips afterRunApplied; a Rift that rolled the Badlands would then hard-stick the map.");
+    }
+
+    @Test
     void endpointLockShipsWithAFreshCachePin() throws IOException {
         // Cache pins only move forward, so this is a floor: pinning the exact version
         // made every later, unrelated Adventure bump red.
