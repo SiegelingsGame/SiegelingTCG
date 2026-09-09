@@ -177,14 +177,30 @@ public class GameService {
         return handle;
     }
 
-    /** Fills the advanced sandbox hand out of the player's own (live) deck. */
+    /**
+     * Fills the advanced sandbox hand out of the player's own (live) deck. The
+     * chapter practises a Deception, so a trap is taken first: deck order is
+     * spell-heavy and a straight scan handed out five spells and no trap.
+     */
     private void topUpAdvancedTutorialHand(Player player) {
+        takeIntoAdvancedTutorialHand(player, true);
+        takeIntoAdvancedTutorialHand(player, false);
+    }
+
+    private void takeIntoAdvancedTutorialHand(Player player, boolean trapsOnly) {
         for (java.util.Iterator<Card> it = player.getDeck().iterator();
                 it.hasNext() && player.getHand().size() < ADVANCED_TUTORIAL_HAND_SIZE; ) {
             Card next = it.next();
-            if (next instanceof SpellCard || next instanceof TrapCard) {
-                it.remove();
-                player.getHand().add(next);
+            boolean castable = trapsOnly ? next instanceof TrapCard
+                    : (next instanceof SpellCard || next instanceof TrapCard);
+            // A duplicate reads as a dealing bug in a five-card teaching hand.
+            if (!castable || player.getHand().stream().anyMatch(held -> held.getName().equals(next.getName()))) {
+                continue;
+            }
+            it.remove();
+            player.getHand().add(next);
+            if (trapsOnly) {
+                return;
             }
         }
     }

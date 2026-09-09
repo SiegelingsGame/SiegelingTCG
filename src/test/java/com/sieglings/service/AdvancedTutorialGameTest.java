@@ -91,6 +91,10 @@ class AdvancedTutorialGameTest {
             GameState state = gameService.newAdvancedTutorialGame("Player").state();
             assertEquals(5, state.getPlayer().getHand().size());
             assertEquals(5, creatureCount(state, true));
+            // The chapter practises a Deception, so the top-up must not deal an
+            // all-spell hand, and a duplicate in five cards reads as a dealing bug.
+            assertTrue(state.getPlayer().getHand().stream().anyMatch(c -> c instanceof com.sieglings.model.TrapCard));
+            assertEquals(5, state.getPlayer().getHand().stream().map(Card::getName).distinct().count());
         } finally {
             ReflectionTestUtils.setField(gameService, "cardDefs", original);
         }

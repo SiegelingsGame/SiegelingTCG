@@ -1,3 +1,8 @@
+Original prompt: Merge and deploy (advanced tutorial hand composition)
+
+- September 9, 2026 — Live probe after #865 deployed showed the advanced chapter dealing a five-card hand that was **all spells, with a duplicate Ashen Ward** — the top-up scanned the deck in order and the tutorial deck is spell-heavy up front, even though three traps sat further down. The top-up now takes a trap first and skips a card whose name is already held, so the chapter always has a Deception to practise and never deals a visible duplicate.
+- Verification: `AdvancedTutorialGameTest` (all-pinned-ids-missing case) additionally asserts the hand contains a `TrapCard` and five distinct names; `Tutorial*Test` plus the new test — 23 pass. Rebased onto `main` after #863/#865/#866 landed mid-session.
+
 Original prompt: Tutorial Flora Knight first draw; Burn/All Effects tips above card preview; swipe down to close preview
 
 - September 9, 2026 — Arena tutorial draw order: scripted mulligan now deals **Raydile** (was Generoot); first normal draw is **Flora Knight** (was a second Raydile); turn two draws Generoot; turn three still Squire Bud. Burn chapter: coach tips for badge/first-stack/status/preview-close/damage/kill raise above the phone card preview (`z-index: 1390`); new **`badge-burn-sheet`** tip after tapping Burn; Burn/All Effects/Close tips pin toward the top of the screen; new **`preview-close`** asks to swipe the drawer down before Ability damage. Card preview swipe hint: "Swipe down to close · swipe for moves". Cache pins: `arena-tutorial.js` 37→38, `game.js` 286→287 (after advanced-tutorial fix already claimed 286 on main), `style.css` 259→260.
