@@ -1,3 +1,8 @@
+Original prompt: Edge and deploy (HUD Play/Filters/Friends layout)
+
+- September 9, 2026 — Merged PR #859 (hub HUD Play center-top; Cards/Decks Filters bottom-center / Friends bottom-left) to `main` as `3c390a02`; Deploy workflow https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/34375504174 succeeded (Cloud Run then Firebase Hosting + Functions).
+- Verification (live): Hosting `/home` and `/cards` serve `home.css?v=143`, `home.js?v=164`, `style.css?v=259`; `/play` serves `style.css?v=259`. Live `home.css?v=143` carries `body.hud-binder` order rules (`#playNowBtn` order 2, Friends 4, Filters 5); live `style.css?v=259` has `#playHubFriendsBtn` order 4 / `#playHubJoinCodeBtn` order 5. `/api/cards/editor` on Hosting and Cloud Run both healthy with live card data; `js/config.js` keeps `apiBaseUrl: ''`.
+
 Original prompt: Standardize the play button to the center top row of the HUD. For decks and card screen move filters to bottom center and friends to bottom left
 
 - September 9, 2026 — Hub phone-dock HUD now keeps **Play** in the center of the first action row on every route. On Cards/Decks, `body.hud-binder` reorders the second row to **Friends | Filters | Sign In** (Filters was mid-row beside Card View; Play had been bottom-left). The Play page dock matches Friends bottom-left (Join Code shifts to bottom center). Cache pins: `home.css` 142→143, `home.js` 163→164, `style.css` 258→259 (`home.html` / `card-dashboard.html` style pin brought to 259).
