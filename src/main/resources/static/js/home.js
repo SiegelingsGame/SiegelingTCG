@@ -8960,6 +8960,9 @@
         const social = isSocialRoute();
         const shop = state.route === 'shop';
         const filterOpen = state.filterTrayOpen;
+        // Drives the phone-dock CSS order so Cards/Decks can put Filters under
+        // Play while every other route keeps Play center-top.
+        document.body.classList.toggle('hud-binder', binder);
         const optionsBtn = document.getElementById('optionsBtn');
         optionsBtn?.classList.toggle('hidden', state.route !== 'home' && state.route !== 'profile');
         // Hide "Join With Code" on the Cards/Decks binder routes; it crowds the
