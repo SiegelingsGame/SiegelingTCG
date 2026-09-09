@@ -1389,8 +1389,8 @@ const CARD_ART_BY_KEY = Object.freeze({
 });
 const WELCOME_SLIDES = [
     {
-        title: '1. Notches can wake external sockets',
-        copy: 'When you place a Siegeling, any elemental notch that points off the board awakens a perimeter call well. That well supplies 1 baseline energy for the rest of the battle, even if the Siegeling is defeated.',
+        title: '1. Connect to sockets',
+        copy: 'An elemental notch facing a socket at the board’s edge activates it. The socket supplies 1 energy of that element each round and stays active after the Siegeling leaves.',
         visual: `
             <div class="tutorial-visual tutorial-board">
                 <div class="tutorial-arena-mid tutorial-arena-external-demo">
@@ -1429,13 +1429,13 @@ const WELCOME_SLIDES = [
                         <span class="tutorial-ex-point"></span>
                     </div>
                 </div>
-                <div class="tutorial-caption">The straight bar is the same external link the game draws from your card to the glowing socket.</div>
+                <div class="tutorial-caption">The connector shows an active socket link.</div>
             </div>
         `
     },
     {
-        title: '2. Same element, straight link',
-        copy: 'When opposite notches share an element, the arena draws a simple horizontal bar between them—exactly the same connector style you see between linked Siegelings in play.',
+        title: '2. Link matching elements',
+        copy: 'Facing notches of the same element form a link and generate energy of that element each round. A straight connector shows the link between the cards.',
         visual: `
             <div class="tutorial-visual tutorial-links">
                 <div class="tutorial-arena-mid tutorial-arena-compact">
@@ -1453,13 +1453,13 @@ const WELCOME_SLIDES = [
                         </div>
                     </div>
                 </div>
-                <div class="tutorial-caption">This is the same straight bar the live board draws between two matching notches.</div>
+                <div class="tutorial-caption">Matching Fire notches form a Fire energy link.</div>
             </div>
         `
     },
     {
-        title: '3. Mix elements for spells and traps',
-        copy: 'Linking different elements bends the pathway: the board blends both colors along a zigzag. That mixed energy is what lets you pay for powerful spell and trap cards that ask for more than one element.',
+        title: '3. Create combo points',
+        copy: 'Facing notches of different elements generate a combo point. The connector shows both colours. Check a card’s energy requirements to see which combo it needs.',
         visual: `
             <div class="tutorial-visual tutorial-mix">
                 <div class="tutorial-arena-mid tutorial-arena-compact">
@@ -1487,13 +1487,13 @@ const WELCOME_SLIDES = [
                         </div>
                     </div>
                 </div>
-                <div class="tutorial-caption">Hybrid links mirror the zigzag gradient paths the game paints for mismatched elements.</div>
+                <div class="tutorial-caption">Fire and Earth notches form a combo link.</div>
             </div>
         `
     },
     {
-        title: '4. Battle mode in motion',
-        copy: 'After setup, battle turns your board into combat: Siegelings strike in speed order, abilities resolve, and HP ticks down on both sides—this is the same two-board view you fight on.',
+        title: '4. Choose battle abilities',
+        copy: 'After both players finish Setup, Siegelings act in Speed order. Choose an ability and any required target for each of yours. Reduce the opponent’s HP to zero to win.',
         visual: `
             <div class="tutorial-visual tutorial-battle">
                 <div class="tutorial-battle-snapshot">
@@ -1541,7 +1541,7 @@ const WELCOME_SLIDES = [
                     </div>
                     <div class="tutorial-snap-phase">Battle</div>
                 </div>
-                <div class="tutorial-caption">Twin 3×3 halves, divider seam, and HP readout—snapshot of the live battlefield.</div>
+                <div class="tutorial-caption">Each player has a 3×3 board and an HP bar.</div>
             </div>
         `
     }
@@ -10676,10 +10676,10 @@ async function claimTutorialReward() {
                 : data.error);
             return;
         }
-        showMatchNoticeToast('Tutorial complete! A second starter pack and 250 Siegecoins were added to your account.');
+        showMatchNoticeToast('Tutorial complete. A second starter pack and 250 Siegecoins were added to your account.');
     } catch (error) {
         tutorialRewardRequested = false;
-        showMatchNoticeToast('Could not claim tutorial rewards - they stay claimable on your next tutorial win.');
+        showMatchNoticeToast('Your tutorial reward is still available. Try claiming it again after your next tutorial win.');
     }
 }
 
@@ -11355,11 +11355,11 @@ function renderLoadoutOptions() {
         inviteRoomBadge.classList.add('hidden');
         playerIdentityNote.textContent = 'This name is shown in online matches and saved on this device.';
     } else if (isTutorialMatchMode()) {
-        loadoutKicker.textContent = 'Training Grounds';
+        loadoutKicker.textContent = 'Practice';
         loadoutTitle.textContent = 'Tutorial Match';
-        loadoutSubtitle.textContent = 'Name yourself, then learn the arena in a repeatable practice battle.';
+        loadoutSubtitle.textContent = 'Enter your name, then learn Arena in a guided practice match.';
         inviteRoomBadge.classList.add('hidden');
-        playerIdentityNote.textContent = 'This name is shown on your side of the training board.';
+        playerIdentityNote.textContent = 'Your name appears above your board.';
     } else {
         loadoutKicker.textContent = 'Battle Loadout';
         loadoutTitle.textContent = 'Prepare for Battle';
@@ -15899,8 +15899,8 @@ function renderMulliganOverlay() {
             const swapIndex = allowedSet ? [...allowedSet][0] : hand.length - 1;
             const swapName = hand[swapIndex]?.name;
             copy.textContent = swapName
-                ? `Not sure about ${swapName}? Tap it, then Redraw selected — or take the hand as dealt with Keep hand.`
-                : 'Tap a card to swap it, then Redraw selected — or take the hand as dealt with Keep hand.';
+                ? `Tap ${swapName}, then Redraw selected to replace it. Choose Keep hand to keep your opening cards.`
+                : 'Tap the marked card, then Redraw selected to replace it. Choose Keep hand to keep your opening cards.';
         } else {
             copy.textContent = 'Select any cards to shuffle back into your deck; you draw the same number of new cards. Leave none selected to keep your whole hand. You get one mulligan before the first draw phase.';
         }
