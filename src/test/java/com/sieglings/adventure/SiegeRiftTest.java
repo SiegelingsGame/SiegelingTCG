@@ -84,6 +84,29 @@ class SiegeRiftTest {
     }
 
     @Test
+    void riftLandChangeIntoBadlandsSerializesABoonOfferAndGatesTravel() throws Exception {
+        SiegeRun run = newRun("STANDARD");
+        SiegeNode rift = placeRift(run);
+        run.setCurrentNodeId(rift.getId());
+        invoke("openRift", new Class<?>[]{SiegeRun.class}, run);
+        // Same leave shape riftCross uses, then the land change it shares with
+        // boss transitions. Forced Badlands so the wire contract the client ack
+        // path must honor is not RNG-dependent.
+        run.setInRift(false);
+        rift.setCleared(true);
+        invoke("applyLandChange", new Class<?>[]{SiegeRun.class, SiegeLand.class, Random.class},
+                run, SiegeLand.byId("badlands"), new Random(1));
+
+        Map<String, Object> out = service.state(run.getToken());
+        assertEquals("badlands", ((Map<?, ?>) out.get("land")).get("id"));
+        assertEquals("BADLANDS", out.get("boonSource"));
+        assertTrue(out.get("boonOffer") instanceof List<?> offer && !offer.isEmpty(),
+                "the client only opens the boon modal from serialize.boonOffer");
+        assertTrue(run.reachableNodeIds().isEmpty(),
+                "travel stays gated until the Badlands boon is picked");
+    }
+
+    @Test
     void riftRethemesOnlyUnclearedNodesInTheCurrentSegment() throws Exception {
         SiegeRun run = newRun("STANDARD");
         SiegeNode rift = placeRift(run);

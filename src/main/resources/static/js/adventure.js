@@ -1763,13 +1763,15 @@
   function ackInteractionResult() {
     if (state.busy || !state.interactionResult) return;
     state.busy = true;
-    var returnToMap = state.interactionResult.returnToMap;
     api('/api/siege/result/ack', { method: 'POST', body: { token: token() } })
       .then(function (run) {
         state.interactionResult = null;
-        state.run = run;
-        if (returnToMap) renderMap();
-        else renderRun();
+        // applyRun (not renderMap) is required: afterRunApplied opens a pending
+        // Badlands/Battlegrounds boon. A Rift that lands in the Badlands fills
+        // landBoonOffer and empties reachable nodes, so skipping the modal
+        // leaves the map with nowhere to travel until a refresh happens to
+        // take the resume path that does call afterRunApplied.
+        applyRun(run);
       })
       .catch(function (e) { toast(e.message); })
       .then(function () { state.busy = false; });

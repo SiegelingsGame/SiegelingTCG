@@ -148,6 +148,6 @@ class SiegeAdvantageTutorialJavaScriptTest {
         assertTrue(html.contains("/css/coach.css?v=4"), "coach.css pin");
         assertTrue(html.contains("/css/adventure.css?v=92"), "adventure.css pin");
         assertTrue(html.contains("/js/siege-tutorial.js?v=27"), "siege-tutorial.js pin");
-        assertTrue(html.contains("/js/adventure.js?v=99"), "adventure.js pin");
+        assertTrue(html.contains("/js/adventure.js?v=100"), "adventure.js pin");
     }
 }
