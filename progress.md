@@ -1,3 +1,6 @@
+- September 9, 2026 — Home **The Arena Awaits** quick-play CTA is labeled **Start Arena Match** (was "Start Match"). `queuePlayLoadout` / `goPlay` now tolerate `localStorage` failures so a private-mode or quota error cannot abort navigation to `/play`. Cache pin `home.js` 162→163.
+- Verification: `node --check` on `home.js`. Headless Chromium (phone + desktop): hero button text is "Start Arena Match"; tap navigates to `/play` and still sets `sieglingsPendingLoadout` when storage works; with `localStorage.setItem` stubbed to throw, tap still navigates to `/play`.
+
 - September 9, 2026 — Merged PR #848 (Arena tutorial step 17 opponent Burn → Fire tag) to `main`; Deploy workflow https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/34308458654 succeeded.
 - Verification (live): Hosting `play.html` serves `arena-tutorial.js?v=35`, `coach.js?v=6`, `game.js?v=283`; live `arena-tutorial.js` is byte-identical to `origin/main` and exposes `enemyBurnCellSelector` / `first-stack` opponent tap / Burn-tag Fire element copy; `/api/cards/editor` on Hosting and Cloud Run both `source=FIRESTORE`, `liveEditingEnabled=true`; `config.js` `apiBaseUrl: ''`.
 

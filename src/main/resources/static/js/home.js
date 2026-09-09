@@ -2701,7 +2701,7 @@
                     </div>
                     <div class="command-hero-actions">
                         <button class="ghost-btn command-hero-btn" type="button" data-home-action="cards"><span>Cards</span>Owned Cards</button>
-                        <button class="primary-btn command-hero-btn command-hero-btn-primary" type="button" data-home-action="pve"><span>Play</span>Start Match</button>
+                        <button class="primary-btn command-hero-btn command-hero-btn-primary" type="button" data-home-action="pve"><span>Play</span>Start Arena Match</button>
                         <button class="ghost-btn command-hero-btn" type="button" data-home-action="deck-builder"><span>Deck</span>Deck Builder</button>
                     </div>
                 </div>
@@ -3401,8 +3401,13 @@
             const action = btn.dataset.homeAction;
             const directLink = btn.tagName === 'A';
             if (action === 'pve') {
+                // Always navigate — handoff prep is best-effort so a storage
+                // failure cannot leave Start Arena Match looking dead.
+                if (!directLink) {
+                    event.preventDefault();
+                    return goPlay({ mode: 'solo', directLoadout: true });
+                }
                 queuePlayLoadout({ mode: 'solo', directLoadout: true });
-                if (!directLink) return goPlay({ mode: 'solo', directLoadout: true });
                 return;
             }
             if (action === 'create-lobby') {
@@ -8813,29 +8818,39 @@
             || (!payload.directLoadout && savedDeck?.custom && savedDeck.customDeckCards?.length ? savedDeck.customDeckCards : null);
         const loadoutLabel = payload.loadoutLabel
             || (customDeckCards?.length ? (savedDeck?.name || 'Custom Loadout') : '');
-        localStorage.setItem(PENDING_LOADOUT_KEY, JSON.stringify({
-            createdAt: Date.now(),
-            deckId: tutorial ? '' : (payload.deckId || selectedDeckId()),
-            trainerId: tutorial ? '' : (payload.trainerId || selectedTrainerId()),
-            mode: tutorial ? 'tutorial' : (payload.mode || 'solo'),
-            onlineRoomMode: payload.onlineRoomMode || 'join',
-            roomId: payload.roomId || '',
-            battleLaunch: Boolean(payload.battleLaunch),
-            directLoadout: Boolean(payload.directLoadout),
-            startStep: payload.startStep === 'setup' ? 'setup' : '',
-            tutorial,
-            customDeckCards: tutorial ? null : customDeckCards,
-            loadoutLabel,
-            playerName: payload.playerName
-                || (state.profile?.authenticated ? (state.profile?.user?.displayName || '') : 'Guest')
-        }));
+        // Safari private mode / full quota throws on setItem; never let that
+        // abort goPlay() — the play page can still open without a handoff.
+        try {
+            localStorage.setItem(PENDING_LOADOUT_KEY, JSON.stringify({
+                createdAt: Date.now(),
+                deckId: tutorial ? '' : (payload.deckId || selectedDeckId()),
+                trainerId: tutorial ? '' : (payload.trainerId || selectedTrainerId()),
+                mode: tutorial ? 'tutorial' : (payload.mode || 'solo'),
+                onlineRoomMode: payload.onlineRoomMode || 'join',
+                roomId: payload.roomId || '',
+                battleLaunch: Boolean(payload.battleLaunch),
+                directLoadout: Boolean(payload.directLoadout),
+                startStep: payload.startStep === 'setup' ? 'setup' : '',
+                tutorial,
+                customDeckCards: tutorial ? null : customDeckCards,
+                loadoutLabel,
+                playerName: payload.playerName
+                    || (state.profile?.authenticated ? (state.profile?.user?.displayName || '') : 'Guest')
+            }));
+        } catch (error) {
+            console.warn('Could not persist pending loadout handoff', error);
+        }
     }
 
     function goPlay(payload) {
-        queuePlayLoadout(payload);
-        // The art stays up through the navigation, covering the play page's
-        // own startup time.
-        showLoadingArtScreen('Heading into battle...');
+        try {
+            queuePlayLoadout(payload);
+            // The art stays up through the navigation, covering the play page's
+            // own startup time.
+            showLoadingArtScreen('Heading into battle...');
+        } catch (error) {
+            console.warn('Play handoff prep failed; navigating anyway', error);
+        }
         window.location.href = '/play';
     }
 
