@@ -1,3 +1,8 @@
+Original prompt: In tutorial this would be a great moment to talk about the weakness badge when targeting you can see who is weak and who is strong against your attack based on the badge
+
+- September 9, 2026 — Arena tutorial now teaches **matchup badges** at the first damage-targeting moment. A gated `matchup` beat (after ability choose, before target pick) rings the enemy card wearing a Weak/Strong overlay and explains: red **Weak** = your element beats theirs (+1 damage); gold **Strong** = their element beats yours (no bonus). The following `target` tip reinforces preferring Weak. Battle targeting tip in `game.js` updated to name both badge colors. Cache pins: `arena-tutorial.js` 36→37, `game.js` 284→285 (`play.html`; `home.html` / `card-dashboard.html` game pin brought to 285).
+- Verification: pending — syntax check, `TutorialRuleParityTest`, headless coach render of the matchup tip with a live badge overlay.
+
 Original prompt: Edge and deploy (HUD Play/Filters/Friends layout)
 
 - September 9, 2026 — Merged PR #859 (hub HUD Play center-top; Cards/Decks Filters bottom-center / Friends bottom-left) to `main` as `3c390a02`; Deploy workflow https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/34375504174 succeeded (Cloud Run then Firebase Hosting + Functions).
