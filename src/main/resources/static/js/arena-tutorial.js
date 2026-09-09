@@ -503,6 +503,49 @@
     try { return !!(b && b.battleTargeting && b.battleTargeting()); } catch (e) { return false; }
   }
 
+  /**
+   * Matchup badges (Weak / Strong) appear on enemy cards while aiming a damage
+   * ability. Prefer the Weak badge — that is what the Fire opener shows on the
+   * Ice Dummy — then any Strong, then any overlay. Selector-based so the coach
+   * can re-resolve every frame the same way badgeSelector does.
+   */
+  function matchupBadgeSelector() {
+    return firstOf([
+      '.matchup-badge-overlay[data-kind="WEAK"]',
+      '.matchup-badge-overlay[data-kind="STRONG"]',
+      '.matchup-badge-overlay'
+    ]);
+  }
+
+  /** Board cell wearing a live matchup badge, for a tight ring on the card. */
+  function matchupCellSelector() {
+    var badge = null;
+    try {
+      badge = document.querySelector('.matchup-badge-overlay[data-kind="WEAK"]')
+        || document.querySelector('.matchup-badge-overlay[data-kind="STRONG"]')
+        || document.querySelector('.matchup-badge-overlay');
+    } catch (e) { return null; }
+    if (!badge || !badge.closest) return null;
+    var cell = badge.closest('.board-cell');
+    if (!cell) return null;
+    var grid = badge.closest('#playerGrid') ? '#playerGrid' : '#enemyGrid';
+    var r = cell.getAttribute('data-row'), c = cell.getAttribute('data-col');
+    if (r == null || c == null) return null;
+    var sel = grid + ' .board-cell[data-row="' + r + '"][data-col="' + c + '"]';
+    return visible(sel) ? sel : null;
+  }
+
+  function matchupHighlight() {
+    var cell = matchupCellSelector();
+    if (cell) return [cell];
+    var badge = matchupBadgeSelector();
+    return badge ? [badge] : ['#enemyGrid'];
+  }
+
+  function hasMatchupBadge() {
+    return visible('.matchup-badge-overlay');
+  }
+
   /** True once a row is marked and the board is waiting on Confirm. A row move
    *  costs two taps, so "pick a row" and "confirm the row" are separate lessons
    *  — one tip covering both would sit over a board that already moved on. */
@@ -1145,10 +1188,23 @@
         skipIf: function () { return !actingCard(); },
         until: function () { return battleTargeting() || !actingCard() || phase() !== 'BATTLE'; } },
 
+      // Badges paint on a double-rAF after targeting opens, so a skipIf here
+      // would drop the lesson before the overlay exists. Gate until a badge is
+      // live (or targeting already ended — non-damage aims never show one).
+      { id: 'gate-matchup', skipTo: 'target',
+        hint: 'Watch for matchup badges on enemies',
+        gate: function () { return hasMatchupBadge() || !battleTargeting(); } },
+
+      { id: 'matchup', title: 'Weakness badges',
+        target: function () { return matchupCellSelector() || matchupBadgeSelector() || '#enemyGrid'; },
+        highlight: matchupHighlight,
+        body: 'While you aim, <b>matchup badges</b> appear on enemy cards. A red <b>Weak</b> badge means your element beats theirs — the hit deals <b>+1 damage</b>. A gold <b>Strong</b> badge means their element beats yours, so you get no bonus. Read the badges to see who is weak or strong against this attack.',
+        skipIf: function () { return !hasMatchupBadge(); } },
+
       { id: 'target', hint: 'Pick a <b>target</b>', title: 'Choose a target',
         target: function () { return firstOf(['#enemyGrid .board-cell.targetable', '#enemyGrid']); },
         highlight: ['#enemyGrid .board-cell.targetable', '#playerGrid .board-cell.targetable'],
-        body: 'Tap a <b>highlighted cell</b> to choose a target. A single-target ability hits that Siegeling. A row ability lets you select and confirm an entire row.',
+        body: 'Tap a <b>highlighted cell</b> to choose a target. Prefer a card with a <b>Weak</b> badge when you can — that hit deals bonus damage. A row ability lets you select and confirm an entire row.',
         skipIf: function () { return !visible('#enemyGrid .board-cell.targetable'); },
         until: function () { return !visible('#enemyGrid .board-cell.targetable'); } },
 
