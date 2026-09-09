@@ -1,3 +1,6 @@
+- September 9, 2026 — Home **The Arena Awaits** quick-play CTA is labeled **Start Arena Match** (was "Start Match"). `queuePlayLoadout` / `goPlay` now tolerate `localStorage` failures so a private-mode or quota error cannot abort navigation to `/play`. Cache pin `home.js` 162→163.
+- Verification: `node --check` on `home.js`. Headless Chromium (phone + desktop): hero button text is "Start Arena Match"; tap navigates to `/play` and still sets `sieglingsPendingLoadout` when storage works; with `localStorage.setItem` stubbed to throw, tap still navigates to `/play`.
+
 - September 9, 2026 — Keep Guide demo sanctuary now uses Siegeling cutouts only: Woodlot resident is **Cacty** (with `artUrl` card art), second resident is **Applehead**; letter-token placeholders removed from the guest coach. Cache pin `keep-tutorial.js` 2→3.
 - Verification: `node --check` on `keep-tutorial.js`. Headless Chromium guest guide → Woodlot interior: resident name Cacty, `#interiorResidentArt` is `is-paper-cutout` with cacty.png img (no initials); Residents panel shows Cacty + Applehead cutouts only.
 
