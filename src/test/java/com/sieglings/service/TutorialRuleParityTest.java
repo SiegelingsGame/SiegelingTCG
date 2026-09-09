@@ -136,6 +136,24 @@ class TutorialRuleParityTest {
                 "The badge lesson must ask for the tap that opens the card view and wait for it — "
                         + "with an escape for the badge expiring, since a badge is transient and the "
                         + "board re-renders under it.");
+
+        // Matchup Weak/Strong badges paint on a double-rAF after damage targeting
+        // opens, so the lesson is gated (not skipIf'd) before the target pick.
+        assertTrue(tutorial.contains("function matchupBadgeSelector()")
+                        && tutorial.contains("'.matchup-badge-overlay[data-kind=\"WEAK\"]'")
+                        && tutorial.contains("'.matchup-badge-overlay[data-kind=\"STRONG\"]'"),
+                "Matchup targeting must prefer Weak, then Strong, then any overlay.");
+        assertTrue(tutorial.contains("{ id: 'gate-matchup'")
+                        && tutorial.contains("hasMatchupBadge() || !battleTargeting()")
+                        && tutorial.contains("{ id: 'matchup', title: 'Weakness badges'"),
+                "The matchup lesson must wait for a live badge (or targeting ending) before teaching.");
+        assertTrue(tutorial.contains("red <b>Weak</b> badge")
+                        && tutorial.contains("gold <b>Strong</b> badge")
+                        && tutorial.contains("+1 damage"),
+                "Matchup copy must name Weak (+1) and Strong (no bonus) for the targeting moment.");
+        assertTrue(tutorial.contains("Prefer a card with a <b>Weak</b> badge"),
+                "The choose-target beat that follows must reinforce picking Weak when possible.");
+
         assertTrue(tutorial.contains("{ id: 'badge-chip'") && tutorial.contains("{ id: 'badge-all'"),
                 "The chip and the full reference must be their own beats.");
         assertTrue(tutorial.contains("hint: 'Tap the <b>Burn</b> tag'")

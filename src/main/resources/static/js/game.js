@@ -3304,7 +3304,7 @@ function buildBattleTargetingArrowHint(ability, targetSide, selectedRow = -1) {
         case 'move':
             return 'Follow the purple preview arrow to see where the forced movement will pull an enemy, then tap the highlighted target.';
         case 'damage':
-            return 'Follow the orange attack arrow from your ACTING Siegeling to a highlighted enemy. Tap that card to strike. Weakness badges mean +1 damage.';
+            return 'Follow the orange attack arrow from your ACTING Siegeling to a highlighted enemy. Tap that card to strike. Red Weak badges mean +1 damage; gold Strong badges mean no bonus.';
         default:
             return 'Follow the glowing preview arrow from your ACTING Siegeling to a highlighted target on the board, then tap that card.';
     }
