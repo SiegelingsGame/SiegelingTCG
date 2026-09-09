@@ -1566,7 +1566,10 @@ public class SiegeCombatEngine {
                     Combatant arc = battle.living(focus.getSide()).stream()
                             .filter(c -> !c.getId().equals(focus.getId()))
                             .min(Comparator.comparingInt(Combatant::getHp)).orElse(null);
-                    if (arc != null) advantageDamage(battle, source, arc, 2);
+                    // Chain lightning: the bolt leaps off the card that was just
+                    // struck, so the arc's projectile flies focus -> arc rather
+                    // than a second shot from the attacker.
+                    if (arc != null) advantageDamage(battle, source, focus, arc, 2);
                 }
             }
             case METAL -> {
@@ -1621,12 +1624,38 @@ public class SiegeCombatEngine {
                 "advantage", true);
     }
 
+    /**
+     * Rider damage that lands on the card the attack already struck (Sear, Expose,
+     * Drain, Reap — every rider whose target is the {@code focus}). Nothing crosses
+     * the stage for these: the attacker's own projectile arrived a beat ago, so the
+     * hit is stamped {@code visual=burn} and the client burns the element around the
+     * target the way affliction ticks do. Callers that damage a *different* card
+     * must use the origin overload instead, or the bolt will appear from nowhere.
+     */
     private void advantageDamage(SiegeBattle battle, Combatant source, Combatant target, int amount) {
+        advantageDamage(battle, source, null, "burn", target, amount);
+    }
+
+    /**
+     * @param origin where the projectile should launch from when it isn't the
+     *               attacker — a chain-lightning arc leaps off the card that was
+     *               just hit. Presentation only; credit still goes to {@code source}.
+     */
+    private void advantageDamage(SiegeBattle battle, Combatant source, Combatant origin,
+                                 Combatant target, int amount) {
+        advantageDamage(battle, source, origin, null, target, amount);
+    }
+
+    private void advantageDamage(SiegeBattle battle, Combatant source, Combatant origin,
+                                 String visual, Combatant target, int amount) {
         if (target == null || !target.isAlive()) return;
         boolean wasAlive = target.isAlive();
         int dealt = target.takeDamage(amount);
         boolean killed = wasAlive && !target.isAlive();
-        battle.event("hit", "sourceId", source.getId(), "targetId", target.getId(), "amount", dealt,
+        battle.event("hit", "sourceId", source.getId(),
+                "originId", origin == null ? null : origin.getId(),
+                "visual", visual,
+                "targetId", target.getId(), "amount", dealt,
                 "element", source.getElement() == null ? null : source.getElement().name(),
                 "ko", killed, "advantage", true);
         if (!killed) return;
