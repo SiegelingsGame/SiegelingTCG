@@ -1,3 +1,8 @@
+Original prompt: Merge and deploy (matchup Weak/Strong badges tutorial)
+
+- September 9, 2026 — Merged PR #861 (Arena tutorial matchup Weak/Strong badges lesson) to `main` as `c17e0524`; Deploy workflow https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/34378848817 succeeded (Cloud Run then Firebase Hosting + Functions).
+- Verification (live): Hosting `/play` serves `arena-tutorial.js?v=37` and `game.js?v=285`; live `arena-tutorial.js?v=37` exposes `gate-matchup` / `matchup` Weakness badges copy (red Weak +1 / gold Strong no bonus) and prefer-Weak target tip; live `game.js?v=285` targeting tip names both badge colors. `/api/cards/editor` on Hosting and Cloud Run both `source=FIRESTORE`, `liveEditingEnabled=true`, `firestoreAvailable=true`; `js/config.js` keeps `apiBaseUrl: ''`; `/api/game/options` 200 with 6 decks / 13 trainers.
+
 Original prompt: In tutorial this would be a great moment to talk about the weakness badge when targeting you can see who is weak and who is strong against your attack based on the badge
 
 - September 9, 2026 — Arena tutorial now teaches **matchup badges** at the first damage-targeting moment. A gated `matchup` beat (after ability choose, before target pick) rings the enemy card wearing a Weak/Strong overlay and explains: red **Weak** = your element beats theirs (+1 damage); gold **Strong** = their element beats yours (no bonus). The following `target` tip reinforces preferring Weak. Battle targeting tip in `game.js` updated to name both badge colors. Cache pins: `arena-tutorial.js` 36→37, `game.js` 284→285 (`play.html`; `home.html` / `card-dashboard.html` game pin brought to 285).
