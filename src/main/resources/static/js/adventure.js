@@ -214,10 +214,32 @@
     // Battle and map are static, full-viewport screens (no page scroll —
     // only their own internal regions, like the map canvas, scroll).
     document.body.dataset.screen = id;
+    applyLandLocation(id);
     // Every screen opens at its top. Arriving from a scrolled screen used to
     // carry that offset over, which on the puzzle screen meant landing halfway
     // down the board with the title hidden under the top bar.
     resetViewportScroll();
+  }
+
+  /** Paint non-combat journey stops with the active Land's matching scene. */
+  function applyLandLocation(screenId) {
+    var kinds = {
+      campScreen: 'shelter', brokerScreen: 'shelter', smithScreen: 'shelter', caravanScreen: 'shelter',
+      cacheScreen: 'journey', eventScreen: 'journey'
+    };
+    var screen = $(screenId);
+    var stage = screen && screen.querySelector('.location-stage');
+    if (!stage) return;
+    var land = state.run && state.run.land;
+    var kind = kinds[screenId];
+    var url = kind && land && land.locations && land.locations[kind];
+    if (!url) {
+      stage.style.removeProperty('--location-land-art');
+      delete stage.dataset.landLocation;
+      return;
+    }
+    stage.style.setProperty('--location-land-art', 'url("' + artCss(url) + '?v=1")');
+    stage.dataset.landLocation = (land.id || 'land') + '-' + kind;
   }
 
   function renderGameToText() {
@@ -3074,6 +3096,7 @@
 
   // ---- battle stage ----------------------------------------------------
   var MAP_ASSET_V = '1';
+  var LAND_LOCATION_ASSET_V = '1';
   var battleMapPreload = null;
 
   /** Deterministic index into a pool from a node id (stable across reloads). */
@@ -3085,6 +3108,18 @@
 
   function mapUrl(id, orient) {
     return '/img/maps/' + id + '-' + orient + '.svg?v=' + MAP_ASSET_V;
+  }
+
+  function battleMapSpec(node) {
+    var land = state.run && state.run.land;
+    var kind = node && node.type === 'BOSS' ? 'boss' : node && node.type === 'ELITE' ? 'elite' : 'journey';
+    var landUrl = land && land.locations && land.locations[kind];
+    if (landUrl) {
+      return { id: (land.id || 'land') + '-' + kind, landscape: landUrl + '?v=' + LAND_LOCATION_ASSET_V,
+        portrait: landUrl + '?v=' + LAND_LOCATION_ASSET_V };
+    }
+    var id = battleMapId(node);
+    return id ? { id: id, landscape: mapUrl(id, 'landscape'), portrait: mapUrl(id, 'portrait') } : null;
   }
 
   /** Resolve a node to one stable arena id, shared by paint and preload. */
@@ -3113,24 +3148,24 @@
 
   /** Resolve and paint the illustrated battlefield for a map node. */
   function applyBattleMap(node) {
-    var id = battleMapId(node);
-    if (!id) { clearBattleMap(); return; }
+    var spec = battleMapSpec(node);
+    if (!spec) { clearBattleMap(); return; }
 
     var stage = $('battleStage');
     if (!stage) return;
-    stage.style.setProperty('--map-landscape', 'url("' + mapUrl(id, 'landscape') + '")');
-    stage.style.setProperty('--map-portrait', 'url("' + mapUrl(id, 'portrait') + '")');
-    document.body.dataset.battleMap = id;
+    stage.style.setProperty('--map-landscape', 'url("' + artCss(spec.landscape) + '")');
+    stage.style.setProperty('--map-portrait', 'url("' + artCss(spec.portrait) + '")');
+    document.body.dataset.battleMap = spec.id;
     document.body.dataset.battleNode = node.type || '';
   }
 
   /** Preload the composition matching current orientation for an upcoming fight. */
   function preloadBattleMap(node) {
     if (typeof document === 'undefined') return;
-    var id = battleMapId(node);
-    if (!id) return;
+    var spec = battleMapSpec(node);
+    if (!spec) return;
     var land = matchMedia('(orientation: landscape)').matches;
-    var href = mapUrl(id, land ? 'landscape' : 'portrait');
+    var href = land ? spec.landscape : spec.portrait;
     if (battleMapPreload && battleMapPreload.getAttribute('href') === href) return;
     if (battleMapPreload && battleMapPreload.parentNode) {
       battleMapPreload.parentNode.removeChild(battleMapPreload);

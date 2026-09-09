@@ -143,8 +143,8 @@ class SiegeAdvantageTutorialJavaScriptTest {
         // 4 for the .tut-locked rule: Siege shares coach.css, so a stale pin
         // here would leave the Siege coach without it.
         assertTrue(html.contains("/css/coach.css?v=4"), "coach.css pin");
-        assertTrue(html.contains("/css/adventure.css?v=92"), "adventure.css pin");
+        assertTrue(html.contains("/css/adventure.css?v=93"), "adventure.css pin");
         assertTrue(html.contains("/js/siege-tutorial.js?v=25"), "siege-tutorial.js pin");
-        assertTrue(html.contains("/js/adventure.js?v=97"), "adventure.js pin");
+        assertTrue(html.contains("/js/adventure.js?v=98"), "adventure.js pin");
     }
 }

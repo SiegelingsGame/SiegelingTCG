@@ -1,0 +1,464 @@
+{
+  "generationMode": "OpenAI built-in ImageGen",
+  "referenceRoles": {
+    "image1": "Existing portrait Land painting under /img/lands",
+    "image2": "Rendered muster-field-landscape.svg composition reference"
+  },
+  "sharedPrompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark.",
+  "scenePrompts": {
+    "journey": "An exposed expedition route through the Land with distinctive natural waymarkers and a distant landmark; a broad traversable center.",
+    "shelter": "A protected unoccupied waystation shaped from local materials, with shelter, rest area, work surface and supplies at the outer thirds; open center.",
+    "elite": "A dangerous elite encounter clearing with harsher terrain, broken siege remnants and an ominous environmental light; two readable formation bands.",
+    "boss": "A grand climactic circular arena native to the Land, framed by monumental broken arches and its signature distant landmark; dramatic edges and readable center."
+  },
+  "assets": [
+    {
+      "landId": "fire",
+      "landName": "Emberfall",
+      "scene": "journey",
+      "path": "src/main/resources/static/img/lands/locations/fire-journey.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: volcanic basalt canyon, flowing ember-orange lava around the side cliffs, obsidian stepping stones and drifting sparks; palette ember red #ff501e and charcoal. Land name for mood only: Emberfall (do not write the name). Scene: An exposed expedition route through the Land with distinctive natural waymarkers and a distant landmark; a broad traversable center."
+    },
+    {
+      "landId": "fire",
+      "landName": "Emberfall",
+      "scene": "shelter",
+      "path": "src/main/resources/static/img/lands/locations/fire-shelter.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: volcanic basalt canyon, flowing ember-orange lava around the side cliffs, obsidian stepping stones and drifting sparks; palette ember red #ff501e and charcoal. Land name for mood only: Emberfall (do not write the name). Scene: A protected unoccupied waystation shaped from local materials, with shelter, rest area, work surface and supplies at the outer thirds; open center."
+    },
+    {
+      "landId": "fire",
+      "landName": "Emberfall",
+      "scene": "elite",
+      "path": "src/main/resources/static/img/lands/locations/fire-elite.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: volcanic basalt canyon, flowing ember-orange lava around the side cliffs, obsidian stepping stones and drifting sparks; palette ember red #ff501e and charcoal. Land name for mood only: Emberfall (do not write the name). Scene: A dangerous elite encounter clearing with harsher terrain, broken siege remnants and an ominous environmental light; two readable formation bands."
+    },
+    {
+      "landId": "fire",
+      "landName": "Emberfall",
+      "scene": "boss",
+      "path": "src/main/resources/static/img/lands/locations/fire-boss.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: volcanic basalt canyon, flowing ember-orange lava around the side cliffs, obsidian stepping stones and drifting sparks; palette ember red #ff501e and charcoal. Land name for mood only: Emberfall (do not write the name). Scene: A grand climactic circular arena native to the Land, framed by monumental broken arches and its signature distant landmark; dramatic edges and readable center."
+    },
+    {
+      "landId": "ice",
+      "landName": "Frostveil",
+      "scene": "journey",
+      "path": "src/main/resources/static/img/lands/locations/ice-journey.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: glacial valley, faceted ice spires along the edges, frozen river and soft snow; palette cyan #76e6ff and midnight blue. Land name for mood only: Frostveil (do not write the name). Scene: An exposed expedition route through the Land with distinctive natural waymarkers and a distant landmark; a broad traversable center."
+    },
+    {
+      "landId": "ice",
+      "landName": "Frostveil",
+      "scene": "shelter",
+      "path": "src/main/resources/static/img/lands/locations/ice-shelter.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: glacial valley, faceted ice spires along the edges, frozen river and soft snow; palette cyan #76e6ff and midnight blue. Land name for mood only: Frostveil (do not write the name). Scene: A protected unoccupied waystation shaped from local materials, with shelter, rest area, work surface and supplies at the outer thirds; open center."
+    },
+    {
+      "landId": "ice",
+      "landName": "Frostveil",
+      "scene": "elite",
+      "path": "src/main/resources/static/img/lands/locations/ice-elite.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: glacial valley, faceted ice spires along the edges, frozen river and soft snow; palette cyan #76e6ff and midnight blue. Land name for mood only: Frostveil (do not write the name). Scene: A dangerous elite encounter clearing with harsher terrain, broken siege remnants and an ominous environmental light; two readable formation bands."
+    },
+    {
+      "landId": "ice",
+      "landName": "Frostveil",
+      "scene": "boss",
+      "path": "src/main/resources/static/img/lands/locations/ice-boss.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: glacial valley, faceted ice spires along the edges, frozen river and soft snow; palette cyan #76e6ff and midnight blue. Land name for mood only: Frostveil (do not write the name). Scene: A grand climactic circular arena native to the Land, framed by monumental broken arches and its signature distant landmark; dramatic edges and readable center."
+    },
+    {
+      "landId": "wind",
+      "landName": "Zephyr Reach",
+      "scene": "journey",
+      "path": "src/main/resources/static/img/lands/locations/wind-journey.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: high windswept floating grass islands above mist, stone arches and swirling cloud ribbons along the edges; palette mint #96ffb4 and deep teal. Land name for mood only: Zephyr Reach (do not write the name). Scene: An exposed expedition route through the Land with distinctive natural waymarkers and a distant landmark; a broad traversable center."
+    },
+    {
+      "landId": "wind",
+      "landName": "Zephyr Reach",
+      "scene": "shelter",
+      "path": "src/main/resources/static/img/lands/locations/wind-shelter.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: high windswept floating grass islands above mist, stone arches and swirling cloud ribbons along the edges; palette mint #96ffb4 and deep teal. Land name for mood only: Zephyr Reach (do not write the name). Scene: A protected unoccupied waystation shaped from local materials, with shelter, rest area, work surface and supplies at the outer thirds; open center."
+    },
+    {
+      "landId": "wind",
+      "landName": "Zephyr Reach",
+      "scene": "elite",
+      "path": "src/main/resources/static/img/lands/locations/wind-elite.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: high windswept floating grass islands above mist, stone arches and swirling cloud ribbons along the edges; palette mint #96ffb4 and deep teal. Land name for mood only: Zephyr Reach (do not write the name). Scene: A dangerous elite encounter clearing with harsher terrain, broken siege remnants and an ominous environmental light; two readable formation bands."
+    },
+    {
+      "landId": "wind",
+      "landName": "Zephyr Reach",
+      "scene": "boss",
+      "path": "src/main/resources/static/img/lands/locations/wind-boss.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: high windswept floating grass islands above mist, stone arches and swirling cloud ribbons along the edges; palette mint #96ffb4 and deep teal. Land name for mood only: Zephyr Reach (do not write the name). Scene: A grand climactic circular arena native to the Land, framed by monumental broken arches and its signature distant landmark; dramatic edges and readable center."
+    },
+    {
+      "landId": "earth",
+      "landName": "Rootwild",
+      "scene": "journey",
+      "path": "src/main/resources/static/img/lands/locations/earth-journey.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: ancient woodland canyon, gigantic roots and mossy rock terraces around an open forest clearing; palette ochre #b48c50 and forest green. Land name for mood only: Rootwild (do not write the name). Scene: An exposed expedition route through the Land with distinctive natural waymarkers and a distant landmark; a broad traversable center."
+    },
+    {
+      "landId": "earth",
+      "landName": "Rootwild",
+      "scene": "shelter",
+      "path": "src/main/resources/static/img/lands/locations/earth-shelter.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: ancient woodland canyon, gigantic roots and mossy rock terraces around an open forest clearing; palette ochre #b48c50 and forest green. Land name for mood only: Rootwild (do not write the name). Scene: A protected unoccupied waystation shaped from local materials, with shelter, rest area, work surface and supplies at the outer thirds; open center."
+    },
+    {
+      "landId": "earth",
+      "landName": "Rootwild",
+      "scene": "elite",
+      "path": "src/main/resources/static/img/lands/locations/earth-elite.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: ancient woodland canyon, gigantic roots and mossy rock terraces around an open forest clearing; palette ochre #b48c50 and forest green. Land name for mood only: Rootwild (do not write the name). Scene: A dangerous elite encounter clearing with harsher terrain, broken siege remnants and an ominous environmental light; two readable formation bands."
+    },
+    {
+      "landId": "earth",
+      "landName": "Rootwild",
+      "scene": "boss",
+      "path": "src/main/resources/static/img/lands/locations/earth-boss.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: ancient woodland canyon, gigantic roots and mossy rock terraces around an open forest clearing; palette ochre #b48c50 and forest green. Land name for mood only: Rootwild (do not write the name). Scene: A grand climactic circular arena native to the Land, framed by monumental broken arches and its signature distant landmark; dramatic edges and readable center."
+    },
+    {
+      "landId": "water",
+      "landName": "Tideglass",
+      "scene": "journey",
+      "path": "src/main/resources/static/img/lands/locations/water-journey.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: flooded coastal ruins, turquoise tidal pools, weathered pillars and coral along the edges; palette blue #3296ff and deep navy. Land name for mood only: Tideglass (do not write the name). Scene: An exposed expedition route through the Land with distinctive natural waymarkers and a distant landmark; a broad traversable center."
+    },
+    {
+      "landId": "water",
+      "landName": "Tideglass",
+      "scene": "shelter",
+      "path": "src/main/resources/static/img/lands/locations/water-shelter.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: flooded coastal ruins, turquoise tidal pools, weathered pillars and coral along the edges; palette blue #3296ff and deep navy. Land name for mood only: Tideglass (do not write the name). Scene: A protected unoccupied waystation shaped from local materials, with shelter, rest area, work surface and supplies at the outer thirds; open center."
+    },
+    {
+      "landId": "water",
+      "landName": "Tideglass",
+      "scene": "elite",
+      "path": "src/main/resources/static/img/lands/locations/water-elite.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: flooded coastal ruins, turquoise tidal pools, weathered pillars and coral along the edges; palette blue #3296ff and deep navy. Land name for mood only: Tideglass (do not write the name). Scene: A dangerous elite encounter clearing with harsher terrain, broken siege remnants and an ominous environmental light; two readable formation bands."
+    },
+    {
+      "landId": "water",
+      "landName": "Tideglass",
+      "scene": "boss",
+      "path": "src/main/resources/static/img/lands/locations/water-boss.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: flooded coastal ruins, turquoise tidal pools, weathered pillars and coral along the edges; palette blue #3296ff and deep navy. Land name for mood only: Tideglass (do not write the name). Scene: A grand climactic circular arena native to the Land, framed by monumental broken arches and its signature distant landmark; dramatic edges and readable center."
+    },
+    {
+      "landId": "electric",
+      "landName": "Stormspire",
+      "scene": "journey",
+      "path": "src/main/resources/static/img/lands/locations/electric-journey.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: storm-swept rocky plateau, lightning striking tall natural crystal spires along the outer edges; palette yellow #ffe63c and slate indigo. Land name for mood only: Stormspire (do not write the name). Scene: An exposed expedition route through the Land with distinctive natural waymarkers and a distant landmark; a broad traversable center."
+    },
+    {
+      "landId": "electric",
+      "landName": "Stormspire",
+      "scene": "shelter",
+      "path": "src/main/resources/static/img/lands/locations/electric-shelter.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: storm-swept rocky plateau, lightning striking tall natural crystal spires along the outer edges; palette yellow #ffe63c and slate indigo. Land name for mood only: Stormspire (do not write the name). Scene: A protected unoccupied waystation shaped from local materials, with shelter, rest area, work surface and supplies at the outer thirds; open center."
+    },
+    {
+      "landId": "electric",
+      "landName": "Stormspire",
+      "scene": "elite",
+      "path": "src/main/resources/static/img/lands/locations/electric-elite.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: storm-swept rocky plateau, lightning striking tall natural crystal spires along the outer edges; palette yellow #ffe63c and slate indigo. Land name for mood only: Stormspire (do not write the name). Scene: A dangerous elite encounter clearing with harsher terrain, broken siege remnants and an ominous environmental light; two readable formation bands."
+    },
+    {
+      "landId": "electric",
+      "landName": "Stormspire",
+      "scene": "boss",
+      "path": "src/main/resources/static/img/lands/locations/electric-boss.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: storm-swept rocky plateau, lightning striking tall natural crystal spires along the outer edges; palette yellow #ffe63c and slate indigo. Land name for mood only: Stormspire (do not write the name). Scene: A grand climactic circular arena native to the Land, framed by monumental broken arches and its signature distant landmark; dramatic edges and readable center."
+    },
+    {
+      "landId": "metal",
+      "landName": "Ironhold",
+      "scene": "journey",
+      "path": "src/main/resources/static/img/lands/locations/metal-journey.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: ancient iron fortress valley, monumental forge walls, riveted bridges and steel cliffs along the edges; palette steel #a0aab4 and blue charcoal. Land name for mood only: Ironhold (do not write the name). Scene: An exposed expedition route through the Land with distinctive natural waymarkers and a distant landmark; a broad traversable center."
+    },
+    {
+      "landId": "metal",
+      "landName": "Ironhold",
+      "scene": "shelter",
+      "path": "src/main/resources/static/img/lands/locations/metal-shelter.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: ancient iron fortress valley, monumental forge walls, riveted bridges and steel cliffs along the edges; palette steel #a0aab4 and blue charcoal. Land name for mood only: Ironhold (do not write the name). Scene: A protected unoccupied waystation shaped from local materials, with shelter, rest area, work surface and supplies at the outer thirds; open center."
+    },
+    {
+      "landId": "metal",
+      "landName": "Ironhold",
+      "scene": "elite",
+      "path": "src/main/resources/static/img/lands/locations/metal-elite.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: ancient iron fortress valley, monumental forge walls, riveted bridges and steel cliffs along the edges; palette steel #a0aab4 and blue charcoal. Land name for mood only: Ironhold (do not write the name). Scene: A dangerous elite encounter clearing with harsher terrain, broken siege remnants and an ominous environmental light; two readable formation bands."
+    },
+    {
+      "landId": "metal",
+      "landName": "Ironhold",
+      "scene": "boss",
+      "path": "src/main/resources/static/img/lands/locations/metal-boss.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: ancient iron fortress valley, monumental forge walls, riveted bridges and steel cliffs along the edges; palette steel #a0aab4 and blue charcoal. Land name for mood only: Ironhold (do not write the name). Scene: A grand climactic circular arena native to the Land, framed by monumental broken arches and its signature distant landmark; dramatic edges and readable center."
+    },
+    {
+      "landId": "shadow",
+      "landName": "Gloamwood",
+      "scene": "journey",
+      "path": "src/main/resources/static/img/lands/locations/shadow-journey.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: enchanted twilight forest, curling black trees, violet mist and shadowy ruins along the outer edges; palette violet #9a63d6 and deep plum. Land name for mood only: Gloamwood (do not write the name). Scene: An exposed expedition route through the Land with distinctive natural waymarkers and a distant landmark; a broad traversable center."
+    },
+    {
+      "landId": "shadow",
+      "landName": "Gloamwood",
+      "scene": "shelter",
+      "path": "src/main/resources/static/img/lands/locations/shadow-shelter.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: enchanted twilight forest, curling black trees, violet mist and shadowy ruins along the outer edges; palette violet #9a63d6 and deep plum. Land name for mood only: Gloamwood (do not write the name). Scene: A protected unoccupied waystation shaped from local materials, with shelter, rest area, work surface and supplies at the outer thirds; open center."
+    },
+    {
+      "landId": "shadow",
+      "landName": "Gloamwood",
+      "scene": "elite",
+      "path": "src/main/resources/static/img/lands/locations/shadow-elite.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: enchanted twilight forest, curling black trees, violet mist and shadowy ruins along the outer edges; palette violet #9a63d6 and deep plum. Land name for mood only: Gloamwood (do not write the name). Scene: A dangerous elite encounter clearing with harsher terrain, broken siege remnants and an ominous environmental light; two readable formation bands."
+    },
+    {
+      "landId": "shadow",
+      "landName": "Gloamwood",
+      "scene": "boss",
+      "path": "src/main/resources/static/img/lands/locations/shadow-boss.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: enchanted twilight forest, curling black trees, violet mist and shadowy ruins along the outer edges; palette violet #9a63d6 and deep plum. Land name for mood only: Gloamwood (do not write the name). Scene: A grand climactic circular arena native to the Land, framed by monumental broken arches and its signature distant landmark; dramatic edges and readable center."
+    },
+    {
+      "landId": "undead",
+      "landName": "Hollow March",
+      "scene": "journey",
+      "path": "src/main/resources/static/img/lands/locations/undead-journey.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: silent ancient necropolis, crooked grave stones, bone-white ruins and spectral mist around an empty valley; palette dusty lavender #8c78a0 and muted charcoal. Land name for mood only: Hollow March (do not write the name). Scene: An exposed expedition route through the Land with distinctive natural waymarkers and a distant landmark; a broad traversable center."
+    },
+    {
+      "landId": "undead",
+      "landName": "Hollow March",
+      "scene": "shelter",
+      "path": "src/main/resources/static/img/lands/locations/undead-shelter.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: silent ancient necropolis, crooked grave stones, bone-white ruins and spectral mist around an empty valley; palette dusty lavender #8c78a0 and muted charcoal. Land name for mood only: Hollow March (do not write the name). Scene: A protected unoccupied waystation shaped from local materials, with shelter, rest area, work surface and supplies at the outer thirds; open center."
+    },
+    {
+      "landId": "undead",
+      "landName": "Hollow March",
+      "scene": "elite",
+      "path": "src/main/resources/static/img/lands/locations/undead-elite.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: silent ancient necropolis, crooked grave stones, bone-white ruins and spectral mist around an empty valley; palette dusty lavender #8c78a0 and muted charcoal. Land name for mood only: Hollow March (do not write the name). Scene: A dangerous elite encounter clearing with harsher terrain, broken siege remnants and an ominous environmental light; two readable formation bands."
+    },
+    {
+      "landId": "undead",
+      "landName": "Hollow March",
+      "scene": "boss",
+      "path": "src/main/resources/static/img/lands/locations/undead-boss.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: silent ancient necropolis, crooked grave stones, bone-white ruins and spectral mist around an empty valley; palette dusty lavender #8c78a0 and muted charcoal. Land name for mood only: Hollow March (do not write the name). Scene: A grand climactic circular arena native to the Land, framed by monumental broken arches and its signature distant landmark; dramatic edges and readable center."
+    },
+    {
+      "landId": "psychic",
+      "landName": "Dreamfold",
+      "scene": "journey",
+      "path": "src/main/resources/static/img/lands/locations/psychic-journey.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: surreal dream valley with levitating purple crystals, broken floating stairs and faint cosmic mist along the edges; palette lavender #c896ff and midnight violet. Land name for mood only: Dreamfold (do not write the name). Scene: An exposed expedition route through the Land with distinctive natural waymarkers and a distant landmark; a broad traversable center."
+    },
+    {
+      "landId": "psychic",
+      "landName": "Dreamfold",
+      "scene": "shelter",
+      "path": "src/main/resources/static/img/lands/locations/psychic-shelter.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: surreal dream valley with levitating purple crystals, broken floating stairs and faint cosmic mist along the edges; palette lavender #c896ff and midnight violet. Land name for mood only: Dreamfold (do not write the name). Scene: A protected unoccupied waystation shaped from local materials, with shelter, rest area, work surface and supplies at the outer thirds; open center."
+    },
+    {
+      "landId": "psychic",
+      "landName": "Dreamfold",
+      "scene": "elite",
+      "path": "src/main/resources/static/img/lands/locations/psychic-elite.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: surreal dream valley with levitating purple crystals, broken floating stairs and faint cosmic mist along the edges; palette lavender #c896ff and midnight violet. Land name for mood only: Dreamfold (do not write the name). Scene: A dangerous elite encounter clearing with harsher terrain, broken siege remnants and an ominous environmental light; two readable formation bands."
+    },
+    {
+      "landId": "psychic",
+      "landName": "Dreamfold",
+      "scene": "boss",
+      "path": "src/main/resources/static/img/lands/locations/psychic-boss.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: surreal dream valley with levitating purple crystals, broken floating stairs and faint cosmic mist along the edges; palette lavender #c896ff and midnight violet. Land name for mood only: Dreamfold (do not write the name). Scene: A grand climactic circular arena native to the Land, framed by monumental broken arches and its signature distant landmark; dramatic edges and readable center."
+    },
+    {
+      "landId": "poison",
+      "landName": "Venomfen",
+      "scene": "journey",
+      "path": "src/main/resources/static/img/lands/locations/poison-journey.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: mysterious glowing swamp, moss draped trees and luminous green mushrooms around still pools; palette acid green #78dc50 and deep olive. Land name for mood only: Venomfen (do not write the name). Scene: An exposed expedition route through the Land with distinctive natural waymarkers and a distant landmark; a broad traversable center."
+    },
+    {
+      "landId": "poison",
+      "landName": "Venomfen",
+      "scene": "shelter",
+      "path": "src/main/resources/static/img/lands/locations/poison-shelter.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: mysterious glowing swamp, moss draped trees and luminous green mushrooms around still pools; palette acid green #78dc50 and deep olive. Land name for mood only: Venomfen (do not write the name). Scene: A protected unoccupied waystation shaped from local materials, with shelter, rest area, work surface and supplies at the outer thirds; open center."
+    },
+    {
+      "landId": "poison",
+      "landName": "Venomfen",
+      "scene": "elite",
+      "path": "src/main/resources/static/img/lands/locations/poison-elite.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: mysterious glowing swamp, moss draped trees and luminous green mushrooms around still pools; palette acid green #78dc50 and deep olive. Land name for mood only: Venomfen (do not write the name). Scene: A dangerous elite encounter clearing with harsher terrain, broken siege remnants and an ominous environmental light; two readable formation bands."
+    },
+    {
+      "landId": "poison",
+      "landName": "Venomfen",
+      "scene": "boss",
+      "path": "src/main/resources/static/img/lands/locations/poison-boss.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: mysterious glowing swamp, moss draped trees and luminous green mushrooms around still pools; palette acid green #78dc50 and deep olive. Land name for mood only: Venomfen (do not write the name). Scene: A grand climactic circular arena native to the Land, framed by monumental broken arches and its signature distant landmark; dramatic edges and readable center."
+    },
+    {
+      "landId": "light",
+      "landName": "Dawnhaven",
+      "scene": "journey",
+      "path": "src/main/resources/static/img/lands/locations/light-journey.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: sunlit sacred ruins high above clouds, pale gold stone arches and shafts of warm light along edges; palette ivory gold #fff0b0 and warm deep bronze. Land name for mood only: Dawnhaven (do not write the name). Scene: An exposed expedition route through the Land with distinctive natural waymarkers and a distant landmark; a broad traversable center."
+    },
+    {
+      "landId": "light",
+      "landName": "Dawnhaven",
+      "scene": "shelter",
+      "path": "src/main/resources/static/img/lands/locations/light-shelter.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: sunlit sacred ruins high above clouds, pale gold stone arches and shafts of warm light along edges; palette ivory gold #fff0b0 and warm deep bronze. Land name for mood only: Dawnhaven (do not write the name). Scene: A protected unoccupied waystation shaped from local materials, with shelter, rest area, work surface and supplies at the outer thirds; open center."
+    },
+    {
+      "landId": "light",
+      "landName": "Dawnhaven",
+      "scene": "elite",
+      "path": "src/main/resources/static/img/lands/locations/light-elite.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: sunlit sacred ruins high above clouds, pale gold stone arches and shafts of warm light along edges; palette ivory gold #fff0b0 and warm deep bronze. Land name for mood only: Dawnhaven (do not write the name). Scene: A dangerous elite encounter clearing with harsher terrain, broken siege remnants and an ominous environmental light; two readable formation bands."
+    },
+    {
+      "landId": "light",
+      "landName": "Dawnhaven",
+      "scene": "boss",
+      "path": "src/main/resources/static/img/lands/locations/light-boss.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: sunlit sacred ruins high above clouds, pale gold stone arches and shafts of warm light along edges; palette ivory gold #fff0b0 and warm deep bronze. Land name for mood only: Dawnhaven (do not write the name). Scene: A grand climactic circular arena native to the Land, framed by monumental broken arches and its signature distant landmark; dramatic edges and readable center."
+    },
+    {
+      "landId": "obsidian",
+      "landName": "Obsidian Grove",
+      "scene": "journey",
+      "path": "src/main/resources/static/img/lands/locations/obsidian-journey.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: rare fire and earth woodland where roots weave through basalt and small lava channels, amber leaves and embers at edges; palette burnt orange, ochre and dark forest. Land name for mood only: Obsidian Grove (do not write the name). Scene: An exposed expedition route through the Land with distinctive natural waymarkers and a distant landmark; a broad traversable center."
+    },
+    {
+      "landId": "obsidian",
+      "landName": "Obsidian Grove",
+      "scene": "shelter",
+      "path": "src/main/resources/static/img/lands/locations/obsidian-shelter.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: rare fire and earth woodland where roots weave through basalt and small lava channels, amber leaves and embers at edges; palette burnt orange, ochre and dark forest. Land name for mood only: Obsidian Grove (do not write the name). Scene: A protected unoccupied waystation shaped from local materials, with shelter, rest area, work surface and supplies at the outer thirds; open center."
+    },
+    {
+      "landId": "obsidian",
+      "landName": "Obsidian Grove",
+      "scene": "elite",
+      "path": "src/main/resources/static/img/lands/locations/obsidian-elite.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: rare fire and earth woodland where roots weave through basalt and small lava channels, amber leaves and embers at edges; palette burnt orange, ochre and dark forest. Land name for mood only: Obsidian Grove (do not write the name). Scene: A dangerous elite encounter clearing with harsher terrain, broken siege remnants and an ominous environmental light; two readable formation bands."
+    },
+    {
+      "landId": "obsidian",
+      "landName": "Obsidian Grove",
+      "scene": "boss",
+      "path": "src/main/resources/static/img/lands/locations/obsidian-boss.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: rare fire and earth woodland where roots weave through basalt and small lava channels, amber leaves and embers at edges; palette burnt orange, ochre and dark forest. Land name for mood only: Obsidian Grove (do not write the name). Scene: A grand climactic circular arena native to the Land, framed by monumental broken arches and its signature distant landmark; dramatic edges and readable center."
+    },
+    {
+      "landId": "aurora",
+      "landName": "Aurora Expanse",
+      "scene": "journey",
+      "path": "src/main/resources/static/img/lands/locations/aurora-journey.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: rare ice and wind realm, floating frozen islands under luminous mint and cyan aurora curtains, crisp icy arches at edges; palette cyan, mint and navy. Land name for mood only: Aurora Expanse (do not write the name). Scene: An exposed expedition route through the Land with distinctive natural waymarkers and a distant landmark; a broad traversable center."
+    },
+    {
+      "landId": "aurora",
+      "landName": "Aurora Expanse",
+      "scene": "shelter",
+      "path": "src/main/resources/static/img/lands/locations/aurora-shelter.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: rare ice and wind realm, floating frozen islands under luminous mint and cyan aurora curtains, crisp icy arches at edges; palette cyan, mint and navy. Land name for mood only: Aurora Expanse (do not write the name). Scene: A protected unoccupied waystation shaped from local materials, with shelter, rest area, work surface and supplies at the outer thirds; open center."
+    },
+    {
+      "landId": "aurora",
+      "landName": "Aurora Expanse",
+      "scene": "elite",
+      "path": "src/main/resources/static/img/lands/locations/aurora-elite.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: rare ice and wind realm, floating frozen islands under luminous mint and cyan aurora curtains, crisp icy arches at edges; palette cyan, mint and navy. Land name for mood only: Aurora Expanse (do not write the name). Scene: A dangerous elite encounter clearing with harsher terrain, broken siege remnants and an ominous environmental light; two readable formation bands."
+    },
+    {
+      "landId": "aurora",
+      "landName": "Aurora Expanse",
+      "scene": "boss",
+      "path": "src/main/resources/static/img/lands/locations/aurora-boss.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: rare ice and wind realm, floating frozen islands under luminous mint and cyan aurora curtains, crisp icy arches at edges; palette cyan, mint and navy. Land name for mood only: Aurora Expanse (do not write the name). Scene: A grand climactic circular arena native to the Land, framed by monumental broken arches and its signature distant landmark; dramatic edges and readable center."
+    },
+    {
+      "landId": "relic",
+      "landName": "Gilded Hollow",
+      "scene": "journey",
+      "path": "src/main/resources/static/img/lands/locations/relic-journey.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: rare treasure valley, abandoned golden vault ruins with clusters of jewels and ancient chests tucked at edges; palette warm gold and deep teal. Land name for mood only: Gilded Hollow (do not write the name). Scene: An exposed expedition route through the Land with distinctive natural waymarkers and a distant landmark; a broad traversable center."
+    },
+    {
+      "landId": "relic",
+      "landName": "Gilded Hollow",
+      "scene": "shelter",
+      "path": "src/main/resources/static/img/lands/locations/relic-shelter.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: rare treasure valley, abandoned golden vault ruins with clusters of jewels and ancient chests tucked at edges; palette warm gold and deep teal. Land name for mood only: Gilded Hollow (do not write the name). Scene: A protected unoccupied waystation shaped from local materials, with shelter, rest area, work surface and supplies at the outer thirds; open center."
+    },
+    {
+      "landId": "relic",
+      "landName": "Gilded Hollow",
+      "scene": "elite",
+      "path": "src/main/resources/static/img/lands/locations/relic-elite.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: rare treasure valley, abandoned golden vault ruins with clusters of jewels and ancient chests tucked at edges; palette warm gold and deep teal. Land name for mood only: Gilded Hollow (do not write the name). Scene: A dangerous elite encounter clearing with harsher terrain, broken siege remnants and an ominous environmental light; two readable formation bands."
+    },
+    {
+      "landId": "relic",
+      "landName": "Gilded Hollow",
+      "scene": "boss",
+      "path": "src/main/resources/static/img/lands/locations/relic-boss.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: rare treasure valley, abandoned golden vault ruins with clusters of jewels and ancient chests tucked at edges; palette warm gold and deep teal. Land name for mood only: Gilded Hollow (do not write the name). Scene: A grand climactic circular arena native to the Land, framed by monumental broken arches and its signature distant landmark; dramatic edges and readable center."
+    },
+    {
+      "landId": "badlands",
+      "landName": "The Badlands",
+      "scene": "journey",
+      "path": "src/main/resources/static/img/lands/locations/badlands-journey.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: dangerous crimson wasteland, jagged red rock pillars, dark fortress ruins and violet fissures around an empty ash plain; palette blood red, violet and charcoal. Land name for mood only: The Badlands (do not write the name). Scene: An exposed expedition route through the Land with distinctive natural waymarkers and a distant landmark; a broad traversable center."
+    },
+    {
+      "landId": "badlands",
+      "landName": "The Badlands",
+      "scene": "shelter",
+      "path": "src/main/resources/static/img/lands/locations/badlands-shelter.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: dangerous crimson wasteland, jagged red rock pillars, dark fortress ruins and violet fissures around an empty ash plain; palette blood red, violet and charcoal. Land name for mood only: The Badlands (do not write the name). Scene: A protected unoccupied waystation shaped from local materials, with shelter, rest area, work surface and supplies at the outer thirds; open center."
+    },
+    {
+      "landId": "badlands",
+      "landName": "The Badlands",
+      "scene": "elite",
+      "path": "src/main/resources/static/img/lands/locations/badlands-elite.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: dangerous crimson wasteland, jagged red rock pillars, dark fortress ruins and violet fissures around an empty ash plain; palette blood red, violet and charcoal. Land name for mood only: The Badlands (do not write the name). Scene: A dangerous elite encounter clearing with harsher terrain, broken siege remnants and an ominous environmental light; two readable formation bands."
+    },
+    {
+      "landId": "badlands",
+      "landName": "The Badlands",
+      "scene": "boss",
+      "path": "src/main/resources/static/img/lands/locations/badlands-boss.webp",
+      "prompt": "Use case: stylized-concept. Asset type: production 3:2 landscape environment background for Siege encounters and battles in a mobile fantasy roguelike. Image 1 is the authoritative Land artwork: preserve its world, palette, atmosphere, materials, and refined hand-painted storybook finish. Image 2 is the existing SVG arena staging reference: reinterpret its layered foreground, broad readable center, and distant landmark as rich painted art; do not copy its flat vector look. Full bleed wide composition. Keep the middle and lower combat bands calm and medium-low contrast so characters, health plates, cards, and choices remain readable. No characters, creatures, text, letters, symbols, UI, map nodes, borders, logos, or watermark. Land identity: dangerous crimson wasteland, jagged red rock pillars, dark fortress ruins and violet fissures around an empty ash plain; palette blood red, violet and charcoal. Land name for mood only: The Badlands (do not write the name). Scene: A grand climactic circular arena native to the Land, framed by monumental broken arches and its signature distant landmark; dramatic edges and readable center."
+    }
+  ]
+}

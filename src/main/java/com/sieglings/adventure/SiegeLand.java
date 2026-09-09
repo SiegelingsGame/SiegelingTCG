@@ -34,6 +34,12 @@ record SiegeLand(String id, String name, String kind, List<Element> elements, No
     boolean favors(Element e) { return elements.contains(e); }
     double goldMultiplier() { return "GOLD".equals(perk) ? 1.5 : badlands() ? 1.25 : 1; }
     String background() { return "/img/lands/" + id + ".webp"; }
+    Map<String,String> locations() {
+        Map<String,String> art = new LinkedHashMap<>();
+        for (String scene : List.of("journey", "shelter", "elite", "boss"))
+            art.put(scene, "/img/lands/locations/" + id + "-" + scene + ".webp");
+        return art;
+    }
 
     static SiegeLand roll(SiegeLand previous, int bosses, List<Element> active, Random rng) {
         String kind = "ELEMENTAL";
@@ -77,6 +83,7 @@ record SiegeLand(String id, String name, String kind, List<Element> elements, No
         Map<String,Object> m = new LinkedHashMap<>();
         m.put("id", id); m.put("name", name); m.put("kind", kind);
         m.put("elements", elements.stream().map(Enum::name).toList()); m.put("background", background());
+        m.put("locations", locations());
         m.put("feature", featureName); m.put("featureType", feature.name());
         m.put("terrain", terrain); m.put("effect", effectText());
         m.put("encounters", elements.isEmpty() ? (badlands() ? "More elite encounters" : "More caches and relic rewards")
