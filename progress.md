@@ -1,3 +1,6 @@
+- September 9, 2026 — Arena tutorial All Effects chapter: after tapping **All Effects**, a new **`badge-all-browse`** tip sits between open and dismiss — “take a look at the list… Hit × when ready” — with `nodim: true` so the reference rows are not greyed out by the close-button spotlight. `badge-close` also lifts the whole sheet (`nodim` + modal highlight) as a fallback. Cache pins: `arena-tutorial.js` 38→39, `style.css` 260→261.
+- Verification: `node --check` on `arena-tutorial.js`. `TutorialRuleParityTest` green (asserts `badge-all-browse` + readable-list copy).
+
 Original prompt: Merge and deploy (trap13 live verify)
 
 - September 9, 2026 — Deploy of #868 was cancelled by a later main push; #869 Deploy (https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/34396901028) succeeded and includes the trap13 ancestor. Live `POST /api/game/new {tutorial}` opening hand is `sundile, pylook, tutorial_ashfall, trap13, pylook` even though the dashboard catalog still lacks `trap13`; mulligan index 4 deals `raydile`; `/api/game/draw` adds `floraknight`. Editor remains `source=FIRESTORE`, `liveEditingEnabled=true`.
@@ -61,6 +64,9 @@ Original prompt: Refuse all tutorial text in arena mode. Update it to be less qu
 
 - September 9, 2026 — Rewrote Arena basic and advanced tutorial titles, instructions, dynamic rule explanations and completion copy in plain teaching language. Also updated the Arena introduction slides and captions, tutorial setup and mulligan copy, and the Knight popup tour. Replaced obsolete Auto Battle explanations with the current battle queue and hand controls. Cache pins: arena-tutorial 35→36, knight-tutorial 1→2, game 283→284. Worktree: `arena-tutorial-plain-language`, branch: `agent/arena-tutorial-plain-language`.
 - Verification: JavaScript syntax checks pass. Existing focused tutorial suite: 20 tests pass, including rule parity, opener placement, scripted draws and Ashfall. Playwright at 390×844 and 1440×1000 completes the opening redraw, places Sundile, opens the Knight tour and starts the advanced match with zero page errors. Screenshots visually reviewed; representative long explanations fit the production coach panels. Compared all 98 step definitions against the base: order, targets, highlights, locks and completion conditions are identical. Local review artifacts are under `output/arena-copy-review/`. No remaining implementation TODOs; changes are local and have not been published.
+
+- September 9, 2026 — Arena tutorial All Effects chapter: after tapping **All Effects**, a new **`badge-all-browse`** tip sits between open and dismiss — “take a look at the list… Hit × when ready” — with `nodim: true` so the reference rows are not greyed out by the close-button spotlight. `badge-close` also lifts the whole sheet (`nodim` + modal highlight) as a fallback. Cache pins: `arena-tutorial.js` 38→39, `style.css` 260→261.
+- Verification: pending `node --check`, `TutorialRuleParityTest`, and phone harness of the browse tip.
 
 - September 9, 2026 — Merged PR #850 (Home Start Arena Match CTA) to `main`; Deploy workflow https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/34356346690 succeeded.
 - Verification (live): Hosting `home.html` serves `home.js?v=163`; live hero CTA is **Start Arena Match**; `/api/cards/editor` `source=FIRESTORE`, `liveEditingEnabled=true`.
