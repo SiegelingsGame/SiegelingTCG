@@ -874,13 +874,13 @@ body {
         gap: 7px;
         order: 3;
     }
-    /* Play takes the middle of the first row on the phone dock — it is the
-       primary action and the thumb rests there. Desktop keeps DOM order. */
+    /* Play stays center-top on the phone dock; Friends sits bottom-left so
+       the social shortcut matches the hub binder HUD. Desktop keeps DOM order. */
     #playHubCoins { order: 1; }
     #playHubPlayBtn { order: 2; }
     #playHubLobbiesBtn { order: 3; }
-    #playHubJoinCodeBtn { order: 4; }
-    #playHubFriendsBtn { order: 5; }
+    #playHubFriendsBtn { order: 4; }
+    #playHubJoinCodeBtn { order: 5; }
     .play-hub-actions .play-hub-pill { order: 6; }
     .play-hub-ghost,
     .play-hub-primary,

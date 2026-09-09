@@ -10126,25 +10126,31 @@ body.gacha-active {
         padding-inline: 7px;
         font-size: 12px;
     }
-    #cardTrayBtn,
-    #playNowBtn {
-        order: 0;
-    }
-    #joinByCodeBtn,
-    #supportBtn {
-        order: 1;
-    }
-    #authHudBtn {
-        order: 2;
-    }
+    /* Phone dock: coins left + Play center on row 1 across every hub route.
+       Hidden tools drop out of the grid, so the remaining right-slot control
+       (Card View / Filters / Settings) lands beside Play automatically. */
     .gold-pill {
         grid-column: span 1;
         display: flex;
         align-items: center;
         justify-content: center;
         text-align: center;
-        order: -1;
+        order: 1;
     }
+    #playNowBtn { order: 2; }
+    #cardTrayBtn,
+    #filterTrayBtn,
+    #optionsBtn,
+    #supportBtn { order: 3; }
+    #friendsBtn { order: 4; }
+    #joinByCodeBtn { order: 5; }
+    #authHudBtn { order: 6; }
+    /* Cards / Decks: Filters sits bottom-center and Friends bottom-left so
+       the binder tools share a row under the standardized Play cell. */
+    body.hud-binder #cardTrayBtn { order: 3; }
+    body.hud-binder #friendsBtn { order: 4; }
+    body.hud-binder #filterTrayBtn { order: 5; }
+    body.hud-binder #authHudBtn { order: 6; }
     .shop-card-preview-modal {
         align-items: end;
         /* 194px was a stand-in for the HUD; the measured height replaces both it
