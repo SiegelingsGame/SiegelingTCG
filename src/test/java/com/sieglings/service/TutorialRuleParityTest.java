@@ -100,12 +100,15 @@ class TutorialRuleParityTest {
                 "The combo lesson must be skipped when a combo point has already been banked.");
 
         // The badge lesson used to ring #boardArea — 71% of a phone screen, which
-        // points at nothing in particular. It rings the badge on the player's OWN
-        // Siegling now, through one shared reader so the lesson that explains a
-        // badge and the lesson that opens one cannot point at different things.
+        // points at nothing in particular. It now prefers opponent Burn (the Fire
+        // hit the student just landed), then any enemy badge, then the player's,
+        // through one shared reader so the opener and the tap lesson cannot point
+        // at different things.
         assertTrue(tutorial.contains("function badgeSelector()")
-                        && tutorial.contains("'#playerGrid .sb-badge', '#enemyGrid .sb-badge'"),
-                "The badge target must prefer the player's own badge, then the enemy's.");
+                        && tutorial.contains("'#enemyGrid .sb-badge[data-status=\"BURN\"]'")
+                        && tutorial.contains("'#enemyGrid .sb-badge'")
+                        && tutorial.contains("'#playerGrid .sb-badge'"),
+                "The badge target must prefer opponent Burn, then any enemy badge, then the player's.");
         assertTrue(tutorial.matches("(?s).*title: 'Little icons, big deal',\\R        target: badgeSelector, highlight: badgeHighlight,.*"),
                 "The badge lesson must ring the badge itself, not the whole board area.");
         assertTrue(!tutorial.contains("title: 'Little icons, big deal', target: '#boardArea'"),
@@ -118,10 +121,18 @@ class TutorialRuleParityTest {
                         && tutorial.contains("grid + ' .board-cell[data-row=\"' + r + '\"][data-col=\"' + c + '\"]'"),
                 "The badge highlight must resolve the cell wearing the badge, by selector, so the "
                         + "coach can re-look it up on every frame.");
-        // The badge chapter is three taps now — open the card view, read the chip
-        // inside it, open the full reference — and each beat waits for its own.
-        // It used to state all of it and walk on: `status` had no `until` at all,
-        // so Got it went straight past, and the spotlight never left the board.
+        // Step 17 (first-stack) opens on the opponent Burn card and waits for the
+        // card view; the Burn tag / All Effects beats follow immediately so the
+        // Fire element tag and burn sheet are reached from that card. `status`
+        // remains as a fallback when the view is not already open.
+        assertTrue(tutorial.contains("{ id: 'first-stack', hint: 'Tap the <b>opponent</b> card'")
+                        && tutorial.contains("until: function () { return cardViewOpen() || !firstStackTarget(); } },"),
+                "The first-stack Burn lesson must ask for the opponent-card tap and wait for the "
+                        + "card view — with an escape when the Burn badge is gone.");
+        assertTrue(tutorial.contains("function enemyBurnCellSelector()")
+                        && tutorial.contains("function firstStackCopy()")
+                        && tutorial.contains("opponent card"),
+                "first-stack must resolve opponent Burn on the board and name that card in copy.");
         assertTrue(tutorial.contains("{ id: 'status', hint: 'Tap the card wearing a <b>badge</b>'")
                         && tutorial.contains("until: function () { return cardViewOpen() || !visible('.sb-badge'); } },"),
                 "The badge lesson must ask for the tap that opens the card view and wait for it — "
@@ -129,6 +140,9 @@ class TutorialRuleParityTest {
                         + "board re-renders under it.");
         assertTrue(tutorial.contains("{ id: 'badge-chip'") && tutorial.contains("{ id: 'badge-all'"),
                 "The chip and the full reference must be their own beats.");
+        assertTrue(tutorial.contains("hint: 'Tap the <b>Burn</b> tag'")
+                        && tutorial.contains("Fire</b> element tag"),
+                "The chip beat must name the Burn tag and the Fire element tag.");
         assertTrue(tutorial.contains("target: function () { return chipButton() || allEffectsSelector(); },"),
                 "The chip lesson must ring the chip itself — the card view also carries the card's "
                         + "stats and its whole move list.");
