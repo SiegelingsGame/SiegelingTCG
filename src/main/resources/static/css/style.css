@@ -20675,6 +20675,7 @@ body:has(.tut-layer:not(.hidden) .tut-card[data-step-id="t2-cost"]) :is(#mobileP
    crushed into the drawer / modal footer. */
 .tut-layer:has(.tut-card[data-step-id="badge-burn-sheet"]) .tut-card,
 .tut-layer:has(.tut-card[data-step-id="badge-all"]) .tut-card,
+.tut-layer:has(.tut-card[data-step-id="badge-all-browse"]) .tut-card,
 .tut-layer:has(.tut-card[data-step-id="badge-close"]) .tut-card {
     top: max(12px, env(safe-area-inset-top, 0px) + 12px) !important;
     bottom: auto !important;

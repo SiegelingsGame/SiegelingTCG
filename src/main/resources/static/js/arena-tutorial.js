@@ -1295,8 +1295,39 @@
         skipIf: function () { return !cardViewOpen() && !effectKeyOpen(); },
         until: function () { return allEffectsOpen() || (!cardViewOpen() && !effectKeyOpen()); } },
 
+      // Between open and dismiss: let the player actually read the reference.
+      // Ringing only × (as badge-close used to) dims the list and makes every
+      // row look disabled the moment the sheet appears.
+      { id: 'badge-all-browse', hint: 'Tap <b>×</b> when ready', title: 'Look through the list',
+        target: function () {
+          return firstOf([
+            '#effectKeyOverlay .trainer-ability-close',
+            '#effectKeyOverlay .trainer-ability-modal',
+            '#effectKeyOverlay'
+          ]);
+        },
+        highlight: function () {
+          return [firstOf([
+            '#effectKeyOverlay .trainer-ability-modal',
+            '#effectKeyBody',
+            '#effectKeyOverlay'
+          ])];
+        },
+        nodim: true,
+        avoid: '.trainer-ability-close',
+        body: 'Take a look at the list — buffs, afflictions, every element. Hit <b>×</b> when you are ready.',
+        skipIf: function () { return !allEffectsOpen(); },
+        until: function () { return !effectKeyOpen(); } },
+
       { id: 'badge-close', hint: 'Tap <b>Close</b>', title: 'Return to the battle',
         target: function () { return firstOf(['#effectKeyOverlay .trainer-ability-close', '#boardArea']); },
+        highlight: function () {
+          return [firstOf([
+            '#effectKeyOverlay .trainer-ability-modal',
+            '#effectKeyOverlay'
+          ])];
+        },
+        nodim: true,
         avoid: '.trainer-ability-close',
         body: 'Tap <b>Close</b> to leave the effect sheet. Next, close the card preview so the board tips are visible.',
         skipIf: function () { return !visible('#effectKeyOverlay:not(.hidden)'); },
