@@ -1346,8 +1346,9 @@
         skipIf: function () { return !selectedDrawerOpen(); },
         until: function () { return !selectedDrawerOpen(); } },
 
-      { id: 'damage', title: 'Ability damage', target: '#boardArea',
-        body: 'An <b>ability</b> determines how much damage a hit deals. Elemental advantage adds <b>1 damage</b> against a Siegeling that is weak to the attacking element.' },
+      // No 'Ability damage' step: the matchup-badge lesson above already
+      // teaches that an ability carries the damage and that elemental
+      // advantage adds 1, so repeating it here read as the coach stalling.
 
       { id: 'kill', title: 'Siege Damage', target: '#enemyGrid',
         body: 'Knocking out a Siegeling deals <b>Siege Damage</b> to its owner’s HP. Rarer Siegelings deal more Siege Damage when defeated.' },
@@ -2085,6 +2086,11 @@
     window.TutorialCoach.start({
       steps: stepsFn(),
       playAreas: PLAY_AREAS,
+      // The dim means "not this step", and a dimmed card that still answers a
+      // tap says the opposite. Hand cards (and the draw reveal's copies of
+      // them) stop taking taps while they sit under it; a step that wants them
+      // back lights them with `highlight`, as the picking steps do.
+      shade: ['#playerHand .hand-card', '#drawAbilityRevealCards .hand-card'],
       onFinale: claimReward,
       onAlt: altHandler,
       onStop: function () {

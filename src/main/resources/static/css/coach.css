@@ -181,6 +181,15 @@
   50%{box-shadow:0 0 20px rgba(240,180,41,.75), inset 0 0 22px rgba(240,180,41,.26);}
 }
 
+/* Under the shade, and therefore off this step. The spotlight already darkens
+   these; what was missing is that they still answered taps, so the hand read as
+   greyed-out-but-live and a player could pick a card the coach had just
+   darkened. Interaction only — the shade supplies the look, and adding a second
+   filter on top would double-dim it. */
+.tut-shaded{
+  pointer-events:none !important;
+}
+
 /* The other members of a `lock` set. Untappable, and visibly so — a card that
    silently swallows taps reads as a broken hand rather than a closed door.
    Kept lighter than the spotlight dim, which means "not part of this step";

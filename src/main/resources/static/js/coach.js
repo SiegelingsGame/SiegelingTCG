@@ -25,6 +25,9 @@
  * one, and every following step is reasoning about a board that was never
  * built. It is deliberately inert without a resolvable `recommend` — locking a
  * set with nothing left open would trap the player.
+ * `shade` is a caller-level (not per-step) selector set naming elements that
+ * must stop answering taps whenever they sit under the dim — the hand, above
+ * all. A step that hands those back names `noshade`, and `nodim` implies it.
  * `until` makes the step wait on the player: the full tip renders, "Got it"
  * collapses it to a one-line hint so the play area is clear, and the step
  * advances itself the moment `until()` comes true.
@@ -252,6 +255,7 @@
       '</div>';
     position();
     applyRecommendation(s);
+    applyShade(s);
     if (s.finale && cfg.onFinale) cfg.onFinale(document.getElementById('tutReward'), position);
   }
 
@@ -309,6 +313,56 @@
     clearLock();
     locked = next;
     for (var k = 0; k < locked.length; k++) locked[k].classList.add('tut-locked');
+  }
+
+  var shaded = [];
+
+  function clearShade() {
+    for (var i = 0; i < shaded.length; i++) shaded[i].classList.remove('tut-shaded');
+    shaded = [];
+  }
+
+  /**
+   * The shade is not decoration: everything it covers is off this step. But a
+   * dimmed card still answered taps, so the hand read as greyed-out-but-live —
+   * the player picked a card the coach had just darkened and the script carried
+   * on describing a board they had not built. Anything under the shade that the
+   * caller names in `shade` is made untappable for as long as it stays there,
+   * which is the same contract `lock` already gives a candidate set.
+   *
+   * A node inside the spotlight (the step's own subject) is left alone, as is
+   * anything already carrying `lock`'s own mark — that class says the same
+   * thing and says it more loudly.
+   */
+  function applyShade(s) {
+    var sel = cfg && cfg.shade;
+    if (typeof sel === 'function') { try { sel = sel(); } catch (e) { sel = null; } }
+    if (!sel || (s && s.nodim) || (s && s.noshade)) { if (shaded.length) clearShade(); return; }
+    var spot = spotlightRect(s);
+    var next = [];
+    (typeof sel === 'string' ? [sel] : sel).forEach(function (one) {
+      var nodes;
+      try { nodes = document.querySelectorAll(one); } catch (e) { return; }
+      for (var i = 0; i < nodes.length; i++) {
+        var n = nodes[i];
+        if (n.classList.contains('tut-locked') || n.classList.contains('tut-pick')) continue;
+        var r = rectOfNode(n);
+        if (!r) continue;
+        // Partly lit counts as lit: the spotlight is a union rect, so a card
+        // clipped by its edge is still part of what the step is pointing at.
+        if (spot && r.right > spot.left && r.left < spot.right &&
+            r.bottom > spot.top && r.top < spot.bottom) continue;
+        next.push(n);
+      }
+    });
+    var same = next.length === shaded.length;
+    if (same) {
+      for (var j = 0; j < next.length; j++) { if (next[j] !== shaded[j]) { same = false; break; } }
+    }
+    if (same) return;
+    clearShade();
+    shaded = next;
+    for (var k = 0; k < shaded.length; k++) shaded[k].classList.add('tut-shaded');
   }
 
   function targetNode(s) {
@@ -543,6 +597,7 @@
     var rect = r ? [r.left, r.top, r.width, r.height].join(',') : 'none';
     if (rect !== lastRect) { lastRect = rect; position(); }
     applyRecommendation(det || s);
+    applyShade(det || s);
   }
 
   // ---- rotation -----------------------------------------------------------
@@ -656,6 +711,7 @@
     if (viewportTimer) { clearTimeout(viewportTimer); viewportTimer = 0; }
     if (recommended) { recommended.classList.remove('tut-pick'); recommended = null; }
     clearLock();
+    clearShade();
     if (layer) layer.classList.add('hidden');
     var done = cfg;
     if (done && done.bodyClass) document.body.classList.remove(done.bodyClass);
