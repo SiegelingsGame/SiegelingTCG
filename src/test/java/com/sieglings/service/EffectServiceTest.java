@@ -155,6 +155,20 @@ class EffectServiceTest {
     }
 
     @Test
+    void resistedOneDamagePokeIsReducedToNothing() {
+        GameState state = battleState();
+        CardInstance source = instance("earth-source", Element.EARTH, 1, 1, true);
+        CardInstance target = instance("wind-target", Element.WIND, 1, 1, false);
+        state.setAt(true, 1, 1, source);
+        state.setAt(false, 1, 1, target);
+
+        effectService.resolveAbility(state, oneDamageAbility(), source, true, 1, 1);
+
+        assertEquals(10, target.getCurrentHealth(), "a resisted 1-damage hit is reduced to nothing");
+        assertTrue(state.getGameLog().stream().anyMatch(line -> line.contains("resist -1")));
+    }
+
+    @Test
     void elementalWeaknessChartMatchesCurrentRules() {
         assertWeaknessBonus(Element.FIRE, Element.ICE);
         assertWeaknessBonus(Element.FIRE, Element.METAL);
@@ -181,11 +195,15 @@ class EffectServiceTest {
         assertWeaknessBonus(Element.UNDEAD, Element.SHADOW);
         assertWeaknessBonus(Element.UNDEAD, Element.PSYCHIC);
 
-        assertNoWeaknessBonus(Element.EARTH, Element.WIND);
-        assertNoWeaknessBonus(Element.WATER, Element.EARTH);
-        assertNoWeaknessBonus(Element.METAL, Element.FIRE);
-        assertNoWeaknessBonus(Element.ELECTRIC, Element.WATER);
-        assertNoWeaknessBonus(Element.POISON, Element.METAL);
+        // Reversed matchups: the defender's element beats the attacker's, so the hit is resisted.
+        assertResisted(Element.EARTH, Element.WIND);
+        assertResisted(Element.METAL, Element.FIRE);
+        assertResisted(Element.PSYCHIC, Element.SHADOW);
+
+        // Unrelated elements deal flat damage — no bonus, no resistance.
+        assertFlatDamage(Element.WATER, Element.EARTH);
+        assertFlatDamage(Element.ELECTRIC, Element.WATER);
+        assertFlatDamage(Element.POISON, Element.METAL);
     }
 
     @Test
@@ -959,7 +977,8 @@ class EffectServiceTest {
         effectService.resolveAbility(state, arc, source, true, 1, 1);
 
         assertEquals(6, icyHub.getCurrentHealth(), "Fire into Ice keeps the weakness bonus on the primary hit.");
-        assertEquals(7, waterLink.getCurrentHealth(), "Chained victim is scored on its own element.");
+        assertEquals(8, waterLink.getCurrentHealth(),
+                "Chained victim is scored on its own element — Water resists Fire for -1.");
     }
 
     private CardInstance enemyInstance(String id, List<Notch> notches, int row, int col) {
@@ -1000,18 +1019,48 @@ class EffectServiceTest {
                 attacker + " into " + defender + " should log a weakness bonus");
     }
 
-    private void assertNoWeaknessBonus(Element attacker, Element defender) {
+    /** Reversed matchup: three damage lands as two, and the log says so. */
+    private void assertResisted(Element attacker, Element defender) {
         GameState state = battleState();
         CardInstance source = instance(attacker.name().toLowerCase() + "-source", attacker, 1, 1, true);
         CardInstance target = instance(defender.name().toLowerCase() + "-target", defender, 1, 1, false);
         state.setAt(true, 1, 1, source);
         state.setAt(false, 1, 1, target);
 
-        effectService.resolveAbility(state, oneDamageAbility(), source, true, 1, 1);
+        effectService.resolveAbility(state, threeDamageAbility(), source, true, 1, 1);
 
-        assertEquals(9, target.getCurrentHealth(), attacker + " should not get weakness damage into " + defender);
+        assertEquals(8, target.getCurrentHealth(), attacker + " should be resisted by " + defender);
+        assertTrue(state.getGameLog().stream().anyMatch(line -> line.contains("resist -1")),
+                attacker + " into " + defender + " should log resistance");
         assertFalse(state.getGameLog().stream().anyMatch(line -> line.contains("weakness +1")),
                 attacker + " into " + defender + " should not log a weakness bonus");
+    }
+
+    /** No relationship either way: the printed value lands untouched. */
+    private void assertFlatDamage(Element attacker, Element defender) {
+        GameState state = battleState();
+        CardInstance source = instance(attacker.name().toLowerCase() + "-source", attacker, 1, 1, true);
+        CardInstance target = instance(defender.name().toLowerCase() + "-target", defender, 1, 1, false);
+        state.setAt(true, 1, 1, source);
+        state.setAt(false, 1, 1, target);
+
+        effectService.resolveAbility(state, threeDamageAbility(), source, true, 1, 1);
+
+        assertEquals(7, target.getCurrentHealth(), attacker + " should deal flat damage into " + defender);
+        assertFalse(state.getGameLog().stream().anyMatch(line -> line.contains("weakness +1")
+                        || line.contains("resist -1")),
+                attacker + " into " + defender + " should log neither bonus nor resistance");
+    }
+
+    private Ability threeDamageAbility() {
+        return Ability.damage(
+                "Matchup Probe",
+                "Deal 3 damage to 1 enemy",
+                TargetType.SINGLE_ENEMY,
+                null,
+                1,
+                3
+        );
     }
 
     private Ability oneDamageAbility() {

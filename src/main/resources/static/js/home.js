@@ -11137,7 +11137,7 @@
                     <div class="guide-stat"><strong>50</strong><span>Player Health</span></div>
                     <div class="guide-stat"><strong>3×3</strong><span>Your board half</span></div>
                     <div class="guide-stat"><strong>5</strong><span>Siegelings max</span></div>
-                    <div class="guide-stat"><strong>+1</strong><span>Weakness damage</span></div>
+                    <div class="guide-stat"><strong>+1 / -1</strong><span>Weakness / resist</span></div>
                 </div>
                 <div class="guide-phase-strip" aria-label="Battle turn phases">
                     <div class="guide-phase"><b>1</b><span><strong>Draw</strong><small>Refill your hand</small></span></div>

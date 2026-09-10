@@ -598,8 +598,8 @@ const STATUS_EFFECT_KEY = {
     STRONG: {
         name: 'Strong',
         group: 'matchup',
-        summary: 'element beats the defender',
-        detail: 'This Siegeling\'s element is strong against the highlighted target, so its attack deals +1 damage. Matchups: Fire > Ice > Wind > Earth > Fire; Water > Fire/Ice; Metal > Earth/Wind; Electric > Wind/Fire; Poison > Ice/Earth; Shadow > Psychic > Light > Undead > Shadow.'
+        summary: 'resists the attacker for -1 damage',
+        detail: 'This Siegeling\'s element beats the incoming attacker\'s, so the hit is resisted and lands for -1 damage — a 1-damage hit is reduced to nothing. Matchups: Fire > Ice > Wind > Earth > Fire; Water > Fire/Ice; Metal > Earth/Wind; Electric > Wind/Fire; Poison > Ice/Earth; Shadow > Psychic > Light > Undead > Shadow.'
     },
     WEAK: {
         name: 'Weak',
@@ -2439,12 +2439,18 @@ function formatBattleAbilityWeaknessPreview(ability, selectedRow = -1) {
         return '';
     }
     const attackerElement = gameState?.pendingBattle?.element;
-    const weakTargets = getBattleAbilityEnemyTargets(ability, selectedRow)
-        .filter((cell) => isElementWeakTo(attackerElement, cell?.element));
-    if (weakTargets.length === 0) {
-        return '';
+    const cells = getBattleAbilityEnemyTargets(ability, selectedRow);
+    const weakTargets = cells.filter((cell) => isElementWeakTo(attackerElement, cell?.element));
+    const resistTargets = cells.filter((cell) => isElementWeakTo(cell?.element, attackerElement));
+    const parts = [];
+    if (weakTargets.length > 0) {
+        parts.push(`Weakness +1: ${formatWeakTargetNames(weakTargets)} take ${baseDamage + 1}.`);
     }
-    return `Weakness +1: ${formatWeakTargetNames(weakTargets)} take ${baseDamage + 1}.`;
+    if (resistTargets.length > 0) {
+        // Resistance mirrors EffectService: -1, which can zero out a 1-damage hit.
+        parts.push(`Resist -1: ${formatWeakTargetNames(resistTargets)} take ${Math.max(0, baseDamage - 1)}.`);
+    }
+    return parts.join(' ');
 }
 
 /**
@@ -2488,7 +2494,8 @@ function getBattleBurnKillPlan() {
                 const hp = Number(cell?.hp ?? cell?.currentHealth);
                 if (!cell || !Number.isFinite(hp) || hp <= 0) continue;
                 const weak = isElementWeakTo(element, cell.element);
-                const hit = base + (weak ? 1 : 0);
+                const resists = !weak && isElementWeakTo(cell.element, element);
+                const hit = Math.max(0, base + (weak ? 1 : 0) - (resists ? 1 : 0));
                 const left = hp - hit;
                 // Already dead on the swing — a fine play, but not this lesson.
                 if (left <= 0) continue;
@@ -3304,7 +3311,7 @@ function buildBattleTargetingArrowHint(ability, targetSide, selectedRow = -1) {
         case 'move':
             return 'Follow the purple preview arrow to see where the forced movement will pull an enemy, then tap the highlighted target.';
         case 'damage':
-            return 'Follow the orange attack arrow from your ACTING Siegeling to a highlighted enemy. Tap that card to strike. Red Weak badges mean +1 damage; gold Strong badges mean no bonus.';
+            return 'Follow the orange attack arrow from your ACTING Siegeling to a highlighted enemy. Tap that card to strike. Red Weak badges mean +1 damage; gold Strong badges mean -1 damage. No badge means flat damage.';
         default:
             return 'Follow the glowing preview arrow from your ACTING Siegeling to a highlighted target on the board, then tap that card.';
     }
@@ -14010,7 +14017,8 @@ const ELEMENT_KEY_ICON_PATHS = {
     LIGHT: '/img/elements/element-light.svg'
 };
 
-// Elemental weakness chart — mirrors EffectService.isWeakTo (attacker hits these for +1 damage).
+// Elemental weakness chart — mirrors EffectService.isWeakTo (attacker hits these for +1 damage;
+// reversed, the attacker is resisted for -1). No relationship either way = flat damage.
 // Natural cycle: Fire > Ice, Metal | Ice > Wind, Poison | Wind > Earth, Water | Earth > Fire, Electric.
 // Added element attackers: Water > Fire, Ice | Metal > Earth, Wind | Electric > Wind, Fire | Poison > Ice, Earth.
 // Shadow cycle: Shadow > Psychic, Light | Psychic > Light, Undead | Light > Undead, Shadow | Undead > Shadow, Psychic.
@@ -14080,7 +14088,7 @@ function renderElementKey() {
             + `<span class="matchup-targets">${targets}</span>`
             + `</div>`;
     }
-    html += `<div class="element-key-note">Strong attacker = weak defender. Other elements deal normal damage (no bonus yet).</div>`;
+    html += `<div class="element-key-note">Strong attacker = weak defender: +1 damage. Reversed, the defender resists for -1 (a 1-damage hit is reduced to nothing). Elements with no relationship deal flat damage.</div>`;
     html += `</section>`;
 
     // Half 3 — jump into the status/affliction key without needing a card that

@@ -119,6 +119,9 @@ class BattleServiceTest {
         SieglingCard enemyCard = new SieglingCard("emberfox", "Emberfox", Element.FIRE, Rarity.COMMON, 10, 6, List.of(), Row.FRONT);
         CardInstance playerInstance = new CardInstance(playerCard, 1, 1, true);
         CardInstance enemyInstance = new CardInstance(enemyCard, 1, 1, false);
+        // Water resists Fire for -1, so the poke needs a boost to still land as a
+        // visible damage step rather than being reduced to nothing.
+        enemyInstance.setAuraDamageBoost(1);
         state.setAt(true, 1, 1, playerInstance);
         state.setAt(false, 1, 1, enemyInstance);
 

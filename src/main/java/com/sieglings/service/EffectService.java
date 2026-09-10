@@ -345,10 +345,18 @@ public class EffectService {
             damage = Math.max(1, damage);
         }
         boolean weaknessBonus = false;
+        boolean resisted = false;
         if (source != null && isWeakTo(source.getElement(), target.getElement())) {
             damage += 1;
             weaknessBonus = true;
+        } else if (source != null && isWeakTo(target.getElement(), source.getElement())) {
+            // The defender's element beats the attacker's: the hit is resisted for 1 less.
+            // Elements with no relationship either way stay flat.
+            damage -= 1;
+            resisted = true;
         }
+        // Resistance can take a 1-damage poke down to a whiff; it just cannot go negative.
+        damage = Math.max(0, damage);
         int soak = 0;
         int rust = 0;
         if (elementalAfflictionService != null) {
@@ -362,6 +370,7 @@ public class EffectService {
         int hpDealt = Math.max(0, hpBefore - target.getCurrentHealth());
         String bonusBits = "";
         if (weaknessBonus) bonusBits += " (weakness +1)";
+        if (resisted) bonusBits += " (resist -1)";
         if (soak > 0) bonusBits += " (soak +" + soak + ")";
         if (rust > 0) bonusBits += " (rust +" + rust + ")";
         state.log(ability.getName() + " deals " + damage + " damage to " + target.getName()
