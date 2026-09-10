@@ -1,3 +1,8 @@
+Original prompt: Merge and deploy (hand shown during mulligan)
+
+- September 10, 2026 — Merged PR #883 (`04301efe`, squash) to `main` and deployed. Deploy https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/34521292911 — **success** (Cloud Run + Firebase Hosting).
+- Verification: live `/play` serves the re-cut pins `style.css?v=263` and `game.js?v=292`; the deployed `css/style.css` carries the `body.mulligan-active` rule and the deployed `js/game.js` carries `syncMulliganBodyState`. Editor health check `GET /api/cards/editor` returns `source: FIRESTORE`, `liveEditingEnabled: true`.
+
 Original prompt: For some reason the hand is displayed during the mulligan
 
 - September 10, 2026 — The **hand dock no longer shows through the mulligan overlay**. The overlay's backdrop is deliberately translucent (`rgba(4, 8, 18, 0.82)` + blur), so the live bottom hand tray stayed readable underneath it and the player saw the same five opening cards twice — once in the mulligan showcase, once in the dock. `game.js` now has `syncMulliganBodyState()`, which toggles `body.mulligan-active` off the overlay's own `visible` class, called from every path that changes that class (`syncEntryOverlays` and all three returns of `renderMulliganOverlay`), so the reveal hold that keeps the overlay up past the server's mulligan is covered too. `style.css` hides `.desktop-menu-hand` and `.hand-lift-layer` under that body class with `visibility: hidden` rather than `display: none`, so the dock keeps its box and the battlefield does not resize mid-overlay. Cache pins re-cut: `style.css` 262 -> 263 and `game.js` 291 -> 292 in `play.html`, `home.html`, `card-dashboard.html`.
