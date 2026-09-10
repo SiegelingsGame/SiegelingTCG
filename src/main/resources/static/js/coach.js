@@ -27,7 +27,9 @@
  * set with nothing left open would trap the player.
  * `shade` is a caller-level (not per-step) selector set naming elements that
  * must stop answering taps whenever they sit under the dim — the hand, above
- * all. A step that hands those back names `noshade`, and `nodim` implies it.
+ * all. A step that hands those back names `noshade`. `shadeHost` names the
+ * containers those elements live in, which the coach lifts above the shade so
+ * they keep their own colour while they are out of play.
  * `until` makes the step wait on the player: the full tip renders, "Got it"
  * collapses it to a one-line hint so the play area is clear, and the step
  * advances itself the moment `until()` comes true.
@@ -61,6 +63,9 @@
   var held = false;      // parked on a `gate` step, waiting for the match to catch up
 
   var layer = null, ringEl = null, cardEl = null, safeProbe = null;
+  // The shade lives on its own element, one z-index step BELOW the layer, so a
+  // `shade` host can be lifted between the two: dimmed screen, lit hand.
+  var dimEl = null;
   var raf = 0, lastRect = '', renderedKey = '';
 
   function el(tag, cls, html) {
@@ -77,6 +82,8 @@
   }
 
   function buildLayer() {
+    dimEl = el('div', 'tut-dim');
+    document.body.appendChild(dimEl);
     layer = el('div', 'tut-layer');
     ringEl = el('div', 'tut-ring');
     cardEl = el('div', 'tut-card');
@@ -212,6 +219,7 @@
     // at, and shading the board it is inviting you to use is the same
     // misleading grey-out as a dimmed choice. Drop the shade for those.
     if (layer) layer.classList.toggle('tut-nodim', !!s.nodim);
+    if (dimEl) dimEl.classList.toggle('hidden', !!s.nodim);
 
     // Second stage: the player has read the tip and now needs the screen. The
     // card shrinks to a single line naming the tap, so it can sit clear of the
@@ -320,6 +328,56 @@
   function clearShade() {
     for (var i = 0; i < shaded.length; i++) shaded[i].classList.remove('tut-shaded');
     shaded = [];
+    liftHosts(false);
+  }
+
+  var lifted = [];
+  var liftZ = 199;
+
+  /**
+   * Raises the containers named by `shadeHost` (the hand tray, the draw
+   * reveal) between the shade and the layer, so their cards keep their own
+   * colour instead of being flattened to grey by a screen-wide wash. They are
+   * already untappable — a card that is out of play should read as disabled,
+   * which `.tut-shaded` says on its own, not as part of a darkened backdrop.
+   */
+  function liftHosts(on) {
+    var want = [];
+    if (on) {
+      var sel = cfg && cfg.shadeHost;
+      if (typeof sel === 'function') { try { sel = sel(); } catch (e) { sel = null; } }
+      if (sel) {
+        (typeof sel === 'string' ? [sel] : sel).forEach(function (one) {
+          var nodes;
+          try { nodes = document.querySelectorAll(one); } catch (e) { return; }
+          for (var i = 0; i < nodes.length; i++) want.push(nodes[i]);
+        });
+      }
+    }
+    for (var j = 0; j < lifted.length; j++) {
+      if (want.indexOf(lifted[j]) === -1) {
+        lifted[j].classList.remove('tut-lift');
+        lifted[j].style.zIndex = lifted[j].dataset.tutZ || '';
+        delete lifted[j].dataset.tutZ;
+      }
+    }
+    var kept = [];
+    for (var k = 0; k < want.length; k++) {
+      var n = want[k];
+      var already = lifted.indexOf(n) !== -1;
+      if (!already) {
+        // A host that already outranks the shade (a reveal overlay at 1200)
+        // needs no help, and forcing it down to the lift height would bury it
+        // under the very screen it is covering.
+        var own = parseInt(window.getComputedStyle(n).zIndex, 10);
+        if (isFinite(own) && own > liftZ) continue;
+        n.dataset.tutZ = n.style.zIndex || '';
+      }
+      n.classList.add('tut-lift');
+      n.style.zIndex = String(liftZ);
+      kept.push(n);
+    }
+    lifted = kept;
   }
 
   /**
@@ -337,7 +395,9 @@
   function applyShade(s) {
     var sel = cfg && cfg.shade;
     if (typeof sel === 'function') { try { sel = sel(); } catch (e) { sel = null; } }
-    if (!sel || (s && s.nodim) || (s && s.noshade)) { if (shaded.length) clearShade(); return; }
+    // Independent of the dim. `nodim` only says the screen keeps its colour; a
+    // step can hand the screen back and still not be about the hand.
+    if (!sel || (s && s.noshade)) { if (shaded.length) clearShade(); return; }
     var spot = spotlightRect(s);
     var next = [];
     (typeof sel === 'string' ? [sel] : sel).forEach(function (one) {
@@ -363,6 +423,7 @@
     clearShade();
     shaded = next;
     for (var k = 0; k < shaded.length; k++) shaded[k].classList.add('tut-shaded');
+    liftHosts(shaded.length > 0);
   }
 
   function targetNode(s) {
@@ -429,6 +490,33 @@
     return { top: parseFloat(cs.paddingTop) || 0, bottom: parseFloat(cs.paddingBottom) || 0 };
   }
 
+  /**
+   * Puts the shade's hole over the spotlight, and keeps the shade one step
+   * under the layer's OWN z-index — which some pages raise per step so a tip
+   * can sit above a drawer or a modal. Reading it back rather than hard-coding
+   * a number means the shade follows every one of those bumps for free.
+   */
+  function syncDim(r) {
+    if (!dimEl || !layer) return;
+    var z = parseInt(window.getComputedStyle(layer).zIndex, 10);
+    if (!isFinite(z)) z = 200;
+    dimEl.style.zIndex = String(z - 2);
+    liftZ = z - 1;
+    if (!r) {
+      dimEl.classList.add('whole');
+      dimEl.style.left = dimEl.style.top = '-10px';
+      dimEl.style.width = dimEl.style.height = '0px';
+      return;
+    }
+    dimEl.classList.remove('whole');
+    var pad = 8;
+    var vw = window.innerWidth, vh = window.innerHeight;
+    dimEl.style.left = Math.max(2, r.left - pad) + 'px';
+    dimEl.style.top = Math.max(2, r.top - pad) + 'px';
+    dimEl.style.width = Math.min(vw - 4, r.width + pad * 2) + 'px';
+    dimEl.style.height = Math.min(vh - 4, r.height + pad * 2) + 'px';
+  }
+
   function position() {
     var s = detour() || current();
     var vh = window.innerHeight, vw = window.innerWidth;
@@ -452,6 +540,7 @@
       // Centre it — but a *collapsed* hint centred on a short landscape screen
       // lands squarely on the hand, so let the play areas move it if they must.
       ringEl.classList.add('off');
+      syncDim(null);
       var mid = (vh - h) / 2;
       var free = collapsed ? playAreas() : [];
       if (!free.length) { place(mid); return; }
@@ -471,6 +560,7 @@
     }
     var pad = 8;
     ringEl.classList.remove('off');
+    syncDim(r);
     ringEl.style.left = Math.max(2, r.left - pad) + 'px';
     ringEl.style.top = Math.max(2, r.top - pad) + 'px';
     ringEl.style.width = Math.min(vw - 4, r.width + pad * 2) + 'px';
