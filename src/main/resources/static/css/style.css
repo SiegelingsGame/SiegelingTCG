@@ -13386,6 +13386,14 @@ body.placement-active .board-cell.legal {
     display: flex;
 }
 
+/* The overlay is translucent by design, so the live hand dock underneath read
+   as a duplicate of the cards being mulliganed. Hide it rather than collapse
+   it: removing it from flow would resize the board mid-overlay. */
+body.mulligan-active .desktop-menu-hand,
+body.mulligan-active .hand-lift-layer {
+    visibility: hidden;
+}
+
 .coin-flip-overlay {
     position: fixed;
     inset: 0;

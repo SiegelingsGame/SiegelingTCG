@@ -8129,6 +8129,7 @@ function syncEntryOverlays() {
     if (!gameState?.mulligan?.active && !mulliganRevealHold) {
         mulliganOverlay?.classList.remove('visible');
     }
+    syncMulliganBodyState();
     if (welcomeVisible) {
         refreshWelcomeLeaderboards();
     }
@@ -15945,6 +15946,16 @@ function handleHandCardTouchEnd(event, handIndex) {
     handTouchSuppressUntil = Date.now() + 500;
 }
 
+function syncMulliganBodyState() {
+    // The mulligan overlay is translucent, so the bottom hand dock showed
+    // through it — the same five cards the player is already choosing from,
+    // rendered twice. Drive a body flag off the overlay's own visibility so
+    // the dock can be hidden (without collapsing, which would resize the
+    // board) for as long as the overlay is up, reveal hold included.
+    const overlay = document.getElementById('mulliganOverlay');
+    document.body?.classList.toggle('mulligan-active', Boolean(overlay?.classList.contains('visible')));
+}
+
 function renderMulliganOverlay() {
     const overlay = document.getElementById('mulliganOverlay');
     const preview = document.getElementById('mulliganHandPreview');
@@ -15963,6 +15974,7 @@ function renderMulliganOverlay() {
         actions.classList.add('hidden');
         waitActions?.classList.add('hidden');
         renderMulliganHandSlots(preview, gameState?.player?.hand || [], null, false, false);
+        syncMulliganBodyState();
         return;
     }
 
@@ -15971,6 +15983,7 @@ function renderMulliganOverlay() {
         preview.innerHTML = '';
         mulliganHandSig = '';
         waitActions?.classList.add('hidden');
+        syncMulliganBodyState();
         return;
     }
 
@@ -16014,6 +16027,7 @@ function renderMulliganOverlay() {
     }
 
     renderMulliganHandSlots(preview, hand, allowedSet, gameState.mulligan.youPending, scriptedTutorial);
+    syncMulliganBodyState();
 }
 
 /**
