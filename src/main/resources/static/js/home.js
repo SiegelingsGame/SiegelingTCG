@@ -4294,6 +4294,126 @@
         focusBuilderIssueTarget();
     }
 
+    // Adding or removing a copy only changes counters and enabled states, but a
+    // full page rebuild threw away every <img> in the binder and deck lists, so
+    // the thumbnails visibly flashed off and back on after each tap. Patch the
+    // affected nodes in place instead and keep the images alive; callers fall
+    // back to a full render when the layout is not on screen.
+    function patchBuilderCounts() {
+        const page = document.getElementById('deckBuilderPage');
+        const layout = page?.querySelector('.deck-builder-layout');
+        if (!layout) return false;
+        const total = builderTotal();
+
+        layout.style.setProperty('--builder-accent', elementColor(builderDeckElements()[0] || 'NEUTRAL'));
+
+        const deckTabBadge = layout.querySelector('[data-builder-tab="deck"] .deck-builder-tab-badge');
+        if (deckTabBadge) {
+            deckTabBadge.textContent = `${total}/30`;
+            deckTabBadge.classList.toggle('is-complete', total >= 30);
+        }
+        const ring = layout.querySelector('.builder-total-ring');
+        if (ring) {
+            ring.classList.toggle('complete', total >= 30);
+            const ringValue = ring.querySelector('strong');
+            if (ringValue) ringValue.textContent = String(total);
+        }
+        const headCopy = layout.querySelector('.deck-builder-deck-head-copy p');
+        if (headCopy) headCopy.textContent = total < 30 ? `${30 - total} more cards needed` : 'Ready to save or play';
+        const fill = layout.querySelector('.builder-progress-fill');
+        if (fill) fill.style.width = `${Math.min(100, Math.round((total / 30) * 100))}%`;
+
+        const playBtn = layout.querySelector('#playCustomBtn');
+        if (playBtn) playBtn.disabled = total < 30;
+        const clearBtn = layout.querySelector('#clearBuilderBtn');
+        if (clearBtn) clearBtn.disabled = total === 0;
+        const saveBtn = document.getElementById('saveDeckBuilderPageBtn');
+        if (saveBtn) saveBtn.disabled = total < 30;
+        if (!state.builderIssue) layout.querySelector('[data-builder-issue]')?.remove();
+
+        layout.querySelectorAll('.deck-builder-binder-row[data-builder-card]').forEach(row => {
+            const cardId = row.dataset.builderCard;
+            const count = state.builderCounts[cardId] || 0;
+            const maxCopies = builderCardLimit(cardId);
+            const badge = row.querySelector('[data-builder-count-badge]');
+            if (badge) {
+                badge.textContent = `In deck x${count}`;
+                badge.classList.toggle('is-max', count >= maxCopies);
+                badge.hidden = count <= 0;
+            }
+            const minus = row.querySelector('[data-remove-card]');
+            if (minus) minus.disabled = count <= 0;
+            const plus = row.querySelector('[data-add-builder-card]');
+            if (plus) plus.disabled = !(maxCopies > 0 && count < maxCopies && total < 30);
+        });
+
+        patchBuilderPreviewCounts(layout, total);
+        patchBuilderDeckList(layout);
+        return true;
+    }
+
+    function patchBuilderPreviewCounts(layout, total) {
+        const cardId = state.builderPreviewCardId;
+        const stepper = layout.querySelector('.deck-builder-preview-actions');
+        if (stepper && cardId) {
+            const count = state.builderCounts[cardId] || 0;
+            const maxCopies = builderCardLimit(cardId);
+            const minus = stepper.querySelector('[data-remove-card]');
+            if (minus) minus.disabled = count <= 0;
+            const label = stepper.querySelector('strong');
+            if (label) label.textContent = `${count} / ${maxCopies}`;
+            const plus = stepper.querySelector('[data-add-builder-card]');
+            if (plus) {
+                plus.disabled = !(maxCopies > 0 && count < maxCopies && total < 30);
+                plus.textContent = builderAddLabel(cardId);
+            }
+        }
+        // Only the evolution tab's body depends on deck counts, and it is pure
+        // text, so re-rendering it costs no image reloads.
+        const previewCard = findCard(cardId);
+        const panel = layout.querySelector('.deck-builder-card-tabpanel');
+        if (panel && previewCard && builderActiveCardTab(previewCard) === 'evo') {
+            panel.innerHTML = renderBuilderRecommendations(previewCard);
+            bindBuilderCardControls(panel);
+        }
+    }
+
+    function patchBuilderDeckList(layout) {
+        const list = layout.querySelector('.deck-builder-deck-list');
+        if (!list) return;
+        const entries = builderDeckEntries();
+        if (!entries.length) {
+            list.innerHTML = renderBuilderDeckListRows();
+            return;
+        }
+        const existing = new Map();
+        list.querySelectorAll('.deck-builder-deck-row[data-builder-card]').forEach(row => existing.set(row.dataset.builderCard, row));
+        list.querySelectorAll('.builder-empty').forEach(el => el.remove());
+        const total = builderTotal();
+        entries.forEach(([cardId, count]) => {
+            const maxCopies = builderCardLimit(cardId);
+            let row = existing.get(cardId);
+            if (row) {
+                existing.delete(cardId);
+                const badge = row.querySelector('[data-builder-count-badge]');
+                if (badge) {
+                    badge.innerHTML = `<strong>${count}</strong>/${maxCopies}`;
+                    badge.classList.toggle('is-max', count >= maxCopies);
+                }
+                const plus = row.querySelector('[data-add-builder-card]');
+                if (plus) plus.disabled = count >= maxCopies || total >= 30;
+            } else {
+                const holder = document.createElement('div');
+                holder.innerHTML = renderBuilderDeckRow(cardId, count);
+                row = holder.firstElementChild;
+                if (!row) return;
+                bindBuilderCardControls(row);
+            }
+            list.appendChild(row);
+        });
+        existing.forEach(row => row.remove());
+    }
+
     // Rebuilding the whole builder page on every +/- tap used to throw away the
     // binder and deck scroll offsets, forcing players back to the top of the
     // list after each card they added.
@@ -4741,7 +4861,7 @@
         const total = builderTotal();
         const canAdd = maxCopies > 0 && count < maxCopies && total < 30;
         const activeClass = card.id === state.builderPreviewCardId ? ' is-active' : '';
-        return `<article class="deck-builder-binder-row${activeClass}" style="--el:${elementColor(card.element)}">
+        return `<article class="deck-builder-binder-row${activeClass}" data-builder-card="${escapeAttr(card.id)}" style="--el:${elementColor(card.element)}">
             <button type="button" class="deck-builder-binder-main" data-select-builder-card="${escapeAttr(card.id)}">
                 <div class="builder-card-mark">${renderBuilderRowThumb(card)}</div>
                 <div class="builder-row-copy">
@@ -4749,7 +4869,7 @@
                     <span>${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))}</span>
                     <small>${escapeHtml(format(card.rarity))}${card.evolvesFromId ? ` / Evolves from ${escapeHtml(card.evolvesFromName || findCard(card.evolvesFromId)?.name || 'base')}` : ''}</small>
                 </div>
-                ${count > 0 ? `<span class="deck-builder-binder-count${count >= maxCopies ? ' is-max' : ''}">In deck x${count}</span>` : ''}
+                <span class="deck-builder-binder-count${count >= maxCopies ? ' is-max' : ''}" data-builder-count-badge${count > 0 ? '' : ' hidden'}>In deck x${count}</span>
             </button>
             <div class="builder-stepper">
                 <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(card.id)}"${count <= 0 ? ' disabled' : ''}>-</button>
@@ -4759,29 +4879,57 @@
     }
 
     function renderBuilderDeckListRows() {
-        const entries = Object.entries(state.builderCounts);
+        const entries = builderDeckEntries();
         if (!entries.length) {
             return '<div class="unlock-card builder-empty">Cards you add will appear here.</div>';
         }
-        return entries.sort(([a], [b]) => (findCard(a)?.name || a).localeCompare(findCard(b)?.name || b)).map(([cardId, count]) => {
-            const card = findCard(cardId);
-            const maxCopies = builderCardLimit(cardId);
-            const activeClass = cardId === state.builderPreviewCardId ? ' is-active' : '';
-            return `<div class="deck-builder-deck-row${activeClass}" style="--el:${elementColor(card?.element)}">
-                <button type="button" class="deck-builder-deck-row-main" data-select-builder-card="${escapeAttr(cardId)}">
-                    <div class="builder-card-mark">${renderBuilderRowThumb(card)}</div>
-                    <div class="builder-row-copy">
-                        <strong>${escapeHtml(card?.name || cardId)}</strong>
-                        <span>${card ? `${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))}` : 'Card'}</span>
-                    </div>
-                    <span class="deck-builder-copy-badge${count >= maxCopies ? ' is-max' : ''}"><strong>${count}</strong>/${maxCopies}</span>
-                </button>
-                <div class="builder-stepper">
-                    <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(cardId)}">-</button>
-                    <button class="ghost-btn" type="button" data-add-builder-card="${escapeAttr(cardId)}"${count >= maxCopies || builderTotal() >= 30 ? ' disabled' : ''}>+</button>
+        return entries.map(([cardId, count]) => renderBuilderDeckRow(cardId, count)).join('');
+    }
+
+    function builderDeckEntries() {
+        return Object.entries(state.builderCounts)
+            .sort(([a], [b]) => (findCard(a)?.name || a).localeCompare(findCard(b)?.name || b));
+    }
+
+    function renderBuilderDeckRow(cardId, count) {
+        const card = findCard(cardId);
+        const maxCopies = builderCardLimit(cardId);
+        const activeClass = cardId === state.builderPreviewCardId ? ' is-active' : '';
+        return `<div class="deck-builder-deck-row${activeClass}" data-builder-card="${escapeAttr(cardId)}" style="--el:${elementColor(card?.element)}">
+            <button type="button" class="deck-builder-deck-row-main" data-select-builder-card="${escapeAttr(cardId)}">
+                <div class="builder-card-mark">${renderBuilderRowThumb(card)}</div>
+                <div class="builder-row-copy">
+                    <strong>${escapeHtml(card?.name || cardId)}</strong>
+                    <span>${card ? `${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))}` : 'Card'}</span>
                 </div>
-            </div>`;
-        }).join('');
+                <span class="deck-builder-copy-badge${count >= maxCopies ? ' is-max' : ''}" data-builder-count-badge><strong>${count}</strong>/${maxCopies}</span>
+            </button>
+            <div class="builder-stepper">
+                <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(cardId)}">-</button>
+                <button class="ghost-btn" type="button" data-add-builder-card="${escapeAttr(cardId)}"${count >= maxCopies || builderTotal() >= 30 ? ' disabled' : ''}>+</button>
+            </div>
+        </div>`;
+    }
+
+    // Bound per-scope rather than once on the page root so rows inserted by the
+    // in-place count patch get the same handlers without rebinding the page.
+    function bindBuilderCardControls(scope) {
+        if (!scope) return;
+        scope.querySelectorAll('[data-select-builder-card]').forEach(btn => btn.addEventListener('click', () => {
+            state.builderPreviewCardId = btn.dataset.selectBuilderCard;
+            // Jump straight to the Card pane on mobile so a tap on a binder row
+            // does not silently update an off-screen panel.
+            if (isMobileDeckBuilderViewport()) state.builderTab = 'card';
+            renderDeckBuilderPage();
+        }));
+        scope.querySelectorAll('[data-add-builder-card]').forEach(btn => btn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            adjustBuilder(btn.dataset.addBuilderCard, 1);
+        }));
+        scope.querySelectorAll('[data-remove-card]').forEach(btn => btn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            adjustBuilder(btn.dataset.removeCard, -1);
+        }));
     }
 
     function bindDeckBuilderPageEvents(root) {
@@ -4815,21 +4963,7 @@
             state.builderDeckSettingsOpen = !state.builderDeckSettingsOpen;
             renderDeckBuilderPage();
         });
-        root.querySelectorAll('[data-select-builder-card]').forEach(btn => btn.addEventListener('click', () => {
-            state.builderPreviewCardId = btn.dataset.selectBuilderCard;
-            // Jump straight to the Card pane on mobile so a tap on a binder row
-            // does not silently update an off-screen panel.
-            if (isMobileDeckBuilderViewport()) state.builderTab = 'card';
-            renderDeckBuilderPage();
-        }));
-        root.querySelectorAll('[data-add-builder-card]').forEach(btn => btn.addEventListener('click', (event) => {
-            event.stopPropagation();
-            adjustBuilder(btn.dataset.addBuilderCard, 1);
-        }));
-        root.querySelectorAll('[data-remove-card]').forEach(btn => btn.addEventListener('click', (event) => {
-            event.stopPropagation();
-            adjustBuilder(btn.dataset.removeCard, -1);
-        }));
+        bindBuilderCardControls(root);
         root.querySelector('[data-builder-load-more]')?.addEventListener('click', () => {
             state.builderVisibleLimit = Math.max(state.builderVisibleLimit || 24, 24) + 24;
             renderDeckBuilderPage();
@@ -9531,9 +9665,12 @@
         // cards in a row from the binder/recommendation lists, and swapping the
         // inspected card under them also re-flowed the recommendations they
         // were working through.
+        // A first add that also seeds the inspector swaps the Card pane from its
+        // empty placeholder to a full card, which the counter patch cannot do.
+        const previewChanged = !state.builderPreviewCardId;
         if (!state.builderPreviewCardId) state.builderPreviewCardId = cardId;
         if (state.builderIssue?.field === 'cards') state.builderIssue = null;
-        if (state.route === 'deck-builder') {
+        if (state.route === 'deck-builder' && (previewChanged || !patchBuilderCounts())) {
             renderDeckBuilderPage();
         }
     }

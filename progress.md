@@ -2521,3 +2521,28 @@ started the tutorial, walked to the first battle node, and asserted
 `body[data-battle-map]="fire-journey"` with `.battle-map` resolving to
 `/img/lands/locations/fire-journey.webp`, with no 4xx on any `/img/lands/`
 request; screenshot shows the Emberfall painting behind the tutorial battle.
+
+## 2026-09-10 — Deck builder: stop thumbnails flashing on every add/remove
+
+Every `+`/`-` tap in the deck builder called `renderDeckBuilderPage()`, which
+rebuilt `#deckBuilderPage` with `innerHTML`. That discarded and recreated every
+`<img>` in the binder and deck lists, so all the Siegling thumbnails blinked off
+and back on as if the page had refreshed. `adjustBuilder()` now patches the DOM
+in place instead: `patchBuilderCounts()` updates the accent, the Deck tab badge,
+the total ring/progress/action buttons, each binder row's copy badge and stepper
+enabled state, the Card pane stepper (and the Evolution tab body, the only
+count-dependent, image-free panel), and reconciles the deck list row by row
+(reuse, insert, reorder, remove) so surviving rows keep their live `<img>`
+nodes. Binder rows now always carry the count badge (hidden at zero) and rows
+carry `data-builder-card` so the patch can address them; `[data-add|remove|
+select]` handlers moved into `bindBuilderCardControls(scope)` so newly inserted
+deck rows get handlers without rebinding the page. Full render still runs for
+tab/filter changes and for the first add that seeds the inspector.
+`home.js?v=167`, `home.css?v=144`.
+
+Verified: `node --check js/home.js`; headless Chromium at 390x844 and 1920x1080
+against `home.html` with a mocked `/api/game/options` catalog — tagged the
+binder/deck `<img>` nodes, then added and removed copies and confirmed every tag
+survived (no image recreation, hence no flash) while the count badge, Deck tab
+badge (`2/30` → `0/30`), total ring, deck-row insert/remove/order, copy badges
+and the Card pane stepper all updated correctly, with no page errors.

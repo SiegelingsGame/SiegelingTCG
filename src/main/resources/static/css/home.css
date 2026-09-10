@@ -6390,6 +6390,8 @@ body.starter-onboarding-active .starter-gate h1 {
     font-weight: 800;
 }
 
+.deck-builder-binder-count[hidden] { display: none; }
+
 .deck-builder-binder-count {
     padding: 3px 8px;
     border: 1px solid color-mix(in srgb, var(--el, var(--accent)) 52%, rgba(255, 255, 255, 0.14));
