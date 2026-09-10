@@ -1,3 +1,8 @@
+Original prompt: Hide leftover tutorial coach wash after Quit / Finish
+
+- September 10, 2026 — #877 moved the tutorial wash off the ring's `box-shadow` and onto a sibling `.tut-dim` so the hand can lift between the shade and the layer. `stop()` still only hid `.tut-layer`, so Quit or Finish left the 9999px dim overlay sitting on the match (Arena, Siege, and Keep all share this teardown). `stop()` now hides `dimEl` as well. Cache pin: `coach.js` 8 → 9 (play / keep / adventure). `TutorialRuleParityTest` re-pins the teardown sequence.
+- Verification: `node --check` on `coach.js`; `TutorialRuleParityTest` green; headless Chromium fixture starts a one-step coach, asserts `.tut-dim` is visible with a non-none box-shadow, calls `stop()`, then asserts the dim is `display:none` and the layer is hidden.
+
 Original prompt: Merge and deploy (coach wash / tutorial hand grey)
 
 - September 10, 2026 — Merged PR #877 (`083cae43`, squash) to `main`. Note for next time: PR #876 had already been merged with only the first of the two commits, so the follow-up — the half that actually removes the grey — could not ride it; the branch was restarted from `origin/main` and the commit cherry-picked onto it for a fresh PR rather than stacked on merged history. Deploy https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/34436435944 — **success** (Cloud Run + Firebase Hosting).
