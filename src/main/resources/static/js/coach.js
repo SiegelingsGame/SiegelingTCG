@@ -800,9 +800,13 @@
     watchViewport(false);
     if (viewportTimer) { clearTimeout(viewportTimer); viewportTimer = 0; }
     if (recommended) { recommended.classList.remove('tut-pick'); recommended = null; }
+    // The wash is a sibling of the layer (so a shadeHost can sit between them).
+    // Hiding only the layer would leave the 9999px box-shadow dim on screen
+    // after Quit / Finish — Arena, Siege, and Keep all share this teardown.
     clearLock();
     clearShade();
     if (layer) layer.classList.add('hidden');
+    if (dimEl) dimEl.classList.add('hidden');
     var done = cfg;
     if (done && done.bodyClass) document.body.classList.remove(done.bodyClass);
     cfg = null;
