@@ -10631,7 +10631,7 @@ function hydrateOnlineStateFromUrl() {
 
 // ── Tutorial match (new player onboarding) ──────────────────────────────
 // Activated by the home hub's pending loadout carrying tutorial:true. The
-// server pins both loadouts and starts the sparring partner on reduced health;
+// server pins both loadouts and starts the sparring partner on the standard 50 HP;
 // winning claims the one-time reward.
 let tutorialMatchActive = false;
 let tutorialRewardRequested = false;

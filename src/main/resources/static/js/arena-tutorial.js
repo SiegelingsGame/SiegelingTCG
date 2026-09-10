@@ -3,7 +3,7 @@
  * The Siege tutorial simulates its expedition; this one does not, and does not
  * need to. The Arena tutorial match is already pinned server-side — Squire Bob
  * with Ashen Roots against a fixed Ice Training Dummy, the player always first,
- * the partner started on reduced health — so every run deals the same board and
+ * the partner on the standard 50 HP — so every run deals the same board and
  * the script can simply FOLLOW the real match. Nothing here fakes a response or
  * writes into game state: each step names what to touch and waits for the live
  * `gameState` to show the player did it.

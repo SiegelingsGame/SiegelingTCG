@@ -48,7 +48,7 @@ public class GameService {
     public static final String TUTORIAL_ENEMY_DECK_ID = "deck_ice";
     public static final String TUTORIAL_ENEMY_TRAINER_ID = "trainer09";
     public static final String TUTORIAL_OPPONENT_NAME = "Training Dummy";
-    public static final int TUTORIAL_ENEMY_HEALTH = 20;
+    public static final int TUTORIAL_ENEMY_HEALTH = 50;
 
     public record StartOptions(String playerDeckId, String playerTrainerId, List<String> customDeckCards,
                                String loadoutLabel, int playerTrainerLevel) {
@@ -212,8 +212,8 @@ public class GameService {
 
     /**
      * Starts the fixed tutorial match: pinned loadouts on both sides, the player
-     * always moves first, and the sparring partner starts on reduced health so a
-     * full lesson fits in a few rounds.
+     * always moves first, and the sparring partner starts on the standard 50 HP
+     * so the practice match reads like a real one.
      */
     public SoloHandle newTutorialGame(String playerName) {
         StartOptions playerOptions = new StartOptions(
@@ -225,7 +225,7 @@ public class GameService {
         state.setTutorialMatch(true);
         state.getEnemy().setHealth(TUTORIAL_ENEMY_HEALTH);
         state.log("Tutorial match: " + TUTORIAL_OPPONENT_NAME + " starts at " + TUTORIAL_ENEMY_HEALTH
-                + " health so a full lesson fits in a few rounds.");
+                + " health, the same as a standard match.");
         purgeStaleSoloGames();
         String token = generateSoloToken();
         soloGames.put(token, new SoloSession(state));
