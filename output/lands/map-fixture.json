@@ -1,5 +1,5 @@
 {
-  "token" : "OjkyLTqGKnFWxaINfINKNrdwe_nZV27G",
+  "token" : "2gNmFeYVC2d8pxkge1ffYqj4AXg3IYSo",
   "status" : "ACTIVE",
   "currentNodeId" : -1,
   "lastReward" : "",
@@ -31,23 +31,23 @@
     "eventTitle" : "The Cinder Smith"
   },
   "landHistory" : [ {
-    "id" : "wind",
-    "name" : "Zephyr Reach",
+    "id" : "metal",
+    "name" : "Ironhold",
     "kind" : "ELEMENTAL",
-    "elements" : [ "WIND" ],
-    "background" : "/img/lands/wind.webp",
+    "elements" : [ "METAL" ],
+    "background" : "/img/lands/metal.webp",
     "locations" : {
-      "journey" : "/img/lands/locations/wind-journey.webp",
-      "shelter" : "/img/lands/locations/wind-shelter.webp",
-      "elite" : "/img/lands/locations/wind-elite.webp",
-      "boss" : "/img/lands/locations/wind-boss.webp"
+      "journey" : "/img/lands/locations/metal-journey.webp",
+      "shelter" : "/img/lands/locations/metal-shelter.webp",
+      "elite" : "/img/lands/locations/metal-elite.webp",
+      "boss" : "/img/lands/locations/metal-boss.webp"
     },
-    "feature" : "Sky Caravan",
-    "featureType" : "CARAVAN",
-    "terrain" : "Tailwinds",
-    "effect" : "WIND Siegelings gain +2 Speed for each battle.",
+    "feature" : "Iron Foundry",
+    "featureType" : "SMITH",
+    "terrain" : "Iron cover",
+    "effect" : "METAL Siegelings start battles with +5 Shield.",
     "encounters" : "Favored Siegelings have 4× draw weight in recruits, broker stock and card prizes.",
-    "eventTitle" : "The Sky Courier"
+    "eventTitle" : "The Foundry Keeper"
   } ],
   "landSegment" : 0,
   "landSegmentRows" : 8,

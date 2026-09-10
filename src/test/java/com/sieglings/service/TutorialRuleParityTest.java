@@ -338,8 +338,8 @@ class TutorialRuleParityTest {
         assertTrue(coach.contains("if (!sel || !open) { if (locked.length) clearLock(); return; }"),
                 "A lock with nothing recommended must be inert — locking a set with no open member "
                         + "would trap the player with no legal tap.");
-        assertTrue(coach.contains("clearLock();\n    if (layer) layer.classList.add('hidden');"),
-                "Stopping the coach must hand every locked element back.");
+        assertTrue(coach.contains("clearLock();\n    clearShade();\n    if (layer) layer.classList.add('hidden');"),
+                "Stopping the coach must hand every locked AND shaded element back before the layer hides.");
         String coachCss = read("src/main/resources/static/css/coach.css");
         assertTrue(coachCss.contains(".tut-locked") && coachCss.contains("pointer-events:none !important;"),
                 "The lock has to actually block the tap, not just look shut.");
