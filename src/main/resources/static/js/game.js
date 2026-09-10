@@ -6883,6 +6883,7 @@ function fitCardFrameTitle(title) {
     }
 
     title.style.fontSize = '';
+    title.style.whiteSpace = '';
     const card = title.closest('.hand-card');
     const computed = window.getComputedStyle(title);
     const maxPx = parseFloat(computed.fontSize) || (title.closest('.desktop-preview-card') ? 15 : 13);
@@ -6894,24 +6895,41 @@ function fitCardFrameTitle(title) {
     const fits = () => title.scrollWidth <= header.clientWidth + 0.5
         && title.scrollHeight <= title.clientHeight + 2;
 
-    if (!fits()) {
-        title.style.fontSize = `${minPx}px`;
+    const search = (floorPx) => {
+        if (!fits()) {
+            title.style.fontSize = `${floorPx}px`;
+        }
+        let lo = floorPx;
+        let hi = maxPx;
+        let best = floorPx;
+        for (let i = 0; i < 9; i += 1) {
+            const mid = (lo + hi) / 2;
+            title.style.fontSize = `${mid}px`;
+            if (fits()) {
+                best = mid;
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+        title.style.fontSize = `${best}px`;
+        return best;
+    };
+
+    // Prefer one line. Wrapping a name mid-word ("Bearzook / a") reads as a
+    // layout bug on shrunken cards, and every card ends up a different shape.
+    // Shrink to fit the header width instead, and only fall back to the
+    // wrapping fit when a name is long enough that one line would be illegible.
+    const singleLineFloorPx = Math.max(minPx, maxPx * 0.6);
+    title.style.whiteSpace = 'nowrap';
+    const singleLineBest = search(singleLineFloorPx);
+    if (singleLineBest > singleLineFloorPx + 0.01 || fits()) {
+        title.style.fontSize = `${singleLineBest.toFixed(2)}px`;
+        return;
     }
 
-    let lo = minPx;
-    let hi = maxPx;
-    let best = minPx;
-    for (let i = 0; i < 9; i += 1) {
-        const mid = (lo + hi) / 2;
-        title.style.fontSize = `${mid}px`;
-        if (fits()) {
-            best = mid;
-            lo = mid;
-        } else {
-            hi = mid;
-        }
-    }
-    title.style.fontSize = `${best.toFixed(2)}px`;
+    title.style.whiteSpace = '';
+    title.style.fontSize = `${search(minPx).toFixed(2)}px`;
 }
 
 function fitKnightCardName(title) {
