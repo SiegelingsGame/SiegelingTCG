@@ -604,6 +604,34 @@
         }
     }
 
+    // Holo card names are sized off the card's container width alone, so a long
+    // name wraps (and clips) exactly when the card shrinks. Shrink the name to
+    // hold one line instead, so every card's title occupies the same band.
+    function fitHolographicCardNames() {
+        var nodes = document.querySelectorAll('.holographic-card-name');
+        for (var i = 0; i < nodes.length; i++) {
+            var el = nodes[i];
+            if (!el.offsetParent && el.getClientRects().length === 0) continue;
+            el.style.fontSize = '';
+            el.style.whiteSpace = 'nowrap';
+            var maxPx = parseFloat(window.getComputedStyle(el).fontSize) || 12;
+            var minPx = Math.max(4.5, maxPx * 0.6);
+            var width = el.clientWidth;
+            if (!width) continue;
+            var size = maxPx;
+            var guard = 22;
+            while (el.scrollWidth > width + 0.5 && size > minPx && guard-- > 0) {
+                size = Math.max(minPx, size * 0.94);
+                el.style.fontSize = size.toFixed(2) + 'px';
+            }
+            // Still too long even at the legibility floor: let it wrap and
+            // balance across the two lines the name box already reserves.
+            if (el.scrollWidth > width + 0.5) {
+                el.style.whiteSpace = '';
+            }
+        }
+    }
+
     function scheduleDescriptionFit() {
         if (descriptionFitFrame != null) {
             window.cancelAnimationFrame(descriptionFitFrame);
@@ -611,6 +639,7 @@
         descriptionFitFrame = window.requestAnimationFrame(function () {
             descriptionFitFrame = null;
             fitBinderCardDescriptions();
+            fitHolographicCardNames();
         });
     }
 
@@ -622,6 +651,7 @@
 
     window.SieglingsCardBinderVisual = {
         scheduleDescriptionFit,
+        fitHolographicCardNames,
         renderBinderCardPreview,
         renderBinderCardTile,
         renderBinderCardShell,
