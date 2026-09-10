@@ -11102,8 +11102,30 @@
         { element: 'Undead', status: 'Wither', cap: 3, icon: '♱', color: '#8c78a0', copy: 'Owner Setup: clamp HP by stacks, then clear.' }
     ];
 
+    /**
+     * The guide must not teach an element the dashboard has switched off — a player
+     * cannot inflict Blind while Light is dark. Unknown roster (options not loaded
+     * yet) lists everything rather than hiding real mechanics on a slow fetch.
+     */
+    function guideLiveElements() {
+        const names = state.options?.liveElements;
+        if (!Array.isArray(names) || names.length === 0) return null;
+        return new Set(names.map(name => String(name || '').trim().toUpperCase()));
+    }
+
+    function isGuideElementLive(element) {
+        const key = String(element || '').trim().toUpperCase();
+        if (!key || key === 'NEUTRAL') return true;
+        const live = guideLiveElements();
+        return !live || live.has(key);
+    }
+
+    function liveGuideAfflictions() {
+        return GUIDE_AFFLICTIONS.filter(item => isGuideElementLive(item.element));
+    }
+
     function renderGuideAfflictions() {
-        return `<div class="guide-affliction-grid">${GUIDE_AFFLICTIONS.map(item => `
+        return `<div class="guide-affliction-grid">${liveGuideAfflictions().map(item => `
             <article class="guide-affliction-card" style="--guide-el:${item.color}">
                 <div class="guide-affliction-top">
                     <span class="guide-affliction-icon" aria-hidden="true">${item.icon}</span>
@@ -11114,8 +11136,22 @@
             </article>`).join('')}</div>`;
     }
 
+    /** Only worth printing while an element it names is actually in play. */
+    function renderGuideEnergyExceptionNote() {
+        const named = ['Poison', 'Light'].filter(isGuideElementLive);
+        if (named.length === 0) return '';
+        const riders = { Poison: 'Toxin', Light: 'Blind' };
+        const elements = named.join(' and ');
+        const afflictions = named.map(name => riders[name]).join(' and ');
+        const single = named.length === 1;
+        const pools = single ? 'that element does not have a dedicated energy pool' : 'those elements do not have dedicated energy pools';
+        const cards = single ? 'Its' : 'Their';
+        return `<p class="guide-note"><strong>Energy exception:</strong> ${elements} attacks still apply `
+            + `${afflictions}, but ${pools}. ${cards} action cards use Neutral costs.</p>`;
+    }
+
     function renderGuideElements() {
-        const rows = GUIDE_AFFLICTIONS.concat([
+        const rows = liveGuideAfflictions().concat([
             { element: 'Neutral', status: 'No affliction', icon: '◇', color: '#95a5a6' }
         ]);
         return `<div class="guide-element-grid">${rows.map(item => `
@@ -11191,10 +11227,10 @@
             icon: '⬡',
             label: 'Elements',
             eyebrow: 'Affinity map',
-            title: 'Thirteen affinities, twelve damage riders',
             summary: 'An attack’s element determines the affliction it builds. Neutral is the exception: it has no affliction.',
-            html: `${renderGuideElements()}
-                <p class="guide-note"><strong>Energy exception:</strong> Poison and Light attacks still apply Toxin and Blind, but those elements do not have dedicated energy pools. Their action cards use Neutral costs.</p>`
+            title: () => `${liveGuideAfflictions().length + 1} affinities, ${liveGuideAfflictions().length} damage riders`,
+            html: () => `${renderGuideElements()}
+                ${renderGuideEnergyExceptionNote()}`
         },
         {
             id: 'energy',
@@ -11244,10 +11280,17 @@
             eyebrow: 'Elemental badges',
             title: 'Know what every badge is building toward',
             summary: 'Elemental HP hits add the matching badge up to its stack cap. Shields can prevent the hit—and therefore the affliction—from landing.',
-            html: `${renderGuideAfflictions()}
+            html: () => `${renderGuideAfflictions()}
                 <p class="guide-note"><strong>Leech:</strong> the first Earth HP hit marks the defender. The second Earth HP hit heals that hit’s attacker for the actual HP damage dealt, then clears Leech. Toxin removes healing before HP is restored.</p>`
         }
     ];
+
+    // Sections whose content depends on the live element roster declare their
+    // title/html as functions so they are rebuilt per open, not frozen at load.
+    function guideSectionField(section, key) {
+        const value = section?.[key];
+        return typeof value === 'function' ? value() : (value || '');
+    }
 
     function openOptions() {
         state.optionsView = 'menu';
@@ -11315,10 +11358,10 @@
                 <div class="guide-content">
                     <div class="guide-section-head">
                         <span class="guide-section-icon" aria-hidden="true">${section.icon || '•'}</span>
-                        <div><span class="guide-section-eyebrow">${escapeHtml(section.eyebrow || 'Field guide')}</span><h3>${escapeHtml(section.title)}</h3></div>
+                        <div><span class="guide-section-eyebrow">${escapeHtml(section.eyebrow || 'Field guide')}</span><h3>${escapeHtml(guideSectionField(section, 'title'))}</h3></div>
                     </div>
                     <p class="guide-summary">${escapeHtml(section.summary || '')}</p>
-                    ${section.html}
+                    ${guideSectionField(section, 'html')}
                 </div>`;
         } else if (view === 'gallery') {
             const pageArt = readStoredArt(PAGE_ART_KEY);

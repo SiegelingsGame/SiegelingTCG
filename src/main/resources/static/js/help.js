@@ -90,6 +90,82 @@
         if (event.key === 'Escape') setFabOpen(false);
     });
 
+    /**
+     * The guide must not document an element the dashboard has switched off — a
+     * player who reads about Blind cannot inflict it while Light is dark. The
+     * roster is fetched rather than baked in; a failed fetch leaves the full
+     * page standing, which is better than hiding real mechanics on a blip.
+     */
+    function elementOfChip(chip) {
+        var classes = (chip.className || '').split(/\s+/);
+        for (var i = 0; i < classes.length; i++) {
+            if (classes[i] && classes[i] !== 'el-chip') return classes[i];
+        }
+        return '';
+    }
+
+    function titleCase(name) {
+        return name.charAt(0).toUpperCase() + name.slice(1);
+    }
+
+    function joinWithAnd(names) {
+        if (names.length <= 1) return names.join('');
+        if (names.length === 2) return names[0] + ' and ' + names[1];
+        return names.slice(0, -1).join(', ') + ', and ' + names[names.length - 1];
+    }
+
+    function applyLiveElements(live) {
+        Array.prototype.forEach.call(document.querySelectorAll('.aff-row[data-el]'), function (row) {
+            if (!live[row.getAttribute('data-el')]) row.remove();
+        });
+
+        Array.prototype.forEach.call(document.querySelectorAll('.str-row'), function (row) {
+            var chips = Array.prototype.slice.call(row.querySelectorAll('.el-chip'));
+            if (chips.length === 0) return;
+            // First chip is the attacker; the rest are the defenders it beats.
+            if (!live[elementOfChip(chips[0])]) {
+                row.remove();
+                return;
+            }
+            var survivors = 0;
+            chips.slice(1).forEach(function (chip) {
+                if (live[elementOfChip(chip)]) survivors += 1;
+                else chip.remove();
+            });
+            if (survivors === 0) row.remove();
+        });
+
+        var note = document.getElementById('energyPoolsNote');
+        if (note) {
+            var pooled = (note.getAttribute('data-pool-elements') || '').split(',')
+                .filter(function (name) { return live[name]; }).map(titleCase);
+            var neutral = (note.getAttribute('data-neutral-elements') || '').split(',')
+                .filter(function (name) { return live[name]; });
+            var riders = { poison: 'Toxin', light: 'Blind' };
+            var html = '<strong>Energy pools:</strong> ' + joinWithAnd(pooled)
+                + (pooled.length === 1 ? ' has a dedicated pool.' : ' have dedicated pools.');
+            if (neutral.length > 0) {
+                html += ' ' + joinWithAnd(neutral.map(titleCase)) + ' attacks still apply '
+                    + joinWithAnd(neutral.map(function (name) { return riders[name] || titleCase(name); }))
+                    + ', but ' + (neutral.length === 1 ? 'its' : 'their') + ' action cards use Neutral costs.';
+            }
+            if (pooled.length > 0) note.innerHTML = html;
+        }
+
+        onScroll();
+    }
+
+    fetch('/api/game/live-elements')
+        .then(function (response) { return response.ok ? response.json() : null; })
+        .then(function (data) {
+            var names = data && data.liveElements;
+            if (!names || !names.length) return;
+            var live = {};
+            names.forEach(function (name) { live[String(name).toLowerCase()] = true; });
+            applyLiveElements(live);
+        })
+        .catch(function () { /* Keep the full guide when the roster is unreachable. */ });
+
     window.addEventListener('scroll', onScroll, { passive: true });
     onScroll();
 

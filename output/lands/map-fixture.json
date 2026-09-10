@@ -1,5 +1,5 @@
 {
-  "token" : "UEwHR_o_4iFxDWmXOaxbYuTMh-YJyRmE",
+  "token" : "2gNmFeYVC2d8pxkge1ffYqj4AXg3IYSo",
   "status" : "ACTIVE",
   "currentNodeId" : -1,
   "lastReward" : "",
@@ -31,23 +31,23 @@
     "eventTitle" : "The Cinder Smith"
   },
   "landHistory" : [ {
-    "id" : "ice",
-    "name" : "Frostveil",
+    "id" : "metal",
+    "name" : "Ironhold",
     "kind" : "ELEMENTAL",
-    "elements" : [ "ICE" ],
-    "background" : "/img/lands/ice.webp",
+    "elements" : [ "METAL" ],
+    "background" : "/img/lands/metal.webp",
     "locations" : {
-      "journey" : "/img/lands/locations/ice-journey.webp",
-      "shelter" : "/img/lands/locations/ice-shelter.webp",
-      "elite" : "/img/lands/locations/ice-elite.webp",
-      "boss" : "/img/lands/locations/ice-boss.webp"
+      "journey" : "/img/lands/locations/metal-journey.webp",
+      "shelter" : "/img/lands/locations/metal-shelter.webp",
+      "elite" : "/img/lands/locations/metal-elite.webp",
+      "boss" : "/img/lands/locations/metal-boss.webp"
     },
-    "feature" : "Frost Shelter",
-    "featureType" : "REST",
-    "terrain" : "Glacial cover",
-    "effect" : "ICE Siegelings start battles with +5 Shield.",
+    "feature" : "Iron Foundry",
+    "featureType" : "SMITH",
+    "terrain" : "Iron cover",
+    "effect" : "METAL Siegelings start battles with +5 Shield.",
     "encounters" : "Favored Siegelings have 4× draw weight in recruits, broker stock and card prizes.",
-    "eventTitle" : "The Frozen Waystation"
+    "eventTitle" : "The Foundry Keeper"
   } ],
   "landSegment" : 0,
   "landSegmentRows" : 8,

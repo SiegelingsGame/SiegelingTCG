@@ -21,6 +21,7 @@ class GameJavaScriptRegressionTest {
     private static final Path HOME_HTML = Path.of("src/main/resources/static/home.html");
     private static final Path PLAY_HTML = Path.of("src/main/resources/static/play.html");
     private static final Path HELP_HTML = Path.of("src/main/resources/static/help.html");
+    private static final Path HELP_JS = Path.of("src/main/resources/static/js/help.js");
     private static final Path CARD_DASHBOARD_HTML = Path.of("src/main/resources/static/card-dashboard.html");
     private static final Path CARD_BINDER_VISUAL_JS = Path.of("src/main/resources/static/js/card-binder-visual.js");
     private static final Path NOTCH_IMAGE_DIR = Path.of("src/main/resources/static/img/notches");
@@ -561,7 +562,7 @@ class GameJavaScriptRegressionTest {
                         && helpMarkup.contains("<h3>Deception</h3>")
                         && helpMarkup.contains("Poison and Light attacks still apply their afflictions")
                         && helpMarkup.contains("There is no elemental weakness chart in Siege")
-                        && helpMarkup.contains("/css/help.css?v=3")
+                        && helpCssPin(helpMarkup) >= 4
                         && !helpMarkup.contains("<h3>Spell</h3>")
                         && !helpMarkup.contains("<h3>Trap</h3>"),
                 "The full Field Guide must use current card labels, energy exceptions, Siege rules, and fresh visuals."
@@ -2302,6 +2303,55 @@ class GameJavaScriptRegressionTest {
                 buildExportData.contains("catalogVersion: state.catalogVersion"),
                 "Live publish payloads must include their base catalog revision to prevent stale full-snapshot overwrites."
         );
+    }
+
+    /**
+     * An element switched off in the live dashboard must not be documented anywhere:
+     * a player cannot inflict Blind while Light is dark, so the All Effects sheet,
+     * the element key, the settings guide and the Field Guide all filter on the same
+     * roster. Each surface must also fail OPEN — an unknown roster lists everything
+     * rather than hiding real mechanics on a failed fetch.
+     */
+    @Test
+    void referenceSurfacesOnlyDocumentActiveElements() throws IOException {
+        String game = readGameScript();
+        String home = readHomeScript();
+        String help = Files.readString(HELP_JS);
+        String helpMarkup = Files.readString(HELP_HTML);
+
+        assertTrue(game.contains("function isLiveElement(element)")
+                        && game.contains("if (!liveElementNames) return true;")
+                        && game.contains("'/api/game/live-elements'"),
+                "game.js needs the shared roster resolver, defaulting to visible when it is unknown.");
+        assertTrue(game.contains(".filter((k) => isLiveElement(STATUS_EFFECT_KEY[k].element));"),
+                "The All Effects sheet must drop effects whose element is switched off.");
+        assertTrue(game.contains("if (!isLiveElement(key)) continue;")
+                        && game.contains("if (!isLiveElement(attacker)) continue;")
+                        && game.contains("const liveDefenders = defenders.filter((d) => isLiveElement(d));"),
+                "The element key must drop dark elements from both its roster and its matchup rows.");
+
+        assertTrue(home.contains("function liveGuideAfflictions()")
+                        && home.contains("return !live || live.has(key);")
+                        && home.contains("function renderGuideEnergyExceptionNote()"),
+                "The settings guide must filter its affliction/element grids and its energy note.");
+        assertTrue(home.contains("function guideSectionField(section, key)")
+                        && home.contains("guideSectionField(section, 'html')"),
+                "Guide sections that depend on the roster must be built per open, not frozen at load.");
+
+        assertTrue(help.contains("/api/game/live-elements")
+                        && help.contains(".aff-row[data-el]")
+                        && help.contains("document.querySelectorAll('.str-row')"),
+                "The Field Guide must prune affliction rows and matchup rows for dark elements.");
+        assertTrue(helpMarkup.contains("id=\"energyPoolsNote\"")
+                        && helpMarkup.contains("data-pool-elements=")
+                        && helpMarkup.contains("/js/help.js?v=3"),
+                "The energy-pool note needs its rewrite hooks and a fresh cache pin.");
+    }
+
+    /** Pinned as a floor, not an exact number: help.css keeps being re-cut as the guide changes. */
+    private static int helpCssPin(String markup) {
+        Matcher matcher = Pattern.compile("/css/help\\.css\\?v=(\\d+)").matcher(markup);
+        return matcher.find() ? Integer.parseInt(matcher.group(1)) : -1;
     }
 
     private static String readGameScript() throws IOException {

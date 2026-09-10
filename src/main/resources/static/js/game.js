@@ -5603,9 +5603,15 @@ function showAllEffectsKey(event) {
     if (kicker) kicker.textContent = 'Reference';
     if (title) title.textContent = 'All Effects';
 
+    ensureLiveElementNames(() => {
+        if (!overlay.classList.contains('hidden')) showAllEffectsKey();
+    });
+
     let html = '';
     STATUS_EFFECT_GROUPS.forEach((group) => {
-        const kinds = Object.keys(STATUS_EFFECT_KEY).filter((k) => STATUS_EFFECT_KEY[k].group === group.id);
+        const kinds = Object.keys(STATUS_EFFECT_KEY)
+            .filter((k) => STATUS_EFFECT_KEY[k].group === group.id)
+            .filter((k) => isLiveElement(STATUS_EFFECT_KEY[k].element));
         if (kinds.length === 0) return;
         html += `<section class="effect-key-section">`;
         html += `<div class="effect-key-heading">${escapeHtml(group.title)}<span class="effect-key-sub">${escapeHtml(group.blurb)}</span></div>`;
@@ -14052,7 +14058,55 @@ function elementKeyIconHtml(key) {
     return `<span class="energy-token solid-token token-${lower} key-token"></span>`;
 }
 
+/**
+ * Active element roster from the live dashboard. Reference surfaces must not
+ * advertise an element that is switched off — a player who reads about Blind
+ * cannot inflict it while Light is dark. Unknown (never fetched, request
+ * failed) means show everything: hiding real mechanics on a network blip is
+ * worse than listing one element early.
+ */
+let liveElementNames = null;
+let liveElementFetchPromise = null;
+
+function setLiveElementNames(list) {
+    if (!Array.isArray(list) || list.length === 0) return false;
+    liveElementNames = new Set(list.map((name) => String(name || '').trim().toUpperCase()).filter(Boolean));
+    return true;
+}
+
+function isLiveElement(element) {
+    const key = String(element || '').trim().toUpperCase();
+    if (!key) return true;
+    // Neutral is not an element the dashboard can switch off.
+    if (key === 'NEUTRAL') return true;
+    if (!liveElementNames) return true;
+    return liveElementNames.has(key);
+}
+
+/**
+ * Resolve the roster from whatever this page already has, else the cheap
+ * endpoint. Callers re-render when it resolves, so a first paint that briefly
+ * lists everything corrects itself rather than blocking the sheet.
+ */
+function ensureLiveElementNames(onResolved) {
+    if (liveElementNames) return;
+    if (setLiveElementNames(gameOptions?.liveElements)
+            || setLiveElementNames(readPlayCache('gameOptions')?.liveElements)) {
+        return;
+    }
+    if (liveElementFetchPromise) return;
+    liveElementFetchPromise = fetchJson(apiUrls('/api/game/live-elements'), {}, 15000)
+        .then((data) => {
+            if (setLiveElementNames(data?.liveElements) && typeof onResolved === 'function') {
+                onResolved();
+            }
+        })
+        .catch(() => {})
+        .finally(() => { liveElementFetchPromise = null; });
+}
+
 function renderElementKey() {
+    ensureLiveElementNames(renderElementKey);
     const panels = [
         document.getElementById('elementKeyPanel'),
         document.getElementById('desktopInspectKeyPanel')
@@ -14066,6 +14120,7 @@ function renderElementKey() {
     html += `<div class="element-key-heading">Elements</div>`;
     html += `<div class="element-key-grid">`;
     for (const [key, label] of ENERGY_ORDER) {
+        if (!isLiveElement(key)) continue;
         html += `<div class="element-key-row">${elementKeyIconHtml(key)}<span>${label}</span></div>`;
     }
     html += `</div>`;
@@ -14079,7 +14134,10 @@ function renderElementKey() {
     html += `<section class="element-key-section element-key-matchups">`;
     html += `<div class="element-key-heading">Matchups <span class="element-key-sub">strong deal +1 vs weak</span></div>`;
     for (const [attacker, defenders] of ELEMENT_STRENGTHS) {
-        const targets = defenders
+        if (!isLiveElement(attacker)) continue;
+        const liveDefenders = defenders.filter((d) => isLiveElement(d));
+        if (liveDefenders.length === 0) continue;
+        const targets = liveDefenders
             .map((d) => `<span class="matchup-chip">${elementKeyIconHtml(d)}<span>${formatElementLabel(d)}</span></span>`)
             .join('');
         html += `<div class="matchup-row">`

@@ -153,7 +153,7 @@
                 <li><strong>Claim</strong> (Setup): spend a surviving Siegeling’s presence for temporary energy. Units with <em>Curse</em> cannot be claimed.</li>
                 <li>Placement must stay legal on your half — foundation and network rules decide which cells light up as valid.</li>
             </ul>
-            <p class="help-note"><strong>Energy pools:</strong> Fire, Ice, Earth, Wind, Water, Electric, Metal, Shadow, Psychic, and Undead have dedicated pools. Poison and Light attacks still apply their afflictions, but their action cards use Neutral costs.</p>
+            <p class="help-note" id="energyPoolsNote" data-pool-elements="fire,ice,earth,wind,water,electric,metal,shadow,psychic,undead" data-neutral-elements="poison,light"><strong>Energy pools:</strong> Fire, Ice, Earth, Wind, Water, Electric, Metal, Shadow, Psychic, and Undead have dedicated pools. Poison and Light attacks still apply their afflictions, but their action cards use Neutral costs.</p>
         </section>
 
         <section class="help-section" id="buffs" data-help-keywords="shield damage boost speed boost freeze frozen weak strong max health temporary">
@@ -190,7 +190,7 @@
                 </div>
                 <div class="gloss-row">
                     <span class="gloss-badge" style="--badge:#ffd060">Strong</span>
-                    <p>Advantage badge when your element hits a weak defender for +1 damage.</p>
+                    <p>The defender’s element beats the attacker’s, so the hit is resisted for -1 damage (a 1-damage hit is reduced to nothing).</p>
                 </div>
             </div>
         </section>
@@ -336,6 +336,6 @@
     <button class="help-fab" id="helpFab" type="button" aria-label="Jump to section" aria-expanded="false" aria-controls="helpFabMenu" title="Jump to section">?</button>
 </div>
 
-<script src="/js/help.js?v=2"></script>
+<script src="/js/help.js?v=3"></script>
 </body>
 </html>

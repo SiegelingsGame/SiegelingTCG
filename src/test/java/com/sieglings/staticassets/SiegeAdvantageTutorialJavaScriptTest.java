@@ -145,9 +145,18 @@ class SiegeAdvantageTutorialJavaScriptTest {
         // siege-tutorial at 16 for the evolved-card fix.
         // 4 for the .tut-locked rule: Siege shares coach.css, so a stale pin
         // here would leave the Siege coach without it.
-        assertTrue(html.contains("/css/coach.css?v=4"), "coach.css pin");
+        // A floor, not an exact number: coach.css is re-cut whenever the shared coach
+        // changes (the .tut-shaded rule came in at 5), and an exact pin here goes red
+        // for everyone on a change that has nothing to do with Siege.
+        assertTrue(coachCssPin(html) >= 5, "coach.css pin");
         assertTrue(html.contains("/css/adventure.css?v=93"), "adventure.css pin");
         assertTrue(html.contains("/js/siege-tutorial.js?v=27"), "siege-tutorial.js pin");
         assertTrue(html.contains("/js/adventure.js?v=100"), "adventure.js pin");
+    }
+
+    private static int coachCssPin(String markup) {
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("/css/coach\\.css\\?v=(\\d+)").matcher(markup);
+        return matcher.find() ? Integer.parseInt(matcher.group(1)) : -1;
     }
 }
