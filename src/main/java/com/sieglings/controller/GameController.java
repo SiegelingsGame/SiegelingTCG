@@ -159,6 +159,18 @@ public class GameController {
     }
 
     /**
+     * Just the active element roster. Reference surfaces (the All Effects sheet, the
+     * element key, the Field Guide) must not advertise an element the dashboard has
+     * switched off, and they need that list without paying for the whole options
+     * payload — help.html has no other reason to call the game API at all.
+     */
+    @GetMapping("/api/game/live-elements")
+    @ResponseBody
+    public Map<String, Object> getLiveElements() {
+        return Map.of("liveElements", gameService.getActiveLiveElementNames());
+    }
+
+    /**
      * Mobile/low-bandwidth option payload (no full deck-builder catalog).
      * The full /api/game/options response can be very large and slow to generate
      * on cold starts, which makes lightweight clients feel disconnected.

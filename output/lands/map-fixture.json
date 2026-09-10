@@ -1,5 +1,5 @@
 {
-  "token" : "UEwHR_o_4iFxDWmXOaxbYuTMh-YJyRmE",
+  "token" : "OjkyLTqGKnFWxaINfINKNrdwe_nZV27G",
   "status" : "ACTIVE",
   "currentNodeId" : -1,
   "lastReward" : "",
@@ -31,23 +31,23 @@
     "eventTitle" : "The Cinder Smith"
   },
   "landHistory" : [ {
-    "id" : "ice",
-    "name" : "Frostveil",
+    "id" : "wind",
+    "name" : "Zephyr Reach",
     "kind" : "ELEMENTAL",
-    "elements" : [ "ICE" ],
-    "background" : "/img/lands/ice.webp",
+    "elements" : [ "WIND" ],
+    "background" : "/img/lands/wind.webp",
     "locations" : {
-      "journey" : "/img/lands/locations/ice-journey.webp",
-      "shelter" : "/img/lands/locations/ice-shelter.webp",
-      "elite" : "/img/lands/locations/ice-elite.webp",
-      "boss" : "/img/lands/locations/ice-boss.webp"
+      "journey" : "/img/lands/locations/wind-journey.webp",
+      "shelter" : "/img/lands/locations/wind-shelter.webp",
+      "elite" : "/img/lands/locations/wind-elite.webp",
+      "boss" : "/img/lands/locations/wind-boss.webp"
     },
-    "feature" : "Frost Shelter",
-    "featureType" : "REST",
-    "terrain" : "Glacial cover",
-    "effect" : "ICE Siegelings start battles with +5 Shield.",
+    "feature" : "Sky Caravan",
+    "featureType" : "CARAVAN",
+    "terrain" : "Tailwinds",
+    "effect" : "WIND Siegelings gain +2 Speed for each battle.",
     "encounters" : "Favored Siegelings have 4× draw weight in recruits, broker stock and card prizes.",
-    "eventTitle" : "The Frozen Waystation"
+    "eventTitle" : "The Sky Courier"
   } ],
   "landSegment" : 0,
   "landSegmentRows" : 8,

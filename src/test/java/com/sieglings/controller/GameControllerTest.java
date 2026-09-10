@@ -68,6 +68,21 @@ class GameControllerTest {
         assertNull(multiplayerService.getRoom(session.roomId()));
     }
 
+    @Test
+    void liveElementsEndpointReturnsOnlyTheActiveRoster() throws Exception {
+        GameController controller = createController(new MultiplayerService(), accountServiceReturning(null));
+        setField(controller, "gameService", new GameService() {
+            @Override
+            public List<String> getActiveLiveElementNames() {
+                return List.of("FIRE", "ICE", "EARTH");
+            }
+        });
+
+        // Reference surfaces (All Effects, the element key, the Field Guide) read this
+        // instead of the multi-megabyte options payload, so it must stay this small.
+        assertEquals(Map.of("liveElements", List.of("FIRE", "ICE", "EARTH")), controller.getLiveElements());
+    }
+
     private GameService guestTrainerGameService() {
         return new GameService() {
             @Override
