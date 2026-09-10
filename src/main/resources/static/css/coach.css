@@ -21,22 +21,36 @@
    drives the real UI underneath it, so only the tip card is clickable. */
 .tut-layer{position:fixed; inset:0; z-index:200; pointer-events:none;}
 .tut-layer.hidden{display:none;}
+/* The shade is its OWN element, sitting one z-index step below the layer, so a
+   `shadeHost` (the hand tray) can be lifted between the two and keep its own
+   colour. While it lived on the ring, every hole in the wash had to be part of
+   one union rect, and the hand could only be lit by widening the spotlight all
+   the way across the screen. JS positions it over the spotlight and follows the
+   layer's z-index, which some pages raise per step. */
+.tut-dim{
+  position:fixed; border-radius:12px; pointer-events:none;
+  box-shadow:0 0 0 9999px rgba(6,9,14,.52);
+  transition:left .18s ease, top .18s ease, width .18s ease, height .18s ease;
+}
+/* Nothing to point at: the wash covers everything, with no hole to transition
+   in from an unrelated corner of the screen. */
+.tut-dim.whole{transition:none;}
+.tut-dim.hidden{display:none;}
 .tut-ring{
   position:absolute; border-radius:12px; pointer-events:none;
   border:2px solid var(--tut-good);
-  box-shadow:0 0 0 4px color-mix(in srgb, var(--tut-good) 30%, transparent),
-             0 0 0 9999px rgba(6,9,14,.52);
+  box-shadow:0 0 0 4px color-mix(in srgb, var(--tut-good) 30%, transparent);
   transition:left .18s ease, top .18s ease, width .18s ease, height .18s ease;
   animation:tutpulse 1.7s ease-in-out infinite;
 }
-.tut-ring.off{opacity:0; box-shadow:0 0 0 9999px rgba(6,9,14,.52);}
+.tut-ring.off{opacity:0;}
 /* A free-play step hands the whole screen back: no shade, so nothing on the
    board reads as disabled while the player is being told to carry on. */
 .tut-layer.tut-nodim .tut-ring,
 .tut-layer.tut-nodim .tut-ring.off{box-shadow:none; animation:none;}
 @keyframes tutpulse{
-  0%,100%{box-shadow:0 0 0 4px color-mix(in srgb, var(--tut-good) 30%, transparent), 0 0 0 9999px rgba(6,9,14,.52);}
-  50%{box-shadow:0 0 0 9px color-mix(in srgb, var(--tut-good) 16%, transparent), 0 0 0 9999px rgba(6,9,14,.52);}
+  0%,100%{box-shadow:0 0 0 4px color-mix(in srgb, var(--tut-good) 30%, transparent);}
+  50%{box-shadow:0 0 0 9px color-mix(in srgb, var(--tut-good) 16%, transparent);}
 }
 /* Carries the phone's safe-area insets as padding so position() can measure
    them. env() cannot be read from JS directly, and the tip card has to clear
@@ -181,13 +195,19 @@
   50%{box-shadow:0 0 20px rgba(240,180,41,.75), inset 0 0 22px rgba(240,180,41,.26);}
 }
 
-/* Under the shade, and therefore off this step. The spotlight already darkens
-   these; what was missing is that they still answered taps, so the hand read as
-   greyed-out-but-live and a player could pick a card the coach had just
-   darkened. Interaction only — the shade supplies the look, and adding a second
-   filter on top would double-dim it. */
+/* Lifted clear of the shade so its cards keep their own colour: a container
+   the coach has taken out of play, not a darkened backdrop. */
+.tut-lift{position:relative;}
+
+/* Off this step, and visibly so. Same treatment as a `lock`ed card — "part of
+   the game, not your move" — rather than the screen-wide wash, which flattened
+   the whole hand to grey and still answered taps, so a player could pick a card
+   the coach had just darkened. */
 .tut-shaded{
   pointer-events:none !important;
+  filter:grayscale(.75) brightness(.62);
+  opacity:.55;
+  transition:opacity .18s ease, filter .18s ease;
 }
 
 /* The other members of a `lock` set. Untappable, and visibly so — a card that

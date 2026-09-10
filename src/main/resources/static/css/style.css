@@ -20641,10 +20641,10 @@ body.has-custom-art::before {
 .knight-tour-tip [data-next] { background: #80ffc1; color: #112238; font-weight: 700; }
 .knight-tour-tip .knight-tour-dismiss { position: absolute; top: 8px; right: 8px; padding: 0 6px; font-size: 20px; border: 0; background: transparent; }
 
-/* Cost lesson: separate highlights instead of one ring around the whole hand. */
-body:has(.tut-layer:not(.hidden) .tut-card[data-step-id="t2-cost"]) :is(.hand-card, .board-card) > * {
-    filter: grayscale(1) brightness(.45);
-}
+/* Cost lesson: separate highlights instead of one ring around the whole hand.
+   No blanket grey over the hand and board here — the coach's own `shade` marks
+   the cards that are out of play for the step and leaves the costed card lit,
+   where this rule darkened every card including the one being taught. */
 body:has(.tut-layer:not(.hidden) .tut-card[data-step-id="t2-cost"]) .tutorial-cost-card > .hand-cost-badge {
     filter: none;
     opacity: 1;

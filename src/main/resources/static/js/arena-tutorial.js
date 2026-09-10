@@ -2091,6 +2091,7 @@
       // them) stop taking taps while they sit under it; a step that wants them
       // back lights them with `highlight`, as the picking steps do.
       shade: ['#playerHand .hand-card', '#drawAbilityRevealCards .hand-card'],
+      shadeHost: ['#handTray', '#playerHand', '#drawAbilityReveal'],
       onFinale: claimReward,
       onAlt: altHandler,
       onStop: function () {
