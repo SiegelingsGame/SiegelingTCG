@@ -394,6 +394,12 @@ class TutorialRuleParityTest {
                 "The step that asks for the cast must hand the hand back.");
         assertTrue(coach.contains("clearLock();\n    clearShade();\n    if (layer) layer.classList.add('hidden');"),
                 "Stopping the coach must hand every locked AND shaded element back before the layer hides.");
+        // The wash is a SIBLING of the layer, not a child, so hiding the layer
+        // does not hide it — it stayed painted over a live board once the
+        // tutorial handed the battle back.
+        assertTrue(coach.contains("if (dimEl) dimEl.classList.add('hidden');"),
+                "Stopping the coach must also hide the shade, or the screen stays darkened "
+                        + "over a board the player is now meant to play.");
         String coachCss = read("src/main/resources/static/css/coach.css");
         assertTrue(coachCss.contains(".tut-locked") && coachCss.contains("pointer-events:none !important;"),
                 "The lock has to actually block the tap, not just look shut.");

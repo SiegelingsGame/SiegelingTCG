@@ -814,6 +814,12 @@
     clearLock();
     clearShade();
     if (layer) layer.classList.add('hidden');
+    // The shade is its own element, a sibling of the layer rather than a child
+    // of it (so a lifted host can sit between the two) — hiding the layer left
+    // the screen-wide wash painted over a live board with no tip on it, which
+    // is what the player saw after the advanced chapter finished and they were
+    // handed the rest of the battle to play out.
+    if (dimEl) dimEl.classList.add('hidden');
     var done = cfg;
     if (done && done.bodyClass) document.body.classList.remove(done.bodyClass);
     cfg = null;
