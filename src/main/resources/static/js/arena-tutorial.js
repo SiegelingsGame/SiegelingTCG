@@ -190,6 +190,31 @@
     try { return !!(b && b.mulliganRevealing && b.mulliganRevealing()); } catch (e) { return false; }
   }
 
+  /** One element's pool, by the serialized `<element>Energy` field. */
+  function poolFor(element) {
+    var g = gs();
+    if (!g || !g.player || !element) return 0;
+    return Number(g.player[String(element).toLowerCase() + 'Energy']) || 0;
+  }
+
+  /**
+   * A Siegeling this Setup could actually put on the board: a BASE form (an
+   * evolution needs its precursor on the board and has its own lesson),
+   * affordable from the pool, with room under the five-per-side cap. The
+   * "use your remaining action" lesson has to release on this rather than on
+   * the action counter alone — actions can remain with nothing legal left to
+   * spend them on, which held the tip open on a hand of one Deception and one
+   * evolution and stalled the chapter.
+   */
+  function placeableSieglingInHand() {
+    if (mine() >= 5) return null;
+    return hand().filter(function (c) {
+      if (!c || c.type !== 'SIEGLING' || c.evolvesFromId) return false;
+      var cost = Number(c.costAmount) || 0;
+      return cost <= 0 || poolFor(c.costElement) >= cost;
+    })[0] || null;
+  }
+
   function mine() { var g = gs(); return g ? boardCount(g.playerBoard) : 0; }
   function theirs() { var g = gs(); return g ? boardCount(g.enemyBoard) : 0; }
 
@@ -1904,14 +1929,18 @@
         target: function () { return firstOf(['#playerHand', '#handTray']); },
         highlight: ['#playerHand', '#handTray', '#playerGrid .board-cell.legal'],
         body: function () {
-          var next = hand().filter(function (c) {
-            return c && c.type === 'SIEGLING' && !c.evolvesFromId;
-          })[0];
+          var next = placeableSieglingInHand();
           return 'You still have a Setup action. Place ' + (next ? '<b>' + esc(next.name) + '</b>' : 'another Siegeling') +
             ' on a highlighted cell to prepare for battle.';
         },
-        skipIf: function () { return turn() < 3 || actsRemaining() <= 0; },
-        until: function () { return actsRemaining() <= 0 || phase() !== 'SETUP'; } },
+        skipIf: function () {
+          return turn() < 3 || actsRemaining() <= 0 || !placeableSieglingInHand();
+        },
+        // Released by the placement, by the budget running out, or by the hand
+        // running out of anything legal to place — whichever comes first.
+        until: function () {
+          return actsRemaining() <= 0 || !placeableSieglingInHand() || phase() !== 'SETUP';
+        } },
 
       { id: 't3-acts', title: 'The action counter', target: actionBtn,
         highlight: function () { return [actionBtn()]; },

@@ -364,6 +364,22 @@ class TutorialRuleParityTest {
                         && tutorial.contains("var MOVE_BTNS = MOVE_PANELS.map("),
                 "The move-button selector must cover every panel renderBattlePanel() writes into, "
                         + "the phone's bottom dock included.");
+        // "Use your remaining action" has to end when the hand runs out of
+        // anything legal to place. The action counter alone kept the tip up on a
+        // hand of one Deception and one evolution, with the chapter stalled.
+        int summonAt = tutorial.indexOf("{ id: 't3-summon'");
+        int summonEnd = tutorial.indexOf("{ id: '", summonAt + 8);
+        String summon = summonAt >= 0 ? tutorial.substring(summonAt, summonEnd) : "";
+        assertTrue(summon.contains("!placeableSieglingInHand()"),
+                "The placement lesson must release when nothing placeable is left in hand, "
+                        + "not only when the Setup budget runs out.");
+        assertTrue(tutorial.contains("function placeableSieglingInHand()")
+                        && tutorial.contains("if (mine() >= 5) return null;")
+                        && tutorial.contains("return cost <= 0 || poolFor(c.costElement) >= cost;"),
+                "Placeable means a BASE Siegeling the player can afford with room under the "
+                        + "five-per-side cap — an evolution, an unaffordable card or a full board "
+                        + "is not something the player can be asked to place.");
+
         int gateAt = tutorial.indexOf("{ id: 'gate-burn'");
         int gateEnd = tutorial.indexOf("{ id: '", gateAt + 8);
         String gate = gateAt >= 0 ? tutorial.substring(gateAt, gateEnd) : "";
