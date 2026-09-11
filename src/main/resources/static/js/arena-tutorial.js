@@ -449,6 +449,37 @@
   function comboPartnerTarget() {
     return handCardTarget(comboPartnerInHand());
   }
+
+  /** The Deception in hand, and its hand selector. */
+  function trapCardInHand() {
+    return hand().filter(function (c) { return c && c.type === 'TRAP'; })[0] || null;
+  }
+  function trapTarget() { return handCardTarget(trapCardInHand()); }
+
+  /** One element out of the OPPONENT's pool. A Deception's printed number is
+   *  their energy, not yours — reading the other side is the whole lesson. */
+  function enemyPoolFor(element) {
+    var g = gs();
+    if (!g || !g.enemy || !element) return 0;
+    return Number(g.enemy[String(element).toLowerCase() + 'Energy']) || 0;
+  }
+
+  /** True when the opponent holds what the Deception in hand asks for. Mirrors
+   *  the server's own gate — `EnergyService.canTriggerTrap` is `canAfford` on
+   *  the OTHER side — so the coach never asks for a set the backend refuses. */
+  function trapTriggerMet() {
+    var t = trapCardInHand();
+    if (!t) return false;
+    var need = Number(t.trapBucketAmount) || 0;
+    return need <= 0 || enemyPoolFor(t.trapBucketElement) >= need;
+  }
+
+  /** The opponent's energy readout: the phone strip first, the table-top rail
+   *  on desktop. */
+  function enemyEnergyTarget() {
+    return firstOf(['#mobileEnemyElements', '#mobileEnemyEnergyCount', '.mobile-hud-enemy',
+                    '#enemyEnergy', '#boardArea']);
+  }
   function previewField(mobile, desktop) {
     return firstOf2(['#drawerSelected ' + mobile, '#desktopCardPreviewPanel ' + mobile, '#desktopCardPreviewPanel ' + desktop]);
   }
@@ -1882,11 +1913,79 @@
         body: 'On phones, swipe or tap the page dots to view the card summary and abilities. On desktop, the preview appears beside the board. Tap <b>Got it</b> to continue.',
         skipIf: function () { return !ashfallPreviewOpen(); } },
 
-      { id: 't3-deception', title: 'Deception requirements', target: '#playerHand',
-        highlight: ['#playerHand', '#handTray'],
+      // Ashfall's preview has to go before the Deception lesson: on a phone the
+      // drawer covers both the hand card the next step asks for and the
+      // opponent's energy strip the step after that reads.
+      { id: 't3-strategy-close', hint: 'Swipe down to close', title: 'Close the card preview',
+        target: function () {
+          return firstOf(['#drawerSelected .drawer-handle', '#drawerSelected h3', '#drawerSelected']);
+        },
+        highlight: function () {
+          return [firstOf(['#drawerSelected .drawer-handle', '#drawerSelected'])];
+        },
         lock: HAND_LOCKED, lockAll: true,
-        body: 'A <b>Deception</b> requires the opponent to have the amount and element of energy shown on the card. Check their pool to see which Deceptions you can play.',
-        skipIf: function () { return turn() < 3 || !handHas('TRAP'); } },
+        body: 'Swipe the card preview <b>down</b> to close it (or tap the handle). Your <b>Deception</b> and the opponent’s energy are behind it.',
+        skipIf: function () { return turn() < 3 || !selectedDrawerOpen(); },
+        until: function () { return !selectedDrawerOpen(); } },
+
+      { id: 't3-deception', title: 'Deception requirements',
+        target: function () { return trapTarget() || firstOf(['#playerHand', '#handTray']); },
+        highlight: function () { return [trapTarget() || firstOf(['#playerHand', '#handTray'])]; },
+        recommend: trapTarget,
+        lock: function () { return trapTarget() ? HAND_LOCKED : null; },
+        hint: function () {
+          var t = trapCardInHand();
+          return t ? 'Tap <b>' + esc(t.name) + '</b>' : 'Tap your <b>Deception</b>';
+        },
+        body: function () {
+          var t = trapCardInHand();
+          var named = t ? '<b>' + esc(t.name) + '</b>' : 'your Deception';
+          return 'A <b>Deception</b> springs when its condition is met, and the number it prints is the ' +
+            '<b>opponent’s</b> energy, not yours. Tap ' + named + ' to open it.';
+        },
+        skipIf: function () { return turn() < 3 || !trapCardInHand(); },
+        until: function () { return selectedType() === 'TRAP' || !trapCardInHand(); } },
+
+      { id: 't3-deception-energy', title: 'Check the opponent’s energy',
+        target: enemyEnergyTarget,
+        highlight: function () { return [enemyEnergyTarget()]; },
+        lock: HAND_LOCKED, lockAll: true,
+        body: function () {
+          var t = trapCardInHand();
+          if (!t) return 'A Deception reads the <b>opponent’s</b> pool. Check it before you set one.';
+          var need = Number(t.trapBucketAmount) || 0;
+          var el = String(t.trapBucketElement || '').toLowerCase();
+          var have = enemyPoolFor(t.trapBucketElement);
+          var line = '<b>' + esc(t.name) + '</b> needs the opponent to hold <b>' + need + ' ' + esc(el) +
+            ' energy</b>. They have <b>' + have + '</b>. ';
+          return line + (have >= need
+            ? 'That meets the condition, so you can set it now.'
+            : 'Not enough yet — a Deception cannot be set until their pool reaches it.');
+        },
+        skipIf: function () { return turn() < 3 || !trapCardInHand(); } },
+
+      { id: 't3-deception-set', title: 'Set the Deception',
+        target: function () { return firstOf([CAST_BTNS]) || trapTarget() || '#playerHand'; },
+        highlight: function () { return [firstOf([CAST_BTNS]) || trapTarget() || '#playerHand']; },
+        // The trap stays tappable (it may have been deselected) and the Set
+        // control is deliberately NOT in the lock set — this is the one step in
+        // the stretch before the claim that is meant to play a card. It costs
+        // no Fire, so it takes nothing from the Ashfall arithmetic to come.
+        recommend: trapTarget,
+        lock: function () { return trapTarget() ? HAND_CARDS : null; },
+        hint: function () {
+          var t = trapCardInHand();
+          return t ? 'Set <b>' + esc(t.name) + '</b>' : 'Set your <b>Deception</b>';
+        },
+        body: function () {
+          var t = trapCardInHand();
+          return 'The condition is met, so ' + (t ? '<b>' + esc(t.name) + '</b>' : 'your Deception') +
+            ' can go down now. Tap <b>Set</b> to play it — then you will claim for the Fire that pays for your Strategy.';
+        },
+        // Skipped, not stalled, when the opponent's pool is short: the server
+        // refuses the set outright in that case.
+        skipIf: function () { return turn() < 3 || !trapCardInHand() || !trapTriggerMet(); },
+        until: function () { return !trapCardInHand() || phase() !== 'SETUP'; } },
 
       // Claiming used to be taught in a vacuum: "cash in a survivor" with nothing
       // to spend it on, which asked the student to bin their best Siegeling for

@@ -348,13 +348,26 @@ class TutorialRuleParityTest {
                 "Locking the hand must also shut the Cast control: a preview that is already open "
                         + "can still be played while every card in hand is untappable.");
         for (String stepId : new String[]{"t3-link-combo", "t3-energy", "t3-combo", "ashfall-art",
-                "ashfall-cost", "ashfall-effect", "ashfall-pages", "t3-deception", "t3-claim"}) {
+                "ashfall-cost", "ashfall-effect", "ashfall-pages", "t3-strategy-close",
+                "t3-deception-energy", "t3-claim"}) {
             int at = tutorial.indexOf("{ id: '" + stepId + "'");
             assertTrue(at >= 0, "Round-three step " + stepId + " must exist.");
             int end = tutorial.indexOf("{ id: '", at + 8);
             String body = end > at ? tutorial.substring(at, end) : tutorial.substring(at);
             assertTrue(body.contains("lock: HAND_LOCKED, lockAll: true,"),
                     stepId + " runs before the claim, so nothing in hand may be playable there.");
+        }
+        // The two Deception steps are the exception the chapter is built around:
+        // the trap is meant to be opened and set there. Both still lock the rest
+        // of the hand, which is what keeps Ashfall from being cast early — the
+        // Fire it would spend is what the claim lesson is about.
+        for (String stepId : new String[]{"t3-deception", "t3-deception-set"}) {
+            int at = tutorial.indexOf("{ id: '" + stepId + "'");
+            int end = tutorial.indexOf("{ id: '", at + 8);
+            String body = tutorial.substring(at, end);
+            assertTrue(body.contains("recommend: trapTarget") && body.contains("lock: function ()"),
+                    stepId + " must mark the Deception and lock the rest of the hand, so the "
+                            + "Strategy still cannot be cast before the claim.");
         }
         // The bottom dock is the ONLY move panel on a phone. Leaving it out of
         // the move-button selector made every battle lesson name a move it then
@@ -367,6 +380,34 @@ class TutorialRuleParityTest {
         // "Use your remaining action" has to end when the hand runs out of
         // anything legal to place. The action counter alone kept the tip up on a
         // hand of one Deception and one evolution, with the chapter stalled.
+        // The Deception chapter: close the Strategy's preview, open the trap,
+        // read the OPPONENT's pool, then set it — and only when their pool
+        // actually meets the trigger, which is the server's own gate
+        // (EnergyService.canTriggerTrap is canAfford on the other side).
+        String[] deceptionOrder = {"t3-strategy-close", "t3-deception", "t3-deception-energy",
+                "t3-deception-set", "t3-claim"};
+        int previous = tutorial.indexOf("{ id: 'ashfall-pages'");
+        assertTrue(previous >= 0, "The Ashfall preview lesson must still precede the Deception chapter.");
+        for (String stepId : deceptionOrder) {
+            int at = tutorial.indexOf("{ id: '" + stepId + "'");
+            assertTrue(at > previous,
+                    "Deception chapter out of order: " + stepId + " must follow what comes before it.");
+            previous = at;
+        }
+        assertTrue(tutorial.contains("function trapTriggerMet()")
+                        && tutorial.contains("return need <= 0 || enemyPoolFor(t.trapBucketElement) >= need;"),
+                "A Deception's printed number is the OPPONENT's energy — the coach has to read their "
+                        + "pool, the same way EnergyService.canTriggerTrap does.");
+        int setAt = tutorial.indexOf("{ id: 't3-deception-set'");
+        int setEnd = tutorial.indexOf("{ id: '", setAt + 8);
+        String setStep = tutorial.substring(setAt, setEnd);
+        assertTrue(setStep.contains("!trapTriggerMet()"),
+                "The set step must be skipped when the opponent's pool is short — the server refuses "
+                        + "that set outright, so asking for it would strand the player.");
+        assertTrue(setStep.contains("lock: function () { return trapTarget() ? HAND_CARDS : null; }"),
+                "The set step is the one step before the claim meant to PLAY a card: it locks the "
+                        + "other hand cards but must leave the Set control and the trap itself live.");
+
         int summonAt = tutorial.indexOf("{ id: 't3-summon'");
         int summonEnd = tutorial.indexOf("{ id: '", summonAt + 8);
         String summon = summonAt >= 0 ? tutorial.substring(summonAt, summonEnd) : "";

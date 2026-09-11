@@ -15234,6 +15234,11 @@ function renderHandCardFace(card, options = {}) {
         ? `SIEGELING / ${formatElementLabel(card.element)}`
         : `${card.type} / ${card.rarity}`;
     html += `<div class="card-label">${escapeHtml(handLabel)}</div>`;
+    // Inside the header on purpose: the cost badge hangs off the bottom of the
+    // NAME. Siegeling and spell/trap frames print their name at different
+    // heights (10.6% vs 19.6% of the card), so the single card-level offset it
+    // used to carry could only ever be right for one of them.
+    html += renderHandCostBadge(card);
     html += `</div>`;
     html += renderCardArt(card, 'hand', fallbackArtLabel);
     if (card.type === 'SIEGLING') {
@@ -15263,7 +15268,6 @@ function renderHandCardFace(card, options = {}) {
     }
     html += `</div>`; /* body */
     html += `</div>`; /* shell */
-    html += renderHandCostBadge(card);
     html += holographicCardOverlay(card);
     return { faceClass, html };
 }
