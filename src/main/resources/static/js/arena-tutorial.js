@@ -171,6 +171,12 @@
   }
 
   /** True while the single Burn (or other) affliction sheet is open — not the full reference. */
+  /** Any full-screen ability/affliction modal. Like the drawer, it is meant to
+   *  cover the hand, so the shade-lift has to stay out of its way. */
+  function trainerOverlayOpen() {
+    return visible('.trainer-ability-overlay:not(.hidden)');
+  }
+
   function burnSheetOpen() {
     return effectKeyOpen() && !allEffectsOpen();
   }
@@ -2091,7 +2097,19 @@
       // them) stop taking taps while they sit under it; a step that wants them
       // back lights them with `highlight`, as the picking steps do.
       shade: ['#playerHand .hand-card', '#drawAbilityRevealCards .hand-card'],
-      shadeHost: ['#handTray', '#playerHand', '#drawAbilityReveal'],
+      // The lift puts a host between the shade and the layer so its cards keep
+      // their colour — but the layer is raised to 1390 for the drawer/sheet
+      // lessons (style.css), which drags the lift up with it and punched the
+      // hand tray straight through the Card Preview drawer it is supposed to
+      // be under. Drop the hand from the lift while a sheet is deliberately
+      // covering it: those steps are about the sheet, and the hand behind it
+      // has no business being legible, let alone on top.
+      shadeHost: function () {
+        if (selectedDrawerOpen() || effectKeyOpen() || trainerOverlayOpen()) {
+          return ['#drawAbilityReveal'];
+        }
+        return ['#handTray', '#playerHand', '#drawAbilityReveal'];
+      },
       onFinale: claimReward,
       onAlt: altHandler,
       onStop: function () {

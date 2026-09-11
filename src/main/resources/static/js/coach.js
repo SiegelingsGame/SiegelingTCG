@@ -419,7 +419,14 @@
     if (same) {
       for (var j = 0; j < next.length; j++) { if (next[j] !== shaded[j]) { same = false; break; } }
     }
-    if (same) return;
+    if (same) {
+      // The shaded set can hold still while the host set moves under it — a
+      // drawer opening mid-step changes which hosts may be lifted, not which
+      // cards are dimmed. Re-running the lift is idempotent, so ask every time
+      // rather than only when the shade itself changes.
+      liftHosts(shaded.length > 0);
+      return;
+    }
     clearShade();
     shaded = next;
     for (var k = 0; k < shaded.length; k++) shaded[k].classList.add('tut-shaded');
