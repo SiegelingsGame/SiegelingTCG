@@ -356,6 +356,22 @@ class TutorialRuleParityTest {
             assertTrue(body.contains("lock: HAND_LOCKED, lockAll: true,"),
                     stepId + " runs before the claim, so nothing in hand may be playable there.");
         }
+        // The bottom dock is the ONLY move panel on a phone. Leaving it out of
+        // the move-button selector made every battle lesson name a move it then
+        // failed to mark, ring or lock ("Tap Lavaburst", with nothing lit).
+        assertTrue(tutorial.contains("var MOVE_PANELS = ['#battleActionPanel', '#desktopHandBattlePanel', "
+                        + "'#desktopBattleActionPanel'];")
+                        && tutorial.contains("var MOVE_BTNS = MOVE_PANELS.map("),
+                "The move-button selector must cover every panel renderBattlePanel() writes into, "
+                        + "the phone's bottom dock included.");
+        int gateAt = tutorial.indexOf("{ id: 'gate-burn'");
+        int gateEnd = tutorial.indexOf("{ id: '", gateAt + 8);
+        String gate = gateAt >= 0 ? tutorial.substring(gateAt, gateEnd) : "";
+        assertTrue(gate.contains("hint: 'Complete the battle round'")
+                        && gate.contains("target: battleActionPanel"),
+                "A gate that asks the player to keep acting must point at the move list and say "
+                        + "what finishing it means, not name its own internal condition.");
+
         int wipeAt = tutorial.indexOf("{ id: 't3-wipe'");
         int wipeEnd = tutorial.indexOf("{ id: '", wipeAt + 8);
         assertTrue(wipeAt >= 0 && !tutorial.substring(wipeAt, wipeEnd).contains("lock:"),

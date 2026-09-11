@@ -337,7 +337,7 @@ public class GameService {
         if (state.isTutorialMatch() && isPlayerSide && state.getTurnNumber() <= 3) {
             String scriptedDraw = switch (state.getTurnNumber()) {
                 case 1 -> "floraknight";
-                case 2 -> "firsky";
+                case 2 -> "draco";
                 default -> "squirebud";
             };
             Card lessonCard = takeNamedCard(actor.getDeck(), scriptedDraw);
@@ -785,7 +785,7 @@ public class GameService {
      * a SPARE copy of Pylook, there purely to be thrown away. A redraw does not
      * shuffle — the next scripted card comes off the top of the deck, which is
      * Raydile (the round-two evolution). The normal turn draws are pinned
-     * separately: Flora Knight on one, Firsky on two, Squire Bud on three.
+     * separately: Flora Knight on one, Draco on two, Squire Bud on three.
      */
     public static final int TUTORIAL_SCRIPTED_MULLIGAN_INDEX = 4;
 
@@ -801,12 +801,15 @@ public class GameService {
      * Ashfall (the cost-preview lesson), Shatter Seal (Ice Deception vs the Dummy) and a SPARE
      * Pylook in the practice-redraw slot. Raydile is its replacement — the evolution
      * for round two — so the first normal draw is Flora Knight rather than a second
-     * Raydile. Firsky follows on turn two, deliberately a BASE Fire Siegeling: the
-     * round-three "use your remaining action" lesson asks the player to place
+     * Raydile. Draco follows on turn two, deliberately a FREE base Fire Siegeling:
+     * the round-three "use your remaining action" lesson asks the player to place
      * another Siegeling, and the Earth evolutions the deck otherwise deals
-     * (Flora Knight, Generoot) can only go onto a precursor, so the step asked
-     * for a placement the hand could not make. Squire Bud follows on turn three
-     * for the combo lesson. Keeping the opening hand does not shift these lesson draws.
+     * (Flora Knight, Generoot) can only go onto a precursor, so the step asked for
+     * a placement the hand could not make. Cost matters as much as the form here —
+     * that step runs straight after Ashfall has spent the whole Fire pool, so a
+     * Siegeling carrying any cost at all (Firsky is 1 Fire in the live overrides)
+     * is just as unplayable as an evolution. Squire Bud follows on turn three for
+     * the combo lesson. Keeping the opening hand does not shift these lesson draws.
      * Remaining Strategies support the later lessons.
      */
     /* Package-private so a test can reproduce the production shape directly:
@@ -828,7 +831,7 @@ public class GameService {
         // contain. Pulling from the pool first still preserves any dashboard
         // tuning of that copy; the catalog is the guarantee behind it.
         for (String id : List.of(
-                "sundile", "pylook", "tutorial_ashfall", "trap13", "pylook", "raydile", "floraknight", "firsky", "squirebud",
+                "sundile", "pylook", "tutorial_ashfall", "trap13", "pylook", "raydile", "floraknight", "draco", "squirebud",
                 "spell_fire_09", "tutorial_ashen_ward", "tutorial_ashfall",
                 "spell_earth_02", "spell_earth_01")) {
             Card taken = takeNamedCard(pool, id);
