@@ -20688,6 +20688,11 @@ body:has(.tut-layer:not(.hidden) .tut-card[data-step-id="t2-cost"]) :is(#mobileP
    on phone portrait. */
 .tut-layer:has(.tut-card[data-step-id^="ashfall-"]),
 .tut-layer:has(.tut-card[data-step-id^="badge-"]),
+/* The Deception chapter runs with a card preview open: the close prompt points
+   AT the drawer, and the energy/set tips sit over it while the trap is up. */
+.tut-layer:has(.tut-card[data-step-id="t3-strategy-close"]),
+.tut-layer:has(.tut-card[data-step-id="t3-deception-energy"]),
+.tut-layer:has(.tut-card[data-step-id="t3-deception-set"]),
 .tut-layer:has(.tut-card[data-step-id="first-stack"]),
 .tut-layer:has(.tut-card[data-step-id="status"]),
 .tut-layer:has(.tut-card[data-step-id="preview-close"]),
