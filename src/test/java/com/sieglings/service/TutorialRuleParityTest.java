@@ -435,6 +435,40 @@ class TutorialRuleParityTest {
                 "The step that asks for the cast must hand the hand back.");
         assertTrue(coach.contains("clearLock();\n    clearShade();\n    if (layer) layer.classList.add('hidden');"),
                 "Stopping the coach must hand every locked AND shaded element back before the layer hides.");
+        // A tutorial can only walk forwards, so any step that reasons about a
+        // board an earlier step was meant to build is one stray tap — or one
+        // Skip on a collapsed hint — away from narrating a match that never
+        // happened. The coach has to be able to put the player back.
+        assertTrue(coach.contains("if (s.requires && s.recoverTo && !recovered[s.id || idx])")
+                        && coach.contains("if (back >= 0 && back < idx)"),
+                "The coach must recover a player who ended up past a lesson the script depends on, "
+                        + "and only ever BACKWARDS so recovery cannot skip anything.");
+        assertTrue(coach.contains("recovered[s.id || idx] = true;"),
+                "Each step may recover once, so a requirement nothing can satisfy walks on "
+                        + "instead of trapping the player in a loop.");
+        for (String reset : new String[]{"function start(options)", "function continueWith(newSteps, patch)"}) {
+            int at = coach.indexOf(reset);
+            assertTrue(at >= 0, "Missing " + reset);
+            int end = coach.indexOf("\n  }", at);
+            assertTrue(coach.substring(at, end).contains("recovered = {};"),
+                    reset + " must clear the recovery ledger, or a second run (the Advanced "
+                            + "chapter arrives through continueWith) loses its recoveries.");
+        }
+        assertTrue(read("src/main/resources/static/css/coach.css").contains(".tut-recover"),
+                "The recovery note needs its own treatment — it explains a detour, it is not body copy.");
+        // Round one is the spine: nothing after the opener means anything on an
+        // empty board, and that is exactly where a skipped placement stranded
+        // the script.
+        for (String stepId : new String[]{"knight", "endturn"}) {
+            int at = tutorial.indexOf("{ id: '" + stepId + "'");
+            int end = tutorial.indexOf("{ id: '", at + 8);
+            String body = tutorial.substring(at, end);
+            assertTrue(body.contains("requires: function () { return mine() > 0; }")
+                            && body.contains("recoverTo: 'pick'") && body.contains("recoverNote:"),
+                    stepId + " reads a board the opener builds, so it must send a player who has "
+                            + "none back to the placement with an explanation.");
+        }
+
         // The wash is a SIBLING of the layer, not a child, so hiding the layer
         // does not hide it — it stayed painted over a live board once the
         // tutorial handed the battle back.

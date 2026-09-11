@@ -1238,6 +1238,17 @@
 
       { id: 'knight', hint: 'Tap <b>Knight</b>', title: 'Your SiegeKnight', target: '#btnTrainerAbility',
         avoid: '.trainer-ability-close',
+        // Every lesson from here to the end of the round reads a board with a
+        // Siegeling on it. A stray tap, or Skip on the collapsed hint, used to
+        // walk straight past the placement and leave the coach narrating a
+        // battle nobody could fight.
+        requires: function () { return mine() > 0; },
+        recoverTo: 'pick',
+        recoverNote: function () {
+          var c = openerCard();
+          return 'Your board is still empty — nothing can act in <b>Battle</b> until a Siegeling is on the grid. ' +
+            'Pick up where you left off: tap ' + (c ? '<b>' + esc(c.name) + '</b>' : 'a Siegeling') + ' to place it.';
+        },
         body: function () {
           var k = knightName();
           return (k ? '<b>' + esc(k) + '</b>' : 'Your SiegeKnight') +
@@ -1246,6 +1257,15 @@
         until: function () { return seen.knightSpent || visible('#trainerAbilityOverlay') || seen.knightOpened; } },
 
       { id: 'endturn', hint: 'Tap <b>End Turn</b>', title: 'Finish Setup', target: actionBtn,
+        // Last chance to build the board: once the turn ends the round is spent
+        // and the battle chapter has nothing to teach on.
+        requires: function () { return mine() > 0; },
+        recoverTo: 'pick',
+        recoverNote: function () {
+          var c = openerCard();
+          return 'Ending the turn now would send an empty board into <b>Battle</b>. ' +
+            'Place ' + (c ? '<b>' + esc(c.name) + '</b>' : 'a Siegeling') + ' first — then End Turn.';
+        },
         body: 'Tap <b>End Turn</b> when you have finished Setup. Battle begins after both players finish.',
         until: function () { return !myTurn() || phase() === 'BATTLE'; } },
 
@@ -1521,6 +1541,14 @@
       // Spotlight the two cards that are actually linked, not the whole grid —
       // the lesson names a connection the player then has to go find.
       { id: 't2-notches', title: 'Notch links',
+        // The notch and link lessons describe a connection between two cards.
+        requires: function () { return turn() < 2 || mine() >= 2; },
+        recoverTo: 't2-pick',
+        recoverNote: function () {
+          var mate = partnerCard();
+          return 'There is still only one Siegeling on your board, so there is no <b>link</b> to look at yet. ' +
+            'Place ' + (mate ? '<b>' + esc(mate.name) + '</b>' : 'a second Siegeling') + ' beside the first to make one.';
+        },
         target: function () {
           var cells = linkedCellSelectors();
           return cells.length ? cells[0] : '#playerGrid';
@@ -1880,6 +1908,16 @@
         until: function () { return comboCount() > 0 || phase() !== 'SETUP'; } },
 
       { id: 't3-energy', hint: 'Tap <b>◈</b>', title: 'Your energy pool', target: '#btnEnergyDetail',
+        // The pool and combo tips are about a link this round was meant to
+        // build; without it they describe energy the player does not have.
+        requires: function () { return turn() < 3 || comboCount() > 0 || mine() >= 3; },
+        recoverTo: 't3-pick',
+        recoverNote: function () {
+          var earth = comboPartnerInHand();
+          return 'The <b>combo link</b> this round is about has not been made yet. ' +
+            'Place ' + (earth ? '<b>' + esc(earth.name) + '</b>' : 'a Siegeling of a different element') +
+            ' next to one of yours, with their notches facing.';
+        },
         lock: HAND_LOCKED, lockAll: true,
         body: 'The coloured dots show your available energy. Tap <b>◈</b> to see which links and sockets generated it.',
         skipIf: function () { return turn() < 3 || !seen.sawBattle2; },

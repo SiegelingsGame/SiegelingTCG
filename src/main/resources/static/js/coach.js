@@ -36,6 +36,16 @@
  * `body` and `hint` may be functions, evaluated at render time, so a tip can
  * name what the player is actually looking at rather than a guess baked in
  * when the script was built.
+ * `requires` + `recoverTo` + `recoverNote` put the player BACK on the rails.
+ * A tutorial can only walk forwards, so any step that assumes a board an
+ * earlier step was meant to build is one stray tap — or one Skip on a
+ * collapsed hint — away from narrating a match that never happened. A step
+ * declares what must already be true (`requires`) and which earlier step
+ * establishes it (`recoverTo`); when the coach arrives and it is not, it
+ * returns to that step and shows `recoverNote` above its tip, so the player
+ * reads what happened and what to do rather than being marched past the
+ * lesson. Recovery only ever jumps BACKWARDS, and a step is only recovered to
+ * once per visit, so a requirement that can never be met cannot trap anyone.
  * `gate` renders nothing and HOLDS the script until it comes true. This is not
  * the same as `skipIf`, and the difference cost a whole chapter: skipIf is
  * evaluated once, at the instant the coach advances onto the step, and a step
@@ -58,6 +68,8 @@
   var idx = -1;
   var shown = 0;         // steps actually rendered, for the "Step N of T" counter
   var collapsed = false; // a read tip shrinks to a one-line hint so the play area is clear
+  var recoveryNote = '';  // why the coach just walked the player back, shown once
+  var recovered = {};     // steps already recovered from, so a recovery cannot loop
   var total = 0;
   var visited = null;    // step ids the coach has actually rendered, for fork routing
   var held = false;      // parked on a `gate` step, waiting for the match to catch up
@@ -126,6 +138,7 @@
   function current() { return (STEPS && STEPS[idx]) || null; }
 
   function indexOfId(id) {
+    if (!STEPS) return -1;
     for (var i = 0; i < STEPS.length; i++) { if (STEPS[i].id === id) return i; }
     return -1;
   }
@@ -137,11 +150,16 @@
    * is what lets one script follow either lane of a fork.
    */
   function advance() {
+    // The note explains one jump; it does not follow the player onward.
+    recoveryNote = '';
     var cur = current();
     var target = null;
     if (cur && cur.next) target = typeof cur.next === 'function' ? cur.next() : cur.next;
     idx = target ? indexOfId(target) : idx + 1;
 
+    // STEPS is null once the coach has stopped; a stale click on a card the
+    // layer is already hiding must not throw its way out of the handler.
+    if (!STEPS) return;
     var guard = 0;
     while (idx >= 0 && idx < STEPS.length && guard++ < 60) {
       var s = STEPS[idx];
@@ -153,6 +171,22 @@
         continue;
       }
       if (s.skipIf && s.skipIf()) { idx++; continue; }
+      // Back on the rails before anything reasons about a board that is not
+      // there. Strictly backwards, and at most once per step per advance, so a
+      // requirement nothing can satisfy walks on instead of looping.
+      if (s.requires && s.recoverTo && !recovered[s.id || idx]) {
+        var ok = true;
+        try { ok = !!s.requires(); } catch (e) { ok = true; }
+        if (!ok) {
+          var back = indexOfId(s.recoverTo);
+          if (back >= 0 && back < idx) {
+            recovered[s.id || idx] = true;
+            recoveryNote = text(s.recoverNote) || '';
+            idx = back;
+            continue;
+          }
+        }
+      }
       if (s.route) {
         var j = indexOfId(s.route());
         if (j < 0) { idx++; continue; }
@@ -250,6 +284,7 @@
         '<button class="tut-quit" type="button" aria-label="Exit tutorial">✕</button>' +
       '</div>' +
       '<h3 class="tut-title">' + esc(s.title) + '</h3>' +
+      (recoveryNote ? '<p class="tut-recover">' + recoveryNote + '</p>' : '') +
       '<p class="tut-body">' + text(s.body) + '</p>' +
       (s.finale ? '<div class="tut-reward" id="tutReward">Claiming your first-time reward…</div>' : '') +
       '<div class="tut-foot">' +
@@ -764,6 +799,8 @@
     held = false;
     lastRect = '';
     renderedKey = '';
+    recoveryNote = '';
+    recovered = {};
     if (!layer) buildLayer();
     layer.classList.remove('hidden');
     if (cfg.bodyClass) document.body.classList.add(cfg.bodyClass);
@@ -799,6 +836,8 @@
     visited = {};
     lastRect = '';
     renderedKey = '';
+    recoveryNote = '';
+    recovered = {};
     advance();
   }
 

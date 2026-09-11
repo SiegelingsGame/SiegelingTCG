@@ -78,6 +78,16 @@
 .tut-quit:hover{color:var(--tut-text);}
 .tut-title{margin:4px 0 5px; font-size:17px; line-height:1.2; font-weight:850;}
 .tut-body{margin:0; font-size:13.5px; line-height:1.5; color:var(--tut-dim);}
+
+/* Why the coach walked you back. Deliberately not an error colour: nothing has
+   gone wrong, a lesson was simply missed and is being offered again. */
+.tut-recover{
+  margin:0 0 7px; padding:7px 9px;
+  border-radius:8px;
+  border:1px solid color-mix(in srgb, var(--tut-good) 45%, transparent);
+  background:color-mix(in srgb, var(--tut-good) 12%, transparent);
+  font-size:12.5px; line-height:1.45; color:var(--tut-text);
+}
 .tut-body b, .tut-body strong{color:var(--tut-text);}
 /* A second paragraph inside a tip. Its own element rather than two <br>s, so
    the landscape rules below can tighten the gap instead of spending a line. */
