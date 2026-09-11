@@ -96,6 +96,42 @@ class TutorialScriptedDrawTest {
      * simply be pinned to a deck position — it is hoisted for the round-three draw.
      * Asserted on both branches because the student may keep their hand.
      */
+    /**
+     * Round three's last lesson is "use your remaining action" — place another
+     * Siegeling. The scripted deal used to hand Generoot on turn two, an Earth
+     * evolution of Flora Knight, so by that step the hand held nothing but
+     * evolutions and a Deception: the coach asked for a placement the player
+     * could not make. A BASE Siegeling has to survive to that point.
+     */
+    @Test
+    void roundThreeLeavesABaseSieglingInHandToPlace() {
+        for (boolean redraw : new boolean[]{true, false}) {
+            GameState state = gameService.newTutorialGame("Student").state();
+            gameService.resolveOpeningMulligan(state, true,
+                    redraw ? List.of(GameService.TUTORIAL_SCRIPTED_MULLIGAN_INDEX) : List.of());
+            // Assert on the DRAWS, not the whole hand: by this step the openers
+            // (Sundile, Pylook, Raydile) are on the board, so only what rounds
+            // one to three dealt is left to place.
+            List<Card> drawn = new java.util.ArrayList<>();
+            for (int turnNumber : new int[]{1, 2, 3}) {
+                state.setTurnNumber(turnNumber);
+                state.setCurrentPhase(Phase.DRAW);
+                int before = state.getPlayer().getHand().size();
+                gameService.draw(state, true);
+                drawn.add(state.getPlayer().getHand().get(before));
+            }
+            // The round-three partner (Squire Bud) is spent earlier in that same
+            // round, on the combo-link lesson — so it cannot be the card this
+            // step places. Something else base has to be there.
+            boolean placeable = drawn.stream()
+                    .anyMatch(c -> c instanceof SieglingCard sc && !sc.isEvolutionCard()
+                            && !"squirebud".equalsIgnoreCase(sc.getId()));
+            assertTrue(placeable,
+                    "Rounds one to three must deal a base Siegeling beyond the combo partner "
+                            + "(redraw=" + redraw + "): " + drawn.stream().map(Card::getId).toList());
+        }
+    }
+
     @Test
     void roundThreeDrawsAnOffElementComboPartnerWhicheverMulliganWasTaken() {
         for (boolean redraw : new boolean[]{true, false}) {
@@ -111,7 +147,7 @@ class TutorialScriptedDrawTest {
                 int before = state.getPlayer().getHand().size();
                 gameService.draw(state, true);
                 Card drawn = state.getPlayer().getHand().get(before);
-                assertEquals(turnNumber == 1 ? "floraknight" : "generoot", drawn.getId());
+                assertEquals(turnNumber == 1 ? "floraknight" : "firsky", drawn.getId());
                 assertTrue(!handHas(state, "squirebud"), "Squire Bud must wait until turn three.");
             }
 

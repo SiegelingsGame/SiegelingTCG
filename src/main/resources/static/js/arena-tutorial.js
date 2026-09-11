@@ -26,6 +26,7 @@
    *  "a Siegeling died at some point during that battle phase". */
   var seen = null;
   var linkBaseline = null;   // same-element links standing when that lesson opened
+  var claimFireBaseline = null; // Fire in the pool when the claim lesson opened
   var watchRaf = 0;
 
   /** game.js declares its state with `let`, which in a classic script is
@@ -416,6 +417,12 @@
 
   function ashfallTarget() {
     return handCardTarget(hand().find(function (c) { return c.id === 'tutorial_ashfall'; }));
+  }
+
+  /** The round-three combo partner as a hand selector, so its step can mark and
+   *  lock the same way the round-two pick does. */
+  function comboPartnerTarget() {
+    return handCardTarget(comboPartnerInHand());
   }
   function previewField(mobile, desktop) {
     return firstOf2(['#drawerSelected ' + mobile, '#desktopCardPreviewPanel ' + mobile, '#desktopCardPreviewPanel ' + desktop]);
@@ -1762,6 +1769,12 @@
 
       { id: 't3-pick', title: 'A different element', target: '#playerHand',
         highlight: ['#playerHand', '#handTray'],
+        // Marked AND locked, for the same reason round two's pick is: every
+        // lesson after this reads a board built from this choice, and the
+        // Strategy and Deception sitting in hand are not part of it — a player
+        // who taps Ashfall here spends the energy the claim lesson is about.
+        recommend: comboPartnerTarget,
+        lock: function () { return comboPartnerTarget() ? HAND_CARDS : null; },
         hint: function () {
           var earth = comboPartnerInHand();
           return earth ? 'Tap <b>' + esc(earth.name) + '</b>' : 'Tap a Siegeling of a <b>different element</b>';
@@ -1837,7 +1850,13 @@
             'Claim a Fire Siegeling to help reach the 3 Fire required for ' + (wipe ? '<b>' + esc(wipe.name) + '</b>' : 'your Strategy') + '.';
         },
         skipIf: function () { return turn() < 3 || !visible('#playerGrid .board-cell.claimable'); },
-        until: function () { return fireEnergy() >= 3 || phase() !== 'SETUP'; } },
+        // Claiming ONE Fire Siegeling is the lesson. Waiting for the pool to
+        // reach 3 held the step open when the board could not supply a third
+        // Fire, leaving the player re-reading a tip they had already obeyed.
+        until: function () {
+          if (claimFireBaseline == null) claimFireBaseline = fireEnergy();
+          return fireEnergy() > claimFireBaseline || fireEnergy() >= 3 || phase() !== 'SETUP';
+        } },
 
       { id: 't3-wipe', hint: 'Cast <b>Ashfall</b>', title: 'Cast Ashfall',
         target: '#playerHand', highlight: ['#playerHand', '#handTray'],
@@ -2084,6 +2103,7 @@
       knightSpent: false, knightOpened: false, ended: false
     };
     linkBaseline = null;
+    claimFireBaseline = null;
     var knightBtn = document.getElementById('btnTrainerAbility');
     if (knightBtn) {
       knightBtn.addEventListener('click', function () { seen.knightOpened = true; }, { once: true });
