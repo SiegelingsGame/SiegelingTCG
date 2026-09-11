@@ -303,14 +303,18 @@
   function applyLock(s, open) {
     var sel = s && s.lock;
     if (typeof sel === 'function') { try { sel = sel(); } catch (e) { sel = null; } }
-    // No set, or nothing recommended to leave open: lock nothing.
-    if (!sel || !open) { if (locked.length) clearLock(); return; }
+    // No set, or nothing recommended to leave open: lock nothing. Locking a set
+    // with no open member would trap a player whose only legal tap is inside it.
+    // `lockAll` is the exception, and it has to be declared: it says the step's
+    // action lives somewhere else entirely — the tip card's Got it, a control
+    // off to the side, the board — so shutting the whole set strands nobody.
+    if (!sel || (!open && !(s && s.lockAll))) { if (locked.length) clearLock(); return; }
     var nodes;
     try { nodes = document.querySelectorAll(sel); } catch (e) { clearLock(); return; }
     var next = [];
     for (var i = 0; i < nodes.length; i++) {
       var n = nodes[i];
-      if (n === open || n.contains(open) || open.contains(n)) continue;
+      if (open && (n === open || n.contains(open) || open.contains(n))) continue;
       next.push(n);
     }
     var same = next.length === locked.length;

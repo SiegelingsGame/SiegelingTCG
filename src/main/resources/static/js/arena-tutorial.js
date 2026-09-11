@@ -923,6 +923,17 @@
    *  narrows to its recommendation. */
   var HAND_CARDS = '#playerHand .hand-card';
 
+  /** The Cast/Set control inside a card preview. Locking the hand stops a card
+   *  being PICKED; it does nothing about a preview that is already open, and
+   *  the round-three lessons run with Ashfall's preview up on purpose. */
+  var CAST_BTNS = '.spell-confirm-btn';
+
+  /** Nothing in hand is playable: no card can be picked, and nothing already
+   *  previewed can be cast. Round three uses this from the combo pick through
+   *  the claim, because every lesson in that stretch is spending-the-pool
+   *  arithmetic that casting early invalidates. */
+  var HAND_LOCKED = HAND_CARDS + ', ' + CAST_BTNS;
+
   var OPPOSITE_DIR = {
     TOP: 'BOTTOM', TOP_RIGHT: 'BOTTOM_LEFT', RIGHT: 'LEFT', BOTTOM_RIGHT: 'TOP_LEFT',
     BOTTOM: 'TOP', BOTTOM_LEFT: 'TOP_RIGHT', LEFT: 'RIGHT', TOP_LEFT: 'BOTTOM_RIGHT'
@@ -1774,7 +1785,7 @@
         // Strategy and Deception sitting in hand are not part of it — a player
         // who taps Ashfall here spends the energy the claim lesson is about.
         recommend: comboPartnerTarget,
-        lock: function () { return comboPartnerTarget() ? HAND_CARDS : null; },
+        lock: function () { return comboPartnerTarget() ? HAND_LOCKED : null; },
         hint: function () {
           var earth = comboPartnerInHand();
           return earth ? 'Tap <b>' + esc(earth.name) + '</b>' : 'Tap a Siegeling of a <b>different element</b>';
@@ -1790,6 +1801,7 @@
       { id: 't3-link-combo', hint: 'Now face two <b>different</b> elements at each other',
         title: 'Create a combo link', target: '#playerGrid',
         highlight: ['#playerGrid .board-cell.legal', '#playerGrid'],
+        lock: HAND_LOCKED, lockAll: true,
         body: 'Place the Siegeling so two notches of <b>different elements</b> face each other. This creates a <b>combo point</b>, shown in both colours. Some cards require combo points.',
         // Same redundancy guard as the same-element lesson: the placement step
         // before this one often banks the combo on its own, and asking for one
@@ -1798,39 +1810,42 @@
         until: function () { return comboCount() > 0 || phase() !== 'SETUP'; } },
 
       { id: 't3-energy', hint: 'Tap <b>◈</b>', title: 'Your energy pool', target: '#btnEnergyDetail',
+        lock: HAND_LOCKED, lockAll: true,
         body: 'The coloured dots show your available energy. Tap <b>◈</b> to see which links and sockets generated it.',
         skipIf: function () { return turn() < 3 || !seen.sawBattle2; },
         until: function () { return seen.hadLinkEnergy || comboCount() > 0 || phase() === 'BATTLE'; } },
 
       { id: 't3-combo', title: 'Combo points', target: '#btnEnergyDetail',
+        lock: HAND_LOCKED, lockAll: true,
         body: 'Links between different elements generate <b>combo points</b>, shown in both colours. Check a card’s requirements to see which combo it uses.',
         skipIf: function () { return turn() < 3 || !seen.sawBattle2; } },
 
       { id: 't3-strategy', hint: 'Tap <b>Ashfall</b> to inspect it', title: 'Inspect a Strategy',
         target: ashfallTarget, recommend: ashfallTarget,
-        lock: function () { return ashfallTarget() ? HAND_CARDS : null; },
+        lock: function () { return ashfallTarget() ? HAND_LOCKED : null; },
         body: 'Tap <b>Ashfall</b> to open its card preview. <b>Strategies</b> spend energy from your pool when cast. Check the card’s cost and effect before playing it.',
         skipIf: function () { return turn() < 3 || !ashfallTarget(); },
         until: function () { return ashfallPreviewOpen() || !ashfallTarget(); } },
-      { id: 'ashfall-art', title: 'Card preview',
+      { id: 'ashfall-art', title: 'Card preview', lock: HAND_LOCKED, lockAll: true,
         target: function () { return previewField('.selected-preview-card', '.desktop-preview-card'); },
         body: 'The preview shows <b>Ashfall’s</b> card art, name and cost symbol.',
         skipIf: function () { return !ashfallPreviewOpen(); } },
-      { id: 'ashfall-cost', title: 'Ashfall’s energy cost',
+      { id: 'ashfall-cost', title: 'Ashfall’s energy cost', lock: HAND_LOCKED, lockAll: true,
         target: function () { return previewField('.selected-copy-cost', '.desktop-preview-stats'); },
         body: '<b>Play Cost: 3 Fire</b> means you need three Fire energy to cast Ashfall. The availability message shows how much more Fire you need.',
         skipIf: function () { return !ashfallPreviewOpen(); } },
-      { id: 'ashfall-effect', title: 'Read the effect',
+      { id: 'ashfall-effect', title: 'Read the effect', lock: HAND_LOCKED, lockAll: true,
         target: function () { return previewField('.selected-copy-detail', '.desktop-preview-description'); },
         body: 'Ashfall <b>destroys every enemy Siegeling</b> when cast. You will use it after claiming a Siegeling for more Fire energy.',
         skipIf: function () { return !ashfallPreviewOpen(); } },
-      { id: 'ashfall-pages', title: 'Preview pages',
+      { id: 'ashfall-pages', title: 'Preview pages', lock: HAND_LOCKED, lockAll: true,
         target: function () { return previewField('.selected-preview-dots', '.desktop-preview-card'); },
         body: 'On phones, swipe or tap the page dots to view the card summary and abilities. On desktop, the preview appears beside the board. Tap <b>Got it</b> to continue.',
         skipIf: function () { return !ashfallPreviewOpen(); } },
 
       { id: 't3-deception', title: 'Deception requirements', target: '#playerHand',
         highlight: ['#playerHand', '#handTray'],
+        lock: HAND_LOCKED, lockAll: true,
         body: 'A <b>Deception</b> requires the opponent to have the amount and element of energy shown on the card. Check their pool to see which Deceptions you can play.',
         skipIf: function () { return turn() < 3 || !handHas('TRAP'); } },
 
@@ -1842,6 +1857,7 @@
         target: function () { return firstOf(['#playerGrid .board-cell.claimable', '#playerGrid']); },
         highlight: ['#playerGrid .board-cell.claimable'],
         recommend: function () { return firstOf(['#playerGrid .board-cell.claimable', '']) || null; },
+        lock: HAND_LOCKED, lockAll: true,
         body: function () {
           var f = fireEnergy();
           var wipe = handCardNamed('tutorial_ashfall');

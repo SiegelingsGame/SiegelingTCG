@@ -335,9 +335,31 @@ class TutorialRuleParityTest {
         assertTrue(coach.contains("function applyLock(s, open)") && coach.contains("'tut-locked'"),
                 "The coach must be able to shut the non-recommended members of a candidate set, "
                         + "not merely mark the recommended one.");
-        assertTrue(coach.contains("if (!sel || !open) { if (locked.length) clearLock(); return; }"),
+        assertTrue(coach.contains("if (!sel || (!open && !(s && s.lockAll)))"),
                 "A lock with nothing recommended must be inert — locking a set with no open member "
-                        + "would trap the player with no legal tap.");
+                        + "would trap the player with no legal tap — unless the step declares "
+                        + "lockAll, which says its action lives outside the locked set.");
+        // Round three spends the pool on arithmetic the coach narrates: claim for
+        // the third Fire, then cast Ashfall. A card played before the claim step
+        // invalidates every number in those tips, so the whole stretch from the
+        // combo pick to the claim shuts the hand AND the Cast control.
+        assertTrue(tutorial.contains("var CAST_BTNS = '.spell-confirm-btn';")
+                        && tutorial.contains("var HAND_LOCKED = HAND_CARDS + ', ' + CAST_BTNS;"),
+                "Locking the hand must also shut the Cast control: a preview that is already open "
+                        + "can still be played while every card in hand is untappable.");
+        for (String stepId : new String[]{"t3-link-combo", "t3-energy", "t3-combo", "ashfall-art",
+                "ashfall-cost", "ashfall-effect", "ashfall-pages", "t3-deception", "t3-claim"}) {
+            int at = tutorial.indexOf("{ id: '" + stepId + "'");
+            assertTrue(at >= 0, "Round-three step " + stepId + " must exist.");
+            int end = tutorial.indexOf("{ id: '", at + 8);
+            String body = end > at ? tutorial.substring(at, end) : tutorial.substring(at);
+            assertTrue(body.contains("lock: HAND_LOCKED, lockAll: true,"),
+                    stepId + " runs before the claim, so nothing in hand may be playable there.");
+        }
+        int wipeAt = tutorial.indexOf("{ id: 't3-wipe'");
+        int wipeEnd = tutorial.indexOf("{ id: '", wipeAt + 8);
+        assertTrue(wipeAt >= 0 && !tutorial.substring(wipeAt, wipeEnd).contains("lock:"),
+                "The step that asks for the cast must hand the hand back.");
         assertTrue(coach.contains("clearLock();\n    clearShade();\n    if (layer) layer.classList.add('hidden');"),
                 "Stopping the coach must hand every locked AND shaded element back before the layer hides.");
         String coachCss = read("src/main/resources/static/css/coach.css");
