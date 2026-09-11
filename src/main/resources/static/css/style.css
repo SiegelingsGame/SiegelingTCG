@@ -20549,8 +20549,14 @@ body.has-custom-art::before {
    the perimeter notch ring on every side. */
 .hand-card .hand-cost-badge {
     position: absolute;
-    left: 12%;
-    top: 12.4%;
+    /* Hung off the bottom of the name rather than placed at a fixed percentage
+       of the card: the badge lives inside .hand-card-header, so `top: 100%`
+       is the line under the title whatever the frame puts the title at, and
+       whatever the card is scaled to. A card-level offset could only ever
+       match one frame — it sat ON the Siegeling name and ABOVE the spell name. */
+    left: 0;
+    top: 100%;
+    margin-top: 0.2em;
     z-index: 13;
     display: inline-flex;
     align-items: center;
@@ -20565,11 +20571,22 @@ body.has-custom-art::before {
     pointer-events: none;
 }
 
-/* Unframed cards keep the art in normal flow, so the badge rides the card's
-   own padded edge instead of the frame's painted art window. */
-.hand-card:not(.element-frame) .hand-cost-badge {
+/* The header is the badge's containing block. Framed faces already position it;
+   an unframed one keeps the name in normal flow, so give it a corner to hang
+   from. Scoped to a header that actually carries a badge — `.hand-card-header`
+   is shared with board cards, previews and the mulligan showcase, and none of
+   those should gain a containing block they did not ask for. */
+.hand-card .hand-card-header:has(> .hand-cost-badge) {
+    position: relative;
+}
+
+/* A holographic face is the whole painted card with its name baked into the
+   art — there is no header to hang from, so that badge keeps the card-level
+   corner it has always had. */
+.hand-card.has-holo-full-art > .hand-cost-badge {
     left: 9%;
     top: 9%;
+    margin-top: 0;
 }
 
 .hand-card .hand-cost-badge-icon {
@@ -20653,7 +20670,7 @@ body.has-custom-art::before {
    No blanket grey over the hand and board here — the coach's own `shade` marks
    the cards that are out of play for the step and leaves the costed card lit,
    where this rule darkened every card including the one being taught. */
-body:has(.tut-layer:not(.hidden) .tut-card[data-step-id="t2-cost"]) .tutorial-cost-card > .hand-cost-badge {
+body:has(.tut-layer:not(.hidden) .tut-card[data-step-id="t2-cost"]) .tutorial-cost-card .hand-cost-badge {
     filter: none;
     opacity: 1;
     box-shadow: 0 0 0 3px #80ffc1;
