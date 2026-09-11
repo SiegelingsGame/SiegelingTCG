@@ -123,12 +123,17 @@ class TutorialScriptedDrawTest {
             // The round-three partner (Squire Bud) is spent earlier in that same
             // round, on the combo-link lesson — so it cannot be the card this
             // step places. Something else base has to be there.
+            // FREE, not merely base: that step runs right after Ashfall has
+            // spent the whole Fire pool, so a Siegeling carrying any cost is as
+            // unplayable there as an evolution.
             boolean placeable = drawn.stream()
                     .anyMatch(c -> c instanceof SieglingCard sc && !sc.isEvolutionCard()
+                            && sc.getCostAmount() <= 0
                             && !"squirebud".equalsIgnoreCase(sc.getId()));
             assertTrue(placeable,
-                    "Rounds one to three must deal a base Siegeling beyond the combo partner "
-                            + "(redraw=" + redraw + "): " + drawn.stream().map(Card::getId).toList());
+                    "Rounds one to three must deal a FREE base Siegeling beyond the combo partner "
+                            + "(redraw=" + redraw + "): "
+                            + drawn.stream().map(c -> c.getId() + "(cost " + c.getCostAmount() + ")").toList());
         }
     }
 
@@ -147,7 +152,7 @@ class TutorialScriptedDrawTest {
                 int before = state.getPlayer().getHand().size();
                 gameService.draw(state, true);
                 Card drawn = state.getPlayer().getHand().get(before);
-                assertEquals(turnNumber == 1 ? "floraknight" : "firsky", drawn.getId());
+                assertEquals(turnNumber == 1 ? "floraknight" : "draco", drawn.getId());
                 assertTrue(!handHas(state, "squirebud"), "Squire Bud must wait until turn three.");
             }
 

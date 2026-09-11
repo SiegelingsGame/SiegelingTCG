@@ -407,7 +407,7 @@
 
   // Scope every action-bar tip to the visible layout, never a hidden duplicate.
   function firstBattleField(field) {
-    var panels = ['#battleActionPanel', '#desktopHandBattlePanel', '#desktopBattleActionPanel'];
+    var panels = MOVE_PANELS;
     for (var i = 0; i < panels.length; i++) {
       var selector = panels[i] + ' ' + field;
       if (visible(selector)) return selector;
@@ -612,19 +612,7 @@
    *  than this file does. */
   function burnMoveButton() {
     var plan = burnPlan();
-    if (!plan || !plan.abilityName) return null;
-    var want = String(plan.abilityName).trim().toLowerCase();
-    var btns;
-    try { btns = document.querySelectorAll(MOVE_BTNS); } catch (e) { return null; }
-    for (var i = 0; i < btns.length; i++) {
-      var label = btns[i].querySelector('.battle-ability-move-name');
-      if (!label || String(label.textContent || '').trim().toLowerCase() !== want) continue;
-      var idx = btns[i].getAttribute('data-ability-index');
-      if (idx == null) continue;
-      var sel = '.battle-ability-btn[data-ability-index="' + idx + '"]';
-      return visible(sel) ? sel : null;
-    }
-    return null;
+    return plan ? moveButtonNamed(plan.abilityName) : null;
   }
 
   /** The plan's victim on the enemy grid. */
@@ -646,7 +634,42 @@
   }
 
   /** Every move button on the acting Siegeling's panel, whichever layout is up. */
-  var MOVE_BTNS = '#battleActionPanel .battle-ability-btn, #desktopBattleActionPanel .battle-ability-btn';
+  /* All three panels renderBattlePanel() writes the acting card's moves into.
+     #desktopHandBattlePanel is the bottom dock, and on a phone it is the only
+     one on screen — leaving it out meant every move-button lookup came back
+     null there, so the row and Burn lessons named a move ("Tap Lavaburst")
+     they then failed to mark, highlight or lock. */
+  var MOVE_PANELS = ['#battleActionPanel', '#desktopHandBattlePanel', '#desktopBattleActionPanel'];
+
+  var MOVE_BTNS = MOVE_PANELS.map(function (id) { return id + ' .battle-ability-btn'; }).join(', ');
+
+  /** The visible move button printing `name`, scoped to the panel it lives in.
+   *  The same button is rendered into every panel with the same ability index,
+   *  so an unscoped selector resolves to whichever copy comes first in the
+   *  document — usually a hidden one. */
+  function moveButtonNamed(name) {
+    if (!name) return null;
+    var want = String(name).trim().toLowerCase();
+    var btns;
+    try { btns = document.querySelectorAll(MOVE_BTNS); } catch (e) { return null; }
+    for (var i = 0; i < btns.length; i++) {
+      var label = btns[i].querySelector('.battle-ability-move-name');
+      if (!label || String(label.textContent || '').trim().toLowerCase() !== want) continue;
+      var idx = btns[i].getAttribute('data-ability-index');
+      if (idx == null) continue;
+      var panel = btns[i].closest(MOVE_PANELS.join(', '));
+      if (!panel) continue;
+      var sel = '#' + panel.id + ' .battle-ability-btn[data-ability-index="' + idx + '"]';
+      if (visible(sel)) return sel;
+    }
+    return null;
+  }
+
+  /** The action panel the player can actually see, for a tip that is about the
+   *  move list as a whole rather than one button in it. */
+  function battleActionPanel() {
+    return firstOf(MOVE_PANELS.concat(['#boardArea']));
+  }
 
   /**
    * The button for the acting Siegeling's row move, found by the move NAME the
@@ -657,21 +680,7 @@
    */
   function rowMoveButton() {
     var row = actingRowAbility();
-    if (!row || !row.name) return null;
-    var want = String(row.name).trim().toLowerCase();
-    var btns;
-    try { btns = document.querySelectorAll(MOVE_BTNS); } catch (e) { return null; }
-    for (var i = 0; i < btns.length; i++) {
-      var label = btns[i].querySelector('.battle-ability-move-name');
-      if (!label || String(label.textContent || '').trim().toLowerCase() !== want) continue;
-      var idx = btns[i].getAttribute('data-ability-index');
-      if (idx == null) continue;
-      var panel = btns[i].closest('#battleActionPanel, #desktopBattleActionPanel');
-      if (!panel) continue;
-      var sel = '#' + panel.id + ' .battle-ability-btn[data-ability-index="' + idx + '"]';
-      if (visible(sel)) return sel;
-    }
-    return null;
+    return row ? moveButtonNamed(row.name) : null;
   }
 
   /**
@@ -1691,13 +1700,18 @@
       // whoever acts next has not taken the floor yet when the coach arrives
       // here, so a skipIf would drop the lesson before it could ever be true.
       { id: 'gate-burn', skipTo: 't2-battle',
-        hint: 'Choose moves until your next Fire Siegeling acts',
+        // A gate with nothing to point at read as the coach going quiet while
+        // the player was still being asked to keep acting. Spotlight the move
+        // list they are working through, and name the goal rather than the
+        // internal condition ("your next Fire Siegeling acts").
+        hint: 'Complete the battle round',
+        target: battleActionPanel,
+        highlight: function () { return [battleActionPanel()]; },
         gate: function () { return !!burnPlan() || battleTwoDone(); } },
 
       { id: 'burn-kill', title: 'Damage from Burn',
         target: function () {
-          return burnMoveButton()
-            || firstOf(['#battleActionPanel', '#desktopBattleActionPanel', '#boardArea']);
+          return burnMoveButton() || battleActionPanel();
         },
         highlight: function () {
           var btn = burnMoveButton();
@@ -1705,7 +1719,7 @@
           var marks = [];
           if (btn) marks.push(btn);
           if (cell) marks.push(cell);
-          return marks.length ? marks : [firstOf(['#battleActionPanel', '#desktopBattleActionPanel', '#boardArea'])];
+          return marks.length ? marks : [battleActionPanel()];
         },
         recommend: burnMoveButton,
         lock: function () { return burnMoveButton() ? MOVE_BTNS : null; },
