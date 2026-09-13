@@ -11,7 +11,7 @@
 <title>Siegelings TCG — Siege</title>
 <link rel="icon" href="/favicon.png">
 <link rel="stylesheet" href="/css/coach.css?v=7">
-<link rel="stylesheet" href="/css/adventure.css?v=94">
+<link rel="stylesheet" href="/css/adventure.css?v=95">
 </head>
 <body>
 <!-- Enemy Siegelings are corrupted card art, so they need the same die-cut shade
@@ -711,11 +711,29 @@
     </div>
   </div>
 
+  <!-- Land transition: a full-screen interstitial played when the run changes Land
+       (boss felled, or a Rift crossing). Lives outside the screen sections so it can
+       lift over whichever screen is live without touching their flex invariants. -->
+  <div class="land-transition hidden" id="landTransition" role="status" aria-live="polite">
+    <div class="lt-art" id="ltArt" aria-hidden="true"></div>
+    <div class="lt-veil" aria-hidden="true"></div>
+    <div class="lt-body">
+      <div class="lt-eyebrow" id="ltEyebrow"></div>
+      <div class="lt-leaving" id="ltLeaving"></div>
+      <div class="lt-emblem" id="ltEmblem" aria-hidden="true"></div>
+      <div class="lt-kind" id="ltKind"></div>
+      <h2 class="lt-name" id="ltName"></h2>
+      <div class="lt-summary" id="ltSummary"></div>
+      <div class="lt-rule" id="ltRule"></div>
+    </div>
+    <button class="lt-skip" id="ltSkip" type="button">Continue ▸</button>
+  </div>
+
   <div class="siege-toast hidden" id="siegeToast"></div>
 </div>
 <script src="/js/siege-maps.js?v=3"></script>
 <script src="/js/coach.js?v=11"></script>
 <script src="/js/siege-tutorial.js?v=27"></script>
-<script src="/js/adventure.js?v=102"></script>
+<script src="/js/adventure.js?v=103"></script>
 </body>
 </html>
