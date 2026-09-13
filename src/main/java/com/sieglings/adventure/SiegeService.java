@@ -104,6 +104,11 @@ public class SiegeService {
         List<Map<String, Object>> siegelings = new ArrayList<>();
         boolean startersConfigured = content.expeditionStartersConfigured();
         java.util.Set<String> evolvesFrom = content.idsWithEvolutionAvailable();
+        // Pack copies plus unlocked premade decks. Built once: ownsCard would
+        // rebuild every purchased Water/Electric list for each row.
+        java.util.Set<String> collectionIds = progressionService != null && progression != null
+                ? progressionService.ownedCardIds(progression)
+                : java.util.Set.of();
         for (SieglingCard s : content.selectableSieglings()) {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("id", s.getId());
@@ -122,8 +127,7 @@ public class SiegeService {
             // collection before the Siegecoin unlock is even offered, and a guest
             // has no collection to buy against.
             boolean purchase = content.isSiegePurchaseSiegling(s);
-            boolean ownsCard = purchase && progressionService != null
-                    && progressionService.ownsCard(progression, s.getId());
+            boolean ownsCard = purchase && collectionIds.contains(normalizeKnightId(s.getId()));
             m.put("purchaseOnly", purchase);
             m.put("owned", ownsCard);
             m.put("unlockCost", content.siegeUnlockCost(s));
