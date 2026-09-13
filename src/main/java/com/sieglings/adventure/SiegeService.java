@@ -116,7 +116,19 @@ public class SiegeService {
             m.put("artUrl", s.getCardArtUrl());
             m.put("evolves", evolvesFrom.contains(s.getId()));
             // Catalog starters plus anything this account found on an expedition.
-            m.put("expeditionStarter", isSieglingSelectable(s, startersConfigured, progression));
+            boolean selectable = isSieglingSelectable(s, startersConfigured, progression);
+            m.put("expeditionStarter", selectable);
+            // Water/Electric are bought, not found: the card has to be in the
+            // collection before the Siegecoin unlock is even offered, and a guest
+            // has no collection to buy against.
+            boolean purchase = content.isSiegePurchaseSiegling(s);
+            boolean ownsCard = purchase && progressionService != null
+                    && progressionService.ownsCard(progression, s.getId());
+            m.put("purchaseOnly", purchase);
+            m.put("owned", ownsCard);
+            m.put("unlockCost", content.siegeUnlockCost(s));
+            m.put("canUnlock", purchase && !selectable && user != null && progression != null && ownsCard);
+            m.put("lockReason", selectable ? null : sieglingLockReason(purchase, user, ownsCard));
             m.put("moves", serializeSpecs(content.moveSpecs(s)));
             siegelings.add(m);
         }
@@ -338,6 +350,42 @@ public class SiegeService {
         return out;
     }
 
+    /**
+     * Buys a Water/Electric Siegeling as a permanent expedition starter. Same shape
+     * as {@link #unlockKnight}: sign-in required, the card must already be in the
+     * collection, and the Siegecoins come out here.
+     */
+    Map<String, Object> unlockSiegling(String authorizationHeader, String sieglingId) {
+        AccountUser user = requireUser(authorizationHeader);
+        if (progressionService == null || progressionStore == null) {
+            throw new IllegalStateException("Siegeling unlocks are unavailable right now.");
+        }
+        SieglingCard siegling = content.findSiegling(sieglingId)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown Siegeling."));
+        if (!content.isSiegePurchaseSiegling(siegling)) {
+            throw new IllegalArgumentException(siegling.getName() + " is not sold for expeditions.");
+        }
+        PlayerProgressionEntity progression = loadProgression(user);
+        if (progressionService.isSiegeSieglingUnlocked(progression, siegling.getId())) {
+            throw new IllegalArgumentException(siegling.getName() + " is already unlocked for expeditions.");
+        }
+        int cost = content.siegeUnlockCost(siegling);
+        if (progression.getGold() < cost) {
+            throw new IllegalArgumentException("Need " + cost + " Siegecoins to unlock " + siegling.getName() + ".");
+        }
+        // Throws when the card is not in the collection, before any coins move.
+        progressionService.unlockSiegeSiegling(progression, siegling.getId());
+        progression.setGold(progression.getGold() - cost);
+        progression.setUpdatedAt(Instant.now());
+        progressionStore.save(progression);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("ok", true);
+        out.put("sieglingId", siegling.getId());
+        out.put("gold", progression.getGold());
+        out.putAll(roster(authorizationHeader));
+        return out;
+    }
+
     private AccountUser resolveUser(String authorizationHeader) {
         if (accountService == null) {
             return null;
@@ -376,6 +424,10 @@ public class SiegeService {
      *
      * @return display names of the Siegelings newly unlocked, for the run summary
      */
+    private boolean isPurchaseSieglingId(String cardId) {
+        return content.findAnySiegling(cardId).map(content::isSiegePurchaseSiegling).orElse(false);
+    }
+
     private List<String> bankSieglingDiscoveries(PlayerProgressionEntity progression, SiegeRun run) {
         if (progression == null || progressionService == null || run.getDiscoveredSieglingIds().isEmpty()) {
             return List.of();
@@ -383,8 +435,10 @@ public class SiegeService {
         java.util.LinkedHashSet<String> ids = new java.util.LinkedHashSet<>();
         for (String found : run.getDiscoveredSieglingIds()) {
             String base = content.baseFormId(found);
-            if (base != null && !base.isBlank()) ids.add(base);
-            ids.add(found);
+            // Purchase elements are sold, so meeting one on the path must not bank
+            // it as a free starter — it still fights for the rest of this run.
+            if (base != null && !base.isBlank() && !isPurchaseSieglingId(base)) ids.add(base);
+            if (!isPurchaseSieglingId(found)) ids.add(found);
         }
         // Unlocks are stored normalized (lower-case), so resolve display names
         // from the ids we passed in rather than from what comes back.
@@ -418,11 +472,25 @@ public class SiegeService {
      */
     private boolean isSieglingSelectable(SieglingCard s, boolean startersConfigured,
                                          PlayerProgressionEntity progression) {
-        if (content.isExpeditionStarter(s, startersConfigured)) {
-            return true;
-        }
-        return progression != null && progressionService != null
+        boolean unlocked = progression != null && progressionService != null
                 && progressionService.isSiegeSieglingUnlocked(progression, s.getId());
+        // A purchase element ignores the catalog starter flag entirely: it is only
+        // ever pickable once this account has bought it for expeditions.
+        if (content.isSiegePurchaseSiegling(s)) {
+            return unlocked;
+        }
+        return content.isExpeditionStarter(s, startersConfigured) || unlocked;
+    }
+
+    /** Why warband select cannot take this Siegeling, phrased for the card's lock note. */
+    private String sieglingLockReason(boolean purchase, AccountUser user, boolean ownsCard) {
+        if (!purchase) {
+            return "FIND";
+        }
+        if (user == null) {
+            return "SIGN_IN";
+        }
+        return ownsCard ? "BUY" : "OWN_CARD";
     }
 
     private boolean isKnightSelectable(TrainerCard knight, AccountUser user, PlayerProgressionEntity progression) {

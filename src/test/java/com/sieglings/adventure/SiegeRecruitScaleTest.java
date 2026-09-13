@@ -34,7 +34,7 @@ class SiegeRecruitScaleTest {
 
     @Test
     void stage3RecruitSerializesEvoStageTwo() throws Exception {
-        SieglingCard base = content.selectableSieglings().stream()
+        SieglingCard base = SiegeStarterTestSupport.freeSelectable(content).stream()
                 .filter(s -> content.hasStage3EvolutionChain(s.getId()))
                 .findFirst()
                 .orElseThrow();
@@ -59,7 +59,7 @@ class SiegeRecruitScaleTest {
     }
 
     private SieglingCard baseWithEvolution() {
-        return content.selectableSieglings().stream()
+        return SiegeStarterTestSupport.freeSelectable(content).stream()
                 .filter(s -> content.evolutionOf(s.getId()).isPresent())
                 .findFirst()
                 .orElseThrow();

@@ -31,7 +31,7 @@ class SiegeRecruitTimingTest {
     void setUp() {
         starterKnight = SiegeStarterTestSupport.starterKnight(content);
         starterSieglingIds = SiegeStarterTestSupport.starterIds(
-                content, starterKnight, content.selectableSieglings().getFirst());
+                content, starterKnight, SiegeStarterTestSupport.freeSelectable(content).getFirst());
     }
 
     @Test

@@ -35,7 +35,7 @@ class SiegeLedgerAmountsTest {
     private String startRunInBattle() {
         TrainerCard knight = SiegeStarterTestSupport.starterKnight(content);
         List<String> warband = SiegeStarterTestSupport.starterIds(
-                content, knight, content.selectableSieglings().getFirst());
+                content, knight, SiegeStarterTestSupport.freeSelectable(content).getFirst());
         String token = (String) siegeService.newRun(null, knight.getId(), warband, "STANDARD").get("token");
         SiegeRun run = siegeService.lookup(token).orElseThrow();
         siegeService.enterNode(token, run.reachableNodeIds().stream().findFirst().orElseThrow());

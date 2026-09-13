@@ -149,14 +149,25 @@ class SiegeAdvantageTutorialJavaScriptTest {
         // changes (the .tut-shaded rule came in at 5), and an exact pin here goes red
         // for everyone on a change that has nothing to do with Siege.
         assertTrue(coachCssPin(html) >= 5, "coach.css pin");
-        assertTrue(html.contains("/css/adventure.css?v=93"), "adventure.css pin");
-        assertTrue(html.contains("/js/siege-tutorial.js?v=27"), "siege-tutorial.js pin");
-        assertTrue(html.contains("/js/adventure.js?v=100"), "adventure.js pin");
+        assertTrue(assetPin(html, "/css/adventure.css") >= 93, "adventure.css pin");
+        assertTrue(assetPin(html, "/js/siege-tutorial.js") >= 27, "siege-tutorial.js pin");
+        assertTrue(assetPin(html, "/js/adventure.js") >= 100, "adventure.js pin");
     }
 
     private static int coachCssPin(String markup) {
         java.util.regex.Matcher matcher = java.util.regex.Pattern
                 .compile("/css/coach\\.css\\?v=(\\d+)").matcher(markup);
         return matcher.find() ? Integer.parseInt(matcher.group(1)) : -1;
+    }
+
+    /**
+     * Cache pins are floors, not exact numbers: every later Siege change re-cuts
+     * these bundles, and an exact pin here goes red for a change that has nothing
+     * to do with this lesson.
+     */
+    private static int assetPin(String markup, String path) {
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile(java.util.regex.Pattern.quote(path) + "\\?v=(\\d+)").matcher(markup);
+        return m.find() ? Integer.parseInt(m.group(1)) : -1;
     }
 }

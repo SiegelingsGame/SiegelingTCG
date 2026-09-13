@@ -55,7 +55,7 @@ class SiegeMarshalStartTest {
         TrainerCard marshal = SiegeStarterTestSupport.starterKnight(content);
         if (content.startingPartySize(marshal) != 2) return; // the free starter knight is not a Marshal here
         List<String> warband = SiegeStarterTestSupport.starterIds(
-                content, marshal, content.selectableSieglings().getFirst());
+                content, marshal, SiegeStarterTestSupport.freeSelectable(content).getFirst());
         assertEquals(2, warband.size());
 
         Map<String, Object> run = siegeService.newRun(null, marshal.getId(), warband, "STANDARD");
@@ -71,7 +71,7 @@ class SiegeMarshalStartTest {
     void marshalRunRejectsAShortOrDuplicatedWarband() {
         TrainerCard marshal = SiegeStarterTestSupport.starterKnight(content);
         if (content.startingPartySize(marshal) != 2) return;
-        String lead = content.selectableSieglings().getFirst().getId();
+        String lead = SiegeStarterTestSupport.freeSelectable(content).getFirst().getId();
 
         IllegalArgumentException tooFew = assertThrows(IllegalArgumentException.class,
                 () -> siegeService.newRun(null, marshal.getId(), List.of(lead), "STANDARD"));

@@ -34,7 +34,7 @@ class SiegeSpriteSizeTest {
     private String startRun() {
         TrainerCard knight = SiegeStarterTestSupport.starterKnight(content);
         List<String> warband = SiegeStarterTestSupport.starterIds(
-                content, knight, content.selectableSieglings().getFirst());
+                content, knight, SiegeStarterTestSupport.freeSelectable(content).getFirst());
         return (String) siegeService.newRun(null, knight.getId(), warband, "STANDARD").get("token");
     }
 
@@ -103,7 +103,7 @@ class SiegeSpriteSizeTest {
      */
     @Test
     void aMercIsSizedFromItsOwnCard() {
-        SieglingCard card = content.selectableSieglings().stream()
+        SieglingCard card = SiegeStarterTestSupport.freeSelectable(content).stream()
                 .filter(s -> s.getSize() != null || s.getRarity() != null)
                 .findFirst().orElseThrow();
         Combatant merc = content.toMercCombatant(card);

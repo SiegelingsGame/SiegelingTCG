@@ -18,6 +18,17 @@ final class SiegeStarterTestSupport {
     private SiegeStarterTestSupport() {
     }
 
+    /**
+     * Catalog Siegelings a signed-out run may actually take. Water/Electric are
+     * sold for Siegecoins (and need the card owned), so they are never legal
+     * warband picks in tests that start a run as a guest.
+     */
+    static List<SieglingCard> freeSelectable(SiegeContentService content) {
+        return content.selectableSieglings().stream()
+                .filter(s -> !content.isSiegePurchaseSiegling(s))
+                .toList();
+    }
+
     static TrainerCard starterKnight(SiegeContentService content) {
         return content.selectableKnights().stream()
                 .filter(k -> "squire-bob".equalsIgnoreCase(k.getId()))
@@ -25,13 +36,17 @@ final class SiegeStarterTestSupport {
                 .orElseGet(() -> content.selectableKnights().getFirst());
     }
 
-    /** A full starting warband led by {@code lead}, topped up from the catalog. */
+    /**
+     * A full starting warband led by {@code lead}, topped up from the catalog.
+     * Purchase-element Siegelings (Water/Electric) are skipped when filling: a
+     * signed-out run cannot take them, so they would fail the run at Start.
+     */
     static List<String> starterIds(SiegeContentService content, TrainerCard knight, SieglingCard lead) {
         List<String> ids = new ArrayList<>();
         ids.add(lead.getId());
         for (SieglingCard s : content.selectableSieglings()) {
             if (ids.size() >= content.startingPartySize(knight)) break;
-            if (!ids.contains(s.getId())) ids.add(s.getId());
+            if (!ids.contains(s.getId()) && !content.isSiegePurchaseSiegling(s)) ids.add(s.getId());
         }
         return ids;
     }
@@ -43,6 +58,7 @@ final class SiegeStarterTestSupport {
     static List<String> starterIdsMatching(SiegeContentService content, TrainerCard knight,
                                            Predicate<SieglingCard> filter) {
         List<String> ids = content.selectableSieglings().stream()
+                .filter(s -> !content.isSiegePurchaseSiegling(s))
                 .filter(filter)
                 .map(SieglingCard::getId)
                 .distinct()

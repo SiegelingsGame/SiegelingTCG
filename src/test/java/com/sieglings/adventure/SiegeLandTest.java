@@ -182,7 +182,7 @@ class SiegeLandTest {
 
     private SiegeRun newRun(String mode) throws Exception {
         var knight=SiegeStarterTestSupport.starterKnight(content);
-        var ids=SiegeStarterTestSupport.starterIds(content,knight,content.selectableSieglings().getFirst());
+        var ids=SiegeStarterTestSupport.starterIds(content,knight,SiegeStarterTestSupport.freeSelectable(content).getFirst());
         var response=service.newRun(null,knight.getId(),ids,mode);
         return (SiegeRun)invoke("require",new Class<?>[]{String.class},response.get("token"));
     }

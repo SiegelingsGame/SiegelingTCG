@@ -166,15 +166,40 @@ public class GameService {
         // hand up from it: the lesson needs spells and traps to cast, not these
         // specific ones.
         topUpAdvancedTutorialHand(player);
-        player.adjustTemporaryEnergy(Element.FIRE, 6);
-        player.adjustTemporaryEnergy(Element.EARTH, 6);
-        state.getEnemy().adjustTemporaryEnergy(Element.ICE, 8);
+        // No synthetic energy here. The chapter teaches the player to read a pool
+        // off the board, and handing out flat Fire/Earth/Ice on top made every
+        // number unexplainable: the energy detail listed four Fire from links and
+        // sockets while the rail read ten. The preset board already generates
+        // Fire/Earth for the player and Ice for the Dummy, which is all the
+        // scripted plays need (Shatter Seal only checks the Dummy's Ice).
         recalculateTrainerPassiveStatBuffs(state);
         energyService.recalculateEnergy(state);
+        ensureAdvancedTutorialDeceptionIsCastable(state);
         state.resetPlacementsForTurn(true);
         state.captureSieglingSetupPlacementBonusFromEnergy(true);
-        state.log("Advanced tutorial: five creatures per side, prepared energy, and a Deception ready to practice.");
+        state.log("Advanced tutorial: five creatures per side, board-generated energy, and a Deception ready to practice.");
         return handle;
+    }
+
+    /** Ice the Dummy must hold for the chapter's Shatter Seal lesson to be castable. */
+    private static final int ADVANCED_TUTORIAL_ENEMY_ICE = 3;
+
+    /**
+     * Last-resort top-up for the Dummy's Ice. The preset enemy board normally links
+     * into enough Ice on its own, but notches are live dashboard data: if an edit
+     * leaves the Dummy short, the scripted Deception step asks for a cast the player
+     * cannot make. Only the shortfall is added, so on healthy data nothing is
+     * synthesized and every number on the rail traces back to a link or socket.
+     */
+    private void ensureAdvancedTutorialDeceptionIsCastable(GameState state) {
+        int shortfall = ADVANCED_TUTORIAL_ENEMY_ICE - state.getEnemy().getIceEnergy();
+        if (shortfall <= 0) {
+            return;
+        }
+        state.getEnemy().adjustTemporaryEnergy(Element.ICE, shortfall);
+        energyService.recalculateEnergy(state);
+        state.log("Advanced tutorial: topped the Dummy up to " + ADVANCED_TUTORIAL_ENEMY_ICE
+                + " Ice so the Deception lesson can be cast.");
     }
 
     /**

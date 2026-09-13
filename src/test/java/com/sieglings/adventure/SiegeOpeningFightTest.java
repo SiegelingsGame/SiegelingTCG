@@ -52,7 +52,7 @@ class SiegeOpeningFightTest {
     private String startRun() {
         TrainerCard knight = SiegeStarterTestSupport.starterKnight(content);
         List<String> warband = SiegeStarterTestSupport.starterIds(
-                content, knight, content.selectableSieglings().getFirst());
+                content, knight, SiegeStarterTestSupport.freeSelectable(content).getFirst());
         return (String) siegeService.newRun(null, knight.getId(), warband, "STANDARD").get("token");
     }
 
