@@ -711,7 +711,7 @@
     if (chooseTutorialMode) {
       chooseTutorialMode.addEventListener('click', function () {
         if (!window.SiegeTutorial) { toast('Tutorial is unavailable — try reloading.'); return; }
-        state.run = null; state.party = []; state.knightId = null;
+        state.run = null; state.party = []; state.knightId = null; state.landView = null;
         window.SiegeTutorial.start();
       });
     }
@@ -831,6 +831,20 @@
       if (e.key === 'Escape') { e.preventDefault(); closeLandDetails(); }
       if (e.key === 'Tab') { e.preventDefault(); $('landClose').focus(); }
     });
+    // The interstitial is skippable everywhere it can be tapped: the button, the
+    // backdrop, and Escape. A player who has seen the Land before should not have
+    // to wait it out.
+    var landTransition = $('landTransition');
+    if (landTransition) {
+      landTransition.addEventListener('click', endLandTransition);
+      document.addEventListener('keydown', function (e) {
+        if (landTransition.classList.contains('hidden')) return;
+        if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          endLandTransition();
+        }
+      });
+    }
     var boonChoices = $('boonChoices');
     if (boonChoices) boonChoices.addEventListener('click', function (e) {
       var b = e.target.closest ? e.target.closest('.boon-choice') : null;
@@ -859,7 +873,7 @@
     // Per-save Continue/Start Over buttons are built by renderResumePrompt; this
     // one starts a run in whichever mode has no save yet.
     $('resumeFreshBtn').addEventListener('click', function () {
-      state.run = null; state.party = []; state.knightId = null;
+      state.run = null; state.party = []; state.knightId = null; state.landView = null;
       setToken(null);
       loadRoster();
     });
@@ -917,7 +931,7 @@
     api('/api/siege/run/abandon', { method: 'POST', body: { token: t } })
       .then(function () {
         if (t === token()) setToken(null);
-        state.run = null; state.party = []; state.knightId = null;
+        state.run = null; state.party = []; state.knightId = null; state.landView = null;
         closeRunMenu(false);
         // The other mode's save survives an abandon, so go back through the boot
         // check rather than straight to the roster.
@@ -1735,7 +1749,7 @@
   }
 
   function startRun() {
-    if (state.busy) return; state.busy = true;
+    if (state.busy) return; state.busy = true; state.landView = null;
     api('/api/siege/run/new', { method: 'POST', body: { knightId: state.knightId, sieglingIds: state.party, mode: 'STANDARD' } })
       .then(function (run) { setToken(run.token); applyRun(run); })
       .catch(function (e) { toast(e.message); })
@@ -1743,7 +1757,7 @@
   }
 
   function startEndless(slot) {
-    if (state.busy) return; state.busy = true;
+    if (state.busy) return; state.busy = true; state.landView = null;
     api('/api/siege/run/new', { method: 'POST', body: { knightId: slot.knightId, sieglingIds: slot.sieglingIds, mode: 'ENDLESS' } })
       .then(function (run) { setToken(run.token); applyRun(run); })
       .catch(function (e) { toast(e.message); })
@@ -1981,6 +1995,96 @@
     banner.setAttribute('aria-label', land.name + ', ' + land.kind + ' land. View terrain and encounter effects.');
   }
 
+  // ---- land transition --------------------------------------------------
+  //
+  // The run's Land changes in two places, both server-side: a won boss
+  // (`landSegment` ticks up) and a Rift crossing (same segment, new Land). The
+  // client used to just repaint the map banner, so the new Land arrived without
+  // being announced. This plays an interstitial at the moment the map is about
+  // to show the new Land — after the boss's spoils, not over them.
+
+  /** ms the interstitial holds before it lifts on its own. */
+  var LAND_TRANSITION_MS = 4200;
+  var LAND_TRANSITION_REDUCED_MS = 2200;
+
+  function reducedMotion() {
+    return matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+
+  /**
+   * Remembers the Land the player has actually been shown. Called instead of the
+   * animation when there is nothing to announce — a fresh run, or a resumed save
+   * that opens mid-Land — so neither one opens on a transition for a Land the
+   * player never left.
+   */
+  function noteLandShown(run) {
+    var land = run && run.land;
+    state.landView = land ? { id: land.id, name: land.name, segment: run.landSegment || 0 } : null;
+  }
+
+  function maybeLandTransition(run) {
+    var land = run && run.land;
+    if (!land) { state.landView = null; return; }
+    var prev = state.landView;
+    if (!prev) { noteLandShown(run); return; }
+    var segment = run.landSegment || 0;
+    if (prev.id === land.id && prev.segment === segment) return;
+    var wasBoss = segment > prev.segment;
+    noteLandShown(run);
+    playLandTransition(prev, run, wasBoss);
+  }
+
+  function playLandTransition(prev, run, wasBoss) {
+    var host = $('landTransition');
+    if (!host) return;
+    var land = run.land;
+    var color = land.kind === 'BADLANDS' ? '#ff6e6e' : land.kind === 'RARE' ? '#ffd066' : elColor((land.elements || [])[0]);
+    var art = /^\/img\/lands\/[a-z-]+\.webp$/.test(land.background || '') ? land.background : '';
+    host.style.setProperty('--lt-color', color);
+    host.style.setProperty('--lt-art', art ? 'url("' + art + '")' : 'none');
+    var icons = (land.elements || []).map(icon).join(' ');
+    if (!icons) icons = land.kind === 'BADLANDS' ? '🌋' : '💎';
+    $('ltEyebrow').textContent = wasBoss ? 'Boss felled' : 'The land shifts';
+    $('ltLeaving').textContent = wasBoss
+      ? 'The ' + prev.name + ' boss falls. The way onward opens\u2026'
+      : 'The Rift tears you out of ' + prev.name + '\u2026';
+    $('ltEmblem').textContent = icons;
+    $('ltKind').textContent = 'Land ' + ((run.landSegment || 0) + 1) + ' · ' + land.kind;
+    $('ltName').textContent = land.name;
+    $('ltSummary').textContent = [land.feature, land.terrain].filter(Boolean).join(' · ');
+    $('ltRule').textContent = land.effect || '';
+    $('ltRule').classList.toggle('hidden', !land.effect);
+    // Restart the keyframes: a second crossing in one run reuses this node.
+    host.classList.remove('leaving');
+    $('ltLeaving').classList.remove('gone');
+    host.classList.add('hidden');
+    void host.offsetWidth;
+    host.classList.remove('hidden');
+    if (!reducedMotion()) {
+      setTimeout(function () { $('ltLeaving').classList.add('gone'); }, 20);
+    }
+    // The coach holds its next tip while this is up: a tip pointing at the map
+    // under the overlay would be unreachable. Its own flag, because the callers
+    // that fetched this state reset state.busy as soon as their request settles.
+    state.landTransition = true;
+    clearTimeout(playLandTransition._h);
+    playLandTransition._h = setTimeout(endLandTransition,
+      reducedMotion() ? LAND_TRANSITION_REDUCED_MS : LAND_TRANSITION_MS);
+  }
+
+  function endLandTransition() {
+    var host = $('landTransition');
+    if (!host || host.classList.contains('hidden')) return;
+    clearTimeout(playLandTransition._h);
+    state.landTransition = false;
+    if (reducedMotion()) { host.classList.add('hidden'); return; }
+    host.classList.add('leaving');
+    setTimeout(function () {
+      host.classList.add('hidden');
+      host.classList.remove('leaving');
+    }, 420);
+  }
+
   function openLandDetails() {
     var run = state.run || {}, land = run.land;
     if (!land) return;
@@ -2002,6 +2106,8 @@
     clearBattleMap();
     var run = state.run;
     renderLand(run);
+    // After renderLand, so the map behind the interstitial is already the new Land.
+    maybeLandTransition(run);
     renderPartyStrip($('partyStrip'), displayParty(run), run.knight);
     // The mode lives in its own badge — the same badge the resume prompt uses — so
     // Siege and Battlegrounds share one HUD shape instead of Battlegrounds smuggling
@@ -5750,9 +5856,9 @@
     advantageRiderText: function (spec) { return advantageRiderText(spec); },
     // True while projectiles and banners are still playing. The coach reads it so
     // a tip cannot open over the blow the previous step asked for.
-    presentationBusy: function () { return !!state.busy; },
+    presentationBusy: function () { return !!state.busy || !!state.landTransition; },
     exitTutorial: function () {
-      state.run = null; state.party = []; state.knightId = null;
+      state.run = null; state.party = []; state.knightId = null; state.landView = null;
       state.setupStep = 'mode';
       state.interactionResult = null;
       state.campMenu = null;

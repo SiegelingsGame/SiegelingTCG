@@ -3152,3 +3152,55 @@ body[data-screen="minigameScreen"] #mgActions{ margin-top:12px; }
 }
 @media (max-width:360px) and (orientation:portrait){.land-copy strong{font-size:16px;}.land-summary{font-size:10px;}.map-land{padding:7px 9px;gap:8px;}}
 @media (prefers-reduced-motion:reduce){.has-land .map-halo,.has-land .map-edge.open{animation:none;}}
+
+/* ---- Land transition -------------------------------------------------
+   A full-screen interstitial between Lands. It sits above every screen
+   (including the map it is about to reveal) and is removed from the flow
+   entirely when hidden, so it cannot touch the single flex:1 child rule the
+   map/battle screens depend on. --lt-color/--lt-art are set per play. */
+.land-transition{position:fixed;inset:0;z-index:120;display:flex;align-items:center;justify-content:center;
+  background:#05090f;overflow:hidden;padding:calc(24px + env(safe-area-inset-top,0px)) 20px calc(24px + env(safe-area-inset-bottom,0px));
+  animation:ltIn .28s ease both;}
+.land-transition.leaving{animation:ltOut .42s ease both;}
+.land-transition .lt-art{position:absolute;inset:-6%;background-image:var(--lt-art,none);background-size:cover;background-position:center;
+  opacity:0;animation:ltArt 2.9s cubic-bezier(.2,.62,.24,1) both;}
+.land-transition .lt-veil{position:absolute;inset:0;
+  background:radial-gradient(120% 90% at 50% 40%,color-mix(in srgb,var(--lt-color,#8fd0ff) 32%,transparent),rgba(4,8,14,.86) 62%,rgba(3,6,11,.97));}
+.land-transition .lt-body{position:relative;text-align:center;max-width:min(560px,92vw);}
+.lt-eyebrow{font-size:11px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:var(--lt-color,#8fd0ff);
+  animation:ltRise .5s .05s ease both;}
+.lt-leaving{margin-top:6px;font-size:12.5px;line-height:1.5;color:#9fb0c6;animation:ltRise .5s .14s ease both;}
+/* The seam: the old land's line wipes out as the new land's emblem lands. */
+.lt-leaving.gone{animation:ltFade .5s .95s ease both;}
+/* Fades in place rather than collapsing: the name below must not jump. */
+.lt-emblem{margin-top:16px;font-size:46px;line-height:1;filter:drop-shadow(0 6px 18px color-mix(in srgb,var(--lt-color,#8fd0ff) 55%,transparent));
+  animation:ltEmblem .9s .85s cubic-bezier(.18,.9,.3,1.2) both;}
+.lt-kind{margin-top:12px;font-size:11px;font-weight:800;letter-spacing:2.4px;color:#c3d2e6;animation:ltRise .6s 1.1s ease both;}
+.lt-name{margin:4px 0 0;font-size:clamp(26px,7.5vw,42px);line-height:1.1;color:#f3f7fc;
+  text-shadow:0 4px 26px color-mix(in srgb,var(--lt-color,#8fd0ff) 45%,transparent);animation:ltName .75s 1.18s cubic-bezier(.16,.86,.3,1) both;}
+.lt-summary{margin-top:8px;font-size:13px;color:#c9d6e6;animation:ltRise .6s 1.34s ease both;}
+.lt-rule{margin:14px auto 0;max-width:440px;padding:10px 14px;border:1px solid color-mix(in srgb,var(--lt-color,#8fd0ff) 45%,transparent);
+  border-radius:12px;background:rgba(8,14,23,.66);font-size:12.5px;line-height:1.5;color:#bcc9da;animation:ltRise .6s 1.5s ease both;}
+.lt-skip{position:absolute;right:max(16px,env(safe-area-inset-right,0px));bottom:max(18px,env(safe-area-inset-bottom,0px));
+  padding:8px 16px;border-radius:999px;border:1px solid rgba(255,255,255,.24);background:rgba(8,14,23,.72);color:#dbe5f2;
+  font-size:12.5px;cursor:pointer;animation:ltRise .5s 1.7s ease both;}
+.lt-skip:hover{border-color:var(--lt-color,#8fd0ff);color:#fff;}
+@keyframes ltIn{from{opacity:0}to{opacity:1}}
+@keyframes ltOut{from{opacity:1}to{opacity:0;visibility:hidden}}
+@keyframes ltArt{0%{opacity:0;transform:scale(1.16)}45%{opacity:.5}100%{opacity:.62;transform:scale(1)}}
+@keyframes ltRise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes ltFade{from{opacity:1}to{opacity:0}}
+@keyframes ltEmblem{0%{opacity:0;transform:scale(.4) rotate(-14deg)}60%{opacity:1;transform:scale(1.14) rotate(3deg)}100%{opacity:1;transform:none}}
+@keyframes ltName{from{opacity:0;transform:translateY(14px) scale(.95);letter-spacing:6px}to{opacity:1;transform:none;letter-spacing:0}}
+/* Reduced motion keeps the interstitial (it is information, not decoration)
+   and drops only the movement. */
+@media (prefers-reduced-motion:reduce){
+  .land-transition,.land-transition.leaving,.land-transition .lt-art,.lt-eyebrow,.lt-leaving,.lt-leaving.gone,
+  .lt-emblem,.lt-kind,.lt-name,.lt-summary,.lt-rule,.lt-skip{animation:none;}
+  .land-transition .lt-art{opacity:.6;}
+}
+@media (max-height:520px){
+  .lt-emblem{margin-top:8px;font-size:34px;}
+  .lt-rule{display:none;}
+  .lt-leaving{font-size:11.5px;}
+}

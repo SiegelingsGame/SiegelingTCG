@@ -81,7 +81,10 @@ class SiegeAdvantageTutorialJavaScriptTest {
         String adventure = Files.readString(ADVENTURE_JS);
         String tutorial = Files.readString(TUTORIAL_JS);
 
-        assertTrue(adventure.contains("presentationBusy: function () { return !!state.busy; }"),
+        // The reader covers every presentation that must hold a tip: battle playback
+        // (state.busy) and the Land interstitial, which covers the map outright.
+        assertTrue(adventure.contains("presentationBusy: function () { return !!state.busy")
+                        && adventure.contains("!!state.landTransition; }"),
                 "The coach needs a reader for playback still running.");
         assertTrue(tutorial.contains("function settled(condition)"),
                 "Battle waits must be wrapped so a tip cannot open over a projectile.");
