@@ -56,13 +56,24 @@ class SiegeLandsTutorialJavaScriptTest {
         assertTrue(tutorial.contains("/api/siege/rift/pass")
                         && tutorial.contains("travel past"),
                 "tutorial must teach that a Rift can be passed without changing Land");
-        assertTrue(html.contains("/js/siege-tutorial.js?v=27"),
+        assertTrue(assetPin(html, "/js/siege-tutorial.js") >= 27,
                 "the changed tutorial bundle needs a fresh production cache pin");
         assertTrue(html.contains("id=\"riftScreen\"") && html.contains("id=\"riftCrossBtn\"")
                         && html.contains("id=\"riftPassBtn\"")
                         && html.contains("Travel past"),
                 "the Rift location screen must offer step-through and travel-past");
-        assertTrue(html.contains("/js/adventure.js?v=100"),
+        assertTrue(assetPin(html, "/js/adventure.js") >= 100,
                 "adventure.js must be cache-bumped with the Rift pass handler");
+    }
+
+    /**
+     * Cache pins are floors, not exact numbers: every later Siege change re-cuts
+     * these bundles, and an exact pin here goes red for a change that has nothing
+     * to do with this lesson.
+     */
+    private static int assetPin(String markup, String path) {
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile(java.util.regex.Pattern.quote(path) + "\\?v=(\\d+)").matcher(markup);
+        return m.find() ? Integer.parseInt(m.group(1)) : -1;
     }
 }

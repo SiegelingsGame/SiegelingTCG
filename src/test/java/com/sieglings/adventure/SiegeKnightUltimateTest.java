@@ -92,7 +92,7 @@ class SiegeKnightUltimateTest {
         run.setKnightPassive(passive);
         run.setKnightPassiveValue(content.knightPassiveValue(passive, 3, knight.getRarity()));
         run.setKnightUnit(content.toKnightCombatant(knight));
-        List<SieglingCard> starters = content.selectableSieglings();
+        List<SieglingCard> starters = SiegeStarterTestSupport.freeSelectable(content);
         for (int i = 0; i < Math.min(2, starters.size()); i++) {
             Combatant member = content.toPartyCombatant(starters.get(i), i);
             run.getParty().add(member);

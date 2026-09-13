@@ -906,6 +906,43 @@ public class PlayerProgressionService {
                 .anyMatch(stored -> id.equals(normalizeTrainerId(stored)));
     }
 
+    /** True when the account holds at least one copy of this Siegeling card. */
+    public boolean ownsCard(PlayerProgressionEntity progression, String cardId) {
+        if (progression == null || cardId == null || cardId.isBlank()) {
+            return false;
+        }
+        String id = normalizeTrainerId(cardId);
+        for (Map.Entry<String, Integer> entry : progression.getOwnedCards().entrySet()) {
+            if (entry.getKey() != null && id.equals(normalizeTrainerId(entry.getKey()))
+                    && entry.getValue() != null && entry.getValue() > 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Buys a purchase-element Siegeling (Water/Electric) as a permanent expedition
+     * starter. Mirrors {@link #unlockSiegeKnight}: the card has to be in the
+     * collection first — bought as part of a premade deck, pulled from a pack or
+     * bought in the shop — and the Siegecoin charge is the caller's to apply.
+     */
+    public void unlockSiegeSiegling(PlayerProgressionEntity progression, String cardId) {
+        if (progression == null || cardId == null || cardId.isBlank()) {
+            throw new IllegalArgumentException("Siegeling id is required.");
+        }
+        String id = normalizeTrainerId(cardId);
+        if (isSiegeSieglingUnlocked(progression, id)) {
+            throw new IllegalArgumentException("That Siegeling is already unlocked for expeditions.");
+        }
+        if (!ownsCard(progression, id)) {
+            throw new IllegalArgumentException("Own this Siegeling card before unlocking it for expeditions.");
+        }
+        List<String> unlocked = new ArrayList<>(progression.getSiegeUnlockedSieglings());
+        unlocked.add(id);
+        progression.setSiegeUnlockedSieglings(unlocked);
+    }
+
     /**
      * Banks Siegelings found on an expedition as permanent starter unlocks.
      * Ids already unlocked are skipped rather than rejected — a run routinely

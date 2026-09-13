@@ -39,7 +39,7 @@ class SiegeEvolutionHandTest {
     @Test
     void evolvingRewritesTheOwnersCardsInHand() throws Exception {
         TrainerCard knight = SiegeStarterTestSupport.starterKnight(content);
-        SieglingCard base = content.selectableSieglings().stream()
+        SieglingCard base = SiegeStarterTestSupport.freeSelectable(content).stream()
                 .filter(s -> content.evolutionOf(s.getId()).isPresent()
                         && !playableMoveIds(s).isEmpty())
                 .filter(s -> {

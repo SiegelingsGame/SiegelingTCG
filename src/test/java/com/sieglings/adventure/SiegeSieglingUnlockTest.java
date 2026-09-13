@@ -117,7 +117,7 @@ class SiegeSieglingUnlockTest {
 
     @Test
     void discoveriesSurviveARunSnapshotRoundTrip() throws Exception {
-        SieglingCard target = content.selectableSieglings().getFirst();
+        SieglingCard target = SiegeStarterTestSupport.freeSelectable(content).getFirst();
         Set<String> restored = snapshotRoundTripDiscoveries(target.getId());
         assertTrue(restored.contains(target.getId()),
                 "a resumed run must remember what it already found — unlocks only bank at the end");
@@ -126,7 +126,7 @@ class SiegeSieglingUnlockTest {
     @Test
     void startingARunRecordsItsWarbandAsDiscovered() throws Exception {
         com.sieglings.model.TrainerCard knight = SiegeStarterTestSupport.starterKnight(content);
-        SieglingCard siegling = content.selectableSieglings().getFirst();
+        SieglingCard siegling = SiegeStarterTestSupport.freeSelectable(content).getFirst();
         List<String> warband = SiegeStarterTestSupport.starterIds(content, knight, siegling);
 
         Map<String, Object> started = siegeService.newRun(null, knight.getId(), warband, "STANDARD");

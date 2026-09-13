@@ -62,6 +62,14 @@ public class SiegeController {
         return siege.unlockKnight(authorizationHeader, str(body.get("knightId")));
     }
 
+    /** Buys a purchase-element (Water/Electric) Siegeling as a permanent expedition starter. */
+    @PostMapping("/api/siege/siegling/unlock")
+    public Map<String, Object> unlockSiegling(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody Map<String, Object> body) {
+        return siege.unlockSiegling(authorizationHeader, str(body.get("sieglingId")));
+    }
+
     /** Start a run: body { knightId, sieglingIds:[...], mode? ("STANDARD"|"ENDLESS") }. */
     @PostMapping("/api/siege/run/new")
     public Map<String, Object> newRun(

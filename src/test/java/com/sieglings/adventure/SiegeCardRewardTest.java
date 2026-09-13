@@ -30,7 +30,7 @@ class SiegeCardRewardTest {
 
     @BeforeEach
     void setUp() {
-        fireSiegling = content.selectableSieglings().stream()
+        fireSiegling = SiegeStarterTestSupport.freeSelectable(content).stream()
                 .filter(s -> s.getElement() == Element.FIRE)
                 .findFirst()
                 .orElse(null);
@@ -64,7 +64,7 @@ class SiegeCardRewardTest {
 
     @Test
     void evolvedPreviewMovesComeFromEvolvedForm() {
-        SieglingCard base = content.selectableSieglings().stream()
+        SieglingCard base = SiegeStarterTestSupport.freeSelectable(content).stream()
                 .filter(s -> content.evolutionOf(s.getId()).isPresent())
                 .findFirst()
                 .orElse(null);

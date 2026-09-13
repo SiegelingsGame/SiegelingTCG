@@ -288,6 +288,28 @@ public class SiegeContentService {
         return Boolean.TRUE.equals(knight.getExpeditionStarter());
     }
 
+    /**
+     * Elements the expedition sells rather than gives away. Their Siegelings are
+     * never free starters: a guest cannot take them at all, and a signed-in
+     * player must own the card in their collection (a premade deck, a pack, the
+     * shop) and then buy the expedition unlock with Siegecoins.
+     */
+    private static final java.util.Set<Element> SIEGE_PURCHASE_ELEMENTS =
+            java.util.EnumSet.of(Element.WATER, Element.ELECTRIC);
+
+    /** True when this Siegeling's element is sold rather than handed out at warband assembly. */
+    boolean isSiegePurchaseSiegling(SieglingCard s) {
+        return s != null && s.getElement() != null && SIEGE_PURCHASE_ELEMENTS.contains(s.getElement());
+    }
+
+    /** Siegecoin price of a purchase-element Siegeling; 0 for the free roster. */
+    int siegeUnlockCost(SieglingCard s) {
+        if (!isSiegePurchaseSiegling(s)) {
+            return 0;
+        }
+        return defaultSiegeUnlockCost(s.getRarity());
+    }
+
     int siegeUnlockCost(TrainerCard knight) {
         if (knight == null) {
             return 0;

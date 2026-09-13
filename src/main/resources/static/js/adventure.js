@@ -1580,13 +1580,15 @@
     }).forEach(function (s) {
       var picked = state.party.indexOf(s.id);
       var locked = s.expeditionStarter === false;
+      var gold = (state.roster && state.roster.gold) || 0;
+      var canAffordUnlock = s.canUnlock && gold >= (s.unlockCost || 0);
       var c = el('div', 'sgl-card ' + elClass(s.element) + (picked >= 0 ? ' sel' : '') + (locked ? ' locked' : ''));
       var art = s.artUrl
         ? '<div class="sart" style="background-image:url(\'' + artCss(s.artUrl) + '\')"></div>'
         : '<div class="sart sart-fallback">' + icon(s.element) + '</div>';
       c.innerHTML =
         (picked >= 0 ? '<div class="selorder">' + (picked + 1) + '</div>' : '') +
-        (locked ? '<div class="sgl-lock" title="Find on the expedition path">🔒</div>' : '') +
+        (locked ? '<div class="sgl-lock" title="' + esc(sieglingLockMessage(s)) + '">🔒</div>' : '') +
         '<button class="info-btn" type="button" title="View cards">ⓘ</button>' +
         art +
         '<div class="sname">' + esc(s.name) + (s.evolves ? ' <span class="evo-tag" title="Its Evolution card joins your battle deck — play it for 2 AP to evolve">EVO ↑</span>' : '') + '</div>' +
@@ -1594,22 +1596,76 @@
           '<span class="schip">' + icon(s.element) + ' ' + esc(s.element) + (locked ? ' · locked' : '') + '</span>' +
           '<span class="rarity-tag rarity-' + rarityKey(s.rarity) + '">' + esc(rarityLabel(s.rarity)) + '</span>' +
         '</div>' +
-        '<div class="sstats"><span>❤ ' + s.hp + '</span><span>⚡ ' + s.speed + '</span><span>🃏 ' + s.moveCount + '</span></div>';
+        '<div class="sstats"><span>❤ ' + s.hp + '</span><span>⚡ ' + s.speed + '</span><span>🃏 ' + s.moveCount + '</span></div>' +
+        sieglingLockNote(s, canAffordUnlock);
       if (!locked) {
         c.addEventListener('click', function () { toggleSiegling(s.id); });
       } else {
-        c.addEventListener('click', function () { toast('Find ' + s.name + ' on the expedition path to recruit them.'); });
+        c.addEventListener('click', function () { toast(sieglingLockMessage(s)); });
+      }
+      var unlockBtn = c.querySelector('.sunlock-btn');
+      if (unlockBtn) {
+        unlockBtn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          unlockSiegling(s);
+        });
       }
       c.querySelector('.info-btn').addEventListener('click', function (e) {
         e.stopPropagation();
         showUnitModal({
           name: s.name, element: s.element, artUrl: s.artUrl,
-          subtitle: '❤ ' + s.hp + ' · ⚡ ' + s.speed + (s.evolves ? ' · Evolution card in battle deck (2 AP)' : '') + (locked ? ' · Locked until found on the path' : ''),
+          subtitle: '❤ ' + s.hp + ' · ⚡ ' + s.speed + (s.evolves ? ' · Evolution card in battle deck (2 AP)' : '') + (locked ? ' · ' + sieglingLockMessage(s) : ''),
           cards: s.moves || []
         });
       });
       grid.appendChild(c);
     });
+  }
+
+  /**
+   * Lock copy for a Siegeling the warband cannot take. Water/Electric are sold
+   * rather than found, so their message names the actual blocker (sign in, own
+   * the card, pay) instead of pointing at the expedition path.
+   */
+  function sieglingLockMessage(s) {
+    if (!s || s.expeditionStarter !== false) return '';
+    if (!s.purchaseOnly) return 'Find ' + s.name + ' on the expedition path to recruit them.';
+    if (s.lockReason === 'SIGN_IN') return 'Sign in to buy ' + s.name + ' for expeditions.';
+    if (s.lockReason === 'OWN_CARD') return 'Own the ' + s.name + ' card — from a premade deck, a pack or the shop — before unlocking it here.';
+    return 'Unlock ' + s.name + ' for expeditions with ' + (s.unlockCost || 0) + ' Siegecoins.';
+  }
+
+  function sieglingLockNote(s, canAfford) {
+    if (!s || s.expeditionStarter !== false || !s.purchaseOnly) return '';
+    if (s.canUnlock) {
+      return '<div class="slock-note">Owned in collection — unlock for expeditions</div>' +
+        '<button class="sunlock-btn" type="button"' + (canAfford ? '' : ' disabled') +
+        '>Unlock · 🪙 ' + (s.unlockCost || 0) + '</button>';
+    }
+    if (s.lockReason === 'SIGN_IN') return '<div class="slock-note">🔒 Sign in to buy · 🪙 ' + (s.unlockCost || 0) + '</div>';
+    return '<div class="slock-note">🔒 Own this card first · 🪙 ' + (s.unlockCost || 0) + '</div>';
+  }
+
+  function unlockSiegling(s) {
+    if (state.busy || !s || !s.canUnlock) return;
+    if (((state.roster && state.roster.gold) || 0) < (s.unlockCost || 0)) {
+      toast('Need ' + (s.unlockCost || 0) + ' Siegecoins to unlock ' + s.name + '.');
+      return;
+    }
+    state.busy = true;
+    api('/api/siege/siegling/unlock', { method: 'POST', body: { sieglingId: s.id } })
+      .then(function (data) {
+        if (data && data.siegelings) state.roster = data;
+        else return api('/api/siege/roster').then(function (roster) { state.roster = roster; });
+      })
+      .then(function () {
+        renderSieglingGrid();
+        updateWarbandMeta();
+        refreshSetupFooter();
+        toast(s.name + ' unlocked for expeditions!');
+      })
+      .catch(function (e) { toast(e.message); })
+      .then(function () { state.busy = false; });
   }
 
   function selectedKnight() {
@@ -1633,7 +1689,7 @@
   function toggleSiegling(id) {
     var s = rosterSiegelings(state.roster).find(function (x) { return x.id === id; });
     if (s && s.expeditionStarter === false) {
-      toast('Find ' + s.name + ' on the expedition path to recruit them.');
+      toast(sieglingLockMessage(s));
       return;
     }
     var i = state.party.indexOf(id);

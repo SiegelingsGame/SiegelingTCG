@@ -36,10 +36,10 @@ class SiegeEvolutionSigilTest {
     @BeforeEach
     void setUp() {
         TrainerCard knight = SiegeStarterTestSupport.starterKnight(content);
-        SieglingCard base = content.selectableSieglings().stream()
+        SieglingCard base = SiegeStarterTestSupport.freeSelectable(content).stream()
                 .filter(s -> content.evolutionOf(s.getId()).isPresent())
                 .findFirst()
-                .orElseGet(() -> content.selectableSieglings().getFirst());
+                .orElseGet(() -> SiegeStarterTestSupport.freeSelectable(content).getFirst());
         Map<String, Object> run = siegeService.newRun(
                 null, knight.getId(), SiegeStarterTestSupport.starterIds(content, knight, base), "STANDARD");
         token = (String) run.get("token");
@@ -50,7 +50,7 @@ class SiegeEvolutionSigilTest {
 
     @Test
     void evolutionSigilRequiresEvolutionPath() {
-        Optional<SieglingCard> noEvo = content.selectableSieglings().stream()
+        Optional<SieglingCard> noEvo = SiegeStarterTestSupport.freeSelectable(content).stream()
                 .filter(s -> content.evolutionOf(s.getId()).isEmpty())
                 .findFirst();
         if (noEvo.isEmpty()) return;
@@ -69,7 +69,7 @@ class SiegeEvolutionSigilTest {
 
     @Test
     void evolution2SigilRequiresStage3Chain() {
-        Optional<SieglingCard> noStage3 = content.selectableSieglings().stream()
+        Optional<SieglingCard> noStage3 = SiegeStarterTestSupport.freeSelectable(content).stream()
                 .filter(s -> content.evolutionOf(s.getId()).isPresent()
                         && !content.hasStage3EvolutionChain(s.getId()))
                 .findFirst();
