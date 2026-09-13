@@ -1,10 +1,12 @@
 package com.sieglings.adventure;
 
+import com.sieglings.model.Card;
 import com.sieglings.model.SieglingCard;
 import com.sieglings.model.TrainerCard;
 import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.PlayerProgressionEntity;
 import com.sieglings.service.AccountService;
+import com.sieglings.service.CardDefinitionService;
 import com.sieglings.service.PlayerProgressionService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
@@ -39,6 +41,9 @@ class SiegePurchaseElementTest {
 
     @Autowired
     private PlayerProgressionService progressionService;
+
+    @Autowired
+    private CardDefinitionService cardDefs;
 
     private SieglingCard purchaseSiegling() {
         return content.selectableSieglings().stream()
@@ -154,6 +159,35 @@ class SiegePurchaseElementTest {
     }
 
     /**
+     * Buying a premade deck only writes {@code purchasedDeckIds}. The Water/Electric
+     * expedition rule asked for that shop path, so a purchased deck has to count
+     * as owning the Siegelings it lists — otherwise the Unlock button never appears.
+     */
+    @Test
+    void buyingAPremadeDeckCountsAsOwningItsSiegelings() throws Exception {
+        DeckSeat seat = purchaseSieglingInAPurchasedDeck();
+        assertNotNull(seat, "no Water/Electric Siegeling sits in a premade deck");
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setGold(100000);
+        progression.setPurchasedDeckIds(List.of(seat.deckId));
+
+        try (Swap ignored = withAccount(progression)) {
+            assertTrue(progressionService.ownsCard(progression, seat.siegling.getId()),
+                    seat.siegling.getName() + " must be owned via " + seat.deckId
+                            + " even when ownedCards is empty");
+            Map<String, Object> row = rosterRow(siegeService.roster("Bearer test"), seat.siegling.getId());
+            assertEquals("BUY", row.get("lockReason"),
+                    "the shop path has to offer the Siegecoin unlock");
+            assertEquals(Boolean.TRUE, row.get("canUnlock"));
+            assertEquals(Boolean.FALSE, row.get("expeditionStarter"));
+
+            Map<String, Object> result = siegeService.unlockSiegling("Bearer test", seat.siegling.getId());
+            assertEquals(Boolean.TRUE, result.get("ok"));
+            assertTrue(progressionService.isSiegeSieglingUnlocked(progression, seat.siegling.getId()));
+        }
+    }
+
+    /**
      * Meeting a sold Siegeling on the path must not bank it as a free starter —
      * otherwise one lucky recruit node routes around the shop entirely.
      */
@@ -177,6 +211,40 @@ class SiegePurchaseElementTest {
     }
 
     // ---- helpers ---------------------------------------------------------
+
+    private record DeckSeat(String deckId, SieglingCard siegling) {}
+
+    /**
+     * A sold Siegeling that actually sits in a premade list. Generated decks do
+     * not include every Water/Electric card, so the first catalog purchase
+     * siegling is the wrong fixture for the shop-path test.
+     */
+    private DeckSeat purchaseSieglingInAPurchasedDeck() {
+        PlayerProgressionEntity guest = new PlayerProgressionEntity();
+        for (CardDefinitionService.DeckOption deck : cardDefs.getDeckOptions()) {
+            // Skip decks that are already free: they would pass ownsCard without
+            // touching purchasedDeckIds, which is the ledger this test is pinning.
+            if (progressionService.isPremadeDeckUnlocked(guest, deck)) {
+                continue;
+            }
+            List<Card> cards;
+            try {
+                cards = cardDefs.buildDeckById(deck.id());
+            } catch (RuntimeException ignored) {
+                continue;
+            }
+            for (Card card : cards) {
+                if (!(card instanceof SieglingCard s) || !content.isSiegePurchaseSiegling(s)) {
+                    continue;
+                }
+                if (content.findSiegling(s.getId()).isEmpty()) {
+                    continue;
+                }
+                return new DeckSeat(deck.id(), s);
+            }
+        }
+        return null;
+    }
 
     /** Restores the real collaborators when the block exits. */
     private final class Swap implements AutoCloseable {

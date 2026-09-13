@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -906,19 +907,56 @@ public class PlayerProgressionService {
                 .anyMatch(stored -> id.equals(normalizeTrainerId(stored)));
     }
 
-    /** True when the account holds at least one copy of this Siegeling card. */
+    /**
+     * True when the account can play this card: a pack/shop/craft copy in
+     * {@code ownedCards}, or a seat in an unlocked premade deck.
+     * <p>
+     * Premade-deck purchase only writes {@code purchasedDeckIds} — it never
+     * grants the list into {@code ownedCards} — so Siege unlock (and anything
+     * else that asks "do they own this?") has to treat those two ledgers as
+     * one collection. Checking only {@code ownedCards} locked out the shop
+     * path the Water/Electric expedition rule was written around.
+     */
     public boolean ownsCard(PlayerProgressionEntity progression, String cardId) {
         if (progression == null || cardId == null || cardId.isBlank()) {
             return false;
         }
-        String id = normalizeTrainerId(cardId);
+        return ownedCardIds(progression).contains(normalizeTrainerId(cardId));
+    }
+
+    /**
+     * Normalized ids this account holds, from copies and from every unlocked
+     * premade deck. Roster walks this once so a page of Water/Electric rows
+     * does not rebuild those decks per card.
+     */
+    public Set<String> ownedCardIds(PlayerProgressionEntity progression) {
+        Set<String> ids = new LinkedHashSet<>();
+        if (progression == null) {
+            return ids;
+        }
         for (Map.Entry<String, Integer> entry : progression.getOwnedCards().entrySet()) {
-            if (entry.getKey() != null && id.equals(normalizeTrainerId(entry.getKey()))
-                    && entry.getValue() != null && entry.getValue() > 0) {
-                return true;
+            if (entry.getKey() != null && entry.getValue() != null && entry.getValue() > 0) {
+                ids.add(normalizeTrainerId(entry.getKey()));
             }
         }
-        return false;
+        if (cardDefinitionService == null) {
+            return ids;
+        }
+        for (CardDefinitionService.DeckOption deck : cardDefinitionService.getDeckOptions()) {
+            if (!isPremadeDeckUnlocked(progression, deck)) {
+                continue;
+            }
+            try {
+                for (Card card : cardDefinitionService.buildDeckById(deck.id())) {
+                    if (card != null && card.getId() != null && !card.getId().isBlank()) {
+                        ids.add(normalizeTrainerId(card.getId()));
+                    }
+                }
+            } catch (RuntimeException ignored) {
+                // A deck the catalog cannot assemble is not a card this account holds.
+            }
+        }
+        return ids;
     }
 
     /**
