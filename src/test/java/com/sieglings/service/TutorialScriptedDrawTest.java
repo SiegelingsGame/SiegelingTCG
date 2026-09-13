@@ -52,8 +52,10 @@ class TutorialScriptedDrawTest {
             }
             assertEquals(5, count);
         }
-        assertTrue(state.getPlayer().getFireEnergy() >= 6);
-        assertTrue(state.getPlayer().getEarthEnergy() >= 6);
+        // Energy is whatever the preset board generates — no flat grant on top —
+        // so the chapter's rail matches its own energy-detail breakdown.
+        assertTrue(state.getPlayer().getFireEnergy() > 0);
+        assertTrue(state.getPlayer().getEarthEnergy() > 0);
         assertTrue(state.getEnemy().getIceEnergy() >= 3);
         int health = state.getAt(false, 1, 0).getCurrentHealth();
         gameService.castSpell(state, true, "trap13", 1, 0);

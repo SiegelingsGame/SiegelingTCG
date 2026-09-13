@@ -56,6 +56,27 @@ class AdvancedTutorialGameTest {
         assertTrue(state.getAt(true, 0, 0).getTemporaryShield() > 0);
     }
 
+    /**
+     * The chapter's energy rail has to be explainable from the preset board: it
+     * used to hand out flat Fire/Earth/Ice on top of the generated pools, so the
+     * energy-detail breakdown never matched the numbers on screen.
+     */
+    @Test
+    void energyComesFromTheBoardNotFlatGrants() {
+        GameState state = gameService.newAdvancedTutorialGame("Player").state();
+        // The player's rail is pure board output: no synthetic Fire/Earth on top,
+        // so the energy-detail breakdown adds up to the number on screen.
+        for (com.sieglings.model.enums.Element element : com.sieglings.model.enums.Element.values()) {
+            assertEquals(0, state.getPlayer().getTemporaryEnergyAdjustment(element),
+                    "player temp energy for " + element);
+        }
+        assertTrue(state.getPlayer().getFireEnergy() > 0);
+        assertTrue(state.getPlayer().getEarthEnergy() > 0);
+        // The Dummy is only ever topped up to the Deception's requirement, never past it.
+        assertTrue(state.getEnemy().getIceEnergy() >= 3);
+        assertTrue(state.getEnemy().getTemporaryEnergyAdjustment(com.sieglings.model.enums.Element.ICE) <= 3);
+    }
+
     @Test
     void survivesACardIdThatNoLongerExists() {
         CardDefinitionService spy = Mockito.spy(cardDefs);
