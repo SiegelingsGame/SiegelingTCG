@@ -39,7 +39,25 @@
         ]
       },
       {
-        "source": "/siege",
+        "source": "/@(landing|home|login|social|cards|decks|lobbies|profile|achievements|deck-builder|shop|play|siege|keep|help)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      },
+      {
+        "source": "/@(social|profile|achievements)/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      },
+      {
+        "source": "/site.webmanifest",
         "headers": [
           {
             "key": "Cache-Control",
