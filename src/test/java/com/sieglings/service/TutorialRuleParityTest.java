@@ -152,8 +152,19 @@ class TutorialRuleParityTest {
                         && tutorial.contains("+1 damage")
                         && tutorial.contains("-1 damage"),
                 "Matchup copy must name Weak (+1) and Strong (resisted, -1) for the targeting moment.");
-        assertTrue(tutorial.contains("Prefer a card with a <b>Weak</b> badge"),
-                "The choose-target beat that follows must reinforce picking Weak when possible.");
+        // Every lit enemy is a legal target, so the beat that follows tells the
+        // player to tap ANY of them and keeps the Weak bonus as advice — the old
+        // "prefer a Weak card" wording read as a requirement next to a board
+        // where the other valid enemies sat greyed out under the coach's dim.
+        assertTrue(tutorial.contains("Tap <b>any highlighted enemy</b>")
+                        && tutorial.contains("every lit card is a legal target")
+                        && tutorial.contains("<b>Weak</b> badge means that hit deals bonus damage"),
+                "The choose-target beat that follows must open every legal enemy and keep the Weak "
+                        + "badge as a bonus rather than a requirement.");
+        assertTrue(tutorial.contains("function targetableHighlight()")
+                        && tutorial.contains("matchupHighlight().concat(lit)"),
+                "The badge lesson must light every legal target alongside the badge card, or the "
+                        + "other valid enemies read as disabled under the dim.");
 
         assertTrue(tutorial.contains("{ id: 'badge-chip'") && tutorial.contains("{ id: 'badge-all'"),
                 "The chip and the full reference must be their own beats.");
@@ -431,8 +442,29 @@ class TutorialRuleParityTest {
 
         int wipeAt = tutorial.indexOf("{ id: 't3-wipe'");
         int wipeEnd = tutorial.indexOf("{ id: '", wipeAt + 8);
-        assertTrue(wipeAt >= 0 && !tutorial.substring(wipeAt, wipeEnd).contains("lock:"),
-                "The step that asks for the cast must hand the hand back.");
+        String wipe = wipeAt >= 0 ? tutorial.substring(wipeAt, wipeEnd) : "";
+        // Ashfall is the only open card on the cast beat: the Siegeling beside it
+        // is the NEXT lesson's, and placing it first spends the Setup action that
+        // step is about. The lock names HAND_CARDS rather than HAND_LOCKED
+        // because the cast itself goes through the preview's Cast control, and
+        // lockAll keeps the hand shut through the wipe animation, when there is
+        // no longer an Ashfall to recommend.
+        assertTrue(wipeAt >= 0
+                        && wipe.contains("recommend: ashfallTarget,")
+                        && wipe.contains("lock: HAND_CARDS, lockAll: true,"),
+                "The cast beat must leave Ashfall as the only live hand card, and stay locked "
+                        + "once it has been spent.");
+        assertTrue(!wipe.contains("lock: HAND_LOCKED") && !wipe.contains("CAST_BTNS"),
+                "Locking the cast beat must not take the Cast control with it — the step cannot "
+                        + "be completed without it.");
+        assertTrue(wipe.contains("theirs() === 0 && !presentationBusy()")
+                        && tutorial.contains("function presentationBusy()")
+                        && tutorial.contains("q.isPresentationBusy && q.isPresentationBusy()"),
+                "The cast beat must outlast the wipe's playback, not just the state diff that "
+                        + "started it, before the next lesson opens its card.");
+        assertTrue(summon.contains("recommend: function () { return handCardTarget(placeableSieglingInHand()); },")
+                        && summon.contains("lock: function () { return handCardTarget(placeableSieglingInHand()) ? HAND_CARDS : null; },"),
+                "The placement beat that follows must open exactly the Siegeling it names.");
         assertTrue(coach.contains("clearLock();\n    clearShade();\n    if (layer) layer.classList.add('hidden');"),
                 "Stopping the coach must hand every locked AND shaded element back before the layer hides.");
         // A tutorial can only walk forwards, so any step that reasons about a

@@ -215,6 +215,15 @@
     })[0] || null;
   }
 
+  /** True while action-queue playback is still showing an effect that already
+   *  landed in state — damage numbers, knockouts, Siege damage. A step whose
+   *  lesson is "watch what that did" has to outlast the animation, not the
+   *  state diff that started it. */
+  function presentationBusy() {
+    var q = window.SieglingsActionQueue;
+    try { return !!(q && q.isPresentationBusy && q.isPresentationBusy()); } catch (e) { return false; }
+  }
+
   function mine() { var g = gs(); return g ? boardCount(g.playerBoard) : 0; }
   function theirs() { var g = gs(); return g ? boardCount(g.enemyBoard) : 0; }
 
@@ -626,6 +635,19 @@
 
   function hasMatchupBadge() {
     return visible('.matchup-badge-overlay');
+  }
+
+  /**
+   * Every cell the current aim may legally hit. The dim reads as "disabled", so
+   * any targeting step that lit only ONE card left the other valid enemies
+   * greyed out under the shade and the player could not tell they were choices.
+   * Both the badge lesson and the pick itself widen the hole with this.
+   */
+  function targetableHighlight() {
+    var out = [];
+    if (visible('#enemyGrid .board-cell.targetable')) out.push('#enemyGrid .board-cell.targetable');
+    if (visible('#playerGrid .board-cell.targetable')) out.push('#playerGrid .board-cell.targetable');
+    return out;
   }
 
   /** True once a row is marked and the board is waiting on Confirm. A row move
@@ -1319,14 +1341,19 @@
 
       { id: 'matchup', title: 'Weakness badges',
         target: function () { return matchupCellSelector() || matchupBadgeSelector() || '#enemyGrid'; },
-        highlight: matchupHighlight,
+        highlight: function () {
+          // Badge cell first (the ring lands on it), then every other legal
+          // target so none of them sit greyed out while the lesson runs.
+          var lit = targetableHighlight();
+          return lit.length ? matchupHighlight().concat(lit) : matchupHighlight();
+        },
         body: 'While you aim, <b>matchup badges</b> appear on enemy cards. A red <b>Weak</b> badge means your element beats theirs — the hit deals <b>+1 damage</b>. A gold <b>Strong</b> badge means their element beats yours, so the hit is resisted for <b>-1 damage</b>. No badge means the elements share no matchup and the hit deals flat damage. Read the badges to see who is weak or strong against this attack.',
         skipIf: function () { return !hasMatchupBadge(); } },
 
-      { id: 'target', hint: 'Pick a <b>target</b>', title: 'Choose a target',
+      { id: 'target', hint: 'Tap <b>any enemy</b>', title: 'Choose a target',
         target: function () { return firstOf(['#enemyGrid .board-cell.targetable', '#enemyGrid']); },
-        highlight: ['#enemyGrid .board-cell.targetable', '#playerGrid .board-cell.targetable'],
-        body: 'Tap a <b>highlighted cell</b> to choose a target. Prefer a card with a <b>Weak</b> badge when you can — that hit deals bonus damage. A row ability lets you select and confirm an entire row.',
+        highlight: ['#enemyGrid .board-cell.targetable', '#playerGrid .board-cell.targetable', '#enemyGrid'],
+        body: 'Tap <b>any highlighted enemy</b> to attack it — every lit card is a legal target, so pick whichever one you want. A <b>Weak</b> badge means that hit deals bonus damage, but the choice is yours. A row ability lets you select and confirm an entire row.',
         skipIf: function () { return !visible('#enemyGrid .board-cell.targetable'); },
         until: function () { return !visible('#enemyGrid .board-cell.targetable'); } },
 
@@ -2051,20 +2078,46 @@
         } },
 
       { id: 't3-wipe', hint: 'Cast <b>Ashfall</b>', title: 'Cast Ashfall',
-        target: '#playerHand', highlight: ['#playerHand', '#handTray'],
+        target: function () { return ashfallTarget() || firstOf(['#playerHand', '#handTray']); },
+        highlight: ['#playerHand', '#handTray'],
+        // Only Ashfall is open here. The Siegeling sitting beside it in hand is
+        // the NEXT lesson's card, and placing it first spends the Setup action
+        // that step is about, so the wipe would land on a board the following
+        // tips no longer describe. HAND_CARDS rather than HAND_LOCKED: the cast
+        // itself goes through the preview's Cast button, which must stay live.
+        recommend: ashfallTarget,
+        // `lockAll` matters after the cast, not before it: once Ashfall leaves
+        // the hand there is nothing left to recommend, and without it the lock
+        // would drop and hand the player the next lesson's Siegeling while the
+        // wipe is still animating.
+        lock: HAND_CARDS, lockAll: true,
         body: function () {
           var wipe = handCardNamed('tutorial_ashfall');
           return 'Cast ' + (wipe ? '<b>' + esc(wipe.name) + '</b>' : 'the Strategy') +
             ' for <b>3 Fire energy</b> to destroy every enemy Siegeling. Each knockout deals <b>Siege Damage</b> to the opponent.';
         },
         skipIf: function () { return turn() < 3 || !handCardNamed('tutorial_ashfall'); },
-        until: function () { return theirs() === 0 || phase() !== 'SETUP'; } },
+        // The board emptying is the SERVER's answer; the knockouts, the Siege
+        // damage and the bounty numbers are still playing out on screen for a
+        // second or two after it. Holding for the queue as well means the next
+        // lesson opens its card once the player has actually watched the wipe.
+        until: function () {
+          return (theirs() === 0 && !presentationBusy()) || phase() !== 'SETUP';
+        } },
 
       // One act left after the wipe, and a card worth spending it on. This is
       // also the first time the budget MATTERS, so the next step reads it back.
       { id: 't3-summon', hint: 'Place another Siegeling', title: 'Use your remaining action',
-        target: function () { return firstOf(['#playerHand', '#handTray']); },
+        target: function () {
+          return handCardTarget(placeableSieglingInHand()) || firstOf(['#playerHand', '#handTray']);
+        },
         highlight: ['#playerHand', '#handTray', '#playerGrid .board-cell.legal'],
+        // Reached only once the wipe has resolved (`t3-wipe` waits on the enemy
+        // board emptying), and then the one placeable Siegeling is the only card
+        // left open — the evolution beside it has no base standing after the
+        // board cleared, so offering it would be a move the match refuses.
+        recommend: function () { return handCardTarget(placeableSieglingInHand()); },
+        lock: function () { return handCardTarget(placeableSieglingInHand()) ? HAND_CARDS : null; },
         body: function () {
           var next = placeableSieglingInHand();
           return 'You still have a Setup action. Place ' + (next ? '<b>' + esc(next.name) + '</b>' : 'another Siegeling') +
