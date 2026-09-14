@@ -1,5 +1,5 @@
 {
-  "token" : "V-w_n23COrszcCPLBZVjL0L1f-1gL8yb",
+  "token" : "K_yh8CSo9Jb7ZinlLYqr1pSBbw5y0Mo9",
   "status" : "ACTIVE",
   "currentNodeId" : -1,
   "lastReward" : "",
@@ -31,23 +31,23 @@
     "eventTitle" : "The Cinder Smith"
   },
   "landHistory" : [ {
-    "id" : "electric",
-    "name" : "Stormspire",
+    "id" : "metal",
+    "name" : "Ironhold",
     "kind" : "ELEMENTAL",
-    "elements" : [ "ELECTRIC" ],
-    "background" : "/img/lands/electric.webp",
+    "elements" : [ "METAL" ],
+    "background" : "/img/lands/metal.webp",
     "locations" : {
-      "journey" : "/img/lands/locations/electric-journey.webp",
-      "shelter" : "/img/lands/locations/electric-shelter.webp",
-      "elite" : "/img/lands/locations/electric-elite.webp",
-      "boss" : "/img/lands/locations/electric-boss.webp"
+      "journey" : "/img/lands/locations/metal-journey.webp",
+      "shelter" : "/img/lands/locations/metal-shelter.webp",
+      "elite" : "/img/lands/locations/metal-elite.webp",
+      "boss" : "/img/lands/locations/metal-boss.webp"
     },
-    "feature" : "Storm Beacon",
-    "featureType" : "EVENT",
-    "terrain" : "Charged air",
-    "effect" : "ELECTRIC Siegelings gain +2 Speed for each battle.",
+    "feature" : "Iron Foundry",
+    "featureType" : "SMITH",
+    "terrain" : "Iron cover",
+    "effect" : "METAL Siegelings start battles with +5 Shield.",
     "encounters" : "Favored Siegelings have 4× draw weight in recruits, broker stock and card prizes.",
-    "eventTitle" : "The Storm Chaser"
+    "eventTitle" : "The Foundry Keeper"
   } ],
   "landSegment" : 0,
   "landSegmentRows" : 8,
