@@ -2659,3 +2659,23 @@ binder/deck `<img>` nodes, then added and removed copies and confirmed every tag
 survived (no image recreation, hence no flash) while the count badge, Deck tab
 badge (`2/30` → `0/30`), total ring, deck-row insert/remove/order, copy badges
 and the Card pane stepper all updated correctly, with no page errors.
+
+## 2026-09-14 — Home-screen web app name showed "Sieglings"
+
+Add to Home Screen on iOS pre-filled "Sieglings" (missing the second "e") for
+`/home`. Every live source was already correct, so the cause was staleness:
+Firebase Hosting's `**/*.html` no-cache header never matches the clean rewrite
+routes (`/home`, `/play`, …) — only `/siege` had an explicit rule — so those
+pages were served with the default one-hour cache, and `/site.webmanifest` had
+no cache rule at all while the service worker serves it stale-while-revalidate.
+Added no-cache headers for every clean page route and for the manifest in
+`firebase.json`, bumped `sw.js` `CACHE_VERSION` to `v9` so existing installs
+sweep their caches, fixed the stale misspelling still living in
+`mobile/web-app/public/site.webmanifest`, and added the
+`apple-mobile-web-app-title` meta to `keep.html` and `landing.html`, which
+lacked it (they would have fallen back to the `<title>`).
+
+Verified: `firebase.json` re-parses as JSON; static server at 8777 confirms the
+apple title meta reads "Siegelings" on home/keep/landing/play/adventure and the
+served manifest has `name`/`short_name` "Siegelings TCG"/"Siegelings". No JS
+behavior changed beyond the cache-version constant.
