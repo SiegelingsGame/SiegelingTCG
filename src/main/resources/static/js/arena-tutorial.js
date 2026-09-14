@@ -628,6 +628,19 @@
     return visible('.matchup-badge-overlay');
   }
 
+  /**
+   * Every cell the current aim may legally hit. The dim reads as "disabled", so
+   * any targeting step that lit only ONE card left the other valid enemies
+   * greyed out under the shade and the player could not tell they were choices.
+   * Both the badge lesson and the pick itself widen the hole with this.
+   */
+  function targetableHighlight() {
+    var out = [];
+    if (visible('#enemyGrid .board-cell.targetable')) out.push('#enemyGrid .board-cell.targetable');
+    if (visible('#playerGrid .board-cell.targetable')) out.push('#playerGrid .board-cell.targetable');
+    return out;
+  }
+
   /** True once a row is marked and the board is waiting on Confirm. A row move
    *  costs two taps, so "pick a row" and "confirm the row" are separate lessons
    *  — one tip covering both would sit over a board that already moved on. */
@@ -1319,14 +1332,19 @@
 
       { id: 'matchup', title: 'Weakness badges',
         target: function () { return matchupCellSelector() || matchupBadgeSelector() || '#enemyGrid'; },
-        highlight: matchupHighlight,
+        highlight: function () {
+          // Badge cell first (the ring lands on it), then every other legal
+          // target so none of them sit greyed out while the lesson runs.
+          var lit = targetableHighlight();
+          return lit.length ? matchupHighlight().concat(lit) : matchupHighlight();
+        },
         body: 'While you aim, <b>matchup badges</b> appear on enemy cards. A red <b>Weak</b> badge means your element beats theirs — the hit deals <b>+1 damage</b>. A gold <b>Strong</b> badge means their element beats yours, so the hit is resisted for <b>-1 damage</b>. No badge means the elements share no matchup and the hit deals flat damage. Read the badges to see who is weak or strong against this attack.',
         skipIf: function () { return !hasMatchupBadge(); } },
 
-      { id: 'target', hint: 'Pick a <b>target</b>', title: 'Choose a target',
+      { id: 'target', hint: 'Tap <b>any enemy</b>', title: 'Choose a target',
         target: function () { return firstOf(['#enemyGrid .board-cell.targetable', '#enemyGrid']); },
-        highlight: ['#enemyGrid .board-cell.targetable', '#playerGrid .board-cell.targetable'],
-        body: 'Tap a <b>highlighted cell</b> to choose a target. Prefer a card with a <b>Weak</b> badge when you can — that hit deals bonus damage. A row ability lets you select and confirm an entire row.',
+        highlight: ['#enemyGrid .board-cell.targetable', '#playerGrid .board-cell.targetable', '#enemyGrid'],
+        body: 'Tap <b>any highlighted enemy</b> to attack it — every lit card is a legal target, so pick whichever one you want. A <b>Weak</b> badge means that hit deals bonus damage, but the choice is yours. A row ability lets you select and confirm an entire row.',
         skipIf: function () { return !visible('#enemyGrid .board-cell.targetable'); },
         until: function () { return !visible('#enemyGrid .board-cell.targetable'); } },
 
