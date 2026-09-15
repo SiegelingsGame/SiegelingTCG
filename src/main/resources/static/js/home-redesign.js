@@ -151,35 +151,49 @@
   // a tab with sub-destinations slides its tray up out of the bar.
   // Real destinations. Until now every control was inert; these are the routes
   // firebase.json already serves, so the design can front the live game.
-  var HREF = {
-    battle: '/play', siege: '/siege', keep: '/keep', lobbies: '/social',
-    cards: '/cards', decks: '/decks', builder: '/deck-builder',
-    social: '/social', profile: '/profile', shop: '/shop', help: '/help',
-    login: '/login', home: '/home', achievements: '/achievements'
+  // Two kinds of destination, and conflating them is what made the new HUD feel
+  // broken: tapping Cards or Shop bounced the player back into the OLD hub.
+  //   INTERNAL - a screen this design already owns; routed in place, no reload.
+  //   EXTERNAL - the actual game or a feature not yet redesigned. Battle and
+  //              Siege belong here on purpose: they are gameplay, not layout.
+  var INTERNAL = {
+    'Home': 'home', 'Cards': 'collection', 'Collection': 'collection',
+    'Decks': 'decks', 'Shop': 'shop', 'Profile': 'profile', 'Play': 'play'
   };
+  var EXTERNAL = {
+    'Battle': '/play?mode=solo', 'Siege': '/siege', 'Keep': '/keep',
+    'Social Lobbies': '/social', 'Social': '/social', 'Deck Builder': '/deck-builder',
+    'Settings': '/profile', 'Help': '/help', 'Sign In': '/login', 'Create Account': '/login',
+    'Featured Packs': 'shop', 'Open Packs': 'shop', 'Siegelcoins': 'shop'
+  };
+  var HREF = { battle: '/play?mode=solo', siege: '/siege', keep: '/keep',
+               lobbies: '/social', login: '/login', help: '/help' };
+
+  // Returns the anchor attributes for a label: an in-app screen swap where this
+  // design owns the destination, a real navigation where it does not.
+  function linkAttrs(label) {
+    if (INTERNAL[label]) return ' href="?screen=' + INTERNAL[label] + '" data-screen="' + INTERNAL[label] + '"';
+    var ext = EXTERNAL[label];
+    if (!ext) return '';
+    if (ext.charAt(0) !== '/') return ' href="?screen=' + ext + '" data-screen="' + ext + '"';
+    return ' href="' + ext + '"';
+  }
   function hrefFor(label) {
-    var map = {
-      'Battle': HREF.battle, 'Siege': HREF.siege, 'Keep': HREF.keep,
-      'Social Lobbies': HREF.lobbies, 'Cards': HREF.cards, 'Decks': HREF.decks,
-      'Deck Builder': HREF.builder, 'Social': HREF.social, 'Profile': HREF.profile,
-      'Settings': HREF.profile, 'Help': HREF.help,
-      'Sign In': HREF.login, 'Create Account': HREF.login,
-      'Featured Packs': HREF.shop, 'Open Packs': HREF.shop, 'Siegelcoins': HREF.shop
-    };
-    return map[label] || '';
+    if (INTERNAL[label]) return '?screen=' + INTERNAL[label];
+    return EXTERNAL[label] || '';
   }
 
   var NAV = [
-    { id: 'home',       ico: '⌂', label: 'Home' },
+    { id: 'home',       ico: '⌂', label: 'Home', screen: 'home' },
     // Same vocabulary as the Play screen and the shipping picker: the two real
     // modes are Battle and Siege. The tray listing Arena/Ranked/Siege Expedition
     // was left over from the invented modes and disagreed with the screen it
     // navigates to.
-    { id: 'play',       ico: '⚔', label: 'Play', items: [
+    { id: 'play',       ico: '⚔', label: 'Play', screen: 'play', items: [
         ['Battle', 'Solo & PvP'], ['Siege', 'New'], ['Social Lobbies', '11 open'], ['Keep', '2h']] },
-    { id: 'collection', ico: '◈', label: 'Collection', items: [
+    { id: 'collection', ico: '◈', label: 'Collection', screen: 'collection', items: [
         ['Cards', '412'], ['Decks', '6'], ['Deck Builder', '']] },
-    { id: 'shop',       ico: '⬢', label: 'Shop', items: [
+    { id: 'shop',       ico: '⬢', label: 'Shop', screen: 'shop', items: [
         ['Featured Packs', ''], ['Open Packs', '3'], ['Siegelcoins', '']] },
     { id: 'more',       ico: '⋯', label: 'More', items: [
         ['Social', '4 on'], ['Profile', ''], ['Settings', ''], ['Help', '']],
@@ -289,20 +303,23 @@
         return '<div class="sg-tray' + (n.id === openTray ? ' open' : '') + '" data-tray="' + n.id + '"><div>' +
           '<ul>' + items.map(function (it) {
             var auth = it[0] === 'Sign In' || it[0] === 'Create Account';
-            var href = hrefFor(it[0]);
+            var attrs = linkAttrs(it[0]);
             return '<li' + (auth ? ' class="is-auth"' : '') + '>' +
-              (href ? '<a href="' + esc(href) + '">' + esc(it[0]) + '</a>' : esc(it[0])) +
+              (attrs ? '<a' + attrs + '>' + esc(it[0]) + '</a>' : esc(it[0])) +
               (it[1] ? '<span>' + esc(it[1]) + '</span>' : '') + '</li>';
           }).join('') + '</ul></div></div>';
       }).join('') +
       '<div class="sg-nav">' + NAV.map(function (n) {
-        return '<button type="button" data-nav="' + n.id + '" class="' + (n.id === active ? 'on' : '') +
+        return '<button type="button" data-nav="' + n.id + '" data-screen="' + esc(n.screen || '') +
+          '" class="' + (n.id === active ? 'on' : '') +
           (n.items ? ' has-tray' : '') + (n.id === openTray ? ' tray-on' : '') + '">' +
           '<span class="ico">' + n.ico + '</span>' + esc(n.label) +
           (n.items ? '<i class="sg-caret" aria-hidden="true"></i>' : '') + '</button>';
       }).join('') + '</div>' +
     '</nav>';
   }
+
+  var onNavigate = null;
 
   function mountBottom(app) {
     var bottom = app.querySelector('[data-bottom]');
@@ -321,10 +338,18 @@
     bottom.querySelectorAll('[data-nav]').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var id = btn.getAttribute('data-nav');
+        var screen = btn.getAttribute('data-screen');
         var tray = bottom.querySelector('[data-tray="' + id + '"]');
+        var isCurrent = btn.classList.contains('on');
+        // First tap on another tab goes to that screen; tapping the tab you are
+        // already on opens its tray, which is where the sub-destinations live.
+        if (screen && !isCurrent && typeof onNavigate === 'function') {
+          openTray(null);
+          onNavigate(screen);
+          return;
+        }
         var alreadyOpen = tray && tray.classList.contains('open');
         openTray(alreadyOpen || !tray ? null : id);
-        // Home has no tray, so it just becomes the selected tab.
         if (!tray) {
           bottom.querySelectorAll('[data-nav]').forEach(function (b) { b.classList.toggle('on', b === btn); });
         }
@@ -348,24 +373,39 @@
   }
 
   function galleryScreen(opts) {
+    opts = opts || {};
     var elements = ['ALL', 'FIRE', 'WATER', 'EARTH', 'WIND', 'ICE', 'ELECTRIC', 'PSYCHIC', 'METAL'];
-    var grid = CARDS.slice(0, 24);
+    var rarities = ['ALL', 'COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'];
+    var total = CARDS.length;
+    var owned = opts.ownedTotal != null ? opts.ownedTotal : null;
     return topMarkup(opts) +
       '<div class="sg-scroll">' +
-        '<div class="sg-gal-head"><h2>The Collection</h2><p>412 of 640 Siegelings discovered</p></div>' +
+        '<div class="sg-gal-head"><h2>The Binder</h2><p>' +
+          (owned != null ? esc(owned) + ' of ' + esc(total) + ' Siegelings collected'
+                         : esc(total) + ' Siegelings in the catalog') +
+        '</p></div>' +
         '<div class="sg-gal-tools" data-tools>' +
           '<button class="sg-icon-btn" type="button" data-search-toggle aria-label="Search">⌕</button>' +
-          '<label class="sg-search"><input type="text" placeholder="Search the collection…" data-search-input></label>' +
+          '<label class="sg-search"><input type="text" placeholder="Search the binder…" data-search-input></label>' +
           '<button class="sg-icon-btn" type="button" data-filter-toggle aria-label="Filters">≡</button>' +
-          '<span class="sg-count" data-count>24 Shown</span>' +
+          '<span class="sg-count" data-count></span>' +
         '</div>' +
-        '<div class="sg-filters" data-filters><div><div class="sg-filter-row">' + elements.map(function (e, i) {
-          return '<button class="sg-pill' + (i === 0 ? ' on' : '') + '" type="button" data-el="' + e + '" style="--el:' +
-            (e === 'ALL' ? '#c8a54f' : color(e)) + '">' +
-            (e === 'ALL' ? '' : '<img src="' + icon(e) + '" alt="">') + esc(title(e)) + '</button>';
-        }).join('') + '</div></div></div>' +
-        '<div class="sg-gal-grid" data-grid>' + grid.map(galleryCard).join('') + '</div>' +
-        '<div style="height:90px"></div>' +
+        '<div class="sg-filters" data-filters><div>' +
+          '<div class="sg-filter-label">Element</div>' +
+          '<div class="sg-filter-row">' + elements.map(function (e, i) {
+            return '<button class="sg-pill' + (i === 0 ? ' on' : '') + '" type="button" data-el="' + e + '" style="--el:' +
+              (e === 'ALL' ? 'var(--acc-lemon)' : color(e)) + '">' +
+              (e === 'ALL' ? '' : '<img src="' + icon(e) + '" alt="">') + esc(title(e)) + '</button>';
+          }).join('') + '</div>' +
+          '<div class="sg-filter-label">Rarity</div>' +
+          '<div class="sg-filter-row">' + rarities.map(function (r, i) {
+            return '<button class="sg-pill sg-pill-rarity' + (i === 0 ? ' on' : '') + '" type="button" data-rarity="' + r + '">' +
+              (r === 'ALL' ? '' : '<i class="sg-rar ' + r.toLowerCase() + '"></i>') + esc(title(r)) + '</button>';
+          }).join('') + '</div>' +
+        '</div></div>' +
+        '<div class="sg-gal-grid" data-grid></div>' +
+        '<div class="sg-gal-more" data-more hidden><button type="button">Show more</button></div>' +
+        '<div style="height:132px"></div>' +
       '</div>' +
       '<div class="sg-sheet" data-sheet><div class="sg-sheet-card" data-sheet-card></div></div>' +
       bottomMarkup('collection', opts.openTray, opts.guest);
@@ -387,19 +427,27 @@
     var filters = app.querySelector('[data-filters]');
     var grid = app.querySelector('[data-grid]');
     var count = app.querySelector('[data-count]');
+    var more = app.querySelector('[data-more]');
     var sheet = app.querySelector('[data-sheet]');
     var sheetCard = app.querySelector('[data-sheet-card]');
-    var activeEl = 'ALL';
-    var query = '';
+    var activeEl = 'ALL', activeRarity = 'ALL', query = '', limit = 24;
+
+    function matches() {
+      return CARDS.filter(function (c) {
+        if (activeEl !== 'ALL' && c.element !== activeEl) return false;
+        if (activeRarity !== 'ALL' && String(c.rarity || '').toUpperCase() !== activeRarity) return false;
+        if (query && String(c.name || '').toLowerCase().indexOf(query) === -1) return false;
+        return true;
+      });
+    }
 
     function repaint() {
-      var rows = CARDS.filter(function (c) {
-        if (activeEl !== 'ALL' && c.element !== activeEl) return false;
-        if (query && c.name.toLowerCase().indexOf(query) === -1) return false;
-        return true;
-      }).slice(0, 24);
-      grid.innerHTML = rows.map(galleryCard).join('');
-      count.textContent = rows.length + ' Shown';
+      var rows = matches();
+      grid.innerHTML = rows.slice(0, limit).map(galleryCard).join('');
+      count.textContent = rows.length + (rows.length === 1 ? ' card' : ' cards');
+      // A binder is browsed, not scrolled forever: page it rather than paint
+      // hundreds of art-heavy tiles at once.
+      more.hidden = rows.length <= limit;
     }
 
     app.querySelector('[data-filter-toggle]').addEventListener('click', function () {
@@ -412,18 +460,26 @@
       if (tools.classList.contains('searching')) app.querySelector('[data-search-input]').focus();
     });
     app.querySelector('[data-search-input]').addEventListener('input', function () {
-      query = this.value.trim().toLowerCase();
-      repaint();
+      query = this.value.trim().toLowerCase(); limit = 24; repaint();
     });
     filters.querySelectorAll('[data-el]').forEach(function (pill) {
       pill.addEventListener('click', function () {
-        activeEl = pill.getAttribute('data-el');
-        filters.querySelectorAll('[data-el]').forEach(function (p) { p.classList.toggle('on', p === pill); });
+        activeEl = pill.getAttribute('data-el'); limit = 24;
+        filters.querySelectorAll('[data-el]').forEach(function (p2) { p2.classList.toggle('on', p2 === pill); });
         repaint();
       });
     });
+    filters.querySelectorAll('[data-rarity]').forEach(function (pill) {
+      pill.addEventListener('click', function () {
+        activeRarity = pill.getAttribute('data-rarity'); limit = 24;
+        filters.querySelectorAll('[data-rarity]').forEach(function (p2) { p2.classList.toggle('on', p2 === pill); });
+        repaint();
+      });
+    });
+    more.querySelector('button').addEventListener('click', function () { limit += 24; repaint(); });
 
     function openSheet(card) {
+      var abilities = card.abilities || (card.ability ? [card.ability] : []);
       sheetCard.innerHTML = '<div class="sg-sheet-grab"></div>' +
         '<div class="sg-sheet-art"><img src="' + esc(card.cardArtUrl) + '" alt="' + esc(card.name) + '"></div>' +
         '<h3>' + esc(card.name) + '</h3>' +
@@ -432,8 +488,15 @@
         '<div class="sg-sheet-stats">' +
           '<div><span>Health</span><b>' + esc(card.health == null ? '—' : card.health) + '</b></div>' +
           '<div><span>Speed</span><b>' + esc(card.speed == null ? '—' : card.speed) + '</b></div>' +
-          '<div><span>Owned</span><b>3</b></div>' +
-        '</div>';
+          '<div><span>Cost</span><b>' + esc(card.costAmount || '—') + '</b></div>' +
+        '</div>' +
+        (abilities.length
+          ? '<div class="sg-sheet-abilities">' + abilities.slice(0, 3).map(function (a) {
+              return '<div class="sg-sheet-ability"><strong>' + esc(a.name || 'Ability') + '</strong>' +
+                (a.description ? '<span>' + esc(a.description) + '</span>' : '') + '</div>';
+            }).join('') + '</div>'
+          : (card.description ? '<p class="sg-sheet-desc">' + esc(card.description) + '</p>' : '')) +
+        '<a class="sg-sheet-cta" href="/deck-builder">Use in a deck ›</a>';
       sheet.classList.add('open');
     }
     grid.addEventListener('click', function (e) {
@@ -443,6 +506,7 @@
     sheet.addEventListener('click', function (e) { if (e.target === sheet) sheet.classList.remove('open'); });
 
     if (opts.filtersOpen) { filters.classList.add('open'); app.querySelector('[data-filter-toggle]').classList.add('on'); }
+    repaint();
     if (opts.openCard) openSheet(byId(opts.openCard));
   }
 
@@ -464,9 +528,8 @@
   ];
 
   function modePanel(m) {
-    var href = hrefFor(m.label);
-    return '<a class="sg-mode' + (m.primary ? ' is-primary' : '') + '" href="' + esc(href) +
-      '" style="--el:' + color(m.el) + '">' +
+    return '<a class="sg-mode' + (m.primary ? ' is-primary' : '') + '"' + linkAttrs(m.label) +
+      ' style="--el:' + color(m.el) + '">' +
       '<img class="sg-mode-bg" src="' + esc(m.art) + '" alt="" loading="lazy">' +
       '<div class="sg-mode-veil"></div>' +
       '<div class="sg-mode-body">' +
@@ -793,7 +856,10 @@
 
   function render(host, screen, opts) {
     opts = opts || {};
-    if (opts.live) applyLive(opts.live);
+    if (opts.live) {
+      applyLive(opts.live);
+      if (opts.ownedTotal == null) opts.ownedTotal = opts.live.ownedTotal;
+    }
     var app = document.createElement('div');
     app.className = 'sg-app';
     var builders = { collection: galleryScreen, decks: decksScreen, shop: shopScreen, profile: profileScreen, play: playScreen };
@@ -813,5 +879,45 @@
     return app;
   }
 
-  window.SiegelingsHomeConcept = { render: render, applyLive: applyLive, cards: CARDS, coverageMarkup: coverageMarkup, coverage: COVERAGE };
+  /* ---------- in-app router ----------
+     Everything this design owns is swapped in place: no reload, no flash, and
+     the browser Back button still works. Anything it does not own (the Battle
+     table, Siege, Keep, Social) is a real navigation, deliberately. */
+  function mountApp(host, opts) {
+    opts = opts || {};
+    var current = null;
+
+    function show(screen, push) {
+      screen = screen || 'home';
+      host.innerHTML = '';
+      render(host, screen, opts);
+      current = screen;
+      if (push) {
+        try {
+          history.pushState({ screen: screen }, '', '?screen=' + screen);
+        } catch (e) { /* file:// and sandboxed frames reject pushState */ }
+      }
+      host.scrollTop = 0;
+    }
+
+    onNavigate = function (screen) { show(screen, true); };
+
+    // One delegated listener survives every re-render, which a per-element
+    // binding would not.
+    host.addEventListener('click', function (e) {
+      var link = e.target.closest && e.target.closest('a[data-screen]');
+      if (!link) return;
+      e.preventDefault();
+      show(link.getAttribute('data-screen'), true);
+    });
+
+    window.addEventListener('popstate', function (e) {
+      show((e.state && e.state.screen) || new URLSearchParams(location.search).get('screen') || 'home', false);
+    });
+
+    show(opts.screen || new URLSearchParams(location.search).get('screen') || 'home', false);
+    return { show: show, currentScreen: function () { return current; } };
+  }
+
+  window.SiegelingsHomeConcept = { render: render, mountApp: mountApp, applyLive: applyLive, cards: CARDS, coverageMarkup: coverageMarkup, coverage: COVERAGE };
 })();

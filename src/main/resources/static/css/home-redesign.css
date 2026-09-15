@@ -1370,3 +1370,31 @@ body.concept-board {
 /* links must not inherit browser blue/underline anywhere in the app shell */
 .sg-app a { text-decoration:none; color:inherit; }
 .sg-tray li a { flex:1 1 auto; color:inherit; }
+
+/* ---------- binder: rarity filters, paging, richer detail ---------- */
+.sg-filter-label {
+  padding:10px 18px 2px; font-size:9px; letter-spacing:.24em;
+  text-transform:uppercase; color:var(--muted);
+}
+.sg-pill-rarity { gap:7px; }
+.sg-pill-rarity .sg-rar { width:8px; height:8px; }
+.sg-gal-more { display:flex; justify-content:center; padding:4px 18px 8px; }
+.sg-gal-more button {
+  height:42px; padding:0 26px; border-radius:999px; cursor:pointer;
+  font-size:11.5px; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--ink); border:1px solid rgba(180,140,255,.4); background:rgba(36,26,96,.52);
+}
+.sg-sheet-abilities { display:flex; flex-direction:column; gap:8px; margin-top:14px; }
+.sg-sheet-ability {
+  padding:11px 13px; border-radius:14px;
+  border:1px solid rgba(180,140,255,.24); background:rgba(26,17,71,.55);
+}
+.sg-sheet-ability strong { display:block; font-size:12.5px; color:var(--acc-lemon); margin-bottom:3px; }
+.sg-sheet-ability span { font-size:11.5px; color:var(--muted); line-height:1.5; }
+.sg-sheet-desc { margin:14px 0 0; font-size:12px; color:var(--muted); line-height:1.55; text-align:center; }
+.sg-sheet-cta {
+  display:block; margin-top:16px; padding:13px; border-radius:999px; text-align:center;
+  font-size:12px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:#2b0d02;
+  background:linear-gradient(135deg, #ffe066, var(--amber) 48%, #ff5a3c);
+  box-shadow:0 10px 26px rgba(255,120,45,.45);
+}
