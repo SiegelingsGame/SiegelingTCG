@@ -1243,3 +1243,92 @@ body.concept-board {
   background:radial-gradient(circle, color-mix(in srgb, var(--tab) 46%, transparent), transparent 68%);
   filter:blur(5px);
 }
+
+/* ==========================================================================
+   PLAY, IMAGE-FIRST  +  GUEST SIGN-IN
+   The shipping /play picker opens with ~60 words before a single image. Same
+   two modes and the same vocabulary, but each is a full-bleed plate, and the
+   account prompt is one artwork band rather than a card of body copy.
+   ========================================================================== */
+.sg-modes { padding-top:calc(58px + env(safe-area-inset-top,0px)); gap:14px; }
+.sg-mode.is-primary { height:264px; }
+.sg-mode { height:184px; }
+.sg-mode.is-primary .sg-mode-body h3 { font-size:38px; }
+.sg-mode-body h3 { font-size:30px; }
+.sg-mode-body p { font-size:12.5px; }
+.sg-mode-tag.is-new {
+  background:linear-gradient(180deg, #fff0a8, var(--acc-lemon));
+  box-shadow:0 0 18px color-mix(in srgb, var(--acc-lemon) 60%, transparent);
+}
+
+/* social lobbies: a quiet row, not a third mode */
+.sg-lobbies {
+  display:flex; align-items:center; gap:10px; width:calc(100% - 36px); margin:12px 18px 0;
+  padding:14px 16px; border-radius:16px; cursor:pointer; text-align:left;
+  font-size:13.5px; font-weight:600; color:var(--ink);
+  border:1px solid color-mix(in srgb, var(--acc-sky) 40%, transparent);
+  background:linear-gradient(100deg, color-mix(in srgb, var(--acc-sky) 18%, rgba(36,26,96,.52)), rgba(21,16,64,.6));
+}
+.sg-lobbies-dot {
+  width:8px; height:8px; border-radius:50%; flex:0 0 auto;
+  background:var(--acc-emerald); box-shadow:0 0 12px var(--acc-emerald);
+  animation:sgPulse 2.4s ease-in-out infinite;
+}
+@keyframes sgPulse { 0%,100%{opacity:1;} 50%{opacity:.35;} }
+.sg-lobbies em { margin-left:auto; font-style:normal; font-size:11.5px; color:var(--acc-sky); }
+.sg-lobbies .go { color:var(--acc-sky); font-size:16px; }
+
+/* guest band */
+.sg-guest {
+  position:relative; margin:16px 18px 0; height:164px; border-radius:20px; overflow:hidden;
+  box-shadow:0 16px 34px rgba(6,3,24,.55),
+             inset 0 0 0 1px color-mix(in srgb, var(--acc-lemon) 46%, transparent);
+}
+.sg-guest-bg { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; filter:saturate(1.2); }
+.sg-guest-veil {
+  position:absolute; inset:0;
+  background:linear-gradient(100deg, rgba(13,10,38,.95) 30%, rgba(21,16,64,.58) 68%, rgba(30,24,86,.18) 100%);
+}
+.sg-guest-body { position:absolute; inset:0; padding:16px; display:flex; flex-direction:column; gap:5px; }
+.sg-guest-body strong { font-family:var(--serif); font-size:20px; font-weight:600; }
+.sg-guest-body p { margin:0; font-size:12px; color:var(--muted); }
+.sg-guest-actions { margin-top:auto; display:flex; gap:9px; }
+.sg-guest-primary, .sg-guest-ghost {
+  height:40px; padding:0 22px; border-radius:999px; cursor:pointer;
+  font-size:12px; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
+}
+.sg-guest-primary {
+  border:none; color:#2b0d02;
+  background:linear-gradient(135deg, #ffe066, var(--amber) 48%, #ff5a3c);
+  box-shadow:0 10px 26px rgba(255,120,45,.5);
+}
+.sg-guest-ghost {
+  color:var(--ink); border:1px solid rgba(180,140,255,.4); background:rgba(26,17,71,.6);
+}
+
+/* top-bar sign in, for guests, in place of the avatar + bell */
+.sg-signin {
+  height:32px; padding:0 15px; border-radius:999px; cursor:pointer; flex:0 0 auto;
+  font-size:12px; font-weight:700; letter-spacing:.1em; color:#2b0d02;
+  border:1px solid rgba(255,236,190,.7);
+  background:linear-gradient(135deg, #ffe066, var(--amber));
+  box-shadow:0 6px 20px rgba(255,155,33,.45);
+}
+
+/* the two account entries lead the More tray for a guest */
+.sg-tray li.is-auth { color:var(--acc-lemon); font-weight:600; }
+.sg-tray li.is-auth span { color:var(--muted); font-weight:400; }
+
+/* The non-primary CTA took the mode's element colour, and EARTH (#a7773d) on a
+   dark plate is unreadable. Lighten it against its own hue instead. */
+.sg-mode-go {
+  color:color-mix(in srgb, var(--el,#ffc53d) 45%, #fff);
+  background:rgba(6,10,18,.82);
+  border-color:color-mix(in srgb, var(--el,#ffc53d) 70%, #fff);
+}
+/* Trim the plates so a signed-out player can see the account band's buttons
+   without scrolling - the prompt is the point of showing it at all. */
+.sg-mode.is-primary { height:236px; }
+.sg-mode { height:166px; }
+.sg-mode.is-primary .sg-mode-body h3 { font-size:36px; }
+.sg-mode-body h3 { font-size:28px; }

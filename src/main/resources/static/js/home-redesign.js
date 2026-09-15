@@ -158,7 +158,10 @@
     { id: 'shop',       ico: '⬢', label: 'Shop', items: [
         ['Featured Packs', ''], ['Open Packs', '3'], ['Siegelcoins', '']] },
     { id: 'more',       ico: '⋯', label: 'More', items: [
-        ['Social', '4 on'], ['Profile', ''], ['Settings', ''], ['Help', '']] }
+        ['Social', '4 on'], ['Profile', ''], ['Settings', ''], ['Help', '']],
+      guestItems: [
+        ['Sign In', 'Save decks'], ['Create Account', ''], ['Social', '4 on'],
+        ['Settings', ''], ['Help', '']] }
   ];
 
   /* ---------- content sections ---------- */
@@ -238,22 +241,32 @@
 
   /* ---------- chrome ---------- */
 
-  function topMarkup() {
-    return '<header class="sg-top">' +
+  // A guest has no avatar, level or progression to show, so the identity slot
+  // carries the sign-in call rather than an empty crest. The coin chip stays
+  // (guests hold a starting balance) but the bell goes - there is nothing to
+  // notify an account-less player about.
+  function topMarkup(opts) {
+    var guest = Boolean(opts && opts.guest);
+    return '<header class="sg-top' + (guest ? ' is-guest' : '') + '">' +
       '<img class="sg-logo" src="/img/siegelings-logo.webp" alt="Siegelings">' +
       '<span class="sg-top-spacer"></span>' +
-      '<span class="sg-chip coin"><img src="/img/ui/siegel-coin.webp" alt="">2,480</span>' +
-      '<span class="sg-avatar"><i>A</i><b>24</b></span>' +
-      '<button class="sg-bell" type="button" aria-label="Notifications">✦</button>' +
+      '<span class="sg-chip coin"><img src="/img/ui/siegel-coin.webp" alt="">' + (guest ? '100' : '2,480') + '</span>' +
+      (guest
+        ? '<button class="sg-signin" type="button">Sign In</button>'
+        : '<span class="sg-avatar"><i>A</i><b>24</b></span>' +
+          '<button class="sg-bell" type="button" aria-label="Notifications">✦</button>') +
     '</header>';
   }
 
-  function bottomMarkup(active, openTray) {
+  function bottomMarkup(active, openTray, guest) {
     return '<nav class="sg-bottom' + (openTray ? ' tray-open' : '') + '" data-bottom>' +
       NAV.filter(function (n) { return n.items; }).map(function (n) {
+        var items = (guest && n.guestItems) ? n.guestItems : n.items;
         return '<div class="sg-tray' + (n.id === openTray ? ' open' : '') + '" data-tray="' + n.id + '"><div>' +
-          '<ul>' + n.items.map(function (it) {
-            return '<li>' + esc(it[0]) + (it[1] ? '<span>' + esc(it[1]) + '</span>' : '') + '</li>';
+          '<ul>' + items.map(function (it) {
+            var auth = it[0] === 'Sign In' || it[0] === 'Create Account';
+            return '<li' + (auth ? ' class="is-auth"' : '') + '>' + esc(it[0]) +
+              (it[1] ? '<span>' + esc(it[1]) + '</span>' : '') + '</li>';
           }).join('') + '</ul></div></div>';
       }).join('') +
       '<div class="sg-nav">' + NAV.map(function (n) {
@@ -302,16 +315,16 @@
 
   function homeScreen(opts) {
     opts = opts || {};
-    return topMarkup() +
+    return topMarkup(opts) +
       '<div class="sg-scroll">' + heroMarkup() + featuredMarkup() + gallerySection() + questsMarkup() + deckMarkup() +
       '<div style="height:132px"></div></div>' +
-      bottomMarkup('home', opts.openTray);
+      bottomMarkup('home', opts.openTray, opts.guest);
   }
 
   function galleryScreen(opts) {
     var elements = ['ALL', 'FIRE', 'WATER', 'EARTH', 'WIND', 'ICE', 'ELECTRIC', 'PSYCHIC', 'METAL'];
     var grid = CARDS.slice(0, 24);
-    return topMarkup() +
+    return topMarkup(opts) +
       '<div class="sg-scroll">' +
         '<div class="sg-gal-head"><h2>The Collection</h2><p>412 of 640 Siegelings discovered</p></div>' +
         '<div class="sg-gal-tools" data-tools>' +
@@ -329,7 +342,7 @@
         '<div style="height:90px"></div>' +
       '</div>' +
       '<div class="sg-sheet" data-sheet><div class="sg-sheet-card" data-sheet-card></div></div>' +
-      bottomMarkup('collection', opts.openTray);
+      bottomMarkup('collection', opts.openTray, opts.guest);
   }
 
   function galleryCard(c) {
@@ -412,15 +425,16 @@
   // Graphic-first mode picker: every mode is a full-bleed plate, the copy is a
   // label and one line. Art source is deliberately mixed - gallery scenes where
   // one exists for the mode, production Land plates otherwise.
+  // The shipping /play mode picker spends ~60 words of body copy explaining
+  // Battle vs Siege before showing a single image. Same two modes, same
+  // vocabulary, but each is a full-bleed plate carrying a label and one line.
   var MODES = [
-    { id: 'arena',    label: 'Arena',            tag: 'Solo vs AI',   line: 'Three rounds against the Siege AI. Earn Siegelcoins and Remnants.',
-      art: '/img/gallery/bearzooka-rampage.webp', el: 'FIRE', primary: true },
-    { id: 'ranked',   label: 'Ranked 1v1',       tag: 'Live',         line: '11 tables open right now.',
-      art: '/img/gallery/bearnade-payload.webp',  el: 'ELECTRIC' },
-    { id: 'siege',    label: 'Siege Expedition', tag: 'Roguelike',    line: 'Run in progress — Emberwaste, Land 2.',
-      art: '/img/gallery/draco-brood.webp',       el: 'EARTH', resume: true },
-    { id: 'practice', label: 'Practice',         tag: 'No stakes',    line: 'Free board, no rewards, no timer.',
-      art: '/img/lands/aurora.webp',              el: 'ICE' }
+    { id: 'battle', label: 'Battle', tag: 'Solo & Live PvP',
+      line: 'Levels off — all deck and reads.',
+      art: '/img/gallery/bearzooka-rampage.webp', el: 'FIRE', primary: true, cta: 'Play' },
+    { id: 'siege', label: 'Siege', tag: 'New', badge: true,
+      line: 'Roguelike expedition — build a warband.',
+      art: '/img/gallery/draco-brood.webp', el: 'EARTH', cta: 'Enter' }
   ];
 
   function modePanel(m) {
@@ -428,19 +442,21 @@
       '<img class="sg-mode-bg" src="' + esc(m.art) + '" alt="" loading="lazy">' +
       '<div class="sg-mode-veil"></div>' +
       '<div class="sg-mode-body">' +
-        '<span class="sg-mode-tag">' + esc(m.tag) + '</span>' +
+        '<span class="sg-mode-tag' + (m.badge ? ' is-new' : '') + '">' + esc(m.tag) + '</span>' +
         '<h3>' + esc(m.label) + '</h3>' +
         '<p>' + esc(m.line) + '</p>' +
       '</div>' +
-      '<span class="sg-mode-go">' + (m.resume ? 'Resume' : 'Play') + ' ›</span>' +
+      '<span class="sg-mode-go">' + esc(m.cta) + ' ›</span>' +
     '</article>';
   }
 
   function playScreen(opts) {
+    opts = opts || {};
     var lead = byId('solgator') || CARDS[0];
-    return topMarkup() +
+    var guest = Boolean(opts.guest);
+    return topMarkup(opts) +
       '<div class="sg-scroll">' +
-        '<div class="sg-page-head"><h2>Choose your table</h2><p>Loadout: Emberwaste Vanguard &middot; 18W / 6L</p></div>' +
+        '<div class="sg-modes">' + MODES.map(modePanel).join('') + '</div>' +
         '<div class="sg-loadout" style="--el:' + color(lead.element) + '">' +
           '<div class="sg-loadout-art"><img src="' + esc(lead.cardArtUrl) + '" alt="" loading="lazy"></div>' +
           '<div class="sg-loadout-body">' +
@@ -454,10 +470,30 @@
           '</div>' +
           '<button class="sg-swap" type="button">Swap</button>' +
         '</div>' +
-        '<div class="sg-modes">' + MODES.map(modePanel).join('') + '</div>' +
+        '<button class="sg-lobbies" type="button">' +
+          '<span class="sg-lobbies-dot"></span>Social Lobbies<em>11 open</em><span class="go">›</span>' +
+        '</button>' +
+        (guest ? guestBand() : '') +
         '<div style="height:132px"></div>' +
       '</div>' +
-      bottomMarkup('play', opts.openTray);
+      bottomMarkup('play', opts.openTray, opts.guest);
+  }
+
+  // The shipping page gives this a full card and three lines of copy. It is a
+  // prompt, not a feature, so it gets one artwork band and two buttons.
+  function guestBand() {
+    return '<section class="sg-guest">' +
+      '<img class="sg-guest-bg" src="/img/gallery/bearby-longfuse.webp" alt="" loading="lazy">' +
+      '<div class="sg-guest-veil"></div>' +
+      '<div class="sg-guest-body">' +
+        '<strong>Pick up where you left off</strong>' +
+        '<p>Save decks and track your record.</p>' +
+        '<div class="sg-guest-actions">' +
+          '<button class="sg-guest-primary" type="button">Log In</button>' +
+          '<button class="sg-guest-ghost" type="button">Register</button>' +
+        '</div>' +
+      '</div>' +
+    '</section>';
   }
 
   /* ---------- decks ---------- */
@@ -490,7 +526,7 @@
   }
 
   function decksScreen(opts) {
-    return topMarkup() +
+    return topMarkup(opts) +
       '<div class="sg-scroll">' +
         '<div class="sg-page-head"><h2>My Decks</h2><p>4 built &middot; 1 selected</p></div>' +
         '<div class="sg-tool-row">' +
@@ -500,7 +536,7 @@
         '<div class="sg-stack">' + DECKS.map(deckRow).join('') + '</div>' +
         '<div style="height:132px"></div>' +
       '</div>' +
-      bottomMarkup('collection', opts.openTray);
+      bottomMarkup('collection', opts.openTray, opts.guest);
   }
 
   /* ---------- shop ---------- */
@@ -520,7 +556,7 @@
   function shopScreen(opts) {
     var feature = GALLERY[3];
     var featureCard = byId(feature.card) || CARDS[0];
-    return topMarkup() +
+    return topMarkup(opts) +
       '<div class="sg-scroll">' +
         '<section class="sg-feature" style="--el:' + color(featureCard.element) + '">' +
           '<img class="sg-feature-bg" src="' + plate(feature) + '" alt="">' +
@@ -553,7 +589,7 @@
         '</section>' +
         '<div style="height:132px"></div>' +
       '</div>' +
-      bottomMarkup('shop', opts.openTray);
+      bottomMarkup('shop', opts.openTray, opts.guest);
   }
 
   /* ---------- profile ---------- */
@@ -571,7 +607,7 @@
   function profileScreen(opts) {
     var showcase = GALLERY[2];
     var showcaseCard = byId(showcase.card) || CARDS[0];
-    return topMarkup() +
+    return topMarkup(opts) +
       '<div class="sg-scroll">' +
         '<section class="sg-crest" style="--el:' + color(showcaseCard.element) + '">' +
           '<img class="sg-crest-bg" src="' + plate(showcase) + '" alt="">' +
@@ -617,7 +653,7 @@
         '</section>' +
         '<div style="height:132px"></div>' +
       '</div>' +
-      bottomMarkup('more', opts.openTray);
+      bottomMarkup('more', opts.openTray, opts.guest);
   }
 
   /* ---------- feature coverage ----------

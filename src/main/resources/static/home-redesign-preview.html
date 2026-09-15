@@ -17,7 +17,7 @@
       actually ship with. These frames are live: tap the rail, the objectives strip, “More”, the
       filters and the cards. Open any screen full-bleed on a phone with <code>?screen=</code> plus
       <code>home</code>, <code>play</code>, <code>collection</code>, <code>decks</code>, <code>shop</code>,
-      <code>profile</code>, <code>nav</code> or <code>more</code>.
+      <code>profile</code>, <code>nav</code>, <code>more</code>, <code>play-guest</code> or <code>more-guest</code>.
     </p>
     <h2 class="board-title" style="font-size:22px;margin:10px 0 6px">Feature coverage &mdash; nothing dropped, only re-homed</h2>
     <p class="cov-note">
@@ -37,48 +37,60 @@
       </div>
       <div class="board-slot">
         <h2>2 &middot; Play</h2>
-        <p>Graphic-first mode picker: Arena leads as a tall plate, the rest are wide panels. Your
-           loadout sits at the top so the deck you are about to fight with is never a guess.</p>
+        <p>Battle and Siege as full-bleed plates instead of 60 words of body copy — the same two
+           modes the shipping picker offers, with the loadout and lobbies below.</p>
         <div class="phone"><div class="phone-screen" id="slot-play"></div></div>
       </div>
       <div class="board-slot">
-        <h2>3 &middot; Cards</h2>
+        <h2>3 &middot; Play, signed out</h2>
+        <p>A guest gets a <strong>Sign In</strong> in the top HUD where the crest would be, and the
+           account prompt becomes one artwork band rather than a card of copy.</p>
+        <div class="phone"><div class="phone-screen" id="slot-play-guest"></div></div>
+      </div>
+      <div class="board-slot">
+        <h2>4 &middot; Cards</h2>
         <p>Browsing as an art gallery: illustrations overflow frameless plates, search starts as an
            icon, element filters hide behind one control, and a tap lifts the card onto a detail sheet.</p>
         <div class="phone"><div class="phone-screen" id="slot-collection"></div></div>
       </div>
       <div class="board-slot">
-        <h2>4 &middot; Decks</h2>
+        <h2>5 &middot; Decks</h2>
         <p>Each deck is a wide artwork panel — its Land behind, its lead Siegeling breaking the right
            edge — with element icons, record and a win-rate bar. Builder and Auto Build sit on top.</p>
         <div class="phone"><div class="phone-screen" id="slot-decks"></div></div>
       </div>
       <div class="board-slot">
-        <h2>5 &middot; Shop</h2>
+        <h2>6 &middot; Shop</h2>
         <p>One cinematic featured offer carrying the whole upper screen, then pack faces using the real
            elemental card backs, and Siegelcoin bundles as quiet rows rather than loud tiles.</p>
         <div class="phone"><div class="phone-screen" id="slot-shop"></div></div>
       </div>
       <div class="board-slot">
-        <h2>6 &middot; Profile</h2>
+        <h2>7 &middot; Profile</h2>
         <p>A gallery plate behind the crest, level ring and XP, three stat tiles, a showcase carousel
            of the player's own Siegelings, badges, and recent results.</p>
         <div class="phone"><div class="phone-screen" id="slot-profile"></div></div>
       </div>
       <div class="board-slot">
-        <h2>7 &middot; Collection tray</h2>
+        <h2>8 &middot; Collection tray</h2>
         <p>One bar, not two. <strong>Collection</strong> slides its tray up out of the tab bar —
            Cards, Decks and Deck Builder now live here rather than in a second header.</p>
         <div class="phone"><div class="phone-screen" id="slot-nav"></div></div>
       </div>
       <div class="board-slot">
-        <h2>8 &middot; Play tray</h2>
+        <h2>9 &middot; Play tray</h2>
         <p><strong>Keep</strong> now sits under Play alongside Arena, Ranked and Siege. Only one tray
            is ever open, so the bar never becomes a second header again.</p>
         <div class="phone"><div class="phone-screen" id="slot-more"></div></div>
       </div>
       <div class="board-slot">
-        <h2>9 &middot; Card detail</h2>
+        <h2>10 &middot; More tray, signed out</h2>
+        <p>The same tray leads with <strong>Sign In</strong> and <strong>Create Account</strong> for a
+           guest, so the account route exists in the bar as well as on Play.</p>
+        <div class="phone"><div class="phone-screen" id="slot-more-guest"></div></div>
+      </div>
+      <div class="board-slot">
+        <h2>11 &middot; Card detail</h2>
         <p>A tap (or long press) lifts the illustration clean out of the grid and onto a sheet that
            carries only what matters: name, element, rarity and three numbers.</p>
         <div class="phone"><div class="phone-screen" id="slot-detail"></div></div>
@@ -101,6 +113,10 @@
       window.SiegelingsHomeConcept.render(document.body, 'home', { openTray: 'play', questsOpen: true, freeze: true });
     } else if (single === 'collection') {
       window.SiegelingsHomeConcept.render(document.body, 'collection', { filtersOpen: true });
+    } else if (single === 'play-guest') {
+      window.SiegelingsHomeConcept.render(document.body, 'play', { guest: true });
+    } else if (single === 'more-guest') {
+      window.SiegelingsHomeConcept.render(document.body, 'home', { guest: true, openTray: 'more' });
     } else if (single === 'decks' || single === 'shop' || single === 'profile' || single === 'play') {
       window.SiegelingsHomeConcept.render(document.body, single, {});
     } else {
@@ -111,6 +127,8 @@
   document.getElementById('coverage').innerHTML = window.SiegelingsHomeConcept.coverageMarkup();
   window.SiegelingsHomeConcept.render(document.getElementById('slot-home'), 'home', {});
   window.SiegelingsHomeConcept.render(document.getElementById('slot-play'), 'play', {});
+  window.SiegelingsHomeConcept.render(document.getElementById('slot-play-guest'), 'play', { guest: true });
+  window.SiegelingsHomeConcept.render(document.getElementById('slot-more-guest'), 'home', { guest: true, openTray: 'more', freeze: true });
   window.SiegelingsHomeConcept.render(document.getElementById('slot-decks'), 'decks', {});
   window.SiegelingsHomeConcept.render(document.getElementById('slot-shop'), 'shop', {});
   window.SiegelingsHomeConcept.render(document.getElementById('slot-profile'), 'profile', {});
