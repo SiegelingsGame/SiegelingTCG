@@ -73,13 +73,23 @@
     // ─── Sound definitions ────────────────────────────────────────────────────
 
     const SOUNDS = {
-        /** Soft card rustle — drawn from deck */
+        /** Soft card rustle — drawn from deck.
+         *  Raw white noise with an instant attack reads as a harsh crash on
+         *  phone speakers, so the noise is low-passed (one-pole) and eased in
+         *  over ~40ms, with the 800Hz tone dropped to a quiet airy body. */
         draw(data, sr) {
+            let lp = 0;
+            const cutoff = 0.12;      // one-pole coefficient — muffles the hiss
+            const attack = 0.04;      // seconds of fade-in, kills the click
+            const total = data.length / sr;
             for (let i = 0; i < data.length; i++) {
                 const t = i / sr;
-                const env = Math.exp(-t * 14);
-                data[i] = (Math.random() * 2 - 1) * env * 0.35 +
-                           Math.sin(2 * Math.PI * 800 * t) * env * 0.12;
+                lp += cutoff * ((Math.random() * 2 - 1) - lp);
+                const rise = t < attack ? (t / attack) * (t / attack) : 1;
+                const tail = Math.min(1, (total - t) / 0.06);
+                const env = rise * Math.exp(-t * 9) * tail;
+                data[i] = lp * env * 0.75 +
+                           Math.sin(2 * Math.PI * 420 * t) * env * 0.06;
             }
         },
 
@@ -168,7 +178,7 @@
     };
 
     const _durations = {
-        draw: 0.28, place: 0.30, hit: 0.32,
+        draw: 0.38, place: 0.30, hit: 0.32,
         phase: 0.55, endturn: 0.30,
         win: 1.1, lose: 1.2, spell: 0.35
     };
