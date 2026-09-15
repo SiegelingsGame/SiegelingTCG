@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Siegelings TCG — Art-First Home Concept</title>
+<link rel="stylesheet" href="/css/home-redesign.css?v=1">
+</head>
+<body class="concept-board">
+  <div class="board-wrap" id="board">
+    <h1 class="board-title">Siegelings TCG — <span>art-first home &amp; navigation</span></h1>
+    <p class="board-sub">
+      A minimalist, gallery-led direction for the mobile hub: roughly 70% artwork, 20% navigation,
+      10% text. Every Siegeling below is real production overlay art pulled from the live card
+      dashboard, so the layout is judged against the illustrations it will actually carry.
+      These frames are live — tap the rail, the objectives strip, “More”, the filters and the cards.
+      Open any screen full-bleed on a phone with <code>?screen=home</code>, <code>?screen=nav</code>,
+      <code>?screen=more</code> or <code>?screen=collection</code>.
+    </p>
+    <div class="board-rail">
+      <div class="board-slot">
+        <h2>1 · Home</h2>
+        <p>Full-bleed rotating hero, a collapsed icon rail, and swipeable art sections. The only
+           permanent chrome is the four-atom top row and the five-tab bar.</p>
+        <div class="phone"><div class="phone-screen" id="slot-home"></div></div>
+      </div>
+      <div class="board-slot">
+        <h2>2 · Expanded quick action</h2>
+        <p>One group open at a time — here <strong>Decks</strong> has grown from an icon into a gold
+           pill with its three shortcuts floating above the rail. Tapping another collapses it.</p>
+        <div class="phone"><div class="phone-screen" id="slot-nav"></div></div>
+      </div>
+      <div class="board-slot">
+        <h2>3 · “More”, expanded upward</h2>
+        <p>The five permanent tabs stay five. Keep, Social, Profile, Shop, Settings and Help live in a
+           glass sheet that lifts out of the tab bar, and closes any open quick action.</p>
+        <div class="phone"><div class="phone-screen" id="slot-more"></div></div>
+      </div>
+      <div class="board-slot">
+        <h2>4 · Collection gallery</h2>
+        <p>Browsing as an art gallery: illustrations overflow their plates, search starts as an
+           icon, filters hide behind one control, and a tap lifts the card into a detail sheet.</p>
+        <div class="phone"><div class="phone-screen" id="slot-collection"></div></div>
+      </div>
+      <div class="board-slot">
+        <h2>5 · Card detail</h2>
+        <p>A tap (or long press) lifts the illustration clean out of the grid and onto a sheet that
+           carries only what matters: name, element, rarity and three numbers.</p>
+        <div class="phone"><div class="phone-screen" id="slot-detail"></div></div>
+      </div>
+    </div>
+  </div>
+
+<script src="/js/home-redesign-data.js?v=1"></script>
+<script src="/js/home-redesign.js?v=1"></script>
+<script>
+(function () {
+  var single = new URLSearchParams(location.search).get('screen');
+  if (single) {
+    // Phone review mode: one screen, no device frame, real viewport.
+    document.body.className = 'single-screen';
+    document.body.innerHTML = '';
+    if (single === 'nav') {
+      window.SiegelingsHomeConcept.render(document.body, 'home', { openQuick: 'decks', freeze: true });
+    } else if (single === 'more') {
+      window.SiegelingsHomeConcept.render(document.body, 'home', { moreOpen: true, questsOpen: true, freeze: true });
+    } else if (single === 'collection') {
+      window.SiegelingsHomeConcept.render(document.body, 'collection', { filtersOpen: true });
+    } else {
+      window.SiegelingsHomeConcept.render(document.body, 'home', {});
+    }
+    return;
+  }
+  window.SiegelingsHomeConcept.render(document.getElementById('slot-home'), 'home', {});
+  window.SiegelingsHomeConcept.render(document.getElementById('slot-nav'), 'home', {
+    openQuick: 'decks', heroIndex: 1, freeze: true
+  });
+  window.SiegelingsHomeConcept.render(document.getElementById('slot-more'), 'home', {
+    moreOpen: true, questsOpen: true, heroIndex: 2, freeze: true
+  });
+  window.SiegelingsHomeConcept.render(document.getElementById('slot-collection'), 'collection', {
+    filtersOpen: true
+  });
+  window.SiegelingsHomeConcept.render(document.getElementById('slot-detail'), 'collection', {
+    openCard: 'aerovane'
+  });
+})();
+</script>
+</body>
+</html>
