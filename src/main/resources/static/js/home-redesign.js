@@ -49,6 +49,20 @@
     return ids.map(byId).filter(Boolean);
   }
 
+
+  // Cinematic gallery plates. Unlike the overlay cutouts these are whole scenes,
+  // so they carry the hero on their own and only need a scrim for the copy.
+  var GALLERY = [
+    { img: 'bearby-longfuse',   card: 'bearby',    title: 'The Long Fuse',      place: 'Emberwaste Gate' },
+    { img: 'bearby-blastoff',   card: 'bearby',    title: 'Blast Off',          place: 'Emberwaste Gate' },
+    { img: 'bearnade-payload',  card: 'bearnade',  title: 'Payload Away',       place: 'The Sunken Span' },
+    { img: 'bearzooka-rampage', card: 'bearzooka', title: 'Emberwaste Rampage', place: 'Cinderfall Reach' },
+    { img: 'draco-brood',       card: 'draco',     title: 'The Cinder Brood',   place: 'Moltenmaw Basin' }
+  ];
+  function plate(entry, thumb) {
+    return '/img/gallery/' + entry.img + (thumb ? '-thumb' : '') + '.webp';
+  }
+
   // Hand-picked so the rotation walks through distinct elements and silhouettes.
   var HERO = pick(['pylord', 'glaciemperor', 'aerovane', 'conchious', 'gymstone']);
   var FEATURED = pick(['dracosleaf', 'sheenx', 'hurricrane', 'clawqueen', 'bleetstrike', 'frostag', 'siegebot', 'solgator']);
@@ -57,21 +71,20 @@
 
   function heroMarkup() {
     return '' +
-      '<section class="sg-hero" data-hero>' +
+      '<section class="sg-hero is-scene" data-hero>' +
         '<div class="sg-hero-art">' +
           '<div class="sg-hero-land" data-hero-land></div>' +
-          '<div class="sg-hero-glow" data-hero-glow></div>' +
           '<div class="sg-hero-tint"></div>' +
           '<div class="sg-motes" data-motes></div>' +
         '</div>' +
-        '<div class="sg-hero-figure" data-hero-figure></div>' +
         '<div class="sg-dots" data-dots></div>' +
         '<div class="sg-hero-copy">' +
           '<div class="sg-eyebrow">The Arena Awaits</div>' +
-          '<h1 class="sg-hero-title" data-hero-title></h1>' +
+          '<h1 class="sg-hero-title">THE ARENA AWAITS</h1>' +
           '<p class="sg-hero-sub" data-hero-sub></p>' +
           '<button class="sg-play" type="button">PLAY</button>' +
         '</div>' +
+        '<div class="sg-hero-credit" data-hero-credit></div>' +
       '</section>';
   }
 
@@ -95,28 +108,23 @@
     if (!hero) return;
     var idx = (opts && opts.heroIndex) || 0;
     var landEl = hero.querySelector('[data-hero-land]');
-    var glow = hero.querySelector('[data-hero-glow]');
-    var figure = hero.querySelector('[data-hero-figure]');
     var dots = hero.querySelector('[data-dots]');
-    var titleEl = hero.querySelector('[data-hero-title]');
     var subEl = hero.querySelector('[data-hero-sub]');
+    var creditEl = hero.querySelector('[data-hero-credit]');
     var motes = hero.querySelector('[data-motes]');
 
     function paint(i) {
-      var card = HERO[i % HERO.length];
-      if (!card) return;
+      var scene = GALLERY[i % GALLERY.length];
+      var card = byId(scene.card) || CARDS[0];
       var c = color(card.element);
       hero.style.setProperty('--el', c);
-      landEl.style.backgroundImage = "url('" + land(card.element) + "')";
-      glow.style.setProperty('--el', c);
-      figure.style.setProperty('--elglow', c + '66');
-      figure.innerHTML = '<img src="' + esc(card.cardArtUrl) + '" alt="' + esc(card.name) + '">';
-      titleEl.textContent = card.name;
-      subEl.innerHTML = esc(title(card.rarity)) + ' &middot; ' + esc(title(card.element)) +
-        ' &middot; <b>' + esc(card.health) + ' HP</b>';
+      landEl.style.backgroundImage = "url('" + plate(scene) + "')";
+      subEl.innerHTML = '<b>' + esc(card.name) + '</b> &middot; ' + esc(title(card.element)) +
+        ' &middot; ' + esc(title(card.rarity));
+      creditEl.innerHTML = '<span>' + esc(scene.title) + '</span>' + esc(scene.place);
       paintMotes(motes, card.element);
       var d = '';
-      for (var k = 0; k < HERO.length; k++) d += '<i class="sg-dot' + (k === i % HERO.length ? ' on' : '') + '"></i>';
+      for (var k = 0; k < GALLERY.length; k++) d += '<i class="sg-dot' + (k === i % GALLERY.length ? ' on' : '') + '"></i>';
       dots.innerHTML = d;
     }
     paint(idx);
@@ -125,14 +133,12 @@
       setInterval(function () { idx += 1; paint(idx); }, 7000);
     }
 
-    // Parallax: the plate drifts slower than the scroll, the creature faster,
-    // so the hero gains depth without a second render pass.
+    // Parallax: the plate drifts slower than the scroll so the hero gains depth
+    // without a second render pass.
     var scroll = app.querySelector('.sg-scroll');
     if (scroll) {
       scroll.addEventListener('scroll', function () {
-        var y = scroll.scrollTop;
-        landEl.style.setProperty('--par', (y * 0.28).toFixed(1) + 'px');
-        figure.style.setProperty('--parf', (y * -0.10).toFixed(1) + 'px');
+        landEl.style.setProperty('--par', (scroll.scrollTop * 0.30).toFixed(1) + 'px');
       }, { passive: true });
     }
   }
@@ -193,6 +199,20 @@
           '</article>';
         }).join('') + '</div>' +
       '</section>';
+  }
+
+  function gallerySection() {
+    return '<section class="sg-section">' +
+      '<div class="sg-section-head"><h3>From the Gallery</h3><a href="#">See All</a></div>' +
+      '<div class="sg-swipe sg-swipe-wide">' + GALLERY.map(function (g) {
+        var card = byId(g.card) || CARDS[0];
+        return '<article class="sg-plate" style="--el:' + color(card.element) + '">' +
+          '<img src="' + plate(g, true) + '" alt="' + esc(g.title) + '" loading="lazy">' +
+          '<div class="sg-plate-foot"><strong>' + esc(g.title) + '</strong>' +
+          '<span>' + esc(card.name) + ' &middot; ' + esc(g.place) + '</span></div>' +
+        '</article>';
+      }).join('') + '</div>' +
+    '</section>';
   }
 
   var QUESTS = [
@@ -300,7 +320,7 @@
   function homeScreen(opts) {
     opts = opts || {};
     return topMarkup() +
-      '<div class="sg-scroll">' + heroMarkup() + featuredMarkup() + questsMarkup() + deckMarkup() +
+      '<div class="sg-scroll">' + heroMarkup() + featuredMarkup() + gallerySection() + questsMarkup() + deckMarkup() +
       '<div style="height:186px"></div></div>' +
       bottomMarkup('home', !!opts.moreOpen, railMarkup());
   }
@@ -326,7 +346,7 @@
         '<div style="height:90px"></div>' +
       '</div>' +
       '<div class="sg-sheet" data-sheet><div class="sg-sheet-card" data-sheet-card></div></div>' +
-      bottomMarkup('collection', false);
+      bottomMarkup('collection', false, railMarkup());
   }
 
   function galleryCard(c) {
@@ -404,16 +424,179 @@
     if (opts.openCard) openSheet(byId(opts.openCard));
   }
 
+  /* ---------- decks ---------- */
+
+  var DECKS = [
+    { name: 'Emberwaste Vanguard', lead: 'solgator', els: ['FIRE', 'EARTH', 'METAL'], w: 18, l: 6, cards: 40, active: true },
+    { name: 'Glacier Choir',       lead: 'glaciemperor', els: ['ICE', 'WATER'],        w: 11, l: 9, cards: 40 },
+    { name: 'Stormfeather Rite',   lead: 'aerovane',     els: ['WIND', 'ELECTRIC'],    w: 7,  l: 4, cards: 40 },
+    { name: 'Root & Ruin',         lead: 'gymstone',     els: ['EARTH', 'POISON'],     w: 3,  l: 8, cards: 38 }
+  ];
+
+  function deckRow(d) {
+    var lead = byId(d.lead) || CARDS[0];
+    var total = d.w + d.l;
+    var rate = total ? Math.round(d.w / total * 100) : 0;
+    return '<article class="sg-deckrow' + (d.active ? ' is-active' : '') + '" style="--el:' + color(lead.element) + '">' +
+      '<div class="sg-deckrow-bg" style="background-image:url(\'' + land(lead.element) + '\')"></div>' +
+      '<div class="sg-deckrow-veil"></div>' +
+      '<div class="sg-deckrow-art"><img src="' + esc(lead.cardArtUrl) + '" alt="" loading="lazy"></div>' +
+      '<div class="sg-deckrow-body">' +
+        (d.active ? '<span class="sg-tag">Selected</span>' : '') +
+        '<h4>' + esc(d.name) + '</h4>' +
+        '<div class="sg-deck-els">' + d.els.map(function (e) {
+          return '<img src="' + icon(e) + '" alt="' + esc(title(e)) + '">';
+        }).join('') + '</div>' +
+        '<div class="sg-deckrow-meta"><b>' + d.w + 'W</b> · ' + d.l + 'L &nbsp;·&nbsp; ' + rate + '% &nbsp;·&nbsp; ' + d.cards + ' cards</div>' +
+      '</div>' +
+      '<div class="sg-deckrow-bar"><i style="width:' + rate + '%"></i></div>' +
+    '</article>';
+  }
+
+  function decksScreen() {
+    return topMarkup() +
+      '<div class="sg-scroll">' +
+        '<div class="sg-page-head"><h2>My Decks</h2><p>4 built &middot; 1 selected</p></div>' +
+        '<div class="sg-tool-row">' +
+          '<button class="sg-ghost-btn" type="button"><span class="ico">✎</span>Deck Builder</button>' +
+          '<button class="sg-ghost-btn" type="button"><span class="ico">✧</span>Auto Build</button>' +
+        '</div>' +
+        '<div class="sg-stack">' + DECKS.map(deckRow).join('') + '</div>' +
+        '<div style="height:186px"></div>' +
+      '</div>' +
+      bottomMarkup('decks', false, railMarkup());
+  }
+
+  /* ---------- shop ---------- */
+
+  var PACKS = [
+    { name: 'Emberwaste Pack',  el: 'FIRE',     price: 150, note: '5 cards' },
+    { name: 'Frostveil Pack',   el: 'ICE',      price: 150, note: '5 cards' },
+    { name: 'Stormcrest Pack',  el: 'ELECTRIC', price: 150, note: '5 cards' },
+    { name: 'Tidecaller Pack',  el: 'WATER',    price: 150, note: '5 cards' }
+  ];
+  var BUNDLES = [
+    { amount: '1,200', bonus: '', price: '$4.99' },
+    { amount: '3,000', bonus: '+400 bonus', price: '$9.99' },
+    { amount: '8,000', bonus: '+1,600 bonus', price: '$24.99' }
+  ];
+
+  function shopScreen() {
+    var feature = GALLERY[3];
+    var featureCard = byId(feature.card) || CARDS[0];
+    return topMarkup() +
+      '<div class="sg-scroll">' +
+        '<section class="sg-feature" style="--el:' + color(featureCard.element) + '">' +
+          '<img class="sg-feature-bg" src="' + plate(feature) + '" alt="">' +
+          '<div class="sg-feature-veil"></div>' +
+          '<div class="sg-feature-body">' +
+            '<span class="sg-tag">Featured &middot; Ends in 2d</span>' +
+            '<h2>Cinderfall Collection</h2>' +
+            '<p>Ten cards, one guaranteed Epic or better, and the Bearzooka line at doubled odds.</p>' +
+            '<button class="sg-cta" type="button"><img src="/img/ui/siegel-coin.webp" alt="">900</button>' +
+          '</div>' +
+        '</section>' +
+        '<section class="sg-section">' +
+          '<div class="sg-section-head"><h3>Packs</h3><a href="#">Odds</a></div>' +
+          '<div class="sg-swipe">' + PACKS.map(function (pk) {
+            return '<article class="sg-pack" style="--el:' + color(pk.el) + '">' +
+              '<div class="sg-pack-face"><img src="/img/decks/card-back-' + String(pk.el).toLowerCase() + '.webp" alt=""></div>' +
+              '<strong>' + esc(pk.name) + '</strong><span>' + esc(pk.note) + '</span>' +
+              '<button class="sg-buy" type="button"><img src="/img/ui/siegel-coin.webp" alt="">' + pk.price + '</button>' +
+            '</article>';
+          }).join('') + '</div>' +
+        '</section>' +
+        '<section class="sg-section">' +
+          '<div class="sg-section-head"><h3>Siegelcoins</h3></div>' +
+          '<div class="sg-stack sg-stack-tight">' + BUNDLES.map(function (bd) {
+            return '<button class="sg-bundle" type="button">' +
+              '<img src="/img/ui/siegel-coin.webp" alt="">' +
+              '<span class="amt">' + esc(bd.amount) + (bd.bonus ? '<em>' + esc(bd.bonus) + '</em>' : '') + '</span>' +
+              '<span class="price">' + esc(bd.price) + '</span></button>';
+          }).join('') + '</div>' +
+        '</section>' +
+        '<div style="height:186px"></div>' +
+      '</div>' +
+      bottomMarkup('more', false, railMarkup());
+  }
+
+  /* ---------- profile ---------- */
+
+  var BADGES = [
+    ['◈', 'Collector', true], ['⚔', 'Duelist', true], ['⌂', 'Keeper', true],
+    ['✦', 'Ascendant', false], ['☍', 'Ally', true], ['⬢', 'Patron', false]
+  ];
+  var RECENT = [
+    ['Arena', 'Win', 'vs Kael', '+24'],
+    ['Siege', 'Land cleared', 'Emberwaste', '+80'],
+    ['Arena', 'Loss', 'vs Ruune', '+6']
+  ];
+
+  function profileScreen() {
+    var showcase = GALLERY[2];
+    var showcaseCard = byId(showcase.card) || CARDS[0];
+    return topMarkup() +
+      '<div class="sg-scroll">' +
+        '<section class="sg-crest" style="--el:' + color(showcaseCard.element) + '">' +
+          '<img class="sg-crest-bg" src="' + plate(showcase) + '" alt="">' +
+          '<div class="sg-crest-veil"></div>' +
+          '<div class="sg-crest-body">' +
+            '<span class="sg-crest-ring"><i>A</i></span>' +
+            '<h2>Ashenvale</h2>' +
+            '<p>Level 24 &middot; Emberwaste Ward</p>' +
+            '<div class="sg-xp"><i style="width:62%"></i></div>' +
+            '<span class="sg-xp-note">6,200 / 10,000 XP to Level 25</span>' +
+          '</div>' +
+        '</section>' +
+        '<div class="sg-tiles">' +
+          '<div><span>Matches</span><b>214</b></div>' +
+          '<div><span>Win Rate</span><b>63%</b></div>' +
+          '<div><span>Collected</span><b>64%</b></div>' +
+        '</div>' +
+        '<section class="sg-section">' +
+          '<div class="sg-section-head"><h3>Showcase</h3><a href="#">Change</a></div>' +
+          '<div class="sg-swipe">' + pick(['bearzooka', 'pylord', 'conchious', 'gymstone']).map(function (c) {
+            return '<article class="sg-feat" style="--el:' + color(c.element) + '">' +
+              '<div class="sg-feat-plate"></div>' +
+              '<div class="sg-feat-art"><img src="' + esc(c.cardArtUrl) + '" alt="" loading="lazy"></div>' +
+              '<div class="sg-feat-foot"><span class="sg-feat-name">' + esc(c.name) + '</span>' +
+              '<span class="sg-feat-marks"><i class="sg-rar ' + esc(String(c.rarity || '').toLowerCase()) + '"></i>' +
+              '<img src="' + icon(c.element) + '" alt=""></span></div>' +
+            '</article>';
+          }).join('') + '</div>' +
+        '</section>' +
+        '<section class="sg-section">' +
+          '<div class="sg-section-head"><h3>Badges</h3><a href="#">All 42</a></div>' +
+          '<div class="sg-badges">' + BADGES.map(function (bg) {
+            return '<span class="sg-badge' + (bg[2] ? ' earned' : '') + '"><i>' + bg[0] + '</i>' + esc(bg[1]) + '</span>';
+          }).join('') + '</div>' +
+        '</section>' +
+        '<section class="sg-section">' +
+          '<div class="sg-section-head"><h3>Recent</h3></div>' +
+          '<div class="sg-stack sg-stack-tight">' + RECENT.map(function (r) {
+            return '<div class="sg-recent"><span class="mode">' + esc(r[0]) + '</span>' +
+              '<span class="what">' + esc(r[1]) + '<em>' + esc(r[2]) + '</em></span>' +
+              '<span class="gain">' + esc(r[3]) + '</span></div>';
+          }).join('') + '</div>' +
+        '</section>' +
+        '<div style="height:186px"></div>' +
+      '</div>' +
+      bottomMarkup('more', false, railMarkup());
+  }
+
   /* ---------- public mount ---------- */
 
   function render(host, screen, opts) {
     opts = opts || {};
     var app = document.createElement('div');
     app.className = 'sg-app';
-    app.innerHTML = screen === 'collection' ? galleryScreen() : homeScreen(opts);
+    var builders = { collection: galleryScreen, decks: decksScreen, shop: shopScreen, profile: profileScreen };
+    app.innerHTML = builders[screen] ? builders[screen]() : homeScreen(opts);
     host.appendChild(app);
     if (screen === 'collection') {
       mountGallery(app, opts);
+    } else if (builders[screen]) {
+      mountRail(app, opts.openQuick);
     } else {
       mountHero(app, opts);
       mountRail(app, opts.openQuick);

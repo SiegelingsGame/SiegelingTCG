@@ -532,3 +532,234 @@ body.concept-board {
 /* single-screen mode (open one frame full-bleed, e.g. on a real phone) */
 body.single-screen { margin:0; background:#05080f; }
 body.single-screen .sg-app { position:fixed; inset:0; }
+
+/* ---------- gallery-plate hero (whole scenes, not cutouts) ---------- */
+.sg-hero.is-scene .sg-hero-land {
+  filter:saturate(.96) brightness(.86) contrast(1.02);
+  background-position:center 42%;
+}
+.sg-hero.is-scene .sg-hero-tint {
+  background:
+    radial-gradient(90% 60% at 50% 22%, rgba(0,0,0,0) 30%, rgba(5,8,15,.24) 70%, rgba(5,8,15,.60) 100%),
+    linear-gradient(180deg, rgba(5,8,15,.70) 0%, rgba(5,8,15,0) 24%, rgba(5,8,15,.06) 44%, rgba(5,8,15,.68) 66%, rgba(5,8,15,.95) 86%, #05080f 100%);
+}
+.sg-hero.is-scene .sg-hero-title {
+  font-size:24px; letter-spacing:.14em; text-transform:uppercase;
+}
+.sg-hero.is-scene .sg-eyebrow { display:none; }
+.sg-hero-credit {
+  position:absolute; left:18px; top:calc(58px + env(safe-area-inset-top,0px)); z-index:4;
+  font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted);
+  text-shadow:0 2px 10px rgba(0,0,0,.9); line-height:1.7;
+}
+.sg-hero-credit span { display:block; color:var(--gold-bright); letter-spacing:.2em; }
+
+/* gallery strip */
+.sg-swipe-wide { gap:14px; }
+.sg-plate {
+  position:relative; flex:0 0 268px; height:158px; border-radius:18px; overflow:hidden;
+  scroll-snap-align:start; cursor:pointer;
+  box-shadow:0 16px 32px rgba(0,0,0,.52), inset 0 0 0 1px rgba(200,165,79,.18);
+}
+.sg-plate img { width:100%; height:100%; object-fit:cover; display:block; }
+.sg-plate-foot {
+  position:absolute; left:0; right:0; bottom:0; padding:22px 13px 12px;
+  background:linear-gradient(180deg, transparent, rgba(5,8,15,.92) 52%);
+}
+.sg-plate-foot strong { display:block; font-family:var(--serif); font-size:15px; font-weight:600; }
+.sg-plate-foot span { display:block; font-size:10.5px; color:var(--muted); letter-spacing:.05em; margin-top:2px; }
+
+/* ---------- shared page furniture ---------- */
+.sg-page-head { padding:calc(58px + env(safe-area-inset-top,0px)) 18px 4px; }
+.sg-page-head h2 { font-family:var(--serif); font-size:27px; margin:0; font-weight:600; }
+.sg-page-head p { margin:5px 0 0; font-size:11.5px; color:var(--muted); letter-spacing:.03em; }
+.sg-tool-row { display:flex; gap:8px; padding:14px 18px 4px; }
+.sg-ghost-btn {
+  flex:1 1 0; height:40px; border-radius:14px; cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  border:1px solid var(--steel-soft); background:rgba(11,17,32,.6); color:var(--ink);
+  font-size:11.5px; font-weight:600; letter-spacing:.09em; text-transform:uppercase;
+  backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+}
+.sg-ghost-btn .ico { color:var(--gold-bright); font-size:14px; }
+.sg-stack { display:flex; flex-direction:column; gap:14px; padding:14px 18px 0; }
+.sg-stack-tight { gap:8px; }
+.sg-tag {
+  align-self:flex-start; font-size:9px; letter-spacing:.2em; text-transform:uppercase;
+  padding:3px 9px; border-radius:999px; color:#22160a;
+  background:linear-gradient(180deg,#f0cd8a,var(--gold));
+}
+
+/* ---------- decks ---------- */
+.sg-deckrow {
+  position:relative; height:126px; border-radius:20px; overflow:hidden;
+  box-shadow:0 16px 32px rgba(0,0,0,.5), inset 0 0 0 1px rgba(112,142,180,.16);
+}
+.sg-deckrow.is-active { box-shadow:0 16px 32px rgba(0,0,0,.5), inset 0 0 0 1px rgba(200,165,79,.55); }
+.sg-deckrow-bg { position:absolute; inset:0; background-size:cover; background-position:center 44%; filter:saturate(.8) brightness(.46); }
+.sg-deckrow-veil {
+  position:absolute; inset:0;
+  background:linear-gradient(100deg, rgba(5,8,15,.95) 30%, rgba(5,8,15,.52) 66%, rgba(5,8,15,.2) 100%);
+}
+.sg-deckrow-art { position:absolute; right:2px; bottom:-8px; width:120px; height:130px; display:flex; align-items:flex-end; justify-content:center; }
+.sg-deckrow-art img { width:100%; height:100%; object-fit:contain; object-position:center bottom; filter:drop-shadow(0 10px 16px rgba(0,0,0,.7)); }
+.sg-deckrow-body { position:absolute; inset:0; padding:13px 14px; display:flex; flex-direction:column; gap:5px; }
+.sg-deckrow-body h4 { font-family:var(--serif); font-size:18px; margin:0; font-weight:600; }
+.sg-deckrow-meta { font-size:11px; color:var(--muted); letter-spacing:.03em; margin-top:auto; }
+.sg-deckrow-meta b { color:var(--ink); }
+.sg-deckrow-bar { position:absolute; left:0; right:0; bottom:0; height:3px; background:rgba(112,142,180,.2); }
+.sg-deckrow-bar i { display:block; height:100%; background:linear-gradient(90deg,var(--el,#c8a54f),var(--amber)); }
+
+/* ---------- shop ---------- */
+.sg-feature { position:relative; height:308px; overflow:hidden; }
+.sg-feature-bg { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.sg-feature-veil {
+  position:absolute; inset:0;
+  background:linear-gradient(180deg, rgba(5,8,15,.66) 0%, rgba(5,8,15,0) 26%, rgba(5,8,15,.72) 64%, #05080f 100%);
+}
+.sg-feature-body { position:absolute; left:0; right:0; bottom:16px; padding:0 18px; display:flex; flex-direction:column; align-items:flex-start; gap:7px; }
+.sg-feature-body h2 { font-family:var(--serif); font-size:26px; margin:0; font-weight:600; }
+.sg-feature-body p { margin:0; font-size:11.5px; color:var(--muted); line-height:1.55; max-width:290px; }
+.sg-cta {
+  margin-top:5px; height:44px; padding:0 24px; border:none; border-radius:999px; cursor:pointer;
+  display:inline-flex; align-items:center; gap:9px; color:#22160a;
+  font-size:15px; font-weight:700; letter-spacing:.06em;
+  background:linear-gradient(180deg,#ffd58a,var(--amber));
+  box-shadow:0 10px 28px rgba(242,160,61,.4);
+}
+.sg-cta img { width:18px; height:18px; }
+.sg-pack {
+  flex:0 0 132px; scroll-snap-align:start; display:flex; flex-direction:column; align-items:center; gap:6px;
+}
+.sg-pack-face {
+  width:132px; height:176px; border-radius:16px; overflow:hidden; position:relative;
+  box-shadow:0 16px 30px rgba(0,0,0,.55), inset 0 0 0 1px rgba(200,165,79,.22);
+}
+.sg-pack-face::after {
+  content:''; position:absolute; inset:0;
+  background:radial-gradient(70% 50% at 50% 30%, var(--el,#f05b2f), transparent 72%);
+  opacity:.34; mix-blend-mode:screen;
+}
+.sg-pack-face img { width:100%; height:100%; object-fit:cover; display:block; }
+.sg-pack strong { font-size:11.5px; font-weight:600; text-align:center; }
+.sg-pack span { font-size:10px; color:var(--muted); letter-spacing:.08em; text-transform:uppercase; }
+.sg-buy {
+  margin-top:2px; height:30px; padding:0 14px; border-radius:999px; cursor:pointer;
+  display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:var(--gold-bright);
+  border:1px solid rgba(200,165,79,.42); background:rgba(11,17,32,.6);
+}
+.sg-buy img { width:14px; height:14px; }
+.sg-bundle {
+  display:flex; align-items:center; gap:12px; width:100%; cursor:pointer;
+  padding:13px 15px; border-radius:16px; text-align:left;
+  border:1px solid var(--steel-soft); background:rgba(13,20,35,.62); color:var(--ink);
+}
+.sg-bundle img { width:22px; height:22px; }
+.sg-bundle .amt { flex:1 1 auto; font-size:15px; font-weight:600; font-family:var(--serif); }
+.sg-bundle .amt em { display:block; font-style:normal; font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--gold); margin-top:2px; }
+.sg-bundle .price {
+  font-size:12.5px; font-weight:700; color:#22160a; padding:6px 13px; border-radius:999px;
+  background:linear-gradient(180deg,#f0cd8a,var(--gold));
+}
+
+/* ---------- profile ---------- */
+.sg-crest { position:relative; height:330px; overflow:hidden; }
+.sg-crest-bg { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.sg-crest-veil {
+  position:absolute; inset:0;
+  background:linear-gradient(180deg, rgba(5,8,15,.70) 0%, rgba(5,8,15,.08) 28%, rgba(5,8,15,.76) 62%, #05080f 100%);
+}
+.sg-crest-body { position:absolute; left:0; right:0; bottom:14px; padding:0 18px; text-align:center; }
+.sg-crest-ring {
+  display:inline-grid; place-items:center; width:74px; height:74px; border-radius:50%; padding:2px;
+  background:conic-gradient(from 210deg, var(--gold), #6b5a2c, var(--gold-bright), var(--gold));
+  box-shadow:0 10px 30px rgba(0,0,0,.6);
+}
+.sg-crest-ring i {
+  width:100%; height:100%; border-radius:50%; display:grid; place-items:center; font-style:normal;
+  background:linear-gradient(160deg,#243449,#0d1320); font-family:var(--serif); font-size:28px; color:var(--gold-bright);
+}
+.sg-crest-body h2 { font-family:var(--serif); font-size:27px; margin:9px 0 0; font-weight:600; }
+.sg-crest-body p { margin:3px 0 11px; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); }
+.sg-xp { height:5px; border-radius:3px; background:rgba(112,142,180,.24); overflow:hidden; max-width:260px; margin:0 auto; }
+.sg-xp i { display:block; height:100%; background:linear-gradient(90deg,var(--gold),var(--amber)); box-shadow:0 0 12px rgba(242,160,61,.6); }
+.sg-xp-note { display:block; margin-top:7px; font-size:10px; letter-spacing:.1em; color:var(--muted); }
+.sg-tiles { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; padding:16px 18px 4px; }
+.sg-tiles div {
+  border-radius:16px; padding:13px 8px; text-align:center;
+  border:1px solid var(--steel-soft); background:rgba(13,20,35,.62);
+}
+.sg-tiles span { display:block; font-size:9px; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); }
+.sg-tiles b { display:block; margin-top:4px; font-family:var(--serif); font-size:22px; font-weight:600; color:var(--gold-bright); }
+.sg-badges { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; padding:0 18px; }
+.sg-badge {
+  display:flex; flex-direction:column; align-items:center; gap:6px; padding:12px 6px; border-radius:16px;
+  border:1px solid rgba(112,142,180,.14); background:rgba(13,20,35,.5);
+  font-size:10px; letter-spacing:.07em; color:var(--muted);
+}
+.sg-badge i {
+  font-style:normal; width:34px; height:34px; border-radius:50%; display:grid; place-items:center; font-size:16px;
+  border:1px solid rgba(112,142,180,.2); color:var(--steel);
+}
+.sg-badge.earned { color:var(--ink); border-color:rgba(200,165,79,.3); }
+.sg-badge.earned i {
+  color:#22160a; border-color:rgba(255,226,171,.6);
+  background:linear-gradient(180deg,#f0cd8a,var(--gold));
+  box-shadow:0 6px 18px rgba(200,165,79,.32);
+}
+.sg-recent {
+  display:flex; align-items:center; gap:11px; padding:12px 15px; border-radius:14px;
+  border:1px solid var(--steel-soft); background:rgba(13,20,35,.55);
+}
+.sg-recent .mode {
+  font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:var(--gold);
+  border:1px solid rgba(200,165,79,.3); border-radius:999px; padding:3px 8px; flex:0 0 auto;
+}
+.sg-recent .what { flex:1 1 auto; font-size:12.5px; }
+.sg-recent .what em { display:block; font-style:normal; font-size:10.5px; color:var(--muted); margin-top:2px; }
+.sg-recent .gain { font-size:12px; font-weight:700; color:var(--gold-bright); }
+
+/* A 16:9 gallery plate inside a portrait hero crops to a fraction of the scene,
+   so scene mode gives the art its own near-16:9 band at the top and lets the
+   copy sit below it on the fade, instead of stretching it the full height. */
+.sg-hero.is-scene { height:472px; }
+.sg-hero.is-scene .sg-hero-art { inset:0 0 auto; height:372px; }
+.sg-hero.is-scene .sg-hero-land {
+  inset:-6% -2%;
+  transform:translate3d(0,var(--par,0px),0) scale(1.03);
+  background-position:center 46%;
+}
+.sg-hero.is-scene .sg-hero-tint {
+  background:
+    radial-gradient(96% 70% at 50% 34%, rgba(0,0,0,0) 34%, rgba(5,8,15,.18) 74%, rgba(5,8,15,.52) 100%),
+    linear-gradient(180deg, rgba(5,8,15,.66) 0%, rgba(5,8,15,0) 20%, rgba(5,8,15,0) 46%, rgba(5,8,15,.50) 70%, rgba(5,8,15,.92) 88%, #05080f 99%);
+}
+.sg-hero.is-scene .sg-hero-copy { bottom:16px; }
+.sg-hero.is-scene .sg-dots { bottom:auto; top:140px; }
+/* Keep the plate credit inside the artwork band and clear of the title, which
+   now sits on the fade directly below it. */
+.sg-hero.is-scene .sg-hero-credit {
+  top:calc(54px + env(safe-area-inset-top,0px));
+  text-shadow:0 2px 14px #000, 0 0 30px rgba(0,0,0,.9);
+}
+
+/* The art bands ended on an opaque colour that did not match the page gradient
+   beneath them, leaving a visible seam. Fade the ARTWORK out instead, so the
+   band's bottom edge is the page's own colour whatever that happens to be. */
+.sg-hero.is-scene .sg-hero-art,
+.sg-crest-bg,
+.sg-feature-bg {
+  -webkit-mask-image:linear-gradient(180deg, #000 0%, #000 56%, rgba(0,0,0,.55) 78%, rgba(0,0,0,0) 97%);
+  mask-image:linear-gradient(180deg, #000 0%, #000 56%, rgba(0,0,0,.55) 78%, rgba(0,0,0,0) 97%);
+}
+.sg-hero.is-scene .sg-hero-tint,
+.sg-crest-veil,
+.sg-feature-veil { background-image:none; }
+.sg-hero.is-scene .sg-hero-tint {
+  background:linear-gradient(180deg, rgba(5,8,15,.62) 0%, rgba(5,8,15,0) 24%, rgba(5,8,15,0) 62%, rgba(5,8,15,.38) 84%);
+}
+.sg-crest-veil { background:linear-gradient(180deg, rgba(5,8,15,.58) 0%, rgba(5,8,15,0) 26%, rgba(5,8,15,.40) 62%, rgba(5,8,15,.66) 84%); }
+.sg-feature-veil { background:linear-gradient(180deg, rgba(5,8,15,.58) 0%, rgba(5,8,15,0) 24%, rgba(5,8,15,.44) 62%, rgba(5,8,15,.70) 86%); }
+
+/* a win-rate bar tinted by element read as a second, meaningless signal */
+.sg-deckrow-bar i { background:linear-gradient(90deg, var(--gold), var(--amber)); }
