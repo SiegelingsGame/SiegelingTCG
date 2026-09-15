@@ -468,7 +468,7 @@
     if (mapOrientTimer) clearTimeout(mapOrientTimer);
     mapOrientTimer = setTimeout(function () {
       if (document.body.dataset.screen !== 'mapScreen') return;
-      if (isPhoneLandscape() !== mapLayoutLand) { renderMap(); return; }
+      if (useHorizontalMap() !== mapLayoutLand) { renderMap(); return; }
       // Same axis, new viewport: the geometry still holds but the scroll extents
       // do not, so re-centre on the current node instead of leaving the player
       // parked past the end of the map.
@@ -1957,7 +1957,10 @@
   // landLaneGap must clear a node's radius plus its label (drawn at r+18 and
   // ~11px tall) before the next lane's halo begins, or landscape labels print
   // over the circles below them. The full-bleed landscape map has the height.
-  var MAP = { colGap: 96, rowGap: 104, pad: 56, r: 24, landPad: 44, landLaneGap: 78 };
+  // rowGapMax / laneGapMax bound the desktop stretch (see renderMap): far
+  // enough apart to use a wide monitor, close enough that the path still reads
+  // as one connected route rather than scattered dots.
+  var MAP = { colGap: 96, rowGap: 104, pad: 56, r: 24, landPad: 44, landLaneGap: 78, rowGapMax: 210, laneGapMax: 180 };
 
   // Phone landscape is too short to stack the depth axis vertically, so there
   // the map is transposed to flow left→right (start left, boss right). This
@@ -1966,8 +1969,18 @@
   function isPhoneLandscape() {
     return matchMedia('(orientation: landscape) and (max-width: 979px) and (max-height: 600px)').matches;
   }
-  // Remembers the axis the last renderMap() drew, so a rotation can detect the
-  // flip and re-render (SVG geometry is baked at render time, not responsive).
+  // Desktop / large tablet gets the same left→right map for the opposite
+  // reason: the screen is far wider than it is tall, so the depth axis belongs
+  // on X where there is room to spread it. Mirrors the 980px CSS breakpoint
+  // that drops the reading-column cap and makes the map canvas full-bleed.
+  function isWideScreen() {
+    return matchMedia('(min-width: 980px)').matches;
+  }
+  // True whenever the map is drawn along X (start left, boss right).
+  function useHorizontalMap() { return isPhoneLandscape() || isWideScreen(); }
+  // Remembers the axis the last renderMap() drew, so a rotation/resize can
+  // detect the flip and re-render (SVG geometry is baked at render time, not
+  // responsive).
   var mapLayoutLand = null;
   // Re-scrolls the map to the run's current node using the geometry the last
   // renderMap() baked. Set by renderMap; a no-op before the first map render.
@@ -2147,25 +2160,41 @@
     var rowCounts = {};
     nodes.forEach(function (n) { rowCounts[n.row] = (rowCounts[n.row] || 0) + 1; });
     var maxCount = Math.max.apply(null, Object.keys(rowCounts).map(function (k) { return rowCounts[k]; }));
-    var land = isPhoneLandscape();
+    var land = useHorizontalMap();
     mapLayoutLand = land;
-    // Portrait: depth is the vertical span, lanes the horizontal. Landscape
-    // transposes them so depth runs across X and lanes stack down Y (with a
-    // tighter lane gap + pad so the lanes fit the short viewport height).
-    var pad = land ? MAP.landPad : MAP.pad;
-    var laneGap = land ? MAP.landLaneGap : MAP.colGap;
-    var width = pad * 2 + (land ? (rows - 1) * MAP.rowGap : (maxCount - 1) * laneGap);
-    var height = pad * 2 + (land ? (maxCount - 1) * laneGap : (rows - 1) * MAP.rowGap);
+    // Portrait: depth is the vertical span, lanes the horizontal. Horizontal
+    // mode transposes them so depth runs across X and lanes stack down Y.
+    // Only PHONE landscape needs the tightened lane axis (a ~390px-tall
+    // viewport); a desktop window has the height for the full spacing, and
+    // squeezing it there would waste the screen the transposition just won.
+    var tight = land && isPhoneLandscape();
+    var pad = tight ? MAP.landPad : MAP.pad;
+    var laneGap = tight ? MAP.landLaneGap : MAP.colGap;
+    var rowGap = MAP.rowGap;
+    // Desktop: the canvas is now the whole window, and a map drawn at phone
+    // spacing would sit as an 840px island in the middle of it. Stretch the
+    // gaps so the run actually spans the screen edge to edge — spacing, not a
+    // zoom, so nodes/labels keep their size. Capped (and never shrunk below
+    // the base gaps) so a long or wide map still scrolls instead of squashing.
+    if (land && !tight) {
+      var box = $('mapScroll');
+      var availW = box ? box.clientWidth - pad * 2 - 40 : 0;
+      var availH = box ? box.clientHeight - pad * 2 - 40 : 0;
+      if (rows > 1 && availW > 0) rowGap = Math.min(MAP.rowGapMax, Math.max(rowGap, availW / (rows - 1)));
+      if (maxCount > 1 && availH > 0) laneGap = Math.min(MAP.laneGapMax, Math.max(laneGap, availH / (maxCount - 1)));
+    }
+    var width = pad * 2 + (land ? (rows - 1) * rowGap : (maxCount - 1) * laneGap);
+    var height = pad * 2 + (land ? (maxCount - 1) * laneGap : (rows - 1) * rowGap);
 
     function pos(n) {
       var count = rowCounts[n.row];
       var lane = (maxCount - count) / 2 + n.col; // centered lane index within the widest row
       if (land) {
         // depth → X (row 0 at the LEFT, boss at the far RIGHT); lanes spread down Y, centered.
-        return { x: pad + n.row * MAP.rowGap, y: pad + lane * laneGap };
+        return { x: pad + n.row * rowGap, y: pad + lane * laneGap };
       }
       // depth → Y (row 0 at the bottom, boss on top); lanes centered across X.
-      return { x: pad + lane * laneGap, y: height - pad - n.row * MAP.rowGap };
+      return { x: pad + lane * laneGap, y: height - pad - n.row * rowGap };
     }
 
     var svg = $('mapSvg');
