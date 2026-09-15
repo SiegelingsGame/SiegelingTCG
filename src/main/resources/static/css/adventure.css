@@ -3204,3 +3204,66 @@ body[data-screen="minigameScreen"] #mgActions{ margin-top:12px; }
   .lt-rule{display:none;}
   .lt-leaving{font-size:11.5px;}
 }
+
+/* ---------- Desktop / large tablet: Siege uses the whole screen ----------
+   The 1120px reading column was sized for the portrait phone shell; on a wide
+   monitor it left Siege as a narrow strip with two black gutters, and the map
+   (drawn bottom-to-top) had to scroll vertically through a short window. The
+   landscape battle already dropped the cap for exactly this reason — this does
+   the same for the map and the remaining scene screens.
+
+   Gated at 980px so it never collides with the phone-landscape block above
+   (max-width:979px), which owns its own full-bleed treatment. */
+@media (min-width:980px){
+  .siege-app{
+    max-width:none;
+    padding-left:max(28px, env(safe-area-inset-left, 0px));
+    padding-right:max(28px, env(safe-area-inset-right, 0px));
+  }
+
+  /* ---- Map goes full-bleed, exactly like the landscape battle arena ----
+     adventure.js draws the map left→right here (start at the left edge, boss
+     at the far right), so the depth axis scrolls horizontally across the full
+     width instead of down a boxed card. Chrome floats over the canvas; scroll
+     padding — not margin — keeps nodes out from under the bands while the
+     canvas art still paints edge to edge. */
+  body[data-screen="mapScreen"] .siege-app{ padding-left:0; padding-right:0; }
+  body[data-screen="mapScreen"] .siege-topbar{
+    position:absolute; top:0; left:0; right:0; z-index:20; pointer-events:none;
+    padding:8px max(16px,env(safe-area-inset-right,0px)) 6px max(16px,env(safe-area-inset-left,0px));
+    background:linear-gradient(180deg, rgba(8,11,17,.86), transparent);
+  }
+  body[data-screen="mapScreen"] .siege-topbar > *{ pointer-events:auto; }
+  body[data-screen="mapScreen"] #mapScreen{ display:block; position:relative; }
+  body[data-screen="mapScreen"] .map-scroll{
+    position:absolute; inset:0; min-height:0; overflow:auto;
+    border:none; border-radius:0;
+    padding:56px max(16px,env(safe-area-inset-right,0px)) 118px max(16px,env(safe-area-inset-left,0px));
+  }
+  /* Wide screens have the room for the HUD's natural stack (resources over the
+     warband strip), so unlike the phone-landscape bar this one is not squeezed
+     onto a single line — it just floats instead of taking flow height. */
+  body[data-screen="mapScreen"] .map-bottom{
+    position:absolute; left:0; right:0; bottom:0; z-index:12;
+    padding:8px max(20px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(20px,env(safe-area-inset-left,0px));
+    background:linear-gradient(transparent, rgba(6,9,14,.74) 34%, rgba(6,9,14,.94));
+  }
+
+  /* The remaining (page-scrolling) screens keep a readable column rather than
+     stretching prose across 2000px — only their grids spend the new width. */
+  body:not([data-screen="mapScreen"]):not([data-screen="battleScreen"]) .siege-screen{
+    max-width:1280px; margin:0 auto;
+  }
+}
+
+/* The Land banner is a flow child of #mapScreen, which the desktop map turns
+   into a positioning context for the full-bleed canvas — so float it over the
+   canvas (as phone landscape already does) instead of letting it sit behind. */
+@media (min-width:980px){
+  #mapScreen.has-land .map-land{
+    position:absolute; top:46px; left:max(20px,env(safe-area-inset-left,0px));
+    z-index:14; width:auto; max-width:min(420px, calc(100% - 40px));
+    margin:0; background:rgba(8,14,23,.92);
+  }
+  #mapScreen.has-land .map-scroll{ padding-top:120px; }
+}
