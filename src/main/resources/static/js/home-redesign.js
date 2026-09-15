@@ -149,6 +149,26 @@
   // bar, which read as a double header and cost ~56px of artwork. The tray
   // mechanic it carried is worth keeping, so it moved onto the tabs themselves:
   // a tab with sub-destinations slides its tray up out of the bar.
+  // Real destinations. Until now every control was inert; these are the routes
+  // firebase.json already serves, so the design can front the live game.
+  var HREF = {
+    battle: '/play', siege: '/siege', keep: '/keep', lobbies: '/social',
+    cards: '/cards', decks: '/decks', builder: '/deck-builder',
+    social: '/social', profile: '/profile', shop: '/shop', help: '/help',
+    login: '/login', home: '/home', achievements: '/achievements'
+  };
+  function hrefFor(label) {
+    var map = {
+      'Battle': HREF.battle, 'Siege': HREF.siege, 'Keep': HREF.keep,
+      'Social Lobbies': HREF.lobbies, 'Cards': HREF.cards, 'Decks': HREF.decks,
+      'Deck Builder': HREF.builder, 'Social': HREF.social, 'Profile': HREF.profile,
+      'Settings': HREF.profile, 'Help': HREF.help,
+      'Sign In': HREF.login, 'Create Account': HREF.login,
+      'Featured Packs': HREF.shop, 'Open Packs': HREF.shop, 'Siegelcoins': HREF.shop
+    };
+    return map[label] || '';
+  }
+
   var NAV = [
     { id: 'home',       ico: '⌂', label: 'Home' },
     // Same vocabulary as the Play screen and the shipping picker: the two real
@@ -269,7 +289,9 @@
         return '<div class="sg-tray' + (n.id === openTray ? ' open' : '') + '" data-tray="' + n.id + '"><div>' +
           '<ul>' + items.map(function (it) {
             var auth = it[0] === 'Sign In' || it[0] === 'Create Account';
-            return '<li' + (auth ? ' class="is-auth"' : '') + '>' + esc(it[0]) +
+            var href = hrefFor(it[0]);
+            return '<li' + (auth ? ' class="is-auth"' : '') + '>' +
+              (href ? '<a href="' + esc(href) + '">' + esc(it[0]) + '</a>' : esc(it[0])) +
               (it[1] ? '<span>' + esc(it[1]) + '</span>' : '') + '</li>';
           }).join('') + '</ul></div></div>';
       }).join('') +
@@ -442,7 +464,9 @@
   ];
 
   function modePanel(m) {
-    return '<article class="sg-mode' + (m.primary ? ' is-primary' : '') + '" style="--el:' + color(m.el) + '">' +
+    var href = hrefFor(m.label);
+    return '<a class="sg-mode' + (m.primary ? ' is-primary' : '') + '" href="' + esc(href) +
+      '" style="--el:' + color(m.el) + '">' +
       '<img class="sg-mode-bg" src="' + esc(m.art) + '" alt="" loading="lazy">' +
       '<div class="sg-mode-veil"></div>' +
       '<div class="sg-mode-body">' +
@@ -451,7 +475,35 @@
         '<p>' + esc(m.line) + '</p>' +
       '</div>' +
       '<span class="sg-mode-go">' + esc(m.cta) + ' ›</span>' +
-    '</article>';
+    '</a>';
+  }
+
+  // "LEADING - Solgator" invented a mechanic: the Battle table has no lead or
+  // captain card, and the engine's only "leading" is a deck's leading element
+  // for sort order. What IS real here is Siege run persistence - one save per
+  // mode, resumable by token - so this slot now says what it can actually do.
+  function siegeResumeMarkup(opts) {
+    var run = (opts.siegeRuns && opts.siegeRuns[0]) || null;
+    if (!run) {
+      return '<a class="sg-resume is-empty" href="' + HREF.siege + '">' +
+        '<span class="sg-resume-icon">⛰</span>' +
+        '<span class="sg-resume-body"><strong>No expedition saved</strong>' +
+        '<em>Start a Siege run to pick it up here.</em></span>' +
+        '<span class="sg-resume-go">Start ›</span>' +
+      '</a>';
+    }
+    var landName = (run.land && run.land.name) || 'Expedition';
+    var depth = (run.landSegment != null) ? ('Land ' + (run.landSegment + 1)) : '';
+    var party = (run.party || []).map(function (m) { return m && m.name; }).filter(Boolean);
+    return '<a class="sg-resume" href="' + HREF.siege + '">' +
+      '<span class="sg-resume-icon">⛰</span>' +
+      '<span class="sg-resume-body">' +
+        '<span class="sg-resume-kicker">Saved expedition</span>' +
+        '<strong>' + esc(landName) + (depth ? ' &middot; ' + esc(depth) : '') + '</strong>' +
+        (party.length ? '<em>' + esc(party.join(' &middot; ')) + '</em>' : '') +
+      '</span>' +
+      '<span class="sg-resume-go">Resume ›</span>' +
+    '</a>';
   }
 
   function playScreen(opts) {
@@ -461,22 +513,11 @@
     return topMarkup(opts) +
       '<div class="sg-scroll">' +
         '<div class="sg-modes">' + MODES.map(modePanel).join('') + '</div>' +
-        '<div class="sg-loadout" style="--el:' + color(lead.element) + '">' +
-          '<div class="sg-loadout-art"><img src="' + esc(lead.cardArtUrl) + '" alt="" loading="lazy"></div>' +
-          '<div class="sg-loadout-body">' +
-            '<span class="sg-loadout-kicker">Leading</span>' +
-            '<strong>' + esc(lead.name) + '</strong>' +
-            '<div class="sg-deck-els">' +
-              '<img src="' + icon('FIRE') + '" alt="Fire">' +
-              '<img src="' + icon('EARTH') + '" alt="Earth">' +
-              '<img src="' + icon('METAL') + '" alt="Metal">' +
-            '</div>' +
-          '</div>' +
-          '<button class="sg-swap" type="button">Swap</button>' +
-        '</div>' +
-        '<button class="sg-lobbies" type="button">' +
-          '<span class="sg-lobbies-dot"></span>Social Lobbies<em>11 open</em><span class="go">›</span>' +
-        '</button>' +
+        siegeResumeMarkup(opts) +
+        '<a class="sg-lobbies" href="' + HREF.lobbies + '">' +
+          '<span class="sg-lobbies-dot"></span>Social Lobbies<em>' +
+          esc(opts.lobbies == null ? '11' : opts.lobbies) + ' open</em><span class="go">›</span>' +
+        '</a>' +
         (guest ? guestBand() : '') +
         '<div style="height:132px"></div>' +
       '</div>' +
@@ -718,8 +759,41 @@
 
   /* ---------- public mount ---------- */
 
+  // Live data replaces the frozen snapshot in place, so the renderer below is
+  // identical whether it is fronting the real game or the offline preview.
+  function applyLive(model) {
+    if (!model) return;
+    if (model.sieglings && model.sieglings.length) {
+      CARDS.length = 0;
+      model.sieglings.forEach(function (c) { CARDS.push(c); });
+      HERO = pickPresent(['pylord', 'glaciemperor', 'aerovane', 'conchious', 'gymstone']);
+      FEATURED = pickPresent(['dracosleaf', 'sheenx', 'hurricrane', 'clawqueen',
+                              'bleetstrike', 'frostag', 'siegebot', 'solgator']);
+    }
+    if (model.decks && model.decks.length) {
+      DECKS = model.decks.slice(0, 4).map(function (d, i) {
+        var lead = CARDS.filter(function (c) {
+          return (d.elements || []).indexOf(c.element) !== -1;
+        })[0] || CARDS[i] || CARDS[0];
+        return {
+          name: d.name || d.id, lead: lead && lead.id,
+          els: (d.elements || []).slice(0, 3),
+          w: 0, l: 0, cards: d.size || 40, active: d.id === model.defaultDeckId
+        };
+      });
+    }
+  }
+
+  // The live catalog is not guaranteed to hold the ids the concept hand-picked,
+  // so fall back to whatever it does have rather than rendering empty tiles.
+  function pickPresent(ids) {
+    var found = ids.map(byId).filter(function (c, i) { return c && c.id === ids[i]; });
+    return found.length ? found : CARDS.slice(0, ids.length);
+  }
+
   function render(host, screen, opts) {
     opts = opts || {};
+    if (opts.live) applyLive(opts.live);
     var app = document.createElement('div');
     app.className = 'sg-app';
     var builders = { collection: galleryScreen, decks: decksScreen, shop: shopScreen, profile: profileScreen, play: playScreen };
@@ -739,5 +813,5 @@
     return app;
   }
 
-  window.SiegelingsHomeConcept = { render: render, cards: CARDS, coverageMarkup: coverageMarkup, coverage: COVERAGE };
+  window.SiegelingsHomeConcept = { render: render, applyLive: applyLive, cards: CARDS, coverageMarkup: coverageMarkup, coverage: COVERAGE };
 })();
