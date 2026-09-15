@@ -3352,7 +3352,7 @@ function buildBattleTargetingInstruction(targetSide, ability, selectedRow = -1) 
                 steps: [
                     `${moveName} will hit every enemy Siegeling in the ${rowName} row.`,
                     arrowHint,
-                    'Tap Confirm Row to queue the attack, or Change Row to pick a different row.',
+                    'Tap the highlighted row again (or Confirm Row) to queue the attack, or Change Row to pick a different row.',
                     'Tap Cancel below to return to the move list.'
                 ],
                 effectLine: `${effectLine}${targetLine}${weaknessSuffix}`
@@ -3385,7 +3385,7 @@ function buildBattleTargetingInstruction(targetSide, ability, selectedRow = -1) 
                 steps: [
                     `${moveName} will affect every ally Siegeling in the ${rowName} row.`,
                     arrowHint,
-                    'Tap Confirm Row to queue the action, or Change Row to pick a different row.',
+                    'Tap the highlighted row again (or Confirm Row) to queue the action, or Change Row to pick a different row.',
                     'Tap Cancel below to return to the move list.'
                 ],
                 effectLine: `${effectLine}${targetLine}`
@@ -17214,6 +17214,12 @@ function onTargetSelected(row, col, fromPlayerBoard) {
             const expectPlayer = targetContext.side === 'row-ally';
             if (fromPlayerBoard !== expectPlayer) {
                 showTransientMessage(`Select a card in a ${expectPlayer ? 'friendly' : 'enemy'} row.`);
+                return;
+            }
+            // Landscape phones can push the confirm overlay out of view, so a
+            // second tap on the already-selected row commits the action.
+            if (getRowSelectSelectedRow() === row) {
+                confirmRowSelectBattleTarget();
                 return;
             }
             const board = expectPlayer ? gameState.playerBoard : gameState.enemyBoard;
