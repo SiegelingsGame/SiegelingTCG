@@ -1183,3 +1183,63 @@ body.concept-board {
   background:linear-gradient(180deg, color-mix(in srgb, var(--sec, var(--gold)) 60%, #fff), var(--sec, var(--gold)));
   box-shadow:0 0 14px var(--sec, var(--gold));
 }
+
+/* ==========================================================================
+   SINGLE BOTTOM BAR
+   The quick-action rail sat directly above the tab bar, which read as a double
+   header and cost ~56px of artwork on a real phone. The rail is gone; the tray
+   mechanic it carried now belongs to the tabs, so a tab with sub-destinations
+   slides its tray up out of the bar and only one is ever open.
+   ========================================================================== */
+.sg-rail { display:none !important; }
+
+.sg-tray {
+  display:grid; grid-template-rows:0fr; opacity:0; margin:0 12px;
+  transition:grid-template-rows .34s cubic-bezier(.2,.8,.25,1), opacity .24s ease, margin-bottom .3s ease;
+}
+.sg-tray.open { grid-template-rows:1fr; opacity:1; margin-bottom:8px; }
+.sg-tray > div { overflow:hidden; }
+.sg-tray ul {
+  list-style:none; margin:0; padding:7px;
+  border-radius:20px; border:1px solid rgba(180,140,255,.34);
+  background:rgba(26,17,71,.95);
+  backdrop-filter:blur(22px) saturate(1.35); -webkit-backdrop-filter:blur(22px) saturate(1.35);
+  box-shadow:0 -14px 44px rgba(6,3,24,.68), 0 0 30px rgba(120,80,240,.22);
+}
+.sg-tray li {
+  display:flex; align-items:center; justify-content:space-between; gap:12px; cursor:pointer;
+  padding:12px 14px; border-radius:13px; font-size:13.5px; color:var(--ink);
+}
+.sg-tray li + li { margin-top:2px; }
+.sg-tray li span { font-size:11px; color:var(--acc-lemon); letter-spacing:.04em; }
+.sg-tray li:active { background:rgba(180,140,255,.16); }
+/* each tray takes the hue of the tab that owns it */
+.sg-tray[data-tray="play"] ul       { border-color:color-mix(in srgb, var(--acc-coral) 46%, transparent); }
+.sg-tray[data-tray="collection"] ul { border-color:color-mix(in srgb, var(--acc-violet) 46%, transparent); }
+.sg-tray[data-tray="shop"] ul       { border-color:color-mix(in srgb, var(--acc-lemon) 46%, transparent); }
+.sg-tray[data-tray="more"] ul       { border-color:color-mix(in srgb, var(--acc-sky) 46%, transparent); }
+
+/* Shop is a main tab now; Decks and Cards moved under Collection. */
+.sg-nav button[data-nav="shop"] { --tab:var(--acc-lemon); }
+
+/* A caret marks the tabs that carry a tray, and flips when it is open. */
+.sg-caret {
+  display:block; width:0; height:0; margin-top:1px;
+  border-left:3.5px solid transparent; border-right:3.5px solid transparent;
+  border-bottom:4px solid currentColor; opacity:.5;
+  transition:transform .3s ease, opacity .3s ease;
+}
+.sg-bottom.tray-open .sg-nav button.has-tray .sg-caret { opacity:.3; }
+.sg-nav button.on .sg-caret { opacity:.95; }
+.cov-pill.s-more { --c:var(--acc-sky); }
+
+/* The tab whose tray is open lights up, so the panel is clearly anchored to it. */
+.sg-nav button.tray-on { color:var(--tab); }
+.sg-nav button.tray-on .ico { opacity:1; filter:drop-shadow(0 0 10px var(--tab)); transform:translateY(-1px); }
+.sg-nav button.tray-on .sg-caret { opacity:1; transform:rotate(180deg); }
+.sg-nav button.tray-on::before {
+  content:''; position:absolute; top:-8px; left:50%; transform:translateX(-50%);
+  width:54px; height:34px; border-radius:50%;
+  background:radial-gradient(circle, color-mix(in srgb, var(--tab) 46%, transparent), transparent 68%);
+  filter:blur(5px);
+}

@@ -145,43 +145,21 @@
 
   /* ---------- collapsible quick-action rail ---------- */
 
-  var QUICK = [
-    { id: 'play', ico: '⚔', label: 'Play', items: [['Quick Match', 'vs AI'], ['Ranked Arena', 'Live'], ['Siege Expedition', 'Solo']] },
-    { id: 'cards', ico: '◈', label: 'Cards', items: [['Binder', '412'], ['Open Packs', '3'], ['New Arrivals', '7']] },
-    { id: 'decks', ico: '▤', label: 'Decks', items: [['My Decks', '6'], ['Deck Builder', ''], ['Auto Build', '']] },
-    { id: 'keep', ico: '⌂', label: 'Keep', items: [['Visit Keep', ''], ['Collect Remnants', '2h']] },
-    { id: 'social', ico: '☍', label: 'Social', items: [['Friends', '4 on'], ['Open Lobbies', '11']] },
-    { id: 'shop', ico: '⬢', label: 'Shop', items: [['Featured Packs', ''], ['Siegelcoins', '']] }
+  // One bar, not two. The quick-action rail used to sit directly above the tab
+  // bar, which read as a double header and cost ~56px of artwork. The tray
+  // mechanic it carried is worth keeping, so it moved onto the tabs themselves:
+  // a tab with sub-destinations slides its tray up out of the bar.
+  var NAV = [
+    { id: 'home',       ico: '⌂', label: 'Home' },
+    { id: 'play',       ico: '⚔', label: 'Play', items: [
+        ['Arena', 'vs AI'], ['Ranked 1v1', 'Live'], ['Siege Expedition', 'Solo'], ['Keep', '2h']] },
+    { id: 'collection', ico: '◈', label: 'Collection', items: [
+        ['Cards', '412'], ['Decks', '6'], ['Deck Builder', '']] },
+    { id: 'shop',       ico: '⬢', label: 'Shop', items: [
+        ['Featured Packs', ''], ['Open Packs', '3'], ['Siegelcoins', '']] },
+    { id: 'more',       ico: '⋯', label: 'More', items: [
+        ['Social', '4 on'], ['Profile', ''], ['Settings', ''], ['Help', '']] }
   ];
-
-  function railMarkup() {
-    return '<div class="sg-rail" data-rail>' + QUICK.map(function (g) {
-      return '<div class="sg-qa" data-qa="' + g.id + '">' +
-        '<button class="sg-qa-btn" type="button"><span class="ico">' + g.ico + '</span>' +
-        '<span class="lbl">' + esc(g.label) + '</span></button>' +
-        '<div class="sg-qa-panel"><div><ul>' + g.items.map(function (it) {
-          return '<li>' + esc(it[0]) + (it[1] ? '<span>' + esc(it[1]) + '</span>' : '') + '</li>';
-        }).join('') + '</ul></div></div></div>';
-    }).join('') + '</div>';
-  }
-
-  function mountRail(app, openId) {
-    var rail = app.querySelector('[data-rail]');
-    if (!rail) return;
-    var groups = [].slice.call(rail.querySelectorAll('.sg-qa'));
-    function open(target) {
-      // Exactly one group is ever expanded, so the rail never grows into a wall.
-      groups.forEach(function (g) { g.classList.toggle('open', g === target); });
-      var bottom = app.querySelector('[data-bottom]');
-      if (target && bottom) bottom.classList.remove('more-open');
-    }
-    groups.forEach(function (g) {
-      g.querySelector('.sg-qa-btn').addEventListener('click', function () {
-        open(g.classList.contains('open') ? null : g);
-      });
-      if (openId && g.getAttribute('data-qa') === openId) g.classList.add('open');
-    });
-  }
 
   /* ---------- content sections ---------- */
 
@@ -270,23 +248,19 @@
     '</header>';
   }
 
-  var NAV = [
-    { id: 'home', ico: '⌂', label: 'Home' },
-    { id: 'play', ico: '⚔', label: 'Play' },
-    { id: 'collection', ico: '◈', label: 'Collection' },
-    { id: 'decks', ico: '▤', label: 'Decks' },
-    { id: 'more', ico: '⋯', label: 'More' }
-  ];
-  var MORE = [['⌂', 'Keep'], ['☍', 'Social'], ['☺', 'Profile'], ['⬢', 'Shop'], ['⚙', 'Settings'], ['?', 'Help']];
-
-  function bottomMarkup(active, moreOpen, rail) {
-    return '<nav class="sg-bottom' + (moreOpen ? ' more-open' : '') + '" data-bottom>' +
-      '<div class="sg-more-sheet"><div><div class="sg-more-grid">' + MORE.map(function (m) {
-        return '<button type="button"><span class="ico">' + m[0] + '</span>' + esc(m[1]) + '</button>';
-      }).join('') + '</div></div></div>' + (rail || '') +
+  function bottomMarkup(active, openTray) {
+    return '<nav class="sg-bottom' + (openTray ? ' tray-open' : '') + '" data-bottom>' +
+      NAV.filter(function (n) { return n.items; }).map(function (n) {
+        return '<div class="sg-tray' + (n.id === openTray ? ' open' : '') + '" data-tray="' + n.id + '"><div>' +
+          '<ul>' + n.items.map(function (it) {
+            return '<li>' + esc(it[0]) + (it[1] ? '<span>' + esc(it[1]) + '</span>' : '') + '</li>';
+          }).join('') + '</ul></div></div>';
+      }).join('') +
       '<div class="sg-nav">' + NAV.map(function (n) {
-        return '<button type="button" data-nav="' + n.id + '" class="' + (n.id === active ? 'on' : '') + '">' +
-          '<span class="ico">' + n.ico + '</span>' + esc(n.label) + '</button>';
+        return '<button type="button" data-nav="' + n.id + '" class="' + (n.id === active ? 'on' : '') +
+          (n.items ? ' has-tray' : '') + (n.id === openTray ? ' tray-on' : '') + '">' +
+          '<span class="ico">' + n.ico + '</span>' + esc(n.label) +
+          (n.items ? '<i class="sg-caret" aria-hidden="true"></i>' : '') + '</button>';
       }).join('') + '</div>' +
     '</nav>';
   }
@@ -294,18 +268,27 @@
   function mountBottom(app) {
     var bottom = app.querySelector('[data-bottom]');
     if (!bottom) return;
+    var trays = [].slice.call(bottom.querySelectorAll('[data-tray]'));
+    function openTray(id) {
+      // Exactly one tray is ever open, so the bar never grows into a second header.
+      trays.forEach(function (t) { t.classList.toggle('open', t.getAttribute('data-tray') === id); });
+      bottom.classList.toggle('tray-open', Boolean(id));
+      // The open tray has to point back at the tab that owns it, or the panel
+      // reads as belonging to whichever tab happens to be selected.
+      bottom.querySelectorAll('[data-nav]').forEach(function (b) {
+        b.classList.toggle('tray-on', Boolean(id) && b.getAttribute('data-nav') === id);
+      });
+    }
     bottom.querySelectorAll('[data-nav]').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        var isMore = btn.getAttribute('data-nav') === 'more';
-        if (isMore) {
-          bottom.classList.toggle('more-open');
-          if (bottom.classList.contains('more-open')) {
-            app.querySelectorAll('.sg-qa.open').forEach(function (g) { g.classList.remove('open'); });
-          }
-          return;
+        var id = btn.getAttribute('data-nav');
+        var tray = bottom.querySelector('[data-tray="' + id + '"]');
+        var alreadyOpen = tray && tray.classList.contains('open');
+        openTray(alreadyOpen || !tray ? null : id);
+        // Home has no tray, so it just becomes the selected tab.
+        if (!tray) {
+          bottom.querySelectorAll('[data-nav]').forEach(function (b) { b.classList.toggle('on', b === btn); });
         }
-        bottom.classList.remove('more-open');
-        bottom.querySelectorAll('[data-nav]').forEach(function (b) { b.classList.toggle('on', b === btn); });
       });
     });
   }
@@ -321,11 +304,11 @@
     opts = opts || {};
     return topMarkup() +
       '<div class="sg-scroll">' + heroMarkup() + featuredMarkup() + gallerySection() + questsMarkup() + deckMarkup() +
-      '<div style="height:186px"></div></div>' +
-      bottomMarkup('home', !!opts.moreOpen, railMarkup());
+      '<div style="height:132px"></div></div>' +
+      bottomMarkup('home', opts.openTray);
   }
 
-  function galleryScreen() {
+  function galleryScreen(opts) {
     var elements = ['ALL', 'FIRE', 'WATER', 'EARTH', 'WIND', 'ICE', 'ELECTRIC', 'PSYCHIC', 'METAL'];
     var grid = CARDS.slice(0, 24);
     return topMarkup() +
@@ -346,7 +329,7 @@
         '<div style="height:90px"></div>' +
       '</div>' +
       '<div class="sg-sheet" data-sheet><div class="sg-sheet-card" data-sheet-card></div></div>' +
-      bottomMarkup('collection', false, railMarkup());
+      bottomMarkup('collection', opts.openTray);
   }
 
   function galleryCard(c) {
@@ -453,7 +436,7 @@
     '</article>';
   }
 
-  function playScreen() {
+  function playScreen(opts) {
     var lead = byId('solgator') || CARDS[0];
     return topMarkup() +
       '<div class="sg-scroll">' +
@@ -472,9 +455,9 @@
           '<button class="sg-swap" type="button">Swap</button>' +
         '</div>' +
         '<div class="sg-modes">' + MODES.map(modePanel).join('') + '</div>' +
-        '<div style="height:186px"></div>' +
+        '<div style="height:132px"></div>' +
       '</div>' +
-      bottomMarkup('play', false, railMarkup());
+      bottomMarkup('play', opts.openTray);
   }
 
   /* ---------- decks ---------- */
@@ -506,7 +489,7 @@
     '</article>';
   }
 
-  function decksScreen() {
+  function decksScreen(opts) {
     return topMarkup() +
       '<div class="sg-scroll">' +
         '<div class="sg-page-head"><h2>My Decks</h2><p>4 built &middot; 1 selected</p></div>' +
@@ -515,9 +498,9 @@
           '<button class="sg-ghost-btn" type="button"><span class="ico">✧</span>Auto Build</button>' +
         '</div>' +
         '<div class="sg-stack">' + DECKS.map(deckRow).join('') + '</div>' +
-        '<div style="height:186px"></div>' +
+        '<div style="height:132px"></div>' +
       '</div>' +
-      bottomMarkup('decks', false, railMarkup());
+      bottomMarkup('collection', opts.openTray);
   }
 
   /* ---------- shop ---------- */
@@ -534,7 +517,7 @@
     { amount: '8,000', bonus: '+1,600 bonus', price: '$24.99' }
   ];
 
-  function shopScreen() {
+  function shopScreen(opts) {
     var feature = GALLERY[3];
     var featureCard = byId(feature.card) || CARDS[0];
     return topMarkup() +
@@ -568,9 +551,9 @@
               '<span class="price">' + esc(bd.price) + '</span></button>';
           }).join('') + '</div>' +
         '</section>' +
-        '<div style="height:186px"></div>' +
+        '<div style="height:132px"></div>' +
       '</div>' +
-      bottomMarkup('more', false, railMarkup());
+      bottomMarkup('shop', opts.openTray);
   }
 
   /* ---------- profile ---------- */
@@ -585,7 +568,7 @@
     ['Arena', 'Loss', 'vs Ruune', '+6']
   ];
 
-  function profileScreen() {
+  function profileScreen(opts) {
     var showcase = GALLERY[2];
     var showcaseCard = byId(showcase.card) || CARDS[0];
     return topMarkup() +
@@ -632,9 +615,9 @@
               '<span class="gain">' + esc(r[3]) + '</span></div>';
           }).join('') + '</div>' +
         '</section>' +
-        '<div style="height:186px"></div>' +
+        '<div style="height:132px"></div>' +
       '</div>' +
-      bottomMarkup('more', false, railMarkup());
+      bottomMarkup('more', opts.openTray);
   }
 
   /* ---------- feature coverage ----------
@@ -645,41 +628,41 @@
      it on trust. `path` is how a player gets there in at most two taps. */
   var COVERAGE = [
     { area: 'Routes', rows: [
-      ['/home dashboard',      'Home tab',                              'home'],
-      ['/cards binder',        'Collection tab · rail › Cards › Binder', 'collection'],
-      ['/decks',               'Decks tab · rail › Decks › My Decks',   'decks'],
-      ['/deck-builder',        'rail › Decks › Deck Builder',           'decks'],
-      ['/social',              'rail › Social · More › Social',         'social'],
-      ['/social lobby',        'rail › Social › Open Lobbies',          'social'],
-      ['/profile',             'More › Profile',                        'profile'],
-      ['/achievements',        'Profile › Badges › All 42',             'profile'],
-      ['/shop',                'rail › Shop · More › Shop',             'shop'],
-      ['/play arena',          'Play tab · PLAY on hero',               'play'],
-      ['/siege expedition',    'Play › Siege Expedition',               'play'],
-      ['/keep',                'rail › Keep · More › Keep',             'keep'],
-      ['/help',                'More › Help',                           'help']
+      ['/home dashboard',      'Home tab',                                'home'],
+      ['/cards binder',        'Collection tab › Cards',                  'collection'],
+      ['/decks',               'Collection tray › Decks',                 'collection'],
+      ['/deck-builder',        'Collection tray › Deck Builder',          'collection'],
+      ['/social',              'More tray › Social',                      'more'],
+      ['/social lobby',        'Play tray › Ranked 1v1',                  'play'],
+      ['/profile',             'More tray › Profile',                     'more'],
+      ['/achievements',        'Profile › Badges › All 42',               'more'],
+      ['/shop',                'Shop tab',                                'shop'],
+      ['/play arena',          'Play tray › Arena · PLAY on hero',        'play'],
+      ['/siege expedition',    'Play tray › Siege Expedition',            'play'],
+      ['/keep',                'Play tray › Keep',                        'play'],
+      ['/help',                'More tray › Help',                        'more']
     ]},
     { area: 'Dashboard actions', rows: [
-      ['PVE battle',           'Play › Arena (primary panel)',          'play'],
-      ['Create 1v1 lobby',     'Play › Ranked 1v1 · rail › Social',     'play'],
-      ['Owned cards',          'Collection tab',                        'collection'],
-      ['Deck builder',         'rail › Decks › Deck Builder',           'decks'],
-      ['Open shop',            'rail › Shop › Featured Packs',          'shop'],
-      ['Saved decks',          'Decks tab',                             'decks']
+      ['PVE battle',           'Play › Arena (primary panel)',            'play'],
+      ['Create 1v1 lobby',     'Play › Ranked 1v1',                       'play'],
+      ['Owned cards',          'Collection tab',                          'collection'],
+      ['Deck builder',         'Collection tray › Deck Builder',          'collection'],
+      ['Open shop',            'Shop tab',                                'shop'],
+      ['Saved decks',          'Collection tray › Decks',                 'collection']
     ]},
     { area: 'Dashboard panels', rows: [
-      ['Active tables',        'Play › Ranked (live count) · Social',   'play'],
-      ['Search, filter, build','Collection › search icon + filter ctrl','collection'],
-      ['Recent progress',      'Home › Daily Objectives strip',         'home'],
+      ['Active tables',        'Play › Ranked (live count)',              'play'],
+      ['Search, filter, build','Collection › search icon + filter ctrl',   'collection'],
+      ['Recent progress',      'Home › Daily Objectives strip',           'home'],
       ['Loadout shelf',        'Home › Continue Playing · Play › Loadout','play'],
-      ['Element starters',     'Shop › Packs',                          'shop'],
-      ['Siegelcoin balance',   'Top bar chip (every screen)',           'home'],
-      ['Remnants / craft',     'rail › Keep › Collect Remnants',        'keep'],
-      ['Daily missions',       'Home › Daily Objectives strip',         'home'],
-      ['Match history',        'Profile › Recent',                      'profile'],
-      ['Pack odds',            'Shop › Packs › Odds',                   'shop'],
-      ['Card detail / zoom',   'Collection › tap a card',               'collection'],
-      ['Notifications',        'Top bar bell (every screen)',           'home']
+      ['Element starters',     'Shop › Packs',                            'shop'],
+      ['Siegelcoin balance',   'Top bar chip (every screen)',             'home'],
+      ['Remnants / craft',     'Play tray › Keep',                        'play'],
+      ['Daily missions',       'Home › Daily Objectives strip',           'home'],
+      ['Match history',        'Profile › Recent',                        'more'],
+      ['Pack odds',            'Shop › Packs › Odds',                     'shop'],
+      ['Card detail / zoom',   'Collection › tap a card',                 'collection'],
+      ['Notifications',        'Top bar bell (every screen)',             'home']
     ]}
   ];
 
@@ -700,7 +683,7 @@
     var app = document.createElement('div');
     app.className = 'sg-app';
     var builders = { collection: galleryScreen, decks: decksScreen, shop: shopScreen, profile: profileScreen, play: playScreen };
-    app.innerHTML = builders[screen] ? builders[screen]() : homeScreen(opts);
+    app.innerHTML = builders[screen] ? builders[screen](opts) : homeScreen(opts);
     host.appendChild(app);
     // Every screen carries the same chrome, so the rail and the tab bar are
     // wired unconditionally. Branching this is how the Cards screen ended up
@@ -712,7 +695,6 @@
       mountStrip(app);
       if (opts.questsOpen) app.querySelector('[data-strip]').classList.add('open');
     }
-    mountRail(app, opts.openQuick);
     mountBottom(app);
     return app;
   }
