@@ -1,5 +1,5 @@
 {
-  "token" : "K_yh8CSo9Jb7ZinlLYqr1pSBbw5y0Mo9",
+  "token" : "a6i3uMeTLvtu4q4ft40cSiSFKLEDBwLe",
   "status" : "ACTIVE",
   "currentNodeId" : -1,
   "lastReward" : "",
@@ -31,23 +31,23 @@
     "eventTitle" : "The Cinder Smith"
   },
   "landHistory" : [ {
-    "id" : "metal",
-    "name" : "Ironhold",
+    "id" : "fire",
+    "name" : "Emberfall",
     "kind" : "ELEMENTAL",
-    "elements" : [ "METAL" ],
-    "background" : "/img/lands/metal.webp",
+    "elements" : [ "FIRE" ],
+    "background" : "/img/lands/fire.webp",
     "locations" : {
-      "journey" : "/img/lands/locations/metal-journey.webp",
-      "shelter" : "/img/lands/locations/metal-shelter.webp",
-      "elite" : "/img/lands/locations/metal-elite.webp",
-      "boss" : "/img/lands/locations/metal-boss.webp"
+      "journey" : "/img/lands/locations/fire-journey.webp",
+      "shelter" : "/img/lands/locations/fire-shelter.webp",
+      "elite" : "/img/lands/locations/fire-elite.webp",
+      "boss" : "/img/lands/locations/fire-boss.webp"
     },
-    "feature" : "Iron Foundry",
+    "feature" : "Ember Forge",
     "featureType" : "SMITH",
-    "terrain" : "Iron cover",
-    "effect" : "METAL Siegelings start battles with +5 Shield.",
+    "terrain" : "Cinder heat",
+    "effect" : "FIRE Siegelings start battles with +1 Attack.",
     "encounters" : "Favored Siegelings have 4× draw weight in recruits, broker stock and card prizes.",
-    "eventTitle" : "The Foundry Keeper"
+    "eventTitle" : "The Cinder Smith"
   } ],
   "landSegment" : 0,
   "landSegmentRows" : 8,

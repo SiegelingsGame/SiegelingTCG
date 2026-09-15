@@ -151,8 +151,12 @@
   // a tab with sub-destinations slides its tray up out of the bar.
   var NAV = [
     { id: 'home',       ico: '⌂', label: 'Home' },
+    // Same vocabulary as the Play screen and the shipping picker: the two real
+    // modes are Battle and Siege. The tray listing Arena/Ranked/Siege Expedition
+    // was left over from the invented modes and disagreed with the screen it
+    // navigates to.
     { id: 'play',       ico: '⚔', label: 'Play', items: [
-        ['Arena', 'vs AI'], ['Ranked 1v1', 'Live'], ['Siege Expedition', 'Solo'], ['Keep', '2h']] },
+        ['Battle', 'Solo & PvP'], ['Siege', 'New'], ['Social Lobbies', '11 open'], ['Keep', '2h']] },
     { id: 'collection', ico: '◈', label: 'Collection', items: [
         ['Cards', '412'], ['Decks', '6'], ['Deck Builder', '']] },
     { id: 'shop',       ico: '⬢', label: 'Shop', items: [
