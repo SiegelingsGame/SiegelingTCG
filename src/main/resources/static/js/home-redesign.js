@@ -424,6 +424,59 @@
     if (opts.openCard) openSheet(byId(opts.openCard));
   }
 
+  /* ---------- play ---------- */
+
+  // Graphic-first mode picker: every mode is a full-bleed plate, the copy is a
+  // label and one line. Art source is deliberately mixed - gallery scenes where
+  // one exists for the mode, production Land plates otherwise.
+  var MODES = [
+    { id: 'arena',    label: 'Arena',            tag: 'Solo vs AI',   line: 'Three rounds against the Siege AI. Earn Siegelcoins and Remnants.',
+      art: '/img/gallery/bearzooka-rampage.webp', el: 'FIRE', primary: true },
+    { id: 'ranked',   label: 'Ranked 1v1',       tag: 'Live',         line: '11 tables open right now.',
+      art: '/img/gallery/bearnade-payload.webp',  el: 'ELECTRIC' },
+    { id: 'siege',    label: 'Siege Expedition', tag: 'Roguelike',    line: 'Run in progress — Emberwaste, Land 2.',
+      art: '/img/gallery/draco-brood.webp',       el: 'EARTH', resume: true },
+    { id: 'practice', label: 'Practice',         tag: 'No stakes',    line: 'Free board, no rewards, no timer.',
+      art: '/img/lands/aurora.webp',              el: 'ICE' }
+  ];
+
+  function modePanel(m) {
+    return '<article class="sg-mode' + (m.primary ? ' is-primary' : '') + '" style="--el:' + color(m.el) + '">' +
+      '<img class="sg-mode-bg" src="' + esc(m.art) + '" alt="" loading="lazy">' +
+      '<div class="sg-mode-veil"></div>' +
+      '<div class="sg-mode-body">' +
+        '<span class="sg-mode-tag">' + esc(m.tag) + '</span>' +
+        '<h3>' + esc(m.label) + '</h3>' +
+        '<p>' + esc(m.line) + '</p>' +
+      '</div>' +
+      '<span class="sg-mode-go">' + (m.resume ? 'Resume' : 'Play') + ' ›</span>' +
+    '</article>';
+  }
+
+  function playScreen() {
+    var lead = byId('solgator') || CARDS[0];
+    return topMarkup() +
+      '<div class="sg-scroll">' +
+        '<div class="sg-page-head"><h2>Choose your table</h2><p>Loadout: Emberwaste Vanguard &middot; 18W / 6L</p></div>' +
+        '<div class="sg-loadout" style="--el:' + color(lead.element) + '">' +
+          '<div class="sg-loadout-art"><img src="' + esc(lead.cardArtUrl) + '" alt="" loading="lazy"></div>' +
+          '<div class="sg-loadout-body">' +
+            '<span class="sg-loadout-kicker">Leading</span>' +
+            '<strong>' + esc(lead.name) + '</strong>' +
+            '<div class="sg-deck-els">' +
+              '<img src="' + icon('FIRE') + '" alt="Fire">' +
+              '<img src="' + icon('EARTH') + '" alt="Earth">' +
+              '<img src="' + icon('METAL') + '" alt="Metal">' +
+            '</div>' +
+          '</div>' +
+          '<button class="sg-swap" type="button">Swap</button>' +
+        '</div>' +
+        '<div class="sg-modes">' + MODES.map(modePanel).join('') + '</div>' +
+        '<div style="height:186px"></div>' +
+      '</div>' +
+      bottomMarkup('play', false, railMarkup());
+  }
+
   /* ---------- decks ---------- */
 
   var DECKS = [
@@ -584,28 +637,85 @@
       bottomMarkup('more', false, railMarkup());
   }
 
+  /* ---------- feature coverage ----------
+     The brief simplifies the navigation, which is only safe if nothing becomes
+     unreachable. This is the audit: every route, dashboard action and feature
+     the shipping hub exposes today, and the destination it has in the new IA.
+     Rendered on the preview board so a reviewer can check it rather than take
+     it on trust. `path` is how a player gets there in at most two taps. */
+  var COVERAGE = [
+    { area: 'Routes', rows: [
+      ['/home dashboard',      'Home tab',                              'home'],
+      ['/cards binder',        'Collection tab · rail › Cards › Binder', 'collection'],
+      ['/decks',               'Decks tab · rail › Decks › My Decks',   'decks'],
+      ['/deck-builder',        'rail › Decks › Deck Builder',           'decks'],
+      ['/social',              'rail › Social · More › Social',         'social'],
+      ['/social lobby',        'rail › Social › Open Lobbies',          'social'],
+      ['/profile',             'More › Profile',                        'profile'],
+      ['/achievements',        'Profile › Badges › All 42',             'profile'],
+      ['/shop',                'rail › Shop · More › Shop',             'shop'],
+      ['/play arena',          'Play tab · PLAY on hero',               'play'],
+      ['/siege expedition',    'Play › Siege Expedition',               'play'],
+      ['/keep',                'rail › Keep · More › Keep',             'keep'],
+      ['/help',                'More › Help',                           'help']
+    ]},
+    { area: 'Dashboard actions', rows: [
+      ['PVE battle',           'Play › Arena (primary panel)',          'play'],
+      ['Create 1v1 lobby',     'Play › Ranked 1v1 · rail › Social',     'play'],
+      ['Owned cards',          'Collection tab',                        'collection'],
+      ['Deck builder',         'rail › Decks › Deck Builder',           'decks'],
+      ['Open shop',            'rail › Shop › Featured Packs',          'shop'],
+      ['Saved decks',          'Decks tab',                             'decks']
+    ]},
+    { area: 'Dashboard panels', rows: [
+      ['Active tables',        'Play › Ranked (live count) · Social',   'play'],
+      ['Search, filter, build','Collection › search icon + filter ctrl','collection'],
+      ['Recent progress',      'Home › Daily Objectives strip',         'home'],
+      ['Loadout shelf',        'Home › Continue Playing · Play › Loadout','play'],
+      ['Element starters',     'Shop › Packs',                          'shop'],
+      ['Siegelcoin balance',   'Top bar chip (every screen)',           'home'],
+      ['Remnants / craft',     'rail › Keep › Collect Remnants',        'keep'],
+      ['Daily missions',       'Home › Daily Objectives strip',         'home'],
+      ['Match history',        'Profile › Recent',                      'profile'],
+      ['Pack odds',            'Shop › Packs › Odds',                   'shop'],
+      ['Card detail / zoom',   'Collection › tap a card',               'collection'],
+      ['Notifications',        'Top bar bell (every screen)',           'home']
+    ]}
+  ];
+
+  function coverageMarkup() {
+    return '<div class="cov">' + COVERAGE.map(function (group) {
+      return '<div class="cov-group"><h3>' + esc(group.area) + '</h3><table><tbody>' +
+        group.rows.map(function (r) {
+          return '<tr><th>' + esc(r[0]) + '</th><td>' + esc(r[1]) +
+            '</td><td class="cov-dest"><span class="cov-pill s-' + esc(r[2]) + '">' + esc(r[2]) + '</span></td></tr>';
+        }).join('') + '</tbody></table></div>';
+    }).join('') + '</div>';
+  }
+
   /* ---------- public mount ---------- */
 
   function render(host, screen, opts) {
     opts = opts || {};
     var app = document.createElement('div');
     app.className = 'sg-app';
-    var builders = { collection: galleryScreen, decks: decksScreen, shop: shopScreen, profile: profileScreen };
+    var builders = { collection: galleryScreen, decks: decksScreen, shop: shopScreen, profile: profileScreen, play: playScreen };
     app.innerHTML = builders[screen] ? builders[screen]() : homeScreen(opts);
     host.appendChild(app);
+    // Every screen carries the same chrome, so the rail and the tab bar are
+    // wired unconditionally. Branching this is how the Cards screen ended up
+    // rendering a rail that did not respond to taps.
     if (screen === 'collection') {
       mountGallery(app, opts);
-    } else if (builders[screen]) {
-      mountRail(app, opts.openQuick);
-    } else {
+    } else if (!builders[screen]) {
       mountHero(app, opts);
-      mountRail(app, opts.openQuick);
       mountStrip(app);
       if (opts.questsOpen) app.querySelector('[data-strip]').classList.add('open');
     }
+    mountRail(app, opts.openQuick);
     mountBottom(app);
     return app;
   }
 
-  window.SiegelingsHomeConcept = { render: render, cards: CARDS };
+  window.SiegelingsHomeConcept = { render: render, cards: CARDS, coverageMarkup: coverageMarkup, coverage: COVERAGE };
 })();

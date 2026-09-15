@@ -763,3 +763,216 @@ body.single-screen .sg-app { position:fixed; inset:0; }
 
 /* a win-rate bar tinted by element read as a second, meaningless signal */
 .sg-deckrow-bar i { background:linear-gradient(90deg, var(--gold), var(--amber)); }
+
+/* ==========================================================================
+   SPECTRUM PASS
+   The first cut was navy + gold + amber only, which read as one colour at a
+   glance. The game already owns twelve elemental hues, so the chrome now
+   borrows them: each tab, each quick action, each section and each stat carries
+   its own accent. Gold stays the "premium" signal (rewards, currency, primary
+   actions); everything else gets hue.
+   ========================================================================== */
+:root {
+  --acc-coral:#ff7a5c;
+  --acc-cyan:#3fd8d1;
+  --acc-violet:#9b7bf0;
+  --acc-magenta:#f06ec0;
+  --acc-emerald:#4fd07a;
+  --acc-sky:#54a8f0;
+}
+
+/* --- bottom tabs: one hue each, so the bar is a spectrum, not five greys --- */
+.sg-nav button[data-nav="home"]       { --tab:var(--amber); }
+.sg-nav button[data-nav="play"]       { --tab:var(--acc-coral); }
+.sg-nav button[data-nav="collection"] { --tab:var(--acc-violet); }
+.sg-nav button[data-nav="decks"]      { --tab:var(--acc-cyan); }
+.sg-nav button[data-nav="more"]       { --tab:var(--gold-bright); }
+.sg-nav button .ico { color:var(--tab); opacity:.42; filter:none; transition:opacity .3s ease, transform .3s ease; }
+.sg-nav button.on { color:var(--tab); }
+.sg-nav button.on .ico { opacity:1; transform:translateY(-1px); }
+.sg-nav button.on::before {
+  background:radial-gradient(circle, color-mix(in srgb, var(--tab) 46%, transparent), transparent 68%);
+}
+
+/* --- quick rail: icons keep their own colour at rest --- */
+.sg-qa[data-qa="play"]   { --qa:var(--acc-coral); }
+.sg-qa[data-qa="cards"]  { --qa:var(--acc-violet); }
+.sg-qa[data-qa="decks"]  { --qa:var(--acc-cyan); }
+.sg-qa[data-qa="keep"]   { --qa:var(--acc-emerald); }
+.sg-qa[data-qa="social"] { --qa:var(--acc-sky); }
+.sg-qa[data-qa="shop"]   { --qa:var(--gold-bright); }
+.sg-qa-btn .ico { color:var(--qa, var(--muted)); filter:none; opacity:.9; }
+.sg-qa-btn .lbl { color:color-mix(in srgb, var(--qa, #8fa2bd) 60%, var(--muted)); opacity:1; }
+.sg-qa.open .sg-qa-btn {
+  color:#0b0f18; border-color:color-mix(in srgb, var(--qa) 70%, #fff);
+  background:linear-gradient(180deg, color-mix(in srgb, var(--qa) 78%, #fff), var(--qa));
+  box-shadow:0 6px 22px color-mix(in srgb, var(--qa) 48%, transparent);
+}
+.sg-qa.open .sg-qa-btn .ico, .sg-qa.open .sg-qa-btn .lbl { color:#0b0f18; }
+.sg-qa-panel ul { border-color:color-mix(in srgb, var(--qa, #c8a54f) 34%, transparent); }
+.sg-qa-panel li span { color:var(--qa, var(--gold)); }
+
+/* --- section heads get a coloured rule so the page reads in bands --- */
+.sg-section-head h3 { position:relative; padding-left:13px; }
+.sg-section-head h3::before {
+  content:''; position:absolute; left:0; top:50%; transform:translateY(-50%);
+  width:4px; height:16px; border-radius:2px;
+  background:var(--sec, var(--gold)); box-shadow:0 0 12px var(--sec, var(--gold));
+}
+.sg-section:nth-of-type(1) { --sec:var(--acc-violet); }
+.sg-section:nth-of-type(2) { --sec:var(--acc-cyan); }
+.sg-section:nth-of-type(3) { --sec:var(--acc-coral); }
+.sg-section:nth-of-type(4) { --sec:var(--acc-emerald); }
+.sg-section:nth-of-type(5) { --sec:var(--acc-magenta); }
+.sg-section-head a { color:var(--sec, var(--gold)); }
+
+/* --- profile stat tiles and badges rotate through the spectrum --- */
+.sg-tiles div:nth-child(1) { --t:var(--acc-coral); }
+.sg-tiles div:nth-child(2) { --t:var(--acc-cyan); }
+.sg-tiles div:nth-child(3) { --t:var(--acc-violet); }
+.sg-tiles div {
+  border-color:color-mix(in srgb, var(--t) 34%, transparent);
+  background:linear-gradient(180deg, color-mix(in srgb, var(--t) 13%, rgba(13,20,35,.62)), rgba(13,20,35,.62));
+}
+.sg-tiles b { color:var(--t); }
+.sg-badge:nth-child(6n+1) { --bg1:var(--acc-coral); }
+.sg-badge:nth-child(6n+2) { --bg1:var(--acc-cyan); }
+.sg-badge:nth-child(6n+3) { --bg1:var(--acc-violet); }
+.sg-badge:nth-child(6n+4) { --bg1:var(--acc-magenta); }
+.sg-badge:nth-child(6n+5) { --bg1:var(--acc-emerald); }
+.sg-badge:nth-child(6n+6) { --bg1:var(--acc-sky); }
+.sg-badge.earned { border-color:color-mix(in srgb, var(--bg1) 38%, transparent); }
+.sg-badge.earned i {
+  color:#0b0f18; border-color:color-mix(in srgb, var(--bg1) 70%, #fff);
+  background:linear-gradient(180deg, color-mix(in srgb, var(--bg1) 76%, #fff), var(--bg1));
+  box-shadow:0 6px 18px color-mix(in srgb, var(--bg1) 42%, transparent);
+}
+.sg-recent .mode { color:var(--acc-cyan); border-color:color-mix(in srgb, var(--acc-cyan) 36%, transparent); }
+.sg-recent:nth-child(2) .mode { color:var(--acc-emerald); border-color:color-mix(in srgb, var(--acc-emerald) 36%, transparent); }
+.sg-recent:nth-child(3) .mode { color:var(--acc-coral); border-color:color-mix(in srgb, var(--acc-coral) 36%, transparent); }
+
+/* --- daily objectives: the strip takes an elemental tint too --- */
+.sg-strip { border-color:color-mix(in srgb, var(--acc-emerald) 26%, transparent); }
+.sg-strip-head .cnt { color:var(--acc-emerald); }
+.sg-strip-head h4::before {
+  content:''; display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:8px;
+  background:var(--acc-emerald); box-shadow:0 0 10px var(--acc-emerald);
+}
+.sg-bar i { background:linear-gradient(90deg, var(--acc-emerald), var(--acc-cyan)); }
+
+/* --- element filter pills read in full colour, not grey until chosen --- */
+.sg-pill { color:color-mix(in srgb, var(--el, #c8a54f) 55%, var(--ink)); }
+.sg-pill.on {
+  color:#0b0f18; border-color:var(--el, #c8a54f);
+  background:linear-gradient(180deg, color-mix(in srgb, var(--el,#c8a54f) 78%, #fff), var(--el, #c8a54f));
+  box-shadow:0 6px 18px color-mix(in srgb, var(--el,#c8a54f) 40%, transparent);
+}
+
+/* --- card plates: stronger elemental wash so a grid reads as a spectrum --- */
+.sg-gal-plate::before { opacity:.56; }
+.sg-feat-plate::before { opacity:.58; }
+.sg-gal-plate, .sg-feat-plate {
+  background:linear-gradient(172deg,
+    color-mix(in srgb, var(--el,#f05b2f) 22%, rgba(40,56,80,.52)),
+    rgba(7,12,21,.94));
+}
+.sg-gal-plate { box-shadow:0 16px 30px rgba(0,0,0,.5), inset 0 0 0 1px color-mix(in srgb, var(--el,#c8a54f) 34%, transparent); }
+.sg-feat-plate { box-shadow:0 14px 30px rgba(0,0,0,.5), inset 0 0 0 1px color-mix(in srgb, var(--el,#c8a54f) 34%, transparent); }
+
+/* --- deck rows: the win bar and edge take the deck's own element --- */
+.sg-deckrow-bar i { background:linear-gradient(90deg, var(--el, var(--gold)), color-mix(in srgb, var(--el, var(--amber)) 40%, #fff)); }
+.sg-deckrow { box-shadow:0 16px 32px rgba(0,0,0,.5), inset 0 0 0 1px color-mix(in srgb, var(--el,#708eb4) 30%, transparent); }
+.sg-deckrow.is-active { box-shadow:0 16px 32px rgba(0,0,0,.5), inset 0 0 0 1px color-mix(in srgb, var(--el,#c8a54f) 72%, transparent); }
+
+/* --- top bar chips pick up colour --- */
+.sg-bell { color:var(--acc-sky); border-color:color-mix(in srgb, var(--acc-sky) 30%, transparent); }
+
+/* ---------- play: graphic-first mode picker ---------- */
+.sg-loadout {
+  position:relative; display:flex; align-items:center; gap:12px;
+  margin:14px 18px 4px; padding:10px 12px; border-radius:18px; min-height:76px;
+  border:1px solid color-mix(in srgb, var(--el,#c8a54f) 34%, transparent);
+  background:linear-gradient(100deg, color-mix(in srgb, var(--el,#f05b2f) 20%, rgba(13,20,35,.72)), rgba(9,14,26,.72));
+}
+.sg-loadout-art { flex:0 0 58px; height:66px; display:flex; align-items:flex-end; justify-content:center; }
+.sg-loadout-art img { width:100%; height:100%; object-fit:contain; object-position:center bottom; filter:drop-shadow(0 8px 12px rgba(0,0,0,.7)); }
+.sg-loadout-body { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:3px; }
+.sg-loadout-kicker { font-size:9px; letter-spacing:.22em; text-transform:uppercase; color:var(--el,var(--gold)); }
+.sg-loadout-body strong { font-family:var(--serif); font-size:16px; font-weight:600; }
+.sg-swap {
+  flex:0 0 auto; height:32px; padding:0 14px; border-radius:999px; cursor:pointer;
+  font-size:10.5px; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--ink); border:1px solid var(--steel-soft); background:rgba(11,17,32,.6);
+}
+.sg-modes { display:flex; flex-direction:column; gap:13px; padding:14px 18px 0; }
+.sg-mode {
+  position:relative; height:132px; border-radius:20px; overflow:hidden; cursor:pointer;
+  box-shadow:0 16px 34px rgba(0,0,0,.52), inset 0 0 0 1px color-mix(in srgb, var(--el,#708eb4) 38%, transparent);
+  transition:transform .3s cubic-bezier(.2,.8,.25,1);
+}
+.sg-mode.is-primary {
+  height:188px;
+  box-shadow:0 20px 44px rgba(0,0,0,.6), inset 0 0 0 1px color-mix(in srgb, var(--el,#c8a54f) 72%, transparent),
+             0 0 46px color-mix(in srgb, var(--el,#f05b2f) 26%, transparent);
+}
+.sg-mode:active { transform:translateY(-3px); }
+.sg-mode-bg { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.sg-mode-veil {
+  position:absolute; inset:0;
+  background:
+    linear-gradient(92deg, rgba(5,8,15,.94) 22%, rgba(5,8,15,.52) 58%, rgba(5,8,15,.14) 100%),
+    linear-gradient(180deg, color-mix(in srgb, var(--el,#f05b2f) 22%, transparent), transparent 60%);
+}
+.sg-mode-body { position:absolute; inset:0; padding:15px 16px; display:flex; flex-direction:column; justify-content:center; gap:5px; max-width:74%; }
+.sg-mode-tag {
+  align-self:flex-start; font-size:8.5px; letter-spacing:.2em; text-transform:uppercase;
+  padding:3px 9px; border-radius:999px; color:#0b0f18;
+  background:linear-gradient(180deg, color-mix(in srgb, var(--el,#c8a54f) 76%, #fff), var(--el,#c8a54f));
+}
+.sg-mode-body h3 { font-family:var(--serif); font-size:23px; margin:0; font-weight:600; letter-spacing:.01em; }
+.sg-mode.is-primary .sg-mode-body h3 { font-size:29px; }
+.sg-mode-body p { margin:0; font-size:11.5px; color:var(--muted); line-height:1.5; }
+.sg-mode-go {
+  position:absolute; right:13px; bottom:12px; font-size:10px; font-weight:700;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--el,var(--gold-bright));
+  padding:7px 14px; border-radius:999px;
+  border:1px solid color-mix(in srgb, var(--el,#c8a54f) 56%, transparent);
+  background:rgba(6,10,18,.72); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+}
+.sg-mode.is-primary .sg-mode-go {
+  right:14px; bottom:14px; padding:9px 20px; border-radius:999px; color:#0b0f18;
+  background:linear-gradient(180deg,#ffd58a,var(--amber));
+  box-shadow:0 8px 22px rgba(242,160,61,.45);
+  text-shadow:none;
+}
+
+/* ---------- feature-coverage table (board only, not part of the app) ---------- */
+.cov { display:grid; grid-template-columns:repeat(auto-fit, minmax(420px, 1fr)); gap:26px; margin:6px 0 46px; }
+.cov-group h3 {
+  font-family:var(--serif); font-size:17px; margin:0 0 10px; font-weight:600; color:var(--gold-bright);
+}
+.cov table { width:100%; border-collapse:collapse; font-size:12.5px; }
+.cov tr { border-bottom:1px solid rgba(112,142,180,.14); }
+.cov th {
+  text-align:left; font-weight:600; color:var(--ink); padding:8px 12px 8px 0; white-space:nowrap;
+}
+.cov td { color:var(--muted); padding:8px 12px 8px 0; }
+.cov-dest { width:1%; text-align:right; padding-right:0 !important; }
+.cov-pill {
+  display:inline-block; font-size:9.5px; letter-spacing:.14em; text-transform:uppercase;
+  padding:3px 9px; border-radius:999px; color:#0b0f18; font-weight:700;
+  background:var(--c, #8fa2bd);
+}
+.cov-pill.s-home       { --c:var(--amber); }
+.cov-pill.s-play       { --c:var(--acc-coral); }
+.cov-pill.s-collection { --c:var(--acc-violet); }
+.cov-pill.s-decks      { --c:var(--acc-cyan); }
+.cov-pill.s-shop       { --c:var(--gold-bright); }
+.cov-pill.s-profile    { --c:var(--acc-magenta); }
+.cov-pill.s-social     { --c:var(--acc-sky); }
+.cov-pill.s-keep       { --c:var(--acc-emerald); }
+.cov-pill.s-help       { --c:#aeb5b8; }
+.cov-note {
+  margin:0 0 20px; font-size:13px; color:var(--muted); line-height:1.6; max-width:880px;
+}
+.cov-note b { color:var(--ink); }

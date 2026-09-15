@@ -16,9 +16,17 @@
       dashboard) for the cards themselves — so the layout is judged against the illustrations it will
       actually ship with. These frames are live: tap the rail, the objectives strip, “More”, the
       filters and the cards. Open any screen full-bleed on a phone with <code>?screen=</code> plus
-      <code>home</code>, <code>collection</code>, <code>decks</code>, <code>shop</code>,
+      <code>home</code>, <code>play</code>, <code>collection</code>, <code>decks</code>, <code>shop</code>,
       <code>profile</code>, <code>nav</code> or <code>more</code>.
     </p>
+    <h2 class="board-title" style="font-size:22px;margin:10px 0 6px">Feature coverage &mdash; nothing dropped, only re-homed</h2>
+    <p class="cov-note">
+      The navigation is simpler, not smaller. Every route, dashboard action and panel the shipping hub
+      exposes today is listed below with the place it lives in the new information architecture, and
+      the screen that owns it. Everything is reachable in <b>at most two taps</b> from any screen,
+      because the quick-action rail and the tab bar are on every one of them.
+    </p>
+    <div id="coverage"></div>
     <div class="board-rail">
       <div class="board-slot">
         <h2>1 &middot; Home</h2>
@@ -28,43 +36,49 @@
         <div class="phone"><div class="phone-screen" id="slot-home"></div></div>
       </div>
       <div class="board-slot">
-        <h2>2 &middot; Cards</h2>
+        <h2>2 &middot; Play</h2>
+        <p>Graphic-first mode picker: Arena leads as a tall plate, the rest are wide panels. Your
+           loadout sits at the top so the deck you are about to fight with is never a guess.</p>
+        <div class="phone"><div class="phone-screen" id="slot-play"></div></div>
+      </div>
+      <div class="board-slot">
+        <h2>3 &middot; Cards</h2>
         <p>Browsing as an art gallery: illustrations overflow frameless plates, search starts as an
            icon, element filters hide behind one control, and a tap lifts the card onto a detail sheet.</p>
         <div class="phone"><div class="phone-screen" id="slot-collection"></div></div>
       </div>
       <div class="board-slot">
-        <h2>3 &middot; Decks</h2>
+        <h2>4 &middot; Decks</h2>
         <p>Each deck is a wide artwork panel — its Land behind, its lead Siegeling breaking the right
            edge — with element icons, record and a win-rate bar. Builder and Auto Build sit on top.</p>
         <div class="phone"><div class="phone-screen" id="slot-decks"></div></div>
       </div>
       <div class="board-slot">
-        <h2>4 &middot; Shop</h2>
+        <h2>5 &middot; Shop</h2>
         <p>One cinematic featured offer carrying the whole upper screen, then pack faces using the real
            elemental card backs, and Siegelcoin bundles as quiet rows rather than loud tiles.</p>
         <div class="phone"><div class="phone-screen" id="slot-shop"></div></div>
       </div>
       <div class="board-slot">
-        <h2>5 &middot; Profile</h2>
+        <h2>6 &middot; Profile</h2>
         <p>A gallery plate behind the crest, level ring and XP, three stat tiles, a showcase carousel
            of the player's own Siegelings, badges, and recent results.</p>
         <div class="phone"><div class="phone-screen" id="slot-profile"></div></div>
       </div>
       <div class="board-slot">
-        <h2>6 &middot; Expanded quick action</h2>
+        <h2>7 &middot; Expanded quick action</h2>
         <p>One group open at a time — here <strong>Decks</strong> has grown from an icon into a gold
            pill with its three shortcuts floating above the rail. Tapping another collapses it.</p>
         <div class="phone"><div class="phone-screen" id="slot-nav"></div></div>
       </div>
       <div class="board-slot">
-        <h2>7 &middot; &ldquo;More&rdquo;, expanded upward</h2>
+        <h2>8 &middot; &ldquo;More&rdquo;, expanded upward</h2>
         <p>The five permanent tabs stay five. Keep, Social, Profile, Shop, Settings and Help live in a
            glass sheet that lifts out of the tab bar, and closes any open quick action.</p>
         <div class="phone"><div class="phone-screen" id="slot-more"></div></div>
       </div>
       <div class="board-slot">
-        <h2>8 &middot; Card detail</h2>
+        <h2>9 &middot; Card detail</h2>
         <p>A tap (or long press) lifts the illustration clean out of the grid and onto a sheet that
            carries only what matters: name, element, rarity and three numbers.</p>
         <div class="phone"><div class="phone-screen" id="slot-detail"></div></div>
@@ -87,14 +101,16 @@
       window.SiegelingsHomeConcept.render(document.body, 'home', { moreOpen: true, questsOpen: true, freeze: true });
     } else if (single === 'collection') {
       window.SiegelingsHomeConcept.render(document.body, 'collection', { filtersOpen: true });
-    } else if (single === 'decks' || single === 'shop' || single === 'profile') {
+    } else if (single === 'decks' || single === 'shop' || single === 'profile' || single === 'play') {
       window.SiegelingsHomeConcept.render(document.body, single, {});
     } else {
       window.SiegelingsHomeConcept.render(document.body, 'home', {});
     }
     return;
   }
+  document.getElementById('coverage').innerHTML = window.SiegelingsHomeConcept.coverageMarkup();
   window.SiegelingsHomeConcept.render(document.getElementById('slot-home'), 'home', {});
+  window.SiegelingsHomeConcept.render(document.getElementById('slot-play'), 'play', {});
   window.SiegelingsHomeConcept.render(document.getElementById('slot-decks'), 'decks', {});
   window.SiegelingsHomeConcept.render(document.getElementById('slot-shop'), 'shop', {});
   window.SiegelingsHomeConcept.render(document.getElementById('slot-profile'), 'profile', {});
