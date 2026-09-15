@@ -976,3 +976,210 @@ body.single-screen .sg-app { position:fixed; inset:0; }
   margin:0 0 20px; font-size:13px; color:var(--muted); line-height:1.6; max-width:880px;
 }
 .cov-note b { color:var(--ink); }
+
+/* ==========================================================================
+   VIBRANCE PASS
+   The spectrum pass added hues but kept a near-black navy ground and
+   half-chroma accents, so it still read as "dark UI with tinted details".
+   This pass goes for joy: a ground that is itself a colour (deep indigo, not
+   black), accents at full chroma, artwork no longer dimmed into the
+   background, and light that spills instead of being contained.
+   ========================================================================== */
+:root {
+  /* the ground is a colour now, not an absence of one */
+  --navy:#0d0a26;
+  --navy-2:#151040;
+  --navy-3:#1e1856;
+  --ink:#fbf7ff;
+  --muted:#b3a9e0;
+  --steel-soft:rgba(160,140,255,.26);
+
+  /* full-chroma accents */
+  --acc-coral:#ff5a3c;
+  --acc-cyan:#00e8d4;
+  --acc-violet:#b45cff;
+  --acc-magenta:#ff47c4;
+  --acc-emerald:#28e878;
+  --acc-sky:#2f9cff;
+  --acc-lemon:#ffd83d;
+  --amber:#ff9b21;
+  --gold:#ffc53d;
+  --gold-bright:#ffe08a;
+}
+
+/* Ambient colour behind everything: three coloured lights instead of one
+   near-black wash, so the page has hue even where nothing is drawn. */
+.sg-app {
+  background:
+    radial-gradient(120% 68% at 50% 0%, #2b1a6e 0%, #1a1147 40%, #0d0a26 78%),
+    radial-gradient(70% 50% at 8% 34%, rgba(180,92,255,.22), transparent 70%),
+    radial-gradient(70% 50% at 96% 62%, rgba(0,232,212,.16), transparent 70%),
+    #0d0a26;
+}
+body.concept-board {
+  background:
+    radial-gradient(900px 620px at 12% -6%, rgba(180,92,255,.26), transparent 70%),
+    radial-gradient(820px 560px at 90% 8%, rgba(0,232,212,.18), transparent 70%),
+    radial-gradient(700px 520px at 60% 96%, rgba(255,90,60,.16), transparent 70%),
+    #0b0820;
+}
+
+/* Artwork stops being dimmed into the page and gets lifted instead. */
+.sg-hero-land { filter:saturate(1.24) brightness(.94) contrast(1.05); }
+.sg-hero.is-scene .sg-hero-land { filter:saturate(1.3) brightness(1.02) contrast(1.05); }
+.sg-deck-bg { filter:saturate(1.2) brightness(.78); }
+.sg-deckrow-bg { filter:saturate(1.28) brightness(.74); }
+.sg-mode-bg, .sg-feature-bg, .sg-crest-bg { filter:saturate(1.2) contrast(1.04); }
+
+/* The veils were black; they are coloured now, so shade still reads as hue. */
+.sg-deckrow-veil {
+  background:linear-gradient(100deg, rgba(13,10,38,.94) 28%, rgba(21,16,64,.50) 66%, rgba(30,24,86,.12) 100%);
+}
+.sg-deck-veil {
+  background:linear-gradient(100deg, rgba(13,10,38,.94) 26%, rgba(21,16,64,.46) 62%, rgba(30,24,86,.14) 100%);
+}
+.sg-mode-veil {
+  background:
+    linear-gradient(92deg, rgba(13,10,38,.92) 20%, rgba(21,16,64,.46) 56%, rgba(30,24,86,.08) 100%),
+    linear-gradient(180deg, color-mix(in srgb, var(--el,#ff5a3c) 34%, transparent), transparent 62%);
+}
+.sg-hero.is-scene .sg-hero-tint {
+  background:linear-gradient(180deg, rgba(13,10,38,.56) 0%, rgba(13,10,38,0) 24%, rgba(13,10,38,0) 62%, rgba(13,10,38,.34) 84%);
+}
+.sg-crest-veil { background:linear-gradient(180deg, rgba(13,10,38,.52) 0%, rgba(13,10,38,0) 26%, rgba(13,10,38,.34) 62%, rgba(13,10,38,.60) 84%); }
+.sg-feature-veil { background:linear-gradient(180deg, rgba(13,10,38,.52) 0%, rgba(13,10,38,0) 24%, rgba(13,10,38,.40) 62%, rgba(13,10,38,.66) 86%); }
+.sg-hero.is-scene .sg-hero-art, .sg-crest-bg, .sg-feature-bg {
+  -webkit-mask-image:linear-gradient(180deg, #000 0%, #000 58%, rgba(0,0,0,.55) 80%, rgba(0,0,0,0) 98%);
+  mask-image:linear-gradient(180deg, #000 0%, #000 58%, rgba(0,0,0,.55) 80%, rgba(0,0,0,0) 98%);
+}
+
+/* Panels sit on translucent indigo, not near-black. */
+.sg-chip, .sg-bell, .sg-icon-btn, .sg-ghost-btn, .sg-swap, .sg-buy, .sg-pill,
+.sg-strip, .sg-bundle, .sg-recent, .sg-tiles div, .sg-badge, .sg-loadout, .sg-rail {
+  background-color:rgba(36,26,96,.52);
+}
+.sg-qa-panel ul, .sg-more-sheet { background:rgba(26,17,71,.94); }
+.sg-nav { background:linear-gradient(180deg, rgba(21,16,64,.68), rgba(13,10,38,.96)); }
+.sg-bottom { background:linear-gradient(180deg, rgba(13,10,38,0), rgba(13,10,38,.62) 40%, rgba(13,10,38,.92) 66%); }
+.sg-sheet-card { background:linear-gradient(180deg, rgba(40,28,108,.97), rgba(15,11,44,.99)); }
+.sg-gal-plate, .sg-feat-plate {
+  background:linear-gradient(172deg,
+    color-mix(in srgb, var(--el,#ff5a3c) 42%, rgba(52,36,128,.72)),
+    rgba(15,11,44,.92));
+}
+.sg-gal-plate::before, .sg-feat-plate::before { opacity:.78; }
+.sg-gal-plate, .sg-feat-plate, .sg-plate {
+  box-shadow:0 16px 30px rgba(6,3,24,.6),
+             inset 0 0 0 1px color-mix(in srgb, var(--el,#ffc53d) 58%, transparent),
+             0 0 30px color-mix(in srgb, var(--el,#ff5a3c) 26%, transparent);
+}
+
+/* Primary actions burn instead of glowing politely. */
+.sg-play, .sg-cta, .sg-deck-play, .sg-mode.is-primary .sg-mode-go {
+  background:linear-gradient(135deg, #ffe066 0%, var(--amber) 44%, #ff5a3c 100%);
+  color:#2b0d02;
+}
+.sg-play {
+  box-shadow:0 14px 40px rgba(255,120,45,.56), 0 0 0 1px rgba(255,236,190,.7) inset,
+             0 0 64px rgba(255,90,60,.34);
+}
+.sg-cta { box-shadow:0 12px 32px rgba(255,120,45,.52); }
+.sg-bundle .price { background:linear-gradient(135deg,#ffe066,var(--amber)); color:#2b0d02; }
+
+/* Selected states use their own hue at full strength. */
+.sg-icon-btn.on {
+  color:#170634; border-color:var(--acc-lemon);
+  background:linear-gradient(180deg,#fff0a8,var(--acc-lemon));
+  box-shadow:0 6px 20px rgba(255,216,61,.44);
+}
+.sg-tag, .sg-mode-tag { color:#170634; }
+.sg-deckrow.is-active {
+  box-shadow:0 16px 34px rgba(6,3,24,.56),
+             inset 0 0 0 1px color-mix(in srgb, var(--el,#ffc53d) 85%, transparent),
+             0 0 34px color-mix(in srgb, var(--el,#ff9b21) 30%, transparent);
+}
+.sg-mode.is-primary {
+  box-shadow:0 22px 48px rgba(6,3,24,.62),
+             inset 0 0 0 1px color-mix(in srgb, var(--el,#ffc53d) 80%, transparent),
+             0 0 56px color-mix(in srgb, var(--el,#ff5a3c) 38%, transparent);
+}
+
+/* Glows on the coloured chrome, so light spills rather than being contained. */
+.sg-nav button.on .ico { filter:drop-shadow(0 0 10px var(--tab)); }
+.sg-qa-btn .ico { filter:drop-shadow(0 0 7px color-mix(in srgb, var(--qa,#b3a9e0) 60%, transparent)); }
+.sg-tiles b { text-shadow:0 0 18px color-mix(in srgb, var(--t) 62%, transparent); }
+.sg-tiles div { border-color:color-mix(in srgb, var(--t) 52%, transparent);
+  background:linear-gradient(180deg, color-mix(in srgb, var(--t) 24%, rgba(36,26,96,.52)), rgba(21,16,64,.6)); }
+.sg-crest-ring { background:conic-gradient(from 210deg, var(--acc-magenta), var(--acc-violet), var(--acc-cyan), var(--acc-lemon), var(--acc-magenta)); }
+.sg-crest-ring i { background:linear-gradient(160deg,#2c1f78,#150f3e); color:var(--acc-lemon); }
+.sg-xp i { background:linear-gradient(90deg, var(--acc-magenta), var(--acc-lemon)); box-shadow:0 0 16px rgba(255,216,61,.7); }
+.sg-bar i { background:linear-gradient(90deg, var(--acc-emerald), var(--acc-lemon)); box-shadow:0 0 12px rgba(40,232,120,.6); }
+.sg-quest.done .tick { background:linear-gradient(180deg,#8dffc0,var(--acc-emerald)); border-color:var(--acc-emerald); color:#052a14; }
+.sg-quest .qr { color:var(--acc-lemon); }
+.sg-rar.legendary { background:linear-gradient(135deg,#fff3b0,var(--acc-lemon)); box-shadow:0 0 12px var(--acc-lemon); }
+.sg-rar.epic { background:var(--acc-violet); box-shadow:0 0 10px var(--acc-violet); }
+.sg-rar.rare { background:var(--acc-sky); box-shadow:0 0 10px var(--acc-sky); }
+.sg-rar.uncommon { background:var(--acc-emerald); box-shadow:0 0 10px var(--acc-emerald); }
+.sg-rar.common { background:#c9c0f0; }
+.sg-eyebrow { color:var(--acc-lemon); }
+.sg-hero-credit span { color:var(--acc-lemon); }
+.sg-chip.coin { color:var(--acc-lemon); }
+.sg-avatar { background:conic-gradient(from 210deg, var(--acc-magenta), var(--acc-violet), var(--acc-cyan), var(--acc-lemon), var(--acc-magenta)); }
+.sg-avatar i { background:linear-gradient(160deg,#2c1f78,#150f3e); color:var(--acc-lemon); }
+.sg-avatar b { background:#150f3e; border-color:var(--acc-lemon); color:var(--acc-lemon); }
+.sg-bell::after { background:var(--acc-magenta); box-shadow:0 0 10px var(--acc-magenta); }
+
+/* Low-chroma elements (METAL #aeb5b8, NEUTRAL, UNDEAD) left whole tiles grey.
+   CLAUDE.md convention 4 is that element identity uses the style.css hexes and
+   nothing else, so those stay canonical everywhere they MEAN the element — the
+   icon, the rarity pip, the glow, the filter pill. The plate ground is
+   decoration, not identity, so it gets a positional rainbow underneath the
+   element wash: the grid reads as a spectrum and no card is ever dull. */
+.sg-gal-card:nth-child(6n+1), .sg-feat:nth-child(6n+1) { --joy:var(--acc-magenta); }
+.sg-gal-card:nth-child(6n+2), .sg-feat:nth-child(6n+2) { --joy:var(--acc-cyan); }
+.sg-gal-card:nth-child(6n+3), .sg-feat:nth-child(6n+3) { --joy:var(--acc-violet); }
+.sg-gal-card:nth-child(6n+4), .sg-feat:nth-child(6n+4) { --joy:var(--acc-lemon); }
+.sg-gal-card:nth-child(6n+5), .sg-feat:nth-child(6n+5) { --joy:var(--acc-emerald); }
+.sg-gal-card:nth-child(6n+6), .sg-feat:nth-child(6n+6) { --joy:var(--acc-sky); }
+.sg-gal-plate, .sg-feat-plate {
+  background:
+    linear-gradient(172deg, color-mix(in srgb, var(--el,#ff5a3c) 46%, transparent), transparent 72%),
+    linear-gradient(200deg, color-mix(in srgb, var(--joy,#b45cff) 40%, transparent), transparent 66%),
+    linear-gradient(172deg, rgba(58,40,140,.85), rgba(17,12,50,.94));
+}
+.sg-gal-plate, .sg-feat-plate, .sg-plate {
+  box-shadow:0 16px 30px rgba(6,3,24,.6),
+             inset 0 0 0 1px color-mix(in srgb, var(--el,#ffc53d) 46%, color-mix(in srgb, var(--joy,#b45cff) 60%, transparent)),
+             0 0 34px color-mix(in srgb, var(--joy,#b45cff) 30%, transparent);
+}
+/* the spot glow under each creature keeps the element's own colour */
+.sg-gal-plate::before, .sg-feat-plate::before { opacity:.72; }
+
+/* Captions and headings carry a little colour too, so text is not all white. */
+.sg-gal-cap .nm, .sg-feat-name { color:var(--ink); }
+.sg-page-head h2, .sg-gal-head h2, .sg-crest-body h2, .sg-feature-body h2 {
+  background:linear-gradient(100deg, #fff 10%, var(--acc-lemon) 58%, var(--acc-magenta) 98%);
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+.sg-hero.is-scene .sg-hero-title {
+  background:linear-gradient(100deg, #fff 6%, var(--acc-lemon) 46%, var(--amber) 76%, var(--acc-coral) 100%);
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+  filter:drop-shadow(0 3px 18px rgba(255,120,45,.5));
+}
+
+/* The rail and tab bar read as a lit strip rather than a dark one. */
+.sg-rail {
+  background:linear-gradient(180deg, rgba(58,40,140,.62), rgba(28,19,88,.62));
+  border-color:rgba(180,140,255,.34);
+  box-shadow:0 12px 34px rgba(6,3,24,.5), 0 0 26px rgba(120,80,240,.24);
+}
+.sg-nav button { color:color-mix(in srgb, var(--tab) 46%, var(--muted)); }
+.sg-qa-btn .ico { opacity:1; }
+.sg-qa-btn .lbl { color:color-mix(in srgb, var(--qa, #b3a9e0) 78%, #fff); opacity:.9; }
+.sg-chip, .sg-bell { border-color:rgba(180,140,255,.36); }
+
+/* Section rules become little gradient bars. */
+.sg-section-head h3::before {
+  background:linear-gradient(180deg, color-mix(in srgb, var(--sec, var(--gold)) 60%, #fff), var(--sec, var(--gold)));
+  box-shadow:0 0 14px var(--sec, var(--gold));
+}
