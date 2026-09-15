@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Siegelings TCG</title>
+<link rel="icon" href="/favicon.ico">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="stylesheet" href="/css/home-redesign.css?v=2">
+<style>
+  /* Boot state: the shell paints immediately on the app's own ground so the
+     first frame is never a white flash while the catalog is in flight. */
+  html, body { margin:0; background:#0d0a26; }
+  .boot { position:fixed; inset:0; display:grid; place-items:center; z-index:80;
+          background:#0d0a26; transition:opacity .4s ease; }
+  .boot.gone { opacity:0; pointer-events:none; }
+  .boot span { width:34px; height:34px; border-radius:50%;
+               border:2px solid rgba(180,140,255,.28); border-top-color:#ffd83d;
+               animation:spin .9s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="boot" id="boot"><span></span></div>
+<script src="/js/home-redesign-data.js?v=1"></script>
+<script src="/js/home-redesign.js?v=2"></script>
+<script src="/js/home-redesign-live.js?v=1"></script>
+<script>
+(function () {
+  var screen = new URLSearchParams(location.search).get('screen') || 'home';
+  var boot = document.getElementById('boot');
+
+  function paint(live) {
+    document.body.classList.add('single-screen');
+    var opts = {
+      live: live,
+      guest: live ? live.guest : true,
+      lobbies: live ? live.lobbies : null,
+      siegeRuns: live ? live.siegeRuns : []
+    };
+    window.SiegelingsHomeConcept.render(document.body, screen, opts);
+    boot.classList.add('gone');
+    setTimeout(function () { boot.remove(); }, 450);
+  }
+
+  // The catalog is the only slice worth waiting on; everything else the
+  // renderer can do without. A failure still paints, on the snapshot.
+  window.SiegelingsHomeLive.load().then(paint).catch(function () { paint(null); });
+})();
+</script>
+</body>
+</html>

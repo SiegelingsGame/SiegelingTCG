@@ -1332,3 +1332,41 @@ body.concept-board {
 .sg-mode { height:166px; }
 .sg-mode.is-primary .sg-mode-body h3 { font-size:36px; }
 .sg-mode-body h3 { font-size:28px; }
+
+/* ---------- Siege resume (replaces the invented "LEADING" strip) ---------- */
+.sg-resume {
+  display:flex; align-items:center; gap:12px; text-decoration:none;
+  margin:14px 18px 0; padding:13px 15px; border-radius:18px; min-height:72px;
+  border:1px solid color-mix(in srgb, var(--acc-emerald) 44%, transparent);
+  background:linear-gradient(100deg, color-mix(in srgb, var(--acc-emerald) 18%, rgba(36,26,96,.55)), rgba(21,16,64,.62));
+  color:var(--ink);
+}
+.sg-resume.is-empty {
+  border-color:rgba(180,140,255,.28);
+  background:rgba(26,17,71,.5);
+}
+.sg-resume-icon {
+  flex:0 0 auto; width:38px; height:38px; border-radius:12px; display:grid; place-items:center;
+  font-size:19px; color:var(--acc-emerald);
+  border:1px solid color-mix(in srgb, var(--acc-emerald) 40%, transparent);
+  background:rgba(13,10,38,.5);
+}
+.sg-resume.is-empty .sg-resume-icon { color:var(--muted); border-color:rgba(180,140,255,.24); }
+.sg-resume-body { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.sg-resume-kicker { font-size:9px; letter-spacing:.22em; text-transform:uppercase; color:var(--acc-emerald); }
+.sg-resume-body strong { font-family:var(--serif); font-size:16px; font-weight:600; }
+.sg-resume-body em {
+  font-style:normal; font-size:11px; color:var(--muted);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.sg-resume-go {
+  flex:0 0 auto; font-size:11px; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
+  color:var(--acc-emerald); padding:8px 14px; border-radius:999px;
+  border:1px solid color-mix(in srgb, var(--acc-emerald) 46%, transparent);
+  background:rgba(13,10,38,.45);
+}
+.sg-resume.is-empty .sg-resume-go { color:var(--muted); border-color:rgba(180,140,255,.26); }
+
+/* links must not inherit browser blue/underline anywhere in the app shell */
+.sg-app a { text-decoration:none; color:inherit; }
+.sg-tray li a { flex:1 1 auto; color:inherit; }

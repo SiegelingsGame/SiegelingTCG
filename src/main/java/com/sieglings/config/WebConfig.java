@@ -78,6 +78,9 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addViewController("/siege").setViewName("forward:/adventure.html");
         registry.addViewController("/keep").setViewName("forward:/keep.html");
         registry.addViewController("/help").setViewName("forward:/help.html");
+        // The art-first hub, served alongside the existing /home rather than
+        // replacing it, so the current hub stays reachable while this is reviewed.
+        registry.addViewController("/next").setViewName("forward:/home-next.html");
         registry.addRedirectViewController("/card_dashboard", "/card-dashboard.html");
         registry.addRedirectViewController("/card-dashboard", "/card-dashboard.html");
     }

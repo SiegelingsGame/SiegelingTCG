@@ -140,6 +140,10 @@
         "destination": "/help.html"
       },
       {
+        "source": "/next",
+        "destination": "/home-next.html"
+      },
+      {
         "source": "/api/cards/editor",
         "function": {
           "functionId": "api",
