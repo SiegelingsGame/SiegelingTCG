@@ -66,15 +66,15 @@
         <div class="phone"><div class="phone-screen" id="slot-profile"></div></div>
       </div>
       <div class="board-slot">
-        <h2>7 &middot; Expanded quick action</h2>
-        <p>One group open at a time — here <strong>Decks</strong> has grown from an icon into a gold
-           pill with its three shortcuts floating above the rail. Tapping another collapses it.</p>
+        <h2>7 &middot; Collection tray</h2>
+        <p>One bar, not two. <strong>Collection</strong> slides its tray up out of the tab bar —
+           Cards, Decks and Deck Builder now live here rather than in a second header.</p>
         <div class="phone"><div class="phone-screen" id="slot-nav"></div></div>
       </div>
       <div class="board-slot">
-        <h2>8 &middot; &ldquo;More&rdquo;, expanded upward</h2>
-        <p>The five permanent tabs stay five. Keep, Social, Profile, Shop, Settings and Help live in a
-           glass sheet that lifts out of the tab bar, and closes any open quick action.</p>
+        <h2>8 &middot; Play tray</h2>
+        <p><strong>Keep</strong> now sits under Play alongside Arena, Ranked and Siege. Only one tray
+           is ever open, so the bar never becomes a second header again.</p>
         <div class="phone"><div class="phone-screen" id="slot-more"></div></div>
       </div>
       <div class="board-slot">
@@ -96,9 +96,9 @@
     document.body.className = 'single-screen';
     document.body.innerHTML = '';
     if (single === 'nav') {
-      window.SiegelingsHomeConcept.render(document.body, 'home', { openQuick: 'decks', freeze: true });
+      window.SiegelingsHomeConcept.render(document.body, 'home', { openTray: 'collection', freeze: true });
     } else if (single === 'more') {
-      window.SiegelingsHomeConcept.render(document.body, 'home', { moreOpen: true, questsOpen: true, freeze: true });
+      window.SiegelingsHomeConcept.render(document.body, 'home', { openTray: 'play', questsOpen: true, freeze: true });
     } else if (single === 'collection') {
       window.SiegelingsHomeConcept.render(document.body, 'collection', { filtersOpen: true });
     } else if (single === 'decks' || single === 'shop' || single === 'profile' || single === 'play') {
@@ -115,10 +115,10 @@
   window.SiegelingsHomeConcept.render(document.getElementById('slot-shop'), 'shop', {});
   window.SiegelingsHomeConcept.render(document.getElementById('slot-profile'), 'profile', {});
   window.SiegelingsHomeConcept.render(document.getElementById('slot-nav'), 'home', {
-    openQuick: 'decks', heroIndex: 1, freeze: true
+    openTray: 'collection', heroIndex: 1, freeze: true
   });
   window.SiegelingsHomeConcept.render(document.getElementById('slot-more'), 'home', {
-    moreOpen: true, questsOpen: true, heroIndex: 2, freeze: true
+    openTray: 'play', questsOpen: true, heroIndex: 2, freeze: true
   });
   window.SiegelingsHomeConcept.render(document.getElementById('slot-collection'), 'collection', {
     filtersOpen: true
