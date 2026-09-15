@@ -1820,10 +1820,16 @@ class GameJavaScriptRegressionTest {
         String keepCss = Files.readString(KEEP_CSS);
         String keepJs = Files.readString(KEEP_JS);
 
+        // The two Keep pins are floors, not exact numbers, like the game.js/style.css
+        // guards below: every later Keep change re-cuts them, and pinning the exact
+        // version made this lesson red for three unrelated bumps (54 -> 57) while every
+        // behavioural assertion in the chain still held.
+        assertTrue(
+                assetPin(keepHtml, "keep\\.css") >= 54 && assetPin(keepHtml, "keep\\.js") >= 54,
+                "Keep's CSS and JS must stay cache-pinned so a re-cut reaches returning browsers."
+        );
         assertTrue(
                 keepHtml.contains("class=\"paper-building-shell\"")
-                        && keepHtml.contains("/css/keep.css?v=54")
-                        && keepHtml.contains("/js/keep.js?v=54")
                         && keepHtml.contains("id=\"hallFavoriteResident\"")
                         && keepHtml.contains("id=\"productionReady\"")
                         && keepHtml.contains("id=\"collectOverlay\"")
