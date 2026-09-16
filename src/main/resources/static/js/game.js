@@ -15039,11 +15039,11 @@ function buildZigZagPath(x1, y1, x2, y2, amplitude, count) {
 
 const ALL_DIRECTIONS = ['TOP', 'TOP_RIGHT', 'RIGHT', 'BOTTOM_RIGHT', 'BOTTOM', 'BOTTOM_LEFT', 'LEFT', 'TOP_LEFT'];
 const NOTCH_ICON_PATHS = {
-    FIRE: '/img/notches/notch-fire.png',
-    EARTH: '/img/notches/notch-earth.png',
-    WIND: '/img/notches/notch-wind.png',
+    FIRE: '/img/notches/notch-fire.png?v=2',
+    EARTH: '/img/notches/notch-earth.png?v=2',
+    WIND: '/img/notches/notch-wind.png?v=2',
     WATER: '/img/notches/notch-water.png?v=2',
-    ICE: '/img/notches/notch-ice.png',
+    ICE: '/img/notches/notch-ice.png?v=2',
     SHADOW: '/img/notches/notch-shadow.png?v=2',
     ELECTRIC: '/img/notches/notch-electric.png?v=2',
     METAL: '/img/notches/notch-metal.png?v=2',
