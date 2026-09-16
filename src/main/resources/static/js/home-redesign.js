@@ -169,12 +169,12 @@
     // Sign-in used to leave the new design entirely: /login forwarded to the old
     // hub, so tapping Sign In dropped the player onto the page this redesign
     // replaced. It is a screen here now.
-    '/login': 'auth', '/lobbies': 'social'
+    '/login': 'auth', '/lobbies': 'social', '/gallery': 'art'
   };
   var SCREEN_PATH = {
     home: '/home', collection: '/cards', decks: '/decks', builder: '/deck-builder',
     shop: '/shop', profile: '/profile', social: '/social', settings: '/settings',
-    help: '/help', play: '/home', auth: '/login'
+    help: '/help', play: '/home', auth: '/login', art: '/gallery'
   };
   function screenForPath(pathname) {
     var clean = String(pathname || '/home').replace(/\/+$/, '') || '/home';
@@ -193,7 +193,8 @@
     'Home': 'home', 'Cards': 'collection', 'Collection': 'collection',
     'Decks': 'decks', 'Shop': 'shop', 'Profile': 'profile', 'Play': 'play',
     'Deck Builder': 'builder', 'Social': 'social', 'Settings': 'settings', 'Help': 'help',
-    'Sign In': 'auth', 'Create Account': 'auth', 'Log In': 'auth', 'Register': 'auth'
+    'Sign In': 'auth', 'Create Account': 'auth', 'Log In': 'auth', 'Register': 'auth',
+    'Gallery': 'art'
   };
   var EXTERNAL = {
     'Battle': '/battle', 'Siege': '/siege', 'Keep': '/keep',
@@ -259,7 +260,7 @@
       '<section class="sg-section">' +
         '<div class="sg-section-head"><h3>Featured Siegelings</h3><a href="/cards" data-screen="collection">Gallery</a></div>' +
         '<div class="sg-swipe">' + FEATURED.map(function (c) {
-          return '<article class="sg-feat" style="--el:' + color(c.element) + '">' +
+          return '<article class="sg-feat" data-card="' + esc(c.id) + '" tabindex="0" style="--el:' + color(c.element) + '">' +
             '<div class="sg-feat-plate"></div>' +
             '<div class="sg-feat-art"><img src="' + esc(c.cardArtUrl) + '" alt="' + esc(c.name) + '" loading="lazy"></div>' +
             '<div class="sg-feat-foot"><span class="sg-feat-name">' + esc(c.name) + '</span>' +
@@ -272,14 +273,14 @@
 
   function gallerySection() {
     return '<section class="sg-section">' +
-      '<div class="sg-section-head"><h3>From the Gallery</h3><a href="/cards" data-screen="collection">See All</a></div>' +
+      '<div class="sg-section-head"><h3>From the Gallery</h3><a href="/gallery" data-screen="art">See All</a></div>' +
       '<div class="sg-swipe sg-swipe-wide">' + GALLERY.map(function (g) {
         var card = byId(g.card) || CARDS[0];
-        return '<article class="sg-plate" style="--el:' + color(card.element) + '">' +
+        return '<a class="sg-plate" href="/gallery" data-screen="art" style="--el:' + color(card.element) + '">' +
           '<img src="' + plate(g, true) + '" alt="' + esc(g.title) + '" loading="lazy">' +
           '<div class="sg-plate-foot"><strong>' + esc(g.title) + '</strong>' +
           '<span>' + esc(card.name) + ' &middot; ' + esc(g.place) + '</span></div>' +
-        '</article>';
+        '</a>';
       }).join('') + '</div>' +
     '</section>';
   }
@@ -390,6 +391,14 @@
   // notify an account-less player about.
   // Real balance when progression answers; the guest starter otherwise. A guest
   // genuinely holds 100, so that is a fact rather than a placeholder.
+  // Number of SiegeKnights the account owns, or nothing at all. Never a made-up
+  // level.
+  function knightBadge(opts) {
+    var knights = opts && opts.live && opts.live.knights;
+    var n = knights && knights.length;
+    return n ? '<b title="SiegeKnights owned">' + esc(n) + '</b>' : '';
+  }
+
   function accountInitial(opts) {
     var n = (opts && opts.live && opts.live.displayName) || '';
     return n ? n.charAt(0).toUpperCase() : '·';
@@ -411,8 +420,12 @@
         esc(formatCoins(opts, guest)) + '</span>' +
       (guest
         ? '<a class="sg-signin" href="/login" data-screen="auth">Sign In</a>'
-        : '<span class="sg-avatar"><i>' + esc(accountInitial(opts)) + '</i><b>' +
-          esc((opts && opts.live && opts.live.level) || '—') + '</b></span>' +
+        // The badge used to read a `level` the backend has never had: there is
+        // no account level anywhere, only per-SiegeKnight levels. It shows how
+        // many knights the account owns, which is real, and the crest is a link
+        // to the profile because that is what tapping your own name should do.
+        : '<a class="sg-avatar" href="/profile" data-screen="profile" aria-label="Your profile">' +
+          '<i>' + esc(accountInitial(opts)) + '</i>' + knightBadge(opts) + '</a>' +
           '<button class="sg-bell" type="button" aria-label="Notifications">✦</button>') +
     '</header>';
   }
@@ -494,6 +507,7 @@
     return topMarkup(opts) +
       '<div class="sg-scroll">' + heroMarkup() + featuredMarkup() + leaderboardSection(opts) + gallerySection() + questsMarkup(opts) + expeditionsSection(opts) +
       '<div style="height:132px"></div></div>' +
+      sheetHost() +
       bottomMarkup('home', opts);
   }
 
@@ -536,7 +550,7 @@
         '<div class="sg-gal-more" data-more hidden><button type="button">Show more</button></div>' +
         '<div style="height:132px"></div>' +
       '</div>' +
-      '<div class="sg-sheet" data-sheet><div class="sg-sheet-card" data-sheet-card></div></div>' +
+      sheetHost() +
       bottomMarkup('collection', opts);
   }
 
@@ -607,8 +621,7 @@
     var grid = app.querySelector('[data-grid]');
     var count = app.querySelector('[data-count]');
     var more = app.querySelector('[data-more]');
-    var sheet = app.querySelector('[data-sheet]');
-    var sheetCard = app.querySelector('[data-sheet-card]');
+    var openSheet = mountSheet(app, opts) || function () {};
     var activeEl = 'ALL', activeRarity = 'ALL', activeType = 'ALL', query = '', limit = 24;
 
     function matches() {
@@ -669,32 +682,6 @@
     });
     more.querySelector('button').addEventListener('click', function () { limit += 24; repaint(); });
 
-    function openSheet(card) {
-      var abilities = card.abilities || (card.ability ? [card.ability] : []);
-      sheetCard.innerHTML = '<div class="sg-sheet-grab"></div>' +
-        '<div class="sg-sheet-art"><img src="' + esc(card.cardArtUrl) + '" alt="' + esc(card.name) + '"></div>' +
-        '<h3>' + esc(card.name) + '</h3>' +
-        '<div class="sg-sheet-meta"><img src="' + esc(icon(card.element)) + '" alt="">' +
-        esc(title(card.element)) + ' · ' + esc(title(card.rarity)) + '</div>' +
-        '<div class="sg-sheet-stats">' +
-          '<div><span>Health</span><b>' + esc(card.health == null ? '—' : card.health) + '</b></div>' +
-          '<div><span>Speed</span><b>' + esc(card.speed == null ? '—' : card.speed) + '</b></div>' +
-          '<div><span>Cost</span><b>' + esc(card.costAmount || '—') + '</b></div>' +
-        '</div>' +
-        (abilities.length
-          ? '<div class="sg-sheet-abilities">' + abilities.slice(0, 3).map(function (a) {
-              return '<div class="sg-sheet-ability"><strong>' + esc(a.name || 'Ability') + '</strong>' +
-                (a.description ? '<span>' + esc(a.description) + '</span>' : '') + '</div>';
-            }).join('') + '</div>'
-          : (card.description ? '<p class="sg-sheet-desc">' + esc(card.description) + '</p>' : '')) +
-        '<a class="sg-sheet-cta" href="/deck-builder">Use in a deck ›</a>';
-      sheet.classList.add('open');
-    }
-    grid.addEventListener('click', function (e) {
-      var host = e.target.closest ? e.target.closest('[data-card]') : null;
-      if (host) openSheet(byIdIn(ALL_CARDS, host.getAttribute('data-card')) || byId(host.getAttribute('data-card')));
-    });
-    sheet.addEventListener('click', function (e) { if (e.target === sheet) sheet.classList.remove('open'); });
 
     if (opts.filtersOpen) { filters.classList.add('open'); app.querySelector('[data-filter-toggle]').classList.add('on'); }
     repaint();
@@ -857,17 +844,34 @@
     return (pk.elements && pk.elements[0]) || 'NEUTRAL';
   }
 
+  // Every pack was drawing the elemental card back for its first element, so the
+  // Siegeling, Strategy, Deception and SiegeKnight packs - which have no element -
+  // all fell through to Fire and looked identical. These are the same four
+  // special backs the shipping shop uses, keyed the same way, so the art matches
+  // what a player sees when the pack is actually opened.
+  var PACK_BACK = {
+    pack_siegeling_random: '/img/packs/siegeling-back.webp',
+    pack_spell_random: '/img/packs/spell-card-back.webp',
+    pack_trap_random: '/img/packs/trap-card-back.webp',
+    pack_siegeknight: '/img/knights/card-back-siegeknight.png'
+  };
+
+  function packBack(pk) {
+    if (PACK_BACK[pk.id]) return PACK_BACK[pk.id];
+    var el = String(packElement(pk)).toLowerCase();
+    return '/img/decks/card-back-' + el + '.webp';
+  }
+
   function packCard(pk) {
     var el = packElement(pk);
     var cardsPer = pk.odds && pk.odds.cardsPerPack;
-    return '<article class="sg-pack" style="--el:' + color(el) + '">' +
-      '<div class="sg-pack-face"><img src="/img/decks/card-back-' + String(el).toLowerCase() +
-        '.webp" alt="" loading="lazy" onerror="this.style.visibility=\'hidden\'"></div>' +
+    return '<button class="sg-pack" type="button" data-pack="' + esc(pk.id) + '" style="--el:' + color(el) + '">' +
+      '<span class="sg-pack-face"><img src="' + esc(packBack(pk)) + '" alt="" loading="lazy"></span>' +
       '<strong>' + esc(pk.name || pk.id) + '</strong>' +
-      '<span>' + esc(cardsPer ? cardsPer + ' cards' : '') + '</span>' +
-      '<button class="sg-buy" type="button"><img src="/img/ui/siegel-coin.webp" alt="">' +
-        esc(pk.price != null ? pk.price : '—') + '</button>' +
-    '</article>';
+      '<span class="sg-pack-note">' + esc(cardsPer ? cardsPer + ' cards' : '') + '</span>' +
+      '<span class="sg-buy"><img src="/img/ui/siegel-coin.webp" alt="">' +
+        esc(pk.price != null ? pk.price : '—') + '</span>' +
+    '</button>';
   }
 
   // The hero is a real pack, not a promotion: the cheapest starter pack when the
@@ -878,6 +882,19 @@
     return pool.slice().sort(function (x, y) {
       return (x.price == null ? 1e9 : x.price) - (y.price == null ? 1e9 : y.price);
     })[0];
+  }
+
+  // A guest has no account to grant the cards to, so the buy sends them to
+  // sign in rather than to a server error.
+  function mountShop(app, opts) {
+    var packs = (opts.live && opts.live.packs) || [];
+    app.addEventListener('click', function (e) {
+      var btn = e.target.closest ? e.target.closest('[data-pack]') : null;
+      if (!btn) return;
+      if (opts.guest) { window.location.href = '/login'; return; }
+      var pk = packs.filter(function (p) { return p.id === btn.getAttribute('data-pack'); })[0];
+      if (pk) openPack(pk, opts);
+    });
   }
 
   function shopScreen(opts) {
@@ -896,7 +913,8 @@
                 '<span class="sg-tag">' + esc(title(heroEl)) + ' &middot; Starter</span>' +
                 '<h2>' + esc(hero.name || hero.id) + '</h2>' +
                 '<p>' + esc(hero.description || '') + '</p>' +
-                '<button class="sg-cta" type="button"><img src="/img/ui/siegel-coin.webp" alt="">' +
+                '<button class="sg-cta" type="button" data-pack="' + esc(hero.id) + '">' +
+                  '<img src="/img/ui/siegel-coin.webp" alt="">' +
                   esc(hero.price != null ? hero.price : '—') + '</button>' +
               '</div>' +
             '</section>'
@@ -919,6 +937,405 @@
         '<div style="height:132px"></div>' +
       '</div>' +
       bottomMarkup('shop', opts);
+  }
+
+  /* ---------- art gallery ----------
+     "From the Gallery" on the home screen showed five scenes and its See All
+     went nowhere. This is the whole collection in the same style: the cinematic
+     gallery scenes plus the original site's loading-art library, which
+     loading-art.js already pools and caches from /api/art/loading. Tapping a
+     plate opens it full-bleed with its title. No pagination and no filters -
+     it is an art gallery, so the art is the interface. */
+
+  function galleryPieces() {
+    var art = (window.SiegelingsLoadingArt && window.SiegelingsLoadingArt.pool()) || [];
+    return art.map(function (piece) {
+      return {
+        id: piece.id,
+        title: piece.title || title(piece.id),
+        place: piece.place || '',
+        thumb: piece.landscape || piece.portrait || '',
+        full: piece.portrait || piece.landscape || ''
+      };
+    }).filter(function (p) { return p.thumb; });
+  }
+
+  function artScreen(opts) {
+    opts = opts || {};
+    var pieces = galleryPieces();
+    return topMarkup(opts) +
+      '<div class="sg-scroll">' +
+        '<div class="sg-page-head"><h2>The Gallery</h2><p>' +
+          esc(pieces.length) + ' piece' + (pieces.length === 1 ? '' : 's') + '</p></div>' +
+        (pieces.length
+          ? '<div class="sg-art-grid" data-art-grid>' + pieces.map(function (p, i) {
+              return '<button class="sg-art" type="button" data-art="' + i + '">' +
+                '<img src="' + esc(p.thumb) + '" alt="' + esc(p.title) + '" loading="lazy">' +
+                '<span class="sg-art-veil"></span>' +
+                '<span class="sg-art-foot"><strong>' + esc(p.title) + '</strong>' +
+                  (p.place ? '<em>' + esc(p.place) + '</em>' : '') + '</span>' +
+              '</button>';
+            }).join('') + '</div>'
+          : '<div class="sg-empty-row">The gallery has not loaded yet.</div>') +
+        '<div style="height:132px"></div>' +
+      '</div>' +
+      '<div class="sg-lightbox" data-lightbox hidden>' +
+        '<img data-lightbox-img alt="">' +
+        '<div class="sg-lightbox-foot" data-lightbox-foot></div>' +
+        '<button class="sg-lightbox-close" type="button" data-lightbox-close aria-label="Close">\u00d7</button>' +
+      '</div>' +
+      bottomMarkup('collection', opts);
+  }
+
+  function mountArt(app) {
+    var grid = app.querySelector('[data-art-grid]');
+    var box = app.querySelector('[data-lightbox]');
+    if (!box) return;
+    var img = box.querySelector('[data-lightbox-img]');
+    var foot = box.querySelector('[data-lightbox-foot]');
+    var pieces = galleryPieces();
+
+    function close() { box.hidden = true; img.removeAttribute('src'); }
+    box.querySelector('[data-lightbox-close]').addEventListener('click', close);
+    box.addEventListener('click', function (e) { if (e.target === box) close(); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !box.hidden) close();
+    });
+
+    if (!grid) return;
+    grid.addEventListener('click', function (e) {
+      var btn = e.target.closest ? e.target.closest('[data-art]') : null;
+      if (!btn) return;
+      var p = pieces[Number(btn.getAttribute('data-art'))];
+      if (!p) return;
+      img.src = p.full;
+      img.alt = p.title;
+      foot.innerHTML = '<strong>' + esc(p.title) + '</strong>' + (p.place ? '<em>' + esc(p.place) + '</em>' : '');
+      box.hidden = false;
+    });
+  }
+
+  /* ---------- card detail sheet ----------
+     Tapping a Featured Siegeling did nothing. It now opens the same sheet the
+     binder uses, widened to the three places a Siegeling actually exists:
+
+       Arena  - health, speed, preferred row, its notch ring and its abilities
+                with the energy each one costs. All printed on the card.
+       Siege  - the abilities a Siegeling carries become the cards it plays in an
+                expedition, and an evolution is a real progression, so both are
+                named. Nothing about AP is claimed: the Siege engine derives that
+                server-side and the catalog does not carry it.
+       Keep   - real only when this Siegeling is a resident of YOUR Keep, in which
+                case its rapport level and the bonus it is granting come straight
+                from /api/keep. Otherwise the sheet says it is not in residence
+                rather than inventing a buff.
+
+     It also shows the composed card face rather than the bare art, because that
+     is the object the player recognises. */
+
+  // Eight directions, not four: the catalog uses the four edges AND the four
+  // corners (TOP_LEFT … BOTTOM_RIGHT). Filtering to the edges alone silently
+  // dropped two thirds of a card's notches - Dracosleaf's six read as two.
+  var NOTCH_EDGES = ['TOP', 'RIGHT', 'BOTTOM', 'LEFT'];
+  var NOTCH_CORNER = {
+    TOP_LEFT:     'top:-5px;left:-5px',
+    TOP_RIGHT:    'top:-5px;right:-5px',
+    BOTTOM_LEFT:  'bottom:-5px;left:-5px',
+    BOTTOM_RIGHT: 'bottom:-5px;right:-5px'
+  };
+
+  function notchDot(n, style) {
+    return '<i class="sg-sheet-notch" style="--el:' + color(n.element) + ';' + style +
+      '" title="' + esc(title(n.element) + ' ' + title(n.direction)) + '"></i>';
+  }
+
+  function notchRing(card) {
+    var notches = (card.notches || []).filter(function (n) {
+      var d = String((n && n.direction) || '').toUpperCase();
+      return NOTCH_EDGES.indexOf(d) !== -1 || NOTCH_CORNER[d];
+    });
+    if (!notches.length) return '';
+    var dots = '';
+    // A corner holds one notch, so it is placed directly.
+    notches.forEach(function (n) {
+      var d = String(n.direction).toUpperCase();
+      if (NOTCH_CORNER[d]) dots += notchDot(n, NOTCH_CORNER[d]);
+    });
+    // An edge can hold several, so they are spread along it rather than stacked
+    // on the midpoint.
+    NOTCH_EDGES.forEach(function (edge) {
+      var onEdge = notches.filter(function (n) {
+        return String(n.direction).toUpperCase() === edge;
+      });
+      onEdge.forEach(function (n, i) {
+        var at = ((i + 1) / (onEdge.length + 1) * 100).toFixed(1) + '%';
+        var style = (edge === 'TOP' || edge === 'BOTTOM')
+          ? (edge === 'TOP' ? 'top:-5px;' : 'bottom:-5px;') + 'left:' + at + ';transform:translateX(-50%)'
+          : (edge === 'LEFT' ? 'left:-5px;' : 'right:-5px;') + 'top:' + at + ';transform:translateY(-50%)';
+        dots += notchDot(n, style);
+      });
+    });
+    return '<div class="sg-sheet-notches" aria-label="Notches">' + dots +
+      '<span>' + notches.length + ' notch' + (notches.length === 1 ? '' : 'es') + '</span></div>';
+  }
+
+  function abilityRows(card) {
+    var abilities = card.abilities || (card.ability ? [card.ability] : []);
+    if (!abilities.length) return '<p class="sg-sheet-empty">No printed ability.</p>';
+    return abilities.map(function (a) {
+      var cost = a.requiredEnergy;
+      return '<div class="sg-sheet-ability">' +
+        '<strong>' + esc(a.name || 'Ability') +
+          (a.passive ? '<em class="sg-sheet-pill">Passive</em>' : '') +
+          (cost ? '<em class="sg-sheet-cost">' + esc(cost) + ' energy</em>' : '') +
+        '</strong>' +
+        (a.description ? '<span>' + esc(a.description) + '</span>' : '') +
+      '</div>';
+    }).join('');
+  }
+
+  function keepBlock(card, opts) {
+    if (opts.guest) return '<p class="sg-sheet-empty">Sign in to see your Keep.</p>';
+    var residents = (opts.live && opts.live.keepResidents) || null;
+    if (!residents) return '<p class="sg-sheet-empty">Your Keep has not answered.</p>';
+    var res = residents.filter(function (r) { return r && r.id === card.id; })[0];
+    if (!res) return '<p class="sg-sheet-empty">Not in residence at your Keep.</p>';
+    var rap = res.rapport || {};
+    var bits = '';
+    if (res.assignment) bits += '<div><span>Station</span><b>' + esc(res.assignment) + '</b></div>';
+    if (rap.label) bits += '<div><span>Rapport</span><b>' + esc(rap.label) + '</b></div>';
+    if (rap.buffPercent != null) bits += '<div><span>Bonus</span><b>+' + esc(rap.buffPercent) + '%</b></div>';
+    if (res.favoriteBonusPercent) bits += '<div><span>Favourite</span><b>+' + esc(res.favoriteBonusPercent) + '%</b></div>';
+    return bits ? '<div class="sg-sheet-stats">' + bits + '</div>'
+                : '<p class="sg-sheet-empty">In residence, granting no bonus yet.</p>';
+  }
+
+  function siegeBlock(card) {
+    var abilities = card.abilities || (card.ability ? [card.ability] : []);
+    var lines = [];
+    lines.push(abilities.length
+      ? 'Brings ' + abilities.length + ' card' + (abilities.length === 1 ? '' : 's') + ' to an expedition deck.'
+      : 'Brings no cards of its own to an expedition.');
+    if (card.evolvesFromName) lines.push('Evolves from ' + card.evolvesFromName + '.');
+    if (card.preferredRow) lines.push('Fields to the ' + String(card.preferredRow).toLowerCase() + ' row.');
+    return '<ul class="sg-sheet-list">' + lines.map(function (l) {
+      return '<li>' + esc(l) + '</li>';
+    }).join('') + '</ul>';
+  }
+
+  function cardSheetMarkup(card, opts) {
+    return '<div class="sg-sheet-grab"></div>' +
+      '<div class="sg-sheet-face">' + galleryCard(card) + '</div>' +
+      '<h3>' + esc(card.name) + '</h3>' +
+      '<div class="sg-sheet-meta"><img src="' + esc(icon(card.element)) + '" alt="">' +
+        esc(title(card.element)) + ' \u00b7 ' + esc(title(card.rarity)) + '</div>' +
+      '<div class="sg-sheet-block">' +
+        '<h4>Arena</h4>' +
+        '<div class="sg-sheet-stats">' +
+          '<div><span>Health</span><b>' + esc(card.health == null ? '\u2014' : card.health) + '</b></div>' +
+          '<div><span>Speed</span><b>' + esc(card.speed == null ? '\u2014' : card.speed) + '</b></div>' +
+          '<div><span>Row</span><b>' + esc(card.preferredRow ? title(card.preferredRow) : '\u2014') + '</b></div>' +
+        '</div>' +
+        notchRing(card) +
+        abilityRows(card) +
+      '</div>' +
+      '<div class="sg-sheet-block">' +
+        '<h4>Siege</h4>' + siegeBlock(card) +
+      '</div>' +
+      '<div class="sg-sheet-block">' +
+        '<h4>Keep</h4>' + keepBlock(card, opts) +
+      '</div>' +
+      '<a class="sg-sheet-cta" href="/deck-builder" data-screen="builder">Use in a deck \u203a</a>';
+  }
+
+  // One sheet host per screen; any tile with data-card opens it.
+  function sheetHost() {
+    return '<div class="sg-sheet" data-sheet><div class="sg-sheet-card" data-sheet-card></div></div>';
+  }
+
+  function mountSheet(app, opts) {
+    var sheet = app.querySelector('[data-sheet]');
+    if (!sheet) return null;
+    var sheetCard = sheet.querySelector('[data-sheet-card]');
+    function open(card) {
+      if (!card) return;
+      sheetCard.innerHTML = cardSheetMarkup(card, opts);
+      sheetCard.scrollTop = 0;
+      sheet.classList.add('open');
+    }
+    sheet.addEventListener('click', function (e) {
+      if (e.target === sheet) sheet.classList.remove('open');
+    });
+    app.addEventListener('click', function (e) {
+      var host = e.target.closest ? e.target.closest('[data-card]') : null;
+      if (!host || sheet.contains(host)) return;
+      open(byIdIn(ALL_CARDS, host.getAttribute('data-card')) || byId(host.getAttribute('data-card')));
+    });
+    return open;
+  }
+
+  /* ---------- pack opening ----------
+     Buying a pack did nothing at all. This runs the real purchase
+     (/api/shop/open-pack) and reveals what it returned: the response carries the
+     pull as `progression.packHistory[0].cards`, each entry with its element,
+     rarity, whether the copy was granted, and the remnants a duplicate-at-cap
+     converted into. Every card shown is a card the account now owns - the flip
+     is presentation over a completed transaction, never a simulation of one. */
+
+  function gachaMarkup(pk) {
+    return '<div class="sg-gacha" data-gacha>' +
+      '<div class="sg-gacha-veil"></div>' +
+      '<div class="sg-gacha-body">' +
+        '<div class="sg-gacha-head">' +
+          '<span class="sg-gacha-kicker" data-gacha-kicker>Opening</span>' +
+          '<h3 data-gacha-title>' + esc(pk.name || 'Pack') + '</h3>' +
+        '</div>' +
+        '<div class="sg-gacha-stage" data-gacha-stage>' +
+          '<div class="sg-gacha-pack" style="--el:' + color(packElement(pk)) + '">' +
+            '<img src="' + esc(packBack(pk)) + '" alt="">' +
+          '</div>' +
+        '</div>' +
+        '<p class="sg-gacha-note" data-gacha-note>Tearing the seal\u2026</p>' +
+        '<div class="sg-gacha-actions" data-gacha-actions hidden>' +
+          '<button class="sg-ghost-btn" type="button" data-gacha-all>Reveal all</button>' +
+          '<button class="sg-guest-primary" type="button" data-gacha-done>Done</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }
+
+  // The face-down card carries the pack's own back, so the thing the player
+  // tapped is the thing that flips over.
+  function gachaSlot(card, back, i) {
+    var el = color(card.element);
+    return '<button class="sg-flip" type="button" data-flip="' + i + '" style="--el:' + el +
+      ';--slot:' + i + '">' +
+      '<span class="sg-flip-inner">' +
+        '<span class="sg-flip-back"><img src="' + esc(back) + '" alt="" aria-hidden="true"></span>' +
+        '<span class="sg-flip-front" data-flip-front></span>' +
+      '</span>' +
+      '<span class="sg-flip-tag" hidden data-flip-tag></span>' +
+    '</button>';
+  }
+
+  function openPack(pk, opts) {
+    var host = document.querySelector('.sg-app');
+    if (!host) return;
+    var wrap = document.createElement('div');
+    wrap.innerHTML = gachaMarkup(pk);
+    var gacha = wrap.firstChild;
+    host.appendChild(gacha);
+    var stage = gacha.querySelector('[data-gacha-stage]');
+    var note = gacha.querySelector('[data-gacha-note]');
+    var actions = gacha.querySelector('[data-gacha-actions]');
+    var kicker = gacha.querySelector('[data-gacha-kicker]');
+
+    function close() { gacha.remove(); }
+    gacha.querySelector('[data-gacha-done]').addEventListener('click', function () {
+      // The purse and the collection both changed, so the hub re-reads rather
+      // than patching two numbers by hand.
+      window.location.href = '/shop';
+    });
+    gacha.addEventListener('click', function (e) {
+      if (e.target === gacha || e.target.classList.contains('sg-gacha-veil')) {
+        if (!actions.hidden) window.location.href = '/shop';
+      }
+    });
+
+    function fail(message) {
+      kicker.textContent = 'Not opened';
+      stage.innerHTML = '';
+      note.textContent = message;
+      actions.hidden = false;
+      gacha.querySelector('[data-gacha-all]').hidden = true;
+    }
+
+    fetch('/api/shop/open-pack', {
+      method: 'POST', credentials: 'same-origin',
+      headers: authHeaders(),
+      body: JSON.stringify({ packId: pk.id, count: 1, requestId: 'hub-' + Date.now() })
+    }).then(function (r) { return r.json().catch(function () { return null; }); })
+      .then(function (data) {
+        if (!data || data.error) { fail((data && data.error) || 'That pack could not be opened.'); return; }
+        var history = (data.progression && data.progression.packHistory) || [];
+        var cards = (history[0] && history[0].cards) || [];
+        if (!cards.length) { fail('The pack came back empty. Nothing was charged.'); return; }
+        reveal(cards);
+      })
+      .catch(function () { fail('The server did not answer. Nothing was charged.'); });
+
+    function reveal(cards) {
+      var back = packBack(pk);
+      kicker.textContent = 'Tap to reveal';
+      note.textContent = cards.length + ' card' + (cards.length === 1 ? '' : 's');
+      stage.className = 'sg-gacha-stage is-grid';
+      stage.innerHTML = cards.map(function (c, i) { return gachaSlot(c, back, i); }).join('');
+      actions.hidden = false;
+
+      var slots = [].slice.call(stage.querySelectorAll('[data-flip]'));
+      var left = slots.length;
+
+      function flip(btn) {
+        if (btn.classList.contains('is-open')) return;
+        var card = cards[Number(btn.getAttribute('data-flip'))];
+        var front = btn.querySelector('[data-flip-front]');
+        // The real composed face when the catalog knows the card, a plate in its
+        // element and rarity when it does not.
+        var known = byIdIn(ALL_CARDS, card.id);
+        front.innerHTML = known ? galleryCard(known) : cardPlate(card);
+        var tag = btn.querySelector('[data-flip-tag]');
+        if (card.duplicateAtCap) {
+          tag.textContent = '+' + (card.remnantsAwarded || 0) + ' remnants';
+          tag.hidden = false;
+          btn.classList.add('is-dupe');
+        } else if (card.ownedAfter === 1) {
+          tag.textContent = 'New';
+          tag.hidden = false;
+          btn.classList.add('is-new');
+        }
+        if (card.holo) btn.classList.add('is-holo');
+        btn.classList.add('is-open');
+        left -= 1;
+        if (!left) {
+          kicker.textContent = 'Opened';
+          note.textContent = summary(cards);
+          // Nothing left to reveal, so the control that does it goes away.
+          gacha.querySelector('[data-gacha-all]').hidden = true;
+        }
+      }
+
+      slots.forEach(function (btn) { btn.addEventListener('click', function () { flip(btn); }); });
+      gacha.querySelector('[data-gacha-all]').addEventListener('click', function () {
+        slots.forEach(function (btn, i) { setTimeout(function () { flip(btn); }, i * 110); });
+      });
+    }
+
+    function summary(cards) {
+      var fresh = cards.filter(function (c) { return c.ownedAfter === 1; }).length;
+      var remnants = cards.reduce(function (n, c) { return n + (c.remnantsAwarded || 0); }, 0);
+      var bits = [];
+      if (fresh) bits.push(fresh + ' new');
+      if (remnants) bits.push(remnants + ' remnants');
+      return bits.length ? bits.join(' \u00b7 ') : 'All duplicates';
+    }
+  }
+
+  // Fallback face for a pulled card the loaded catalog does not carry.
+  function cardPlate(card) {
+    return '<span class="sg-flip-plate" style="--el:' + color(card.element) + '">' +
+      '<img src="' + esc(icon(card.element)) + '" alt="">' +
+      '<b>' + esc(card.name) + '</b>' +
+      '<i class="sg-rar ' + esc(String(card.rarity || '').toLowerCase()) + '"></i>' +
+    '</span>';
+  }
+
+  function authHeaders() {
+    var headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
+    try {
+      var token = localStorage.getItem(AUTH_TOKEN_KEY);
+      if (token && token !== 'cookie') headers.Authorization = 'Bearer ' + token;
+    } catch (e) { /* private mode */ }
+    return headers;
   }
 
   /* ---------- profile ---------- */
@@ -964,16 +1381,33 @@
     '</div>';
   }
 
+  // This drew an XP bar toward an account level. Neither exists: the backend
+  // tracks gold, remnants and per-knight levels, and nothing else about a
+  // player's "progress". So it reports the purse, which is real, and says
+  // plainly when there is nothing to report.
   function xpMarkup(opts) {
     var live = opts.live || {};
-    if (live.xp == null || !live.xpToNext) {
-      return '<span class="sg-xp-note">' +
-        (opts.guest ? 'Sign in to track your progress' : 'Progress unavailable') + '</span>';
+    if (opts.guest) return '<span class="sg-xp-note">Sign in to track your collection</span>';
+    var bits = [];
+    if (live.gold != null) bits.push(Number(live.gold).toLocaleString() + ' Siegecoins');
+    if (live.remnants != null) bits.push(Number(live.remnants).toLocaleString() + ' remnants');
+    if (live.knights && live.knights.length) {
+      bits.push(live.knights.length + ' SiegeKnight' + (live.knights.length === 1 ? '' : 's'));
     }
-    var pct = Math.max(0, Math.min(100, Math.round(live.xp / live.xpToNext * 100)));
-    return '<div class="sg-xp"><i style="width:' + pct + '%"></i></div>' +
-      '<span class="sg-xp-note">' + Number(live.xp).toLocaleString() + ' / ' +
-      Number(live.xpToNext).toLocaleString() + ' XP to Level ' + ((live.level || 0) + 1) + '</span>';
+    if (!bits.length) return '<span class="sg-xp-note">Loading your account…</span>';
+    return '<span class="sg-xp-note">' + esc(bits.join(' \u00b7 ')) + '</span>';
+  }
+
+  // A real one-liner about the account, or an honest "Signed out".
+  function profileSubtitle(opts) {
+    if (opts.guest) return 'Signed out';
+    var live = opts.live || {};
+    var bits = [];
+    if (live.siegeWins) bits.push(live.siegeWins + ' Siege win' + (live.siegeWins === 1 ? '' : 's'));
+    if (live.matchHistory && live.matchHistory.length) {
+      bits.push(live.matchHistory.length + ' recorded match' + (live.matchHistory.length === 1 ? '' : 'es'));
+    }
+    return bits.length ? bits.join(' \u00b7 ') : 'Signed in';
   }
 
   function profileScreen(opts) {
@@ -987,7 +1421,7 @@
           '<div class="sg-crest-body">' +
             '<span class="sg-crest-ring"><i>' + esc(accountInitial(opts)) + '</i></span>' +
             '<h2>' + esc((opts.live && opts.live.displayName) || (opts.guest ? 'Guest' : 'Siegelord')) + '</h2>' +
-            '<p>' + esc(opts.live && opts.live.level != null ? 'Level ' + opts.live.level : 'Signed out') + '</p>' +
+            '<p>' + esc(profileSubtitle(opts)) + '</p>' +
             xpMarkup(opts) +
           '</div>' +
         '</section>' +
@@ -995,7 +1429,7 @@
         '<section class="sg-section">' +
           '<div class="sg-section-head"><h3>Showcase</h3><a href="/cards" data-screen="collection">Change</a></div>' +
           '<div class="sg-swipe">' + pick(['bearzooka', 'pylord', 'conchious', 'gymstone']).map(function (c) {
-            return '<article class="sg-feat" style="--el:' + color(c.element) + '">' +
+            return '<article class="sg-feat" data-card="' + esc(c.id) + '" tabindex="0" style="--el:' + color(c.element) + '">' +
               '<div class="sg-feat-plate"></div>' +
               '<div class="sg-feat-art"><img src="' + esc(c.cardArtUrl) + '" alt="" loading="lazy"></div>' +
               '<div class="sg-feat-foot"><span class="sg-feat-name">' + esc(c.name) + '</span>' +
@@ -1133,6 +1567,65 @@
           submit.disabled = false;
           submit.textContent = mode === 'register' ? 'Create account' : 'Log in';
           fail('The server did not answer. Try again in a moment.');
+        });
+    });
+  }
+
+  // Deletion needs the literal word DELETE: AccountService rejects anything else,
+  // so the button stays disabled until the player has typed it rather than
+  // letting them press it and bounce off a server error.
+  function mountDeleteAccount(app) {
+    var host = app.querySelector('[data-danger]');
+    if (!host) return;
+    var panel = host.querySelector('[data-delete-panel]');
+    var input = host.querySelector('[data-delete-input]');
+    var go = host.querySelector('[data-delete-go]');
+    var errorEl = host.querySelector('[data-delete-error]');
+
+    function setError(message) {
+      errorEl.textContent = message || '';
+      errorEl.hidden = !message;
+    }
+    function armed() { return String(input.value || '').trim() === 'DELETE'; }
+    function sync() { go.disabled = !armed(); }
+
+    host.querySelector('[data-delete-open]').addEventListener('click', function () {
+      panel.hidden = false;
+      setError('');
+      sync();
+      input.focus();
+    });
+    host.querySelector('[data-delete-cancel]').addEventListener('click', function () {
+      panel.hidden = true;
+      input.value = '';
+      setError('');
+    });
+    input.addEventListener('input', function () { setError(''); sync(); });
+    sync();
+
+    go.addEventListener('click', function () {
+      if (!armed()) return;
+      go.disabled = true;
+      go.textContent = 'Deleting\u2026';
+      fetch('/api/auth/delete-account', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ confirmationText: 'DELETE' })
+      }).then(function (r) { return r.json().catch(function () { return null; }); })
+        .then(function (data) {
+          if (!data || data.error) {
+            go.disabled = false;
+            go.textContent = 'Permanently delete';
+            setError((data && data.error) || 'That did not work. Try again.');
+            return;
+          }
+          try { localStorage.removeItem(AUTH_TOKEN_KEY); } catch (e) { /* private mode */ }
+          window.location.href = '/home';
+        })
+        .catch(function () {
+          go.disabled = false;
+          go.textContent = 'Permanently delete';
+          setError('The server did not answer. Try again in a moment.');
         });
     });
   }
@@ -1382,6 +1875,8 @@
   // (Reduced motion follows the OS setting), persisted to localStorage and read
   // back on the next paint, so what the screen shows is what is stored.
   var SETTINGS_KEY = 'sgHubPrefs';
+  // Same invite the shipping hub's support row uses.
+  var DISCORD_URL = 'https://discord.gg/T4WrHCGJ9b';
   var SETTINGS = [
     ['Audio', [['music', 'Music', true], ['sfx', 'Sound effects', true], ['voice', 'Battle voice', false]]],
     ['Motion', [['cardAnim', 'Card animations', true], ['reducedMotion', 'Reduced motion', null],
@@ -1410,6 +1905,7 @@
   function mountSettings(app) {
     var out = app.querySelector('[data-signout]');
     if (out) out.addEventListener('click', signOut);
+    mountDeleteAccount(app);
     [].slice.call(app.querySelectorAll('[data-pref]')).forEach(function (btn) {
       btn.addEventListener('click', function () {
         var on = btn.getAttribute('aria-checked') !== 'true';
@@ -1429,8 +1925,7 @@
           '<div class="sg-crest-veil"></div>' +
           '<div class="sg-crest-body"><h2>Settings</h2><p>' +
             esc(opts.guest ? 'Signed out'
-                 : ((opts.live && opts.live.displayName) || 'Signed in') +
-                   (opts.live && opts.live.level != null ? ' \u00b7 Level ' + opts.live.level : '')) +
+                 : ((opts.live && opts.live.displayName) || 'Signed in')) +
             '</p></div>' +
         '</section>' +
         SETTINGS.map(function (group, gi) {
@@ -1449,15 +1944,46 @@
           '<div class="sg-section-head"><h3>Account</h3></div>' +
           '<div class="sg-stack sg-stack-tight">' +
             (opts.guest
-              ? '<a class="sg-toggle-row is-link" href="/login" data-screen="auth"><span>Sign in</span><em>›</em></a>' +
-                '<a class="sg-toggle-row is-link" href="/login" data-screen="auth"><span>Create account</span><em>›</em></a>'
+              ? '<a class="sg-toggle-row is-link" href="/login" data-screen="auth"><span>Sign in</span><em>\u203a</em></a>' +
+                '<a class="sg-toggle-row is-link" href="/login" data-screen="auth"><span>Create account</span><em>\u203a</em></a>'
               // Sign out actually signs out now: it used to be a link to
               // /profile, which did nothing at all.
-              : '<a class="sg-toggle-row is-link" href="/profile" data-screen="profile"><span>Profile</span><em>›</em></a>' +
-                '<button class="sg-toggle-row is-link is-danger" type="button" data-signout><span>Sign out</span><em>›</em></button>') +
-            '<a class="sg-toggle-row is-link" href="/help" data-screen="help"><span>Help &amp; rules</span><em>›</em></a>' +
+              : '<a class="sg-toggle-row is-link" href="/profile" data-screen="profile"><span>Profile</span><em>\u203a</em></a>' +
+                '<button class="sg-toggle-row is-link" type="button" data-signout><span>Sign out</span><em>\u203a</em></button>') +
           '</div>' +
         '</section>' +
+        // These three were on the old hub and were simply not carried over.
+        '<section class="sg-section" style="--sec:var(--acc-cyan)">' +
+          '<div class="sg-section-head"><h3>Community &amp; tools</h3></div>' +
+          '<div class="sg-stack sg-stack-tight">' +
+            '<a class="sg-toggle-row is-link" href="' + DISCORD_URL + '" target="_blank" rel="noreferrer noopener">' +
+              '<span>Discord server<em class="sg-row-note">Help, bug reports and feedback</em></span><em>\u2197</em></a>' +
+            '<a class="sg-toggle-row is-link" href="/card-dashboard.html">' +
+              '<span>Card dashboard<em class="sg-row-note">Live card, deck and trainer data</em></span><em>\u2197</em></a>' +
+            '<a class="sg-toggle-row is-link" href="/help" data-screen="help"><span>Help &amp; rules</span><em>\u203a</em></a>' +
+          '</div>' +
+        '</section>' +
+        // Deletion is irreversible, so it is its own section, behind a typed
+        // confirmation, and never a row a thumb can hit by accident.
+        (opts.guest ? '' :
+          '<section class="sg-section" style="--sec:var(--acc-coral)">' +
+            '<div class="sg-section-head"><h3>Danger zone</h3></div>' +
+            '<div class="sg-danger" data-danger>' +
+              '<button class="sg-toggle-row is-link is-danger" type="button" data-delete-open>' +
+                '<span>Delete account</span><em>\u203a</em></button>' +
+              '<div class="sg-danger-body" hidden data-delete-panel>' +
+                '<p>This erases your decks, collection, match history and Siege saves. ' +
+                'It cannot be undone.</p>' +
+                '<label class="sg-auth-field"><span>Type DELETE to confirm</span>' +
+                  '<input type="text" data-delete-input autocomplete="off" placeholder="DELETE"></label>' +
+                '<p class="sg-auth-error" data-delete-error hidden></p>' +
+                '<div class="sg-danger-actions">' +
+                  '<button class="sg-ghost-btn" type="button" data-delete-cancel>Cancel</button>' +
+                  '<button class="sg-danger-go" type="button" data-delete-go>Permanently delete</button>' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+          '</section>') +
         '<div style="height:132px"></div>' +
       '</div>' +
       bottomMarkup('more', opts);
@@ -1601,18 +2127,22 @@
     var builders = { collection: galleryScreen, decks: decksScreen, shop: shopScreen,
                      profile: profileScreen, play: playScreen, builder: builderScreen,
                      social: socialScreen, settings: settingsScreen, help: helpScreen,
-                     auth: authScreen };
+                     auth: authScreen, art: artScreen };
     app.innerHTML = builders[screen] ? builders[screen](opts) : homeScreen(opts);
     host.appendChild(app);
     // Every screen carries the same chrome, so the rail and the tab bar are
     // wired unconditionally. Branching this is how the Cards screen ended up
     // rendering a rail that did not respond to taps.
+    if (screen === 'shop') mountShop(app, opts);
+    if (screen === 'art') mountArt(app);
+    if (screen === 'profile') mountSheet(app, opts);
     if (screen === 'collection') {
       mountGallery(app, opts);
     } else if (!builders[screen]) {
       mountHero(app, opts);
       mountLeaderboard(app, opts);
       mountStrip(app);
+      mountSheet(app, opts);
       var strip = opts.questsOpen && app.querySelector('[data-strip]');
       if (strip) strip.classList.add('open');
     }

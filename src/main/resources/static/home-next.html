@@ -9,15 +9,18 @@
 <!-- style.css carries the real card frames, notches and rarity treatments the
      binder renders. It must load BEFORE home-redesign.css so the art-first
      palette and layout win where the two overlap. -->
-<link rel="stylesheet" href="/css/style.css?v=264">
-<link rel="stylesheet" href="/css/home-redesign.css?v=12">
+<link rel="stylesheet" href="/css/style.css?v=265">
+<link rel="stylesheet" href="/css/home-redesign.css?v=15">
 <style>
   /* Boot state: the shell paints immediately on the app's own ground so the
      first frame is never a white flash while the catalog is in flight. */
   /* style.css sets body to a flex column on its own background; the shell
      needs its own ground and no competing flex context. */
+  /* height:100% measured the layout viewport, so once iOS Safari hid its
+     toolbar the shell stayed short and the tab bar stranded above a dead band.
+     --sg-vh is the visible height (viewport-unit.js). */
   html, body { margin:0; background:#0d0a26 !important; display:block !important;
-               height:100%; overflow:hidden; font-family:inherit; }
+               height:var(--sg-vh, 100dvh); overflow:hidden; font-family:inherit; }
   /* The boot screen was a spinner on a flat colour while the game already owns
      two libraries of artwork for exactly this moment. It now carries one piece
      from the gallery scenes plus the original site's loading library. */
@@ -48,6 +51,8 @@
     .boot-plate { animation:none; }
   }
 </style>
+    <!-- Sets --sg-vh before first paint; every fixed shell measures off it. -->
+    <script src="/js/viewport-unit.js?v=1"></script>
 </head>
 <body>
 <div class="boot" id="boot">
@@ -68,8 +73,8 @@
 <script src="/js/game.js?v=295"></script>
 <script src="/js/card-binder-visual.js?v=23"></script>
 <script src="/js/home-redesign-data.js?v=1"></script>
-<script src="/js/home-redesign.js?v=10"></script>
-<script src="/js/home-redesign-live.js?v=4"></script>
+<script src="/js/home-redesign.js?v=13"></script>
+<script src="/js/home-redesign-live.js?v=5"></script>
 <script>
 (function () {
   // Path first (this page now answers /home, /cards, /decks, …), ?screen= as a

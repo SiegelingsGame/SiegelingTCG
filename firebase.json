@@ -200,6 +200,10 @@
         "destination": "/home-next.html"
       },
       {
+        "source": "/gallery",
+        "destination": "/home-next.html"
+      },
+      {
         "source": "/social/lobby/**",
         "destination": "/home.html"
       },

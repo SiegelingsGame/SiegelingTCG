@@ -16,8 +16,10 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="stylesheet" href="/css/style.css?v=264">
+    <link rel="stylesheet" href="/css/style.css?v=265">
     <link rel="stylesheet" href="/css/home.css?v=144">
+    <!-- Sets --sg-vh before first paint; every fixed shell measures off it. -->
+    <script src="/js/viewport-unit.js?v=1"></script>
 </head>
 <body>
 <div class="home-shell">
@@ -430,6 +432,7 @@
         </div>
     </div>
 </div>
+
 
 <script src="/js/qrcode-vendor.js?v=1"></script>
 <script src="/js/catalog-sync.js?v=1"></script>

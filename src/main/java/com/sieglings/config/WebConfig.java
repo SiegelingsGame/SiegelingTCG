@@ -83,6 +83,8 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addViewController("/login").setViewName("forward:/home-next.html");
         // Same reason: the new Social screen is the lobby list.
         registry.addViewController("/lobbies").setViewName("forward:/home-next.html");
+        // The full art gallery: the cinematic scenes plus the loading-art library.
+        registry.addViewController("/gallery").setViewName("forward:/home-next.html");
 
         // ---- Legacy hub: every route the old home.html owned, under /legacy/*.
         // home.js reads the prefix and keeps its own links inside it, so a player
