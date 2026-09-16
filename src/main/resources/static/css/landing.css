@@ -1643,9 +1643,32 @@ img { display: block; }
     50%      { transform: translate(-50%, -65%); }
 }
 
+/* The logo image is clipped to a circle, so the game's name only reads here.
+   Sits directly under the logo stage as part of the same lockup. */
+.sgl-gate-wordmark {
+    margin-top: 6px;
+    font-size: 1.35rem;
+    font-weight: 800;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--siegelings-gold, #f4e6bd);
+    text-align: center;
+    text-shadow: 0 2px 16px rgba(0, 0, 0, 0.7);
+}
+.sgl-gate-wordmark span {
+    display: block;
+    margin-top: 3px;
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.4em;
+    color: rgba(228, 232, 246, 0.62);
+}
+
+/* min-height holds three lines: the rotation now carries hint/lore sentences,
+   and a reflow under the progress bar on every swap was worse than the gap. */
 .sgl-gate-flavor {
     margin-top: 4px;
-    min-height: 1.6em;
+    min-height: 3.4em;
     font-size: 0.95rem;
     font-style: italic;
     color: rgba(228, 232, 246, 0.78);
@@ -1873,6 +1896,7 @@ img { display: block; }
     .sgl-gate-flavor { padding: 0 12px 22px; }
     .sgl-logo-stage { width: min(160px, 36vw); height: min(160px, 36vw); }
     .sgl-gate-flavor { font-size: 0.82rem; }
+    .sgl-gate-wordmark { font-size: 1.05rem; letter-spacing: 0.16em; }
     /* The knight cards stack on a phone, so the card face and its rules text
        have to give ground or the splash outgrows the viewport -- it is a fixed
        overlay, so anything past the fold is simply cut off (the logo was, and

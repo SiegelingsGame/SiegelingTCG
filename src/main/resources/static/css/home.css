@@ -188,6 +188,57 @@ body.starter-onboarding-active .hud-fab {
     -webkit-backdrop-filter: blur(5px);
 }
 
+/* The hub's art screen carried no mark of the game it belongs to. */
+.loading-art-brand {
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+    margin-bottom: 2px;
+}
+
+.loading-art-mark {
+    width: 46px;
+    height: 46px;
+    border-radius: 12px;
+}
+
+.loading-art-wordmark {
+    color: #f4e6bd;
+    font-size: 17px;
+    font-weight: 950;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    text-align: center;
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.8);
+}
+
+.loading-art-wordmark span {
+    display: block;
+    margin-top: 2px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: .34em;
+    color: var(--text-dim);
+}
+
+/* Rotating hints/lore. min-height reserves the tallest line so the frame does
+   not resize under the player every few seconds. */
+.loading-art-hint {
+    max-width: 32em;
+    min-height: 3.2em;
+    margin: 2px 0 0;
+    color: #e6e2f4;
+    font-size: 12px;
+    line-height: 1.55;
+    text-align: center;
+    opacity: 1;
+    transition: opacity .3s ease;
+}
+
+.loading-art-hint.is-fading {
+    opacity: 0;
+}
+
 .loading-art-spinner {
     width: 34px;
     height: 34px;

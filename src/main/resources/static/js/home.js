@@ -946,6 +946,12 @@
         if (labelEl) labelEl.textContent = label || 'Loading...';
         const titleEl = document.getElementById('loadingArtTitle');
         if (titleEl) titleEl.textContent = piece.title || '';
+        // Hints/lore rotate for as long as the screen is up; the stop handle is
+        // kept on the screen element so hide() can clear it wherever it runs.
+        const hintEl = document.getElementById('loadingArtHint');
+        if (hintEl && window.SiegelingsLoadingArt && !screen._stopHints) {
+            screen._stopHints = window.SiegelingsLoadingArt.mountHints(hintEl);
+        }
         screen.classList.remove('hidden');
         screen.setAttribute('aria-hidden', 'false');
         return Date.now();
@@ -959,6 +965,7 @@
         window.setTimeout(() => {
             screen.classList.add('hidden');
             screen.setAttribute('aria-hidden', 'true');
+            if (screen._stopHints) { screen._stopHints(); screen._stopHints = null; }
         }, wait);
     }
 

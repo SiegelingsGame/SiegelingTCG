@@ -14,7 +14,7 @@
 <link rel="stylesheet" href="/css/adventure.css?v=96">
   <!-- Art-first re-skin. After adventure.css on purpose: it restates the same
        tokens and expects to win. -->
-  <link rel="stylesheet" href="/css/siege-next.css?v=4">
+  <link rel="stylesheet" href="/css/siege-next.css?v=5">
 </head>
 <body>
 <!-- Enemy Siegelings are corrupted card art, so they need the same die-cut shade
@@ -76,10 +76,15 @@
     <div class="siege-load-plate" data-art-plate aria-hidden="true"></div>
     <div class="siege-load-veil" aria-hidden="true"></div>
     <div class="siege-load-body">
+      <div class="siege-load-brand">
+        <img class="siege-load-mark" src="/img/siegelings-icon.png" alt="">
+        <div class="siege-load-wordmark">Siegelings<span>Siege Expedition</span></div>
+      </div>
       <div class="siege-spinner"></div>
       <div class="siege-load-bar" aria-hidden="true"><div class="siege-load-fill" id="bootLoadFill"></div></div>
       <p id="bootLoadStatus">Preparing the expedition…</p>
       <p class="siege-load-count" id="bootLoadCount"></p>
+      <p class="siege-load-hint" id="bootLoadHint"></p>
       <p class="siege-load-art" data-art-title></p>
     </div>
   </div>
@@ -741,11 +746,12 @@
 
   <div class="siege-toast hidden" id="siegeToast"></div>
 </div>
-<script src="/js/loading-art.js?v=1"></script>
+<script src="/js/loading-art.js?v=2"></script>
 <script>
   // Paint before adventure.js boots, so the expedition's first frame is art
   // rather than a spinner on a flat colour.
   window.SiegelingsLoadingArt.paint(document.getElementById('loadingScreen'));
+  window.SiegelingsLoadingArt.mountHints(document.getElementById('bootLoadHint'));
   window.SiegelingsLoadingArt.refresh();
 </script>
 <script src="/js/siege-maps.js?v=3"></script>

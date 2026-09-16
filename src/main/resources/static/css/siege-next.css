@@ -183,6 +183,57 @@ body {
     margin: 0 auto 12px;
 }
 
+/* Brand lockup: the expedition booted with no mark of the game it belongs to.
+   Column so the wordmark never crowds the icon at phone width. */
+.siege-load-brand {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 14px;
+}
+
+.siege-load-mark {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+}
+
+.siege-load-wordmark {
+    font-size: 19px;
+    font-weight: 800;
+    letter-spacing: .20em;
+    text-transform: uppercase;
+    color: #f4e6bd;
+    text-shadow: 0 2px 14px rgba(0, 0, 0, .65);
+}
+
+.siege-load-wordmark span {
+    display: block;
+    margin-top: 2px;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: .38em;
+    color: var(--dim);
+}
+
+/* Rotating hints/lore. min-height reserves the tallest line so the bar above
+   and the art caption below do not shift as copy swaps. */
+.siege-load-hint {
+    max-width: 34em;
+    min-height: 3.2em;
+    margin: 10px auto 0;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--text);
+    opacity: 1;
+    transition: opacity .3s ease;
+}
+
+.siege-load-hint.is-fading {
+    opacity: 0;
+}
+
 .siege-load-art {
     margin: 10px 0 0;
     font-size: 11px;

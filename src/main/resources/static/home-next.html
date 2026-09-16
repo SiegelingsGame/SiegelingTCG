@@ -37,7 +37,21 @@
   .boot-foot { position:absolute; left:0; right:0; bottom:0;
     padding:0 22px calc(38px + env(safe-area-inset-bottom,0px));
     display:flex; flex-direction:column; align-items:center; gap:13px; text-align:center; }
+  /* Brand block: the icon alone left the boot screen unlabelled, so the
+     wordmark rides with it. Column so it reads as one lockup on a phone. */
+  .boot-brand { display:flex; flex-direction:column; align-items:center; gap:7px; }
   .boot-mark { width:52px; height:52px; border-radius:14px; }
+  .boot-wordmark { font-size:19px; font-weight:800; letter-spacing:.20em;
+                   text-transform:uppercase; color:#f4e6bd;
+                   text-shadow:0 2px 14px rgba(0,0,0,.65); }
+  .boot-wordmark span { display:block; margin-top:2px; font-size:9px; font-weight:600;
+                        letter-spacing:.42em; color:#b3a8d8; }
+  /* Filler copy: hints and lore rotate here so the wait teaches something.
+     max-width keeps it to a readable measure on desktop; min-height stops the
+     foot from jumping as lines of different length swap in. */
+  .boot-hint { max-width:34em; min-height:3.2em; margin:0; font-size:13px; line-height:1.55;
+               color:#d8d2f0; opacity:1; transition:opacity .3s ease; }
+  .boot-hint.is-fading { opacity:0; }
   .boot-title { font-size:12px; letter-spacing:.30em; text-transform:uppercase;
                 color:#e6cd8c; min-height:15px; }
   .boot-title::after { content:attr(data-place); display:block; margin-top:3px;
@@ -60,8 +74,12 @@
   <div class="boot-plate" data-art-plate></div>
   <div class="boot-veil"></div>
   <div class="boot-foot">
-    <img class="boot-mark" src="/img/siegelings-icon.png" alt="Siegelings TCG">
+    <div class="boot-brand">
+      <img class="boot-mark" src="/img/siegelings-icon.png" alt="">
+      <div class="boot-wordmark">Siegelings<span>Trading Card Game</span></div>
+    </div>
     <div class="boot-title" data-art-title></div>
+    <p class="boot-hint" id="bootHint"></p>
     <span class="boot-spin"></span>
   </div>
 </div>
@@ -69,8 +87,11 @@
      compose a full card face. home.html loads the same pair for its binder. -->
 <!-- Paints the boot plate before anything else runs, from the compiled-in
      gallery scenes plus whatever /api/art/loading cached on a previous visit. -->
-<script src="/js/loading-art.js?v=1"></script>
-<script>window.SiegelingsLoadingArt.paint(document.getElementById('boot'));</script>
+<script src="/js/loading-art.js?v=2"></script>
+<script>
+  window.SiegelingsLoadingArt.paint(document.getElementById('boot'));
+  window.sgStopBootHints = window.SiegelingsLoadingArt.mountHints(document.getElementById('bootHint'));
+</script>
 <script src="/js/game.js?v=295"></script>
 <script src="/js/card-binder-visual.js?v=23"></script>
 <script src="/js/home-redesign-data.js?v=1"></script>
@@ -96,6 +117,7 @@
     };
     window.SiegelingsHomeConcept.mountApp(document.body, opts);
     boot.classList.add('gone');
+    if (window.sgStopBootHints) window.sgStopBootHints();
     setTimeout(function () { boot.remove(); }, 450);
   }
 
