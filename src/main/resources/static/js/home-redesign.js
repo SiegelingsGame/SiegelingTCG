@@ -100,7 +100,69 @@
 
   // Hand-picked so the rotation walks through distinct elements and silhouettes.
   var HERO = pick(['pylord', 'glaciemperor', 'aerovane', 'conchious', 'gymstone']);
-  var FEATURED = pick(['dracosleaf', 'sheenx', 'hurricrane', 'clawqueen', 'bleetstrike', 'frostag', 'siegebot', 'solgator']);
+
+  /* ---------- daily featured rotation ----------
+     The rail used to be the same eight ids forever, so a player who came back
+     tomorrow saw yesterday's shelf. It is drawn from the whole Siegeling
+     catalog now and reshuffled once a day.
+
+     Deterministic, not random: the day number seeds the order, so every player
+     sees the same rail on the same day and a re-render within the day (tab
+     switch, live catalog arriving) does not reshuffle under them. No server
+     round trip is involved. */
+  var FEATURED_COUNT = 8;
+  // Days since the epoch in the player's own timezone, so the rail turns over
+  // at their local midnight rather than at UTC - a player in UTC+13 should not
+  // get tomorrow's rail at lunchtime.
+  function dayIndex(when) {
+    var d = when || new Date();
+    return Math.floor((d.getTime() - d.getTimezoneOffset() * 60000) / 86400000);
+  }
+  // A card's own draw for a given day. Hashing the id with the seed (rather
+  // than shuffling the array) keeps the order stable when the catalog gains or
+  // loses a card: only the new card moves.
+  function dailyScore(id, seed) {
+    var h = (seed * 2654435761) >>> 0;
+    for (var i = 0; i < id.length; i++) {
+      h = (h ^ id.charCodeAt(i)) >>> 0;
+      h = (h * 16777619) >>> 0;
+    }
+    // xorshift finish: the multiply alone leaves low bits correlated, which
+    // showed as the same handful of ids clustering day to day.
+    h ^= h >>> 13; h = (h * 1274126177) >>> 0; h ^= h >>> 16;
+    return h >>> 0;
+  }
+  /* Picks the day's rail, preferring one card per element before doubling up so
+     the shelf reads as a spread rather than five Fire cards in a row. */
+  function dailyFeatured(pool, seed, count) {
+    var list = (pool || []).filter(function (c) { return c && c.id; });
+    if (list.length <= count) return list.slice();
+    var ordered = list.slice().sort(function (a, b) {
+      return dailyScore(a.id, seed) - dailyScore(b.id, seed);
+    });
+    var out = [], seen = {}, spill = [];
+    ordered.forEach(function (c) {
+      var el = String(c.element || '').toUpperCase();
+      if (out.length < count && !seen[el]) { seen[el] = 1; out.push(c); }
+      else spill.push(c);
+    });
+    return out.concat(spill.slice(0, count - out.length));
+  }
+  /* Drawing from the whole catalog means the shelf can land on whatever the
+     dashboard happens to be holding, so two kinds of card are kept off it: one
+     with no art (the tile is nothing but art) and one still carrying a
+     scaffold id like `new-siegling-3`, which is a card someone is mid-way
+     through authoring rather than one to show off. */
+  function featurable(c) {
+    return Boolean(c && c.id && c.cardArtUrl) && !/^(new-siegling|placeholder|test)[-_]?\d*$/i.test(c.id);
+  }
+  function featuredForToday() {
+    var pool = CARDS.filter(featurable);
+    return dailyFeatured(pool.length >= FEATURED_COUNT ? pool : CARDS,
+                         dayIndex(), FEATURED_COUNT);
+  }
+
+  var FEATURED = featuredForToday();
 
   /* ---------- hero (rotating art, parallax, elemental motes) ---------- */
 
@@ -2313,8 +2375,10 @@
       CARDS.length = 0;
       model.sieglings.forEach(function (c) { CARDS.push(c); });
       HERO = pickPresent(['pylord', 'glaciemperor', 'aerovane', 'conchious', 'gymstone']);
-      FEATURED = pickPresent(['dracosleaf', 'sheenx', 'hurricrane', 'clawqueen',
-                              'bleetstrike', 'frostag', 'siegebot', 'solgator']);
+      // Re-picked against the live catalog, which is far larger than the
+      // offline snapshot; the day seed means this lands on the same rail the
+      // snapshot would have chosen for today from the same pool.
+      FEATURED = featuredForToday();
     }
     if (model.decks && model.decks.length) {
       DECKS = model.decks.slice(0, 4).map(function (d, i) {
@@ -2511,5 +2575,9 @@
 
   window.SiegelingsHomeConcept = { render: render, mountApp: mountApp, applyLive: applyLive,
     screenForPath: screenForPath, pathForScreen: pathForScreen,
-    fitCardDescriptions: fitCardDescriptions, cards: CARDS, coverageMarkup: coverageMarkup, coverage: COVERAGE };
+    fitCardDescriptions: fitCardDescriptions, cards: CARDS, coverageMarkup: coverageMarkup, coverage: COVERAGE,
+    // Exposed so the daily rail can be driven at an arbitrary day without
+    // waiting for midnight - the only way to check the rotation honestly.
+    dailyFeatured: dailyFeatured, dayIndex: dayIndex,
+    featured: function () { return FEATURED.slice(); } };
 })();

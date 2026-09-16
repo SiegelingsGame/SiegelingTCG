@@ -289,10 +289,14 @@ body.concept-board {
 }
 .sg-swipe::-webkit-scrollbar { display:none; }
 
-/* featured Siegeling tiles — art is nearly the whole tile */
+/* featured Siegeling tiles — art is nearly the whole tile.
+   It used to be MORE than the whole tile: the art was scaled 1.16 inside an
+   overflow:visible frame, which read as tall creatures with their antlers,
+   tails and claws sliced off by the neighbouring tile and the section below.
+   The tile clips now, and the art is sized to sit inside it. */
 .sg-feat {
   position:relative; flex:0 0 150px; height:196px; border-radius:20px; scroll-snap-align:start;
-  overflow:visible; cursor:pointer;
+  overflow:hidden; cursor:pointer;
   transition:transform .32s cubic-bezier(.2,.8,.25,1);
 }
 .sg-feat-plate {
@@ -310,19 +314,20 @@ body.concept-board {
   background:linear-gradient(200deg, rgba(230,205,140,.34), transparent 42%);
   mix-blend-mode:screen;
 }
+/* Inset from all four edges: the top gap keeps a tall silhouette off the
+   rounded corner, and the bottom stop clears the name plate rather than
+   sitting under it. */
 .sg-feat-art {
-  position:absolute; left:50%; bottom:40px; width:150px; height:158px;
-  transform:translateX(-50%); display:flex; align-items:flex-end; justify-content:center; pointer-events:none;
+  position:absolute; left:8px; right:8px; top:10px; bottom:38px;
+  display:flex; align-items:flex-end; justify-content:center; pointer-events:none;
 }
 .sg-feat-art img {
   width:100%; height:100%; object-fit:contain; object-position:center bottom;
-  transform:scale(1.16);  /* deliberately breaks the frame */
-  transform-origin:center bottom;
   filter:drop-shadow(0 14px 18px rgba(0,0,0,.65));
   transition:transform .32s cubic-bezier(.2,.8,.25,1);
 }
 .sg-feat:active { transform:translateY(-6px); }
-.sg-feat:active .sg-feat-art img { transform:scale(1.06) translateY(-4px); }
+.sg-feat:active .sg-feat-art img { transform:scale(1.04); transform-origin:center bottom; }
 .sg-feat-foot {
   position:absolute; left:0; right:0; bottom:0; padding:10px 12px 12px; border-radius:0 0 20px 20px;
   background:linear-gradient(180deg, transparent, rgba(5,8,15,.86) 46%);
