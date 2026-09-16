@@ -109,7 +109,7 @@
         if (!already) {
             const link = document.createElement('link');
             link.rel = 'stylesheet';
-            link.href = '/css/landing.css?v=31';
+            link.href = '/css/landing.css?v=32';
             link.dataset.sglLandingCss = '1';
             document.head.appendChild(link);
         }
