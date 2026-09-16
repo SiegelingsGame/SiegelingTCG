@@ -10,7 +10,7 @@
      binder renders. It must load BEFORE home-redesign.css so the art-first
      palette and layout win where the two overlap. -->
 <link rel="stylesheet" href="/css/style.css?v=264">
-<link rel="stylesheet" href="/css/home-redesign.css?v=5">
+<link rel="stylesheet" href="/css/home-redesign.css?v=10">
 <style>
   /* Boot state: the shell paints immediately on the app's own ground so the
      first frame is never a white flash while the catalog is in flight. */
@@ -18,24 +18,58 @@
      needs its own ground and no competing flex context. */
   html, body { margin:0; background:#0d0a26 !important; display:block !important;
                height:100%; overflow:hidden; font-family:inherit; }
-  .boot { position:fixed; inset:0; display:grid; place-items:center; z-index:80;
-          background:#0d0a26; transition:opacity .4s ease; }
+  /* The boot screen was a spinner on a flat colour while the game already owns
+     two libraries of artwork for exactly this moment. It now carries one piece
+     from the gallery scenes plus the original site's loading library. */
+  .boot { position:fixed; inset:0; z-index:80; background:#0d0a26;
+          transition:opacity .4s ease; overflow:hidden; }
   .boot.gone { opacity:0; pointer-events:none; }
-  .boot span { width:34px; height:34px; border-radius:50%;
+  .boot-plate { position:absolute; inset:0; background-size:cover; background-position:center;
+                filter:saturate(1.15) brightness(.82); transform:scale(1.04);
+                animation:bootDrift 18s ease-in-out infinite alternate; }
+  .boot-veil { position:absolute; inset:0;
+    background:linear-gradient(180deg, rgba(13,10,38,.42) 0%, rgba(13,10,38,.20) 38%,
+               rgba(13,10,38,.78) 78%, #0d0a26 100%); }
+  .boot-foot { position:absolute; left:0; right:0; bottom:0;
+    padding:0 22px calc(38px + env(safe-area-inset-bottom,0px));
+    display:flex; flex-direction:column; align-items:center; gap:13px; text-align:center; }
+  .boot-mark { width:52px; height:52px; border-radius:14px; }
+  .boot-title { font-size:12px; letter-spacing:.30em; text-transform:uppercase;
+                color:#e6cd8c; min-height:15px; }
+  .boot-title::after { content:attr(data-place); display:block; margin-top:3px;
+                       letter-spacing:.14em; text-transform:none; color:#b3a8d8; font-size:11px; }
+  .boot-spin { width:28px; height:28px; border-radius:50%;
                border:2px solid rgba(180,140,255,.28); border-top-color:#ffd83d;
                animation:spin .9s linear infinite; }
   @keyframes spin { to { transform:rotate(360deg); } }
+  @keyframes bootDrift { from { transform:scale(1.04) translateY(0); }
+                         to   { transform:scale(1.10) translateY(-10px); } }
+  @media (prefers-reduced-motion:reduce) {
+    .boot-plate { animation:none; }
+  }
 </style>
 </head>
 <body>
-<div class="boot" id="boot"><span></span></div>
+<div class="boot" id="boot">
+  <div class="boot-plate" data-art-plate></div>
+  <div class="boot-veil"></div>
+  <div class="boot-foot">
+    <img class="boot-mark" src="/img/siegelings-icon.png" alt="Siegelings TCG">
+    <div class="boot-title" data-art-title></div>
+    <span class="boot-spin"></span>
+  </div>
+</div>
 <!-- game.js defines SieglingsCardShowcase, which card-binder-visual.js uses to
      compose a full card face. home.html loads the same pair for its binder. -->
-<script src="/js/game.js?v=294"></script>
+<!-- Paints the boot plate before anything else runs, from the compiled-in
+     gallery scenes plus whatever /api/art/loading cached on a previous visit. -->
+<script src="/js/loading-art.js?v=1"></script>
+<script>window.SiegelingsLoadingArt.paint(document.getElementById('boot'));</script>
+<script src="/js/game.js?v=295"></script>
 <script src="/js/card-binder-visual.js?v=23"></script>
 <script src="/js/home-redesign-data.js?v=1"></script>
-<script src="/js/home-redesign.js?v=5"></script>
-<script src="/js/home-redesign-live.js?v=2"></script>
+<script src="/js/home-redesign.js?v=8"></script>
+<script src="/js/home-redesign-live.js?v=3"></script>
 <script>
 (function () {
   // Path first (this page now answers /home, /cards, /decks, …), ?screen= as a
@@ -62,6 +96,8 @@
   // The catalog is the only slice worth waiting on; everything else the
   // renderer can do without. A failure still paints, on the snapshot.
   window.SiegelingsHomeLive.load().then(paint).catch(function () { paint(null); });
+  // Extends the rotation with the original site's loading library for next time.
+  window.SiegelingsLoadingArt.refresh();
 })();
 </script>
 </body>

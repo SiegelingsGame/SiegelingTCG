@@ -33,15 +33,22 @@
         get('/api/game/options'),
         get('/api/match/rooms'),
         get('/api/siege/run/active'),
-        get('/api/leaderboards')
+        get('/api/leaderboards'),
+        // The shop's real pack catalog, with the prices and odds the server
+        // actually charges - the screen used to show invented packs at an
+        // invented 150 each.
+        get('/api/shop/packs')
       ];
       var gated = signedIn
-        ? [get('/api/player/progression'), get('/api/missions/daily'), get('/api/profile/decks')]
-        : [Promise.resolve(null), Promise.resolve(null), Promise.resolve(null)];
+        ? [get('/api/player/progression'), get('/api/missions/daily'), get('/api/profile/decks'),
+           // Friends + their live presence. Signed-out has no friend list to
+           // read, and the endpoint says so rather than returning an empty one.
+           get('/api/social/presence')]
+        : [Promise.resolve(null), Promise.resolve(null), Promise.resolve(null), Promise.resolve(null)];
 
       return Promise.all(core.concat(gated)).then(function (r) {
-        var options = r[0], rooms = r[1], siege = r[2], boards = r[3],
-            progression = r[4], missions = r[5], decks = r[6];
+        var options = r[0], rooms = r[1], siege = r[2], boards = r[3], shop = r[4],
+            progression = r[5], missions = r[6], decks = r[7], presence = r[8];
         var catalog = (options && options.cardCatalog) || [];
         return {
           signedIn: signedIn,
@@ -81,6 +88,8 @@
           ownedCards: (progression && progression.ownedCards) || null,
           matchHistory: (progression && progression.matchHistory) || null,
           missions: (missions && !missions.error && (missions.missions || missions.daily)) || null,
+          packs: (shop && shop.packs ? shop.packs.filter(function (pk) { return pk && pk.active !== false; }) : null),
+          friends: (presence && !presence.error && presence.friends) || null,
           catalogVersion: options && options.catalogVersion
         };
       });

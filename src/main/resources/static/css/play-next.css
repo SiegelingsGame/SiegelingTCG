@@ -1,0 +1,217 @@
+/* Battle loadout, art-first.
+   Loaded after style.css on play.html, so equal-specificity rules here win.
+   It re-skins the loadout overlay only — the battle table itself is untouched,
+   because the table's readability is tuned around style.css's palette.
+
+   Why a separate sheet rather than edits in style.css: the loadout is the one
+   surface the redesigned hub hands players straight into (/battle), and keeping
+   its treatment in one file makes it obvious what the new design owns. The
+   element hues still come from style.css :root — this sheet only restates the
+   hub's ground and accents. */
+
+.loadout-overlay {
+    /* Same indigo ground and accents as home-redesign.css, so arriving from the
+       hub is a continuation rather than a second product. */
+    --lo-ground: #0d0a26;
+    --lo-panel: rgba(26, 17, 71, 0.62);
+    --lo-line: rgba(180, 140, 255, 0.24);
+    --lo-gold: #e6cd8c;
+    --lo-amber: #f2a03d;
+    --lo-ink: #f3efff;
+    --lo-muted: #b3a8d8;
+    background:
+        radial-gradient(circle at 12% 12%, rgba(240, 91, 47, 0.20), transparent 34%),
+        radial-gradient(circle at 86% 20%, rgba(123, 92, 255, 0.22), transparent 36%),
+        radial-gradient(circle at 70% 88%, rgba(60, 142, 216, 0.14), transparent 34%),
+        linear-gradient(180deg, #16104a 0%, #0d0a26 58%, #07051a 100%);
+}
+
+.loadout-box {
+    background: transparent;
+    color: var(--lo-ink);
+}
+
+/* ---- hero: artwork band, not a text block ----
+   The markup already has a hero row; giving it a full-bleed plate is what turns
+   the screen image-first without touching play.html's structure. The plate is
+   the same Battle artwork the hub's Battle panel uses, so the tap and the
+   destination show the same scene. */
+.loadout-hero {
+    position: relative;
+    align-items: flex-start;
+    min-height: 208px;
+    margin: calc(var(--loadout-padding) * -1) calc(var(--loadout-padding) * -1) 18px;
+    padding: 20px var(--loadout-padding) 18px;
+    border-radius: 0 0 26px 26px;
+    overflow: hidden;
+    background-image:
+        linear-gradient(105deg, rgba(13, 10, 38, 0.94) 22%, rgba(21, 16, 64, 0.52) 58%, rgba(30, 24, 86, 0.12) 100%),
+        url('/img/gallery/bearzooka-rampage.webp');
+    background-size: cover, cover;
+    background-position: center, center 34%;
+    box-shadow: inset 0 -1px 0 rgba(200, 165, 79, 0.22);
+}
+
+/* The plate has to fade into the page rather than end on a hard edge, or the
+   band reads as a pasted screenshot. */
+.loadout-hero::after {
+    content: '';
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 82px;
+    background: linear-gradient(180deg, rgba(13, 10, 38, 0), #0d0a26);
+    pointer-events: none;
+}
+
+.loadout-hero-copy,
+.loadout-close-btn,
+.invite-room-badge {
+    position: relative;
+    z-index: 1;
+}
+
+/* The close control is pinned to the band's corner, so the headline has to stop
+   short of it or the two collide on a phone. */
+.loadout-hero-copy {
+    padding-right: 54px;
+}
+
+.loadout-box h2 {
+    font-size: clamp(2rem, 7vw, 3.2rem);
+    line-height: 0.96;
+    color: var(--lo-ink);
+    text-shadow: 0 12px 34px rgba(0, 0, 0, 0.7);
+}
+
+.loadout-kicker,
+.loadout-toggle-label,
+.loadout-section-kicker {
+    color: var(--lo-gold);
+    letter-spacing: 0.24em;
+}
+
+.loadout-copy {
+    color: var(--lo-muted);
+}
+
+/* Top-right of the band, where a close control is looked for. The hero is a
+   flex row, so without this it rides down to whatever the copy's height is. */
+.loadout-close-btn {
+    position: absolute;
+    top: 14px;
+    right: var(--loadout-padding);
+    border-color: var(--lo-line);
+    background: rgba(13, 10, 38, 0.62);
+    color: var(--lo-ink);
+}
+
+.loadout-close-btn:hover {
+    border-color: var(--lo-amber);
+    background: rgba(242, 160, 61, 0.16);
+}
+
+/* Localhost-only dev links; they inherit a browser blue that fights the band. */
+.loadout-local-dev-link {
+    color: var(--lo-gold);
+}
+
+/* ---- steps ---- */
+.loadout-step-chip {
+    border-color: var(--lo-line);
+    background: var(--lo-panel);
+    color: var(--lo-ink);
+}
+
+.loadout-step-chip.active {
+    border-color: var(--lo-gold);
+    background: linear-gradient(180deg, rgba(242, 160, 61, 0.26), rgba(200, 122, 33, 0.12));
+    box-shadow: 0 0 18px rgba(242, 160, 61, 0.28);
+}
+
+.loadout-step-chip.active .loadout-step-num {
+    background: linear-gradient(180deg, #ffd58a, var(--lo-amber));
+    color: #22160a;
+}
+
+.loadout-step-chip.done .loadout-step-num {
+    background: linear-gradient(180deg, #86efac, #2f9e5a);
+    color: #06210f;
+}
+
+/* ---- panels ---- */
+.player-identity-card,
+.loadout-online-panel,
+.loadout-section,
+.loadout-tutorial-panel {
+    background: linear-gradient(180deg, rgba(36, 26, 96, 0.60), rgba(18, 13, 52, 0.72));
+    border-color: var(--lo-line);
+    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.42);
+}
+
+.identity-note,
+.loadout-saved-note,
+.loadout-tutorial-copy,
+.loadout-summary {
+    color: var(--lo-muted);
+}
+
+.loadout-tab {
+    border-color: var(--lo-line);
+    background: rgba(13, 10, 38, 0.5);
+    color: var(--lo-ink);
+}
+
+.loadout-tab.active {
+    border-color: var(--lo-gold);
+    background: linear-gradient(180deg, rgba(242, 160, 61, 0.24), rgba(200, 122, 33, 0.10));
+    color: #ffe9c4;
+}
+
+/* Card and knight tiles are the artwork on this screen; give them the room and
+   the elemental edge the hub's binder tiles have. */
+.loadout-option {
+    border-color: var(--lo-line);
+    background: linear-gradient(180deg, rgba(36, 26, 96, 0.55), rgba(15, 11, 45, 0.78));
+}
+
+.loadout-option:hover {
+    border-color: rgba(242, 160, 61, 0.55);
+}
+
+.loadout-option.selected {
+    border-color: var(--lo-gold);
+    box-shadow: 0 0 0 1px rgba(230, 205, 140, 0.5), 0 16px 34px rgba(0, 0, 0, 0.5);
+}
+
+/* ---- action bar ---- */
+.loadout-nav {
+    background: linear-gradient(0deg, #0d0a26 58%, rgba(13, 10, 38, 0));
+}
+
+.loadout-nav .loadout-back-btn {
+    border-color: var(--lo-line);
+    background: rgba(13, 10, 38, 0.6);
+    color: var(--lo-muted);
+}
+
+.loadout-start-btn {
+    background: linear-gradient(180deg, #ffd58a 0%, var(--lo-amber) 52%, #c87a21 100%);
+    border: none;
+    color: #22160a;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    box-shadow: 0 12px 30px rgba(242, 160, 61, 0.38);
+}
+
+.loadout-start-btn:hover:not(:disabled) {
+    box-shadow: 0 14px 36px rgba(242, 160, 61, 0.5);
+}
+
+/* A phone gets a shorter band: the plate still reads, but the copy and the
+   first step chips stay above the fold. */
+@media (max-width: 719px) {
+    .loadout-hero {
+        min-height: 168px;
+        border-radius: 0 0 20px 20px;
+    }
+}
