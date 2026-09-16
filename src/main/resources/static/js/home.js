@@ -9837,8 +9837,18 @@
         }
         return { ...asset, back: preferWebp(asset.back), icon: preferWebp(asset.icon) };
     }
+    // The art-first hub now owns /home, /cards, /decks and the rest; this hub is
+    // served under /legacy/*. Strip that prefix before routing and put it back
+    // when building paths, so every link inside the legacy hub stays in it
+    // rather than bouncing the player into the new design mid-session.
+    const HUB_PREFIX = String(location.pathname || '').indexOf('/legacy') === 0 ? '/legacy' : '';
+
     function parseHubRoute(path) {
-        const segments = String(path || '/home').replace(/^\/+/, '').split('/').filter(Boolean);
+        let raw = String(path || '/home');
+        if (HUB_PREFIX && raw.indexOf(HUB_PREFIX) === 0) {
+            raw = raw.slice(HUB_PREFIX.length) || '/home';
+        }
+        const segments = raw.replace(/^\/+/, '').split('/').filter(Boolean);
         const head = segments[0] || 'home';
         if (head === 'lobbies') return { route: 'social', shopView: 'browse', lobbyRoomId: '', profileUserId: '', achievementCategory: '' };
         if (head === 'social' && segments[1] === 'lobby' && segments[2]) {
@@ -9895,11 +9905,11 @@
     }
 
     function hubPath(route, shopView = 'browse') {
-        if (route === 'home') return '/home';
-        if (route === 'shop' && shopView === 'cardpack') return '/shop/cardpack';
-        if (route === 'deck-builder') return '/deck-builder';
-        if (route === 'achievements') return '/achievements';
-        return `/${route}`;
+        if (route === 'home') return `${HUB_PREFIX}/home`;
+        if (route === 'shop' && shopView === 'cardpack') return `${HUB_PREFIX}/shop/cardpack`;
+        if (route === 'deck-builder') return `${HUB_PREFIX}/deck-builder`;
+        if (route === 'achievements') return `${HUB_PREFIX}/achievements`;
+        return `${HUB_PREFIX}/${route}`;
     }
 
     function applyRouteFromLocation(path = location.pathname) {

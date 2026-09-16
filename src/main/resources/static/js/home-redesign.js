@@ -158,6 +158,26 @@
   // a tab with sub-destinations slides its tray up out of the bar.
   // Real destinations. Until now every control was inert; these are the routes
   // firebase.json already serves, so the design can front the live game.
+  // The new design owns these paths now; the old hub moved to /legacy/*. Screens
+  // are addressed by real URLs rather than ?screen=, so a link, a bookmark and
+  // the Back button all behave like a normal site.
+  var PATH_SCREEN = {
+    '/home': 'home', '/cards': 'collection', '/decks': 'decks',
+    '/deck-builder': 'builder', '/shop': 'shop', '/profile': 'profile',
+    '/social': 'social', '/settings': 'settings', '/help': 'help',
+    '/achievements': 'profile', '/next': 'home'
+  };
+  var SCREEN_PATH = {
+    home: '/home', collection: '/cards', decks: '/decks', builder: '/deck-builder',
+    shop: '/shop', profile: '/profile', social: '/social', settings: '/settings',
+    help: '/help', play: '/home'
+  };
+  function screenForPath(pathname) {
+    var clean = String(pathname || '/home').replace(/\/+$/, '') || '/home';
+    return PATH_SCREEN[clean] || null;
+  }
+  function pathForScreen(screen) { return SCREEN_PATH[screen] || ('/home'); }
+
   // Two kinds of destination, and conflating them is what made the new HUD feel
   // broken: tapping Cards or Shop bounced the player back into the OLD hub.
   //   INTERNAL - a screen this design already owns; routed in place, no reload.
@@ -179,14 +199,14 @@
   // Returns the anchor attributes for a label: an in-app screen swap where this
   // design owns the destination, a real navigation where it does not.
   function linkAttrs(label) {
-    if (INTERNAL[label]) return ' href="?screen=' + INTERNAL[label] + '" data-screen="' + INTERNAL[label] + '"';
+    if (INTERNAL[label]) return ' href="' + pathForScreen(INTERNAL[label]) + '" data-screen="' + INTERNAL[label] + '"';
     var ext = EXTERNAL[label];
     if (!ext) return '';
-    if (ext.charAt(0) !== '/') return ' href="?screen=' + ext + '" data-screen="' + ext + '"';
+    if (ext.charAt(0) !== '/') return ' href="' + pathForScreen(ext) + '" data-screen="' + ext + '"';
     return ' href="' + ext + '"';
   }
   function hrefFor(label) {
-    if (INTERNAL[label]) return '?screen=' + INTERNAL[label];
+    if (INTERNAL[label]) return pathForScreen(INTERNAL[label]);
     return EXTERNAL[label] || '';
   }
 
@@ -248,16 +268,30 @@
     ['Clear a Siege Land', '80 🪙', false]
   ];
 
-  function questsMarkup() {
-    var done = QUESTS.filter(function (q) { return q[2]; }).length;
+  // Real missions when the account answers; the sample set otherwise, labelled
+  // so a signed-out player is not shown someone else's progress as if it were
+  // theirs.
+  function liveQuests(opts) {
+    var m = opts && opts.live && opts.live.missions;
+    if (!m || !m.length) return null;
+    return m.slice(0, 5).map(function (q) {
+      return [q.title || q.name || q.description || 'Objective',
+              q.rewardLabel || (q.reward != null ? q.reward + ' 🪙' : ''),
+              Boolean(q.completed || q.claimed || q.complete)];
+    });
+  }
+
+  function questsMarkup(opts) {
+    var quests = liveQuests(opts) || QUESTS;
+    var done = quests.filter(function (q) { return q[2]; }).length;
     return '<div class="sg-strip" data-strip>' +
       '<div class="sg-strip-head"><h4>Daily Objectives</h4><span class="sep">•</span>' +
-      '<span class="cnt">' + done + '/' + QUESTS.length + ' Complete</span><span class="caret">›</span></div>' +
-      '<div class="sg-strip-body"><div>' + QUESTS.map(function (q) {
+      '<span class="cnt">' + done + '/' + quests.length + ' Complete</span><span class="caret">›</span></div>' +
+      '<div class="sg-strip-body"><div>' + quests.map(function (q) {
         return '<div class="sg-quest' + (q[2] ? ' done' : '') + '"><span class="tick">✓</span>' +
           '<span class="qt">' + esc(q[0]) + '</span><span class="qr">' + esc(q[1]) + '</span></div>';
       }).join('') + '</div></div>' +
-      '<div class="sg-bar"><i style="width:' + Math.round(done / QUESTS.length * 100) + '%"></i></div>' +
+      '<div class="sg-bar"><i style="width:' + Math.round(done / Math.max(1, quests.length) * 100) + '%"></i></div>' +
     '</div>';
   }
 
@@ -290,15 +324,30 @@
   // carries the sign-in call rather than an empty crest. The coin chip stays
   // (guests hold a starting balance) but the bell goes - there is nothing to
   // notify an account-less player about.
+  // Real balance when progression answers; the guest starter otherwise. A guest
+  // genuinely holds 100, so that is a fact rather than a placeholder.
+  function accountInitial(opts) {
+    var n = (opts && opts.live && opts.live.displayName) || '';
+    return n ? n.charAt(0).toUpperCase() : '·';
+  }
+
+  function formatCoins(opts, guest) {
+    var gold = opts && opts.live && opts.live.gold;
+    if (gold != null) return Number(gold).toLocaleString();
+    return guest ? '100' : '—';
+  }
+
   function topMarkup(opts) {
     var guest = Boolean(opts && opts.guest);
     return '<header class="sg-top' + (guest ? ' is-guest' : '') + '">' +
       '<img class="sg-logo" src="/img/siegelings-logo.webp" alt="Siegelings">' +
       '<span class="sg-top-spacer"></span>' +
-      '<span class="sg-chip coin"><img src="/img/ui/siegel-coin.webp" alt="">' + (guest ? '100' : '2,480') + '</span>' +
+      '<span class="sg-chip coin"><img src="/img/ui/siegel-coin.webp" alt="">' +
+        esc(formatCoins(opts, guest)) + '</span>' +
       (guest
         ? '<button class="sg-signin" type="button">Sign In</button>'
-        : '<span class="sg-avatar"><i>A</i><b>24</b></span>' +
+        : '<span class="sg-avatar"><i>' + esc(accountInitial(opts)) + '</i><b>' +
+          esc((opts && opts.live && opts.live.level) || '—') + '</b></span>' +
           '<button class="sg-bell" type="button" aria-label="Notifications">✦</button>') +
     '</header>';
   }
@@ -374,7 +423,7 @@
   function homeScreen(opts) {
     opts = opts || {};
     return topMarkup(opts) +
-      '<div class="sg-scroll">' + heroMarkup() + featuredMarkup() + gallerySection() + questsMarkup() + deckMarkup() +
+      '<div class="sg-scroll">' + heroMarkup() + featuredMarkup() + leaderboardSection(opts) + gallerySection() + questsMarkup(opts) + deckMarkup() +
       '<div style="height:132px"></div></div>' +
       bottomMarkup('home', opts.openTray, opts.guest);
   }
@@ -706,15 +755,34 @@
     '</article>';
   }
 
+  // A signed-in player's own saved decks replace the catalog presets.
+  function playerDecks(opts) {
+    var saved = opts && opts.live && opts.live.savedDecks;
+    if (!saved || !saved.length) return null;
+    return saved.slice(0, 6).map(function (d, i) {
+      var lead = (d.cards || []).map(function (c) { return byIdIn(ALL_CARDS, c.id || c); })
+        .filter(Boolean)[0] || CARDS[i] || CARDS[0];
+      return {
+        name: d.name || 'Untitled deck', lead: lead && lead.id,
+        els: d.elements || [], w: d.wins || 0, l: d.losses || 0,
+        cards: (d.cards || []).reduce(function (n, c) { return n + (c.count || 1); }, 0),
+        active: Boolean(d.selected || d.active)
+      };
+    });
+  }
+
   function decksScreen(opts) {
     return topMarkup(opts) +
       '<div class="sg-scroll">' +
-        '<div class="sg-page-head"><h2>My Decks</h2><p>4 built &middot; 1 selected</p></div>' +
+        '<div class="sg-page-head"><h2>My Decks</h2><p>' + (function () {
+          var d = playerDecks(opts);
+          return d ? esc(d.length) + ' saved' : esc(DECKS.length) + ' preset decks';
+        })() + '</p></div>' +
         '<div class="sg-tool-row">' +
           '<button class="sg-ghost-btn" type="button"><span class="ico">✎</span>Deck Builder</button>' +
           '<button class="sg-ghost-btn" type="button"><span class="ico">✧</span>Auto Build</button>' +
         '</div>' +
-        '<div class="sg-stack">' + DECKS.map(deckRow).join('') + '</div>' +
+        '<div class="sg-stack">' + (playerDecks(opts) || DECKS).map(deckRow).join('') + '</div>' +
         '<div style="height:132px"></div>' +
       '</div>' +
       bottomMarkup('collection', opts.openTray, opts.guest);
@@ -785,6 +853,35 @@
     ['Arena', 'Loss', 'vs Ruune', '+6']
   ];
 
+  // Progression only answers for a signed-in player, so the bar states that
+  // rather than inventing a number.
+  function profileTiles(opts) {
+    var live = opts.live || {};
+    var hist = live.matchHistory || [];
+    var played = hist.length || null;
+    var wins = hist.filter(function (m) { return m && (m.won === true || m.result === 'WIN'); }).length;
+    var rate = played ? Math.round(wins / played * 100) + '%' : '—';
+    var owned = live.ownedTotal != null && ALL_CARDS.length
+      ? Math.round(live.ownedTotal / ALL_CARDS.length * 100) + '%' : '—';
+    return '<div class="sg-tiles">' +
+      '<div><span>Matches</span><b>' + esc(played != null ? played : '—') + '</b></div>' +
+      '<div><span>Win Rate</span><b>' + esc(rate) + '</b></div>' +
+      '<div><span>Collected</span><b>' + esc(owned) + '</b></div>' +
+    '</div>';
+  }
+
+  function xpMarkup(opts) {
+    var live = opts.live || {};
+    if (live.xp == null || !live.xpToNext) {
+      return '<span class="sg-xp-note">' +
+        (opts.guest ? 'Sign in to track your progress' : 'Progress unavailable') + '</span>';
+    }
+    var pct = Math.max(0, Math.min(100, Math.round(live.xp / live.xpToNext * 100)));
+    return '<div class="sg-xp"><i style="width:' + pct + '%"></i></div>' +
+      '<span class="sg-xp-note">' + Number(live.xp).toLocaleString() + ' / ' +
+      Number(live.xpToNext).toLocaleString() + ' XP to Level ' + ((live.level || 0) + 1) + '</span>';
+  }
+
   function profileScreen(opts) {
     var showcase = GALLERY[2];
     var showcaseCard = byId(showcase.card) || CARDS[0];
@@ -794,18 +891,13 @@
           '<img class="sg-crest-bg" src="' + plate(showcase) + '" alt="">' +
           '<div class="sg-crest-veil"></div>' +
           '<div class="sg-crest-body">' +
-            '<span class="sg-crest-ring"><i>A</i></span>' +
-            '<h2>Ashenvale</h2>' +
-            '<p>Level 24 &middot; Emberwaste Ward</p>' +
-            '<div class="sg-xp"><i style="width:62%"></i></div>' +
-            '<span class="sg-xp-note">6,200 / 10,000 XP to Level 25</span>' +
+            '<span class="sg-crest-ring"><i>' + esc(accountInitial(opts)) + '</i></span>' +
+            '<h2>' + esc((opts.live && opts.live.displayName) || (opts.guest ? 'Guest' : 'Siegelord')) + '</h2>' +
+            '<p>' + esc(opts.live && opts.live.level != null ? 'Level ' + opts.live.level : 'Signed out') + '</p>' +
+            xpMarkup(opts) +
           '</div>' +
         '</section>' +
-        '<div class="sg-tiles">' +
-          '<div><span>Matches</span><b>214</b></div>' +
-          '<div><span>Win Rate</span><b>63%</b></div>' +
-          '<div><span>Collected</span><b>64%</b></div>' +
-        '</div>' +
+        profileTiles(opts) +
         '<section class="sg-section">' +
           '<div class="sg-section-head"><h3>Showcase</h3><a href="#">Change</a></div>' +
           '<div class="sg-swipe">' + pick(['bearzooka', 'pylord', 'conchious', 'gymstone']).map(function (c) {
@@ -835,6 +927,108 @@
         '<div style="height:132px"></div>' +
       '</div>' +
       bottomMarkup('more', opts.openTray, opts.guest);
+  }
+
+  /* ---------- leaderboard ----------
+     `/api/leaderboards` returns {periods:{daily,weekly,...}, boards:{wins,
+     matchesPlayed, spellsCast, trapsSprung, siegelingsDefeated, pvpWinRate}},
+     each board a list of {rank, displayName, value, detail}. On this environment
+     every board is currently empty (no match history yet), so the empty state is
+     not an afterthought - it is what most players will see first. */
+  var BOARD_META = {
+    wins:               { label: 'Victories',   unit: 'wins',    el: 'FIRE',     icon: '⚔' },
+    pvpWinRate:         { label: 'Win Rate',    unit: 'matches', el: 'LIGHT',    icon: '◈' },
+    matchesPlayed:      { label: 'Matches',     unit: 'played',  el: 'WIND',     icon: '↻' },
+    siegelingsDefeated: { label: 'Felled',      unit: 'downed',  el: 'SHADOW',   icon: '☠' },
+    spellsCast:         { label: 'Strategies',  unit: 'cast',    el: 'PSYCHIC',  icon: '✧' },
+    trapsSprung:        { label: 'Deceptions',  unit: 'sprung',  el: 'POISON',   icon: '✦' }
+  };
+  var BOARD_ORDER = ['wins', 'pvpWinRate', 'matchesPlayed', 'siegelingsDefeated', 'spellsCast', 'trapsSprung'];
+  var PERIOD_LABEL = { daily: 'Today', weekly: 'This week', monthly: 'This month', year: 'This year', allTime: 'All time' };
+
+  function boardRows(live, boardId, period) {
+    var lb = live && live.leaderboards;
+    if (!lb) return [];
+    var scope = (period && lb.periods && lb.periods[period]) || lb.boards || {};
+    return scope[boardId] || [];
+  }
+
+  function leaderboardSection(opts) {
+    var live = opts.live;
+    var period = opts.lbPeriod || (live && live.leaderboards && live.leaderboards.defaultPeriod) || 'daily';
+    var boardId = opts.lbBoard || 'wins';
+    var meta = BOARD_META[boardId] || BOARD_META.wins;
+    var rows = boardRows(live, boardId, period);
+    var periods = (live && live.leaderboards && live.leaderboards.periods)
+      ? Object.keys(live.leaderboards.periods) : ['daily', 'weekly', 'allTime'];
+
+    return '<section class="sg-section sg-lb" style="--el:' + color(meta.el) + '">' +
+      '<div class="sg-section-head"><h3>Hall of Siege</h3>' +
+        '<a href="#" data-lb-cycle>' + esc(PERIOD_LABEL[period] || title(period)) + ' ›</a></div>' +
+      '<div class="sg-lb-boards">' + BOARD_ORDER.map(function (id) {
+        var m = BOARD_META[id];
+        return '<button class="sg-lb-chip' + (id === boardId ? ' on' : '') + '" type="button" data-lb-board="' + id +
+          '" style="--el:' + color(m.el) + '"><span>' + m.icon + '</span>' + esc(m.label) + '</button>';
+      }).join('') + '</div>' +
+      '<div class="sg-lb-body" data-lb-body>' +
+        (rows.length ? rows.slice(0, 10).map(function (r, i) { return lbRow(r, i, meta); }).join('')
+                     : lbEmpty(meta, period)) +
+      '</div>' +
+    '</section>';
+  }
+
+  function lbRow(row, i, meta) {
+    var rank = row.rank != null ? row.rank : i + 1;
+    var medal = rank <= 3 ? ' is-podium rank-' + rank : '';
+    return '<div class="sg-lb-row' + medal + '">' +
+      '<span class="sg-lb-rank">' + esc(rank) + '</span>' +
+      '<span class="sg-lb-name">' + esc(row.displayName || '?') + '</span>' +
+      '<span class="sg-lb-value">' + esc(row.detail || (row.value + ' ' + meta.unit)) + '</span>' +
+    '</div>';
+  }
+
+  // Every board is empty until matches are played, so this is the common case,
+  // not the exception - it gets artwork and a call to action rather than a dash.
+  function lbEmpty(meta, period) {
+    return '<div class="sg-lb-empty">' +
+      '<img src="/img/gallery/bearzooka-rampage.webp" alt="" loading="lazy">' +
+      '<div class="sg-lb-empty-veil"></div>' +
+      '<div class="sg-lb-empty-body">' +
+        '<strong>The hall is empty</strong>' +
+        '<p>No ' + esc(String(meta.label).toLowerCase()) + ' recorded ' +
+        esc((PERIOD_LABEL[period] || title(period)).toLowerCase()) + '. Be the first name on it.</p>' +
+        '<a class="sg-lb-cta" href="' + HREF.battle + '">Play a match ›</a>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function mountLeaderboard(app, opts) {
+    var section = app.querySelector('.sg-lb');
+    if (!section) return;
+    section.querySelectorAll('[data-lb-board]').forEach(function (chip) {
+      chip.addEventListener('click', function () {
+        opts.lbBoard = chip.getAttribute('data-lb-board');
+        redrawLeaderboard(app, opts);
+      });
+    });
+    var cycle = section.querySelector('[data-lb-cycle]');
+    if (cycle) cycle.addEventListener('click', function (e) {
+      e.preventDefault();
+      var lb = opts.live && opts.live.leaderboards;
+      var keys = (lb && lb.periods) ? Object.keys(lb.periods) : ['daily', 'weekly', 'allTime'];
+      var cur = keys.indexOf(opts.lbPeriod || (lb && lb.defaultPeriod) || 'daily');
+      opts.lbPeriod = keys[(cur + 1) % keys.length];
+      redrawLeaderboard(app, opts);
+    });
+  }
+
+  function redrawLeaderboard(app, opts) {
+    var section = app.querySelector('.sg-lb');
+    if (!section) return;
+    var holder = document.createElement('div');
+    holder.innerHTML = leaderboardSection(opts);
+    section.replaceWith(holder.firstChild);
+    mountLeaderboard(app, opts);
   }
 
   /* ---------- deck builder ---------- */
@@ -875,7 +1069,7 @@
         '</section>' +
         '<section class="sg-section">' +
           '<div class="sg-section-head"><h3>Add from your binder</h3>' +
-            '<a href="?screen=collection" data-screen="collection">Browse</a></div>' +
+            '<a href="/cards" data-screen="collection">Browse</a></div>' +
           '<div class="sg-gal-grid">' + ALL_CARDS.slice(0, 6).map(galleryCard).join('') + '</div>' +
         '</section>' +
         '<div class="sg-build-actions">' +
@@ -993,10 +1187,10 @@
             (opts.guest
               ? '<a class="sg-toggle-row is-link" href="/login"><span>Sign in</span><em>›</em></a>' +
                 '<a class="sg-toggle-row is-link" href="/login"><span>Create account</span><em>›</em></a>'
-              : '<a class="sg-toggle-row is-link" href="?screen=profile" data-screen="profile"><span>Profile</span><em>›</em></a>' +
+              : '<a class="sg-toggle-row is-link" href="/profile" data-screen="profile"><span>Profile</span><em>›</em></a>' +
                 '<a class="sg-toggle-row is-link" href="/profile"><span>Manage account</span><em>›</em></a>' +
                 '<a class="sg-toggle-row is-link is-danger" href="/profile"><span>Sign out</span><em>›</em></a>') +
-            '<a class="sg-toggle-row is-link" href="?screen=help" data-screen="help"><span>Help &amp; rules</span><em>›</em></a>' +
+            '<a class="sg-toggle-row is-link" href="/help" data-screen="help"><span>Help &amp; rules</span><em>›</em></a>' +
           '</div>' +
         '</section>' +
         '<div style="height:132px"></div>' +
@@ -1151,6 +1345,7 @@
       mountGallery(app, opts);
     } else if (!builders[screen]) {
       mountHero(app, opts);
+      mountLeaderboard(app, opts);
       mountStrip(app);
       if (opts.questsOpen) app.querySelector('[data-strip]').classList.add('open');
     }
@@ -1259,7 +1454,7 @@
       current = screen;
       if (push) {
         try {
-          history.pushState({ screen: screen }, '', '?screen=' + screen);
+          history.pushState({ screen: screen }, '', pathForScreen(screen));
         } catch (e) { /* file:// and sandboxed frames reject pushState */ }
       }
       host.scrollTop = 0;
@@ -1284,13 +1479,17 @@
     }
 
     window.addEventListener('popstate', function (e) {
-      show((e.state && e.state.screen) || new URLSearchParams(location.search).get('screen') || 'home', false);
+      show((e.state && e.state.screen) || screenForPath(location.pathname) ||
+           new URLSearchParams(location.search).get('screen') || 'home', false);
     });
 
-    show(opts.screen || new URLSearchParams(location.search).get('screen') || 'home', false);
+    // ?screen= still works so existing links and the preview board keep going.
+    show(opts.screen || new URLSearchParams(location.search).get('screen') ||
+         screenForPath(location.pathname) || 'home', false);
     return { show: show, currentScreen: function () { return current; } };
   }
 
   window.SiegelingsHomeConcept = { render: render, mountApp: mountApp, applyLive: applyLive,
+    screenForPath: screenForPath, pathForScreen: pathForScreen,
     fitCardDescriptions: fitCardDescriptions, cards: CARDS, coverageMarkup: coverageMarkup, coverage: COVERAGE };
 })();
