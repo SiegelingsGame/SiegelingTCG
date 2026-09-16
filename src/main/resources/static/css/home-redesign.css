@@ -1838,17 +1838,21 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 /* The notch ring: a miniature of the card's perimeter so the directions read at
    a glance, which is what actually decides where a Siegeling can link. */
 .sg-sheet-notches {
-  position:relative; width:74px; height:100px; margin:4px auto 12px;
-  border-radius:10px; border:1px dashed rgba(180,140,255,.34);
+  position:relative; width:92px; height:124px; margin:4px auto 12px;
+  border-radius:12px; border:1px dashed rgba(180,140,255,.34);
 }
 .sg-sheet-notches span {
   position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
   font-size:9px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted);
   text-align:center; width:100%;
 }
+/* Real notch art, so it needs room to read; the ring grew with it. Composited
+   the way the battle table does it: the square plate becomes a round token by
+   being a background on a circular element over the element colour. */
 .sg-sheet-notch {
-  position:absolute; width:9px; height:9px; border-radius:50%;
-  background:var(--el,#95a5a6); box-shadow:0 0 8px var(--el,#95a5a6);
+  position:absolute; width:18px; height:18px; display:block; border-radius:50%;
+  background:var(--notch-icon) center / 100% 100% no-repeat, var(--notch, #95a5a6);
+  box-shadow:0 1px 4px rgba(0,0,0,.6);
 }
 
 
@@ -1973,3 +1977,23 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   font-size:8.5px; font-weight:800; letter-spacing:.14em; text-transform:uppercase;
   color:#2b0d02; background:linear-gradient(135deg,#ffe066,var(--amber));
 }
+
+/* ---------- element marks: the round notch, not a square badge ----------
+   Every element indicator on a Siegeling now uses the notch art a player reads
+   off a real card's perimeter. The art is a round token on a transparent square,
+   so it wants a little more size than the flat badges did and no border of its
+   own; the soft drop shadow is what separates it from a bright plate. */
+.sg-feat-marks img,
+.sg-gal-cap img,
+.sg-pill img,
+.sg-sheet-meta img,
+.sg-deck-els img {
+  border-radius:50%;
+  filter:drop-shadow(0 1px 3px rgba(0,0,0,.6));
+}
+.sg-feat-marks img { width:17px; height:17px; opacity:1; }
+.sg-gal-cap img { width:16px; height:16px; }
+.sg-pill img { width:16px; height:16px; }
+.sg-sheet-meta img { width:18px; height:18px; }
+.sg-deck-els img { width:19px; height:19px; }
+.sg-flip-plate img { width:30px; height:30px; filter:drop-shadow(0 2px 5px rgba(0,0,0,.6)); }

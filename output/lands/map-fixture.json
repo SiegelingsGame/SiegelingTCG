@@ -1,5 +1,5 @@
 {
-  "token" : "UcZrUP64nQCkzq2kucWI1IKHbi67xJaN",
+  "token" : "-8UhtnVcKVPEywqI_2ugVfTdveuCM86X",
   "status" : "ACTIVE",
   "currentNodeId" : -1,
   "lastReward" : "",
@@ -31,23 +31,23 @@
     "eventTitle" : "The Cinder Smith"
   },
   "landHistory" : [ {
-    "id" : "fire",
-    "name" : "Emberfall",
+    "id" : "wind",
+    "name" : "Zephyr Reach",
     "kind" : "ELEMENTAL",
-    "elements" : [ "FIRE" ],
-    "background" : "/img/lands/fire.webp",
+    "elements" : [ "WIND" ],
+    "background" : "/img/lands/wind.webp",
     "locations" : {
-      "journey" : "/img/lands/locations/fire-journey.webp",
-      "shelter" : "/img/lands/locations/fire-shelter.webp",
-      "elite" : "/img/lands/locations/fire-elite.webp",
-      "boss" : "/img/lands/locations/fire-boss.webp"
+      "journey" : "/img/lands/locations/wind-journey.webp",
+      "shelter" : "/img/lands/locations/wind-shelter.webp",
+      "elite" : "/img/lands/locations/wind-elite.webp",
+      "boss" : "/img/lands/locations/wind-boss.webp"
     },
-    "feature" : "Ember Forge",
-    "featureType" : "SMITH",
-    "terrain" : "Cinder heat",
-    "effect" : "FIRE Siegelings start battles with +1 Attack.",
+    "feature" : "Sky Caravan",
+    "featureType" : "CARAVAN",
+    "terrain" : "Tailwinds",
+    "effect" : "WIND Siegelings gain +2 Speed for each battle.",
     "encounters" : "Favored Siegelings have 4× draw weight in recruits, broker stock and card prizes.",
-    "eventTitle" : "The Cinder Smith"
+    "eventTitle" : "The Sky Courier"
   } ],
   "landSegment" : 0,
   "landSegmentRows" : 8,

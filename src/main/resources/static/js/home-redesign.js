@@ -10,15 +10,6 @@
     SHADOW: '#6d4a9e', ELECTRIC: '#f5cf3d', METAL: '#aeb5b8', UNDEAD: '#9f7c73',
     PSYCHIC: '#db73b4', POISON: '#7ecb4d', LIGHT: '#ffe59a', NEUTRAL: '#95a5a6'
   };
-  var EL_ICON = {
-    FIRE: '/img/elements/element-fire.png', EARTH: '/img/elements/element-earth.png',
-    WIND: '/img/elements/element-wind.png', WATER: '/img/elements/element-water.svg',
-    ICE: '/img/elements/element-ice.png', SHADOW: '/img/elements/element-shadow.svg',
-    ELECTRIC: '/img/elements/element-electric.svg', METAL: '/img/elements/element-metal.svg',
-    UNDEAD: '/img/elements/element-undead.svg', PSYCHIC: '/img/elements/element-psychic.svg',
-    POISON: '/img/elements/element-poison.svg', LIGHT: '/img/elements/element-light.svg',
-    NEUTRAL: '/img/elements/element-neutral.svg'
-  };
   // Production Land plates double as hero environments; each element gets the
   // biome that reads as its home so the backdrop and the creature agree.
   var EL_LAND = {
@@ -33,7 +24,34 @@
     });
   }
   function color(el) { return EL_COLOR[String(el || '').toUpperCase()] || EL_COLOR.NEUTRAL; }
-  function icon(el) { return EL_ICON[String(el || '').toUpperCase()] || EL_ICON.NEUTRAL; }
+
+  // Elements are shown with the round notch art, not the square element badges.
+  // The notch is the mark a player already reads off a card's perimeter, so it
+  // is the one they recognise; the square badges belong to the old hub.
+  //
+  // game.js owns the canonical paths (NOTCH_ICON_PATHS, cache-busted per file),
+  // and it is loaded ahead of this script on every page that serves the hub, so
+  // they are read from there rather than copied. EL_NOTCH is only the offline
+  // fallback for the preview board, which loads no game.js.
+  var EL_NOTCH = {
+    FIRE: '/img/notches/notch-fire.png', EARTH: '/img/notches/notch-earth.png',
+    WIND: '/img/notches/notch-wind.png', WATER: '/img/notches/notch-water.png?v=2',
+    ICE: '/img/notches/notch-ice.png', SHADOW: '/img/notches/notch-shadow.png?v=2',
+    ELECTRIC: '/img/notches/notch-electric.png?v=2', METAL: '/img/notches/notch-metal.png?v=2',
+    UNDEAD: '/img/notches/notch-undead.png?v=2', PSYCHIC: '/img/notches/notch-psychic.png?v=2',
+    POISON: '/img/notches/notch-poison.png?v=2', LIGHT: '/img/notches/notch-light.png?v=2',
+    NEUTRAL: '/img/notches/notch-neutral.png?v=2'
+  };
+
+  function notchArt() {
+    return (typeof NOTCH_ICON_PATHS !== 'undefined' && NOTCH_ICON_PATHS) || EL_NOTCH;
+  }
+
+  function icon(el) {
+    var key = String(el || '').toUpperCase();
+    var map = notchArt();
+    return map[key] || map.NEUTRAL || EL_NOTCH.NEUTRAL;
+  }
   function land(el) { return '/img/lands/' + (EL_LAND[String(el || '').toUpperCase()] || 'relic') + '.webp'; }
   function title(v) {
     return String(v || '').toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); });
@@ -1037,15 +1055,24 @@
   // corners (TOP_LEFT … BOTTOM_RIGHT). Filtering to the edges alone silently
   // dropped two thirds of a card's notches - Dracosleaf's six read as two.
   var NOTCH_EDGES = ['TOP', 'RIGHT', 'BOTTOM', 'LEFT'];
+  // Half of the 16px art, so each notch straddles the edge the way it does on a
+  // real card rather than sitting inside it.
   var NOTCH_CORNER = {
-    TOP_LEFT:     'top:-5px;left:-5px',
-    TOP_RIGHT:    'top:-5px;right:-5px',
-    BOTTOM_LEFT:  'bottom:-5px;left:-5px',
-    BOTTOM_RIGHT: 'bottom:-5px;right:-5px'
+    TOP_LEFT:     'top:-9px;left:-9px',
+    TOP_RIGHT:    'top:-9px;right:-9px',
+    BOTTOM_LEFT:  'bottom:-9px;left:-9px',
+    BOTTOM_RIGHT: 'bottom:-9px;right:-9px'
   };
 
+  // The ring draws the actual notch art rather than a coloured dot: this is the
+  // mark a player matches edge-to-edge on the table, so the sheet shows the same
+  // thing the card does - and the same way. The art is a square plate whose
+  // content is a round token, so style.css composites it as a background on a
+  // circular element over the element colour (`.notch-dot[style*="--notch-icon"]`)
+  // rather than drawing it as a bare <img>, which would show the plate's corners.
   function notchDot(n, style) {
-    return '<i class="sg-sheet-notch" style="--el:' + color(n.element) + ';' + style +
+    return '<i class="sg-sheet-notch" style="--notch:' + color(n.element) +
+      ';--notch-icon:url(\'' + icon(n.element) + '\');' + style +
       '" title="' + esc(title(n.element) + ' ' + title(n.direction)) + '"></i>';
   }
 
@@ -1070,8 +1097,8 @@
       onEdge.forEach(function (n, i) {
         var at = ((i + 1) / (onEdge.length + 1) * 100).toFixed(1) + '%';
         var style = (edge === 'TOP' || edge === 'BOTTOM')
-          ? (edge === 'TOP' ? 'top:-5px;' : 'bottom:-5px;') + 'left:' + at + ';transform:translateX(-50%)'
-          : (edge === 'LEFT' ? 'left:-5px;' : 'right:-5px;') + 'top:' + at + ';transform:translateY(-50%)';
+          ? (edge === 'TOP' ? 'top:-9px;' : 'bottom:-9px;') + 'left:' + at + ';transform:translateX(-50%)'
+          : (edge === 'LEFT' ? 'left:-9px;' : 'right:-9px;') + 'top:' + at + ';transform:translateY(-50%)';
         dots += notchDot(n, style);
       });
     });
