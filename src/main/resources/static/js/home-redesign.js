@@ -41,6 +41,13 @@
 
   var DATA = window.HOME_CONCEPT_CARDS || { sieglings: [], knights: [] };
   var CARDS = DATA.sieglings.slice();
+  // Binder pool: every card type. Falls back to the Siegeling snapshot offline.
+  var ALL_CARDS = DATA.sieglings.slice();
+  function byIdIn(pool, id) {
+    for (var i = 0; i < pool.length; i++) if (pool[i].id === id) return pool[i];
+    return null;
+  }
+
   function byId(id) {
     for (var i = 0; i < CARDS.length; i++) if (CARDS[i].id === id) return CARDS[i];
     return CARDS[0];
@@ -376,13 +383,13 @@
     opts = opts || {};
     var elements = ['ALL', 'FIRE', 'WATER', 'EARTH', 'WIND', 'ICE', 'ELECTRIC', 'PSYCHIC', 'METAL'];
     var rarities = ['ALL', 'COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'];
-    var total = CARDS.length;
+    var total = ALL_CARDS.length;
     var owned = opts.ownedTotal != null ? opts.ownedTotal : null;
     return topMarkup(opts) +
       '<div class="sg-scroll">' +
         '<div class="sg-gal-head"><h2>The Binder</h2><p>' +
-          (owned != null ? esc(owned) + ' of ' + esc(total) + ' Siegelings collected'
-                         : esc(total) + ' Siegelings in the catalog') +
+          (owned != null ? esc(owned) + ' of ' + esc(total) + ' cards owned'
+                         : esc(total) + ' cards — every Siegeling, Strategy, Deception and SiegeKnight') +
         '</p></div>' +
         '<div class="sg-gal-tools" data-tools>' +
           '<button class="sg-icon-btn" type="button" data-search-toggle aria-label="Search">⌕</button>' +
@@ -396,6 +403,10 @@
             return '<button class="sg-pill' + (i === 0 ? ' on' : '') + '" type="button" data-el="' + e + '" style="--el:' +
               (e === 'ALL' ? 'var(--acc-lemon)' : color(e)) + '">' +
               (e === 'ALL' ? '' : '<img src="' + icon(e) + '" alt="">') + esc(title(e)) + '</button>';
+          }).join('') + '</div>' +
+          '<div class="sg-filter-label">Type</div>' +
+          '<div class="sg-filter-row">' + [['ALL','All'],['SIEGLING','Siegelings'],['SPELL','Strategies'],['TRAP','Deceptions'],['SIEGEKNIGHT','SiegeKnights']].map(function (t, i) {
+            return '<button class="sg-pill' + (i === 0 ? ' on' : '') + '" type="button" data-type="' + t[0] + '">' + esc(t[1]) + '</button>';
           }).join('') + '</div>' +
           '<div class="sg-filter-label">Rarity</div>' +
           '<div class="sg-filter-row">' + rarities.map(function (r, i) {
@@ -411,7 +422,57 @@
       bottomMarkup('collection', opts.openTray, opts.guest);
   }
 
+  // SiegeKnight faces: card-binder-visual exposes the art helpers but the knight
+  // composition itself lives in home.js, which this page cannot load (it drives
+  // the old hub). Mirrored here using the same class names, so style.css dresses
+  // it identically to the shipping binder.
+  function knightCard(card) {
+    var visual = window.SieglingsCardBinderVisual;
+    if (!visual) return '';
+    var rarity = String(card.rarity || 'common').toLowerCase();
+    var el = String(card.element || 'NEUTRAL').toLowerCase();
+    var body = '<div class="knight-card-body">' +
+      '<span class="knight-card-name">' + esc(card.name) + '</span>' +
+      '<span class="knight-card-meta"><span class="knight-element">' + esc(title(card.element)) + '</span> ' +
+      '<span class="knight-tier tier-' + esc(String(card.tier || 'siegeknight').toLowerCase()) + '">' +
+      esc(card.tier || 'SiegeKnight') + '</span> ' +
+      '<span class="knight-rarity rarity-' + esc(rarity) + '">' + esc(title(card.rarity)) + '</span></span>' +
+      (card.passive ? '<span class="knight-card-ability"><span>Passive</span>' + esc(card.passive) + '</span>' : '') +
+    '</div>';
+    if (visual.usesFullCardArt && visual.usesFullCardArt(card)) {
+      var crop = visual.buildArtTransformStyle ? visual.buildArtTransformStyle(card) : '';
+      return '<div class="knight-card knight-full-card-art knight-binder-card rarity-frame-' + esc(rarity) +
+        ' el-' + esc(el) + '" role="img" aria-label="' + esc(card.name) + '">' +
+        '<img src="' + esc(visual.preferWebp ? visual.preferWebp(card.cardArtUrl) : card.cardArtUrl) +
+        '" alt="' + esc(card.name) + '" loading="lazy"' + (crop ? ' style="' + esc(crop) + '"' : '') + '>' +
+        body + '</div>';
+    }
+    if (visual.usesKnightOverlayArt && visual.usesKnightOverlayArt(card)) {
+      return '<div class="knight-card knight-full-card-art knight-overlay-art knight-binder-card rarity-frame-' +
+        esc(rarity) + ' el-' + esc(el) + '" style="--knight-color:' + visual.elementColor(card.element) +
+        ";--knight-card-back:url('/img/knights/card-back-siegeknight.png');--knight-card-template:url('/img/knights/siegeknight-card-template.png')\">" +
+        visual.renderKnightOverlayArtWindow(card) +
+        '<div class="knight-card-template" aria-hidden="true"></div>' + body + '</div>';
+    }
+    return '';
+  }
+
+  // The production renderer composes the real card: frame, notches, rarity
+  // treatment, stats and description, with overlay art composited in and full
+  // card art used whole. Reimplementing that here would have drifted from the
+  // dashboard the moment a designer changed a frame.
   function galleryCard(c) {
+    var visual = window.SieglingsCardBinderVisual;
+    if (String(c.type || '').toUpperCase() === 'SIEGEKNIGHT') {
+      var knight = knightCard(c);
+      if (knight) return '<button class="sg-card-tile" type="button" data-card="' + esc(c.id) + '">' + knight + '</button>';
+    }
+    if (visual && visual.renderBinderCardTile) {
+      return '<button class="sg-card-tile" type="button" data-card="' + esc(c.id) + '">' +
+        visual.renderBinderCardTile(c, { descriptionText: c.description || '' }) +
+      '</button>';
+    }
+    // Offline preview board: no renderer loaded, so fall back to the plate.
     return '<article class="sg-gal-card" data-card="' + esc(c.id) + '" style="--el:' + color(c.element) + '">' +
       '<div class="sg-gal-plate"><div class="sg-gal-art">' +
       '<img src="' + esc(c.cardArtUrl) + '" alt="' + esc(c.name) + '" loading="lazy"></div></div>' +
@@ -430,10 +491,11 @@
     var more = app.querySelector('[data-more]');
     var sheet = app.querySelector('[data-sheet]');
     var sheetCard = app.querySelector('[data-sheet-card]');
-    var activeEl = 'ALL', activeRarity = 'ALL', query = '', limit = 24;
+    var activeEl = 'ALL', activeRarity = 'ALL', activeType = 'ALL', query = '', limit = 24;
 
     function matches() {
-      return CARDS.filter(function (c) {
+      return ALL_CARDS.filter(function (c) {
+        if (activeType !== 'ALL' && String(c.type || 'SIEGLING').toUpperCase() !== activeType) return false;
         if (activeEl !== 'ALL' && c.element !== activeEl) return false;
         if (activeRarity !== 'ALL' && String(c.rarity || '').toUpperCase() !== activeRarity) return false;
         if (query && String(c.name || '').toLowerCase().indexOf(query) === -1) return false;
@@ -469,6 +531,13 @@
         repaint();
       });
     });
+    filters.querySelectorAll('[data-type]').forEach(function (pill) {
+      pill.addEventListener('click', function () {
+        activeType = pill.getAttribute('data-type'); limit = 24;
+        filters.querySelectorAll('[data-type]').forEach(function (p2) { p2.classList.toggle('on', p2 === pill); });
+        repaint();
+      });
+    });
     filters.querySelectorAll('[data-rarity]').forEach(function (pill) {
       pill.addEventListener('click', function () {
         activeRarity = pill.getAttribute('data-rarity'); limit = 24;
@@ -501,7 +570,7 @@
     }
     grid.addEventListener('click', function (e) {
       var host = e.target.closest ? e.target.closest('[data-card]') : null;
-      if (host) openSheet(byId(host.getAttribute('data-card')));
+      if (host) openSheet(byIdIn(ALL_CARDS, host.getAttribute('data-card')) || byId(host.getAttribute('data-card')));
     });
     sheet.addEventListener('click', function (e) { if (e.target === sheet) sheet.classList.remove('open'); });
 
@@ -793,21 +862,17 @@
           '<div class="sg-section-head"><h3>In this deck</h3><a href="#">Clear</a></div>' +
           '<div class="sg-swipe">' + (entries.length
             ? entries.map(function (e) {
-                var c = byId(e.id);
+                var c = byIdIn(ALL_CARDS, e.id) || byId(e.id);
                 if (!c) return '';
-                return '<article class="sg-feat sg-build-card" style="--el:' + color(c.element) + '">' +
-                  '<div class="sg-feat-plate"></div>' +
-                  '<div class="sg-feat-art"><img src="' + esc(c.cardArtUrl) + '" alt="" loading="lazy"></div>' +
-                  '<span class="sg-build-count">x' + esc(e.count) + '</span>' +
-                  '<div class="sg-feat-foot"><span class="sg-feat-name">' + esc(c.name) + '</span></div>' +
-                '</article>';
+                return '<div class="sg-build-slot">' + galleryCard(c) +
+                  '<span class="sg-build-count">x' + esc(e.count) + '</span></div>';
               }).join('')
             : '<p class="sg-empty">Nothing added yet.</p>') + '</div>' +
         '</section>' +
         '<section class="sg-section">' +
           '<div class="sg-section-head"><h3>Add from your binder</h3>' +
             '<a href="?screen=collection" data-screen="collection">Browse</a></div>' +
-          '<div class="sg-gal-grid">' + CARDS.slice(0, 8).map(galleryCard).join('') + '</div>' +
+          '<div class="sg-gal-grid">' + ALL_CARDS.slice(0, 6).map(galleryCard).join('') + '</div>' +
         '</section>' +
         '<div class="sg-build-actions">' +
           '<button class="sg-ghost-btn" type="button"><span class="ico">✧</span>Auto Build</button>' +
@@ -1031,6 +1096,9 @@
   // identical whether it is fronting the real game or the offline preview.
   function applyLive(model) {
     if (!model) return;
+    if (model.cards && model.cards.length) {
+      ALL_CARDS = model.cards.slice();
+    }
     if (model.sieglings && model.sieglings.length) {
       CARDS.length = 0;
       model.sieglings.forEach(function (c) { CARDS.push(c); });

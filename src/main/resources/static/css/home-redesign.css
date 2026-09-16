@@ -1485,3 +1485,25 @@ body.concept-board {
 .sg-help-body { position:absolute; left:0; right:0; bottom:0; padding:12px; }
 .sg-help-body strong { display:block; font-family:var(--serif); font-size:15px; font-weight:600; line-height:1.2; }
 .sg-help-body span { display:block; margin-top:3px; font-size:10.5px; color:var(--muted); line-height:1.35; }
+
+/* ==========================================================================
+   REAL CARD FACES IN THE BINDER AND DECK BUILDER
+   The production renderer (card-binder-visual + SieglingsCardShowcase) composes
+   frames, notches, rarity treatments and overlay art. These rules only give it a
+   home inside the art-first grid; the card itself is untouched so it keeps
+   matching the dashboard.
+   ========================================================================== */
+.sg-card-tile {
+  display:block; width:100%; padding:0; border:0; background:none; cursor:pointer;
+  transition:transform .28s cubic-bezier(.2,.8,.25,1), filter .28s ease;
+}
+.sg-card-tile:active { transform:translateY(-5px) scale(1.02); }
+.sg-card-tile > * { width:100%; }
+/* the showcase sizes itself from the battle table; let it fill the grid cell */
+.sg-card-tile .mulligan-card-slot,
+.sg-card-tile .binder-framed-slot,
+.sg-card-tile .binder-card { width:100%; height:auto; margin:0; }
+.sg-gal-grid { align-items:start; gap:14px 12px; }
+.sg-build-slot { position:relative; flex:0 0 132px; scroll-snap-align:start; }
+.sg-build-slot .sg-card-tile { pointer-events:none; }
+.sg-build-slot .sg-build-count { top:6px; right:6px; }

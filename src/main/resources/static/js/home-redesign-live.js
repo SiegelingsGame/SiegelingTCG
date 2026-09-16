@@ -45,8 +45,18 @@
           signedIn: signedIn,
           guest: !signedIn,
           displayName: (me && me.user && me.user.displayName) || null,
-          // Only cards carrying overlay art can drive this design; the rest have
-          // nothing to show, so they are filtered out here rather than in render.
+          // The binder shows the whole catalog as real card faces - Siegelings,
+          // Strategies and Deceptions alike - because the production renderer
+          // composes a frame for every type, art or not. Siegelings stay
+          // separated for the hero and featured rails, which need a creature.
+          // SiegeKnights live in `trainers`, not the card catalog, but a binder
+          // that omits them is not the binder. Tag them so the renderer picks the
+          // knight treatment (full card art, or overlay art behind the template).
+          cards: catalog.concat(((options && options.trainers) || []).map(function (t) {
+            var k = {}; for (var key in t) if (Object.prototype.hasOwnProperty.call(t, key)) k[key] = t[key];
+            k.type = 'SIEGEKNIGHT';
+            return k;
+          })),
           sieglings: catalog.filter(function (c) {
             return c && c.cardArtUrl && c.cardArtMode === 'OVERLAY' && c.type === 'SIEGLING';
           }),
