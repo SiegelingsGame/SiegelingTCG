@@ -1443,7 +1443,9 @@ body.concept-board {
 
 /* social */
 .sg-lobby { position:relative; height:104px; border-radius:18px; overflow:hidden; display:block;
+  color:inherit; text-decoration:none;
   box-shadow:0 14px 28px rgba(6,3,24,.5), inset 0 0 0 1px color-mix(in srgb, var(--el,#708eb4) 32%, transparent); }
+a.sg-ghost-btn { color:inherit; text-decoration:none; }
 .sg-lobby-bg { position:absolute; inset:0; background-size:cover; background-position:center 44%; filter:saturate(1.2) brightness(.6); }
 .sg-lobby-veil { position:absolute; inset:0;
   background:linear-gradient(100deg, rgba(13,10,38,.94) 32%, rgba(21,16,64,.5) 70%, rgba(30,24,86,.15) 100%); }

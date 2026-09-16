@@ -812,17 +812,35 @@
     '</article>';
   }
 
+  // /api/auth/me savedDecks carry customDeckCards as a list of card ids, not
+  // {id, count} entries. Count copies so the row can name a lead and a size.
+  function savedDeckEntries(d) {
+    var raw = (d && (d.cards || d.customDeckCards)) || [];
+    var counts = {};
+    var order = [];
+    for (var i = 0; i < raw.length; i++) {
+      var item = raw[i];
+      var id = item && typeof item === 'object' ? (item.id || item.cardId) : item;
+      if (!id) continue;
+      id = String(id);
+      if (!counts[id]) { counts[id] = 0; order.push(id); }
+      counts[id] += (item && typeof item === 'object' && item.count) ? Number(item.count) || 1 : 1;
+    }
+    return order.map(function (id) { return { id: id, count: counts[id] }; });
+  }
+
   // A signed-in player's own saved decks replace the catalog presets.
   function playerDecks(opts) {
     var saved = opts && opts.live && opts.live.savedDecks;
     if (!saved || !saved.length) return null;
     return saved.slice(0, 6).map(function (d, i) {
-      var lead = (d.cards || []).map(function (c) { return byIdIn(ALL_CARDS, c.id || c); })
+      var entries = savedDeckEntries(d);
+      var lead = entries.map(function (c) { return byIdIn(ALL_CARDS, c.id); })
         .filter(Boolean)[0] || CARDS[i] || CARDS[0];
       return {
-        name: d.name || 'Untitled deck', lead: lead && lead.id,
+        name: d.name || d.deckName || 'Untitled deck', lead: lead && lead.id,
         els: d.elements || [], w: d.wins || 0, l: d.losses || 0,
-        cards: (d.cards || []).reduce(function (n, c) { return n + (c.count || 1); }, 0),
+        cards: entries.reduce(function (n, c) { return n + (c.count || 1); }, 0),
         active: Boolean(d.selected || d.active)
       };
     });
@@ -987,7 +1005,8 @@
           '<div class="sg-crest-body">' +
             '<span class="sg-crest-ring"><i>' + esc(accountInitial(opts)) + '</i></span>' +
             '<h2>' + esc((opts.live && opts.live.displayName) || (opts.guest ? 'Guest' : 'Siegelord')) + '</h2>' +
-            '<p>' + esc(opts.live && opts.live.level != null ? 'Level ' + opts.live.level : 'Signed out') + '</p>' +
+            '<p>' + esc(opts.guest ? 'Signed out'
+              : (opts.live && opts.live.level != null ? 'Level ' + opts.live.level : 'Signed in')) + '</p>' +
             xpMarkup(opts) +
           '</div>' +
         '</section>' +
@@ -1064,9 +1083,20 @@
       bottomMarkup('more', opts);
   }
 
+  var AUTH_PROFILE_KEY = 'sieglingsAuthProfile';
+  var COOKIE_AUTH_CONFIRMED_KEY = 'sieglingsCookieAuthConfirmed';
+
   function storeAuthToken(token) {
     if (!token) return;
     try { localStorage.setItem(AUTH_TOKEN_KEY, token); } catch (e) { /* private mode */ }
+  }
+
+  function clearAuthStorage() {
+    try {
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+      localStorage.removeItem(AUTH_PROFILE_KEY);
+      localStorage.removeItem(COOKIE_AUTH_CONFIRMED_KEY);
+    } catch (e) { /* private mode */ }
   }
 
   function mountAuth(app) {
@@ -1138,10 +1168,15 @@
   }
 
   function signOut() {
-    fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' })
+    var headers = { Accept: 'application/json' };
+    try {
+      var token = localStorage.getItem(AUTH_TOKEN_KEY);
+      if (token && token !== 'cookie') headers.Authorization = 'Bearer ' + token;
+    } catch (e) { /* private mode */ }
+    fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin', headers: headers })
       .catch(function () { /* the local clear below still matters */ })
       .then(function () {
-        try { localStorage.removeItem(AUTH_TOKEN_KEY); } catch (e) { /* private mode */ }
+        clearAuthStorage();
         window.location.href = '/home';
       });
   }
@@ -1310,8 +1345,8 @@
           (rooms.length ? esc(rooms.length) + ' table' + (rooms.length === 1 ? '' : 's') + ' open now'
                         : 'No tables open right now') + '</p></div>' +
         '<div class="sg-tool-row">' +
-          '<button class="sg-ghost-btn" type="button"><span class="ico">＋</span>Host a table</button>' +
-          '<button class="sg-ghost-btn" type="button"><span class="ico">#</span>Join code</button>' +
+          '<a class="sg-ghost-btn" href="/battle"><span class="ico">＋</span>Host a table</a>' +
+          '<button class="sg-ghost-btn" type="button" data-join-code><span class="ico">#</span>Join code</button>' +
         '</div>' +
         '<section class="sg-section">' +
           '<div class="sg-section-head"><h3>Open tables</h3></div>' +
@@ -1325,10 +1360,18 @@
       bottomMarkup('more', opts);
   }
 
+  function lobbyPath(room) {
+    var code = String((room && (room.roomId || room.id)) || '').trim().toUpperCase();
+    return code ? '/social/lobby/' + encodeURIComponent(code) : '';
+  }
+
   function lobbyRow(room, i) {
     var lead = CARDS[i % Math.max(1, CARDS.length)] || CARDS[0];
     var host = room.hostName || room.playerName || 'Open table';
-    return '<article class="sg-lobby" style="--el:' + color(lead && lead.element) + '">' +
+    var href = lobbyPath(room);
+    var tag = href ? 'a' : 'article';
+    var extra = href ? ' href="' + esc(href) + '"' : '';
+    return '<' + tag + ' class="sg-lobby" style="--el:' + color(lead && lead.element) + '"' + extra + '>' +
       '<div class="sg-lobby-bg" style="background-image:url(\'' + land(lead && lead.element) + '\')"></div>' +
       '<div class="sg-lobby-veil"></div>' +
       (lead ? '<div class="sg-lobby-art"><img src="' + esc(lead.cardArtUrl) + '" alt="" loading="lazy"></div>' : '') +
@@ -1338,7 +1381,19 @@
         '<em>' + esc(room.roomId || room.id || 'Table') + '</em>' +
       '</div>' +
       '<span class="sg-lobby-go">Join ›</span>' +
-    '</article>';
+    '</' + tag + '>';
+  }
+
+  function mountSocial(app) {
+    var join = app.querySelector('[data-join-code]');
+    if (!join) return;
+    join.addEventListener('click', function () {
+      var code = window.prompt('Enter a table code');
+      if (!code) return;
+      code = String(code).trim().toUpperCase();
+      if (!code) return;
+      window.location.href = '/social/lobby/' + encodeURIComponent(code);
+    });
   }
 
   function emptyLobbies() {
@@ -1618,6 +1673,7 @@
     }
     if (screen === 'settings') mountSettings(app);
     if (screen === 'auth') mountAuth(app);
+    if (screen === 'social') mountSocial(app);
     mountBottom(app);
     scheduleFit(app);
     return app;

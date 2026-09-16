@@ -4,9 +4,11 @@
    the renderer does not care which it got.
 
    Two rules learned from the endpoints themselves:
-   - /api/player/progression, /api/missions/daily and /api/profile/decks throw or
+   - /api/player/progression, /api/missions/daily and /api/social/presence throw or
      error for a signed-out player (the user-data stores have no row to read), so
      they are only called once /api/auth/me reports authenticated.
+   - Saved decks and match history come from /api/auth/me. /api/profile/decks is
+     POST-only and is not fetched.
    - Everything else degrades: a failed fetch leaves that slice null and the
      renderer falls back to its snapshot rather than rendering an empty screen. */
 (function () {
@@ -30,13 +32,31 @@
     }
   }
 
-  function get(url) {
+  function authHeaders() {
     var headers = { Accept: 'application/json' };
     var auth = bearer();
     if (auth) headers.Authorization = auth;
-    return fetch(url, { credentials: 'same-origin', headers: headers })
+    return headers;
+  }
+
+  function get(url) {
+    return fetch(url, { credentials: 'same-origin', headers: authHeaders() })
       .then(function (r) { return r.ok ? r.json() : null; })
       .catch(function () { return null; });
+  }
+
+  // GET /api/player/progression returns {progression, packs, dailyOffers}.
+  // /api/auth/me nests the same serialize() object under .progression.
+  // Reading .gold off the outer envelope always missed, so every signed-in
+  // player saw an em-dash instead of their Siegecoin balance.
+  function unwrapProgression(payload) {
+    if (!payload || typeof payload !== 'object') return null;
+    var nested = payload.progression;
+    if (nested && typeof nested === 'object' && (nested.gold != null || nested.ownedCards)) {
+      return nested;
+    }
+    if (payload.gold != null || payload.ownedCards) return payload;
+    return null;
   }
 
   // A run is resumable only while it is ACTIVE. The endpoint returns either a
@@ -61,15 +81,18 @@
         get('/api/shop/packs')
       ];
       var gated = signedIn
-        ? [get('/api/player/progression'), get('/api/missions/daily'), get('/api/profile/decks'),
+        ? [get('/api/player/progression'), get('/api/missions/daily'),
            // Friends + their live presence. Signed-out has no friend list to
            // read, and the endpoint says so rather than returning an empty one.
            get('/api/social/presence')]
-        : [Promise.resolve(null), Promise.resolve(null), Promise.resolve(null), Promise.resolve(null)];
+        : [Promise.resolve(null), Promise.resolve(null), Promise.resolve(null)];
 
       return Promise.all(core.concat(gated)).then(function (r) {
         var options = r[0], rooms = r[1], siege = r[2], boards = r[3], shop = r[4],
-            progression = r[5], missions = r[6], decks = r[7], presence = r[8];
+            progressionPayload = r[5], missions = r[6], presence = r[7];
+        // /api/profile/decks is POST-only (save/delete). The account's decks
+        // already arrive on /api/auth/me as savedDecks.
+        var progression = unwrapProgression(me) || unwrapProgression(progressionPayload);
         var catalog = (options && options.cardCatalog) || [];
         return {
           signedIn: signedIn,
@@ -94,7 +117,7 @@
           trainers: (options && options.trainers) || [],
           defaultDeckId: options && options.defaultDeckId,
           defaultTrainerId: options && options.defaultTrainerId,
-          savedDecks: (decks && (decks.decks || decks)) || null,
+          savedDecks: (me && me.savedDecks) || null,
           lobbies: (rooms && rooms.rooms ? rooms.rooms.length : 0),
           rooms: (rooms && rooms.rooms) || [],
           deckBuilder: (options && options.deckBuilder) || null,
@@ -102,12 +125,16 @@
           siegeRuns: activeRuns(siege),
           gold: progression && (progression.gold != null ? progression.gold : null),
           ownedTotal: progression && progression.ownedTotal,
-          level: progression && progression.level,
+          // Progression serialize() has no level field. Public profiles use
+          // max(1, ownedTotal/12 + 1); reuse that so a signed-in player is not
+          // labelled "Signed out" under their own name.
+          level: progression && progression.ownedTotal != null
+            ? Math.max(1, Math.floor(Number(progression.ownedTotal) / 12) + 1) : null,
           xp: progression && progression.xp,
           xpToNext: progression && (progression.xpToNext || progression.nextLevelXp),
           remnants: progression && progression.remnants,
           ownedCards: (progression && progression.ownedCards) || null,
-          matchHistory: (progression && progression.matchHistory) || null,
+          matchHistory: (me && me.matchHistory) || null,
           missions: (missions && !missions.error && (missions.missions || missions.daily)) || null,
           packs: (shop && shop.packs ? shop.packs.filter(function (pk) { return pk && pk.active !== false; }) : null),
           friends: (presence && !presence.error && presence.friends) || null,
@@ -117,5 +144,9 @@
     });
   }
 
-  window.SiegelingsHomeLive = { load: load };
+  window.SiegelingsHomeLive = {
+    load: load,
+    unwrapProgression: unwrapProgression,
+    authHeaders: authHeaders
+  };
 })();
