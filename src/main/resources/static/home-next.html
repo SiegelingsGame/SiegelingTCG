@@ -6,11 +6,18 @@
 <title>Siegelings TCG</title>
 <link rel="icon" href="/favicon.ico">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-<link rel="stylesheet" href="/css/home-redesign.css?v=2">
+<!-- style.css carries the real card frames, notches and rarity treatments the
+     binder renders. It must load BEFORE home-redesign.css so the art-first
+     palette and layout win where the two overlap. -->
+<link rel="stylesheet" href="/css/style.css?v=264">
+<link rel="stylesheet" href="/css/home-redesign.css?v=4">
 <style>
   /* Boot state: the shell paints immediately on the app's own ground so the
      first frame is never a white flash while the catalog is in flight. */
-  html, body { margin:0; background:#0d0a26; }
+  /* style.css sets body to a flex column on its own background; the shell
+     needs its own ground and no competing flex context. */
+  html, body { margin:0; background:#0d0a26 !important; display:block !important;
+               height:100%; overflow:hidden; font-family:inherit; }
   .boot { position:fixed; inset:0; display:grid; place-items:center; z-index:80;
           background:#0d0a26; transition:opacity .4s ease; }
   .boot.gone { opacity:0; pointer-events:none; }
@@ -22,8 +29,12 @@
 </head>
 <body>
 <div class="boot" id="boot"><span></span></div>
+<!-- game.js defines SieglingsCardShowcase, which card-binder-visual.js uses to
+     compose a full card face. home.html loads the same pair for its binder. -->
+<script src="/js/game.js?v=294"></script>
+<script src="/js/card-binder-visual.js?v=23"></script>
 <script src="/js/home-redesign-data.js?v=1"></script>
-<script src="/js/home-redesign.js?v=2"></script>
+<script src="/js/home-redesign.js?v=4"></script>
 <script src="/js/home-redesign-live.js?v=1"></script>
 <script>
 (function () {
@@ -33,12 +44,13 @@
   function paint(live) {
     document.body.classList.add('single-screen');
     var opts = {
+      screen: screen,
       live: live,
       guest: live ? live.guest : true,
       lobbies: live ? live.lobbies : null,
       siegeRuns: live ? live.siegeRuns : []
     };
-    window.SiegelingsHomeConcept.render(document.body, screen, opts);
+    window.SiegelingsHomeConcept.mountApp(document.body, opts);
     boot.classList.add('gone');
     setTimeout(function () { boot.remove(); }, 450);
   }
