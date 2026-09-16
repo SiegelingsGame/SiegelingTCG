@@ -2100,8 +2100,11 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
    editor is a bottom sheet so a phone never has to scroll a form behind the
    tab bar. It reuses .sg-sheet's frame; only the body differs. */
 .sg-crest-ring img { width:100%; height:100%; border-radius:50%; object-fit:cover; }
+/* The notch art is a round token on a square canvas, so every mark that draws
+   it as a bare <img> is clipped round - the same treatment the feat/binder marks
+   get - rather than showing the canvas behind it. */
 .sg-crest-ring.is-element i, .sg-crest-ring.is-element img {
-  background:linear-gradient(160deg,#243449,#0d1320); padding:12px;
+  background:linear-gradient(160deg,#243449,#0d1320); padding:12px; border-radius:50%;
 }
 .sg-crest-title {
   display:inline-block; margin-top:6px; padding:3px 12px; border-radius:999px;
@@ -2222,7 +2225,10 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   width:42px; height:42px; border-radius:50%; padding:5px; display:grid; place-items:center;
   border:1px solid rgba(112,142,180,.18); background:rgba(11,17,32,.6);
 }
-.sg-el img { width:100%; height:100%; object-fit:contain; }
+.sg-el img {
+  width:100%; height:100%; object-fit:contain; border-radius:50%;
+  filter:drop-shadow(0 1px 3px rgba(0,0,0,.6));
+}
 .sg-el.on { border-color:var(--el); box-shadow:0 0 12px color-mix(in srgb, var(--el) 55%, transparent); }
 .sg-title-list { display:flex; flex-direction:column; gap:8px; }
 .sg-title-opt {

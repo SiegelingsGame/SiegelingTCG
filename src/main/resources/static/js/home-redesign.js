@@ -34,9 +34,9 @@
   // they are read from there rather than copied. EL_NOTCH is only the offline
   // fallback for the preview board, which loads no game.js.
   var EL_NOTCH = {
-    FIRE: '/img/notches/notch-fire.png', EARTH: '/img/notches/notch-earth.png',
-    WIND: '/img/notches/notch-wind.png', WATER: '/img/notches/notch-water.png?v=2',
-    ICE: '/img/notches/notch-ice.png', SHADOW: '/img/notches/notch-shadow.png?v=2',
+    FIRE: '/img/notches/notch-fire.png?v=2', EARTH: '/img/notches/notch-earth.png?v=2',
+    WIND: '/img/notches/notch-wind.png?v=2', WATER: '/img/notches/notch-water.png?v=2',
+    ICE: '/img/notches/notch-ice.png?v=2', SHADOW: '/img/notches/notch-shadow.png?v=2',
     ELECTRIC: '/img/notches/notch-electric.png?v=2', METAL: '/img/notches/notch-metal.png?v=2',
     UNDEAD: '/img/notches/notch-undead.png?v=2', PSYCHIC: '/img/notches/notch-psychic.png?v=2',
     POISON: '/img/notches/notch-poison.png?v=2', LIGHT: '/img/notches/notch-light.png?v=2',
