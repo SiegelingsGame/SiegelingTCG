@@ -475,6 +475,126 @@
 
   /* ---------- chrome ---------- */
 
+  // Notifications live in the same localStorage key the shipping hub writes, so
+  // match results and rewards a player already earned on /legacy keep showing up
+  // here. The redesign previously painted a decorative sparkle with no panel.
+  var NOTIF_LIMIT = 40;
+  var NOTIF_TYPE_LABELS = {
+    match: 'Match', reward: 'Reward', invite: 'Invite', unlock: 'Unlock',
+    pack: 'Packs', title: 'Titles', badge: 'Badges', rank: 'Rank', server: 'Server'
+  };
+
+  function notifStorageKey(opts) {
+    var email = opts && opts.live && (opts.live.email || (opts.live.user && opts.live.user.email));
+    return 'sieglingsNotifs:' + (email || 'anon');
+  }
+
+  function loadNotifs(opts) {
+    try {
+      var rows = JSON.parse(localStorage.getItem(notifStorageKey(opts)) || '[]');
+      return Array.isArray(rows) ? rows : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveNotifs(opts, rows) {
+    try {
+      localStorage.setItem(notifStorageKey(opts), JSON.stringify((rows || []).slice(0, NOTIF_LIMIT)));
+    } catch (e) { /* private mode */ }
+  }
+
+  function unreadNotifCount(opts) {
+    return loadNotifs(opts).filter(function (n) { return n && !n.read; }).length;
+  }
+
+  function formatNotifTime(ms) {
+    var t = Number(ms) || 0;
+    if (!t) return '';
+    var mins = Math.max(0, Math.round((Date.now() - t) / 60000));
+    if (mins < 1) return 'just now';
+    if (mins < 60) return mins + 'm';
+    var hrs = Math.round(mins / 60);
+    if (hrs < 48) return hrs + 'h';
+    return Math.round(hrs / 24) + 'd';
+  }
+
+  function notifPanelMarkup(opts) {
+    var rows = loadNotifs(opts);
+    var list = rows.length
+      ? rows.map(function (n) {
+          return '<div class="sg-notif-row' + (n.read ? '' : ' is-unread') + '">' +
+            '<div class="sg-notif-row-head">' +
+              '<span class="sg-notif-type">' + esc(NOTIF_TYPE_LABELS[n.type] || 'Update') + '</span>' +
+              '<time>' + esc(formatNotifTime(n.time)) + '</time>' +
+            '</div>' +
+            '<strong>' + esc(n.title || 'Update') + '</strong>' +
+            (n.body ? '<p>' + esc(n.body) + '</p>' : '') +
+          '</div>';
+        }).join('')
+      : '<div class="sg-notif-empty">No notifications yet. Match results, rewards, invites, and unlocks will show up here.</div>';
+    return '<div class="sg-notif-panel hidden" id="sgNotifPanel" role="dialog" aria-label="Notifications" data-notif-panel>' +
+      '<div class="sg-notif-panel-head">' +
+        '<strong>Notifications</strong>' +
+        '<button class="sg-notif-clear" type="button" data-notif-clear>Clear</button>' +
+      '</div>' +
+      '<div class="sg-notif-list" data-notif-list>' + list + '</div>' +
+    '</div>';
+  }
+
+  function mountNotifs(app, opts) {
+    if (!app || (opts && opts.guest)) return;
+    var bell = app.querySelector('[data-notif-toggle]');
+    var panel = app.querySelector('[data-notif-panel]');
+    if (!bell || !panel) return;
+
+    function paintBadge() {
+      var badge = bell.querySelector('[data-notif-badge]');
+      var unread = unreadNotifCount(opts);
+      if (!badge) return;
+      badge.textContent = unread > 9 ? '9+' : String(unread);
+      badge.classList.toggle('hidden', !unread);
+    }
+
+    function setOpen(open) {
+      panel.classList.toggle('hidden', !open);
+      bell.classList.toggle('active', open);
+      bell.setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (open) {
+        var rows = loadNotifs(opts);
+        if (rows.some(function (n) { return n && !n.read; })) {
+          rows.forEach(function (n) { if (n) n.read = true; });
+          saveNotifs(opts, rows);
+          paintBadge();
+        }
+      }
+    }
+
+    bell.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      setOpen(panel.classList.contains('hidden'));
+    });
+    var clear = panel.querySelector('[data-notif-clear]');
+    if (clear) {
+      clear.addEventListener('click', function (e) {
+        e.preventDefault();
+        saveNotifs(opts, []);
+        var list = panel.querySelector('[data-notif-list]');
+        if (list) {
+          list.innerHTML = '<div class="sg-notif-empty">No notifications yet. Match results, rewards, invites, and unlocks will show up here.</div>';
+        }
+        paintBadge();
+      });
+    }
+    app.addEventListener('click', function (e) {
+      if (panel.classList.contains('hidden')) return;
+      if (e.target.closest && (e.target.closest('[data-notif-panel]') || e.target.closest('[data-notif-toggle]'))) return;
+      setOpen(false);
+    });
+    paintBadge();
+  }
+
   // A guest has no avatar, level or progression to show, so the identity slot
   // carries the sign-in call rather than an empty crest. The coin chip stays
   // (guests hold a starting balance) but the bell goes - there is nothing to
@@ -501,8 +621,13 @@
     return gold != null ? Number(gold).toLocaleString() : '—';
   }
 
+  // Bell glyph matches the legacy hub's notification control rather than the
+  // decorative sparkle that read as a cosmetic chip instead of an alert button.
+  var BELL_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>';
+
   function topMarkup(opts) {
     var guest = Boolean(opts && opts.guest);
+    var unread = unreadNotifCount(opts);
     return '<header class="sg-top' + (guest ? ' is-guest' : '') + '">' +
       '<img class="sg-logo" src="/img/siegelings-logo.webp" alt="Siegelings">' +
       '<span class="sg-top-spacer"></span>' +
@@ -514,10 +639,18 @@
         // no account level anywhere, only per-SiegeKnight levels. It shows how
         // many knights the account owns, which is real, and the crest is a link
         // to the profile because that is what tapping your own name should do.
+        // Notifications sit immediately to the right of the profile crest, same
+        // order the shipping hub used (avatar cluster → bell).
         : '<a class="sg-avatar" href="/profile" data-screen="profile" aria-label="Your profile">' +
           '<i>' + esc(accountInitial(opts)) + '</i>' + knightBadge(opts) + '</a>' +
-          '<button class="sg-bell" type="button" aria-label="Notifications">✦</button>') +
-    '</header>';
+          '<button class="sg-bell" type="button" data-notif-toggle aria-label="Notifications" ' +
+            'aria-haspopup="dialog" aria-controls="sgNotifPanel" aria-expanded="false">' +
+            BELL_ICON +
+            '<span class="sg-notif-badge' + (unread ? '' : ' hidden') + '" data-notif-badge>' +
+              (unread > 9 ? '9+' : String(unread)) +
+            '</span></button>') +
+    '</header>' +
+    (guest ? '' : notifPanelMarkup(opts));
   }
 
   function bottomMarkup(active, opts) {
@@ -596,7 +729,7 @@
     opts = opts || {};
     return topMarkup(opts) +
       '<div class="sg-scroll">' + heroMarkup() + featuredMarkup() + leaderboardSection(opts) + gallerySection() + questsMarkup(opts) + expeditionsSection(opts) +
-      '<div style="height:132px"></div></div>' +
+      '<div style="height:96px"></div></div>' +
       sheetHost() +
       bottomMarkup('home', opts);
   }
@@ -638,7 +771,7 @@
         '</div></div>' +
         '<div class="sg-gal-grid" data-grid></div>' +
         '<div class="sg-gal-more" data-more hidden><button type="button">Show more</button></div>' +
-        '<div style="height:132px"></div>' +
+        '<div style="height:96px"></div>' +
       '</div>' +
       sheetHost() +
       bottomMarkup('collection', opts);
@@ -833,7 +966,7 @@
             esc(label) + '</em><span class="go">›</span></a>';
         })() +
         (guest ? guestBand() : '') +
-        '<div style="height:132px"></div>' +
+        '<div style="height:96px"></div>' +
       '</div>' +
       bottomMarkup('play', opts);
   }
@@ -981,7 +1114,7 @@
         deckSection(opts.guest ? 'Included presets' : 'Owned presets', groups.owned, 'owned', opts, 'No unlocked presets available.') +
         deckSection('Preset decks', groups.shop, 'presets', opts,
           (opts.live && opts.live.decks && opts.live.decks.length) ? 'You have unlocked every available preset.' : 'Preset decks are unavailable right now.') +
-        '<div style="height:132px"></div>' +
+        '<div style="height:96px"></div>' +
       '</div>' +
       bottomMarkup('collection', opts);
   }
@@ -1150,7 +1283,7 @@
                 '<p>The pack catalog did not answer. Try again in a moment.</p></div>' +
               '</div>') +
         '</section>' +
-        '<div style="height:132px"></div>' +
+        '<div style="height:96px"></div>' +
       '</div>' +
       bottomMarkup('shop', opts);
   }
@@ -1193,7 +1326,7 @@
               '</button>';
             }).join('') + '</div>'
           : '<div class="sg-empty-row">The gallery has not loaded yet.</div>') +
-        '<div style="height:132px"></div>' +
+        '<div style="height:96px"></div>' +
       '</div>' +
       '<div class="sg-lightbox" data-lightbox hidden>' +
         '<img data-lightbox-img alt="">' +
@@ -1954,6 +2087,28 @@
   }
 
   // The favourite card and the card back a player will see across the table.
+  // Favorite used to paint the bare cutout, which sat tiny at the foot of the
+  // slot while the card back filled its box - the same composed face the binder
+  // and card sheet already show, scaled to fill the slot the same way.
+  function favoriteFace(card) {
+    if (!card) return '';
+    var visual = window.SieglingsCardBinderVisual;
+    if (String(card.type || '').toUpperCase() === 'SIEGEKNIGHT') {
+      var knight = knightCard(card);
+      if (knight) return knight;
+    }
+    if (visual && visual.renderBinderCardPreview) {
+      return visual.renderBinderCardPreview(card, {
+        previewClass: 'detail-card-preview sg-sig-showcase',
+        descriptionText: card.description || ''
+      });
+    }
+    if (visual && visual.renderBinderCardTile) {
+      return visual.renderBinderCardTile(card, { descriptionText: card.description || '' });
+    }
+    return '<img src="' + esc(card.cardArtUrl) + '" alt="' + esc(card.name) + '" loading="lazy">';
+  }
+
   function signatureSection(opts) {
     var fav = byIdIn(ALL_CARDS, prefs().favoriteCardId);
     var back = cardBackEntry(prefs().preferredCardBack) || CARD_BACKS[0];
@@ -1965,7 +2120,7 @@
           '<span class="sg-sig-label">Favorite card</span>' +
           (fav
             ? '<div class="sg-sig-art" data-card="' + esc(fav.id) + '" style="--el:' + color(fav.element) + '">' +
-                '<img src="' + esc(fav.cardArtUrl) + '" alt="' + esc(fav.name) + '" loading="lazy">' +
+                favoriteFace(fav) +
               '</div><span class="sg-sig-name">' + esc(fav.name) + '</span>'
             : '<div class="sg-sig-art is-empty"></div><span class="sg-sig-name">Not chosen</span>') +
         '</div>' +
@@ -2011,7 +2166,7 @@
           '<div class="sg-section-head"><h3>Recent</h3></div>' +
           recentMarkup(opts) +
         '</section>' +
-        '<div style="height:132px"></div>' +
+        '<div style="height:96px"></div>' +
       '</div>' +
       (opts.guest ? '' : profileEditorHost()) +
       bottomMarkup('more', opts);
@@ -2355,7 +2510,7 @@
             (register ? 'Create account' : 'Log in') + '</button>' +
           '<a class="sg-auth-guest" href="/home" data-screen="home">Continue as guest</a>' +
         '</form>' +
-        '<div style="height:132px"></div>' +
+        '<div style="height:96px"></div>' +
       '</div>' +
       bottomMarkup('more', opts);
   }
@@ -2650,7 +2805,7 @@
           '<button class="sg-ghost-btn" type="button"><span class="ico">✧</span>Auto Build</button>' +
           '<button class="sg-guest-primary" type="button">Save Deck</button>' +
         '</div>' +
-        '<div style="height:132px"></div>' +
+        '<div style="height:96px"></div>' +
       '</div>' +
       bottomMarkup('collection', opts);
   }
@@ -2676,7 +2831,7 @@
             : emptyLobbies()) +
         '</section>' +
         (opts.guest ? guestBand() : friendsSection(opts)) +
-        '<div style="height:132px"></div>' +
+        '<div style="height:96px"></div>' +
       '</div>' +
       bottomMarkup('more', opts);
   }
@@ -2847,7 +3002,7 @@
               '</div>' +
             '</div>' +
           '</section>') +
-        '<div style="height:132px"></div>' +
+        '<div style="height:96px"></div>' +
       '</div>' +
       bottomMarkup('more', opts);
   }
@@ -2881,7 +3036,7 @@
             '<div class="sg-help-body"><strong>' + esc(h[0]) + '</strong><span>' + esc(h[1]) + '</span></div>' +
           '</a>';
         }).join('') + '</div>' +
-        '<div style="height:132px"></div>' +
+        '<div style="height:96px"></div>' +
       '</div>' +
       bottomMarkup('more', opts);
   }
@@ -3004,6 +3159,7 @@
     if (screen === 'settings') mountSettings(app);
     if (screen === 'auth') mountAuth(app);
     mountBottom(app);
+    mountNotifs(app, opts);
     scheduleFit(app);
     return app;
   }

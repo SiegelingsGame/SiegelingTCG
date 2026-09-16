@@ -74,18 +74,27 @@ body.concept-board {
 .sg-top {
   position:absolute; top:0; left:0; right:0; z-index:40;
   display:flex; align-items:center; gap:10px;
-  padding:calc(12px + env(safe-area-inset-top,0px)) 14px 12px;
-  background:linear-gradient(180deg, rgba(5,8,15,.78), rgba(5,8,15,0));
+  /* Sit just under the status bar. The previous 12px + full inset left a tall
+     empty band, and the scrim painted across the chip row so the controls looked
+     soft. The scrim is a ::before behind the children now. */
+  padding:max(6px, env(safe-area-inset-top,0px)) 14px 10px;
+  background:none;
   pointer-events:none;
 }
-.sg-top > * { pointer-events:auto; }
+/* Scrim lives behind the chrome so coins / crest / bell stay sharp. */
+.sg-top::before {
+  content:''; position:absolute; inset:0; z-index:0; pointer-events:none;
+  background:linear-gradient(180deg, rgba(5,8,15,.78) 0%, rgba(5,8,15,.42) 55%, rgba(5,8,15,0) 100%);
+}
+.sg-top > * { position:relative; z-index:1; pointer-events:auto; }
 .sg-logo { height:22px; width:auto; opacity:.95; filter:drop-shadow(0 2px 6px rgba(0,0,0,.6)); }
 .sg-top-spacer { flex:1 1 auto; }
 .sg-chip {
   display:inline-flex; align-items:center; gap:7px; height:32px; padding:0 11px;
   border-radius:999px; border:1px solid var(--steel-soft);
-  background:rgba(10,16,28,.52); backdrop-filter:blur(14px) saturate(1.2);
-  -webkit-backdrop-filter:blur(14px) saturate(1.2);
+  /* Opaque enough that backdrop blur is not needed - blur on the chips is what
+     made the top of the coin/crest read as soft when a scrim sat over them. */
+  background:rgba(10,16,28,.88);
   font-size:12.5px; font-weight:600; letter-spacing:.02em; color:var(--ink);
 }
 .sg-chip img { width:16px; height:16px; }
@@ -108,13 +117,60 @@ body.concept-board {
 }
 .sg-bell {
   width:32px; height:32px; border-radius:50%; display:grid; place-items:center;
-  border:1px solid var(--steel-soft); background:rgba(10,16,28,.52);
-  backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
-  color:var(--muted); position:relative; font-size:14px;
+  border:1px solid var(--steel-soft); background:rgba(10,16,28,.88);
+  color:var(--muted); position:relative; font-size:14px; cursor:pointer; padding:0;
 }
-.sg-bell::after {
-  content:''; position:absolute; top:5px; right:6px; width:6px; height:6px; border-radius:50%;
-  background:var(--amber); box-shadow:0 0 8px var(--amber);
+.sg-bell svg { display:block; }
+.sg-bell.active, .sg-bell:hover { color:var(--gold-bright); border-color:rgba(200,165,79,.4); }
+.sg-bell::after { display:none; }
+.sg-notif-badge {
+  position:absolute; top:-4px; right:-4px; min-width:16px; height:16px; padding:0 4px;
+  border-radius:999px; font-size:9px; font-weight:700; letter-spacing:0;
+  display:grid; place-items:center; color:#1f1608;
+  background:linear-gradient(180deg,#f0cd8a,var(--gold));
+  box-shadow:0 0 8px rgba(242,160,61,.55);
+}
+.sg-notif-badge.hidden { display:none; }
+
+.sg-notif-panel {
+  position:absolute; top:calc(max(6px, env(safe-area-inset-top,0px)) + 40px); right:12px; z-index:50;
+  width:min(320px, calc(100% - 24px)); max-height:min(420px, 58dvh);
+  display:flex; flex-direction:column;
+  border-radius:18px; border:1px solid rgba(200,165,79,.28);
+  background:rgba(9,14,26,.96); box-shadow:0 22px 48px rgba(0,0,0,.55);
+  overflow:hidden;
+}
+.sg-notif-panel.hidden { display:none; }
+.sg-notif-panel-head {
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:12px 14px; border-bottom:1px solid rgba(112,142,180,.16);
+}
+.sg-notif-panel-head strong { font-size:13px; letter-spacing:.04em; }
+.sg-notif-clear {
+  border:0; background:none; color:var(--muted); font-size:11px; letter-spacing:.08em;
+  text-transform:uppercase; cursor:pointer; padding:4px 6px;
+}
+.sg-notif-clear:hover { color:var(--gold-bright); }
+.sg-notif-list { overflow-y:auto; -webkit-overflow-scrolling:touch; padding:6px; }
+.sg-notif-row {
+  padding:10px 10px 11px; border-radius:12px; margin-bottom:4px;
+  background:rgba(13,20,35,.55);
+}
+.sg-notif-row.is-unread {
+  background:linear-gradient(100deg, rgba(200,165,79,.14), rgba(13,20,35,.55));
+  box-shadow:inset 2px 0 0 var(--gold);
+}
+.sg-notif-row-head {
+  display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:4px;
+}
+.sg-notif-type {
+  font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:var(--gold-bright);
+}
+.sg-notif-row-head time { font-size:10px; color:var(--muted); }
+.sg-notif-row strong { display:block; font-size:12.5px; font-weight:650; }
+.sg-notif-row p { margin:4px 0 0; font-size:11.5px; line-height:1.45; color:var(--muted); }
+.sg-notif-empty {
+  padding:28px 18px; text-align:center; font-size:12px; line-height:1.55; color:var(--muted);
 }
 
 /* --- scroll body --- */
@@ -293,7 +349,8 @@ body.concept-board {
    It used to be MORE than the whole tile: the art was scaled 1.16 inside an
    overflow:visible frame, which read as tall creatures with their antlers,
    tails and claws sliced off by the neighbouring tile and the section below.
-   The tile clips now, and the art is sized to sit inside it. */
+   The tile clips now. A modest scale fills the box for cutouts that ship with
+   large transparent padding, without breaking out of the frame again. */
 .sg-feat {
   position:relative; flex:0 0 150px; height:196px; border-radius:20px; scroll-snap-align:start;
   overflow:hidden; cursor:pointer;
@@ -314,20 +371,21 @@ body.concept-board {
   background:linear-gradient(200deg, rgba(230,205,140,.34), transparent 42%);
   mix-blend-mode:screen;
 }
-/* Inset from all four edges: the top gap keeps a tall silhouette off the
-   rounded corner, and the bottom stop clears the name plate rather than
-   sitting under it. */
+/* Tight insets + scale: cutouts with empty padding finally fill the plate, and
+   overflow:hidden on the tile keeps them from spilling into the neighbour. */
 .sg-feat-art {
-  position:absolute; left:8px; right:8px; top:10px; bottom:38px;
+  position:absolute; left:2px; right:2px; top:2px; bottom:34px;
   display:flex; align-items:flex-end; justify-content:center; pointer-events:none;
+  overflow:hidden;
 }
 .sg-feat-art img {
   width:100%; height:100%; object-fit:contain; object-position:center bottom;
+  transform:scale(1.28); transform-origin:center bottom;
   filter:drop-shadow(0 14px 18px rgba(0,0,0,.65));
   transition:transform .32s cubic-bezier(.2,.8,.25,1);
 }
 .sg-feat:active { transform:translateY(-6px); }
-.sg-feat:active .sg-feat-art img { transform:scale(1.04); transform-origin:center bottom; }
+.sg-feat:active .sg-feat-art img { transform:scale(1.34); transform-origin:center bottom; }
 .sg-feat-foot {
   position:absolute; left:0; right:0; bottom:0; padding:10px 12px 12px; border-radius:0 0 20px 20px;
   background:linear-gradient(180deg, transparent, rgba(5,8,15,.86) 46%);
@@ -449,8 +507,9 @@ body.concept-board {
 /* --- bottom navigation --- */
 .sg-bottom {
   position:absolute; left:0; right:0; bottom:0; z-index:45; pointer-events:none;
-  background:linear-gradient(180deg, rgba(5,8,15,0), rgba(5,8,15,.66) 40%, rgba(5,8,15,.93) 66%);
-  padding-top:38px;
+  background:linear-gradient(180deg, rgba(5,8,15,0), rgba(5,8,15,.66) 55%, rgba(5,8,15,.93) 78%);
+  /* Shorter fade so the content is not capped by a tall empty highlight band. */
+  padding-top:18px;
 }
 .sg-bottom > * { pointer-events:auto; }
 .sg-more-sheet {
@@ -483,26 +542,28 @@ body.concept-board {
   /* Read through a variable so a test can exercise this exact expression with a
      real inset value - Chromium cannot fake env(), and a test that re-declares
      the padding is only checking a copy of the rule. */
+  /* Phone feedback still showed a tall empty band under the labels: keep the
+     bar flush and drop the decorative clearance further so icons ride lower. */
   --sg-sab: env(safe-area-inset-bottom, 0px);
-  padding:8px 6px max(6px, calc(var(--sg-sab) * 0.3));
+  padding:4px 6px max(2px, calc(var(--sg-sab) * 0.18));
   border-top:1px solid rgba(112,142,180,.14);
   background:linear-gradient(180deg, rgba(7,11,20,.72), rgba(5,8,15,.96));
   backdrop-filter:blur(22px) saturate(1.3); -webkit-backdrop-filter:blur(22px) saturate(1.3);
 }
 .sg-nav button {
   flex:1 1 0; background:none; border:none; cursor:pointer; position:relative;
-  display:flex; flex-direction:column; align-items:center; gap:4px;
+  display:flex; flex-direction:column; align-items:center; gap:2px;
   color:var(--muted); font-size:9.5px; letter-spacing:.09em; text-transform:uppercase;
-  padding:4px 0 2px; transition:color .3s ease;
+  padding:2px 0 0; transition:color .3s ease;
 }
 .sg-nav button .ico { font-size:18px; line-height:1; filter:grayscale(.4); transition:filter .3s ease, transform .3s ease; }
 .sg-nav button.on { color:var(--gold-bright); }
 .sg-nav button.on .ico { filter:none; transform:translateY(-1px); }
 .sg-nav button.on::before {
-  content:''; position:absolute; top:-8px; left:50%; transform:translateX(-50%);
-  width:54px; height:34px; border-radius:50%;
-  background:radial-gradient(circle, rgba(230,205,140,.34), transparent 68%);
-  filter:blur(5px);
+  content:''; position:absolute; top:-6px; left:50%; transform:translateX(-50%);
+  width:42px; height:26px; border-radius:50%;
+  background:radial-gradient(circle, rgba(230,205,140,.28), transparent 68%);
+  filter:blur(4px);
 }
 
 /* --- collection / gallery screen --- */
@@ -1161,11 +1222,11 @@ body.concept-board {
 /* Panels sit on translucent indigo, not near-black. */
 .sg-chip, .sg-bell, .sg-icon-btn, .sg-ghost-btn, .sg-swap, .sg-buy, .sg-pill,
 .sg-strip, .sg-bundle, .sg-recent, .sg-tiles div, .sg-badge, .sg-loadout, .sg-rail {
-  background-color:rgba(36,26,96,.52);
+  background-color:rgba(36,26,96,.88);
 }
 .sg-qa-panel ul, .sg-more-sheet { background:rgba(26,17,71,.94); }
 .sg-nav { background:linear-gradient(180deg, rgba(21,16,64,.68), rgba(13,10,38,.96)); }
-.sg-bottom { background:linear-gradient(180deg, rgba(13,10,38,0), rgba(13,10,38,.62) 40%, rgba(13,10,38,.92) 66%); }
+.sg-bottom { background:linear-gradient(180deg, rgba(13,10,38,0), rgba(13,10,38,.55) 50%, rgba(13,10,38,.92) 78%); }
 .sg-sheet-card { background:linear-gradient(180deg, rgba(40,28,108,.97), rgba(15,11,44,.99)); }
 .sg-gal-plate, .sg-feat-plate {
   background:linear-gradient(172deg,
@@ -1232,7 +1293,7 @@ body.concept-board {
 .sg-avatar { background:conic-gradient(from 210deg, var(--acc-magenta), var(--acc-violet), var(--acc-cyan), var(--acc-lemon), var(--acc-magenta)); }
 .sg-avatar i { background:linear-gradient(160deg,#2c1f78,#150f3e); color:var(--acc-lemon); }
 .sg-avatar b { background:#150f3e; border-color:var(--acc-lemon); color:var(--acc-lemon); }
-.sg-bell::after { background:var(--acc-magenta); box-shadow:0 0 10px var(--acc-magenta); }
+.sg-bell::after { display:none; }
 
 /* Low-chroma elements (METAL #aeb5b8, NEUTRAL, UNDEAD) left whole tiles grey.
    CLAUDE.md convention 4 is that element identity uses the style.css hexes and
@@ -1343,10 +1404,10 @@ body.concept-board {
 .sg-nav button.tray-on .ico { opacity:1; filter:drop-shadow(0 0 10px var(--tab)); transform:translateY(-1px); }
 .sg-nav button.tray-on .sg-caret { opacity:1; transform:rotate(180deg); }
 .sg-nav button.tray-on::before {
-  content:''; position:absolute; top:-8px; left:50%; transform:translateX(-50%);
-  width:54px; height:34px; border-radius:50%;
-  background:radial-gradient(circle, color-mix(in srgb, var(--tab) 46%, transparent), transparent 68%);
-  filter:blur(5px);
+  content:''; position:absolute; top:-6px; left:50%; transform:translateX(-50%);
+  width:42px; height:26px; border-radius:50%;
+  background:radial-gradient(circle, color-mix(in srgb, var(--tab) 40%, transparent), transparent 68%);
+  filter:blur(4px);
 }
 
 /* ==========================================================================
@@ -2136,7 +2197,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   background:rgba(6,10,18,.62); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
 }
 
-/* signature: favourite card + card back */
+/* signature: favourite card + card back — same filled plate for both */
 .sg-sig { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px; padding:0 18px; }
 .sg-sig-slot {
   display:flex; flex-direction:column; align-items:center; gap:8px; padding:14px 10px; border-radius:18px;
@@ -2144,12 +2205,35 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 }
 .sg-sig-label { font-size:9px; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); }
 .sg-sig-art, .sg-sig-back {
-  width:100%; height:116px; border-radius:14px; overflow:hidden; display:grid; place-items:center;
+  width:100%; aspect-ratio:var(--card-back-ratio, 520 / 760); height:auto;
+  border-radius:14px; overflow:hidden; display:grid; place-items:center;
   background:radial-gradient(70% 70% at 50% 40%, color-mix(in srgb, var(--el,#95a5a6) 30%, transparent), rgba(6,10,18,.9));
 }
-.sg-sig-art img { width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 10px 16px rgba(0,0,0,.6)); }
+.sg-sig-art > img {
+  width:100%; height:100%; object-fit:cover; object-position:center;
+}
+/* Composed binder/showcase face fills the plate the way the card back does. */
+.sg-sig-art .sg-sig-showcase,
+.sg-sig-art .mulligan-showcase,
+.sg-sig-art .detail-card-preview,
+.sg-sig-art .binder-card,
+.sg-sig-art .mulligan-card-slot,
+.sg-sig-art .binder-framed-slot,
+.sg-sig-art .knight-card,
+.sg-sig-art .hand-card {
+  width:100% !important; height:100% !important; max-width:none !important;
+  margin:0 !important; border-radius:0;
+}
+.sg-sig-art .card-face,
+.sg-sig-art .framed-card-shell,
+.sg-sig-art .mulligan-card-slot > *,
+.sg-sig-art .binder-framed-slot > * {
+  width:100%; height:100%;
+}
 .sg-sig-back { background:rgba(6,10,18,.7); }
-.sg-sig-back img { height:100%; width:auto; object-fit:contain; border-radius:8px; }
+.sg-sig-back img {
+  width:100%; height:100%; object-fit:cover; object-position:center; border-radius:0; display:block;
+}
 .sg-sig-art.is-empty { border:1px dashed rgba(112,142,180,.3); background:rgba(6,10,18,.5); }
 .sg-sig-name { font-size:11.5px; font-weight:600; text-align:center; }
 
