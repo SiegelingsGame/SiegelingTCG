@@ -18,7 +18,7 @@
     <link rel="stylesheet" href="/css/style.css?v=266">
     <!-- Art-first re-skin of the loadout overlay. After style.css on purpose:
          equal-specificity rules in it are meant to win. -->
-    <link rel="stylesheet" href="/css/play-next.css?v=3">
+    <link rel="stylesheet" href="/css/play-next.css?v=4">
     <link rel="stylesheet" href="/css/coach.css?v=7">
     <!-- Pre-load loading-gate styles so the splash covers the loadout
          screen on the very first Start Battle press - the lazy-injected
@@ -695,12 +695,12 @@
         <section class="play-entry-hero">
             <div>
                 <div class="welcome-eyebrow">PLAY</div>
-                <h2>Choose your mode: Battle now, Siege soon.</h2>
-                <p class="welcome-hero-copy">Battle runs solo PVE and live 1v1 PvP on this table — every SiegeKnight fights at base power, so it is all about your deck and your reads. Siege is a roguelike where your SiegeKnight levels carry into every fight. It is coming soon.</p>
+                <h2>Choose how to play</h2>
+                <p class="welcome-hero-copy"><strong>Arena Battle:</strong> use your decks against the AI or another player. SiegeKnight levels are off.<br><strong>Siege:</strong> assemble a warband, explore a changing map, and grow stronger during an expedition.</p>
             </div>
             <div class="play-entry-actions">
                 <button class="btn btn-primary play-mode-btn" type="button" onclick="startPlaySolo()">
-                    <span class="play-mode-btn-label">Battle</span>
+                    <span class="play-mode-btn-label">Arena Battle</span>
                     <span class="play-mode-btn-sub">Solo &amp; live PvP — levels off</span>
                 </button>
                 <a class="btn play-mode-btn" href="/siege">
@@ -795,21 +795,23 @@
                 </div>
             </section>
             <section class="loadout-step" data-step="deck" id="loadoutStepDeck">
+                <div class="loadout-account-note" id="loadoutAccountNote" role="status"></div>
                 <div class="loadout-toggle-set">
                     <div class="loadout-toggle-label">Deck Source</div>
                     <div class="loadout-tabs" role="group" aria-label="Deck Source">
-                        <button class="loadout-tab active" id="presetTab" type="button" onclick="switchLoadoutMode('preset')" aria-pressed="true">Preset Decks</button>
-                        <button class="loadout-tab" id="savedTab" type="button" onclick="switchLoadoutMode('saved')" aria-pressed="false">My Decks</button>
+                        <button class="loadout-tab active" id="presetTab" type="button" onclick="switchLoadoutMode('preset')" aria-pressed="true">Owned Presets</button>
+                        <button class="loadout-tab" id="savedTab" type="button" onclick="switchLoadoutMode('saved')" aria-pressed="false">Saved Decks</button>
                         <button class="loadout-tab" id="builderTab" type="button" onclick="switchLoadoutMode('builder')" aria-pressed="false">Deck Builder</button>
                     </div>
                 </div>
                 <div id="presetLoadoutPanel" class="loadout-section deck-section">
                     <div class="loadout-section-title-row">
                         <div>
-                            <div class="loadout-section-kicker">Faction Banner</div>
-                            <h3>Choose Your Deck</h3>
+                            <div class="loadout-section-kicker">Ready to play</div>
+                            <h3>Choose an Owned Preset</h3>
                         </div>
                     </div>
+                    <p class="loadout-saved-note">Your included and purchased presets. <a href="/decks">Unlock more in My Decks</a>, or choose Saved Decks above for your custom builds.</p>
                     <div id="deckOptions" class="loadout-options"></div>
                 </div>
                 <div id="savedLoadoutPanel" class="loadout-section hidden">
@@ -948,7 +950,7 @@
     <script src="/js/coach.js?v=11"></script>
     <script src="/js/arena-tutorial.js?v=50"></script>
     <script src="/js/knight-tutorial.js?v=2"></script>
-    <script src="/js/game.js?v=295"></script>
+    <script src="/js/game.js?v=296"></script>
     <script src="/js/play-mode-picker.js?v=4"></script>
     <script src="/js/play-hud.js?v=4"></script>
     <!-- Defines window.SieglingsCardBinderVisual (buildArtTransformStyle). Without it,

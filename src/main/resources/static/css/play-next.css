@@ -116,6 +116,18 @@
 }
 
 /* ---- steps ---- */
+.loadout-account-note { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;
+    margin:0 0 14px; padding:12px; border:1px solid var(--lo-line); border-radius:14px;
+    background:var(--lo-panel); color:var(--lo-ink); font:13px/1.5 system-ui,sans-serif; }
+.loadout-account-note .btn { min-height:38px; padding:7px 10px; font-size:11px; border:1px solid var(--lo-line);
+    border-radius:10px; background:#241a60; color:var(--lo-ink); cursor:pointer; }
+.loadout-saved-note a { color:var(--lo-gold); text-decoration:underline; }
+#welcomeOverlay .welcome-shell { background:#100d2b; color:#f3efff; font-family:system-ui,sans-serif; }
+#welcomeOverlay .play-entry-hero h2 { font-size:clamp(24px,6vw,34px); line-height:1.2; }
+#welcomeOverlay .welcome-hero-copy { font-size:14px; line-height:1.7; color:#c9c0e6; }
+#welcomeOverlay .welcome-hero-copy strong { color:#f3efff; }
+#welcomeOverlay .welcome-auth-prompt { font-size:14px; line-height:1.6; }
+
 .loadout-step-chip {
     border-color: var(--lo-line);
     background: var(--lo-panel);
