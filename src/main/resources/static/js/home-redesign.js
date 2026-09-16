@@ -1685,7 +1685,141 @@
     return headers;
   }
 
-  /* ---------- profile ---------- */
+  /* ---------- profile ----------
+     The redesign shipped this screen hard-coded: the crest always drew
+     GALLERY[2], the avatar was always an initial, and the Showcase rail was a
+     literal `pick(['bearzooka','pylord','conchious','gymstone'])`. Everything a
+     player had chosen about their own profile - background art, title, avatar
+     style, card back, favourite card and the three showcase cards - was already
+     stored server-side under /api/profile/settings and simply not read.
+
+     This reads it, renders from it, and gives it back an editor. The endpoint is
+     the same one the legacy hub writes, so a profile customised on either
+     surface shows up on both. */
+
+  // Whatever /api/profile/settings last returned, normalised. Null until the
+  // gated fetch lands (or forever, for a guest), and every reader falls back to
+  // the concept defaults rather than rendering an empty crest.
+  var PREFS = null;
+  // The editor edits a copy. Nothing touches PREFS until the server has accepted
+  // the save, so a failed request leaves the rendered profile exactly as it was.
+  var PROFILE_DRAFT = null;
+  var PROFILE_SHOWCASE_MAX = 3;
+
+  var PROFILE_ELEMENTS = ['FIRE', 'WATER', 'ICE', 'WIND', 'EARTH', 'ELECTRIC',
+                          'METAL', 'POISON', 'PSYCHIC', 'SHADOW', 'LIGHT', 'UNDEAD', 'NEUTRAL'];
+
+  // The premade backs, named exactly as the legacy hub names them, because the
+  // stored value is the NAME and the two surfaces have to agree on it.
+  var CARD_BACKS = [
+    { name: 'Molten Sigil', element: 'FIRE' },
+    { name: 'Tidal Sigil', element: 'WATER' },
+    { name: 'Frost Sigil', element: 'ICE' },
+    { name: 'Gale Sigil', element: 'WIND' },
+    { name: 'Stone Sigil', element: 'EARTH' },
+    { name: 'Storm Sigil', element: 'ELECTRIC' },
+    { name: 'Iron Sigil', element: 'METAL' },
+    { name: 'Venom Sigil', element: 'POISON' },
+    { name: 'Mind Sigil', element: 'PSYCHIC' },
+    { name: 'Umbral Sigil', element: 'SHADOW' },
+    { name: 'Radiant Sigil', element: 'LIGHT' },
+    { name: 'Spectral Sigil', element: 'UNDEAD' }
+  ];
+
+  function cardBackEntry(name) {
+    var wanted = String(name || '').trim().toLowerCase();
+    for (var i = 0; i < CARD_BACKS.length; i++) {
+      if (CARD_BACKS[i].name.toLowerCase() === wanted) return CARD_BACKS[i];
+      if (CARD_BACKS[i].element.toLowerCase() === wanted) return CARD_BACKS[i];
+    }
+    return null;
+  }
+  function cardBackArt(entry) {
+    return '/img/decks/card-back-' + String(entry.element).toLowerCase() + '.png';
+  }
+
+  function normalizePrefs(raw) {
+    if (!raw) return null;
+    return {
+      displayName: raw.displayName || '',
+      avatarMode: raw.avatarMode === 'ELEMENT' ? 'ELEMENT' : 'INITIAL',
+      avatarUrl: raw.avatarUrl || '',
+      favoriteElement: String(raw.favoriteElement || 'FIRE').toUpperCase(),
+      profileArtId: raw.profileArtId || '',
+      playerTitleId: raw.playerTitleId || '',
+      playerTitle: raw.playerTitle || '',
+      bio: raw.bio || '',
+      preferredCardBack: raw.preferredCardBack || '',
+      favoriteCardId: raw.favoriteCardId || raw.favoriteSieglingId || '',
+      favoriteCardVariant: raw.favoriteCardVariant === 'HOLOGRAPHIC' ? 'HOLOGRAPHIC' : 'STANDARD',
+      favoriteCardIds: (raw.favoriteCardIds || []).filter(Boolean).slice(0, PROFILE_SHOWCASE_MAX)
+    };
+  }
+
+  function prefs() { return PREFS || {}; }
+
+  // Cards the account actually owns. `ownedCards` is an id -> copies map; when it
+  // is absent (guest, or the offline preview board) every catalog card is
+  // offered, because there is nothing to filter against and an empty picker is
+  // worse than a permissive one.
+  function ownedPool(opts) {
+    var owned = opts && opts.live && opts.live.ownedCards;
+    if (!owned) return ALL_CARDS.slice();
+    return ALL_CARDS.filter(function (c) { return c && Number(owned[c.id]) > 0; });
+  }
+
+  function profileArtPiece(id) {
+    if (!id) return null;
+    var pieces = galleryPieces();
+    for (var i = 0; i < pieces.length; i++) if (pieces[i].id === id) return pieces[i];
+    return null;
+  }
+
+  // The chosen gallery piece, or the concept plate it always used to draw.
+  function crestBackground() {
+    var piece = profileArtPiece(prefs().profileArtId);
+    if (piece) return piece.full || piece.thumb;
+    return plate(GALLERY[2]);
+  }
+
+  function crestElement() {
+    var fav = byIdIn(ALL_CARDS, prefs().favoriteCardId);
+    if (fav && fav.element) return fav.element;
+    return prefs().favoriteElement || 'NEUTRAL';
+  }
+
+  // Three ways to wear a face, in the order the stored settings resolve them: an
+  // uploaded image, the favourite element's notch, or the first initial.
+  function crestAvatar(opts) {
+    var p = prefs();
+    if (p.avatarUrl) {
+      return '<span class="sg-crest-ring"><img src="' + esc(p.avatarUrl) + '" alt=""></span>';
+    }
+    if (p.avatarMode === 'ELEMENT') {
+      return '<span class="sg-crest-ring is-element"><img src="' + esc(icon(p.favoriteElement)) + '" alt=""></span>';
+    }
+    return '<span class="sg-crest-ring"><i>' + esc(accountInitial(opts)) + '</i></span>';
+  }
+
+  // The concept's Showcase was four hand-picked ids. It is now the player's own
+  // three, falling back to those ids only while nothing has been chosen.
+  function showcaseCards() {
+    var chosen = (prefs().favoriteCardIds || []).map(function (id) {
+      return byIdIn(ALL_CARDS, id);
+    }).filter(Boolean);
+    if (chosen.length) return chosen;
+    return pickPresent(['bearzooka', 'pylord', 'conchious', 'gymstone']).slice(0, PROFILE_SHOWCASE_MAX);
+  }
+
+  function featTile(c) {
+    return '<article class="sg-feat" data-card="' + esc(c.id) + '" tabindex="0" style="--el:' + color(c.element) + '">' +
+      '<div class="sg-feat-plate"></div>' +
+      '<div class="sg-feat-art"><img src="' + esc(c.cardArtUrl) + '" alt="" loading="lazy"></div>' +
+      '<div class="sg-feat-foot"><span class="sg-feat-name">' + esc(c.name) + '</span>' +
+      '<span class="sg-feat-marks"><i class="sg-rar ' + esc(String(c.rarity || '').toLowerCase()) + '"></i>' +
+      '<img src="' + icon(c.element) + '" alt=""></span></div>' +
+    '</article>';
+  }
 
   // The six badges and their earned/unearned states were invented, as was the
   // "All 42" beside them: no endpoint reports a badge, so the section is gone
@@ -1742,7 +1876,7 @@
       bits.push(live.knights.length + ' SiegeKnight' + (live.knights.length === 1 ? '' : 's'));
     }
     if (!bits.length) return '<span class="sg-xp-note">Loading your account…</span>';
-    return '<span class="sg-xp-note">' + esc(bits.join(' \u00b7 ')) + '</span>';
+    return '<span class="sg-xp-note">' + esc(bits.join(' · ')) + '</span>';
   }
 
   // A real one-liner about the account, or an honest "Signed out".
@@ -1754,44 +1888,363 @@
     if (live.matchHistory && live.matchHistory.length) {
       bits.push(live.matchHistory.length + ' recorded match' + (live.matchHistory.length === 1 ? '' : 'es'));
     }
-    return bits.length ? bits.join(' \u00b7 ') : 'Signed in';
+    return bits.length ? bits.join(' · ') : 'Signed in';
+  }
+
+  // The favourite card and the card back a player will see across the table.
+  function signatureSection(opts) {
+    var fav = byIdIn(ALL_CARDS, prefs().favoriteCardId);
+    var back = cardBackEntry(prefs().preferredCardBack) || CARD_BACKS[0];
+    return '<section class="sg-section">' +
+      '<div class="sg-section-head"><h3>Signature</h3>' +
+        (opts.guest ? '' : '<a href="#" data-prof-open="favorite">Change</a>') + '</div>' +
+      '<div class="sg-sig">' +
+        '<div class="sg-sig-slot">' +
+          '<span class="sg-sig-label">Favorite card</span>' +
+          (fav
+            ? '<div class="sg-sig-art" data-card="' + esc(fav.id) + '" style="--el:' + color(fav.element) + '">' +
+                '<img src="' + esc(fav.cardArtUrl) + '" alt="' + esc(fav.name) + '" loading="lazy">' +
+              '</div><span class="sg-sig-name">' + esc(fav.name) + '</span>'
+            : '<div class="sg-sig-art is-empty"></div><span class="sg-sig-name">Not chosen</span>') +
+        '</div>' +
+        '<div class="sg-sig-slot">' +
+          '<span class="sg-sig-label">Card back</span>' +
+          '<div class="sg-sig-back"><img src="' + esc(cardBackArt(back)) + '" alt="' + esc(back.name) + '"></div>' +
+          '<span class="sg-sig-name">' + esc(back.name) + '</span>' +
+        '</div>' +
+      '</div>' +
+    '</section>';
   }
 
   function profileScreen(opts) {
-    var showcase = GALLERY[2];
-    var showcaseCard = byId(showcase.card) || CARDS[0];
+    var cards = showcaseCards();
     return topMarkup(opts) +
       '<div class="sg-scroll">' +
-        '<section class="sg-crest" style="--el:' + color(showcaseCard.element) + '">' +
-          '<img class="sg-crest-bg" src="' + plate(showcase) + '" alt="">' +
+        '<section class="sg-crest" style="--el:' + color(crestElement()) + '">' +
+          '<img class="sg-crest-bg" src="' + esc(crestBackground()) + '" alt="">' +
           '<div class="sg-crest-veil"></div>' +
+          (opts.guest ? ''
+            : '<button class="sg-crest-edit" type="button" data-prof-open="look">Customize</button>') +
           '<div class="sg-crest-body">' +
-            '<span class="sg-crest-ring"><i>' + esc(accountInitial(opts)) + '</i></span>' +
-            '<h2>' + esc((opts.live && opts.live.displayName) || (opts.guest ? 'Guest' : 'Siegelord')) + '</h2>' +
+            crestAvatar(opts) +
+            '<h2>' + esc(prefs().displayName || (opts.live && opts.live.displayName) ||
+                         (opts.guest ? 'Guest' : 'Siegelord')) + '</h2>' +
+            (prefs().playerTitle
+              ? '<span class="sg-crest-title">' + esc(prefs().playerTitle) + '</span>' : '') +
             '<p>' + esc(profileSubtitle(opts)) + '</p>' +
             xpMarkup(opts) +
+            (prefs().bio ? '<p class="sg-crest-bio">' + esc(prefs().bio) + '</p>' : '') +
           '</div>' +
         '</section>' +
         profileTiles(opts) +
         '<section class="sg-section">' +
-          '<div class="sg-section-head"><h3>Showcase</h3><a href="/cards" data-screen="collection">Change</a></div>' +
-          '<div class="sg-swipe">' + pick(['bearzooka', 'pylord', 'conchious', 'gymstone']).map(function (c) {
-            return '<article class="sg-feat" data-card="' + esc(c.id) + '" tabindex="0" style="--el:' + color(c.element) + '">' +
-              '<div class="sg-feat-plate"></div>' +
-              '<div class="sg-feat-art"><img src="' + esc(c.cardArtUrl) + '" alt="" loading="lazy"></div>' +
-              '<div class="sg-feat-foot"><span class="sg-feat-name">' + esc(c.name) + '</span>' +
-              '<span class="sg-feat-marks"><i class="sg-rar ' + esc(String(c.rarity || '').toLowerCase()) + '"></i>' +
-              '<img src="' + icon(c.element) + '" alt=""></span></div>' +
-            '</article>';
-          }).join('') + '</div>' +
+          '<div class="sg-section-head"><h3>Showcase</h3>' +
+            (opts.guest
+              ? '<a href="/cards" data-screen="collection">Browse</a>'
+              : '<a href="#" data-prof-open="showcase">Change</a>') + '</div>' +
+          '<div class="sg-swipe">' + cards.map(featTile).join('') + '</div>' +
         '</section>' +
+        signatureSection(opts) +
         '<section class="sg-section">' +
           '<div class="sg-section-head"><h3>Recent</h3></div>' +
           recentMarkup(opts) +
         '</section>' +
         '<div style="height:132px"></div>' +
       '</div>' +
+      (opts.guest ? '' : profileEditorHost()) +
       bottomMarkup('more', opts);
+  }
+
+  /* ---------- profile editor ----------
+     One bottom sheet, four tabs, because on a phone a nine-field form is a wall.
+     Showcase is first and opens by default from the rail's Change, which is the
+     thing a player comes here to do most often. */
+
+  var PROFILE_TABS = [
+    ['showcase', 'Showcase'], ['favorite', 'Signature'], ['look', 'Look'], ['details', 'Details']
+  ];
+
+  function profileEditorHost() {
+    return '<div class="sg-sheet sg-prof-sheet" data-prof-sheet>' +
+      '<div class="sg-sheet-card" data-prof-card></div></div>';
+  }
+
+  function draft() {
+    if (!PROFILE_DRAFT) {
+      var p = prefs();
+      PROFILE_DRAFT = {
+        displayName: p.displayName || '',
+        avatarMode: p.avatarMode || 'INITIAL',
+        avatarUrl: p.avatarUrl || '',
+        favoriteElement: p.favoriteElement || 'FIRE',
+        profileArtId: p.profileArtId || '',
+        playerTitleId: p.playerTitleId || '',
+        bio: p.bio || '',
+        preferredCardBack: p.preferredCardBack || '',
+        favoriteCardId: p.favoriteCardId || '',
+        favoriteCardIds: (p.favoriteCardIds || []).slice(0, PROFILE_SHOWCASE_MAX)
+      };
+    }
+    return PROFILE_DRAFT;
+  }
+
+  function pickTile(c, on, attr, badge) {
+    return '<button class="sg-pick' + (on ? ' on' : '') + '" type="button" ' + attr + '="' + esc(c.id) + '" ' +
+      'style="--el:' + color(c.element) + '">' +
+      '<img src="' + esc(c.cardArtUrl) + '" alt="" loading="lazy">' +
+      '<span class="sg-pick-name">' + esc(c.name) + '</span>' +
+      (badge ? '<i class="sg-pick-badge">' + esc(badge) + '</i>' : '') +
+    '</button>';
+  }
+
+  function emptyPickNote(opts) {
+    return '<div class="sg-empty-row">' +
+      esc(opts.live && opts.live.ownedCards
+        ? 'Open packs to collect cards you can showcase.'
+        : 'Your collection is still loading.') + '</div>';
+  }
+
+  function showcasePanel(opts) {
+    var d = draft();
+    var pool = ownedPool(opts);
+    if (!pool.length) return emptyPickNote(opts);
+    return '<p class="sg-prof-hint">Pick up to ' + PROFILE_SHOWCASE_MAX +
+      ' cards. Tap a picked card to drop it.</p>' +
+      '<div class="sg-pick-grid">' + pool.map(function (c) {
+        var at = d.favoriteCardIds.indexOf(c.id);
+        return pickTile(c, at >= 0, 'data-pick-showcase', at >= 0 ? String(at + 1) : '');
+      }).join('') + '</div>';
+  }
+
+  function favoritePanel(opts) {
+    var d = draft();
+    var pool = ownedPool(opts);
+    return '<p class="sg-prof-hint">Your signature card and the back your decks wear.</p>' +
+      (pool.length
+        ? '<div class="sg-pick-grid">' + pool.map(function (c) {
+            return pickTile(c, c.id === d.favoriteCardId, 'data-pick-favorite', '');
+          }).join('') + '</div>'
+        : emptyPickNote(opts)) +
+      '<h4 class="sg-prof-sub">Card back</h4>' +
+      '<div class="sg-back-row">' + CARD_BACKS.map(function (b) {
+        return '<button class="sg-back' + (b.name === d.preferredCardBack ? ' on' : '') + '" type="button" ' +
+          'data-pick-back="' + esc(b.name) + '">' +
+          '<img src="' + esc(cardBackArt(b)) + '" alt="' + esc(b.name) + '">' +
+          '<span>' + esc(b.name) + '</span></button>';
+      }).join('') + '</div>';
+  }
+
+  function lookPanel(opts) {
+    var d = draft();
+    var pieces = galleryPieces();
+    return '<h4 class="sg-prof-sub">Background</h4>' +
+      (pieces.length
+        ? '<div class="sg-bg-grid">' +
+            '<button class="sg-bg' + (d.profileArtId ? '' : ' on') + '" type="button" data-pick-art="">' +
+              '<span class="sg-bg-none">Default</span></button>' +
+            pieces.map(function (p) {
+              return '<button class="sg-bg' + (p.id === d.profileArtId ? ' on' : '') + '" type="button" ' +
+                'data-pick-art="' + esc(p.id) + '">' +
+                '<img src="' + esc(p.thumb) + '" alt="' + esc(p.title) + '" loading="lazy">' +
+                '<span>' + esc(p.title) + '</span></button>';
+            }).join('') + '</div>'
+        : '<div class="sg-empty-row">The gallery has not loaded yet.</div>') +
+      '<h4 class="sg-prof-sub">Icon style</h4>' +
+      '<div class="sg-chip-row">' +
+        '<button class="sg-chip-opt' + (d.avatarMode === 'INITIAL' ? ' on' : '') + '" type="button" ' +
+          'data-pick-avatar="INITIAL">First initial</button>' +
+        '<button class="sg-chip-opt' + (d.avatarMode === 'ELEMENT' ? ' on' : '') + '" type="button" ' +
+          'data-pick-avatar="ELEMENT">Element notch</button>' +
+      '</div>' +
+      '<h4 class="sg-prof-sub">Favorite element</h4>' +
+      '<div class="sg-el-row">' + PROFILE_ELEMENTS.map(function (el) {
+        return '<button class="sg-el' + (el === d.favoriteElement ? ' on' : '') + '" type="button" ' +
+          'data-pick-element="' + esc(el) + '" style="--el:' + color(el) + '" ' +
+          'aria-label="' + esc(title(el)) + '"><img src="' + esc(icon(el)) + '" alt=""></button>';
+      }).join('') + '</div>';
+  }
+
+  // Titles are a real unlock: the catalog reports every one with an `unlocked`
+  // flag, and the server rejects a locked id outright, so the locked ones are
+  // shown (they are the reason to keep playing) but cannot be picked.
+  function titlePanel(opts) {
+    var d = draft();
+    var titles = (opts.live && opts.live.titles) || [];
+    if (!titles.length) {
+      return '<div class="sg-empty-row">No titles have loaded yet.</div>';
+    }
+    return '<div class="sg-title-list">' + titles.map(function (t) {
+      var on = t.id === d.playerTitleId;
+      return '<button class="sg-title-opt' + (on ? ' on' : '') + (t.unlocked ? '' : ' locked') + '" ' +
+        'type="button"' + (t.unlocked ? ' data-pick-title="' + esc(t.id) + '"' : ' disabled') + '>' +
+        '<strong>' + esc(t.label) + '</strong>' +
+        '<em>' + esc(t.unlocked ? (t.description || '') : 'Locked') + '</em></button>';
+    }).join('') + '</div>';
+  }
+
+  function detailsPanel(opts) {
+    var d = draft();
+    return '<label class="sg-prof-field"><span>Display name</span>' +
+        '<input type="text" maxlength="20" data-prof-input="displayName" value="' + esc(d.displayName) + '"></label>' +
+      '<label class="sg-prof-field"><span>Status message</span>' +
+        '<input type="text" maxlength="240" data-prof-input="bio" value="' + esc(d.bio) + '" ' +
+        'placeholder="Say something on your crest"></label>' +
+      '<label class="sg-prof-field"><span>Avatar image URL</span>' +
+        '<input type="url" maxlength="500" data-prof-input="avatarUrl" value="' + esc(d.avatarUrl) + '" ' +
+        'placeholder="Leave blank to use your icon style"></label>' +
+      '<h4 class="sg-prof-sub">Title</h4>' + titlePanel(opts);
+  }
+
+  function profileEditorMarkup(opts, tab) {
+    var panels = { showcase: showcasePanel, favorite: favoritePanel, look: lookPanel, details: detailsPanel };
+    var active = panels[tab] ? tab : 'showcase';
+    return '<div class="sg-sheet-grab"></div>' +
+      '<div class="sg-prof-head"><h3>Customize profile</h3>' +
+        '<button class="sg-prof-x" type="button" data-prof-close aria-label="Close">×</button></div>' +
+      '<div class="sg-sheet-tabs" role="tablist">' + PROFILE_TABS.map(function (t) {
+        return '<button class="sg-sheet-tab' + (t[0] === active ? ' on' : '') + '" type="button" role="tab" ' +
+          'aria-selected="' + (t[0] === active) + '" data-prof-tab="' + t[0] + '">' + esc(t[1]) + '</button>';
+      }).join('') + '</div>' +
+      '<div class="sg-prof-panel" data-prof-panel>' + panels[active](opts) + '</div>' +
+      '<p class="sg-prof-error" data-prof-error hidden></p>' +
+      '<div class="sg-prof-actions">' +
+        '<button class="sg-prof-cancel" type="button" data-prof-close>Cancel</button>' +
+        '<button class="sg-prof-save" type="button" data-prof-save>Save</button>' +
+      '</div>';
+  }
+
+  // Re-render the profile in place after a save, the way the decks screen does:
+  // a router navigation would push a duplicate history entry for the screen the
+  // player is already on.
+  function refreshProfile(opts) {
+    var current = document.querySelector('.sg-app [data-prof-sheet]');
+    if (!current) return;
+    var app = current.closest('.sg-app');
+    var scroll = app.querySelector('.sg-scroll');
+    var scrollTop = scroll ? scroll.scrollTop : 0;
+    var next = render(document.createElement('div'), 'profile', opts);
+    app.replaceWith(next);
+    var nextScroll = next.querySelector('.sg-scroll');
+    if (nextScroll) nextScroll.scrollTop = scrollTop;
+  }
+
+  function mountProfile(app, opts) {
+    var sheet = app.querySelector('[data-prof-sheet]');
+    if (!sheet) return;
+    var card = sheet.querySelector('[data-prof-card]');
+    var tab = 'showcase';
+
+    function paint() {
+      card.innerHTML = profileEditorMarkup(opts, tab);
+      card.scrollTop = 0;
+    }
+    function open(which) {
+      tab = which || 'showcase';
+      PROFILE_DRAFT = null;
+      draft();
+      paint();
+      sheet.classList.add('open');
+    }
+    function close() {
+      sheet.classList.remove('open');
+      PROFILE_DRAFT = null;
+    }
+    function fail(message) {
+      var box = card.querySelector('[data-prof-error]');
+      if (!box) return;
+      box.textContent = message || '';
+      box.hidden = !message;
+    }
+
+    app.addEventListener('click', function (e) {
+      var opener = e.target.closest ? e.target.closest('[data-prof-open]') : null;
+      if (opener && !sheet.contains(opener)) {
+        e.preventDefault();
+        open(opener.getAttribute('data-prof-open'));
+      }
+    });
+    sheet.addEventListener('click', function (e) {
+      if (e.target === sheet) { close(); return; }
+      if (!e.target.closest) return;
+      var d = draft();
+
+      var tabBtn = e.target.closest('[data-prof-tab]');
+      if (tabBtn) { tab = tabBtn.getAttribute('data-prof-tab'); paint(); return; }
+      if (e.target.closest('[data-prof-close]')) { close(); return; }
+
+      var show = e.target.closest('[data-pick-showcase]');
+      if (show) {
+        var id = show.getAttribute('data-pick-showcase');
+        var at = d.favoriteCardIds.indexOf(id);
+        if (at >= 0) d.favoriteCardIds.splice(at, 1);
+        else if (d.favoriteCardIds.length < PROFILE_SHOWCASE_MAX) d.favoriteCardIds.push(id);
+        else fail('Drop one of your three picks first.');
+        paint();
+        return;
+      }
+      var fav = e.target.closest('[data-pick-favorite]');
+      if (fav) { d.favoriteCardId = fav.getAttribute('data-pick-favorite'); paint(); return; }
+      var back = e.target.closest('[data-pick-back]');
+      if (back) { d.preferredCardBack = back.getAttribute('data-pick-back'); paint(); return; }
+      var art = e.target.closest('[data-pick-art]');
+      if (art) { d.profileArtId = art.getAttribute('data-pick-art'); paint(); return; }
+      var avatar = e.target.closest('[data-pick-avatar]');
+      if (avatar) { d.avatarMode = avatar.getAttribute('data-pick-avatar'); paint(); return; }
+      var element = e.target.closest('[data-pick-element]');
+      if (element) { d.favoriteElement = element.getAttribute('data-pick-element'); paint(); return; }
+      var titleBtn = e.target.closest('[data-pick-title]');
+      if (titleBtn) { d.playerTitleId = titleBtn.getAttribute('data-pick-title'); paint(); return; }
+      if (e.target.closest('[data-prof-save]')) save();
+    });
+
+    // Text fields are read on input rather than at save time, because a repaint
+    // (switching tabs) rebuilds the panel and would otherwise drop what was typed.
+    sheet.addEventListener('input', function (e) {
+      var field = e.target.getAttribute && e.target.getAttribute('data-prof-input');
+      if (field) draft()[field] = e.target.value;
+    });
+
+    function save() {
+      var d = draft();
+      var btn = card.querySelector('[data-prof-save]');
+      if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+      fail('');
+      var body = {
+        avatarMode: d.avatarMode,
+        avatarUrl: d.avatarUrl,
+        favoriteElement: d.favoriteElement,
+        profileArtId: d.profileArtId,
+        bio: d.bio,
+        preferredCardBack: d.preferredCardBack,
+        favoriteCardIds: d.favoriteCardIds
+      };
+      // The server treats a blank display name, title or favourite as "leave it
+      // alone", so they are only sent when they carry a value.
+      if (d.displayName) body.displayName = d.displayName;
+      if (d.playerTitleId) body.playerTitleId = d.playerTitleId;
+      if (d.favoriteCardId) body.favoriteCardId = d.favoriteCardId;
+
+      fetch('/api/profile/settings', {
+        method: 'POST', credentials: 'same-origin',
+        headers: authHeaders(), body: JSON.stringify(body)
+      }).then(function (r) { return r.json().catch(function () { return null; }); })
+        .then(function (data) {
+          if (!data || data.error) {
+            if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
+            fail((data && data.error) || 'Could not save your profile.');
+            return;
+          }
+          PREFS = normalizePrefs(data.profileSettings) || PREFS;
+          if (opts.live) opts.live.profileSettings = data.profileSettings;
+          if (PREFS && PREFS.displayName && opts.live) opts.live.displayName = PREFS.displayName;
+          close();
+          refreshProfile(opts);
+        })
+        .catch(function () {
+          if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
+          fail('Could not reach the server.');
+        });
+    }
   }
 
   /* ---------- sign in ----------
@@ -2433,6 +2886,7 @@
   // identical whether it is fronting the real game or the offline preview.
   function applyLive(model) {
     if (!model) return;
+    if (model.profileSettings) PREFS = normalizePrefs(model.profileSettings);
     if (model.cards && model.cards.length) {
       ALL_CARDS = model.cards.slice();
     }
@@ -2472,7 +2926,7 @@
     if (screen === 'shop') mountShop(app, opts);
     if (screen === 'decks') mountDecks(app, opts);
     if (screen === 'art') mountArt(app);
-    if (screen === 'profile') mountSheet(app, opts);
+    if (screen === 'profile') { mountSheet(app, opts); mountProfile(app, opts); }
     if (screen === 'collection') {
       mountGallery(app, opts);
     } else if (!builders[screen]) {

@@ -86,14 +86,20 @@
            get('/api/social/presence'),
            // Keep residents carry the rapport bonus a Siegeling is actually
            // granting, which is the only real "Keep buff" per card.
-           get('/api/keep')]
+           get('/api/keep'),
+           // Everything the player chose about their own profile: background
+           // art, title, avatar style, card back, favourite card and the three
+           // showcase cards. Signed-out has no row, and the store throws rather
+           // than inventing one, so this is gated with the rest.
+           get('/api/profile/settings')]
         : [Promise.resolve(null), Promise.resolve(null), Promise.resolve(null),
-           Promise.resolve(null), Promise.resolve(null)];
+           Promise.resolve(null), Promise.resolve(null), Promise.resolve(null)];
 
       return Promise.all(core.concat(gated)).then(function (r) {
         var options = r[0], rooms = r[1], siege = r[2], boards = r[3], shop = r[4],
             riders = r[5], affinities = r[6],
-            progressionResponse = r[7], missions = r[8], decks = r[9], presence = r[10], keep = r[11];
+            progressionResponse = r[7], missions = r[8], decks = r[9], presence = r[10], keep = r[11],
+            profile = r[12];
         var catalog = (options && options.cardCatalog) || [];
         // /api/player/progression answers {progression:{gold, ownedTotal, …},
         // packs, dailyOffers, …} - the wallet is NESTED. Reading it off the root
@@ -159,6 +165,7 @@
           keepResidents: (keep && !keep.error && keep.residents) || null,
           advantageRiders: (riders && riders.riders) || null,
           keepAffinities: (affinities && affinities.stations) || null,
+          profileSettings: (profile && !profile.error && profile.profileSettings) || null,
           catalogVersion: options && options.catalogVersion
         };
       });
