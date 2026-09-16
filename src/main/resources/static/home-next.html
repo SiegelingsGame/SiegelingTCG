@@ -9,8 +9,8 @@
 <!-- style.css carries the real card frames, notches and rarity treatments the
      binder renders. It must load BEFORE home-redesign.css so the art-first
      palette and layout win where the two overlap. -->
-<link rel="stylesheet" href="/css/style.css?v=265">
-<link rel="stylesheet" href="/css/home-redesign.css?v=15">
+<link rel="stylesheet" href="/css/style.css?v=266">
+<link rel="stylesheet" href="/css/home-redesign.css?v=16">
 <style>
   /* Boot state: the shell paints immediately on the app's own ground so the
      first frame is never a white flash while the catalog is in flight. */
@@ -20,7 +20,8 @@
      toolbar the shell stayed short and the tab bar stranded above a dead band.
      --sg-vh is the visible height (viewport-unit.js). */
   html, body { margin:0; background:#0d0a26 !important; display:block !important;
-               height:var(--sg-vh, 100dvh); overflow:hidden; font-family:inherit; }
+               height:var(--sg-vh, 100vh); height:100dvh;
+               overflow:hidden; font-family:inherit; }
   /* The boot screen was a spinner on a flat colour while the game already owns
      two libraries of artwork for exactly this moment. It now carries one piece
      from the gallery scenes plus the original site's loading library. */
