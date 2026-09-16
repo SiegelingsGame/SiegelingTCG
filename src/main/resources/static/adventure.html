@@ -14,7 +14,7 @@
 <link rel="stylesheet" href="/css/adventure.css?v=96">
   <!-- Art-first re-skin. After adventure.css on purpose: it restates the same
        tokens and expects to win. -->
-  <link rel="stylesheet" href="/css/siege-next.css?v=5">
+  <link rel="stylesheet" href="/css/siege-next.css?v=6">
 </head>
 <body>
 <!-- Enemy Siegelings are corrupted card art, so they need the same die-cut shade
@@ -103,6 +103,7 @@
 
   <!-- Team select: page 1 (mode) -> page 2 (knight) -> page 3 (warband) -->
   <section class="siege-screen hidden" id="setupScreen">
+    <div class="siege-account" role="status"><span id="siegeAccountStatus">Loading your account…</span><button class="siege-btn" id="siegeAccountRefresh" type="button">Refresh</button></div>
     <div class="setup-steps">
       <span class="setup-step" id="stepDotMode">1 - Mode</span>
       <span class="setup-step" id="stepDotKnight">2 - SiegeKnight</span>
@@ -149,6 +150,8 @@
       <h1>Assemble the warband</h1>
       <p class="siege-sub" id="warbandSub">Select your starter siegeling. You will find more along the path.</p>
       <div class="warband-meta" id="warbandMeta"></div>
+      <p class="warband-help">Ready Siegelings can join this run. Cards you own may still need a Siege unlock; others are recruited along the expedition path.</p>
+      <div class="filter-row" id="warbandStatusFilter" aria-label="Siegeling availability"></div>
       <div class="filter-row" id="elementFilter"></div>
       <div id="warbandLoadPanel" class="warband-load hidden">
         <div class="siege-load-bar" aria-hidden="true"><div class="siege-load-fill" id="warbandLoadFill"></div></div>
@@ -757,6 +760,6 @@
 <script src="/js/siege-maps.js?v=3"></script>
 <script src="/js/coach.js?v=11"></script>
 <script src="/js/siege-tutorial.js?v=27"></script>
-<script src="/js/adventure.js?v=105"></script>
+<script src="/js/adventure.js?v=106"></script>
 </body>
 </html>
