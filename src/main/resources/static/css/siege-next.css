@@ -1,0 +1,142 @@
+/* Siege, art-first.
+   Loaded after adventure.css on adventure.html, so equal-specificity rules win.
+
+   Two parts, deliberately separated:
+   1. A token swap. adventure.css draws every surface from --bg/--panel/--accent,
+      so restating those brings the whole expedition onto the hub's indigo-and-
+      gold ground in one place instead of chasing several thousand lines of
+      rules. Element hues, --good/--bad/--shield are left alone: the battle
+      screen reads state from them and recolouring them would cost clarity.
+   2. Artwork where the screens were text-only — the mode cards and the resume
+      saves, which are the two screens a player meets before any art appears. */
+
+:root {
+    --bg: #0d0a26;
+    --panel: #19114a;
+    --panel-2: #241a60;
+    --border: #382b7d;
+    --text: #f3efff;
+    --dim: #b3a8d8;
+    --faint: #8a7ec0;
+    --accent: #f2a03d;
+    --accent-2: #b48cff;
+}
+
+body {
+    background:
+        radial-gradient(1100px 520px at 82% -12%, rgba(242, 160, 61, .16), transparent 60%),
+        radial-gradient(900px 480px at -8% 10%, rgba(180, 140, 255, .16), transparent 55%),
+        var(--bg);
+}
+
+.siege-topbar {
+    background: linear-gradient(var(--bg), rgba(13, 10, 38, .85) 70%, transparent);
+}
+
+.siege-screen h1 {
+    font-size: clamp(26px, 8vw, 38px);
+    letter-spacing: -0.01em;
+}
+
+.siege-btn.primary {
+    background: linear-gradient(180deg, #ffd58a 0%, var(--accent) 52%, #c87a21 100%);
+    color: #22160a;
+    font-weight: 800;
+    letter-spacing: .06em;
+    box-shadow: 0 10px 26px rgba(242, 160, 61, .34);
+}
+
+.setup-step.active {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: rgba(242, 160, 61, .12);
+}
+
+/* ---- mode select: each mode is its own plate ----
+   These three buttons were the first thing a new player saw and carried no
+   image at all. The art is applied by class, so adventure.js keeps building
+   the same markup. */
+.mode-card {
+    position: relative;
+    overflow: hidden;
+    min-height: 168px;
+    border-color: color-mix(in srgb, var(--mode, var(--accent)) 46%, transparent);
+    background-size: cover;
+    background-position: center 38%;
+    background-repeat: no-repeat;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, .8);
+}
+
+/* The veil sits under the content (adventure.css gives the spans no z-index of
+   their own, so a ::before at z-index 0 with positioned children above it is
+   the least invasive way to scrim the plate). */
+.mode-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    /* Three layers: a flat wash so the longest card's copy never lands on a
+       bright highlight, the diagonal that keeps the left column darkest, and a
+       thin hue of the mode's own colour. */
+    background:
+        linear-gradient(0deg, rgba(13, 10, 38, .42), rgba(13, 10, 38, .42)),
+        linear-gradient(100deg, rgba(13, 10, 38, .96) 26%, rgba(21, 16, 64, .74) 66%, rgba(30, 24, 86, .40) 100%),
+        linear-gradient(180deg, color-mix(in srgb, var(--mode, var(--accent)) 22%, transparent), transparent 60%);
+}
+
+.mode-card > * {
+    position: relative;
+    z-index: 1;
+}
+
+.mode-card-siege { background-image: url('/img/gallery/draco-brood.webp'); }
+.mode-card-bg { background-image: url('/img/gallery/bearzooka-rampage.webp'); }
+.mode-card-tutorial { background-image: url('/img/gallery/bearby-longfuse.webp'); }
+
+.mode-card-title { font-size: clamp(24px, 7vw, 30px); }
+.mode-card-desc { color: #e2dbfa; }
+
+.mode-card:hover, .mode-card:focus-visible {
+    border-color: var(--mode, var(--accent));
+}
+
+/* ---- resume saves ----
+   The one screen that decides whether a player picks a run back up, so it gets
+   the plate treatment too rather than a bordered box of text. */
+.resume-save {
+    position: relative;
+    overflow: hidden;
+    border-left-width: 4px;
+    background-size: cover;
+    background-position: center 40%;
+}
+
+.resume-save::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background: linear-gradient(100deg, rgba(13, 10, 38, .95) 26%, rgba(21, 16, 64, .70) 66%, rgba(30, 24, 86, .38) 100%);
+}
+
+.resume-save > * { position: relative; z-index: 1; }
+
+.resume-save.siege {
+    background-image: url('/img/gallery/draco-brood.webp');
+    border-left-color: var(--accent);
+}
+
+.resume-save.bg {
+    background-image: url('/img/gallery/bearzooka-rampage.webp');
+    border-left-color: var(--accent-2);
+}
+
+/* Resuming is the point of the screen; make it the gold action rather than one
+   of two identical outlines. */
+.resume-save-actions .siege-btn.primary {
+    flex: 1.4;
+}
+
+@media (max-width: 719px) {
+    .mode-card { min-height: 150px; }
+}

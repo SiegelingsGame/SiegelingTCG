@@ -105,6 +105,10 @@ public class WebConfig implements WebMvcConfigurer {
 
         // ---- Gameplay is unchanged.
         registry.addViewController("/play").setViewName("forward:/play.html");
+        // Same page, but the hub's Battle button lands here so the player skips
+        // the welcome/mode screen and arrives on the loadout itself. game.js
+        // reads the path; /play keeps its existing welcome behaviour.
+        registry.addViewController("/battle").setViewName("forward:/play.html");
         registry.addViewController("/siege").setViewName("forward:/adventure.html");
         registry.addViewController("/keep").setViewName("forward:/keep.html");
 

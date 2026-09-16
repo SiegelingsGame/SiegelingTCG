@@ -195,6 +195,10 @@ body.concept-board {
 }
 @keyframes sgShimmer { 0%,62%{transform:translateX(-130%);} 82%,100%{transform:translateX(130%);} }
 .sg-play:active { transform:translateY(1px); }
+/* The hero CTA is an anchor now (it goes to /battle), and the shell's blanket
+   `.sg-app a { color:inherit }` would otherwise bleach it. */
+.sg-app a.sg-play, .sg-app a.sg-exp-go { color:#22160a; }
+.sg-app a.sg-exp.is-empty .sg-exp-go { color:var(--muted); }
 
 /* hero art rotation dots */
 .sg-dots { position:absolute; right:14px; bottom:206px; display:flex; flex-direction:column; gap:7px; z-index:4; }
@@ -352,29 +356,78 @@ body.concept-board {
 .sg-bar { height:3px; border-radius:2px; background:rgba(112,142,180,.2); overflow:hidden; margin:0 15px 13px; }
 .sg-bar i { display:block; height:100%; border-radius:2px; background:linear-gradient(90deg,var(--gold),var(--amber)); }
 
-/* continue playing — wide artwork-heavy deck panel */
-.sg-deck {
-  position:relative; margin:2px 18px 22px; height:158px; border-radius:20px; overflow:hidden;
-  box-shadow:0 18px 38px rgba(0,0,0,.52), inset 0 0 0 1px rgba(200,165,79,.18);
-}
-.sg-deck-bg { position:absolute; inset:0; background-size:cover; background-position:center 42%; filter:saturate(.8) brightness(.5); }
-.sg-deck-veil {
-  position:absolute; inset:0;
-  background:linear-gradient(100deg, rgba(5,8,15,.94) 26%, rgba(5,8,15,.48) 62%, rgba(5,8,15,.18) 100%);
-}
-.sg-deck-art { position:absolute; right:-6px; bottom:-14px; width:160px; height:172px; display:flex; align-items:flex-end; justify-content:center; }
-.sg-deck-art img { width:100%; height:100%; object-fit:contain; object-position:center bottom; filter:drop-shadow(0 12px 20px rgba(0,0,0,.7)); }
-.sg-deck-body { position:absolute; inset:0; padding:16px 16px 14px; display:flex; flex-direction:column; gap:6px; }
-.sg-deck-body .kicker { font-size:9.5px; letter-spacing:.3em; text-transform:uppercase; color:var(--gold); }
-.sg-deck-body h4 { font-family:var(--serif); font-size:21px; margin:0; font-weight:600; }
+/* Element run shared by the deck rows (the deck panel that used to own this
+   rule is gone; the rows still need it). */
 .sg-deck-els { display:flex; gap:5px; }
 .sg-deck-els img { width:17px; height:17px; }
-.sg-deck-rec { font-size:11.5px; color:var(--muted); letter-spacing:.03em; }
-.sg-deck-rec b { color:var(--ink); }
-.sg-deck-play {
-  margin-top:auto; align-self:flex-start; height:34px; padding:0 20px; border:none; border-radius:999px;
-  font-size:11px; font-weight:700; letter-spacing:.18em; color:#22160a; cursor:pointer;
+
+/* continue playing — the account's active Siege expeditions, and nothing else */
+.sg-exps { display:flex; flex-direction:column; gap:12px; margin:2px 18px 22px; }
+.sg-exp {
+  position:relative; display:block; min-height:150px; border-radius:20px; overflow:hidden;
+  box-shadow:0 18px 38px rgba(0,0,0,.52),
+             inset 0 0 0 1px color-mix(in srgb, var(--el,#c8a54f) 38%, transparent);
+  color:var(--ink);
+}
+.sg-exp-bg { position:absolute; inset:0; background-size:cover; background-position:center 42%; filter:saturate(1.2) brightness(.78); }
+.sg-exp-veil {
+  position:absolute; inset:0;
+  background:
+    linear-gradient(100deg, rgba(13,10,38,.94) 26%, rgba(21,16,64,.46) 62%, rgba(30,24,86,.14) 100%),
+    linear-gradient(180deg, color-mix(in srgb, var(--el,#c8a54f) 22%, transparent), transparent 58%);
+}
+/* The knight is scenery behind the run's facts, not the subject — sized so the
+   party row and the Resume button stay clear of it. */
+.sg-exp-knight { position:absolute; right:-4px; bottom:-8px; width:124px; height:138px;
+  display:flex; align-items:flex-end; justify-content:center; opacity:.92;
+  -webkit-mask-image:linear-gradient(100deg, transparent 0%, #000 34%);
+  mask-image:linear-gradient(100deg, transparent 0%, #000 34%); }
+.sg-exp-knight img { width:100%; height:100%; object-fit:contain; object-position:center bottom; filter:drop-shadow(0 12px 20px rgba(0,0,0,.7)); }
+.sg-exp-body { position:relative; padding:15px 15px 14px; display:flex; flex-direction:column; gap:6px; }
+.sg-exp-kicker { font-size:9.5px; letter-spacing:.3em; text-transform:uppercase; color:var(--gold); }
+.sg-exp-body h4 { font-family:var(--serif); font-size:21px; margin:0; font-weight:600; }
+.sg-exp-meta { display:flex; flex-wrap:wrap; gap:4px 10px; font-size:11.5px; color:var(--muted); letter-spacing:.03em; }
+.sg-exp-gold { color:var(--gold); font-weight:700; }
+/* Party portraits carry level and the health they were saved at, so the card
+   says what state the run is in without opening it. */
+.sg-exp-party { display:flex; gap:7px; }
+.sg-exp-pip { position:relative; width:40px; height:40px; border-radius:12px; overflow:hidden;
+  border:1px solid color-mix(in srgb, var(--el,#c8a54f) 55%, transparent); background:rgba(13,10,38,.62); }
+.sg-exp-pip img { width:100%; height:100%; object-fit:cover; }
+.sg-exp-pip.is-down { filter:grayscale(1) brightness(.6); }
+.sg-exp-pip-blank { display:block; width:100%; height:100%; background:rgba(180,140,255,.14); }
+.sg-exp-lv { position:absolute; left:2px; top:1px; font-size:8.5px; font-weight:800; color:#fff;
+  text-shadow:0 1px 3px rgba(0,0,0,.95); font-style:normal; }
+.sg-exp-hp { position:absolute; left:3px; right:3px; bottom:3px; height:3px; border-radius:2px;
+  background:rgba(0,0,0,.6); overflow:hidden; }
+.sg-exp-hp u { display:block; height:100%; background:var(--acc-emerald,#4ade80); }
+.sg-exp-flag {
+  align-self:flex-start; font-size:9.5px; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
+  color:#ffb4a6; padding:3px 9px; border-radius:999px;
+  border:1px solid rgba(255,120,96,.5); background:rgba(90,20,20,.45);
+}
+.sg-exp-go {
+  margin-top:4px; align-self:flex-start; min-height:34px; padding:8px 20px; border-radius:999px;
+  font-size:11px; font-weight:700; letter-spacing:.18em; text-transform:uppercase; color:#22160a;
   background:linear-gradient(180deg,#ffd58a,var(--amber)); box-shadow:0 8px 20px rgba(242,160,61,.32);
+}
+/* Nothing saved: a prompt, not a card — so it does not pretend to be a run. */
+.sg-exp.is-empty {
+  display:flex; align-items:center; gap:12px; min-height:72px; padding:13px 15px;
+  border-radius:18px; box-shadow:none; border:1px solid rgba(180,140,255,.28);
+  background:rgba(26,17,71,.5);
+}
+.sg-exp-icon {
+  flex:0 0 auto; width:38px; height:38px; border-radius:12px; display:grid; place-items:center;
+  font-size:19px; color:var(--muted); border:1px solid rgba(180,140,255,.24); background:rgba(13,10,38,.5);
+}
+.sg-exp-empty-body { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.sg-exp-empty-body strong { font-family:var(--serif); font-size:16px; font-weight:600; }
+.sg-exp-empty-body em { font-style:normal; font-size:11px; color:var(--muted);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sg-exp.is-empty .sg-exp-go {
+  margin-top:0; color:var(--muted); background:rgba(13,10,38,.45); box-shadow:none;
+  border:1px solid rgba(180,140,255,.26);
 }
 
 /* --- bottom navigation --- */
@@ -1027,16 +1080,12 @@ body.concept-board {
 /* Artwork stops being dimmed into the page and gets lifted instead. */
 .sg-hero-land { filter:saturate(1.24) brightness(.94) contrast(1.05); }
 .sg-hero.is-scene .sg-hero-land { filter:saturate(1.3) brightness(1.02) contrast(1.05); }
-.sg-deck-bg { filter:saturate(1.2) brightness(.78); }
 .sg-deckrow-bg { filter:saturate(1.28) brightness(.74); }
 .sg-mode-bg, .sg-feature-bg, .sg-crest-bg { filter:saturate(1.2) contrast(1.04); }
 
 /* The veils were black; they are coloured now, so shade still reads as hue. */
 .sg-deckrow-veil {
   background:linear-gradient(100deg, rgba(13,10,38,.94) 28%, rgba(21,16,64,.50) 66%, rgba(30,24,86,.12) 100%);
-}
-.sg-deck-veil {
-  background:linear-gradient(100deg, rgba(13,10,38,.94) 26%, rgba(21,16,64,.46) 62%, rgba(30,24,86,.14) 100%);
 }
 .sg-mode-veil {
   background:
@@ -1075,7 +1124,7 @@ body.concept-board {
 }
 
 /* Primary actions burn instead of glowing politely. */
-.sg-play, .sg-cta, .sg-deck-play, .sg-mode.is-primary .sg-mode-go {
+.sg-play, .sg-cta, .sg-exp-go, .sg-mode.is-primary .sg-mode-go {
   background:linear-gradient(135deg, #ffe066 0%, var(--amber) 44%, #ff5a3c 100%);
   color:#2b0d02;
 }
@@ -1332,40 +1381,6 @@ body.concept-board {
 .sg-mode { height:166px; }
 .sg-mode.is-primary .sg-mode-body h3 { font-size:36px; }
 .sg-mode-body h3 { font-size:28px; }
-
-/* ---------- Siege resume (replaces the invented "LEADING" strip) ---------- */
-.sg-resume {
-  display:flex; align-items:center; gap:12px; text-decoration:none;
-  margin:14px 18px 0; padding:13px 15px; border-radius:18px; min-height:72px;
-  border:1px solid color-mix(in srgb, var(--acc-emerald) 44%, transparent);
-  background:linear-gradient(100deg, color-mix(in srgb, var(--acc-emerald) 18%, rgba(36,26,96,.55)), rgba(21,16,64,.62));
-  color:var(--ink);
-}
-.sg-resume.is-empty {
-  border-color:rgba(180,140,255,.28);
-  background:rgba(26,17,71,.5);
-}
-.sg-resume-icon {
-  flex:0 0 auto; width:38px; height:38px; border-radius:12px; display:grid; place-items:center;
-  font-size:19px; color:var(--acc-emerald);
-  border:1px solid color-mix(in srgb, var(--acc-emerald) 40%, transparent);
-  background:rgba(13,10,38,.5);
-}
-.sg-resume.is-empty .sg-resume-icon { color:var(--muted); border-color:rgba(180,140,255,.24); }
-.sg-resume-body { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:2px; }
-.sg-resume-kicker { font-size:9px; letter-spacing:.22em; text-transform:uppercase; color:var(--acc-emerald); }
-.sg-resume-body strong { font-family:var(--serif); font-size:16px; font-weight:600; }
-.sg-resume-body em {
-  font-style:normal; font-size:11px; color:var(--muted);
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-}
-.sg-resume-go {
-  flex:0 0 auto; font-size:11px; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
-  color:var(--acc-emerald); padding:8px 14px; border-radius:999px;
-  border:1px solid color-mix(in srgb, var(--acc-emerald) 46%, transparent);
-  background:rgba(13,10,38,.45);
-}
-.sg-resume.is-empty .sg-resume-go { color:var(--muted); border-color:rgba(180,140,255,.26); }
 
 /* links must not inherit browser blue/underline anywhere in the app shell */
 .sg-app a { text-decoration:none; color:inherit; }

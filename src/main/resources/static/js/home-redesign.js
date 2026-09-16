@@ -89,7 +89,7 @@
           '<div class="sg-eyebrow">The Arena Awaits</div>' +
           '<h1 class="sg-hero-title">THE ARENA AWAITS</h1>' +
           '<p class="sg-hero-sub" data-hero-sub></p>' +
-          '<button class="sg-play" type="button">PLAY</button>' +
+          '<a class="sg-play" href="' + HREF.battle + '">PLAY</a>' +
         '</div>' +
         '<div class="sg-hero-credit" data-hero-credit></div>' +
       '</section>';
@@ -183,17 +183,19 @@
   //   INTERNAL - a screen this design already owns; routed in place, no reload.
   //   EXTERNAL - the actual game or a feature not yet redesigned. Battle and
   //              Siege belong here on purpose: they are gameplay, not layout.
+  // Battle points at /battle, not /play: /play still opens the old welcome/mode
+  // screen, and a player who already pressed Battle has made that choice.
   var INTERNAL = {
     'Home': 'home', 'Cards': 'collection', 'Collection': 'collection',
     'Decks': 'decks', 'Shop': 'shop', 'Profile': 'profile', 'Play': 'play',
     'Deck Builder': 'builder', 'Social': 'social', 'Settings': 'settings', 'Help': 'help'
   };
   var EXTERNAL = {
-    'Battle': '/play?mode=solo', 'Siege': '/siege', 'Keep': '/keep',
+    'Battle': '/battle', 'Siege': '/siege', 'Keep': '/keep',
     'Social Lobbies': 'social', 'Sign In': '/login', 'Create Account': '/login',
     'Featured Packs': 'shop', 'Open Packs': 'shop', 'Siegelcoins': 'shop'
   };
-  var HREF = { battle: '/play?mode=solo', siege: '/siege', keep: '/keep',
+  var HREF = { battle: '/battle', siege: '/siege', keep: '/keep',
                lobbies: '/social', login: '/login', help: '/help' };
 
   // Returns the anchor attributes for a label: an in-app screen swap where this
@@ -295,26 +297,66 @@
     '</div>';
   }
 
-  function deckMarkup() {
-    var lead = byId('solgator');
-    return '<section class="sg-section">' +
-      '<div class="sg-section-head"><h3>Continue Playing</h3><a href="#">Switch</a></div>' +
-      '<div class="sg-deck">' +
-        '<div class="sg-deck-bg" style="background-image:url(\'' + land('FIRE') + '\')"></div>' +
-        '<div class="sg-deck-veil"></div>' +
-        '<div class="sg-deck-art"><img src="' + esc(lead.cardArtUrl) + '" alt="' + esc(lead.name) + '" loading="lazy"></div>' +
-        '<div class="sg-deck-body">' +
-          '<span class="kicker">Selected Deck</span>' +
-          '<h4>Emberwaste Vanguard</h4>' +
-          '<div class="sg-deck-els">' +
-            '<img src="' + icon('FIRE') + '" alt="Fire">' +
-            '<img src="' + icon('EARTH') + '" alt="Earth">' +
-            '<img src="' + icon('METAL') + '" alt="Metal">' +
-          '</div>' +
-          '<div class="sg-deck-rec"><b>18W</b> · 6L &nbsp;·&nbsp; 75% win rate</div>' +
-          '<button class="sg-deck-play" type="button">PLAY</button>' +
+  /* ---------- active expeditions ----------
+     This slot used to show a "Selected Deck" with an 18W-6L record and a 75%
+     win rate. None of those numbers existed: the Battle table has no selected
+     deck outside a loadout, and no per-deck record is stored anywhere. What IS
+     persisted per account is the Siege checkpoint - one save per mode, resumable
+     by token - so the slot now shows only that, and says so plainly when there
+     is nothing saved. */
+
+  function partyPip(m) {
+    var el = color(m.element);
+    var hp = Number(m.maxHp) > 0 ? Math.max(0, Math.min(100, Math.round(Number(m.hp) / Number(m.maxHp) * 100))) : 100;
+    return '<span class="sg-exp-pip' + (m.alive === false ? ' is-down' : '') + '" style="--el:' + el + '">' +
+      (m.artUrl ? '<img src="' + esc(m.artUrl) + '" alt="" loading="lazy">' : '<i class="sg-exp-pip-blank"></i>') +
+      (m.level != null ? '<b class="sg-exp-lv">' + esc(m.level) + '</b>' : '') +
+      '<i class="sg-exp-hp"><u style="width:' + hp + '%"></u></i>' +
+    '</span>';
+  }
+
+  // Everything here is read off the run the server handed back; nothing is
+  // invented. A field the payload omits is simply not drawn.
+  function expeditionCard(run) {
+    var knight = run.knight || {};
+    var el = knight.element || (run.land && run.land.element) || 'NEUTRAL';
+    var landName = (run.land && run.land.name) || run.slotLabel || 'Expedition';
+    var floor = (run.landSegment != null) ? ('Floor ' + (Number(run.landSegment) + 1)) : '';
+    var party = (run.party || []).slice(0, 5);
+    var inBattle = Boolean(run.battle);
+    return '<article class="sg-exp" style="--el:' + color(el) + '">' +
+      '<div class="sg-exp-bg" style="background-image:url(\'' + land(el) + '\')"></div>' +
+      '<div class="sg-exp-veil"></div>' +
+      (knight.artUrl ? '<div class="sg-exp-knight"><img src="' + esc(knight.artUrl) + '" alt="" loading="lazy"></div>' : '') +
+      '<div class="sg-exp-body">' +
+        '<span class="sg-exp-kicker">' + esc(run.slotLabel || 'Siege Expedition') + '</span>' +
+        '<h4>' + esc(landName) + '</h4>' +
+        '<div class="sg-exp-meta">' +
+          (knight.name ? '<span>' + esc(knight.name) + '</span>' : '') +
+          (floor ? '<span>' + esc(floor) + '</span>' : '') +
+          (run.gold != null ? '<span class="sg-exp-gold">' + esc(run.gold) + 'g</span>' : '') +
         '</div>' +
+        (party.length ? '<div class="sg-exp-party">' + party.map(partyPip).join('') + '</div>' : '') +
+        (inBattle ? '<span class="sg-exp-flag">Battle in progress</span>' : '') +
+        '<a class="sg-exp-go" href="' + HREF.siege + '">Resume &rsaquo;</a>' +
       '</div>' +
+    '</article>';
+  }
+
+  function expeditionsSection(opts) {
+    var runs = (opts && opts.siegeRuns) || [];
+    var body = runs.length
+      ? runs.map(expeditionCard).join('')
+      : '<a class="sg-exp is-empty" href="' + HREF.siege + '">' +
+          '<span class="sg-exp-icon">&#9968;</span>' +
+          '<span class="sg-exp-empty-body"><strong>No expedition in progress</strong>' +
+          '<em>Start a Siege run and it waits for you here.</em></span>' +
+          '<span class="sg-exp-go">Start &rsaquo;</span>' +
+        '</a>';
+    return '<section class="sg-section">' +
+      '<div class="sg-section-head"><h3>Continue Playing</h3>' +
+      '<a href="' + HREF.siege + '">Siege</a></div>' +
+      '<div class="sg-exps">' + body + '</div>' +
     '</section>';
   }
 
@@ -423,7 +465,7 @@
   function homeScreen(opts) {
     opts = opts || {};
     return topMarkup(opts) +
-      '<div class="sg-scroll">' + heroMarkup() + featuredMarkup() + leaderboardSection(opts) + gallerySection() + questsMarkup(opts) + deckMarkup() +
+      '<div class="sg-scroll">' + heroMarkup() + featuredMarkup() + leaderboardSection(opts) + gallerySection() + questsMarkup(opts) + expeditionsSection(opts) +
       '<div style="height:132px"></div></div>' +
       bottomMarkup('home', opts.openTray, opts.guest);
   }
@@ -663,34 +705,6 @@
     '</a>';
   }
 
-  // "LEADING - Solgator" invented a mechanic: the Battle table has no lead or
-  // captain card, and the engine's only "leading" is a deck's leading element
-  // for sort order. What IS real here is Siege run persistence - one save per
-  // mode, resumable by token - so this slot now says what it can actually do.
-  function siegeResumeMarkup(opts) {
-    var run = (opts.siegeRuns && opts.siegeRuns[0]) || null;
-    if (!run) {
-      return '<a class="sg-resume is-empty" href="' + HREF.siege + '">' +
-        '<span class="sg-resume-icon">⛰</span>' +
-        '<span class="sg-resume-body"><strong>No expedition saved</strong>' +
-        '<em>Start a Siege run to pick it up here.</em></span>' +
-        '<span class="sg-resume-go">Start ›</span>' +
-      '</a>';
-    }
-    var landName = (run.land && run.land.name) || 'Expedition';
-    var depth = (run.landSegment != null) ? ('Land ' + (run.landSegment + 1)) : '';
-    var party = (run.party || []).map(function (m) { return m && m.name; }).filter(Boolean);
-    return '<a class="sg-resume" href="' + HREF.siege + '">' +
-      '<span class="sg-resume-icon">⛰</span>' +
-      '<span class="sg-resume-body">' +
-        '<span class="sg-resume-kicker">Saved expedition</span>' +
-        '<strong>' + esc(landName) + (depth ? ' &middot; ' + esc(depth) : '') + '</strong>' +
-        (party.length ? '<em>' + esc(party.join(' &middot; ')) + '</em>' : '') +
-      '</span>' +
-      '<span class="sg-resume-go">Resume ›</span>' +
-    '</a>';
-  }
-
   function playScreen(opts) {
     opts = opts || {};
     var lead = byId('solgator') || CARDS[0];
@@ -698,7 +712,7 @@
     return topMarkup(opts) +
       '<div class="sg-scroll">' +
         '<div class="sg-modes">' + MODES.map(modePanel).join('') + '</div>' +
-        siegeResumeMarkup(opts) +
+        expeditionsSection(opts) +
         '<a class="sg-lobbies" href="' + HREF.lobbies + '">' +
           '<span class="sg-lobbies-dot"></span>Social Lobbies<em>' +
           esc(opts.lobbies == null ? '11' : opts.lobbies) + ' open</em><span class="go">›</span>' +

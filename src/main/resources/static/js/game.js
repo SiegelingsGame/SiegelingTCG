@@ -291,6 +291,14 @@ function writePlayCache(key, data) {
     const query = params.toString();
     window.location.replace(`/social/lobby/${encodeURIComponent(room.trim().toUpperCase())}${query ? `?${query}` : ''}`);
 })();
+// /battle is the hub's direct link to the Battle loadout: same page as /play,
+// but the welcome/mode screen is skipped because the player already chose Battle
+// on the screen they came from. Read once — the path does not change mid-session.
+const DIRECT_BATTLE_ENTRY = (function () {
+    const path = String(window.location.pathname || '').replace(/\/+$/, '');
+    return path === '/battle' || path === '/battle.html';
+})();
+
 const DEFAULT_REQUEST_TIMEOUT_MS = 10000;
 const LOADOUT_ACTION_TIMEOUT_MS = 90000;
 const BATTLE_AUTO_ADVANCE_DELAY_MS = 1550;
@@ -298,7 +306,7 @@ let battleAutoAdvanceTimer = null;
 let battleAutoAdvanceInFlight = false;
 let battleHandViewOpen = false;
 let welcomeSlideIndex = 0;
-let welcomeDismissed = false;
+let welcomeDismissed = DIRECT_BATTLE_ENTRY;
 const LEADERBOARD_STORAGE_KEY = 'sieglings_leaderboards_v1';
 const LEADERBOARD_TABS = [
     { id: 'wins', label: 'Wins' },
@@ -10435,6 +10443,12 @@ function openLoadoutSelector() {
 
 function returnToPlayMain() {
     if (loadoutStartPending) {
+        return;
+    }
+    // Arriving on /battle means the loadout IS the screen; there is no welcome
+    // behind it to fall back to, so closing goes back to the hub that sent them.
+    if (DIRECT_BATTLE_ENTRY && !gameState) {
+        window.location.href = '/home';
         return;
     }
     clearMultiplayerSession();

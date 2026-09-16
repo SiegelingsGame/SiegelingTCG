@@ -204,6 +204,10 @@
         "destination": "/play.html"
       },
       {
+        "source": "/battle",
+        "destination": "/play.html"
+      },
+      {
         "source": "/siege",
         "destination": "/adventure.html"
       },
