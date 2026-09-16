@@ -15,7 +15,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="stylesheet" href="/css/style.css?v=264">
+    <link rel="stylesheet" href="/css/style.css?v=265">
     <!-- Art-first re-skin of the loadout overlay. After style.css on purpose:
          equal-specificity rules in it are meant to win. -->
     <link rel="stylesheet" href="/css/play-next.css?v=3">
@@ -24,6 +24,8 @@
          screen on the very first Start Battle press - the lazy-injected
          link tag inside loading-gate.js was paint-blocking the gate. -->
     <link rel="stylesheet" href="/css/landing.css?v=29">
+    <!-- Sets --sg-vh before first paint; every fixed shell measures off it. -->
+    <script src="/js/viewport-unit.js?v=1"></script>
 </head>
 <body>
 <div class="safe-hp-strip" id="safeHpStrip" hidden aria-hidden="true">

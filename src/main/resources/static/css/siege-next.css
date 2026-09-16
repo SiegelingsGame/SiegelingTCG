@@ -199,3 +199,24 @@ body {
     text-transform: none;
     color: var(--dim);
 }
+
+
+/* ---- gold chip ----
+   The resume card used the U+1FA99 emoji, which iOS draws with a pale rim that
+   reads as a stray white line against the dark chip. It uses the game's own coin
+   art now, and the chip's own edge is toned to the gold rather than the border
+   token. */
+.gold-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border-color: rgba(242, 160, 61, .38);
+    background: rgba(242, 160, 61, .10);
+}
+
+.gold-chip .gold-coin {
+    width: 14px;
+    height: 14px;
+    flex: 0 0 auto;
+    display: block;
+}

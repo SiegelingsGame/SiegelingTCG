@@ -640,7 +640,7 @@
       var card = el('div', 'resume-summary resume-save' + (bg ? ' bg' : ' siege'));
       var strip = el('div', 'party-strip');
       var meta = el('div', 'resume-meta');
-      meta.innerHTML = '<span class="gold-chip">🪙 ' + (run.gold || 0) + '</span>' +
+      meta.innerHTML = '<span class="gold-chip"><img class="gold-coin" src="/img/ui/siegel-coin.webp" alt="" aria-hidden="true">' + (run.gold || 0) + '</span>' +
         '<span>📍 Floor ' + floor + '</span>' +
         (run.battle
           ? '<span class="resume-battle-chip">⚔ Battle in progress · Round ' +

@@ -64,13 +64,24 @@
         ? [get('/api/player/progression'), get('/api/missions/daily'), get('/api/profile/decks'),
            // Friends + their live presence. Signed-out has no friend list to
            // read, and the endpoint says so rather than returning an empty one.
-           get('/api/social/presence')]
-        : [Promise.resolve(null), Promise.resolve(null), Promise.resolve(null), Promise.resolve(null)];
+           get('/api/social/presence'),
+           // Keep residents carry the rapport bonus a Siegeling is actually
+           // granting, which is the only real "Keep buff" per card.
+           get('/api/keep')]
+        : [Promise.resolve(null), Promise.resolve(null), Promise.resolve(null),
+           Promise.resolve(null), Promise.resolve(null)];
 
       return Promise.all(core.concat(gated)).then(function (r) {
         var options = r[0], rooms = r[1], siege = r[2], boards = r[3], shop = r[4],
-            progression = r[5], missions = r[6], decks = r[7], presence = r[8];
+            progressionResponse = r[5], missions = r[6], decks = r[7], presence = r[8], keep = r[9];
         var catalog = (options && options.cardCatalog) || [];
+        // /api/player/progression answers {progression:{gold, ownedTotal, …},
+        // packs, dailyOffers, …} - the wallet is NESTED. Reading it off the root
+        // is why a signed-in player saw an em-dash where their coins should be.
+        // /api/auth/me carries the same object plus matchHistory and savedDecks,
+        // so it is the fallback when the dedicated call fails.
+        var progression = (progressionResponse && progressionResponse.progression)
+          || (me && me.progression) || null;
         return {
           signedIn: signedIn,
           guest: !signedIn,
@@ -94,7 +105,7 @@
           trainers: (options && options.trainers) || [],
           defaultDeckId: options && options.defaultDeckId,
           defaultTrainerId: options && options.defaultTrainerId,
-          savedDecks: (decks && (decks.decks || decks)) || null,
+          savedDecks: (decks && (decks.decks || decks)) || (me && me.savedDecks) || null,
           lobbies: (rooms && rooms.rooms ? rooms.rooms.length : 0),
           rooms: (rooms && rooms.rooms) || [],
           deckBuilder: (options && options.deckBuilder) || null,
@@ -102,15 +113,20 @@
           siegeRuns: activeRuns(siege),
           gold: progression && (progression.gold != null ? progression.gold : null),
           ownedTotal: progression && progression.ownedTotal,
-          level: progression && progression.level,
-          xp: progression && progression.xp,
-          xpToNext: progression && (progression.xpToNext || progression.nextLevelXp),
+          // There is no account level or account XP anywhere in the backend -
+          // only per-SiegeKnight levels - so the hub reports the knights it has
+          // instead of inventing a number for the player.
+          knights: (progression && progression.ownedTrainers) || null,
+          siegeWins: progression && progression.siegeWins,
+          titles: (progression && progression.playerTitles) || null,
           remnants: progression && progression.remnants,
           ownedCards: (progression && progression.ownedCards) || null,
-          matchHistory: (progression && progression.matchHistory) || null,
+          // Match history lives on the profile, never on the progression record.
+          matchHistory: (me && me.matchHistory) || null,
           missions: (missions && !missions.error && (missions.missions || missions.daily)) || null,
           packs: (shop && shop.packs ? shop.packs.filter(function (pk) { return pk && pk.active !== false; }) : null),
-          friends: (presence && !presence.error && presence.friends) || null,
+          friends: (presence && !presence.error && presence.friends) || (me && me.friends) || null,
+          keepResidents: (keep && !keep.error && keep.residents) || null,
           catalogVersion: options && options.catalogVersion
         };
       });

@@ -55,7 +55,10 @@ body.concept-board {
 
 /* ---------- the app itself (this is the part that ports to home.html) ---------- */
 .sg-app {
-  position:absolute; inset:0; display:flex; flex-direction:column;
+  /* Explicit height rather than inset:0 — the containing block is the layout
+     viewport, which on iOS is shorter than the glass once the toolbar hides. */
+  position:absolute; top:0; left:0; right:0; height:var(--sg-vh, 100dvh);
+  display:flex; flex-direction:column;
   font-family:var(--sans); color:var(--ink);
   background:
     radial-gradient(120% 60% at 50% 0%, #16223a 0%, #0a1020 48%, #05080f 100%);
@@ -450,7 +453,7 @@ body.concept-board {
 }
 .sg-bottom.more-open .sg-more-sheet { grid-template-rows:1fr; opacity:1; transform:translateY(0); }
 .sg-more-sheet > div { overflow:hidden; }
-.sg-more-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:4px; padding:12px; }
+.sg-more-grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:4px; padding:12px; }
 .sg-more-grid button {
   background:none; border:1px solid transparent; border-radius:14px; cursor:pointer;
   padding:12px 6px; display:flex; flex-direction:column; align-items:center; gap:6px;
@@ -525,7 +528,10 @@ body.concept-board {
 .sg-pill.on { color:var(--ink); border-color:var(--el,#c8a54f); background:color-mix(in srgb, var(--el,#c8a54f) 18%, transparent); }
 
 .sg-gal-grid {
-  display:grid; grid-template-columns:repeat(2,1fr); gap:34px 14px; padding:30px 18px 24px;
+  /* minmax(0,1fr), not 1fr: a `1fr` track is min-content-floored, so one long
+     card name widened its own column and visibly squeezed the other as you
+     scrolled through the binder. */
+  display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:34px 14px; padding:30px 18px 24px;
 }
 .sg-gal-card { position:relative; cursor:pointer; }
 .sg-gal-plate {
@@ -686,7 +692,10 @@ body.single-screen .sg-app { position:fixed; inset:0; }
 .sg-cta img { width:18px; height:18px; }
 .sg-pack {
   flex:0 0 132px; scroll-snap-align:start; display:flex; flex-direction:column; align-items:center; gap:6px;
+  background:none; border:none; padding:0; color:inherit; font:inherit; cursor:pointer;
 }
+/* The face fills its column rather than sitting at a fixed 132px: in the grid the
+   tiles were narrower than their cell, so the art floated with gaps either side. */
 .sg-pack-face {
   width:132px; height:176px; border-radius:16px; overflow:hidden; position:relative;
   box-shadow:0 16px 30px rgba(0,0,0,.55), inset 0 0 0 1px rgba(200,165,79,.22);
@@ -740,14 +749,14 @@ body.single-screen .sg-app { position:fixed; inset:0; }
 .sg-xp { height:5px; border-radius:3px; background:rgba(112,142,180,.24); overflow:hidden; max-width:260px; margin:0 auto; }
 .sg-xp i { display:block; height:100%; background:linear-gradient(90deg,var(--gold),var(--amber)); box-shadow:0 0 12px rgba(242,160,61,.6); }
 .sg-xp-note { display:block; margin-top:7px; font-size:10px; letter-spacing:.1em; color:var(--muted); }
-.sg-tiles { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; padding:16px 18px 4px; }
+.sg-tiles { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:9px; padding:16px 18px 4px; }
 .sg-tiles div {
   border-radius:16px; padding:13px 8px; text-align:center;
   border:1px solid var(--steel-soft); background:rgba(13,20,35,.62);
 }
 .sg-tiles span { display:block; font-size:9px; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); }
 .sg-tiles b { display:block; margin-top:4px; font-family:var(--serif); font-size:22px; font-weight:600; color:var(--gold-bright); }
-.sg-badges { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; padding:0 18px; }
+.sg-badges { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:9px; padding:0 18px; }
 .sg-badge {
   display:flex; flex-direction:column; align-items:center; gap:6px; padding:12px 6px; border-radius:16px;
   border:1px solid rgba(112,142,180,.14); background:rgba(13,20,35,.5);
@@ -1494,7 +1503,7 @@ body.concept-board {
 .sg-switch.on i { transform:translateX(19px); background:var(--acc-emerald); box-shadow:0 0 12px var(--acc-emerald); }
 
 /* help */
-.sg-help-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; padding:14px 18px 0; }
+.sg-help-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px; padding:14px 18px 0; }
 .sg-help-card { position:relative; height:132px; border-radius:18px; overflow:hidden; display:block;
   box-shadow:0 14px 28px rgba(6,3,24,.5), inset 0 0 0 1px color-mix(in srgb, var(--el,#b45cff) 40%, transparent); }
 .sg-help-card img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; filter:saturate(1.15); }
@@ -1605,11 +1614,14 @@ body.concept-board {
 }
 .sg-pack-grid .sg-pack {
   width:auto; flex:none; height:100%;
-  display:flex; flex-direction:column; align-items:center; gap:5px;
+  display:flex; flex-direction:column; align-items:stretch; gap:5px;
 }
+/* Full-bleed within the cell, keeping the card's own 3:4 proportion. */
+.sg-pack-grid .sg-pack-face { width:100%; height:auto; aspect-ratio:3 / 4; }
 /* A wrapping pack name must not push its price out of line with the row, so the
    buy button is pinned to the bottom of every tile. */
-.sg-pack-grid .sg-pack .sg-buy { margin-top:auto; }
+.sg-pack-grid .sg-pack .sg-buy { margin-top:auto; align-self:center; }
+.sg-pack-grid .sg-pack .sg-pack-note { text-align:center; }
 .sg-pack-grid .sg-pack strong { text-align:center; line-height:1.25; }
 /* The featured pack's description sits over the brightest part of the plate, so
    the veil needs a second stop rather than a single top-down fade. */
@@ -1682,3 +1694,195 @@ body.concept-board {
 }
 /* Sign out is a button in a list of links, so it has to be told to look like one. */
 button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left; }
+
+/* ---------- settings: community, tools and the danger zone ---------- */
+/* Beaten by the existing `.sg-toggle-row.is-link em` (0,2,1) at plain-class
+   specificity, which rendered the sub-line at chevron size. */
+.sg-toggle-row.is-link em.sg-row-note {
+  display:block; margin-top:3px; font-style:normal; font-size:11px; line-height:1.4;
+  color:var(--muted); letter-spacing:0; text-transform:none;
+}
+.sg-danger { margin:0 18px; }
+.sg-danger .sg-toggle-row { width:100%; }
+.sg-danger-body {
+  margin-top:10px; padding:15px; border-radius:16px;
+  border:1px solid rgba(255,120,96,.42); background:rgba(60,14,14,.34);
+  display:flex; flex-direction:column; gap:11px;
+}
+.sg-danger-body p { margin:0; font-size:12.5px; line-height:1.55; color:#f0d6d0; }
+.sg-danger-actions { display:flex; gap:9px; }
+.sg-danger-actions .sg-ghost-btn { flex:1 1 auto; }
+.sg-danger-go {
+  flex:1 1 auto; min-height:44px; padding:0 16px; border-radius:999px; cursor:pointer;
+  font:inherit; font-size:12.5px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
+  color:#fff; border:none; background:linear-gradient(135deg,#ff6b52,#b21f16);
+  box-shadow:0 10px 24px rgba(178,31,22,.4);
+}
+/* Disabled until DELETE is typed — the server rejects anything else, so the
+   button should not invite a press that can only fail. */
+.sg-danger-go:disabled { opacity:.45; cursor:not-allowed; box-shadow:none; }
+
+/* ---------- pack opening ----------
+   The flip is a real 3D rotation on the tile, not a crossfade: the back the
+   player tapped turns over to become the face. Both halves live on one
+   preserve-3d inner so the card has thickness rather than two stacked images. */
+.sg-gacha { position:absolute; inset:0; z-index:70; display:flex; }
+.sg-gacha-veil { position:absolute; inset:0; background:rgba(7,5,22,.93); backdrop-filter:blur(6px); }
+.sg-gacha-body {
+  position:relative; flex:1 1 auto; display:flex; flex-direction:column; align-items:center;
+  gap:14px; padding:calc(26px + env(safe-area-inset-top,0px)) 18px calc(20px + env(safe-area-inset-bottom,0px));
+  overflow:auto;
+}
+.sg-gacha-head { text-align:center; }
+.sg-gacha-kicker { font-size:10px; letter-spacing:.3em; text-transform:uppercase; color:var(--gold); }
+.sg-gacha-head h3 { font-family:var(--serif); font-size:26px; margin:4px 0 0; font-weight:600; }
+.sg-gacha-stage { display:grid; place-items:center; flex:1 1 auto; width:100%; min-height:0; }
+.sg-gacha-stage.is-grid {
+  grid-template-columns:repeat(auto-fill, minmax(96px, 1fr));
+  gap:16px 12px; place-items:stretch; padding:4px 0;
+  /* Centred rather than top-aligned: a five-card pull fills the stage, a
+     three-card pull would otherwise sit in the corner of a tall void. */
+  align-content:center; width:100%; max-width:430px;
+}
+/* The unopened pack breathes while the purchase is in flight. */
+.sg-gacha-pack { width:150px; aspect-ratio:3 / 4; border-radius:16px; overflow:hidden;
+  box-shadow:0 22px 46px rgba(0,0,0,.6), inset 0 0 0 1px color-mix(in srgb, var(--el,#f2a03d) 42%, transparent);
+  animation:sgPackBreathe 1.8s ease-in-out infinite; }
+.sg-gacha-pack img { width:100%; height:100%; object-fit:cover; display:block; }
+@keyframes sgPackBreathe { 0%,100%{transform:scale(1);} 50%{transform:scale(1.045);} }
+.sg-gacha-note { margin:0; font-size:12.5px; color:var(--muted); letter-spacing:.06em; text-align:center; }
+.sg-gacha-actions { display:flex; gap:10px; width:100%; max-width:420px; }
+.sg-gacha-actions > * { flex:1 1 0; }
+.sg-gacha-actions > [hidden] { display:none; }
+
+.sg-flip {
+  position:relative; background:none; border:none; padding:0; cursor:pointer;
+  aspect-ratio:3 / 4; perspective:900px;
+}
+.sg-flip-inner {
+  position:absolute; inset:0; transform-style:preserve-3d;
+  transition:transform .62s cubic-bezier(.2,.75,.25,1);
+  animation:sgDealIn .4s backwards; animation-delay:calc(var(--slot,0) * 60ms);
+}
+.sg-flip.is-open .sg-flip-inner { transform:rotateY(180deg); }
+.sg-flip-back, .sg-flip-front {
+  position:absolute; inset:0; border-radius:12px; overflow:hidden;
+  backface-visibility:hidden; -webkit-backface-visibility:hidden;
+}
+.sg-flip-back { box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--el,#c8a54f) 40%, transparent); }
+.sg-flip-back img { width:100%; height:100%; object-fit:cover; display:block; }
+.sg-flip-front { transform:rotateY(180deg); display:grid; place-items:center; }
+.sg-flip-front .sg-card-tile { width:100%; }
+@keyframes sgDealIn { from { opacity:0; transform:translateY(16px) rotateY(0); } }
+/* A new card and a duplicate read differently at a glance. */
+.sg-flip-tag {
+  position:absolute; left:50%; bottom:-7px; transform:translateX(-50%);
+  padding:2px 9px; border-radius:999px; font-size:9.5px; font-weight:800;
+  letter-spacing:.1em; text-transform:uppercase; white-space:nowrap; z-index:2;
+}
+.sg-flip.is-new .sg-flip-tag { color:#06210f; background:linear-gradient(135deg,#86efac,#2f9e5a); }
+.sg-flip.is-dupe .sg-flip-tag { color:#2b0d02; background:linear-gradient(135deg,#ffe066,var(--amber)); }
+.sg-flip.is-holo .sg-flip-front::after {
+  content:''; position:absolute; inset:0; pointer-events:none; border-radius:12px;
+  background:linear-gradient(115deg, transparent 32%, rgba(255,255,255,.45) 50%, transparent 68%);
+  mix-blend-mode:screen; animation:sgShimmer 3.4s ease-in-out infinite;
+}
+.sg-flip-plate {
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
+  width:100%; height:100%; border-radius:12px; padding:8px; text-align:center;
+  background:linear-gradient(170deg, color-mix(in srgb, var(--el,#95a5a6) 42%, rgba(26,17,71,.9)), rgba(13,10,38,.95));
+}
+.sg-flip-plate img { width:26px; height:26px; }
+.sg-flip-plate b { font-size:11px; font-weight:600; line-height:1.25; }
+@media (prefers-reduced-motion:reduce) {
+  .sg-gacha-pack, .sg-flip-inner, .sg-flip.is-holo .sg-flip-front::after { animation:none; }
+  .sg-flip-inner { transition-duration:.01ms; }
+}
+
+/* ---------- card detail sheet: arena, siege, keep ---------- */
+.sg-sheet-face { display:flex; justify-content:center; padding:2px 0 4px; }
+.sg-sheet-face .sg-card-tile { width:168px; max-width:60%; }
+.sg-feat { cursor:pointer; }
+.sg-feat:focus-visible { outline:2px solid var(--gold-bright); outline-offset:3px; border-radius:16px; }
+.sg-sheet-block {
+  margin-top:14px; padding-top:13px; border-top:1px solid rgba(180,140,255,.18);
+}
+.sg-sheet-block:first-of-type { border-top:none; }
+.sg-sheet-block h4 {
+  margin:0 0 9px; font-size:10px; letter-spacing:.26em; text-transform:uppercase; color:var(--gold);
+}
+.sg-sheet-empty { margin:0; font-size:12.5px; line-height:1.5; color:var(--muted); }
+.sg-sheet-list { margin:0; padding-left:17px; font-size:12.5px; line-height:1.6; color:var(--muted); }
+.sg-sheet-list li { margin-bottom:3px; }
+.sg-sheet-pill, .sg-sheet-cost {
+  font-style:normal; margin-left:7px; padding:2px 7px; border-radius:999px;
+  font-size:9px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
+}
+.sg-sheet-pill { color:var(--muted); border:1px solid rgba(180,140,255,.32); }
+.sg-sheet-cost { color:#2b0d02; background:linear-gradient(135deg,#ffe066,var(--amber)); }
+/* The notch ring: a miniature of the card's perimeter so the directions read at
+   a glance, which is what actually decides where a Siegeling can link. */
+.sg-sheet-notches {
+  position:relative; width:74px; height:100px; margin:4px auto 12px;
+  border-radius:10px; border:1px dashed rgba(180,140,255,.34);
+}
+.sg-sheet-notches span {
+  position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+  font-size:9px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted);
+  text-align:center; width:100%;
+}
+.sg-sheet-notch {
+  position:absolute; width:9px; height:9px; border-radius:50%;
+  background:var(--el,#95a5a6); box-shadow:0 0 8px var(--el,#95a5a6);
+}
+
+
+/* ---------- the art gallery ----------
+   The art is the interface here: plates run edge to edge in a two-column mosaic
+   and open full-bleed. No filters, no paging. */
+.sg-art-grid {
+  display:grid; grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:10px; padding:4px 14px 8px;
+}
+.sg-art {
+  position:relative; display:block; padding:0; border:none; cursor:pointer;
+  aspect-ratio:4 / 3; border-radius:16px; overflow:hidden; background:rgba(26,17,71,.5);
+  box-shadow:0 14px 28px rgba(0,0,0,.46), inset 0 0 0 1px rgba(200,165,79,.16);
+}
+/* Every third plate spans the row, so the mosaic breathes instead of reading as
+   a spreadsheet of thumbnails. */
+.sg-art:nth-child(5n+1) { grid-column:span 2; aspect-ratio:16 / 9; }
+.sg-art img { width:100%; height:100%; object-fit:cover; display:block;
+  transition:transform .5s cubic-bezier(.2,.8,.25,1); }
+.sg-art:active img { transform:scale(1.03); }
+.sg-art-veil {
+  position:absolute; inset:0;
+  background:linear-gradient(180deg, transparent 44%, rgba(13,10,38,.86) 100%);
+}
+.sg-art-foot {
+  position:absolute; left:0; right:0; bottom:0; padding:10px 12px; text-align:left;
+  display:flex; flex-direction:column; gap:2px;
+}
+.sg-art-foot strong { font-family:var(--serif); font-size:14px; font-weight:600; color:var(--ink); }
+.sg-art-foot em { font-style:normal; font-size:10.5px; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--muted); }
+
+.sg-lightbox {
+  position:absolute; inset:0; z-index:75; display:flex; align-items:center; justify-content:center;
+  background:rgba(7,5,22,.96); padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0);
+}
+.sg-lightbox[hidden] { display:none; }
+.sg-lightbox img { max-width:100%; max-height:100%; object-fit:contain; }
+.sg-lightbox-foot {
+  position:absolute; left:0; right:0; bottom:calc(16px + env(safe-area-inset-bottom,0px));
+  display:flex; flex-direction:column; align-items:center; gap:3px; text-align:center;
+  padding:0 18px; text-shadow:0 2px 12px rgba(0,0,0,.9);
+}
+.sg-lightbox-foot strong { font-family:var(--serif); font-size:17px; font-weight:600; }
+.sg-lightbox-foot em { font-style:normal; font-size:11px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--muted); }
+.sg-lightbox-close {
+  position:absolute; top:calc(14px + env(safe-area-inset-top,0px)); right:14px;
+  width:40px; height:40px; border-radius:50%; cursor:pointer; font-size:22px; line-height:1;
+  color:var(--ink); border:1px solid rgba(180,140,255,.3); background:rgba(13,10,38,.7);
+}
