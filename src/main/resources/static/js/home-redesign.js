@@ -507,6 +507,10 @@
       var rows = matches();
       grid.innerHTML = rows.slice(0, limit).map(galleryCard).join('');
       count.textContent = rows.length + (rows.length === 1 ? ' card' : ' cards');
+      // Every filter change and Show more paints fresh card faces, so the
+      // descriptions have to be re-fitted - the initial render's pass only saw
+      // the first page.
+      scheduleFit(app);
       // A binder is browsed, not scrolled forever: page it rather than paint
       // hundreds of art-heavy tiles at once.
       more.hidden = rows.length <= limit;
@@ -1151,7 +1155,93 @@
       if (opts.questsOpen) app.querySelector('[data-strip]').classList.add('open');
     }
     mountBottom(app);
+    scheduleFit(app);
     return app;
+  }
+
+  /* ---------- description fitting ----------
+     The showcase card's description sits in a `.card-summary-list` that is
+     `overflow:hidden`, so long flavour text is simply cut off - measured at 8 of
+     24 tiles, every one of them also running into the bottom notch row, worst
+     case 45px past the centre notch. `card-binder-visual`'s own fitter only
+     targets `.binder-card-description`, a different element, so it never saw
+     these.
+
+     This shrinks the text until it fits BOTH the panel and the space above the
+     centre bottom notch, which is the tighter of the two constraints and the one
+     that actually looks broken. Scoped to `.sg-card-tile` so the shipping
+     binder's rendering is untouched. */
+  // 6px is the floor because below it the text stops being readable on a phone,
+  // and unreadable text that technically fits is not a fix. Past the floor the
+  // box is capped and the text clamped with an ellipsis instead.
+  var FIT_MIN_PX = 6;
+  var NOTCH_CLEARANCE = 3;
+  var fitFrame = null;
+
+  function fitOneDescription(desc) {
+    var list = desc.closest && desc.closest('.card-summary-list');
+    if (!list) return;
+    var tile = desc.closest('.sg-card-tile');
+    desc.style.fontSize = '';
+    desc.style.lineHeight = '';
+    desc.style.webkitLineClamp = '';
+    desc.style.display = '';
+    desc.style.overflow = '';
+    desc.style.maxHeight = '';
+
+    var limit = list.clientHeight;
+    // The centre bottom notch is what the text visibly runs into; the corner
+    // notches sit outside the panel's width. Measured at 360px, the panel can
+    // overlap it by ~3px on its own, so shrinking text alone cannot fix this -
+    // the box has to be capped too.
+    var centre = tile && tile.querySelector('.notch-dot.notch-BOTTOM');
+    if (centre) {
+      var available = centre.getBoundingClientRect().top - desc.getBoundingClientRect().top - NOTCH_CLEARANCE;
+      // One line is the least that can be shown; below that the description is
+      // not worth drawing over the frame.
+      limit = Math.min(limit, Math.max(available, FIT_MIN_PX * 1.15));
+    }
+    if (limit <= 0) return;
+
+    var size = parseFloat(window.getComputedStyle(desc).fontSize) || 9;
+    if (desc.scrollHeight > limit + 1) {
+      desc.style.lineHeight = '1.15';
+      var guard = 30;
+      while (desc.scrollHeight > limit + 1 && size > FIT_MIN_PX && guard-- > 0) {
+        size = Math.max(FIT_MIN_PX, size * 0.94);
+        desc.style.fontSize = size.toFixed(2) + 'px';
+      }
+    }
+    // Cap unconditionally: this is what keeps the BOX off the notch, whether or
+    // not the text needed shrinking.
+    desc.style.maxHeight = limit.toFixed(1) + 'px';
+    if (desc.scrollHeight > limit + 1) {
+      var lineH = size * 1.15;
+      desc.style.display = '-webkit-box';
+      desc.style.webkitLineClamp = String(Math.max(1, Math.floor(limit / lineH)));
+      desc.style.overflow = 'hidden';
+    }
+  }
+
+  function fitCardDescriptions(root) {
+    var scope = root || document;
+    var nodes = scope.querySelectorAll('.sg-card-tile .card-summary-description');
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      // Skip anything not laid out yet; it will be caught by the next pass.
+      if (!el.getClientRects().length) continue;
+      fitOneDescription(el);
+    }
+  }
+
+  // Art loads after first paint and changes nothing about the text box, but a
+  // web font or a viewport change does, so re-fit on both.
+  function scheduleFit(root) {
+    if (fitFrame != null) window.cancelAnimationFrame(fitFrame);
+    fitFrame = window.requestAnimationFrame(function () {
+      fitFrame = null;
+      fitCardDescriptions(root);
+    });
   }
 
   /* ---------- in-app router ----------
@@ -1173,6 +1263,7 @@
         } catch (e) { /* file:// and sandboxed frames reject pushState */ }
       }
       host.scrollTop = 0;
+      scheduleFit(host);
     }
 
     onNavigate = function (screen) { show(screen, true); };
@@ -1186,6 +1277,12 @@
       show(link.getAttribute('data-screen'), true);
     });
 
+    // Rotation and width changes re-flow the tiles, so the fit has to be redone.
+    window.addEventListener('resize', function () { scheduleFit(host); });
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(function () { scheduleFit(host); });
+    }
+
     window.addEventListener('popstate', function (e) {
       show((e.state && e.state.screen) || new URLSearchParams(location.search).get('screen') || 'home', false);
     });
@@ -1194,5 +1291,6 @@
     return { show: show, currentScreen: function () { return current; } };
   }
 
-  window.SiegelingsHomeConcept = { render: render, mountApp: mountApp, applyLive: applyLive, cards: CARDS, coverageMarkup: coverageMarkup, coverage: COVERAGE };
+  window.SiegelingsHomeConcept = { render: render, mountApp: mountApp, applyLive: applyLive,
+    fitCardDescriptions: fitCardDescriptions, cards: CARDS, coverageMarkup: coverageMarkup, coverage: COVERAGE };
 })();
