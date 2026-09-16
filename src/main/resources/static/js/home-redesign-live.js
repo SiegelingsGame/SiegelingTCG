@@ -116,6 +116,10 @@
         return {
           signedIn: signedIn,
           accountId: me && me.user && me.user.id,
+          // Email keys the shared notification store the shipping hub writes
+          // (`sieglingsNotifs:<email>`). Without it the redesign always fell
+          // through to `anon` and never saw a signed-in player's feed.
+          email: me && me.user && me.user.email,
           guest: !signedIn,
           displayName: (me && me.user && me.user.displayName) || null,
           // The binder shows the whole catalog as real card faces - Siegelings,

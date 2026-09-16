@@ -2120,7 +2120,7 @@
           '<span class="sg-sig-label">Favorite card</span>' +
           (fav
             ? '<div class="sg-sig-art" data-card="' + esc(fav.id) + '" style="--el:' + color(fav.element) + '">' +
-                favoriteFace(fav) +
+                '<div class="sg-sig-face">' + favoriteFace(fav) + '</div>' +
               '</div><span class="sg-sig-name">' + esc(fav.name) + '</span>'
             : '<div class="sg-sig-art is-empty"></div><span class="sg-sig-name">Not chosen</span>') +
         '</div>' +
