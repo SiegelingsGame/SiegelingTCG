@@ -271,7 +271,10 @@ body.concept-board {
 .sg-section-head h3 {
   font-family:var(--serif); font-size:17px; font-weight:600; margin:0; letter-spacing:.015em;
 }
-.sg-section-head a { font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--gold); text-decoration:none; }
+.sg-section-head a, .sg-lb-cycle { font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--gold); text-decoration:none; }
+/* The period cycler is a control, so it is a <button>; it still has to sit in
+   the section head like the links beside it. */
+.sg-lb-cycle { border:none; background:none; padding:0; cursor:pointer; font-family:inherit; font-weight:inherit; }
 .sg-swipe {
   display:flex; gap:12px; overflow-x:auto; padding:4px 18px 16px;
   scroll-snap-type:x mandatory; scrollbar-width:none;
@@ -1615,3 +1618,67 @@ body.concept-board {
     linear-gradient(180deg, rgba(13,10,38,.52) 0%, rgba(13,10,38,.10) 22%,
                     rgba(13,10,38,.62) 58%, rgba(13,10,38,.88) 100%);
 }
+
+
+/* ---------- sign in ----------
+   Sign In used to leave the redesign: /login forwarded to the old hub, so the
+   control a signed-out player is most likely to press showed them the page this
+   design replaces. It is a screen here now, and these are its styles.
+
+   The three entry points (top bar, guest band, settings rows) became anchors so
+   the router can handle them, which means restating the colour the shell's
+   blanket `.sg-app a { color:inherit }` would otherwise bleach, and the layout
+   an <a> does not get from a <button>. */
+.sg-app a.sg-signin, .sg-app a.sg-guest-primary { color:#2b0d02; }
+.sg-app a.sg-guest-ghost { color:var(--ink); }
+.sg-signin, .sg-guest-primary, .sg-guest-ghost {
+  display:inline-flex; align-items:center; justify-content:center;
+}
+
+.sg-auth { display:flex; flex-direction:column; gap:12px; margin:16px 18px 0; }
+.sg-auth-tabs {
+  display:flex; gap:6px; padding:5px; border-radius:16px;
+  border:1px solid var(--steel-soft); background:rgba(26,17,71,.55);
+}
+.sg-auth-tab {
+  flex:1 1 0; min-height:40px; border:none; border-radius:12px; cursor:pointer;
+  font:inherit; font-size:12.5px; font-weight:700; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--muted); background:transparent;
+}
+.sg-auth-tab.on {
+  color:#2b0d02; background:linear-gradient(135deg, #ffe066, var(--amber));
+  box-shadow:0 6px 18px rgba(255,155,33,.34);
+}
+.sg-auth-field { display:flex; flex-direction:column; gap:6px; }
+/* Hidden, not removed: the display-name field comes and goes with the tab, and
+   keeping it in the form means the submit handler can read it either way. */
+.sg-auth-field.is-hidden { display:none; }
+.sg-auth-field span {
+  font-size:10px; letter-spacing:.22em; text-transform:uppercase; color:var(--gold);
+}
+.sg-auth-field input {
+  min-height:48px; padding:0 15px; border-radius:14px; font:inherit; font-size:15px;
+  color:var(--ink); border:1px solid var(--steel-soft); background:rgba(13,10,38,.6);
+}
+.sg-auth-field input::placeholder { color:rgba(179,168,216,.55); }
+.sg-auth-field input:focus {
+  outline:none; border-color:var(--gold); box-shadow:0 0 0 3px rgba(242,160,61,.18);
+}
+.sg-auth-error {
+  margin:0; padding:10px 14px; border-radius:12px; font-size:12.5px; line-height:1.45;
+  color:#ffc2b4; border:1px solid rgba(255,120,96,.45); background:rgba(90,20,20,.4);
+}
+.sg-auth-submit {
+  min-height:52px; margin-top:2px; border:none; border-radius:999px; cursor:pointer;
+  font:inherit; font-size:14px; font-weight:800; letter-spacing:.16em;
+  text-transform:uppercase; color:#2b0d02;
+  background:linear-gradient(135deg, #ffe066, var(--amber) 48%, #ff5a3c);
+  box-shadow:0 12px 30px rgba(255,120,45,.42);
+}
+.sg-auth-submit:disabled { opacity:.6; cursor:progress; }
+.sg-auth-guest {
+  align-self:center; margin-top:2px; padding:10px; font-size:12.5px; color:var(--muted);
+  text-decoration:underline; text-underline-offset:3px;
+}
+/* Sign out is a button in a list of links, so it has to be told to look like one. */
+button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left; }

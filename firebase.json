@@ -188,12 +188,16 @@
         "destination": "/help.html"
       },
       {
-        "source": "/login",
+        "source": "/legacy/login",
         "destination": "/home.html"
       },
       {
+        "source": "/login",
+        "destination": "/home-next.html"
+      },
+      {
         "source": "/lobbies",
-        "destination": "/home.html"
+        "destination": "/home-next.html"
       },
       {
         "source": "/social/lobby/**",

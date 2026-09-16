@@ -165,12 +165,16 @@
     '/home': 'home', '/cards': 'collection', '/decks': 'decks',
     '/deck-builder': 'builder', '/shop': 'shop', '/profile': 'profile',
     '/social': 'social', '/settings': 'settings', '/help': 'help',
-    '/achievements': 'profile', '/next': 'home'
+    '/achievements': 'profile', '/next': 'home',
+    // Sign-in used to leave the new design entirely: /login forwarded to the old
+    // hub, so tapping Sign In dropped the player onto the page this redesign
+    // replaced. It is a screen here now.
+    '/login': 'auth', '/lobbies': 'social'
   };
   var SCREEN_PATH = {
     home: '/home', collection: '/cards', decks: '/decks', builder: '/deck-builder',
     shop: '/shop', profile: '/profile', social: '/social', settings: '/settings',
-    help: '/help', play: '/home'
+    help: '/help', play: '/home', auth: '/login'
   };
   function screenForPath(pathname) {
     var clean = String(pathname || '/home').replace(/\/+$/, '') || '/home';
@@ -188,11 +192,12 @@
   var INTERNAL = {
     'Home': 'home', 'Cards': 'collection', 'Collection': 'collection',
     'Decks': 'decks', 'Shop': 'shop', 'Profile': 'profile', 'Play': 'play',
-    'Deck Builder': 'builder', 'Social': 'social', 'Settings': 'settings', 'Help': 'help'
+    'Deck Builder': 'builder', 'Social': 'social', 'Settings': 'settings', 'Help': 'help',
+    'Sign In': 'auth', 'Create Account': 'auth', 'Log In': 'auth', 'Register': 'auth'
   };
   var EXTERNAL = {
     'Battle': '/battle', 'Siege': '/siege', 'Keep': '/keep',
-    'Social Lobbies': 'social', 'Sign In': '/login', 'Create Account': '/login',
+    'Social Lobbies': 'social',
     'Featured Packs': 'shop', 'Open Packs': 'shop', 'Siegelcoins': 'shop'
   };
   var HREF = { battle: '/battle', siege: '/siege', keep: '/keep',
@@ -252,7 +257,7 @@
   function featuredMarkup() {
     return '' +
       '<section class="sg-section">' +
-        '<div class="sg-section-head"><h3>Featured Siegelings</h3><a href="#">Gallery</a></div>' +
+        '<div class="sg-section-head"><h3>Featured Siegelings</h3><a href="/cards" data-screen="collection">Gallery</a></div>' +
         '<div class="sg-swipe">' + FEATURED.map(function (c) {
           return '<article class="sg-feat" style="--el:' + color(c.element) + '">' +
             '<div class="sg-feat-plate"></div>' +
@@ -267,7 +272,7 @@
 
   function gallerySection() {
     return '<section class="sg-section">' +
-      '<div class="sg-section-head"><h3>From the Gallery</h3><a href="#">See All</a></div>' +
+      '<div class="sg-section-head"><h3>From the Gallery</h3><a href="/cards" data-screen="collection">See All</a></div>' +
       '<div class="sg-swipe sg-swipe-wide">' + GALLERY.map(function (g) {
         var card = byId(g.card) || CARDS[0];
         return '<article class="sg-plate" style="--el:' + color(card.element) + '">' +
@@ -405,7 +410,7 @@
       '<span class="sg-chip coin"><img src="/img/ui/siegel-coin.webp" alt="">' +
         esc(formatCoins(opts, guest)) + '</span>' +
       (guest
-        ? '<button class="sg-signin" type="button">Sign In</button>'
+        ? '<a class="sg-signin" href="/login" data-screen="auth">Sign In</a>'
         : '<span class="sg-avatar"><i>' + esc(accountInitial(opts)) + '</i><b>' +
           esc((opts && opts.live && opts.live.level) || '—') + '</b></span>' +
           '<button class="sg-bell" type="button" aria-label="Notifications">✦</button>') +
@@ -766,8 +771,8 @@
         '<strong>Pick up where you left off</strong>' +
         '<p>Save decks and track your record.</p>' +
         '<div class="sg-guest-actions">' +
-          '<button class="sg-guest-primary" type="button">Log In</button>' +
-          '<button class="sg-guest-ghost" type="button">Register</button>' +
+          '<a class="sg-guest-primary" href="/login" data-screen="auth">Log In</a>' +
+          '<a class="sg-guest-ghost" href="/login" data-screen="auth">Register</a>' +
         '</div>' +
       '</div>' +
     '</section>';
@@ -988,7 +993,7 @@
         '</section>' +
         profileTiles(opts) +
         '<section class="sg-section">' +
-          '<div class="sg-section-head"><h3>Showcase</h3><a href="#">Change</a></div>' +
+          '<div class="sg-section-head"><h3>Showcase</h3><a href="/cards" data-screen="collection">Change</a></div>' +
           '<div class="sg-swipe">' + pick(['bearzooka', 'pylord', 'conchious', 'gymstone']).map(function (c) {
             return '<article class="sg-feat" style="--el:' + color(c.element) + '">' +
               '<div class="sg-feat-plate"></div>' +
@@ -1006,6 +1011,139 @@
         '<div style="height:132px"></div>' +
       '</div>' +
       bottomMarkup('more', opts);
+  }
+
+  /* ---------- sign in ----------
+     Sign In used to be a link to /login, which forwarded to the OLD hub: the one
+     control a signed-out player is most likely to press took them straight out
+     of the redesign. This is the same two endpoints the rest of the app uses
+     (/api/auth/login and /api/auth/register), on the new design's own screen.
+
+     It stores the returned token under the key game.js reads
+     (`sieglingsAuthToken`) as well as relying on the `__session` cookie the
+     endpoint sets, because the battle table authenticates with the Bearer token
+     until the server confirms the cookie reached it. Signing in on the hub has
+     to leave /play signed in too. */
+  var AUTH_TOKEN_KEY = 'sieglingsAuthToken';
+
+  function authScreen(opts) {
+    opts = opts || {};
+    var register = Boolean(opts.authMode === 'register');
+    var scene = GALLERY[4];
+    return topMarkup(opts) +
+      '<div class="sg-scroll">' +
+        '<section class="sg-crest sg-crest-short">' +
+          '<img class="sg-crest-bg" src="' + plate(scene) + '" alt="">' +
+          '<div class="sg-crest-veil"></div>' +
+          '<div class="sg-crest-body">' +
+            '<h2>' + (register ? 'Join the arena' : 'Welcome back') + '</h2>' +
+            '<p>' + (register ? 'An account keeps your decks, record and collection.'
+                              : 'Sign in to pick up your decks and record.') + '</p>' +
+          '</div>' +
+        '</section>' +
+        '<form class="sg-auth" data-auth novalidate>' +
+          '<div class="sg-auth-tabs">' +
+            '<button class="sg-auth-tab' + (register ? '' : ' on') + '" type="button" data-auth-mode="login">Log In</button>' +
+            '<button class="sg-auth-tab' + (register ? ' on' : '') + '" type="button" data-auth-mode="register">Register</button>' +
+          '</div>' +
+          '<label class="sg-auth-field' + (register ? '' : ' is-hidden') + '" data-auth-name>' +
+            '<span>Display name</span>' +
+            '<input type="text" name="displayName" maxlength="20" autocomplete="nickname" placeholder="Your arena name">' +
+          '</label>' +
+          '<label class="sg-auth-field"><span>Email</span>' +
+            '<input type="email" name="email" autocomplete="email" placeholder="you@example.com" required></label>' +
+          '<label class="sg-auth-field"><span>Password</span>' +
+            '<input type="password" name="password" autocomplete="current-password" placeholder="At least 6 characters" required></label>' +
+          '<p class="sg-auth-error" data-auth-error hidden></p>' +
+          '<button class="sg-auth-submit" type="submit" data-auth-submit>' +
+            (register ? 'Create account' : 'Log in') + '</button>' +
+          '<a class="sg-auth-guest" href="/home" data-screen="home">Continue as guest</a>' +
+        '</form>' +
+        '<div style="height:132px"></div>' +
+      '</div>' +
+      bottomMarkup('more', opts);
+  }
+
+  function storeAuthToken(token) {
+    if (!token) return;
+    try { localStorage.setItem(AUTH_TOKEN_KEY, token); } catch (e) { /* private mode */ }
+  }
+
+  function mountAuth(app) {
+    var form = app.querySelector('[data-auth]');
+    if (!form) return;
+    var errorEl = form.querySelector('[data-auth-error]');
+    var submit = form.querySelector('[data-auth-submit]');
+    var nameField = form.querySelector('[data-auth-name]');
+    var mode = form.querySelector('.sg-auth-tab.on').getAttribute('data-auth-mode');
+
+    function setMode(next) {
+      mode = next;
+      [].slice.call(form.querySelectorAll('.sg-auth-tab')).forEach(function (t) {
+        t.classList.toggle('on', t.getAttribute('data-auth-mode') === next);
+      });
+      nameField.classList.toggle('is-hidden', next !== 'register');
+      form.querySelector('[name=password]').setAttribute(
+        'autocomplete', next === 'register' ? 'new-password' : 'current-password');
+      submit.textContent = next === 'register' ? 'Create account' : 'Log in';
+      fail('');
+    }
+
+    function fail(message) {
+      errorEl.textContent = message || '';
+      errorEl.hidden = !message;
+    }
+
+    [].slice.call(form.querySelectorAll('.sg-auth-tab')).forEach(function (tab) {
+      tab.addEventListener('click', function () { setMode(tab.getAttribute('data-auth-mode')); });
+    });
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var body = {
+        email: String(form.email.value || '').trim(),
+        password: String(form.password.value || '')
+      };
+      if (!body.email || !body.password) { fail('Enter your email and password.'); return; }
+      if (mode === 'register') {
+        body.displayName = String(form.displayName.value || '').trim();
+        if (!body.displayName) { fail('Choose a display name.'); return; }
+      }
+      fail('');
+      submit.disabled = true;
+      submit.textContent = 'Working…';
+      fetch('/api/auth/' + mode, {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(body)
+      }).then(function (r) { return r.json().catch(function () { return null; }); })
+        .then(function (data) {
+          if (!data || !data.authenticated) {
+            submit.disabled = false;
+            submit.textContent = mode === 'register' ? 'Create account' : 'Log in';
+            fail((data && data.error) || 'That did not work. Try again.');
+            return;
+          }
+          storeAuthToken(data.token);
+          // A full load, not an in-app swap: every screen reads the signed-in
+          // payload at boot, so the whole hub has to re-fetch.
+          window.location.href = '/home';
+        })
+        .catch(function () {
+          submit.disabled = false;
+          submit.textContent = mode === 'register' ? 'Create account' : 'Log in';
+          fail('The server did not answer. Try again in a moment.');
+        });
+    });
+  }
+
+  function signOut() {
+    fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' })
+      .catch(function () { /* the local clear below still matters */ })
+      .then(function () {
+        try { localStorage.removeItem(AUTH_TOKEN_KEY); } catch (e) { /* private mode */ }
+        window.location.href = '/home';
+      });
   }
 
   /* ---------- leaderboard ----------
@@ -1043,7 +1181,8 @@
 
     return '<section class="sg-section sg-lb" style="--el:' + color(meta.el) + '">' +
       '<div class="sg-section-head"><h3>Hall of Siege</h3>' +
-        '<a href="#" data-lb-cycle>' + esc(PERIOD_LABEL[period] || title(period)) + ' ›</a></div>' +
+        '<button type="button" class="sg-lb-cycle" data-lb-cycle>' +
+        esc(PERIOD_LABEL[period] || title(period)) + ' ›</button></div>' +
       '<div class="sg-lb-boards">' + BOARD_ORDER.map(function (id) {
         var m = BOARD_META[id];
         return '<button class="sg-lb-chip' + (id === boardId ? ' on' : '') + '" type="button" data-lb-board="' + id +
@@ -1269,6 +1408,8 @@
     return Boolean(fallback);
   }
   function mountSettings(app) {
+    var out = app.querySelector('[data-signout]');
+    if (out) out.addEventListener('click', signOut);
     [].slice.call(app.querySelectorAll('[data-pref]')).forEach(function (btn) {
       btn.addEventListener('click', function () {
         var on = btn.getAttribute('aria-checked') !== 'true';
@@ -1308,11 +1449,12 @@
           '<div class="sg-section-head"><h3>Account</h3></div>' +
           '<div class="sg-stack sg-stack-tight">' +
             (opts.guest
-              ? '<a class="sg-toggle-row is-link" href="/login"><span>Sign in</span><em>›</em></a>' +
-                '<a class="sg-toggle-row is-link" href="/login"><span>Create account</span><em>›</em></a>'
+              ? '<a class="sg-toggle-row is-link" href="/login" data-screen="auth"><span>Sign in</span><em>›</em></a>' +
+                '<a class="sg-toggle-row is-link" href="/login" data-screen="auth"><span>Create account</span><em>›</em></a>'
+              // Sign out actually signs out now: it used to be a link to
+              // /profile, which did nothing at all.
               : '<a class="sg-toggle-row is-link" href="/profile" data-screen="profile"><span>Profile</span><em>›</em></a>' +
-                '<a class="sg-toggle-row is-link" href="/profile"><span>Manage account</span><em>›</em></a>' +
-                '<a class="sg-toggle-row is-link is-danger" href="/profile"><span>Sign out</span><em>›</em></a>') +
+                '<button class="sg-toggle-row is-link is-danger" type="button" data-signout><span>Sign out</span><em>›</em></button>') +
             '<a class="sg-toggle-row is-link" href="/help" data-screen="help"><span>Help &amp; rules</span><em>›</em></a>' +
           '</div>' +
         '</section>' +
@@ -1458,7 +1600,8 @@
     app.className = 'sg-app';
     var builders = { collection: galleryScreen, decks: decksScreen, shop: shopScreen,
                      profile: profileScreen, play: playScreen, builder: builderScreen,
-                     social: socialScreen, settings: settingsScreen, help: helpScreen };
+                     social: socialScreen, settings: settingsScreen, help: helpScreen,
+                     auth: authScreen };
     app.innerHTML = builders[screen] ? builders[screen](opts) : homeScreen(opts);
     host.appendChild(app);
     // Every screen carries the same chrome, so the rail and the tab bar are
@@ -1474,6 +1617,7 @@
       if (strip) strip.classList.add('open');
     }
     if (screen === 'settings') mountSettings(app);
+    if (screen === 'auth') mountAuth(app);
     mountBottom(app);
     scheduleFit(app);
     return app;
