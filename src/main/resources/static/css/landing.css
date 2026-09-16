@@ -20,6 +20,25 @@
     --element-mech:  #94A3B8;
     --element-wind:  #6EE7B7;
     --element-water: #3296FF;
+    /* The remaining affinities, mirroring the canonical hexes in style.css :root
+       so the landing page never invents a second palette. */
+    --element-electric: #FFE63C;
+    --element-metal:    #A0AAB4;
+    --element-poison:   #7ECB4D;
+    --element-psychic:  #C896FF;
+    --element-shadow:   #7832B4;
+    --element-light:    #FFE59A;
+    --element-undead:   #8C78A0;
+    --element-neutral:  #95A5A6;
+    --element-electric-glow: rgba(255, 230, 60,  0.5);
+    --element-metal-glow:    rgba(160, 170, 180, 0.45);
+    --element-poison-glow:   rgba(126, 203, 77,  0.5);
+    --element-psychic-glow:  rgba(200, 150, 255, 0.5);
+    --element-shadow-glow:   rgba(120, 50, 180,  0.5);
+    --element-light-glow:    rgba(255, 229, 154, 0.5);
+    --element-undead-glow:   rgba(140, 120, 160, 0.45);
+    --element-neutral-glow:  rgba(149, 165, 166, 0.4);
+    --element-water-glow: rgba(50, 150, 255, 0.5);
     --element-fire-glow:  rgba(255, 69, 0,   0.55);
     --element-ice-glow:   rgba(0, 207, 255,  0.55);
     --element-storm-glow: rgba(168, 85, 247, 0.55);
@@ -2071,6 +2090,250 @@ img { display: block; }
 .about-section { padding: 88px 24px; text-align: center; background: radial-gradient(ellipse at 50% 0%, rgba(244,166,35,.15), transparent 48%), #09152e; }
 .about-inner { width: min(760px, 100%); margin: 0 auto; }
 .about-actions { justify-content: center; }
+
+
+/* ── Art-first landing: hero art stage, elements, knights, world gallery ──── */
+
+/* Hero art stage sits under the existing gradient layers; those stay visible
+   through the art so the wordmark keeps its contrast before art decodes. */
+.hero-art-stage { position: absolute; inset: 0; z-index: 0; overflow: hidden; }
+.hero-art-layer {
+    position: absolute;
+    inset: -3%;
+    opacity: 0;
+    background-position: center;
+    background-size: cover;
+    transform: scale(1.04);
+    transition: opacity 1.5s ease, transform 9s ease-out;
+}
+.hero-art-layer.is-visible { opacity: .92; transform: scale(1); }
+.hero-art-stage::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(ellipse at 50% 42%, transparent 22%, rgba(6, 11, 30, .55) 76%),
+        linear-gradient(180deg, rgba(7, 13, 34, .5) 0%, rgba(7, 13, 34, .1) 38%, rgba(7, 13, 34, .9) 100%),
+        linear-gradient(180deg, color-mix(in srgb, var(--hero-art-color, var(--siegelings-blue)), transparent 86%), transparent 60%);
+}
+.hero-bg-far, .hero-bg-mid { opacity: .55; }
+.hero-art-caption {
+    position: absolute;
+    z-index: 5;
+    left: max(22px, env(safe-area-inset-left));
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    margin: 0;
+    padding: 6px 13px;
+    border: 1px solid color-mix(in srgb, var(--hero-art-color, var(--siegelings-blue)), transparent 55%);
+    border-radius: 999px;
+    color: rgba(240, 247, 255, .86);
+    background: rgba(6, 12, 32, .5);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    font-size: .64rem;
+    font-weight: 800;
+    letter-spacing: .17em;
+    text-transform: uppercase;
+}
+
+/* Element affinities */
+.elements-section { padding: 82px 24px 76px; background: radial-gradient(ellipse at 82% 6%, rgba(255, 69, 0, .13), transparent 40%), radial-gradient(ellipse at 10% 88%, rgba(0, 207, 255, .14), transparent 42%), linear-gradient(180deg, #0b1734, #07122c); }
+.element-rail {
+    width: min(1240px, 100%);
+    margin: 0 auto;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+    gap: 14px;
+}
+.element-tile {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    min-height: 178px;
+    padding: 16px 15px 17px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 4px;
+    border: 1px solid color-mix(in srgb, var(--tile-color), transparent 62%);
+    border-radius: 18px;
+    background: #081227;
+    box-shadow: 0 16px 38px rgba(0, 0, 0, .34);
+    transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease;
+}
+.element-tile-art {
+    position: absolute;
+    inset: 0;
+    z-index: -2;
+    background-position: center;
+    background-size: cover;
+    opacity: .62;
+    transition: transform .4s ease, opacity .3s ease;
+}
+.element-tile::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background:
+        linear-gradient(180deg, transparent 18%, rgba(5, 10, 27, .88) 88%),
+        linear-gradient(140deg, color-mix(in srgb, var(--tile-color), transparent 72%), transparent 62%);
+}
+.element-tile:hover { transform: translateY(-6px); border-color: var(--tile-color); box-shadow: 0 22px 46px rgba(0,0,0,.44), 0 0 26px color-mix(in srgb, var(--tile-color), transparent 70%); }
+.element-tile:hover .element-tile-art { transform: scale(1.07); opacity: .78; }
+.element-tile-sigil { width: 38px; height: 38px; margin-bottom: 4px; color: var(--tile-color); filter: drop-shadow(0 0 10px color-mix(in srgb, var(--tile-color), transparent 40%)); }
+.element-tile-sigil .sgl-element-svg { width: 100%; height: 100%; }
+.element-tile-name { color: #fff; font-family: 'Cinzel', Georgia, serif; font-size: 1.12rem; font-weight: 700; letter-spacing: .02em; }
+.element-tile-blurb { color: rgba(226, 236, 253, .74); font-size: .76rem; line-height: 1.45; }
+
+/* Mode cards: real art, elemental edges */
+.mode-card { position: relative; --mode-color: var(--siegelings-blue); }
+.mode-card:hover { border-color: color-mix(in srgb, var(--mode-color), transparent 35%); box-shadow: 0 25px 54px rgba(0,0,0,.4), 0 0 30px color-mix(in srgb, var(--mode-glow, rgba(46,191,255,.35)), transparent 55%); }
+.mode-card-image { position: relative; display: grid; place-items: center; }
+.mode-card-sigil { color: var(--mode-color); font-size: 2.4rem; opacity: .9; text-shadow: 0 0 22px color-mix(in srgb, var(--mode-color), transparent 40%); }
+.mode-card .mode-number, .mode-card .mode-link { color: var(--mode-color); }
+.mode-extra-links { width: min(1240px, 100%); margin: 26px auto 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.mode-extra-links a { padding: 9px 16px; border: 1px solid rgba(160, 216, 255, .28); border-radius: 999px; color: rgba(236, 244, 255, .88); background: rgba(12, 24, 54, .6); font-size: .74rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; transition: border-color .2s ease, background .2s ease, transform .2s ease; }
+.mode-extra-links a:hover { transform: translateY(-2px); border-color: var(--siegelings-gold); background: rgba(35, 60, 110, .7); color: #fff; }
+.mode-extra-links a span { padding-left: 5px; }
+
+/* Roster filmstrip */
+.roster-filmstrip {
+    width: min(1040px, 100%);
+    margin: 18px auto 0;
+    padding: 4px 2px 12px;
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+}
+.roster-thumb {
+    flex: 0 0 auto;
+    width: 92px;
+    padding: 0 0 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--thumb-color, #9fb3d9), transparent 68%);
+    border-radius: 13px;
+    color: rgba(232, 240, 255, .82);
+    background: rgba(9, 18, 42, .82);
+    cursor: pointer;
+    font: inherit;
+    transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+.roster-thumb img { width: 100%; height: 76px; object-fit: cover; }
+.roster-thumb span { padding: 0 5px; font-size: .62rem; font-weight: 800; letter-spacing: .04em; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.roster-thumb:hover, .roster-thumb.is-active { transform: translateY(-4px); border-color: var(--thumb-color, #9fb3d9); box-shadow: 0 10px 24px rgba(0,0,0,.4), 0 0 18px color-mix(in srgb, var(--thumb-color, #9fb3d9), transparent 72%); color: #fff; }
+.roster-thumb:focus-visible { outline: 3px solid var(--thumb-color, #9fb3d9); outline-offset: 3px; }
+
+/* SiegeKnights */
+.knights-section { padding: 84px 24px 74px; background: radial-gradient(ellipse at 20% 8%, rgba(245, 166, 35, .16), transparent 42%), radial-gradient(ellipse at 88% 78%, rgba(120, 50, 180, .2), transparent 45%), linear-gradient(180deg, #0a1631, #0d1b3e); }
+.knight-rail {
+    width: min(1240px, 100%);
+    margin: 0 auto;
+    padding-right: 4px;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(212px, 1fr);
+    gap: 16px;
+    padding-bottom: 12px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+.knight-card {
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--knight-color), transparent 60%);
+    border-radius: 20px;
+    background: linear-gradient(180deg, rgba(11, 22, 50, .95), rgba(6, 12, 30, .97));
+    box-shadow: 0 18px 44px rgba(0, 0, 0, .38);
+    transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+}
+.knight-card:hover { transform: translateY(-6px); border-color: var(--knight-color); box-shadow: 0 26px 54px rgba(0,0,0,.46), 0 0 30px var(--knight-glow); }
+/* The knight art is a whole printed card, so it is contained rather than
+   cropped - a cover crop eats the card's own frame and name plate. */
+.knight-card-art { position: relative; aspect-ratio: 5 / 7; overflow: hidden; padding: 10px 10px 0; background: radial-gradient(circle at 50% 38%, var(--knight-glow), transparent 62%); }
+.knight-card-art img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 10px 18px rgba(0,0,0,.5)); }
+.knight-card-copy { padding: 14px 16px 18px; }
+.knight-card-element { color: var(--knight-color); font-size: .66rem; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; }
+.knight-card h3 { margin: 6px 0 7px; color: #fff; font-family: 'Cinzel', Georgia, serif; font-size: 1.25rem; }
+.knight-card p { margin: 0; color: rgba(227, 236, 252, .72); font-size: .82rem; line-height: 1.5; }
+/* Wide desktops fit the whole roster, so drop the scroll rail there. */
+@media (min-width: 1100px) {
+    .knight-rail { grid-auto-flow: row; grid-template-columns: repeat(6, minmax(0, 1fr)); overflow-x: visible; }
+    .knight-card h3 { font-size: 1.12rem; }
+}
+
+/* World art gallery */
+.world-section { padding: 82px 0 76px; background: radial-gradient(ellipse at 50% 0%, rgba(30, 144, 255, .16), transparent 45%), #06102a; }
+.world-section .landing-section-heading { padding: 0 24px; }
+.world-marquee {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(288px, 1fr);
+    gap: 16px;
+    padding: 0 max(24px, calc((100vw - 1240px) / 2)) 14px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+}
+.world-tile {
+    position: relative;
+    margin: 0;
+    overflow: hidden;
+    aspect-ratio: 16 / 10;
+    border: 1px solid color-mix(in srgb, var(--world-color), transparent 62%);
+    border-radius: 18px;
+    scroll-snap-align: center;
+    box-shadow: 0 18px 42px rgba(0, 0, 0, .4);
+    transition: transform .24s ease, border-color .24s ease, box-shadow .24s ease;
+}
+.world-tile img { width: 100%; height: 100%; object-fit: cover; transition: transform .45s ease; }
+.world-tile figcaption {
+    position: absolute;
+    inset: auto 0 0 0;
+    padding: 26px 15px 13px;
+    color: #fff;
+    background: linear-gradient(180deg, transparent, rgba(4, 9, 26, .9));
+    font-size: .72rem;
+    font-weight: 800;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    text-shadow: 0 1px 6px rgba(0, 0, 0, .7);
+}
+.world-tile:hover { transform: translateY(-5px); border-color: var(--world-color); box-shadow: 0 24px 52px rgba(0,0,0,.5), 0 0 28px color-mix(in srgb, var(--world-color), transparent 70%); }
+.world-tile:hover img { transform: scale(1.06); }
+
+/* Footer game links */
+.footer-nav-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 16px; margin-bottom: 4px; }
+.footer-nav-links a { color: rgba(226, 236, 253, .8); font-size: .74rem; font-weight: 700; letter-spacing: .08em; }
+.footer-nav-links a:hover { color: var(--siegelings-gold); }
+
+@media (max-width: 760px) {
+    .elements-section, .knights-section, .world-section { padding-top: 60px; padding-bottom: 58px; }
+    .element-rail { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
+    .element-tile { min-height: 148px; padding: 13px 12px 14px; }
+    .element-tile-sigil { width: 30px; height: 30px; }
+    .element-tile-name { font-size: .98rem; }
+    .element-tile-blurb { font-size: .7rem; }
+    .knight-rail { grid-auto-columns: minmax(168px, 72vw); }
+    .world-marquee { grid-auto-columns: minmax(230px, 78vw); padding-left: 18px; padding-right: 18px; }
+    .roster-thumb { width: 78px; }
+    .roster-thumb img { height: 64px; }
+    /* Sits above the scroll hint on phones, where the hero is tallest. */
+    .hero-art-caption { left: 50%; transform: translateX(-50%); bottom: calc(66px + env(safe-area-inset-bottom, 0px)); font-size: .58rem; }
+    .mode-extra-links a { padding: 8px 13px; font-size: .68rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .hero-art-layer { transition: opacity .2s linear; transform: none; }
+    .element-tile, .knight-card, .world-tile, .world-tile img, .roster-thumb { transition: none; }
+}
 
 @media (max-width: 760px) {
     .hero-ctas { gap: 10px; }
