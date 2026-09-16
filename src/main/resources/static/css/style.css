@@ -76,10 +76,12 @@ body {
     font-family: 'Segoe UI', 'Consolas', monospace;
     background: var(--bg);
     color: var(--text);
-    /* --sg-vh is the visual viewport (viewport-unit.js); 100dvh is the layout
-       viewport and only the fallback. On iOS the two differ whenever the toolbar
-       is collapsed, which left the bottom bar floating above dead space. */
-    height: var(--sg-vh, 100dvh);
+    /* 100dvh is the dynamic viewport and the right answer on a current browser;
+       --sg-vh (viewport-unit.js) is the measured visual viewport, kept as the
+       fallback line for one without dvh. A browser that understands dvh
+       discards the first declaration. */
+    height: var(--sg-vh, 100vh);
+    height: 100dvh;
     display: flex;
     flex-direction: column;
     overflow: hidden;

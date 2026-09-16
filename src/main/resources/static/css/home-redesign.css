@@ -56,8 +56,13 @@ body.concept-board {
 /* ---------- the app itself (this is the part that ports to home.html) ---------- */
 .sg-app {
   /* Explicit height rather than inset:0 — the containing block is the layout
-     viewport, which on iOS is shorter than the glass once the toolbar hides. */
-  position:absolute; top:0; left:0; right:0; height:var(--sg-vh, 100dvh);
+     viewport, which on iOS is shorter than the glass once the toolbar hides.
+     100dvh IS the dynamic viewport and is what a current browser should use;
+     --sg-vh (viewport-unit.js) is the fallback line for one without dvh, and a
+     browser that understands dvh discards it. */
+  position:absolute; top:0; left:0; right:0;
+  height:var(--sg-vh, 100vh);
+  height:100dvh;
   display:flex; flex-direction:column;
   font-family:var(--sans); color:var(--ink);
   background:
@@ -464,7 +469,17 @@ body.concept-board {
 
 .sg-nav {
   display:flex; align-items:stretch; justify-content:space-around;
-  padding:8px 6px calc(10px + env(safe-area-inset-bottom,0px));
+  /* The bar used to reserve the WHOLE home-indicator inset below the chevrons
+     (10px + 34px on a modern iPhone), which is what left the tab bar floating
+     well above the bottom of the glass. Its own background already runs under
+     the indicator and each button is a 48px target, so only a small clearance
+     is needed - the chevrons now sit about as far off the bottom with the
+     indicator as they do without it. */
+  /* Read through a variable so a test can exercise this exact expression with a
+     real inset value - Chromium cannot fake env(), and a test that re-declares
+     the padding is only checking a copy of the rule. */
+  --sg-sab: env(safe-area-inset-bottom, 0px);
+  padding:8px 6px max(6px, calc(var(--sg-sab) * 0.3));
   border-top:1px solid rgba(112,142,180,.14);
   background:linear-gradient(180deg, rgba(7,11,20,.72), rgba(5,8,15,.96));
   backdrop-filter:blur(22px) saturate(1.3); -webkit-backdrop-filter:blur(22px) saturate(1.3);
