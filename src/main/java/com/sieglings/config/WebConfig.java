@@ -77,6 +77,12 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addViewController("/settings").setViewName("forward:/home-next.html");
         registry.addViewController("/help").setViewName("forward:/home-next.html");
         registry.addViewController("/next").setViewName("forward:/home-next.html");
+        // Sign-in is a screen in the new design now. It used to forward to the
+        // old hub, so the one control a signed-out player is most likely to
+        // press took them straight out of the redesign.
+        registry.addViewController("/login").setViewName("forward:/home-next.html");
+        // Same reason: the new Social screen is the lobby list.
+        registry.addViewController("/lobbies").setViewName("forward:/home-next.html");
 
         // ---- Legacy hub: every route the old home.html owned, under /legacy/*.
         // home.js reads the prefix and keeps its own links inside it, so a player
@@ -96,11 +102,12 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addViewController("/legacy/shop").setViewName("forward:/home.html");
         registry.addViewController("/legacy/shop/cardpack").setViewName("forward:/home.html");
         registry.addViewController("/legacy/help").setViewName("forward:/help.html");
+        registry.addViewController("/legacy/login").setViewName("forward:/home.html");
 
-        // ---- Still the legacy hub's job: it owns the sign-in forms and the
-        // live lobby screens, which the new design does not host yet.
-        registry.addViewController("/login").setViewName("forward:/home.html");
-        registry.addViewController("/lobbies").setViewName("forward:/home.html");
+        // ---- Still the legacy hub's job: the live room screen. It is a running
+        // multiplayer table, not a layout, and the new design does not host one
+        // yet - but nothing in the new design links here, so a player only
+        // reaches it from a room invite.
         registry.addViewController("/social/lobby/**").setViewName("forward:/home.html");
 
         // ---- Gameplay is unchanged.

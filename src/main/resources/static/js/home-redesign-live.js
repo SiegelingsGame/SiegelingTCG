@@ -12,8 +12,29 @@
 (function () {
   'use strict';
 
+  // The session rides the httpOnly `__session` cookie, which is named that way
+  // precisely so Firebase Hosting forwards it to Cloud Run. The Bearer header is
+  // sent as well when a real token is stored, because that is how the battle
+  // table authenticates and the two surfaces must agree about who is signed in.
+  // The sentinel game.js writes once auth has moved to the cookie is not a
+  // credential, so it is never sent.
+  var TOKEN_KEY = 'sieglingsAuthToken';
+  var COOKIE_SENTINEL = 'cookie';
+
+  function bearer() {
+    try {
+      var token = localStorage.getItem(TOKEN_KEY);
+      return token && token !== COOKIE_SENTINEL ? 'Bearer ' + token : '';
+    } catch (e) {
+      return '';
+    }
+  }
+
   function get(url) {
-    return fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+    var headers = { Accept: 'application/json' };
+    var auth = bearer();
+    if (auth) headers.Authorization = auth;
+    return fetch(url, { credentials: 'same-origin', headers: headers })
       .then(function (r) { return r.ok ? r.json() : null; })
       .catch(function () { return null; });
   }
