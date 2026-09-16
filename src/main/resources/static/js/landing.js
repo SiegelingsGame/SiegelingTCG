@@ -106,13 +106,16 @@
         { key: 'UNDEAD',   label: 'Undead',   land: 'undead',   blurb: 'Creeps back through Shadow.' },
     ];
 
+    // Offline fallback only. The live rail comes from the same trainer catalog the
+    // game's loadout reads, so the cards carry real passives and actives; these
+    // shipped cards keep the section painted (and readable) when the API is away.
     const SIEGE_KNIGHTS = [
-        { name: 'Lady Pyla', element: 'FIRE',  art: '/img/knights/lady-pyla-full-card.png', blurb: 'Stokes every ember on the board into an opening strike.' },
-        { name: 'Lyria',     element: 'ICE',   art: '/img/knights/lyria-full-card.png',     blurb: 'Locks the field down and makes patience pay.' },
-        { name: 'Ser Airek', element: 'WIND',  art: '/img/knights/ser-airek-full-card.png', blurb: 'Rewards commanders who keep the warband moving.' },
-        { name: 'Aldera',    element: 'EARTH', art: '/img/knights/aldera-full-card.png',    blurb: 'Roots the line so your Sieglings outlast the siege.' },
-        { name: 'Cera',      element: 'WATER', art: '/img/knights/cera-full-card.png',      blurb: 'Turns the tide of energy wherever the links run deepest.' },
-        { name: 'Squire Bob', element: 'NEUTRAL', art: '/img/knights/squire-bob-full-card.png', blurb: 'Every legend starts with somebody willing to carry the shield.' },
+        { name: 'Lady Pyla', element: 'FIRE',  tier: 'SiegeKnight', rarity: 'EPIC',      oncePerGame: true,  cardArtUrl: '/img/knights/lady-pyla-full-card.png', cardArtMode: 'FULL_CARD', passive: 'All Fire allies gain +2 attack damage', active: 'Deal 4 damage to all enemies' },
+        { name: 'Lyria',     element: 'ICE',   tier: 'SiegeKnight', rarity: 'RARE',      oncePerGame: false, cardArtUrl: '/img/knights/lyria-full-card.png',     cardArtMode: 'FULL_CARD', passive: 'All Ice enemies lose 1 Speed', active: 'Grant an ally +3 Speed' },
+        { name: 'Ser Airek', element: 'WIND',  tier: 'SiegeKnight', rarity: 'UNCOMMON',  oncePerGame: false, cardArtUrl: '/img/knights/ser-airek-full-card.png', cardArtMode: 'FULL_CARD', passive: 'All Wind allies gain +2 max HP', active: 'Grant a select row of allies +2 Shield' },
+        { name: 'Aldera',    element: 'EARTH', tier: 'Raider',      rarity: 'RARE',      oncePerGame: false, cardArtUrl: '/img/knights/aldera-full-card.png',    cardArtMode: 'FULL_CARD', passive: 'All Earth allies gain +1 Damage', active: 'Grant a selected row of Earth allies +3 Speed' },
+        { name: 'Cera',      element: 'WATER', tier: 'SiegeKnight', rarity: 'RARE',      oncePerGame: false, cardArtUrl: '/img/knights/cera-full-card.png',      cardArtMode: 'FULL_CARD', passive: 'All Water allies gain +2 max Health', active: 'Heal a selected row of allies +3' },
+        { name: 'Squire Bob', element: 'NEUTRAL', tier: 'SiegeSquire', rarity: 'COMMON', oncePerGame: false, cardArtUrl: '/img/knights/squire-bob-full-card.png', cardArtMode: 'FULL_CARD', passive: 'Front Row allies gain +1 max Health', active: 'Heal 1 ally for 2' },
     ];
 
     const WORLD_ART = [
@@ -188,13 +191,25 @@
         };
     }
 
+    // One catalog request feeds both the Siegling roster and the SiegeKnight rail;
+    // the payload carries `cardCatalog` and `trainers` together.
+    let __gameOptions = null;
+    function loadGameOptions() {
+        if (!__gameOptions) {
+            __gameOptions = fetch('/api/game/options', { credentials: 'same-origin' })
+                .then((response) => {
+                    if (!response.ok) throw new Error(`Catalog request failed (${response.status})`);
+                    return response.json();
+                });
+        }
+        return __gameOptions;
+    }
+
     // The full roster comes from the same live catalog used by the deck builder.
     // The legendary roster remains hand-curated below so it stays a distinct section.
     async function loadRosterEntries() {
         try {
-            const response = await fetch('/api/game/options', { credentials: 'same-origin' });
-            if (!response.ok) throw new Error(`Catalog request failed (${response.status})`);
-            const payload = await response.json();
+            const payload = await loadGameOptions();
             const cards = Array.isArray(payload?.cardCatalog) ? payload.cardCatalog : [];
             const entries = cards
                 .filter((card) => String(card?.type || '').toUpperCase() === 'SIEGLING' && String(card?.cardArtUrl || '').trim())
@@ -395,23 +410,73 @@
     }
 
     // ── SiegeKnight rail ──────────────────────────────────────────────────
-    function renderKnightRail() {
+    // Mirrors how the game's loadout draws a SiegeKnight: the uploaded art in
+    // the shared template's window (OVERLAY) or the whole painted card
+    // (FULL_CARD), with the name, tier/rarity and the passive + active text laid
+    // into the template's description box. That box is blank in the painted art
+    // itself, so without this body the card says nothing about what it does.
+    function knightArtTransformStyle(trainer) {
+        const num = (value) => (Number.isFinite(Number(value)) ? Number(value) : null);
+        const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+        const xPct = num(trainer.cardArtOffsetXPct);
+        const yPct = num(trainer.cardArtOffsetYPct);
+        const usePct = xPct !== null || yPct !== null;
+        // Percentage offsets are card-relative, so a dashboard crop holds the same
+        // spot at any card size; the legacy pixel offsets are the older fallback.
+        const tx = usePct ? `${clamp(xPct || 0, -200, 200)}%` : `${num(trainer.cardArtOffsetX) || 0}px`;
+        const ty = usePct ? `${clamp(yPct || 0, -200, 200)}%` : `${num(trainer.cardArtOffsetY) || 0}px`;
+        const scale = clamp(num(trainer.cardArtScale) ?? 1, 0.25, 3);
+        const rotation = clamp(num(trainer.cardArtRotation) ?? 0, -180, 180);
+        if (parseFloat(tx) === 0 && parseFloat(ty) === 0 && scale === 1 && !rotation) return '';
+        return ` style="transform:translate(${tx},${ty}) scale(${scale}) rotate(${rotation}deg);transform-origin:center center;"`;
+    }
+
+    function knightAbilityText(ability) {
+        if (!ability) return 'None';
+        if (typeof ability === 'string') return ability;
+        return ability.description || ability.name || 'None';
+    }
+
+    function knightCardMarkup(trainer) {
+        const element = String(trainer.element || 'NEUTRAL').toUpperCase();
+        const key = element.toLowerCase();
+        const rarity = String(trainer.rarity || 'COMMON').toUpperCase();
+        const tier = trainer.tier || 'SiegeKnight';
+        const art = String(trainer.cardArtUrl || '').trim();
+        const overlay = String(trainer.cardArtMode || '').trim().toUpperCase() === 'OVERLAY';
+        const activeLabel = trainer.oncePerGame ? 'Ultimate' : 'Active';
+        const artStyle = knightArtTransformStyle(trainer);
+        const body = `
+            <div class="knight-card-body">
+                <span class="knight-card-name">${escapeHtml(trainer.name || 'SiegeKnight')}</span>
+                <span class="knight-card-meta"><span class="knight-element">${escapeHtml(element)}</span> <span class="knight-tier">${escapeHtml(tier)}</span> <span class="knight-rarity rarity-${escapeAttr(rarity.toLowerCase())}">${escapeHtml(rarity)}</span></span>
+                <span class="knight-card-ability"><span>Passive</span>${escapeHtml(knightAbilityText(trainer.passive))}</span>
+                <span class="knight-card-ability"><span>${escapeHtml(activeLabel)}</span>${escapeHtml(knightAbilityText(trainer.active))}</span>
+            </div>`;
+        const artLayer = overlay
+            ? `<div class="knight-overlay-art-window"><img class="knight-overlay-art-img" ${landingImgAttrs(art)} alt="" loading="lazy"${artStyle}></div>
+               <div class="knight-card-template" aria-hidden="true"></div>`
+            : `<img class="knight-full-art" ${landingImgAttrs(art)} alt="${escapeAttr(trainer.name || 'SiegeKnight card')}" loading="lazy"${artStyle}>`;
+        return `
+            <article class="knight-card${overlay ? ' is-overlay-art' : ''}" style="--knight-color: var(--element-${key}, var(--siegelings-gold)); --knight-glow: var(--element-${key}-glow, rgba(245,166,35,.45))">
+                <div class="knight-card-art">${artLayer}${body}</div>
+            </article>`;
+    }
+
+    async function renderKnightRail() {
         const rail = document.getElementById('knightRail');
         if (!rail) return;
-        rail.innerHTML = SIEGE_KNIGHTS.map((knight) => {
-            const key = String(knight.element).toLowerCase();
-            return `
-                <article class="knight-card" style="--knight-color: var(--element-${key}, var(--siegelings-gold)); --knight-glow: var(--element-${key}-glow, rgba(245,166,35,.45))">
-                    <div class="knight-card-art">
-                        <img ${landingImgAttrs(knight.art)} alt="${escapeAttr(knight.name)}, ${escapeAttr(knight.element)} SiegeKnight" loading="lazy">
-                    </div>
-                    <div class="knight-card-copy">
-                        <span class="knight-card-element">${escapeHtml(knight.element)}</span>
-                        <h3>${escapeHtml(knight.name)}</h3>
-                        <p>${escapeHtml(knight.blurb)}</p>
-                    </div>
-                </article>`;
-        }).join('');
+        let trainers = SIEGE_KNIGHTS;
+        try {
+            const payload = await loadGameOptions();
+            const live = Array.isArray(payload?.trainers)
+                ? payload.trainers.filter((trainer) => trainer && String(trainer.cardArtUrl || '').trim())
+                : [];
+            if (live.length) trainers = live;
+        } catch (_ignored) {
+            // A static preview or an unavailable API still shows the shipped cards.
+        }
+        rail.innerHTML = trainers.map(knightCardMarkup).join('');
     }
 
     // ── World art marquee ─────────────────────────────────────────────────
