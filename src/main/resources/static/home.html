@@ -17,7 +17,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="stylesheet" href="/css/style.css?v=266">
-    <link rel="stylesheet" href="/css/home.css?v=144">
+    <link rel="stylesheet" href="/css/home.css?v=145">
     <!-- Sets --sg-vh before first paint; every fixed shell measures off it. -->
     <script src="/js/viewport-unit.js?v=1"></script>
 </head>
@@ -83,9 +83,14 @@
 
     <div class="loading-art-screen hidden" id="loadingArtScreen" aria-hidden="true">
         <div class="loading-art-frame">
+            <div class="loading-art-brand">
+                <img class="loading-art-mark" src="/img/siegelings-icon.png" alt="">
+                <span class="loading-art-wordmark">Siegelings<span>Trading Card Game</span></span>
+            </div>
             <div class="loading-art-spinner" aria-hidden="true"></div>
             <span class="loading-art-label" id="loadingArtLabel">Loading...</span>
             <div class="loading-art-bar"><span></span></div>
+            <p class="loading-art-hint" id="loadingArtHint"></p>
             <span class="loading-art-title" id="loadingArtTitle"></span>
         </div>
     </div>
@@ -440,7 +445,8 @@
 <script src="/js/card-binder-visual.js?v=23"></script>
 <script src="/js/achievements.js?v=8"></script>
 <script src="/js/play-mode-picker.js?v=4"></script>
-<script src="/js/home.js?v=168"></script>
+<script src="/js/loading-art.js?v=2"></script>
+<script src="/js/home.js?v=169"></script>
 <script src="/js/sw-register.js?v=1"></script>
 <script src="/js/install-guide.js?v=1"></script>
 </body>

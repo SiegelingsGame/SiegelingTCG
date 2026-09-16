@@ -55,6 +55,9 @@
         NEUTRAL:  'var(--siegelings-blue)'
     };
 
+    /* Fallback copy only. The real pool lives in loading-art.js so the hub, the
+       expedition and this gate all rotate the same hints and lore; these lines
+       cover a page that includes the gate without it. */
     const FLAVOR_LINES = [
         'Siegelings feed on raw elemental energy.',
         'A SiegeKnight never retreats from the arena.',
@@ -71,6 +74,16 @@
         'var(--element-wind)',
         'var(--siegelings-gold)'
     ];
+
+    function flavorLines() {
+        const shared = window.SiegelingsLoadingArt && window.SiegelingsLoadingArt.hints
+            ? window.SiegelingsLoadingArt.hints()
+            : null;
+        if (shared && shared.length) {
+            return shared.map((h) => `${h.kind} — ${h.text}`);
+        }
+        return FLAVOR_LINES.slice();
+    }
 
     let root = null;
     let flavorEl = null;
@@ -96,7 +109,7 @@
         if (!already) {
             const link = document.createElement('link');
             link.rel = 'stylesheet';
-            link.href = '/css/landing.css?v=17';
+            link.href = '/css/landing.css?v=30';
             link.dataset.sglLandingCss = '1';
             document.head.appendChild(link);
         }
@@ -234,6 +247,8 @@
                     <img class="sgl-game-logo-img" src="/img/siegelings-logo.png" alt="Siegelings" draggable="false">
                 </div>
 
+                <div class="sgl-gate-wordmark">Siegelings<span>Trading Card Game</span></div>
+
                 <div class="sgl-gate-vs" id="sglGateVs"></div>
 
                 <div class="sgl-gate-loading">
@@ -277,17 +292,20 @@
 
     function startFlavorRotation() {
         if (!flavorEl) return;
-        let idx = Math.floor(Math.random() * FLAVOR_LINES.length);
-        flavorEl.textContent = FLAVOR_LINES[idx];
+        const lines = flavorLines();
+        let idx = Math.floor(Math.random() * lines.length);
+        flavorEl.textContent = lines[idx];
         if (flavorTimer) clearInterval(flavorTimer);
+        // Slower than the old six-line rotation: these lines are sentences of
+        // hint/lore, not taglines, and need long enough to actually be read.
         flavorTimer = setInterval(() => {
             flavorEl.classList.add('fading');
             setTimeout(() => {
-                idx = (idx + 1) % FLAVOR_LINES.length;
-                flavorEl.textContent = FLAVOR_LINES[idx];
+                idx = (idx + 1) % lines.length;
+                flavorEl.textContent = lines[idx];
                 flavorEl.classList.remove('fading');
             }, 340);
-        }, 2600);
+        }, 5200);
     }
 
     function startProgressSim() {
