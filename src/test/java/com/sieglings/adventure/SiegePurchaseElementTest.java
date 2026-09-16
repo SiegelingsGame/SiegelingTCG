@@ -54,6 +54,28 @@ class SiegePurchaseElementTest {
     }
 
     @Test
+    void rosterReportsOwnedCardsAcrossElementsWithoutGrantingSiegeUnlocks() throws Exception {
+        SieglingCard free = SiegeStarterTestSupport.freeSelectable(content).getFirst();
+        SieglingCard paid = purchaseSiegling();
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setGold(3130);
+        progression.setOwnedCards(Map.of(free.getId(), 1, paid.getId(), 1));
+        try (Swap ignored = withAccount(progression)) {
+            Map<String, Object> roster = siegeService.roster("Bearer test");
+            assertEquals(Boolean.TRUE, roster.get("accountReady"));
+            assertEquals(3130, roster.get("gold"));
+            assertEquals(Boolean.TRUE, rosterRow(roster, free.getId()).get("owned"));
+            assertEquals(Boolean.TRUE, rosterRow(roster, paid.getId()).get("owned"));
+            assertEquals(Boolean.FALSE, rosterRow(roster, paid.getId()).get("expeditionStarter"));
+        }
+        try (Swap ignored = withAccount(null)) {
+            Map<String, Object> roster = siegeService.roster("Bearer test");
+            assertEquals(Boolean.TRUE, roster.get("loggedIn"));
+            assertEquals(Boolean.FALSE, roster.get("accountReady"));
+        }
+    }
+
+    @Test
     void guestRosterLocksEveryWaterAndElectricSiegling() {
         Map<String, Object> roster = siegeService.roster(null);
         @SuppressWarnings("unchecked")

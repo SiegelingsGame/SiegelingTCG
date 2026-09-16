@@ -691,6 +691,21 @@ body.single-screen .sg-app { position:fixed; inset:0; }
 .sg-deckrow-meta b { color:var(--ink); }
 .sg-deckrow-bar { position:absolute; left:0; right:0; bottom:0; height:3px; background:rgba(112,142,180,.2); }
 .sg-deckrow-bar i { display:block; height:100%; background:linear-gradient(90deg,var(--el,#c8a54f),var(--amber)); }
+.sg-deck-section .sg-section-head > span { font-size:12px; color:var(--muted); }
+.sg-deck-section .sg-stack { padding-top:0; }
+.sg-deck-section .sg-deckrow { min-height:146px; height:auto; }
+.sg-deck-section .sg-deckrow-body { position:relative; min-height:146px; padding-right:106px; box-sizing:border-box; }
+.sg-deck-section .sg-deckrow-body h4 { overflow-wrap:anywhere; }
+.sg-deck-kind { font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:var(--gold-bright); }
+.sg-deck-buy { display:inline-flex; align-items:center; justify-content:center; align-self:flex-start; gap:6px;
+  min-height:40px; margin-top:8px; padding:8px 12px; border-radius:12px; border:1px solid var(--gold);
+  background:rgba(25,17,53,.88); color:var(--ink); font:600 12px var(--sans); text-decoration:none; cursor:pointer; }
+.sg-deck-buy img { width:17px; height:17px; object-fit:contain; }
+.sg-deck-buy:disabled { opacity:.55; cursor:default; }
+.sg-deck-buy:focus-visible { outline:2px solid var(--gold-bright); outline-offset:3px; }
+.sg-deck-shortage { font-size:10px; color:var(--muted); }
+.sg-deck-notice { margin:16px 18px 0; padding:12px 14px; border:1px solid var(--gold); border-radius:12px;
+  font-size:13px; line-height:1.5; color:var(--ink); background:rgba(25,17,53,.88); }
 
 /* ---------- shop ---------- */
 .sg-feature { position:relative; height:308px; overflow:hidden; }
@@ -716,8 +731,14 @@ body.single-screen .sg-app { position:fixed; inset:0; }
 }
 /* The face fills its column rather than sitting at a fixed 132px: in the grid the
    tiles were narrower than their cell, so the art floated with gaps either side. */
+/* The card-back art is 520x760 (13:19), not 3:4. Forcing a 3:4 box and painting
+   it with `cover` cropped roughly 9% of the height - which is exactly where the
+   gold frame's top and bottom edges live, so every pack read as a bordered card
+   with its border sliced off. The face carries the art's own ratio instead. */
+:root { --card-back-ratio: 520 / 760; }
 .sg-pack-face {
-  width:132px; height:176px; border-radius:16px; overflow:hidden; position:relative;
+  width:132px; height:auto; aspect-ratio:var(--card-back-ratio);
+  border-radius:16px; overflow:hidden; position:relative;
   box-shadow:0 16px 30px rgba(0,0,0,.55), inset 0 0 0 1px rgba(200,165,79,.22);
 }
 .sg-pack-face::after {
@@ -725,7 +746,10 @@ body.single-screen .sg-app { position:fixed; inset:0; }
   background:radial-gradient(70% 50% at 50% 30%, var(--el,#f05b2f), transparent 72%);
   opacity:.34; mix-blend-mode:screen;
 }
-.sg-pack-face img { width:100%; height:100%; object-fit:cover; display:block; }
+/* `contain` rather than `cover`: the box already matches the art, and a pack
+   given a custom back of some other proportion should letterbox, never lose its
+   frame. */
+.sg-pack-face img { width:100%; height:100%; object-fit:contain; display:block; }
 .sg-pack strong { font-size:11.5px; font-weight:600; text-align:center; }
 .sg-pack span { font-size:10px; color:var(--muted); letter-spacing:.08em; text-transform:uppercase; }
 .sg-buy {
@@ -1636,8 +1660,8 @@ body.concept-board {
   width:auto; flex:none; height:100%;
   display:flex; flex-direction:column; align-items:stretch; gap:5px;
 }
-/* Full-bleed within the cell, keeping the card's own 3:4 proportion. */
-.sg-pack-grid .sg-pack-face { width:100%; height:auto; aspect-ratio:3 / 4; }
+/* Full-bleed within the cell, keeping the card back's own proportion. */
+.sg-pack-grid .sg-pack-face { width:100%; height:auto; aspect-ratio:var(--card-back-ratio); }
 /* A wrapping pack name must not push its price out of line with the row, so the
    buy button is pinned to the bottom of every tile. */
 .sg-pack-grid .sg-pack .sg-buy { margin-top:auto; align-self:center; }
@@ -1765,10 +1789,10 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   align-content:center; width:100%; max-width:430px;
 }
 /* The unopened pack breathes while the purchase is in flight. */
-.sg-gacha-pack { width:150px; aspect-ratio:3 / 4; border-radius:16px; overflow:hidden;
+.sg-gacha-pack { width:150px; aspect-ratio:var(--card-back-ratio); border-radius:16px; overflow:hidden;
   box-shadow:0 22px 46px rgba(0,0,0,.6), inset 0 0 0 1px color-mix(in srgb, var(--el,#f2a03d) 42%, transparent);
   animation:sgPackBreathe 1.8s ease-in-out infinite; }
-.sg-gacha-pack img { width:100%; height:100%; object-fit:cover; display:block; }
+.sg-gacha-pack img { width:100%; height:100%; object-fit:contain; display:block; }
 @keyframes sgPackBreathe { 0%,100%{transform:scale(1);} 50%{transform:scale(1.045);} }
 .sg-gacha-note { margin:0; font-size:12.5px; color:var(--muted); letter-spacing:.06em; text-align:center; }
 .sg-gacha-actions { display:flex; gap:10px; width:100%; max-width:420px; }

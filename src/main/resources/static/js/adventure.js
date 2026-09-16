@@ -20,6 +20,7 @@
     knightId: null,
     party: [],          // selected siegeling ids (max 3)
     elementFilter: 'ALL',
+    rosterFilter: 'ALL',
     setupStep: 'mode',
     selectedCardId: null,
     knightSelectedItem: null,
@@ -150,6 +151,7 @@
       method: opts.method || 'GET',
       headers: authHeaders(Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {})),
       credentials: 'include',
+      cache: 'no-store',
       body: opts.body ? JSON.stringify(opts.body) : undefined,
       signal: controller ? controller.signal : undefined
     }).then(function (r) {
@@ -268,6 +270,12 @@
     return JSON.stringify({
       coordinateSystem: 'DOM viewport; origin top-left; x increases right; y increases down',
       screen: screen,
+      setup: screen === 'setupScreen' ? { step: state.setupStep, accountReady: state.roster && state.roster.accountReady,
+        loggedIn: state.roster && state.roster.loggedIn, gold: state.roster && state.roster.gold,
+        availabilityFilter: state.rosterFilter, elementFilter: state.elementFilter,
+        visibleSiegelings: (state.setupStep === 'party' ? rosterSiegelings(state.roster).filter(visibleWarbandSiegling) : []).map(function (s) {
+          return { id: s.id, name: s.name, owned: s.owned, ready: s.expeditionStarter !== false };
+        }) } : null,
       busy: !!state.busy,
       campMenu: state.campMenu,
       gold: Number(run.gold || 0),
@@ -364,6 +372,7 @@
 
   function applyRoster(data) {
     state.roster = data;
+    renderSiegeAccount();
     if (!state.knightId) {
       var starter = (data.knights || []).find(function (k) { return k.selectable && k.expeditionStarter; })
         || (data.knights || []).find(function (k) { return k.selectable; });
@@ -372,6 +381,7 @@
   }
 
   function updateWarbandMeta() {
+    renderSiegeAccount();
     var meta = $('warbandMeta');
     if (!meta) return;
     if (state.warbandLoading) {
@@ -385,11 +395,23 @@
     }
     var starters = list.filter(function (s) { return s.expeditionStarter !== false; }).length;
     var locked = list.length - starters;
-    var filtered = state.elementFilter === 'ALL'
-      ? list.length
-      : list.filter(function (s) { return s.element === state.elementFilter; }).length;
-    meta.textContent = filtered + ' shown · ' + list.length + ' total · ' + starters + ' starters'
+    var filtered = list.filter(visibleWarbandSiegling).length;
+    meta.textContent = filtered + ' shown · ' + list.length + ' total · ' + starters + ' ready'
       + (locked > 0 ? (' · ' + locked + ' locked') : '');
+  }
+
+  function renderSiegeAccount() {
+    var status = $('siegeAccountStatus');
+    var roster = state.roster;
+    if (!status || !roster) return;
+    status.textContent = !roster.loggedIn ? 'Guest · sign in for your collection and unlocks'
+      : roster.accountReady === false ? 'Account data could not load. Refresh to restore your unlocks.'
+      : (roster.accountName || 'Signed in') + ' · ' + Number(roster.gold || 0).toLocaleString() + ' Siegecoins';
+  }
+
+  function visibleWarbandSiegling(s) {
+    return (state.elementFilter === 'ALL' || s.element === state.elementFilter)
+      && (state.rosterFilter === 'ALL' || (state.rosterFilter === 'READY' ? s.expeditionStarter !== false : s.owned));
   }
 
   function setWarbandLoading(active, loaded, total) {
@@ -640,7 +662,7 @@
       var card = el('div', 'resume-summary resume-save' + (bg ? ' bg' : ' siege'));
       var strip = el('div', 'party-strip');
       var meta = el('div', 'resume-meta');
-      meta.innerHTML = '<span class="gold-chip"><img class="gold-coin" src="/img/ui/siegel-coin.webp" alt="" aria-hidden="true">' + (run.gold || 0) + '</span>' +
+      meta.innerHTML = '<span class="gold-chip"><img class="gold-coin" src="/img/ui/home-stats/siegecoin.png" alt="" aria-hidden="true">' + (run.gold || 0) + '</span>' +
         '<span>📍 Floor ' + floor + '</span>' +
         (run.battle
           ? '<span class="resume-battle-chip">⚔ Battle in progress · Round ' +
@@ -735,6 +757,15 @@
     });
     $('partyBackBtn').addEventListener('click', function () { state.setupStep = 'knight'; renderSetup(); });
     var warbandRetryBtn = $('warbandRetryBtn');
+    var accountRefresh = $('siegeAccountRefresh');
+    if (accountRefresh) accountRefresh.addEventListener('click', function () {
+      accountRefresh.disabled = true;
+      fetchRoster().then(function (data) {
+        applyRoster(data);
+        renderKnightStep();
+        renderPartyStepContent();
+      }).catch(function (error) { toast(error.message); }).then(function () { accountRefresh.disabled = false; });
+    });
     if (warbandRetryBtn) {
       warbandRetryBtn.addEventListener('click', function () {
         ensureWarbandLoaded(true).then(function () {
@@ -1563,6 +1594,17 @@
 
   function renderPartyStepContent() {
     var siegelings = rosterSiegelings(state.roster);
+    var availability = $('warbandStatusFilter');
+    if (availability) {
+      availability.innerHTML = '';
+      [['ALL', 'All'], ['READY', 'Ready to use'], ['OWNED', 'Owned cards']].forEach(function (filter) {
+        var button = el('button', 'filter-chip' + (state.rosterFilter === filter[0] ? ' active' : ''), filter[1]);
+        button.type = 'button';
+        button.setAttribute('aria-pressed', String(state.rosterFilter === filter[0]));
+        button.addEventListener('click', function () { state.rosterFilter = filter[0]; renderPartyStepContent(); });
+        availability.appendChild(button);
+      });
+    }
     var elements = ['ALL'];
     siegelings.forEach(function (s) { if (elements.indexOf(s.element) < 0) elements.push(s.element); });
     var fr = $('elementFilter'); fr.innerHTML = '';
@@ -1586,9 +1628,7 @@
   function renderSieglingGrid() {
     var grid = $('sieglingGrid'); grid.innerHTML = '';
     if (!state.roster || !hasWarbandData(state.roster)) return;
-    rosterSiegelings(state.roster).filter(function (s) {
-      return state.elementFilter === 'ALL' || s.element === state.elementFilter;
-    }).sort(function (a, b) {
+    rosterSiegelings(state.roster).filter(visibleWarbandSiegling).sort(function (a, b) {
       if (a.expeditionStarter !== b.expeditionStarter) return a.expeditionStarter ? -1 : 1;
       return a.name.localeCompare(b.name);
     }).forEach(function (s) {
@@ -1598,7 +1638,7 @@
       var canAffordUnlock = s.canUnlock && gold >= (s.unlockCost || 0);
       var c = el('div', 'sgl-card ' + elClass(s.element) + (picked >= 0 ? ' sel' : '') + (locked ? ' locked' : ''));
       var art = s.artUrl
-        ? '<div class="sart" style="background-image:url(\'' + artCss(s.artUrl) + '\')"></div>'
+        ? '<div class="sart"><img src="' + artAttr(s.artUrl) + '" alt="" loading="lazy"></div>'
         : '<div class="sart sart-fallback">' + icon(s.element) + '</div>';
       c.innerHTML =
         (picked >= 0 ? '<div class="selorder">' + (picked + 1) + '</div>' : '') +
@@ -1607,11 +1647,19 @@
         art +
         '<div class="sname">' + esc(s.name) + (s.evolves ? ' <span class="evo-tag" title="Its Evolution card joins your battle deck — play it for 2 AP to evolve">EVO ↑</span>' : '') + '</div>' +
         '<div class="schips">' +
-          '<span class="schip">' + icon(s.element) + ' ' + esc(s.element) + (locked ? ' · locked' : '') + '</span>' +
+          '<span class="schip">' + icon(s.element) + ' ' + esc(s.element) + '</span>' +
+          '<span class="schip availability">' + (locked ? 'Siege locked' : 'Ready') + '</span>' +
+          (s.owned ? '<span class="schip collection-owned">Card owned</span>' : '') +
           '<span class="rarity-tag rarity-' + rarityKey(s.rarity) + '">' + esc(rarityLabel(s.rarity)) + '</span>' +
         '</div>' +
         '<div class="sstats"><span>❤ ' + s.hp + '</span><span>⚡ ' + s.speed + '</span><span>🃏 ' + s.moveCount + '</span></div>' +
         sieglingLockNote(s, canAffordUnlock);
+      var artImage = c.querySelector('.sart img');
+      if (artImage) artImage.addEventListener('error', function () {
+        var holder = artImage.parentNode;
+        holder.classList.add('sart-fallback');
+        holder.textContent = icon(s.element);
+      });
       if (!locked) {
         c.addEventListener('click', function () { toggleSiegling(s.id); });
       } else {
@@ -1634,6 +1682,7 @@
       });
       grid.appendChild(c);
     });
+    if (!grid.children.length) grid.appendChild(el('p', 'warband-help', 'No Siegelings match these filters. Try All or another element.'));
   }
 
   /**
@@ -1652,9 +1701,10 @@
   function sieglingLockNote(s, canAfford) {
     if (!s || s.expeditionStarter !== false || !s.purchaseOnly) return '';
     if (s.canUnlock) {
-      return '<div class="slock-note">Owned in collection — unlock for expeditions</div>' +
+      return '<div class="slock-note">Card owned · unlock for Siege</div>' +
         '<button class="sunlock-btn" type="button"' + (canAfford ? '' : ' disabled') +
-        '>Unlock · 🪙 ' + (s.unlockCost || 0) + '</button>';
+        '>Unlock · 🪙 ' + (s.unlockCost || 0) + '</button>' +
+        (!canAfford ? '<div class="slock-note">Need ' + Math.max(0, (s.unlockCost || 0) - ((state.roster && state.roster.gold) || 0)) + ' more Siegecoins</div>' : '');
     }
     if (s.lockReason === 'SIGN_IN') return '<div class="slock-note">🔒 Sign in to buy · 🪙 ' + (s.unlockCost || 0) + '</div>';
     return '<div class="slock-note">🔒 Own this card first · 🪙 ' + (s.unlockCost || 0) + '</div>';

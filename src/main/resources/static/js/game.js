@@ -8851,16 +8851,8 @@ function syncAuthProfile(silent = false) {
 }
 
 async function syncAuthProfileNow(silent = false) {
-    if (!authState.token) {
-        authState.profile = null;
-        if (!silent) {
-            renderWelcomeAuth();
-            renderSavedDecks();
-        }
-        return false;
-    }
-
     authState.loading = !silent;
+    authState.error = '';
     if (!silent) {
         renderWelcomeAuth();
     }
@@ -8868,15 +8860,15 @@ async function syncAuthProfileNow(silent = false) {
     // never serve auth state from the HTTP cache — Safari in particular will
     // happily return a stale {authenticated:false} captured before the player
     // signed in on another page (e.g. the hub), logging them back out here.
-    const data = await fetchJson(apiUrls('/api/auth/me'), { method: 'GET', cache: 'no-store' });
+    const data = await fetchJson(apiUrls('/api/auth/me'), { method: 'GET', cache: 'no-store' }, 30000);
     authState.loading = false;
     const status = classifyAuthMe(data);
     // Fail open: a transient failure ('unknown') must never drop a valid session.
     if (status === 'unknown') {
-        if (!silent) {
-            renderWelcomeAuth();
-            renderSavedDecks();
-        }
+        authState.error = 'Your account could not be refreshed. Retry to load your latest cards and decks.';
+        renderWelcomeAuth();
+        renderSavedDecks();
+        renderLoadoutOptions();
         return false;
     }
     if (status === 'signed-out') {
@@ -8894,6 +8886,7 @@ async function syncAuthProfileNow(silent = false) {
     // that it survived the trip, so migrating on that would strand the player at a
     // sign-in prompt on the next full-page navigation.
     rememberCookieAuth(data.cookieSession === true);
+    if (!authState.token) saveAuthToken(COOKIE_SESSION_VALUE);
     if (isLegacyBearerToken(authState.token) && data.cookieSession === true && !isStandalonePWA()) {
         saveAuthToken(COOKIE_SESSION_VALUE);
     }
@@ -8991,9 +8984,10 @@ function renderWelcomeAuth() {
     if (authState.token && !authState.profileResolved) {
         authCard.innerHTML = `
             <div class="welcome-eyebrow">ACCOUNT</div>
-            <h3>Restoring your account…</h3>
-            <div class="welcome-loading-bar" aria-hidden="true"><span></span></div>
-            <p class="welcome-auth-prompt">Loading your saved decks and match history. You can wait, or start a new match now — your account will catch up.</p>
+            <h3>${authState.error ? 'Account refresh needed' : 'Loading your collection…'}</h3>
+            ${authState.error ? '' : '<div class="welcome-loading-bar" aria-hidden="true"><span></span></div>'}
+            <p class="welcome-auth-prompt">${escapeHtml(authState.error || 'Your owned presets, saved decks and SiegeKnights will appear here when your account loads.')}</p>
+            ${authState.error ? '<button class="btn btn-primary" type="button" onclick="syncAuthProfile()">Retry account</button>' : ''}
         `;
         historyCard.innerHTML = `
             <div class="welcome-card-kicker">Recent Battles</div>
@@ -11233,6 +11227,15 @@ function renderLoadoutAuthGate(kind) {
 
 function renderLoadoutOptions() {
     if (!gameOptions) return;
+    const accountNote = document.getElementById('loadoutAccountNote');
+    if (accountNote) {
+        const profile = authState.profile;
+        const summary = profile?.authenticated
+            ? `${profile.user.displayName} · ${getVisibleLoadoutDecks().length} available presets · ${(profile.savedDecks || []).length} saved decks`
+            : authState.token ? 'Loading your owned cards and decks…' : 'Guest · free presets only. Sign in for your collection.';
+        accountNote.innerHTML = `<span>${escapeHtml(authState.error || summary)}</span>`
+            + `<button type="button" class="btn" onclick="syncAuthProfile()">Refresh account</button>`;
+    }
 
     const inviteFlow = isInviteJoinFlow();
     const deckEl = document.getElementById('deckOptions');
