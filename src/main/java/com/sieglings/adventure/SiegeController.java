@@ -32,6 +32,28 @@ public class SiegeController {
     @Autowired
     private com.sieglings.service.CardEditorAuthService editorAuth;
 
+    /**
+     * The Advantage rider each element grants, split by whether the card is aimed
+     * at an ally or an enemy. Public and read-only: the hub's card sheet shows a
+     * Siegeling's riders, and serving them from {@link SiegeAdvantage} keeps one
+     * source of truth instead of a copy of the table in JavaScript that would
+     * drift the first time a rider is retuned.
+     */
+    @GetMapping("/api/siege/advantage-riders")
+    public Map<String, Object> advantageRiders() {
+        Map<String, Object> out = new java.util.LinkedHashMap<>();
+        for (com.sieglings.model.enums.Element element : com.sieglings.model.enums.Element.values()) {
+            String friendly = SiegeAdvantage.riderText(element, TargetKind.ALLY_SINGLE);
+            String enemy = SiegeAdvantage.riderText(element, TargetKind.ENEMY_SINGLE);
+            if (friendly == null && enemy == null) continue;
+            Map<String, Object> entry = new java.util.LinkedHashMap<>();
+            if (friendly != null) entry.put("friendly", friendly);
+            if (enemy != null) entry.put("enemy", enemy);
+            out.put(element.name(), entry);
+        }
+        return Map.of("riders", out);
+    }
+
     /** Selectable Siegelings + SiegeKnights for the team-select screen. */
     @GetMapping("/api/siege/roster")
     public Map<String, Object> roster(

@@ -1094,58 +1094,160 @@
     }).join('');
   }
 
+  // ---- Keep: what this Siegeling gives the Keep, and what it is giving now ----
+  // Two different facts, and both are real. The affinity guide
+  // (/api/keep/affinities) is account-free game data - which stations this
+  // element helps at and by how much - so it shows for a guest too. The rapport
+  // block only appears when this card is actually a resident of YOUR Keep.
   function keepBlock(card, opts) {
-    if (opts.guest) return '<p class="sg-sheet-empty">Sign in to see your Keep.</p>';
+    var el = String(card.element || '').toUpperCase();
+    var stations = (opts.live && opts.live.keepAffinities) || null;
+    var out = '';
+
+    if (stations) {
+      var helps = [];
+      stations.forEach(function (st) {
+        var has = (st.elements || []).indexOf(el) !== -1;
+        var pct = has ? st.affinityPercent : (el === 'NEUTRAL' ? st.neutralPercent : 0);
+        if (pct) helps.push({ name: st.name, resource: st.resourceName, pct: pct, affinity: has });
+      });
+      out += helps.length
+        ? '<div class="sg-sheet-rows">' + helps.map(function (h) {
+            return '<div class="sg-sheet-row">' +
+              '<span class="sg-sheet-row-name">' + esc(h.name) +
+                (h.resource ? '<em>' + esc(h.resource) + '</em>' : '') + '</span>' +
+              '<b class="sg-sheet-row-val">+' + esc(h.pct) + '%</b>' +
+            '</div>';
+          }).join('') + '</div>'
+        : '<p class="sg-sheet-empty">' + esc(title(el)) +
+          ' grants no station bonus at the Keep.</p>';
+    } else {
+      out += '<p class="sg-sheet-empty">Station bonuses are unavailable right now.</p>';
+    }
+
     var residents = (opts.live && opts.live.keepResidents) || null;
-    if (!residents) return '<p class="sg-sheet-empty">Your Keep has not answered.</p>';
-    var res = residents.filter(function (r) { return r && r.id === card.id; })[0];
-    if (!res) return '<p class="sg-sheet-empty">Not in residence at your Keep.</p>';
-    var rap = res.rapport || {};
-    var bits = '';
-    if (res.assignment) bits += '<div><span>Station</span><b>' + esc(res.assignment) + '</b></div>';
-    if (rap.label) bits += '<div><span>Rapport</span><b>' + esc(rap.label) + '</b></div>';
-    if (rap.buffPercent != null) bits += '<div><span>Bonus</span><b>+' + esc(rap.buffPercent) + '%</b></div>';
-    if (res.favoriteBonusPercent) bits += '<div><span>Favourite</span><b>+' + esc(res.favoriteBonusPercent) + '%</b></div>';
-    return bits ? '<div class="sg-sheet-stats">' + bits + '</div>'
-                : '<p class="sg-sheet-empty">In residence, granting no bonus yet.</p>';
+    var res = residents ? residents.filter(function (r) { return r && r.id === card.id; })[0] : null;
+    if (res) {
+      var rap = res.rapport || {};
+      var bits = '';
+      if (res.assignment) bits += '<div><span>Posted</span><b>' + esc(res.assignment) + '</b></div>';
+      if (rap.label) bits += '<div><span>Rapport</span><b>' + esc(rap.label) + '</b></div>';
+      if (rap.buffPercent != null) bits += '<div><span>Rapport bonus</span><b>+' + esc(rap.buffPercent) + '%</b></div>';
+      out += '<div class="sg-sheet-sub">In residence</div>' +
+        (bits ? '<div class="sg-sheet-stats">' + bits + '</div>'
+              : '<p class="sg-sheet-empty">Granting no bonus yet.</p>');
+    } else if (!opts.guest) {
+      out += '<p class="sg-sheet-note">Not in residence at your Keep.</p>';
+    }
+    return out;
   }
 
-  function siegeBlock(card) {
-    var abilities = card.abilities || (card.ability ? [card.ability] : []);
-    var lines = [];
-    lines.push(abilities.length
-      ? 'Brings ' + abilities.length + ' card' + (abilities.length === 1 ? '' : 's') + ' to an expedition deck.'
-      : 'Brings no cards of its own to an expedition.');
-    if (card.evolvesFromName) lines.push('Evolves from ' + card.evolvesFromName + '.');
-    if (card.preferredRow) lines.push('Fields to the ' + String(card.preferredRow).toLowerCase() + ' row.');
-    return '<ul class="sg-sheet-list">' + lines.map(function (l) {
-      return '<li>' + esc(l) + '</li>';
-    }).join('') + '</ul>';
+  // ---- Siege: the cards this Siegeling brings, and the Advantage rider each
+  // gains while it holds the token. The rider table comes from the server
+  // (/api/siege/advantage-riders) rather than a copy of SiegeAdvantage in JS.
+  // An explicit table, not a substring test. Matching on 'ENEMY' missed
+  // ALL_ENEMIES and ROW_ENEMIES - which spell it "ENEMIES" - so every row and
+  // board-wide card silently lost its rider; and matching 'ALL' would have
+  // claimed ALL_ENEMIES as friendly. TargetType is a closed enum, so it is
+  // listed. PASSIVE has no target and takes no rider.
+  var TARGET_SIDE = {
+    SINGLE_ENEMY: false, ALL_ENEMIES: false, ROW_ENEMIES: false,
+    ROW_SELECT_ENEMIES: false, ENEMY_PLAYER: false,
+    SINGLE_ALLY: true, ALL_ALLIES: true, ROW_ALLIES: true,
+    ROW_SELECT_ALLIES: true, SELF: true
+  };
+
+  function friendlyTarget(targetType) {
+    var t = String(targetType || '').toUpperCase();
+    return Object.prototype.hasOwnProperty.call(TARGET_SIDE, t) ? TARGET_SIDE[t] : null;
   }
+
+  function siegeBlock(card, opts) {
+    var abilities = card.abilities || (card.ability ? [card.ability] : []);
+    var riders = (opts.live && opts.live.advantageRiders) || null;
+    var rider = riders && riders[String(card.element || '').toUpperCase()];
+    var meta = [];
+    if (card.evolvesFromName) meta.push('Evolves from ' + card.evolvesFromName);
+    if (card.preferredRow) meta.push('Fields to the ' + String(card.preferredRow).toLowerCase() + ' row');
+
+    if (!abilities.length) {
+      return '<p class="sg-sheet-empty">Brings no cards of its own to an expedition.</p>' +
+        (meta.length ? '<p class="sg-sheet-note">' + esc(meta.join(' \u00b7 ')) + '</p>' : '');
+    }
+
+    return (meta.length ? '<p class="sg-sheet-note">' + esc(meta.join(' \u00b7 ')) + '</p>' : '') +
+      abilities.map(function (a) {
+        var friendly = friendlyTarget(a.targetType);
+        var text = rider ? (friendly === true ? rider.friendly
+                          : friendly === false ? rider.enemy : null) : null;
+        return '<div class="sg-sheet-ability">' +
+          '<strong>' + esc(a.name || 'Card') +
+            (a.requiredEnergy ? '<em class="sg-sheet-cost">' + esc(a.requiredEnergy) + ' energy</em>' : '') +
+          '</strong>' +
+          (a.description ? '<span>' + esc(a.description) + '</span>' : '') +
+          (text ? '<span class="sg-sheet-rider"><i>Advantage</i>' + esc(text) + '</span>' : '') +
+        '</div>';
+      }).join('') +
+      (rider ? '' : '<p class="sg-sheet-note">Advantage riders are unavailable right now.</p>');
+  }
+
+  // Three tabs, not one long scroll. The sheet was taller than the phone: the
+  // card face was cut off at the top and Keep sat below the fold. Each panel is
+  // now short enough to read whole, so the sheet is a fixed-height card with one
+  // panel visible at a time and the face always in view.
+  var SHEET_TABS = [['arena', 'Arena'], ['siege', 'Siege'], ['keep', 'Keep']];
 
   function cardSheetMarkup(card, opts) {
     return '<div class="sg-sheet-grab"></div>' +
-      '<div class="sg-sheet-face">' + galleryCard(card) + '</div>' +
-      '<h3>' + esc(card.name) + '</h3>' +
-      '<div class="sg-sheet-meta"><img src="' + esc(icon(card.element)) + '" alt="">' +
-        esc(title(card.element)) + ' \u00b7 ' + esc(title(card.rarity)) + '</div>' +
-      '<div class="sg-sheet-block">' +
-        '<h4>Arena</h4>' +
-        '<div class="sg-sheet-stats">' +
-          '<div><span>Health</span><b>' + esc(card.health == null ? '\u2014' : card.health) + '</b></div>' +
-          '<div><span>Speed</span><b>' + esc(card.speed == null ? '\u2014' : card.speed) + '</b></div>' +
-          '<div><span>Row</span><b>' + esc(card.preferredRow ? title(card.preferredRow) : '\u2014') + '</b></div>' +
+      '<div class="sg-sheet-head">' +
+        '<div class="sg-sheet-face">' + galleryCard(card) + '</div>' +
+        '<div class="sg-sheet-id">' +
+          '<h3>' + esc(card.name) + '</h3>' +
+          '<div class="sg-sheet-meta"><img src="' + esc(icon(card.element)) + '" alt="">' +
+            esc(title(card.element)) + ' \u00b7 ' + esc(title(card.rarity)) + '</div>' +
+          '<div class="sg-sheet-stats is-tight">' +
+            '<div><span>HP</span><b>' + esc(card.health == null ? '\u2014' : card.health) + '</b></div>' +
+            '<div><span>SPD</span><b>' + esc(card.speed == null ? '\u2014' : card.speed) + '</b></div>' +
+            '<div><span>Row</span><b>' + esc(card.preferredRow ? title(card.preferredRow) : '\u2014') + '</b></div>' +
+          '</div>' +
         '</div>' +
-        notchRing(card) +
-        abilityRows(card) +
       '</div>' +
-      '<div class="sg-sheet-block">' +
-        '<h4>Siege</h4>' + siegeBlock(card) +
-      '</div>' +
-      '<div class="sg-sheet-block">' +
-        '<h4>Keep</h4>' + keepBlock(card, opts) +
+      '<div class="sg-sheet-tabs" role="tablist">' + SHEET_TABS.map(function (t, i) {
+        return '<button class="sg-sheet-tab' + (i === 0 ? ' on' : '') + '" type="button" role="tab" ' +
+          'aria-selected="' + (i === 0) + '" data-sheet-tab="' + t[0] + '">' + esc(t[1]) + '</button>';
+      }).join('') + '</div>' +
+      '<div class="sg-sheet-panels">' +
+        '<div class="sg-sheet-panel" data-sheet-panel="arena">' +
+          notchRing(card) + abilityRows(card) +
+        '</div>' +
+        '<div class="sg-sheet-panel" data-sheet-panel="siege" hidden>' +
+          siegeBlock(card, opts) +
+        '</div>' +
+        '<div class="sg-sheet-panel" data-sheet-panel="keep" hidden>' +
+          keepBlock(card, opts) +
+        '</div>' +
       '</div>' +
       '<a class="sg-sheet-cta" href="/deck-builder" data-screen="builder">Use in a deck \u203a</a>';
+  }
+
+  function wireTabs(sheetCard) {
+    var tabs = [].slice.call(sheetCard.querySelectorAll('[data-sheet-tab]'));
+    var panels = [].slice.call(sheetCard.querySelectorAll('[data-sheet-panel]'));
+    var panelHost = sheetCard.querySelector('.sg-sheet-panels');
+    tabs.forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        var id = tab.getAttribute('data-sheet-tab');
+        tabs.forEach(function (t) {
+          var on = t === tab;
+          t.classList.toggle('on', on);
+          t.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
+        panels.forEach(function (p) { p.hidden = p.getAttribute('data-sheet-panel') !== id; });
+        // Each panel is its own scroll context, so switching tabs starts at the
+        // top of the new one rather than at the old one's offset.
+        if (panelHost) panelHost.scrollTop = 0;
+      });
+    });
   }
 
   // One sheet host per screen; any tile with data-card opens it.
@@ -1161,6 +1263,7 @@
       if (!card) return;
       sheetCard.innerHTML = cardSheetMarkup(card, opts);
       sheetCard.scrollTop = 0;
+      wireTabs(sheetCard);
       sheet.classList.add('open');
     }
     sheet.addEventListener('click', function (e) {

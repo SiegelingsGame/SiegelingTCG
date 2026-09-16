@@ -1,5 +1,5 @@
 {
-  "token" : "qrA7FmI5bHjsx50YnzGomCMmfNps4EOI",
+  "token" : "UcZrUP64nQCkzq2kucWI1IKHbi67xJaN",
   "status" : "ACTIVE",
   "currentNodeId" : -1,
   "lastReward" : "",
@@ -31,23 +31,23 @@
     "eventTitle" : "The Cinder Smith"
   },
   "landHistory" : [ {
-    "id" : "earth",
-    "name" : "Rootwild",
+    "id" : "fire",
+    "name" : "Emberfall",
     "kind" : "ELEMENTAL",
-    "elements" : [ "EARTH" ],
-    "background" : "/img/lands/earth.webp",
+    "elements" : [ "FIRE" ],
+    "background" : "/img/lands/fire.webp",
     "locations" : {
-      "journey" : "/img/lands/locations/earth-journey.webp",
-      "shelter" : "/img/lands/locations/earth-shelter.webp",
-      "elite" : "/img/lands/locations/earth-elite.webp",
-      "boss" : "/img/lands/locations/earth-boss.webp"
+      "journey" : "/img/lands/locations/fire-journey.webp",
+      "shelter" : "/img/lands/locations/fire-shelter.webp",
+      "elite" : "/img/lands/locations/fire-elite.webp",
+      "boss" : "/img/lands/locations/fire-boss.webp"
     },
-    "feature" : "Root Refuge",
-    "featureType" : "REST",
-    "terrain" : "Living roots",
-    "effect" : "EARTH Siegelings recover 4 HP at battle start.",
+    "feature" : "Ember Forge",
+    "featureType" : "SMITH",
+    "terrain" : "Cinder heat",
+    "effect" : "FIRE Siegelings start battles with +1 Attack.",
     "encounters" : "Favored Siegelings have 4× draw weight in recruits, broker stock and card prizes.",
-    "eventTitle" : "The Root Tender"
+    "eventTitle" : "The Cinder Smith"
   } ],
   "landSegment" : 0,
   "landSegmentRows" : 8,

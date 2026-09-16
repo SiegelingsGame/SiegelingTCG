@@ -1901,3 +1901,75 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   width:40px; height:40px; border-radius:50%; cursor:pointer; font-size:22px; line-height:1;
   color:var(--ink); border:1px solid rgba(180,140,255,.3); background:rgba(13,10,38,.7);
 }
+
+/* ---------- card sheet: tabbed, and short enough to read whole ----------
+   The sheet used to stack Arena, Siege and Keep in one column, which on a phone
+   ran past both ends of the glass - the card face was clipped at the top and the
+   Keep section sat below the fold. It is a fixed-height card now: an identity
+   header that always stays in view, three tabs, and one scrolling panel. */
+.sg-sheet-card {
+  /* Never taller than the screen, and never so short that a panel is a slit. */
+  max-height:min(86dvh, 720px);
+  display:flex; flex-direction:column;
+  padding:0 16px calc(16px + env(safe-area-inset-bottom,0px));
+}
+/* The face sits beside the identity rather than above it, which is what buys
+   back the vertical room the tabs need. */
+.sg-sheet-head { display:flex; align-items:center; gap:14px; padding:6px 0 12px; flex:0 0 auto; }
+.sg-sheet-face { display:block; flex:0 0 108px; padding:0; }
+.sg-sheet-face .sg-card-tile { width:108px; max-width:none; }
+.sg-sheet-id { flex:1 1 auto; min-width:0; }
+.sg-sheet-card .sg-sheet-id h3 { text-align:left; font-size:21px; line-height:1.15; }
+.sg-sheet-id .sg-sheet-meta { justify-content:flex-start; margin:5px 0 9px; }
+.sg-sheet-stats.is-tight { gap:6px; }
+.sg-sheet-stats.is-tight > div { padding:6px 4px; }
+.sg-sheet-stats.is-tight span { font-size:8.5px; }
+.sg-sheet-stats.is-tight b { font-size:15px; }
+
+.sg-sheet-tabs {
+  flex:0 0 auto; display:flex; gap:5px; padding:4px; margin-bottom:10px;
+  border-radius:14px; border:1px solid var(--steel-soft); background:rgba(13,10,38,.55);
+}
+.sg-sheet-tab {
+  flex:1 1 0; min-height:36px; border:none; border-radius:10px; cursor:pointer;
+  font:inherit; font-size:11px; font-weight:800; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--muted); background:transparent;
+}
+.sg-sheet-tab.on {
+  color:#2b0d02; background:linear-gradient(135deg,#ffe066,var(--amber));
+  box-shadow:0 5px 14px rgba(255,155,33,.3);
+}
+/* The one scrolling region. flex:1 with min-height:0 so it takes the slack and
+   the header and CTA never get pushed off. */
+.sg-sheet-panels { flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+.sg-sheet-panel { display:flex; flex-direction:column; gap:8px; padding-bottom:4px; }
+.sg-sheet-panel[hidden] { display:none; }
+.sg-sheet-card .sg-sheet-cta { flex:0 0 auto; margin-top:12px; }
+
+/* Keep: one row per station this Siegeling helps at. */
+.sg-sheet-rows { display:flex; flex-direction:column; gap:7px; }
+.sg-sheet-row {
+  display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:13px;
+  border:1px solid var(--steel-soft); background:rgba(36,26,96,.45);
+}
+.sg-sheet-row-name { flex:1 1 auto; min-width:0; font-size:13px; }
+.sg-sheet-row-name em {
+  display:block; font-style:normal; font-size:10px; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--muted); margin-top:2px;
+}
+.sg-sheet-row-val { flex:0 0 auto; font-size:14px; font-weight:700; color:var(--acc-emerald); }
+.sg-sheet-sub {
+  margin-top:6px; font-size:9.5px; letter-spacing:.24em; text-transform:uppercase; color:var(--gold);
+}
+.sg-sheet-note { margin:0; font-size:12px; line-height:1.5; color:var(--muted); }
+/* The Advantage rider hangs off its card, so it reads as a condition on that
+   card rather than as a second ability. */
+.sg-sheet-rider {
+  display:block; margin-top:7px; padding-top:7px; font-size:11.5px; line-height:1.45;
+  color:#ffe9c4; border-top:1px dashed rgba(242,160,61,.34);
+}
+.sg-sheet-rider i {
+  display:inline-block; font-style:normal; margin-right:7px; padding:1px 7px; border-radius:999px;
+  font-size:8.5px; font-weight:800; letter-spacing:.14em; text-transform:uppercase;
+  color:#2b0d02; background:linear-gradient(135deg,#ffe066,var(--amber));
+}
