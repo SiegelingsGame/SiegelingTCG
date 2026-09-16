@@ -78,6 +78,60 @@
         { name: 'Gymstone',     element: 'EARTH', art: '/img/legendary/legendary-earth.png', model: '/assets/models/Model_Gymstone.fbx', description: 'A living fortress of stone and root, built to hold the field when the battle turns.' },
     ];
 
+    // Art-first content. All three lists point at files that ship in the repo, so
+    // the landing page stays fully painted even with the API unavailable (static
+    // preview, cold Cloud Run, offline). `/img/art/loading/` is the same folder the
+    // in-game art gallery scans, so anything dropped there can join these lists.
+    const HERO_ART = [
+        { id: 'fire-loading',  title: 'Emberwatch',      element: 'fire'  },
+        { id: 'ice-peak',      title: 'The Ice Peak',    element: 'ice'   },
+        { id: 'sky',           title: 'Skyward Reach',   element: 'wind'  },
+        { id: 'apple-grove',   title: 'Apple Grove',     element: 'earth' },
+        { id: 'water-beach',   title: 'Tidebreak Shore', element: 'water' },
+        { id: 'dracos',        title: 'Draco Brood',     element: 'storm' },
+    ];
+
+    const ELEMENT_LANDS = [
+        { key: 'FIRE',     label: 'Fire',     land: 'fire',     blurb: 'Burns Ice. Opens fast.' },
+        { key: 'ICE',      label: 'Ice',      land: 'ice',      blurb: 'Freezes Wind. Holds ground.' },
+        { key: 'WIND',     label: 'Wind',     land: 'wind',     blurb: 'Wears Earth. Never still.' },
+        { key: 'EARTH',    label: 'Earth',    land: 'earth',    blurb: 'Smothers Fire. Outlasts all.' },
+        { key: 'WATER',    label: 'Water',    land: 'water',    blurb: 'Drowns Fire and Ice alike.' },
+        { key: 'ELECTRIC', label: 'Electric', land: 'electric', blurb: 'Splits Wind and Fire.' },
+        { key: 'METAL',    label: 'Metal',    land: 'metal',    blurb: 'Cuts Earth and Wind.' },
+        { key: 'POISON',   label: 'Poison',   land: 'poison',   blurb: 'Rots Ice and Earth.' },
+        { key: 'PSYCHIC',  label: 'Psychic',  land: 'psychic',  blurb: 'Unravels Light.' },
+        { key: 'SHADOW',   label: 'Shadow',   land: 'shadow',   blurb: 'Swallows Psychic.' },
+        { key: 'LIGHT',    label: 'Light',    land: 'light',    blurb: 'Burns away the Undead.' },
+        { key: 'UNDEAD',   label: 'Undead',   land: 'undead',   blurb: 'Creeps back through Shadow.' },
+    ];
+
+    const SIEGE_KNIGHTS = [
+        { name: 'Lady Pyla', element: 'FIRE',  art: '/img/knights/lady-pyla-full-card.png', blurb: 'Stokes every ember on the board into an opening strike.' },
+        { name: 'Lyria',     element: 'ICE',   art: '/img/knights/lyria-full-card.png',     blurb: 'Locks the field down and makes patience pay.' },
+        { name: 'Ser Airek', element: 'WIND',  art: '/img/knights/ser-airek-full-card.png', blurb: 'Rewards commanders who keep the warband moving.' },
+        { name: 'Aldera',    element: 'EARTH', art: '/img/knights/aldera-full-card.png',    blurb: 'Roots the line so your Sieglings outlast the siege.' },
+        { name: 'Cera',      element: 'WATER', art: '/img/knights/cera-full-card.png',      blurb: 'Turns the tide of energy wherever the links run deepest.' },
+        { name: 'Squire Bob', element: 'NEUTRAL', art: '/img/knights/squire-bob-full-card.png', blurb: 'Every legend starts with somebody willing to carry the shield.' },
+    ];
+
+    const WORLD_ART = [
+        { id: 'ember-burrow',  title: 'Ember Burrow',  element: 'fire'  },
+        { id: 'ice-earth',     title: 'Frostfall',     element: 'ice'   },
+        { id: 'air-battle',    title: 'Air Battle',    element: 'wind'  },
+        { id: 'clawfloor',     title: 'Clawfloor',     element: 'earth' },
+        { id: 'water-battle',  title: 'Water Battle',  element: 'water' },
+        { id: 'electric',      title: 'Stormfield',    element: 'storm' },
+        { id: 'light',         title: 'Hallowed Rise', element: 'ice'   },
+        { id: 'void',          title: 'The Void',      element: 'storm' },
+        { id: 'sand',          title: 'Sunken Sands',  element: 'earth' },
+        { id: 'luvy',          title: 'Luvy Hollow',   element: 'love'  },
+    ];
+
+    function artUrl(id, orientation) {
+        return `/img/art/loading/${id}-${orientation || 'landscape'}.webp`;
+    }
+
     const FLAVOR_LINES = [
         'Siegelings feed on raw elemental energy.',
         'A SiegeKnight never retreats from the arena.',
@@ -183,7 +237,45 @@
                 </article>`;
             host.querySelector('[data-roster-prev]')?.addEventListener('click', () => render(activeIndex - 1));
             host.querySelector('[data-roster-next]')?.addEventListener('click', () => render(activeIndex + 1));
+            syncFilmstrip();
         }
+
+        // The filmstrip is the art-first way into the roster: every Siegling that
+        // has art is on screen at once, and the rotator follows the thumbnail.
+        const strip = document.getElementById('rosterFilmstrip');
+        function renderFilmstrip() {
+            if (!strip) return;
+            strip.innerHTML = entries.map((entry, i) => {
+                const element = String(entry.element || 'NEUTRAL').toLowerCase();
+                return `
+                    <button class="roster-thumb" type="button" data-roster-index="${i}"
+                            style="--thumb-color: var(--element-${element}, #9fb3d9)"
+                            aria-label="Show ${escapeAttr(entry.name)}">
+                        <img ${landingImgAttrs(entry.art)} alt="" loading="lazy" aria-hidden="true">
+                        <span>${escapeHtml(entry.name)}</span>
+                    </button>`;
+            }).join('');
+            strip.querySelectorAll('[data-roster-index]').forEach((button) => {
+                button.addEventListener('click', () => render(Number(button.dataset.rosterIndex)));
+            });
+        }
+        function syncFilmstrip() {
+            if (!strip) return;
+            strip.querySelectorAll('[data-roster-index]').forEach((button) => {
+                const selected = Number(button.dataset.rosterIndex) === activeIndex;
+                button.classList.toggle('is-active', selected);
+                button.setAttribute('aria-pressed', String(selected));
+                // Centre the active thumb by scrolling the strip itself.
+                // scrollIntoView would drag the whole page down to the roster on
+                // the very first render, before the visitor has scrolled at all.
+                if (selected) {
+                    const left = button.offsetLeft - (strip.clientWidth - button.clientWidth) / 2;
+                    strip.scrollTo({ left: Math.max(0, left), behavior: reducedMotion ? 'auto' : 'smooth' });
+                }
+            });
+        }
+        renderFilmstrip();
+
         function stop() { if (interval) { window.clearInterval(interval); interval = null; } }
         function start() { if (!reducedMotion && !interval && entries.length > 1) interval = window.setInterval(() => render(activeIndex + 1), 5600); }
         host.addEventListener('pointerenter', stop);
@@ -238,6 +330,99 @@
 
         document.addEventListener('sieglings:featured-legendary-select', (event) => render(Number(event.detail?.index) || 0));
         render(0);
+    }
+
+    // ── Hero art stage ────────────────────────────────────────────────────
+    // Two stacked layers cross-fade so a slide never shows an undecoded image;
+    // the incoming layer is only revealed once its own <img> has loaded.
+    function bindHeroArtStage() {
+        const stage = document.getElementById('heroArtStage');
+        if (!stage || !HERO_ART.length) return;
+        const caption = document.getElementById('heroArtCaption');
+        const portrait = window.matchMedia('(max-aspect-ratio: 9/10)');
+        const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        const layers = [document.createElement('div'), document.createElement('div')];
+        layers.forEach((layer) => {
+            layer.className = 'hero-art-layer';
+            stage.appendChild(layer);
+        });
+        let front = 0;
+        let index = -1;
+
+        function show(next) {
+            index = (next + HERO_ART.length) % HERO_ART.length;
+            const art = HERO_ART[index];
+            const back = layers[1 - front];
+            const url = artUrl(art.id, portrait.matches ? 'portrait' : 'landscape');
+            const image = new Image();
+            image.onload = () => {
+                back.style.backgroundImage = `url('${url}')`;
+                back.classList.add('is-visible');
+                layers[front].classList.remove('is-visible');
+                front = 1 - front;
+                stage.style.setProperty('--hero-art-color', `var(--element-${art.element}, var(--siegelings-blue))`);
+                if (caption) caption.textContent = art.title;
+            };
+            image.src = url;
+        }
+
+        show(0);
+        if (!reducedMotion && HERO_ART.length > 1) {
+            window.setInterval(() => show(index + 1), 7200);
+        }
+        // An orientation flip mid-rotation would otherwise keep serving the crop
+        // built for the other aspect until the next tick.
+        const onOrientation = () => show(index);
+        if (portrait.addEventListener) portrait.addEventListener('change', onOrientation);
+        else if (portrait.addListener) portrait.addListener(onOrientation);
+    }
+
+    // ── Element affinity rail ─────────────────────────────────────────────
+    function renderElementRail() {
+        const rail = document.getElementById('elementRail');
+        if (!rail) return;
+        rail.innerHTML = ELEMENT_LANDS.map((entry) => {
+            const key = entry.key.toLowerCase();
+            return `
+                <li class="element-tile" style="--tile-color: var(--element-${key}, var(--element-neutral, #9fb3d9))">
+                    <span class="element-tile-art" aria-hidden="true" style="background-image:url('/img/lands/${entry.land}.webp')"></span>
+                    <span class="element-tile-sigil" aria-hidden="true">${getElementSvg(entry.key)}</span>
+                    <span class="element-tile-name">${escapeHtml(entry.label)}</span>
+                    <span class="element-tile-blurb">${escapeHtml(entry.blurb)}</span>
+                </li>`;
+        }).join('');
+    }
+
+    // ── SiegeKnight rail ──────────────────────────────────────────────────
+    function renderKnightRail() {
+        const rail = document.getElementById('knightRail');
+        if (!rail) return;
+        rail.innerHTML = SIEGE_KNIGHTS.map((knight) => {
+            const key = String(knight.element).toLowerCase();
+            return `
+                <article class="knight-card" style="--knight-color: var(--element-${key}, var(--siegelings-gold)); --knight-glow: var(--element-${key}-glow, rgba(245,166,35,.45))">
+                    <div class="knight-card-art">
+                        <img ${landingImgAttrs(knight.art)} alt="${escapeAttr(knight.name)}, ${escapeAttr(knight.element)} SiegeKnight" loading="lazy">
+                    </div>
+                    <div class="knight-card-copy">
+                        <span class="knight-card-element">${escapeHtml(knight.element)}</span>
+                        <h3>${escapeHtml(knight.name)}</h3>
+                        <p>${escapeHtml(knight.blurb)}</p>
+                    </div>
+                </article>`;
+        }).join('');
+    }
+
+    // ── World art marquee ─────────────────────────────────────────────────
+    function renderWorldMarquee() {
+        const host = document.getElementById('worldMarquee');
+        if (!host) return;
+        host.innerHTML = WORLD_ART.map((art) => `
+            <figure class="world-tile" style="--world-color: var(--element-${art.element}, var(--siegelings-blue))">
+                <img src="${escapeAttr(artUrl(art.id))}" alt="${escapeAttr(art.title)}" loading="lazy">
+                <figcaption>${escapeHtml(art.title)}</figcaption>
+            </figure>`).join('');
     }
 
     function bindLandingFab() {
@@ -648,6 +833,10 @@
     }
 
     function init() {
+        bindHeroArtStage();
+        renderElementRail();
+        renderKnightRail();
+        renderWorldMarquee();
         renderCreatureGrid();
         bindRosterRotator();
         bindFeaturedRotator();
