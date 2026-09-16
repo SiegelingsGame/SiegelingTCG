@@ -122,7 +122,7 @@ public class SiegeService {
             // collection before the Siegecoin unlock is even offered, and a guest
             // has no collection to buy against.
             boolean purchase = content.isSiegePurchaseSiegling(s);
-            boolean ownsCard = purchase && progressionService != null
+            boolean ownsCard = progressionService != null
                     && progressionService.ownsCard(progression, s.getId());
             m.put("purchaseOnly", purchase);
             m.put("owned", ownsCard);
@@ -182,6 +182,8 @@ public class SiegeService {
         resp.put("partySize", content.partySize());
         resp.put("partyMax", content.partyMax());
         resp.put("loggedIn", user != null);
+        resp.put("accountReady", user == null || progression != null);
+        resp.put("accountName", user == null ? null : user.getDisplayName());
         resp.put("gold", progression == null ? 0 : progression.getGold());
         // Battlegrounds gate: `veterans` is a FLAT list of banked veteran Siegelings
         // (the ">=3 veteran Siegelings" gate the client counts), `veteranTeams` the

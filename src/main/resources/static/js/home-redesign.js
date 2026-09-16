@@ -444,7 +444,7 @@
     return '<header class="sg-top' + (guest ? ' is-guest' : '') + '">' +
       '<img class="sg-logo" src="/img/siegelings-logo.webp" alt="Siegelings">' +
       '<span class="sg-top-spacer"></span>' +
-      '<span class="sg-chip coin"><img src="/img/ui/siegel-coin.webp" alt="">' +
+      '<span class="sg-chip coin"><img src="/img/ui/home-stats/siegecoin.png" alt="">' +
         esc(formatCoins(opts, guest)) + '</span>' +
       (guest
         ? '<a class="sg-signin" href="/login" data-screen="auth">Sign In</a>'
@@ -795,26 +795,18 @@
 
   /* ---------- decks ---------- */
 
-  // Offline stand-ins for the preset decks the catalog supplies. No win/loss:
-  // these are catalog presets, and a preset has no record - the 18W-6L, 11W-9L
-  // and 75% rates this list used to carry were invented outright.
-  var DECKS = [
-    { name: 'Emberwaste Vanguard', lead: 'solgator',     els: ['FIRE', 'EARTH', 'METAL'], cards: 40 },
-    { name: 'Glacier Choir',       lead: 'glaciemperor', els: ['ICE', 'WATER'],           cards: 40 },
-    { name: 'Stormfeather Rite',   lead: 'aerovane',     els: ['WIND', 'ELECTRIC'],       cards: 40 },
-    { name: 'Root & Ruin',         lead: 'gymstone',     els: ['EARTH', 'POISON'],        cards: 40 }
-  ];
-
-  function deckRow(d) {
+  function deckRow(d, action) {
     var lead = byId(d.lead) || CARDS[0];
     var total = (d.w || 0) + (d.l || 0);
     var rate = total ? Math.round(d.w / total * 100) : 0;
-    return '<article class="sg-deckrow' + (d.active ? ' is-active' : '') + '" style="--el:' + color(lead.element) + '">' +
+    return '<article class="sg-deckrow' + (d.active ? ' is-active' : '') + (action ? ' has-action' : '') +
+      '" data-deck-id="' + esc(d.id || '') + '" style="--el:' + color(lead.element) + '">' +
       '<div class="sg-deckrow-bg" style="background-image:url(\'' + land(lead.element) + '\')"></div>' +
       '<div class="sg-deckrow-veil"></div>' +
       '<div class="sg-deckrow-art"><img src="' + esc(lead.cardArtUrl) + '" alt="" loading="lazy"></div>' +
       '<div class="sg-deckrow-body">' +
         (d.active ? '<span class="sg-tag">Selected</span>' : '') +
+        (d.label ? '<span class="sg-deck-kind">' + esc(d.label) + '</span>' : '') +
         '<h4>' + esc(d.name) + '</h4>' +
         '<div class="sg-deck-els">' + d.els.map(function (e) {
           return '<img src="' + icon(e) + '" alt="' + esc(title(e)) + '">';
@@ -822,42 +814,176 @@
         '<div class="sg-deckrow-meta">' +
           (total ? '<b>' + d.w + 'W</b> · ' + d.l + 'L &nbsp;·&nbsp; ' + rate + '% &nbsp;·&nbsp; ' : '') +
           esc(d.cards) + ' cards</div>' +
+        (action || '') +
       '</div>' +
       (total ? '<div class="sg-deckrow-bar"><i style="width:' + rate + '%"></i></div>' : '') +
     '</article>';
   }
 
-  // A signed-in player's own saved decks replace the catalog presets.
+  function deckEntries(d, catalog) {
+    if (Array.isArray(d.customDeckCards) && d.customDeckCards.length) return d.customDeckCards;
+    if (Array.isArray(d.cards)) return d.cards;
+    var preset = (catalog || []).filter(function (p) { return p.id === d.deckId; })[0];
+    return preset && preset.cards || [];
+  }
+
+  function deckSummary(d, entries) {
+    var cards = entries.map(function (c) { return byIdIn(ALL_CARDS, c.id || c); }).filter(Boolean);
+    var els = d.elements || cards.map(function (c) { return c.element; }).filter(function (el, i, all) {
+      return el && all.indexOf(el) === i;
+    });
+    var lead = cards.filter(function (c) { return c.type === 'SIEGLING'; })[0]
+      || CARDS.filter(function (c) { return els.indexOf(c.element) !== -1; })[0] || CARDS[0];
+    return {
+      id: d.id, name: d.name || 'Untitled deck', lead: lead && lead.id,
+      els: els, w: d.wins || 0, l: d.losses || 0,
+      cards: entries.reduce(function (n, c) { return n + (typeof c === 'string' ? 1 : Number(c.count) || 1); }, 0),
+      active: Boolean(d.selected || d.active)
+    };
+  }
+
+  // Saved lists and unlocked presets coexist. Saved decks carry customDeckCards
+  // (an array of ids), or deckId pointing to the catalog; neither is d.cards.
   function playerDecks(opts) {
     var saved = opts && opts.live && opts.live.savedDecks;
-    if (!saved || !saved.length) return null;
-    return saved.slice(0, 6).map(function (d, i) {
-      var lead = (d.cards || []).map(function (c) { return byIdIn(ALL_CARDS, c.id || c); })
-        .filter(Boolean)[0] || CARDS[i] || CARDS[0];
-      return {
-        name: d.name || 'Untitled deck', lead: lead && lead.id,
-        els: d.elements || [], w: d.wins || 0, l: d.losses || 0,
-        cards: (d.cards || []).reduce(function (n, c) { return n + (c.count || 1); }, 0),
-        active: Boolean(d.selected || d.active)
-      };
+    if (!Array.isArray(saved)) return [];
+    return saved.map(function (d) {
+      return deckSummary(d, deckEntries(d, opts.live.decks));
     });
   }
 
+  function presetUnlocked(d, live) {
+    if (Array.isArray(live.unlockedDeckIds)) return live.unlockedDeckIds.indexOf(d.id) !== -1;
+    if ((live.purchasedDeckIds || []).indexOf(d.id) !== -1) return true;
+    // Same guest/legacy fallback as the battle picker. Signed-in ownership from
+    // the server takes precedence, including the player's starter element.
+    var free = ['FIRE', 'ICE', 'EARTH', 'WIND'];
+    var starter = /^pack_([a-z0-9]+)/i.exec(live.starterPackId || '');
+    if (starter) free.push(starter[1].toUpperCase());
+    return Boolean(d.elements && d.elements.length) && d.elements.every(function (el) {
+      return free.indexOf(String(el).toUpperCase()) !== -1;
+    });
+  }
+
+  function deckGroups(opts) {
+    var live = opts.live || {};
+    var owned = [], shop = [];
+    (live.decks || []).forEach(function (d) {
+      var row = deckSummary(d, deckEntries(d));
+      if (presetUnlocked(d, live)) {
+        row.label = (live.purchasedDeckIds || []).indexOf(d.id) !== -1 ? 'Owned' : 'Included';
+        owned.push(row);
+      } else {
+        shop.push(row);
+      }
+    });
+    return { saved: playerDecks(opts), owned: owned, shop: shop };
+  }
+
+  function presetBuyAction(d, opts) {
+    if (opts.guest) return '<a class="sg-deck-buy" href="/login" data-screen="auth">Sign in to unlock</a>';
+    var live = opts.live || {};
+    var price = live.premadeDeckPrice;
+    var known = price != null && live.gold != null;
+    var pending = opts.deckPurchasePendingId === d.id;
+    var shortage = known ? Math.max(0, Number(price) - Number(live.gold)) : 0;
+    var disabled = !known || shortage > 0 || opts.deckPurchasePendingId;
+    return '<button class="sg-deck-buy" type="button" data-buy-deck="' + esc(d.id) + '"' +
+      (disabled ? ' disabled' : '') + ' aria-label="' + esc('Unlock ' + d.name + (price != null ? ' for ' + price + ' Siegecoins' : '')) + '">' +
+      (pending ? 'Unlocking\u2026' : known ? 'Unlock <img src="/img/ui/home-stats/siegecoin.png" alt="Siegecoins"> ' + esc(Number(price).toLocaleString()) : 'Unavailable') +
+      '</button>' + (shortage ? '<span class="sg-deck-shortage">' + esc(shortage.toLocaleString()) + ' more Siegecoins needed</span>' : '');
+  }
+
+  function deckSection(name, rows, key, opts, empty) {
+    return '<section class="sg-section sg-deck-section" data-deck-section="' + key + '">' +
+      '<div class="sg-section-head"><h3>' + name + '</h3><span>' + rows.length + '</span></div>' +
+      (rows.length ? '<div class="sg-stack">' + rows.map(function (d) {
+        return deckRow(d, key === 'presets' ? presetBuyAction(d, opts) : '');
+      }).join('') + '</div>' : '<p class="sg-empty-row">' + esc(empty) + '</p>') + '</section>';
+  }
+
   function decksScreen(opts) {
+    opts = opts || {};
+    var groups = deckGroups(opts);
     return topMarkup(opts) +
-      '<div class="sg-scroll">' +
-        '<div class="sg-page-head"><h2>My Decks</h2><p>' + (function () {
-          var d = playerDecks(opts);
-          return d ? esc(d.length) + ' saved' : esc(DECKS.length) + ' preset decks';
-        })() + '</p></div>' +
+      '<div class="sg-scroll" data-decks-content aria-busy="' + Boolean(opts.deckPurchasePendingId) + '">' +
+        '<div class="sg-page-head"><h2>My Decks</h2><p>' + groups.saved.length + ' saved &middot; ' +
+          groups.owned.length + (opts.guest ? ' included presets' : ' owned presets') + '</p></div>' +
         '<div class="sg-tool-row">' +
           '<button class="sg-ghost-btn" type="button"><span class="ico">✎</span>Deck Builder</button>' +
           '<button class="sg-ghost-btn" type="button"><span class="ico">✧</span>Auto Build</button>' +
         '</div>' +
-        '<div class="sg-stack">' + (playerDecks(opts) || DECKS).map(deckRow).join('') + '</div>' +
+        (opts.deckPurchaseNotice ? '<p class="sg-deck-notice" data-deck-notice tabindex="-1" role="' +
+          (opts.deckPurchaseError ? 'alert' : 'status') + '">' + esc(opts.deckPurchaseNotice) + '</p>' : '') +
+        deckSection('Saved decks', groups.saved, 'saved', opts, opts.guest ? 'Sign in to save your own decks.' : 'No saved decks yet.') +
+        deckSection(opts.guest ? 'Included presets' : 'Owned presets', groups.owned, 'owned', opts, 'No unlocked presets available.') +
+        deckSection('Preset decks', groups.shop, 'presets', opts,
+          (opts.live && opts.live.decks && opts.live.decks.length) ? 'You have unlocked every available preset.' : 'Preset decks are unavailable right now.') +
         '<div style="height:132px"></div>' +
       '</div>' +
       bottomMarkup('collection', opts);
+  }
+
+  function refreshDecks(opts, announce) {
+    var current = document.querySelector('.sg-app [data-decks-content]');
+    if (!current) return;
+    var scrollTop = current.scrollTop;
+    var app = current.closest('.sg-app');
+    var next = render(document.createElement('div'), 'decks', opts);
+    app.replaceWith(next);
+    next.querySelector('.sg-scroll').scrollTop = scrollTop;
+    var notice = next.querySelector('[data-deck-notice]');
+    if (announce && notice) notice.focus();
+  }
+
+  function mountDecks(app, opts) {
+    app.addEventListener('click', function (e) {
+      var button = e.target.closest && e.target.closest('[data-buy-deck]');
+      if (!button || button.disabled || opts.guest || opts.deckPurchasePendingId) return;
+      var live = opts.live || {};
+      var deck = (live.decks || []).filter(function (d) { return d.id === button.getAttribute('data-buy-deck'); })[0];
+      if (!deck || presetUnlocked(deck, live)) return;
+      opts.deckPurchasePendingId = deck.id;
+      opts.deckPurchaseNotice = '';
+      opts.deckPurchaseError = false;
+      refreshDecks(opts);
+      fetch('/api/shop/purchase-deck', {
+        method: 'POST', credentials: 'same-origin', headers: authHeaders(),
+        body: JSON.stringify({ deckId: deck.id })
+      }).then(function (response) {
+        return response.json().catch(function () { return null; }).then(function (data) {
+          if (!response.ok || !data || data.error || !data.progression) throw new Error(data && data.error || 'The deck could not be unlocked. Refresh to check your decks before trying again.');
+          return data.progression;
+        });
+      }).then(function (progression) {
+        // Keep the server's balance and unlocks, including a successful purchase
+        // even if an older serializer returns a stale derived unlock list.
+        live.gold = progression.gold;
+        live.premadeDeckPrice = progression.premadeDeckPrice != null ? progression.premadeDeckPrice : live.premadeDeckPrice;
+        live.starterPackId = progression.starterPackId || live.starterPackId;
+        ['purchasedDeckIds', 'unlockedDeckIds'].forEach(function (key) {
+          live[key] = (live[key] || []).concat(progression[key] || [], [deck.id]).filter(function (id, i, all) {
+            return all.indexOf(id) === i;
+          });
+        });
+        if (typeof loadCachedAuthProfile === 'function' && typeof saveCachedAuthProfile === 'function') {
+          var profile = loadCachedAuthProfile();
+          if (live.accountId && profile && profile.user && profile.user.id === live.accountId) {
+            profile.progression = Object.assign({}, profile.progression, progression, {
+              purchasedDeckIds: live.purchasedDeckIds, unlockedDeckIds: live.unlockedDeckIds
+            });
+            saveCachedAuthProfile(profile);
+          }
+        }
+        opts.deckPurchaseNotice = deck.name + ' unlocked. It is now in your owned presets.';
+      }).catch(function (error) {
+        opts.deckPurchaseError = true;
+        opts.deckPurchaseNotice = error.name === 'TypeError' ? 'Unable to confirm the purchase. Refresh to check your decks, then try again.' : error.message;
+      }).then(function () {
+        opts.deckPurchasePendingId = '';
+        refreshDecks(opts, true);
+      });
+    });
   }
 
   /* ---------- shop ---------- */
@@ -897,7 +1023,7 @@
       '<span class="sg-pack-face"><img src="' + esc(packBack(pk)) + '" alt="" loading="lazy"></span>' +
       '<strong>' + esc(pk.name || pk.id) + '</strong>' +
       '<span class="sg-pack-note">' + esc(cardsPer ? cardsPer + ' cards' : '') + '</span>' +
-      '<span class="sg-buy"><img src="/img/ui/siegel-coin.webp" alt="">' +
+      '<span class="sg-buy"><img src="/img/ui/home-stats/siegecoin.png" alt="">' +
         esc(pk.price != null ? pk.price : '—') + '</span>' +
     '</button>';
   }
@@ -942,7 +1068,7 @@
                 '<h2>' + esc(hero.name || hero.id) + '</h2>' +
                 '<p>' + esc(hero.description || '') + '</p>' +
                 '<button class="sg-cta" type="button" data-pack="' + esc(hero.id) + '">' +
-                  '<img src="/img/ui/siegel-coin.webp" alt="">' +
+                  '<img src="/img/ui/home-stats/siegecoin.png" alt="">' +
                   esc(hero.price != null ? hero.price : '—') + '</button>' +
               '</div>' +
             '</section>'
@@ -1780,6 +1906,7 @@
             return;
           }
           storeAuthToken(data.token);
+          if (typeof saveCachedAuthProfile === 'function') saveCachedAuthProfile(data);
           // A full load, not an in-app swap: every screen reads the signed-in
           // payload at boot, so the whole hub has to re-fetch.
           window.location.href = '/home';
@@ -2316,18 +2443,6 @@
       FEATURED = pickPresent(['dracosleaf', 'sheenx', 'hurricrane', 'clawqueen',
                               'bleetstrike', 'frostag', 'siegebot', 'solgator']);
     }
-    if (model.decks && model.decks.length) {
-      DECKS = model.decks.slice(0, 4).map(function (d, i) {
-        var lead = CARDS.filter(function (c) {
-          return (d.elements || []).indexOf(c.element) !== -1;
-        })[0] || CARDS[i] || CARDS[0];
-        return {
-          name: d.name || d.id, lead: lead && lead.id,
-          els: (d.elements || []).slice(0, 3),
-          w: 0, l: 0, cards: d.size || 40, active: d.id === model.defaultDeckId
-        };
-      });
-    }
   }
 
   // The live catalog is not guaranteed to hold the ids the concept hand-picked,
@@ -2355,6 +2470,7 @@
     // wired unconditionally. Branching this is how the Cards screen ended up
     // rendering a rail that did not respond to taps.
     if (screen === 'shop') mountShop(app, opts);
+    if (screen === 'decks') mountDecks(app, opts);
     if (screen === 'art') mountArt(app);
     if (screen === 'profile') mountSheet(app, opts);
     if (screen === 'collection') {
@@ -2466,6 +2582,17 @@
   function mountApp(host, opts) {
     opts = opts || {};
     var current = null;
+    var priorTextState = window.render_game_to_text;
+    window.render_game_to_text = function () {
+      if (current !== 'decks') return priorTextState ? priorTextState() : JSON.stringify({ screen: current });
+      var groups = deckGroups(opts);
+      return JSON.stringify({ screen: current, gold: opts.live && opts.live.gold,
+        savedDecks: groups.saved.map(function (d) { return { id: d.id, name: d.name, cards: d.cards }; }),
+        ownedPresets: groups.owned.map(function (d) { return { id: d.id, name: d.name, cards: d.cards }; }),
+        availablePresets: groups.shop.map(function (d) { return { id: d.id, name: d.name }; }),
+        presetPrice: opts.live && opts.live.premadeDeckPrice,
+        purchasing: opts.deckPurchasePendingId || null, notice: opts.deckPurchaseNotice || null });
+    };
 
     function show(screen, push) {
       screen = screen || 'home';

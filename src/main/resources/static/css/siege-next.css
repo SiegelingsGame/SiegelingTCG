@@ -33,6 +33,20 @@ body {
     background: linear-gradient(var(--bg), rgba(13, 10, 38, .85) 70%, transparent);
 }
 
+/* Ownership and expedition availability are different states; keep both legible. */
+.siege-account { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px;
+    margin:8px 0 16px; padding:10px 12px; border:1px solid var(--border); border-radius:12px; background:var(--panel); font-size:12px; }
+.siege-account .siege-btn { min-height:36px; padding:6px 12px; }
+.warband-help { color:#d4cbed; font-size:12px; line-height:1.6; margin:10px 0; }
+.sgl-card.locked, .knight-card.locked { opacity:1; filter:none; cursor:pointer; }
+.sgl-card .sart img { display:block; width:100%; height:100%; object-fit:contain; object-position:center bottom; }
+.sgl-card .collection-owned { color:#91e8bc; border-color:#479e72; background:rgba(51,130,89,.16); }
+.sgl-card .availability { color:#e6cd8c; border-color:rgba(230,205,140,.5); }
+.sgl-card .slock-note { color:#d4cbed; font-size:11px; }
+.sgl-card .sunlock-btn { min-height:38px; font-weight:650; }
+.sgl-card .sunlock-btn:disabled { opacity:.8; filter:none; }
+#warbandStatusFilter .filter-chip { min-height:36px; }
+
 .siege-screen h1 {
     font-size: clamp(26px, 8vw, 38px);
     letter-spacing: -0.01em;

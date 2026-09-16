@@ -34,7 +34,7 @@
     var headers = { Accept: 'application/json' };
     var auth = bearer();
     if (auth) headers.Authorization = auth;
-    return fetch(url, { credentials: 'same-origin', headers: headers })
+    return fetch(url, { credentials: 'same-origin', cache: 'no-store', headers: headers })
       .then(function (r) { return r.ok ? r.json() : null; })
       .catch(function () { return null; });
   }
@@ -50,6 +50,20 @@
   function load() {
     return get('/api/auth/me').then(function (me) {
       var signedIn = Boolean(me && me.authenticated);
+      // Arena reads this shared snapshot before its slower /auth/me refresh.
+      // Publish the account the hub just verified, including cookie-only logins.
+      if (signedIn) {
+        var cached = typeof loadCachedAuthProfile === 'function' ? loadCachedAuthProfile() : null;
+        if (!me.progression && cached && cached.user && me.user && me.user.id && cached.user.id === me.user.id) {
+          me = Object.assign({}, me, { progression: cached.progression });
+        }
+        try {
+          if (!localStorage.getItem(TOKEN_KEY)) localStorage.setItem(TOKEN_KEY, COOKIE_SENTINEL);
+        } catch (e) { /* storage is optional */ }
+        if (typeof saveCachedAuthProfile === 'function') saveCachedAuthProfile(me);
+      } else if (me && me.authenticated === false && typeof clearCachedAuthProfile === 'function') {
+        clearCachedAuthProfile();
+      }
       var core = [
         get('/api/game/options'),
         get('/api/match/rooms'),
@@ -88,8 +102,14 @@
         // so it is the fallback when the dedicated call fails.
         var progression = (progressionResponse && progressionResponse.progression)
           || (me && me.progression) || null;
+        var saved = (decks && Array.isArray(decks.decks) ? decks.decks : Array.isArray(decks) ? decks : null)
+          || (me && me.savedDecks) || null;
+        if (signedIn && typeof saveCachedAuthProfile === 'function') {
+          saveCachedAuthProfile(Object.assign({}, me, { progression: progression, savedDecks: saved || [] }));
+        }
         return {
           signedIn: signedIn,
+          accountId: me && me.user && me.user.id,
           guest: !signedIn,
           displayName: (me && me.user && me.user.displayName) || null,
           // The binder shows the whole catalog as real card faces - Siegelings,
@@ -111,7 +131,11 @@
           trainers: (options && options.trainers) || [],
           defaultDeckId: options && options.defaultDeckId,
           defaultTrainerId: options && options.defaultTrainerId,
-          savedDecks: (decks && (decks.decks || decks)) || (me && me.savedDecks) || null,
+          savedDecks: saved,
+          unlockedDeckIds: progression && progression.unlockedDeckIds,
+          purchasedDeckIds: progression && progression.purchasedDeckIds,
+          starterPackId: progression && progression.starterPackId,
+          premadeDeckPrice: progression && progression.premadeDeckPrice,
           lobbies: (rooms && rooms.rooms ? rooms.rooms.length : 0),
           rooms: (rooms && rooms.rooms) || [],
           deckBuilder: (options && options.deckBuilder) || null,
