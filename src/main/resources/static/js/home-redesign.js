@@ -43,6 +43,16 @@
     NEUTRAL: '/img/notches/notch-neutral.png?v=2'
   };
 
+  // Matches the .sg-rar swatches in the vibrance pass, so a card's aura before it
+  // is turned over is the same colour as the pip it will show afterwards.
+  var RARITY_COLOR = {
+    COMMON: '#8fa2bd', UNCOMMON: '#64c987', RARE: '#4cc2ff',
+    EPIC: '#b06fe0', LEGENDARY: '#ffe066'
+  };
+  function rarityColor(r) {
+    return RARITY_COLOR[String(r || '').toUpperCase()] || RARITY_COLOR.COMMON;
+  }
+
   function notchArt() {
     return (typeof NOTCH_ICON_PATHS !== 'undefined' && NOTCH_ICON_PATHS) || EL_NOTCH;
   }
@@ -1313,8 +1323,9 @@
      is presentation over a completed transaction, never a simulation of one. */
 
   function gachaMarkup(pk) {
-    return '<div class="sg-gacha" data-gacha>' +
+    return '<div class="sg-gacha" data-gacha style="--el:' + color(packElement(pk)) + '">' +
       '<div class="sg-gacha-veil"></div>' +
+      '<div class="sg-gacha-motes" data-gacha-motes></div>' +
       '<div class="sg-gacha-body">' +
         '<div class="sg-gacha-head">' +
           '<span class="sg-gacha-kicker" data-gacha-kicker>Opening</span>' +
@@ -1326,6 +1337,13 @@
           '</div>' +
         '</div>' +
         '<p class="sg-gacha-note" data-gacha-note>Tearing the seal\u2026</p>' +
+        // The shards a duplicate crumbles into need somewhere to land, or the
+        // remnants it paid are just a number that appears. This is that place.
+        '<div class="sg-gacha-bucket" data-gacha-bucket hidden>' +
+          '<span class="sg-gacha-bucket-sigil">\u25c8</span>' +
+          '<span class="sg-gacha-bucket-count" data-gacha-bucket-count>0</span>' +
+          '<em>remnants</em>' +
+        '</div>' +
         '<div class="sg-gacha-actions" data-gacha-actions hidden>' +
           '<button class="sg-ghost-btn" type="button" data-gacha-all>Reveal all</button>' +
           '<button class="sg-guest-primary" type="button" data-gacha-done>Done</button>' +
@@ -1336,14 +1354,19 @@
 
   // The face-down card carries the pack's own back, so the thing the player
   // tapped is the thing that flips over.
+  // The aura is the only thing a face-down card tells you, and it is honest: the
+  // rarity is already decided server-side, so hinting at it before the turn is
+  // showing what is there, not teasing something that has not happened yet.
   function gachaSlot(card, back, i) {
-    var el = color(card.element);
-    return '<button class="sg-flip" type="button" data-flip="' + i + '" style="--el:' + el +
-      ';--slot:' + i + '">' +
+    return '<button class="sg-flip rarity-' + esc(String(card.rarity || '').toLowerCase()) +
+      '" type="button" data-flip="' + i + '" style="--el:' + color(card.element) +
+      ';--rar:' + rarityColor(card.rarity) + ';--slot:' + i + '">' +
+      '<span class="sg-flip-aura" aria-hidden="true"></span>' +
       '<span class="sg-flip-inner">' +
         '<span class="sg-flip-back"><img src="' + esc(back) + '" alt="" aria-hidden="true"></span>' +
         '<span class="sg-flip-front" data-flip-front></span>' +
       '</span>' +
+      '<span class="sg-flip-shards" data-flip-shards aria-hidden="true"></span>' +
       '<span class="sg-flip-tag" hidden data-flip-tag></span>' +
     '</button>';
   }
@@ -1356,6 +1379,8 @@
     var gacha = wrap.firstChild;
     host.appendChild(gacha);
     var stage = gacha.querySelector('[data-gacha-stage]');
+    // Same drifting motes the hero uses, in the pack's element.
+    paintMotes(gacha.querySelector('[data-gacha-motes]'), packElement(pk));
     var note = gacha.querySelector('[data-gacha-note]');
     var actions = gacha.querySelector('[data-gacha-actions]');
     var kicker = gacha.querySelector('[data-gacha-kicker]');
@@ -1400,53 +1425,119 @@
       note.textContent = cards.length + ' card' + (cards.length === 1 ? '' : 's');
       stage.className = 'sg-gacha-stage is-grid';
       stage.innerHTML = cards.map(function (c, i) { return gachaSlot(c, back, i); }).join('');
-      actions.hidden = false;
 
       var slots = [].slice.call(stage.querySelectorAll('[data-flip]'));
+      var all = gacha.querySelector('[data-gacha-all]');
+      var bucket = gacha.querySelector('[data-gacha-bucket]');
+      var bucketCount = gacha.querySelector('[data-gacha-bucket-count]');
+      var banked = 0;
       var left = slots.length;
+
+      // The controls stay out until every card has actually been dealt onto the
+      // stage. Offering "Reveal all" while the pack is still tearing open asks
+      // the player to act on something they cannot see yet.
+      var dealt = (slots.length - 1) * 60 + 420;
+      setTimeout(function () { actions.hidden = false; }, dealt);
+
+      // A duplicate is worth remnants, so it does not just sit there wearing a
+      // label: the card crumbles and its shards fly to the bucket, which counts
+      // up by exactly what the server said that copy paid.
+      function bankRemnants(btn, card) {
+        var amount = Number(card.remnantsAwarded) || 0;
+        var host = btn.querySelector('[data-flip-shards]');
+        var from = btn.getBoundingClientRect();
+        bucket.hidden = false;
+        var to = bucket.getBoundingClientRect();
+        var dx = (to.left + to.width / 2) - (from.left + from.width / 2);
+        var dy = (to.top + to.height / 2) - (from.top + from.height / 2);
+
+        var shards = '';
+        for (var i = 0; i < 12; i++) {
+          // Each shard scatters a little before being pulled in, so the flight
+          // reads as debris rather than twelve copies of one tween.
+          var spreadX = (Math.random() - 0.5) * 70;
+          var spreadY = (Math.random() - 0.5) * 70;
+          shards += '<i class="sg-shard" style="--sx:' + spreadX.toFixed(0) + 'px;--sy:' +
+            spreadY.toFixed(0) + 'px;--dx:' + dx.toFixed(0) + 'px;--dy:' + dy.toFixed(0) +
+            'px;--d:' + (i * 34) + 'ms"></i>';
+        }
+        host.innerHTML = shards;
+        btn.classList.add('is-dissolving');
+
+        // Count up as the shards land rather than all at once on arrival.
+        var landed = 0;
+        var step = Math.max(1, Math.round(amount / 12));
+        var ticker = setInterval(function () {
+          landed = Math.min(amount, landed + step);
+          bucketCount.textContent = (banked + landed).toLocaleString();
+          bucket.classList.add('is-hit');
+          setTimeout(function () { bucket.classList.remove('is-hit'); }, 140);
+          if (landed >= amount) {
+            clearInterval(ticker);
+            banked += amount;
+            bucketCount.textContent = banked.toLocaleString();
+          }
+        }, 70);
+
+        setTimeout(function () {
+          host.innerHTML = '';
+          btn.classList.remove('is-dissolving');
+          btn.classList.add('is-spent');
+        }, 1150);
+      }
 
       function flip(btn) {
         if (btn.classList.contains('is-open')) return;
         var card = cards[Number(btn.getAttribute('data-flip'))];
         var front = btn.querySelector('[data-flip-front]');
-        // The real composed face when the catalog knows the card, a plate in its
-        // element and rarity when it does not.
         var known = byIdIn(ALL_CARDS, card.id);
         front.innerHTML = known ? galleryCard(known) : cardPlate(card);
         var tag = btn.querySelector('[data-flip-tag]');
         if (card.duplicateAtCap) {
-          tag.textContent = '+' + (card.remnantsAwarded || 0) + ' remnants';
+          tag.textContent = 'Owned \u00b7 +' + (card.remnantsAwarded || 0);
           tag.hidden = false;
           btn.classList.add('is-dupe');
         } else if (card.ownedAfter === 1) {
           tag.textContent = 'New';
           tag.hidden = false;
           btn.classList.add('is-new');
+        } else if (card.ownedAfter > 1) {
+          // Granted, but not the first copy - which the old build showed as
+          // nothing at all, so a second copy looked identical to a new card.
+          tag.textContent = 'Copy ' + card.ownedAfter;
+          tag.hidden = false;
+          btn.classList.add('is-copy');
         }
         if (card.holo) btn.classList.add('is-holo');
         btn.classList.add('is-open');
+
+        // Let the turn finish before the card crumbles, or the player never sees
+        // what they pulled.
+        if (card.duplicateAtCap) setTimeout(function () { bankRemnants(btn, card); }, 700);
+
         left -= 1;
         if (!left) {
           kicker.textContent = 'Opened';
           note.textContent = summary(cards);
-          // Nothing left to reveal, so the control that does it goes away.
-          gacha.querySelector('[data-gacha-all]').hidden = true;
+          all.hidden = true;
         }
       }
 
       slots.forEach(function (btn) { btn.addEventListener('click', function () { flip(btn); }); });
-      gacha.querySelector('[data-gacha-all]').addEventListener('click', function () {
-        slots.forEach(function (btn, i) { setTimeout(function () { flip(btn); }, i * 110); });
+      all.addEventListener('click', function () {
+        slots.forEach(function (btn, i) { setTimeout(function () { flip(btn); }, i * 150); });
       });
     }
 
     function summary(cards) {
       var fresh = cards.filter(function (c) { return c.ownedAfter === 1; }).length;
+      var copies = cards.filter(function (c) { return !c.duplicateAtCap && c.ownedAfter > 1; }).length;
       var remnants = cards.reduce(function (n, c) { return n + (c.remnantsAwarded || 0); }, 0);
       var bits = [];
       if (fresh) bits.push(fresh + ' new');
-      if (remnants) bits.push(remnants + ' remnants');
-      return bits.length ? bits.join(' \u00b7 ') : 'All duplicates';
+      if (copies) bits.push(copies + ' extra cop' + (copies === 1 ? 'y' : 'ies'));
+      if (remnants) bits.push(remnants.toLocaleString() + ' remnants');
+      return bits.length ? bits.join(' \u00b7 ') : 'Nothing gained';
     }
   }
 

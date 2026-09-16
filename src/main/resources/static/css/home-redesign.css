@@ -1997,3 +1997,85 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-sheet-meta img { width:18px; height:18px; }
 .sg-deck-els img { width:19px; height:19px; }
 .sg-flip-plate img { width:30px; height:30px; filter:drop-shadow(0 2px 5px rgba(0,0,0,.6)); }
+
+/* ---------- pack opening: motes, rarity aura, remnant shards ----------
+   Three things the concept build dropped and the shipping shop had: particles
+   behind the whole ceremony, a glow on a face-down card hinting at the rarity
+   already decided for it, and a duplicate visibly crumbling into the remnants it
+   pays rather than just wearing a number. */
+.sg-gacha-motes { position:absolute; inset:0; pointer-events:none; overflow:hidden; z-index:1; }
+.sg-gacha-body { position:relative; z-index:2; }
+
+/* [hidden] loses to display:flex, which is why the controls were on screen while
+   the pack was still tearing open. */
+.sg-gacha-actions[hidden], .sg-gacha-bucket[hidden] { display:none !important; }
+
+/* The aura sits behind the card and pulses until it is turned over. */
+.sg-flip-aura {
+  position:absolute; inset:-16%; z-index:0; border-radius:22px; pointer-events:none;
+  background:radial-gradient(closest-side, color-mix(in srgb, var(--rar,#8fa2bd) 78%, transparent), transparent 74%);
+  filter:blur(9px); opacity:.34;
+  animation:sgAuraPulse 2.6s ease-in-out infinite;
+  animation-delay:calc(var(--slot,0) * 260ms);
+  transition:opacity .5s ease;
+}
+/* Once a card is face up its own art carries it; the hint has done its job. */
+.sg-flip.is-open .sg-flip-aura { opacity:.13; animation:none; }
+.sg-flip.rarity-epic .sg-flip-aura,
+.sg-flip.rarity-legendary .sg-flip-aura { inset:-22%; filter:blur(13px); opacity:.5; }
+.sg-flip.rarity-legendary .sg-flip-aura { animation-duration:1.7s; }
+@keyframes sgAuraPulse {
+  0%,100% { opacity:.26; transform:scale(.97); }
+  50%     { opacity:.6;  transform:scale(1.06); }
+}
+/* z-index only. Restating `position` here would override the absolute inset:0
+   the flip container relies on, collapsing it to nothing - which is exactly what
+   the first version did, and the card backs vanished. */
+.sg-flip-inner { z-index:1; }
+
+/* A duplicate crumbles; its shards fly to the bucket. */
+.sg-flip-shards { position:absolute; inset:0; z-index:3; pointer-events:none; }
+.sg-shard {
+  position:absolute; left:50%; top:50%; width:6px; height:6px; border-radius:2px;
+  background:color-mix(in srgb, var(--rar,#8fa2bd) 65%, #fff3c4);
+  box-shadow:0 0 9px color-mix(in srgb, var(--rar,#8fa2bd) 55%, transparent);
+  animation:sgShardFly 1.05s cubic-bezier(.35,0,.25,1) var(--d,0s) both;
+}
+@keyframes sgShardFly {
+  0%   { opacity:0; transform:translate(-50%,-50%) scale(.3); }
+  12%  { opacity:1; transform:translate(calc(-50% + var(--sx)), calc(-50% + var(--sy))) scale(1); }
+  100% { opacity:0; transform:translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(.25) rotate(140deg); }
+}
+.sg-flip.is-dissolving .sg-flip-inner { animation:sgCrumble 1.05s cubic-bezier(.4,0,.2,1) both; }
+@keyframes sgCrumble {
+  0%   { opacity:1; transform:rotateY(180deg) scale(1); filter:blur(0); }
+  55%  { opacity:.66; transform:rotateY(188deg) scale(.94); filter:blur(1.5px); }
+  100% { opacity:0; transform:rotateY(196deg) scale(.7); filter:blur(7px); }
+}
+/* What is left once it has gone: a spent slot, not an empty hole. */
+.sg-flip.is-spent .sg-flip-inner { opacity:0; }
+.sg-flip.is-spent .sg-flip-aura { opacity:.2; animation:none; }
+.sg-flip.is-spent::after {
+  content:'\25c8'; position:absolute; inset:0; display:grid; place-items:center;
+  font-size:24px; color:color-mix(in srgb, var(--rar,#8fa2bd) 70%, #fff3c4);
+  border-radius:12px; border:1px dashed color-mix(in srgb, var(--rar,#8fa2bd) 45%, transparent);
+}
+
+.sg-gacha-bucket {
+  display:flex; align-items:center; gap:8px; padding:9px 16px; border-radius:999px;
+  border:1px solid rgba(242,160,61,.45); background:rgba(60,42,12,.55);
+  transition:transform .14s ease, box-shadow .14s ease;
+}
+.sg-gacha-bucket.is-hit { transform:scale(1.07); box-shadow:0 0 22px rgba(242,160,61,.5); }
+.sg-gacha-bucket-sigil { color:var(--gold); font-size:15px; }
+.sg-gacha-bucket-count { font-family:var(--serif); font-size:19px; font-weight:600; color:var(--gold-bright); }
+.sg-gacha-bucket em {
+  font-style:normal; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:var(--muted);
+}
+.sg-flip.is-copy .sg-flip-tag { color:var(--ink); background:rgba(60,44,120,.9); border:1px solid rgba(180,140,255,.5); }
+
+@media (prefers-reduced-motion:reduce) {
+  .sg-flip-aura, .sg-shard, .sg-flip.is-dissolving .sg-flip-inner { animation:none; }
+  .sg-flip-aura { opacity:.4; }
+  .sg-flip.is-dissolving .sg-flip-inner { opacity:0; }
+}
