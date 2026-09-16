@@ -73,26 +73,122 @@
       },
       {
         "source": "/home",
-        "destination": "/home.html"
-      },
-      {
-        "source": "/login",
-        "destination": "/home.html"
-      },
-      {
-        "source": "/social",
-        "destination": "/home.html"
-      },
-      {
-        "source": "/social/lobby/**",
-        "destination": "/home.html"
+        "destination": "/home-next.html"
       },
       {
         "source": "/cards",
-        "destination": "/home.html"
+        "destination": "/home-next.html"
       },
       {
         "source": "/decks",
+        "destination": "/home-next.html"
+      },
+      {
+        "source": "/deck-builder",
+        "destination": "/home-next.html"
+      },
+      {
+        "source": "/shop",
+        "destination": "/home-next.html"
+      },
+      {
+        "source": "/shop/cardpack",
+        "destination": "/home-next.html"
+      },
+      {
+        "source": "/profile",
+        "destination": "/home-next.html"
+      },
+      {
+        "source": "/profile/**",
+        "destination": "/home-next.html"
+      },
+      {
+        "source": "/achievements",
+        "destination": "/home-next.html"
+      },
+      {
+        "source": "/achievements/**",
+        "destination": "/home-next.html"
+      },
+      {
+        "source": "/social",
+        "destination": "/home-next.html"
+      },
+      {
+        "source": "/settings",
+        "destination": "/home-next.html"
+      },
+      {
+        "source": "/help",
+        "destination": "/home-next.html"
+      },
+      {
+        "source": "/next",
+        "destination": "/home-next.html"
+      },
+      {
+        "source": "/legacy",
+        "destination": "/home.html"
+      },
+      {
+        "source": "/legacy/home",
+        "destination": "/home.html"
+      },
+      {
+        "source": "/legacy/cards",
+        "destination": "/home.html"
+      },
+      {
+        "source": "/legacy/decks",
+        "destination": "/home.html"
+      },
+      {
+        "source": "/legacy/deck-builder",
+        "destination": "/home.html"
+      },
+      {
+        "source": "/legacy/social",
+        "destination": "/home.html"
+      },
+      {
+        "source": "/legacy/social/**",
+        "destination": "/home.html"
+      },
+      {
+        "source": "/legacy/lobbies",
+        "destination": "/home.html"
+      },
+      {
+        "source": "/legacy/profile",
+        "destination": "/home.html"
+      },
+      {
+        "source": "/legacy/profile/**",
+        "destination": "/home.html"
+      },
+      {
+        "source": "/legacy/achievements",
+        "destination": "/home.html"
+      },
+      {
+        "source": "/legacy/achievements/**",
+        "destination": "/home.html"
+      },
+      {
+        "source": "/legacy/shop",
+        "destination": "/home.html"
+      },
+      {
+        "source": "/legacy/shop/cardpack",
+        "destination": "/home.html"
+      },
+      {
+        "source": "/legacy/help",
+        "destination": "/help.html"
+      },
+      {
+        "source": "/login",
         "destination": "/home.html"
       },
       {
@@ -100,27 +196,7 @@
         "destination": "/home.html"
       },
       {
-        "source": "/profile",
-        "destination": "/home.html"
-      },
-      {
-        "source": "/profile/**",
-        "destination": "/home.html"
-      },
-      {
-        "source": "/achievements",
-        "destination": "/home.html"
-      },
-      {
-        "source": "/achievements/**",
-        "destination": "/home.html"
-      },
-      {
-        "source": "/deck-builder",
-        "destination": "/home.html"
-      },
-      {
-        "source": "/shop",
+        "source": "/social/lobby/**",
         "destination": "/home.html"
       },
       {
@@ -134,14 +210,6 @@
       {
         "source": "/keep",
         "destination": "/keep.html"
-      },
-      {
-        "source": "/help",
-        "destination": "/help.html"
-      },
-      {
-        "source": "/next",
-        "destination": "/home-next.html"
       },
       {
         "source": "/api/cards/editor",

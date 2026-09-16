@@ -1507,3 +1507,56 @@ body.concept-board {
 .sg-build-slot { position:relative; flex:0 0 132px; scroll-snap-align:start; }
 .sg-build-slot .sg-card-tile { pointer-events:none; }
 .sg-build-slot .sg-build-count { top:6px; right:6px; }
+
+/* ==========================================================================
+   HALL OF SIEGE (leaderboard)
+   ========================================================================== */
+.sg-lb-boards { display:flex; gap:7px; overflow-x:auto; padding:2px 18px 10px; scrollbar-width:none; }
+.sg-lb-boards::-webkit-scrollbar { display:none; }
+.sg-lb-chip {
+  flex:0 0 auto; display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 13px;
+  border-radius:999px; cursor:pointer; font-size:11.5px; letter-spacing:.04em; white-space:nowrap;
+  color:color-mix(in srgb, var(--el,#ffc53d) 55%, var(--ink));
+  border:1px solid color-mix(in srgb, var(--el,#ffc53d) 38%, transparent);
+  background:rgba(36,26,96,.5);
+  transition:color .25s, background .25s, border-color .25s, box-shadow .25s;
+}
+.sg-lb-chip span { font-size:13px; }
+.sg-lb-chip.on {
+  color:#170634; border-color:var(--el,#ffc53d);
+  background:linear-gradient(180deg, color-mix(in srgb, var(--el,#ffc53d) 78%, #fff), var(--el,#ffc53d));
+  box-shadow:0 6px 20px color-mix(in srgb, var(--el,#ffc53d) 44%, transparent);
+}
+.sg-lb-body { padding:0 18px; display:flex; flex-direction:column; gap:5px; }
+.sg-lb-row {
+  display:flex; align-items:center; gap:12px; padding:11px 14px; border-radius:14px;
+  border:1px solid var(--steel-soft); background:rgba(36,26,96,.42); font-size:13px;
+}
+.sg-lb-rank {
+  flex:0 0 26px; height:26px; border-radius:50%; display:grid; place-items:center;
+  font-family:var(--serif); font-size:13px; font-weight:600; color:var(--muted);
+  border:1px solid rgba(180,140,255,.26); background:rgba(13,10,38,.55);
+}
+.sg-lb-name { flex:1 1 auto; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sg-lb-value { flex:0 0 auto; font-size:11.5px; color:var(--acc-lemon); letter-spacing:.03em; }
+/* A podium worth wanting: gold, silver and bronze read at a glance. */
+.sg-lb-row.is-podium { border-color:color-mix(in srgb, var(--pod,#ffc53d) 52%, transparent);
+  background:linear-gradient(100deg, color-mix(in srgb, var(--pod,#ffc53d) 18%, rgba(36,26,96,.5)), rgba(21,16,64,.55)); }
+.sg-lb-row.is-podium .sg-lb-rank { color:#170634; border-color:transparent;
+  background:linear-gradient(180deg, color-mix(in srgb, var(--pod) 80%, #fff), var(--pod));
+  box-shadow:0 0 16px color-mix(in srgb, var(--pod) 52%, transparent); }
+.sg-lb-row.rank-1 { --pod:#ffd83d; }
+.sg-lb-row.rank-2 { --pod:#d6dbe8; }
+.sg-lb-row.rank-3 { --pod:#e08a4a; }
+
+.sg-lb-empty { position:relative; margin:0 0 2px; height:168px; border-radius:20px; overflow:hidden;
+  box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--el,#ffc53d) 36%, transparent); }
+.sg-lb-empty img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; filter:saturate(1.15); }
+.sg-lb-empty-veil { position:absolute; inset:0;
+  background:linear-gradient(100deg, rgba(13,10,38,.94) 32%, rgba(21,16,64,.56) 72%, rgba(30,24,86,.2) 100%); }
+.sg-lb-empty-body { position:absolute; inset:0; padding:18px; display:flex; flex-direction:column; justify-content:center; gap:5px; }
+.sg-lb-empty-body strong { font-family:var(--serif); font-size:20px; font-weight:600; }
+.sg-lb-empty-body p { margin:0; font-size:12px; color:var(--muted); max-width:78%; line-height:1.45; }
+.sg-lb-cta { align-self:flex-start; margin-top:8px; padding:10px 20px; border-radius:999px;
+  font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:#2b0d02;
+  background:linear-gradient(135deg,#ffe066,var(--amber)); box-shadow:0 8px 22px rgba(255,120,45,.42); }

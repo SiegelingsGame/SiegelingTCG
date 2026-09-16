@@ -32,14 +32,16 @@
       var core = [
         get('/api/game/options'),
         get('/api/match/rooms'),
-        get('/api/siege/run/active')
+        get('/api/siege/run/active'),
+        get('/api/leaderboards')
       ];
       var gated = signedIn
         ? [get('/api/player/progression'), get('/api/missions/daily'), get('/api/profile/decks')]
         : [Promise.resolve(null), Promise.resolve(null), Promise.resolve(null)];
 
       return Promise.all(core.concat(gated)).then(function (r) {
-        var options = r[0], rooms = r[1], siege = r[2], progression = r[3], missions = r[4], decks = r[5];
+        var options = r[0], rooms = r[1], siege = r[2], boards = r[3],
+            progression = r[4], missions = r[5], decks = r[6];
         var catalog = (options && options.cardCatalog) || [];
         return {
           signedIn: signedIn,
@@ -68,10 +70,16 @@
           lobbies: (rooms && rooms.rooms ? rooms.rooms.length : 0),
           rooms: (rooms && rooms.rooms) || [],
           deckBuilder: (options && options.deckBuilder) || null,
+          leaderboards: boards || null,
           siegeRuns: activeRuns(siege),
           gold: progression && (progression.gold != null ? progression.gold : null),
           ownedTotal: progression && progression.ownedTotal,
           level: progression && progression.level,
+          xp: progression && progression.xp,
+          xpToNext: progression && (progression.xpToNext || progression.nextLevelXp),
+          remnants: progression && progression.remnants,
+          ownedCards: (progression && progression.ownedCards) || null,
+          matchHistory: (progression && progression.matchHistory) || null,
           missions: (missions && !missions.error && (missions.missions || missions.daily)) || null,
           catalogVersion: options && options.catalogVersion
         };
