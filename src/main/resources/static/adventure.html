@@ -14,7 +14,7 @@
 <link rel="stylesheet" href="/css/adventure.css?v=96">
   <!-- Art-first re-skin. After adventure.css on purpose: it restates the same
        tokens and expects to win. -->
-  <link rel="stylesheet" href="/css/siege-next.css?v=2">
+  <link rel="stylesheet" href="/css/siege-next.css?v=3">
 </head>
 <body>
 <!-- Enemy Siegelings are corrupted card art, so they need the same die-cut shade
@@ -69,12 +69,19 @@
     <button class="siege-abandon hidden" id="runMenuBtn" type="button" aria-haspopup="dialog" aria-controls="runMenu" aria-expanded="false">Menu</button>
   </header>
 
-  <!-- Loading -->
+  <!-- Loading. The plate and caption are filled by loading-art.js from the
+       gallery scenes plus the original site's loading library; adventure.js
+       still owns the bar, the status line and when this screen is shown. -->
   <div class="siege-screen" id="loadingScreen">
-    <div class="siege-spinner"></div>
-    <div class="siege-load-bar" aria-hidden="true"><div class="siege-load-fill" id="bootLoadFill"></div></div>
-    <p id="bootLoadStatus">Preparing the expedition…</p>
-    <p class="siege-load-count" id="bootLoadCount"></p>
+    <div class="siege-load-plate" data-art-plate aria-hidden="true"></div>
+    <div class="siege-load-veil" aria-hidden="true"></div>
+    <div class="siege-load-body">
+      <div class="siege-spinner"></div>
+      <div class="siege-load-bar" aria-hidden="true"><div class="siege-load-fill" id="bootLoadFill"></div></div>
+      <p id="bootLoadStatus">Preparing the expedition…</p>
+      <p class="siege-load-count" id="bootLoadCount"></p>
+      <p class="siege-load-art" data-art-title></p>
+    </div>
   </div>
 
   <!-- Resume prompt: shown at boot when a saved expedition is detected. -->
@@ -734,6 +741,13 @@
 
   <div class="siege-toast hidden" id="siegeToast"></div>
 </div>
+<script src="/js/loading-art.js?v=1"></script>
+<script>
+  // Paint before adventure.js boots, so the expedition's first frame is art
+  // rather than a spinner on a flat colour.
+  window.SiegelingsLoadingArt.paint(document.getElementById('loadingScreen'));
+  window.SiegelingsLoadingArt.refresh();
+</script>
 <script src="/js/siege-maps.js?v=3"></script>
 <script src="/js/coach.js?v=11"></script>
 <script src="/js/siege-tutorial.js?v=27"></script>

@@ -1575,3 +1575,43 @@ body.concept-board {
 .sg-lb-cta { align-self:flex-start; margin-top:8px; padding:10px 20px; border-radius:999px;
   font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:#2b0d02;
   background:linear-gradient(135deg,#ffe066,var(--amber)); box-shadow:0 8px 22px rgba(255,120,45,.42); }
+
+
+/* ---------- honest empty states ----------
+   Several sections used to be backed by invented sample data (badges, friends,
+   a match record, four daily objectives). They render nothing now when the
+   payload has nothing, so each needs a resting state that reads as deliberate
+   rather than as a broken section. */
+.sg-empty-row {
+  margin:0 18px 6px; padding:14px 16px; border-radius:16px;
+  border:1px dashed rgba(180,140,255,.30); background:rgba(26,17,71,.42);
+  color:var(--muted); font-size:12.5px; line-height:1.5;
+}
+.sg-strip.is-empty { cursor:default; }
+.sg-strip.is-empty .sg-strip-head .cnt { color:var(--muted); }
+.sg-section-note { font-size:11px; letter-spacing:.14em; color:var(--muted); }
+/* A win is the one row worth colouring; everything else stays neutral so the
+   list does not read as a scoreboard. */
+.sg-recent.is-win .what { color:var(--acc-emerald); }
+
+/* The shop's pack rail became a grid once it was showing the real catalog
+   (17 packs) rather than four invented ones. */
+.sg-pack-grid {
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(104px, 1fr));
+  gap:12px; padding:0 18px 4px;
+}
+.sg-pack-grid .sg-pack {
+  width:auto; flex:none; height:100%;
+  display:flex; flex-direction:column; align-items:center; gap:5px;
+}
+/* A wrapping pack name must not push its price out of line with the row, so the
+   buy button is pinned to the bottom of every tile. */
+.sg-pack-grid .sg-pack .sg-buy { margin-top:auto; }
+.sg-pack-grid .sg-pack strong { text-align:center; line-height:1.25; }
+/* The featured pack's description sits over the brightest part of the plate, so
+   the veil needs a second stop rather than a single top-down fade. */
+.sg-feature-veil {
+  background:
+    linear-gradient(180deg, rgba(13,10,38,.52) 0%, rgba(13,10,38,.10) 22%,
+                    rgba(13,10,38,.62) 58%, rgba(13,10,38,.88) 100%);
+}

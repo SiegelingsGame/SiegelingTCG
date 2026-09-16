@@ -212,24 +212,40 @@
     return EXTERNAL[label] || '';
   }
 
-  var NAV = [
-    { id: 'home',       ico: '⌂', label: 'Home', screen: 'home' },
-    // Same vocabulary as the Play screen and the shipping picker: the two real
-    // modes are Battle and Siege. The tray listing Arena/Ranked/Siege Expedition
-    // was left over from the invented modes and disagreed with the screen it
-    // navigates to.
-    { id: 'play',       ico: '⚔', label: 'Play', screen: 'play', items: [
-        ['Battle', 'Solo & PvP'], ['Siege', 'New'], ['Social Lobbies', '11 open'], ['Keep', '2h']] },
-    { id: 'collection', ico: '◈', label: 'Collection', screen: 'collection', items: [
-        ['Cards', '412'], ['Decks', '6'], ['Deck Builder', '']] },
-    { id: 'shop',       ico: '⬢', label: 'Shop', screen: 'shop', items: [
-        ['Featured Packs', ''], ['Open Packs', '3'], ['Siegelcoins', '']] },
-    { id: 'more',       ico: '⋯', label: 'More', items: [
-        ['Social', '4 on'], ['Profile', ''], ['Settings', ''], ['Help', '']],
-      guestItems: [
-        ['Sign In', 'Save decks'], ['Create Account', ''], ['Social', '4 on'],
-        ['Settings', ''], ['Help', '']] }
-  ];
+  // Tray badges were invented ("412" cards, "6" decks, "11 open", "4 on", a "2h"
+  // Keep timer). They are derived from the live payload now, and a count the
+  // payload cannot supply is simply not drawn - a blank badge is honest, a
+  // plausible one is not.
+  function navFor(opts) {
+    var live = (opts && opts.live) || {};
+    var n = function (v) { return (v == null || v === 0) ? '' : String(v); };
+    var rooms = (opts && opts.lobbies != null) ? opts.lobbies : live.lobbies;
+    var saved = live.savedDecks && live.savedDecks.length;
+    var runs = (opts && opts.siegeRuns && opts.siegeRuns.length) || 0;
+    var online = (live.friends || []).filter(function (f) {
+      return f && f.presence && f.presence.online;
+    }).length;
+    return [
+      { id: 'home', ico: '⌂', label: 'Home', screen: 'home' },
+      // Same vocabulary as the Play screen and the shipping picker: the two real
+      // modes are Battle and Siege.
+      { id: 'play', ico: '⚔', label: 'Play', screen: 'play', items: [
+          ['Battle', ''], ['Siege', runs ? 'Saved' : ''],
+          ['Social Lobbies', n(rooms) ? n(rooms) + ' open' : ''], ['Keep', '']] },
+      { id: 'collection', ico: '◈', label: 'Collection', screen: 'collection', items: [
+          ['Cards', n(live.ownedTotal != null ? live.ownedTotal : (ALL_CARDS.length || null))],
+          ['Decks', n(saved)], ['Deck Builder', '']] },
+      { id: 'shop', ico: '⬢', label: 'Shop', screen: 'shop', items: [
+          ['Featured Packs', n(live.packs && live.packs.length)],
+          ['Open Packs', ''], ['Siegelcoins', '']] },
+      { id: 'more', ico: '⋯', label: 'More', items: [
+          ['Social', n(online) ? n(online) + ' on' : ''], ['Profile', ''],
+          ['Settings', ''], ['Help', '']],
+        guestItems: [
+          ['Sign In', 'Save decks'], ['Create Account', ''], ['Social', ''],
+          ['Settings', ''], ['Help', '']] }
+    ];
+  }
 
   /* ---------- content sections ---------- */
 
@@ -263,16 +279,10 @@
     '</section>';
   }
 
-  var QUESTS = [
-    ['Win 2 Arena matches', '40 🪙', true],
-    ['Forge a link with 3 elements', '25 🪙', true],
-    ['Open a pack', '1 Pack', false],
-    ['Clear a Siege Land', '80 🪙', false]
-  ];
-
-  // Real missions when the account answers; the sample set otherwise, labelled
-  // so a signed-out player is not shown someone else's progress as if it were
-  // theirs.
+  // The four sample objectives that used to back this strip were invented, and a
+  // signed-out player was shown them as if they were their own. There is no
+  // honest fallback for someone else's daily progress, so when
+  // /api/missions/daily does not answer the strip says what it is waiting on.
   function liveQuests(opts) {
     var m = opts && opts.live && opts.live.missions;
     if (!m || !m.length) return null;
@@ -284,7 +294,14 @@
   }
 
   function questsMarkup(opts) {
-    var quests = liveQuests(opts) || QUESTS;
+    var quests = liveQuests(opts);
+    if (!quests) {
+      return '<div class="sg-strip is-empty">' +
+        '<div class="sg-strip-head"><h4>Daily Objectives</h4><span class="sep">•</span>' +
+        '<span class="cnt">' + (opts && opts.guest ? 'Sign in to track them' : 'Unavailable') +
+        '</span></div>' +
+      '</div>';
+    }
     var done = quests.filter(function (q) { return q[2]; }).length;
     return '<div class="sg-strip" data-strip>' +
       '<div class="sg-strip-head"><h4>Daily Objectives</h4><span class="sep">•</span>' +
@@ -373,10 +390,11 @@
     return n ? n.charAt(0).toUpperCase() : '·';
   }
 
-  function formatCoins(opts, guest) {
+  // A guest holds no balance - 100 is what an account is *created* with, not
+  // what a signed-out visitor has, so showing it was a made-up number too.
+  function formatCoins(opts) {
     var gold = opts && opts.live && opts.live.gold;
-    if (gold != null) return Number(gold).toLocaleString();
-    return guest ? '100' : '—';
+    return gold != null ? Number(gold).toLocaleString() : '—';
   }
 
   function topMarkup(opts) {
@@ -394,7 +412,11 @@
     '</header>';
   }
 
-  function bottomMarkup(active, openTray, guest) {
+  function bottomMarkup(active, opts) {
+    opts = opts || {};
+    var openTray = opts.openTray;
+    var guest = opts.guest;
+    var NAV = navFor(opts);
     return '<nav class="sg-bottom' + (openTray ? ' tray-open' : '') + '" data-bottom>' +
       NAV.filter(function (n) { return n.items; }).map(function (n) {
         var items = (guest && n.guestItems) ? n.guestItems : n.items;
@@ -467,7 +489,7 @@
     return topMarkup(opts) +
       '<div class="sg-scroll">' + heroMarkup() + featuredMarkup() + leaderboardSection(opts) + gallerySection() + questsMarkup(opts) + expeditionsSection(opts) +
       '<div style="height:132px"></div></div>' +
-      bottomMarkup('home', opts.openTray, opts.guest);
+      bottomMarkup('home', opts);
   }
 
   function galleryScreen(opts) {
@@ -510,7 +532,7 @@
         '<div style="height:132px"></div>' +
       '</div>' +
       '<div class="sg-sheet" data-sheet><div class="sg-sheet-card" data-sheet-card></div></div>' +
-      bottomMarkup('collection', opts.openTray, opts.guest);
+      bottomMarkup('collection', opts);
   }
 
   // SiegeKnight faces: card-binder-visual exposes the art helpers but the knight
@@ -686,12 +708,18 @@
     { id: 'battle', label: 'Battle', tag: 'Solo & Live PvP',
       line: 'Levels off — all deck and reads.',
       art: '/img/gallery/bearzooka-rampage.webp', el: 'FIRE', primary: true, cta: 'Play' },
-    { id: 'siege', label: 'Siege', tag: 'New', badge: true,
+    { id: 'siege', label: 'Siege', tag: 'Expedition',
       line: 'Roguelike expedition — build a warband.',
       art: '/img/gallery/draco-brood.webp', el: 'EARTH', cta: 'Enter' }
   ];
 
-  function modePanel(m) {
+  // The Siege panel's tag said "New" with a badge. Whether a run is waiting is
+  // a fact the payload knows, so it says that instead.
+  function modePanel(m, opts) {
+    if (m.id === 'siege' && opts && opts.siegeRuns && opts.siegeRuns.length) {
+      m = { id: m.id, label: m.label, tag: 'Run saved', badge: true, line: m.line,
+            art: m.art, el: m.el, cta: 'Resume' };
+    }
     return '<a class="sg-mode' + (m.primary ? ' is-primary' : '') + '"' + linkAttrs(m.label) +
       ' style="--el:' + color(m.el) + '">' +
       '<img class="sg-mode-bg" src="' + esc(m.art) + '" alt="" loading="lazy">' +
@@ -711,16 +739,21 @@
     var guest = Boolean(opts.guest);
     return topMarkup(opts) +
       '<div class="sg-scroll">' +
-        '<div class="sg-modes">' + MODES.map(modePanel).join('') + '</div>' +
+        '<div class="sg-modes">' + MODES.map(function (m) { return modePanel(m, opts); }).join('') + '</div>' +
         expeditionsSection(opts) +
-        '<a class="sg-lobbies" href="' + HREF.lobbies + '">' +
-          '<span class="sg-lobbies-dot"></span>Social Lobbies<em>' +
-          esc(opts.lobbies == null ? '11' : opts.lobbies) + ' open</em><span class="go">›</span>' +
-        '</a>' +
+        (function () {
+          // The count is whatever /api/match/rooms reported. Unknown says so
+          // rather than showing the "11 open" the concept shipped with.
+          var open = opts.lobbies != null ? opts.lobbies : (opts.live && opts.live.lobbies);
+          var label = open == null ? 'Browse' : (open + ' open');
+          return '<a class="sg-lobbies" href="' + HREF.lobbies + '">' +
+            '<span class="sg-lobbies-dot"></span>Social Lobbies<em>' +
+            esc(label) + '</em><span class="go">›</span></a>';
+        })() +
         (guest ? guestBand() : '') +
         '<div style="height:132px"></div>' +
       '</div>' +
-      bottomMarkup('play', opts.openTray, opts.guest);
+      bottomMarkup('play', opts);
   }
 
   // The shipping page gives this a full card and three lines of copy. It is a
@@ -742,16 +775,19 @@
 
   /* ---------- decks ---------- */
 
+  // Offline stand-ins for the preset decks the catalog supplies. No win/loss:
+  // these are catalog presets, and a preset has no record - the 18W-6L, 11W-9L
+  // and 75% rates this list used to carry were invented outright.
   var DECKS = [
-    { name: 'Emberwaste Vanguard', lead: 'solgator', els: ['FIRE', 'EARTH', 'METAL'], w: 18, l: 6, cards: 40, active: true },
-    { name: 'Glacier Choir',       lead: 'glaciemperor', els: ['ICE', 'WATER'],        w: 11, l: 9, cards: 40 },
-    { name: 'Stormfeather Rite',   lead: 'aerovane',     els: ['WIND', 'ELECTRIC'],    w: 7,  l: 4, cards: 40 },
-    { name: 'Root & Ruin',         lead: 'gymstone',     els: ['EARTH', 'POISON'],     w: 3,  l: 8, cards: 38 }
+    { name: 'Emberwaste Vanguard', lead: 'solgator',     els: ['FIRE', 'EARTH', 'METAL'], cards: 40 },
+    { name: 'Glacier Choir',       lead: 'glaciemperor', els: ['ICE', 'WATER'],           cards: 40 },
+    { name: 'Stormfeather Rite',   lead: 'aerovane',     els: ['WIND', 'ELECTRIC'],       cards: 40 },
+    { name: 'Root & Ruin',         lead: 'gymstone',     els: ['EARTH', 'POISON'],        cards: 40 }
   ];
 
   function deckRow(d) {
     var lead = byId(d.lead) || CARDS[0];
-    var total = d.w + d.l;
+    var total = (d.w || 0) + (d.l || 0);
     var rate = total ? Math.round(d.w / total * 100) : 0;
     return '<article class="sg-deckrow' + (d.active ? ' is-active' : '') + '" style="--el:' + color(lead.element) + '">' +
       '<div class="sg-deckrow-bg" style="background-image:url(\'' + land(lead.element) + '\')"></div>' +
@@ -763,9 +799,11 @@
         '<div class="sg-deck-els">' + d.els.map(function (e) {
           return '<img src="' + icon(e) + '" alt="' + esc(title(e)) + '">';
         }).join('') + '</div>' +
-        '<div class="sg-deckrow-meta"><b>' + d.w + 'W</b> · ' + d.l + 'L &nbsp;·&nbsp; ' + rate + '% &nbsp;·&nbsp; ' + d.cards + ' cards</div>' +
+        '<div class="sg-deckrow-meta">' +
+          (total ? '<b>' + d.w + 'W</b> · ' + d.l + 'L &nbsp;·&nbsp; ' + rate + '% &nbsp;·&nbsp; ' : '') +
+          esc(d.cards) + ' cards</div>' +
       '</div>' +
-      '<div class="sg-deckrow-bar"><i style="width:' + rate + '%"></i></div>' +
+      (total ? '<div class="sg-deckrow-bar"><i style="width:' + rate + '%"></i></div>' : '') +
     '</article>';
   }
 
@@ -799,73 +837,110 @@
         '<div class="sg-stack">' + (playerDecks(opts) || DECKS).map(deckRow).join('') + '</div>' +
         '<div style="height:132px"></div>' +
       '</div>' +
-      bottomMarkup('collection', opts.openTray, opts.guest);
+      bottomMarkup('collection', opts);
   }
 
   /* ---------- shop ---------- */
 
-  var PACKS = [
-    { name: 'Emberwaste Pack',  el: 'FIRE',     price: 150, note: '5 cards' },
-    { name: 'Frostveil Pack',   el: 'ICE',      price: 150, note: '5 cards' },
-    { name: 'Stormcrest Pack',  el: 'ELECTRIC', price: 150, note: '5 cards' },
-    { name: 'Tidecaller Pack',  el: 'WATER',    price: 150, note: '5 cards' }
-  ];
-  var BUNDLES = [
-    { amount: '1,200', bonus: '', price: '$4.99' },
-    { amount: '3,000', bonus: '+400 bonus', price: '$9.99' },
-    { amount: '8,000', bonus: '+1,600 bonus', price: '$24.99' }
-  ];
+  // Every value on this screen used to be invented: four packs that do not exist
+  // at a flat 150, three Siegelcoin bundles with dollar prices nothing sells,
+  // and a "Cinderfall Collection, ends in 2d, 900" promotion. /api/shop/packs is
+  // public and returns the real catalog - id, name, description, price, elements
+  // and odds - so the screen renders that, and says the shop is unavailable when
+  // the call fails rather than falling back to fiction.
+  function packElement(pk) {
+    return (pk.elements && pk.elements[0]) || 'NEUTRAL';
+  }
+
+  function packCard(pk) {
+    var el = packElement(pk);
+    var cardsPer = pk.odds && pk.odds.cardsPerPack;
+    return '<article class="sg-pack" style="--el:' + color(el) + '">' +
+      '<div class="sg-pack-face"><img src="/img/decks/card-back-' + String(el).toLowerCase() +
+        '.webp" alt="" loading="lazy" onerror="this.style.visibility=\'hidden\'"></div>' +
+      '<strong>' + esc(pk.name || pk.id) + '</strong>' +
+      '<span>' + esc(cardsPer ? cardsPer + ' cards' : '') + '</span>' +
+      '<button class="sg-buy" type="button"><img src="/img/ui/siegel-coin.webp" alt="">' +
+        esc(pk.price != null ? pk.price : '—') + '</button>' +
+    '</article>';
+  }
+
+  // The hero is a real pack, not a promotion: the cheapest starter pack when the
+  // catalog marks one, otherwise the first active pack.
+  function featuredPack(packs) {
+    var starters = packs.filter(function (pk) { return pk.starterEligible; });
+    var pool = starters.length ? starters : packs;
+    return pool.slice().sort(function (x, y) {
+      return (x.price == null ? 1e9 : x.price) - (y.price == null ? 1e9 : y.price);
+    })[0];
+  }
 
   function shopScreen(opts) {
+    opts = opts || {};
+    var packs = (opts.live && opts.live.packs) || [];
     var feature = GALLERY[3];
-    var featureCard = byId(feature.card) || CARDS[0];
+    var hero = packs.length ? featuredPack(packs) : null;
+    var heroEl = hero ? packElement(hero) : 'FIRE';
     return topMarkup(opts) +
       '<div class="sg-scroll">' +
-        '<section class="sg-feature" style="--el:' + color(featureCard.element) + '">' +
-          '<img class="sg-feature-bg" src="' + plate(feature) + '" alt="">' +
-          '<div class="sg-feature-veil"></div>' +
-          '<div class="sg-feature-body">' +
-            '<span class="sg-tag">Featured &middot; Ends in 2d</span>' +
-            '<h2>Cinderfall Collection</h2>' +
-            '<p>Ten cards, one guaranteed Epic or better, and the Bearzooka line at doubled odds.</p>' +
-            '<button class="sg-cta" type="button"><img src="/img/ui/siegel-coin.webp" alt="">900</button>' +
+        (hero
+          ? '<section class="sg-feature" style="--el:' + color(heroEl) + '">' +
+              '<img class="sg-feature-bg" src="' + plate(feature) + '" alt="">' +
+              '<div class="sg-feature-veil"></div>' +
+              '<div class="sg-feature-body">' +
+                '<span class="sg-tag">' + esc(title(heroEl)) + ' &middot; Starter</span>' +
+                '<h2>' + esc(hero.name || hero.id) + '</h2>' +
+                '<p>' + esc(hero.description || '') + '</p>' +
+                '<button class="sg-cta" type="button"><img src="/img/ui/siegel-coin.webp" alt="">' +
+                  esc(hero.price != null ? hero.price : '—') + '</button>' +
+              '</div>' +
+            '</section>'
+          : '') +
+        '<section class="sg-section">' +
+          '<div class="sg-section-head"><h3>Packs</h3>' +
+            (packs.length ? '<span class="sg-section-note">' + esc(packs.length) + '</span>' : '') +
           '</div>' +
-        '</section>' +
-        '<section class="sg-section">' +
-          '<div class="sg-section-head"><h3>Packs</h3><a href="#">Odds</a></div>' +
-          '<div class="sg-swipe">' + PACKS.map(function (pk) {
-            return '<article class="sg-pack" style="--el:' + color(pk.el) + '">' +
-              '<div class="sg-pack-face"><img src="/img/decks/card-back-' + String(pk.el).toLowerCase() + '.webp" alt=""></div>' +
-              '<strong>' + esc(pk.name) + '</strong><span>' + esc(pk.note) + '</span>' +
-              '<button class="sg-buy" type="button"><img src="/img/ui/siegel-coin.webp" alt="">' + pk.price + '</button>' +
-            '</article>';
-          }).join('') + '</div>' +
-        '</section>' +
-        '<section class="sg-section">' +
-          '<div class="sg-section-head"><h3>Siegelcoins</h3></div>' +
-          '<div class="sg-stack sg-stack-tight">' + BUNDLES.map(function (bd) {
-            return '<button class="sg-bundle" type="button">' +
-              '<img src="/img/ui/siegel-coin.webp" alt="">' +
-              '<span class="amt">' + esc(bd.amount) + (bd.bonus ? '<em>' + esc(bd.bonus) + '</em>' : '') + '</span>' +
-              '<span class="price">' + esc(bd.price) + '</span></button>';
-          }).join('') + '</div>' +
+          (packs.length
+            // A grid, not a swipe rail: the real catalog is 17 packs, and a
+            // horizontal rail hides all but three of them.
+            ? '<div class="sg-pack-grid">' + packs.map(packCard).join('') + '</div>'
+            : '<div class="sg-empty-plate">' +
+                '<img src="' + plate(GALLERY[1]) + '" alt="" loading="lazy">' +
+                '<div class="sg-empty-veil"></div>' +
+                '<div class="sg-empty-body"><strong>The stall is closed</strong>' +
+                '<p>The pack catalog did not answer. Try again in a moment.</p></div>' +
+              '</div>') +
         '</section>' +
         '<div style="height:132px"></div>' +
       '</div>' +
-      bottomMarkup('shop', opts.openTray, opts.guest);
+      bottomMarkup('shop', opts);
   }
 
   /* ---------- profile ---------- */
 
-  var BADGES = [
-    ['◈', 'Collector', true], ['⚔', 'Duelist', true], ['⌂', 'Keeper', true],
-    ['✦', 'Ascendant', false], ['☍', 'Ally', true], ['⬢', 'Patron', false]
-  ];
-  var RECENT = [
-    ['Arena', 'Win', 'vs Kael', '+24'],
-    ['Siege', 'Land cleared', 'Emberwaste', '+80'],
-    ['Arena', 'Loss', 'vs Ruune', '+6']
-  ];
+  // The six badges and their earned/unearned states were invented, as was the
+  // "All 42" beside them: no endpoint reports a badge, so the section is gone
+  // rather than decorated with fiction. Recent now reads the account's own
+  // match history, which /api/player/progression really does return.
+  function recentMarkup(opts) {
+    var hist = (opts.live && opts.live.matchHistory) || [];
+    if (!hist.length) {
+      return '<div class="sg-empty-row">' +
+        esc(opts.guest ? 'Sign in to keep a match record.' : 'No matches recorded yet.') +
+      '</div>';
+    }
+    return '<div class="sg-stack sg-stack-tight">' + hist.slice(0, 5).map(function (m) {
+      var won = m.result === 'WIN' || m.result === 'win' || m.won === true;
+      var mode = title(m.matchType || 'Match');
+      var against = m.opponentName ? 'vs ' + m.opponentName : (m.loadoutLabel || '');
+      return '<div class="sg-recent' + (won ? ' is-win' : '') + '">' +
+        '<span class="mode">' + esc(mode) + '</span>' +
+        '<span class="what">' + esc(won ? 'Win' : 'Loss') +
+          (against ? '<em>' + esc(against) + '</em>' : '') + '</span>' +
+        '<span class="gain">' + esc(m.turnNumber != null ? 'T' + m.turnNumber : '') + '</span>' +
+      '</div>';
+    }).join('') + '</div>';
+  }
 
   // Progression only answers for a signed-in player, so the bar states that
   // rather than inventing a number.
@@ -925,22 +1000,12 @@
           }).join('') + '</div>' +
         '</section>' +
         '<section class="sg-section">' +
-          '<div class="sg-section-head"><h3>Badges</h3><a href="#">All 42</a></div>' +
-          '<div class="sg-badges">' + BADGES.map(function (bg) {
-            return '<span class="sg-badge' + (bg[2] ? ' earned' : '') + '"><i>' + bg[0] + '</i>' + esc(bg[1]) + '</span>';
-          }).join('') + '</div>' +
-        '</section>' +
-        '<section class="sg-section">' +
           '<div class="sg-section-head"><h3>Recent</h3></div>' +
-          '<div class="sg-stack sg-stack-tight">' + RECENT.map(function (r) {
-            return '<div class="sg-recent"><span class="mode">' + esc(r[0]) + '</span>' +
-              '<span class="what">' + esc(r[1]) + '<em>' + esc(r[2]) + '</em></span>' +
-              '<span class="gain">' + esc(r[3]) + '</span></div>';
-          }).join('') + '</div>' +
+          recentMarkup(opts) +
         '</section>' +
         '<div style="height:132px"></div>' +
       '</div>' +
-      bottomMarkup('more', opts.openTray, opts.guest);
+      bottomMarkup('more', opts);
   }
 
   /* ---------- leaderboard ----------
@@ -1092,7 +1157,7 @@
         '</div>' +
         '<div style="height:132px"></div>' +
       '</div>' +
-      bottomMarkup('collection', opts.openTray, opts.guest);
+      bottomMarkup('collection', opts);
   }
 
   /* ---------- social ---------- */
@@ -1115,10 +1180,10 @@
             ? '<div class="sg-stack">' + rooms.slice(0, 8).map(lobbyRow).join('') + '</div>'
             : emptyLobbies()) +
         '</section>' +
-        (opts.guest ? guestBand() : friendsSection()) +
+        (opts.guest ? guestBand() : friendsSection(opts)) +
         '<div style="height:132px"></div>' +
       '</div>' +
-      bottomMarkup('more', opts.openTray, opts.guest);
+      bottomMarkup('more', opts);
   }
 
   function lobbyRow(room, i) {
@@ -1146,20 +1211,25 @@
     '</div>';
   }
 
-  var FRIENDS = [
-    ['Kael', 'In a match', true], ['Ruune', 'Online', true],
-    ['Sable', 'In Siege', true], ['Wren', 'Offline', false]
-  ];
-  function friendsSection() {
+  // Kael, Ruune, Sable and Wren were invented people with invented statuses.
+  // /api/social/presence returns the signed-in account's real friends with live
+  // presence, so the list is that or it is empty.
+  function friendsSection(opts) {
+    var friends = (opts && opts.live && opts.live.friends) || [];
     return '<section class="sg-section">' +
-      '<div class="sg-section-head"><h3>Friends</h3><a href="#">Add</a></div>' +
-      '<div class="sg-stack sg-stack-tight">' + FRIENDS.map(function (f) {
-        return '<div class="sg-friend' + (f[2] ? ' is-on' : '') + '">' +
-          '<span class="sg-friend-crest">' + esc(f[0].charAt(0)) + '</span>' +
-          '<span class="sg-friend-body"><strong>' + esc(f[0]) + '</strong><em>' + esc(f[1]) + '</em></span>' +
-          (f[2] ? '<button class="sg-friend-go" type="button">Invite</button>' : '') +
-        '</div>';
-      }).join('') + '</div>' +
+      '<div class="sg-section-head"><h3>Friends</h3></div>' +
+      (friends.length
+        ? '<div class="sg-stack sg-stack-tight">' + friends.slice(0, 12).map(function (f) {
+            var p = f.presence || {};
+            var name = f.displayName || f.email || 'Player';
+            var status = p.online ? title(p.status || 'ONLINE') : 'Offline';
+            return '<div class="sg-friend' + (p.online ? ' is-on' : '') + '">' +
+              '<span class="sg-friend-crest">' + esc(String(name).charAt(0).toUpperCase()) + '</span>' +
+              '<span class="sg-friend-body"><strong>' + esc(name) + '</strong><em>' + esc(status) + '</em></span>' +
+              (p.online ? '<button class="sg-friend-go" type="button">Invite</button>' : '') +
+            '</div>';
+          }).join('') + '</div>'
+        : '<div class="sg-empty-row">No friends added yet.</div>') +
     '</section>';
   }
 
@@ -1168,11 +1238,46 @@
   // Settings cannot be art-led without lying about what it is - these are
   // switches. It gets the gallery plate, the palette and the spacing; the rows
   // stay rows, because a toggle pretending to be a hero is worse design.
+  // These switches used to render invented on/off states and do nothing when
+  // tapped. They are real device preferences now: keyed, defaulted honestly
+  // (Reduced motion follows the OS setting), persisted to localStorage and read
+  // back on the next paint, so what the screen shows is what is stored.
+  var SETTINGS_KEY = 'sgHubPrefs';
   var SETTINGS = [
-    ['Audio', [['Music', true], ['Sound effects', true], ['Battle voice', false]]],
-    ['Motion', [['Card animations', true], ['Reduced motion', false], ['Background parallax', true]]],
-    ['Notifications', [['Match invites', true], ['Keep production ready', true], ['Daily reset', false]]]
+    ['Audio', [['music', 'Music', true], ['sfx', 'Sound effects', true], ['voice', 'Battle voice', false]]],
+    ['Motion', [['cardAnim', 'Card animations', true], ['reducedMotion', 'Reduced motion', null],
+                ['parallax', 'Background parallax', true]]],
+    ['Notifications', [['inviteNotify', 'Match invites', true], ['keepNotify', 'Keep ready', true],
+                       ['resetNotify', 'Daily reset', false]]]
   ];
+
+  function readPrefs() {
+    try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') || {}; }
+    catch (e) { return {}; }
+  }
+  function writePref(key, on) {
+    var prefs = readPrefs();
+    prefs[key] = on;
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(prefs)); } catch (e) { /* private mode */ }
+  }
+  function prefValue(key, fallback) {
+    var prefs = readPrefs();
+    if (Object.prototype.hasOwnProperty.call(prefs, key)) return Boolean(prefs[key]);
+    if (fallback === null) {
+      return Boolean(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    }
+    return Boolean(fallback);
+  }
+  function mountSettings(app) {
+    [].slice.call(app.querySelectorAll('[data-pref]')).forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var on = btn.getAttribute('aria-checked') !== 'true';
+        btn.setAttribute('aria-checked', on ? 'true' : 'false');
+        btn.classList.toggle('on', on);
+        writePref(btn.getAttribute('data-pref'), on);
+      });
+    });
+  }
 
   function settingsScreen(opts) {
     opts = opts || {};
@@ -1182,16 +1287,20 @@
           '<img class="sg-crest-bg" src="/img/gallery/bearby-blastoff.webp" alt="">' +
           '<div class="sg-crest-veil"></div>' +
           '<div class="sg-crest-body"><h2>Settings</h2><p>' +
-            (opts.guest ? 'Signed out' : 'Ashenvale &middot; Level 24') + '</p></div>' +
+            esc(opts.guest ? 'Signed out'
+                 : ((opts.live && opts.live.displayName) || 'Signed in') +
+                   (opts.live && opts.live.level != null ? ' \u00b7 Level ' + opts.live.level : '')) +
+            '</p></div>' +
         '</section>' +
         SETTINGS.map(function (group, gi) {
           return '<section class="sg-section" style="--sec:' +
             ['var(--acc-coral)', 'var(--acc-cyan)', 'var(--acc-violet)'][gi % 3] + '">' +
             '<div class="sg-section-head"><h3>' + esc(group[0]) + '</h3></div>' +
             '<div class="sg-stack sg-stack-tight">' + group[1].map(function (row) {
-              return '<div class="sg-toggle-row"><span>' + esc(row[0]) + '</span>' +
-                '<button class="sg-switch' + (row[1] ? ' on' : '') + '" type="button" ' +
-                'role="switch" aria-checked="' + (row[1] ? 'true' : 'false') + '"><i></i></button></div>';
+              var on = prefValue(row[0], row[2]);
+              return '<div class="sg-toggle-row"><span>' + esc(row[1]) + '</span>' +
+                '<button class="sg-switch' + (on ? ' on' : '') + '" type="button" data-pref="' + esc(row[0]) + '" ' +
+                'role="switch" aria-checked="' + (on ? 'true' : 'false') + '"><i></i></button></div>';
             }).join('') + '</div>' +
           '</section>';
         }).join('') +
@@ -1209,7 +1318,7 @@
         '</section>' +
         '<div style="height:132px"></div>' +
       '</div>' +
-      bottomMarkup('more', opts.openTray, opts.guest);
+      bottomMarkup('more', opts);
   }
 
   /* ---------- help ---------- */
@@ -1243,7 +1352,7 @@
         }).join('') + '</div>' +
         '<div style="height:132px"></div>' +
       '</div>' +
-      bottomMarkup('more', opts.openTray, opts.guest);
+      bottomMarkup('more', opts);
   }
 
   /* ---------- feature coverage ----------
@@ -1361,8 +1470,10 @@
       mountHero(app, opts);
       mountLeaderboard(app, opts);
       mountStrip(app);
-      if (opts.questsOpen) app.querySelector('[data-strip]').classList.add('open');
+      var strip = opts.questsOpen && app.querySelector('[data-strip]');
+      if (strip) strip.classList.add('open');
     }
+    if (screen === 'settings') mountSettings(app);
     mountBottom(app);
     scheduleFit(app);
     return app;

@@ -140,3 +140,62 @@ body {
 @media (max-width: 719px) {
     .mode-card { min-height: 150px; }
 }
+
+
+/* ---- loading screen ----
+   The boot screen was a spinner and a status line on a flat colour. It now
+   carries a plate from the gallery scenes plus the original site's loading
+   library; adventure.js still owns the bar and the status text. */
+#loadingScreen {
+    position: relative;
+    min-height: 72vh;
+    border-radius: 18px;
+    overflow: hidden;
+    margin-top: 8px;
+}
+
+.siege-load-plate {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    filter: saturate(1.15) brightness(.8);
+    transform: scale(1.04);
+}
+
+.siege-load-veil {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg,
+        rgba(13, 10, 38, .40) 0%, rgba(13, 10, 38, .18) 34%,
+        rgba(13, 10, 38, .80) 76%, var(--bg) 100%);
+}
+
+/* The copy sits at the foot so the artwork keeps the upper two thirds. */
+.siege-load-body {
+    position: absolute;
+    inset: auto 0 0 0;
+    padding: 0 18px 26px;
+    text-align: center;
+}
+
+.siege-load-body .siege-spinner {
+    margin: 0 auto 12px;
+}
+
+.siege-load-art {
+    margin: 10px 0 0;
+    font-size: 11px;
+    letter-spacing: .26em;
+    text-transform: uppercase;
+    color: var(--accent);
+}
+
+.siege-load-art::after {
+    content: attr(data-place);
+    display: block;
+    margin-top: 3px;
+    letter-spacing: .12em;
+    text-transform: none;
+    color: var(--dim);
+}
