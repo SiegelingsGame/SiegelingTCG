@@ -158,12 +158,12 @@
   //              Siege belong here on purpose: they are gameplay, not layout.
   var INTERNAL = {
     'Home': 'home', 'Cards': 'collection', 'Collection': 'collection',
-    'Decks': 'decks', 'Shop': 'shop', 'Profile': 'profile', 'Play': 'play'
+    'Decks': 'decks', 'Shop': 'shop', 'Profile': 'profile', 'Play': 'play',
+    'Deck Builder': 'builder', 'Social': 'social', 'Settings': 'settings', 'Help': 'help'
   };
   var EXTERNAL = {
     'Battle': '/play?mode=solo', 'Siege': '/siege', 'Keep': '/keep',
-    'Social Lobbies': '/social', 'Social': '/social', 'Deck Builder': '/deck-builder',
-    'Settings': '/profile', 'Help': '/help', 'Sign In': '/login', 'Create Account': '/login',
+    'Social Lobbies': 'social', 'Sign In': '/login', 'Create Account': '/login',
     'Featured Packs': 'shop', 'Open Packs': 'shop', 'Siegelcoins': 'shop'
   };
   var HREF = { battle: '/play?mode=solo', siege: '/siege', keep: '/keep',
@@ -764,6 +764,211 @@
       bottomMarkup('more', opts.openTray, opts.guest);
   }
 
+  /* ---------- deck builder ---------- */
+
+  // Rules come from the catalog payload (deckBuilder.minDeckSize / maxCopies),
+  // not from hardcoded numbers - the preset-deck shape (40 cards, 20/10/10) is a
+  // different rule and does not govern a custom build.
+  function builderScreen(opts) {
+    opts = opts || {};
+    var rules = (opts.live && opts.live.deckBuilder) || { minDeckSize: 30, maxCopies: 3 };
+    var deck = (opts.live && opts.live.decks && opts.live.decks[0]) || null;
+    var entries = (deck && deck.cards) || [];
+    var total = entries.reduce(function (n, e) { return n + (e.count || 0); }, 0);
+    var pct = Math.min(100, Math.round(total / rules.minDeckSize * 100));
+    var els = (deck && deck.elements) || ['FIRE'];
+    return topMarkup(opts) +
+      '<div class="sg-scroll">' +
+        '<div class="sg-page-head"><h2>Deck Builder</h2><p>' +
+          esc(total) + ' of ' + esc(rules.minDeckSize) + ' minimum &middot; max ' +
+          esc(rules.maxCopies) + ' copies</p></div>' +
+        '<div class="sg-build-bar"><i style="width:' + pct + '%"></i></div>' +
+        '<div class="sg-build-id" style="--el:' + color(els[0]) + '">' +
+          '<input class="sg-build-name" value="' + esc(deck ? deck.name : 'New Deck') + '" aria-label="Deck name">' +
+          '<div class="sg-deck-els">' + els.map(function (e) {
+            return '<img src="' + icon(e) + '" alt="' + esc(title(e)) + '">';
+          }).join('') + '</div>' +
+        '</div>' +
+        '<section class="sg-section">' +
+          '<div class="sg-section-head"><h3>In this deck</h3><a href="#">Clear</a></div>' +
+          '<div class="sg-swipe">' + (entries.length
+            ? entries.map(function (e) {
+                var c = byId(e.id);
+                if (!c) return '';
+                return '<article class="sg-feat sg-build-card" style="--el:' + color(c.element) + '">' +
+                  '<div class="sg-feat-plate"></div>' +
+                  '<div class="sg-feat-art"><img src="' + esc(c.cardArtUrl) + '" alt="" loading="lazy"></div>' +
+                  '<span class="sg-build-count">x' + esc(e.count) + '</span>' +
+                  '<div class="sg-feat-foot"><span class="sg-feat-name">' + esc(c.name) + '</span></div>' +
+                '</article>';
+              }).join('')
+            : '<p class="sg-empty">Nothing added yet.</p>') + '</div>' +
+        '</section>' +
+        '<section class="sg-section">' +
+          '<div class="sg-section-head"><h3>Add from your binder</h3>' +
+            '<a href="?screen=collection" data-screen="collection">Browse</a></div>' +
+          '<div class="sg-gal-grid">' + CARDS.slice(0, 8).map(galleryCard).join('') + '</div>' +
+        '</section>' +
+        '<div class="sg-build-actions">' +
+          '<button class="sg-ghost-btn" type="button"><span class="ico">✧</span>Auto Build</button>' +
+          '<button class="sg-guest-primary" type="button">Save Deck</button>' +
+        '</div>' +
+        '<div style="height:132px"></div>' +
+      '</div>' +
+      bottomMarkup('collection', opts.openTray, opts.guest);
+  }
+
+  /* ---------- social ---------- */
+
+  function socialScreen(opts) {
+    opts = opts || {};
+    var rooms = (opts.live && opts.live.rooms) || [];
+    return topMarkup(opts) +
+      '<div class="sg-scroll">' +
+        '<div class="sg-page-head"><h2>Social</h2><p>' +
+          (rooms.length ? esc(rooms.length) + ' table' + (rooms.length === 1 ? '' : 's') + ' open now'
+                        : 'No tables open right now') + '</p></div>' +
+        '<div class="sg-tool-row">' +
+          '<button class="sg-ghost-btn" type="button"><span class="ico">＋</span>Host a table</button>' +
+          '<button class="sg-ghost-btn" type="button"><span class="ico">#</span>Join code</button>' +
+        '</div>' +
+        '<section class="sg-section">' +
+          '<div class="sg-section-head"><h3>Open tables</h3></div>' +
+          (rooms.length
+            ? '<div class="sg-stack">' + rooms.slice(0, 8).map(lobbyRow).join('') + '</div>'
+            : emptyLobbies()) +
+        '</section>' +
+        (opts.guest ? guestBand() : friendsSection()) +
+        '<div style="height:132px"></div>' +
+      '</div>' +
+      bottomMarkup('more', opts.openTray, opts.guest);
+  }
+
+  function lobbyRow(room, i) {
+    var lead = CARDS[i % Math.max(1, CARDS.length)] || CARDS[0];
+    var host = room.hostName || room.playerName || 'Open table';
+    return '<article class="sg-lobby" style="--el:' + color(lead && lead.element) + '">' +
+      '<div class="sg-lobby-bg" style="background-image:url(\'' + land(lead && lead.element) + '\')"></div>' +
+      '<div class="sg-lobby-veil"></div>' +
+      (lead ? '<div class="sg-lobby-art"><img src="' + esc(lead.cardArtUrl) + '" alt="" loading="lazy"></div>' : '') +
+      '<div class="sg-lobby-body">' +
+        '<span class="sg-lobby-kicker">Waiting</span>' +
+        '<strong>' + esc(host) + '</strong>' +
+        '<em>' + esc(room.roomId || room.id || 'Table') + '</em>' +
+      '</div>' +
+      '<span class="sg-lobby-go">Join ›</span>' +
+    '</article>';
+  }
+
+  function emptyLobbies() {
+    return '<div class="sg-empty-plate">' +
+      '<img src="/img/gallery/bearby-longfuse.webp" alt="" loading="lazy">' +
+      '<div class="sg-empty-veil"></div>' +
+      '<div class="sg-empty-body"><strong>Nobody is waiting</strong>' +
+      '<p>Host a table and it shows up here for everyone.</p></div>' +
+    '</div>';
+  }
+
+  var FRIENDS = [
+    ['Kael', 'In a match', true], ['Ruune', 'Online', true],
+    ['Sable', 'In Siege', true], ['Wren', 'Offline', false]
+  ];
+  function friendsSection() {
+    return '<section class="sg-section">' +
+      '<div class="sg-section-head"><h3>Friends</h3><a href="#">Add</a></div>' +
+      '<div class="sg-stack sg-stack-tight">' + FRIENDS.map(function (f) {
+        return '<div class="sg-friend' + (f[2] ? ' is-on' : '') + '">' +
+          '<span class="sg-friend-crest">' + esc(f[0].charAt(0)) + '</span>' +
+          '<span class="sg-friend-body"><strong>' + esc(f[0]) + '</strong><em>' + esc(f[1]) + '</em></span>' +
+          (f[2] ? '<button class="sg-friend-go" type="button">Invite</button>' : '') +
+        '</div>';
+      }).join('') + '</div>' +
+    '</section>';
+  }
+
+  /* ---------- settings ---------- */
+
+  // Settings cannot be art-led without lying about what it is - these are
+  // switches. It gets the gallery plate, the palette and the spacing; the rows
+  // stay rows, because a toggle pretending to be a hero is worse design.
+  var SETTINGS = [
+    ['Audio', [['Music', true], ['Sound effects', true], ['Battle voice', false]]],
+    ['Motion', [['Card animations', true], ['Reduced motion', false], ['Background parallax', true]]],
+    ['Notifications', [['Match invites', true], ['Keep production ready', true], ['Daily reset', false]]]
+  ];
+
+  function settingsScreen(opts) {
+    opts = opts || {};
+    return topMarkup(opts) +
+      '<div class="sg-scroll">' +
+        '<section class="sg-crest sg-crest-short">' +
+          '<img class="sg-crest-bg" src="/img/gallery/bearby-blastoff.webp" alt="">' +
+          '<div class="sg-crest-veil"></div>' +
+          '<div class="sg-crest-body"><h2>Settings</h2><p>' +
+            (opts.guest ? 'Signed out' : 'Ashenvale &middot; Level 24') + '</p></div>' +
+        '</section>' +
+        SETTINGS.map(function (group, gi) {
+          return '<section class="sg-section" style="--sec:' +
+            ['var(--acc-coral)', 'var(--acc-cyan)', 'var(--acc-violet)'][gi % 3] + '">' +
+            '<div class="sg-section-head"><h3>' + esc(group[0]) + '</h3></div>' +
+            '<div class="sg-stack sg-stack-tight">' + group[1].map(function (row) {
+              return '<div class="sg-toggle-row"><span>' + esc(row[0]) + '</span>' +
+                '<button class="sg-switch' + (row[1] ? ' on' : '') + '" type="button" ' +
+                'role="switch" aria-checked="' + (row[1] ? 'true' : 'false') + '"><i></i></button></div>';
+            }).join('') + '</div>' +
+          '</section>';
+        }).join('') +
+        '<section class="sg-section" style="--sec:var(--acc-lemon)">' +
+          '<div class="sg-section-head"><h3>Account</h3></div>' +
+          '<div class="sg-stack sg-stack-tight">' +
+            (opts.guest
+              ? '<a class="sg-toggle-row is-link" href="/login"><span>Sign in</span><em>›</em></a>' +
+                '<a class="sg-toggle-row is-link" href="/login"><span>Create account</span><em>›</em></a>'
+              : '<a class="sg-toggle-row is-link" href="?screen=profile" data-screen="profile"><span>Profile</span><em>›</em></a>' +
+                '<a class="sg-toggle-row is-link" href="/profile"><span>Manage account</span><em>›</em></a>' +
+                '<a class="sg-toggle-row is-link is-danger" href="/profile"><span>Sign out</span><em>›</em></a>') +
+            '<a class="sg-toggle-row is-link" href="?screen=help" data-screen="help"><span>Help &amp; rules</span><em>›</em></a>' +
+          '</div>' +
+        '</section>' +
+        '<div style="height:132px"></div>' +
+      '</div>' +
+      bottomMarkup('more', opts.openTray, opts.guest);
+  }
+
+  /* ---------- help ---------- */
+
+  // The real help page's own topic list, kept verbatim so the redesign does not
+  // quietly drop a rules chapter. Art per topic comes from the element or Land
+  // the chapter is about.
+  var HELP = [
+    ['Basics', 'How a match runs end to end', '/img/lands/relic.webp', 'NEUTRAL'],
+    ['Turn loop', 'Draw, Setup, Battle, repeat', '/img/lands/fire.webp', 'FIRE'],
+    ['Card types', 'Siegling, Strategy, Deception', '/img/gallery/draco-brood.webp', 'EARTH'],
+    ['Board, notches & energy', 'Links, sockets and what they pay for', '/img/lands/electric.webp', 'ELECTRIC'],
+    ['Evolution', 'Growing a Siegling mid-match', '/img/gallery/bearzooka-rampage.webp', 'FIRE'],
+    ['SiegeKnight', 'Passives, actives and ultimates', '/img/lands/light.webp', 'LIGHT'],
+    ['Buffs & afflictions', 'Temporary statuses and elemental damage', '/img/lands/poison.webp', 'POISON'],
+    ['Element chart', 'What beats what', '/img/lands/ice.webp', 'ICE'],
+    ['Siege mode', 'The roguelike expedition', '/img/lands/badlands.webp', 'EARTH']
+  ];
+
+  function helpScreen(opts) {
+    opts = opts || {};
+    return topMarkup(opts) +
+      '<div class="sg-scroll">' +
+        '<div class="sg-page-head"><h2>How to Play</h2><p>' + HELP.length + ' chapters</p></div>' +
+        '<div class="sg-help-grid">' + HELP.map(function (h) {
+          return '<a class="sg-help-card" href="/help" style="--el:' + color(h[3]) + '">' +
+            '<img src="' + esc(h[2]) + '" alt="" loading="lazy">' +
+            '<div class="sg-help-veil"></div>' +
+            '<div class="sg-help-body"><strong>' + esc(h[0]) + '</strong><span>' + esc(h[1]) + '</span></div>' +
+          '</a>';
+        }).join('') + '</div>' +
+        '<div style="height:132px"></div>' +
+      '</div>' +
+      bottomMarkup('more', opts.openTray, opts.guest);
+  }
+
   /* ---------- feature coverage ----------
      The brief simplifies the navigation, which is only safe if nothing becomes
      unreachable. This is the audit: every route, dashboard action and feature
@@ -862,7 +1067,9 @@
     }
     var app = document.createElement('div');
     app.className = 'sg-app';
-    var builders = { collection: galleryScreen, decks: decksScreen, shop: shopScreen, profile: profileScreen, play: playScreen };
+    var builders = { collection: galleryScreen, decks: decksScreen, shop: shopScreen,
+                     profile: profileScreen, play: playScreen, builder: builderScreen,
+                     social: socialScreen, settings: settingsScreen, help: helpScreen };
     app.innerHTML = builders[screen] ? builders[screen](opts) : homeScreen(opts);
     host.appendChild(app);
     // Every screen carries the same chrome, so the rail and the tab bar are

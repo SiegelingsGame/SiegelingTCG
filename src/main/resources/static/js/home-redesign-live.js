@@ -56,6 +56,8 @@
           defaultTrainerId: options && options.defaultTrainerId,
           savedDecks: (decks && (decks.decks || decks)) || null,
           lobbies: (rooms && rooms.rooms ? rooms.rooms.length : 0),
+          rooms: (rooms && rooms.rooms) || [],
+          deckBuilder: (options && options.deckBuilder) || null,
           siegeRuns: activeRuns(siege),
           gold: progression && (progression.gold != null ? progression.gold : null),
           ownedTotal: progression && progression.ownedTotal,
