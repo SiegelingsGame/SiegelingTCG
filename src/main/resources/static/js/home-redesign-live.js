@@ -58,7 +58,12 @@
         // The shop's real pack catalog, with the prices and odds the server
         // actually charges - the screen used to show invented packs at an
         // invented 150 each.
-        get('/api/shop/packs')
+        get('/api/shop/packs'),
+        // Read-only game data, both public: the Advantage rider each element
+        // grants in Siege, and which Keep stations an element helps at. The card
+        // sheet reports both for every Siegeling, signed in or not.
+        get('/api/siege/advantage-riders'),
+        get('/api/keep/affinities')
       ];
       var gated = signedIn
         ? [get('/api/player/progression'), get('/api/missions/daily'), get('/api/profile/decks'),
@@ -73,7 +78,8 @@
 
       return Promise.all(core.concat(gated)).then(function (r) {
         var options = r[0], rooms = r[1], siege = r[2], boards = r[3], shop = r[4],
-            progressionResponse = r[5], missions = r[6], decks = r[7], presence = r[8], keep = r[9];
+            riders = r[5], affinities = r[6],
+            progressionResponse = r[7], missions = r[8], decks = r[9], presence = r[10], keep = r[11];
         var catalog = (options && options.cardCatalog) || [];
         // /api/player/progression answers {progression:{gold, ownedTotal, …},
         // packs, dailyOffers, …} - the wallet is NESTED. Reading it off the root
@@ -127,6 +133,8 @@
           packs: (shop && shop.packs ? shop.packs.filter(function (pk) { return pk && pk.active !== false; }) : null),
           friends: (presence && !presence.error && presence.friends) || (me && me.friends) || null,
           keepResidents: (keep && !keep.error && keep.residents) || null,
+          advantageRiders: (riders && riders.riders) || null,
+          keepAffinities: (affinities && affinities.stations) || null,
           catalogVersion: options && options.catalogVersion
         };
       });

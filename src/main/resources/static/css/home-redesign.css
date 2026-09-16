@@ -1838,17 +1838,21 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 /* The notch ring: a miniature of the card's perimeter so the directions read at
    a glance, which is what actually decides where a Siegeling can link. */
 .sg-sheet-notches {
-  position:relative; width:74px; height:100px; margin:4px auto 12px;
-  border-radius:10px; border:1px dashed rgba(180,140,255,.34);
+  position:relative; width:92px; height:124px; margin:4px auto 12px;
+  border-radius:12px; border:1px dashed rgba(180,140,255,.34);
 }
 .sg-sheet-notches span {
   position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
   font-size:9px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted);
   text-align:center; width:100%;
 }
+/* Real notch art, so it needs room to read; the ring grew with it. Composited
+   the way the battle table does it: the square plate becomes a round token by
+   being a background on a circular element over the element colour. */
 .sg-sheet-notch {
-  position:absolute; width:9px; height:9px; border-radius:50%;
-  background:var(--el,#95a5a6); box-shadow:0 0 8px var(--el,#95a5a6);
+  position:absolute; width:18px; height:18px; display:block; border-radius:50%;
+  background:var(--notch-icon) center / 100% 100% no-repeat, var(--notch, #95a5a6);
+  box-shadow:0 1px 4px rgba(0,0,0,.6);
 }
 
 
@@ -1900,4 +1904,178 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   position:absolute; top:calc(14px + env(safe-area-inset-top,0px)); right:14px;
   width:40px; height:40px; border-radius:50%; cursor:pointer; font-size:22px; line-height:1;
   color:var(--ink); border:1px solid rgba(180,140,255,.3); background:rgba(13,10,38,.7);
+}
+
+/* ---------- card sheet: tabbed, and short enough to read whole ----------
+   The sheet used to stack Arena, Siege and Keep in one column, which on a phone
+   ran past both ends of the glass - the card face was clipped at the top and the
+   Keep section sat below the fold. It is a fixed-height card now: an identity
+   header that always stays in view, three tabs, and one scrolling panel. */
+.sg-sheet-card {
+  /* Never taller than the screen, and never so short that a panel is a slit. */
+  max-height:min(86dvh, 720px);
+  display:flex; flex-direction:column;
+  padding:0 16px calc(16px + env(safe-area-inset-bottom,0px));
+}
+/* The face sits beside the identity rather than above it, which is what buys
+   back the vertical room the tabs need. */
+.sg-sheet-head { display:flex; align-items:center; gap:14px; padding:6px 0 12px; flex:0 0 auto; }
+.sg-sheet-face { display:block; flex:0 0 108px; padding:0; }
+.sg-sheet-face .sg-card-tile { width:108px; max-width:none; }
+.sg-sheet-id { flex:1 1 auto; min-width:0; }
+.sg-sheet-card .sg-sheet-id h3 { text-align:left; font-size:21px; line-height:1.15; }
+.sg-sheet-id .sg-sheet-meta { justify-content:flex-start; margin:5px 0 9px; }
+.sg-sheet-stats.is-tight { gap:6px; }
+.sg-sheet-stats.is-tight > div { padding:6px 4px; }
+.sg-sheet-stats.is-tight span { font-size:8.5px; }
+.sg-sheet-stats.is-tight b { font-size:15px; }
+
+.sg-sheet-tabs {
+  flex:0 0 auto; display:flex; gap:5px; padding:4px; margin-bottom:10px;
+  border-radius:14px; border:1px solid var(--steel-soft); background:rgba(13,10,38,.55);
+}
+.sg-sheet-tab {
+  flex:1 1 0; min-height:36px; border:none; border-radius:10px; cursor:pointer;
+  font:inherit; font-size:11px; font-weight:800; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--muted); background:transparent;
+}
+.sg-sheet-tab.on {
+  color:#2b0d02; background:linear-gradient(135deg,#ffe066,var(--amber));
+  box-shadow:0 5px 14px rgba(255,155,33,.3);
+}
+/* The one scrolling region. flex:1 with min-height:0 so it takes the slack and
+   the header and CTA never get pushed off. */
+.sg-sheet-panels { flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+.sg-sheet-panel { display:flex; flex-direction:column; gap:8px; padding-bottom:4px; }
+.sg-sheet-panel[hidden] { display:none; }
+.sg-sheet-card .sg-sheet-cta { flex:0 0 auto; margin-top:12px; }
+
+/* Keep: one row per station this Siegeling helps at. */
+.sg-sheet-rows { display:flex; flex-direction:column; gap:7px; }
+.sg-sheet-row {
+  display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:13px;
+  border:1px solid var(--steel-soft); background:rgba(36,26,96,.45);
+}
+.sg-sheet-row-name { flex:1 1 auto; min-width:0; font-size:13px; }
+.sg-sheet-row-name em {
+  display:block; font-style:normal; font-size:10px; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--muted); margin-top:2px;
+}
+.sg-sheet-row-val { flex:0 0 auto; font-size:14px; font-weight:700; color:var(--acc-emerald); }
+.sg-sheet-sub {
+  margin-top:6px; font-size:9.5px; letter-spacing:.24em; text-transform:uppercase; color:var(--gold);
+}
+.sg-sheet-note { margin:0; font-size:12px; line-height:1.5; color:var(--muted); }
+/* The Advantage rider hangs off its card, so it reads as a condition on that
+   card rather than as a second ability. */
+.sg-sheet-rider {
+  display:block; margin-top:7px; padding-top:7px; font-size:11.5px; line-height:1.45;
+  color:#ffe9c4; border-top:1px dashed rgba(242,160,61,.34);
+}
+.sg-sheet-rider i {
+  display:inline-block; font-style:normal; margin-right:7px; padding:1px 7px; border-radius:999px;
+  font-size:8.5px; font-weight:800; letter-spacing:.14em; text-transform:uppercase;
+  color:#2b0d02; background:linear-gradient(135deg,#ffe066,var(--amber));
+}
+
+/* ---------- element marks: the round notch, not a square badge ----------
+   Every element indicator on a Siegeling now uses the notch art a player reads
+   off a real card's perimeter. The art is a round token on a transparent square,
+   so it wants a little more size than the flat badges did and no border of its
+   own; the soft drop shadow is what separates it from a bright plate. */
+.sg-feat-marks img,
+.sg-gal-cap img,
+.sg-pill img,
+.sg-sheet-meta img,
+.sg-deck-els img {
+  border-radius:50%;
+  filter:drop-shadow(0 1px 3px rgba(0,0,0,.6));
+}
+.sg-feat-marks img { width:17px; height:17px; opacity:1; }
+.sg-gal-cap img { width:16px; height:16px; }
+.sg-pill img { width:16px; height:16px; }
+.sg-sheet-meta img { width:18px; height:18px; }
+.sg-deck-els img { width:19px; height:19px; }
+.sg-flip-plate img { width:30px; height:30px; filter:drop-shadow(0 2px 5px rgba(0,0,0,.6)); }
+
+/* ---------- pack opening: motes, rarity aura, remnant shards ----------
+   Three things the concept build dropped and the shipping shop had: particles
+   behind the whole ceremony, a glow on a face-down card hinting at the rarity
+   already decided for it, and a duplicate visibly crumbling into the remnants it
+   pays rather than just wearing a number. */
+.sg-gacha-motes { position:absolute; inset:0; pointer-events:none; overflow:hidden; z-index:1; }
+.sg-gacha-body { position:relative; z-index:2; }
+
+/* [hidden] loses to display:flex, which is why the controls were on screen while
+   the pack was still tearing open. */
+.sg-gacha-actions[hidden], .sg-gacha-bucket[hidden] { display:none !important; }
+
+/* The aura sits behind the card and pulses until it is turned over. */
+.sg-flip-aura {
+  position:absolute; inset:-16%; z-index:0; border-radius:22px; pointer-events:none;
+  background:radial-gradient(closest-side, color-mix(in srgb, var(--rar,#8fa2bd) 78%, transparent), transparent 74%);
+  filter:blur(9px); opacity:.34;
+  animation:sgAuraPulse 2.6s ease-in-out infinite;
+  animation-delay:calc(var(--slot,0) * 260ms);
+  transition:opacity .5s ease;
+}
+/* Once a card is face up its own art carries it; the hint has done its job. */
+.sg-flip.is-open .sg-flip-aura { opacity:.13; animation:none; }
+.sg-flip.rarity-epic .sg-flip-aura,
+.sg-flip.rarity-legendary .sg-flip-aura { inset:-22%; filter:blur(13px); opacity:.5; }
+.sg-flip.rarity-legendary .sg-flip-aura { animation-duration:1.7s; }
+@keyframes sgAuraPulse {
+  0%,100% { opacity:.26; transform:scale(.97); }
+  50%     { opacity:.6;  transform:scale(1.06); }
+}
+/* z-index only. Restating `position` here would override the absolute inset:0
+   the flip container relies on, collapsing it to nothing - which is exactly what
+   the first version did, and the card backs vanished. */
+.sg-flip-inner { z-index:1; }
+
+/* A duplicate crumbles; its shards fly to the bucket. */
+.sg-flip-shards { position:absolute; inset:0; z-index:3; pointer-events:none; }
+.sg-shard {
+  position:absolute; left:50%; top:50%; width:6px; height:6px; border-radius:2px;
+  background:color-mix(in srgb, var(--rar,#8fa2bd) 65%, #fff3c4);
+  box-shadow:0 0 9px color-mix(in srgb, var(--rar,#8fa2bd) 55%, transparent);
+  animation:sgShardFly 1.05s cubic-bezier(.35,0,.25,1) var(--d,0s) both;
+}
+@keyframes sgShardFly {
+  0%   { opacity:0; transform:translate(-50%,-50%) scale(.3); }
+  12%  { opacity:1; transform:translate(calc(-50% + var(--sx)), calc(-50% + var(--sy))) scale(1); }
+  100% { opacity:0; transform:translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(.25) rotate(140deg); }
+}
+.sg-flip.is-dissolving .sg-flip-inner { animation:sgCrumble 1.05s cubic-bezier(.4,0,.2,1) both; }
+@keyframes sgCrumble {
+  0%   { opacity:1; transform:rotateY(180deg) scale(1); filter:blur(0); }
+  55%  { opacity:.66; transform:rotateY(188deg) scale(.94); filter:blur(1.5px); }
+  100% { opacity:0; transform:rotateY(196deg) scale(.7); filter:blur(7px); }
+}
+/* What is left once it has gone: a spent slot, not an empty hole. */
+.sg-flip.is-spent .sg-flip-inner { opacity:0; }
+.sg-flip.is-spent .sg-flip-aura { opacity:.2; animation:none; }
+.sg-flip.is-spent::after {
+  content:'\25c8'; position:absolute; inset:0; display:grid; place-items:center;
+  font-size:24px; color:color-mix(in srgb, var(--rar,#8fa2bd) 70%, #fff3c4);
+  border-radius:12px; border:1px dashed color-mix(in srgb, var(--rar,#8fa2bd) 45%, transparent);
+}
+
+.sg-gacha-bucket {
+  display:flex; align-items:center; gap:8px; padding:9px 16px; border-radius:999px;
+  border:1px solid rgba(242,160,61,.45); background:rgba(60,42,12,.55);
+  transition:transform .14s ease, box-shadow .14s ease;
+}
+.sg-gacha-bucket.is-hit { transform:scale(1.07); box-shadow:0 0 22px rgba(242,160,61,.5); }
+.sg-gacha-bucket-sigil { color:var(--gold); font-size:15px; }
+.sg-gacha-bucket-count { font-family:var(--serif); font-size:19px; font-weight:600; color:var(--gold-bright); }
+.sg-gacha-bucket em {
+  font-style:normal; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:var(--muted);
+}
+.sg-flip.is-copy .sg-flip-tag { color:var(--ink); background:rgba(60,44,120,.9); border:1px solid rgba(180,140,255,.5); }
+
+@media (prefers-reduced-motion:reduce) {
+  .sg-flip-aura, .sg-shard, .sg-flip.is-dissolving .sg-flip-inner { animation:none; }
+  .sg-flip-aura { opacity:.4; }
+  .sg-flip.is-dissolving .sg-flip-inner { opacity:0; }
 }

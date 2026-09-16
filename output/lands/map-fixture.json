@@ -1,5 +1,5 @@
 {
-  "token" : "qrA7FmI5bHjsx50YnzGomCMmfNps4EOI",
+  "token" : "WZ3ZnT7WJ8MTD5u3QX2t5OY_c7njkM7N",
   "status" : "ACTIVE",
   "currentNodeId" : -1,
   "lastReward" : "",
@@ -31,23 +31,23 @@
     "eventTitle" : "The Cinder Smith"
   },
   "landHistory" : [ {
-    "id" : "earth",
-    "name" : "Rootwild",
+    "id" : "water",
+    "name" : "Tideglass",
     "kind" : "ELEMENTAL",
-    "elements" : [ "EARTH" ],
-    "background" : "/img/lands/earth.webp",
+    "elements" : [ "WATER" ],
+    "background" : "/img/lands/water.webp",
     "locations" : {
-      "journey" : "/img/lands/locations/earth-journey.webp",
-      "shelter" : "/img/lands/locations/earth-shelter.webp",
-      "elite" : "/img/lands/locations/earth-elite.webp",
-      "boss" : "/img/lands/locations/earth-boss.webp"
+      "journey" : "/img/lands/locations/water-journey.webp",
+      "shelter" : "/img/lands/locations/water-shelter.webp",
+      "elite" : "/img/lands/locations/water-elite.webp",
+      "boss" : "/img/lands/locations/water-boss.webp"
     },
-    "feature" : "Root Refuge",
-    "featureType" : "REST",
-    "terrain" : "Living roots",
-    "effect" : "EARTH Siegelings recover 4 HP at battle start.",
+    "feature" : "Tide Traders",
+    "featureType" : "CARAVAN",
+    "terrain" : "Healing tides",
+    "effect" : "WATER Siegelings recover 4 HP at battle start.",
     "encounters" : "Favored Siegelings have 4× draw weight in recruits, broker stock and card prizes.",
-    "eventTitle" : "The Root Tender"
+    "eventTitle" : "The Tide Salvager"
   } ],
   "landSegment" : 0,
   "landSegmentRows" : 8,

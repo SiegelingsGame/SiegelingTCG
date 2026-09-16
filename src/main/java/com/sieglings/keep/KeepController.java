@@ -30,6 +30,16 @@ public class KeepController {
         return respond(authorizationHeader, user -> keepService.getSnapshot(user));
     }
 
+    /**
+     * Public, account-free: which stations each element helps at and by how much.
+     * The hub's card sheet shows what a Siegeling would give the Keep, which is a
+     * property of its element rather than of anyone's save.
+     */
+    @GetMapping("/api/keep/affinities")
+    public Map<String, Object> affinities() {
+        return keepService.affinityGuide();
+    }
+
     @PostMapping("/api/keep/collect")
     public ResponseEntity<Map<String, Object>> collect(
             @RequestHeader(value = "Authorization", required = false) String authorizationHeader,

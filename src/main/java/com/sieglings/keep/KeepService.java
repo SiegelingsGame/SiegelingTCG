@@ -1730,10 +1730,46 @@ public class KeepService {
                 : state.getFacilityResidentIds().getOrDefault(stationId, "");
     }
 
+    /**
+     * Which stations each element has an affinity with, and the production bonus a
+     * Siegeling of that element grants when posted there. Read-only, account-free
+     * game data: the hub's card sheet reports what a Siegeling WOULD give the Keep
+     * whether or not it is in residence, and a guest has no Keep to read. Serving
+     * it from the same FACILITIES table and tuning the simulation uses keeps one
+     * source of truth rather than a copy in JavaScript.
+     */
+    public Map<String, Object> affinityGuide() {
+        List<Map<String, Object>> stations = new ArrayList<>();
+
+        Map<String, Object> woodlot = new LinkedHashMap<>();
+        woodlot.put("id", "woodlot");
+        woodlot.put("name", "Restorative Woodlot");
+        woodlot.put("resourceName", "Timber");
+        woodlot.put("elements", List.copyOf(WOODLOT_AFFINITIES));
+        woodlot.put("affinityPercent", tuning().woodlotAffinityPercent());
+        // The woodlot has no neutral allowance; only its four affinity elements
+        // earn a bonus there.
+        woodlot.put("neutralPercent", 0);
+        stations.add(woodlot);
+
+        for (FacilityDefinition definition : FACILITIES.values()) {
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("id", definition.id());
+            entry.put("name", definition.name());
+            entry.put("resourceName", definition.resourceName());
+            entry.put("elements", definition.affinities().stream().sorted().toList());
+            entry.put("affinityPercent", tuning().facilityAffinityPercent());
+            entry.put("neutralPercent", tuning().facilityNeutralPercent());
+            stations.add(entry);
+        }
+
+        return Map.of("stations", stations);
+    }
+
     private boolean stationAffinity(Resident resident, String stationId) {
         if (resident == null) return false;
         Set<String> affinities = "woodlot".equals(stationId)
-                ? Set.of("EARTH", "WIND", "WATER", "LIGHT")
+                ? WOODLOT_AFFINITIES
                 : FACILITIES.getOrDefault(stationId, FacilityDefinition.EMPTY).affinities();
         return affinities.contains(resident.element());
     }
@@ -4032,6 +4068,9 @@ public class KeepService {
     void setRandom(Random random) {
         this.random = random == null ? new Random() : random;
     }
+
+    /** Named so {@link #affinityGuide()} and {@link #stationAffinity} cannot drift. */
+    private static final Set<String> WOODLOT_AFFINITIES = Set.of("EARTH", "WIND", "WATER", "LIGHT");
 
     private record Resident(String id, String name, String element, String rarity, String artUrl,
                             String size, boolean preferredAtWoodlot) { }

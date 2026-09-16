@@ -10,15 +10,6 @@
     SHADOW: '#6d4a9e', ELECTRIC: '#f5cf3d', METAL: '#aeb5b8', UNDEAD: '#9f7c73',
     PSYCHIC: '#db73b4', POISON: '#7ecb4d', LIGHT: '#ffe59a', NEUTRAL: '#95a5a6'
   };
-  var EL_ICON = {
-    FIRE: '/img/elements/element-fire.png', EARTH: '/img/elements/element-earth.png',
-    WIND: '/img/elements/element-wind.png', WATER: '/img/elements/element-water.svg',
-    ICE: '/img/elements/element-ice.png', SHADOW: '/img/elements/element-shadow.svg',
-    ELECTRIC: '/img/elements/element-electric.svg', METAL: '/img/elements/element-metal.svg',
-    UNDEAD: '/img/elements/element-undead.svg', PSYCHIC: '/img/elements/element-psychic.svg',
-    POISON: '/img/elements/element-poison.svg', LIGHT: '/img/elements/element-light.svg',
-    NEUTRAL: '/img/elements/element-neutral.svg'
-  };
   // Production Land plates double as hero environments; each element gets the
   // biome that reads as its home so the backdrop and the creature agree.
   var EL_LAND = {
@@ -33,7 +24,44 @@
     });
   }
   function color(el) { return EL_COLOR[String(el || '').toUpperCase()] || EL_COLOR.NEUTRAL; }
-  function icon(el) { return EL_ICON[String(el || '').toUpperCase()] || EL_ICON.NEUTRAL; }
+
+  // Elements are shown with the round notch art, not the square element badges.
+  // The notch is the mark a player already reads off a card's perimeter, so it
+  // is the one they recognise; the square badges belong to the old hub.
+  //
+  // game.js owns the canonical paths (NOTCH_ICON_PATHS, cache-busted per file),
+  // and it is loaded ahead of this script on every page that serves the hub, so
+  // they are read from there rather than copied. EL_NOTCH is only the offline
+  // fallback for the preview board, which loads no game.js.
+  var EL_NOTCH = {
+    FIRE: '/img/notches/notch-fire.png', EARTH: '/img/notches/notch-earth.png',
+    WIND: '/img/notches/notch-wind.png', WATER: '/img/notches/notch-water.png?v=2',
+    ICE: '/img/notches/notch-ice.png', SHADOW: '/img/notches/notch-shadow.png?v=2',
+    ELECTRIC: '/img/notches/notch-electric.png?v=2', METAL: '/img/notches/notch-metal.png?v=2',
+    UNDEAD: '/img/notches/notch-undead.png?v=2', PSYCHIC: '/img/notches/notch-psychic.png?v=2',
+    POISON: '/img/notches/notch-poison.png?v=2', LIGHT: '/img/notches/notch-light.png?v=2',
+    NEUTRAL: '/img/notches/notch-neutral.png?v=2'
+  };
+
+  // Matches the .sg-rar swatches in the vibrance pass, so a card's aura before it
+  // is turned over is the same colour as the pip it will show afterwards.
+  var RARITY_COLOR = {
+    COMMON: '#8fa2bd', UNCOMMON: '#64c987', RARE: '#4cc2ff',
+    EPIC: '#b06fe0', LEGENDARY: '#ffe066'
+  };
+  function rarityColor(r) {
+    return RARITY_COLOR[String(r || '').toUpperCase()] || RARITY_COLOR.COMMON;
+  }
+
+  function notchArt() {
+    return (typeof NOTCH_ICON_PATHS !== 'undefined' && NOTCH_ICON_PATHS) || EL_NOTCH;
+  }
+
+  function icon(el) {
+    var key = String(el || '').toUpperCase();
+    var map = notchArt();
+    return map[key] || map.NEUTRAL || EL_NOTCH.NEUTRAL;
+  }
   function land(el) { return '/img/lands/' + (EL_LAND[String(el || '').toUpperCase()] || 'relic') + '.webp'; }
   function title(v) {
     return String(v || '').toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); });
@@ -1037,15 +1065,24 @@
   // corners (TOP_LEFT … BOTTOM_RIGHT). Filtering to the edges alone silently
   // dropped two thirds of a card's notches - Dracosleaf's six read as two.
   var NOTCH_EDGES = ['TOP', 'RIGHT', 'BOTTOM', 'LEFT'];
+  // Half of the 16px art, so each notch straddles the edge the way it does on a
+  // real card rather than sitting inside it.
   var NOTCH_CORNER = {
-    TOP_LEFT:     'top:-5px;left:-5px',
-    TOP_RIGHT:    'top:-5px;right:-5px',
-    BOTTOM_LEFT:  'bottom:-5px;left:-5px',
-    BOTTOM_RIGHT: 'bottom:-5px;right:-5px'
+    TOP_LEFT:     'top:-9px;left:-9px',
+    TOP_RIGHT:    'top:-9px;right:-9px',
+    BOTTOM_LEFT:  'bottom:-9px;left:-9px',
+    BOTTOM_RIGHT: 'bottom:-9px;right:-9px'
   };
 
+  // The ring draws the actual notch art rather than a coloured dot: this is the
+  // mark a player matches edge-to-edge on the table, so the sheet shows the same
+  // thing the card does - and the same way. The art is a square plate whose
+  // content is a round token, so style.css composites it as a background on a
+  // circular element over the element colour (`.notch-dot[style*="--notch-icon"]`)
+  // rather than drawing it as a bare <img>, which would show the plate's corners.
   function notchDot(n, style) {
-    return '<i class="sg-sheet-notch" style="--el:' + color(n.element) + ';' + style +
+    return '<i class="sg-sheet-notch" style="--notch:' + color(n.element) +
+      ';--notch-icon:url(\'' + icon(n.element) + '\');' + style +
       '" title="' + esc(title(n.element) + ' ' + title(n.direction)) + '"></i>';
   }
 
@@ -1070,8 +1107,8 @@
       onEdge.forEach(function (n, i) {
         var at = ((i + 1) / (onEdge.length + 1) * 100).toFixed(1) + '%';
         var style = (edge === 'TOP' || edge === 'BOTTOM')
-          ? (edge === 'TOP' ? 'top:-5px;' : 'bottom:-5px;') + 'left:' + at + ';transform:translateX(-50%)'
-          : (edge === 'LEFT' ? 'left:-5px;' : 'right:-5px;') + 'top:' + at + ';transform:translateY(-50%)';
+          ? (edge === 'TOP' ? 'top:-9px;' : 'bottom:-9px;') + 'left:' + at + ';transform:translateX(-50%)'
+          : (edge === 'LEFT' ? 'left:-9px;' : 'right:-9px;') + 'top:' + at + ';transform:translateY(-50%)';
         dots += notchDot(n, style);
       });
     });
@@ -1094,58 +1131,160 @@
     }).join('');
   }
 
+  // ---- Keep: what this Siegeling gives the Keep, and what it is giving now ----
+  // Two different facts, and both are real. The affinity guide
+  // (/api/keep/affinities) is account-free game data - which stations this
+  // element helps at and by how much - so it shows for a guest too. The rapport
+  // block only appears when this card is actually a resident of YOUR Keep.
   function keepBlock(card, opts) {
-    if (opts.guest) return '<p class="sg-sheet-empty">Sign in to see your Keep.</p>';
+    var el = String(card.element || '').toUpperCase();
+    var stations = (opts.live && opts.live.keepAffinities) || null;
+    var out = '';
+
+    if (stations) {
+      var helps = [];
+      stations.forEach(function (st) {
+        var has = (st.elements || []).indexOf(el) !== -1;
+        var pct = has ? st.affinityPercent : (el === 'NEUTRAL' ? st.neutralPercent : 0);
+        if (pct) helps.push({ name: st.name, resource: st.resourceName, pct: pct, affinity: has });
+      });
+      out += helps.length
+        ? '<div class="sg-sheet-rows">' + helps.map(function (h) {
+            return '<div class="sg-sheet-row">' +
+              '<span class="sg-sheet-row-name">' + esc(h.name) +
+                (h.resource ? '<em>' + esc(h.resource) + '</em>' : '') + '</span>' +
+              '<b class="sg-sheet-row-val">+' + esc(h.pct) + '%</b>' +
+            '</div>';
+          }).join('') + '</div>'
+        : '<p class="sg-sheet-empty">' + esc(title(el)) +
+          ' grants no station bonus at the Keep.</p>';
+    } else {
+      out += '<p class="sg-sheet-empty">Station bonuses are unavailable right now.</p>';
+    }
+
     var residents = (opts.live && opts.live.keepResidents) || null;
-    if (!residents) return '<p class="sg-sheet-empty">Your Keep has not answered.</p>';
-    var res = residents.filter(function (r) { return r && r.id === card.id; })[0];
-    if (!res) return '<p class="sg-sheet-empty">Not in residence at your Keep.</p>';
-    var rap = res.rapport || {};
-    var bits = '';
-    if (res.assignment) bits += '<div><span>Station</span><b>' + esc(res.assignment) + '</b></div>';
-    if (rap.label) bits += '<div><span>Rapport</span><b>' + esc(rap.label) + '</b></div>';
-    if (rap.buffPercent != null) bits += '<div><span>Bonus</span><b>+' + esc(rap.buffPercent) + '%</b></div>';
-    if (res.favoriteBonusPercent) bits += '<div><span>Favourite</span><b>+' + esc(res.favoriteBonusPercent) + '%</b></div>';
-    return bits ? '<div class="sg-sheet-stats">' + bits + '</div>'
-                : '<p class="sg-sheet-empty">In residence, granting no bonus yet.</p>';
+    var res = residents ? residents.filter(function (r) { return r && r.id === card.id; })[0] : null;
+    if (res) {
+      var rap = res.rapport || {};
+      var bits = '';
+      if (res.assignment) bits += '<div><span>Posted</span><b>' + esc(res.assignment) + '</b></div>';
+      if (rap.label) bits += '<div><span>Rapport</span><b>' + esc(rap.label) + '</b></div>';
+      if (rap.buffPercent != null) bits += '<div><span>Rapport bonus</span><b>+' + esc(rap.buffPercent) + '%</b></div>';
+      out += '<div class="sg-sheet-sub">In residence</div>' +
+        (bits ? '<div class="sg-sheet-stats">' + bits + '</div>'
+              : '<p class="sg-sheet-empty">Granting no bonus yet.</p>');
+    } else if (!opts.guest) {
+      out += '<p class="sg-sheet-note">Not in residence at your Keep.</p>';
+    }
+    return out;
   }
 
-  function siegeBlock(card) {
-    var abilities = card.abilities || (card.ability ? [card.ability] : []);
-    var lines = [];
-    lines.push(abilities.length
-      ? 'Brings ' + abilities.length + ' card' + (abilities.length === 1 ? '' : 's') + ' to an expedition deck.'
-      : 'Brings no cards of its own to an expedition.');
-    if (card.evolvesFromName) lines.push('Evolves from ' + card.evolvesFromName + '.');
-    if (card.preferredRow) lines.push('Fields to the ' + String(card.preferredRow).toLowerCase() + ' row.');
-    return '<ul class="sg-sheet-list">' + lines.map(function (l) {
-      return '<li>' + esc(l) + '</li>';
-    }).join('') + '</ul>';
+  // ---- Siege: the cards this Siegeling brings, and the Advantage rider each
+  // gains while it holds the token. The rider table comes from the server
+  // (/api/siege/advantage-riders) rather than a copy of SiegeAdvantage in JS.
+  // An explicit table, not a substring test. Matching on 'ENEMY' missed
+  // ALL_ENEMIES and ROW_ENEMIES - which spell it "ENEMIES" - so every row and
+  // board-wide card silently lost its rider; and matching 'ALL' would have
+  // claimed ALL_ENEMIES as friendly. TargetType is a closed enum, so it is
+  // listed. PASSIVE has no target and takes no rider.
+  var TARGET_SIDE = {
+    SINGLE_ENEMY: false, ALL_ENEMIES: false, ROW_ENEMIES: false,
+    ROW_SELECT_ENEMIES: false, ENEMY_PLAYER: false,
+    SINGLE_ALLY: true, ALL_ALLIES: true, ROW_ALLIES: true,
+    ROW_SELECT_ALLIES: true, SELF: true
+  };
+
+  function friendlyTarget(targetType) {
+    var t = String(targetType || '').toUpperCase();
+    return Object.prototype.hasOwnProperty.call(TARGET_SIDE, t) ? TARGET_SIDE[t] : null;
   }
+
+  function siegeBlock(card, opts) {
+    var abilities = card.abilities || (card.ability ? [card.ability] : []);
+    var riders = (opts.live && opts.live.advantageRiders) || null;
+    var rider = riders && riders[String(card.element || '').toUpperCase()];
+    var meta = [];
+    if (card.evolvesFromName) meta.push('Evolves from ' + card.evolvesFromName);
+    if (card.preferredRow) meta.push('Fields to the ' + String(card.preferredRow).toLowerCase() + ' row');
+
+    if (!abilities.length) {
+      return '<p class="sg-sheet-empty">Brings no cards of its own to an expedition.</p>' +
+        (meta.length ? '<p class="sg-sheet-note">' + esc(meta.join(' \u00b7 ')) + '</p>' : '');
+    }
+
+    return (meta.length ? '<p class="sg-sheet-note">' + esc(meta.join(' \u00b7 ')) + '</p>' : '') +
+      abilities.map(function (a) {
+        var friendly = friendlyTarget(a.targetType);
+        var text = rider ? (friendly === true ? rider.friendly
+                          : friendly === false ? rider.enemy : null) : null;
+        return '<div class="sg-sheet-ability">' +
+          '<strong>' + esc(a.name || 'Card') +
+            (a.requiredEnergy ? '<em class="sg-sheet-cost">' + esc(a.requiredEnergy) + ' energy</em>' : '') +
+          '</strong>' +
+          (a.description ? '<span>' + esc(a.description) + '</span>' : '') +
+          (text ? '<span class="sg-sheet-rider"><i>Advantage</i>' + esc(text) + '</span>' : '') +
+        '</div>';
+      }).join('') +
+      (rider ? '' : '<p class="sg-sheet-note">Advantage riders are unavailable right now.</p>');
+  }
+
+  // Three tabs, not one long scroll. The sheet was taller than the phone: the
+  // card face was cut off at the top and Keep sat below the fold. Each panel is
+  // now short enough to read whole, so the sheet is a fixed-height card with one
+  // panel visible at a time and the face always in view.
+  var SHEET_TABS = [['arena', 'Arena'], ['siege', 'Siege'], ['keep', 'Keep']];
 
   function cardSheetMarkup(card, opts) {
     return '<div class="sg-sheet-grab"></div>' +
-      '<div class="sg-sheet-face">' + galleryCard(card) + '</div>' +
-      '<h3>' + esc(card.name) + '</h3>' +
-      '<div class="sg-sheet-meta"><img src="' + esc(icon(card.element)) + '" alt="">' +
-        esc(title(card.element)) + ' \u00b7 ' + esc(title(card.rarity)) + '</div>' +
-      '<div class="sg-sheet-block">' +
-        '<h4>Arena</h4>' +
-        '<div class="sg-sheet-stats">' +
-          '<div><span>Health</span><b>' + esc(card.health == null ? '\u2014' : card.health) + '</b></div>' +
-          '<div><span>Speed</span><b>' + esc(card.speed == null ? '\u2014' : card.speed) + '</b></div>' +
-          '<div><span>Row</span><b>' + esc(card.preferredRow ? title(card.preferredRow) : '\u2014') + '</b></div>' +
+      '<div class="sg-sheet-head">' +
+        '<div class="sg-sheet-face">' + galleryCard(card) + '</div>' +
+        '<div class="sg-sheet-id">' +
+          '<h3>' + esc(card.name) + '</h3>' +
+          '<div class="sg-sheet-meta"><img src="' + esc(icon(card.element)) + '" alt="">' +
+            esc(title(card.element)) + ' \u00b7 ' + esc(title(card.rarity)) + '</div>' +
+          '<div class="sg-sheet-stats is-tight">' +
+            '<div><span>HP</span><b>' + esc(card.health == null ? '\u2014' : card.health) + '</b></div>' +
+            '<div><span>SPD</span><b>' + esc(card.speed == null ? '\u2014' : card.speed) + '</b></div>' +
+            '<div><span>Row</span><b>' + esc(card.preferredRow ? title(card.preferredRow) : '\u2014') + '</b></div>' +
+          '</div>' +
         '</div>' +
-        notchRing(card) +
-        abilityRows(card) +
       '</div>' +
-      '<div class="sg-sheet-block">' +
-        '<h4>Siege</h4>' + siegeBlock(card) +
-      '</div>' +
-      '<div class="sg-sheet-block">' +
-        '<h4>Keep</h4>' + keepBlock(card, opts) +
+      '<div class="sg-sheet-tabs" role="tablist">' + SHEET_TABS.map(function (t, i) {
+        return '<button class="sg-sheet-tab' + (i === 0 ? ' on' : '') + '" type="button" role="tab" ' +
+          'aria-selected="' + (i === 0) + '" data-sheet-tab="' + t[0] + '">' + esc(t[1]) + '</button>';
+      }).join('') + '</div>' +
+      '<div class="sg-sheet-panels">' +
+        '<div class="sg-sheet-panel" data-sheet-panel="arena">' +
+          notchRing(card) + abilityRows(card) +
+        '</div>' +
+        '<div class="sg-sheet-panel" data-sheet-panel="siege" hidden>' +
+          siegeBlock(card, opts) +
+        '</div>' +
+        '<div class="sg-sheet-panel" data-sheet-panel="keep" hidden>' +
+          keepBlock(card, opts) +
+        '</div>' +
       '</div>' +
       '<a class="sg-sheet-cta" href="/deck-builder" data-screen="builder">Use in a deck \u203a</a>';
+  }
+
+  function wireTabs(sheetCard) {
+    var tabs = [].slice.call(sheetCard.querySelectorAll('[data-sheet-tab]'));
+    var panels = [].slice.call(sheetCard.querySelectorAll('[data-sheet-panel]'));
+    var panelHost = sheetCard.querySelector('.sg-sheet-panels');
+    tabs.forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        var id = tab.getAttribute('data-sheet-tab');
+        tabs.forEach(function (t) {
+          var on = t === tab;
+          t.classList.toggle('on', on);
+          t.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
+        panels.forEach(function (p) { p.hidden = p.getAttribute('data-sheet-panel') !== id; });
+        // Each panel is its own scroll context, so switching tabs starts at the
+        // top of the new one rather than at the old one's offset.
+        if (panelHost) panelHost.scrollTop = 0;
+      });
+    });
   }
 
   // One sheet host per screen; any tile with data-card opens it.
@@ -1161,6 +1300,7 @@
       if (!card) return;
       sheetCard.innerHTML = cardSheetMarkup(card, opts);
       sheetCard.scrollTop = 0;
+      wireTabs(sheetCard);
       sheet.classList.add('open');
     }
     sheet.addEventListener('click', function (e) {
@@ -1183,8 +1323,9 @@
      is presentation over a completed transaction, never a simulation of one. */
 
   function gachaMarkup(pk) {
-    return '<div class="sg-gacha" data-gacha>' +
+    return '<div class="sg-gacha" data-gacha style="--el:' + color(packElement(pk)) + '">' +
       '<div class="sg-gacha-veil"></div>' +
+      '<div class="sg-gacha-motes" data-gacha-motes></div>' +
       '<div class="sg-gacha-body">' +
         '<div class="sg-gacha-head">' +
           '<span class="sg-gacha-kicker" data-gacha-kicker>Opening</span>' +
@@ -1196,6 +1337,13 @@
           '</div>' +
         '</div>' +
         '<p class="sg-gacha-note" data-gacha-note>Tearing the seal\u2026</p>' +
+        // The shards a duplicate crumbles into need somewhere to land, or the
+        // remnants it paid are just a number that appears. This is that place.
+        '<div class="sg-gacha-bucket" data-gacha-bucket hidden>' +
+          '<span class="sg-gacha-bucket-sigil">\u25c8</span>' +
+          '<span class="sg-gacha-bucket-count" data-gacha-bucket-count>0</span>' +
+          '<em>remnants</em>' +
+        '</div>' +
         '<div class="sg-gacha-actions" data-gacha-actions hidden>' +
           '<button class="sg-ghost-btn" type="button" data-gacha-all>Reveal all</button>' +
           '<button class="sg-guest-primary" type="button" data-gacha-done>Done</button>' +
@@ -1206,14 +1354,19 @@
 
   // The face-down card carries the pack's own back, so the thing the player
   // tapped is the thing that flips over.
+  // The aura is the only thing a face-down card tells you, and it is honest: the
+  // rarity is already decided server-side, so hinting at it before the turn is
+  // showing what is there, not teasing something that has not happened yet.
   function gachaSlot(card, back, i) {
-    var el = color(card.element);
-    return '<button class="sg-flip" type="button" data-flip="' + i + '" style="--el:' + el +
-      ';--slot:' + i + '">' +
+    return '<button class="sg-flip rarity-' + esc(String(card.rarity || '').toLowerCase()) +
+      '" type="button" data-flip="' + i + '" style="--el:' + color(card.element) +
+      ';--rar:' + rarityColor(card.rarity) + ';--slot:' + i + '">' +
+      '<span class="sg-flip-aura" aria-hidden="true"></span>' +
       '<span class="sg-flip-inner">' +
         '<span class="sg-flip-back"><img src="' + esc(back) + '" alt="" aria-hidden="true"></span>' +
         '<span class="sg-flip-front" data-flip-front></span>' +
       '</span>' +
+      '<span class="sg-flip-shards" data-flip-shards aria-hidden="true"></span>' +
       '<span class="sg-flip-tag" hidden data-flip-tag></span>' +
     '</button>';
   }
@@ -1226,6 +1379,8 @@
     var gacha = wrap.firstChild;
     host.appendChild(gacha);
     var stage = gacha.querySelector('[data-gacha-stage]');
+    // Same drifting motes the hero uses, in the pack's element.
+    paintMotes(gacha.querySelector('[data-gacha-motes]'), packElement(pk));
     var note = gacha.querySelector('[data-gacha-note]');
     var actions = gacha.querySelector('[data-gacha-actions]');
     var kicker = gacha.querySelector('[data-gacha-kicker]');
@@ -1270,53 +1425,119 @@
       note.textContent = cards.length + ' card' + (cards.length === 1 ? '' : 's');
       stage.className = 'sg-gacha-stage is-grid';
       stage.innerHTML = cards.map(function (c, i) { return gachaSlot(c, back, i); }).join('');
-      actions.hidden = false;
 
       var slots = [].slice.call(stage.querySelectorAll('[data-flip]'));
+      var all = gacha.querySelector('[data-gacha-all]');
+      var bucket = gacha.querySelector('[data-gacha-bucket]');
+      var bucketCount = gacha.querySelector('[data-gacha-bucket-count]');
+      var banked = 0;
       var left = slots.length;
+
+      // The controls stay out until every card has actually been dealt onto the
+      // stage. Offering "Reveal all" while the pack is still tearing open asks
+      // the player to act on something they cannot see yet.
+      var dealt = (slots.length - 1) * 60 + 420;
+      setTimeout(function () { actions.hidden = false; }, dealt);
+
+      // A duplicate is worth remnants, so it does not just sit there wearing a
+      // label: the card crumbles and its shards fly to the bucket, which counts
+      // up by exactly what the server said that copy paid.
+      function bankRemnants(btn, card) {
+        var amount = Number(card.remnantsAwarded) || 0;
+        var host = btn.querySelector('[data-flip-shards]');
+        var from = btn.getBoundingClientRect();
+        bucket.hidden = false;
+        var to = bucket.getBoundingClientRect();
+        var dx = (to.left + to.width / 2) - (from.left + from.width / 2);
+        var dy = (to.top + to.height / 2) - (from.top + from.height / 2);
+
+        var shards = '';
+        for (var i = 0; i < 12; i++) {
+          // Each shard scatters a little before being pulled in, so the flight
+          // reads as debris rather than twelve copies of one tween.
+          var spreadX = (Math.random() - 0.5) * 70;
+          var spreadY = (Math.random() - 0.5) * 70;
+          shards += '<i class="sg-shard" style="--sx:' + spreadX.toFixed(0) + 'px;--sy:' +
+            spreadY.toFixed(0) + 'px;--dx:' + dx.toFixed(0) + 'px;--dy:' + dy.toFixed(0) +
+            'px;--d:' + (i * 34) + 'ms"></i>';
+        }
+        host.innerHTML = shards;
+        btn.classList.add('is-dissolving');
+
+        // Count up as the shards land rather than all at once on arrival.
+        var landed = 0;
+        var step = Math.max(1, Math.round(amount / 12));
+        var ticker = setInterval(function () {
+          landed = Math.min(amount, landed + step);
+          bucketCount.textContent = (banked + landed).toLocaleString();
+          bucket.classList.add('is-hit');
+          setTimeout(function () { bucket.classList.remove('is-hit'); }, 140);
+          if (landed >= amount) {
+            clearInterval(ticker);
+            banked += amount;
+            bucketCount.textContent = banked.toLocaleString();
+          }
+        }, 70);
+
+        setTimeout(function () {
+          host.innerHTML = '';
+          btn.classList.remove('is-dissolving');
+          btn.classList.add('is-spent');
+        }, 1150);
+      }
 
       function flip(btn) {
         if (btn.classList.contains('is-open')) return;
         var card = cards[Number(btn.getAttribute('data-flip'))];
         var front = btn.querySelector('[data-flip-front]');
-        // The real composed face when the catalog knows the card, a plate in its
-        // element and rarity when it does not.
         var known = byIdIn(ALL_CARDS, card.id);
         front.innerHTML = known ? galleryCard(known) : cardPlate(card);
         var tag = btn.querySelector('[data-flip-tag]');
         if (card.duplicateAtCap) {
-          tag.textContent = '+' + (card.remnantsAwarded || 0) + ' remnants';
+          tag.textContent = 'Owned \u00b7 +' + (card.remnantsAwarded || 0);
           tag.hidden = false;
           btn.classList.add('is-dupe');
         } else if (card.ownedAfter === 1) {
           tag.textContent = 'New';
           tag.hidden = false;
           btn.classList.add('is-new');
+        } else if (card.ownedAfter > 1) {
+          // Granted, but not the first copy - which the old build showed as
+          // nothing at all, so a second copy looked identical to a new card.
+          tag.textContent = 'Copy ' + card.ownedAfter;
+          tag.hidden = false;
+          btn.classList.add('is-copy');
         }
         if (card.holo) btn.classList.add('is-holo');
         btn.classList.add('is-open');
+
+        // Let the turn finish before the card crumbles, or the player never sees
+        // what they pulled.
+        if (card.duplicateAtCap) setTimeout(function () { bankRemnants(btn, card); }, 700);
+
         left -= 1;
         if (!left) {
           kicker.textContent = 'Opened';
           note.textContent = summary(cards);
-          // Nothing left to reveal, so the control that does it goes away.
-          gacha.querySelector('[data-gacha-all]').hidden = true;
+          all.hidden = true;
         }
       }
 
       slots.forEach(function (btn) { btn.addEventListener('click', function () { flip(btn); }); });
-      gacha.querySelector('[data-gacha-all]').addEventListener('click', function () {
-        slots.forEach(function (btn, i) { setTimeout(function () { flip(btn); }, i * 110); });
+      all.addEventListener('click', function () {
+        slots.forEach(function (btn, i) { setTimeout(function () { flip(btn); }, i * 150); });
       });
     }
 
     function summary(cards) {
       var fresh = cards.filter(function (c) { return c.ownedAfter === 1; }).length;
+      var copies = cards.filter(function (c) { return !c.duplicateAtCap && c.ownedAfter > 1; }).length;
       var remnants = cards.reduce(function (n, c) { return n + (c.remnantsAwarded || 0); }, 0);
       var bits = [];
       if (fresh) bits.push(fresh + ' new');
-      if (remnants) bits.push(remnants + ' remnants');
-      return bits.length ? bits.join(' \u00b7 ') : 'All duplicates';
+      if (copies) bits.push(copies + ' extra cop' + (copies === 1 ? 'y' : 'ies'));
+      if (remnants) bits.push(remnants.toLocaleString() + ' remnants');
+      return bits.length ? bits.join(' \u00b7 ') : 'Nothing gained';
     }
   }
 
