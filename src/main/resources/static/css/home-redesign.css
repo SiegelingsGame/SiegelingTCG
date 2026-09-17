@@ -697,6 +697,21 @@ body.concept-board {
   transform:translateY(18px); transition:transform .34s cubic-bezier(.2,.8,.25,1);
 }
 .sg-sheet.open .sg-sheet-card { transform:translateY(0); }
+.sg-sheet[data-sheet].open .sg-sheet-card { transform:translateY(var(--sg-sheet-drag, 0px)); }
+.sg-sheet[data-sheet].is-dragging .sg-sheet-card { transition:none; user-select:none; }
+.sg-sheet[data-sheet]:not(.open) .sg-sheet-card { transform:translateY(calc(100% + 24px)); }
+.sg-sheet-dismiss {
+  display:block; flex:0 0 24px; width:56px; height:24px; margin:0 auto; padding:0;
+  border:0; background:transparent; cursor:pointer; touch-action:none;
+}
+.sg-sheet-dismiss::before {
+  content:""; display:block; width:38px; height:4px; margin:auto; border-radius:2px;
+  background:rgba(143,162,189,.55);
+}
+.sg-sheet-dismiss:focus-visible { outline:2px solid var(--gold-bright); border-radius:6px; }
+@media (prefers-reduced-motion:reduce) {
+  .sg-sheet[data-sheet], .sg-sheet[data-sheet] .sg-sheet-card { transition:none; }
+}
 .sg-sheet-art {
   height:190px; margin-top:-64px; display:flex; align-items:flex-end; justify-content:center; pointer-events:none;
 }
@@ -2002,6 +2017,12 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   font-size:9px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted);
   text-align:center; width:100%;
 }
+.sg-sheet-summary { display:flex; align-items:center; gap:22px; padding:10px 9px 12px; }
+.sg-sheet-summary .sg-sheet-notches { flex:0 0 92px; margin:0; }
+.sg-sheet-description {
+  flex:1 1 auto; min-width:0; margin:0; font-size:12px; line-height:1.6;
+  color:var(--muted); white-space:pre-line; overflow-wrap:anywhere;
+}
 /* Real notch art, so it needs room to read; the ring grew with it. Composited
    the way the battle table does it: the square plate becomes a round token by
    being a background on a circular element over the element colour. */
@@ -2102,9 +2123,17 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 /* The one scrolling region. flex:1 with min-height:0 so it takes the slack and
    the header and CTA never get pushed off. */
 .sg-sheet-panels { flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+.sg-sheet[data-sheet] .sg-sheet-panels { overscroll-behavior-y:contain; }
 .sg-sheet-panel { display:flex; flex-direction:column; gap:8px; padding-bottom:4px; }
 .sg-sheet-panel[hidden] { display:none; }
 .sg-sheet-card .sg-sheet-cta { flex:0 0 auto; margin-top:12px; }
+@media (max-height:500px) and (orientation:landscape) {
+  .sg-sheet[data-sheet] .sg-sheet-card { max-height:calc(100dvh - 20px - var(--sg-sat)); }
+  .sg-sheet[data-sheet] .sg-sheet-face { flex-basis:64px; }
+  .sg-sheet[data-sheet] .sg-sheet-face .sg-card-tile { width:64px; }
+  .sg-sheet[data-sheet] .sg-sheet-id h3 { font-size:18px; }
+  .sg-sheet[data-sheet] .sg-sheet-meta { margin:3px 0 5px; }
+}
 
 /* Keep: one row per station this Siegeling helps at. */
 .sg-sheet-rows { display:flex; flex-direction:column; gap:7px; }
