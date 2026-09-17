@@ -1528,11 +1528,14 @@ body {
     display: none;
 }
 
-/* Split HP strip pinned just below the device status-bar safe area. */
+/* Split HP strip, pinned to the BOTTOM OF the status-bar safe area rather than
+   just under it. Sitting under it put a dark translucent band between the status
+   bar and the HUD's name row, which is what read as a fade over the names;
+   inside the inset it uses space the layout cannot use anyway. */
 .safe-hp-strip {
     display: none;
     position: fixed;
-    top: var(--device-safe-top);
+    top: max(0px, calc(var(--device-safe-top) - 4px));
     left: 0;
     right: 0;
     height: clamp(0px, var(--device-safe-top), 4px);
@@ -4810,7 +4813,12 @@ body.battle-phase-active .battlefield::after {
         align-items: center;
         gap: 8px;
         flex-shrink: 0;
-        padding: calc(7px + env(safe-area-inset-top, 0px)) 10px 7px;
+        /* Through the variable so the shipped expression can be driven with a
+           real inset in a test - Chromium cannot fake env(). 10px, not 7px: the
+           safe-hp strip paints a dark band across the last 4px of the inset,
+           and at 7px the player/enemy names sat right under it, so the strip
+           read as a fade laid over the top of the names. */
+        padding: calc(10px + var(--device-safe-top)) 10px 7px;
         background:
             linear-gradient(180deg, rgba(22, 33, 62, 0.98), rgba(13, 22, 43, 0.98)),
             radial-gradient(circle at center top, rgba(255, 255, 255, 0.06), transparent 64%);
@@ -6744,7 +6752,12 @@ body.battle-phase-active .battlefield::after {
         align-items: center;
         gap: 8px;
         flex-shrink: 0;
-        padding: calc(7px + env(safe-area-inset-top, 0px)) 10px 7px;
+        /* Through the variable so the shipped expression can be driven with a
+           real inset in a test - Chromium cannot fake env(). 10px, not 7px: the
+           safe-hp strip paints a dark band across the last 4px of the inset,
+           and at 7px the player/enemy names sat right under it, so the strip
+           read as a fade laid over the top of the names. */
+        padding: calc(10px + var(--device-safe-top)) 10px 7px;
         background:
             linear-gradient(180deg, rgba(22, 33, 62, 0.98), rgba(13, 22, 43, 0.98)),
             radial-gradient(circle at center top, rgba(255, 255, 255, 0.06), transparent 64%);
@@ -15026,9 +15039,15 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         font-size: 0.48em;
     }
 
-    /* --- Action Bar --- */
+    /* --- Action Bar ---
+       The action bar is the last row of the bottom dock, so the home-indicator
+       inset belongs here and nowhere above it: the bar's own fill runs to the
+       physical bottom of the glass and only its buttons are held clear of the
+       indicator. The hand tray used to carry that inset instead, which opened a
+       safe-area-sized dead band in the MIDDLE of the dock while the icon row
+       still ran under the indicator. */
     .action-bar {
-        padding: 3px 8px;
+        padding: 3px 8px calc(3px + var(--device-safe-bottom));
         gap: 6px;
     }
 
@@ -15051,7 +15070,6 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         --hand-card-hover-lift: -6px;
         --hand-card-selected-lift: -8px;
         padding: 3px 6px;
-        padding-bottom: calc(3px + env(safe-area-inset-bottom, 0px));
     }
 
     .hand-tray .hand-cards {
