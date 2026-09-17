@@ -1166,8 +1166,13 @@
     var lead = byId(d.lead) || CARDS[0];
     var total = (d.w || 0) + (d.l || 0);
     var rate = total ? Math.round(d.w / total * 100) : 0;
+    // Openable, but not a <button>: a preset row already carries its Unlock
+    // button and nesting one button in another is invalid HTML that browsers
+    // silently un-nest. The handler ignores clicks that land on the action.
     return '<article class="sg-deckrow' + (d.active ? ' is-active' : '') + (action ? ' has-action' : '') +
-      '" data-deck-id="' + esc(d.id || '') + '" style="--el:' + color(lead.element) + '">' +
+      '" data-deck-id="' + esc(d.id || '') + '" data-deck-open="' + esc(d.id || '') +
+      '" role="button" tabindex="0" aria-label="' + esc(d.name + ', ' + d.cards + ' cards') +
+      '" style="--el:' + color(lead.element) + '">' +
       '<div class="sg-deckrow-bg" style="background-image:url(\'' + land(lead.element) + '\')"></div>' +
       '<div class="sg-deckrow-veil"></div>' +
       '<div class="sg-deckrow-art"><img src="' + esc(lead.cardArtUrl) + '" alt="" loading="lazy"></div>' +
@@ -1205,8 +1210,36 @@
       id: d.id, name: d.name || 'Untitled deck', lead: lead && lead.id,
       els: els, w: d.wins || 0, l: d.losses || 0,
       cards: entries.reduce(function (n, c) { return n + (typeof c === 'string' ? 1 : Number(c.count) || 1); }, 0),
-      active: Boolean(d.selected || d.active)
+      active: Boolean(d.selected || d.active),
+      // The detail sheet and the builder both need the list itself, not only how
+      // long it is. Normalised to {id, count} so a preset (which carries counts)
+      // and a saved custom deck (a flat array of ids, repeated per copy) read the
+      // same way downstream.
+      entries: countedEntries(entries),
+      trainerId: d.trainerId || null
     };
+  }
+
+  function countedEntries(entries) {
+    var order = [], counts = {};
+    (entries || []).forEach(function (c) {
+      var id = typeof c === 'string' ? c : c && c.id;
+      if (!id) return;
+      var n = typeof c === 'string' ? 1 : Number(c.count) || 1;
+      if (counts[id] == null) { counts[id] = 0; order.push(id); }
+      counts[id] += n;
+    });
+    return order.map(function (id) { return { id: id, count: counts[id] }; });
+  }
+
+  // A saved custom deck is stored as one id per copy, which is the shape
+  // /api/profile/decks wants back.
+  function flatCardIds(entries) {
+    var out = [];
+    (entries || []).forEach(function (e) {
+      for (var i = 0; i < (e.count || 0); i++) out.push(e.id);
+    });
+    return out;
   }
 
   // Saved lists and unlocked presets coexist. Saved decks carry customDeckCards
@@ -1215,7 +1248,9 @@
     var saved = opts && opts.live && opts.live.savedDecks;
     if (!Array.isArray(saved)) return [];
     return saved.map(function (d) {
-      return deckSummary(d, deckEntries(d, opts.live.decks));
+      var row = deckSummary(d, deckEntries(d, opts.live.decks));
+      row.kind = 'saved';
+      return row;
     });
   }
 
@@ -1239,8 +1274,10 @@
       var row = deckSummary(d, deckEntries(d));
       if (presetUnlocked(d, live)) {
         row.label = (live.purchasedDeckIds || []).indexOf(d.id) !== -1 ? 'Owned' : 'Included';
+        row.kind = 'owned';
         owned.push(row);
       } else {
+        row.kind = 'presets';
         shop.push(row);
       }
     });
@@ -1269,6 +1306,219 @@
       }).join('') + '</div>' : '<p class="sg-empty-row">' + esc(empty) + '</p>') + '</section>';
   }
 
+  /* ---------- auto build ----------
+     There is no auto-build endpoint, and inventing one would put deck theory in
+     two places. This composes a list the server will accept on the rules the
+     server already publishes (`deckBuilder.minDeckSize` / `maxCopies`) out of
+     cards the player actually owns, then saves it through the ordinary
+     /api/profile/decks path so it is a real saved deck, not a client fiction.
+
+     It builds around one element rather than taking the first N cards, because a
+     pile of unrelated cards cannot link - notches are the whole game - and it
+     keeps roughly the preset ratio of Siegelings to Strategies to Deceptions. */
+
+  function builderRules(opts) {
+    var rules = (opts.live && opts.live.deckBuilder) || {};
+    return {
+      minDeckSize: Number(rules.minDeckSize) || 30,
+      maxCopies: Number(rules.maxCopies) || 3
+    };
+  }
+
+  function ownedCount(opts, id) {
+    var owned = opts.live && opts.live.ownedCards;
+    if (!owned) return 0;
+    return Math.max(0, Number(owned[id]) || 0);
+  }
+
+  // A SiegeKnight the player owns AND the catalog still lists as active; the
+  // server refuses a save on either count.
+  function autoTrainerId(opts) {
+    var live = opts.live || {};
+    var owned = (live.knights || []).map(function (k) { return k && k.id; }).filter(Boolean);
+    var active = {};
+    (live.trainers || []).forEach(function (t) {
+      if (t && t.id && t.active !== false) active[String(t.id).toLowerCase()] = true;
+    });
+    var usable = owned.filter(function (id) { return active[String(id).toLowerCase()]; });
+    if (!usable.length) return null;
+    if (live.defaultTrainerId && usable.indexOf(live.defaultTrainerId) !== -1) return live.defaultTrainerId;
+    return usable[0];
+  }
+
+  function autoBuildList(opts) {
+    var rules = builderRules(opts);
+    var pool = ownedPool(opts).filter(function (c) {
+      return c && String(c.type || 'SIEGLING').toUpperCase() !== 'SIEGEKNIGHT';
+    });
+    if (!pool.length) return null;
+
+    // Lead with whichever element the player has most of, so the deck can link.
+    var byElement = {};
+    pool.forEach(function (c) {
+      var el = String(c.element || 'NEUTRAL').toUpperCase();
+      byElement[el] = (byElement[el] || 0) + Math.min(ownedCount(opts, c.id), rules.maxCopies);
+    });
+    var lead = Object.keys(byElement).sort(function (a, b) { return byElement[b] - byElement[a]; })[0];
+
+    function rank(c) {
+      var el = String(c.element || 'NEUTRAL').toUpperCase();
+      // Same element first, then neutral, then everything else; rarer last so a
+      // deck is not three copies of one legendary and nothing else.
+      return (el === lead ? 0 : el === 'NEUTRAL' ? 1 : 2) * 10 +
+        (String(c.rarity || '').toUpperCase() === 'LEGENDARY' ? 2 : 0);
+    }
+    function ofType(type) {
+      return pool.filter(function (c) { return String(c.type || 'SIEGLING').toUpperCase() === type; })
+        .sort(function (a, b) { return rank(a) - rank(b) || String(a.name).localeCompare(String(b.name)); });
+    }
+
+    // The preset shape is 20/10/10 of 40; scaled to the minimum and topped up
+    // from whatever is left, because a player may own no Deceptions at all.
+    var want = {
+      SIEGLING: Math.round(rules.minDeckSize * 0.5),
+      SPELL: Math.round(rules.minDeckSize * 0.25),
+      TRAP: Math.round(rules.minDeckSize * 0.25)
+    };
+    var picked = [], counts = {};
+    function take(list, limit) {
+      for (var pass = 0; pass < rules.maxCopies; pass++) {
+        for (var i = 0; i < list.length && picked.length < limit; i++) {
+          var c = list[i];
+          var have = counts[c.id] || 0;
+          if (have >= Math.min(rules.maxCopies, ownedCount(opts, c.id))) continue;
+          counts[c.id] = have + 1;
+          picked.push(c.id);
+        }
+        if (picked.length >= limit) break;
+      }
+    }
+    var running = 0;
+    ['SIEGLING', 'SPELL', 'TRAP'].forEach(function (type) {
+      running += want[type];
+      take(ofType(type), running);
+    });
+    // Short of the minimum because the collection is thin in one slot: fill from
+    // everything owned rather than refusing to build.
+    take(ofType('SIEGLING').concat(ofType('SPELL'), ofType('TRAP')), rules.minDeckSize);
+
+    if (picked.length < rules.minDeckSize) return { shortfall: rules.minDeckSize - picked.length, cards: picked };
+    return { cards: picked.slice(0, rules.minDeckSize) };
+  }
+
+  function autoBuildName(opts) {
+    var used = {};
+    ((opts.live && opts.live.savedDecks) || []).forEach(function (d) {
+      if (d && d.name) used[String(d.name).toLowerCase()] = true;
+    });
+    var base = 'Auto Build';
+    if (!used[base.toLowerCase()]) return base;
+    for (var n = 2; n < 99; n++) {
+      if (!used[(base + ' ' + n).toLowerCase()]) return base + ' ' + n;
+    }
+    return base + ' ' + Date.now();
+  }
+
+  function saveDeck(payload) {
+    var api = liveApi();
+    if (!api) return Promise.reject(new Error('Sign in to save decks.'));
+    return api.post('/api/profile/decks', payload).then(function (res) {
+      if (!res || res.error) throw new Error((res && res.error) || 'That deck could not be saved.');
+      return res;
+    });
+  }
+
+  // The save returns the whole profile, so the screen is repainted from the
+  // server's list rather than from a guess about what it now contains.
+  function adoptSavedDecks(opts, res) {
+    if (!res) return;
+    opts.live = opts.live || {};
+    if (Array.isArray(res.savedDecks)) opts.live.savedDecks = res.savedDecks;
+    else if (res.profile && Array.isArray(res.profile.savedDecks)) opts.live.savedDecks = res.profile.savedDecks;
+  }
+
+  /* ---------- deck detail ----------
+     Tapping a deck row did nothing at all: the rows carried a data-deck-id that
+     nothing listened for, so a player could see that they owned six decks and
+     never look inside one. This is that look - the list itself, grouped the way
+     a deck is read (Siegelings, then Strategies, then Deceptions), with the
+     cards as real faces so tapping one opens the card sheet on top.
+
+     Its own host, not the card sheet's: the two are stacked, and sharing one
+     would mean opening a card from a deck destroyed the deck behind it. */
+  function deckSheetHost() {
+    return '<div class="sg-sheet sg-deck-sheet" data-deck-sheet>' +
+      '<div class="sg-sheet-card" data-deck-sheet-card></div></div>';
+  }
+
+  var DECK_GROUPS = [['SIEGLING', 'Siegelings'], ['SPELL', 'Strategies'], ['TRAP', 'Deceptions']];
+
+  function deckCardGroups(entries) {
+    var seen = {}, groups = {};
+    DECK_GROUPS.forEach(function (g) { groups[g[0]] = []; });
+    (entries || []).forEach(function (e) {
+      var card = byIdIn(ALL_CARDS, e.id) || byId(e.id);
+      if (!card) return;
+      var type = String(card.type || 'SIEGLING').toUpperCase();
+      if (!groups[type]) groups[type] = [];
+      if (seen[e.id]) return;
+      seen[e.id] = true;
+      groups[type].push({ card: card, count: e.count });
+    });
+    return groups;
+  }
+
+  function deckSheetMarkup(d, opts) {
+    var groups = deckCardGroups(d.entries);
+    var known = (d.entries || []).filter(function (e) {
+      return byIdIn(ALL_CARDS, e.id) || byId(e.id);
+    }).length;
+    var order = DECK_GROUPS.slice();
+    Object.keys(groups).forEach(function (k) {
+      if (!order.some(function (g) { return g[0] === k; })) order.push([k, title(k) + 's']);
+    });
+    var body = order.map(function (g) {
+      var rows = groups[g[0]] || [];
+      if (!rows.length) return '';
+      var total = rows.reduce(function (n, r) { return n + r.count; }, 0);
+      return '<div class="sg-decksheet-group">' +
+        '<h4>' + esc(g[1]) + '<em>' + esc(total) + '</em></h4>' +
+        '<div class="sg-decksheet-grid">' + rows.map(function (r) {
+          return '<div class="sg-decksheet-slot">' + galleryCard(r.card) +
+            (r.count > 1 ? '<span class="sg-build-count">x' + esc(r.count) + '</span>' : '') + '</div>';
+        }).join('') + '</div>' +
+      '</div>';
+    }).join('');
+
+    var actions = '';
+    if (d.kind === 'saved' && !opts.guest) {
+      actions = '<button class="sg-guest-primary" type="button" data-deck-edit="' + esc(d.id) + '">Edit deck</button>' +
+        '<button class="sg-ghost-btn" type="button" data-deck-delete="' + esc(d.id) + '">Delete</button>';
+    } else if (d.kind === 'owned' && !opts.guest) {
+      // A preset is the game's list, not the player's, so it is copied into a
+      // new saved deck rather than edited in place.
+      actions = '<button class="sg-guest-primary" type="button" data-deck-copy="' + esc(d.id) + '">Copy to a new deck</button>';
+    } else if (d.kind === 'presets') {
+      actions = '<p class="sg-sheet-note">Unlock this preset to build with it.</p>';
+    }
+
+    return '<button class="sg-sheet-dismiss" type="button" aria-label="Close deck"></button>' +
+      '<div class="sg-decksheet">' +
+        '<div class="sg-decksheet-head">' +
+          '<h3>' + esc(d.name) + '</h3>' +
+          '<div class="sg-deck-els">' + (d.els || []).map(function (e) {
+            return '<img src="' + icon(e) + '" alt="' + esc(title(e)) + '">';
+          }).join('') + '</div>' +
+          '<p>' + esc(d.cards) + ' cards' +
+            (known < (d.entries || []).length
+              ? ' \u00b7 ' + esc((d.entries || []).length - known) + ' not in your catalog yet' : '') +
+          '</p>' +
+        '</div>' +
+        (body || '<p class="sg-sheet-empty">This deck\'s cards are not in the catalog this page loaded.</p>') +
+        (actions ? '<div class="sg-decksheet-actions">' + actions + '</div>' : '') +
+      '</div>';
+  }
+
   function decksScreen(opts) {
     opts = opts || {};
     var groups = deckGroups(opts);
@@ -1277,8 +1527,10 @@
         '<div class="sg-page-head"><h2>My Decks</h2><p>' + groups.saved.length + ' saved &middot; ' +
           groups.owned.length + (opts.guest ? ' included presets' : ' owned presets') + '</p></div>' +
         '<div class="sg-tool-row">' +
-          '<button class="sg-ghost-btn" type="button"><span class="ico">✎</span>Deck Builder</button>' +
-          '<button class="sg-ghost-btn" type="button"><span class="ico">✧</span>Auto Build</button>' +
+          '<button class="sg-ghost-btn" type="button" data-open-builder' +
+            (opts.guest ? ' disabled' : '') + '><span class="ico">✎</span>Deck Builder</button>' +
+          '<button class="sg-ghost-btn" type="button" data-auto-build' +
+            (opts.guest ? ' disabled' : '') + '><span class="ico">✧</span>Auto Build</button>' +
         '</div>' +
         (opts.deckPurchaseNotice ? '<p class="sg-deck-notice" data-deck-notice tabindex="-1" role="' +
           (opts.deckPurchaseError ? 'alert' : 'status') + '">' + esc(opts.deckPurchaseNotice) + '</p>' : '') +
@@ -1288,6 +1540,8 @@
           (opts.live && opts.live.decks && opts.live.decks.length) ? 'You have unlocked every available preset.' : 'Preset decks are unavailable right now.') +
         '<div style="height:96px"></div>' +
       '</div>' +
+      deckSheetHost() +
+      sheetHost() +
       bottomMarkup('collection', opts);
   }
 
@@ -1303,7 +1557,148 @@
     if (announce && notice) notice.focus();
   }
 
+  function allDeckRows(opts) {
+    var groups = deckGroups(opts);
+    return groups.saved.concat(groups.owned, groups.shop);
+  }
+
+  function findDeckRow(opts, id) {
+    return allDeckRows(opts).filter(function (d) { return d.id === id; })[0] || null;
+  }
+
+  function mountDeckSheet(app, opts) {
+    var sheet = app.querySelector('[data-deck-sheet]');
+    if (!sheet) return;
+    var card = sheet.querySelector('[data-deck-sheet-card]');
+    var opener = null;
+
+    function close() {
+      sheet.classList.remove('open');
+      if (opener && opener.isConnected) opener.focus({ preventScroll: true });
+      opener = null;
+    }
+    function open(id, from) {
+      var d = findDeckRow(opts, id);
+      if (!d) return;
+      opener = from || null;
+      card.innerHTML = deckSheetMarkup(d, opts);
+      card.scrollTop = 0;
+      sheet.classList.add('open');
+      var dismiss = card.querySelector('.sg-sheet-dismiss');
+      if (dismiss) dismiss.focus({ preventScroll: true });
+      scheduleFit(sheet);
+    }
+
+    app.addEventListener('click', function (e) {
+      if (!e.target.closest) return;
+      // The Unlock button owns its own clicks, and so does anything inside the
+      // sheet itself - reopening the deck from within it would reset the scroll.
+      if (e.target.closest('[data-buy-deck]')) return;
+      var row = e.target.closest('[data-deck-open]');
+      if (!row || sheet.contains(row)) return;
+      open(row.getAttribute('data-deck-open'), row);
+    });
+    app.addEventListener('keydown', function (e) {
+      var row = e.target.closest && e.target.closest('[data-deck-open]');
+      if (row && !sheet.contains(row) && (e.key === 'Enter' || e.key === ' ')) {
+        e.preventDefault();
+        open(row.getAttribute('data-deck-open'), row);
+        return;
+      }
+      // The card sheet sits above this one and is mounted first, so it claims
+      // Escape before this handler sees it.
+      if (e.key === 'Escape' && !e.sgEscapeHandled && sheet.classList.contains('open')) {
+        close();
+        e.sgEscapeHandled = true;
+      }
+    });
+    sheet.addEventListener('click', function (e) {
+      if (e.target === sheet || e.target.closest('.sg-sheet-dismiss')) { close(); return; }
+
+      var edit = e.target.closest('[data-deck-edit]');
+      if (edit) { close(); openBuilderFor(edit.getAttribute('data-deck-edit'), opts); return; }
+
+      var copy = e.target.closest('[data-deck-copy]');
+      if (copy) { close(); openBuilderFor(copy.getAttribute('data-deck-copy'), opts, true); return; }
+
+      var del = e.target.closest('[data-deck-delete]');
+      if (del) {
+        var row = findDeckRow(opts, del.getAttribute('data-deck-delete'));
+        if (!row) return;
+        if (!window.confirm('Delete "' + row.name + '"? This cannot be undone.')) return;
+        del.disabled = true;
+        var api = liveApi();
+        if (!api) return;
+        api.post('/api/profile/decks/delete', { id: row.id }).then(function (res) {
+          if (!res || res.error) {
+            del.disabled = false;
+            return;
+          }
+          adoptSavedDecks(opts, res);
+          close();
+          opts.deckPurchaseNotice = row.name + ' deleted.';
+          opts.deckPurchaseError = false;
+          refreshDecks(opts, true);
+        });
+      }
+    });
+  }
+
+  function runAutoBuild(opts, note) {
+    if (opts.guest) return;
+    var rules = builderRules(opts);
+    var trainerId = autoTrainerId(opts);
+    if (!trainerId) {
+      note('Auto Build needs a SiegeKnight. Open a pack to pull one first.', true);
+      return;
+    }
+    var built = autoBuildList(opts);
+    if (!built) {
+      note('Auto Build needs cards in your collection. Open a pack first.', true);
+      return;
+    }
+    if (built.shortfall) {
+      note('Auto Build is ' + built.shortfall + ' card' + (built.shortfall === 1 ? '' : 's') +
+        ' short of the ' + rules.minDeckSize + '-card minimum. Open more packs and try again.', true);
+      return;
+    }
+    var name = autoBuildName(opts);
+    note('Building ' + name + '\u2026');
+    saveDeck({
+      name: name,
+      trainerId: trainerId,
+      customDeckCards: built.cards,
+      clientDeckId: 'auto-' + Date.now()
+    }).then(function (res) {
+      adoptSavedDecks(opts, res);
+      note(name + ' built and saved \u2014 ' + built.cards.length + ' cards.');
+    }).catch(function (err) {
+      note(err.message || 'That deck could not be saved.', true);
+    });
+  }
+
   function mountDecks(app, opts) {
+    mountSheet(app, opts);
+    mountDeckSheet(app, opts);
+
+    function note(message, isError) {
+      opts.deckPurchaseNotice = message;
+      opts.deckPurchaseError = Boolean(isError);
+      refreshDecks(opts, true);
+    }
+
+    app.addEventListener('click', function (e) {
+      if (!e.target.closest) return;
+      if (e.target.closest('[data-open-builder]')) {
+        openBuilderFor(null, opts);
+        return;
+      }
+      if (e.target.closest('[data-auto-build]')) {
+        runAutoBuild(opts, note);
+        return;
+      }
+    });
+
     app.addEventListener('click', function (e) {
       var button = e.target.closest && e.target.closest('[data-buy-deck]');
       if (!button || button.disabled || opts.guest || opts.deckPurchasePendingId) return;
@@ -1923,10 +2318,12 @@
       zoom.open(byIdIn(ALL_CARDS, id) || byId(id), face.querySelector('.sg-card-tile') || face);
     });
     app.addEventListener('keydown', function (e) {
-      if (e.key !== 'Escape') return;
-      // Full screen sits on top of the sheet, so one Escape unwinds one layer.
-      if (zoom && zoom.isOpen()) { zoom.close(); return; }
-      if (sheet.classList.contains('open')) close();
+      if (e.key !== 'Escape' || e.sgEscapeHandled) return;
+      // Three layers can be stacked here - a deck sheet, a card sheet over it,
+      // and the full-screen card over that - and they all listen on `app`. One
+      // Escape must unwind exactly one, so whichever acts first claims the key.
+      if (zoom && zoom.isOpen()) { zoom.close(); e.sgEscapeHandled = true; return; }
+      if (sheet.classList.contains('open')) { close(); e.sgEscapeHandled = true; }
     });
     // Claim only a downward pull begun at the top of the scrolling panel.
     // Native scrolling keeps ownership of upward and already-scrolled gestures.
@@ -2480,6 +2877,9 @@
   function profileScreen(opts) {
     return topMarkup(opts) +
       '<div class="sg-scroll">' + profileBody(opts) + '</div>' +
+      // mountSheet runs for this screen; without the host it had nothing to bind,
+      // so tapping a showcase card here did nothing.
+      sheetHost() +
       (opts.guest ? '' : profileEditorHost()) +
       // Profile is reached through Social now, so the Social tab is the one lit.
       bottomMarkup('social', opts);
@@ -3116,49 +3516,296 @@
   // Rules come from the catalog payload (deckBuilder.minDeckSize / maxCopies),
   // not from hardcoded numbers - the preset-deck shape (40 cards, 20/10/10) is a
   // different rule and does not govern a custom build.
+  /* The builder edits ONE deck, held here between renders.
+
+     It used to render `live.decks[0]` - always the same preset, whatever the
+     player tapped - with no way to add, remove, rename or save: Clear was an
+     `href="#"`, and Auto Build and Save Deck were buttons with no handler. This
+     is real state: the deck being composed, the cards in it by count, and the
+     SiegeKnight it saves with. */
+  var BUILD = null;
+
+  function newBuild(opts) {
+    return {
+      id: null,              // server id; null until first save
+      clientDeckId: 'build-' + Date.now() + '-' + Math.round(Math.random() * 1e6),
+      name: autoBuildName(opts),
+      trainerId: autoTrainerId(opts),
+      counts: {},            // cardId -> copies
+      order: [],             // insertion order, so the tray does not reshuffle
+      notice: '', error: false, saving: false, query: ''
+    };
+  }
+
+  function buildTotal(b) {
+    return b.order.reduce(function (n, id) { return n + (b.counts[id] || 0); }, 0);
+  }
+
+  function loadBuild(opts, deckId, asCopy) {
+    var b = newBuild(opts);
+    var row = deckId ? findDeckRow(opts, deckId) : null;
+    if (row) {
+      b.name = asCopy ? (row.name + ' copy').slice(0, 40) : row.name;
+      if (!asCopy && row.kind === 'saved') b.id = row.id;
+      if (row.trainerId) b.trainerId = row.trainerId;
+      (row.entries || []).forEach(function (e) {
+        if (!byIdIn(ALL_CARDS, e.id) && !byId(e.id)) return;
+        b.counts[e.id] = e.count;
+        b.order.push(e.id);
+      });
+    }
+    return b;
+  }
+
+  function openBuilderFor(deckId, opts, asCopy) {
+    BUILD = loadBuild(opts, deckId, asCopy);
+    if (onNavigate) onNavigate('builder');
+  }
+
+  function builderPool(opts, query) {
+    var q = String(query || '').trim().toLowerCase();
+    return ownedPool(opts).filter(function (c) {
+      if (!c || String(c.type || 'SIEGLING').toUpperCase() === 'SIEGEKNIGHT') return false;
+      return !q || String(c.name || '').toLowerCase().indexOf(q) !== -1;
+    });
+  }
+
   function builderScreen(opts) {
     opts = opts || {};
-    var rules = (opts.live && opts.live.deckBuilder) || { minDeckSize: 30, maxCopies: 3 };
-    var deck = (opts.live && opts.live.decks && opts.live.decks[0]) || null;
-    var entries = (deck && deck.cards) || [];
-    var total = entries.reduce(function (n, e) { return n + (e.count || 0); }, 0);
+    if (!BUILD) BUILD = newBuild(opts);
+    var b = BUILD;
+    var rules = builderRules(opts);
+    var total = buildTotal(b);
     var pct = Math.min(100, Math.round(total / rules.minDeckSize * 100));
-    var els = (deck && deck.elements) || ['FIRE'];
+    var cards = b.order.map(function (id) { return byIdIn(ALL_CARDS, id) || byId(id); }).filter(Boolean);
+    var els = cards.map(function (c) { return c.element; }).filter(function (el, i, all) {
+      return el && all.indexOf(el) === i;
+    });
+    if (!els.length) els = ['NEUTRAL'];
+
+    var live = opts.live || {};
+    var ownedKnights = (live.knights || []).map(function (k) { return k && k.id; }).filter(Boolean);
+    var knightOptions = (live.trainers || []).filter(function (t) {
+      return t && t.id && t.active !== false && ownedKnights.indexOf(t.id) !== -1;
+    });
+
+    var pool = builderPool(opts, b.query);
+
     return topMarkup(opts) +
-      '<div class="sg-scroll">' +
+      '<div class="sg-scroll" data-builder>' +
         '<div class="sg-page-head"><h2>Deck Builder</h2><p>' +
           esc(total) + ' of ' + esc(rules.minDeckSize) + ' minimum &middot; max ' +
           esc(rules.maxCopies) + ' copies</p></div>' +
         '<div class="sg-build-bar"><i style="width:' + pct + '%"></i></div>' +
+        (b.notice ? '<p class="sg-deck-notice' + (b.error ? ' is-error' : '') +
+          '" data-build-notice tabindex="-1" role="' + (b.error ? 'alert' : 'status') + '">' +
+          esc(b.notice) + '</p>' : '') +
         '<div class="sg-build-id" style="--el:' + color(els[0]) + '">' +
-          '<input class="sg-build-name" value="' + esc(deck ? deck.name : 'New Deck') + '" aria-label="Deck name">' +
+          '<input class="sg-build-name" data-build-name value="' + esc(b.name) +
+            '" maxlength="40" aria-label="Deck name">' +
           '<div class="sg-deck-els">' + els.map(function (e) {
             return '<img src="' + icon(e) + '" alt="' + esc(title(e)) + '">';
           }).join('') + '</div>' +
         '</div>' +
         '<section class="sg-section">' +
-          '<div class="sg-section-head"><h3>In this deck</h3><a href="#">Clear</a></div>' +
-          '<div class="sg-swipe">' + (entries.length
-            ? entries.map(function (e) {
-                var c = byIdIn(ALL_CARDS, e.id) || byId(e.id);
-                if (!c) return '';
-                return '<div class="sg-build-slot">' + galleryCard(c) +
-                  '<span class="sg-build-count">x' + esc(e.count) + '</span></div>';
+          '<div class="sg-section-head"><h3>SiegeKnight</h3></div>' +
+          (knightOptions.length
+            ? '<select class="sg-build-knight" data-build-knight aria-label="SiegeKnight">' +
+                knightOptions.map(function (t) {
+                  return '<option value="' + esc(t.id) + '"' +
+                    (t.id === b.trainerId ? ' selected' : '') + '>' + esc(t.name || t.id) + '</option>';
+                }).join('') + '</select>'
+            : '<p class="sg-empty-row">' + esc(opts.guest
+                ? 'Sign in to build with your SiegeKnights.'
+                : 'Open a pack to pull a SiegeKnight before saving a deck.') + '</p>') +
+        '</section>' +
+        '<section class="sg-section">' +
+          '<div class="sg-section-head"><h3>In this deck</h3>' +
+            (total ? '<a href="#" data-build-clear>Clear</a>' : '') + '</div>' +
+          '<div class="sg-swipe">' + (cards.length
+            ? cards.map(function (c) {
+                return '<div class="sg-build-slot" data-build-slot="' + esc(c.id) + '">' +
+                  galleryCard(c) +
+                  '<span class="sg-build-count">x' + esc(b.counts[c.id]) + '</span>' +
+                  '<button class="sg-build-less" type="button" data-build-remove="' + esc(c.id) +
+                    '" aria-label="Remove one ' + esc(c.name) + '">\u2212</button>' +
+                '</div>';
               }).join('')
-            : '<p class="sg-empty">Nothing added yet.</p>') + '</div>' +
+            : '<p class="sg-empty">Nothing added yet. Tap a card below to add it.</p>') + '</div>' +
         '</section>' +
         '<section class="sg-section">' +
           '<div class="sg-section-head"><h3>Add from your binder</h3>' +
-            '<a href="/cards" data-screen="collection">Browse</a></div>' +
-          '<div class="sg-gal-grid">' + ALL_CARDS.slice(0, 6).map(galleryCard).join('') + '</div>' +
+            '<span>' + esc(pool.length) + '</span></div>' +
+          '<input class="sg-build-search" data-build-search value="' + esc(b.query) +
+            '" placeholder="Search your cards" aria-label="Search your cards">' +
+          (pool.length
+            ? '<div class="sg-gal-grid">' + pool.slice(0, 60).map(function (c) {
+                var have = b.counts[c.id] || 0;
+                var cap = Math.min(rules.maxCopies, ownedCount(opts, c.id));
+                return '<div class="sg-build-pick' + (have >= cap ? ' is-maxed' : '') +
+                  '" data-build-add="' + esc(c.id) + '">' + galleryCard(c) +
+                  '<span class="sg-build-owned">' + esc(have) + '/' + esc(cap) + '</span></div>';
+              }).join('') + '</div>'
+            : '<p class="sg-empty-row">' + esc(opts.guest
+                ? 'Sign in to build from your collection.'
+                : b.query ? 'No cards match that search.' : 'Open a pack to start collecting cards.') + '</p>') +
         '</section>' +
         '<div class="sg-build-actions">' +
-          '<button class="sg-ghost-btn" type="button"><span class="ico">✧</span>Auto Build</button>' +
-          '<button class="sg-guest-primary" type="button">Save Deck</button>' +
+          '<button class="sg-ghost-btn" type="button" data-build-auto><span class="ico">\u2727</span>Auto Build</button>' +
+          '<button class="sg-guest-primary" type="button" data-build-save' +
+            (b.saving || opts.guest ? ' disabled' : '') + '>' +
+            (b.saving ? 'Saving\u2026' : 'Save Deck') + '</button>' +
         '</div>' +
         '<div style="height:96px"></div>' +
       '</div>' +
+      sheetHost() +
       bottomMarkup('collection', opts);
+  }
+
+  function refreshBuilder(opts, focusNotice) {
+    var current = document.querySelector('.sg-app [data-builder]');
+    if (!current) return;
+    var scrollTop = current.scrollTop;
+    var app = current.closest('.sg-app');
+    var next = render(document.createElement('div'), 'builder', opts);
+    app.replaceWith(next);
+    var scroll = next.querySelector('[data-builder]');
+    if (scroll) scroll.scrollTop = scrollTop;
+    var notice = next.querySelector('[data-build-notice]');
+    if (focusNotice && notice) notice.focus();
+  }
+
+  function mountBuilder(app, opts) {
+    mountSheet(app, opts);
+    var b = BUILD;
+    if (!b) return;
+    var rules = builderRules(opts);
+
+    function say(message, isError) {
+      b.notice = message || '';
+      b.error = Boolean(isError);
+      refreshBuilder(opts, Boolean(message));
+    }
+
+    app.addEventListener('click', function (e) {
+      if (!e.target.closest) return;
+
+      var add = e.target.closest('[data-build-add]');
+      if (add) {
+        var id = add.getAttribute('data-build-add');
+        var cap = Math.min(rules.maxCopies, ownedCount(opts, id));
+        var have = b.counts[id] || 0;
+        if (have >= cap) {
+          say(cap === 0 ? 'You do not own that card yet.'
+            : 'That is all ' + cap + ' cop' + (cap === 1 ? 'y' : 'ies') + ' you own.', true);
+          return;
+        }
+        if (!have) b.order.push(id);
+        b.counts[id] = have + 1;
+        b.notice = '';
+        refreshBuilder(opts);
+        return;
+      }
+
+      var remove = e.target.closest('[data-build-remove]');
+      if (remove) {
+        var rid = remove.getAttribute('data-build-remove');
+        var left = (b.counts[rid] || 0) - 1;
+        if (left > 0) b.counts[rid] = left;
+        else {
+          delete b.counts[rid];
+          b.order = b.order.filter(function (x) { return x !== rid; });
+        }
+        b.notice = '';
+        refreshBuilder(opts);
+        return;
+      }
+
+      if (e.target.closest('[data-build-clear]')) {
+        e.preventDefault();
+        if (!buildTotal(b) || window.confirm('Remove every card from this deck?')) {
+          b.counts = {}; b.order = [];
+          say('');
+        }
+        return;
+      }
+
+      if (e.target.closest('[data-build-auto]')) {
+        var built = autoBuildList(opts);
+        if (!built || built.shortfall) {
+          say('Auto Build needs at least ' + rules.minDeckSize +
+            ' cards in your collection. Open more packs and try again.', true);
+          return;
+        }
+        b.counts = {}; b.order = [];
+        built.cards.forEach(function (id) {
+          if (!b.counts[id]) { b.counts[id] = 0; b.order.push(id); }
+          b.counts[id]++;
+        });
+        say('Auto Build filled ' + built.cards.length + ' cards. Save when you are happy with it.');
+        return;
+      }
+
+      if (e.target.closest('[data-build-save]')) {
+        if (opts.guest || b.saving) return;
+        var total = buildTotal(b);
+        if (!b.name.trim()) { say('Give this deck a name before saving.', true); return; }
+        if (!b.trainerId) { say('Choose a SiegeKnight before saving.', true); return; }
+        if (total < rules.minDeckSize) {
+          say('This deck needs ' + (rules.minDeckSize - total) + ' more card' +
+            (rules.minDeckSize - total === 1 ? '' : 's') + ' before it can be saved.', true);
+          return;
+        }
+        b.saving = true;
+        say('Saving\u2026');
+        saveDeck({
+          id: b.id || undefined,
+          clientDeckId: b.clientDeckId,
+          name: b.name.trim(),
+          trainerId: b.trainerId,
+          customDeckCards: flatCardIds(b.order.map(function (id) {
+            return { id: id, count: b.counts[id] };
+          }))
+        }).then(function (res) {
+          adoptSavedDecks(opts, res);
+          b.saving = false;
+          // The server minted the id on a create; without adopting it the next
+          // save would create a second deck instead of updating this one.
+          var mine = ((opts.live && opts.live.savedDecks) || []).filter(function (d) {
+            return d && (d.id === b.clientDeckId || d.name === b.name.trim());
+          })[0];
+          if (mine && mine.id) b.id = mine.id;
+          say(b.name.trim() + ' saved.');
+        }).catch(function (err) {
+          b.saving = false;
+          say(err.message || 'That deck could not be saved.', true);
+        });
+      }
+    });
+
+    var name = app.querySelector('[data-build-name]');
+    if (name) {
+      name.addEventListener('input', function () { b.name = this.value; });
+    }
+    var knight = app.querySelector('[data-build-knight]');
+    if (knight) {
+      knight.addEventListener('change', function () { b.trainerId = this.value; });
+    }
+    // Repainting on every keystroke would steal the caret, so the grid is
+    // refreshed on a pause rather than per character.
+    var search = app.querySelector('[data-build-search]');
+    if (search) {
+      var timer = null;
+      search.addEventListener('input', function () {
+        b.query = this.value;
+        if (timer) window.clearTimeout(timer);
+        timer = window.setTimeout(function () {
+          refreshBuilder(opts);
+          var field = document.querySelector('.sg-app [data-build-search]');
+          if (field) { field.focus(); field.setSelectionRange(field.value.length, field.value.length); }
+        }, 260);
+      });
+    }
   }
 
   /* ---------- social ---------- */
@@ -3686,7 +4333,134 @@
     });
   }
 
-  /* A friend's public profile, shown in the same sheet the card details use. */
+  /* Another player's profile, read-only.
+
+     This read flat keys - `p.displayName`, `p.matches`, `p.wins` - off a payload
+     that has none of them. `/api/social/players/{id}/profile` answers with
+     `profileSettings`, `stats`, `presence` and `recentMatches` as nested
+     objects, so every lookup missed and the sheet rendered "Player" over three
+     em-dashes. It reads the real shape now, and shows what the player's own
+     profile shows - crest, title, bio, record, showcase, signature, recent -
+     minus every control that edits it. Non-friends get the crest and the record
+     but no match list, because that is what the server sends them. */
+
+  function friendPresenceLabel(presence) {
+    if (!presence) return '';
+    if (presence.online) {
+      var status = String(presence.status || '').toUpperCase();
+      return status && status !== 'ONLINE' ? title(status) : 'Online';
+    }
+    if (!presence.lastSeenAt) return 'Offline';
+    var seen = new Date(presence.lastSeenAt);
+    if (isNaN(seen.getTime())) return 'Offline';
+    var mins = Math.max(0, Math.round((Date.now() - seen.getTime()) / 60000));
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return mins + 'm ago';
+    var hours = Math.round(mins / 60);
+    if (hours < 24) return hours + 'h ago';
+    return Math.round(hours / 24) + 'd ago';
+  }
+
+  function friendCrestAvatar(settings, name) {
+    if (settings.avatarUrl) {
+      return '<span class="sg-crest-ring"><img src="' + esc(settings.avatarUrl) + '" alt=""></span>';
+    }
+    if (String(settings.avatarMode || '').toUpperCase() === 'ELEMENT') {
+      return '<span class="sg-crest-ring is-element"><img src="' +
+        esc(icon(settings.favoriteElement)) + '" alt=""></span>';
+    }
+    var initial = settings.avatar || String(name || '?').charAt(0);
+    return '<span class="sg-crest-ring"><i>' + esc(String(initial).charAt(0).toUpperCase()) + '</i></span>';
+  }
+
+  // The visitor's own gallery is the only art index the client has, so a piece
+  // the host chose that this client never loaded simply falls back to the
+  // default plate rather than leaving the crest flat.
+  function friendCrestBackground(settings) {
+    var piece = profileArtPiece(settings.profileArtId);
+    return piece ? (piece.full || piece.thumb) : plate(GALLERY[2]);
+  }
+
+  function friendSubtitle(stats, presence) {
+    var bits = [];
+    if (stats.siegeWins) bits.push(stats.siegeWins + ' Siege win' + (stats.siegeWins === 1 ? '' : 's'));
+    if (stats.matches) bits.push(stats.matches + ' recorded match' + (stats.matches === 1 ? '' : 'es'));
+    var seen = friendPresenceLabel(presence);
+    if (seen) bits.push(seen);
+    return bits.length ? bits.join(' \u00b7 ') : 'Siegelord';
+  }
+
+  function friendProfileMarkup(res) {
+    var settings = res.profileSettings || {};
+    var stats = res.stats || {};
+    var presence = res.presence || {};
+    var name = settings.displayName || 'Siegelord';
+    var el = settings.favoriteElement || 'NEUTRAL';
+
+    var showcase = (settings.favoriteCardIds || []).map(function (id) {
+      return byIdIn(ALL_CARDS, id);
+    }).filter(Boolean);
+    var signature = byIdIn(ALL_CARDS, settings.favoriteCardId || settings.favoriteSieglingId || '');
+
+    // `collected` is this player's share of the catalog, the same number their
+    // own profile leads with. It needs the visitor's catalog to have loaded.
+    var collected = stats.ownedTotal != null && ALL_CARDS.length
+      ? Math.round(stats.ownedTotal / ALL_CARDS.length * 100) + '%' : '\u2014';
+    var rate = stats.matches ? (stats.winRate != null ? stats.winRate : 0) + '%' : '\u2014';
+
+    var matches = Array.isArray(res.recentMatches) ? res.recentMatches : null;
+
+    return '<button class="sg-sheet-dismiss" type="button" aria-label="Close profile"></button>' +
+      '<div class="sg-friend-view">' +
+        '<section class="sg-crest is-readonly" style="--el:' + color(el) + '">' +
+          '<img class="sg-crest-bg" src="' + esc(friendCrestBackground(settings)) + '" alt="">' +
+          '<div class="sg-crest-veil"></div>' +
+          '<div class="sg-crest-body">' +
+            friendCrestAvatar(settings, name) +
+            '<h2>' + esc(name) + '</h2>' +
+            (settings.playerTitle ? '<span class="sg-crest-title">' + esc(settings.playerTitle) + '</span>' : '') +
+            '<p>' + esc(friendSubtitle(stats, presence)) + '</p>' +
+            (settings.bio ? '<p class="sg-crest-bio">' + esc(settings.bio) + '</p>' : '') +
+          '</div>' +
+        '</section>' +
+        '<div class="sg-tiles">' +
+          '<div><span>Matches</span><b>' + esc(stats.matches != null ? stats.matches : '\u2014') + '</b></div>' +
+          '<div><span>Win Rate</span><b>' + esc(rate) + '</b></div>' +
+          '<div><span>Collected</span><b>' + esc(collected) + '</b></div>' +
+        '</div>' +
+        (showcase.length
+          ? '<section class="sg-section"><div class="sg-section-head"><h3>Showcase</h3></div>' +
+              '<div class="sg-swipe">' + showcase.map(featTile).join('') + '</div></section>'
+          : '') +
+        (signature
+          ? '<section class="sg-section"><div class="sg-section-head"><h3>Signature</h3></div>' +
+              '<div class="sg-sig"><div class="sg-sig-slot">' +
+                '<span class="sg-sig-label">Favorite card</span>' +
+                '<div class="sg-sig-art" data-card="' + esc(signature.id) + '" style="--el:' +
+                  color(signature.element) + '"><div class="sg-sig-face">' + favoriteFace(signature) + '</div></div>' +
+                '<span class="sg-sig-name">' + esc(signature.name) + '</span>' +
+              '</div></div>' +
+            '</section>'
+          : '') +
+        '<section class="sg-section"><div class="sg-section-head"><h3>Recent</h3></div>' +
+          (matches === null
+            ? '<div class="sg-empty-row">Add ' + esc(name) + ' as a friend to see their match record.</div>'
+            : matches.length
+              ? '<div class="sg-stack sg-stack-tight">' + matches.slice(0, 5).map(function (m) {
+                  var won = String(m.result || '').toUpperCase() === 'WIN';
+                  var against = m.opponentName ? 'vs ' + m.opponentName : (m.loadoutLabel || '');
+                  return '<div class="sg-recent' + (won ? ' is-win' : '') + '">' +
+                    '<span class="mode">' + esc(title(m.matchType || 'Match')) + '</span>' +
+                    '<span class="what">' + esc(won ? 'Win' : 'Loss') +
+                      (against ? '<em>' + esc(against) + '</em>' : '') + '</span>' +
+                    '<span class="gain">' + esc(m.turnNumber != null ? 'T' + m.turnNumber : '') + '</span>' +
+                  '</div>';
+                }).join('') + '</div>'
+              : '<div class="sg-empty-row">No matches recorded yet.</div>') +
+        '</section>' +
+      '</div>';
+  }
+
   function openFriendProfile(app, opts, userId) {
     var api = liveApi();
     if (!api || !userId) return;
@@ -3696,31 +4470,21 @@
         showFriendNote(app, (res && res.error) || 'That profile could not be loaded.', true);
         return;
       }
-      var p = res.profile || res;
-      var name = p.displayName || p.name || 'Player';
-      var rows = [
-        ['Matches', p.matches != null ? p.matches : (p.recordedMatches != null ? p.recordedMatches : '—')],
-        ['Wins', p.wins != null ? p.wins : '—'],
-        ['SiegeKnights', p.knights != null ? p.knights : (p.ownedTrainers != null ? p.ownedTrainers : '—')]
-      ];
-      var html = '<div class="sg-friend-profile">' +
-        '<div class="sg-friend-profile-head">' +
-          '<span class="sg-friend-crest is-big">' + esc(String(name).charAt(0).toUpperCase()) + '</span>' +
-          '<div><strong>' + esc(name) + '</strong>' +
-            (p.playerTitle ? '<em>' + esc(p.playerTitle) + '</em>' : '') + '</div>' +
-        '</div>' +
-        (p.statusMessage ? '<p class="sg-friend-profile-bio">' + esc(p.statusMessage) + '</p>' : '') +
-        '<div class="sg-friend-profile-rows">' + rows.map(function (r) {
-          return '<div><span>' + esc(r[0]) + '</span><b>' + esc(r[1]) + '</b></div>';
-        }).join('') + '</div>' +
-      '</div>';
-      if (sheet) {
-        var card = sheet.querySelector('[data-sheet-card]');
-        if (card) card.innerHTML = html;
-        sheet.classList.add('open');
-      } else {
-        showFriendNote(app, name + ' — ' + rows.map(function (r) { return r[0] + ' ' + r[1]; }).join(' · '));
+      if (!sheet) {
+        var fallbackName = (res.profileSettings && res.profileSettings.displayName) || 'That player';
+        showFriendNote(app, fallbackName + ' \u2014 profile needs a newer version of this page.');
+        return;
       }
+      var card = sheet.querySelector('[data-sheet-card]');
+      if (card) {
+        card.innerHTML = friendProfileMarkup(res);
+        card.scrollTop = 0;
+      }
+      sheet.classList.add('open');
+      var dismiss = sheet.querySelector('.sg-sheet-dismiss');
+      if (dismiss) dismiss.focus({ preventScroll: true });
+      // Showcase tiles are real cards, so let the binder's fitter dress them.
+      scheduleFit(sheet);
     });
   }
 
@@ -3985,6 +4749,7 @@
     // rendering a rail that did not respond to taps.
     if (screen === 'shop') mountShop(app, opts);
     if (screen === 'decks') mountDecks(app, opts);
+    if (screen === 'builder') mountBuilder(app, opts);
     if (screen === 'art') mountArt(app);
     if (screen === 'profile') { mountSheet(app, opts); mountProfile(app, opts); }
     if (screen === 'social') { mountSheet(app, opts); mountProfile(app, opts); mountSocial(app, opts); }

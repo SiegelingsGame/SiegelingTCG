@@ -82,6 +82,20 @@ public class PublicProfileService {
         stats.put("ownedTotal", ownedTotal);
         stats.put("uniqueOwned", progression.getOwnedCards() == null ? 0 : progression.getOwnedCards().size());
         stats.put("level", Math.max(1, ownedTotal / 12 + 1));
+        stats.put("siegeWins", progression.getSiegeWins());
+        stats.put("knights", progression.getTrainerLevels() == null ? 0 : progression.getTrainerLevels().size());
+        // The headline numbers a player's own profile leads with. Without these
+        // a visitor's view of the same profile could only show em-dashes, which
+        // is what it did: the record is the point of looking someone up.
+        List<MatchHistoryEntity> history = matchHistoryService.listRecent(target);
+        int matches = history.size();
+        int wins = (int) history.stream()
+                .filter(row -> row != null && "WIN".equalsIgnoreCase(row.getResult()))
+                .count();
+        stats.put("matches", matches);
+        stats.put("wins", wins);
+        stats.put("losses", matches - wins);
+        stats.put("winRate", matches == 0 ? 0 : Math.round(wins * 100.0 / matches));
         return stats;
     }
 
