@@ -1716,7 +1716,9 @@
   var SHEET_TABS = [['arena', 'Arena'], ['siege', 'Siege'], ['keep', 'Keep']];
 
   function cardSheetMarkup(card, opts) {
-    return '<div class="sg-sheet-grab"></div>' +
+    var notches = notchRing(card);
+    var description = String(card.description || '').trim();
+    return '<button class="sg-sheet-dismiss" type="button" aria-label="Close card details"></button>' +
       '<div class="sg-sheet-head">' +
         '<div class="sg-sheet-face">' + galleryCard(card) + '</div>' +
         '<div class="sg-sheet-id">' +
@@ -1736,7 +1738,9 @@
       }).join('') + '</div>' +
       '<div class="sg-sheet-panels">' +
         '<div class="sg-sheet-panel" data-sheet-panel="arena">' +
-          notchRing(card) + abilityRows(card) +
+          (description ? '<div class="sg-sheet-summary">' + notches +
+            '<p class="sg-sheet-description">' + esc(description) + '</p></div>' : notches) +
+          abilityRows(card) +
         '</div>' +
         '<div class="sg-sheet-panel" data-sheet-panel="siege" hidden>' +
           siegeBlock(card, opts) +
@@ -1777,16 +1781,77 @@
     var sheet = app.querySelector('[data-sheet]');
     if (!sheet) return null;
     var sheetCard = sheet.querySelector('[data-sheet-card]');
+    var drag = null;
+    var opener = null;
+    function resetDrag() {
+      drag = null;
+      sheet.classList.remove('is-dragging');
+      sheetCard.style.removeProperty('--sg-sheet-drag');
+    }
+    function close() {
+      sheet.classList.remove('open');
+      resetDrag();
+      if (opener && opener.isConnected) opener.focus({ preventScroll: true });
+    }
     function open(card) {
       if (!card) return;
+      resetDrag();
+      opener = document.activeElement;
       sheetCard.innerHTML = cardSheetMarkup(card, opts);
       sheetCard.scrollTop = 0;
       wireTabs(sheetCard);
       sheet.classList.add('open');
+      sheetCard.querySelector('.sg-sheet-dismiss').focus({ preventScroll: true });
     }
     sheet.addEventListener('click', function (e) {
-      if (e.target === sheet) sheet.classList.remove('open');
+      if (e.target === sheet || e.target.closest('.sg-sheet-dismiss')) close();
     });
+    app.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && sheet.classList.contains('open')) close();
+    });
+    // Claim only a downward pull begun at the top of the scrolling panel.
+    // Native scrolling keeps ownership of upward and already-scrolled gestures.
+    sheetCard.addEventListener('touchstart', function (e) {
+      resetDrag();
+      if (!sheet.classList.contains('open') || e.touches.length !== 1) return;
+      var control = e.target.closest('a, button, input, select, textarea');
+      if (control && !control.classList.contains('sg-sheet-dismiss')) return;
+      var panel = e.target.closest('.sg-sheet-panels');
+      if (panel && panel.scrollTop > 0) return;
+      var touch = e.touches[0];
+      drag = { id: touch.identifier, x: touch.clientX, y: touch.clientY,
+        started: performance.now(), distance: 0, active: false };
+    }, { passive: true });
+    sheetCard.addEventListener('touchmove', function (e) {
+      if (!drag) return;
+      if (e.touches.length !== 1 || e.touches[0].identifier !== drag.id) {
+        resetDrag();
+        return;
+      }
+      var dx = e.touches[0].clientX - drag.x;
+      var dy = e.touches[0].clientY - drag.y;
+      if (!drag.active) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) < 8) return;
+        if (dy <= 0 || dy <= Math.abs(dx) * 1.2 || !e.cancelable) {
+          resetDrag();
+          return;
+        }
+        drag.active = true;
+        sheet.classList.add('is-dragging');
+      }
+      if (e.cancelable) e.preventDefault();
+      drag.distance = Math.max(0, dy);
+      sheetCard.style.setProperty('--sg-sheet-drag', drag.distance + 'px');
+    }, { passive: false });
+    sheetCard.addEventListener('touchend', function (e) {
+      if (!drag) return;
+      var distance = drag.distance;
+      var speed = distance / Math.max(1, performance.now() - drag.started);
+      if (drag.active && e.cancelable) e.preventDefault();
+      if (drag.active && (distance >= 80 || (distance >= 28 && speed > 0.5))) close();
+      else resetDrag();
+    }, { passive: false });
+    sheetCard.addEventListener('touchcancel', resetDrag, { passive: true });
     app.addEventListener('click', function (e) {
       var host = e.target.closest ? e.target.closest('[data-card]') : null;
       if (!host || sheet.contains(host)) return;
@@ -3950,6 +4015,17 @@
     var current = null;
     var priorTextState = window.render_game_to_text;
     window.render_game_to_text = function () {
+      var sheet = host.querySelector('[data-sheet].open');
+      var name = sheet && sheet.querySelector('.sg-sheet-id h3');
+      if (name) {
+        var description = sheet.querySelector('.sg-sheet-description');
+        return JSON.stringify({ screen: current, cardDetail: {
+          name: name.textContent,
+          tab: sheet.querySelector('[data-sheet-tab].on').getAttribute('data-sheet-tab'),
+          description: description ? description.textContent : '',
+          notches: sheet.querySelectorAll('.sg-sheet-notch').length
+        } });
+      }
       if (current !== 'decks') return priorTextState ? priorTextState() : JSON.stringify({ screen: current });
       var groups = deckGroups(opts);
       return JSON.stringify({ screen: current, gold: opts.live && opts.live.gold,
