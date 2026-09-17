@@ -1784,42 +1784,122 @@
     });
   }
 
-  // One sheet host per screen; any tile with data-card opens it.
+  // One sheet host per screen; any tile with data-card opens it. The fullscreen
+  // takeover lives next to the sheet so tapping the face can blow the card up
+  // without tearing the sheet down.
   function sheetHost() {
-    return '<div class="sg-sheet" data-sheet><div class="sg-sheet-card" data-sheet-card></div></div>';
+    return '<div class="sg-sheet" data-sheet><div class="sg-sheet-card" data-sheet-card></div></div>' +
+      '<div class="sg-card-fullscreen" data-card-fullscreen hidden role="dialog" aria-modal="true" aria-label="Card preview">' +
+        '<button class="sg-card-fullscreen-back" type="button" data-card-fullscreen-back aria-label="Back to card details">\u2039 Back</button>' +
+        '<div class="sg-card-fullscreen-stage" data-card-fullscreen-stage></div>' +
+      '</div>';
+  }
+
+  // Large readable face for the fullscreen takeover. Uses the same framed
+  // preview the battle table / old Card View blow-up use, so description-box
+  // geometry (hand-card-body at 69.8%..7.6%) and fitFramedSummaryList apply.
+  function fullscreenCardMarkup(card) {
+    var visual = window.SieglingsCardBinderVisual;
+    if (String(card.type || '').toUpperCase() === 'SIEGEKNIGHT') {
+      return knightCard(card) || '';
+    }
+    if (visual && visual.renderBinderCardPreview) {
+      return visual.renderBinderCardPreview(card, {
+        previewClass: 'detail-card-preview sg-fullscreen-preview',
+        descriptionText: card.description || '',
+        summaryMode: 'description'
+      });
+    }
+    return galleryCard(card);
   }
 
   function mountSheet(app, opts) {
     var sheet = app.querySelector('[data-sheet]');
     if (!sheet) return null;
     var sheetCard = sheet.querySelector('[data-sheet-card]');
+    var fullscreen = app.querySelector('[data-card-fullscreen]');
+    var fullscreenStage = fullscreen && fullscreen.querySelector('[data-card-fullscreen-stage]');
     var drag = null;
     var opener = null;
+    var openCard = null;
     function resetDrag() {
       drag = null;
       sheet.classList.remove('is-dragging');
       sheetCard.style.removeProperty('--sg-sheet-drag');
     }
+    function closeFullscreen() {
+      if (!fullscreen || fullscreen.hidden) return;
+      fullscreen.hidden = true;
+      if (fullscreenStage) fullscreenStage.innerHTML = '';
+      app.classList.remove('has-card-fullscreen');
+    }
+    function openFullscreen(card) {
+      if (!fullscreen || !fullscreenStage || !card) return;
+      openCard = card;
+      fullscreenStage.innerHTML = fullscreenCardMarkup(card);
+      fullscreen.hidden = false;
+      app.classList.add('has-card-fullscreen');
+      // Framed summary fit owns the readable size on the large face; the
+      // sheet-face fitter deliberately does not, so the two cannot fight.
+      if (window.SieglingsCardShowcase && window.SieglingsCardShowcase.scheduleFramedSummaryFit) {
+        window.SieglingsCardShowcase.scheduleFramedSummaryFit();
+      }
+      if (window.SieglingsCardShowcase && window.SieglingsCardShowcase.scheduleSiegeKnightCardFit) {
+        window.SieglingsCardShowcase.scheduleSiegeKnightCardFit();
+      }
+      if (window.SieglingsCardBinderVisual && window.SieglingsCardBinderVisual.scheduleDescriptionFit) {
+        window.SieglingsCardBinderVisual.scheduleDescriptionFit();
+      }
+      var back = fullscreen.querySelector('[data-card-fullscreen-back]');
+      if (back) back.focus({ preventScroll: true });
+    }
     function close() {
+      closeFullscreen();
       sheet.classList.remove('open');
       resetDrag();
+      openCard = null;
       if (opener && opener.isConnected) opener.focus({ preventScroll: true });
     }
     function open(card) {
       if (!card) return;
       resetDrag();
+      closeFullscreen();
       opener = document.activeElement;
+      openCard = card;
       sheetCard.innerHTML = cardSheetMarkup(card, opts);
       sheetCard.scrollTop = 0;
       wireTabs(sheetCard);
+      // The face is the zoom trigger: retarget its label so it does not read
+      // as "open this card" the way binder tiles do.
+      var faceBtn = sheetCard.querySelector('.sg-sheet-face .sg-card-tile');
+      if (faceBtn) {
+        faceBtn.removeAttribute('data-card');
+        faceBtn.setAttribute('data-card-zoom', card.id);
+        faceBtn.setAttribute('aria-label', 'View ' + (card.name || 'card') + ' full screen');
+        faceBtn.setAttribute('title', 'Tap to view full screen');
+      }
       sheet.classList.add('open');
+      // Descriptions on the tiny face must re-fit after the sheet is laid out.
+      scheduleFit(sheetCard);
       sheetCard.querySelector('.sg-sheet-dismiss').focus({ preventScroll: true });
     }
     sheet.addEventListener('click', function (e) {
       if (e.target === sheet || e.target.closest('.sg-sheet-dismiss')) close();
     });
+    if (fullscreen) {
+      fullscreen.addEventListener('click', function (e) {
+        if (e.target === fullscreen || e.target.closest('[data-card-fullscreen-back]')) {
+          closeFullscreen();
+        }
+      });
+    }
     app.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && sheet.classList.contains('open')) close();
+      if (e.key !== 'Escape') return;
+      if (fullscreen && !fullscreen.hidden) {
+        closeFullscreen();
+        return;
+      }
+      if (sheet.classList.contains('open')) close();
     });
     // Claim only a downward pull begun at the top of the scrolling panel.
     // Native scrolling keeps ownership of upward and already-scrolled gestures.
@@ -1865,6 +1945,14 @@
     }, { passive: false });
     sheetCard.addEventListener('touchcancel', resetDrag, { passive: true });
     app.addEventListener('click', function (e) {
+      var zoom = e.target.closest ? e.target.closest('[data-card-zoom]') : null;
+      if (zoom && sheet.contains(zoom)) {
+        e.preventDefault();
+        openFullscreen(openCard
+          || byIdIn(ALL_CARDS, zoom.getAttribute('data-card-zoom'))
+          || byId(zoom.getAttribute('data-card-zoom')));
+        return;
+      }
       var host = e.target.closest ? e.target.closest('[data-card]') : null;
       if (!host || sheet.contains(host)) return;
       open(byIdIn(ALL_CARDS, host.getAttribute('data-card')) || byId(host.getAttribute('data-card')));
@@ -3913,10 +4001,12 @@
      centre bottom notch, which is the tighter of the two constraints and the one
      that actually looks broken. Scoped to `.sg-card-tile` so the shipping
      binder's rendering is untouched. */
-  // 6px is the floor because below it the text stops being readable on a phone,
-  // and unreadable text that technically fits is not a fix. Past the floor the
-  // box is capped and the text clamped with an ellipsis instead.
+  // Gallery tiles stop at 6px so the text stays readable on a phone. The sheet
+  // face is a deliberate thumbnail: the player can tap it for a full-screen
+  // readable card, so its floor goes far lower to show more of the flavour
+  // even when the glyphs themselves are no longer legible.
   var FIT_MIN_PX = 6;
+  var SHEET_FACE_FIT_MIN_PX = 2.6;
   var NOTCH_CLEARANCE = 3;
   var fitFrame = null;
 
@@ -3924,6 +4014,8 @@
     var list = desc.closest && desc.closest('.card-summary-list');
     if (!list) return;
     var tile = desc.closest('.sg-card-tile');
+    var inSheetFace = !!(desc.closest && desc.closest('.sg-sheet-face'));
+    var floor = inSheetFace ? SHEET_FACE_FIT_MIN_PX : FIT_MIN_PX;
     desc.style.fontSize = '';
     desc.style.lineHeight = '';
     desc.style.webkitLineClamp = '';
@@ -3941,16 +4033,16 @@
       var available = centre.getBoundingClientRect().top - desc.getBoundingClientRect().top - NOTCH_CLEARANCE;
       // One line is the least that can be shown; below that the description is
       // not worth drawing over the frame.
-      limit = Math.min(limit, Math.max(available, FIT_MIN_PX * 1.15));
+      limit = Math.min(limit, Math.max(available, floor * 1.15));
     }
     if (limit <= 0) return;
 
     var size = parseFloat(window.getComputedStyle(desc).fontSize) || 9;
     if (desc.scrollHeight > limit + 1) {
-      desc.style.lineHeight = '1.15';
-      var guard = 30;
-      while (desc.scrollHeight > limit + 1 && size > FIT_MIN_PX && guard-- > 0) {
-        size = Math.max(FIT_MIN_PX, size * 0.94);
+      desc.style.lineHeight = inSheetFace ? '1.05' : '1.15';
+      var guard = 40;
+      while (desc.scrollHeight > limit + 1 && size > floor && guard-- > 0) {
+        size = Math.max(floor, size * 0.92);
         desc.style.fontSize = size.toFixed(2) + 'px';
       }
     }
@@ -3958,7 +4050,7 @@
     // not the text needed shrinking.
     desc.style.maxHeight = limit.toFixed(1) + 'px';
     if (desc.scrollHeight > limit + 1) {
-      var lineH = size * 1.15;
+      var lineH = size * (inSheetFace ? 1.05 : 1.15);
       desc.style.display = '-webkit-box';
       desc.style.webkitLineClamp = String(Math.max(1, Math.floor(limit / lineH)));
       desc.style.overflow = 'hidden';
@@ -4027,15 +4119,25 @@
     var current = null;
     var priorTextState = window.render_game_to_text;
     window.render_game_to_text = function () {
+      var fullscreen = host.querySelector('[data-card-fullscreen]:not([hidden])');
       var sheet = host.querySelector('[data-sheet].open');
       var name = sheet && sheet.querySelector('.sg-sheet-id h3');
       if (name) {
         var description = sheet.querySelector('.sg-sheet-description');
+        var faceDesc = sheet.querySelector('.sg-sheet-face .card-summary-description');
+        var fullDesc = fullscreen && fullscreen.querySelector('.card-summary-description, .binder-card-description, .holographic-card-description');
+        var fullBody = fullscreen && fullscreen.querySelector('.hand-card-body');
         return JSON.stringify({ screen: current, cardDetail: {
           name: name.textContent,
           tab: sheet.querySelector('[data-sheet-tab].on').getAttribute('data-sheet-tab'),
           description: description ? description.textContent : '',
-          notches: sheet.querySelectorAll('.sg-sheet-notch').length
+          notches: sheet.querySelectorAll('.sg-sheet-notch').length,
+          faceDescription: faceDesc ? faceDesc.textContent : '',
+          faceDescriptionSize: faceDesc ? parseFloat(window.getComputedStyle(faceDesc).fontSize) : null,
+          fullscreen: !!fullscreen,
+          fullscreenDescription: fullDesc ? fullDesc.textContent : '',
+          fullscreenBodyTop: fullBody ? window.getComputedStyle(fullBody).top : null,
+          fullscreenBodyBottom: fullBody ? window.getComputedStyle(fullBody).bottom : null
         } });
       }
       if (current !== 'decks') return priorTextState ? priorTextState() : JSON.stringify({ screen: current });
