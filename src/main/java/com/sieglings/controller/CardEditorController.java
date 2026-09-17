@@ -1,6 +1,7 @@
 package com.sieglings.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.sieglings.service.CardEditorGateService;
 import com.sieglings.service.CardOverrideEditorService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -19,11 +20,15 @@ import java.util.Map;
 public class CardEditorController {
 
     private static final String EDITOR_TOKEN_HEADER = "X-Card-Editor-Token";
+    private static final String GATE_TOKEN_HEADER = "X-Card-Editor-Gate";
 
     private final CardOverrideEditorService cardOverrideEditorService;
+    private final CardEditorGateService gateService;
 
-    public CardEditorController(CardOverrideEditorService cardOverrideEditorService) {
+    public CardEditorController(CardOverrideEditorService cardOverrideEditorService,
+                                CardEditorGateService gateService) {
         this.cardOverrideEditorService = cardOverrideEditorService;
+        this.gateService = gateService;
     }
 
     @GetMapping("/api/cards/editor")
@@ -35,7 +40,12 @@ public class CardEditorController {
     @PostMapping("/api/cards/editor")
     public ResponseEntity<Map<String, Object>> saveEditorState(
             @RequestHeader(value = EDITOR_TOKEN_HEADER, required = false) String editorToken,
+            @RequestHeader(value = GATE_TOKEN_HEADER, required = false) String gateToken,
             @RequestBody JsonNode data) {
+        ResponseEntity<Map<String, Object>> locked = gateRefusal(gateToken);
+        if (locked != null) {
+            return locked;
+        }
         try {
             return ResponseEntity.ok(cardOverrideEditorService.saveEditorState(data, editorToken));
         } catch (IllegalArgumentException ex) {
@@ -48,9 +58,14 @@ public class CardEditorController {
     @PostMapping(value = "/api/cards/editor/art", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String, Object>> uploadCardArt(
             @RequestHeader(value = EDITOR_TOKEN_HEADER, required = false) String editorToken,
+            @RequestHeader(value = GATE_TOKEN_HEADER, required = false) String gateToken,
             @RequestParam("cardId") String cardId,
             @RequestParam(value = "artVariant", required = false) String artVariant,
             @RequestParam("file") MultipartFile file) {
+        ResponseEntity<Map<String, Object>> locked = gateRefusal(gateToken);
+        if (locked != null) {
+            return locked;
+        }
         try {
             return ResponseEntity.ok(cardOverrideEditorService.uploadCardArt(cardId, file, artVariant, editorToken));
         } catch (IllegalArgumentException ex) {
@@ -60,6 +75,30 @@ public class CardEditorController {
         } catch (Exception ex) {
             return error(HttpStatus.INTERNAL_SERVER_ERROR, describeFailure(ex));
         }
+    }
+
+    /** Whether the dashboard needs a passphrase, and whether this caller has cleared it. */
+    @GetMapping("/api/cards/editor/auth/gate")
+    public ResponseEntity<Map<String, Object>> gateStatus(
+            @RequestHeader(value = GATE_TOKEN_HEADER, required = false) String gateToken) {
+        CardEditorGateService.GateStatus status = gateService.describe(gateToken);
+        return ResponseEntity.ok(Map.of(
+                "required", status.configured(),
+                "unlocked", status.unlocked(),
+                "ttlHours", gateService.ttlHours()));
+    }
+
+    @PostMapping("/api/cards/editor/auth/gate")
+    public ResponseEntity<Map<String, Object>> unlockGate(@RequestBody GateUnlockRequest request) {
+        String token = gateService.unlock(request == null ? null : request.passphrase());
+        if (token == null) {
+            // One message for every failure mode, so the response cannot be used to
+            // tell "no passphrase set" apart from "wrong passphrase".
+            return error(HttpStatus.UNAUTHORIZED, "That passphrase does not open the dashboard.");
+        }
+        return ResponseEntity.ok(Map.of(
+                "token", token,
+                "ttlHours", gateService.ttlHours()));
     }
 
     @PostMapping("/api/cards/editor/auth/bootstrap")
@@ -94,6 +133,18 @@ public class CardEditorController {
         }
     }
 
+    /**
+     * The gate is checked on the server for writes as well as in the page, because the
+     * page is a public static file: skipping its UI and posting straight to the API is
+     * trivial, so a client-side-only gate would guard nothing.
+     */
+    private ResponseEntity<Map<String, Object>> gateRefusal(String gateToken) {
+        if (gateService.isValidToken(gateToken)) {
+            return null;
+        }
+        return error(HttpStatus.UNAUTHORIZED, "The dashboard is locked. Enter the dashboard passphrase and try again.");
+    }
+
     private ResponseEntity<Map<String, Object>> error(HttpStatus status, String message) {
         return ResponseEntity.status(status).body(Map.of("error", message));
     }
@@ -108,6 +159,8 @@ public class CardEditorController {
         }
         return "Unexpected server error.";
     }
+
+    private record GateUnlockRequest(String passphrase) {}
 
     private record EditorBootstrapRequest(String email, String password, String displayName) {}
 
