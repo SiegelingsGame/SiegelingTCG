@@ -219,6 +219,20 @@
     box-shadow: 0 14px 36px rgba(242, 160, 61, 0.5);
 }
 
+/* Below 900px style.css turns the nav into the loadout's bottom HUD — a
+   full-bleed bar with its own opaque fill. This sheet's unscoped `.loadout-nav`
+   background above is a later declaration at equal specificity, so without a
+   phone-scoped restatement it replaced that fill with a fade that is fully
+   transparent across its top 42%: the summary line sits on that transparent
+   band and the panel behind it scrolls through the text. The bar is opaque
+   again here, in this sheet's indigo rather than style.css's navy. */
+@media (max-width: 900px) {
+    .loadout-nav {
+        background: linear-gradient(180deg, #1b1256 0%, #0d0a26 100%);
+        border-top-color: rgba(180, 140, 255, 0.28);
+    }
+}
+
 /* A phone gets a shorter band: the plate still reads, but the copy and the
    first step chips stay above the fold. */
 @media (max-width: 719px) {
