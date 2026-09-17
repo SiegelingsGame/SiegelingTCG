@@ -1,5 +1,6 @@
 (function () {
     const EDITOR_TOKEN_KEY = "sieglingsCardEditorToken";
+    const GATE_TOKEN_KEY = "sieglingsCardDashboardGate";
     const NOTCH_LAYOUT = [
         "TOP_LEFT", "TOP", "TOP_RIGHT",
         "LEFT", "CENTER", "RIGHT",
@@ -115,7 +116,22 @@
 
     window.addEventListener("DOMContentLoaded", init);
 
-    function init() {
+    async function init() {
+        // The shell is hidden for the whole check, not just while the prompt is
+        // up, so a locked dashboard never flashes the tool on its way to asking.
+        // `finally` restores it even if the probe throws: a broken gate must not
+        // leave a permanently blank page.
+        const shell = document.querySelector(".dashboard-shell");
+        if (shell) {
+            shell.setAttribute("hidden", "hidden");
+        }
+        try {
+            await passGate();
+        } finally {
+            if (shell) {
+                shell.removeAttribute("hidden");
+            }
+        }
         cacheRefs();
         bindEvents();
         setupCollapsiblePanels();
@@ -5390,7 +5406,126 @@
         if (editorToken) {
             headers.set("X-Card-Editor-Token", editorToken);
         }
+        const gateToken = getGateToken();
+        if (gateToken) {
+            headers.set("X-Card-Editor-Gate", gateToken);
+        }
         return { ...options, headers };
+    }
+
+    /* ---------- dashboard passphrase gate ----------
+       The page is a public static file, so this lock is a front door, not a
+       permission boundary: the server checks the same token on every write, and
+       an editor account is still what authorises a save. What this does buy is
+       that the dashboard is not simply open to anyone who knows the URL.
+
+       The passphrase is never held in this bundle. What the user types is posted
+       and compared against a bcrypt hash server-side, so reading this file tells
+       an attacker nothing. */
+    function getGateToken() {
+        try {
+            return window.localStorage.getItem(GATE_TOKEN_KEY) || "";
+        } catch (error) {
+            return "";
+        }
+    }
+
+    function saveGateToken(token) {
+        try {
+            window.localStorage.setItem(GATE_TOKEN_KEY, token);
+        } catch (error) {
+            // Private mode: the unlock lasts for this page view only.
+        }
+    }
+
+    function clearGateToken() {
+        try {
+            window.localStorage.removeItem(GATE_TOKEN_KEY);
+        } catch (error) {
+            // Ignore storage failures and continue.
+        }
+    }
+
+    /** Resolves once the dashboard may be shown. Renders the lock until then. */
+    async function passGate() {
+        let status;
+        try {
+            const response = await fetch("/api/cards/editor/auth/gate", buildRequestOptions({}));
+            status = response.ok ? await response.json() : null;
+        } catch (error) {
+            status = null;
+        }
+        // No answer means the API is unreachable (offline, or a local static
+        // server). Locking the page on a failed probe would make the dashboard
+        // unusable exactly when someone is trying to diagnose it; the server
+        // still refuses every write, so nothing can be changed regardless.
+        if (!status || status.required !== true || status.unlocked === true) {
+            return;
+        }
+        clearGateToken();
+        await promptForPassphrase();
+    }
+
+    function promptForPassphrase() {
+        return new Promise((resolve) => {
+            const lock = document.createElement("div");
+            lock.className = "dashboard-lock";
+            lock.innerHTML = `
+                <form class="dashboard-lock-card" autocomplete="off">
+                    <h1>Card Dashboard</h1>
+                    <p>This tool edits the live card catalog. Enter the dashboard passphrase to continue.</p>
+                    <label for="dashboardPassphrase">Dashboard passphrase</label>
+                    <input id="dashboardPassphrase" type="password" autocomplete="current-password"
+                           autocapitalize="off" autocorrect="off" spellcheck="false" required>
+                    <p class="dashboard-lock-error" role="alert" hidden></p>
+                    <button type="submit">Unlock</button>
+                </form>`;
+            document.body.appendChild(lock);
+            const form = lock.querySelector("form");
+            const input = lock.querySelector("input");
+            const errorEl = lock.querySelector(".dashboard-lock-error");
+            const button = lock.querySelector("button");
+            input.focus();
+
+            form.addEventListener("submit", async (event) => {
+                event.preventDefault();
+                const passphrase = input.value;
+                if (!passphrase) {
+                    return;
+                }
+                button.disabled = true;
+                button.textContent = "Checking…";
+                errorEl.hidden = true;
+                let ok = false;
+                try {
+                    const response = await fetch("/api/cards/editor/auth/gate", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ passphrase })
+                    });
+                    if (response.ok) {
+                        const body = await response.json();
+                        if (body && body.token) {
+                            saveGateToken(body.token);
+                            ok = true;
+                        }
+                    }
+                } catch (error) {
+                    ok = false;
+                }
+                if (!ok) {
+                    button.disabled = false;
+                    button.textContent = "Unlock";
+                    errorEl.textContent = "That passphrase does not open the dashboard.";
+                    errorEl.hidden = false;
+                    input.value = "";
+                    input.focus();
+                    return;
+                }
+                lock.remove();
+                resolve();
+            });
+        });
     }
 
     function saveEditorToken(token) {
