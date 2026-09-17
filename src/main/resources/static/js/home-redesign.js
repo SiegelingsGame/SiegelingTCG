@@ -388,6 +388,18 @@
      outright when the server sends no CORS header. Putting it on the visible
      tile would trade uneven sizing for blank tiles; on a throwaway probe the
      same failure costs nothing and the tile keeps its CSS framing. */
+  /* Card art is served from Firebase Storage with no Access-Control-Allow-Origin,
+     so a direct probe can never be read - it was failing on every card, which is
+     why every tile fell back to the blanket scale and overflowed its frame. The
+     same bytes come back CORS-clean from our own origin via the art mirror, so
+     that is what the probe loads. A non-storage URL (the offline snapshot's
+     `/img/...` art) is already same-origin and is probed directly. */
+  function probeUrlFor(src) {
+    return /^https?:\/\/firebasestorage\.googleapis\.com\//.test(src)
+      ? '/api/cards/art-mirror?url=' + encodeURIComponent(src)
+      : src;
+  }
+
   function measureArtBox(src) {
     return new Promise(function (resolve) {
       var probe = new Image();
@@ -425,7 +437,7 @@
         if (x1 < 0) return finish(null);   // fully transparent
         finish({ x0: x0 / cw, y0: y0 / ch, x1: (x1 + 1) / cw, y1: (y1 + 1) / ch });
       };
-      probe.src = src;
+      probe.src = probeUrlFor(src);
       // A probe that neither loads nor errors must not leave the tile waiting.
       setTimeout(function () { finish(null); }, 6000);
     });
@@ -3366,6 +3378,37 @@
     }
   }
 
+  /* Tile names shrink to fit rather than truncating.
+
+     `.sg-feat-name` was a fixed 12px with `text-overflow:ellipsis`, so a long
+     name lost its tail - "Glaciemperor" read as "Glaciempero…" on the Showcase
+     rail. A name is an identifier: clipping it is worse than setting it a
+     point smaller, and unlike a description it is one line, so the fit is a
+     width comparison rather than a height one. The floor keeps it legible; a
+     name still too long at the floor keeps the ellipsis as a last resort. */
+  var NAME_FIT_MIN_PX = 9;
+
+  function fitOneName(el) {
+    el.style.fontSize = '';
+    var available = el.clientWidth;
+    if (!available) return;
+    var size = parseFloat(window.getComputedStyle(el).fontSize) || 12;
+    // scrollWidth exceeds clientWidth exactly when the text does not fit.
+    while (el.scrollWidth > available && size > NAME_FIT_MIN_PX) {
+      size -= 0.5;
+      el.style.fontSize = size + 'px';
+    }
+  }
+
+  function fitTileNames(root) {
+    var scope = root || document;
+    var nodes = scope.querySelectorAll('.sg-feat-name');
+    for (var i = 0; i < nodes.length; i++) {
+      if (!nodes[i].getClientRects().length) continue;
+      fitOneName(nodes[i]);
+    }
+  }
+
   function fitCardDescriptions(root) {
     var scope = root || document;
     var nodes = scope.querySelectorAll('.sg-card-tile .card-summary-description');
@@ -3384,6 +3427,7 @@
     fitFrame = window.requestAnimationFrame(function () {
       fitFrame = null;
       fitCardDescriptions(root);
+      fitTileNames(root);
     });
   }
 
