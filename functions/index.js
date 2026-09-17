@@ -137,6 +137,9 @@ app.get('/api/cards/editor', async (req, res) => {
 });
 
 app.post('/api/cards/editor', async (req, res) => {
+  if (!passesGate(req, res)) {
+    return;
+  }
   try {
     const identity = await requireEditor(readEditorToken(req));
     const currentCards = await loadCardsSnapshot();
@@ -201,6 +204,33 @@ app.post('/api/cards/editor', async (req, res) => {
   }
 });
 
+app.get('/api/cards/editor/auth/gate', (req, res) => {
+  res.json({
+    required: gateConfigured(),
+    unlocked: isValidGateToken(readGateToken(req)),
+    ttlHours: GATE.ttlHours
+  });
+});
+
+app.post('/api/cards/editor/auth/gate', async (req, res) => {
+  const passphrase = req.body && typeof req.body.passphrase === 'string' ? req.body.passphrase : '';
+  if (!gateConfigured()) {
+    return res.json({ token: issueGateToken(), ttlHours: GATE.ttlHours });
+  }
+  let ok = false;
+  try {
+    ok = Boolean(passphrase) && await bcrypt.compare(passphrase, GATE.hash.trim());
+  } catch (error) {
+    ok = false;
+  }
+  if (!ok) {
+    // One message for every failure, so the response cannot be used to tell
+    // "no passphrase set" apart from "wrong passphrase".
+    return res.status(401).json({ error: 'That passphrase does not open the dashboard.' });
+  }
+  return res.json({ token: issueGateToken(), ttlHours: GATE.ttlHours });
+});
+
 app.post('/api/cards/editor/auth/bootstrap', async (req, res) => {
   try {
     const response = await bootstrapEditor(req.body?.email, req.body?.password, req.body?.displayName);
@@ -230,6 +260,9 @@ app.post('/api/cards/editor/auth/login', async (req, res) => {
 });
 
 app.post('/api/cards/editor/art', async (req, res) => {
+  if (!passesGate(req, res)) {
+    return;
+  }
   try {
     await requireEditor(readEditorToken(req));
     // Firebase Functions (gen2) buffer the request body into `req.rawBody`
@@ -660,6 +693,87 @@ function readEditorToken(req) {
   return String(req.get('X-Card-Editor-Token') || '').trim();
 }
 
+/* ---------- dashboard passphrase gate ----------
+   Mirrors CardEditorGateService on the Java side, token format included, because
+   BOTH backends are reachable: Hosting rewrites /api/cards/editor** to this
+   function, while the Cloud Run service answers the same paths on its own
+   run.app URL. A gate on only one of them is a gate on neither.
+
+   It is a front door, not a permission boundary: this page is a public static
+   file, so anyone can skip its UI and post here directly. That is exactly why
+   the check is server-side on the writes, and why requireEditor still runs. */
+const GATE = {
+  // A bcrypt hash, never the passphrase. Override CARD_DASHBOARD_GATE_HASH in
+  // the function's environment to rotate without a code change; empty stands the
+  // gate open, which is what local emulator work wants.
+  hash: process.env.CARD_DASHBOARD_GATE_HASH
+    || '$2a$10$2vKVPUeTju2jvj7skTgznubDZ661aEze/3JqlUVRulaV85W5jpiOC',
+  ttlHours: Number(process.env.CARD_DASHBOARD_GATE_TTL_HOURS || 336),
+  // Empty derives from the hash, which is already a per-environment secret; set
+  // it to invalidate every outstanding unlock at once.
+  secret: process.env.CARD_DASHBOARD_GATE_SECRET || ''
+};
+const GATE_CLOCK_SKEW_SECONDS = 120;
+
+function gateConfigured() {
+  return Boolean(GATE.hash && GATE.hash.trim());
+}
+
+function gateSigningKey() {
+  return GATE.secret.trim() || ('gate:' + GATE.hash.trim());
+}
+
+function signGatePayload(payload) {
+  return crypto.createHmac('sha256', gateSigningKey())
+    .update(payload)
+    .digest('base64url');
+}
+
+function issueGateToken() {
+  const ttl = GATE.ttlHours > 0 ? GATE.ttlHours : 336;
+  const expiry = String(Math.floor(Date.now() / 1000) + Math.round(ttl * 3600));
+  return expiry + '.' + signGatePayload(expiry);
+}
+
+function isValidGateToken(token) {
+  if (!gateConfigured()) {
+    return true;
+  }
+  const raw = String(token || '').trim();
+  if (!raw) {
+    return false;
+  }
+  const dot = raw.lastIndexOf('.');
+  if (dot <= 0 || dot === raw.length - 1) {
+    return false;
+  }
+  const expiryPart = raw.slice(0, dot);
+  const signaturePart = raw.slice(dot + 1);
+  if (!/^\d+$/.test(expiryPart)) {
+    return false;
+  }
+  if (Math.floor(Date.now() / 1000) - GATE_CLOCK_SKEW_SECONDS > Number(expiryPart)) {
+    return false;
+  }
+  const expected = Buffer.from(signGatePayload(expiryPart));
+  const given = Buffer.from(signaturePart);
+  // timingSafeEqual throws on a length mismatch, which is itself the answer.
+  return expected.length === given.length && crypto.timingSafeEqual(expected, given);
+}
+
+function readGateToken(req) {
+  return String(req.get('X-Card-Editor-Gate') || '').trim();
+}
+
+/** Returns true when the request may proceed; otherwise answers 401 itself. */
+function passesGate(req, res) {
+  if (isValidGateToken(readGateToken(req))) {
+    return true;
+  }
+  res.status(401).json({ error: 'The dashboard is locked. Enter the dashboard passphrase and try again.' });
+  return false;
+}
+
 async function describeAuth(token) {
   const bootstrappable = !(await hasAnyAdmin());
   const identity = await resolveIdentity(token);
@@ -1014,6 +1128,12 @@ function buildCardArtPublicUrl(bucketName, objectPath, downloadToken) {
 }
 
 exports._private = {
+  // Gate internals, exported for the tests: the real passphrase is never in
+  // them - they configure a gate with a hash of their own.
+  isValidGateToken,
+  issueGateToken,
+  gateConfigured,
+  GATE,
   inferCardType,
   resolveCardsPayload,
   resolveSimplePayload,
