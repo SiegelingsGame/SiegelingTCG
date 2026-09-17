@@ -345,6 +345,143 @@
 
   /* ---------- content sections ---------- */
 
+  /* ---------- art fitting ----------
+     Card art is a cutout on transparency, but how much empty margin each file
+     carries around its creature varies wildly - Generoot sits in the upper half
+     of its own canvas while Claw Queen fills hers. A single CSS scale therefore
+     cannot make the rail read evenly: it enlarges the padding along with the
+     creature, so one tile looks full and the next looks half empty.
+
+     So measure instead. Each art URL is drawn once to a small offscreen canvas,
+     its alpha bounding box found, and a transform written that puts the CREATURE
+     - not the file - at the size and position the tile wants. Measurements are
+     cached per URL in localStorage, so the rail pays for this once per card.
+
+     Reading pixels needs the image to be CORS-clean. Card art is served from
+     Firebase Storage, which may or may not send the header, so a tainted canvas
+     is expected rather than exceptional: it throws, we catch, and the tile keeps
+     the plain CSS framing it has today. Nothing depends on the measurement. */
+  var ART_FIT_KEY = 'sgArtFitV1';
+  var ART_FIT_SAMPLE = 64;      // plenty for a bounding box, cheap to scan
+  var ART_FIT_ALPHA = 12;       // below this a pixel is padding, not art
+  var ART_FIT_MAX_SCALE = 2.1;  // a tiny cutout blown up past this turns to mush
+  var artFitCache = null;
+
+  function artFitStore() {
+    if (artFitCache) return artFitCache;
+    try { artFitCache = JSON.parse(localStorage.getItem(ART_FIT_KEY) || '{}'); }
+    catch (e) { artFitCache = {}; }
+    if (!artFitCache || typeof artFitCache !== 'object') artFitCache = {};
+    return artFitCache;
+  }
+  function artFitSave() {
+    try { localStorage.setItem(ART_FIT_KEY, JSON.stringify(artFitCache || {})); }
+    catch (e) { /* private mode: measuring again next load is fine */ }
+  }
+
+  /* Alpha bounding box as fractions of the image, or null when the pixels are
+     unreadable.
+
+     The pixels are read from a SEPARATE probe image, never from the one on
+     screen. Card art is served cross-origin from Firebase Storage, so reading it
+     needs `crossOrigin = "anonymous"` - and that attribute makes the load FAIL
+     outright when the server sends no CORS header. Putting it on the visible
+     tile would trade uneven sizing for blank tiles; on a throwaway probe the
+     same failure costs nothing and the tile keeps its CSS framing. */
+  function measureArtBox(src) {
+    return new Promise(function (resolve) {
+      var probe = new Image();
+      probe.crossOrigin = 'anonymous';
+      probe.decoding = 'async';
+      var done = false;
+      function finish(v) { if (!done) { done = true; resolve(v); } }
+      probe.onerror = function () { finish(null); };   // no CORS header, or gone
+      probe.onload = function () {
+        var w = probe.naturalWidth, h = probe.naturalHeight;
+        if (!w || !h) return finish(null);
+        var cw = Math.min(ART_FIT_SAMPLE, w), ch = Math.min(ART_FIT_SAMPLE, h);
+        var canvas = document.createElement('canvas');
+        canvas.width = cw; canvas.height = ch;
+        var ctx = canvas.getContext('2d', { willReadFrequently: true });
+        if (!ctx) return finish(null);
+        var data;
+        try {
+          ctx.drawImage(probe, 0, 0, cw, ch);
+          data = ctx.getImageData(0, 0, cw, ch).data;
+        } catch (e) {
+          return finish(null);   // tainted despite the attribute
+        }
+        var x0 = cw, y0 = ch, x1 = -1, y1 = -1;
+        for (var y = 0; y < ch; y++) {
+          for (var x = 0; x < cw; x++) {
+            if (data[(y * cw + x) * 4 + 3] > ART_FIT_ALPHA) {
+              if (x < x0) x0 = x;
+              if (x > x1) x1 = x;
+              if (y < y0) y0 = y;
+              if (y > y1) y1 = y;
+            }
+          }
+        }
+        if (x1 < 0) return finish(null);   // fully transparent
+        finish({ x0: x0 / cw, y0: y0 / ch, x1: (x1 + 1) / cw, y1: (y1 + 1) / ch });
+      };
+      probe.src = src;
+      // A probe that neither loads nor errors must not leave the tile waiting.
+      setTimeout(function () { finish(null); }, 6000);
+    });
+  }
+
+  /* Turns a bounding box into the transform that seats the creature in its tile:
+     scaled so its longer side fills the frame, centred horizontally on the
+     creature rather than on the file, and sat on the frame's bottom edge. */
+  function artFitTransform(box, el) {
+    if (!box) return '';
+    var bw = box.x1 - box.x0, bh = box.y1 - box.y0;
+    if (bw <= 0 || bh <= 0) return '';
+    // object-fit:contain letterboxes the image inside the element, so the
+    // painted content is what the fractions actually apply to.
+    var ew = el.clientWidth, eh = el.clientHeight;
+    if (!ew || !eh || !el.naturalWidth || !el.naturalHeight) return '';
+    var nat = el.naturalWidth / el.naturalHeight;
+    var pw = ew, ph = ew / nat;
+    if (ph > eh) { ph = eh; pw = eh * nat; }
+    var scale = Math.min(ART_FIT_MAX_SCALE, 1 / Math.max(bw, bh));
+    // With transform-origin at centre bottom: shift the creature's centre onto
+    // the frame's centre line, and its feet onto the frame's bottom.
+    var dx = (0.5 - (box.x0 + box.x1) / 2) * pw;
+    var dy = (1 - box.y1) * ph;
+    return 'scale(' + scale.toFixed(3) + ') translate(' + dx.toFixed(1) + 'px, ' + dy.toFixed(1) + 'px)';
+  }
+
+  function applyArtFit(img) {
+    if (!img || img.dataset.artFit) return;
+    var src = img.currentSrc || img.src;
+    if (!src) return;
+    img.dataset.artFit = 'pending';
+    var store = artFitStore();
+    var cached = store[src];
+    var got = (cached !== undefined) ? Promise.resolve(cached) : measureArtBox(src).then(function (box) {
+      store[src] = box || null;   // null is a real answer: do not re-measure
+      artFitSave();
+      return box;
+    });
+    got.then(function (box) {
+      img.dataset.artFit = 'done';
+      if (!box) return;
+      var t = artFitTransform(box, img);
+      if (t) img.style.setProperty('--art-fit', t);
+    });
+  }
+
+  function mountArtFit(app) {
+    if (!app) return;
+    var imgs = app.querySelectorAll('.sg-feat-art img');
+    Array.prototype.forEach.call(imgs, function (img) {
+      if (img.complete && img.naturalWidth) applyArtFit(img);
+      else img.addEventListener('load', function () { applyArtFit(img); });
+    });
+  }
+
   function featuredMarkup() {
     return '' +
       '<section class="sg-section">' +
@@ -3160,6 +3297,7 @@
     if (screen === 'auth') mountAuth(app);
     mountBottom(app);
     mountNotifs(app, opts);
+    mountArtFit(app);
     scheduleFit(app);
     return app;
   }

@@ -10,7 +10,7 @@
      binder renders. It must load BEFORE home-redesign.css so the art-first
      palette and layout win where the two overlap. -->
 <link rel="stylesheet" href="/css/style.css?v=266">
-<link rel="stylesheet" href="/css/home-redesign.css?v=33">
+<link rel="stylesheet" href="/css/home-redesign.css?v=34">
 <style>
   /* Boot state: the shell paints immediately on the app's own ground so the
      first frame is never a white flash while the catalog is in flight. */
@@ -20,7 +20,10 @@
      toolbar the shell stayed short and the tab bar stranded above a dead band.
      --sg-vh is the visible height (viewport-unit.js). */
   html, body { margin:0; background:#0d0a26 !important; display:block !important;
-               height:var(--sg-vh, 100vh); height:100dvh;
+               height:var(--sg-vh, 100vh);
+               /* See .sg-app in home-redesign.css: max() so an installed web app
+                  whose dvh under-reports the glass still fills it. */
+               height:max(100dvh, var(--sg-vh, 0px));
                overflow:hidden; font-family:inherit; }
   /* The boot screen was a spinner on a flat colour while the game already owns
      two libraries of artwork for exactly this moment. It now carries one piece
@@ -95,7 +98,7 @@
 <script src="/js/game.js?v=297"></script>
 <script src="/js/card-binder-visual.js?v=24"></script>
 <script src="/js/home-redesign-data.js?v=1"></script>
-<script src="/js/home-redesign.js?v=24"></script>
+<script src="/js/home-redesign.js?v=25"></script>
 <script src="/js/home-redesign-live.js?v=10"></script>
 <script>
 (function () {
