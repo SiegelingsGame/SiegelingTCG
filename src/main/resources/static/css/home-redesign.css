@@ -2102,20 +2102,22 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 }
 .sg-card-fullscreen[hidden] { display:none; }
 .sg-card-fullscreen-back {
-  position:absolute; top:calc(14px + var(--sg-sat)); left:14px; z-index:2;
+  position:absolute; top:calc(10px + var(--sg-sat)); left:10px; z-index:2;
   display:inline-flex; align-items:center; gap:4px;
-  height:36px; padding:0 14px 0 10px; border-radius:999px; cursor:pointer;
-  color:#fff7d9; font-size:13px; font-weight:700; letter-spacing:.02em;
-  border:1px solid rgba(255,255,255,.18); background:rgba(10,12,32,.9);
+  min-width:44px; min-height:44px; height:44px; padding:0 16px 0 12px; border-radius:999px; cursor:pointer;
+  color:#fff7d9; font-size:14px; font-weight:700; letter-spacing:.02em;
+  border:1px solid rgba(255,255,255,.22); background:rgba(10,12,32,.94);
+  box-shadow:0 4px 16px rgba(0,0,0,.45);
 }
 .sg-card-fullscreen-back:hover {
   border-color:rgba(255,215,0,.55); color:#ffe9a0; background:rgba(255,215,0,.12);
 }
 .sg-card-fullscreen-stage {
-  /* Fill the screen, bounded by 92% width and by available height via the
-     card aspect so the whole face always fits. */
+  /* Fill the screen, bounded by width and available height via the card
+     aspect so the whole face always fits and stays centred. */
   width:min(92vw, calc((100dvh - 150px) * 5 / 7), 360px);
   max-width:100%;
+  justify-self:center; align-self:center;
 }
 .sg-card-fullscreen-stage .sg-fullscreen-preview,
 .sg-card-fullscreen-stage .selected-preview-card,

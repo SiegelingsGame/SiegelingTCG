@@ -4126,7 +4126,18 @@
         var description = sheet.querySelector('.sg-sheet-description');
         var faceDesc = sheet.querySelector('.sg-sheet-face .card-summary-description');
         var fullDesc = fullscreen && fullscreen.querySelector('.card-summary-description, .binder-card-description, .holographic-card-description');
+        var fullCard = fullscreen && fullscreen.querySelector('.hand-card, .selected-preview-card, .mulligan-showcase');
         var fullBody = fullscreen && fullscreen.querySelector('.hand-card-body');
+        var bodyTopPct = null;
+        var bodyBottomPct = null;
+        if (fullCard && fullBody) {
+          var cr = fullCard.getBoundingClientRect();
+          var br = fullBody.getBoundingClientRect();
+          if (cr.height > 0) {
+            bodyTopPct = (br.top - cr.top) / cr.height;
+            bodyBottomPct = (cr.bottom - br.bottom) / cr.height;
+          }
+        }
         return JSON.stringify({ screen: current, cardDetail: {
           name: name.textContent,
           tab: sheet.querySelector('[data-sheet-tab].on').getAttribute('data-sheet-tab'),
@@ -4136,8 +4147,8 @@
           faceDescriptionSize: faceDesc ? parseFloat(window.getComputedStyle(faceDesc).fontSize) : null,
           fullscreen: !!fullscreen,
           fullscreenDescription: fullDesc ? fullDesc.textContent : '',
-          fullscreenBodyTop: fullBody ? window.getComputedStyle(fullBody).top : null,
-          fullscreenBodyBottom: fullBody ? window.getComputedStyle(fullBody).bottom : null
+          fullscreenBodyTopPct: bodyTopPct,
+          fullscreenBodyBottomPct: bodyBottomPct
         } });
       }
       if (current !== 'decks') return priorTextState ? priorTextState() : JSON.stringify({ screen: current });
