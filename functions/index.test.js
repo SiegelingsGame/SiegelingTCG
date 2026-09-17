@@ -231,3 +231,99 @@ function ability() {
     passive: false
   };
 }
+
+/* ---------- dashboard passphrase gate ----------
+   These configure the gate with a hash of their own throwaway passphrase, so
+   the real one is in no test file. They mirror CardEditorGateServiceTest on the
+   Java side, because the two implementations have to agree: Hosting routes the
+   dashboard to this function, and Cloud Run answers the same paths directly. */
+const bcryptjs = require('bcryptjs');
+const nodeCrypto = require('node:crypto');
+
+function withGate(hash, secret, run) {
+  const previous = { hash: _private.GATE.hash, secret: _private.GATE.secret };
+  _private.GATE.hash = hash;
+  _private.GATE.secret = secret;
+  try {
+    return run();
+  } finally {
+    _private.GATE.hash = previous.hash;
+    _private.GATE.secret = previous.secret;
+  }
+}
+
+const TEST_PASSPHRASE = 'test-only-passphrase';
+const TEST_HASH = bcryptjs.hashSync(TEST_PASSPHRASE, 10);
+
+test('gate: a freshly issued token validates', () => {
+  withGate(TEST_HASH, 'unit-test-signing-key', () => {
+    assert.equal(_private.gateConfigured(), true);
+    assert.equal(_private.isValidGateToken(_private.issueGateToken()), true);
+  });
+});
+
+test('gate: junk, tampered and truncated tokens are refused', () => {
+  withGate(TEST_HASH, 'unit-test-signing-key', () => {
+    const token = _private.issueGateToken();
+    const [expiry, signature] = token.split('.');
+    assert.equal(_private.isValidGateToken(''), false);
+    assert.equal(_private.isValidGateToken(null), false);
+    assert.equal(_private.isValidGateToken('nonsense'), false);
+    assert.equal(_private.isValidGateToken('9999999999.not-a-signature'), false);
+    // The expiry is the signed payload, so pushing it out breaks the signature.
+    assert.equal(_private.isValidGateToken(`${Number(expiry) + 60000}.${signature}`), false);
+    // A truncated signature must not pass as a prefix.
+    assert.equal(_private.isValidGateToken(`${expiry}.${signature.slice(0, -1)}`), false);
+  });
+});
+
+test('gate: a correctly signed but expired token is refused', () => {
+  withGate(TEST_HASH, 'unit-test-signing-key', () => {
+    const stale = String(Math.floor(Date.now() / 1000) - 86400);
+    const signature = nodeCrypto.createHmac('sha256', 'unit-test-signing-key')
+      .update(stale).digest('base64url');
+    // Sanity: the same signing produces a token that DOES pass when in date, so
+    // the assertion below is about the clock and not about a broken signature.
+    const live = String(Math.floor(Date.now() / 1000) + 3600);
+    const liveSignature = nodeCrypto.createHmac('sha256', 'unit-test-signing-key')
+      .update(live).digest('base64url');
+    assert.equal(_private.isValidGateToken(`${live}.${liveSignature}`), true);
+    assert.equal(_private.isValidGateToken(`${stale}.${signature}`), false);
+  });
+});
+
+test('gate: rotating the signing secret invalidates outstanding tokens', () => {
+  const token = withGate(TEST_HASH, 'unit-test-signing-key', () => _private.issueGateToken());
+  withGate(TEST_HASH, 'a-different-signing-key', () => {
+    assert.equal(_private.isValidGateToken(token), false);
+  });
+});
+
+test('gate: an unconfigured gate stands open', () => {
+  withGate('', '', () => {
+    assert.equal(_private.gateConfigured(), false);
+    assert.equal(_private.isValidGateToken(null), true);
+  });
+});
+
+test('gate: the committed default is a bcrypt hash, not a passphrase', () => {
+  const source = require('node:fs').readFileSync(require('node:path').join(__dirname, 'index.js'), 'utf8');
+  const match = /CARD_DASHBOARD_GATE_HASH\s*\n?\s*\|\|\s*'([^']+)'/.exec(source);
+  assert.ok(match, 'the gate hash default must be readable from the source');
+  assert.match(match[1], /^\$2[aby]\$/, 'the committed default must be a bcrypt hash');
+  assert.ok(match[1].length >= 59, 'a bcrypt hash is 60 characters');
+});
+
+test('gate: the two backends agree on the token format', () => {
+  // The Java service signs `<epochSeconds>` with HMAC-SHA256 and base64url, and
+  // joins with a dot. If this shape drifts, a token minted by one backend stops
+  // working against the other and the dashboard locks people out at random.
+  withGate(TEST_HASH, 'unit-test-signing-key', () => {
+    const token = _private.issueGateToken();
+    assert.match(token, /^\d+\.[A-Za-z0-9_-]+$/);
+    const [expiry, signature] = token.split('.');
+    const expected = nodeCrypto.createHmac('sha256', 'unit-test-signing-key')
+      .update(expiry).digest('base64url');
+    assert.equal(signature, expected);
+  });
+});
