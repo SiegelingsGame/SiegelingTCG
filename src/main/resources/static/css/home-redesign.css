@@ -1299,6 +1299,14 @@ body.concept-board {
    the status-bar scrim, and their 12% transparency is what makes them read as
    veiled. The Sign In pill and the crest are already opaque. */
 .sg-top .sg-chip, .sg-top .sg-bell { background-color:rgb(30,22,82); }
+/* The top controls float on full-bleed artwork, and the hero scenes carry a lot
+   of bloom right where they sit - sun rays behind a dark pill make its edge read
+   as soft even though the fill is opaque. A tight contact shadow gives every top
+   control a hard edge against whatever is behind it; it is a shadow, not a glow,
+   so it darkens the art rather than lighting the control. */
+.sg-top .sg-chip, .sg-top .sg-bell, .sg-top .sg-avatar, .sg-top .sg-signin {
+  box-shadow:0 1px 3px rgba(3,5,14,.7), 0 4px 14px rgba(3,5,14,.45);
+}
 .sg-qa-panel ul, .sg-more-sheet { background:rgba(26,17,71,.94); }
 .sg-nav { background:linear-gradient(180deg, rgba(21,16,64,.68), rgba(13,10,38,.96)); }
 .sg-bottom { background:linear-gradient(180deg, rgba(13,10,38,0), rgba(13,10,38,.55) 50%, rgba(13,10,38,.92) 78%); }

@@ -336,11 +336,16 @@
           ['Open Packs', ''], ['Siegelcoins', '']] },
       // Social is its own tab now rather than a row inside More: it is where the
       // player's own profile, their friends and their messages all live, and it
-      // is checked far too often to sit two taps deep. It carries no tray - the
-      // screen's own tabs are the second level - so tapping it always lands on
-      // the profile, and tapping it again comes back there.
+      // is checked far too often to sit two taps deep. Its tray mirrors the
+      // screen's own three tabs, so Social carries the same caret and the same
+      // "tap again for sub-destinations" contract as every other tab with
+      // somewhere to go - a lone tray-less tab read as a broken one. The third
+      // tuple slot is the screen tab the row opens.
       { id: 'social', ico: '☻', label: 'Social', screen: 'social',
-        badge: unreadThreadCount(opts) },
+        badge: unreadThreadCount(opts), items: [
+          ['Profile', '', 'profile'],
+          ['Friends', n(online), 'friends'],
+          ['Messages', n(unreadThreadCount(opts)), 'messages']] },
       // Profile and Social are gone from here; what remains is genuinely
       // miscellaneous.
       { id: 'more', ico: '⋯', label: 'More', items: [
@@ -821,7 +826,11 @@
         return '<div class="sg-tray' + (n.id === openTray ? ' open' : '') + '" data-tray="' + n.id + '"><div>' +
           '<ul>' + items.map(function (it) {
             var auth = it[0] === 'Sign In' || it[0] === 'Create Account';
-            var attrs = linkAttrs(it[0]);
+            // A row that names a Social sub-tab routes to the Social screen and
+            // carries the tab with it, rather than to a screen of its own.
+            var attrs = it[2]
+              ? ' href="' + pathForScreen('social') + '" data-screen="social" data-social-goto="' + esc(it[2]) + '"'
+              : linkAttrs(it[0]);
             return '<li' + (auth ? ' class="is-auth"' : '') + '>' +
               (attrs ? '<a' + attrs + '>' + esc(it[0]) + '</a>' : esc(it[0])) +
               (it[1] ? '<span>' + esc(it[1]) + '</span>' : '') + '</li>';
@@ -866,6 +875,9 @@
         // already on opens its tray, which is where the sub-destinations live.
         if (screen && !isCurrent && typeof onNavigate === 'function') {
           openTray(null);
+          // The tab itself always lands on Profile; the tray rows are what
+          // address Friends and Messages directly.
+          if (screen === 'social') setSocialTab('profile');
           onNavigate(screen);
           return;
         }
@@ -4058,6 +4070,9 @@
       var link = e.target.closest && e.target.closest('a[data-screen]');
       if (!link) return;
       e.preventDefault();
+      // Social tray rows name the tab they want before the screen renders.
+      var socialTabAttr = link.getAttribute('data-social-goto');
+      if (socialTabAttr) setSocialTab(socialTabAttr);
       show(link.getAttribute('data-screen'), true);
     });
 
