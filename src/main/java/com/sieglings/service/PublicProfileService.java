@@ -80,7 +80,14 @@ public class PublicProfileService {
                 : progression.getOwnedCards().values().stream().mapToInt(Integer::intValue).sum();
         stats.put("gold", progression.getGold());
         stats.put("ownedTotal", ownedTotal);
-        stats.put("uniqueOwned", progression.getOwnedCards() == null ? 0 : progression.getOwnedCards().size());
+        // Same definition as the player's own profile, from the same method, so a
+        // visitor and the owner cannot read two different completion figures for
+        // one collection. See PlayerProgressionService#collectionProgress.
+        PlayerProgressionService.CollectionProgress collection =
+                playerProgressionService.collectionProgress(progression);
+        stats.put("uniqueOwned", collection.owned());
+        stats.put("collectibleTotal", collection.collectible());
+        stats.put("collectedPercent", collection.percent());
         stats.put("level", Math.max(1, ownedTotal / 12 + 1));
         stats.put("siegeWins", progression.getSiegeWins());
         stats.put("knights", progression.getTrainerLevels() == null ? 0 : progression.getTrainerLevels().size());

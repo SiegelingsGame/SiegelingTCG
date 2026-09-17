@@ -911,12 +911,15 @@
     var elements = ['ALL', 'FIRE', 'WATER', 'EARTH', 'WIND', 'ICE', 'ELECTRIC', 'PSYCHIC', 'METAL'];
     var rarities = ['ALL', 'COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'];
     var total = ALL_CARDS.length;
-    var owned = opts.ownedTotal != null ? opts.ownedTotal : null;
+    // "X of Y cards owned" compared copies held against unique cards, so a player
+    // with duplicates was told they owned more cards than exist. Collected counts
+    // distinct cards on both sides of the "of".
+    var counts = collectionCounts(opts.live);
     return topMarkup(opts) +
       '<div class="sg-scroll">' +
         '<div class="sg-gal-head"><h2>The Binder</h2><p>' +
-          (owned != null ? esc(owned) + ' of ' + esc(total) + ' cards owned'
-                         : esc(total) + ' cards — every Siegeling, Strategy, Deception and SiegeKnight') +
+          (counts ? esc(counts.held) + ' of ' + esc(counts.total) + ' cards collected'
+                  : esc(total) + ' cards — every Siegeling, Strategy, Deception and SiegeKnight') +
         '</p></div>' +
         '<div class="sg-gal-tools" data-tools>' +
           '<button class="sg-icon-btn" type="button" data-search-toggle aria-label="Search">⌕</button>' +
@@ -2783,14 +2786,60 @@
 
   // Progression only answers for a signed-in player, so the bar states that
   // rather than inventing a number.
+  /* Collection completion.
+
+     This read `ownedTotal / ALL_CARDS.length`, which is wrong twice over:
+     ownedTotal counts every COPY a player holds (so duplicates pushed it past
+     100% - 214% in one report) and ALL_CARDS is the catalog PLUS the SiegeKnight
+     cards spliced in for the binder, which are not in ownedCards at all and so
+     can never be collected from this pool.
+
+     The server decides it now (`collectedPercent`: distinct live cards owned over
+     distinct live cards collectable) so the owner and a visitor to their profile
+     cannot read two different numbers. This stays as the fallback for an older
+     payload, computed the same way - distinct owned ids intersected with the live
+     catalog, knights excluded. Because the catalog the server serves is already
+     filtered to the elements that are switched on, an element unlocking later
+     widens the denominator on its own and every percentage adjusts with it. */
+  function collectibleCards() {
+    return ALL_CARDS.filter(function (c) {
+      return c && String(c.type || 'SIEGLING').toUpperCase() !== 'SIEGEKNIGHT';
+    });
+  }
+
+  function collectionCounts(live) {
+    if (!live) return null;
+    var pool = collectibleCards();
+    var owned = live.ownedCards;
+    if (owned && pool.length) {
+      var held = 0;
+      for (var i = 0; i < pool.length; i++) {
+        if (Number(owned[pool[i].id]) > 0) held++;
+      }
+      return { held: held, total: pool.length };
+    }
+    // No per-card map on this payload, but the server counted for us.
+    if (live.uniqueOwned != null && live.collectibleTotal) {
+      return { held: live.uniqueOwned, total: live.collectibleTotal };
+    }
+    return null;
+  }
+
+  function collectedPercent(live) {
+    if (!live) return null;
+    if (live.collectedPercent != null) return Math.round(live.collectedPercent);
+    var counts = collectionCounts(live);
+    return counts && counts.total ? Math.round(counts.held / counts.total * 100) : null;
+  }
+
   function profileTiles(opts) {
     var live = opts.live || {};
     var hist = live.matchHistory || [];
     var played = hist.length || null;
     var wins = hist.filter(function (m) { return m && (m.won === true || m.result === 'WIN'); }).length;
     var rate = played ? Math.round(wins / played * 100) + '%' : '—';
-    var owned = live.ownedTotal != null && ALL_CARDS.length
-      ? Math.round(live.ownedTotal / ALL_CARDS.length * 100) + '%' : '—';
+    var pct = collectedPercent(live);
+    var owned = pct == null ? '—' : pct + '%';
     return '<div class="sg-tiles">' +
       '<div><span>Matches</span><b>' + esc(played != null ? played : '—') + '</b></div>' +
       '<div><span>Win Rate</span><b>' + esc(rate) + '</b></div>' +
@@ -4402,10 +4451,14 @@
     }).filter(Boolean);
     var signature = byIdIn(ALL_CARDS, settings.favoriteCardId || settings.favoriteSieglingId || '');
 
-    // `collected` is this player's share of the catalog, the same number their
-    // own profile leads with. It needs the visitor's catalog to have loaded.
-    var collected = stats.ownedTotal != null && ALL_CARDS.length
-      ? Math.round(stats.ownedTotal / ALL_CARDS.length * 100) + '%' : '\u2014';
+    // The server's own completion figure, so a visitor reads exactly what the
+    // owner sees. `collectibleTotal` is the live catalog as the SERVER counts it,
+    // which is the right denominator even when this visitor's page loaded its
+    // catalog before an element unlocked.
+    var pct = stats.collectedPercent != null ? Math.round(stats.collectedPercent)
+      : (stats.uniqueOwned != null && stats.collectibleTotal
+          ? Math.round(stats.uniqueOwned / stats.collectibleTotal * 100) : null);
+    var collected = pct == null ? '\u2014' : pct + '%';
     var rate = stats.matches ? (stats.winRate != null ? stats.winRate : 0) + '%' : '\u2014';
 
     var matches = Array.isArray(res.recentMatches) ? res.recentMatches : null;
