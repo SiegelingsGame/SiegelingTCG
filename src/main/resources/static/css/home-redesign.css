@@ -62,7 +62,15 @@ body.concept-board {
      browser that understands dvh discards it. */
   position:absolute; top:0; left:0; right:0;
   height:var(--sg-vh, 100vh);
-  height:100dvh;
+  /* 100dvh is what a current browser should use, but an installed web app can
+     report a dvh SHORTER than the glass it actually gets, and then the shell -
+     and the tab bar pinned to its bottom - stops short with a dead band beneath.
+     max() takes whichever is taller: --sg-vh (viewport-unit.js, the measured
+     visible height) only wins where dvh genuinely under-reports, which is
+     exactly the broken case; where the two agree this changes nothing, and in a
+     browser, where the visual viewport is the smaller of the two whenever a
+     toolbar is showing, dvh keeps winning as before. */
+  height:max(100dvh, var(--sg-vh, 0px));
   display:flex; flex-direction:column;
   font-family:var(--sans); color:var(--ink);
   background:
@@ -77,14 +85,23 @@ body.concept-board {
   /* Sit just under the status bar. The previous 12px + full inset left a tall
      empty band, and the scrim painted across the chip row so the controls looked
      soft. The scrim is a ::before behind the children now. */
-  padding:max(6px, env(safe-area-inset-top,0px)) 14px 10px;
+  padding:max(6px, var(--sg-sat)) 14px 10px;
   background:none;
   pointer-events:none;
 }
-/* Scrim lives behind the chrome so coins / crest / bell stay sharp. */
+/* Scrim lives behind the chrome so coins / crest / bell stay sharp - and it now
+   stops ABOVE them rather than spanning the whole header. Painting it across the
+   control row meant the scrim showed through the chips' 12% transparency, which
+   reads as a blur over them. It is worst in an installed web app, where the
+   status-bar inset makes the header (and so the scrim) twice as tall. It covers
+   the status-bar strip plus a short fade, and nothing else. */
 .sg-top::before {
-  content:''; position:absolute; inset:0; z-index:0; pointer-events:none;
-  background:linear-gradient(180deg, rgba(5,8,15,.78) 0%, rgba(5,8,15,.42) 55%, rgba(5,8,15,0) 100%);
+  content:''; position:absolute; left:0; right:0; top:0; z-index:0; pointer-events:none;
+  /* Exactly the header's own top padding, so the scrim ends on the line where
+     the controls begin: it covers the status-bar strip and nothing else, in
+     either display mode. */
+  height:max(6px, var(--sg-sat));
+  background:linear-gradient(180deg, rgba(5,8,15,.82) 0%, rgba(5,8,15,.5) 46%, rgba(5,8,15,0) 100%);
 }
 .sg-top > * { position:relative; z-index:1; pointer-events:auto; }
 .sg-logo { height:22px; width:auto; opacity:.95; filter:drop-shadow(0 2px 6px rgba(0,0,0,.6)); }
@@ -133,7 +150,7 @@ body.concept-board {
 .sg-notif-badge.hidden { display:none; }
 
 .sg-notif-panel {
-  position:absolute; top:calc(max(6px, env(safe-area-inset-top,0px)) + 40px); right:12px; z-index:50;
+  position:absolute; top:calc(max(6px, var(--sg-sat)) + 40px); right:12px; z-index:50;
   width:min(320px, calc(100% - 24px)); max-height:min(420px, 58dvh);
   display:flex; flex-direction:column;
   border-radius:18px; border:1px solid rgba(200,165,79,.28);
@@ -380,12 +397,18 @@ body.concept-board {
 }
 .sg-feat-art img {
   width:100%; height:100%; object-fit:contain; object-position:center bottom;
-  transform:scale(1.42); transform-origin:center bottom;
+  /* The blanket 1.42 is the unmeasured fallback: it enlarges each file's empty
+     padding along with its creature, which is why one tile read full and the
+     next half empty. Where the art's alpha bounds could be measured, --art-fit
+     carries a per-card transform that sizes and seats the CREATURE instead. */
+  --art-fit:scale(1.42);
+  transform:var(--art-fit); transform-origin:center bottom;
   filter:drop-shadow(0 14px 18px rgba(0,0,0,.65));
   transition:transform .32s cubic-bezier(.2,.8,.25,1);
 }
 .sg-feat:active { transform:translateY(-6px); }
-.sg-feat:active .sg-feat-art img { transform:scale(1.48); transform-origin:center bottom; }
+/* Press lift, composed with whatever fit the tile ended up with. */
+.sg-feat:active .sg-feat-art img { transform:scale(1.04) var(--art-fit); }
 .sg-feat-foot {
   position:absolute; left:0; right:0; bottom:0; padding:10px 12px 12px; border-radius:0 0 20px 20px;
   background:linear-gradient(180deg, transparent, rgba(5,8,15,.86) 46%);
@@ -544,7 +567,6 @@ body.concept-board {
      the padding is only checking a copy of the rule. */
   /* Phone feedback still showed a tall empty band under the labels: keep the
      bar flush and drop the decorative clearance further so icons ride lower. */
-  --sg-sab: env(safe-area-inset-bottom, 0px);
   padding:4px 6px max(2px, calc(var(--sg-sab) * 0.18));
   border-top:1px solid rgba(112,142,180,.14);
   background:linear-gradient(180deg, rgba(7,11,20,.72), rgba(5,8,15,.96));
@@ -567,7 +589,7 @@ body.concept-board {
 }
 
 /* --- collection / gallery screen --- */
-.sg-gal-head { position:relative; z-index:20; padding:calc(58px + env(safe-area-inset-top,0px)) 18px 6px; }
+.sg-gal-head { position:relative; z-index:20; padding:calc(58px + var(--sg-sat)) 18px 6px; }
 .sg-gal-head h2 { font-family:var(--serif); font-size:27px; margin:0; font-weight:600; }
 .sg-gal-head p { margin:5px 0 0; font-size:11.5px; color:var(--muted); letter-spacing:.03em; }
 .sg-gal-tools { display:flex; align-items:center; gap:8px; padding:12px 18px 6px; }
@@ -691,7 +713,7 @@ body.single-screen .sg-app { position:fixed; inset:0; }
 }
 .sg-hero.is-scene .sg-eyebrow { display:none; }
 .sg-hero-credit {
-  position:absolute; left:18px; top:calc(58px + env(safe-area-inset-top,0px)); z-index:4;
+  position:absolute; left:18px; top:calc(58px + var(--sg-sat)); z-index:4;
   font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted);
   text-shadow:0 2px 10px rgba(0,0,0,.9); line-height:1.7;
 }
@@ -713,7 +735,7 @@ body.single-screen .sg-app { position:fixed; inset:0; }
 .sg-plate-foot span { display:block; font-size:10.5px; color:var(--muted); letter-spacing:.05em; margin-top:2px; }
 
 /* ---------- shared page furniture ---------- */
-.sg-page-head { padding:calc(58px + env(safe-area-inset-top,0px)) 18px 4px; }
+.sg-page-head { padding:calc(58px + var(--sg-sat)) 18px 4px; }
 .sg-page-head h2 { font-family:var(--serif); font-size:27px; margin:0; font-weight:600; }
 .sg-page-head p { margin:5px 0 0; font-size:11.5px; color:var(--muted); letter-spacing:.03em; }
 .sg-tool-row { display:flex; gap:8px; padding:14px 18px 4px; }
@@ -796,6 +818,14 @@ body.single-screen .sg-app { position:fixed; inset:0; }
    it with `cover` cropped roughly 9% of the height - which is exactly where the
    gold frame's top and bottom edges live, so every pack read as a bordered card
    with its border sliced off. The face carries the art's own ratio instead. */
+/* Safe-area insets, read once here so every consumer shares one source. They go
+   through variables rather than bare env() so a test can drive the SHIPPED
+   expressions with a real inset: Chromium cannot fake env(), and a test that
+   re-declares a rule only measures a copy of it. An inline value on <html>
+   overrides these, which is exactly what the standalone-mode checks do. */
+:root {
+  --sg-sat: env(safe-area-inset-top, 0px);
+}
 :root { --card-back-ratio: 520 / 760; }
 .sg-pack-face {
   width:132px; height:auto; aspect-ratio:var(--card-back-ratio);
@@ -909,7 +939,7 @@ body.single-screen .sg-app { position:fixed; inset:0; }
 /* Keep the plate credit inside the artwork band and clear of the title, which
    now sits on the fade directly below it. */
 .sg-hero.is-scene .sg-hero-credit {
-  top:calc(54px + env(safe-area-inset-top,0px));
+  top:calc(54px + var(--sg-sat));
   text-shadow:0 2px 14px #000, 0 0 30px rgba(0,0,0,.9);
 }
 
@@ -1224,6 +1254,10 @@ body.concept-board {
 .sg-strip, .sg-bundle, .sg-recent, .sg-tiles div, .sg-badge, .sg-loadout, .sg-rail {
   background-color:rgba(36,26,96,.88);
 }
+/* The coin chip and the bell are the exception: they sit over artwork and near
+   the status-bar scrim, and their 12% transparency is what makes them read as
+   veiled. The Sign In pill and the crest are already opaque. */
+.sg-top .sg-chip, .sg-top .sg-bell { background-color:rgb(30,22,82); }
 .sg-qa-panel ul, .sg-more-sheet { background:rgba(26,17,71,.94); }
 .sg-nav { background:linear-gradient(180deg, rgba(21,16,64,.68), rgba(13,10,38,.96)); }
 .sg-bottom { background:linear-gradient(180deg, rgba(13,10,38,0), rgba(13,10,38,.55) 50%, rgba(13,10,38,.92) 78%); }
@@ -1416,7 +1450,7 @@ body.concept-board {
    two modes and the same vocabulary, but each is a full-bleed plate, and the
    account prompt is one artwork band rather than a card of body copy.
    ========================================================================== */
-.sg-modes { padding-top:calc(58px + env(safe-area-inset-top,0px)); gap:14px; }
+.sg-modes { padding-top:calc(58px + var(--sg-sat)); gap:14px; }
 .sg-mode.is-primary { height:264px; }
 .sg-mode { height:184px; }
 .sg-mode.is-primary .sg-mode-body h3 { font-size:38px; }
@@ -1835,7 +1869,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-gacha-veil { position:absolute; inset:0; background:rgba(7,5,22,.93); backdrop-filter:blur(6px); }
 .sg-gacha-body {
   position:relative; flex:1 1 auto; display:flex; flex-direction:column; align-items:center;
-  gap:14px; padding:calc(26px + env(safe-area-inset-top,0px)) 18px calc(20px + env(safe-area-inset-bottom,0px));
+  gap:14px; padding:calc(26px + var(--sg-sat)) 18px calc(20px + var(--sg-sab));
   overflow:auto;
 }
 .sg-gacha-head { text-align:center; }
@@ -1978,12 +2012,12 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 
 .sg-lightbox {
   position:absolute; inset:0; z-index:75; display:flex; align-items:center; justify-content:center;
-  background:rgba(7,5,22,.96); padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0);
+  background:rgba(7,5,22,.96); padding:var(--sg-sat) 0 var(--sg-sab);
 }
 .sg-lightbox[hidden] { display:none; }
 .sg-lightbox img { max-width:100%; max-height:100%; object-fit:contain; }
 .sg-lightbox-foot {
-  position:absolute; left:0; right:0; bottom:calc(16px + env(safe-area-inset-bottom,0px));
+  position:absolute; left:0; right:0; bottom:calc(16px + var(--sg-sab));
   display:flex; flex-direction:column; align-items:center; gap:3px; text-align:center;
   padding:0 18px; text-shadow:0 2px 12px rgba(0,0,0,.9);
 }
@@ -1991,7 +2025,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-lightbox-foot em { font-style:normal; font-size:11px; letter-spacing:.14em;
   text-transform:uppercase; color:var(--muted); }
 .sg-lightbox-close {
-  position:absolute; top:calc(14px + env(safe-area-inset-top,0px)); right:14px;
+  position:absolute; top:calc(14px + var(--sg-sat)); right:14px;
   width:40px; height:40px; border-radius:50%; cursor:pointer; font-size:22px; line-height:1;
   color:var(--ink); border:1px solid rgba(180,140,255,.3); background:rgba(13,10,38,.7);
 }
@@ -2005,7 +2039,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   /* Never taller than the screen, and never so short that a panel is a slit. */
   max-height:min(86dvh, 720px);
   display:flex; flex-direction:column;
-  padding:0 16px calc(16px + env(safe-area-inset-bottom,0px));
+  padding:0 16px calc(16px + var(--sg-sab));
 }
 /* The face sits beside the identity rather than above it, which is what buys
    back the vertical room the tabs need. */
@@ -2191,7 +2225,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   letter-spacing:.02em !important; text-transform:none !important; line-height:1.55; color:var(--muted);
 }
 .sg-crest-edit {
-  position:absolute; z-index:3; right:14px; top:calc(58px + env(safe-area-inset-top,0px));
+  position:absolute; z-index:3; right:14px; top:calc(58px + var(--sg-sat));
   padding:7px 14px; border-radius:999px; font-size:10px; letter-spacing:.16em; text-transform:uppercase;
   color:var(--gold-bright); border:1px solid rgba(200,165,79,.36);
   background:rgba(6,10,18,.62); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
