@@ -39,6 +39,18 @@
       .catch(function () { return null; });
   }
 
+  function post(url, body) {
+    var headers = { Accept: 'application/json', 'Content-Type': 'application/json' };
+    var auth = bearer();
+    if (auth) headers.Authorization = auth;
+    return fetch(url, {
+      method: 'POST', credentials: 'same-origin', headers: headers,
+      body: JSON.stringify(body || {})
+    }).then(function (r) {
+      return r.json().catch(function () { return r.ok ? {} : { error: 'Request failed.' }; });
+    }).catch(function () { return { error: 'Network error. Try again.' }; });
+  }
+
   // A run is resumable only while it is ACTIVE. The endpoint returns either a
   // `runs` list (one save per mode) or a single `run`, so normalise both.
   function activeRuns(payload) {
@@ -91,15 +103,19 @@
            // art, title, avatar style, card back, favourite card and the three
            // showcase cards. Signed-out has no row, and the store throws rather
            // than inventing one, so this is gated with the rest.
-           get('/api/profile/settings')]
+           get('/api/profile/settings'),
+           // Direct-message threads. Signed-out has no inbox, and the endpoint
+           // refuses rather than returning an empty one.
+           get('/api/social/messages/threads')]
         : [Promise.resolve(null), Promise.resolve(null), Promise.resolve(null),
-           Promise.resolve(null), Promise.resolve(null), Promise.resolve(null)];
+           Promise.resolve(null), Promise.resolve(null), Promise.resolve(null),
+           Promise.resolve(null)];
 
       return Promise.all(core.concat(gated)).then(function (r) {
         var options = r[0], rooms = r[1], siege = r[2], boards = r[3], shop = r[4],
             riders = r[5], affinities = r[6],
             progressionResponse = r[7], missions = r[8], decks = r[9], presence = r[10], keep = r[11],
-            profile = r[12];
+            profile = r[12], threads = r[13];
         var catalog = (options && options.cardCatalog) || [];
         // /api/player/progression answers {progression:{gold, ownedTotal, …},
         // packs, dailyOffers, …} - the wallet is NESTED. Reading it off the root
@@ -166,6 +182,11 @@
           missions: (missions && !missions.error && (missions.missions || missions.daily)) || null,
           packs: (shop && shop.packs ? shop.packs.filter(function (pk) { return pk && pk.active !== false; }) : null),
           friends: (presence && !presence.error && presence.friends) || (me && me.friends) || null,
+          // Friend requests are part of the account, not of presence: /auth/me
+          // carries both directions and the Friends tab acts on them.
+          incomingRequests: (me && me.incomingFriendRequests) || [],
+          outgoingRequests: (me && me.outgoingFriendRequests) || [],
+          threads: (threads && !threads.error && threads.threads) || [],
           keepResidents: (keep && !keep.error && keep.residents) || null,
           advantageRiders: (riders && riders.riders) || null,
           keepAffinities: (affinities && affinities.stations) || null,
@@ -176,5 +197,7 @@
     });
   }
 
-  window.SiegelingsHomeLive = { load: load };
+  // `get`/`post` are shared so the Social screen can refresh a thread or act on
+  // a friend request without a second copy of the auth-header logic.
+  window.SiegelingsHomeLive = { load: load, get: get, post: post };
 })();
