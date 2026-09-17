@@ -459,6 +459,102 @@ class PlayerProgressionServiceTest {
         assertEquals(499, store.saved.getGold());
     }
 
+    /* Collection completion. The profile divided copies held by unique cards, so
+       a player with duplicates read over 100% - 214% was reported. */
+
+    @Test
+    void collectionProgressCountsDistinctCardsNotCopies() throws Exception {
+        PlayerProgressionService service = createService(new FakeProgressionStore(),
+                new FakePackCatalogService(), new FakeCardDefinitionService());
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        // Three copies of one of the two catalog cards: one card collected, not three.
+        progression.setOwnedCards(new LinkedHashMap<>(Map.of("draco", 3)));
+
+        PlayerProgressionService.CollectionProgress progress = service.collectionProgress(progression);
+
+        assertEquals(1, progress.owned());
+        assertEquals(2, progress.collectible());
+        assertEquals(50, progress.percent());
+    }
+
+    @Test
+    void collectionProgressNeverExceedsOneHundredPercent() throws Exception {
+        PlayerProgressionService service = createService(new FakeProgressionStore(),
+                new FakePackCatalogService(), new FakeCardDefinitionService());
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        Map<String, Integer> owned = new LinkedHashMap<>();
+        owned.put("draco", 9);
+        owned.put("dracoil", 9);
+        // A card from an element that is no longer live is not in the catalog, so it
+        // cannot be collected from this pool and must not inflate the figure.
+        owned.put("retired-card", 9);
+        progression.setOwnedCards(owned);
+
+        PlayerProgressionService.CollectionProgress progress = service.collectionProgress(progression);
+
+        assertEquals(2, progress.owned());
+        assertEquals(2, progress.collectible());
+        assertEquals(100, progress.percent());
+    }
+
+    @Test
+    void unlockingAnElementWidensTheDenominatorAndLowersThePercentage() throws Exception {
+        GrowingCatalogService catalog = new GrowingCatalogService();
+        PlayerProgressionService service = createService(new FakeProgressionStore(),
+                new FakePackCatalogService(), catalog);
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setOwnedCards(new LinkedHashMap<>(Map.of("draco", 1, "dracoil", 1)));
+
+        assertEquals(100, service.collectionProgress(progression).percent());
+
+        // A new element goes live: its cards join the catalog the server serves, so
+        // the same collection is now a smaller share of it. This is the behaviour
+        // that must hold without a second list being kept in step by hand.
+        catalog.poisonLive = true;
+
+        PlayerProgressionService.CollectionProgress after = service.collectionProgress(progression);
+        assertEquals(2, after.owned());
+        assertEquals(4, after.collectible());
+        assertEquals(50, after.percent());
+    }
+
+    @Test
+    void collectionProgressReportsZeroRatherThanDividingByAnEmptyCatalog() throws Exception {
+        GrowingCatalogService catalog = new GrowingCatalogService();
+        catalog.empty = true;
+        PlayerProgressionService service = createService(new FakeProgressionStore(),
+                new FakePackCatalogService(), catalog);
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setOwnedCards(new LinkedHashMap<>(Map.of("draco", 1)));
+
+        PlayerProgressionService.CollectionProgress progress = service.collectionProgress(progression);
+
+        assertEquals(0, progress.collectible());
+        assertEquals(0, progress.percent());
+    }
+
+    /** A catalog that grows when an element is switched on, as the real one does. */
+    private static class GrowingCatalogService extends FakeCardDefinitionService {
+        boolean poisonLive = false;
+        boolean empty = false;
+
+        @Override
+        public List<Card> getDeckBuilderCatalog() {
+            if (empty) {
+                return List.of();
+            }
+            List<Card> cards = new java.util.ArrayList<>(List.of(
+                    new SieglingCard("draco", "Draco", Element.FIRE, Rarity.COMMON, 7, 3, List.of(), Row.FRONT),
+                    new SieglingCard("dracoil", "Dracoil", Element.FIRE, Rarity.RARE, 8, 3, List.of(), Row.FRONT)
+            ));
+            if (poisonLive) {
+                cards.add(new SieglingCard("venomite", "Venomite", Element.POISON, Rarity.COMMON, 6, 4, List.of(), Row.FRONT));
+                cards.add(new SieglingCard("venomlord", "Venomlord", Element.POISON, Rarity.RARE, 9, 2, List.of(), Row.FRONT));
+            }
+            return cards;
+        }
+    }
+
     private PlayerProgressionService createService(PlayerProgressionStore store,
                                                    PackCatalogService packCatalogService,
                                                    CardDefinitionService cardDefinitionService) throws Exception {
