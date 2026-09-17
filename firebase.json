@@ -224,6 +224,13 @@
         "destination": "/keep.html"
       },
       {
+        "source": "/api/cards/art-mirror",
+        "function": {
+          "functionId": "api",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "/api/cards/editor",
         "function": {
           "functionId": "api",

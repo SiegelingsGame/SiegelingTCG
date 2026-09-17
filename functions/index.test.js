@@ -327,3 +327,33 @@ test('gate: the two backends agree on the token format', () => {
     assert.equal(signature, expected);
   });
 });
+
+/* ---------- card art mirror ----------
+   The mirror exists so the hub can read card-art pixels (Firebase Storage sends
+   no CORS header). Because it takes a URL, the thing worth testing is that it
+   refuses every URL that is not this project's own card art - otherwise it is an
+   open relay that will fetch whatever it is handed. */
+test('art mirror: accepts this project\'s own card art', () => {
+  const bucket = _private.ART_MIRROR_BUCKET;
+  assert.equal(_private.isMirrorableArtUrl(
+    `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/cards%2Fbearby.png?alt=media&token=abc`), true);
+});
+
+test('art mirror: refuses any URL outside this project\'s bucket', () => {
+  const bucket = _private.ART_MIRROR_BUCKET;
+  const refused = [
+    '',
+    'https://example.com/evil.png',
+    'http://169.254.169.254/latest/meta-data/',                          // cloud metadata
+    'http://localhost:8080/api/cards/editor',                            // loopback
+    `http://firebasestorage.googleapis.com/v0/b/${bucket}/o/x`,          // plain http
+    'https://firebasestorage.googleapis.com/v0/b/another-project/o/x',   // another bucket
+    `https://firebasestorage.googleapis.com.evil.test/v0/b/${bucket}/o/x`, // lookalike host
+    `https://evil.test/https://firebasestorage.googleapis.com/v0/b/${bucket}/o/x`,
+    'file:///etc/passwd',
+    'javascript:alert(1)'
+  ];
+  for (const url of refused) {
+    assert.equal(_private.isMirrorableArtUrl(url), false, `must refuse ${url || '(empty)'}`);
+  }
+});

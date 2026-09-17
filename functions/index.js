@@ -204,6 +204,66 @@ app.post('/api/cards/editor', async (req, res) => {
   }
 });
 
+/* ---------- card art mirror ----------
+   The hub measures each cutout's alpha bounds so it can size the CREATURE to its
+   tile rather than the file's padding. Reading pixels needs a CORS-clean image,
+   and Firebase Storage serves card art with no Access-Control-Allow-Origin at
+   all - verified against the live bucket - so the measurement silently failed
+   everywhere and every tile fell back to a blanket scale that overflowed.
+
+   This streams the same bytes back from our own origin with the header, so the
+   canvas is readable. It is a mirror, not a general proxy: the URL must be a
+   download URL for THIS project's bucket, which is what keeps it from being
+   turned into an open relay for arbitrary fetches. Read-only, GET-only, and the
+   response is cached hard because card art is immutable once uploaded. */
+const ART_MIRROR_BUCKET = process.env.STORAGE_BUCKET || 'siegelingstcgtesting.firebasestorage.app';
+const ART_MIRROR_PREFIX = `https://firebasestorage.googleapis.com/v0/b/${ART_MIRROR_BUCKET}/o/`;
+
+/* Only a download URL for this project's own bucket may be mirrored. The host is
+   compared after parsing rather than by string prefix alone, so a lookalike like
+   `firebasestorage.googleapis.com.evil.test` cannot satisfy it. */
+function isMirrorableArtUrl(target) {
+  const raw = String(target || '');
+  if (!raw.startsWith(ART_MIRROR_PREFIX)) {
+    return false;
+  }
+  let parsed;
+  try {
+    parsed = new URL(raw);
+  } catch (error) {
+    return false;
+  }
+  return parsed.protocol === 'https:'
+    && parsed.hostname === 'firebasestorage.googleapis.com'
+    && parsed.pathname.startsWith(`/v0/b/${ART_MIRROR_BUCKET}/o/`);
+}
+
+app.get('/api/cards/art-mirror', async (req, res) => {
+  const target = String(req.query.url || '');
+  if (!isMirrorableArtUrl(target)) {
+    // Anything not addressed to this project's own bucket is refused outright,
+    // so this cannot be used to fetch a URL of the caller's choosing.
+    return res.status(400).json({ error: 'Only this project\'s card art can be mirrored.' });
+  }
+  try {
+    const upstream = await fetch(target);
+    if (!upstream.ok) {
+      return res.status(upstream.status).json({ error: 'Card art could not be read.' });
+    }
+    const type = upstream.headers.get('content-type') || '';
+    if (!type.startsWith('image/')) {
+      return res.status(415).json({ error: 'That is not an image.' });
+    }
+    const body = Buffer.from(await upstream.arrayBuffer());
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Content-Type', type);
+    res.set('Cache-Control', 'public, max-age=31536000, immutable');
+    return res.send(body);
+  } catch (error) {
+    return res.status(502).json({ error: 'Card art could not be read.' });
+  }
+});
+
 app.get('/api/cards/editor/auth/gate', (req, res) => {
   res.json({
     required: gateConfigured(),
@@ -1128,6 +1188,8 @@ function buildCardArtPublicUrl(bucketName, objectPath, downloadToken) {
 }
 
 exports._private = {
+  isMirrorableArtUrl,
+  ART_MIRROR_BUCKET,
   // Gate internals, exported for the tests: the real passphrase is never in
   // them - they configure a gate with a hash of their own.
   isValidGateToken,

@@ -397,11 +397,13 @@ body.concept-board {
 }
 .sg-feat-art img {
   width:100%; height:100%; object-fit:contain; object-position:center bottom;
-  /* The blanket 1.42 is the unmeasured fallback: it enlarges each file's empty
-     padding along with its creature, which is why one tile read full and the
-     next half empty. Where the art's alpha bounds could be measured, --art-fit
-     carries a per-card transform that sizes and seats the CREATURE instead. */
-  --art-fit:scale(1.42);
+  /* The fallback is scale(1): `contain` already fits the art to the frame, so at
+     1 nothing can be clipped. It used to be 1.42, which overflowed the frame and
+     sliced tails and wings off against the tile edge whenever the measurement
+     was unavailable - which, until the art mirror, was every card. An unmeasured
+     tile now reads a little small rather than cropped; --art-fit replaces this
+     with a per-card transform wherever the alpha bounds could be read. */
+  --art-fit:scale(1);
   transform:var(--art-fit); transform-origin:center bottom;
   filter:drop-shadow(0 14px 18px rgba(0,0,0,.65));
   transition:transform .32s cubic-bezier(.2,.8,.25,1);
@@ -414,7 +416,15 @@ body.concept-board {
   background:linear-gradient(180deg, transparent, rgba(5,8,15,.86) 46%);
   display:flex; align-items:center; justify-content:space-between; gap:8px;
 }
-.sg-feat-name { font-size:12px; font-weight:600; letter-spacing:.015em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+/* min-width:0 lets the name actually shrink inside the flex foot; without it a
+   long name keeps its full intrinsic width and pushes the element marks out.
+   fitTileNames steps the size down until it fits, and the ellipsis stays as the
+   floor for a name too long even at the smallest size. */
+.sg-feat-name {
+  font-size:12px; font-weight:600; letter-spacing:.015em;
+  min-width:0; flex:1 1 auto;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
 .sg-feat-marks { display:flex; align-items:center; gap:5px; flex:0 0 auto; }
 .sg-feat-marks img { width:14px; height:14px; opacity:.92; }
 .sg-rar { width:9px; height:9px; transform:rotate(45deg); border-radius:1.5px; }
@@ -1896,7 +1906,11 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 
 .sg-flip {
   position:relative; background:none; border:none; padding:0; cursor:pointer;
-  aspect-ratio:3 / 4; perspective:900px;
+  /* The card back art is 13:19, not 3:4. A 3:4 slot painted with `cover` cropped
+     about 9% of the height - exactly the gold frame's top and bottom edges - so
+     every face-down card in the reveal grid read as a bordered card with its
+     border sliced off. Same fault, same token, as the shop's pack tiles. */
+  aspect-ratio:var(--card-back-ratio); perspective:900px;
 }
 .sg-flip-inner {
   position:absolute; inset:0; transform-style:preserve-3d;
@@ -1909,7 +1923,9 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   backface-visibility:hidden; -webkit-backface-visibility:hidden;
 }
 .sg-flip-back { box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--el,#c8a54f) 40%, transparent); }
-.sg-flip-back img { width:100%; height:100%; object-fit:cover; display:block; }
+/* `contain`, so a back of some other proportion letterboxes rather than losing
+   its frame. */
+.sg-flip-back img { width:100%; height:100%; object-fit:contain; display:block; }
 .sg-flip-front { transform:rotateY(180deg); display:grid; place-items:center; }
 .sg-flip-front .sg-card-tile { width:100%; }
 @keyframes sgDealIn { from { opacity:0; transform:translateY(16px) rotateY(0); } }
