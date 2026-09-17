@@ -394,19 +394,155 @@
     }
 
     // ── Element affinity rail ─────────────────────────────────────────────
+    // The tiles are buttons, not list items: tapping one opens the element
+    // overlay below, because a name plus a blurb does not explain what an
+    // element IS. Seeing one of its Siegelings and the notch token it prints does.
     function renderElementRail() {
         const rail = document.getElementById('elementRail');
         if (!rail) return;
         rail.innerHTML = ELEMENT_LANDS.map((entry) => {
             const key = entry.key.toLowerCase();
             return `
-                <li class="element-tile" style="--tile-color: var(--element-${key}, var(--element-neutral, #9fb3d9))">
+                <li class="element-rail-item">
+                  <button class="element-tile" type="button" data-element="${escapeAttr(entry.key)}"
+                          aria-label="${escapeAttr(entry.label)}: ${escapeAttr(entry.blurb)}"
+                          style="--tile-color: var(--element-${key}, var(--element-neutral, #9fb3d9))">
                     <span class="element-tile-art" aria-hidden="true" style="background-image:url('/img/lands/${entry.land}.webp')"></span>
                     <span class="element-tile-sigil" aria-hidden="true">${getElementSvg(entry.key)}</span>
                     <span class="element-tile-name">${escapeHtml(entry.label)}</span>
                     <span class="element-tile-blurb">${escapeHtml(entry.blurb)}</span>
+                  </button>
                 </li>`;
         }).join('');
+        bindElementOverlay(rail);
+    }
+
+    // ── Element overlay ───────────────────────────────────────────────────
+    // The notch token is the same composite the battle table draws: the square
+    // notch plate as a background over the element colour on a round element, so
+    // the landing page teaches the symbol a player will actually look for on a
+    // card perimeter rather than a second, invented icon.
+    function notchTokenUrl(element) {
+        return `/img/notches/notch-${String(element || 'neutral').toLowerCase()}.png?v=2`;
+    }
+
+    // One Siegeling per element, chosen once and kept, so reopening a tile shows
+    // the same face instead of reshuffling. Art is required - an overlay whose
+    // whole point is the art has nothing to say without it.
+    const __elementFaces = new Map();
+    async function elementFace(element) {
+        const key = String(element).toUpperCase();
+        if (__elementFaces.has(key)) return __elementFaces.get(key);
+        let face = null;
+        try {
+            const payload = await loadGameOptions();
+            const cards = Array.isArray(payload?.cardCatalog) ? payload.cardCatalog : [];
+            const pool = cards.filter((card) => String(card?.type || 'SIEGLING').toUpperCase() === 'SIEGLING'
+                && String(card?.element || '').toUpperCase() === key
+                && String(card?.cardArtUrl || '').trim());
+            // Overlay-art cards are painted as a cutout on transparency, which is
+            // what reads on a dark overlay; a full-card scan would drag its own
+            // printed frame in with it. Prefer one, settle for any.
+            const overlay = pool.filter((card) => String(card.cardArtMode || '').toUpperCase() === 'OVERLAY');
+            const pick = (overlay.length ? overlay : pool)
+                .slice()
+                .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))[0];
+            if (pick) face = { name: String(pick.name || ''), art: String(pick.cardArtUrl) };
+        } catch (_ignored) {
+            // Static preview or API away: the overlay still shows the notch and land.
+        }
+        if (!face) {
+            // Offline fallback. The curated legendary plate is an element crest,
+            // not that Siegeling's portrait, so it stands in for the art but must
+            // not be captioned with a name it is not a picture of.
+            const fallback = FEATURED_SIEGELINGS.find((s) => String(s.element).toUpperCase() === key);
+            if (fallback) face = { name: '', art: fallback.art };
+        }
+        __elementFaces.set(key, face);
+        return face;
+    }
+
+    function bindElementOverlay(rail) {
+        const entryFor = (key) => ELEMENT_LANDS.find((e) => e.key === key) || null;
+        let overlay = document.getElementById('elementOverlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'elementOverlay';
+            overlay.className = 'element-overlay';
+            overlay.setAttribute('role', 'dialog');
+            overlay.setAttribute('aria-modal', 'true');
+            overlay.hidden = true;
+            document.body.appendChild(overlay);
+        }
+        let opener = null;
+        // Every open gets a token; a slow catalog response from a previous open
+        // must not paint over the element the player is looking at now.
+        let openToken = 0;
+
+        function close() {
+            overlay.classList.remove('is-open');
+            overlay.hidden = true;
+            document.body.classList.remove('element-overlay-open');
+            if (opener && opener.isConnected) opener.focus({ preventScroll: true });
+            opener = null;
+        }
+
+        async function open(key, button) {
+            const entry = entryFor(key);
+            if (!entry) return;
+            const token = ++openToken;
+            opener = button || null;
+            const lower = entry.key.toLowerCase();
+            overlay.style.setProperty('--tile-color', `var(--element-${lower}, var(--element-neutral, #9fb3d9))`);
+            overlay.setAttribute('aria-label', `${entry.label} affinity`);
+            overlay.innerHTML = `
+                <div class="element-overlay-scrim" data-element-close></div>
+                <div class="element-overlay-card">
+                    <button class="element-overlay-close" type="button" data-element-close aria-label="Close">×</button>
+                    <span class="element-overlay-land" aria-hidden="true" style="background-image:url('/img/lands/${entry.land}.webp')"></span>
+                    <div class="element-overlay-art" data-element-art>
+                        <span class="element-overlay-sigil" aria-hidden="true">${getElementSvg(entry.key)}</span>
+                    </div>
+                    <div class="element-overlay-body">
+                        <span class="element-overlay-notch" aria-hidden="true"
+                              style="--notch-icon:url('${notchTokenUrl(entry.key)}')"></span>
+                        <h3 class="element-overlay-name">${escapeHtml(entry.label)}</h3>
+                        <p class="element-overlay-blurb">${escapeHtml(entry.blurb)}</p>
+                        <p class="element-overlay-notch-label">The ${escapeHtml(entry.label)} notch — point two of these at each other and the cards link.</p>
+                        <p class="element-overlay-face" data-element-face></p>
+                    </div>
+                </div>`;
+            overlay.hidden = false;
+            // Reflow before the class lands, or the transition has nothing to run from.
+            void overlay.offsetWidth;
+            overlay.classList.add('is-open');
+            document.body.classList.add('element-overlay-open');
+            const closer = overlay.querySelector('.element-overlay-close');
+            if (closer) closer.focus({ preventScroll: true });
+
+            const face = await elementFace(entry.key);
+            if (token !== openToken || !face || !face.art) return;
+            const art = overlay.querySelector('[data-element-art]');
+            const caption = overlay.querySelector('[data-element-face]');
+            if (art) {
+                art.insertAdjacentHTML('afterbegin',
+                    `<img class="element-overlay-siegeling" ${landingImgAttrs(face.art)} alt="${escapeAttr(face.name)}" loading="lazy">`);
+                art.classList.add('has-art');
+            }
+            if (caption && face.name) caption.textContent = face.name;
+        }
+
+        rail.addEventListener('click', (event) => {
+            const button = event.target.closest('[data-element]');
+            if (!button || !rail.contains(button)) return;
+            open(button.getAttribute('data-element'), button);
+        });
+        overlay.addEventListener('click', (event) => {
+            if (event.target.closest('[data-element-close]')) close();
+        });
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && overlay.classList.contains('is-open')) close();
+        });
     }
 
     // ── SiegeKnight rail ──────────────────────────────────────────────────

@@ -1786,13 +1786,107 @@
 
   // One sheet host per screen; any tile with data-card opens it.
   function sheetHost() {
-    return '<div class="sg-sheet" data-sheet><div class="sg-sheet-card" data-sheet-card></div></div>';
+    return '<div class="sg-sheet" data-sheet><div class="sg-sheet-card" data-sheet-card></div></div>' +
+      '<div class="sg-zoom" data-zoom hidden>' +
+        '<button class="sg-zoom-scrim" type="button" data-zoom-close aria-label="Close full screen card"></button>' +
+        '<div class="sg-zoom-stage" data-zoom-stage></div>' +
+        '<button class="sg-zoom-close" type="button" data-zoom-close aria-label="Close full screen card">\u00d7</button>' +
+      '</div>';
+  }
+
+  /* ---------- full-screen card ----------
+     The sheet's face is a 168px thumbnail: the frame reads, the printed text
+     does not. Tapping it opens the same renderer at the largest size the
+     viewport allows, so the card can actually be read rather than recognised.
+     It is the identical `.sg-card-tile` markup, which is what keeps the
+     description fitter - the rules that hold the box off the bottom notch -
+     applying here exactly as it does in the binder. */
+  function mountZoom(app) {
+    var zoom = app.querySelector('[data-zoom]');
+    if (!zoom) return null;
+    var stage = zoom.querySelector('[data-zoom-stage]');
+    var opener = null;
+
+    function close() {
+      zoom.classList.remove('open');
+      zoom.hidden = true;
+      stage.innerHTML = '';
+      if (opener && opener.isConnected) opener.focus({ preventScroll: true });
+      opener = null;
+    }
+    function open(card, from) {
+      if (!card) return;
+      opener = from || document.activeElement;
+      stage.innerHTML = galleryCard(card);
+      // The tile is a button in the binder because it opens this; here it IS
+      // the content, so it stops being a control.
+      var tile = stage.querySelector('.sg-card-tile');
+      if (tile) {
+        tile.setAttribute('tabindex', '-1');
+        tile.removeAttribute('data-card');
+      }
+      zoom.hidden = false;
+      zoom.classList.add('open');
+      var closer = zoom.querySelector('.sg-zoom-close');
+      if (closer) closer.focus({ preventScroll: true });
+      window.requestAnimationFrame(layout);
+    }
+
+    /* The card is magnified, not re-laid-out.
+
+       The printed card is a fixed-proportion box whose type sizes are absolute
+       px (`.card-summary-list` is 9px, everything inside it is an em of that),
+       and `.mulligan-card-slot` caps at 200px. Widening the box for full screen
+       would therefore give a 560px card with 9px flavour text, and the
+       description box would sit in a completely different place relative to the
+       notches than it does on the real card - which is the one thing this view
+       must not do. So the card is laid out at its natural size, the description
+       is fitted there under the same rules as the binder, and the whole
+       composition is scaled up as a unit: every placement is the printed one.
+
+       Fit first, scale second. `fitOneDescription` mixes scroll metrics
+       (unscaled) with getBoundingClientRect (scaled), so measuring through a
+       transform would put the notch clearance out by the scale factor. */
+    function layout() {
+      var tile = stage.querySelector('.sg-card-tile');
+      if (!tile) return;
+      // Measure through a running transition and getBoundingClientRect returns
+      // the ANIMATED size, not the natural one - a re-layout while the card was
+      // still growing computed a scale of 1 and left it at thumbnail size. The
+      // transition is suspended for the measurement, not just the transform.
+      zoom.classList.add('is-measuring');
+      tile.style.setProperty('--sg-zoom-scale', '1');
+      fitCardDescriptions(zoom);
+      fitTileNames(zoom);
+      var box = tile.getBoundingClientRect();
+      var room = stage.getBoundingClientRect();
+      if (!box.width || !box.height || !room.width || !room.height) {
+        zoom.classList.remove('is-measuring');
+        return;
+      }
+      var scale = Math.min(room.width / box.width, room.height / box.height);
+      // Never shrink: on a viewport narrower than the printed card the stage
+      // already clamps the width, and scaling below 1 would only add blur.
+      tile.style.setProperty('--sg-zoom-scale', Math.max(1, scale).toFixed(3));
+      zoom.classList.remove('is-measuring');
+    }
+
+    window.addEventListener('resize', function () {
+      if (zoom.classList.contains('open')) window.requestAnimationFrame(layout);
+    });
+    zoom.addEventListener('click', function (e) {
+      if (e.target.closest('[data-zoom-close]')) close();
+    });
+    // Escape is owned by mountSheet, which unwinds the two layers in order. A
+    // second listener here fired on the same keypress and closed both at once.
+    return { open: open, close: close, isOpen: function () { return zoom.classList.contains('open'); } };
   }
 
   function mountSheet(app, opts) {
     var sheet = app.querySelector('[data-sheet]');
     if (!sheet) return null;
     var sheetCard = sheet.querySelector('[data-sheet-card]');
+    var zoom = mountZoom(app);
     var drag = null;
     var opener = null;
     function resetDrag() {
@@ -1803,6 +1897,7 @@
     function close() {
       sheet.classList.remove('open');
       resetDrag();
+      if (zoom) zoom.close();
       if (opener && opener.isConnected) opener.focus({ preventScroll: true });
     }
     function open(card) {
@@ -1810,6 +1905,7 @@
       resetDrag();
       opener = document.activeElement;
       sheetCard.innerHTML = cardSheetMarkup(card, opts);
+      sheetCard.setAttribute('data-zoom-card', String(card.id == null ? '' : card.id));
       sheetCard.scrollTop = 0;
       wireTabs(sheetCard);
       sheet.classList.add('open');
@@ -1818,8 +1914,19 @@
     sheet.addEventListener('click', function (e) {
       if (e.target === sheet || e.target.closest('.sg-sheet-dismiss')) close();
     });
+    // The face inside the sheet opens the card full screen. It sits inside the
+    // sheet, so the gallery's own [data-card] delegation deliberately skips it.
+    sheetCard.addEventListener('click', function (e) {
+      var face = e.target.closest ? e.target.closest('.sg-sheet-face') : null;
+      if (!face || !zoom) return;
+      var id = sheetCard.getAttribute('data-zoom-card');
+      zoom.open(byIdIn(ALL_CARDS, id) || byId(id), face.querySelector('.sg-card-tile') || face);
+    });
     app.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && sheet.classList.contains('open')) close();
+      if (e.key !== 'Escape') return;
+      // Full screen sits on top of the sheet, so one Escape unwinds one layer.
+      if (zoom && zoom.isOpen()) { zoom.close(); return; }
+      if (sheet.classList.contains('open')) close();
     });
     // Claim only a downward pull begun at the top of the scrolling panel.
     // Native scrolling keeps ownership of upward and already-scrolled gestures.
@@ -3913,10 +4020,13 @@
      centre bottom notch, which is the tighter of the two constraints and the one
      that actually looks broken. Scoped to `.sg-card-tile` so the shipping
      binder's rendering is untouched. */
-  // 6px is the floor because below it the text stops being readable on a phone,
-  // and unreadable text that technically fits is not a fix. Past the floor the
-  // box is capped and the text clamped with an ellipsis instead.
-  var FIT_MIN_PX = 6;
+  /* The floor was 6px, which on a binder thumbnail clamped most flavour text to
+     two lines and dropped the rest. On a thumbnail the description is read as a
+     SHAPE, not as words: all of it tiny beats a third of it legibly, because the
+     full text is now one tap away - the full-screen card magnifies this same
+     layout, so 4px here lands around 15px there. 4px is still the floor rather
+     than nothing, because below it the fitter is only pretending. */
+  var FIT_MIN_PX = 4;
   var NOTCH_CLEARANCE = 3;
   var fitFrame = null;
 
@@ -3924,6 +4034,7 @@
     var list = desc.closest && desc.closest('.card-summary-list');
     if (!list) return;
     var tile = desc.closest('.sg-card-tile');
+    var floor = FIT_MIN_PX;
     desc.style.fontSize = '';
     desc.style.lineHeight = '';
     desc.style.webkitLineClamp = '';
@@ -3931,28 +4042,48 @@
     desc.style.overflow = '';
     desc.style.maxHeight = '';
 
-    var limit = list.clientHeight;
     // The centre bottom notch is what the text visibly runs into; the corner
     // notches sit outside the panel's width. Measured at 360px, the panel can
     // overlap it by ~3px on its own, so shrinking text alone cannot fix this -
     // the box has to be capped too.
     var centre = tile && tile.querySelector('.notch-dot.notch-BOTTOM');
-    if (centre) {
-      var available = centre.getBoundingClientRect().top - desc.getBoundingClientRect().top - NOTCH_CLEARANCE;
-      // One line is the least that can be shown; below that the description is
-      // not worth drawing over the frame.
-      limit = Math.min(limit, Math.max(available, FIT_MIN_PX * 1.15));
+    function measureLimit() {
+      var room = list.clientHeight;
+      if (centre) {
+        var available = centre.getBoundingClientRect().top - desc.getBoundingClientRect().top - NOTCH_CLEARANCE;
+        // One line is the least that can be shown; below that the description is
+        // not worth drawing over the frame.
+        room = Math.min(room, Math.max(available, floor * 1.15));
+      }
+      return room;
     }
+
+    var limit = measureLimit();
     if (limit <= 0) return;
 
     var size = parseFloat(window.getComputedStyle(desc).fontSize) || 9;
     if (desc.scrollHeight > limit + 1) {
       desc.style.lineHeight = '1.15';
       var guard = 30;
-      while (desc.scrollHeight > limit + 1 && size > FIT_MIN_PX && guard-- > 0) {
-        size = Math.max(FIT_MIN_PX, size * 0.94);
+      while (desc.scrollHeight > limit + 1 && size > floor && guard-- > 0) {
+        size = Math.max(floor, size * 0.94);
         desc.style.fontSize = size.toFixed(2) + 'px';
       }
+      // The panel is sized by its own content, so shrinking the text shrinks the
+      // box it had to fit into. Measuring once left the last line clipped on a
+      // full-screen card. Re-measure against the settled panel and keep going.
+      var settle = 3;
+      var next = measureLimit();
+      while (settle-- > 0 && next < limit - 0.5 && desc.scrollHeight > next + 1 && size > floor) {
+        limit = next;
+        guard = 30;
+        while (desc.scrollHeight > limit + 1 && size > floor && guard-- > 0) {
+          size = Math.max(floor, size * 0.94);
+          desc.style.fontSize = size.toFixed(2) + 'px';
+        }
+        next = measureLimit();
+      }
+      limit = Math.min(limit, Math.max(next, floor * 1.15));
     }
     // Cap unconditionally: this is what keeps the BOX off the notch, whether or
     // not the text needed shrinking.
