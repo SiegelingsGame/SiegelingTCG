@@ -1701,6 +1701,92 @@ body.concept-board {
 .sg-help-body strong { display:block; font-family:var(--serif); font-size:15px; font-weight:600; line-height:1.2; }
 .sg-help-body span { display:block; margin-top:3px; font-size:10.5px; color:var(--muted); line-height:1.35; }
 
+
+/* Chapter popup.
+   The grid tiles are buttons now, so they need the button reset the `<a>` did
+   not; the popup itself is a scrim + one scrolling panel, capped at 88dvh so
+   the panel never runs under the iOS home indicator. */
+.sg-help-card { width:100%; padding:0; border:0; background:none; cursor:pointer;
+  font:inherit; color:inherit; text-align:left; }
+.sg-guide[hidden] { display:none; }
+/* Absolute, not fixed: .sg-app is the positioned shell with the measured
+   viewport height, and every other overlay here (sheet, zoom, gacha) sits in
+   that same containing block. */
+.sg-guide { position:absolute; inset:0; z-index:70; display:flex; align-items:flex-end;
+  justify-content:center; padding:0 0 env(safe-area-inset-bottom);
+  background:rgba(6,3,24,.72); backdrop-filter:blur(6px); opacity:0;
+  transition:opacity .22s ease; }
+.sg-guide.open { opacity:1; }
+.sg-guide-panel { position:relative; width:min(560px, 100%); max-height:88dvh;
+  overflow:auto; -webkit-overflow-scrolling:touch;
+  border-radius:24px 24px 0 0; background:var(--navy-2);
+  box-shadow:0 -20px 50px rgba(6,3,24,.66), inset 0 0 0 1px color-mix(in srgb, var(--el,#b45cff) 42%, transparent);
+  transform:translateY(16px); transition:transform .24s cubic-bezier(.2,.8,.25,1); }
+.sg-guide.open .sg-guide-panel { transform:translateY(0); }
+@media (min-width:720px) {
+  .sg-guide { align-items:center; padding:24px; }
+  .sg-guide-panel { border-radius:24px; }
+}
+.sg-guide-dismiss { position:absolute; top:10px; right:10px; z-index:2; width:32px; height:32px;
+  border-radius:50%; border:0; cursor:pointer; font-size:19px; line-height:1;
+  color:#fff; background:rgba(6,3,24,.6); }
+.sg-guide-head { position:relative; height:132px; overflow:hidden; }
+.sg-guide-head img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.sg-guide-veil { position:absolute; inset:0;
+  background:linear-gradient(180deg, rgba(13,10,38,.2) 0%, rgba(13,10,38,.88) 70%, var(--navy-2) 100%); }
+.sg-guide-title { position:absolute; left:0; right:0; bottom:0; padding:14px 18px; }
+.sg-guide-title strong { display:block; font-family:var(--serif); font-size:21px; font-weight:600; }
+.sg-guide-title span { display:block; margin-top:2px; font-size:12px; color:var(--muted); }
+.sg-guide-body { padding:14px 18px 26px; font-size:13px; line-height:1.55; }
+.sg-guide-body p { margin:0 0 11px; color:var(--muted); }
+.sg-guide-sub { margin:18px 0 9px; font-family:var(--serif); font-size:14px; font-weight:600; }
+.sg-guide-note { padding:10px 12px; border-radius:12px; font-size:12px;
+  background:color-mix(in srgb, var(--el,#b45cff) 14%, rgba(13,10,38,.55));
+  box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--el,#b45cff) 32%, transparent); }
+.sg-guide-list { margin:0 0 11px; padding-left:17px; color:var(--muted); }
+.sg-guide-list li { margin-bottom:7px; }
+.sg-guide-facts { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:8px; margin:0 0 13px; }
+@media (min-width:480px) { .sg-guide-facts { grid-template-columns:repeat(4, minmax(0, 1fr)); } }
+.sg-guide-facts span { padding:8px 10px; border-radius:12px; font-size:11px;
+  color:var(--muted); background:rgba(13,10,38,.55);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.08); }
+.sg-guide-facts strong { display:block; font-size:16px; color:#fff; }
+.sg-guide-steps { margin:0 0 11px; padding:0; list-style:none; counter-reset:sgstep; }
+.sg-guide-steps li { position:relative; margin-bottom:10px; padding:10px 12px 10px 40px;
+  border-radius:14px; background:rgba(13,10,38,.5);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.07); }
+.sg-guide-steps li::before { counter-increment:sgstep; content:counter(sgstep);
+  position:absolute; left:12px; top:11px; width:20px; height:20px; border-radius:50%;
+  font-size:11px; line-height:20px; text-align:center; color:#0d0a26;
+  background:var(--el,#b45cff); }
+.sg-guide-steps strong { display:block; font-size:13px; }
+.sg-guide-steps span { display:block; margin-top:3px; font-size:12px; color:var(--muted); }
+.sg-guide-defs { display:grid; gap:8px; margin-bottom:11px; }
+.sg-guide-def { padding:10px 12px; border-radius:14px; background:rgba(13,10,38,.5);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.07); }
+.sg-guide-def strong { display:block; font-size:13px; color:var(--el,#b45cff); }
+.sg-guide-def span { display:block; margin-top:3px; font-size:12px; color:var(--muted); }
+.sg-guide-affs { display:grid; gap:7px; }
+.sg-guide-aff { display:grid; grid-template-columns:auto 1fr auto; gap:5px 8px; align-items:center;
+  padding:9px 11px; border-radius:13px; background:rgba(13,10,38,.5);
+  box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--el,#b45cff) 28%, transparent); }
+.sg-guide-aff strong { font-size:12.5px; }
+.sg-guide-aff em { font-style:normal; font-size:10.5px; color:var(--muted); }
+.sg-guide-aff p { grid-column:1 / -1; margin:0; font-size:11.5px; }
+.sg-guide-chip { padding:3px 9px; border-radius:999px; font-size:10.5px; font-weight:600;
+  color:color-mix(in srgb, var(--el,#b45cff) 88%, #fff);
+  background:color-mix(in srgb, var(--el,#b45cff) 20%, rgba(13,10,38,.6));
+  box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--el,#b45cff) 45%, transparent); }
+.sg-guide-chart { display:grid; gap:6px; }
+.sg-guide-chart-row { display:flex; align-items:center; gap:6px; }
+.sg-guide-chart-row i { font-style:normal; color:var(--muted); }
+.sg-guide-cta { display:inline-block; margin-top:6px; padding:9px 16px; border-radius:999px;
+  font-size:12.5px; font-weight:600; text-decoration:none; color:#0d0a26;
+  background:var(--el,#b45cff); }
+@media (prefers-reduced-motion: reduce) {
+  .sg-guide, .sg-guide-panel { transition:none; }
+}
 /* ==========================================================================
    REAL CARD FACES IN THE BINDER AND DECK BUILDER
    The production renderer (card-binder-visual + SieglingsCardShowcase) composes
