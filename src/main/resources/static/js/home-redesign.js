@@ -1376,8 +1376,9 @@
     var packs = (opts.live && opts.live.packs) || [];
     app.addEventListener('click', function (e) {
       var btn = e.target.closest ? e.target.closest('[data-pack]') : null;
-      if (!btn) return;
+      if (!btn || btn.disabled) return;
       if (opts.guest) { window.location.href = '/login'; return; }
+      if (opts.packOpenPendingId || document.querySelector('[data-gacha]')) return;
       var pk = packs.filter(function (p) { return p.id === btn.getAttribute('data-pack'); })[0];
       if (pk) openPack(pk, opts);
     });
@@ -1829,9 +1830,114 @@
     '</button>';
   }
 
+  // Same ledger the shipping shop writes (`sieglingsPendingPackOpenRequest:<user>`).
+  // The server treats requestId as the idempotency key; minting a fresh
+  // `hub-${Date.now()}` on every tap meant a retry after a dropped response
+  // charged a second pack. Keeping the id until the pull is on screen is what
+  // stops that, including when the player retries from the other hub.
+  var PENDING_PACK_OPEN_REQUEST_KEY = 'sieglingsPendingPackOpenRequest';
+  var MAX_PENDING_PACK_OPEN_REQUESTS = 20;
+
+  function packOpenAccountId(opts) {
+    return (opts && opts.live && (opts.live.accountId || opts.live.email)) || 'anonymous';
+  }
+
+  function packOpenRequestStorageKey(opts) {
+    return PENDING_PACK_OPEN_REQUEST_KEY + ':' + packOpenAccountId(opts);
+  }
+
+  function createPackOpenRequestId() {
+    try {
+      if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+    } catch (e) { /* fall through */ }
+    return Date.now() + '-' + Math.random().toString(36).slice(2);
+  }
+
+  function normalizePackOpenRequestEntry(entry) {
+    if (!entry || !entry.requestId || !entry.packId) return null;
+    return {
+      requestId: String(entry.requestId),
+      packId: String(entry.packId),
+      count: Number(entry.count) || 1,
+      createdAt: Number(entry.createdAt) || 0
+    };
+  }
+
+  function readPendingPackOpenRequests(opts) {
+    try {
+      var raw = localStorage.getItem(packOpenRequestStorageKey(opts));
+      if (!raw) return [];
+      var parsed = JSON.parse(raw);
+      var entries = Array.isArray(parsed && parsed.requests)
+        ? parsed.requests
+        : (Array.isArray(parsed) ? parsed : (parsed && parsed.requestId ? [parsed] : []));
+      return entries.map(normalizePackOpenRequestEntry).filter(Boolean);
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function writePendingPackOpenRequests(opts, entries) {
+    try {
+      var seen = {};
+      var normalized = [];
+      (entries || []).forEach(function (entry) {
+        var next = normalizePackOpenRequestEntry(entry);
+        if (!next) return;
+        var key = next.packId + ':' + next.count;
+        if (seen[key]) return;
+        seen[key] = true;
+        normalized.push(next);
+      });
+      normalized.sort(function (a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
+      var trimmed = normalized.slice(0, MAX_PENDING_PACK_OPEN_REQUESTS);
+      var storageKey = packOpenRequestStorageKey(opts);
+      if (trimmed.length) localStorage.setItem(storageKey, JSON.stringify({ requests: trimmed }));
+      else localStorage.removeItem(storageKey);
+    } catch (e) { /* persistence is best-effort; the in-flight body still carries the id */ }
+  }
+
+  function getOrCreatePackOpenRequestId(opts, packId, count) {
+    var safeCount = Number(count) || 1;
+    var pending = readPendingPackOpenRequests(opts);
+    var i;
+    for (i = 0; i < pending.length; i++) {
+      if (pending[i].packId === packId && pending[i].count === safeCount && pending[i].requestId) {
+        return pending[i].requestId;
+      }
+    }
+    var requestId = createPackOpenRequestId();
+    writePendingPackOpenRequests(opts, [{
+      requestId: requestId, packId: packId, count: safeCount, createdAt: Date.now()
+    }].concat(pending));
+    return requestId;
+  }
+
+  function clearPackOpenRequestId(opts, requestId) {
+    if (!requestId) return;
+    writePendingPackOpenRequests(opts, readPendingPackOpenRequests(opts).filter(function (entry) {
+      return entry.requestId !== requestId;
+    }));
+  }
+
+  function cardsForPackOpen(data, requestId) {
+    var history = (data && data.progression && data.progression.packHistory) || [];
+    var i;
+    if (requestId) {
+      for (i = 0; i < history.length; i++) {
+        if (history[i] && history[i].requestId === requestId && Array.isArray(history[i].cards)) {
+          return history[i].cards;
+        }
+      }
+      return [];
+    }
+    return (history[0] && history[0].cards) || [];
+  }
+
   function openPack(pk, opts) {
     var host = document.querySelector('.sg-app');
-    if (!host) return;
+    if (!host || opts.packOpenPendingId || document.querySelector('[data-gacha]')) return;
+    opts.packOpenPendingId = pk.id;
     var wrap = document.createElement('div');
     wrap.innerHTML = gachaMarkup(pk);
     var gacha = wrap.firstChild;
@@ -1842,6 +1948,7 @@
     var note = gacha.querySelector('[data-gacha-note]');
     var actions = gacha.querySelector('[data-gacha-actions]');
     var kicker = gacha.querySelector('[data-gacha-kicker]');
+    var requestId = getOrCreatePackOpenRequestId(opts, pk.id, 1);
 
     function close() { gacha.remove(); }
     gacha.querySelector('[data-gacha-done]').addEventListener('click', function () {
@@ -1866,16 +1973,25 @@
     fetch('/api/shop/open-pack', {
       method: 'POST', credentials: 'same-origin',
       headers: authHeaders(),
-      body: JSON.stringify({ packId: pk.id, count: 1, requestId: 'hub-' + Date.now() })
+      body: JSON.stringify({ packId: pk.id, count: 1, requestId: requestId })
     }).then(function (r) { return r.json().catch(function () { return null; }); })
       .then(function (data) {
-        if (!data || data.error) { fail((data && data.error) || 'That pack could not be opened.'); return; }
-        var history = (data.progression && data.progression.packHistory) || [];
-        var cards = (history[0] && history[0].cards) || [];
-        if (!cards.length) { fail('The pack came back empty. Nothing was charged.'); return; }
+        if (!data) {
+          fail('Unable to confirm the pull. Refresh to check your collection before trying again.');
+          return;
+        }
+        if (data.error) { fail(data.error); return; }
+        var cards = cardsForPackOpen(data, requestId);
+        if (!cards.length) {
+          fail('Unable to confirm the pull. Refresh to check your collection before trying again.');
+          return;
+        }
+        clearPackOpenRequestId(opts, requestId);
         reveal(cards);
       })
-      .catch(function () { fail('The server did not answer. Nothing was charged.'); });
+      .catch(function () {
+        fail('The server did not answer. Refresh to check your collection before trying again.');
+      });
 
     function reveal(cards) {
       var back = packBack(pk);
@@ -3396,6 +3512,13 @@
     var current = null;
     var priorTextState = window.render_game_to_text;
     window.render_game_to_text = function () {
+      if (current === 'shop') {
+        return JSON.stringify({
+          screen: current, gold: opts.live && opts.live.gold,
+          pendingPack: opts.packOpenPendingId || null,
+          gacha: Boolean(document.querySelector('[data-gacha]'))
+        });
+      }
       if (current !== 'decks') return priorTextState ? priorTextState() : JSON.stringify({ screen: current });
       var groups = deckGroups(opts);
       return JSON.stringify({ screen: current, gold: opts.live && opts.live.gold,

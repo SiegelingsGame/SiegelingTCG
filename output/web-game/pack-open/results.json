@@ -1,0 +1,19 @@
+{
+  "passed": true,
+  "assertions": 12,
+  "gold": 350,
+  "calls": [
+    {
+      "packId": "pack_fire",
+      "count": 1,
+      "requestId": "3cd80b67-7d8d-4568-8888-c22f1ea75d10",
+      "method": "POST"
+    },
+    {
+      "packId": "pack_fire",
+      "count": 1,
+      "requestId": "3cd80b67-7d8d-4568-8888-c22f1ea75d10",
+      "method": "POST"
+    }
+  ]
+}
