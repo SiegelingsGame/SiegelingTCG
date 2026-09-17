@@ -334,11 +334,19 @@
       { id: 'shop', ico: '⬢', label: 'Shop', screen: 'shop', items: [
           ['Featured Packs', n(live.packs && live.packs.length)],
           ['Open Packs', ''], ['Siegelcoins', '']] },
+      // Social is its own tab now rather than a row inside More: it is where the
+      // player's own profile, their friends and their messages all live, and it
+      // is checked far too often to sit two taps deep. It carries no tray - the
+      // screen's own tabs are the second level - so tapping it always lands on
+      // the profile, and tapping it again comes back there.
+      { id: 'social', ico: '☻', label: 'Social', screen: 'social',
+        badge: unreadThreadCount(opts) },
+      // Profile and Social are gone from here; what remains is genuinely
+      // miscellaneous.
       { id: 'more', ico: '⋯', label: 'More', items: [
-          ['Social', n(online) ? n(online) + ' on' : ''], ['Profile', ''],
           ['Settings', ''], ['Help', '']],
         guestItems: [
-          ['Sign In', 'Save decks'], ['Create Account', ''], ['Social', ''],
+          ['Sign In', 'Save decks'], ['Create Account', ''],
           ['Settings', ''], ['Help', '']] }
     ];
   }
@@ -824,6 +832,9 @@
           '" class="' + (n.id === active ? 'on' : '') +
           (n.items ? ' has-tray' : '') + (n.id === openTray ? ' tray-on' : '') + '">' +
           '<span class="ico">' + n.ico + '</span>' + esc(n.label) +
+          // An unread count belongs on the tab, not only inside the screen:
+          // otherwise a waiting message is invisible until you go looking.
+          (n.badge ? '<i class="sg-nav-badge">' + esc(n.badge > 9 ? '9+' : String(n.badge)) + '</i>' : '') +
           (n.items ? '<i class="sg-caret" aria-hidden="true"></i>' : '') + '</button>';
       }).join('') + '</div>' +
     '</nav>';
@@ -2283,9 +2294,19 @@
   }
 
   function profileScreen(opts) {
-    var cards = showcaseCards();
     return topMarkup(opts) +
-      '<div class="sg-scroll">' +
+      '<div class="sg-scroll">' + profileBody(opts) + '</div>' +
+      (opts.guest ? '' : profileEditorHost()) +
+      // Profile is reached through Social now, so the Social tab is the one lit.
+      bottomMarkup('social', opts);
+  }
+
+  /* The profile's own content, without chrome. The Social screen renders this as
+     its first tab, and /profile still renders it as a screen of its own, so the
+     two can never drift apart. */
+  function profileBody(opts) {
+    var cards = showcaseCards();
+    return '' +
         '<section class="sg-crest" style="--el:' + color(crestElement()) + '">' +
           '<img class="sg-crest-bg" src="' + esc(crestBackground()) + '" alt="">' +
           '<div class="sg-crest-veil"></div>' +
@@ -2315,10 +2336,7 @@
           '<div class="sg-section-head"><h3>Recent</h3></div>' +
           recentMarkup(opts) +
         '</section>' +
-        '<div style="height:96px"></div>' +
-      '</div>' +
-      (opts.guest ? '' : profileEditorHost()) +
-      bottomMarkup('more', opts);
+        '<div style="height:96px"></div>';
   }
 
   /* ---------- profile editor ----------
@@ -2961,28 +2979,209 @@
 
   /* ---------- social ---------- */
 
+  /* ---------- social ----------
+     One screen, three tabs: the player's own Profile, their Friends, and their
+     Messages. It replaced a Social row buried in the More tray, which put the
+     two things people check most - who is online and who has written - two taps
+     deep behind a menu.
+
+     The tab is module state rather than part of the URL: tapping SOCIAL in the
+     tab bar always lands on Profile, which is what makes a second tap on the
+     same button a way back rather than a no-op. */
+  var socialTab = 'profile';
+  var SOCIAL_TABS = [['profile', 'Profile'], ['friends', 'Friends'], ['messages', 'Messages']];
+
+  function setSocialTab(tab) {
+    socialTab = tab;
+  }
+
+  /* Threads whose last message came from the other person. The server decides
+     this (`unread` on the thread summary) - the client never guesses. */
+  function unreadThreadCount(opts) {
+    var threads = (opts && opts.live && opts.live.threads) || [];
+    var n = 0;
+    for (var i = 0; i < threads.length; i++) if (threads[i] && threads[i].unread) n++;
+    return n;
+  }
+
   function socialScreen(opts) {
     opts = opts || {};
-    var rooms = (opts.live && opts.live.rooms) || [];
+    var unread = unreadThreadCount(opts);
+    var tab = socialTab;
     return topMarkup(opts) +
-      '<div class="sg-scroll">' +
-        '<div class="sg-page-head"><h2>Social</h2><p>' +
-          (rooms.length ? esc(rooms.length) + ' table' + (rooms.length === 1 ? '' : 's') + ' open now'
-                        : 'No tables open right now') + '</p></div>' +
-        '<div class="sg-tool-row">' +
-          '<button class="sg-ghost-btn" type="button"><span class="ico">＋</span>Host a table</button>' +
-          '<button class="sg-ghost-btn" type="button"><span class="ico">#</span>Join code</button>' +
+      '<div class="sg-scroll" data-social-scroll>' +
+        '<div class="sg-social-tabs" role="tablist">' +
+          SOCIAL_TABS.map(function (t) {
+            var count = t[0] === 'messages' && unread ? unread : 0;
+            return '<button class="sg-social-tab' + (t[0] === tab ? ' on' : '') + '" type="button" ' +
+              'role="tab" aria-selected="' + (t[0] === tab ? 'true' : 'false') + '" ' +
+              'data-social-tab="' + t[0] + '">' + esc(t[1]) +
+              (count ? '<i class="sg-tab-badge">' + esc(count > 9 ? '9+' : String(count)) + '</i>' : '') +
+            '</button>';
+          }).join('') +
         '</div>' +
-        '<section class="sg-section">' +
-          '<div class="sg-section-head"><h3>Open tables</h3></div>' +
-          (rooms.length
-            ? '<div class="sg-stack">' + rooms.slice(0, 8).map(lobbyRow).join('') + '</div>'
-            : emptyLobbies()) +
-        '</section>' +
-        (opts.guest ? guestBand() : friendsSection(opts)) +
-        '<div style="height:96px"></div>' +
+        '<div data-social-body>' + socialTabBody(opts, tab) + '</div>' +
       '</div>' +
-      bottomMarkup('more', opts);
+      sheetHost() +
+      (opts.guest ? '' : profileEditorHost()) +
+      bottomMarkup('social', opts);
+  }
+
+  function socialTabBody(opts, tab) {
+    if (tab === 'friends') return friendsTab(opts);
+    if (tab === 'messages') return messagesTab(opts);
+    return profileBody(opts);
+  }
+
+  /* ---------- friends tab ---------- */
+
+  function friendName(f) {
+    return (f && (f.displayName || f.name || f.email)) || 'Player';
+  }
+  function friendInitial(f) {
+    return String(friendName(f)).charAt(0).toUpperCase();
+  }
+
+  function friendsTab(opts) {
+    if (opts.guest) {
+      return '<div class="sg-social-pad">' + guestBand() + '</div>';
+    }
+    var live = opts.live || {};
+    var friends = live.friends || [];
+    var incoming = live.incomingRequests || [];
+    var outgoing = live.outgoingRequests || [];
+    var rooms = live.rooms || [];
+    return '<div class="sg-social-pad">' +
+      // Adding someone is the first thing a new player needs, so it leads.
+      '<section class="sg-section">' +
+        '<div class="sg-section-head"><h3>Add a friend</h3></div>' +
+        '<form class="sg-add-friend" data-add-friend>' +
+          '<input type="email" name="email" placeholder="Their account email" ' +
+            'autocomplete="off" autocapitalize="off" spellcheck="false" required>' +
+          '<button type="submit">Send</button>' +
+        '</form>' +
+        '<p class="sg-social-note" data-friend-note hidden></p>' +
+      '</section>' +
+      (incoming.length
+        ? '<section class="sg-section">' +
+            '<div class="sg-section-head"><h3>Requests</h3></div>' +
+            '<div class="sg-stack sg-stack-tight">' + incoming.map(function (r) {
+              var id = r.fromUserId || r.userId || r.id || '';
+              return '<div class="sg-friend">' +
+                '<span class="sg-friend-crest">' + esc(friendInitial(r)) + '</span>' +
+                '<span class="sg-friend-body"><strong>' + esc(friendName(r)) + '</strong>' +
+                  '<em>Wants to be friends</em></span>' +
+                '<span class="sg-friend-acts">' +
+                  '<button class="sg-mini-btn is-yes" type="button" data-friend-accept="' + esc(id) + '">Accept</button>' +
+                  '<button class="sg-mini-btn" type="button" data-friend-deny="' + esc(id) + '">Deny</button>' +
+                '</span>' +
+              '</div>';
+            }).join('') + '</div>' +
+          '</section>'
+        : '') +
+      '<section class="sg-section">' +
+        '<div class="sg-section-head"><h3>Friends</h3>' +
+          (friends.length ? '<span class="sg-count">' + esc(friends.length) + '</span>' : '') + '</div>' +
+        (friends.length
+          ? '<div class="sg-stack sg-stack-tight">' + friends.map(friendRow).join('') + '</div>'
+          : '<div class="sg-empty-row">No friends yet. Add someone by their account email above.</div>') +
+      '</section>' +
+      (outgoing.length
+        ? '<section class="sg-section">' +
+            '<div class="sg-section-head"><h3>Sent</h3></div>' +
+            '<div class="sg-stack sg-stack-tight">' + outgoing.map(function (r) {
+              return '<div class="sg-friend is-pending">' +
+                '<span class="sg-friend-crest">' + esc(friendInitial(r)) + '</span>' +
+                '<span class="sg-friend-body"><strong>' + esc(friendName(r)) + '</strong>' +
+                  '<em>Waiting for them</em></span>' +
+              '</div>';
+            }).join('') + '</div>' +
+          '</section>'
+        : '') +
+      '<section class="sg-section">' +
+        '<div class="sg-section-head"><h3>Open tables</h3></div>' +
+        (rooms.length
+          ? '<div class="sg-stack">' + rooms.slice(0, 8).map(lobbyRow).join('') + '</div>'
+          : emptyLobbies()) +
+      '</section>' +
+      '<div style="height:96px"></div>' +
+    '</div>';
+  }
+
+  function friendRow(f) {
+    var p = f.presence || {};
+    var id = f.id || f.userId || '';
+    var email = f.email || '';
+    var status = p.online ? title(p.status || 'ONLINE') : 'Offline';
+    return '<div class="sg-friend' + (p.online ? ' is-on' : '') + '" data-friend-id="' + esc(id) + '">' +
+      '<button class="sg-friend-crest is-link" type="button" data-friend-view="' + esc(id) + '" ' +
+        'aria-label="View ' + esc(friendName(f)) + '\'s profile">' + esc(friendInitial(f)) + '</button>' +
+      '<button class="sg-friend-body is-link" type="button" data-friend-view="' + esc(id) + '">' +
+        '<strong>' + esc(friendName(f)) + '</strong><em>' + esc(status) + '</em></button>' +
+      '<span class="sg-friend-acts">' +
+        '<button class="sg-mini-btn" type="button" data-friend-msg="' + esc(id) + '" ' +
+          'data-friend-name="' + esc(friendName(f)) + '">Message</button>' +
+        '<button class="sg-mini-btn is-no" type="button" data-friend-remove="' + esc(email) + '" ' +
+          'data-friend-name="' + esc(friendName(f)) + '">Remove</button>' +
+      '</span>' +
+    '</div>';
+  }
+
+  /* ---------- messages tab ----------
+     An open thread is module state for the same reason the tab is: coming back
+     to Social should not silently reopen a conversation the player left. */
+  var openThread = null;   // { id, name }
+
+  function threadPeerName(opts, peerId) {
+    var friends = (opts.live && opts.live.friends) || [];
+    for (var i = 0; i < friends.length; i++) {
+      var f = friends[i];
+      if ((f.id || f.userId) === peerId) return friendName(f);
+    }
+    return 'Player';
+  }
+
+  function messagesTab(opts) {
+    if (opts.guest) {
+      return '<div class="sg-social-pad">' + guestBand() + '</div>';
+    }
+    if (openThread) return threadView(opts);
+    var threads = (opts.live && opts.live.threads) || [];
+    return '<div class="sg-social-pad">' +
+      '<section class="sg-section">' +
+        '<div class="sg-section-head"><h3>Messages</h3></div>' +
+        (threads.length
+          ? '<div class="sg-stack sg-stack-tight">' + threads.map(function (t) {
+              var name = threadPeerName(opts, t.peerId);
+              return '<button class="sg-thread' + (t.unread ? ' is-unread' : '') + '" type="button" ' +
+                'data-thread-open="' + esc(t.peerId) + '" data-thread-name="' + esc(name) + '">' +
+                '<span class="sg-friend-crest">' + esc(String(name).charAt(0).toUpperCase()) + '</span>' +
+                '<span class="sg-thread-body"><strong>' + esc(name) + '</strong>' +
+                  '<em>' + esc(t.lastMessage || '') + '</em></span>' +
+                (t.unread ? '<i class="sg-thread-dot" aria-label="Unread"></i>' : '') +
+              '</button>';
+            }).join('') + '</div>'
+          : '<div class="sg-empty-row">No messages yet. Open a friend and say hello.</div>') +
+      '</section>' +
+      '<div style="height:96px"></div>' +
+    '</div>';
+  }
+
+  function threadView() {
+    return '<div class="sg-thread-view" data-thread-view>' +
+      '<div class="sg-thread-head">' +
+        '<button class="sg-thread-back" type="button" data-thread-close aria-label="Back to messages">‹</button>' +
+        '<strong>' + esc(openThread.name) + '</strong>' +
+      '</div>' +
+      '<div class="sg-thread-log" data-thread-log>' +
+        '<div class="sg-empty-row">Loading…</div>' +
+      '</div>' +
+      '<form class="sg-thread-compose" data-thread-send>' +
+        '<input type="text" name="text" placeholder="Message ' + esc(openThread.name) + '" ' +
+          'autocomplete="off" maxlength="500" required>' +
+        '<button type="submit" aria-label="Send">➤</button>' +
+      '</form>' +
+    '</div>';
   }
 
   function lobbyRow(room, i) {
@@ -3030,6 +3229,315 @@
           }).join('') + '</div>'
         : '<div class="sg-empty-row">No friends added yet.</div>') +
     '</section>';
+  }
+
+  /* ---------- social behaviour ----------
+     Everything here talks to endpoints that already existed; what was missing
+     was any way to reach them. Friend actions return the whole refreshed profile
+     (that is what the auth endpoints answer with), so each one re-seeds the
+     live model in place rather than forcing a reload. */
+  var threadPoll = null;
+
+  function liveApi() {
+    return window.SiegelingsHomeLive || null;
+  }
+
+  function stopThreadPoll() {
+    if (threadPoll) { clearInterval(threadPoll); threadPoll = null; }
+  }
+
+  function showFriendNote(app, text, bad) {
+    var note = app.querySelector('[data-friend-note]');
+    if (!note) return;
+    note.textContent = text;
+    note.hidden = false;
+    note.classList.toggle('is-bad', Boolean(bad));
+  }
+
+  /* Re-renders the Social screen in place, carrying whatever the server just
+     told us about friends and requests so the list is never a tap behind. */
+  function paintSocialTabs(app, opts) {
+    var unread = unreadThreadCount(opts);
+    app.querySelectorAll('[data-social-tab]').forEach(function (b) {
+      var id = b.getAttribute('data-social-tab');
+      var on = id === socialTab;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+      var badge = b.querySelector('.sg-tab-badge');
+      if (id === 'messages') {
+        if (!unread && badge) badge.remove();
+        else if (unread && badge) badge.textContent = unread > 9 ? '9+' : String(unread);
+        else if (unread && !badge) {
+          var pip = document.createElement('i');
+          pip.className = 'sg-tab-badge';
+          pip.textContent = unread > 9 ? '9+' : String(unread);
+          b.appendChild(pip);
+        }
+      }
+    });
+  }
+
+  /* An open thread should fill the space between the tab strip and the tab bar.
+     A fixed height cannot do that: the strip's own height moves with the
+     status-bar inset. Measured from where the view actually starts. */
+  function layoutThread(app) {
+    var view = app.querySelector('[data-thread-view]');
+    if (!view) return;
+    var nav = app.querySelector('.sg-bottom');
+    var navH = nav ? nav.getBoundingClientRect().height : 90;
+    var top = view.getBoundingClientRect().top;
+    var glass = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+    view.style.height = Math.max(240, glass - top - navH - 8) + 'px';
+  }
+
+  function refreshSocial(app, opts, patch) {
+    if (patch) {
+      opts.live = opts.live || {};
+      if (patch.friends) opts.live.friends = patch.friends;
+      if (patch.incomingFriendRequests) opts.live.incomingRequests = patch.incomingFriendRequests;
+      if (patch.outgoingFriendRequests) opts.live.outgoingRequests = patch.outgoingFriendRequests;
+      if (patch.threads) opts.live.threads = patch.threads;
+    }
+    var body = app.querySelector('[data-social-body]');
+    if (body) body.innerHTML = socialTabBody(opts, socialTab);
+    paintSocialTabs(app, opts);
+    var bar = app.querySelector('[data-bottom]');
+    if (bar) {
+      // The tab badge is part of the bar, so it has to be repainted too.
+      var badge = bar.querySelector('[data-nav="social"] .sg-nav-badge');
+      var count = unreadThreadCount(opts);
+      if (badge && !count) badge.remove();
+      else if (badge) badge.textContent = count > 9 ? '9+' : String(count);
+    }
+    if (socialTab === 'messages' && openThread) startThread(app, opts);
+    scheduleFit(app);
+  }
+
+  function loadThread(app, opts, scrollToEnd) {
+    var api = liveApi();
+    if (!api || !openThread) return Promise.resolve();
+    return api.get('/api/social/messages/with/' + encodeURIComponent(openThread.id)).then(function (res) {
+      var log = app.querySelector('[data-thread-log]');
+      if (!log || !openThread) return;
+      var messages = (res && res.messages) || [];
+      if (res && res.error) {
+        log.innerHTML = '<div class="sg-empty-row">' + esc(res.error) + '</div>';
+        return;
+      }
+      if (!messages.length) {
+        log.innerHTML = '<div class="sg-empty-row">No messages yet.</div>';
+        return;
+      }
+      var next = messages.map(function (m) {
+        return '<div class="sg-msg' + (m.mine ? ' is-mine' : '') + '">' +
+          '<span>' + esc(m.text || '') + '</span>' +
+        '</div>';
+      }).join('');
+      // Only touch the DOM when something actually changed: repainting under a
+      // poll would fight the player's own scrolling every few seconds.
+      if (log.innerHTML !== next) {
+        log.innerHTML = next;
+        log.scrollTop = log.scrollHeight;
+      } else if (scrollToEnd) {
+        log.scrollTop = log.scrollHeight;
+      }
+    });
+  }
+
+  function startThread(app, opts) {
+    stopThreadPoll();
+    layoutThread(app);
+    loadThread(app, opts, true);
+    // Polling, because this codebase has no WebSocket anywhere - the multiplayer
+    // lobbies poll too. Slow enough to be cheap, quick enough to feel live.
+    threadPoll = setInterval(function () {
+      if (!openThread || !app.isConnected) return stopThreadPoll();
+      loadThread(app, opts, false);
+    }, 5000);
+  }
+
+  function mountSocial(app, opts) {
+    var api = liveApi();
+
+    app.addEventListener('click', function (e) {
+      var tabBtn = e.target.closest && e.target.closest('[data-social-tab]');
+      if (tabBtn) {
+        setSocialTab(tabBtn.getAttribute('data-social-tab'));
+        openThread = null;
+        stopThreadPoll();
+        refreshSocial(app, opts);
+        return;
+      }
+
+      var view = e.target.closest && e.target.closest('[data-friend-view]');
+      if (view) {
+        // A friend's public profile is a real endpoint; the card sheet is the
+        // place this design already shows "someone else's thing".
+        openFriendProfile(app, opts, view.getAttribute('data-friend-view'));
+        return;
+      }
+
+      var msg = e.target.closest && e.target.closest('[data-friend-msg]');
+      if (msg) {
+        setSocialTab('messages');
+        openThread = { id: msg.getAttribute('data-friend-msg'), name: msg.getAttribute('data-friend-name') };
+        refreshSocial(app, opts);
+        return;
+      }
+
+      var openT = e.target.closest && e.target.closest('[data-thread-open]');
+      if (openT) {
+        openThread = { id: openT.getAttribute('data-thread-open'), name: openT.getAttribute('data-thread-name') };
+        refreshSocial(app, opts);
+        return;
+      }
+
+      if (e.target.closest && e.target.closest('[data-thread-close]')) {
+        openThread = null;
+        stopThreadPoll();
+        // Coming out of a thread re-reads the inbox, so the row that was just
+        // read stops claiming to be unread.
+        if (api) {
+          api.get('/api/social/messages/threads').then(function (res) {
+            refreshSocial(app, opts, { threads: (res && res.threads) || [] });
+          });
+        } else refreshSocial(app, opts);
+        return;
+      }
+
+      var accept = e.target.closest && e.target.closest('[data-friend-accept]');
+      if (accept && api) {
+        accept.disabled = true;
+        api.post('/api/profile/friends/accept', { fromUserId: accept.getAttribute('data-friend-accept') })
+          .then(function (res) {
+            if (res && res.error) return showFriendNote(app, res.error, true);
+            refreshSocial(app, opts, res);
+          });
+        return;
+      }
+
+      var deny = e.target.closest && e.target.closest('[data-friend-deny]');
+      if (deny && api) {
+        deny.disabled = true;
+        api.post('/api/profile/friends/deny', { fromUserId: deny.getAttribute('data-friend-deny') })
+          .then(function (res) {
+            if (res && res.error) return showFriendNote(app, res.error, true);
+            refreshSocial(app, opts, res);
+          });
+        return;
+      }
+
+      var remove = e.target.closest && e.target.closest('[data-friend-remove]');
+      if (remove && api) {
+        var who = remove.getAttribute('data-friend-name') || 'this player';
+        // Removing a friend is not undoable from here, so it asks first.
+        if (!window.confirm('Remove ' + who + ' from your friends?')) return;
+        remove.disabled = true;
+        api.post('/api/profile/friends/delete', { email: remove.getAttribute('data-friend-remove') })
+          .then(function (res) {
+            if (res && res.error) return showFriendNote(app, res.error, true);
+            refreshSocial(app, opts, res);
+            showFriendNote(app, who + ' removed.');
+          });
+        return;
+      }
+    });
+
+    app.addEventListener('submit', function (e) {
+      var addForm = e.target.closest && e.target.closest('[data-add-friend]');
+      if (addForm && api) {
+        e.preventDefault();
+        var input = addForm.querySelector('input[name="email"]');
+        var email = (input && input.value || '').trim();
+        if (!email) return;
+        var btn = addForm.querySelector('button');
+        if (btn) btn.disabled = true;
+        api.post('/api/profile/friends', { email: email }).then(function (res) {
+          if (btn) btn.disabled = false;
+          if (res && res.error) return showFriendNote(app, res.error, true);
+          if (input) input.value = '';
+          refreshSocial(app, opts, res);
+          showFriendNote(app, 'Request sent to ' + email + '.');
+        });
+        return;
+      }
+
+      var sendForm = e.target.closest && e.target.closest('[data-thread-send]');
+      if (sendForm && api && openThread) {
+        e.preventDefault();
+        var field = sendForm.querySelector('input[name="text"]');
+        var text = (field && field.value || '').trim();
+        if (!text) return;
+        // Clear the field immediately: a message that sits there while the
+        // request is in flight gets sent twice by an impatient thumb.
+        if (field) field.value = '';
+        api.post('/api/social/messages/send', { recipientId: openThread.id, text: text })
+          .then(function (res) {
+            if (res && res.error) {
+              var log = app.querySelector('[data-thread-log]');
+              if (log) {
+                var err = document.createElement('div');
+                err.className = 'sg-empty-row';
+                err.textContent = res.error;
+                log.appendChild(err);
+              }
+              if (field) field.value = text;   // hand it back rather than losing it
+              return;
+            }
+            loadThread(app, opts, true);
+            // Sending makes the thread read (the server's unread flag is "the
+            // last message is not mine"), so re-read the inbox and let the
+            // badges settle now rather than when the player backs out.
+            api.get('/api/social/messages/threads').then(function (list) {
+              opts.live = opts.live || {};
+              opts.live.threads = (list && list.threads) || [];
+              paintSocialTabs(app, opts);
+              var badge = app.querySelector('[data-nav="social"] .sg-nav-badge');
+              var count = unreadThreadCount(opts);
+              if (badge && !count) badge.remove();
+              else if (badge) badge.textContent = count > 9 ? '9+' : String(count);
+            });
+          });
+      }
+    });
+  }
+
+  /* A friend's public profile, shown in the same sheet the card details use. */
+  function openFriendProfile(app, opts, userId) {
+    var api = liveApi();
+    if (!api || !userId) return;
+    var sheet = app.querySelector('[data-sheet]');
+    api.get('/api/social/players/' + encodeURIComponent(userId) + '/profile').then(function (res) {
+      if (!res || res.error) {
+        showFriendNote(app, (res && res.error) || 'That profile could not be loaded.', true);
+        return;
+      }
+      var p = res.profile || res;
+      var name = p.displayName || p.name || 'Player';
+      var rows = [
+        ['Matches', p.matches != null ? p.matches : (p.recordedMatches != null ? p.recordedMatches : '—')],
+        ['Wins', p.wins != null ? p.wins : '—'],
+        ['SiegeKnights', p.knights != null ? p.knights : (p.ownedTrainers != null ? p.ownedTrainers : '—')]
+      ];
+      var html = '<div class="sg-friend-profile">' +
+        '<div class="sg-friend-profile-head">' +
+          '<span class="sg-friend-crest is-big">' + esc(String(name).charAt(0).toUpperCase()) + '</span>' +
+          '<div><strong>' + esc(name) + '</strong>' +
+            (p.playerTitle ? '<em>' + esc(p.playerTitle) + '</em>' : '') + '</div>' +
+        '</div>' +
+        (p.statusMessage ? '<p class="sg-friend-profile-bio">' + esc(p.statusMessage) + '</p>' : '') +
+        '<div class="sg-friend-profile-rows">' + rows.map(function (r) {
+          return '<div><span>' + esc(r[0]) + '</span><b>' + esc(r[1]) + '</b></div>';
+        }).join('') + '</div>' +
+      '</div>';
+      if (sheet) {
+        var card = sheet.querySelector('[data-sheet-card]');
+        if (card) card.innerHTML = html;
+        sheet.classList.add('open');
+      } else {
+        showFriendNote(app, name + ' — ' + rows.map(function (r) { return r[0] + ' ' + r[1]; }).join(' · '));
+      }
+    });
   }
 
   /* ---------- settings ---------- */
@@ -3295,6 +3803,8 @@
     if (screen === 'decks') mountDecks(app, opts);
     if (screen === 'art') mountArt(app);
     if (screen === 'profile') { mountSheet(app, opts); mountProfile(app, opts); }
+    if (screen === 'social') { mountSheet(app, opts); mountProfile(app, opts); mountSocial(app, opts); }
+    if (screen !== 'social') { openThread = null; stopThreadPoll(); }
     if (screen === 'collection') {
       mountGallery(app, opts);
     } else if (!builders[screen]) {

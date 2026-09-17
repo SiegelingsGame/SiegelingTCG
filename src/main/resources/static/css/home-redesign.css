@@ -2433,3 +2433,145 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-prof-sheet .sg-sheet-tab { font-size:9px; letter-spacing:.02em; }
   .sg-pick-grid { gap:7px; }
 }
+
+
+/* ---------- social: six tabs, three sub-tabs, and DMs ----------
+   Social became a tab of its own, which makes six in the bar. At 320px that is
+   53px per tab, so the label has to give: it steps down a point and loses some
+   tracking rather than wrapping or being cut. */
+.sg-nav button { min-width:0; }
+.sg-nav button .ico { font-size:17px; }
+@media (max-width: 400px) {
+  .sg-nav button { font-size:8.5px; letter-spacing:.04em; }
+  .sg-nav button .ico { font-size:16px; }
+}
+@media (max-width: 340px) {
+  .sg-nav button { font-size:8px; letter-spacing:.01em; }
+}
+
+/* Unread pip on the tab itself, so a waiting message is visible from anywhere. */
+.sg-nav-badge, .sg-tab-badge {
+  min-width:15px; height:15px; padding:0 4px; border-radius:999px;
+  display:inline-grid; place-items:center;
+  font-size:9px; font-weight:800; font-style:normal; line-height:1;
+  color:#22160a; background:linear-gradient(180deg,#f0cd8a,var(--gold));
+}
+.sg-nav-badge { position:absolute; top:-2px; right:22%; }
+.sg-tab-badge { margin-left:6px; }
+
+.sg-social-tabs {
+  display:flex; gap:6px; padding:calc(54px + var(--sg-sat)) 18px 2px;
+}
+.sg-social-tab {
+  flex:1 1 0; min-width:0; height:34px; border-radius:999px; cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center; gap:2px;
+  font-size:12px; font-weight:700; letter-spacing:.06em;
+  color:var(--muted); border:1px solid var(--steel-soft);
+  background:rgba(11,17,32,.6);
+}
+.sg-social-tab.on {
+  color:var(--gold-bright); border-color:rgba(200,165,79,.42);
+  background:rgba(36,26,96,.9);
+}
+.sg-social-pad { padding-top:4px; }
+
+/* The profile tab reuses the crest, which carries its own top padding for the
+   status bar; inside Social the tab strip is already doing that job. */
+.sg-social-tabs + [data-social-body] .sg-crest { padding-top:10px; }
+
+.sg-add-friend { display:flex; gap:8px; padding:0 18px; }
+.sg-add-friend input {
+  flex:1 1 auto; min-width:0; height:38px; padding:0 12px; border-radius:10px;
+  border:1px solid var(--steel-soft); background:rgba(5,8,15,.7);
+  color:var(--ink); font-size:14px;
+}
+.sg-add-friend button {
+  flex:0 0 auto; height:38px; padding:0 16px; border:none; border-radius:999px;
+  cursor:pointer; font-size:12.5px; font-weight:700; color:#22160a;
+  background:linear-gradient(180deg,#ffd58a,var(--amber));
+}
+.sg-add-friend button:disabled { opacity:.6; }
+.sg-social-note { margin:8px 18px 0; font-size:12px; color:var(--acc-emerald); }
+.sg-social-note.is-bad { color:#ff9a8a; }
+.sg-count { font-size:11px; color:var(--muted); }
+
+/* Friend rows carry actions now, so the name has to give room rather than push
+   the buttons off the edge. */
+.sg-friend-body.is-link, .sg-friend-crest.is-link {
+  background:none; border:none; padding:0; cursor:pointer; font:inherit; color:inherit;
+  text-align:left;
+}
+.sg-friend-body { min-width:0; }
+.sg-friend-body strong { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sg-friend-acts { display:flex; gap:6px; flex:0 0 auto; }
+.sg-mini-btn {
+  height:28px; padding:0 10px; border-radius:999px; cursor:pointer;
+  font-size:11px; font-weight:700; letter-spacing:.03em;
+  color:var(--ink); border:1px solid var(--steel-soft); background:rgba(11,17,32,.7);
+}
+.sg-mini-btn.is-yes { color:#22160a; border:none; background:linear-gradient(180deg,#9fe8b5,var(--acc-emerald)); }
+.sg-mini-btn.is-no { color:#ffb9ad; border-color:rgba(255,120,100,.35); }
+.sg-mini-btn:disabled { opacity:.55; }
+.sg-friend.is-pending { opacity:.72; }
+
+.sg-thread {
+  width:100%; display:flex; align-items:center; gap:11px; padding:10px 12px;
+  border-radius:14px; cursor:pointer; text-align:left;
+  border:1px solid var(--steel-soft); background:rgba(11,17,32,.6); color:inherit;
+}
+.sg-thread-body { min-width:0; flex:1 1 auto; }
+.sg-thread-body strong { display:block; font-size:13px; }
+.sg-thread-body em {
+  display:block; font-style:normal; font-size:11.5px; color:var(--muted);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.sg-thread.is-unread .sg-thread-body em { color:var(--ink); }
+.sg-thread-dot { width:8px; height:8px; border-radius:50%; background:var(--gold-bright); flex:0 0 auto; }
+
+/* A thread is a column: header and composer fixed, only the log scrolls. */
+/* layoutThread sets the height from where the view actually lands, so this is
+   only the shape and a floor for the frame before that measurement runs. */
+.sg-thread-view {
+  display:flex; flex-direction:column;
+  min-height:240px; padding:0 14px;
+}
+.sg-thread-head { display:flex; align-items:center; gap:8px; padding:2px 0 8px; flex:0 0 auto; }
+.sg-thread-back {
+  width:32px; height:32px; border-radius:50%; cursor:pointer; font-size:19px; line-height:1;
+  color:var(--ink); border:1px solid var(--steel-soft); background:rgba(11,17,32,.7);
+}
+.sg-thread-log {
+  flex:1 1 auto; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:6px;
+  padding:4px 2px; -webkit-overflow-scrolling:touch;
+}
+.sg-msg { display:flex; }
+.sg-msg span {
+  max-width:78%; padding:8px 11px; border-radius:14px;
+  font-size:13px; line-height:1.4; word-break:break-word;
+  background:rgba(36,26,96,.9); color:var(--ink);
+}
+.sg-msg.is-mine { justify-content:flex-end; }
+.sg-msg.is-mine span { background:linear-gradient(180deg,#ffd58a,var(--amber)); color:#22160a; }
+.sg-thread-compose { display:flex; gap:8px; padding:8px 0 4px; flex:0 0 auto; }
+.sg-thread-compose input {
+  flex:1 1 auto; min-width:0; height:40px; padding:0 13px; border-radius:999px;
+  border:1px solid var(--steel-soft); background:rgba(5,8,15,.75);
+  color:var(--ink); font-size:14px;
+}
+.sg-thread-compose button {
+  flex:0 0 auto; width:40px; height:40px; border:none; border-radius:50%; cursor:pointer;
+  color:#22160a; font-size:15px; background:linear-gradient(180deg,#ffd58a,var(--amber));
+}
+
+.sg-friend-profile { padding:18px 16px 24px; }
+.sg-friend-profile-head { display:flex; align-items:center; gap:12px; }
+.sg-friend-crest.is-big { width:52px; height:52px; font-size:20px; }
+.sg-friend-profile-head strong { display:block; font-size:17px; }
+.sg-friend-profile-head em { font-style:normal; font-size:11.5px; color:var(--gold-bright); }
+.sg-friend-profile-bio { margin:12px 0 0; font-size:13px; color:var(--muted); line-height:1.5; }
+.sg-friend-profile-rows { display:grid; gap:8px; margin-top:16px; }
+.sg-friend-profile-rows div {
+  display:flex; justify-content:space-between; padding:9px 12px; border-radius:12px;
+  background:rgba(36,26,96,.7); font-size:13px;
+}
+.sg-friend-profile-rows b { color:var(--gold-bright); }
