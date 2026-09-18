@@ -908,7 +908,9 @@
 
   function galleryScreen(opts) {
     opts = opts || {};
-    var elements = ['ALL', 'FIRE', 'WATER', 'EARTH', 'WIND', 'ICE', 'ELECTRIC', 'PSYCHIC', 'METAL'];
+    // Keep in sync with LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER.
+    var elements = ['ALL', 'FIRE', 'EARTH', 'WIND', 'ICE', 'WATER', 'ELECTRIC', 'METAL',
+      'POISON', 'PSYCHIC', 'LIGHT', 'SHADOW', 'UNDEAD'];
     var rarities = ['ALL', 'COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'];
     var total = ALL_CARDS.length;
     // "X of Y cards owned" compared copies held against unique cards, so a player
@@ -1094,7 +1096,9 @@
     more.querySelector('button').addEventListener('click', function () { limit += 24; repaint(); });
 
 
-    if (opts.filtersOpen) { filters.classList.add('open'); app.querySelector('[data-filter-toggle]').classList.add('on'); }
+    // Filters stay open by default; search is an optional toggle on the tools row.
+    filters.classList.add('open');
+    app.querySelector('[data-filter-toggle]').classList.add('on');
     repaint();
     if (opts.openCard) openSheet(byId(opts.openCard));
   }
@@ -1275,7 +1279,7 @@
     if ((live.purchasedDeckIds || []).indexOf(d.id) !== -1) return true;
     // Same guest/legacy fallback as the battle picker. Signed-in ownership from
     // the server takes precedence, including the player's starter element.
-    var free = ['FIRE', 'ICE', 'EARTH', 'WIND'];
+    var free = ['FIRE', 'EARTH', 'WIND', 'ICE'];
     var starter = /^pack_([a-z0-9]+)/i.exec(live.starterPackId || '');
     if (starter) free.push(starter[1].toUpperCase());
     return Boolean(d.elements && d.elements.length) && d.elements.every(function (el) {
@@ -2896,8 +2900,8 @@
   var PROFILE_DRAFT = null;
   var PROFILE_SHOWCASE_MAX = 3;
 
-  var PROFILE_ELEMENTS = ['FIRE', 'WATER', 'ICE', 'WIND', 'EARTH', 'ELECTRIC',
-                          'METAL', 'POISON', 'PSYCHIC', 'SHADOW', 'LIGHT', 'UNDEAD', 'NEUTRAL'];
+  var PROFILE_ELEMENTS = ['FIRE', 'EARTH', 'WIND', 'ICE', 'WATER', 'ELECTRIC',
+                          'METAL', 'POISON', 'PSYCHIC', 'LIGHT', 'SHADOW', 'UNDEAD', 'NEUTRAL'];
 
   // The premade backs, named exactly as the legacy hub names them, because the
   // stored value is the NAME and the two surfaces have to agree on it.

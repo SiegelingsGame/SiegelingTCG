@@ -191,18 +191,19 @@ class PackCatalogServiceTest {
     }
 
     @Test
-    void gameplayElementOrderKeepsWaterAfterTheMainFour() {
+    void gameplayElementOrderIsFireEarthWindIceThenSupportRows() {
         assertEquals(
                 List.of(
-                        Element.FIRE, Element.ICE, Element.EARTH, Element.WIND, Element.WATER,
-                        Element.SHADOW, Element.ELECTRIC, Element.METAL, Element.UNDEAD, Element.PSYCHIC
+                        Element.FIRE, Element.EARTH, Element.WIND, Element.ICE, Element.WATER,
+                        Element.ELECTRIC, Element.METAL, Element.POISON, Element.PSYCHIC,
+                        Element.LIGHT, Element.SHADOW, Element.UNDEAD
                 ),
                 LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER
         );
     }
 
     @Test
-    void elementStarterPacksFollowGameplayElementOrderWithWaterAfterWind() throws Exception {
+    void elementStarterPacksFollowGameplayElementOrder() throws Exception {
         PackCatalogService service = createService(new AllLiveElementsCardDefinitions());
 
         List<String> starterIds = service.listPacks().stream()
@@ -211,12 +212,13 @@ class PackCatalogServiceTest {
                 .toList();
 
         assertEquals(
-                List.of("pack_fire", "pack_ice", "pack_earth", "pack_wind", "pack_water",
-                        "pack_shadow", "pack_electric", "pack_metal", "pack_undead", "pack_psychic"),
+                List.of("pack_fire", "pack_earth", "pack_wind", "pack_ice", "pack_water",
+                        "pack_electric", "pack_metal", "pack_poison", "pack_psychic",
+                        "pack_light", "pack_shadow", "pack_undead"),
                 starterIds
         );
-        assertTrue(starterIds.indexOf("pack_water") > starterIds.indexOf("pack_wind"),
-                "Water must sort after Wind, not between the main four");
+        assertTrue(starterIds.indexOf("pack_water") > starterIds.indexOf("pack_ice"),
+                "Water must sort after Ice in the support row");
     }
 
     @Test

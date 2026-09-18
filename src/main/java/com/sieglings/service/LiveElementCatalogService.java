@@ -53,15 +53,17 @@ public class LiveElementCatalogService {
      */
     public static final List<Element> DEFAULT_GAMEPLAY_ELEMENT_ORDER = List.of(
             Element.FIRE,
-            Element.ICE,
             Element.EARTH,
             Element.WIND,
+            Element.ICE,
             Element.WATER,
-            Element.SHADOW,
             Element.ELECTRIC,
             Element.METAL,
-            Element.UNDEAD,
-            Element.PSYCHIC
+            Element.POISON,
+            Element.PSYCHIC,
+            Element.LIGHT,
+            Element.SHADOW,
+            Element.UNDEAD
     );
 
     private final ObjectMapper objectMapper;
@@ -136,18 +138,25 @@ public class LiveElementCatalogService {
 
     public List<ElementToggle> buildEditorPayload() {
         Map<Element, Boolean> map = togglesByElement(parseElementFile(loadSnapshot().data()).elements());
+        // Empty config → show the full roster as on. A configured doc that omits a
+        // newly added element must not silently activate it (Poison/Light opt-in).
+        boolean defaultActive = map.isEmpty();
         List<ElementToggle> rows = new ArrayList<>();
         for (Element element : DEFAULT_GAMEPLAY_ELEMENT_ORDER) {
-            rows.add(new ElementToggle(element.name(), map.getOrDefault(element, true)));
+            rows.add(new ElementToggle(element.name(), map.getOrDefault(element, defaultActive)));
         }
         return rows;
     }
 
     static Set<Element> resolveActiveElements(List<ElementToggle> raw) {
         Map<Element, Boolean> map = togglesByElement(raw);
+        // Same opt-in rule as the editor payload: missing keys in a non-empty
+        // roster stay off so expanding DEFAULT_GAMEPLAY_ELEMENT_ORDER cannot
+        // flip new elements live in production by accident.
+        boolean defaultActive = map.isEmpty();
         Set<Element> active = new LinkedHashSet<>();
         for (Element element : DEFAULT_GAMEPLAY_ELEMENT_ORDER) {
-            if (map.getOrDefault(element, true)) {
+            if (map.getOrDefault(element, defaultActive)) {
                 active.add(element);
             }
         }

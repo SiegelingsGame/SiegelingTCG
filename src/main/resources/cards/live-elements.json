@@ -3,19 +3,16 @@
     "element" : "FIRE",
     "active" : true
   }, {
-    "element" : "ICE",
-    "active" : true
-  }, {
     "element" : "EARTH",
     "active" : true
   }, {
     "element" : "WIND",
     "active" : true
   }, {
-    "element" : "WATER",
+    "element" : "ICE",
     "active" : true
   }, {
-    "element" : "SHADOW",
+    "element" : "WATER",
     "active" : true
   }, {
     "element" : "ELECTRIC",
@@ -24,10 +21,19 @@
     "element" : "METAL",
     "active" : true
   }, {
-    "element" : "UNDEAD",
-    "active" : true
+    "element" : "POISON",
+    "active" : false
   }, {
     "element" : "PSYCHIC",
+    "active" : true
+  }, {
+    "element" : "LIGHT",
+    "active" : false
+  }, {
+    "element" : "SHADOW",
+    "active" : true
+  }, {
+    "element" : "UNDEAD",
     "active" : true
   } ]
 }

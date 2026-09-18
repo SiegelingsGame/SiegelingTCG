@@ -115,8 +115,8 @@ let previewCardScaleFrame = null;
 let framedSummaryFitFrame = null;
 let siegeKnightCardFitFrame = null;
 const DECK_ART_ASSET_KEYS = [
-    'FIRE', 'ICE', 'EARTH', 'WIND', 'WATER', 'SHADOW',
-    'ELECTRIC', 'METAL', 'UNDEAD', 'PSYCHIC', 'POISON', 'LIGHT'
+    'FIRE', 'EARTH', 'WIND', 'ICE', 'WATER', 'ELECTRIC',
+    'METAL', 'POISON', 'PSYCHIC', 'LIGHT', 'SHADOW', 'UNDEAD'
 ];
 // Bump with home.js ELEMENTAL_CARD_BACK_VERSION when default card-back art changes.
 const DECK_ART_ASSET_VERSION = 6;
@@ -1190,17 +1190,17 @@ if (typeof window.matchMedia === 'function') {
 }
 const ENERGY_ORDER = [
     ['fire', 'Fire'],
-    ['ice', 'Ice'],
     ['earth', 'Earth'],
     ['wind', 'Wind'],
+    ['ice', 'Ice'],
     ['water', 'Water'],
-    ['shadow', 'Shadow'],
     ['electric', 'Electric'],
     ['metal', 'Metal'],
-    ['undead', 'Undead'],
-    ['psychic', 'Psychic'],
     ['poison', 'Poison'],
-    ['light', 'Light']
+    ['psychic', 'Psychic'],
+    ['light', 'Light'],
+    ['shadow', 'Shadow'],
+    ['undead', 'Undead']
 ];
 const API_BASE_URL = normalizeApiBaseUrl(
     window.SIEGLINGS_CONFIG?.apiBaseUrl || window.SIEGLINGS_API_BASE || ''

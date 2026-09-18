@@ -2,17 +2,17 @@ package com.sieglings.model.enums;
 
 public enum Element {
     FIRE,
-    ICE,
     EARTH,
     WIND,
+    ICE,
     WATER,
-    SHADOW,
     ELECTRIC,
     METAL,
-    UNDEAD,
-    PSYCHIC,
     POISON,
+    PSYCHIC,
     LIGHT,
+    SHADOW,
+    UNDEAD,
     NEUTRAL;
 
     public String color() {
