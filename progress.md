@@ -1,3 +1,8 @@
+Original prompt: Apply this to the main card as well since the description is listed
+
+- September 18, 2026 - **Strategies and Deceptions fill the main card description the same way they fill deck-sheet faces.** The card sheet Arena blurb, the 108px sheet face, fullscreen zoom, and the legacy binder detail "Background" all go through description resolution. `resolveCardDescriptionText` now treats "Description coming soon." (and stub labels like "Spell!") as empty, and for `SPELL`/`TRAP` prefers `ability.description` so the effect is what prints wherever a description field is listed. `creatureDescriptionFor` in `home.js` matches that rule for the legacy hub; `card-binder-visual.js` mirrors it when `game.js` is absent. Siegeling flavour is unchanged.
+- Verification: `node --check` on `game.js`, `home.js`, `card-binder-visual.js`. Headless Chromium at 390x844 and 1920x1080: opening Thistles on `/cards` shows **"1 ally gains +2 Attack Damage"** on the sheet face, Arena `.sg-sheet-description`, and fullscreen zoom, with zero "coming soon". Unit probes: placeholder / "Spell!" inputs resolve to the ability effect; a Siegeling still keeps its flavour. Cache-busts: `game.js` 299 → **300**, `card-binder-visual.js` 25 → **26** on `home-next.html`, `home.html`, `play.html`, `card-dashboard.html`; `home.js` 172 → **173** on `home.html`.
+
 Original prompt: Merge and deploy
 
 - September 18, 2026 - **#947 merged to main and deployed; verified live.** The evolution-thumbnail trim (description hidden, name fitted to one line) merged as `c44228d5` and triggered Deploy run **#940**, which queued behind #946's own run (#939) and completed successfully at 14:39Z.

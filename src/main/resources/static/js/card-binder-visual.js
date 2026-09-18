@@ -221,12 +221,20 @@
         if (window.SieglingsCardShowcase && typeof window.SieglingsCardShowcase.resolveCardDescriptionText === 'function') {
             return window.SieglingsCardShowcase.resolveCardDescriptionText(card, descriptionText);
         }
-        const explicit = String(descriptionText == null ? '' : descriptionText).trim();
-        if (explicit) return explicit;
-        const direct = String(card?.description || '').trim();
-        if (direct) return direct;
+        // Mirror resolveCardDescriptionText when game.js is not loaded (fixtures).
+        const type = String(card?.type || '').toUpperCase();
         const ability = card?.ability || (Array.isArray(card?.abilities) ? card.abilities[0] : null);
-        return String(ability?.description || card?.effect || '').trim();
+        const effect = String(ability?.description || card?.effect || '').trim();
+        if ((type === 'SPELL' || type === 'TRAP') && effect) return effect;
+        const explicit = String(descriptionText == null ? '' : descriptionText).trim();
+        if (explicit && !/coming soon/i.test(explicit) && !/^(spell|trap|strategy|deception)!?$/i.test(explicit)) {
+            return explicit;
+        }
+        const direct = String(card?.description || '').trim();
+        if (direct && !/coming soon/i.test(direct) && !/^(spell|trap|strategy|deception)!?$/i.test(direct)) {
+            return direct;
+        }
+        return effect;
     }
 
     function holographicCardCopy(card, options = {}) {
