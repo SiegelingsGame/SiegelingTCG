@@ -2442,6 +2442,32 @@
     '</button>';
   }
 
+  /* The chain thumbnails are 92px wide. The frame's own title sizing is relative
+     to a full-size card, so at that width a name like "Chilldoe" wrapped to two
+     lines and pushed the printed layout apart. No single font-size fits every
+     name, so measure: nowrap, then step down until it fits. Runs when the panel
+     becomes visible rather than at render, because a hidden panel measures zero
+     and every name would appear to fit. */
+  function fitEvolutionNames(root) {
+    var titles = root.querySelectorAll('.sg-sheet-evo-art .card-title');
+    [].forEach.call(titles, function (t) {
+      t.style.whiteSpace = 'nowrap';
+      t.style.fontSize = '';
+      if (!t.clientWidth) return;
+      var size = parseFloat(window.getComputedStyle(t).fontSize);
+      if (!size) return;
+      var guard = 0;
+      // A floor, not "shrink until it fits": the title box is 53px, so the
+      // catalog's longest line member ("CactyJacked'ty") would end up around 5px
+      // and unreadable. It ellipsises below 8px instead - the caption under the
+      // thumbnail carries the full name anyway, so nothing is actually lost.
+      while (t.scrollWidth > t.clientWidth + 0.5 && size > 8 && guard++ < 30) {
+        size -= 0.5;
+        t.style.fontSize = size + 'px';
+      }
+    });
+  }
+
   function evolutionBlock(card) {
     var chain = evolutionLine(card);
     if (!chain) return '';
@@ -2545,6 +2571,8 @@
       // Each panel is its own scroll context, so switching tabs starts at the
       // top of the new one rather than at the old one's offset.
       if (panelHost) panelHost.scrollTop = 0;
+      // Now that the panel has a width, the chain's names can be measured.
+      fitEvolutionNames(sheetCard);
     }
     tabs.forEach(function (tab) {
       tab.addEventListener('click', function () { show(tab.getAttribute('data-sheet-tab')); });
