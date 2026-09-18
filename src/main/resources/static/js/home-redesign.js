@@ -2426,10 +2426,11 @@
   // The aura is the only thing a face-down card tells you, and it is honest: the
   // rarity is already decided server-side, so hinting at it before the turn is
   // showing what is there, not teasing something that has not happened yet.
-  function gachaSlot(card, back, i) {
+  function gachaSlot(card, back, i, pos) {
+    var slot = pos == null ? i : pos;
     return '<button class="sg-flip rarity-' + esc(String(card.rarity || '').toLowerCase()) +
-      '" type="button" data-flip="' + i + '" style="--el:' + color(card.element) +
-      ';--rar:' + rarityColor(card.rarity) + ';--slot:' + i + '">' +
+      '" type="button" data-flip="' + i + '" data-stack-pos="' + slot + '" style="--el:' + color(card.element) +
+      ';--rar:' + rarityColor(card.rarity) + ';--slot:' + slot + '">' +
       '<span class="sg-flip-aura" aria-hidden="true"></span>' +
       '<span class="sg-flip-inner">' +
         '<span class="sg-flip-back"><img src="' + esc(back) + '" alt="" aria-hidden="true"></span>' +
@@ -2438,6 +2439,64 @@
       '<span class="sg-flip-shards" data-flip-shards aria-hidden="true"></span>' +
       '<span class="sg-flip-tag" hidden data-flip-tag></span>' +
     '</button>';
+  }
+
+  var GACHA_RANK = { COMMON:1, UNCOMMON:2, RARE:3, EPIC:4, LEGENDARY:5 };
+  // Vibration escalates with rarity: nothing for a Common, a single tick for an
+  // Uncommon, a rolling pattern for a Legendary. Browsers ignore it outside a
+  // user gesture, which every reveal here is.
+  var GACHA_BUZZ = {
+    COMMON: null, UNCOMMON: [12], RARE: [18,40,18],
+    EPIC: [24,40,24,40,34], LEGENDARY: [30,40,30,40,30,60,90]
+  };
+
+  function rarityRank(card) {
+    return GACHA_RANK[String((card && card.rarity) || 'COMMON').toUpperCase()] || 1;
+  }
+
+  function reducedMotion() {
+    return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches);
+  }
+
+  function buzzForRarity(card) {
+    var pattern = GACHA_BUZZ[String((card && card.rarity) || 'COMMON').toUpperCase()];
+    if (!pattern || !navigator.vibrate || reducedMotion()) return;
+    try { navigator.vibrate(pattern); } catch (err) { /* a nicety, never required */ }
+  }
+
+  // Particle count and reach come from rarity; hue comes from the card's own
+  // element, so a Legendary Fire pull reads differently from an Uncommon Ice one.
+  function gachaSparks(btn, card) {
+    if (!btn || reducedMotion()) return;
+    var rank = rarityRank(card);
+    var layer = document.createElement('span');
+    layer.className = 'sg-flip-sparks';
+    var count = 6 + rank * 7;
+    var tint = color(card.element);
+    var accent = rarityColor(card.rarity);
+    var html = '';
+    for (var i = 0; i < count; i++) {
+      var angle = (Math.PI * 2 * i) / count + Math.random() * 0.4;
+      var dist = 54 + rank * 20 + Math.random() * 60;
+      html += '<i style="--sx:' + (Math.cos(angle) * dist).toFixed(0) + 'px;--sy:' +
+        (Math.sin(angle) * dist).toFixed(0) + 'px;--sz:' + (3 + Math.random() * (1 + rank)).toFixed(1) +
+        'px;--d:' + (Math.random() * 200).toFixed(0) + 'ms;--tint:' + (i % 3 === 0 ? accent : tint) + '"></i>';
+    }
+    layer.innerHTML = html;
+    btn.appendChild(layer);
+    setTimeout(function () { layer.remove(); }, 1400);
+  }
+
+  // Rare and up get a light sweep across the face on top of the sparks.
+  function gachaFlourish(btn, card) {
+    gachaSparks(btn, card);
+    if (rarityRank(card) >= 3 && !reducedMotion()) {
+      btn.classList.remove('is-flaring');
+      void btn.offsetWidth;
+      btn.classList.add('is-flaring');
+      setTimeout(function () { btn.classList.remove('is-flaring'); }, 1300);
+    }
+    buzzForRarity(card);
   }
 
   function openPack(pk, opts) {
@@ -2492,8 +2551,17 @@
       var back = packBack(pk);
       kicker.textContent = 'Tap to reveal';
       note.textContent = cards.length + ' card' + (cards.length === 1 ? '' : 's');
-      stage.className = 'sg-gacha-stage is-grid';
-      stage.innerHTML = cards.map(function (c, i) { return gachaSlot(c, back, i); }).join('');
+
+      // Rarest first: the stack is dealt best-on-top, so the pull's headline
+      // card is the one the player turns over first and the commons trail it.
+      var order = cards.map(function (c, i) { return i; }).sort(function (a, b) {
+        return (rarityRank(cards[b]) - rarityRank(cards[a])) || (a - b);
+      });
+      var stackMode = cards.length > 1;
+      stage.className = 'sg-gacha-stage ' + (stackMode ? 'is-stack' : 'is-grid');
+      stage.innerHTML = order.map(function (idx, pos) {
+        return gachaSlot(cards[idx], back, idx, stackMode ? pos : idx);
+      }).join('');
 
       var slots = [].slice.call(stage.querySelectorAll('[data-flip]'));
       var all = gacha.querySelector('[data-gacha-all]');
@@ -2579,6 +2647,8 @@
         }
         if (card.holo) btn.classList.add('is-holo');
         btn.classList.add('is-open');
+        gachaFlourish(btn, card);
+        if (stackMode) layoutStack();
 
         // Let the turn finish before the card crumbles, or the player never sees
         // what they pulled.
@@ -2592,8 +2662,144 @@
         }
       }
 
-      slots.forEach(function (btn) { btn.addEventListener('click', function () { flip(btn); }); });
+      /* ---- the stack ----
+         One leaning pile instead of a grid of backs. Dragging tilts every card
+         by the same rotation, so the pile swings as one body in 3D and the
+         cards underneath show their borders; a swipe or a tap turns the top
+         card over, and the next swipe sends it away to expose the one beneath.
+         Past the last card the stage fans out into the grid, which is also
+         where "Reveal all" goes, so the whole pull stays comparable at the end. */
+      var stackPos = 0;
+      var stackBar = null;
+      var stackCounter = null;
+      var stackHint = null;
+
+      function stackBtn(pos) {
+        return slots[pos] || null;
+      }
+
+      function layoutStack() {
+        if (!stackMode) return;
+        slots.forEach(function (btn, pos) {
+          var depth = pos - stackPos;
+          btn.classList.toggle('is-stack-out', depth < 0);
+          btn.classList.toggle('is-stack-top', depth === 0);
+          btn.classList.toggle('is-stack-buried', depth > 5);
+          btn.style.setProperty('--depth', String(Math.max(0, Math.min(depth, 5))));
+          btn.style.zIndex = String(Math.max(1, 200 - pos));
+          btn.tabIndex = depth === 0 ? 0 : -1;
+        });
+        var top = stackBtn(stackPos);
+        var opened = !!(top && top.classList.contains('is-open'));
+        if (stackCounter) stackCounter.textContent = (stackPos + 1) + ' / ' + slots.length;
+        if (stackHint) {
+          stackHint.textContent = opened
+            ? (stackPos >= slots.length - 1 ? 'Swipe to see the whole pull' : 'Swipe or tap for the next card')
+            : 'Tap to unseal · drag to tilt the stack';
+        }
+      }
+
+      function toGrid() {
+        stackMode = false;
+        stage.className = 'sg-gacha-stage is-grid';
+        if (stackBar) stackBar.hidden = true;
+        slots.forEach(function (btn) {
+          btn.classList.remove('is-stack-top', 'is-stack-out', 'is-stack-buried');
+          btn.style.removeProperty('--depth');
+          btn.style.removeProperty('z-index');
+          btn.tabIndex = 0;
+        });
+        stage.style.removeProperty('--tilt-x');
+        stage.style.removeProperty('--tilt-y');
+        stage.style.removeProperty('--drag-x');
+        stage.style.removeProperty('--drag-y');
+      }
+
+      function advanceStack(dir) {
+        var top = stackBtn(stackPos);
+        if (!top || !top.classList.contains('is-open')) return;
+        // A duplicate is mid-crumble for about a second; let it finish paying
+        // out before its slot is swept off the top of the pile.
+        if (top.classList.contains('is-dissolving')) return;
+        top.style.setProperty('--exit-dir', dir >= 0 ? '1' : '-1');
+        if (stackPos >= slots.length - 1) { toGrid(); return; }
+        stackPos += 1;
+        layoutStack();
+      }
+
+      function bindStack() {
+        var bar = document.createElement('div');
+        bar.className = 'sg-gacha-stackbar';
+        bar.innerHTML = '<span class="sg-gacha-stackcount" data-stack-count></span>' +
+          '<span class="sg-gacha-stackhint" data-stack-hint></span>';
+        stage.parentNode.insertBefore(bar, note);
+        stackBar = bar;
+        stackCounter = bar.querySelector('[data-stack-count]');
+        stackHint = bar.querySelector('[data-stack-hint]');
+
+        var active = null;
+        var sx = 0, sy = 0, moved = 0, startedAt = 0;
+
+        function setTilt(dx, dy) {
+          stage.style.setProperty('--tilt-y', Math.max(-26, Math.min(26, dx / 7)) + 'deg');
+          stage.style.setProperty('--tilt-x', Math.max(-16, Math.min(16, -dy / 9)) + 'deg');
+          stage.style.setProperty('--drag-x', Math.max(-240, Math.min(240, dx)) + 'px');
+          stage.style.setProperty('--drag-y', Math.max(-80, Math.min(80, dy * 0.3)) + 'px');
+        }
+        function clearTilt() {
+          stage.style.removeProperty('--tilt-x');
+          stage.style.removeProperty('--tilt-y');
+          stage.style.removeProperty('--drag-x');
+          stage.style.removeProperty('--drag-y');
+        }
+
+        stage.addEventListener('pointerdown', function (e) {
+          if (!stackMode || active !== null) return;
+          active = e.pointerId; sx = e.clientX; sy = e.clientY; moved = 0; startedAt = Date.now();
+          stage.classList.add('is-dragging');
+          if (stage.setPointerCapture) stage.setPointerCapture(e.pointerId);
+        });
+        stage.addEventListener('pointermove', function (e) {
+          if (e.pointerId !== active) return;
+          var dx = e.clientX - sx, dy = e.clientY - sy;
+          moved = Math.max(moved, Math.sqrt(dx * dx + dy * dy));
+          setTilt(dx, dy);
+        });
+        stage.addEventListener('pointerup', function (e) {
+          if (e.pointerId !== active) return;
+          active = null;
+          stage.classList.remove('is-dragging');
+          if (stage.releasePointerCapture) stage.releasePointerCapture(e.pointerId);
+          var dx = e.clientX - sx, dy = e.clientY - sy;
+          clearTilt();
+          if (!stackMode) return;
+          var threshold = Math.max(56, stage.getBoundingClientRect().width * 0.12);
+          var tap = moved < 10 && Date.now() - startedAt < 600;
+          var swiped = Math.abs(dx) > threshold && Math.abs(dx) > Math.abs(dy);
+          if (!tap && !swiped) return;
+          var top = stackBtn(stackPos);
+          if (!top) return;
+          if (!top.classList.contains('is-open')) flip(top);
+          else advanceStack(swiped ? (dx < 0 ? -1 : 1) : 1);
+        });
+        stage.addEventListener('pointercancel', function (e) {
+          if (e.pointerId !== active) return;
+          active = null;
+          stage.classList.remove('is-dragging');
+          clearTilt();
+        });
+
+        layoutStack();
+      }
+
+      // In the grid every back is its own button; in the stack only the top card
+      // is live and the stage owns the gesture, so a drag is never read as a tap.
+      slots.forEach(function (btn) {
+        btn.addEventListener('click', function () { if (!stackMode) flip(btn); });
+      });
+      if (stackMode) bindStack();
       all.addEventListener('click', function () {
+        if (stackMode) toGrid();
         slots.forEach(function (btn, i) { setTimeout(function () { flip(btn); }, i * 150); });
       });
     }

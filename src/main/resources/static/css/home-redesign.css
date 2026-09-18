@@ -2068,7 +2068,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   gap:16px 12px; place-items:stretch; padding:4px 0;
   /* Centred rather than top-aligned: a five-card pull fills the stage, a
      three-card pull would otherwise sit in the corner of a tall void. */
-  align-content:center; width:100%; max-width:430px;
+  align-content:center; width:100%; max-width:min(430px, 100%);
 }
 /* The unopened pack breathes while the purchase is in flight. */
 .sg-gacha-pack { width:150px; aspect-ratio:var(--card-back-ratio); border-radius:16px; overflow:hidden;
@@ -2822,3 +2822,77 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
    removed rather than merely inert. */
 .sg-crest.is-readonly .sg-crest-edit { display:none; }
 .sg-friend-view .sg-sig { justify-content:center; }
+
+/* ---------- gacha stack ----------
+   The pull is dealt as one leaning pile rather than a grid of backs. Every card
+   takes the same --tilt-* rotation, so dragging swings the whole stack in 3D
+   and the buried cards show their borders; only the top card takes --drag-*, so
+   it leads the swipe that sends it away. */
+.sg-gacha-stage.is-stack {
+  display:block; position:relative; width:100%; max-width:430px;
+  height:min(58vh, 460px); perspective:1400px; perspective-origin:50% 46%;
+  touch-action:none; cursor:grab; place-items:stretch;
+}
+.sg-gacha-stage.is-stack.is-dragging { cursor:grabbing; }
+.sg-gacha-stage.is-stack .sg-flip {
+  position:absolute; top:50%; left:50%; width:min(62%, 240px);
+  --drag-shift:0px; --drag-lift:0px;
+  transform:
+    translate(-50%,-50%)
+    rotateY(var(--tilt-y,0deg)) rotateX(var(--tilt-x,0deg))
+    translate3d(calc(var(--depth,0) * 13px + var(--drag-shift)),
+                calc(var(--depth,0) * -9px + var(--drag-lift)),
+                calc(var(--depth,0) * -34px))
+    rotate(calc(var(--depth,0) * 1.6deg));
+  transition:transform .36s cubic-bezier(.2,.8,.2,1), opacity .36s ease;
+}
+.sg-gacha-stage.is-stack.is-dragging .sg-flip { transition:none; }
+.sg-gacha-stage.is-stack .sg-flip.is-stack-top { --drag-shift:var(--drag-x,0px); --drag-lift:var(--drag-y,0px); }
+/* Depth dims what is behind so the live card stays the subject, while the
+   edges still catch their own rarity aura. */
+.sg-gacha-stage.is-stack .sg-flip:not(.is-stack-top) {
+  pointer-events:none;
+  filter:brightness(calc(1 - var(--depth,0) * .11)) saturate(calc(1 - var(--depth,0) * .08));
+}
+.sg-gacha-stage.is-stack .sg-flip.is-stack-buried { opacity:0; }
+.sg-gacha-stage.is-stack .sg-flip.is-stack-out {
+  opacity:0; pointer-events:none;
+  transform:translate(-50%,-50%) translate3d(calc(var(--exit-dir,1) * 128%), -14%, 120px)
+            rotate(calc(var(--exit-dir,1) * 17deg));
+}
+.sg-gacha-stackbar {
+  display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap;
+  font-size:10.5px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--muted);
+}
+.sg-gacha-stackbar[hidden] { display:none !important; }
+.sg-gacha-stackcount {
+  padding:3px 11px; border-radius:999px; color:var(--gold);
+  border:1px solid color-mix(in srgb, var(--gold) 42%, transparent); background:rgba(7,5,22,.6);
+}
+
+/* Rarity sparks: how many and how far is rarity, what colour is the element. */
+.sg-flip-sparks { position:absolute; inset:0; z-index:4; pointer-events:none; }
+.sg-flip-sparks i {
+  position:absolute; left:50%; top:50%; width:var(--sz,4px); height:var(--sz,4px);
+  border-radius:50%; background:var(--tint,#fff); box-shadow:0 0 10px var(--tint,#fff);
+  opacity:0; animation:sgSparkFly 1.05s ease-out var(--d,0s) both;
+}
+@keyframes sgSparkFly {
+  0%   { opacity:0; transform:translate(-50%,-50%) scale(.4); }
+  18%  { opacity:1; }
+  100% { opacity:0; transform:translate(calc(-50% + var(--sx)), calc(-50% + var(--sy))) scale(.2); }
+}
+/* Rare and up also take a light sweep across the face as it lands. */
+.sg-flip.is-flaring .sg-flip-front::before {
+  content:''; position:absolute; inset:0; z-index:3; pointer-events:none;
+  background:linear-gradient(115deg, transparent 38%, rgba(255,255,255,.85) 50%, transparent 62%);
+  mix-blend-mode:screen; animation:sgLightSweep .9s ease-out both;
+}
+@keyframes sgLightSweep {
+  from { transform:translateX(-120%); opacity:.9; }
+  to   { transform:translateX(120%);  opacity:0; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .sg-gacha-stage.is-stack .sg-flip { transition:none; }
+  .sg-flip-sparks i, .sg-flip.is-flaring .sg-flip-front::before { animation:none; display:none; }
+}
