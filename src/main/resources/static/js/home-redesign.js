@@ -1365,16 +1365,13 @@
     return (pk.elements && pk.elements[0]) || 'NEUTRAL';
   }
 
-  // Every pack was drawing the elemental card back for its first element, so the
-  // Siegeling, Strategy, Deception and SiegeKnight packs - which have no element -
-  // all fell through to Fire and looked identical. These are the same four
-  // special backs the shipping shop uses, keyed the same way, so the art matches
-  // what a player sees when the pack is actually opened.
+  // Every pack was drawing the elemental card back for its first element, so a
+  // pack with no element of its own fell through to Fire. The Siegeling pack is
+  // the only one left in that position now that the Strategy, Deception and
+  // SiegeKnight packs are retired; its back is the one the shipping shop uses,
+  // keyed the same way, so the art matches what opening it actually shows.
   var PACK_BACK = {
-    pack_siegeling_random: '/img/packs/siegeling-back.webp',
-    pack_spell_random: '/img/packs/spell-card-back.webp',
-    pack_trap_random: '/img/packs/trap-card-back.webp',
-    pack_siegeknight: '/img/knights/card-back-siegeknight.png'
+    pack_siegeling_random: '/img/packs/siegeling-back.webp'
   };
 
   function packBack(pk) {
