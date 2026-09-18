@@ -2513,9 +2513,13 @@
     var description = cardFaceText(card);
     var tabs = sheetTabsFor(card);
     var peek = evolutionPeek(card);
+    // Face type drives whether the 108px print shows a description: Siegelings
+    // keep HP/SPD only (Arena lists the flavour); Strategies/Deceptions keep
+    // the effect in that slot.
+    var faceType = String(card.type || 'SIEGLING').toUpperCase();
     return '<button class="sg-sheet-dismiss" type="button" aria-label="Close card details"></button>' +
       '<div class="sg-sheet-head">' +
-        '<div class="sg-sheet-face">' + galleryCard(card) + '</div>' +
+        '<div class="sg-sheet-face" data-face-type="' + esc(faceType) + '">' + galleryCard(card) + '</div>' +
         '<div class="sg-sheet-id">' +
           '<div class="sg-sheet-idtop' + (peek ? ' has-peek' : '') + '">' +
             '<div class="sg-sheet-idname">' +

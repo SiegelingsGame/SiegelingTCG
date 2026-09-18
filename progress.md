@@ -1,3 +1,8 @@
+Original prompt: Perfect so siegeleitns will only show speed and health in that slot and strat and deceptions will show their effect
+
+- September 18, 2026 - **Sheet-face print is type-specific: Siegelings show HP/SPD only; Strategies and Deceptions show their effect.** The 108px `.sg-sheet-face` now carries `data-face-type`, and for `SIEGLING` the printed description is hidden (same clipped-line problem as the evolution thumbs) while name + HP/SPD stay. `SPELL`/`TRAP` faces keep the effect text in that slot — that is the useful print for those types. Arena still lists Siegeling flavour in full, and fullscreen zoom still paints the description for every type. Builds on the earlier `resolveCardDescriptionText` preference for Strategy/Deception effects.
+- Verification: pending.
+
 Original prompt: Apply this to the main card as well since the description is listed
 
 - September 18, 2026 - **Strategies and Deceptions fill the main card description the same way they fill deck-sheet faces.** The card sheet Arena blurb, the 108px sheet face, fullscreen zoom, and the legacy binder detail "Background" all go through description resolution. `resolveCardDescriptionText` now treats "Description coming soon." (and stub labels like "Spell!") as empty, and for `SPELL`/`TRAP` prefers `ability.description` so the effect is what prints wherever a description field is listed. `creatureDescriptionFor` in `home.js` matches that rule for the legacy hub; `card-binder-visual.js` mirrors it when `game.js` is absent. Siegeling flavour is unchanged.
