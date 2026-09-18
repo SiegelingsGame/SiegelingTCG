@@ -987,6 +987,19 @@
     return '';
   }
 
+  // Printed face copy: flavour when the catalog has it, otherwise the effect
+  // text Strategies and Deceptions carry on ability.description.
+  function cardFaceText(card) {
+    var showcase = window.SieglingsCardShowcase;
+    if (showcase && typeof showcase.resolveCardDescriptionText === 'function') {
+      return showcase.resolveCardDescriptionText(card, card && card.description) || '';
+    }
+    var direct = String(card && card.description || '').trim();
+    if (direct) return direct;
+    var ability = card && (card.ability || (card.abilities && card.abilities[0]));
+    return String(ability && ability.description || card && card.effect || '').trim();
+  }
+
   // The production renderer composes the real card: frame, notches, rarity
   // treatment, stats and description, with overlay art composited in and full
   // card art used whole. Reimplementing that here would have drifted from the
@@ -999,7 +1012,7 @@
     }
     if (visual && visual.renderBinderCardTile) {
       return '<button class="sg-card-tile" type="button" data-card="' + esc(c.id) + '">' +
-        visual.renderBinderCardTile(c, { descriptionText: c.description || '' }) +
+        visual.renderBinderCardTile(c, { descriptionText: cardFaceText(c) }) +
       '</button>';
     }
     // Offline preview board: no renderer loaded, so fall back to the plate.
@@ -1569,14 +1582,74 @@
     return allDeckRows(opts).filter(function (d) { return d.id === id; })[0] || null;
   }
 
+  // Downward swipe-to-dismiss shared by the card sheet and the deck sheet.
+  // Claims only a pull begun at the top of the named scroll region (or on the
+  // grab handle); native scrolling keeps ownership of upward / mid-scroll
+  // gestures. opts.blocked() skips the gesture when a higher layer is open.
+  function wireSheetSwipe(sheet, sheetCard, closeFn, opts) {
+    opts = opts || {};
+    var scrollSelector = opts.scrollSelector || '.sg-sheet-panels';
+    var drag = null;
+    function resetDrag() {
+      drag = null;
+      sheet.classList.remove('is-dragging');
+      sheetCard.style.removeProperty('--sg-sheet-drag');
+    }
+    sheetCard.addEventListener('touchstart', function (e) {
+      resetDrag();
+      if (!sheet.classList.contains('open') || e.touches.length !== 1) return;
+      if (opts.blocked && opts.blocked()) return;
+      var control = e.target.closest('a, button, input, select, textarea');
+      if (control && !control.classList.contains('sg-sheet-dismiss')) return;
+      var panel = e.target.closest(scrollSelector);
+      if (panel && panel.scrollTop > 0) return;
+      var touch = e.touches[0];
+      drag = { id: touch.identifier, x: touch.clientX, y: touch.clientY,
+        started: performance.now(), distance: 0, active: false };
+    }, { passive: true });
+    sheetCard.addEventListener('touchmove', function (e) {
+      if (!drag) return;
+      if (e.touches.length !== 1 || e.touches[0].identifier !== drag.id) {
+        resetDrag();
+        return;
+      }
+      var dx = e.touches[0].clientX - drag.x;
+      var dy = e.touches[0].clientY - drag.y;
+      if (!drag.active) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) < 8) return;
+        if (dy <= 0 || dy <= Math.abs(dx) * 1.2 || !e.cancelable) {
+          resetDrag();
+          return;
+        }
+        drag.active = true;
+        sheet.classList.add('is-dragging');
+      }
+      if (e.cancelable) e.preventDefault();
+      drag.distance = Math.max(0, dy);
+      sheetCard.style.setProperty('--sg-sheet-drag', drag.distance + 'px');
+    }, { passive: false });
+    sheetCard.addEventListener('touchend', function (e) {
+      if (!drag) return;
+      var distance = drag.distance;
+      var speed = distance / Math.max(1, performance.now() - drag.started);
+      if (drag.active && e.cancelable) e.preventDefault();
+      if (drag.active && (distance >= 80 || (distance >= 28 && speed > 0.5))) closeFn();
+      else resetDrag();
+    }, { passive: false });
+    sheetCard.addEventListener('touchcancel', resetDrag, { passive: true });
+    return { resetDrag: resetDrag };
+  }
+
   function mountDeckSheet(app, opts) {
     var sheet = app.querySelector('[data-deck-sheet]');
     if (!sheet) return;
     var card = sheet.querySelector('[data-deck-sheet-card]');
     var opener = null;
+    var swipe = null;
 
     function close() {
       sheet.classList.remove('open');
+      if (swipe) swipe.resetDrag();
       if (opener && opener.isConnected) opener.focus({ preventScroll: true });
       opener = null;
     }
@@ -1584,6 +1657,7 @@
       var d = findDeckRow(opts, id);
       if (!d) return;
       opener = from || null;
+      if (swipe) swipe.resetDrag();
       card.innerHTML = deckSheetMarkup(d, opts);
       card.scrollTop = 0;
       sheet.classList.add('open');
@@ -1591,6 +1665,17 @@
       if (dismiss) dismiss.focus({ preventScroll: true });
       scheduleFit(sheet);
     }
+
+    swipe = wireSheetSwipe(sheet, card, close, {
+      scrollSelector: '.sg-decksheet',
+      // Card sheet / zoom sit above this one; ignore pulls while they own the
+      // screen so a swipe cannot close the deck out from under them.
+      blocked: function () {
+        var cardSheet = app.querySelector('[data-sheet].open');
+        var zoom = app.querySelector('[data-zoom].open');
+        return Boolean(cardSheet || zoom);
+      }
+    });
 
     app.addEventListener('click', function (e) {
       if (!e.target.closest) return;
@@ -2131,7 +2216,7 @@
 
   function cardSheetMarkup(card, opts) {
     var notches = notchRing(card);
-    var description = String(card.description || '').trim();
+    var description = cardFaceText(card);
     return '<button class="sg-sheet-dismiss" type="button" aria-label="Close card details"></button>' +
       '<div class="sg-sheet-head">' +
         '<div class="sg-sheet-face">' + galleryCard(card) + '</div>' +
@@ -2289,22 +2374,17 @@
     if (!sheet) return null;
     var sheetCard = sheet.querySelector('[data-sheet-card]');
     var zoom = mountZoom(app);
-    var drag = null;
     var opener = null;
-    function resetDrag() {
-      drag = null;
-      sheet.classList.remove('is-dragging');
-      sheetCard.style.removeProperty('--sg-sheet-drag');
-    }
+    var swipe = null;
     function close() {
       sheet.classList.remove('open');
-      resetDrag();
+      if (swipe) swipe.resetDrag();
       if (zoom) zoom.close();
       if (opener && opener.isConnected) opener.focus({ preventScroll: true });
     }
     function open(card) {
       if (!card) return;
-      resetDrag();
+      if (swipe) swipe.resetDrag();
       opener = document.activeElement;
       sheetCard.innerHTML = cardSheetMarkup(card, opts);
       sheetCard.setAttribute('data-zoom-card', String(card.id == null ? '' : card.id));
@@ -2332,49 +2412,10 @@
       if (zoom && zoom.isOpen()) { zoom.close(); e.sgEscapeHandled = true; return; }
       if (sheet.classList.contains('open')) { close(); e.sgEscapeHandled = true; }
     });
-    // Claim only a downward pull begun at the top of the scrolling panel.
-    // Native scrolling keeps ownership of upward and already-scrolled gestures.
-    sheetCard.addEventListener('touchstart', function (e) {
-      resetDrag();
-      if (!sheet.classList.contains('open') || e.touches.length !== 1) return;
-      var control = e.target.closest('a, button, input, select, textarea');
-      if (control && !control.classList.contains('sg-sheet-dismiss')) return;
-      var panel = e.target.closest('.sg-sheet-panels');
-      if (panel && panel.scrollTop > 0) return;
-      var touch = e.touches[0];
-      drag = { id: touch.identifier, x: touch.clientX, y: touch.clientY,
-        started: performance.now(), distance: 0, active: false };
-    }, { passive: true });
-    sheetCard.addEventListener('touchmove', function (e) {
-      if (!drag) return;
-      if (e.touches.length !== 1 || e.touches[0].identifier !== drag.id) {
-        resetDrag();
-        return;
-      }
-      var dx = e.touches[0].clientX - drag.x;
-      var dy = e.touches[0].clientY - drag.y;
-      if (!drag.active) {
-        if (Math.max(Math.abs(dx), Math.abs(dy)) < 8) return;
-        if (dy <= 0 || dy <= Math.abs(dx) * 1.2 || !e.cancelable) {
-          resetDrag();
-          return;
-        }
-        drag.active = true;
-        sheet.classList.add('is-dragging');
-      }
-      if (e.cancelable) e.preventDefault();
-      drag.distance = Math.max(0, dy);
-      sheetCard.style.setProperty('--sg-sheet-drag', drag.distance + 'px');
-    }, { passive: false });
-    sheetCard.addEventListener('touchend', function (e) {
-      if (!drag) return;
-      var distance = drag.distance;
-      var speed = distance / Math.max(1, performance.now() - drag.started);
-      if (drag.active && e.cancelable) e.preventDefault();
-      if (drag.active && (distance >= 80 || (distance >= 28 && speed > 0.5))) close();
-      else resetDrag();
-    }, { passive: false });
-    sheetCard.addEventListener('touchcancel', resetDrag, { passive: true });
+    swipe = wireSheetSwipe(sheet, sheetCard, close, {
+      scrollSelector: '.sg-sheet-panels',
+      blocked: function () { return zoom && zoom.isOpen(); }
+    });
     app.addEventListener('click', function (e) {
       var host = e.target.closest ? e.target.closest('[data-card]') : null;
       if (!host || sheet.contains(host)) return;
@@ -3100,11 +3141,11 @@
     if (visual && visual.renderBinderCardPreview) {
       return visual.renderBinderCardPreview(card, {
         previewClass: 'detail-card-preview sg-sig-showcase',
-        descriptionText: card.description || ''
+        descriptionText: cardFaceText(card)
       });
     }
     if (visual && visual.renderBinderCardTile) {
-      return visual.renderBinderCardTile(card, { descriptionText: card.description || '' });
+      return visual.renderBinderCardTile(card, { descriptionText: cardFaceText(card) });
     }
     return '<img src="' + esc(card.cardArtUrl) + '" alt="' + esc(card.name) + '" loading="lazy">';
   }

@@ -3979,10 +3979,24 @@ function renderCompactCardSummary(card, options = {}) {
 // chips). Rendered inside .card-summary-list so fitFramedSummaryList sizes
 // the text to the panel.
 function renderCompactDescriptionSummary(card, descriptionText) {
-    const description = String(descriptionText || card?.description || '').trim() || 'Description coming soon.';
+    const description = resolveCardDescriptionText(card, descriptionText) || 'Description coming soon.';
     return `<div class="card-summary-list card-summary-description-list" style="${escapeHtmlAttribute(getCompactSummaryInkStyle(card.element, card))}" title="${escapeHtmlAttribute(description)}">`
         + `<div class="card-summary-description">${escapeHtml(description)}</div>`
         + '</div>';
+}
+
+// Flavour text when present; otherwise the printed effect. Strategies and
+// Deceptions almost never ship a description field — their effect lives on
+// ability.description — so without this fallback the binder paints
+// "Description coming soon." over every Strategy/Deception face.
+function resolveCardDescriptionText(card, descriptionText) {
+    const explicit = String(descriptionText == null ? '' : descriptionText).trim();
+    if (explicit) return explicit;
+    const direct = String(card?.description || '').trim();
+    if (direct) return direct;
+    const ability = card?.ability || (Array.isArray(card?.abilities) ? card.abilities[0] : null);
+    const effect = String(ability?.description || card?.effect || '').trim();
+    return effect;
 }
 
 // Top-corner chips for painted-frame previews: play cost (or trap trigger)
@@ -18288,7 +18302,8 @@ window.SieglingsCardShowcase = {
     scheduleSiegeKnightCardFit,
     fitSiegeKnightCardText,
     cardFrameClass,
-    hasElementFrame
+    hasElementFrame,
+    resolveCardDescriptionText
 };
 
 if (document.getElementById('loadoutOverlay')) {
