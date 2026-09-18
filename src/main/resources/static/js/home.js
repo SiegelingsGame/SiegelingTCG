@@ -9745,10 +9745,21 @@
         // A description set directly on the card (via the dashboard editor) is
         // authoritative and wins over the shared creature-descriptions file so
         // dashboard edits show immediately; the shared file is the fallback.
-        return polishFlavorText(String(card?.description || '').trim()
+        // Strategies / Deceptions have no flavour — their effect is the copy
+        // that belongs in the detail "Background" blurb and binder face.
+        const type = String(card?.type || '').toUpperCase();
+        const ability = card?.ability || (Array.isArray(card?.abilities) ? card.abilities[0] : null);
+        const effect = String(ability?.description || card?.effect || '').trim();
+        if ((type === 'SPELL' || type === 'TRAP') && effect) {
+            return polishFlavorText(effect);
+        }
+        const flavor = String(card?.description || '').trim()
             || descriptions[normalizeCreatureKey(card?.id)]
             || descriptions[normalizeCreatureKey(card?.name)]
-            || 'Description coming soon.');
+            || '';
+        if (flavor && !/coming soon/i.test(flavor)) return polishFlavorText(flavor);
+        if (effect) return polishFlavorText(effect);
+        return 'Description coming soon.';
     }
     function polishFlavorText(value) {
         return String(value || '')

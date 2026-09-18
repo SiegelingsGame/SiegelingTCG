@@ -3985,17 +3985,30 @@ function renderCompactDescriptionSummary(card, descriptionText) {
         + '</div>';
 }
 
-// Flavour text when present; otherwise the printed effect. Strategies and
-// Deceptions almost never ship a description field — their effect lives on
-// ability.description — so without this fallback the binder paints
-// "Description coming soon." over every Strategy/Deception face.
+// Flavour when present; otherwise the printed effect. Strategies and
+// Deceptions almost never ship real flavour — their effect lives on
+// ability.description — and some rows still carry the "Description coming
+// soon." stand-in (or a stub like "Spell!") which must not win over the
+// effect on the binder face, the card sheet Arena blurb, or fullscreen.
+function isPlaceholderCardDescription(text) {
+    const value = String(text == null ? '' : text).trim();
+    if (!value) return true;
+    if (/coming soon/i.test(value)) return true;
+    // Dashboard stubs that are labels, not flavour.
+    if (/^(spell|trap|strategy|deception)!?$/i.test(value)) return true;
+    return false;
+}
+
 function resolveCardDescriptionText(card, descriptionText) {
-    const explicit = String(descriptionText == null ? '' : descriptionText).trim();
-    if (explicit) return explicit;
-    const direct = String(card?.description || '').trim();
-    if (direct) return direct;
+    const type = String(card?.type || '').toUpperCase();
     const ability = card?.ability || (Array.isArray(card?.abilities) ? card.abilities[0] : null);
     const effect = String(ability?.description || card?.effect || '').trim();
+    // Strategies / Deceptions: the effect *is* the printed description.
+    if ((type === 'SPELL' || type === 'TRAP') && effect) return effect;
+    const explicit = String(descriptionText == null ? '' : descriptionText).trim();
+    if (explicit && !isPlaceholderCardDescription(explicit)) return explicit;
+    const direct = String(card?.description || '').trim();
+    if (direct && !isPlaceholderCardDescription(direct)) return direct;
     return effect;
 }
 

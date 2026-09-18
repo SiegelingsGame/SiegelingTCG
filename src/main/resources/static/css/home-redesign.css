@@ -1848,9 +1848,17 @@ body.concept-board {
    up", "Trading the") that read as damage rather than flavour. The thumbnail
    keeps the name and the HP/SPD pills - what tells the stages apart - and the
    description belongs to the full-screen card, where there is room to read it.
-   Scoped to the chain: the sheet's own face and the zoom stage are untouched. */
+   Same on the sheet's own 108px face for Siegelings: Arena already lists the
+   flavour, so the clipped line is noise. Strategies and Deceptions keep their
+   effect in that slot — that is the useful print for those types. Zoom is
+   untouched either way. */
 .sg-sheet-evo-art .card-summary-list,
-.sg-sheet-evo-art .card-summary-description-list { display:none !important; }
+.sg-sheet-evo-art .card-summary-description-list,
+.sg-sheet-face[data-face-type="SIEGLING"] .card-summary-list,
+.sg-sheet-face[data-face-type="SIEGLING"] .card-summary-description-list,
+.sg-sheet-face[data-face-type="SIEGLING"] .holographic-card-copy,
+.sg-sheet-face[data-face-type="SIEGLING"] .holographic-card-description,
+.sg-sheet-face[data-face-type="SIEGLING"] .binder-card-description { display:none !important; }
 /* Paired with fitEvolutionNames(), which measures the size down; nowrap here so
    the title cannot wrap in the frame before that runs. */
 .sg-sheet-evo-art .card-title { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
