@@ -24,8 +24,29 @@ import java.util.stream.Collectors;
 
 @Service
 public class PackCatalogService {
-    /** Chance a normal pack also contains a SiegeKnight (very rare). Tunable balance knob. */
-    public static final double TRAINER_DROP_CHANCE = 0.03;
+    /**
+     * Chance a pack also contains a SiegeKnight. With the dedicated SiegeKnight Cache retired,
+     * knights only reach players through ordinary packs, so the baseline is far more generous
+     * than the old 3% bonus roll. Tunable balance knob.
+     */
+    public static final double TRAINER_DROP_CHANCE = 0.10;
+
+    /**
+     * Knight chance for packs built around specific elements (starter and themed packs).
+     * Those packs can only roll knights of their own elements, so a player hunting one
+     * element's knight gets a much better rate than the element-agnostic Siegeling Pack.
+     */
+    public static final double ELEMENT_FOCUSED_TRAINER_DROP_CHANCE = 0.25;
+
+    /** A pack with at most this many elements counts as element-focused for drop boosts. */
+    private static final int ELEMENT_FOCUS_MAX_ELEMENTS = 2;
+
+    /**
+     * Weight an element-matched Strategy/Deception card gets over a NEUTRAL one when filling
+     * the support slots. Strategy and Deception packs are gone, so element packs are now the
+     * way to chase a specific element's spells and traps.
+     */
+    private static final int ELEMENT_MATCH_WEIGHT = 4;
 
     /**
      * Chance for each pulled card to drop with a holographic finish. Higher
@@ -38,9 +59,6 @@ public class PackCatalogService {
             Rarity.EPIC, 0.02,
             Rarity.LEGENDARY, 0.01
     ));
-    /** Dedicated, expensive pack that always contains a SiegeKnight. */
-    public static final String SIEGEKNIGHT_PACK_ID = "pack_siegeknight";
-
     public record PackDefinition(
             String id,
             String name,
@@ -89,7 +107,7 @@ public class PackCatalogService {
             packs.add(new PackDefinition(
                     "pack_" + element.name().toLowerCase(Locale.ROOT),
                     formatElement(element) + " Starter Pack",
-                    "Five " + formatElement(element) + " cards: 2-3 Siegelings, 1-2 traps, and 1-2 spells. Includes a free " + formatElement(element) + " SiegeKnight.",
+                    "Five " + formatElement(element) + " cards: 2 Siegelings plus Strategy and Deception support. Includes a free " + formatElement(element) + " SiegeKnight.",
                     true,
                     100,
                     List.of(element),
@@ -109,15 +127,6 @@ public class PackCatalogService {
         packs.add(new PackDefinition("pack_siegeling_random", "Siegeling Pack",
                 "Five random Siegeling cards from a changing elemental mix.", true, 160,
                 activeElements, false));
-        packs.add(new PackDefinition("pack_spell_random", "Strategy Pack",
-                "Five random Strategy cards from a changing elemental mix.", true, 120,
-                activeElements, false));
-        packs.add(new PackDefinition("pack_trap_random", "Deception Pack",
-                "Five random Deception cards from a changing elemental mix.", true, 120,
-                activeElements, false));
-        packs.add(new PackDefinition(SIEGEKNIGHT_PACK_ID, "SiegeKnight Cache",
-                "A premium cache that always contains a rare SiegeKnight plus five cards. Duplicates level up your knight.",
-                true, 1200, activeElements, false));
         return packs.stream()
                 .filter(pack -> pack.elements().stream().map(Enum::name).allMatch(cardDefinitionService.getActiveLiveElementNames()::contains))
                 .map(this::applyAvailability)
@@ -177,19 +186,27 @@ public class PackCatalogService {
             return new PackOpenResult(pack, cards, rollBonusTrainer(pack), rollHolographicDrops(cards));
         }
 
-        List<Card> sieglings = selectRandom(pool, CardType.SIEGLING, 3);
-        List<Card> traps = selectRandom(pool, CardType.TRAP, 1);
-        List<Card> spells = selectRandom(pool, CardType.SPELL, 1);
+        List<Card> sieglings = selectRandom(pool, CardType.SIEGLING, 2);
+        List<Card> traps = selectWeightedSupport(pool, CardType.TRAP, pack, 2);
+        List<Card> spells = selectWeightedSupport(pool, CardType.SPELL, pack, 2);
         if (sieglings.size() < 2 || traps.isEmpty() || spells.isEmpty()) {
             throw new IllegalArgumentException("This pack does not have enough live cards configured. It needs at least 2 Siegelings, 1 trap, and 1 spell.");
         }
 
+        // Two creature slots, one guaranteed Strategy, one guaranteed Deception, and a fifth
+        // slot that is another Strategy or Deception. The retired Strategy/Deception packs
+        // used to carry that supply; ordinary packs carry it now.
         List<Card> cards = new ArrayList<>();
-        cards.addAll(sieglings.subList(0, Math.min(3, sieglings.size())));
+        cards.addAll(sieglings.subList(0, 2));
         cards.add(traps.get(0));
         cards.add(spells.get(0));
-        while (cards.size() > 5) {
-            cards.remove(cards.size() - 1);
+        List<Card> extraSupport = new Random().nextBoolean() ? spells : traps;
+        if (extraSupport.size() > 1) {
+            cards.add(extraSupport.get(1));
+        } else if (spells.size() > 1) {
+            cards.add(spells.get(1));
+        } else if (traps.size() > 1) {
+            cards.add(traps.get(1));
         }
         while (cards.size() < 5) {
             List<Card> filler = selectRandom(pool.stream()
@@ -204,13 +221,13 @@ public class PackCatalogService {
     }
 
     /**
-     * Rolls a SiegeKnight to include with a pack. The dedicated SiegeKnight Cache always yields one;
-     * other packs only yield one rarely ({@link #TRAINER_DROP_CHANCE}). Returns null when no knight drops.
+     * Rolls a SiegeKnight to include with a pack. Element-focused packs roll at the boosted
+     * {@link #ELEMENT_FOCUSED_TRAINER_DROP_CHANCE}; broad packs use {@link #TRAINER_DROP_CHANCE}.
+     * Returns null when no knight drops.
      */
     private TrainerCard rollBonusTrainer(PackDefinition pack) {
-        boolean guaranteed = SIEGEKNIGHT_PACK_ID.equals(pack.id());
         Random random = new Random();
-        if (!guaranteed && random.nextDouble() >= TRAINER_DROP_CHANCE) {
+        if (random.nextDouble() >= trainerDropChance(pack)) {
             return null;
         }
         List<TrainerCard> candidates = bonusTrainerCandidates(pack);
@@ -337,7 +354,7 @@ public class PackCatalogService {
         out.put("elements", pack.elements().stream().map(Enum::name).toList());
         out.put("starterEligible", pack.starterEligible());
         Map<String, Object> odds = new LinkedHashMap<>();
-        odds.put("siegeKnight", SIEGEKNIGHT_PACK_ID.equals(pack.id()) ? 1.0 : TRAINER_DROP_CHANCE);
+        odds.put("siegeKnight", trainerDropChance(pack));
         Map<String, Double> holoPerCard = new LinkedHashMap<>();
         for (Rarity rarity : Rarity.values()) {
             holoPerCard.put(rarity.name(), HOLO_DROP_CHANCE.getOrDefault(rarity, 0.0));
@@ -413,6 +430,45 @@ public class PackCatalogService {
         }
     }
 
+    /** True for starter and themed packs, whose narrow element list earns the boosted drop rates. */
+    boolean isElementFocused(PackDefinition pack) {
+        return !pack.elements().isEmpty() && pack.elements().size() <= ELEMENT_FOCUS_MAX_ELEMENTS;
+    }
+
+    double trainerDropChance(PackDefinition pack) {
+        return isElementFocused(pack) ? ELEMENT_FOCUSED_TRAINER_DROP_CHANCE : TRAINER_DROP_CHANCE;
+    }
+
+    /**
+     * Picks Strategy/Deception cards with cards of the pack's own elements weighted
+     * {@link #ELEMENT_MATCH_WEIGHT}x against the NEUTRAL cards the pool also carries, so an
+     * element pack reliably hands back that element's support instead of generic filler.
+     */
+    List<Card> selectWeightedSupport(List<Card> pool, CardType type, PackDefinition pack, int limit) {
+        List<Card> typed = pool.stream().filter(card -> card.getCardType() == type).toList();
+        if (typed.isEmpty()) {
+            return List.of();
+        }
+        List<Card> weighted = new ArrayList<>();
+        for (Card card : typed) {
+            int weight = pack.elements().contains(card.getElement()) ? ELEMENT_MATCH_WEIGHT : 1;
+            for (int i = 0; i < weight; i++) {
+                weighted.add(card);
+            }
+        }
+        Collections.shuffle(weighted);
+        List<Card> picked = new ArrayList<>();
+        for (Card card : weighted) {
+            if (picked.size() >= limit) {
+                break;
+            }
+            if (picked.stream().noneMatch(existing -> existing.getId().equals(card.getId()))) {
+                picked.add(card);
+            }
+        }
+        return picked;
+    }
+
     private List<Card> selectRandom(List<Card> pool, CardType type, int limit) {
         return selectRandom(pool.stream()
                 .filter(card -> card.getCardType() == type)
@@ -449,8 +505,6 @@ public class PackCatalogService {
     private Optional<CardType> focusedType(String packId) {
         return switch (packId) {
             case "pack_siegeling_random" -> Optional.of(CardType.SIEGLING);
-            case "pack_spell_random" -> Optional.of(CardType.SPELL);
-            case "pack_trap_random" -> Optional.of(CardType.TRAP);
             default -> Optional.empty();
         };
     }

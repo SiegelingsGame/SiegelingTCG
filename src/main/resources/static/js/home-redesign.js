@@ -1769,10 +1769,7 @@
   // special backs the shipping shop uses, keyed the same way, so the art matches
   // what a player sees when the pack is actually opened.
   var PACK_BACK = {
-    pack_siegeling_random: '/img/packs/siegeling-back.webp',
-    pack_spell_random: '/img/packs/spell-card-back.webp',
-    pack_trap_random: '/img/packs/trap-card-back.webp',
-    pack_siegeknight: '/img/knights/card-back-siegeknight.png'
+    pack_siegeling_random: '/img/packs/siegeling-back.webp'
   };
 
   function packBack(pk) {

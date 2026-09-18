@@ -5513,7 +5513,8 @@
     // Mirrors PackCatalogService odds so the modal still works when the
     // cached /api/shop/packs payload predates the odds field.
     const FALLBACK_PACK_ODDS = {
-        siegeKnight: 0.03,
+        siegeKnight: 0.10,
+        elementFocusedSiegeKnight: 0.25,
         cardsPerPack: 5,
         holoPerCard: { COMMON: 0.08, UNCOMMON: 0.06, RARE: 0.04, EPIC: 0.02, LEGENDARY: 0.01 }
     };
@@ -5523,7 +5524,11 @@
         if (!pack) return;
         const odds = pack.odds || {
             ...FALLBACK_PACK_ODDS,
-            siegeKnight: pack.id === 'pack_siegeknight' ? 1 : FALLBACK_PACK_ODDS.siegeKnight
+            // Element and themed packs are the only knight source now, so they roll at the
+            // boosted rate PackCatalogService applies to packs with 1-2 elements.
+            siegeKnight: (pack.elements || []).length <= 2
+                ? FALLBACK_PACK_ODDS.elementFocusedSiegeKnight
+                : FALLBACK_PACK_ODDS.siegeKnight
         };
         const holo = odds.holoPerCard || FALLBACK_PACK_ODDS.holoPerCard;
         const pct = value => `${Math.round(Number(value || 0) * 1000) / 10}%`;
@@ -5554,10 +5559,7 @@
     function packImageFor(pack) {
         const element = String(pack.elements?.[0] || '').toUpperCase();
         const special = {
-            pack_siegeling_random: versionedPackAsset('/img/packs/siegeling-back.png'),
-            pack_spell_random: versionedPackAsset('/img/packs/spell-card-back.png'),
-            pack_trap_random: versionedPackAsset('/img/packs/trap-card-back.png'),
-            pack_siegeknight: versionedPackAsset(SIEGEKNIGHT_CARD_BACK)
+            pack_siegeling_random: versionedPackAsset('/img/packs/siegeling-back.png')
         };
         if (special[pack.id]) return special[pack.id];
         // Elemental / starter packs use the same default card backs as decks.
@@ -5569,10 +5571,7 @@
 
     function packBackForElement(element, packId = '') {
         const special = {
-            pack_siegeling_random: '/img/packs/siegeling-back.png',
-            pack_spell_random: '/img/packs/spell-card-back.png',
-            pack_trap_random: '/img/packs/trap-card-back.png',
-            pack_siegeknight: SIEGEKNIGHT_CARD_BACK
+            pack_siegeling_random: '/img/packs/siegeling-back.png'
         };
         const specialPath = special[packId];
         if (specialPath) return `url('${versionedPackAsset(specialPath)}')`;
