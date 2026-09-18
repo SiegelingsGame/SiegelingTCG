@@ -1,5 +1,5 @@
 {
-  "token" : "CX0LltE0eHN3--ld0q4L5wRsUbl9ZKiZ",
+  "token" : "WZ3ZnT7WJ8MTD5u3QX2t5OY_c7njkM7N",
   "status" : "ACTIVE",
   "currentNodeId" : -1,
   "lastReward" : "",
@@ -31,23 +31,23 @@
     "eventTitle" : "The Cinder Smith"
   },
   "landHistory" : [ {
-    "id" : "wind",
-    "name" : "Zephyr Reach",
+    "id" : "water",
+    "name" : "Tideglass",
     "kind" : "ELEMENTAL",
-    "elements" : [ "WIND" ],
-    "background" : "/img/lands/wind.webp",
+    "elements" : [ "WATER" ],
+    "background" : "/img/lands/water.webp",
     "locations" : {
-      "journey" : "/img/lands/locations/wind-journey.webp",
-      "shelter" : "/img/lands/locations/wind-shelter.webp",
-      "elite" : "/img/lands/locations/wind-elite.webp",
-      "boss" : "/img/lands/locations/wind-boss.webp"
+      "journey" : "/img/lands/locations/water-journey.webp",
+      "shelter" : "/img/lands/locations/water-shelter.webp",
+      "elite" : "/img/lands/locations/water-elite.webp",
+      "boss" : "/img/lands/locations/water-boss.webp"
     },
-    "feature" : "Sky Caravan",
+    "feature" : "Tide Traders",
     "featureType" : "CARAVAN",
-    "terrain" : "Tailwinds",
-    "effect" : "WIND Siegelings gain +2 Speed for each battle.",
+    "terrain" : "Healing tides",
+    "effect" : "WATER Siegelings recover 4 HP at battle start.",
     "encounters" : "Favored Siegelings have 4× draw weight in recruits, broker stock and card prizes.",
-    "eventTitle" : "The Sky Courier"
+    "eventTitle" : "The Tide Salvager"
   } ],
   "landSegment" : 0,
   "landSegmentRows" : 8,
