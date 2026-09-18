@@ -217,12 +217,24 @@
         return '<div class="card-holographic-overlay" aria-hidden="true"></div>';
     }
 
+    function resolveDescriptionText(card, descriptionText) {
+        if (window.SieglingsCardShowcase && typeof window.SieglingsCardShowcase.resolveCardDescriptionText === 'function') {
+            return window.SieglingsCardShowcase.resolveCardDescriptionText(card, descriptionText);
+        }
+        const explicit = String(descriptionText == null ? '' : descriptionText).trim();
+        if (explicit) return explicit;
+        const direct = String(card?.description || '').trim();
+        if (direct) return direct;
+        const ability = card?.ability || (Array.isArray(card?.abilities) ? card.abilities[0] : null);
+        return String(ability?.description || card?.effect || '').trim();
+    }
+
     function holographicCardCopy(card, options = {}) {
         const hasDedicatedDescription = Object.prototype.hasOwnProperty.call(options, 'holographicDescriptionText');
         const description = String(
             hasDedicatedDescription
                 ? options.holographicDescriptionText
-                : (options.descriptionText || card?.description || '')
+                : resolveDescriptionText(card, options.descriptionText)
         ).trim();
         if (description) {
             return `<div class="holographic-card-description">${escapeHtml(description)}</div>`;
@@ -427,7 +439,7 @@
     }
 
     function renderShopCardDescription(card, descriptionText = '') {
-        const description = String(descriptionText || card?.description || '').trim() || 'Description coming soon.';
+        const description = resolveDescriptionText(card, descriptionText) || 'Description coming soon.';
         return `<div class="binder-card-description shop-card-description" title="${escapeAttr(description)}">${escapeHtml(description)}</div>`;
     }
 
