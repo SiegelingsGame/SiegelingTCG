@@ -1,16 +1,21 @@
 /* Add-to-Home-Screen guide. Self-contained tokens on purpose: this sheet loads
-   on the landing page (landing.css) and the hub (style.css), which do not share
-   a :root, so it cannot lean on either palette. Hexes mirror the theme-color
-   and the gold/green accents used across both. */
+   on the landing page (landing.css), the new hub (home-redesign.css) and the
+   legacy hub (style.css), which do not share a :root, so it cannot lean on any
+   of their palettes. The hexes mirror the art-first home redesign — navy ground,
+   gold accent, serif display face — so the sheet reads as part of that theme
+   wherever it appears. */
 .ig-root {
-    --ig-ink: #0a1530;
-    --ig-panel: #101c3a;
-    --ig-panel-2: #16264c;
-    --ig-line: rgba(255, 255, 255, 0.12);
-    --ig-text: #eaf1ff;
-    --ig-muted: #9db0d4;
-    --ig-gold: #e2b714;
-    --ig-go: #33d17a;
+    --ig-navy: #070b14;
+    --ig-panel: #0b1120;
+    --ig-panel-2: #111a2c;
+    --ig-steel: #33455f;
+    --ig-line: rgba(112, 142, 180, 0.22);
+    --ig-text: #eef3fb;
+    --ig-muted: #8fa2bd;
+    --ig-gold: #c8a54f;
+    --ig-gold-bright: #e6cd8c;
+    --ig-amber: #f2a03d;
+    --ig-serif: ui-serif, "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
     position: fixed;
     inset: 0;
     z-index: 2147483000;
@@ -23,11 +28,14 @@
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
-    background: rgba(3, 7, 18, 0.86);
+    background:
+        radial-gradient(120% 70% at 50% 0%, rgba(22, 34, 58, 0.72), transparent 70%),
+        rgba(5, 8, 15, 0.88);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, system-ui, sans-serif;
     color: var(--ig-text);
+    -webkit-tap-highlight-color: transparent;
 }
 
 .ig-root.ig-open {
@@ -35,14 +43,30 @@
 }
 
 .ig-card {
+    position: relative;
     width: min(430px, 100%);
     margin: auto;
-    border-radius: 22px;
+    border-radius: 20px;
     border: 1px solid var(--ig-line);
-    background: linear-gradient(180deg, var(--ig-panel-2), var(--ig-panel));
-    box-shadow: 0 26px 70px rgba(0, 0, 0, 0.55);
+    background:
+        radial-gradient(130% 70% at 50% 0%, rgba(200, 165, 79, 0.10), transparent 62%),
+        linear-gradient(180deg, var(--ig-panel-2), var(--ig-panel) 58%, var(--ig-navy));
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.66), inset 0 1px 0 rgba(230, 205, 140, 0.10);
     padding: 18px 18px 16px;
     animation: ig-rise 0.28s ease both;
+}
+
+/* The gold hairline along the top edge is the redesign's signature on every
+   raised surface; it reads as leaf on the card stock rather than a border. */
+.ig-card::before {
+    content: '';
+    position: absolute;
+    left: 18px;
+    right: 18px;
+    top: -1px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--ig-gold), transparent);
+    opacity: 0.85;
 }
 
 @keyframes ig-rise {
@@ -64,33 +88,37 @@
     width: 46px;
     height: 46px;
     flex: 0 0 auto;
-    border-radius: 11px;
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+    border-radius: 12px;
+    border: 1px solid rgba(200, 165, 79, 0.34);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
 }
 
 .ig-kicker {
-    font-size: 11px;
-    letter-spacing: 0.14em;
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
     text-transform: uppercase;
     color: var(--ig-gold);
     font-weight: 700;
 }
 
 .ig-title {
-    margin: 2px 0 0;
-    font-size: 17px;
-    line-height: 1.25;
-    font-weight: 800;
+    margin: 3px 0 0;
+    font-family: var(--ig-serif);
+    font-size: 19px;
+    line-height: 1.22;
+    font-weight: 600;
+    color: var(--ig-gold-bright);
+    letter-spacing: 0.01em;
 }
 
 .ig-close {
     margin-left: auto;
     align-self: flex-start;
-    width: 30px;
-    height: 30px;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
     border: 1px solid var(--ig-line);
-    background: rgba(255, 255, 255, 0.06);
+    background: rgba(112, 142, 180, 0.12);
     color: var(--ig-muted);
     font-size: 16px;
     line-height: 1;
@@ -98,32 +126,32 @@
 }
 
 .ig-copy {
-    margin: 12px 0 0;
+    margin: 13px 0 0;
     font-size: 13.5px;
-    line-height: 1.5;
+    line-height: 1.55;
     color: var(--ig-muted);
 }
 
 .ig-steps {
     list-style: none;
     counter-reset: ig-step;
-    margin: 14px 0 0;
+    margin: 15px 0 0;
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 9px;
 }
 
 .ig-step {
     counter-increment: ig-step;
     display: grid;
     grid-template-columns: 26px 1fr;
-    gap: 10px;
+    gap: 11px;
     align-items: start;
-    padding: 10px 11px;
+    padding: 11px 12px;
     border-radius: 13px;
     border: 1px solid var(--ig-line);
-    background: rgba(255, 255, 255, 0.04);
+    background: linear-gradient(180deg, rgba(112, 142, 180, 0.11), rgba(112, 142, 180, 0.05));
 }
 
 .ig-step::before {
@@ -133,19 +161,19 @@
     width: 26px;
     height: 26px;
     border-radius: 50%;
-    background: var(--ig-gold);
-    color: #21180a;
+    background: linear-gradient(160deg, var(--ig-gold-bright), var(--ig-gold));
+    color: #241a06;
     font-weight: 800;
     font-size: 13px;
 }
 
 .ig-step-text {
     font-size: 13.5px;
-    line-height: 1.45;
+    line-height: 1.5;
     min-width: 0;
 }
 
-.ig-step-text strong { color: #fff; }
+.ig-step-text strong { color: var(--ig-gold-bright); font-weight: 700; }
 
 /* Inline glyphs so a step can name the button the player is hunting for
    without a screenshot that would go stale with the next iOS release. */
@@ -157,27 +185,28 @@
     width: 20px;
     height: 20px;
     margin: 0 1px;
-    border-radius: 5px;
-    background: rgba(120, 170, 255, 0.18);
-    color: #cfe0ff;
+    border-radius: 6px;
+    border: 1px solid rgba(200, 165, 79, 0.28);
+    background: rgba(200, 165, 79, 0.16);
+    color: var(--ig-gold-bright);
 }
 
 .ig-glyph svg { width: 13px; height: 13px; }
 
 .ig-mock {
-    margin: 14px 0 0;
+    margin: 15px 0 0;
     border-radius: 14px;
     border: 1px solid var(--ig-line);
-    background: #05070f;
+    background: var(--ig-navy);
     padding: 10px;
 }
 
 .ig-mock-label {
-    font-size: 10.5px;
-    letter-spacing: 0.1em;
+    font-size: 10px;
+    letter-spacing: 0.16em;
     text-transform: uppercase;
     color: var(--ig-muted);
-    margin-bottom: 7px;
+    margin-bottom: 8px;
 }
 
 .ig-mock svg {
@@ -187,7 +216,7 @@
 }
 
 .ig-actions {
-    margin-top: 15px;
+    margin-top: 16px;
     display: flex;
     gap: 9px;
     flex-wrap: wrap;
@@ -196,23 +225,26 @@
 .ig-btn {
     flex: 1 1 130px;
     min-height: 44px;
+    padding: 0 14px;
     border-radius: 12px;
     border: 1px solid var(--ig-line);
-    background: rgba(255, 255, 255, 0.07);
+    background: rgba(112, 142, 180, 0.13);
     color: var(--ig-text);
     font-size: 14px;
     font-weight: 700;
+    letter-spacing: 0.02em;
     cursor: pointer;
 }
 
 .ig-btn-primary {
-    background: var(--ig-go);
-    border-color: transparent;
-    color: #04240f;
+    background: linear-gradient(160deg, var(--ig-gold-bright), var(--ig-amber));
+    border-color: rgba(230, 205, 140, 0.5);
+    color: #241a06;
+    box-shadow: 0 10px 24px rgba(200, 165, 79, 0.24);
 }
 
 .ig-foot {
-    margin: 11px 0 0;
+    margin: 12px 0 0;
     font-size: 11.5px;
     color: var(--ig-muted);
     text-align: center;

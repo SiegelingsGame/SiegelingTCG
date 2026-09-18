@@ -11,7 +11,9 @@
 (function () {
     'use strict';
 
-    var DISMISS_KEY = 'siegelingsInstallGuideDismissed.v1';
+    /* Bumped with the art-first retheme: everyone who dismissed the old blue
+       sheet gets the new one once, which is the point of re-cutting it. */
+    var DISMISS_KEY = 'siegelingsInstallGuideDismissed.v2';
     var SHOW_DELAY_MS = 900;
 
     function store(op, value) {
@@ -55,10 +57,10 @@
         return '' +
         '<svg viewBox="0 0 396 150" role="img" aria-label="Three iPhone panels: tap Share in the Safari toolbar, choose Add to Home Screen, then tap Add.">' +
         '<defs><style>' +
-        '.igp{fill:#0d1730;stroke:#2b3a63;stroke-width:1.4;rx:9}' +
-        '.igr{fill:#1b2748}.igt{fill:#8fa4cc;font:8px -apple-system,sans-serif}' +
-        '.igw{fill:#e8eefc;font:8.5px -apple-system,sans-serif}' +
-        '.ighl{fill:none;stroke:#e2b714;stroke-width:2}' +
+        '.igp{fill:#0b1120;stroke:#33455f;stroke-width:1.4;rx:9}' +
+        '.igr{fill:#111a2c}.igt{fill:#8fa2bd;font:8px -apple-system,sans-serif}' +
+        '.igw{fill:#eef3fb;font:8.5px -apple-system,sans-serif}' +
+        '.ighl{fill:none;stroke:#c8a54f;stroke-width:2}' +
         '</style></defs>' +
         // panel 1 - Safari toolbar
         '<rect class="igp" x="2" y="6" width="124" height="138" rx="10"/>' +
@@ -68,7 +70,7 @@
         '<rect class="igr" x="12" y="110" width="104" height="22" rx="7"/>' +
         '<text class="igt" x="20" y="124">AA</text>' +
         '<text class="igt" x="38" y="124">siegelings…</text>' +
-        '<path d="M96 126V116m-4 4 4-4 4 4m-7 6v4h6v-4" fill="none" stroke="#e8eefc" stroke-width="1.4" stroke-linecap="round"/>' +
+        '<path d="M96 126V116m-4 4 4-4 4 4m-7 6v4h6v-4" fill="none" stroke="#eef3fb" stroke-width="1.4" stroke-linecap="round"/>' +
         '<rect class="ighl" x="86" y="110" width="22" height="22" rx="7"/>' +
         '<text class="igw" x="34" y="141">1 · Share</text>' +
         // panel 2 - share sheet row
@@ -103,15 +105,15 @@
         return '' +
         '<svg viewBox="0 0 396 150" role="img" aria-label="Two Android panels: open the browser menu, then choose Install app or Add to Home screen.">' +
         '<defs><style>' +
-        '.igp{fill:#0d1730;stroke:#2b3a63;stroke-width:1.4}' +
-        '.igr{fill:#1b2748}.igt{fill:#8fa4cc;font:8px Roboto,sans-serif}' +
-        '.igw{fill:#e8eefc;font:8.5px Roboto,sans-serif}' +
-        '.ighl{fill:none;stroke:#e2b714;stroke-width:2}' +
+        '.igp{fill:#0b1120;stroke:#33455f;stroke-width:1.4}' +
+        '.igr{fill:#111a2c}.igt{fill:#8fa2bd;font:8px Roboto,sans-serif}' +
+        '.igw{fill:#eef3fb;font:8.5px Roboto,sans-serif}' +
+        '.ighl{fill:none;stroke:#c8a54f;stroke-width:2}' +
         '</style></defs>' +
         '<rect class="igp" x="24" y="6" width="164" height="138" rx="10"/>' +
         '<rect class="igr" x="34" y="16" width="144" height="20" rx="6"/>' +
         '<text class="igt" x="42" y="30">siegelingstcgtesting.web.app</text>' +
-        '<circle cx="168" cy="21" r="1.6" fill="#e8eefc"/><circle cx="168" cy="26" r="1.6" fill="#e8eefc"/><circle cx="168" cy="31" r="1.6" fill="#e8eefc"/>' +
+        '<circle cx="168" cy="21" r="1.6" fill="#eef3fb"/><circle cx="168" cy="26" r="1.6" fill="#eef3fb"/><circle cx="168" cy="31" r="1.6" fill="#eef3fb"/>' +
         '<rect class="ighl" x="160" y="16" width="18" height="20" rx="6"/>' +
         '<rect class="igr" x="34" y="46" width="144" height="80" rx="6"/>' +
         '<text class="igt" x="42" y="70">Siegelings TCG</text>' +
@@ -225,9 +227,40 @@
         root.classList.add('ig-open');
     }
 
+    /* The hub paints a full-screen boot plate while the catalog is in flight
+       (10-30s on a cold Cloud Run start), and a sheet stacked on a loading
+       screen just gets dismissed blind. Wait it out where one exists. */
+    function afterBoot(run) {
+        var boot = document.querySelector('.boot:not(.gone)');
+        if (!boot || !window.MutationObserver) { run(); return; }
+        var done = false;
+        function fire() {
+            if (done) { return; }
+            done = true;
+            observer.disconnect();
+            run();
+        }
+        var observer = new MutationObserver(function () {
+            if (!boot.isConnected || boot.classList.contains('gone')) { fire(); }
+        });
+        observer.observe(boot, { attributes: true, attributeFilter: ['class'] });
+        observer.observe(document.body, { childList: true });
+        // A boot screen that never clears must not strand the tip forever.
+        window.setTimeout(fire, 30000);
+    }
+
     function maybeAutoShow() {
         if (isStandalone() || store('get') || !isPhoneSized()) { return; }
-        window.setTimeout(open, SHOW_DELAY_MS);
+        afterBoot(function () { window.setTimeout(reveal, SHOW_DELAY_MS); });
+    }
+
+    function reveal() {
+        // Marked on show, not only on dismiss: the sheet loads on both the
+        // landing page and the hub, so a player who taps Play Now without
+        // closing it would otherwise meet it a second time on arrival — and the
+        // footer promises it will not show again.
+        store('set', '1');
+        open();
     }
 
     window.SieglingsInstallGuide = {
