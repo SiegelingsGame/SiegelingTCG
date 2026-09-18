@@ -733,9 +733,10 @@ body.concept-board {
   opacity:1; pointer-events:auto;
 }
 .sg-filter-glass-scrim {
+  /* Transparent hit target only — never blur outside the glass card so
+     collection tile borders stay sharp behind/around the liquid glass. */
   position:absolute; inset:0; border:0; cursor:pointer;
-  background:rgba(3,7,14,.48);
-  backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px);
+  background:transparent;
 }
 .sg-filter-glass-card {
   position:relative; z-index:1;
