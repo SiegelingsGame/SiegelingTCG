@@ -1803,6 +1803,66 @@ body.concept-board {
 .sg-sheet-ability strong { display:block; font-size:12.5px; color:var(--acc-lemon); margin-bottom:3px; }
 .sg-sheet-ability span { font-size:11.5px; color:var(--muted); line-height:1.5; }
 .sg-sheet-desc { margin:14px 0 0; font-size:12px; color:var(--muted); line-height:1.55; text-align:center; }
+
+/* ---------- evolution line (card sheet) ----------
+   A horizontal chain because the relationship IS an order: base at the left,
+   final on the right, chevrons between. It scrolls sideways rather than
+   wrapping - a three-stage line broken across two rows stops reading as a
+   progression - and the scroll is padded so the last stage can sit clear of
+   the sheet's rounded edge. */
+/* Own panel now rather than a block under the abilities, so no leading gap. */
+.sg-sheet-evo { margin-top:2px; }
+.sg-sheet-evo-head {
+  display:flex; align-items:baseline; gap:8px; margin-bottom:9px;
+  font-size:9px; letter-spacing:.2em; text-transform:uppercase; color:var(--muted);
+}
+.sg-sheet-evo-head span { font-size:9px; letter-spacing:.14em; color:var(--acc-lemon); opacity:.85; }
+.sg-sheet-evo-chain {
+  display:flex; align-items:center; gap:6px; list-style:none; margin:0; padding:0 0 4px;
+  overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch;
+  scrollbar-width:none;
+}
+.sg-sheet-evo-chain::-webkit-scrollbar { display:none; }
+.sg-sheet-evo-step { flex:0 0 auto; }
+.sg-sheet-evo-arrow {
+  flex:0 0 auto; color:var(--muted); opacity:.6; font-size:15px; line-height:1;
+  padding-bottom:16px;
+}
+.sg-sheet-evo-card {
+  display:flex; flex-direction:column; align-items:center; gap:5px;
+  width:92px; padding:8px 6px 9px; border-radius:14px; cursor:pointer;
+  border:1px solid rgba(180,140,255,.24); background:rgba(26,17,71,.55);
+  color:inherit; font:inherit; text-align:center;
+  transition:transform .16s ease, border-color .16s ease;
+}
+.sg-sheet-evo-card:active { transform:scale(.96); }
+/* The stage the sheet is already showing is a label, not a destination. */
+.sg-sheet-evo-step.is-here .sg-sheet-evo-card {
+  cursor:default;
+  border-color:color-mix(in srgb, var(--acc-lemon) 52%, transparent);
+  background:rgba(48,33,104,.68);
+  box-shadow:0 0 0 1px rgba(255,214,102,.12) inset;
+}
+.sg-sheet-evo-art { display:block; width:100%; }
+.sg-sheet-evo-art .sg-card-face,
+.sg-sheet-evo-art .sg-gal-card,
+.sg-sheet-evo-art img { display:block; width:100%; height:auto; border-radius:6px; }
+.sg-sheet-evo-name {
+  display:block; max-width:100%; font-size:10.5px; font-weight:700; color:var(--ink);
+  line-height:1.25; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.sg-sheet-evo-stage {
+  display:block; font-size:8.5px; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--muted); line-height:1.3;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;
+}
+.sg-sheet-evo-step.is-here .sg-sheet-evo-stage { color:var(--acc-lemon); opacity:.9; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sg-sheet-evo-card { transition:none; }
+  .sg-sheet-evo-card:active { transform:none; }
+}
+
 .sg-sheet-cta {
   display:block; margin-top:16px; padding:13px; border-radius:999px; text-align:center;
   font-size:12px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:#2b0d02;
@@ -2466,6 +2526,15 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-sheet-face { display:block; flex:0 0 108px; padding:0; }
 .sg-sheet-face .sg-card-tile { width:108px; max-width:none; }
 .sg-sheet-id { flex:1 1 auto; min-width:0; }
+/* The name and the evolution preview share the top line so the preview sits in
+   the head's top-right corner; the stat row below still spans the full width. */
+.sg-sheet-idtop { display:flex; align-items:flex-start; gap:8px; }
+.sg-sheet-idname { flex:1 1 auto; min-width:0; }
+/* The preview takes ~86px off the name column, which was enough to wrap
+   "ELECTRIC · LEGENDARY" onto a second line and grow the head. Tighten the meta
+   only when a preview is actually sharing the row. */
+.sg-sheet-idtop.has-peek .sg-sheet-meta { font-size:9.5px; letter-spacing:.05em; gap:6px; }
+.sg-sheet-idtop.has-peek .sg-sheet-meta img { width:15px; height:15px; }
 .sg-sheet-card .sg-sheet-id h3 { text-align:left; font-size:21px; line-height:1.15; }
 .sg-sheet-id .sg-sheet-meta { justify-content:flex-start; margin:5px 0 9px; }
 .sg-sheet-stats.is-tight { gap:6px; }
@@ -2486,6 +2555,57 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   color:#2b0d02; background:linear-gradient(135deg,#ffe066,var(--amber));
   box-shadow:0 5px 14px rgba(255,155,33,.3);
 }
+/* A fourth tab only appears for a card with an evolution line, and "Evolution"
+   is twice the length of "Keep". At 390px four tabs leave ~85px each, so the
+   label steps down rather than the bar wrapping. */
+.sg-sheet-tabs.is-four .sg-sheet-tab { font-size:9.5px; letter-spacing:.06em; padding:0 2px; }
+@media (max-width:360px) {
+  .sg-sheet-tabs.is-four .sg-sheet-tab { font-size:8.5px; letter-spacing:.01em; }
+}
+
+/* ---------- evolution preview (head corner) ----------
+   A glance, not a control surface: the line's silhouettes at 24px with the
+   current stage lit, and a tap that lands on the Evolution tab where the real
+   chain lives. */
+.sg-sheet-evopeek {
+  flex:0 0 auto; display:flex; flex-direction:column; align-items:center; gap:4px;
+  padding:6px 8px 5px; border-radius:12px; cursor:pointer;
+  border:1px solid var(--steel-soft); background:rgba(26,17,71,.5);
+  color:inherit; font:inherit;
+  transition:transform .16s ease, border-color .16s ease;
+}
+.sg-sheet-evopeek:active { transform:scale(.95); }
+.sg-sheet-evopeek-thumbs { display:flex; align-items:center; gap:3px; }
+.sg-sheet-evopeek-thumb {
+  display:grid; place-items:center; width:24px; height:24px; border-radius:7px;
+  border:1px solid rgba(180,140,255,.28); background:rgba(11,17,32,.6); overflow:hidden;
+}
+.sg-sheet-evopeek-thumb img {
+  width:100%; height:100%; object-fit:contain; display:block;
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,.6));
+}
+/* The stage you are looking at, so the preview says "where in the line" and not
+   just "there is a line". */
+.sg-sheet-evopeek-thumb.is-here {
+  border-color:color-mix(in srgb, var(--acc-lemon) 62%, transparent);
+  background:rgba(48,33,104,.75);
+  box-shadow:0 0 0 1px rgba(255,214,102,.18) inset;
+}
+.sg-sheet-evopeek-label {
+  font-size:8px; letter-spacing:.1em; text-transform:uppercase; color:var(--acc-lemon);
+  white-space:nowrap;
+}
+
+@media (max-width:360px) {
+  .sg-sheet-evopeek { padding:5px 6px 4px; }
+  .sg-sheet-evopeek-thumb { width:21px; height:21px; border-radius:6px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sg-sheet-evopeek { transition:none; }
+  .sg-sheet-evopeek:active { transform:none; }
+}
+
 /* The one scrolling region. flex:1 with min-height:0 so it takes the slack and
    the header and CTA never get pushed off. */
 .sg-sheet-panels { flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; }

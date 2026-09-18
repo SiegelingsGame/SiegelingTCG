@@ -2362,22 +2362,143 @@
       (rider ? '' : '<p class="sg-sheet-note">Advantage riders are unavailable right now.</p>');
   }
 
+  /* ---------- evolution line ----------
+     A card only ever states the one link backwards (`evolvesFromId`), so the
+     rest of its family has to be recovered from the catalog: walk that pointer
+     up to the base, then scan for whoever points at each card in turn to walk
+     down. Lines in the catalog are strictly linear and at most three stages, so
+     the chain is a list rather than a tree - but both walks carry a seen-set,
+     because a dashboard edit can point a card at itself or at its own
+     descendant, and a hung sheet is far worse than a short chain. */
+  function evolutionLine(card) {
+    if (!card || !card.id) return null;
+    if (String(card.type || '').toUpperCase() !== 'SIEGLING') return null;
+    var pool = (ALL_CARDS && ALL_CARDS.length) ? ALL_CARDS : CARDS;
+    if (!pool || !pool.length) return null;
+
+    var seen = {};
+    seen[card.id] = true;
+    var chain = [card];
+
+    var cur = card;
+    while (cur && cur.evolvesFromId && !seen[cur.evolvesFromId]) {
+      var prev = byIdIn(pool, cur.evolvesFromId);
+      if (!prev) break;
+      seen[prev.id] = true;
+      chain.unshift(prev);
+      cur = prev;
+    }
+
+    cur = card;
+    while (cur) {
+      var next = null;
+      for (var i = 0; i < pool.length; i++) {
+        var c = pool[i];
+        if (c && c.id && c.evolvesFromId === cur.id && !seen[c.id]) { next = c; break; }
+      }
+      if (!next) break;
+      seen[next.id] = true;
+      chain.push(next);
+      cur = next;
+    }
+
+    return chain.length > 1 ? chain : null;
+  }
+
+  /* The binder tile rather than a bare <img>: at this size the frame, notches
+     and rarity treatment are what make a stage recognisable, and reusing the
+     production renderer is what keeps these thumbnails from drifting the next
+     time a frame changes. No [data-card] button around it - these sit inside
+     the sheet, where that delegation is deliberately skipped. */
+  function evolutionThumb(c) {
+    var visual = window.SieglingsCardBinderVisual;
+    if (visual && visual.renderBinderCardTile) {
+      return visual.renderBinderCardTile(c, { descriptionText: cardFaceText(c) });
+    }
+    return '<img src="' + esc(c.cardArtUrl || '') + '" alt="" loading="lazy">';
+  }
+
+  /* The head-corner preview. Deliberately the raw cutout rather than
+     `renderCardRowThumb`, which answers an element icon for OVERLAY art - and
+     OVERLAY is what nearly every Siegeling uses, so all three stages would have
+     come back as the same icon and previewed nothing. A 26px creature
+     silhouette is the one thing that reads at this size. */
+  function evolutionPeekThumb(c) {
+    var art = String(c && c.cardArtUrl || '').trim();
+    if (art) return '<img src="' + esc(art) + '" alt="" loading="lazy">';
+    return '<img src="' + esc(icon(c && c.element)) + '" alt="" loading="lazy">';
+  }
+
+  function evolutionPeek(card) {
+    var chain = evolutionLine(card);
+    if (!chain) return '';
+    return '<button class="sg-sheet-evopeek" type="button" data-sheet-goto="evolution" ' +
+      'aria-label="View the evolution line for ' + esc(card.name) + ' \u2014 ' + chain.length + ' stages">' +
+      '<span class="sg-sheet-evopeek-thumbs">' + chain.map(function (c) {
+        return '<span class="sg-sheet-evopeek-thumb' + (c.id === card.id ? ' is-here' : '') + '">' +
+          evolutionPeekThumb(c) + '</span>';
+      }).join('') + '</span>' +
+      '<span class="sg-sheet-evopeek-label">' + chain.length + ' stages \u203a</span>' +
+    '</button>';
+  }
+
+  function evolutionBlock(card) {
+    var chain = evolutionLine(card);
+    if (!chain) return '';
+    var steps = chain.map(function (c, i) {
+      var here = c.id === card.id;
+      // "Stage 2 · this card" wrapped to two lines and made the current tile
+      // taller than the ones either side of it, which broke the row's read as a
+      // single chain. The stage number is already implied by its position.
+      var stage = here ? 'This card' : 'Stage ' + (i + 1);
+      var inner =
+        '<span class="sg-sheet-evo-art">' + evolutionThumb(c) + '</span>' +
+        '<span class="sg-sheet-evo-name">' + esc(c.name) + '</span>' +
+        '<span class="sg-sheet-evo-stage">' + esc(stage) + '</span>';
+      return '<li class="sg-sheet-evo-step' + (here ? ' is-here' : '') + '">' + (here
+        ? '<span class="sg-sheet-evo-card" aria-current="true">' + inner + '</span>'
+        : '<button class="sg-sheet-evo-card" type="button" data-sheet-evo="' + esc(c.id) + '" ' +
+          'aria-label="View ' + esc(c.name) + '">' + inner + '</button>') + '</li>';
+    });
+    return '<div class="sg-sheet-evo">' +
+      '<div class="sg-sheet-evo-head">Evolution line' +
+        '<span>' + chain.length + ' stages</span></div>' +
+      '<ol class="sg-sheet-evo-chain">' +
+        steps.join('<li class="sg-sheet-evo-arrow" aria-hidden="true">\u203a</li>') +
+      '</ol></div>';
+  }
+
   // Three tabs, not one long scroll. The sheet was taller than the phone: the
   // card face was cut off at the top and Keep sat below the fold. Each panel is
   // now short enough to read whole, so the sheet is a fixed-height card with one
   // panel visible at a time and the face always in view.
   var SHEET_TABS = [['arena', 'Arena'], ['siege', 'Siege'], ['keep', 'Keep']];
 
+  // Evolution earns a tab only when there is a line to put in it, so a card
+  // that evolves from nothing and into nothing still shows the same three.
+  function sheetTabsFor(card) {
+    return evolutionLine(card)
+      ? SHEET_TABS.concat([['evolution', 'Evolution']])
+      : SHEET_TABS;
+  }
+
   function cardSheetMarkup(card, opts) {
     var notches = notchRing(card);
     var description = cardFaceText(card);
+    var tabs = sheetTabsFor(card);
+    var peek = evolutionPeek(card);
     return '<button class="sg-sheet-dismiss" type="button" aria-label="Close card details"></button>' +
       '<div class="sg-sheet-head">' +
         '<div class="sg-sheet-face">' + galleryCard(card) + '</div>' +
         '<div class="sg-sheet-id">' +
-          '<h3>' + esc(card.name) + '</h3>' +
-          '<div class="sg-sheet-meta"><img src="' + esc(icon(card.element)) + '" alt="">' +
-            esc(title(card.element)) + ' \u00b7 ' + esc(title(card.rarity)) + '</div>' +
+          '<div class="sg-sheet-idtop' + (peek ? ' has-peek' : '') + '">' +
+            '<div class="sg-sheet-idname">' +
+              '<h3>' + esc(card.name) + '</h3>' +
+              '<div class="sg-sheet-meta"><img src="' + esc(icon(card.element)) + '" alt="">' +
+                esc(title(card.element)) + ' \u00b7 ' + esc(title(card.rarity)) + '</div>' +
+            '</div>' +
+            peek +
+          '</div>' +
           '<div class="sg-sheet-stats is-tight">' +
             '<div><span>HP</span><b>' + esc(card.health == null ? '\u2014' : card.health) + '</b></div>' +
             '<div><span>SPD</span><b>' + esc(card.speed == null ? '\u2014' : card.speed) + '</b></div>' +
@@ -2385,7 +2506,7 @@
           '</div>' +
         '</div>' +
       '</div>' +
-      '<div class="sg-sheet-tabs" role="tablist">' + SHEET_TABS.map(function (t, i) {
+      '<div class="sg-sheet-tabs' + (tabs.length > 3 ? ' is-four' : '') + '" role="tablist">' + tabs.map(function (t, i) {
         return '<button class="sg-sheet-tab' + (i === 0 ? ' on' : '') + '" type="button" role="tab" ' +
           'aria-selected="' + (i === 0) + '" data-sheet-tab="' + t[0] + '">' + esc(t[1]) + '</button>';
       }).join('') + '</div>' +
@@ -2401,6 +2522,11 @@
         '<div class="sg-sheet-panel" data-sheet-panel="keep" hidden>' +
           keepBlock(card, opts) +
         '</div>' +
+        (tabs.length > 3
+          ? '<div class="sg-sheet-panel" data-sheet-panel="evolution" hidden>' +
+              evolutionBlock(card) +
+            '</div>'
+          : '') +
       '</div>' +
       '<a class="sg-sheet-cta" href="/deck-builder" data-screen="builder">Use in a deck \u203a</a>';
   }
@@ -2409,20 +2535,30 @@
     var tabs = [].slice.call(sheetCard.querySelectorAll('[data-sheet-tab]'));
     var panels = [].slice.call(sheetCard.querySelectorAll('[data-sheet-panel]'));
     var panelHost = sheetCard.querySelector('.sg-sheet-panels');
-    tabs.forEach(function (tab) {
-      tab.addEventListener('click', function () {
-        var id = tab.getAttribute('data-sheet-tab');
-        tabs.forEach(function (t) {
-          var on = t === tab;
-          t.classList.toggle('on', on);
-          t.setAttribute('aria-selected', on ? 'true' : 'false');
-        });
-        panels.forEach(function (p) { p.hidden = p.getAttribute('data-sheet-panel') !== id; });
-        // Each panel is its own scroll context, so switching tabs starts at the
-        // top of the new one rather than at the old one's offset.
-        if (panelHost) panelHost.scrollTop = 0;
+    function show(id) {
+      tabs.forEach(function (t) {
+        var on = t.getAttribute('data-sheet-tab') === id;
+        t.classList.toggle('on', on);
+        t.setAttribute('aria-selected', on ? 'true' : 'false');
       });
+      panels.forEach(function (p) { p.hidden = p.getAttribute('data-sheet-panel') !== id; });
+      // Each panel is its own scroll context, so switching tabs starts at the
+      // top of the new one rather than at the old one's offset.
+      if (panelHost) panelHost.scrollTop = 0;
+    }
+    tabs.forEach(function (tab) {
+      tab.addEventListener('click', function () { show(tab.getAttribute('data-sheet-tab')); });
     });
+    // Returned so re-opening the sheet on another card can land on the tab the
+    // player was already reading rather than resetting them to Arena.
+    var api = show;
+    // The head-corner preview is a shortcut into a tab, not a control of its
+    // own: it lives outside the panels, so it drives the same switch the tab
+    // bar does rather than duplicating the line up there.
+    [].slice.call(sheetCard.querySelectorAll('[data-sheet-goto]')).forEach(function (go) {
+      go.addEventListener('click', function () { show(go.getAttribute('data-sheet-goto')); });
+    });
+    return api;
   }
 
   // One sheet host per screen; any tile with data-card opens it.
@@ -2536,14 +2672,15 @@
       if (zoom) zoom.close();
       if (opener && opener.isConnected) opener.focus({ preventScroll: true });
     }
-    function open(card) {
+    function open(card, tab) {
       if (!card) return;
       if (swipe) swipe.resetDrag();
       opener = document.activeElement;
       sheetCard.innerHTML = cardSheetMarkup(card, opts);
       sheetCard.setAttribute('data-zoom-card', String(card.id == null ? '' : card.id));
       sheetCard.scrollTop = 0;
-      wireTabs(sheetCard);
+      var show = wireTabs(sheetCard);
+      if (tab && sheetCard.querySelector('[data-sheet-tab="' + tab + '"]')) show(tab);
       sheet.classList.add('open');
       sheetCard.querySelector('.sg-sheet-dismiss').focus({ preventScroll: true });
     }
@@ -2553,6 +2690,20 @@
     // The face inside the sheet opens the card full screen. It sits inside the
     // sheet, so the gallery's own [data-card] delegation deliberately skips it.
     sheetCard.addEventListener('click', function (e) {
+      // Walking the line re-opens the sheet in place rather than stacking a
+      // second one, so a player can step base -> final and back without
+      // building a pile of sheets they have to dismiss one at a time.
+      var evo = e.target.closest ? e.target.closest('[data-sheet-evo]') : null;
+      if (evo) {
+        var evoId = evo.getAttribute('data-sheet-evo');
+        var target = byIdIn(ALL_CARDS, evoId) || byIdIn(CARDS, evoId);
+        // Stay on whichever tab the chain was tapped from: stepping through the
+        // line from the Evolution tab and landing back on Arena each time makes
+        // the line unbrowsable.
+        var from = sheetCard.querySelector('.sg-sheet-tab.on');
+        if (target) open(target, from ? from.getAttribute('data-sheet-tab') : null);
+        return;
+      }
       var face = e.target.closest ? e.target.closest('.sg-sheet-face') : null;
       if (!face || !zoom) return;
       var id = sheetCard.getAttribute('data-zoom-card');

@@ -2195,8 +2195,14 @@ img { display: block; }
 .element-tile:focus-visible { outline: 2px solid var(--tile-color); outline-offset: 3px; }
 
 /* ---------- element overlay: the Siegeling and the notch it prints ---------- */
-.element-overlay { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 20px; opacity: 0; transition: opacity .24s ease; }
-.element-overlay.is-open { opacity: 1; }
+/* The author `display: grid` outranks the UA `[hidden] { display: none }`, so the
+   attribute alone would leave a full-screen, invisible, still-hit-testable sheet
+   over the whole landing page. Both guards stay: `[hidden]` takes it out of the
+   layout, and the `:not(.is-open)` pointer-events rule keeps it inert during the
+   fade in case a future caller forgets the attribute. */
+.element-overlay { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 20px; opacity: 0; pointer-events: none; transition: opacity .24s ease; }
+.element-overlay[hidden] { display: none; }
+.element-overlay.is-open { opacity: 1; pointer-events: auto; }
 .element-overlay-scrim { position: absolute; inset: 0; background: rgba(3, 7, 20, .82); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); border: 0; }
 .element-overlay-card {
     position: relative;
