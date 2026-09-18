@@ -2208,6 +2208,88 @@
       (rider ? '' : '<p class="sg-sheet-note">Advantage riders are unavailable right now.</p>');
   }
 
+  /* ---------- evolution line ----------
+     A card only ever states the one link backwards (`evolvesFromId`), so the
+     rest of its family has to be recovered from the catalog: walk that pointer
+     up to the base, then scan for whoever points at each card in turn to walk
+     down. Lines in the catalog are strictly linear and at most three stages, so
+     the chain is a list rather than a tree - but both walks carry a seen-set,
+     because a dashboard edit can point a card at itself or at its own
+     descendant, and a hung sheet is far worse than a short chain. */
+  function evolutionLine(card) {
+    if (!card || !card.id) return null;
+    if (String(card.type || '').toUpperCase() !== 'SIEGLING') return null;
+    var pool = (ALL_CARDS && ALL_CARDS.length) ? ALL_CARDS : CARDS;
+    if (!pool || !pool.length) return null;
+
+    var seen = {};
+    seen[card.id] = true;
+    var chain = [card];
+
+    var cur = card;
+    while (cur && cur.evolvesFromId && !seen[cur.evolvesFromId]) {
+      var prev = byIdIn(pool, cur.evolvesFromId);
+      if (!prev) break;
+      seen[prev.id] = true;
+      chain.unshift(prev);
+      cur = prev;
+    }
+
+    cur = card;
+    while (cur) {
+      var next = null;
+      for (var i = 0; i < pool.length; i++) {
+        var c = pool[i];
+        if (c && c.id && c.evolvesFromId === cur.id && !seen[c.id]) { next = c; break; }
+      }
+      if (!next) break;
+      seen[next.id] = true;
+      chain.push(next);
+      cur = next;
+    }
+
+    return chain.length > 1 ? chain : null;
+  }
+
+  /* The binder tile rather than a bare <img>: at this size the frame, notches
+     and rarity treatment are what make a stage recognisable, and reusing the
+     production renderer is what keeps these thumbnails from drifting the next
+     time a frame changes. No [data-card] button around it - these sit inside
+     the sheet, where that delegation is deliberately skipped. */
+  function evolutionThumb(c) {
+    var visual = window.SieglingsCardBinderVisual;
+    if (visual && visual.renderBinderCardTile) {
+      return visual.renderBinderCardTile(c, { descriptionText: cardFaceText(c) });
+    }
+    return '<img src="' + esc(c.cardArtUrl || '') + '" alt="" loading="lazy">';
+  }
+
+  function evolutionBlock(card) {
+    var chain = evolutionLine(card);
+    if (!chain) return '';
+    var steps = chain.map(function (c, i) {
+      var here = c.id === card.id;
+      // "Stage 2 · this card" wrapped to two lines and made the current tile
+      // taller than the ones either side of it, which broke the row's read as a
+      // single chain. The stage number is already implied by its position.
+      var stage = here ? 'This card' : 'Stage ' + (i + 1);
+      var inner =
+        '<span class="sg-sheet-evo-art">' + evolutionThumb(c) + '</span>' +
+        '<span class="sg-sheet-evo-name">' + esc(c.name) + '</span>' +
+        '<span class="sg-sheet-evo-stage">' + esc(stage) + '</span>';
+      return '<li class="sg-sheet-evo-step' + (here ? ' is-here' : '') + '">' + (here
+        ? '<span class="sg-sheet-evo-card" aria-current="true">' + inner + '</span>'
+        : '<button class="sg-sheet-evo-card" type="button" data-sheet-evo="' + esc(c.id) + '" ' +
+          'aria-label="View ' + esc(c.name) + '">' + inner + '</button>') + '</li>';
+    });
+    return '<div class="sg-sheet-evo">' +
+      '<div class="sg-sheet-evo-head">Evolution line' +
+        '<span>' + chain.length + ' stages</span></div>' +
+      '<ol class="sg-sheet-evo-chain">' +
+        steps.join('<li class="sg-sheet-evo-arrow" aria-hidden="true">\u203a</li>') +
+      '</ol></div>';
+  }
+
   // Three tabs, not one long scroll. The sheet was taller than the phone: the
   // card face was cut off at the top and Keep sat below the fold. Each panel is
   // now short enough to read whole, so the sheet is a fixed-height card with one
@@ -2240,6 +2322,7 @@
           (description ? '<div class="sg-sheet-summary">' + notches +
             '<p class="sg-sheet-description">' + esc(description) + '</p></div>' : notches) +
           abilityRows(card) +
+          evolutionBlock(card) +
         '</div>' +
         '<div class="sg-sheet-panel" data-sheet-panel="siege" hidden>' +
           siegeBlock(card, opts) +
@@ -2399,6 +2482,16 @@
     // The face inside the sheet opens the card full screen. It sits inside the
     // sheet, so the gallery's own [data-card] delegation deliberately skips it.
     sheetCard.addEventListener('click', function (e) {
+      // Walking the line re-opens the sheet in place rather than stacking a
+      // second one, so a player can step base -> final and back without
+      // building a pile of sheets they have to dismiss one at a time.
+      var evo = e.target.closest ? e.target.closest('[data-sheet-evo]') : null;
+      if (evo) {
+        var evoId = evo.getAttribute('data-sheet-evo');
+        var target = byIdIn(ALL_CARDS, evoId) || byIdIn(CARDS, evoId);
+        if (target) open(target);
+        return;
+      }
       var face = e.target.closest ? e.target.closest('.sg-sheet-face') : null;
       if (!face || !zoom) return;
       var id = sheetCard.getAttribute('data-zoom-card');

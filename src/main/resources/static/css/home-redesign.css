@@ -1638,6 +1638,65 @@ body.concept-board {
 .sg-sheet-ability strong { display:block; font-size:12.5px; color:var(--acc-lemon); margin-bottom:3px; }
 .sg-sheet-ability span { font-size:11.5px; color:var(--muted); line-height:1.5; }
 .sg-sheet-desc { margin:14px 0 0; font-size:12px; color:var(--muted); line-height:1.55; text-align:center; }
+
+/* ---------- evolution line (card sheet) ----------
+   A horizontal chain because the relationship IS an order: base at the left,
+   final on the right, chevrons between. It scrolls sideways rather than
+   wrapping - a three-stage line broken across two rows stops reading as a
+   progression - and the scroll is padded so the last stage can sit clear of
+   the sheet's rounded edge. */
+.sg-sheet-evo { margin-top:14px; }
+.sg-sheet-evo-head {
+  display:flex; align-items:baseline; gap:8px; margin-bottom:9px;
+  font-size:9px; letter-spacing:.2em; text-transform:uppercase; color:var(--muted);
+}
+.sg-sheet-evo-head span { font-size:9px; letter-spacing:.14em; color:var(--acc-lemon); opacity:.85; }
+.sg-sheet-evo-chain {
+  display:flex; align-items:center; gap:6px; list-style:none; margin:0; padding:0 0 4px;
+  overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch;
+  scrollbar-width:none;
+}
+.sg-sheet-evo-chain::-webkit-scrollbar { display:none; }
+.sg-sheet-evo-step { flex:0 0 auto; }
+.sg-sheet-evo-arrow {
+  flex:0 0 auto; color:var(--muted); opacity:.6; font-size:15px; line-height:1;
+  padding-bottom:16px;
+}
+.sg-sheet-evo-card {
+  display:flex; flex-direction:column; align-items:center; gap:5px;
+  width:92px; padding:8px 6px 9px; border-radius:14px; cursor:pointer;
+  border:1px solid rgba(180,140,255,.24); background:rgba(26,17,71,.55);
+  color:inherit; font:inherit; text-align:center;
+  transition:transform .16s ease, border-color .16s ease;
+}
+.sg-sheet-evo-card:active { transform:scale(.96); }
+/* The stage the sheet is already showing is a label, not a destination. */
+.sg-sheet-evo-step.is-here .sg-sheet-evo-card {
+  cursor:default;
+  border-color:color-mix(in srgb, var(--acc-lemon) 52%, transparent);
+  background:rgba(48,33,104,.68);
+  box-shadow:0 0 0 1px rgba(255,214,102,.12) inset;
+}
+.sg-sheet-evo-art { display:block; width:100%; }
+.sg-sheet-evo-art .sg-card-face,
+.sg-sheet-evo-art .sg-gal-card,
+.sg-sheet-evo-art img { display:block; width:100%; height:auto; border-radius:6px; }
+.sg-sheet-evo-name {
+  display:block; max-width:100%; font-size:10.5px; font-weight:700; color:var(--ink);
+  line-height:1.25; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.sg-sheet-evo-stage {
+  display:block; font-size:8.5px; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--muted); line-height:1.3;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;
+}
+.sg-sheet-evo-step.is-here .sg-sheet-evo-stage { color:var(--acc-lemon); opacity:.9; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sg-sheet-evo-card { transition:none; }
+  .sg-sheet-evo-card:active { transform:none; }
+}
+
 .sg-sheet-cta {
   display:block; margin-top:16px; padding:13px; border-radius:999px; text-align:center;
   font-size:12px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:#2b0d02;
