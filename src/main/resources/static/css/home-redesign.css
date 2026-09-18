@@ -1645,7 +1645,8 @@ body.concept-board {
    wrapping - a three-stage line broken across two rows stops reading as a
    progression - and the scroll is padded so the last stage can sit clear of
    the sheet's rounded edge. */
-.sg-sheet-evo { margin-top:14px; }
+/* Own panel now rather than a block under the abilities, so no leading gap. */
+.sg-sheet-evo { margin-top:2px; }
 .sg-sheet-evo-head {
   display:flex; align-items:baseline; gap:8px; margin-bottom:9px;
   font-size:9px; letter-spacing:.2em; text-transform:uppercase; color:var(--muted);
@@ -2360,6 +2361,15 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-sheet-face { display:block; flex:0 0 108px; padding:0; }
 .sg-sheet-face .sg-card-tile { width:108px; max-width:none; }
 .sg-sheet-id { flex:1 1 auto; min-width:0; }
+/* The name and the evolution preview share the top line so the preview sits in
+   the head's top-right corner; the stat row below still spans the full width. */
+.sg-sheet-idtop { display:flex; align-items:flex-start; gap:8px; }
+.sg-sheet-idname { flex:1 1 auto; min-width:0; }
+/* The preview takes ~86px off the name column, which was enough to wrap
+   "ELECTRIC · LEGENDARY" onto a second line and grow the head. Tighten the meta
+   only when a preview is actually sharing the row. */
+.sg-sheet-idtop.has-peek .sg-sheet-meta { font-size:9.5px; letter-spacing:.05em; gap:6px; }
+.sg-sheet-idtop.has-peek .sg-sheet-meta img { width:15px; height:15px; }
 .sg-sheet-card .sg-sheet-id h3 { text-align:left; font-size:21px; line-height:1.15; }
 .sg-sheet-id .sg-sheet-meta { justify-content:flex-start; margin:5px 0 9px; }
 .sg-sheet-stats.is-tight { gap:6px; }
@@ -2380,6 +2390,57 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   color:#2b0d02; background:linear-gradient(135deg,#ffe066,var(--amber));
   box-shadow:0 5px 14px rgba(255,155,33,.3);
 }
+/* A fourth tab only appears for a card with an evolution line, and "Evolution"
+   is twice the length of "Keep". At 390px four tabs leave ~85px each, so the
+   label steps down rather than the bar wrapping. */
+.sg-sheet-tabs.is-four .sg-sheet-tab { font-size:9.5px; letter-spacing:.06em; padding:0 2px; }
+@media (max-width:360px) {
+  .sg-sheet-tabs.is-four .sg-sheet-tab { font-size:8.5px; letter-spacing:.01em; }
+}
+
+/* ---------- evolution preview (head corner) ----------
+   A glance, not a control surface: the line's silhouettes at 24px with the
+   current stage lit, and a tap that lands on the Evolution tab where the real
+   chain lives. */
+.sg-sheet-evopeek {
+  flex:0 0 auto; display:flex; flex-direction:column; align-items:center; gap:4px;
+  padding:6px 8px 5px; border-radius:12px; cursor:pointer;
+  border:1px solid var(--steel-soft); background:rgba(26,17,71,.5);
+  color:inherit; font:inherit;
+  transition:transform .16s ease, border-color .16s ease;
+}
+.sg-sheet-evopeek:active { transform:scale(.95); }
+.sg-sheet-evopeek-thumbs { display:flex; align-items:center; gap:3px; }
+.sg-sheet-evopeek-thumb {
+  display:grid; place-items:center; width:24px; height:24px; border-radius:7px;
+  border:1px solid rgba(180,140,255,.28); background:rgba(11,17,32,.6); overflow:hidden;
+}
+.sg-sheet-evopeek-thumb img {
+  width:100%; height:100%; object-fit:contain; display:block;
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,.6));
+}
+/* The stage you are looking at, so the preview says "where in the line" and not
+   just "there is a line". */
+.sg-sheet-evopeek-thumb.is-here {
+  border-color:color-mix(in srgb, var(--acc-lemon) 62%, transparent);
+  background:rgba(48,33,104,.75);
+  box-shadow:0 0 0 1px rgba(255,214,102,.18) inset;
+}
+.sg-sheet-evopeek-label {
+  font-size:8px; letter-spacing:.1em; text-transform:uppercase; color:var(--acc-lemon);
+  white-space:nowrap;
+}
+
+@media (max-width:360px) {
+  .sg-sheet-evopeek { padding:5px 6px 4px; }
+  .sg-sheet-evopeek-thumb { width:21px; height:21px; border-radius:6px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sg-sheet-evopeek { transition:none; }
+  .sg-sheet-evopeek:active { transform:none; }
+}
+
 /* The one scrolling region. flex:1 with min-height:0 so it takes the slack and
    the header and CTA never get pushed off. */
 .sg-sheet-panels { flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; }
