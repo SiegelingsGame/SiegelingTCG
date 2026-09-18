@@ -22,7 +22,8 @@ import java.util.Set;
 public class AchievementEvaluationService {
 
     private static final List<String> ELEMENT_NAMES = List.of(
-            "FIRE", "ICE", "EARTH", "WIND", "WATER", "SHADOW", "ELECTRIC", "METAL", "UNDEAD", "PSYCHIC"
+            "FIRE", "EARTH", "WIND", "ICE", "WATER", "ELECTRIC", "METAL", "POISON",
+            "PSYCHIC", "LIGHT", "SHADOW", "UNDEAD"
     );
 
     @Autowired

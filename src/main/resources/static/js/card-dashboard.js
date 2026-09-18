@@ -9,7 +9,8 @@
 
     /** Must match server live-element roster order (see LiveElementCatalogService). */
     const DEFAULT_LIVE_ELEMENT_ORDER = [
-        "FIRE", "ICE", "EARTH", "WIND", "WATER", "SHADOW", "ELECTRIC", "METAL", "UNDEAD", "PSYCHIC"
+        "FIRE", "EARTH", "WIND", "ICE", "WATER", "ELECTRIC", "METAL", "POISON",
+        "PSYCHIC", "LIGHT", "SHADOW", "UNDEAD"
     ];
 
     // Matches .trainer-art-portrait.is-overlay { aspect-ratio: 639/919 } and the
@@ -36,9 +37,12 @@
                 map.set(el, row?.active !== false);
             }
         });
+        // Empty payload → full roster on. A configured roster that omits a newly
+        // added element must not silently turn it on (Poison/Light stay opt-in).
+        const defaultActive = map.size === 0;
         return DEFAULT_LIVE_ELEMENT_ORDER.map((element) => ({
             element,
-            active: map.has(element) ? map.get(element) : true
+            active: map.has(element) ? map.get(element) : defaultActive
         }));
     }
 

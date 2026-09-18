@@ -189,7 +189,7 @@ const TARGET_RULES = {
 
 function buildMetadata(trainers) {
   return {
-    elements: ['FIRE', 'ICE', 'EARTH', 'WIND', 'WATER', 'SHADOW', 'ELECTRIC', 'METAL', 'UNDEAD', 'PSYCHIC', 'POISON', 'LIGHT', 'NEUTRAL'],
+    elements: ['FIRE', 'EARTH', 'WIND', 'ICE', 'WATER', 'ELECTRIC', 'METAL', 'POISON', 'PSYCHIC', 'LIGHT', 'SHADOW', 'UNDEAD', 'NEUTRAL'],
     cardTypes: ['SIEGLING', 'SPELL', 'TRAP'],
     rarities: ['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'],
     rows: ['BACK', 'MIDDLE', 'FRONT'],

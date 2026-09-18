@@ -176,8 +176,14 @@
     const ENERGY_COST_FILTERS = ['ALL', 'FREE', '1', '2', '3', '4', '5+'];
     const NOTCH_DIRECTIONS = ['TOP_LEFT', 'TOP', 'TOP_RIGHT', 'LEFT', 'RIGHT', 'BOTTOM_LEFT', 'BOTTOM', 'BOTTOM_RIGHT'];
     const DECK_ASSET_KEYS = [
-        'FIRE', 'ICE', 'EARTH', 'WIND', 'WATER', 'SHADOW',
-        'ELECTRIC', 'METAL', 'UNDEAD', 'PSYCHIC', 'POISON', 'LIGHT'
+        'FIRE', 'EARTH', 'WIND', 'ICE', 'WATER', 'ELECTRIC',
+        'METAL', 'POISON', 'PSYCHIC', 'LIGHT', 'SHADOW', 'UNDEAD'
+    ];
+    // Canonical filter/sort order across hub surfaces. Keep in sync with
+    // LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER.
+    const ELEMENT_SORT_ORDER = [
+        'FIRE', 'EARTH', 'WIND', 'ICE', 'WATER', 'ELECTRIC',
+        'METAL', 'POISON', 'PSYCHIC', 'LIGHT', 'SHADOW', 'UNDEAD'
     ];
     // Element defaults for hub decks, shop packs, and profile card backs.
     const DECK_ASSET_PATHS = {
@@ -3396,7 +3402,7 @@
     }
 
     function homeDefaultPackRows() {
-        return ['FIRE', 'ICE', 'EARTH', 'WIND'].map(element => `<button class="shop-pack-row" type="button" data-home-action="shop">
+        return ['FIRE', 'EARTH', 'WIND', 'ICE'].map(element => `<button class="shop-pack-row" type="button" data-home-action="shop">
             <span style="--el:${elementColor(element)}">${escapeHtml(format(element).slice(0, 1))}</span>
             <strong>${escapeHtml(format(element))} Starter Pack</strong>
             <em>${renderCoinAmount(100, '')}</em>
@@ -9761,7 +9767,16 @@
             if (card.element) values.add(card.element);
             (card.notches || []).forEach(notch => notch.element && values.add(notch.element));
         });
-        return [...values];
+        const rank = new Map(ELEMENT_SORT_ORDER.map((element, index) => [element, index]));
+        return [...values].sort((a, b) => {
+            if (a === 'ALL') return -1;
+            if (b === 'ALL') return 1;
+            if (a === 'NEUTRAL') return 1;
+            if (b === 'NEUTRAL') return -1;
+            const ai = rank.has(a) ? rank.get(a) : Number.MAX_SAFE_INTEGER;
+            const bi = rank.has(b) ? rank.get(b) : Number.MAX_SAFE_INTEGER;
+            return ai - bi || String(a).localeCompare(String(b));
+        });
     }
     function cardEnergyCost(card) {
         const directCost = Number(card?.costAmount);

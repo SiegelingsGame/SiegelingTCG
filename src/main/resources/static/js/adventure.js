@@ -1612,8 +1612,19 @@
         availability.appendChild(button);
       });
     }
+    var ELEMENT_SORT_ORDER = ['FIRE', 'EARTH', 'WIND', 'ICE', 'WATER', 'ELECTRIC', 'METAL', 'POISON',
+      'PSYCHIC', 'LIGHT', 'SHADOW', 'UNDEAD'];
     var elements = ['ALL'];
     siegelings.forEach(function (s) { if (elements.indexOf(s.element) < 0) elements.push(s.element); });
+    elements = elements.sort(function (a, b) {
+      if (a === 'ALL') return -1;
+      if (b === 'ALL') return 1;
+      var ai = ELEMENT_SORT_ORDER.indexOf(a);
+      var bi = ELEMENT_SORT_ORDER.indexOf(b);
+      if (ai < 0) ai = 999;
+      if (bi < 0) bi = 999;
+      return ai - bi || String(a).localeCompare(String(b));
+    });
     var fr = $('elementFilter'); fr.innerHTML = '';
     elements.forEach(function (elm) {
       var chip = el('button', 'filter-chip' + (elm === state.elementFilter ? ' active' : ''), elm === 'ALL' ? 'All' : (icon(elm) + ' ' + elm));

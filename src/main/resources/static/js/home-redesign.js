@@ -906,51 +906,93 @@
       bottomMarkup('home', opts);
   }
 
+  function binderFilterRowsMarkup(elements, rarities) {
+    return '' +
+      '<div class="sg-filter-label">Element</div>' +
+      '<div class="sg-filter-row">' + elements.map(function (e, i) {
+        return '<button class="sg-pill' + (i === 0 ? ' on' : '') + '" type="button" data-el="' + e + '" style="--el:' +
+          (e === 'ALL' ? 'var(--acc-lemon)' : color(e)) + '">' +
+          (e === 'ALL' ? '' : '<img src="' + icon(e) + '" alt="">') + esc(title(e)) + '</button>';
+      }).join('') + '</div>' +
+      '<div class="sg-filter-label">Type</div>' +
+      '<div class="sg-filter-row">' + [['ALL','All'],['SIEGLING','Siegelings'],['SPELL','Strategies'],['TRAP','Deceptions'],['SIEGEKNIGHT','SiegeKnights']].map(function (t, i) {
+        return '<button class="sg-pill' + (i === 0 ? ' on' : '') + '" type="button" data-type="' + t[0] + '">' + esc(t[1]) + '</button>';
+      }).join('') + '</div>' +
+      '<div class="sg-filter-label">Rarity</div>' +
+      '<div class="sg-filter-row">' + rarities.map(function (r, i) {
+        return '<button class="sg-pill sg-pill-rarity' + (i === 0 ? ' on' : '') + '" type="button" data-rarity="' + r + '">' +
+          (r === 'ALL' ? '' : '<i class="sg-rar ' + r.toLowerCase() + '"></i>') + esc(title(r)) + '</button>';
+      }).join('') + '</div>';
+  }
+
   function galleryScreen(opts) {
     opts = opts || {};
-    var elements = ['ALL', 'FIRE', 'WATER', 'EARTH', 'WIND', 'ICE', 'ELECTRIC', 'PSYCHIC', 'METAL'];
+    // Keep in sync with LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER.
+    var elements = ['ALL', 'FIRE', 'EARTH', 'WIND', 'ICE', 'WATER', 'ELECTRIC', 'METAL',
+      'POISON', 'PSYCHIC', 'LIGHT', 'SHADOW', 'UNDEAD'];
     var rarities = ['ALL', 'COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'];
     var total = ALL_CARDS.length;
     // "X of Y cards owned" compared copies held against unique cards, so a player
     // with duplicates was told they owned more cards than exist. Collected counts
     // distinct cards on both sides of the "of".
     var counts = collectionCounts(opts.live);
+    var filterRows = binderFilterRowsMarkup(elements, rarities);
     return topMarkup(opts) +
-      '<div class="sg-scroll">' +
+      '<div class="sg-scroll" data-gal-scroll>' +
         '<div class="sg-gal-head"><h2>The Binder</h2><p>' +
           (counts ? esc(counts.held) + ' of ' + esc(counts.total) + ' cards collected'
                   : esc(total) + ' cards — every Siegeling, Strategy, Deception and SiegeKnight') +
         '</p></div>' +
-        '<div class="sg-gal-tools" data-tools>' +
-          '<button class="sg-icon-btn" type="button" data-search-toggle aria-label="Search">⌕</button>' +
-          '<label class="sg-search"><input type="text" placeholder="Search the binder…" data-search-input></label>' +
-          '<button class="sg-icon-btn" type="button" data-filter-toggle aria-label="Filters">≡</button>' +
-          '<span class="sg-count" data-count></span>' +
+        '<div class="sg-filter-chrome" data-filter-chrome>' +
+          '<div class="sg-filter-chrome-inner">' +
+            '<div class="sg-gal-tools" data-tools>' +
+              '<button class="sg-icon-btn" type="button" data-search-toggle aria-label="Search">⌕</button>' +
+              '<label class="sg-search"><input type="text" placeholder="Search the binder…" data-search-input></label>' +
+              '<button class="sg-icon-btn" type="button" data-filter-toggle aria-label="Filters">≡</button>' +
+              '<span class="sg-count" data-count></span>' +
+            '</div>' +
+            '<div class="sg-filters" data-filters><div>' + filterRows + '</div></div>' +
+          '</div>' +
         '</div>' +
-        '<div class="sg-filters" data-filters><div>' +
-          '<div class="sg-filter-label">Element</div>' +
-          '<div class="sg-filter-row">' + elements.map(function (e, i) {
-            return '<button class="sg-pill' + (i === 0 ? ' on' : '') + '" type="button" data-el="' + e + '" style="--el:' +
-              (e === 'ALL' ? 'var(--acc-lemon)' : color(e)) + '">' +
-              (e === 'ALL' ? '' : '<img src="' + icon(e) + '" alt="">') + esc(title(e)) + '</button>';
-          }).join('') + '</div>' +
-          '<div class="sg-filter-label">Type</div>' +
-          '<div class="sg-filter-row">' + [['ALL','All'],['SIEGLING','Siegelings'],['SPELL','Strategies'],['TRAP','Deceptions'],['SIEGEKNIGHT','SiegeKnights']].map(function (t, i) {
-            return '<button class="sg-pill' + (i === 0 ? ' on' : '') + '" type="button" data-type="' + t[0] + '">' + esc(t[1]) + '</button>';
-          }).join('') + '</div>' +
-          '<div class="sg-filter-label">Rarity</div>' +
-          '<div class="sg-filter-row">' + rarities.map(function (r, i) {
-            return '<button class="sg-pill sg-pill-rarity' + (i === 0 ? ' on' : '') + '" type="button" data-rarity="' + r + '">' +
-              (r === 'ALL' ? '' : '<i class="sg-rar ' + r.toLowerCase() + '"></i>') + esc(title(r)) + '</button>';
-          }).join('') + '</div>' +
-        '</div></div>' +
         '<div class="sg-gal-grid" data-grid></div>' +
         '<div class="sg-gal-more" data-more hidden><button type="button">Show more</button></div>' +
         '<div style="height:96px"></div>' +
       '</div>' +
+      '<button class="sg-filter-fab" type="button" data-filter-fab aria-label="Open filters and search" hidden>' +
+        '<span class="sg-filter-fab-ico" aria-hidden="true">' +
+          '<svg viewBox="0 0 24 24" width="22" height="22" fill="none">' +
+            '<path d="M4 6h16M7 12h10M10 18h4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>' +
+            '<circle cx="18.5" cy="6" r="2.2" fill="currentColor"/>' +
+            '<circle cx="8.5" cy="12" r="2.2" fill="currentColor"/>' +
+            '<circle cx="13.5" cy="18" r="2.2" fill="currentColor"/>' +
+          '</svg>' +
+        '</span>' +
+        '<span class="sg-filter-fab-badge" data-filter-fab-badge hidden>0</span>' +
+      '</button>' +
+      '<div class="sg-filter-glass" data-filter-glass aria-hidden="true">' +
+        '<button class="sg-filter-glass-scrim" type="button" data-filter-glass-close aria-label="Close filters"></button>' +
+        '<div class="sg-filter-glass-card" role="dialog" aria-modal="true" aria-label="Filters and search">' +
+          '<div class="sg-filter-glass-head">' +
+            '<div>' +
+              '<strong>Find cards</strong>' +
+              '<span data-glass-count></span>' +
+            '</div>' +
+            '<div class="sg-filter-glass-actions">' +
+              '<button class="sg-filter-glass-clear" type="button" data-filter-clear hidden>Clear</button>' +
+              '<button class="sg-filter-glass-x" type="button" data-filter-glass-close aria-label="Close">✕</button>' +
+            '</div>' +
+          '</div>' +
+          '<label class="sg-filter-glass-search">' +
+            '<span aria-hidden="true">⌕</span>' +
+            '<input type="search" placeholder="Search the binder…" data-glass-search enterkeyhint="search">' +
+          '</label>' +
+          '<div class="sg-filter-glass-body" data-glass-filters>' + filterRows + '</div>' +
+        '</div>' +
+      '</div>' +
       sheetHost() +
       bottomMarkup('collection', opts);
   }
+
 
   // SiegeKnight faces: card-binder-visual exposes the art helpers but the knight
   // composition itself lives in home.js, which this page cannot load (it drives
@@ -1027,13 +1069,22 @@
 
   function mountGallery(app, opts) {
     opts = opts || {};
+    var scroll = app.querySelector('[data-gal-scroll]') || app.querySelector('.sg-scroll');
     var tools = app.querySelector('[data-tools]');
     var filters = app.querySelector('[data-filters]');
+    var glass = app.querySelector('[data-filter-glass]');
+    var glassFilters = app.querySelector('[data-glass-filters]');
+    var glassSearch = app.querySelector('[data-glass-search]');
+    var glassCount = app.querySelector('[data-glass-count]');
+    var fab = app.querySelector('[data-filter-fab]');
+    var fabBadge = app.querySelector('[data-filter-fab-badge]');
+    var clearBtn = app.querySelector('[data-filter-clear]');
     var grid = app.querySelector('[data-grid]');
     var count = app.querySelector('[data-count]');
     var more = app.querySelector('[data-more]');
     var openSheet = mountSheet(app, opts) || function () {};
     var activeEl = 'ALL', activeRarity = 'ALL', activeType = 'ALL', query = '', limit = 24;
+    var COMPACT_AFTER = 72;
 
     function matches() {
       return ALL_CARDS.filter(function (c) {
@@ -1045,59 +1096,162 @@
       });
     }
 
+    function activeFilterCount() {
+      return (activeEl !== 'ALL' ? 1 : 0) + (activeType !== 'ALL' ? 1 : 0) +
+        (activeRarity !== 'ALL' ? 1 : 0) + (query ? 1 : 0);
+    }
+
+    function syncPills(root, attr, value) {
+      if (!root) return;
+      root.querySelectorAll('[' + attr + ']').forEach(function (pill) {
+        pill.classList.toggle('on', pill.getAttribute(attr) === value);
+      });
+    }
+
+    function syncChrome() {
+      syncPills(filters, 'data-el', activeEl);
+      syncPills(filters, 'data-type', activeType);
+      syncPills(filters, 'data-rarity', activeRarity);
+      syncPills(glassFilters, 'data-el', activeEl);
+      syncPills(glassFilters, 'data-type', activeType);
+      syncPills(glassFilters, 'data-rarity', activeRarity);
+      var inlineSearch = app.querySelector('[data-search-input]');
+      if (inlineSearch && inlineSearch.value !== query) inlineSearch.value = query;
+      if (glassSearch && glassSearch.value !== query) glassSearch.value = query;
+      var n = activeFilterCount();
+      if (fabBadge) {
+        fabBadge.hidden = n === 0;
+        fabBadge.textContent = String(n);
+      }
+      if (clearBtn) clearBtn.hidden = n === 0;
+      if (fab) fab.classList.toggle('has-filters', n > 0);
+    }
+
     function repaint() {
       var rows = matches();
       grid.innerHTML = rows.slice(0, limit).map(galleryCard).join('');
-      count.textContent = rows.length + (rows.length === 1 ? ' card' : ' cards');
+      var label = rows.length + (rows.length === 1 ? ' card' : ' cards');
+      if (count) count.textContent = label;
+      if (glassCount) glassCount.textContent = label;
+      syncChrome();
       // Every filter change and Show more paints fresh card faces, so the
       // descriptions have to be re-fitted - the initial render's pass only saw
       // the first page.
       scheduleFit(app);
       // A binder is browsed, not scrolled forever: page it rather than paint
       // hundreds of art-heavy tiles at once.
-      more.hidden = rows.length <= limit;
+      if (more) more.hidden = rows.length <= limit;
     }
 
-    app.querySelector('[data-filter-toggle]').addEventListener('click', function () {
-      filters.classList.toggle('open');
-      this.classList.toggle('on', filters.classList.contains('open'));
-    });
-    app.querySelector('[data-search-toggle]').addEventListener('click', function () {
-      tools.classList.toggle('searching');
-      this.classList.toggle('on', tools.classList.contains('searching'));
-      if (tools.classList.contains('searching')) app.querySelector('[data-search-input]').focus();
-    });
-    app.querySelector('[data-search-input]').addEventListener('input', function () {
-      query = this.value.trim().toLowerCase(); limit = 24; repaint();
-    });
-    filters.querySelectorAll('[data-el]').forEach(function (pill) {
-      pill.addEventListener('click', function () {
-        activeEl = pill.getAttribute('data-el'); limit = 24;
-        filters.querySelectorAll('[data-el]').forEach(function (p2) { p2.classList.toggle('on', p2 === pill); });
-        repaint();
-      });
-    });
-    filters.querySelectorAll('[data-type]').forEach(function (pill) {
-      pill.addEventListener('click', function () {
-        activeType = pill.getAttribute('data-type'); limit = 24;
-        filters.querySelectorAll('[data-type]').forEach(function (p2) { p2.classList.toggle('on', p2 === pill); });
-        repaint();
-      });
-    });
-    filters.querySelectorAll('[data-rarity]').forEach(function (pill) {
-      pill.addEventListener('click', function () {
-        activeRarity = pill.getAttribute('data-rarity'); limit = 24;
-        filters.querySelectorAll('[data-rarity]').forEach(function (p2) { p2.classList.toggle('on', p2 === pill); });
-        repaint();
-      });
-    });
-    more.querySelector('button').addEventListener('click', function () { limit += 24; repaint(); });
+    function setCompact(on) {
+      app.classList.toggle('is-filter-compact', on);
+      if (fab) fab.hidden = !on;
+      if (!on) closeGlass();
+    }
 
+    function openGlass() {
+      if (!glass) return;
+      app.classList.add('is-filter-glass-open');
+      glass.setAttribute('aria-hidden', 'false');
+      if (fab) fab.setAttribute('aria-expanded', 'true');
+      if (glassSearch) {
+        setTimeout(function () { try { glassSearch.focus(); } catch (e) {} }, 280);
+      }
+    }
 
-    if (opts.filtersOpen) { filters.classList.add('open'); app.querySelector('[data-filter-toggle]').classList.add('on'); }
+    function closeGlass() {
+      if (!glass) return;
+      app.classList.remove('is-filter-glass-open');
+      glass.setAttribute('aria-hidden', 'true');
+      if (fab) fab.setAttribute('aria-expanded', 'false');
+    }
+
+    function onScroll() {
+      setCompact((scroll && scroll.scrollTop || 0) > COMPACT_AFTER);
+    }
+
+    function bindPillGroup(root, attr, apply) {
+      if (!root) return;
+      root.querySelectorAll('[' + attr + ']').forEach(function (pill) {
+        pill.addEventListener('click', function () {
+          apply(pill.getAttribute(attr));
+          limit = 24;
+          repaint();
+        });
+      });
+    }
+
+    bindPillGroup(filters, 'data-el', function (v) { activeEl = v; });
+    bindPillGroup(filters, 'data-type', function (v) { activeType = v; });
+    bindPillGroup(filters, 'data-rarity', function (v) { activeRarity = v; });
+    bindPillGroup(glassFilters, 'data-el', function (v) { activeEl = v; });
+    bindPillGroup(glassFilters, 'data-type', function (v) { activeType = v; });
+    bindPillGroup(glassFilters, 'data-rarity', function (v) { activeRarity = v; });
+
+    var filterToggle = app.querySelector('[data-filter-toggle]');
+    if (filterToggle) {
+      filterToggle.addEventListener('click', function () {
+        filters.classList.toggle('open');
+        this.classList.toggle('on', filters.classList.contains('open'));
+      });
+    }
+    var searchToggle = app.querySelector('[data-search-toggle]');
+    if (searchToggle) {
+      searchToggle.addEventListener('click', function () {
+        tools.classList.toggle('searching');
+        this.classList.toggle('on', tools.classList.contains('searching'));
+        if (tools.classList.contains('searching')) {
+          var input = app.querySelector('[data-search-input]');
+          if (input) input.focus();
+        }
+      });
+    }
+    var inlineSearch = app.querySelector('[data-search-input]');
+    if (inlineSearch) {
+      inlineSearch.addEventListener('input', function () {
+        query = this.value.trim().toLowerCase(); limit = 24; repaint();
+      });
+    }
+    if (glassSearch) {
+      glassSearch.addEventListener('input', function () {
+        query = this.value.trim().toLowerCase(); limit = 24; repaint();
+      });
+    }
+    if (fab) {
+      fab.addEventListener('click', openGlass);
+      fab.setAttribute('aria-expanded', 'false');
+    }
+    app.querySelectorAll('[data-filter-glass-close]').forEach(function (btn) {
+      btn.addEventListener('click', closeGlass);
+    });
+    if (clearBtn) {
+      clearBtn.addEventListener('click', function () {
+        activeEl = 'ALL'; activeType = 'ALL'; activeRarity = 'ALL'; query = '';
+        limit = 24;
+        repaint();
+      });
+    }
+    if (more) {
+      var moreBtn = more.querySelector('button');
+      if (moreBtn) moreBtn.addEventListener('click', function () { limit += 24; repaint(); });
+    }
+    if (scroll) scroll.addEventListener('scroll', onScroll, { passive: true });
+    app.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Escape' && app.classList.contains('is-filter-glass-open')) {
+        ev.preventDefault();
+        closeGlass();
+      }
+    });
+
+    // Filters stay open by default at the top of the binder; search is optional.
+    if (filters) filters.classList.add('open');
+    if (filterToggle) filterToggle.classList.add('on');
+    setCompact(false);
     repaint();
+    onScroll();
     if (opts.openCard) openSheet(byId(opts.openCard));
   }
+
 
   /* ---------- play ---------- */
 
@@ -1275,7 +1429,7 @@
     if ((live.purchasedDeckIds || []).indexOf(d.id) !== -1) return true;
     // Same guest/legacy fallback as the battle picker. Signed-in ownership from
     // the server takes precedence, including the player's starter element.
-    var free = ['FIRE', 'ICE', 'EARTH', 'WIND'];
+    var free = ['FIRE', 'EARTH', 'WIND', 'ICE'];
     var starter = /^pack_([a-z0-9]+)/i.exec(live.starterPackId || '');
     if (starter) free.push(starter[1].toUpperCase());
     return Boolean(d.elements && d.elements.length) && d.elements.every(function (el) {
@@ -3047,8 +3201,8 @@
   var PROFILE_DRAFT = null;
   var PROFILE_SHOWCASE_MAX = 3;
 
-  var PROFILE_ELEMENTS = ['FIRE', 'WATER', 'ICE', 'WIND', 'EARTH', 'ELECTRIC',
-                          'METAL', 'POISON', 'PSYCHIC', 'SHADOW', 'LIGHT', 'UNDEAD', 'NEUTRAL'];
+  var PROFILE_ELEMENTS = ['FIRE', 'EARTH', 'WIND', 'ICE', 'WATER', 'ELECTRIC',
+                          'METAL', 'POISON', 'PSYCHIC', 'LIGHT', 'SHADOW', 'UNDEAD', 'NEUTRAL'];
 
   // The premade backs, named exactly as the legacy hub names them, because the
   // stored value is the NAME and the two surfaces have to agree on it.

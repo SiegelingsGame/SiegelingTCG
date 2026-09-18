@@ -6,13 +6,14 @@
     const STATS_KEY = 'sieglingsAchievementStats';
 
     const LIVE_ELEMENTS = [
-        'FIRE', 'ICE', 'EARTH', 'WIND', 'WATER',
-        'SHADOW', 'ELECTRIC', 'METAL', 'UNDEAD', 'PSYCHIC'
+        'FIRE', 'EARTH', 'WIND', 'ICE', 'WATER', 'ELECTRIC', 'METAL', 'POISON',
+        'PSYCHIC', 'LIGHT', 'SHADOW', 'UNDEAD'
     ];
 
     const ELEMENT_LABELS = {
-        FIRE: 'Fire', EARTH: 'Earth', WIND: 'Wind', WATER: 'Water', ICE: 'Ice',
-        SHADOW: 'Shadow', ELECTRIC: 'Electric', METAL: 'Metal', UNDEAD: 'Undead', PSYCHIC: 'Psychic'
+        FIRE: 'Fire', EARTH: 'Earth', WIND: 'Wind', ICE: 'Ice', WATER: 'Water',
+        ELECTRIC: 'Electric', METAL: 'Metal', POISON: 'Poison', PSYCHIC: 'Psychic',
+        LIGHT: 'Light', SHADOW: 'Shadow', UNDEAD: 'Undead'
     };
 
     const CATEGORIES = [
