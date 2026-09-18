@@ -823,6 +823,33 @@ body.single-screen .sg-app { position:fixed; inset:0; }
 .sg-deck-shortage { font-size:10px; color:var(--muted); }
 .sg-deck-notice { margin:16px 18px 0; padding:12px 14px; border:1px solid var(--gold); border-radius:12px;
   font-size:13px; line-height:1.5; color:var(--ink); background:rgba(25,17,53,.88); }
+.sg-deck-notice.is-error { border-color:#e0574a; }
+/* The rows open a deck now, so they have to read and behave as controls. */
+.sg-deckrow[role="button"] { cursor:pointer; }
+.sg-deckrow[role="button"]:focus-visible { outline:2px solid var(--gold-bright); outline-offset:3px; }
+.sg-deckrow[role="button"]:active { transform:translateY(1px); }
+.sg-tool-row .sg-ghost-btn:disabled { opacity:.5; cursor:default; }
+
+/* ---------- deck detail sheet ----------
+   Stacked above the card sheet's host so tapping a card inside a deck opens the
+   card on top of the deck rather than replacing it. */
+.sg-deck-sheet { z-index:55; }
+.sg-decksheet { max-height:min(78vh, 720px); overflow-y:auto; overscroll-behavior:contain; padding-bottom:4px; }
+.sg-decksheet-head { text-align:center; padding:2px 0 6px; }
+.sg-decksheet-head h3 { font-family:var(--serif); font-size:23px; margin:0; font-weight:600; }
+.sg-decksheet-head .sg-deck-els { justify-content:center; margin:8px 0 4px; }
+.sg-decksheet-head p { margin:0; font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); }
+.sg-decksheet-group { margin-top:16px; }
+.sg-decksheet-group h4 {
+  display:flex; align-items:center; justify-content:space-between; margin:0 0 9px;
+  font-size:10px; letter-spacing:.26em; text-transform:uppercase; color:var(--gold);
+}
+.sg-decksheet-group h4 em { font-style:normal; color:var(--muted); letter-spacing:.06em; }
+.sg-decksheet-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(84px, 1fr)); gap:9px; }
+.sg-decksheet-slot { position:relative; }
+.sg-decksheet-slot .sg-build-count { top:4px; right:4px; }
+.sg-decksheet-actions { display:flex; gap:9px; padding:18px 0 4px; }
+.sg-decksheet-actions .sg-guest-primary { flex:1 1 auto; }
 
 /* ---------- shop ---------- */
 .sg-feature { position:relative; height:308px; overflow:hidden; }
@@ -1637,6 +1664,31 @@ body.concept-board {
 .sg-empty { padding:16px 18px; color:var(--muted); font-size:12.5px; }
 .sg-build-actions { display:flex; gap:9px; padding:16px 18px 0; }
 .sg-build-actions .sg-guest-primary { flex:1 1 auto; }
+.sg-build-actions .sg-guest-primary:disabled { opacity:.5; cursor:default; }
+/* The builder composes a deck now rather than describing one, so it needs the
+   controls that were missing: a knight to save with, a way to find a card in a
+   collection of hundreds, and a minus on every slot. */
+.sg-build-knight, .sg-build-search {
+  width:calc(100% - 36px); margin:0 18px; padding:11px 13px; box-sizing:border-box;
+  border-radius:13px; border:1px solid var(--steel-soft); background:rgba(11,17,32,.6);
+  color:var(--ink); font-family:inherit; font-size:13.5px; outline:none;
+}
+.sg-build-search { margin-bottom:10px; }
+.sg-build-knight:focus-visible, .sg-build-search:focus-visible { border-color:var(--gold-bright); }
+.sg-build-less {
+  position:absolute; left:6px; top:6px; z-index:3; width:26px; height:26px; padding:0; line-height:1;
+  border-radius:50%; border:1px solid rgba(224,87,74,.5); background:rgba(9,6,24,.86);
+  color:#ff9d92; font-size:16px; cursor:pointer;
+}
+.sg-build-less:focus-visible { outline:2px solid var(--gold-bright); outline-offset:2px; }
+.sg-build-pick { position:relative; cursor:pointer; }
+.sg-build-pick .sg-card-tile { pointer-events:none; }
+.sg-build-pick.is-maxed { opacity:.45; }
+.sg-build-owned {
+  position:absolute; bottom:6px; right:6px; z-index:3; padding:2px 7px; border-radius:999px;
+  font-size:10px; font-weight:700; color:var(--ink); background:rgba(9,6,24,.82);
+  border:1px solid rgba(180,140,255,.3);
+}
 
 /* social */
 .sg-lobby { position:relative; height:104px; border-radius:18px; overflow:hidden; display:block;
@@ -2753,15 +2805,20 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   color:#22160a; font-size:15px; background:linear-gradient(180deg,#ffd58a,var(--amber));
 }
 
-.sg-friend-profile { padding:18px 16px 24px; }
-.sg-friend-profile-head { display:flex; align-items:center; gap:12px; }
-.sg-friend-crest.is-big { width:52px; height:52px; font-size:20px; }
-.sg-friend-profile-head strong { display:block; font-size:17px; }
-.sg-friend-profile-head em { font-style:normal; font-size:11.5px; color:var(--gold-bright); }
-.sg-friend-profile-bio { margin:12px 0 0; font-size:13px; color:var(--muted); line-height:1.5; }
-.sg-friend-profile-rows { display:grid; gap:8px; margin-top:16px; }
-.sg-friend-profile-rows div {
-  display:flex; justify-content:space-between; padding:9px 12px; border-radius:12px;
-  background:rgba(36,26,96,.7); font-size:13px;
+/* ---------- another player's profile, read-only ----------
+   The same crest, tiles, showcase and signature the player's own profile uses,
+   inside the card sheet. The sheet pads its content, so the crest is pulled
+   back out to the sheet's edges: a letterboxed crest reads as a bug next to the
+   full-bleed one on /profile. */
+.sg-friend-view { max-height:min(78vh, 720px); overflow-y:auto; overscroll-behavior:contain; }
+.sg-friend-view .sg-crest {
+  height:260px; margin:0 -20px 4px; border-radius:22px 22px 0 0; overflow:hidden;
 }
-.sg-friend-profile-rows b { color:var(--gold-bright); }
+.sg-friend-view .sg-crest-body { padding:0 20px; }
+.sg-friend-view .sg-crest-body h2 { font-size:23px; }
+.sg-friend-view .sg-tiles { margin-top:12px; }
+.sg-friend-view .sg-section { margin-top:18px; }
+/* Nothing here edits anything, so the affordances that would suggest it are
+   removed rather than merely inert. */
+.sg-crest.is-readonly .sg-crest-edit { display:none; }
+.sg-friend-view .sg-sig { justify-content:center; }

@@ -80,8 +80,29 @@ public class PublicProfileService {
                 : progression.getOwnedCards().values().stream().mapToInt(Integer::intValue).sum();
         stats.put("gold", progression.getGold());
         stats.put("ownedTotal", ownedTotal);
-        stats.put("uniqueOwned", progression.getOwnedCards() == null ? 0 : progression.getOwnedCards().size());
+        // Same definition as the player's own profile, from the same method, so a
+        // visitor and the owner cannot read two different completion figures for
+        // one collection. See PlayerProgressionService#collectionProgress.
+        PlayerProgressionService.CollectionProgress collection =
+                playerProgressionService.collectionProgress(progression);
+        stats.put("uniqueOwned", collection.owned());
+        stats.put("collectibleTotal", collection.collectible());
+        stats.put("collectedPercent", collection.percent());
         stats.put("level", Math.max(1, ownedTotal / 12 + 1));
+        stats.put("siegeWins", progression.getSiegeWins());
+        stats.put("knights", progression.getTrainerLevels() == null ? 0 : progression.getTrainerLevels().size());
+        // The headline numbers a player's own profile leads with. Without these
+        // a visitor's view of the same profile could only show em-dashes, which
+        // is what it did: the record is the point of looking someone up.
+        List<MatchHistoryEntity> history = matchHistoryService.listRecent(target);
+        int matches = history.size();
+        int wins = (int) history.stream()
+                .filter(row -> row != null && "WIN".equalsIgnoreCase(row.getResult()))
+                .count();
+        stats.put("matches", matches);
+        stats.put("wins", wins);
+        stats.put("losses", matches - wins);
+        stats.put("winRate", matches == 0 ? 0 : Math.round(wins * 100.0 / matches));
         return stats;
     }
 

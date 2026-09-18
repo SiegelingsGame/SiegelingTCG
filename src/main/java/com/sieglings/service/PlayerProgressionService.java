@@ -18,10 +18,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Objects;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 @Service
 public class PlayerProgressionService {
@@ -647,6 +650,24 @@ public class PlayerProgressionService {
         out.put("remnants", progression.getRemnants());
         out.put("ownedCards", progression.getOwnedCards());
         out.put("ownedTotal", ownedTotal(progression));
+        // Collection completion, decided here rather than in the client.
+        //
+        // The profile divided ownedTotal (every COPY, duplicates included) by the
+        // catalog's length (unique cards), so a player with duplicates read over
+        // 100% - 214% in one report. Completion is distinct cards owned over
+        // distinct cards collectable.
+        //
+        // "Collectable" is the LIVE deck-builder catalog, which is filtered to the
+        // elements currently switched on. That is what makes this adjust by
+        // itself: the day POISON or LIGHT goes live, its cards enter the
+        // denominator and every player's percentage drops to match, with no
+        // second list to keep in step. It also means a card the player owns from
+        // an element that has since been switched off is not counted, which is
+        // what keeps the figure at or under 100%.
+        CollectionProgress collection = collectionProgress(progression);
+        out.put("collectibleTotal", collection.collectible());
+        out.put("uniqueOwned", collection.owned());
+        out.put("collectedPercent", collection.percent());
         out.put("ownedTrainers", serializeOwnedTrainers(progression));
         out.put("tutorialCompleted", progression.isTutorialCompleted());
         out.put("siegeTutorialCompleted", progression.isSiegeTutorialCompleted());
@@ -704,6 +725,32 @@ public class PlayerProgressionService {
 
     private int ownedTotal(PlayerProgressionEntity progression) {
         return progression.getOwnedCards().values().stream().mapToInt(Integer::intValue).sum();
+    }
+
+    /** Distinct live cards owned, out of the distinct live cards there are to own. */
+    public record CollectionProgress(int owned, int collectible, int percent) {
+    }
+
+    public CollectionProgress collectionProgress(PlayerProgressionEntity progression) {
+        Set<String> collectable = cardDefinitionService.getDeckBuilderCatalog().stream()
+                .map(Card::getId)
+                .map(this::normalizeCardId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Map<String, Integer> owned = progression == null || progression.getOwnedCards() == null
+                ? Map.of()
+                : progression.getOwnedCards();
+        long held = owned.entrySet().stream()
+                .filter(entry -> entry.getValue() != null && entry.getValue() > 0)
+                .map(entry -> normalizeCardId(entry.getKey()))
+                .filter(Objects::nonNull)
+                .distinct()
+                .filter(collectable::contains)
+                .count();
+        int total = collectable.size();
+        // A catalog that has not loaded yet reports 0 rather than dividing by it.
+        int percent = total == 0 ? 0 : (int) Math.round(held * 100.0 / total);
+        return new CollectionProgress((int) held, total, percent);
     }
 
     private List<Map<String, Object>> serializeOwnedTrainers(PlayerProgressionEntity progression) {
