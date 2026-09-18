@@ -1844,6 +1844,16 @@ body.concept-board {
   box-shadow:0 0 0 1px rgba(255,214,102,.12) inset;
 }
 .sg-sheet-evo-art { display:block; width:100%; }
+/* At 92px the printed description came through as one clipped line ("Bundled
+   up", "Trading the") that read as damage rather than flavour. The thumbnail
+   keeps the name and the HP/SPD pills - what tells the stages apart - and the
+   description belongs to the full-screen card, where there is room to read it.
+   Scoped to the chain: the sheet's own face and the zoom stage are untouched. */
+.sg-sheet-evo-art .card-summary-list,
+.sg-sheet-evo-art .card-summary-description-list { display:none !important; }
+/* Paired with fitEvolutionNames(), which measures the size down; nowrap here so
+   the title cannot wrap in the frame before that runs. */
+.sg-sheet-evo-art .card-title { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .sg-sheet-evo-art .sg-card-face,
 .sg-sheet-evo-art .sg-gal-card,
 .sg-sheet-evo-art img { display:block; width:100%; height:auto; border-radius:6px; }
