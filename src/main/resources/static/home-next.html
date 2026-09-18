@@ -4,8 +4,22 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Siegelings TCG</title>
-<link rel="icon" href="/favicon.ico">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="/favicon-48x48.png" sizes="48x48">
+<link rel="icon" type="image/png" href="/favicon-192x192.png" sizes="192x192">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<!-- This page now serves /home, /cards, /decks, /shop, /profile and /social.
+     Without these, an installed iOS web app that lands here by a real
+     navigation (not the in-page router) drops out of standalone and paints
+     Safari's chrome. They must stay in step with home.html, which players can
+     still reach through /legacy/*. -->
+<link rel="manifest" href="/site.webmanifest">
+<meta name="theme-color" content="#0a1530">
+<meta name="apple-mobile-web-app-title" content="Siegelings">
+<meta name="application-name" content="Siegelings">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <!-- style.css carries the real card frames, notches and rarity treatments the
      binder renders. It must load BEFORE home-redesign.css so the art-first
      palette and layout win where the two overlap. -->
