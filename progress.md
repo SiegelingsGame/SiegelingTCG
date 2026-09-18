@@ -1,7 +1,7 @@
 Original prompt: Perfect so siegeleitns will only show speed and health in that slot and strat and deceptions will show their effect
 
 - September 18, 2026 - **Sheet-face print is type-specific: Siegelings show HP/SPD only; Strategies and Deceptions show their effect.** The 108px `.sg-sheet-face` now carries `data-face-type`, and for `SIEGLING` the printed description is hidden (same clipped-line problem as the evolution thumbs) while name + HP/SPD stay. `SPELL`/`TRAP` faces keep the effect text in that slot — that is the useful print for those types. Arena still lists Siegeling flavour in full, and fullscreen zoom still paints the description for every type. Builds on the earlier `resolveCardDescriptionText` preference for Strategy/Deception effects.
-- Verification: pending.
+- Verification: `node --check` on `home-redesign.js`. Headless Chromium at 390x844: Siegeling sheet face has `data-face-type="SIEGLING"`, description `display:none`, HP/SPD present, Arena flavour intact, zoom still shows description. Strategy face shows **"1 ally gains +2 Attack Damage"**; Deception face shows **"Deal 5 damage to 1 enemy"**. Cache-busts: `home-redesign.css` 48 → **49**, `home-redesign.js` 38 → **39**.
 
 Original prompt: Apply this to the main card as well since the description is listed
 
