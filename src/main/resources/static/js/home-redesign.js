@@ -2058,7 +2058,14 @@
     if (res) {
       var rap = res.rapport || {};
       var bits = '';
-      if (res.assignment) bits += '<div><span>Posted</span><b>' + esc(res.assignment) + '</b></div>';
+      // assignment is {assigned, type, id, label} from KeepService — never stringify the object.
+      var posted = '';
+      if (typeof res.assignment === 'string') {
+        posted = res.assignment;
+      } else if (res.assignment && res.assignment.assigned) {
+        posted = res.assignment.label || 'Keep post';
+      }
+      if (posted) bits += '<div><span>Posted</span><b>' + esc(posted) + '</b></div>';
       if (rap.label) bits += '<div><span>Rapport</span><b>' + esc(rap.label) + '</b></div>';
       if (rap.buffPercent != null) bits += '<div><span>Rapport bonus</span><b>+' + esc(rap.buffPercent) + '%</b></div>';
       out += '<div class="sg-sheet-sub">In residence</div>' +
