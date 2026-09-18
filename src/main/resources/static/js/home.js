@@ -5521,10 +5521,9 @@
     function showPackOdds(packId) {
         const pack = (state.packs || []).find(item => item.id === packId);
         if (!pack) return;
-        const odds = pack.odds || {
-            ...FALLBACK_PACK_ODDS,
-            siegeKnight: pack.id === 'pack_siegeknight' ? 1 : FALLBACK_PACK_ODDS.siegeKnight
-        };
+        // No pack guarantees a knight any more, so the fallback needs no
+        // per-pack special case: every pack rolls the same slim chance.
+        const odds = pack.odds || { ...FALLBACK_PACK_ODDS };
         const holo = odds.holoPerCard || FALLBACK_PACK_ODDS.holoPerCard;
         const pct = value => `${Math.round(Number(value || 0) * 1000) / 10}%`;
         const knightLine = Number(odds.siegeKnight) >= 1 ? 'Guaranteed' : pct(odds.siegeKnight);
@@ -5554,10 +5553,7 @@
     function packImageFor(pack) {
         const element = String(pack.elements?.[0] || '').toUpperCase();
         const special = {
-            pack_siegeling_random: versionedPackAsset('/img/packs/siegeling-back.png'),
-            pack_spell_random: versionedPackAsset('/img/packs/spell-card-back.png'),
-            pack_trap_random: versionedPackAsset('/img/packs/trap-card-back.png'),
-            pack_siegeknight: versionedPackAsset(SIEGEKNIGHT_CARD_BACK)
+            pack_siegeling_random: versionedPackAsset('/img/packs/siegeling-back.png')
         };
         if (special[pack.id]) return special[pack.id];
         // Elemental / starter packs use the same default card backs as decks.
@@ -5569,10 +5565,7 @@
 
     function packBackForElement(element, packId = '') {
         const special = {
-            pack_siegeling_random: '/img/packs/siegeling-back.png',
-            pack_spell_random: '/img/packs/spell-card-back.png',
-            pack_trap_random: '/img/packs/trap-card-back.png',
-            pack_siegeknight: SIEGEKNIGHT_CARD_BACK
+            pack_siegeling_random: '/img/packs/siegeling-back.png'
         };
         const specialPath = special[packId];
         if (specialPath) return `url('${versionedPackAsset(specialPath)}')`;

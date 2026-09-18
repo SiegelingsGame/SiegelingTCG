@@ -58,14 +58,51 @@ class PackCatalogServiceTest {
     }
 
     @Test
-    void siegeKnightCachePackAlwaysIncludesABonusKnight() throws Exception {
+    void retiredPacksAreGoneFromTheCatalogEntirely() throws Exception {
         PackCatalogService service = createService(new FireKnightCardDefinitions());
 
-        PackCatalogService.PackOpenResult result = service.openPack(PackCatalogService.SIEGEKNIGHT_PACK_ID, false);
+        Set<String> ids = service.listPacks().stream()
+                .map(PackCatalogService.PackDefinition::id)
+                .collect(Collectors.toSet());
 
-        assertEquals(5, result.cards().size());
-        assertTrue(result.bonusTrainer() != null, "SiegeKnight Cache should always include a knight");
-        assertEquals(Element.FIRE, result.bonusTrainer().getElement());
+        // Not merely deactivated: a deactivated pack still resolves through
+        // findPack and would report "not currently available", which would keep
+        // it addressable from a stale client.
+        assertFalse(ids.contains("pack_spell_random"), "Strategy Pack should be gone");
+        assertFalse(ids.contains("pack_trap_random"), "Deception Pack should be gone");
+        assertFalse(ids.contains("pack_siegeknight"), "SiegeKnight Cache should be gone");
+        assertTrue(service.findPack("pack_siegeknight").isEmpty());
+        assertThrows(IllegalArgumentException.class, () -> service.openPack("pack_siegeknight", false));
+        assertThrows(IllegalArgumentException.class, () -> service.openPack("pack_spell_random", false));
+        assertThrows(IllegalArgumentException.class, () -> service.openPack("pack_trap_random", false));
+    }
+
+    @Test
+    void everyRemainingPackCanStillYieldAKnight() throws Exception {
+        PackCatalogService service = createService(new FireKnightCardDefinitions());
+
+        // The advertised 3% is only honest if the roll has something to pick
+        // from: with the dedicated cache retired, a pack whose candidate list
+        // came back empty would be a pack that can never drop a knight at all.
+        for (PackCatalogService.PackDefinition pack : service.listAvailablePacks()) {
+            assertFalse(service.bonusTrainerCandidates(pack).isEmpty(),
+                    pack.id() + " must have at least one knight it can roll");
+        }
+    }
+
+    @Test
+    void everyRemainingPackAdvertisesTheSameSlimKnightChance() throws Exception {
+        PackCatalogService service = createService(new FireKnightCardDefinitions());
+
+        List<Map<String, Object>> packs = service.serializePacks();
+
+        assertFalse(packs.isEmpty());
+        for (Map<String, Object> pack : packs) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> odds = (Map<String, Object>) pack.get("odds");
+            assertEquals(PackCatalogService.TRAINER_DROP_CHANCE, odds.get("siegeKnight"),
+                    pack.get("id") + " should roll the shared knight chance, not a guarantee");
+        }
     }
 
     @Test

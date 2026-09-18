@@ -14,6 +14,13 @@
   'use strict';
 
   var TOKEN_KEY = 'siegeToken';
+  // Where every exit out of a run lands: the redesigned hub, on its Play screen.
+  // NOT '/play' - that path still serves the battle table's old welcome/mode
+  // overlay, so leaving Siege used to drop the player into the layout the
+  // redesign replaced. The hub addresses its Play screen by query rather than by
+  // path (SCREEN_PATH maps it to '/home'), and ?screen= survives a reload, which
+  // a pushed '/home' would not. The same href is on .siege-back in adventure.html.
+  var SIEGE_EXIT_PATH = '/home?screen=play';
   var state = {
     roster: null,
     run: null,
@@ -801,7 +808,7 @@
     $('smithLeaveBtn').addEventListener('click', function () { simplePost('/api/siege/smith/leave'); });
     $('smithScrapBtn').addEventListener('click', function () { toggleSmithScrap(); });
     $('caravanLeaveBtn').addEventListener('click', function () { simplePost('/api/siege/caravan/leave'); });
-    $('resultBtn').addEventListener('click', function () { setToken(null); location.href = '/play'; });
+    $('resultBtn').addEventListener('click', function () { setToken(null); location.href = SIEGE_EXIT_PATH; });
     $('campLeaveBtn').addEventListener('click', campPrimaryAction);
     $('cacheDigBtn').addEventListener('click', cacheDig);
     $('cacheTakeBtn').addEventListener('click', cacheTake);
@@ -980,7 +987,7 @@
       .then(function (run) {
         state.run = run;
         if (!run.checkpoint) throw new Error('Could not save, so the expedition remains open. Please try again.');
-        location.href = '/play';
+        location.href = SIEGE_EXIT_PATH;
       })
       .catch(function (e) { $('runMenuStatus').textContent = e.message; toast(e.message); })
       .then(function () { state.busy = false; setRunMenuBusy(false); });

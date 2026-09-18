@@ -16,7 +16,7 @@ class PackAvailabilityCatalogServiceTest {
         PackAvailabilityCatalogService service = PackCatalogServiceTest.inMemoryAvailability();
 
         assertTrue(service.isActive("pack_water"));
-        assertTrue(service.isActive("pack_siegeknight"));
+        assertTrue(service.isActive("pack_siegeling_random"));
         assertTrue(service.inactivePackIds().isEmpty());
     }
 

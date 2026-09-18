@@ -38,8 +38,6 @@ public class PackCatalogService {
             Rarity.EPIC, 0.02,
             Rarity.LEGENDARY, 0.01
     ));
-    /** Dedicated, expensive pack that always contains a SiegeKnight. */
-    public static final String SIEGEKNIGHT_PACK_ID = "pack_siegeknight";
 
     public record PackDefinition(
             String id,
@@ -109,15 +107,11 @@ public class PackCatalogService {
         packs.add(new PackDefinition("pack_siegeling_random", "Siegeling Pack",
                 "Five random Siegeling cards from a changing elemental mix.", true, 160,
                 activeElements, false));
-        packs.add(new PackDefinition("pack_spell_random", "Strategy Pack",
-                "Five random Strategy cards from a changing elemental mix.", true, 120,
-                activeElements, false));
-        packs.add(new PackDefinition("pack_trap_random", "Deception Pack",
-                "Five random Deception cards from a changing elemental mix.", true, 120,
-                activeElements, false));
-        packs.add(new PackDefinition(SIEGEKNIGHT_PACK_ID, "SiegeKnight Cache",
-                "A premium cache that always contains a rare SiegeKnight plus five cards. Duplicates level up your knight.",
-                true, 1200, activeElements, false));
+        // The Strategy, Deception and SiegeKnight packs are deliberately gone.
+        // The first two split the very cards the mixed packs already deal, and
+        // the third made knights a thing you bought outright rather than
+        // something a pack could surprise you with — every pack now carries the
+        // same slim TRAINER_DROP_CHANCE instead.
         return packs.stream()
                 .filter(pack -> pack.elements().stream().map(Enum::name).allMatch(cardDefinitionService.getActiveLiveElementNames()::contains))
                 .map(this::applyAvailability)
@@ -204,13 +198,12 @@ public class PackCatalogService {
     }
 
     /**
-     * Rolls a SiegeKnight to include with a pack. The dedicated SiegeKnight Cache always yields one;
-     * other packs only yield one rarely ({@link #TRAINER_DROP_CHANCE}). Returns null when no knight drops.
+     * Rolls a SiegeKnight to include with a pack. Since the dedicated cache was retired every
+     * pack rolls the same slim {@link #TRAINER_DROP_CHANCE}. Returns null when no knight drops.
      */
     private TrainerCard rollBonusTrainer(PackDefinition pack) {
-        boolean guaranteed = SIEGEKNIGHT_PACK_ID.equals(pack.id());
         Random random = new Random();
-        if (!guaranteed && random.nextDouble() >= TRAINER_DROP_CHANCE) {
+        if (random.nextDouble() >= TRAINER_DROP_CHANCE) {
             return null;
         }
         List<TrainerCard> candidates = bonusTrainerCandidates(pack);
@@ -337,7 +330,7 @@ public class PackCatalogService {
         out.put("elements", pack.elements().stream().map(Enum::name).toList());
         out.put("starterEligible", pack.starterEligible());
         Map<String, Object> odds = new LinkedHashMap<>();
-        odds.put("siegeKnight", SIEGEKNIGHT_PACK_ID.equals(pack.id()) ? 1.0 : TRAINER_DROP_CHANCE);
+        odds.put("siegeKnight", TRAINER_DROP_CHANCE);
         Map<String, Double> holoPerCard = new LinkedHashMap<>();
         for (Rarity rarity : Rarity.values()) {
             holoPerCard.put(rarity.name(), HOLO_DROP_CHANCE.getOrDefault(rarity, 0.0));
@@ -449,8 +442,6 @@ public class PackCatalogService {
     private Optional<CardType> focusedType(String packId) {
         return switch (packId) {
             case "pack_siegeling_random" -> Optional.of(CardType.SIEGLING);
-            case "pack_spell_random" -> Optional.of(CardType.SPELL);
-            case "pack_trap_random" -> Optional.of(CardType.TRAP);
             default -> Optional.empty();
         };
     }

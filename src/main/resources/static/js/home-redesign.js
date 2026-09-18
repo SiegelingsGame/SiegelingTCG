@@ -1763,16 +1763,13 @@
     return (pk.elements && pk.elements[0]) || 'NEUTRAL';
   }
 
-  // Every pack was drawing the elemental card back for its first element, so the
-  // Siegeling, Strategy, Deception and SiegeKnight packs - which have no element -
-  // all fell through to Fire and looked identical. These are the same four
-  // special backs the shipping shop uses, keyed the same way, so the art matches
-  // what a player sees when the pack is actually opened.
+  // Every pack was drawing the elemental card back for its first element, so a
+  // pack with no element of its own fell through to Fire. The Siegeling pack is
+  // the only one left in that position now that the Strategy, Deception and
+  // SiegeKnight packs are retired; its back is the one the shipping shop uses,
+  // keyed the same way, so the art matches what opening it actually shows.
   var PACK_BACK = {
-    pack_siegeling_random: '/img/packs/siegeling-back.webp',
-    pack_spell_random: '/img/packs/spell-card-back.webp',
-    pack_trap_random: '/img/packs/trap-card-back.webp',
-    pack_siegeknight: '/img/knights/card-back-siegeknight.png'
+    pack_siegeling_random: '/img/packs/siegeling-back.webp'
   };
 
   function packBack(pk) {
@@ -4676,32 +4673,239 @@
 
   // The real help page's own topic list, kept verbatim so the redesign does not
   // quietly drop a rules chapter. Art per topic comes from the element or Land
-  // the chapter is about.
+  // the chapter is about. The fifth slot is the chapter body, rendered into the
+  // popup below: these tiles used to link back to /help, which reloaded the very
+  // screen the player was already on, so every tap read as a loading flash and
+  // nothing else.
   var HELP = [
-    ['Basics', 'How a match runs end to end', '/img/lands/relic.webp', 'NEUTRAL'],
-    ['Turn loop', 'Draw, Setup, Battle, repeat', '/img/lands/fire.webp', 'FIRE'],
-    ['Card types', 'Siegling, Strategy, Deception', '/img/gallery/draco-brood.webp', 'EARTH'],
-    ['Board, notches & energy', 'Links, sockets and what they pay for', '/img/lands/electric.webp', 'ELECTRIC'],
-    ['Evolution', 'Growing a Siegling mid-match', '/img/gallery/bearzooka-rampage.webp', 'FIRE'],
-    ['SiegeKnight', 'Passives, actives and ultimates', '/img/lands/light.webp', 'LIGHT'],
-    ['Buffs & afflictions', 'Temporary statuses and elemental damage', '/img/lands/poison.webp', 'POISON'],
-    ['Element chart', 'What beats what', '/img/lands/ice.webp', 'ICE'],
-    ['Siege mode', 'The roguelike expedition', '/img/lands/badlands.webp', 'EARTH']
+    ['Basics', 'How a match runs end to end', '/img/lands/relic.webp', 'NEUTRAL', [
+      ['p', 'Siegelings is a tactical elemental card game. Each player builds a 3×3 board half. Creature cards — Sieglings — fight with abilities paid for by elemental energy. There is no printed ATK or DEF: all damage comes from abilities.'],
+      ['facts', [['50', 'Player Health'], ['3×3', 'Board half'], ['5', 'Sieglings max'], ['+1 / -1', 'Weak / resist']]],
+      ['list', [
+        'Player HP starts at 50. When one of your Sieglings is defeated you take rarity-based bounty damage.',
+        'A Siegling’s printed stats are Health, Speed, notches (directional coloured dots) and abilities.',
+        'Board cap is 5 Sieglings per side. Evolutions do not count against the cap or the one-placement-per-turn limit.',
+        'You win by reducing the opponent’s HP to 0.'
+      ]]
+    ]],
+    ['Turn loop', 'Draw, Setup, Battle, repeat', '/img/lands/fire.webp', 'FIRE', [
+      ['p', 'Each round cycles through three phases for the active player.'],
+      ['steps', [
+        ['Draw', 'Draw cards into your hand to prepare the turn.'],
+        ['Setup', 'Place at most one new Siegling, play Strategies and Deceptions, and optionally claim surviving Sieglings for temporary energy. Afflictions like Burn and Wither resolve at the start of your Setup.'],
+        ['Battle', 'Every ready Siegling acts in Speed order, spending energy on its abilities. Then the next round begins.']
+      ]]
+    ]],
+    ['Card types', 'Siegling, Strategy, Deception', '/img/gallery/draco-brood.webp', 'EARTH', [
+      ['defs', [
+        ['Siegling', 'Creatures you place on the board. They carry notches, Health, Speed and battle abilities.'],
+        ['Strategy', 'Immediate effects played from hand during Setup. Older card data calls this role Spell.'],
+        ['Deception', 'Reactive cards set face down. They reveal when their condition is met, often during the opponent’s actions. Older data calls this role Trap.'],
+        ['Evolution', 'Placed onto a live precursor already on your board. Skips the placement cap and the one-per-turn limit.'],
+        ['SiegeKnight', 'Your trainer. Grants a passive plus an active or ultimate that shapes the whole match.']
+      ]],
+      ['note', 'Standard premade decks are 40 cards: 20 Sieglings, 10 Strategies and 10 Deceptions, at most 3 copies of a card, full evolution lines only.']
+    ]],
+    ['Board, notches & energy', 'Links, sockets and what they pay for', '/img/lands/electric.webp', 'ELECTRIC', [
+      ['p', 'The coloured dots on a Siegling’s edges are notches. When two adjacent cards’ notches point at each other — a reciprocal link — they connect and generate elemental energy.'],
+      ['list', [
+        'Sockets on the board perimeter anchor edge cells instead: left column LEFT, right column RIGHT, outer row TOP or BOTTOM.',
+        'Energy pays for Strategies, Deceptions and battle abilities, and the element of the cost matters.',
+        'Claim, during Setup, spends a surviving Siegling’s presence for temporary energy. Cursed units cannot be claimed.',
+        'Placement must stay legal on your half — foundation and network rules decide which cells light up.'
+      ]],
+      ['note', 'Energy pools: Fire, Ice, Earth, Wind, Water, Electric, Metal, Shadow, Psychic and Undead have dedicated pools. Poison and Light attacks still apply their afflictions, but their action cards use Neutral costs.']
+    ]],
+    ['Evolution', 'Growing a Siegling mid-match', '/img/gallery/bearzooka-rampage.webp', 'FIRE', [
+      ['p', 'An Evolution card is not placed on an empty cell. It is placed onto its live precursor, replacing it in the same cell and keeping that cell’s links.'],
+      ['list', [
+        'The precursor must be alive and on your board; the Evolution names which card it grows from.',
+        'Evolving is exempt from the 5-Siegling board cap and from the one-placement-per-turn limit, so you can still place a fresh Siegling the same turn.',
+        'A unit carrying any Curse stack cannot evolve until the Curse is gone.',
+        'Decks may only run full evolution lines, so a stage-2 card always ships with the stage it grows from.'
+      ]]
+    ]],
+    ['SiegeKnight', 'Passives, actives and ultimates', '/img/lands/light.webp', 'LIGHT', [
+      ['p', 'Your SiegeKnight is the trainer behind the board. You pick one per match and it never enters play as a card.'],
+      ['defs', [
+        ['Passive', 'Always on for the whole match — usually a standing bonus to your Sieglings or your energy.'],
+        ['Active', 'A deliberate ability you trigger, paid for from your energy pools like any other cost.'],
+        ['Ultimate', 'A once-per-match swing, gated behind a heavier cost or condition.']
+      ]],
+      ['note', 'SiegeKnight XP upgrades passives and actives in Siege mode only. Those bonuses never change Standard Battle values.']
+    ]],
+    ['Buffs & afflictions', 'Temporary statuses and elemental damage', '/img/lands/poison.webp', 'POISON', [
+      ['p', 'Abilities and trainer passives apply short-lived badges. Separately, when an elemental attack deals Health damage it can add a stack of that element’s affliction. Neutral damage never inflicts.'],
+      ['sub', 'Temporary statuses'],
+      ['defs', [
+        ['Shield', 'Temporary hit points absorbed before Health. Cleared when depleted or when temporary effects lapse after Battle.'],
+        ['Damage Boost', 'Outgoing ability damage is temporarily increased.'],
+        ['Speed Boost', 'Higher effective Speed, so the unit tends to act earlier in the Battle queue.'],
+        ['Max Health', 'Maximum Health raised, often with a matching heal. Distinct from a Shield stack.'],
+        ['Frozen', 'Cannot act during Battle.'],
+        ['Weak / Strong', 'The elemental matchup is against or for this unit — expect +1 or -1 damage.']
+      ]],
+      ['sub', 'Elemental afflictions'],
+      ['aff', [
+        ['Fire', 'FIRE', 'Burn', '5', 'Owner Setup: deal 1 damage per stack, then clear.'],
+        ['Electric', 'ELECTRIC', 'Shock', '5', 'This card may spend 1 less energy per stack on its abilities.'],
+        ['Poison', 'POISON', 'Toxin', '5', 'Cannot heal. Heal attempts remove Toxin stacks 1:1 instead.'],
+        ['Wind', 'WIND', 'Disorient', '3', '+1 cost per stack on the lowest-cost ability.'],
+        ['Shadow', 'SHADOW', 'Curse', '2', 'Cannot claim or evolve while any Curse remains.'],
+        ['Water', 'WATER', 'Soak', '5', 'Attacks against this unit deal +1 damage per stack.'],
+        ['Earth', 'EARTH', 'Leech', '2', 'The second Earth hit heals its attacker for the damage dealt, then clears.'],
+        ['Ice', 'ICE', 'Chill', '3', '-1 Speed per stack. At 3, Freeze until the owner’s next Setup.'],
+        ['Psychic', 'PSYCHIC', 'Insight', '3', 'At 3 stacks the inflicter draws 1 card, then all Insight clears.'],
+        ['Light', 'LIGHT', 'Blind', '3', 'Ability effect values reduced by 1 per stack.'],
+        ['Metal', 'METAL', 'Rust', '3', 'Next Metal attack deals +1 per stack, then clears Rust.'],
+        ['Undead', 'UNDEAD', 'Wither', '3', 'Owner Setup: clamp HP as if max were -1 per stack, then clear.']
+      ]]
+    ]],
+    ['Element chart', 'What beats what', '/img/lands/ice.webp', 'ICE', [
+      ['p', 'Hitting a weak defender deals +1 damage. Attacking into a defender whose element beats yours is resisted for -1, which reduces a 1-damage hit to nothing. Elements with no matchup either way deal flat damage.'],
+      ['chart', [
+        ['FIRE', ['ICE', 'METAL']], ['ICE', ['WIND', 'POISON']], ['WIND', ['EARTH', 'WATER']],
+        ['EARTH', ['FIRE', 'ELECTRIC']], ['WATER', ['FIRE', 'ICE']], ['METAL', ['EARTH', 'WIND']],
+        ['ELECTRIC', ['WIND', 'FIRE']], ['POISON', ['ICE', 'EARTH']], ['SHADOW', ['PSYCHIC', 'LIGHT']],
+        ['PSYCHIC', ['LIGHT', 'UNDEAD']], ['LIGHT', ['UNDEAD', 'SHADOW']], ['UNDEAD', ['SHADOW', 'PSYCHIC']]
+      ]]
+    ]],
+    ['Siege mode', 'The roguelike expedition', '/img/lands/badlands.webp', 'EARTH', [
+      ['p', 'Siege is a run-based solo expedition. Pick a SiegeKnight and a starter warband, cross a branching map of battles, elites, rest camps, shops and events, then fight AP-based card battles up to a boss.'],
+      ['defs', [
+        ['Build a run', 'Earn gold, recruit cards, collect items and improve the warband as you climb.'],
+        ['Spend AP', 'Play cards from a fresh hand, resolve their actions, and end the turn when your plan is set.'],
+        ['Different rules', 'There is no elemental weakness chart in Siege. Its server-driven rules have their own shields and affliction counterparts.']
+      ]],
+      ['link', ['/siege', 'Start an expedition']]
+    ]]
   ];
+
+  // Chapter bodies are small, declarative block lists rather than raw HTML so
+  // the popup escapes everything it prints and a new chapter cannot smuggle
+  // markup into the page.
+  function guideBlocks(blocks) {
+    return (blocks || []).map(function (b) {
+      var kind = b[0];
+      var v = b[1];
+      if (kind === 'p') return '<p>' + esc(v) + '</p>';
+      if (kind === 'sub') return '<h4 class="sg-guide-sub">' + esc(v) + '</h4>';
+      if (kind === 'note') return '<p class="sg-guide-note">' + esc(v) + '</p>';
+      if (kind === 'list') {
+        return '<ul class="sg-guide-list">' + v.map(function (li) {
+          return '<li>' + esc(li) + '</li>';
+        }).join('') + '</ul>';
+      }
+      if (kind === 'facts') {
+        return '<div class="sg-guide-facts">' + v.map(function (f) {
+          return '<span><strong>' + esc(f[0]) + '</strong>' + esc(f[1]) + '</span>';
+        }).join('') + '</div>';
+      }
+      if (kind === 'steps') {
+        return '<ol class="sg-guide-steps">' + v.map(function (s) {
+          return '<li><strong>' + esc(s[0]) + '</strong><span>' + esc(s[1]) + '</span></li>';
+        }).join('') + '</ol>';
+      }
+      if (kind === 'defs') {
+        return '<div class="sg-guide-defs">' + v.map(function (d) {
+          return '<div class="sg-guide-def"><strong>' + esc(d[0]) + '</strong><span>' + esc(d[1]) + '</span></div>';
+        }).join('') + '</div>';
+      }
+      if (kind === 'aff') {
+        return '<div class="sg-guide-affs">' + v.map(function (a) {
+          return '<div class="sg-guide-aff" style="--el:' + color(a[1]) + '">' +
+            '<span class="sg-guide-chip">' + esc(a[0]) + '</span>' +
+            '<strong>' + esc(a[2]) + '</strong>' +
+            '<em>cap ' + esc(a[3]) + '</em>' +
+            '<p>' + esc(a[4]) + '</p></div>';
+        }).join('') + '</div>';
+      }
+      if (kind === 'chart') {
+        return '<div class="sg-guide-chart">' + v.map(function (row) {
+          return '<div class="sg-guide-chart-row">' +
+            '<span class="sg-guide-chip" style="--el:' + color(row[0]) + '">' + esc(title(row[0])) + '</span>' +
+            '<i>›</i>' + row[1].map(function (t) {
+              return '<span class="sg-guide-chip" style="--el:' + color(t) + '">' + esc(title(t)) + '</span>';
+            }).join('') + '</div>';
+        }).join('') + '</div>';
+      }
+      if (kind === 'link') {
+        return '<a class="sg-guide-cta" href="' + esc(v[0]) + '">' + esc(v[1]) + ' ›</a>';
+      }
+      return '';
+    }).join('');
+  }
+
+  function guideMarkup(chapter) {
+    return '<button class="sg-guide-dismiss" type="button" aria-label="Close chapter">×</button>' +
+      '<header class="sg-guide-head">' +
+        '<img src="' + esc(chapter[2]) + '" alt="">' +
+        '<div class="sg-guide-veil"></div>' +
+        '<div class="sg-guide-title"><strong>' + esc(chapter[0]) + '</strong><span>' + esc(chapter[1]) + '</span></div>' +
+      '</header>' +
+      '<div class="sg-guide-body">' + guideBlocks(chapter[4]) + '</div>';
+  }
+
+  // The popup is the whole point of the chapter grid, so it is mounted with the
+  // help screen and never navigates: the old tiles pointed at /help, which is
+  // this screen, and a full reload only re-showed the loading state.
+  function mountHelp(app) {
+    var guide = app.querySelector('[data-guide]');
+    if (!guide) return;
+    var panel = guide.querySelector('[data-guide-panel]');
+    var opener = null;
+
+    function close() {
+      if (!guide.classList.contains('open')) return;
+      guide.classList.remove('open');
+      guide.hidden = true;
+      panel.innerHTML = '';
+      if (opener && opener.isConnected) opener.focus({ preventScroll: true });
+      opener = null;
+    }
+    function open(index, from) {
+      var chapter = HELP[index];
+      if (!chapter) return;
+      opener = from || document.activeElement;
+      panel.innerHTML = guideMarkup(chapter);
+      panel.style.setProperty('--el', color(chapter[3]));
+      panel.scrollTop = 0;
+      guide.hidden = false;
+      guide.classList.add('open');
+      panel.querySelector('.sg-guide-dismiss').focus({ preventScroll: true });
+    }
+
+    app.addEventListener('click', function (e) {
+      var card = e.target.closest ? e.target.closest('[data-help-chapter]') : null;
+      if (!card) return;
+      e.preventDefault();
+      open(Number(card.getAttribute('data-help-chapter')), card);
+    });
+    guide.addEventListener('click', function (e) {
+      if (e.target === guide || (e.target.closest && e.target.closest('.sg-guide-dismiss'))) close();
+    });
+    app.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') close();
+    });
+  }
 
   function helpScreen(opts) {
     opts = opts || {};
     return topMarkup(opts) +
       '<div class="sg-scroll">' +
         '<div class="sg-page-head"><h2>How to Play</h2><p>' + HELP.length + ' chapters</p></div>' +
-        '<div class="sg-help-grid">' + HELP.map(function (h) {
-          return '<a class="sg-help-card" href="/help" style="--el:' + color(h[3]) + '">' +
+        '<div class="sg-help-grid">' + HELP.map(function (h, i) {
+          return '<button class="sg-help-card" type="button" data-help-chapter="' + i + '" ' +
+            'style="--el:' + color(h[3]) + '">' +
             '<img src="' + esc(h[2]) + '" alt="" loading="lazy">' +
             '<div class="sg-help-veil"></div>' +
             '<div class="sg-help-body"><strong>' + esc(h[0]) + '</strong><span>' + esc(h[1]) + '</span></div>' +
-          '</a>';
+          '</button>';
         }).join('') + '</div>' +
         '<div style="height:96px"></div>' +
+      '</div>' +
+      '<div class="sg-guide" data-guide hidden>' +
+        '<div class="sg-guide-panel" data-guide-panel role="dialog" aria-modal="true" aria-label="Rules chapter"></div>' +
       '</div>' +
       bottomMarkup('more', opts);
   }
@@ -4825,6 +5029,7 @@
       if (strip) strip.classList.add('open');
     }
     if (screen === 'settings') mountSettings(app);
+    if (screen === 'help') mountHelp(app);
     if (screen === 'auth') mountAuth(app);
     mountBottom(app);
     mountNotifs(app, opts);

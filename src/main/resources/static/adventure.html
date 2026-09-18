@@ -58,7 +58,10 @@
 
   <!-- Top bar -->
   <header class="siege-topbar">
-    <a class="siege-back" href="/play" title="Back to Play">◄ Play</a>
+    <!-- The new hub's Play screen, not /play: that path still serves the old
+         welcome/mode overlay on the battle table, which is the layout the
+         redesign replaced. Kept in sync with SIEGE_EXIT_PATH in adventure.js. -->
+    <a class="siege-back" href="/home?screen=play" title="Back to Play">◄ Play</a>
     <div class="siege-title">SIEGE <span>Adventure Expedition</span></div>
     <!-- Which expedition this is belongs with the run's identity, not with its
          resources: it lives in the top bar (shown on the map screen only) so the
@@ -760,6 +763,6 @@
 <script src="/js/siege-maps.js?v=3"></script>
 <script src="/js/coach.js?v=11"></script>
 <script src="/js/siege-tutorial.js?v=27"></script>
-<script src="/js/adventure.js?v=106"></script>
+<script src="/js/adventure.js?v=107"></script>
 </body>
 </html>

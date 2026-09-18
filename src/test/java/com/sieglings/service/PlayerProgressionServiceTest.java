@@ -754,7 +754,7 @@ class PlayerProgressionServiceTest {
     }
 
     @Test
-    void siegeKnightPackDropAddsKnightToOwnership() throws Exception {
+    void rareSiegeKnightDropFromAnOrdinaryPackAddsKnightToOwnership() throws Exception {
         FakeProgressionStore store = new FakeProgressionStore();
         PlayerProgressionEntity progression = new PlayerProgressionEntity();
         progression.setUserId("player@example.com");
@@ -763,7 +763,7 @@ class PlayerProgressionServiceTest {
         store.saved = progression;
         PlayerProgressionService service = createService(store, new TrainerDropPackCatalogService(), new FakeCardDefinitionService());
 
-        service.openPack(user(), "pack_siegeknight");
+        service.openPack(user(), "pack_fire");
 
         assertEquals(1, store.saved.getTrainerLevels().get("trainer01"));
         assertEquals(1, store.saved.getTrainerLevels().get("trainer02"));
@@ -867,7 +867,7 @@ class PlayerProgressionServiceTest {
         @Override
         public PackOpenResult openPack(String packId, boolean starterOnly) {
             return new PackOpenResult(
-                    new PackDefinition("pack_siegeknight", "SiegeKnight Cache", "", true, 1200, List.of(Element.FIRE), false),
+                    new PackDefinition("pack_fire", "Fire Starter Pack", "", true, 100, List.of(Element.FIRE), true),
                     List.of(
                             new SieglingCard("draco", "Draco", Element.FIRE, Rarity.COMMON, 7, 3, List.of(), Row.FRONT),
                             new SieglingCard("dracoil", "Dracoil", Element.FIRE, Rarity.RARE, 8, 3, List.of(), Row.FRONT),
