@@ -19,7 +19,6 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -137,27 +136,14 @@ public class LiveElementCatalogService {
     }
 
     public List<ElementToggle> buildEditorPayload() {
-        Map<Element, Boolean> map = togglesByElement(parseElementFile(loadSnapshot().data()).elements());
-        // Empty config → show the full roster as on. A configured doc that omits a
-        // newly added element must not silently activate it (Poison/Light opt-in).
-        boolean defaultActive = map.isEmpty();
-        List<ElementToggle> rows = new ArrayList<>();
-        for (Element element : DEFAULT_GAMEPLAY_ELEMENT_ORDER) {
-            rows.add(new ElementToggle(element.name(), map.getOrDefault(element, defaultActive)));
-        }
-        return rows;
+        return parseElementFile(loadSnapshot().data()).elements();
     }
 
     static Set<Element> resolveActiveElements(List<ElementToggle> raw) {
-        Map<Element, Boolean> map = togglesByElement(raw);
-        // Same opt-in rule as the editor payload: missing keys in a non-empty
-        // roster stay off so expanding DEFAULT_GAMEPLAY_ELEMENT_ORDER cannot
-        // flip new elements live in production by accident.
-        boolean defaultActive = map.isEmpty();
         Set<Element> active = new LinkedHashSet<>();
-        for (Element element : DEFAULT_GAMEPLAY_ELEMENT_ORDER) {
-            if (map.getOrDefault(element, defaultActive)) {
-                active.add(element);
+        for (ElementToggle row : normalizeFile(new LiveElementsFile(raw)).elements()) {
+            if (Boolean.TRUE.equals(row.active())) {
+                active.add(Element.valueOf(row.element()));
             }
         }
         return active;
@@ -359,14 +345,18 @@ public class LiveElementCatalogService {
         }
     }
 
-    private static LiveElementsFile normalizeFile(LiveElementsFile file) {
-        return new LiveElementsFile(defaultToggles().stream()
-                .map(defaultRow -> {
-                    Element element = Element.valueOf(defaultRow.element());
-                    Boolean override = togglesByElement(file.elements()).get(element);
-                    boolean active = override == null || override;
-                    return new ElementToggle(element.name(), active);
-                })
+    /**
+     * Expand a roster to the full gameplay order. An empty/missing list means
+     * "all on"; a configured list that omits a newly added element (Poison/Light)
+     * stays off so expanding {@link #DEFAULT_GAMEPLAY_ELEMENT_ORDER} cannot flip
+     * unreleased elements live. This is the same rule {@link #resolveActiveElements}
+     * uses — load, editor payload, and persist all go through here.
+     */
+    static LiveElementsFile normalizeFile(LiveElementsFile file) {
+        Map<Element, Boolean> overrides = togglesByElement(file == null ? null : file.elements());
+        boolean defaultActive = overrides.isEmpty();
+        return new LiveElementsFile(DEFAULT_GAMEPLAY_ELEMENT_ORDER.stream()
+                .map(element -> new ElementToggle(element.name(), overrides.getOrDefault(element, defaultActive)))
                 .toList());
     }
 
