@@ -2104,6 +2104,15 @@ body.concept-board {
 .sg-card-tile .binder-framed-slot,
 .sg-card-tile .binder-card { width:100%; height:auto; margin:0; }
 .sg-gal-grid { align-items:start; gap:14px 12px; }
+/* Desktop binder: the tiles are capped at 168px wide (.binder-framed-slot), so a
+   two-column grid leaves a whole card's worth of dead air between them. Pack the
+   columns to the tile width instead so the sheet reads like the printed binder. */
+@media (min-width:700px) {
+  .sg-gal-grid {
+    grid-template-columns:repeat(auto-fill, minmax(150px, 176px));
+    justify-content:center; gap:18px 14px; padding:26px 22px 24px;
+  }
+}
 .sg-build-slot { position:relative; flex:0 0 132px; scroll-snap-align:start; }
 .sg-build-slot .sg-card-tile { pointer-events:none; }
 .sg-build-slot .sg-build-count { top:6px; right:6px; }
