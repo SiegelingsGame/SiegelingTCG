@@ -3783,7 +3783,7 @@
     var rate = played ? Math.round(wins / played * 100) + '%' : '—';
     var pct = collectedPercent(live);
     var owned = pct == null ? '—' : pct + '%';
-    return '<div class="sg-tiles">' +
+    return '<div class="sg-tiles" data-prof-block="tiles">' +
       '<div><span>Matches</span><b>' + esc(played != null ? played : '—') + '</b></div>' +
       '<div><span>Win Rate</span><b>' + esc(rate) + '</b></div>' +
       '<div><span>Collected</span><b>' + esc(owned) + '</b></div>' +
@@ -3845,7 +3845,7 @@
   function signatureSection(opts) {
     var fav = byIdIn(ALL_CARDS, prefs().favoriteCardId);
     var back = cardBackEntry(prefs().preferredCardBack) || CARD_BACKS[0];
-    return '<section class="sg-section">' +
+    return '<section class="sg-section" data-prof-block="signature">' +
       '<div class="sg-section-head"><h3>Signature</h3>' +
         (opts.guest ? '' : '<a href="#" data-prof-open="favorite">Change</a>') + '</div>' +
       '<div class="sg-sig">' +
@@ -3882,8 +3882,11 @@
      two can never drift apart. */
   function profileBody(opts) {
     var cards = showcaseCards();
-    return '' +
-        '<section class="sg-crest" style="--el:' + color(crestElement()) + '">' +
+    /* The blocks carry data-prof-block so the desktop layer can place them in
+       two columns without a second markup path. The wrapper is display:contents
+       below 1024px, so the phone DOM order and rendering are unchanged. */
+    return '<div class="sg-prof-layout">' +
+        '<section class="sg-crest" data-prof-block="crest" style="--el:' + color(crestElement()) + '">' +
           '<img class="sg-crest-bg" src="' + esc(crestBackground()) + '" alt="">' +
           '<div class="sg-crest-veil"></div>' +
           (opts.guest ? ''
@@ -3900,7 +3903,7 @@
           '</div>' +
         '</section>' +
         profileTiles(opts) +
-        '<section class="sg-section">' +
+        '<section class="sg-section" data-prof-block="showcase">' +
           '<div class="sg-section-head"><h3>Showcase</h3>' +
             (opts.guest
               ? '<a href="/cards" data-screen="collection">Browse</a>'
@@ -3908,11 +3911,12 @@
           '<div class="sg-swipe">' + cards.map(featTile).join('') + '</div>' +
         '</section>' +
         signatureSection(opts) +
-        '<section class="sg-section">' +
+        '<section class="sg-section" data-prof-block="recent">' +
           '<div class="sg-section-head"><h3>Recent</h3></div>' +
           recentMarkup(opts) +
         '</section>' +
-        '<div style="height:96px"></div>';
+      '</div>' +
+      '<div style="height:96px"></div>';
   }
 
   /* ---------- profile editor ----------
