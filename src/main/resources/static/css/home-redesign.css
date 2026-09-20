@@ -820,6 +820,157 @@ body.concept-board {
      scrolled through the binder. */
   display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:34px 14px; padding:30px 18px 24px;
 }
+
+/* ==========================================================================
+   BINDER DRESSING (cover / page / sleeves) - all three are player-chosen and
+   stored per device in localStorage.sgBinderLook; home-redesign.js writes the
+   choice onto .sg-app as data-binder-page / data-binder-sleeve and paints the
+   cover image straight onto .sg-binder-cover.
+   ========================================================================== */
+.sg-binder-skin { position:absolute; inset:0; z-index:0; overflow:hidden; pointer-events:none; }
+/* Sibling combinator rather than :has() - the skin is always emitted directly
+   before the scroller on this screen, and this needs no modern-selector fallback. */
+.sg-binder-skin ~ .sg-scroll { position:relative; z-index:1; }
+.sg-binder-cover { position:absolute; inset:-4%; background-size:cover; background-position:center; opacity:0; transition:opacity .5s ease; }
+.sg-binder-cover.is-art { opacity:1; filter:saturate(.68) brightness(.42) contrast(1.05); }
+.sg-binder-veil {
+  position:absolute; inset:0;
+  background:
+    radial-gradient(120% 70% at 50% -10%, rgba(103,78,190,.34), transparent 62%),
+    linear-gradient(180deg, rgba(13,10,38,.62) 0%, rgba(9,7,28,.80) 48%, rgba(7,5,22,.93) 100%);
+}
+
+/* The page the pockets sit on. Card tiles are capped at 168px, so the page is
+   sized by the grid inside it rather than the other way round. */
+.sg-binder-page {
+  position:relative; margin:6px 10px 0; border-radius:22px;
+  border:1px solid rgba(200,165,79,.22);
+  box-shadow:0 18px 44px rgba(3,2,14,.5), inset 0 1px 0 rgba(255,255,255,.06);
+  background:linear-gradient(180deg, rgba(31,22,62,.62), rgba(11,8,30,.72));
+}
+/* Stitching: one inset dashed rule, not a border image, so it survives any
+   corner radius change. */
+.sg-binder-page::after {
+  content:''; position:absolute; inset:7px; border-radius:16px; pointer-events:none;
+  border:1px dashed rgba(230,205,140,.20);
+}
+.sg-app[data-binder-page="leather"] .sg-binder-page {
+  background:
+    repeating-linear-gradient(46deg, rgba(255,255,255,.022) 0 2px, transparent 2px 5px),
+    linear-gradient(180deg, rgba(58,26,28,.72), rgba(24,11,16,.86));
+  border-color:rgba(200,120,80,.30);
+}
+.sg-app[data-binder-page="parchment"] .sg-binder-page {
+  background:
+    repeating-linear-gradient(92deg, rgba(90,60,20,.06) 0 3px, transparent 3px 9px),
+    linear-gradient(180deg, rgba(226,205,160,.90), rgba(196,170,126,.88));
+  border-color:rgba(120,88,40,.48);
+}
+.sg-app[data-binder-page="parchment"] .sg-binder-page::after { border-color:rgba(96,66,26,.34); }
+.sg-app[data-binder-page="slate"] .sg-binder-page {
+  background:
+    repeating-linear-gradient(0deg, rgba(255,255,255,.018) 0 1px, transparent 1px 6px),
+    linear-gradient(180deg, rgba(38,48,64,.80), rgba(13,18,28,.90));
+  border-color:rgba(143,162,189,.30);
+}
+.sg-app[data-binder-page="velvet"] .sg-binder-page {
+  background:
+    radial-gradient(120% 60% at 50% 0%, rgba(180,92,255,.22), transparent 70%),
+    linear-gradient(180deg, rgba(44,18,74,.86), rgba(16,7,34,.92));
+  border-color:rgba(180,92,255,.34);
+}
+
+/* Sleeves: a pocket behind every tile. Drawn on the tile itself so it tracks
+   whatever the grid does at any viewport. */
+.sg-binder-page .sg-card-tile { position:relative; }
+.sg-binder-page .sg-card-tile::before {
+  content:''; position:absolute; inset:-7px -6px -9px; border-radius:15px; z-index:0;
+  background:linear-gradient(180deg, color-mix(in srgb, var(--sleeve,#e6cd8c) 16%, rgba(6,4,20,.42)), rgba(4,3,16,.5));
+  box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--sleeve,#e6cd8c) 34%, transparent),
+             0 10px 20px rgba(0,0,0,.42);
+  transition:box-shadow .3s ease, background .3s ease;
+}
+/* The sleeve's shine reads as plastic over the card, so it sits above the
+   pocket but below the printed face. */
+.sg-binder-page .sg-card-tile::after {
+  content:''; position:absolute; inset:-7px -6px -9px; border-radius:15px; z-index:2;
+  pointer-events:none; mix-blend-mode:screen;
+  background:linear-gradient(126deg, rgba(255,255,255,.14) 0 18%, transparent 42%);
+}
+.sg-binder-page .sg-card-tile > * { position:relative; z-index:1; }
+.sg-binder-page .sg-card-tile:hover::before {
+  box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--sleeve,#e6cd8c) 62%, transparent),
+             0 14px 26px rgba(0,0,0,.5);
+}
+.sg-app[data-binder-sleeve="gold"] .sg-binder-page { --sleeve:#e6cd8c; }
+.sg-app[data-binder-sleeve="steel"] .sg-binder-page { --sleeve:#8fa2bd; }
+.sg-app[data-binder-sleeve="ember"] .sg-binder-page { --sleeve:#f0713f; }
+.sg-app[data-binder-sleeve="violet"] .sg-binder-page { --sleeve:#b45cff; }
+.sg-app[data-binder-sleeve="clear"] .sg-binder-page .sg-card-tile::before,
+.sg-app[data-binder-sleeve="clear"] .sg-binder-page .sg-card-tile::after { display:none; }
+
+/* --- the picker --- */
+.sg-look {
+  position:absolute; inset:0; z-index:70; display:flex; align-items:flex-end; justify-content:center;
+  opacity:0; pointer-events:none; transition:opacity .28s ease;
+}
+.sg-look.open { opacity:1; pointer-events:auto; }
+.sg-look-scrim { position:absolute; inset:0; border:0; padding:0; cursor:pointer;
+  background:rgba(3,6,12,.58); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); }
+.sg-look-card {
+  position:relative; width:min(560px, 100%); max-height:78%; display:flex; flex-direction:column;
+  margin:0 8px 8px; padding:0 16px 18px; border-radius:24px;
+  border:1px solid rgba(200,165,79,.28);
+  background:linear-gradient(180deg, rgba(20,15,48,.97), rgba(8,6,22,.99));
+  box-shadow:0 -22px 60px rgba(0,0,0,.7);
+  transform:translateY(20px); transition:transform .3s cubic-bezier(.2,.8,.25,1);
+}
+.sg-look.open .sg-look-card { transform:translateY(0); }
+.sg-look-grab { width:38px; height:4px; border-radius:2px; margin:10px auto 2px; background:rgba(143,162,189,.45); }
+.sg-look-head { display:flex; align-items:center; justify-content:space-between; padding:6px 0 2px; }
+.sg-look-head h3 { margin:0; font-family:var(--serif); font-size:19px; font-weight:600; }
+.sg-look-x { width:30px; height:30px; border:0; border-radius:50%; cursor:pointer; font-size:17px;
+  color:var(--ink); background:rgba(6,3,24,.6); }
+.sg-look-body { overflow:auto; min-height:0; scrollbar-width:none; }
+.sg-look-body::-webkit-scrollbar { display:none; }
+.sg-look-sub { margin:14px 0 8px; font-size:10.5px; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); }
+.sg-look-covers { display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:8px; }
+.sg-look-swatch {
+  position:relative; height:62px; border-radius:13px; cursor:pointer; overflow:hidden;
+  border:1px solid var(--steel-soft); background-size:cover; background-position:center;
+  background-color:#141032; color:var(--ink); padding:0;
+  transition:border-color .25s ease, box-shadow .25s ease, transform .25s ease;
+}
+.sg-look-swatch span {
+  position:absolute; left:0; right:0; bottom:0; padding:12px 6px 5px; font-size:10px; line-height:1.2;
+  background:linear-gradient(180deg, transparent, rgba(4,3,16,.88));
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.sg-look-swatch.on { border-color:var(--gold-bright); box-shadow:0 0 0 2px rgba(230,205,140,.45); transform:translateY(-2px); }
+.sg-look-row { display:flex; flex-wrap:wrap; gap:8px; }
+.sg-look-chip {
+  display:inline-flex; align-items:center; gap:7px; height:34px; padding:0 13px; border-radius:999px;
+  cursor:pointer; font-size:12px; color:var(--ink);
+  border:1px solid var(--steel-soft); background:rgba(11,17,32,.6);
+  transition:border-color .25s ease, color .25s ease, background .25s ease;
+}
+.sg-look-chip.on { color:#1f1608; background:linear-gradient(180deg,#f0cd8a,var(--gold)); border-color:rgba(255,226,171,.6); }
+.sg-look-dot { width:13px; height:13px; border-radius:50%; background:var(--sw,#e6cd8c);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.35); }
+.sg-look-page-dot { width:13px; height:13px; border-radius:4px; box-shadow:inset 0 0 0 1px rgba(255,255,255,.28); }
+.sg-look-page-dot.page-leather { background:linear-gradient(180deg,#5c2a2b,#24101a); }
+.sg-look-page-dot.page-parchment { background:linear-gradient(180deg,#e2cda0,#c4aa7e); }
+.sg-look-page-dot.page-slate { background:linear-gradient(180deg,#2a3547,#0d121c); }
+.sg-look-page-dot.page-velvet { background:linear-gradient(180deg,#42186e,#16072a); }
+
+@media (min-width:700px) {
+  .sg-binder-page { margin:10px 22px 0; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .sg-binder-cover, .sg-look, .sg-look-card, .sg-look-swatch,
+  .sg-binder-page .sg-card-tile::before { transition:none; }
+}
+
 .sg-gal-card { position:relative; cursor:pointer; }
 .sg-gal-plate {
   position:relative; height:176px; border-radius:18px;

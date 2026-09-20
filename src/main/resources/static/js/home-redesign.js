@@ -906,6 +906,190 @@
       bottomMarkup('home', opts);
   }
 
+  /* ---------- binder look ----------
+     The binder was a grid of cards on the app's flat purple: nothing said
+     "binder", and two players' collections looked identical. The dressing is
+     three stacked layers - a cover photo, a page surface, and a sleeve tint on
+     each pocket - and all three are the player's to choose. The choice is a
+     device preference (localStorage), not part of the server profile, because
+     profileSettings is a fixed contract the backend validates; a cosmetic that
+     needs no server round-trip should not wait on one.
+     Cover art reuses what the app already ships - the Siege land plates and the
+     loading-art gallery - so no new image bytes are added for this. */
+  var BINDER_LOOK_KEY = 'sgBinderLook';
+  var BINDER_COVERS = [
+    { id: 'midnight', label: 'Midnight', art: '' },
+    { id: 'fire', label: 'Emberwaste', art: '/img/lands/fire.webp' },
+    { id: 'ice', label: 'Rimeholt', art: '/img/lands/ice.webp' },
+    { id: 'water', label: 'Sunken Span', art: '/img/lands/water.webp' },
+    { id: 'earth', label: 'Rootreach', art: '/img/lands/earth.webp' },
+    { id: 'wind', label: 'Galecrest', art: '/img/lands/wind.webp' },
+    { id: 'electric', label: 'Stormspire', art: '/img/lands/electric.webp' },
+    { id: 'metal', label: 'Forgeworks', art: '/img/lands/metal.webp' },
+    { id: 'poison', label: 'Mirewood', art: '/img/lands/poison.webp' },
+    { id: 'psychic', label: 'Dreamfold', art: '/img/lands/psychic.webp' },
+    { id: 'light', label: 'Dawnhall', art: '/img/lands/light.webp' },
+    { id: 'shadow', label: 'Duskmarch', art: '/img/lands/shadow.webp' },
+    { id: 'undead', label: 'Gravewatch', art: '/img/lands/undead.webp' },
+    { id: 'aurora', label: 'Aurora', art: '/img/lands/aurora.webp' },
+    { id: 'badlands', label: 'Badlands', art: '/img/lands/badlands.webp' },
+    { id: 'obsidian', label: 'Obsidian', art: '/img/lands/obsidian.webp' },
+    { id: 'relic', label: 'Relic Vault', art: '/img/lands/relic.webp' }
+  ];
+  var BINDER_PAGES = [
+    ['leather', 'Leather'], ['parchment', 'Parchment'], ['slate', 'Slate'], ['velvet', 'Velvet']
+  ];
+  var BINDER_SLEEVES = [
+    ['gold', 'Gold', '#e6cd8c'], ['steel', 'Steel', '#8fa2bd'], ['ember', 'Ember', '#f0713f'],
+    ['violet', 'Violet', '#b45cff'], ['clear', 'Clear', 'transparent']
+  ];
+  var BINDER_LOOK_DEFAULT = { cover: 'midnight', page: 'leather', sleeve: 'gold' };
+
+  function readBinderLook() {
+    var look = { cover: BINDER_LOOK_DEFAULT.cover, page: BINDER_LOOK_DEFAULT.page,
+                 sleeve: BINDER_LOOK_DEFAULT.sleeve };
+    var raw;
+    try { raw = JSON.parse(localStorage.getItem(BINDER_LOOK_KEY) || '{}') || {}; }
+    catch (e) { raw = {}; }
+    if (raw.cover) look.cover = String(raw.cover);
+    if (raw.page) look.page = String(raw.page);
+    if (raw.sleeve) look.sleeve = String(raw.sleeve);
+    return look;
+  }
+
+  function writeBinderLook(look) {
+    try { localStorage.setItem(BINDER_LOOK_KEY, JSON.stringify(look)); }
+    catch (e) { /* private mode: the look still applies for this session */ }
+  }
+
+  // A cover is either a shipped land plate or 'gallery:<pieceId>' - the player
+  // can hang any piece of the art gallery behind their collection.
+  function binderCoverArt(coverId) {
+    var id = String(coverId || '');
+    if (id.indexOf('gallery:') === 0) {
+      var piece = profileArtPiece(id.slice(8));
+      return piece ? (piece.thumb || piece.full || '') : '';
+    }
+    for (var i = 0; i < BINDER_COVERS.length; i++) {
+      if (BINDER_COVERS[i].id === id) return BINDER_COVERS[i].art;
+    }
+    return '';
+  }
+
+  function applyBinderLook(app, look) {
+    if (!app) return;
+    app.setAttribute('data-binder-page', look.page);
+    app.setAttribute('data-binder-sleeve', look.sleeve);
+    var cover = app.querySelector('[data-binder-cover]');
+    if (!cover) return;
+    var art = binderCoverArt(look.cover);
+    cover.style.backgroundImage = art ? 'url("' + art + '")' : '';
+    cover.classList.toggle('is-art', Boolean(art));
+  }
+
+  function binderSkinMarkup() {
+    return '<div class="sg-binder-skin" aria-hidden="true">' +
+      '<div class="sg-binder-cover" data-binder-cover></div>' +
+      '<div class="sg-binder-veil"></div>' +
+    '</div>';
+  }
+
+  function binderSwatchRow(look) {
+    var covers = BINDER_COVERS.map(function (c) {
+      return '<button class="sg-look-swatch' + (c.id === look.cover ? ' on' : '') + '" type="button" ' +
+        'data-look-cover="' + esc(c.id) + '"' +
+        (c.art ? ' style="background-image:url(\'' + esc(c.art) + '\')"' : '') + '>' +
+        '<span>' + esc(c.label) + '</span></button>';
+    });
+    // Gallery pieces load from /api/art/loading, so this list is empty offline -
+    // the shipped covers above are always there to fall back on.
+    galleryPieces().forEach(function (p) {
+      covers.push('<button class="sg-look-swatch' +
+        (look.cover === 'gallery:' + p.id ? ' on' : '') + '" type="button" ' +
+        'data-look-cover="gallery:' + esc(p.id) + '" ' +
+        'style="background-image:url(\'' + esc(p.thumb) + '\')">' +
+        '<span>' + esc(p.title) + '</span></button>');
+    });
+    return covers.join('');
+  }
+
+  function binderLookMarkup(look) {
+    return '<div class="sg-look-grab"></div>' +
+      '<div class="sg-look-head"><h3>Dress the binder</h3>' +
+        '<button class="sg-look-x" type="button" data-look-close aria-label="Close">×</button></div>' +
+      '<div class="sg-look-body">' +
+        '<h4 class="sg-look-sub">Cover</h4>' +
+        '<div class="sg-look-covers">' + binderSwatchRow(look) + '</div>' +
+        '<h4 class="sg-look-sub">Page</h4>' +
+        '<div class="sg-look-row">' + BINDER_PAGES.map(function (p) {
+          return '<button class="sg-look-chip' + (p[0] === look.page ? ' on' : '') + '" type="button" ' +
+            'data-look-page="' + esc(p[0]) + '"><i class="sg-look-page-dot page-' + esc(p[0]) + '"></i>' +
+            esc(p[1]) + '</button>';
+        }).join('') + '</div>' +
+        '<h4 class="sg-look-sub">Sleeves</h4>' +
+        '<div class="sg-look-row">' + BINDER_SLEEVES.map(function (sl) {
+          return '<button class="sg-look-chip' + (sl[0] === look.sleeve ? ' on' : '') + '" type="button" ' +
+            'data-look-sleeve="' + esc(sl[0]) + '"><i class="sg-look-dot" style="--sw:' + esc(sl[2]) +
+            '"></i>' + esc(sl[1]) + '</button>';
+        }).join('') + '</div>' +
+      '</div>';
+  }
+
+  function binderLookHost(look) {
+    return '<div class="sg-look" data-look aria-hidden="true">' +
+      '<button class="sg-look-scrim" type="button" data-look-close aria-label="Close binder styling"></button>' +
+      '<div class="sg-look-card" role="dialog" aria-modal="true" aria-label="Dress the binder" data-look-card>' +
+        binderLookMarkup(look) +
+      '</div>' +
+    '</div>';
+  }
+
+  // The picker repaints in place: a swatch is a preview, so the binder behind
+  // the sheet has to change while the sheet is still open.
+  function mountBinderLook(app) {
+    var host = app.querySelector('[data-look]');
+    var toggle = app.querySelector('[data-look-toggle]');
+    if (!host || !toggle) return;
+    var card = host.querySelector('[data-look-card]');
+    var look = readBinderLook();
+    applyBinderLook(app, look);
+
+    function open() {
+      card.innerHTML = binderLookMarkup(look);
+      host.classList.add('open');
+      host.setAttribute('aria-hidden', 'false');
+      toggle.classList.add('on');
+    }
+    function close() {
+      host.classList.remove('open');
+      host.setAttribute('aria-hidden', 'true');
+      toggle.classList.remove('on');
+      toggle.focus({ preventScroll: true });
+    }
+    function pick(key, value) {
+      look[key] = value;
+      writeBinderLook(look);
+      applyBinderLook(app, look);
+      card.innerHTML = binderLookMarkup(look);
+    }
+
+    toggle.addEventListener('click', function () {
+      if (host.classList.contains('open')) close(); else open();
+    });
+    host.addEventListener('click', function (e) {
+      if (e.target.closest('[data-look-close]')) { close(); return; }
+      var cover = e.target.closest('[data-look-cover]');
+      if (cover) { pick('cover', cover.getAttribute('data-look-cover')); return; }
+      var page = e.target.closest('[data-look-page]');
+      if (page) { pick('page', page.getAttribute('data-look-page')); return; }
+      var sleeve = e.target.closest('[data-look-sleeve]');
+      if (sleeve) { pick('sleeve', sleeve.getAttribute('data-look-sleeve')); }
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && host.classList.contains('open')) close();
+    });
+  }
+
   function binderFilterRowsMarkup(elements, rarities) {
     return '' +
       '<div class="sg-filter-label">Element</div>' +
@@ -938,6 +1122,7 @@
     var counts = collectionCounts(opts.live);
     var filterRows = binderFilterRowsMarkup(elements, rarities);
     return topMarkup(opts) +
+      binderSkinMarkup() +
       '<div class="sg-scroll" data-gal-scroll>' +
         '<div class="sg-gal-head"><h2>The Binder</h2><p>' +
           (counts ? esc(counts.held) + ' of ' + esc(counts.total) + ' cards collected'
@@ -949,12 +1134,13 @@
               '<button class="sg-icon-btn" type="button" data-search-toggle aria-label="Search">⌕</button>' +
               '<label class="sg-search"><input type="text" placeholder="Search the binder…" data-search-input></label>' +
               '<button class="sg-icon-btn" type="button" data-filter-toggle aria-label="Filters">≡</button>' +
+              '<button class="sg-icon-btn" type="button" data-look-toggle aria-label="Dress the binder">\u2756</button>' +
               '<span class="sg-count" data-count></span>' +
             '</div>' +
             '<div class="sg-filters" data-filters><div>' + filterRows + '</div></div>' +
           '</div>' +
         '</div>' +
-        '<div class="sg-gal-grid" data-grid></div>' +
+        '<div class="sg-binder-page"><div class="sg-gal-grid" data-grid></div></div>' +
         '<div class="sg-gal-more" data-more hidden><button type="button">Show more</button></div>' +
         '<div style="height:96px"></div>' +
       '</div>' +
@@ -989,6 +1175,7 @@
           '<div class="sg-filter-glass-body" data-glass-filters>' + filterRows + '</div>' +
         '</div>' +
       '</div>' +
+      binderLookHost(readBinderLook()) +
       sheetHost() +
       bottomMarkup('collection', opts);
   }
@@ -1083,6 +1270,7 @@
     var count = app.querySelector('[data-count]');
     var more = app.querySelector('[data-more]');
     var openSheet = mountSheet(app, opts) || function () {};
+    mountBinderLook(app);
     var activeEl = 'ALL', activeRarity = 'ALL', activeType = 'ALL', query = '', limit = 24;
     var COMPACT_AFTER = 72;
 
