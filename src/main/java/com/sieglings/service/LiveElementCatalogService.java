@@ -360,12 +360,19 @@ public class LiveElementCatalogService {
     }
 
     private static LiveElementsFile normalizeFile(LiveElementsFile file) {
+        Map<Element, Boolean> stored = togglesByElement(file.elements());
+        // An element the stored roster never mentions is NOT live. Filling the gap
+        // with `true` here is what put Poison and Light in the shop: the roster in
+        // Firestore was last written by a build whose element order stopped at ten,
+        // and every element added after it was then invented as active right here -
+        // before the opt-in guards in resolveActiveElements and buildEditorPayload
+        // ever saw the map, which is why those guards never fired. An EMPTY roster
+        // still means "all on": that is a fresh install, not an omission.
+        boolean defaultActive = stored.isEmpty();
         return new LiveElementsFile(defaultToggles().stream()
                 .map(defaultRow -> {
                     Element element = Element.valueOf(defaultRow.element());
-                    Boolean override = togglesByElement(file.elements()).get(element);
-                    boolean active = override == null || override;
-                    return new ElementToggle(element.name(), active);
+                    return new ElementToggle(element.name(), stored.getOrDefault(element, defaultActive));
                 })
                 .toList());
     }
