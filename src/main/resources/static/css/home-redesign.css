@@ -3730,3 +3730,71 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-gal-card:hover, .sg-mode:hover, .sg-deckrow:hover, .sg-exp:hover { transform:none; }
   .sg-mode:hover .sg-mode-bg { transform:none; }
 }
+
+/* ==========================================================================
+   TOP CHROME EDGE CONTRACT  —  the single owner of how the coin chip, the
+   crest and the bell meet the artwork behind them.
+
+   These three controls float directly on full-bleed hero art, so nothing but
+   their own edge separates them from it. Three earlier passes chased scrims,
+   hero-tint ramps and chip transparency and found none of them still present:
+   the softness that remains is not a blur at all, it is an undefined edge.
+   The proof is inside the same screenshot that reports it — the knight-count
+   badge, which carries an OPAQUE gold hairline, reads perfectly crisp sitting
+   a few pixels from a coin chip that reads blurred, on the same device in the
+   same frame. What the blurred ones had that it did not was a border at 22-36%
+   alpha (invisible against bright sky) plus a 14px-radius drop shadow, which
+   over sunlit artwork paints exactly the soft dark halo that reads as blur.
+
+   So the contract is: every top control is defined by a LINE, never by a
+   gradient. An opaque hairline, a hard 1-2px shadow for separation, and no
+   soft spread. Keep these four rules together and this cannot regress
+   piecemeal; tests/hub-top-chrome-check.cjs fails the build if it does.
+   ========================================================================== */
+.sg-top .sg-chip,
+.sg-top .sg-bell,
+.sg-top .sg-signin {
+  /* Opaque, and bright enough to survive a white-hot sky behind it. The
+     translucent steel/violet hairlines these used simply vanish there. */
+  border: 1px solid #e6cd8c;
+  /* Hard contact edge only. No radius above 3px: a soft shadow over bright art
+     IS the halo players read as blur. */
+  box-shadow: 0 1px 2px rgba(3, 5, 14, .9), 0 0 0 1px rgba(3, 5, 14, .55);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* Never translucent — a fill that samples the art behind it can only ever be
+   as busy as the art. (The Sign In pill keeps its gold gradient.) */
+.sg-top .sg-chip,
+.sg-top .sg-bell {
+  background-color: #1e1652;
+}
+
+/* The crest is a conic-gradient ring, so it has no border of its own to
+   harden; it gets the same dark contact ring drawn outside the gradient. */
+.sg-top .sg-avatar {
+  box-shadow: 0 1px 2px rgba(3, 5, 14, .9), 0 0 0 1px rgba(3, 5, 14, .55);
+}
+
+/* The bell glyph was --muted steel, which is the same value range as a dusk
+   sky. It takes the gold the rest of the top chrome uses. */
+.sg-top .sg-bell { color: var(--gold-bright, #e6cd8c); }
+
+/* The binder's filter rows start collapsed, so the tools-row toggle is the
+   only thing on screen that can say the grid is already narrowed. It wears the
+   same count the scrolled-state FAB does. */
+.sg-filter-toggle { position:relative; overflow:visible; }
+.sg-filter-toggle.has-filters {
+  border-color:rgba(240,205,138,.62);
+  color:var(--gold-bright);
+}
+.sg-filter-toggle-badge[hidden] { display:none !important; }
+.sg-filter-toggle-badge {
+  position:absolute; top:-5px; right:-5px;
+  min-width:15px; height:15px; padding:0 4px;
+  border-radius:999px; display:grid; place-items:center;
+  font-size:9px; font-weight:700; letter-spacing:0;
+  color:#1a1408; background:#fff4d2;
+  border:1px solid rgba(26,20,8,.55);
+}
