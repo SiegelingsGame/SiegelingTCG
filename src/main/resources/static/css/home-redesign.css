@@ -821,6 +821,27 @@ body.concept-board {
   display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:34px 14px; padding:30px 18px 24px;
 }
 
+/* --- scroll reveal ---
+   .sg-reveal is added by home-redesign.js only once an IntersectionObserver is
+   actually watching, so a browser without one (or a player who asked for
+   reduced motion) never gets a grid of invisible cards. The per-tile delay is
+   written inline from the scroll velocity; the duration follows it so a fast
+   flick resolves quickly instead of trailing ghosts. */
+.sg-reveal .sg-card-tile {
+  opacity:0;
+  transform:translateY(16px) scale(.975);
+  transition:opacity .46s cubic-bezier(.2,.8,.25,1), transform .52s cubic-bezier(.2,.8,.25,1);
+  will-change:opacity, transform;
+}
+.sg-reveal .sg-card-tile.is-in { opacity:1; transform:none; }
+/* The sleeve arrives with its card rather than sitting there empty. */
+.sg-reveal .sg-card-tile::before { opacity:0; transition:opacity .5s ease, box-shadow .3s ease, background .3s ease; }
+.sg-reveal .sg-card-tile.is-in::before { opacity:1; }
+@media (prefers-reduced-motion:reduce) {
+  .sg-reveal .sg-card-tile { opacity:1; transform:none; transition:none; }
+  .sg-reveal .sg-card-tile::before { opacity:1; transition:none; }
+}
+
 /* ==========================================================================
    FILTER FLAVOUR - each pill wears its own subject
    The rows used to be interchangeable grey capsules. Every pill now carries its
