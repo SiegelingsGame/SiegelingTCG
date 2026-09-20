@@ -3039,6 +3039,11 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   background:rgba(6,10,18,.62); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
 }
 
+/* The profile's blocks are wrapped so the desktop layer can place them in two
+   columns. display:contents means the wrapper adds nothing below 1024px: the
+   phone renders exactly the flat sequence it did before. */
+.sg-prof-layout { display:contents; }
+
 /* signature: favourite card + card back — same filled plate for both */
 .sg-sig {
   display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px; padding:0 18px;
@@ -3585,6 +3590,39 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-bundle .amt { font-size:18px; }
 
   /* --- profile --- */
+  /* Profile used one centred column, so a 1920px page carried a 440px crest and
+     then a ribbon of content down the middle with both flanks empty. The blocks
+     are placed instead: the crest stays a full-width hero, the identity column
+     (stats, then signature) takes a fixed rail on the left, the showcase fills
+     the wide right side beside both of them, and the match list - rows that
+     want the width - closes full width underneath. */
+  .sg-prof-layout {
+    display:grid;
+    grid-template-columns:minmax(0, 420px) minmax(0, 1fr);
+    column-gap:26px; align-items:start;
+  }
+  .sg-prof-layout > [data-prof-block="crest"] { grid-column:1 / -1; grid-row:1; }
+  .sg-prof-layout > [data-prof-block="tiles"] { grid-column:1; grid-row:2; }
+  .sg-prof-layout > [data-prof-block="signature"] { grid-column:1; grid-row:3; }
+  /* Spans both left-hand rows so the tall card grid sets the height of the pair
+     rather than leaving a gap beside the short stat row. */
+  .sg-prof-layout > [data-prof-block="showcase"] { grid-column:2; grid-row:2 / span 2; }
+  .sg-prof-layout > [data-prof-block="recent"] { grid-column:1 / -1; grid-row:4; }
+  /* In a 360px rail these no longer need the centred measure they get on a
+     full-width screen, and the rail supplies its own outer gutter. */
+  .sg-prof-layout > [data-prof-block="tiles"] { max-width:none; margin-inline:0; }
+  /* In the rail the pair shares the column rather than sitting on the 260px
+     centred measure the full-width version uses, and the plates fill their
+     slot instead of holding the phone's 118px. */
+  .sg-prof-layout .sg-sig { grid-template-columns:repeat(2, minmax(0, 1fr)); justify-content:stretch; gap:14px; }
+  .sg-prof-layout .sg-sig-art, .sg-prof-layout .sg-sig-back { width:min(100%, 170px); }
+  /* The showcase is always exactly three cards (PROFILE_SHOWCASE_MAX), so an
+     auto-fill grid left a third of the wide column empty. Three equal columns
+     fill it, and the cards get to be the feature the section is for. */
+  .sg-prof-layout [data-prof-block="showcase"] .sg-swipe {
+    grid-template-columns:repeat(3, minmax(0, 1fr));
+  }
+
   .sg-crest { height:440px; }
   .sg-crest-body { bottom:32px; padding:0 40px; }
   .sg-crest-ring { width:112px; height:112px; }
