@@ -321,8 +321,20 @@
     var online = (live.friends || []).filter(function (f) {
       return f && f.presence && f.presence.online;
     }).length;
+    var openQuests = (liveQuests(opts) || []).filter(function (q) { return !q[2]; }).length;
     return [
-      { id: 'home', ico: '⌂', label: 'Home', screen: 'home' },
+      // Home carried no tray, so it was the one tab in the bar with no caret -
+      // and the caret is not decoration, it rotates when a tray opens. Rather
+      // than print a control that promises nothing, Home now has what every
+      // other tab has: its rows are the Home screen's own sections, and they
+      // take you to the section rather than to a screen of their own, because
+      // that is where Leaderboards, Objectives and Expeditions actually live.
+      { id: 'home', ico: '⌂', label: 'Home', screen: 'home', items: [
+          ['Featured Siegelings', ''],
+          ['Hall of Siege', ''],
+          ['From the Gallery', ''],
+          ['Daily Objectives', n(openQuests)],
+          ['Continue Playing', runs ? n(runs) : '']] },
       // Same vocabulary as the Play screen and the shipping picker: the two real
       // modes are Battle and Siege.
       { id: 'play', ico: '⚔', label: 'Play', screen: 'play', items: [
@@ -509,7 +521,7 @@
 
   function featuredMarkup() {
     return '' +
-      '<section class="sg-section">' +
+      '<section class="sg-section" data-home-section="Featured Siegelings">' +
         '<div class="sg-section-head"><h3>Featured Siegelings</h3><a href="/cards" data-screen="collection">Gallery</a></div>' +
         '<div class="sg-swipe">' + FEATURED.map(function (c) {
           return '<article class="sg-feat" data-card="' + esc(c.id) + '" tabindex="0" style="--el:' + color(c.element) + '">' +
@@ -524,7 +536,7 @@
   }
 
   function gallerySection() {
-    return '<section class="sg-section">' +
+    return '<section class="sg-section" data-home-section="From the Gallery">' +
       '<div class="sg-section-head"><h3>From the Gallery</h3><a href="/gallery" data-screen="art">See All</a></div>' +
       '<div class="sg-swipe sg-swipe-wide">' + GALLERY.map(function (g) {
         var card = byId(g.card) || CARDS[0];
@@ -554,14 +566,14 @@
   function questsMarkup(opts) {
     var quests = liveQuests(opts);
     if (!quests) {
-      return '<div class="sg-strip is-empty">' +
+      return '<div class="sg-strip is-empty" data-home-section="Daily Objectives">' +
         '<div class="sg-strip-head"><h4>Daily Objectives</h4><span class="sep">•</span>' +
         '<span class="cnt">' + (opts && opts.guest ? 'Sign in to track them' : 'Unavailable') +
         '</span></div>' +
       '</div>';
     }
     var done = quests.filter(function (q) { return q[2]; }).length;
-    return '<div class="sg-strip" data-strip>' +
+    return '<div class="sg-strip" data-strip data-home-section="Daily Objectives">' +
       '<div class="sg-strip-head"><h4>Daily Objectives</h4><span class="sep">•</span>' +
       '<span class="cnt">' + done + '/' + quests.length + ' Complete</span><span class="caret">›</span></div>' +
       '<div class="sg-strip-body"><div>' + quests.map(function (q) {
@@ -628,7 +640,7 @@
           '<em>Start a Siege run and it waits for you here.</em></span>' +
           '<span class="sg-exp-go">Start &rsaquo;</span>' +
         '</a>';
-    return '<section class="sg-section">' +
+    return '<section class="sg-section" data-home-section="Continue Playing">' +
       '<div class="sg-section-head"><h3>Continue Playing</h3>' +
       '<a href="' + HREF.siege + '">Siege</a></div>' +
       '<div class="sg-exps">' + body + '</div>' +
@@ -828,9 +840,17 @@
             var auth = it[0] === 'Sign In' || it[0] === 'Create Account';
             // A row that names a Social sub-tab routes to the Social screen and
             // carries the tab with it, rather than to a screen of its own.
-            var attrs = it[2]
-              ? ' href="' + pathForScreen('social') + '" data-screen="social" data-social-goto="' + esc(it[2]) + '"'
-              : linkAttrs(it[0]);
+            var attrs;
+            if (n.id === 'home') {
+              // Home's rows address sections of the Home screen, not screens of
+              // their own; the row carries the section it wants and the router
+              // scrolls there once Home is rendered.
+              attrs = ' href="' + pathForScreen('home') + '" data-screen="home" data-home-goto="' + esc(it[0]) + '"';
+            } else if (it[2]) {
+              attrs = ' href="' + pathForScreen('social') + '" data-screen="social" data-social-goto="' + esc(it[2]) + '"';
+            } else {
+              attrs = linkAttrs(it[0]);
+            }
             return '<li' + (auth ? ' class="is-auth"' : '') + '>' +
               (attrs ? '<a' + attrs + '>' + esc(it[0]) + '</a>' : esc(it[0])) +
               (it[1] ? '<span>' + esc(it[1]) + '</span>' : '') + '</li>';
@@ -847,6 +867,24 @@
           (n.items ? '<i class="sg-caret" aria-hidden="true"></i>' : '') + '</button>';
       }).join('') + '</div>' +
     '</nav>';
+  }
+
+  // A Home tray row lands on the section it names. scroll-margin-top in the
+  // stylesheet holds it clear of the floating top chrome, so the offset is not
+  // duplicated here; a section the current payload did not render (no live
+  // quests, say) simply leaves the player at the top of Home rather than
+  // scrolling to nothing.
+  function scrollToHomeSection(host, name) {
+    if (!host || !name) return;
+    requestAnimationFrame(function () {
+      var target = host.querySelector('[data-home-section="' + name.replace(/"/g, '\\"') + '"]');
+      if (!target) return;
+      try {
+        target.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      } catch (e) {
+        target.scrollIntoView(true);
+      }
+    });
   }
 
   var onNavigate = null;
@@ -4476,7 +4514,7 @@
     var periods = (live && live.leaderboards && live.leaderboards.periods)
       ? Object.keys(live.leaderboards.periods) : ['daily', 'weekly', 'allTime'];
 
-    return '<section class="sg-section sg-lb" style="--el:' + color(meta.el) + '">' +
+    return '<section class="sg-section sg-lb" data-home-section="Hall of Siege" style="--el:' + color(meta.el) + '">' +
       '<div class="sg-section-head"><h3>Hall of Siege</h3>' +
         '<button type="button" class="sg-lb-cycle" data-lb-cycle>' +
         esc(PERIOD_LABEL[period] || title(period)) + ' ›</button></div>' +
@@ -6216,7 +6254,11 @@
       // Social tray rows name the tab they want before the screen renders.
       var socialTabAttr = link.getAttribute('data-social-goto');
       if (socialTabAttr) setSocialTab(socialTabAttr);
+      var homeSection = link.getAttribute('data-home-goto');
       show(link.getAttribute('data-screen'), true);
+      // show() re-renders Home and resets the scroller, so the section can only
+      // be found - and only stays put - after that has happened.
+      if (homeSection) scrollToHomeSection(host, homeSection);
     });
 
     // Rotation and width changes re-flow the tiles, so the fit has to be redone.
