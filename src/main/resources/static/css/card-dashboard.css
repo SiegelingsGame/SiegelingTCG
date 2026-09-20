@@ -1260,6 +1260,16 @@ textarea {
     background: rgba(255, 255, 255, 0.12);
 }
 
+.loading-art-preview-tabs button.loading-art-edit-btn {
+    margin-left: auto;
+    border-color: rgba(212, 175, 55, 0.45);
+    color: #e8d5a3;
+}
+
+.loading-art-preview-tabs button.loading-art-edit-btn:hover {
+    background: rgba(212, 175, 55, 0.15);
+}
+
 .loading-art-preview-frame {
     padding: 16px;
     display: flex;

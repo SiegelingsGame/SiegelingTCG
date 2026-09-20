@@ -222,12 +222,13 @@
 
     topics['loading-art'] = {
         title: 'Loading Screen Art',
-        html: '<p>Upload art pieces used on loading screens, the Art Gallery, and custom backgrounds.</p>' +
+        html: '<p>Upload art pieces used on loading screens, the Art Gallery, and custom backgrounds. Every classpath plate and every hosted upload appears in this gallery — click a card to preview, then <strong>Edit / replace</strong> to refill the form and overwrite that orientation.</p>' +
             table([
                 row(['<strong>Piece name</strong>', 'Shared id for pairing files (e.g. <code>ember-hollow</code>).']),
                 row(['<strong>Landscape</strong>', 'Wide image — <code>piece-landscape.png</code>']),
                 row(['<strong>Portrait</strong>', 'Tall image — <code>piece-portrait.png</code>']),
-                row(['<strong>Gallery entry</strong>', 'One name with both orientations becomes a single selectable piece.'])
+                row(['<strong>Gallery entry</strong>', 'One name with both orientations becomes a single selectable piece.']),
+                row(['<strong>Replace</strong>', 'Click a card → Edit / replace → Choose Image → Upload. Same piece name + orientation overwrites.'])
             ])
     };
 

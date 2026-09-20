@@ -30,31 +30,71 @@
         return out;
     }
 
+    /* Prefills the upload form so a designer can replace a plate without
+       retyping the piece id — that is what makes the gallery "editable" here. */
+    function selectForEdit(pieceId, preferredOrientation) {
+        var piece = artCache.find(function (p) { return p.id === pieceId; });
+        if (!piece) return;
+        var idInput = document.getElementById('loadingArtPieceId');
+        var orientSelect = document.getElementById('loadingArtOrientation');
+        if (idInput) idInput.value = piece.id;
+        if (orientSelect) {
+            var prefer = preferredOrientation
+                || (piece.landscape ? 'landscape' : (piece.portrait ? 'portrait' : 'landscape'));
+            if (!piece[prefer] && piece.portrait) prefer = 'portrait';
+            if (!piece[prefer] && piece.landscape) prefer = 'landscape';
+            orientSelect.value = prefer;
+        }
+        setStatus('Selected "' + (piece.title || piece.id) + '" — choose a new image and Upload to replace.');
+    }
+
     function openPreview(pieceId) {
         var piece = artCache.find(function (p) { return p.id === pieceId; });
         if (!piece || !overlay) return;
         var orients = orientations(piece);
         if (!orients.length) return;
 
+        selectForEdit(pieceId, orients[0].key);
         previewTitle.textContent = piece.title || piece.id;
         previewTabs.innerHTML = orients.map(function (o, i) {
-            return '<button type="button" data-url="' + escapeHtml(o.url) + '"' +
+            return '<button type="button" data-url="' + escapeHtml(o.url) + '" data-orient="' +
+                escapeHtml(o.key) + '"' +
                 (i === 0 ? ' class="active"' : '') + '>' + escapeHtml(o.label) + '</button>';
-        }).join('');
+        }).join('') +
+            '<button type="button" class="loading-art-edit-btn" data-edit-piece="' +
+            escapeHtml(piece.id) + '">Edit / replace</button>';
 
         previewImg.src = orients[0].url;
         previewImg.alt = (piece.title || piece.id) + ' loading art';
         overlay.classList.remove('hidden');
 
-        Array.prototype.forEach.call(previewTabs.querySelectorAll('button'), function (btn) {
+        Array.prototype.forEach.call(previewTabs.querySelectorAll('button[data-url]'), function (btn) {
             btn.addEventListener('click', function () {
-                Array.prototype.forEach.call(previewTabs.querySelectorAll('button'), function (b) {
+                Array.prototype.forEach.call(previewTabs.querySelectorAll('button[data-url]'), function (b) {
                     b.classList.remove('active');
                 });
                 btn.classList.add('active');
                 previewImg.src = btn.getAttribute('data-url');
+                selectForEdit(pieceId, btn.getAttribute('data-orient'));
             });
         });
+        var editBtn = previewTabs.querySelector('[data-edit-piece]');
+        if (editBtn) {
+            editBtn.addEventListener('click', function () {
+                var active = previewTabs.querySelector('button[data-url].active');
+                selectForEdit(pieceId, active ? active.getAttribute('data-orient') : null);
+                closePreview();
+                if (idInputFocus()) { /* form ready */ }
+            });
+        }
+    }
+
+    function idInputFocus() {
+        var idInput = document.getElementById('loadingArtPieceId');
+        if (!idInput) return false;
+        idInput.focus();
+        idInput.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        return true;
     }
 
     function closePreview() {
@@ -82,7 +122,8 @@
         }).join('');
 
         if (listNote) {
-            listNote.textContent = art.length + ' piece' + (art.length === 1 ? '' : 's') + ' — click a card to preview.';
+            listNote.textContent = art.length + ' piece' + (art.length === 1 ? '' : 's') +
+                ' — click a card to preview; use Edit / replace to refill the upload form.';
         }
 
         Array.prototype.forEach.call(gallery.querySelectorAll('.loading-art-card'), function (card) {
