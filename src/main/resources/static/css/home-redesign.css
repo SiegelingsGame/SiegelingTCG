@@ -197,6 +197,12 @@ body.concept-board {
 }
 .sg-scroll::-webkit-scrollbar { display:none; }
 
+/* A Home tray row scrolls to the section it names. The top chrome floats over
+   the scroller, so a section landed flush at scrollTop would sit under the coin
+   chip and the crest; the margin is the chrome's own height plus the status-bar
+   inset it already clears. */
+[data-home-section] { scroll-margin-top:calc(56px + max(6px, var(--sg-sat))); }
+
 /* --- hero: full-bleed rotating artwork --- */
 .sg-hero { position:relative; height:436px; overflow:visible; }
 .sg-hero-art { position:absolute; inset:-40px -0px 0; overflow:hidden; }
