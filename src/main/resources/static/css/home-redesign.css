@@ -832,18 +832,21 @@ body.concept-board {
    before the scroller on this screen, and this needs no modern-selector fallback. */
 .sg-binder-skin ~ .sg-scroll { position:relative; z-index:1; }
 .sg-binder-cover { position:absolute; inset:-4%; background-size:cover; background-position:center; opacity:0; transition:opacity .5s ease; }
-.sg-binder-cover.is-art { opacity:1; filter:saturate(.68) brightness(.42) contrast(1.05); }
+.sg-binder-cover.is-art { opacity:1; filter:saturate(.85) brightness(.66) contrast(1.04); }
+/* The veil has to keep the binder's own text legible without burying the cover
+   the player chose: it is heaviest under the head copy and thins out behind the
+   page, which carries its own opaque surface anyway. */
 .sg-binder-veil {
   position:absolute; inset:0;
   background:
-    radial-gradient(120% 70% at 50% -10%, rgba(103,78,190,.34), transparent 62%),
-    linear-gradient(180deg, rgba(13,10,38,.62) 0%, rgba(9,7,28,.80) 48%, rgba(7,5,22,.93) 100%);
+    radial-gradient(120% 60% at 50% -12%, rgba(103,78,190,.30), transparent 58%),
+    linear-gradient(180deg, rgba(11,8,32,.80) 0%, rgba(9,7,28,.52) 34%, rgba(7,5,22,.44) 100%);
 }
 
 /* The page the pockets sit on. Card tiles are capped at 168px, so the page is
    sized by the grid inside it rather than the other way round. */
 .sg-binder-page {
-  position:relative; margin:6px 10px 0; border-radius:22px;
+  position:relative; margin:6px 10px 0; border-radius:22px; overflow:hidden;
   border:1px solid rgba(200,165,79,.22);
   box-shadow:0 18px 44px rgba(3,2,14,.5), inset 0 1px 0 rgba(255,255,255,.06);
   background:linear-gradient(180deg, rgba(31,22,62,.62), rgba(11,8,30,.72));
@@ -857,7 +860,7 @@ body.concept-board {
 .sg-app[data-binder-page="leather"] .sg-binder-page {
   background:
     repeating-linear-gradient(46deg, rgba(255,255,255,.022) 0 2px, transparent 2px 5px),
-    linear-gradient(180deg, rgba(58,26,28,.72), rgba(24,11,16,.86));
+    linear-gradient(180deg, rgba(58,26,28,.86), rgba(24,11,16,.93));
   border-color:rgba(200,120,80,.30);
 }
 .sg-app[data-binder-page="parchment"] .sg-binder-page {
@@ -870,13 +873,13 @@ body.concept-board {
 .sg-app[data-binder-page="slate"] .sg-binder-page {
   background:
     repeating-linear-gradient(0deg, rgba(255,255,255,.018) 0 1px, transparent 1px 6px),
-    linear-gradient(180deg, rgba(38,48,64,.80), rgba(13,18,28,.90));
+    linear-gradient(180deg, rgba(38,48,64,.90), rgba(13,18,28,.95));
   border-color:rgba(143,162,189,.30);
 }
 .sg-app[data-binder-page="velvet"] .sg-binder-page {
   background:
     radial-gradient(120% 60% at 50% 0%, rgba(180,92,255,.22), transparent 70%),
-    linear-gradient(180deg, rgba(44,18,74,.86), rgba(16,7,34,.92));
+    linear-gradient(180deg, rgba(44,18,74,.92), rgba(16,7,34,.96));
   border-color:rgba(180,92,255,.34);
 }
 
