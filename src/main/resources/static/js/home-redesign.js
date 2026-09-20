@@ -1090,22 +1090,81 @@
     });
   }
 
+  /* ---------- filter flavour ----------
+     The three filter rows were identical grey pills: nothing about a row said
+     which axis it filtered, and "Siegelings / Strategies / Deceptions" were
+     three words with no picture of the thing they select. Each pill now wears
+     its own subject - elements keep their canonical hex from style.css (CLAUDE.md
+     convention 4), rarities take their gem colour, and the card types get a
+     drawn glyph of the card itself. The glyphs are inline SVG rather than image
+     files: they inherit the pill's colour, so one drawing works for the resting,
+     hovered and selected states without three assets. */
+  var TYPE_TINT = {
+    ALL: 'var(--acc-lemon, #c8a54f)',
+    SIEGLING: 'var(--acc-emerald, #4fd07a)',
+    SPELL: 'var(--acc-sky, #54a8f0)',
+    TRAP: 'var(--acc-magenta, #f06ec0)',
+    SIEGEKNIGHT: 'var(--gold-bright, #e6cd8c)'
+  };
+  var RARITY_TINT = {
+    ALL: 'var(--acc-lemon, #c8a54f)',
+    COMMON: '#c9c0f0',
+    UNCOMMON: 'var(--acc-emerald, #4fd07a)',
+    RARE: 'var(--acc-sky, #54a8f0)',
+    EPIC: 'var(--acc-violet, #9b7bf0)',
+    LEGENDARY: 'var(--acc-lemon, #ffe9a8)'
+  };
+  // Drawn at 20x20 on a 24-box so the strokes line up with the element icons
+  // sitting beside them in the row above.
+  var TYPE_GLYPH = {
+    // two cards in a fan: the binder as a whole
+    ALL: '<rect x="4" y="5" width="10" height="14" rx="1.6"/>' +
+      '<path d="M16.4 6.6l3.4 1.3-3.6 9.6-1.4-.5"/>',
+    // a card wearing notches on three edges - the Siegling's own tell
+    SIEGLING: '<rect x="5" y="3.5" width="14" height="17" rx="2"/>' +
+      '<circle cx="12" cy="3.5" r="1.9" fill="currentColor" stroke="none"/>' +
+      '<circle cx="5" cy="12" r="1.9" fill="currentColor" stroke="none"/>' +
+      '<circle cx="19" cy="15.5" r="1.9" fill="currentColor" stroke="none"/>',
+    // an unrolled scroll: the Strategy being cast
+    SPELL: '<path d="M4.5 6.5A2.5 2.5 0 0 1 7 4h10.5v13.5A2.5 2.5 0 0 0 20 20H7"/>' +
+      '<path d="M7 20a2.5 2.5 0 0 1-2.5-2.5V6.5"/><path d="M9 8.5h6M9 12h6"/>',
+    // a mask, because at 17px a sprung snare reads as a smudge and a Deception
+    // is the card that pretends to be something else
+    TRAP: '<path d="M3.5 8.2c3-1.5 14-1.5 17 0 0 5.4-2.4 9-5.5 9-1.4 0-2.4-1-3-2-.6 1-1.6 2-3 2-3.1 0-5.5-3.6-5.5-9z"/>' +
+      '<circle cx="8" cy="11.4" r="1.5" fill="currentColor" stroke="none"/>' +
+      '<circle cx="16" cy="11.4" r="1.5" fill="currentColor" stroke="none"/>',
+    // a visored helm: the SiegeKnight who leads the warband
+    SIEGEKNIGHT: '<path d="M12 2.6l8 3.2v5.8c0 4.6-3.2 7.8-8 9.8-4.8-2-8-5.2-8-9.8V5.8z"/>' +
+      '<path d="M8.5 10h7M12 10v6"/>'
+  };
+  function typeGlyph(id) {
+    var d = TYPE_GLYPH[id] || TYPE_GLYPH.ALL;
+    return '<svg class="sg-pill-glyph" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" ' +
+      'fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
+      d + '</svg>';
+  }
+
   function binderFilterRowsMarkup(elements, rarities) {
     return '' +
       '<div class="sg-filter-label">Element</div>' +
-      '<div class="sg-filter-row">' + elements.map(function (e, i) {
-        return '<button class="sg-pill' + (i === 0 ? ' on' : '') + '" type="button" data-el="' + e + '" style="--el:' +
+      '<div class="sg-filter-row sg-filter-row-element">' + elements.map(function (e, i) {
+        return '<button class="sg-pill sg-pill-element' + (i === 0 ? ' on' : '') + '" type="button" data-el="' + e + '" style="--el:' +
           (e === 'ALL' ? 'var(--acc-lemon)' : color(e)) + '">' +
-          (e === 'ALL' ? '' : '<img src="' + icon(e) + '" alt="">') + esc(title(e)) + '</button>';
+          (e === 'ALL' ? '<i class="sg-pill-prism" aria-hidden="true"></i>' : '<img src="' + icon(e) + '" alt="">') +
+          esc(title(e)) + '</button>';
       }).join('') + '</div>' +
       '<div class="sg-filter-label">Type</div>' +
-      '<div class="sg-filter-row">' + [['ALL','All'],['SIEGLING','Siegelings'],['SPELL','Strategies'],['TRAP','Deceptions'],['SIEGEKNIGHT','SiegeKnights']].map(function (t, i) {
-        return '<button class="sg-pill' + (i === 0 ? ' on' : '') + '" type="button" data-type="' + t[0] + '">' + esc(t[1]) + '</button>';
+      '<div class="sg-filter-row sg-filter-row-type">' + [['ALL','All'],['SIEGLING','Siegelings'],['SPELL','Strategies'],['TRAP','Deceptions'],['SIEGEKNIGHT','SiegeKnights']].map(function (t, i) {
+        return '<button class="sg-pill sg-pill-type' + (i === 0 ? ' on' : '') + '" type="button" data-type="' + t[0] + '" ' +
+          'style="--el:' + TYPE_TINT[t[0]] + '">' + typeGlyph(t[0]) + esc(t[1]) + '</button>';
       }).join('') + '</div>' +
       '<div class="sg-filter-label">Rarity</div>' +
-      '<div class="sg-filter-row">' + rarities.map(function (r, i) {
-        return '<button class="sg-pill sg-pill-rarity' + (i === 0 ? ' on' : '') + '" type="button" data-rarity="' + r + '">' +
-          (r === 'ALL' ? '' : '<i class="sg-rar ' + r.toLowerCase() + '"></i>') + esc(title(r)) + '</button>';
+      '<div class="sg-filter-row sg-filter-row-rarity">' + rarities.map(function (r, i) {
+        return '<button class="sg-pill sg-pill-rarity' + (i === 0 ? ' on' : '') + '" type="button" data-rarity="' + r + '" ' +
+          'style="--el:' + (RARITY_TINT[r] || RARITY_TINT.ALL) + '">' +
+          (r === 'ALL' ? '<i class="sg-pill-prism" aria-hidden="true"></i>'
+                       : '<i class="sg-rar ' + r.toLowerCase() + '"></i>') +
+          esc(title(r)) + '</button>';
       }).join('') + '</div>';
   }
 

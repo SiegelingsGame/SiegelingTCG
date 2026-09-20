@@ -822,6 +822,86 @@ body.concept-board {
 }
 
 /* ==========================================================================
+   FILTER FLAVOUR - each pill wears its own subject
+   The rows used to be interchangeable grey capsules. Every pill now carries its
+   tint on --el (set inline by home-redesign.js: element hexes from style.css,
+   gem colours for rarity, a per-type accent), so one rule set dresses all three
+   rows and adding an element or a rarity needs no new CSS.
+   ========================================================================== */
+.sg-filter-chrome-inner {
+  position:relative;
+  margin:6px 10px 2px; padding:2px 0 8px; border-radius:20px;
+  border:1px solid rgba(200,165,79,.26);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 10px 26px rgba(4,2,16,.34);
+  background:linear-gradient(180deg, rgba(28,21,62,.70), rgba(10,7,28,.58));
+  backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+}
+/* The index-tab rule under the label: it reads as a divider in a binder rather
+   than a floating caption. */
+.sg-filter-label {
+  display:flex; align-items:center; gap:8px;
+  color:color-mix(in srgb, var(--gold-bright,#e6cd8c) 62%, var(--muted));
+}
+.sg-filter-label::after {
+  content:''; flex:1 1 auto; height:1px;
+  background:linear-gradient(90deg, rgba(200,165,79,.30), transparent);
+}
+
+.sg-pill {
+  position:relative; overflow:hidden;
+  color:color-mix(in srgb, var(--el,#c8a54f) 60%, var(--ink));
+  border-color:color-mix(in srgb, var(--el,#c8a54f) 42%, transparent);
+  background:
+    radial-gradient(120% 140% at 12% 0%, color-mix(in srgb, var(--el,#c8a54f) 30%, transparent), transparent 66%),
+    linear-gradient(180deg, color-mix(in srgb, var(--el,#c8a54f) 16%, transparent), transparent 82%),
+    rgba(11,17,32,.55);
+}
+/* The sheen sweeps only on the selected pill, so the row has exactly one thing
+   moving and the choice is unmistakable. */
+.sg-pill::after {
+  content:''; position:absolute; inset:0; pointer-events:none; opacity:0;
+  background:linear-gradient(112deg, transparent 28%, rgba(255,255,255,.42) 46%, transparent 62%);
+  transform:translateX(-120%);
+}
+.sg-pill:hover { border-color:color-mix(in srgb, var(--el,#c8a54f) 52%, transparent); }
+.sg-pill.on {
+  color:#0b0f18; border-color:var(--el,#c8a54f);
+  background:linear-gradient(180deg, color-mix(in srgb, var(--el,#c8a54f) 82%, #fff), var(--el,#c8a54f));
+  box-shadow:0 6px 18px color-mix(in srgb, var(--el,#c8a54f) 42%, transparent),
+             inset 0 1px 0 rgba(255,255,255,.45);
+}
+.sg-pill.on::after { opacity:1; animation:sg-pill-sheen .9s ease-out; }
+@keyframes sg-pill-sheen { from { transform:translateX(-120%); } to { transform:translateX(130%); } }
+
+/* Element icons sit in a tinted well so a low-chroma element (METAL, UNDEAD)
+   still reads as itself next to Fire. */
+.sg-pill-element img {
+  background:radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--el,#c8a54f) 60%, transparent), transparent 72%);
+  box-shadow:0 0 8px color-mix(in srgb, var(--el,#c8a54f) 45%, transparent);
+}
+.sg-pill-element.on img { box-shadow:0 0 0 1px rgba(255,255,255,.5); }
+/* "All" on the element and rarity rows: the whole spectrum in one pip. */
+.sg-pill-prism {
+  width:12px; height:12px; flex:0 0 auto; border-radius:50%;
+  background:conic-gradient(from 210deg, #f05b2f, #ffd166, #4fd07a, #3fd8d1, #54a8f0, #9b7bf0, #f06ec0, #f05b2f);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.4);
+}
+.sg-pill-glyph { flex:0 0 auto; }
+.sg-pill.on .sg-pill-glyph { filter:drop-shadow(0 1px 0 rgba(255,255,255,.45)); }
+
+/* Rarity gems: a cut stone, not a square. Legendary keeps the gold sheen it
+   has on the cards themselves. */
+.sg-pill-rarity .sg-rar {
+  width:11px; height:11px; border-radius:2px;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.35), 0 0 8px color-mix(in srgb, var(--el,#c8a54f) 60%, transparent);
+}
+.sg-pill-rarity.on .sg-rar { box-shadow:inset 0 0 0 1px rgba(0,0,0,.28); }
+
+@media (prefers-reduced-motion:reduce) {
+  .sg-pill.on::after { animation:none; opacity:0; }
+}
+
+/* ==========================================================================
    BINDER DRESSING (cover / page / sleeves) - all three are player-chosen and
    stored per device in localStorage.sgBinderLook; home-redesign.js writes the
    choice onto .sg-app as data-binder-page / data-binder-sleeve and paints the
