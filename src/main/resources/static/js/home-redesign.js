@@ -3317,6 +3317,14 @@
       var bucketCount = gacha.querySelector('[data-gacha-bucket-count]');
       var banked = 0;
       var left = slots.length;
+      // Duplicates turned to remnants while they were still the face-up top of
+      // the stack, so the card the player had just unsealed crumbled out from
+      // under them and left them looking at the back of the next one. A pull is
+      // held here until its art has been seen and moved past; the stage drains
+      // the queue when it fans out into the full view, which is the moment the
+      // whole pull is on screen and a crumble is something to watch rather than
+      // something that eats the card you are reading.
+      var pendingRemnants = [];
 
       // The controls stay out until every card has actually been dealt onto the
       // stage. Offering "Reveal all" while the pack is still tearing open asks
@@ -3398,9 +3406,13 @@
         gachaFlourish(btn, card);
         if (stackMode) layoutStack();
 
-        // Let the turn finish before the card crumbles, or the player never sees
-        // what they pulled.
-        if (card.duplicateAtCap) setTimeout(function () { bankRemnants(btn, card); }, 700);
+        // In the grid the card keeps its slot while it crumbles, so it pays out
+        // once the turn has finished reading. On the stack it is the only card
+        // the player can see, so it waits for the full view.
+        if (card.duplicateAtCap) {
+          if (stackMode) pendingRemnants.push({ btn: btn, card: card });
+          else setTimeout(function () { bankRemnants(btn, card); }, 700);
+        }
 
         left -= 1;
         if (!left) {
@@ -3447,6 +3459,15 @@
         }
       }
 
+      // Every duplicate the stack held back, paid out one after another so the
+      // shard flights read as a sequence instead of one indistinct shower.
+      function drainRemnants() {
+        var queued = pendingRemnants.splice(0, pendingRemnants.length);
+        queued.forEach(function (entry, i) {
+          setTimeout(function () { bankRemnants(entry.btn, entry.card); }, 360 + i * 220);
+        });
+      }
+
       function toGrid() {
         stackMode = false;
         stage.className = 'sg-gacha-stage is-grid';
@@ -3461,6 +3482,9 @@
         stage.style.removeProperty('--tilt-y');
         stage.style.removeProperty('--drag-x');
         stage.style.removeProperty('--drag-y');
+        // After the layout switch, so each card's shards fly from the slot it
+        // actually occupies in the grid rather than from its place in the pile.
+        requestAnimationFrame(drainRemnants);
       }
 
       function advanceStack(dir) {

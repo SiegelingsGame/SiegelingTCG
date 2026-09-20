@@ -4430,6 +4430,123 @@ function syncLandscapeAuxHud() {
     }
 }
 
+/* Portrait phones fit both 3x3 boards to the arena's MEASURED height.
+ *
+ * The stacked layout used to derive a board's width from 100cqh divided by a
+ * hand-tuned height/width ratio. That ratio has to agree with the row labels,
+ * the grid paddings, the inter-half gaps, the cell aspect and the socket
+ * reserve under the player board all at once, and it silently stopped agreeing:
+ * on a phone with real safe-area insets the two boards came out taller than the
+ * arena, so the enemy back row was clipped off the top, while across the width
+ * the board only ever reached ~57% of the screen and the flanks sat empty.
+ *
+ * Solving for the width instead of guessing it removes the drift. A board's
+ * height is a straight line in its width -
+ *     h(W) = padY + 2*rowGap + cellAspect * (W - padX - 2*colGap)
+ * - so the widest W whose two boards plus the measured chrome still fit the
+ * arena has a closed form. The cell aspect is the second free variable: a
+ * portrait phone is height-bound long before it is width-bound, so the fit
+ * squares the cells up (never past 1:1, never squatter than the printed card)
+ * to spend the leftover width on bigger cards rather than on margins.
+ */
+const PORTRAIT_CELL_ASPECT_MIN = 1;
+const PORTRAIT_CELL_ASPECT_MAX = 6.2 / 5;
+const PORTRAIT_BOARD_WIDTH_CAP = 420;
+let lastPortraitBoardFit = '';
+let portraitBoardFitObserver = null;
+
+function usesFittedPortraitBoards() {
+    return window.matchMedia('(max-width: 979px) and (orientation: portrait)').matches;
+}
+
+/** Children that actually take part in the column's height. */
+function inFlowChildren(el) {
+    return Array.from(el.children).filter(child => {
+        const style = getComputedStyle(child);
+        return style.display !== 'none' && style.position !== 'absolute' && style.position !== 'fixed';
+    });
+}
+
+function fitPortraitBoards() {
+    const arena = document.getElementById('boardArea');
+    const enemy = document.getElementById('enemyGrid');
+    const player = document.getElementById('playerGrid');
+    if (!arena || !enemy || !player) {
+        return;
+    }
+    if (!usesFittedPortraitBoards()) {
+        arena.classList.remove('portrait-fitted');
+        arena.style.removeProperty('--portrait-board-width');
+        arena.style.removeProperty('--portrait-cell-aspect');
+        lastPortraitBoardFit = '';
+        return;
+    }
+
+    const px = value => Number.parseFloat(value) || 0;
+    const arenaStyle = getComputedStyle(arena);
+    const arenaHeight = arena.clientHeight - px(arenaStyle.paddingTop) - px(arenaStyle.paddingBottom);
+    const arenaWidth = arena.clientWidth - px(arenaStyle.paddingLeft) - px(arenaStyle.paddingRight);
+    if (arenaHeight <= 0 || arenaWidth <= 0) {
+        return;
+    }
+
+    // Vertical space the boards can never have: arena gaps, the row labels and
+    // whatever else shares a half with a board, both grids' own padding/row gaps.
+    let chrome = px(arenaStyle.rowGap) * Math.max(0, inFlowChildren(arena).length - 1);
+    let fixedHeight = 0;
+    let insetWidth = 0;
+    [enemy, player].forEach(grid => {
+        const gridStyle = getComputedStyle(grid);
+        fixedHeight += px(gridStyle.paddingTop) + px(gridStyle.paddingBottom) + px(gridStyle.rowGap) * 2;
+        insetWidth += px(gridStyle.paddingLeft) + px(gridStyle.paddingRight) + px(gridStyle.columnGap) * 2;
+        const half = grid.parentElement;
+        if (!half) {
+            return;
+        }
+        const siblings = inFlowChildren(half);
+        chrome += px(getComputedStyle(half).rowGap) * Math.max(0, siblings.length - 1);
+        siblings.forEach(child => {
+            if (child !== grid) {
+                chrome += child.getBoundingClientRect().height;
+            }
+        });
+    });
+
+    const cellBudget = arenaHeight - chrome - fixedHeight;
+    const widthCap = Math.min(arenaWidth, PORTRAIT_BOARD_WIDTH_CAP);
+    const cellSpan = 2 * widthCap - insetWidth;
+    if (cellBudget <= 0 || cellSpan <= 0) {
+        return;
+    }
+
+    const aspect = clampNumber(cellBudget / cellSpan, PORTRAIT_CELL_ASPECT_MIN, PORTRAIT_CELL_ASPECT_MAX);
+    const width = Math.max(120, Math.min(widthCap, (cellBudget / aspect + insetWidth) / 2));
+    const signature = `${width.toFixed(1)}:${aspect.toFixed(4)}`;
+    if (signature === lastPortraitBoardFit) {
+        return;
+    }
+    lastPortraitBoardFit = signature;
+    arena.style.setProperty('--portrait-board-width', `${width.toFixed(1)}px`);
+    arena.style.setProperty('--portrait-cell-aspect', aspect.toFixed(4));
+    arena.classList.add('portrait-fitted');
+}
+
+/* The arena's height changes without a window resize - the hand tray collapses
+ * in the battle phase, iOS hides its toolbar - and each of those changes the
+ * fit. Watching the arena itself catches all of them; writing a width inside it
+ * cannot change its height (the arena is sized by the shell's flex column), so
+ * this cannot feed back on itself. */
+function watchPortraitBoardFit() {
+    const arena = document.getElementById('boardArea');
+    if (!arena || portraitBoardFitObserver || typeof ResizeObserver !== 'function') {
+        return;
+    }
+    portraitBoardFitObserver = new ResizeObserver(() => {
+        requestAnimationFrame(fitPortraitBoards);
+    });
+    portraitBoardFitObserver.observe(arena);
+}
+
 function updateResponsiveLayoutVars(force = false) {
     const signature = `${window.innerWidth}x${window.innerHeight}:${getViewportModeLabel()}`;
     if (!force && signature === lastViewportSignature) {
@@ -4698,6 +4815,11 @@ function updateResponsiveLayoutVars(force = false) {
     scheduleDesktopHandSelectorCardScale();
     root.style.setProperty('--overlay-shell-width', `${overlayWidth}px`);
     root.style.setProperty('--overlay-shell-padding', `${overlayPadding}px`);
+    // A mode change resizes the arena, and the fit is what keeps both boards
+    // inside it. Drop the memo first so a same-numbers fit still re-applies
+    // after the class/vars were cleared on the way out of portrait.
+    lastPortraitBoardFit = '';
+    fitPortraitBoards();
 }
 
 function setMobileInfoTab(tab) {
@@ -18069,6 +18191,7 @@ window.addEventListener('orientationchange', () => {
 
 syncLandscapeSafeAreaSide();
 updateResponsiveLayoutVars(true);
+watchPortraitBoardFit();
 syncDesktopInspectTabUi();
 
 (function setupLandscapeEnergyDetailRedirect() {
