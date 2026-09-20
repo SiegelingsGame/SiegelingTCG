@@ -3780,3 +3780,21 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 /* The bell glyph was --muted steel, which is the same value range as a dusk
    sky. It takes the gold the rest of the top chrome uses. */
 .sg-top .sg-bell { color: var(--gold-bright, #e6cd8c); }
+
+/* The binder's filter rows start collapsed, so the tools-row toggle is the
+   only thing on screen that can say the grid is already narrowed. It wears the
+   same count the scrolled-state FAB does. */
+.sg-filter-toggle { position:relative; overflow:visible; }
+.sg-filter-toggle.has-filters {
+  border-color:rgba(240,205,138,.62);
+  color:var(--gold-bright);
+}
+.sg-filter-toggle-badge[hidden] { display:none !important; }
+.sg-filter-toggle-badge {
+  position:absolute; top:-5px; right:-5px;
+  min-width:15px; height:15px; padding:0 4px;
+  border-radius:999px; display:grid; place-items:center;
+  font-size:9px; font-weight:700; letter-spacing:0;
+  color:#1a1408; background:#fff4d2;
+  border:1px solid rgba(26,20,8,.55);
+}
