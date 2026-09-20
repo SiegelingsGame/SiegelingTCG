@@ -1313,6 +1313,110 @@
     '</article>';
   }
 
+  /* ---------- scroll reveal ----------
+     A binder page arriving all at once reads as a screenshot; the cards should
+     settle into their pockets as you come to them. Each tile fades and lifts in
+     when it enters the scroller, staggered so a row resolves left to right.
+     The stagger is not a constant: it is read from how fast the player is
+     actually scrolling, because a delay that feels graceful at a slow browse
+     leaves a flicking thumb staring at empty pockets. Fast scrolling collapses
+     the queue towards an instant paint, slow scrolling opens it back up.
+     IntersectionObserver does the watching - a scroll handler measuring every
+     tile would cost a layout read per frame on a 166-card grid. */
+  var REVEAL_SLOW_STEP = 52;   // ms between neighbours at a resting scroll
+  var REVEAL_FAST_STEP = 8;    // ms between neighbours when the thumb is flicking
+  var REVEAL_FAST_VELOCITY = 2.6; // px/ms at which the stagger is fully collapsed
+  // A desktop binder shows a whole batch at once (nine columns), and 24 tiles
+  // at the resting step would cascade for 1.2s - past the point where it reads
+  // as arrival rather than lag. The step compresses so one batch always
+  // finishes inside this window, however many tiles it holds.
+  var REVEAL_MAX_CASCADE = 620;
+
+  function prefersReducedMotion() {
+    return Boolean(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }
+
+  // Velocity is smoothed rather than taken raw: a single frame's delta swings
+  // wildly on touch, and the stagger would jitter with it.
+  function makeScrollVelocity(scroller) {
+    var last = scroller ? scroller.scrollTop : 0;
+    var lastAt = 0;
+    var smoothed = 0;
+    function sample() {
+      var now = (window.performance && performance.now) ? performance.now() : Date.now();
+      var top = scroller ? scroller.scrollTop : 0;
+      var dt = now - lastAt;
+      if (lastAt && dt > 0) {
+        var v = Math.abs(top - last) / dt;
+        smoothed = smoothed * 0.65 + v * 0.35;
+      }
+      last = top;
+      lastAt = now;
+    }
+    if (scroller) scroller.addEventListener('scroll', sample, { passive: true });
+    return {
+      // Decays towards rest so a stopped scroll opens the stagger back up
+      // without waiting for another scroll event to report zero.
+      value: function () {
+        var now = (window.performance && performance.now) ? performance.now() : Date.now();
+        if (lastAt && now - lastAt > 140) smoothed *= 0.5;
+        return smoothed;
+      }
+    };
+  }
+
+  function makeTileReveal(grid, scroller) {
+    if (!grid || !window.IntersectionObserver || prefersReducedMotion()) {
+      return { observe: function () {}, settle: function () {} };
+    }
+    var velocity = makeScrollVelocity(scroller);
+    grid.classList.add('sg-reveal');
+    // rootMargin lets a tile start its fade just before it clears the fold, so
+    // it is already settling by the time it is properly on screen.
+    var io = new IntersectionObserver(function (entries) {
+      var arriving = 0;
+      entries.forEach(function (entry) { if (entry.isIntersecting) arriving++; });
+      var step = Math.min(revealStep(), REVEAL_MAX_CASCADE / Math.max(1, arriving - 1));
+      var slot = 0;
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        var tile = entry.target;
+        io.unobserve(tile);
+        tile.style.transitionDelay = (slot * step) + 'ms';
+        slot++;
+        // Two frames: one for the browser to accept the starting state of a
+        // tile that was inserted this tick, one to run the transition.
+        requestAnimationFrame(function () {
+          requestAnimationFrame(function () { tile.classList.add('is-in'); });
+        });
+      });
+    }, { root: scroller || null, rootMargin: '0px 0px 12% 0px', threshold: 0.01 });
+
+    function revealStep() {
+      var v = velocity.value();
+      var t = Math.min(1, v / REVEAL_FAST_VELOCITY);
+      return REVEAL_SLOW_STEP + (REVEAL_FAST_STEP - REVEAL_SLOW_STEP) * t;
+    }
+
+    return {
+      // `settled` tiles were already on screen before this repaint (Show more
+      // re-renders the whole grid); re-animating them would flash the page the
+      // player is reading.
+      observe: function (settled) {
+        var tiles = grid.children;
+        for (var i = 0; i < tiles.length; i++) {
+          var tile = tiles[i];
+          if (settled && i < settled) { tile.classList.add('is-in'); continue; }
+          io.observe(tile);
+        }
+      },
+      settle: function () {
+        io.disconnect();
+        for (var i = 0; i < grid.children.length; i++) grid.children[i].classList.add('is-in');
+      }
+    };
+  }
+
   function mountGallery(app, opts) {
     opts = opts || {};
     var scroll = app.querySelector('[data-gal-scroll]') || app.querySelector('.sg-scroll');
@@ -1330,6 +1434,8 @@
     var more = app.querySelector('[data-more]');
     var openSheet = mountSheet(app, opts) || function () {};
     mountBinderLook(app);
+    var reveal = makeTileReveal(grid, scroll);
+    var painted = 0;
     var activeEl = 'ALL', activeRarity = 'ALL', activeType = 'ALL', query = '', limit = 24;
     var COMPACT_AFTER = 72;
 
@@ -1374,9 +1480,11 @@
       if (fab) fab.classList.toggle('has-filters', n > 0);
     }
 
-    function repaint() {
+    function repaint(keepPainted) {
       var rows = matches();
       grid.innerHTML = rows.slice(0, limit).map(galleryCard).join('');
+      reveal.observe(keepPainted ? painted : 0);
+      painted = grid.children.length;
       var label = rows.length + (rows.length === 1 ? ' card' : ' cards');
       if (count) count.textContent = label;
       if (glassCount) glassCount.textContent = label;
@@ -1480,7 +1588,7 @@
     }
     if (more) {
       var moreBtn = more.querySelector('button');
-      if (moreBtn) moreBtn.addEventListener('click', function () { limit += 24; repaint(); });
+      if (moreBtn) moreBtn.addEventListener('click', function () { limit += 24; repaint(true); });
     }
     if (scroll) scroll.addEventListener('scroll', onScroll, { passive: true });
     app.addEventListener('keydown', function (ev) {
