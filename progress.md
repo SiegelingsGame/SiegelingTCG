@@ -1,3 +1,8 @@
+Original prompt: Add the new art make sure it’s editable in the dashboard.
+
+- September 20, 2026 - **Fifty-eight more world-art plates, and Loading Art is editable from the dashboard.** New WebP files land in `static/img/art/loading/` (Falcool / Falcoat / Peatbeak, ice line vignettes, wind and earth character sheets, fire variants with scene suffixes so they do not overwrite the September 18 plates, Applehead, Pylord, etc.). The card dashboard Loading Art workspace already listed `/api/art/loading`; it now pre-fills the piece name + orientation when you open a card and adds an **Edit / replace** control so uploading the same id overwrites that orientation. Cache-busts: `loading-art-admin.js` 1→**2**, `dashboard-info.js` 9→**10**, `card-dashboard.css` 43→**44**.
+- Verification: pending commit-time API + dashboard checks.
+
 Original prompt: Add these to the art gallery and background selections
 
 - September 18, 2026 - **Thirty-one new world-art plates join the Art Gallery and background pickers.** Dropped as WebP into `static/img/art/loading/` with the existing `<id>-landscape|portrait` naming — no manifest or JS change; `/api/art/loading` scans the folder and feeds the gallery, loading screens, and profile/page background selects. Named after the Siegelings they feature where clear (Sleaf / Dracosleaf / Guerilla / Bonoblade / Jacked'ty / Cacty / CactyJackedty / Gymstone / Cloud* / Aerovane / Strikehawk / Firsky / Emberfox / Emberpup / Pylook / Pyleer / Sundile / Raydile / Dracoil / Solgator) plus a few scene titles from the forest plates (Higher Trees, Stronger Roots, Kinder Forests, Rooted Together, Sky Nest / Ledge / Egg, Moonlit Cache, Sleaf Relic).
