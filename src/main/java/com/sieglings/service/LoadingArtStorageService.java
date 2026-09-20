@@ -41,7 +41,9 @@ import java.util.stream.Stream;
 public class LoadingArtStorageService {
 
     private static final Path ART_DIR = Path.of("src", "main", "resources", "static", "img", "art", "loading");
+    private static final Path GALLERY_DIR = Path.of("src", "main", "resources", "static", "img", "gallery");
     private static final String STORAGE_PREFIX = "img/art/loading/";
+    private static final String GALLERY_STORAGE_PREFIX = "img/gallery/";
     private static final String DEFAULT_BUCKET = "siegelingstcgtesting.firebasestorage.app";
     private static final long MAX_BYTES = 8L * 1024L * 1024L;
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of("png", "jpg", "jpeg", "webp", "gif");
@@ -88,6 +90,10 @@ public class LoadingArtStorageService {
         return ART_DIR.toAbsolutePath().normalize();
     }
 
+    public Path getGalleryDirectory() {
+        return GALLERY_DIR.toAbsolutePath().normalize();
+    }
+
     public Map<String, String> listHostedArtUrls() {
         StorageClientContext context = ensureCloudStorageInitialized();
         if (context == null) {
@@ -104,7 +110,7 @@ public class LoadingArtStorageService {
                     continue;
                 }
                 String objectName = blob.getName();
-                String filename = filenameFromObjectName(objectName);
+                String filename = filenameFromObjectName(objectName, STORAGE_PREFIX);
                 if (!isAllowedImageFilename(filename)) {
                     continue;
                 }
@@ -114,9 +120,61 @@ public class LoadingArtStorageService {
                 );
             }
         } catch (Exception ex) {
-            return Collections.emptyMap();
+            // Loading-folder hosted list failed — still try gallery below.
+        }
+        try {
+            Page<Blob> galleryBlobs = context.storage().list(
+                    context.bucketName(),
+                    Storage.BlobListOption.prefix(GALLERY_STORAGE_PREFIX)
+            );
+            for (Blob blob : galleryBlobs.iterateAll()) {
+                if (blob == null || blob.isDirectory()) {
+                    continue;
+                }
+                String objectName = blob.getName();
+                String filename = filenameFromObjectName(objectName, GALLERY_STORAGE_PREFIX);
+                if (!isAllowedImageFilename(filename) || filename.toLowerCase(Locale.ROOT).contains("-thumb.")) {
+                    continue;
+                }
+                // Prefer loading-folder hosted files when both exist for a name.
+                urlsByFilename.putIfAbsent(
+                        filename,
+                        buildStoragePublicUrl(context.bucketName(), objectName, firstDownloadToken(blob.getMetadata()))
+                );
+            }
+        } catch (Exception ex) {
+            // Gallery hosted list is optional.
         }
         return urlsByFilename;
+    }
+
+    /**
+     * Writes a cinematic hub plate to {@code img/gallery/<id>.<ext>} (and a
+     * matching {@code -thumb} sibling so the hub carousel stays current). Used
+     * when the dashboard replaces a landscape plate that already lives in the
+     * gallery folder rather than the loading landscape/portrait pair set.
+     */
+    public String saveCinematicGalleryArt(String pieceId, MultipartFile file) throws IOException {
+        String normalizedId = normalizePieceId(pieceId);
+        if (normalizedId == null) {
+            throw new IllegalArgumentException("Give the art piece a name (letters, numbers, dashes).");
+        }
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("Choose an image file to upload.");
+        }
+        if (file.getSize() > MAX_BYTES) {
+            throw new IllegalArgumentException("Loading art must be 8 MB or smaller.");
+        }
+
+        String extension = resolveExtension(file);
+        StorageClientContext context = ensureCloudStorageInitialized();
+        if (context != null) {
+            return saveCloudGalleryArt(context, normalizedId, extension, file);
+        }
+        if (hostedRuntime) {
+            throw new IOException(hostedStorageUnavailableMessage());
+        }
+        return saveLocalGalleryArt(normalizedId, extension, file);
     }
 
     public String saveLoadingArt(String pieceId, String orientation, MultipartFile file) throws IOException {
@@ -156,15 +214,40 @@ public class LoadingArtStorageService {
                 .setMetadata(Map.of("firebaseStorageDownloadTokens", downloadToken))
                 .build();
         context.storage().create(blobInfo, file.getBytes());
-        deleteOtherCloudVariants(context, baseName, objectPath);
+        deleteOtherCloudVariants(context, STORAGE_PREFIX, baseName, objectPath);
         return buildStoragePublicUrl(context.bucketName(), objectPath, downloadToken);
     }
 
-    private void deleteOtherCloudVariants(StorageClientContext context, String baseName, String keptObjectPath) {
+    private String saveCloudGalleryArt(StorageClientContext context, String pieceId, String extension, MultipartFile file) throws IOException {
+        byte[] bytes = file.getBytes();
+        String objectPath = GALLERY_STORAGE_PREFIX + pieceId + "." + extension;
+        String thumbPath = GALLERY_STORAGE_PREFIX + pieceId + "-thumb." + extension;
+        String downloadToken = UUID.randomUUID().toString();
+        BlobInfo blobInfo = BlobInfo.newBuilder(BlobId.of(context.bucketName(), objectPath))
+                .setContentType(contentTypeForExtension(extension))
+                .setCacheControl("public,max-age=31536000,immutable")
+                .setMetadata(Map.of("firebaseStorageDownloadTokens", downloadToken))
+                .build();
+        context.storage().create(blobInfo, bytes);
+        // Keep the thumb sibling current so the hub carousel does not show a
+        // stale crop after a full-plate replace (same bytes is acceptable).
+        String thumbToken = UUID.randomUUID().toString();
+        BlobInfo thumbInfo = BlobInfo.newBuilder(BlobId.of(context.bucketName(), thumbPath))
+                .setContentType(contentTypeForExtension(extension))
+                .setCacheControl("public,max-age=31536000,immutable")
+                .setMetadata(Map.of("firebaseStorageDownloadTokens", thumbToken))
+                .build();
+        context.storage().create(thumbInfo, bytes);
+        deleteOtherCloudVariants(context, GALLERY_STORAGE_PREFIX, pieceId, objectPath);
+        deleteOtherCloudVariants(context, GALLERY_STORAGE_PREFIX, pieceId + "-thumb", thumbPath);
+        return buildStoragePublicUrl(context.bucketName(), objectPath, downloadToken);
+    }
+
+    private void deleteOtherCloudVariants(StorageClientContext context, String prefix, String baseName, String keptObjectPath) {
         try {
             Page<Blob> blobs = context.storage().list(
                     context.bucketName(),
-                    Storage.BlobListOption.prefix(STORAGE_PREFIX + baseName + ".")
+                    Storage.BlobListOption.prefix(prefix + baseName + ".")
             );
             for (Blob blob : blobs.iterateAll()) {
                 if (blob != null && !keptObjectPath.equals(blob.getName())) {
@@ -197,6 +280,33 @@ public class LoadingArtStorageService {
 
         file.transferTo(target);
         return "/img/art/loading/" + baseName + "." + extension;
+    }
+
+    private String saveLocalGalleryArt(String pieceId, String extension, MultipartFile file) throws IOException {
+        Path absoluteDir = getGalleryDirectory();
+        Files.createDirectories(absoluteDir);
+        Path target = absoluteDir.resolve(pieceId + "." + extension).normalize();
+        Path thumb = absoluteDir.resolve(pieceId + "-thumb." + extension).normalize();
+        if (!target.startsWith(absoluteDir) || !thumb.startsWith(absoluteDir)) {
+            throw new IllegalArgumentException("Invalid art destination.");
+        }
+        try (Stream<Path> existing = Files.list(absoluteDir)) {
+            existing.filter(Files::isRegularFile)
+                    .filter(path -> {
+                        String name = path.getFileName().toString();
+                        int dot = name.lastIndexOf('.');
+                        if (dot <= 0) {
+                            return false;
+                        }
+                        String base = name.substring(0, dot);
+                        return base.equalsIgnoreCase(pieceId) || base.equalsIgnoreCase(pieceId + "-thumb");
+                    })
+                    .forEach(path -> path.toFile().delete());
+        }
+        byte[] bytes = file.getBytes();
+        Files.write(target, bytes);
+        Files.write(thumb, bytes);
+        return "/img/gallery/" + pieceId + "." + extension;
     }
 
     private StorageClientContext ensureCloudStorageInitialized() {
@@ -294,7 +404,7 @@ public class LoadingArtStorageService {
         return storageInitializationError;
     }
 
-    static String normalizePieceId(String pieceId) {
+    public static String normalizePieceId(String pieceId) {
         if (pieceId == null) {
             return null;
         }
@@ -330,11 +440,11 @@ public class LoadingArtStorageService {
         throw new IllegalArgumentException("Loading art must be a png, jpg, webp, or gif image.");
     }
 
-    private static String filenameFromObjectName(String objectName) {
-        if (objectName == null || !objectName.startsWith(STORAGE_PREFIX)) {
+    private static String filenameFromObjectName(String objectName, String prefix) {
+        if (objectName == null || prefix == null || !objectName.startsWith(prefix)) {
             return "";
         }
-        String filename = objectName.substring(STORAGE_PREFIX.length());
+        String filename = objectName.substring(prefix.length());
         return filename.contains("/") ? "" : filename;
     }
 

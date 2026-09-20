@@ -222,12 +222,13 @@
 
     topics['loading-art'] = {
         title: 'Loading Screen Art',
-        html: '<p>Upload art pieces used on loading screens, the Art Gallery, and custom backgrounds. Every classpath plate and every hosted upload appears in this gallery — click a card to preview, then <strong>Edit / replace</strong> to refill the form and overwrite that orientation.</p>' +
+        html: '<p>Every cataloged plate appears here — classpath loading pairs under <code>img/art/loading</code>, cinematic hub scenes under <code>img/gallery</code>, and hosted uploads. Search and filter the catalog, click a card to preview, then <strong>Edit / replace</strong> (or <strong>Add landscape/portrait</strong>) to refill the form and overwrite that orientation.</p>' +
             table([
                 row(['<strong>Piece name</strong>', 'Shared id for pairing files (e.g. <code>ember-hollow</code>).']),
-                row(['<strong>Landscape</strong>', 'Wide image — <code>piece-landscape.png</code>']),
-                row(['<strong>Portrait</strong>', 'Tall image — <code>piece-portrait.png</code>']),
-                row(['<strong>Gallery entry</strong>', 'One name with both orientations becomes a single selectable piece.']),
+                row(['<strong>Landscape</strong>', 'Wide image — <code>piece-landscape.webp</code> (cinematic plates are landscape-only under <code>img/gallery/</code>).']),
+                row(['<strong>Portrait</strong>', 'Tall image — <code>piece-portrait.webp</code>']),
+                row(['<strong>Cinematic</strong>', 'Hub gallery scenes (Bearby, Bearnade, …). Replacing landscape writes back to <code>img/gallery/</code>.']),
+                row(['<strong>Incomplete</strong>', 'Missing an orientation — filter Incomplete or use Add landscape/portrait on the preview.']),
                 row(['<strong>Replace</strong>', 'Click a card → Edit / replace → Choose Image → Upload. Same piece name + orientation overwrites.'])
             ])
     };

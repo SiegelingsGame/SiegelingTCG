@@ -121,4 +121,33 @@ class LoadingArtStorageServiceTest {
         assertFalse(Files.exists(localTarget));
         Files.deleteIfExists(invalidServiceAccount);
     }
+
+    @Test
+    void savesCinematicGalleryArtLocallyWithThumbSibling() throws IOException {
+        String pieceId = "cinematic-local-" + UUID.randomUUID();
+        Path galleryDir = Path.of("src", "main", "resources", "static", "img", "gallery").toAbsolutePath().normalize();
+        Path full = galleryDir.resolve(pieceId + ".webp");
+        Path thumb = galleryDir.resolve(pieceId + "-thumb.webp");
+        Files.deleteIfExists(full);
+        Files.deleteIfExists(thumb);
+
+        LoadingArtStorageService service = new LoadingArtStorageService(
+                new ObjectMapper(),
+                false,
+                "",
+                "",
+                "",
+                false
+        );
+        String url = service.saveCinematicGalleryArt(
+                pieceId,
+                new MockMultipartFile("file", "scene.webp", "image/webp", new byte[] { 9, 8, 7 })
+        );
+
+        assertEquals("/img/gallery/" + pieceId + ".webp", url);
+        assertTrue(Files.isRegularFile(full));
+        assertTrue(Files.isRegularFile(thumb));
+        Files.deleteIfExists(full);
+        Files.deleteIfExists(thumb);
+    }
 }

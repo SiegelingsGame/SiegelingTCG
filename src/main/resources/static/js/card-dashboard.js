@@ -2679,6 +2679,9 @@
             state.editorPage = "LIVE_ELEMENTS";
         } else if (page === "LOADING_ART") {
             state.editorPage = "LOADING_ART";
+            if (window.SiegelingsLoadingArtAdmin && typeof window.SiegelingsLoadingArtAdmin.refresh === "function") {
+                window.SiegelingsLoadingArtAdmin.refresh();
+            }
         } else if (page === "SHOP") {
             state.editorPage = "SHOP";
         } else if (page === "KEEP") {

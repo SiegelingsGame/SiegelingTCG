@@ -1,7 +1,12 @@
+Original prompt: Make sure all uploaded art is cataloged and available to edit in dashboard
+
+- September 20, 2026 - **Art catalog completeness: cinematic gallery plates join `/api/art/loading`, and the dashboard Loading Art workspace can find/edit every piece.** `ArtGalleryController` now scans `img/gallery/` (non-thumb) alongside `img/art/loading/`, tags pieces with `source` / `hasLandscape` / `hasPortrait`, and landscape replaces for cinematic ids write back through `LoadingArtStorageService.saveCinematicGalleryArt` (full plate + thumb sibling). `loading-art.js` dedupes the hub pool by id. Dashboard gains search + All/Cinematic/Loading/Incomplete filters, incomplete badges, Add landscape/portrait slots, and refreshes the catalog when the Loading Art tab opens. Cache-busts: `loading-art.js` 2→**3**, `loading-art-admin.js` 2→**3**, `dashboard-info.js` 10→**11**, `card-dashboard.js` 61→**62**, `card-dashboard.css` 44→**45**.
+- Verification: pending API + dashboard checks after restart.
+
 Original prompt: Add the new art make sure it’s editable in the dashboard.
 
 - September 20, 2026 - **Fifty-eight more world-art plates, and Loading Art is editable from the dashboard.** New WebP files land in `static/img/art/loading/` (Falcool / Falcoat / Peatbeak, ice line vignettes, wind and earth character sheets, fire variants with scene suffixes so they do not overwrite the September 18 plates, Applehead, Pylord, etc.). The card dashboard Loading Art workspace already listed `/api/art/loading`; it now pre-fills the piece name + orientation when you open a card and adds an **Edit / replace** control so uploading the same id overwrites that orientation. Cache-busts: `loading-art-admin.js` 1→**2**, `dashboard-info.js` 9→**10**, `card-dashboard.css` 43→**44**.
-- Verification: pending commit-time API + dashboard checks.
+- Verification: `GET /api/art/loading` returns **114** pieces including all **58** new ids. Headless Chromium: dashboard Loading Art shows 114 cards / 58 new; clicking Falcool opens the preview, pre-fills `pieceId=falcool` + landscape, and **Edit / replace** closes the preview with the form ready. Hub `/gallery` reports **"119 pieces"** with Falcool / Peatbeak / Applehead present. Artifacts: `dashboard-loading-art-falcool.png`, `dashboard-loading-art-edit-form.png`, `gallery-falcool-open.png`.
 
 Original prompt: Add these to the art gallery and background selections
 
