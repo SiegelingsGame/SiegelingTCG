@@ -1192,7 +1192,8 @@
             '<div class="sg-gal-tools" data-tools>' +
               '<button class="sg-icon-btn" type="button" data-search-toggle aria-label="Search">⌕</button>' +
               '<label class="sg-search"><input type="text" placeholder="Search the binder…" data-search-input></label>' +
-              '<button class="sg-icon-btn" type="button" data-filter-toggle aria-label="Filters">≡</button>' +
+              '<button class="sg-icon-btn sg-filter-toggle" type="button" data-filter-toggle aria-label="Filters">≡' +
+                '<span class="sg-filter-toggle-badge" data-filter-toggle-badge hidden>0</span></button>' +
               '<button class="sg-icon-btn" type="button" data-look-toggle aria-label="Dress the binder">\u2756</button>' +
               '<span class="sg-count" data-count></span>' +
             '</div>' +
@@ -1428,6 +1429,8 @@
     var glassCount = app.querySelector('[data-glass-count]');
     var fab = app.querySelector('[data-filter-fab]');
     var fabBadge = app.querySelector('[data-filter-fab-badge]');
+    var filterToggle = app.querySelector('[data-filter-toggle]');
+    var filterToggleBadge = app.querySelector('[data-filter-toggle-badge]');
     var clearBtn = app.querySelector('[data-filter-clear]');
     var grid = app.querySelector('[data-grid]');
     var count = app.querySelector('[data-count]');
@@ -1478,6 +1481,14 @@
       }
       if (clearBtn) clearBtn.hidden = n === 0;
       if (fab) fab.classList.toggle('has-filters', n > 0);
+      // The rows start collapsed, so the toggle is the only thing on screen
+      // that can say the grid is already narrowed. It carries the same count
+      // the FAB does rather than leaving a filtered binder looking unfiltered.
+      if (filterToggle) filterToggle.classList.toggle('has-filters', n > 0);
+      if (filterToggleBadge) {
+        filterToggleBadge.hidden = n === 0;
+        filterToggleBadge.textContent = String(n);
+      }
     }
 
     function repaint(keepPainted) {
@@ -1543,7 +1554,7 @@
     bindPillGroup(glassFilters, 'data-type', function (v) { activeType = v; });
     bindPillGroup(glassFilters, 'data-rarity', function (v) { activeRarity = v; });
 
-    var filterToggle = app.querySelector('[data-filter-toggle]');
+    // (looked up above, beside the other chrome handles)
     if (filterToggle) {
       filterToggle.addEventListener('click', function () {
         filters.classList.toggle('open');
@@ -1598,9 +1609,13 @@
       }
     });
 
-    // Filters stay open by default at the top of the binder; search is optional.
-    if (filters) filters.classList.add('open');
-    if (filterToggle) filterToggle.classList.add('on');
+    // The binder opens on the cards, not on its controls: three rows of pills
+    // cost most of the first screen of artwork before a player has asked to
+    // narrow anything. The filter rows start collapsed behind the tools row's
+    // toggle (and the FAB, once the page is scrolled); search is optional the
+    // same way. Any filter a player does set stays visible in the toggle's
+    // active state and the FAB badge, so a collapsed row never hides a
+    // narrowed grid.
     setCompact(false);
     repaint();
     onScroll();
