@@ -468,18 +468,19 @@
     });
   }
 
-  /* Turns a bounding box into the transform that seats the creature in its tile:
-     scaled so it fills the frame in whichever axis runs out first, centred
-     horizontally on the creature rather than on the file, and sat on the
+  /* Turns a bounding box into the numbers that seat the creature in its tile:
+     the scale at which it fills the frame in whichever axis runs out first
+     (callers may use less), the shift that centres it horizontally on the
+     creature rather than on the file, and the shift that sits it on the
      frame's bottom edge. */
   function artFitTransform(box, el) {
-    if (!box) return '';
+    if (!box) return null;
     var bw = box.x1 - box.x0, bh = box.y1 - box.y0;
-    if (bw <= 0 || bh <= 0) return '';
+    if (bw <= 0 || bh <= 0) return null;
     // object-fit:contain letterboxes the image inside the element, so the
     // painted content is what the fractions actually apply to.
     var ew = el.clientWidth, eh = el.clientHeight;
-    if (!ew || !eh || !el.naturalWidth || !el.naturalHeight) return '';
+    if (!ew || !eh || !el.naturalWidth || !el.naturalHeight) return null;
     var nat = el.naturalWidth / el.naturalHeight;
     var pw = ew, ph = ew / nat;
     if (ph > eh) { ph = eh; pw = eh * nat; }
@@ -491,36 +492,112 @@
        plate while a tall one filled it. Measuring the creature in element
        pixels and fitting it to ew x eh uses the horizontal room the letterbox
        wastes, and still cannot clip: each axis is bounded by the frame. */
-    var scale = Math.min(ART_FIT_MAX_SCALE, ew / (bw * pw), eh / (bh * ph));
-    // With transform-origin at centre bottom: shift the creature's centre onto
-    // the frame's centre line, and its feet onto the frame's bottom.
-    var dx = (0.5 - (box.x0 + box.x1) / 2) * pw;
-    var dy = (1 - box.y1) * ph;
-    return 'scale(' + scale.toFixed(3) + ') translate(' + dx.toFixed(1) + 'px, ' + dy.toFixed(1) + 'px)';
+    return {
+      /* The largest scale that still fits inside the frame on both axes. */
+      fill: Math.min(ew / (bw * pw), eh / (bh * ph)),
+      // With transform-origin at centre bottom: shift the creature's centre onto
+      // the frame's centre line, and its feet onto the frame's bottom.
+      dx: (0.5 - (box.x0 + box.x1) / 2) * pw,
+      dy: (1 - box.y1) * ph
+    };
+  }
+
+  function artFitStyle(fit, scale) {
+    return 'scale(' + Math.min(ART_FIT_MAX_SCALE, scale).toFixed(3) + ') ' +
+           'translate(' + fit.dx.toFixed(1) + 'px, ' + fit.dy.toFixed(1) + 'px)';
+  }
+
+  /* The size a designer gave this creature on its card face in the dashboard.
+     Mirrors card-binder-visual's own clamp, so a tile and a binder card read
+     the same authored size; a card with no authored scale is 1, as it is
+     there. */
+  function authoredArtScale(img) {
+    var v = Number(img.getAttribute('data-art-scale'));
+    return (isFinite(v) && v > 0) ? Math.min(3, Math.max(0.25, v)) : 1;
+  }
+
+  /* One measurement, cached: null is a real answer (unreadable pixels) and is
+     stored so the probe does not run again. */
+  function artBoxFor(img) {
+    var src = img.currentSrc || img.src;
+    if (!src) return Promise.resolve(null);
+    var store = artFitStore();
+    if (store[src] !== undefined) return Promise.resolve(store[src]);
+    return measureArtBox(src).then(function (box) {
+      store[src] = box || null;
+      artFitSave();
+      return box;
+    });
   }
 
   function applyArtFit(img) {
     if (!img || img.dataset.artFit) return;
-    var src = img.currentSrc || img.src;
-    if (!src) return;
     img.dataset.artFit = 'pending';
-    var store = artFitStore();
-    var cached = store[src];
-    var got = (cached !== undefined) ? Promise.resolve(cached) : measureArtBox(src).then(function (box) {
-      store[src] = box || null;   // null is a real answer: do not re-measure
-      artFitSave();
-      return box;
-    });
-    got.then(function (box) {
+    artBoxFor(img).then(function (box) {
       img.dataset.artFit = 'done';
-      if (!box) return;
-      var t = artFitTransform(box, img);
-      if (t) img.style.setProperty('--art-fit', t);
+      var fit = box && artFitTransform(box, img);
+      if (fit) img.style.setProperty('--art-fit', artFitStyle(fit, fit.fill));
     });
+  }
+
+  /* ---------- relative fit (Showcase) ----------
+     Everywhere else a tile fits its creature to its own frame, which is right
+     for a rail the app picked: each card gets the best look it can. The
+     Showcase is the player's own six, standing together, and there a Bearby
+     that fills its tile exactly as much as a Glaciemperor tells them nothing
+     about either. These tiles share ONE factor instead, so the sizes stay
+     relative.
+
+     The reference is the size the designer authored on the card face in the
+     dashboard (`cardArtScale`), because that is where a Siegeling's size is
+     decided. A card face shows the creature at (alpha box x cardArtScale), and
+     every tile here shares a frame and a 2:3 source, so rendering each one at
+     `K x cardArtScale` reproduces the binder's proportions exactly. K is the
+     largest factor that still clips nobody: the tightest per-tile fill bound
+     divided by that tile's authored scale. Tiles whose pixels could not be
+     read sit out - they keep the CSS fallback rather than drag K down on a
+     bounding box nobody measured. */
+  function applyArtFitGroup(rail) {
+    var imgs = Array.prototype.slice.call(rail.querySelectorAll('.sg-feat-art img'));
+    if (!imgs.length) return;
+    Promise.all(imgs.map(artBoxFor)).then(function (boxes) {
+      var seats = [], k = Infinity;
+      imgs.forEach(function (img, i) {
+        img.dataset.artFit = 'done';
+        var fit = boxes[i] && artFitTransform(boxes[i], img);
+        if (!fit) return;
+        var authored = authoredArtScale(img);
+        seats.push({ img: img, fit: fit, authored: authored });
+        k = Math.min(k, fit.fill / authored);
+      });
+      seats.forEach(function (seat) {
+        seat.img.style.setProperty('--art-fit', artFitStyle(seat.fit, k * seat.authored));
+      });
+    });
+  }
+
+  // A grouped rail cannot be fitted one image at a time - K is only known once
+  // every tile in it has been measured - so it waits for the whole row to load.
+  function whenLoaded(imgs) {
+    return Promise.all(imgs.map(function (img) {
+      if (img.complete && img.naturalWidth) return Promise.resolve();
+      return new Promise(function (resolve) {
+        img.addEventListener('load', function () { resolve(); });
+        img.addEventListener('error', function () { resolve(); });
+      });
+    }));
   }
 
   function mountArtFit(app) {
     if (!app) return;
+    var rails = Array.prototype.slice.call(app.querySelectorAll('[data-art-fit-group]'));
+    rails.forEach(function (rail) {
+      if (rail.dataset.artFitGroup === 'done') return;
+      rail.dataset.artFitGroup = 'done';
+      var imgs = Array.prototype.slice.call(rail.querySelectorAll('.sg-feat-art img'));
+      imgs.forEach(function (img) { img.dataset.artFit = 'pending'; });
+      whenLoaded(imgs).then(function () { applyArtFitGroup(rail); });
+    });
     var imgs = app.querySelectorAll('.sg-feat-art img');
     Array.prototype.forEach.call(imgs, function (img) {
       if (img.complete && img.naturalWidth) applyArtFit(img);
@@ -3782,7 +3859,10 @@
   function featTile(c) {
     return '<article class="sg-feat" data-card="' + esc(c.id) + '" tabindex="0" style="--el:' + color(c.element) + '">' +
       '<div class="sg-feat-plate"></div>' +
-      '<div class="sg-feat-art"><img src="' + esc(c.cardArtUrl) + '" alt="" loading="lazy"></div>' +
+      '<div class="sg-feat-art"><img src="' + esc(c.cardArtUrl) + '" alt="" loading="lazy"' +
+      // The authored card-face size, carried to the tile so a grouped rail can
+      // size these cards against each other instead of each to its own frame.
+      (c.cardArtScale != null ? ' data-art-scale="' + esc(c.cardArtScale) + '"' : '') + '></div>' +
       '<div class="sg-feat-foot"><span class="sg-feat-name">' + esc(c.name) + '</span>' +
       '<span class="sg-feat-marks"><i class="sg-rar ' + esc(String(c.rarity || '').toLowerCase()) + '"></i>' +
       '<img src="' + icon(c.element) + '" alt=""></span></div>' +
@@ -3994,7 +4074,7 @@
             (opts.guest
               ? '<a href="/cards" data-screen="collection">Browse</a>'
               : '<a href="#" data-prof-open="showcase">Change</a>') + '</div>' +
-          '<div class="sg-swipe">' + cards.map(featTile).join('') + '</div>' +
+          '<div class="sg-swipe" data-art-fit-group="showcase">' + cards.map(featTile).join('') + '</div>' +
         '</section>' +
         signatureSection(opts) +
         '<section class="sg-section" data-prof-block="recent">' +
@@ -5516,7 +5596,7 @@
         '</div>' +
         (showcase.length
           ? '<section class="sg-section"><div class="sg-section-head"><h3>Showcase</h3></div>' +
-              '<div class="sg-swipe">' + showcase.map(featTile).join('') + '</div></section>'
+              '<div class="sg-swipe" data-art-fit-group="showcase">' + showcase.map(featTile).join('') + '</div></section>'
           : '') +
         (signature
           ? '<section class="sg-section"><div class="sg-section-head"><h3>Signature</h3></div>' +
@@ -5570,6 +5650,7 @@
       var dismiss = sheet.querySelector('.sg-sheet-dismiss');
       if (dismiss) dismiss.focus({ preventScroll: true });
       // Showcase tiles are real cards, so let the binder's fitter dress them.
+      mountArtFit(sheet);
       scheduleFit(sheet);
     });
   }
