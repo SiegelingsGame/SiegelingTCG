@@ -469,8 +469,9 @@
   }
 
   /* Turns a bounding box into the transform that seats the creature in its tile:
-     scaled so its longer side fills the frame, centred horizontally on the
-     creature rather than on the file, and sat on the frame's bottom edge. */
+     scaled so it fills the frame in whichever axis runs out first, centred
+     horizontally on the creature rather than on the file, and sat on the
+     frame's bottom edge. */
   function artFitTransform(box, el) {
     if (!box) return '';
     var bw = box.x1 - box.x0, bh = box.y1 - box.y0;
@@ -482,7 +483,15 @@
     var nat = el.naturalWidth / el.naturalHeight;
     var pw = ew, ph = ew / nat;
     if (ph > eh) { ph = eh; pw = eh * nat; }
-    var scale = Math.min(ART_FIT_MAX_SCALE, 1 / Math.max(bw, bh));
+    /* Fit against the TILE, not against the letterbox. The art files are 2:3
+       portrait while the tile frame is close to square, so `contain` already
+       leaves a wide empty margin on both sides; scaling by 1/max(bw,bh) only
+       fills that narrow painted column, which is why a broad creature such as
+       Hydroxyl (alpha box 0.95 wide x 0.52 tall) sat tiny in the middle of its
+       plate while a tall one filled it. Measuring the creature in element
+       pixels and fitting it to ew x eh uses the horizontal room the letterbox
+       wastes, and still cannot clip: each axis is bounded by the frame. */
+    var scale = Math.min(ART_FIT_MAX_SCALE, ew / (bw * pw), eh / (bh * ph));
     // With transform-origin at centre bottom: shift the creature's centre onto
     // the frame's centre line, and its feet onto the frame's bottom.
     var dx = (0.5 - (box.x0 + box.x1) / 2) * pw;
