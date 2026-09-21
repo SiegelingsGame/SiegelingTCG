@@ -116,7 +116,39 @@
   }
 
   function pool() {
-    return GALLERY.concat(cached());
+    // Deduplicate by id so cinematic GALLERY plates and the same id from
+    // /api/art/loading do not appear twice in backgrounds / gallery pickers.
+    // API cache merges second and wins on landscape/portrait URLs.
+    var seen = {};
+    var out = [];
+    function addAll(list) {
+      if (!list || !list.length) return;
+      for (var i = 0; i < list.length; i++) {
+        var p = list[i];
+        if (!p || !p.id) continue;
+        var key = String(p.id).toLowerCase();
+        var existing = seen[key];
+        if (existing) {
+          if (p.landscape) existing.landscape = p.landscape;
+          if (p.portrait) existing.portrait = p.portrait;
+          if (p.title) existing.title = p.title;
+          if (p.place) existing.place = p.place;
+          continue;
+        }
+        var copy = {
+          id: p.id,
+          title: p.title,
+          place: p.place,
+          landscape: p.landscape,
+          portrait: p.portrait
+        };
+        seen[key] = copy;
+        out.push(copy);
+      }
+    }
+    addAll(GALLERY);
+    addAll(cached());
+    return out;
   }
 
   function prefersPortrait() {
