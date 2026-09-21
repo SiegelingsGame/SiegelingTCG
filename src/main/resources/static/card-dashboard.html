@@ -10,6 +10,12 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#0a1530">
+    <!-- A real navigation out of the hub: without these the installed app
+         renders the dashboard in Safari's chrome. -->
+    <meta name="apple-mobile-web-app-title" content="Siegelings">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <!-- home.css supplies the binder-card preview component styles; it must load
          BEFORE card-dashboard.css so the dashboard's own body/.panel/.browser-panel
          rules stay authoritative. Loading it last leaked home's
