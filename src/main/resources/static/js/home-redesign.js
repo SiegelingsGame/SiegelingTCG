@@ -321,8 +321,20 @@
     var online = (live.friends || []).filter(function (f) {
       return f && f.presence && f.presence.online;
     }).length;
+    var openQuests = (liveQuests(opts) || []).filter(function (q) { return !q[2]; }).length;
     return [
-      { id: 'home', ico: '⌂', label: 'Home', screen: 'home' },
+      // Home carried no tray, so it was the one tab in the bar with no caret -
+      // and the caret is not decoration, it rotates when a tray opens. Rather
+      // than print a control that promises nothing, Home now has what every
+      // other tab has: its rows are the Home screen's own sections, and they
+      // take you to the section rather than to a screen of their own, because
+      // that is where Leaderboards, Objectives and Expeditions actually live.
+      { id: 'home', ico: '⌂', label: 'Home', screen: 'home', items: [
+          ['Featured Siegelings', ''],
+          ['Hall of Siege', ''],
+          ['From the Gallery', ''],
+          ['Daily Objectives', n(openQuests)],
+          ['Continue Playing', runs ? n(runs) : '']] },
       // Same vocabulary as the Play screen and the shipping picker: the two real
       // modes are Battle and Siege.
       { id: 'play', ico: '⚔', label: 'Play', screen: 'play', items: [
@@ -509,7 +521,7 @@
 
   function featuredMarkup() {
     return '' +
-      '<section class="sg-section">' +
+      '<section class="sg-section" data-home-section="Featured Siegelings">' +
         '<div class="sg-section-head"><h3>Featured Siegelings</h3><a href="/cards" data-screen="collection">Gallery</a></div>' +
         '<div class="sg-swipe">' + FEATURED.map(function (c) {
           return '<article class="sg-feat" data-card="' + esc(c.id) + '" tabindex="0" style="--el:' + color(c.element) + '">' +
@@ -524,7 +536,7 @@
   }
 
   function gallerySection() {
-    return '<section class="sg-section">' +
+    return '<section class="sg-section" data-home-section="From the Gallery">' +
       '<div class="sg-section-head"><h3>From the Gallery</h3><a href="/gallery" data-screen="art">See All</a></div>' +
       '<div class="sg-swipe sg-swipe-wide">' + GALLERY.map(function (g) {
         var card = byId(g.card) || CARDS[0];
@@ -554,14 +566,14 @@
   function questsMarkup(opts) {
     var quests = liveQuests(opts);
     if (!quests) {
-      return '<div class="sg-strip is-empty">' +
+      return '<div class="sg-strip is-empty" data-home-section="Daily Objectives">' +
         '<div class="sg-strip-head"><h4>Daily Objectives</h4><span class="sep">•</span>' +
         '<span class="cnt">' + (opts && opts.guest ? 'Sign in to track them' : 'Unavailable') +
         '</span></div>' +
       '</div>';
     }
     var done = quests.filter(function (q) { return q[2]; }).length;
-    return '<div class="sg-strip" data-strip>' +
+    return '<div class="sg-strip" data-strip data-home-section="Daily Objectives">' +
       '<div class="sg-strip-head"><h4>Daily Objectives</h4><span class="sep">•</span>' +
       '<span class="cnt">' + done + '/' + quests.length + ' Complete</span><span class="caret">›</span></div>' +
       '<div class="sg-strip-body"><div>' + quests.map(function (q) {
@@ -628,7 +640,7 @@
           '<em>Start a Siege run and it waits for you here.</em></span>' +
           '<span class="sg-exp-go">Start &rsaquo;</span>' +
         '</a>';
-    return '<section class="sg-section">' +
+    return '<section class="sg-section" data-home-section="Continue Playing">' +
       '<div class="sg-section-head"><h3>Continue Playing</h3>' +
       '<a href="' + HREF.siege + '">Siege</a></div>' +
       '<div class="sg-exps">' + body + '</div>' +
@@ -828,9 +840,17 @@
             var auth = it[0] === 'Sign In' || it[0] === 'Create Account';
             // A row that names a Social sub-tab routes to the Social screen and
             // carries the tab with it, rather than to a screen of its own.
-            var attrs = it[2]
-              ? ' href="' + pathForScreen('social') + '" data-screen="social" data-social-goto="' + esc(it[2]) + '"'
-              : linkAttrs(it[0]);
+            var attrs;
+            if (n.id === 'home') {
+              // Home's rows address sections of the Home screen, not screens of
+              // their own; the row carries the section it wants and the router
+              // scrolls there once Home is rendered.
+              attrs = ' href="' + pathForScreen('home') + '" data-screen="home" data-home-goto="' + esc(it[0]) + '"';
+            } else if (it[2]) {
+              attrs = ' href="' + pathForScreen('social') + '" data-screen="social" data-social-goto="' + esc(it[2]) + '"';
+            } else {
+              attrs = linkAttrs(it[0]);
+            }
             return '<li' + (auth ? ' class="is-auth"' : '') + '>' +
               (attrs ? '<a' + attrs + '>' + esc(it[0]) + '</a>' : esc(it[0])) +
               (it[1] ? '<span>' + esc(it[1]) + '</span>' : '') + '</li>';
@@ -847,6 +867,24 @@
           (n.items ? '<i class="sg-caret" aria-hidden="true"></i>' : '') + '</button>';
       }).join('') + '</div>' +
     '</nav>';
+  }
+
+  // A Home tray row lands on the section it names. scroll-margin-top in the
+  // stylesheet holds it clear of the floating top chrome, so the offset is not
+  // duplicated here; a section the current payload did not render (no live
+  // quests, say) simply leaves the player at the top of Home rather than
+  // scrolling to nothing.
+  function scrollToHomeSection(host, name) {
+    if (!host || !name) return;
+    requestAnimationFrame(function () {
+      var target = host.querySelector('[data-home-section="' + name.replace(/"/g, '\\"') + '"]');
+      if (!target) return;
+      try {
+        target.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      } catch (e) {
+        target.scrollIntoView(true);
+      }
+    });
   }
 
   var onNavigate = null;
@@ -906,22 +944,265 @@
       bottomMarkup('home', opts);
   }
 
+  /* ---------- binder look ----------
+     The binder was a grid of cards on the app's flat purple: nothing said
+     "binder", and two players' collections looked identical. The dressing is
+     three stacked layers - a cover photo, a page surface, and a sleeve tint on
+     each pocket - and all three are the player's to choose. The choice is a
+     device preference (localStorage), not part of the server profile, because
+     profileSettings is a fixed contract the backend validates; a cosmetic that
+     needs no server round-trip should not wait on one.
+     Cover art reuses what the app already ships - the Siege land plates and the
+     loading-art gallery - so no new image bytes are added for this. */
+  var BINDER_LOOK_KEY = 'sgBinderLook';
+  var BINDER_COVERS = [
+    { id: 'midnight', label: 'Midnight', art: '' },
+    { id: 'fire', label: 'Emberwaste', art: '/img/lands/fire.webp' },
+    { id: 'ice', label: 'Rimeholt', art: '/img/lands/ice.webp' },
+    { id: 'water', label: 'Sunken Span', art: '/img/lands/water.webp' },
+    { id: 'earth', label: 'Rootreach', art: '/img/lands/earth.webp' },
+    { id: 'wind', label: 'Galecrest', art: '/img/lands/wind.webp' },
+    { id: 'electric', label: 'Stormspire', art: '/img/lands/electric.webp' },
+    { id: 'metal', label: 'Forgeworks', art: '/img/lands/metal.webp' },
+    { id: 'poison', label: 'Mirewood', art: '/img/lands/poison.webp' },
+    { id: 'psychic', label: 'Dreamfold', art: '/img/lands/psychic.webp' },
+    { id: 'light', label: 'Dawnhall', art: '/img/lands/light.webp' },
+    { id: 'shadow', label: 'Duskmarch', art: '/img/lands/shadow.webp' },
+    { id: 'undead', label: 'Gravewatch', art: '/img/lands/undead.webp' },
+    { id: 'aurora', label: 'Aurora', art: '/img/lands/aurora.webp' },
+    { id: 'badlands', label: 'Badlands', art: '/img/lands/badlands.webp' },
+    { id: 'obsidian', label: 'Obsidian', art: '/img/lands/obsidian.webp' },
+    { id: 'relic', label: 'Relic Vault', art: '/img/lands/relic.webp' }
+  ];
+  var BINDER_PAGES = [
+    ['leather', 'Leather'], ['parchment', 'Parchment'], ['slate', 'Slate'], ['velvet', 'Velvet']
+  ];
+  var BINDER_SLEEVES = [
+    ['gold', 'Gold', '#e6cd8c'], ['steel', 'Steel', '#8fa2bd'], ['ember', 'Ember', '#f0713f'],
+    ['violet', 'Violet', '#b45cff'], ['clear', 'Clear', 'transparent']
+  ];
+  var BINDER_LOOK_DEFAULT = { cover: 'midnight', page: 'leather', sleeve: 'gold' };
+
+  function readBinderLook() {
+    var look = { cover: BINDER_LOOK_DEFAULT.cover, page: BINDER_LOOK_DEFAULT.page,
+                 sleeve: BINDER_LOOK_DEFAULT.sleeve };
+    var raw;
+    try { raw = JSON.parse(localStorage.getItem(BINDER_LOOK_KEY) || '{}') || {}; }
+    catch (e) { raw = {}; }
+    if (raw.cover) look.cover = String(raw.cover);
+    if (raw.page) look.page = String(raw.page);
+    if (raw.sleeve) look.sleeve = String(raw.sleeve);
+    return look;
+  }
+
+  function writeBinderLook(look) {
+    try { localStorage.setItem(BINDER_LOOK_KEY, JSON.stringify(look)); }
+    catch (e) { /* private mode: the look still applies for this session */ }
+  }
+
+  // A cover is either a shipped land plate or 'gallery:<pieceId>' - the player
+  // can hang any piece of the art gallery behind their collection.
+  function binderCoverArt(coverId) {
+    var id = String(coverId || '');
+    if (id.indexOf('gallery:') === 0) {
+      var piece = profileArtPiece(id.slice(8));
+      return piece ? (piece.thumb || piece.full || '') : '';
+    }
+    for (var i = 0; i < BINDER_COVERS.length; i++) {
+      if (BINDER_COVERS[i].id === id) return BINDER_COVERS[i].art;
+    }
+    return '';
+  }
+
+  function applyBinderLook(app, look) {
+    if (!app) return;
+    app.setAttribute('data-binder-page', look.page);
+    app.setAttribute('data-binder-sleeve', look.sleeve);
+    var cover = app.querySelector('[data-binder-cover]');
+    if (!cover) return;
+    var art = binderCoverArt(look.cover);
+    cover.style.backgroundImage = art ? 'url("' + art + '")' : '';
+    cover.classList.toggle('is-art', Boolean(art));
+  }
+
+  function binderSkinMarkup() {
+    return '<div class="sg-binder-skin" aria-hidden="true">' +
+      '<div class="sg-binder-cover" data-binder-cover></div>' +
+      '<div class="sg-binder-veil"></div>' +
+    '</div>';
+  }
+
+  function binderSwatchRow(look) {
+    var covers = BINDER_COVERS.map(function (c) {
+      return '<button class="sg-look-swatch' + (c.id === look.cover ? ' on' : '') + '" type="button" ' +
+        'data-look-cover="' + esc(c.id) + '"' +
+        (c.art ? ' style="background-image:url(\'' + esc(c.art) + '\')"' : '') + '>' +
+        '<span>' + esc(c.label) + '</span></button>';
+    });
+    // Gallery pieces load from /api/art/loading, so this list is empty offline -
+    // the shipped covers above are always there to fall back on.
+    galleryPieces().forEach(function (p) {
+      covers.push('<button class="sg-look-swatch' +
+        (look.cover === 'gallery:' + p.id ? ' on' : '') + '" type="button" ' +
+        'data-look-cover="gallery:' + esc(p.id) + '" ' +
+        'style="background-image:url(\'' + esc(p.thumb) + '\')">' +
+        '<span>' + esc(p.title) + '</span></button>');
+    });
+    return covers.join('');
+  }
+
+  function binderLookMarkup(look) {
+    return '<div class="sg-look-grab"></div>' +
+      '<div class="sg-look-head"><h3>Dress the binder</h3>' +
+        '<button class="sg-look-x" type="button" data-look-close aria-label="Close">×</button></div>' +
+      '<div class="sg-look-body">' +
+        '<h4 class="sg-look-sub">Cover</h4>' +
+        '<div class="sg-look-covers">' + binderSwatchRow(look) + '</div>' +
+        '<h4 class="sg-look-sub">Page</h4>' +
+        '<div class="sg-look-row">' + BINDER_PAGES.map(function (p) {
+          return '<button class="sg-look-chip' + (p[0] === look.page ? ' on' : '') + '" type="button" ' +
+            'data-look-page="' + esc(p[0]) + '"><i class="sg-look-page-dot page-' + esc(p[0]) + '"></i>' +
+            esc(p[1]) + '</button>';
+        }).join('') + '</div>' +
+        '<h4 class="sg-look-sub">Sleeves</h4>' +
+        '<div class="sg-look-row">' + BINDER_SLEEVES.map(function (sl) {
+          return '<button class="sg-look-chip' + (sl[0] === look.sleeve ? ' on' : '') + '" type="button" ' +
+            'data-look-sleeve="' + esc(sl[0]) + '"><i class="sg-look-dot" style="--sw:' + esc(sl[2]) +
+            '"></i>' + esc(sl[1]) + '</button>';
+        }).join('') + '</div>' +
+      '</div>';
+  }
+
+  function binderLookHost(look) {
+    return '<div class="sg-look" data-look aria-hidden="true">' +
+      '<button class="sg-look-scrim" type="button" data-look-close aria-label="Close binder styling"></button>' +
+      '<div class="sg-look-card" role="dialog" aria-modal="true" aria-label="Dress the binder" data-look-card>' +
+        binderLookMarkup(look) +
+      '</div>' +
+    '</div>';
+  }
+
+  // The picker repaints in place: a swatch is a preview, so the binder behind
+  // the sheet has to change while the sheet is still open.
+  function mountBinderLook(app) {
+    var host = app.querySelector('[data-look]');
+    var toggle = app.querySelector('[data-look-toggle]');
+    if (!host || !toggle) return;
+    var card = host.querySelector('[data-look-card]');
+    var look = readBinderLook();
+    applyBinderLook(app, look);
+
+    function open() {
+      card.innerHTML = binderLookMarkup(look);
+      host.classList.add('open');
+      host.setAttribute('aria-hidden', 'false');
+      toggle.classList.add('on');
+    }
+    function close() {
+      host.classList.remove('open');
+      host.setAttribute('aria-hidden', 'true');
+      toggle.classList.remove('on');
+      toggle.focus({ preventScroll: true });
+    }
+    function pick(key, value) {
+      look[key] = value;
+      writeBinderLook(look);
+      applyBinderLook(app, look);
+      card.innerHTML = binderLookMarkup(look);
+    }
+
+    toggle.addEventListener('click', function () {
+      if (host.classList.contains('open')) close(); else open();
+    });
+    host.addEventListener('click', function (e) {
+      if (e.target.closest('[data-look-close]')) { close(); return; }
+      var cover = e.target.closest('[data-look-cover]');
+      if (cover) { pick('cover', cover.getAttribute('data-look-cover')); return; }
+      var page = e.target.closest('[data-look-page]');
+      if (page) { pick('page', page.getAttribute('data-look-page')); return; }
+      var sleeve = e.target.closest('[data-look-sleeve]');
+      if (sleeve) { pick('sleeve', sleeve.getAttribute('data-look-sleeve')); }
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && host.classList.contains('open')) close();
+    });
+  }
+
+  /* ---------- filter flavour ----------
+     The three filter rows were identical grey pills: nothing about a row said
+     which axis it filtered, and "Siegelings / Strategies / Deceptions" were
+     three words with no picture of the thing they select. Each pill now wears
+     its own subject - elements keep their canonical hex from style.css (CLAUDE.md
+     convention 4), rarities take their gem colour, and the card types get a
+     drawn glyph of the card itself. The glyphs are inline SVG rather than image
+     files: they inherit the pill's colour, so one drawing works for the resting,
+     hovered and selected states without three assets. */
+  var TYPE_TINT = {
+    ALL: 'var(--acc-lemon, #c8a54f)',
+    SIEGLING: 'var(--acc-emerald, #4fd07a)',
+    SPELL: 'var(--acc-sky, #54a8f0)',
+    TRAP: 'var(--acc-magenta, #f06ec0)',
+    SIEGEKNIGHT: 'var(--gold-bright, #e6cd8c)'
+  };
+  var RARITY_TINT = {
+    ALL: 'var(--acc-lemon, #c8a54f)',
+    COMMON: '#c9c0f0',
+    UNCOMMON: 'var(--acc-emerald, #4fd07a)',
+    RARE: 'var(--acc-sky, #54a8f0)',
+    EPIC: 'var(--acc-violet, #9b7bf0)',
+    LEGENDARY: 'var(--acc-lemon, #ffe9a8)'
+  };
+  // Drawn at 20x20 on a 24-box so the strokes line up with the element icons
+  // sitting beside them in the row above.
+  var TYPE_GLYPH = {
+    // two cards in a fan: the binder as a whole
+    ALL: '<rect x="4" y="5" width="10" height="14" rx="1.6"/>' +
+      '<path d="M16.4 6.6l3.4 1.3-3.6 9.6-1.4-.5"/>',
+    // a card wearing notches on three edges - the Siegling's own tell
+    SIEGLING: '<rect x="5" y="3.5" width="14" height="17" rx="2"/>' +
+      '<circle cx="12" cy="3.5" r="1.9" fill="currentColor" stroke="none"/>' +
+      '<circle cx="5" cy="12" r="1.9" fill="currentColor" stroke="none"/>' +
+      '<circle cx="19" cy="15.5" r="1.9" fill="currentColor" stroke="none"/>',
+    // an unrolled scroll: the Strategy being cast
+    SPELL: '<path d="M4.5 6.5A2.5 2.5 0 0 1 7 4h10.5v13.5A2.5 2.5 0 0 0 20 20H7"/>' +
+      '<path d="M7 20a2.5 2.5 0 0 1-2.5-2.5V6.5"/><path d="M9 8.5h6M9 12h6"/>',
+    // a mask, because at 17px a sprung snare reads as a smudge and a Deception
+    // is the card that pretends to be something else
+    TRAP: '<path d="M3.5 8.2c3-1.5 14-1.5 17 0 0 5.4-2.4 9-5.5 9-1.4 0-2.4-1-3-2-.6 1-1.6 2-3 2-3.1 0-5.5-3.6-5.5-9z"/>' +
+      '<circle cx="8" cy="11.4" r="1.5" fill="currentColor" stroke="none"/>' +
+      '<circle cx="16" cy="11.4" r="1.5" fill="currentColor" stroke="none"/>',
+    // a visored helm: the SiegeKnight who leads the warband
+    SIEGEKNIGHT: '<path d="M12 2.6l8 3.2v5.8c0 4.6-3.2 7.8-8 9.8-4.8-2-8-5.2-8-9.8V5.8z"/>' +
+      '<path d="M8.5 10h7M12 10v6"/>'
+  };
+  function typeGlyph(id) {
+    var d = TYPE_GLYPH[id] || TYPE_GLYPH.ALL;
+    return '<svg class="sg-pill-glyph" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" ' +
+      'fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
+      d + '</svg>';
+  }
+
   function binderFilterRowsMarkup(elements, rarities) {
     return '' +
       '<div class="sg-filter-label">Element</div>' +
-      '<div class="sg-filter-row">' + elements.map(function (e, i) {
-        return '<button class="sg-pill' + (i === 0 ? ' on' : '') + '" type="button" data-el="' + e + '" style="--el:' +
+      '<div class="sg-filter-row sg-filter-row-element">' + elements.map(function (e, i) {
+        return '<button class="sg-pill sg-pill-element' + (i === 0 ? ' on' : '') + '" type="button" data-el="' + e + '" style="--el:' +
           (e === 'ALL' ? 'var(--acc-lemon)' : color(e)) + '">' +
-          (e === 'ALL' ? '' : '<img src="' + icon(e) + '" alt="">') + esc(title(e)) + '</button>';
+          (e === 'ALL' ? '<i class="sg-pill-prism" aria-hidden="true"></i>' : '<img src="' + icon(e) + '" alt="">') +
+          esc(title(e)) + '</button>';
       }).join('') + '</div>' +
       '<div class="sg-filter-label">Type</div>' +
-      '<div class="sg-filter-row">' + [['ALL','All'],['SIEGLING','Siegelings'],['SPELL','Strategies'],['TRAP','Deceptions'],['SIEGEKNIGHT','SiegeKnights']].map(function (t, i) {
-        return '<button class="sg-pill' + (i === 0 ? ' on' : '') + '" type="button" data-type="' + t[0] + '">' + esc(t[1]) + '</button>';
+      '<div class="sg-filter-row sg-filter-row-type">' + [['ALL','All'],['SIEGLING','Siegelings'],['SPELL','Strategies'],['TRAP','Deceptions'],['SIEGEKNIGHT','SiegeKnights']].map(function (t, i) {
+        return '<button class="sg-pill sg-pill-type' + (i === 0 ? ' on' : '') + '" type="button" data-type="' + t[0] + '" ' +
+          'style="--el:' + TYPE_TINT[t[0]] + '">' + typeGlyph(t[0]) + esc(t[1]) + '</button>';
       }).join('') + '</div>' +
       '<div class="sg-filter-label">Rarity</div>' +
-      '<div class="sg-filter-row">' + rarities.map(function (r, i) {
-        return '<button class="sg-pill sg-pill-rarity' + (i === 0 ? ' on' : '') + '" type="button" data-rarity="' + r + '">' +
-          (r === 'ALL' ? '' : '<i class="sg-rar ' + r.toLowerCase() + '"></i>') + esc(title(r)) + '</button>';
+      '<div class="sg-filter-row sg-filter-row-rarity">' + rarities.map(function (r, i) {
+        return '<button class="sg-pill sg-pill-rarity' + (i === 0 ? ' on' : '') + '" type="button" data-rarity="' + r + '" ' +
+          'style="--el:' + (RARITY_TINT[r] || RARITY_TINT.ALL) + '">' +
+          (r === 'ALL' ? '<i class="sg-pill-prism" aria-hidden="true"></i>'
+                       : '<i class="sg-rar ' + r.toLowerCase() + '"></i>') +
+          esc(title(r)) + '</button>';
       }).join('') + '</div>';
   }
 
@@ -938,6 +1219,7 @@
     var counts = collectionCounts(opts.live);
     var filterRows = binderFilterRowsMarkup(elements, rarities);
     return topMarkup(opts) +
+      binderSkinMarkup() +
       '<div class="sg-scroll" data-gal-scroll>' +
         '<div class="sg-gal-head"><h2>The Binder</h2><p>' +
           (counts ? esc(counts.held) + ' of ' + esc(counts.total) + ' cards collected'
@@ -948,13 +1230,15 @@
             '<div class="sg-gal-tools" data-tools>' +
               '<button class="sg-icon-btn" type="button" data-search-toggle aria-label="Search">⌕</button>' +
               '<label class="sg-search"><input type="text" placeholder="Search the binder…" data-search-input></label>' +
-              '<button class="sg-icon-btn" type="button" data-filter-toggle aria-label="Filters">≡</button>' +
+              '<button class="sg-icon-btn sg-filter-toggle" type="button" data-filter-toggle aria-label="Filters">≡' +
+                '<span class="sg-filter-toggle-badge" data-filter-toggle-badge hidden>0</span></button>' +
+              '<button class="sg-icon-btn" type="button" data-look-toggle aria-label="Dress the binder">\u2756</button>' +
               '<span class="sg-count" data-count></span>' +
             '</div>' +
             '<div class="sg-filters" data-filters><div>' + filterRows + '</div></div>' +
           '</div>' +
         '</div>' +
-        '<div class="sg-gal-grid" data-grid></div>' +
+        '<div class="sg-binder-page"><div class="sg-gal-grid" data-grid></div></div>' +
         '<div class="sg-gal-more" data-more hidden><button type="button">Show more</button></div>' +
         '<div style="height:96px"></div>' +
       '</div>' +
@@ -989,6 +1273,7 @@
           '<div class="sg-filter-glass-body" data-glass-filters>' + filterRows + '</div>' +
         '</div>' +
       '</div>' +
+      binderLookHost(readBinderLook()) +
       sheetHost() +
       bottomMarkup('collection', opts);
   }
@@ -1067,6 +1352,110 @@
     '</article>';
   }
 
+  /* ---------- scroll reveal ----------
+     A binder page arriving all at once reads as a screenshot; the cards should
+     settle into their pockets as you come to them. Each tile fades and lifts in
+     when it enters the scroller, staggered so a row resolves left to right.
+     The stagger is not a constant: it is read from how fast the player is
+     actually scrolling, because a delay that feels graceful at a slow browse
+     leaves a flicking thumb staring at empty pockets. Fast scrolling collapses
+     the queue towards an instant paint, slow scrolling opens it back up.
+     IntersectionObserver does the watching - a scroll handler measuring every
+     tile would cost a layout read per frame on a 166-card grid. */
+  var REVEAL_SLOW_STEP = 52;   // ms between neighbours at a resting scroll
+  var REVEAL_FAST_STEP = 8;    // ms between neighbours when the thumb is flicking
+  var REVEAL_FAST_VELOCITY = 2.6; // px/ms at which the stagger is fully collapsed
+  // A desktop binder shows a whole batch at once (nine columns), and 24 tiles
+  // at the resting step would cascade for 1.2s - past the point where it reads
+  // as arrival rather than lag. The step compresses so one batch always
+  // finishes inside this window, however many tiles it holds.
+  var REVEAL_MAX_CASCADE = 620;
+
+  function prefersReducedMotion() {
+    return Boolean(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }
+
+  // Velocity is smoothed rather than taken raw: a single frame's delta swings
+  // wildly on touch, and the stagger would jitter with it.
+  function makeScrollVelocity(scroller) {
+    var last = scroller ? scroller.scrollTop : 0;
+    var lastAt = 0;
+    var smoothed = 0;
+    function sample() {
+      var now = (window.performance && performance.now) ? performance.now() : Date.now();
+      var top = scroller ? scroller.scrollTop : 0;
+      var dt = now - lastAt;
+      if (lastAt && dt > 0) {
+        var v = Math.abs(top - last) / dt;
+        smoothed = smoothed * 0.65 + v * 0.35;
+      }
+      last = top;
+      lastAt = now;
+    }
+    if (scroller) scroller.addEventListener('scroll', sample, { passive: true });
+    return {
+      // Decays towards rest so a stopped scroll opens the stagger back up
+      // without waiting for another scroll event to report zero.
+      value: function () {
+        var now = (window.performance && performance.now) ? performance.now() : Date.now();
+        if (lastAt && now - lastAt > 140) smoothed *= 0.5;
+        return smoothed;
+      }
+    };
+  }
+
+  function makeTileReveal(grid, scroller) {
+    if (!grid || !window.IntersectionObserver || prefersReducedMotion()) {
+      return { observe: function () {}, settle: function () {} };
+    }
+    var velocity = makeScrollVelocity(scroller);
+    grid.classList.add('sg-reveal');
+    // rootMargin lets a tile start its fade just before it clears the fold, so
+    // it is already settling by the time it is properly on screen.
+    var io = new IntersectionObserver(function (entries) {
+      var arriving = 0;
+      entries.forEach(function (entry) { if (entry.isIntersecting) arriving++; });
+      var step = Math.min(revealStep(), REVEAL_MAX_CASCADE / Math.max(1, arriving - 1));
+      var slot = 0;
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        var tile = entry.target;
+        io.unobserve(tile);
+        tile.style.transitionDelay = (slot * step) + 'ms';
+        slot++;
+        // Two frames: one for the browser to accept the starting state of a
+        // tile that was inserted this tick, one to run the transition.
+        requestAnimationFrame(function () {
+          requestAnimationFrame(function () { tile.classList.add('is-in'); });
+        });
+      });
+    }, { root: scroller || null, rootMargin: '0px 0px 12% 0px', threshold: 0.01 });
+
+    function revealStep() {
+      var v = velocity.value();
+      var t = Math.min(1, v / REVEAL_FAST_VELOCITY);
+      return REVEAL_SLOW_STEP + (REVEAL_FAST_STEP - REVEAL_SLOW_STEP) * t;
+    }
+
+    return {
+      // `settled` tiles were already on screen before this repaint (Show more
+      // re-renders the whole grid); re-animating them would flash the page the
+      // player is reading.
+      observe: function (settled) {
+        var tiles = grid.children;
+        for (var i = 0; i < tiles.length; i++) {
+          var tile = tiles[i];
+          if (settled && i < settled) { tile.classList.add('is-in'); continue; }
+          io.observe(tile);
+        }
+      },
+      settle: function () {
+        io.disconnect();
+        for (var i = 0; i < grid.children.length; i++) grid.children[i].classList.add('is-in');
+      }
+    };
+  }
+
   function mountGallery(app, opts) {
     opts = opts || {};
     var scroll = app.querySelector('[data-gal-scroll]') || app.querySelector('.sg-scroll');
@@ -1078,11 +1467,16 @@
     var glassCount = app.querySelector('[data-glass-count]');
     var fab = app.querySelector('[data-filter-fab]');
     var fabBadge = app.querySelector('[data-filter-fab-badge]');
+    var filterToggle = app.querySelector('[data-filter-toggle]');
+    var filterToggleBadge = app.querySelector('[data-filter-toggle-badge]');
     var clearBtn = app.querySelector('[data-filter-clear]');
     var grid = app.querySelector('[data-grid]');
     var count = app.querySelector('[data-count]');
     var more = app.querySelector('[data-more]');
     var openSheet = mountSheet(app, opts) || function () {};
+    mountBinderLook(app);
+    var reveal = makeTileReveal(grid, scroll);
+    var painted = 0;
     var activeEl = 'ALL', activeRarity = 'ALL', activeType = 'ALL', query = '', limit = 24;
     var COMPACT_AFTER = 72;
 
@@ -1125,11 +1519,21 @@
       }
       if (clearBtn) clearBtn.hidden = n === 0;
       if (fab) fab.classList.toggle('has-filters', n > 0);
+      // The rows start collapsed, so the toggle is the only thing on screen
+      // that can say the grid is already narrowed. It carries the same count
+      // the FAB does rather than leaving a filtered binder looking unfiltered.
+      if (filterToggle) filterToggle.classList.toggle('has-filters', n > 0);
+      if (filterToggleBadge) {
+        filterToggleBadge.hidden = n === 0;
+        filterToggleBadge.textContent = String(n);
+      }
     }
 
-    function repaint() {
+    function repaint(keepPainted) {
       var rows = matches();
       grid.innerHTML = rows.slice(0, limit).map(galleryCard).join('');
+      reveal.observe(keepPainted ? painted : 0);
+      painted = grid.children.length;
       var label = rows.length + (rows.length === 1 ? ' card' : ' cards');
       if (count) count.textContent = label;
       if (glassCount) glassCount.textContent = label;
@@ -1188,7 +1592,7 @@
     bindPillGroup(glassFilters, 'data-type', function (v) { activeType = v; });
     bindPillGroup(glassFilters, 'data-rarity', function (v) { activeRarity = v; });
 
-    var filterToggle = app.querySelector('[data-filter-toggle]');
+    // (looked up above, beside the other chrome handles)
     if (filterToggle) {
       filterToggle.addEventListener('click', function () {
         filters.classList.toggle('open');
@@ -1233,7 +1637,7 @@
     }
     if (more) {
       var moreBtn = more.querySelector('button');
-      if (moreBtn) moreBtn.addEventListener('click', function () { limit += 24; repaint(); });
+      if (moreBtn) moreBtn.addEventListener('click', function () { limit += 24; repaint(true); });
     }
     if (scroll) scroll.addEventListener('scroll', onScroll, { passive: true });
     app.addEventListener('keydown', function (ev) {
@@ -1243,9 +1647,13 @@
       }
     });
 
-    // Filters stay open by default at the top of the binder; search is optional.
-    if (filters) filters.classList.add('open');
-    if (filterToggle) filterToggle.classList.add('on');
+    // The binder opens on the cards, not on its controls: three rows of pills
+    // cost most of the first screen of artwork before a player has asked to
+    // narrow anything. The filter rows start collapsed behind the tools row's
+    // toggle (and the FAB, once the page is scrolled); search is optional the
+    // same way. Any filter a player does set stays visible in the toggle's
+    // active state and the FAB badge, so a collapsed row never hides a
+    // narrowed grid.
     setCompact(false);
     repaint();
     onScroll();
@@ -2947,6 +3355,14 @@
       var bucketCount = gacha.querySelector('[data-gacha-bucket-count]');
       var banked = 0;
       var left = slots.length;
+      // Duplicates turned to remnants while they were still the face-up top of
+      // the stack, so the card the player had just unsealed crumbled out from
+      // under them and left them looking at the back of the next one. A pull is
+      // held here until its art has been seen and moved past; the stage drains
+      // the queue when it fans out into the full view, which is the moment the
+      // whole pull is on screen and a crumble is something to watch rather than
+      // something that eats the card you are reading.
+      var pendingRemnants = [];
 
       // The controls stay out until every card has actually been dealt onto the
       // stage. Offering "Reveal all" while the pack is still tearing open asks
@@ -3028,9 +3444,13 @@
         gachaFlourish(btn, card);
         if (stackMode) layoutStack();
 
-        // Let the turn finish before the card crumbles, or the player never sees
-        // what they pulled.
-        if (card.duplicateAtCap) setTimeout(function () { bankRemnants(btn, card); }, 700);
+        // In the grid the card keeps its slot while it crumbles, so it pays out
+        // once the turn has finished reading. On the stack it is the only card
+        // the player can see, so it waits for the full view.
+        if (card.duplicateAtCap) {
+          if (stackMode) pendingRemnants.push({ btn: btn, card: card });
+          else setTimeout(function () { bankRemnants(btn, card); }, 700);
+        }
 
         left -= 1;
         if (!left) {
@@ -3077,6 +3497,15 @@
         }
       }
 
+      // Every duplicate the stack held back, paid out one after another so the
+      // shard flights read as a sequence instead of one indistinct shower.
+      function drainRemnants() {
+        var queued = pendingRemnants.splice(0, pendingRemnants.length);
+        queued.forEach(function (entry, i) {
+          setTimeout(function () { bankRemnants(entry.btn, entry.card); }, 360 + i * 220);
+        });
+      }
+
       function toGrid() {
         stackMode = false;
         stage.className = 'sg-gacha-stage is-grid';
@@ -3091,6 +3520,9 @@
         stage.style.removeProperty('--tilt-y');
         stage.style.removeProperty('--drag-x');
         stage.style.removeProperty('--drag-y');
+        // After the layout switch, so each card's shards fly from the slot it
+        // actually occupies in the grid rather than from its place in the pile.
+        requestAnimationFrame(drainRemnants);
       }
 
       function advanceStack(dir) {
@@ -3428,7 +3860,7 @@
     var rate = played ? Math.round(wins / played * 100) + '%' : '—';
     var pct = collectedPercent(live);
     var owned = pct == null ? '—' : pct + '%';
-    return '<div class="sg-tiles">' +
+    return '<div class="sg-tiles" data-prof-block="tiles">' +
       '<div><span>Matches</span><b>' + esc(played != null ? played : '—') + '</b></div>' +
       '<div><span>Win Rate</span><b>' + esc(rate) + '</b></div>' +
       '<div><span>Collected</span><b>' + esc(owned) + '</b></div>' +
@@ -3490,7 +3922,7 @@
   function signatureSection(opts) {
     var fav = byIdIn(ALL_CARDS, prefs().favoriteCardId);
     var back = cardBackEntry(prefs().preferredCardBack) || CARD_BACKS[0];
-    return '<section class="sg-section">' +
+    return '<section class="sg-section" data-prof-block="signature">' +
       '<div class="sg-section-head"><h3>Signature</h3>' +
         (opts.guest ? '' : '<a href="#" data-prof-open="favorite">Change</a>') + '</div>' +
       '<div class="sg-sig">' +
@@ -3527,8 +3959,11 @@
      two can never drift apart. */
   function profileBody(opts) {
     var cards = showcaseCards();
-    return '' +
-        '<section class="sg-crest" style="--el:' + color(crestElement()) + '">' +
+    /* The blocks carry data-prof-block so the desktop layer can place them in
+       two columns without a second markup path. The wrapper is display:contents
+       below 1024px, so the phone DOM order and rendering are unchanged. */
+    return '<div class="sg-prof-layout">' +
+        '<section class="sg-crest" data-prof-block="crest" style="--el:' + color(crestElement()) + '">' +
           '<img class="sg-crest-bg" src="' + esc(crestBackground()) + '" alt="">' +
           '<div class="sg-crest-veil"></div>' +
           (opts.guest ? ''
@@ -3545,7 +3980,7 @@
           '</div>' +
         '</section>' +
         profileTiles(opts) +
-        '<section class="sg-section">' +
+        '<section class="sg-section" data-prof-block="showcase">' +
           '<div class="sg-section-head"><h3>Showcase</h3>' +
             (opts.guest
               ? '<a href="/cards" data-screen="collection">Browse</a>'
@@ -3553,11 +3988,12 @@
           '<div class="sg-swipe">' + cards.map(featTile).join('') + '</div>' +
         '</section>' +
         signatureSection(opts) +
-        '<section class="sg-section">' +
+        '<section class="sg-section" data-prof-block="recent">' +
           '<div class="sg-section-head"><h3>Recent</h3></div>' +
           recentMarkup(opts) +
         '</section>' +
-        '<div style="height:96px"></div>';
+      '</div>' +
+      '<div style="height:96px"></div>';
   }
 
   /* ---------- profile editor ----------
@@ -4078,7 +4514,7 @@
     var periods = (live && live.leaderboards && live.leaderboards.periods)
       ? Object.keys(live.leaderboards.periods) : ['daily', 'weekly', 'allTime'];
 
-    return '<section class="sg-section sg-lb" style="--el:' + color(meta.el) + '">' +
+    return '<section class="sg-section sg-lb" data-home-section="Hall of Siege" style="--el:' + color(meta.el) + '">' +
       '<div class="sg-section-head"><h3>Hall of Siege</h3>' +
         '<button type="button" class="sg-lb-cycle" data-lb-cycle>' +
         esc(PERIOD_LABEL[period] || title(period)) + ' ›</button></div>' +
@@ -5818,7 +6254,11 @@
       // Social tray rows name the tab they want before the screen renders.
       var socialTabAttr = link.getAttribute('data-social-goto');
       if (socialTabAttr) setSocialTab(socialTabAttr);
+      var homeSection = link.getAttribute('data-home-goto');
       show(link.getAttribute('data-screen'), true);
+      // show() re-renders Home and resets the scroller, so the section can only
+      // be found - and only stays put - after that has happened.
+      if (homeSection) scrollToHomeSection(host, homeSection);
     });
 
     // Rotation and width changes re-flow the tiles, so the fit has to be redone.

@@ -197,6 +197,12 @@ body.concept-board {
 }
 .sg-scroll::-webkit-scrollbar { display:none; }
 
+/* A Home tray row scrolls to the section it names. The top chrome floats over
+   the scroller, so a section landed flush at scrollTop would sit under the coin
+   chip and the crest; the margin is the chrome's own height plus the status-bar
+   inset it already clears. */
+[data-home-section] { scroll-margin-top:calc(56px + max(6px, var(--sg-sat))); }
+
 /* --- hero: full-bleed rotating artwork --- */
 .sg-hero { position:relative; height:436px; overflow:visible; }
 .sg-hero-art { position:absolute; inset:-40px -0px 0; overflow:hidden; }
@@ -820,6 +826,261 @@ body.concept-board {
      scrolled through the binder. */
   display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:34px 14px; padding:30px 18px 24px;
 }
+
+/* --- scroll reveal ---
+   .sg-reveal is added by home-redesign.js only once an IntersectionObserver is
+   actually watching, so a browser without one (or a player who asked for
+   reduced motion) never gets a grid of invisible cards. The per-tile delay is
+   written inline from the scroll velocity; the duration follows it so a fast
+   flick resolves quickly instead of trailing ghosts. */
+.sg-reveal .sg-card-tile {
+  opacity:0;
+  transform:translateY(16px) scale(.975);
+  transition:opacity .46s cubic-bezier(.2,.8,.25,1), transform .52s cubic-bezier(.2,.8,.25,1);
+  will-change:opacity, transform;
+}
+.sg-reveal .sg-card-tile.is-in { opacity:1; transform:none; }
+/* The sleeve arrives with its card rather than sitting there empty. */
+.sg-reveal .sg-card-tile::before { opacity:0; transition:opacity .5s ease, box-shadow .3s ease, background .3s ease; }
+.sg-reveal .sg-card-tile.is-in::before { opacity:1; }
+@media (prefers-reduced-motion:reduce) {
+  .sg-reveal .sg-card-tile { opacity:1; transform:none; transition:none; }
+  .sg-reveal .sg-card-tile::before { opacity:1; transition:none; }
+}
+
+/* ==========================================================================
+   FILTER FLAVOUR - each pill wears its own subject
+   The rows used to be interchangeable grey capsules. Every pill now carries its
+   tint on --el (set inline by home-redesign.js: element hexes from style.css,
+   gem colours for rarity, a per-type accent), so one rule set dresses all three
+   rows and adding an element or a rarity needs no new CSS.
+   ========================================================================== */
+.sg-filter-chrome-inner {
+  position:relative;
+  margin:6px 10px 2px; padding:2px 0 8px; border-radius:20px;
+  border:1px solid rgba(200,165,79,.26);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 10px 26px rgba(4,2,16,.34);
+  background:linear-gradient(180deg, rgba(28,21,62,.70), rgba(10,7,28,.58));
+  backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+}
+/* The index-tab rule under the label: it reads as a divider in a binder rather
+   than a floating caption. */
+.sg-filter-label {
+  display:flex; align-items:center; gap:8px;
+  color:color-mix(in srgb, var(--gold-bright,#e6cd8c) 62%, var(--muted));
+}
+.sg-filter-label::after {
+  content:''; flex:1 1 auto; height:1px;
+  background:linear-gradient(90deg, rgba(200,165,79,.30), transparent);
+}
+
+.sg-pill {
+  position:relative; overflow:hidden;
+  color:color-mix(in srgb, var(--el,#c8a54f) 60%, var(--ink));
+  border-color:color-mix(in srgb, var(--el,#c8a54f) 42%, transparent);
+  background:
+    radial-gradient(120% 140% at 12% 0%, color-mix(in srgb, var(--el,#c8a54f) 30%, transparent), transparent 66%),
+    linear-gradient(180deg, color-mix(in srgb, var(--el,#c8a54f) 16%, transparent), transparent 82%),
+    rgba(11,17,32,.55);
+}
+/* The sheen sweeps only on the selected pill, so the row has exactly one thing
+   moving and the choice is unmistakable. */
+.sg-pill::after {
+  content:''; position:absolute; inset:0; pointer-events:none; opacity:0;
+  background:linear-gradient(112deg, transparent 28%, rgba(255,255,255,.42) 46%, transparent 62%);
+  transform:translateX(-120%);
+}
+.sg-pill:hover { border-color:color-mix(in srgb, var(--el,#c8a54f) 52%, transparent); }
+.sg-pill.on {
+  color:#0b0f18; border-color:var(--el,#c8a54f);
+  background:linear-gradient(180deg, color-mix(in srgb, var(--el,#c8a54f) 82%, #fff), var(--el,#c8a54f));
+  box-shadow:0 6px 18px color-mix(in srgb, var(--el,#c8a54f) 42%, transparent),
+             inset 0 1px 0 rgba(255,255,255,.45);
+}
+.sg-pill.on::after { opacity:1; animation:sg-pill-sheen .9s ease-out; }
+@keyframes sg-pill-sheen { from { transform:translateX(-120%); } to { transform:translateX(130%); } }
+
+/* Element icons sit in a tinted well so a low-chroma element (METAL, UNDEAD)
+   still reads as itself next to Fire. */
+.sg-pill-element img {
+  background:radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--el,#c8a54f) 60%, transparent), transparent 72%);
+  box-shadow:0 0 8px color-mix(in srgb, var(--el,#c8a54f) 45%, transparent);
+}
+.sg-pill-element.on img { box-shadow:0 0 0 1px rgba(255,255,255,.5); }
+/* "All" on the element and rarity rows: the whole spectrum in one pip. */
+.sg-pill-prism {
+  width:12px; height:12px; flex:0 0 auto; border-radius:50%;
+  background:conic-gradient(from 210deg, #f05b2f, #ffd166, #4fd07a, #3fd8d1, #54a8f0, #9b7bf0, #f06ec0, #f05b2f);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.4);
+}
+.sg-pill-glyph { flex:0 0 auto; }
+.sg-pill.on .sg-pill-glyph { filter:drop-shadow(0 1px 0 rgba(255,255,255,.45)); }
+
+/* Rarity gems: a cut stone, not a square. Legendary keeps the gold sheen it
+   has on the cards themselves. */
+.sg-pill-rarity .sg-rar {
+  width:11px; height:11px; border-radius:2px;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.35), 0 0 8px color-mix(in srgb, var(--el,#c8a54f) 60%, transparent);
+}
+.sg-pill-rarity.on .sg-rar { box-shadow:inset 0 0 0 1px rgba(0,0,0,.28); }
+
+@media (prefers-reduced-motion:reduce) {
+  .sg-pill.on::after { animation:none; opacity:0; }
+}
+
+/* ==========================================================================
+   BINDER DRESSING (cover / page / sleeves) - all three are player-chosen and
+   stored per device in localStorage.sgBinderLook; home-redesign.js writes the
+   choice onto .sg-app as data-binder-page / data-binder-sleeve and paints the
+   cover image straight onto .sg-binder-cover.
+   ========================================================================== */
+.sg-binder-skin { position:absolute; inset:0; z-index:0; overflow:hidden; pointer-events:none; }
+/* Sibling combinator rather than :has() - the skin is always emitted directly
+   before the scroller on this screen, and this needs no modern-selector fallback. */
+.sg-binder-skin ~ .sg-scroll { position:relative; z-index:1; }
+.sg-binder-cover { position:absolute; inset:-4%; background-size:cover; background-position:center; opacity:0; transition:opacity .5s ease; }
+.sg-binder-cover.is-art { opacity:1; filter:saturate(.85) brightness(.66) contrast(1.04); }
+/* The veil has to keep the binder's own text legible without burying the cover
+   the player chose: it is heaviest under the head copy and thins out behind the
+   page, which carries its own opaque surface anyway. */
+.sg-binder-veil {
+  position:absolute; inset:0;
+  background:
+    radial-gradient(120% 60% at 50% -12%, rgba(103,78,190,.30), transparent 58%),
+    linear-gradient(180deg, rgba(11,8,32,.80) 0%, rgba(9,7,28,.52) 34%, rgba(7,5,22,.44) 100%);
+}
+
+/* The page the pockets sit on. Card tiles are capped at 168px, so the page is
+   sized by the grid inside it rather than the other way round. */
+.sg-binder-page {
+  position:relative; margin:6px 10px 0; border-radius:22px; overflow:hidden;
+  border:1px solid rgba(200,165,79,.22);
+  box-shadow:0 18px 44px rgba(3,2,14,.5), inset 0 1px 0 rgba(255,255,255,.06);
+  background:linear-gradient(180deg, rgba(31,22,62,.62), rgba(11,8,30,.72));
+}
+/* Stitching: one inset dashed rule, not a border image, so it survives any
+   corner radius change. */
+.sg-binder-page::after {
+  content:''; position:absolute; inset:7px; border-radius:16px; pointer-events:none;
+  border:1px dashed rgba(230,205,140,.20);
+}
+.sg-app[data-binder-page="leather"] .sg-binder-page {
+  background:
+    repeating-linear-gradient(46deg, rgba(255,255,255,.022) 0 2px, transparent 2px 5px),
+    linear-gradient(180deg, rgba(58,26,28,.86), rgba(24,11,16,.93));
+  border-color:rgba(200,120,80,.30);
+}
+.sg-app[data-binder-page="parchment"] .sg-binder-page {
+  background:
+    repeating-linear-gradient(92deg, rgba(90,60,20,.06) 0 3px, transparent 3px 9px),
+    linear-gradient(180deg, rgba(226,205,160,.90), rgba(196,170,126,.88));
+  border-color:rgba(120,88,40,.48);
+}
+.sg-app[data-binder-page="parchment"] .sg-binder-page::after { border-color:rgba(96,66,26,.34); }
+.sg-app[data-binder-page="slate"] .sg-binder-page {
+  background:
+    repeating-linear-gradient(0deg, rgba(255,255,255,.018) 0 1px, transparent 1px 6px),
+    linear-gradient(180deg, rgba(38,48,64,.90), rgba(13,18,28,.95));
+  border-color:rgba(143,162,189,.30);
+}
+.sg-app[data-binder-page="velvet"] .sg-binder-page {
+  background:
+    radial-gradient(120% 60% at 50% 0%, rgba(180,92,255,.22), transparent 70%),
+    linear-gradient(180deg, rgba(44,18,74,.92), rgba(16,7,34,.96));
+  border-color:rgba(180,92,255,.34);
+}
+
+/* Sleeves: a pocket behind every tile. Drawn on the tile itself so it tracks
+   whatever the grid does at any viewport. */
+.sg-binder-page .sg-card-tile { position:relative; }
+.sg-binder-page .sg-card-tile::before {
+  content:''; position:absolute; inset:-7px -6px -9px; border-radius:15px; z-index:0;
+  background:linear-gradient(180deg, color-mix(in srgb, var(--sleeve,#e6cd8c) 16%, rgba(6,4,20,.42)), rgba(4,3,16,.5));
+  box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--sleeve,#e6cd8c) 34%, transparent),
+             0 10px 20px rgba(0,0,0,.42);
+  transition:box-shadow .3s ease, background .3s ease;
+}
+/* The sleeve's shine reads as plastic over the card, so it sits above the
+   pocket but below the printed face. */
+.sg-binder-page .sg-card-tile::after {
+  content:''; position:absolute; inset:-7px -6px -9px; border-radius:15px; z-index:2;
+  pointer-events:none; mix-blend-mode:screen;
+  background:linear-gradient(126deg, rgba(255,255,255,.14) 0 18%, transparent 42%);
+}
+.sg-binder-page .sg-card-tile > * { position:relative; z-index:1; }
+.sg-binder-page .sg-card-tile:hover::before {
+  box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--sleeve,#e6cd8c) 62%, transparent),
+             0 14px 26px rgba(0,0,0,.5);
+}
+.sg-app[data-binder-sleeve="gold"] .sg-binder-page { --sleeve:#e6cd8c; }
+.sg-app[data-binder-sleeve="steel"] .sg-binder-page { --sleeve:#8fa2bd; }
+.sg-app[data-binder-sleeve="ember"] .sg-binder-page { --sleeve:#f0713f; }
+.sg-app[data-binder-sleeve="violet"] .sg-binder-page { --sleeve:#b45cff; }
+.sg-app[data-binder-sleeve="clear"] .sg-binder-page .sg-card-tile::before,
+.sg-app[data-binder-sleeve="clear"] .sg-binder-page .sg-card-tile::after { display:none; }
+
+/* --- the picker --- */
+.sg-look {
+  position:absolute; inset:0; z-index:70; display:flex; align-items:flex-end; justify-content:center;
+  opacity:0; pointer-events:none; transition:opacity .28s ease;
+}
+.sg-look.open { opacity:1; pointer-events:auto; }
+.sg-look-scrim { position:absolute; inset:0; border:0; padding:0; cursor:pointer;
+  background:rgba(3,6,12,.58); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); }
+.sg-look-card {
+  position:relative; width:min(560px, 100%); max-height:78%; display:flex; flex-direction:column;
+  margin:0 8px 8px; padding:0 16px 18px; border-radius:24px;
+  border:1px solid rgba(200,165,79,.28);
+  background:linear-gradient(180deg, rgba(20,15,48,.97), rgba(8,6,22,.99));
+  box-shadow:0 -22px 60px rgba(0,0,0,.7);
+  transform:translateY(20px); transition:transform .3s cubic-bezier(.2,.8,.25,1);
+}
+.sg-look.open .sg-look-card { transform:translateY(0); }
+.sg-look-grab { width:38px; height:4px; border-radius:2px; margin:10px auto 2px; background:rgba(143,162,189,.45); }
+.sg-look-head { display:flex; align-items:center; justify-content:space-between; padding:6px 0 2px; }
+.sg-look-head h3 { margin:0; font-family:var(--serif); font-size:19px; font-weight:600; }
+.sg-look-x { width:30px; height:30px; border:0; border-radius:50%; cursor:pointer; font-size:17px;
+  color:var(--ink); background:rgba(6,3,24,.6); }
+.sg-look-body { overflow:auto; min-height:0; scrollbar-width:none; }
+.sg-look-body::-webkit-scrollbar { display:none; }
+.sg-look-sub { margin:14px 0 8px; font-size:10.5px; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); }
+.sg-look-covers { display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:8px; }
+.sg-look-swatch {
+  position:relative; height:62px; border-radius:13px; cursor:pointer; overflow:hidden;
+  border:1px solid var(--steel-soft); background-size:cover; background-position:center;
+  background-color:#141032; color:var(--ink); padding:0;
+  transition:border-color .25s ease, box-shadow .25s ease, transform .25s ease;
+}
+.sg-look-swatch span {
+  position:absolute; left:0; right:0; bottom:0; padding:12px 6px 5px; font-size:10px; line-height:1.2;
+  background:linear-gradient(180deg, transparent, rgba(4,3,16,.88));
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.sg-look-swatch.on { border-color:var(--gold-bright); box-shadow:0 0 0 2px rgba(230,205,140,.45); transform:translateY(-2px); }
+.sg-look-row { display:flex; flex-wrap:wrap; gap:8px; }
+.sg-look-chip {
+  display:inline-flex; align-items:center; gap:7px; height:34px; padding:0 13px; border-radius:999px;
+  cursor:pointer; font-size:12px; color:var(--ink);
+  border:1px solid var(--steel-soft); background:rgba(11,17,32,.6);
+  transition:border-color .25s ease, color .25s ease, background .25s ease;
+}
+.sg-look-chip.on { color:#1f1608; background:linear-gradient(180deg,#f0cd8a,var(--gold)); border-color:rgba(255,226,171,.6); }
+.sg-look-dot { width:13px; height:13px; border-radius:50%; background:var(--sw,#e6cd8c);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.35); }
+.sg-look-page-dot { width:13px; height:13px; border-radius:4px; box-shadow:inset 0 0 0 1px rgba(255,255,255,.28); }
+.sg-look-page-dot.page-leather { background:linear-gradient(180deg,#5c2a2b,#24101a); }
+.sg-look-page-dot.page-parchment { background:linear-gradient(180deg,#e2cda0,#c4aa7e); }
+.sg-look-page-dot.page-slate { background:linear-gradient(180deg,#2a3547,#0d121c); }
+.sg-look-page-dot.page-velvet { background:linear-gradient(180deg,#42186e,#16072a); }
+
+@media (min-width:700px) {
+  .sg-binder-page { margin:10px 22px 0; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .sg-binder-cover, .sg-look, .sg-look-card, .sg-look-swatch,
+  .sg-binder-page .sg-card-tile::before { transition:none; }
+}
+
 .sg-gal-card { position:relative; cursor:pointer; }
 .sg-gal-plate {
   position:relative; height:176px; border-radius:18px;
@@ -2104,6 +2365,15 @@ body.concept-board {
 .sg-card-tile .binder-framed-slot,
 .sg-card-tile .binder-card { width:100%; height:auto; margin:0; }
 .sg-gal-grid { align-items:start; gap:14px 12px; }
+/* Desktop binder: the tiles are capped at 168px wide (.binder-framed-slot), so a
+   two-column grid leaves a whole card's worth of dead air between them. Pack the
+   columns to the tile width instead so the sheet reads like the printed binder. */
+@media (min-width:700px) {
+  .sg-gal-grid {
+    grid-template-columns:repeat(auto-fill, minmax(150px, 176px));
+    justify-content:center; gap:18px 14px; padding:26px 22px 24px;
+  }
+}
 .sg-build-slot { position:relative; flex:0 0 132px; scroll-snap-align:start; }
 .sg-build-slot .sg-card-tile { pointer-events:none; }
 .sg-build-slot .sg-build-count { top:6px; right:6px; }
@@ -2796,6 +3066,11 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   background:rgba(6,10,18,.62); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
 }
 
+/* The profile's blocks are wrapped so the desktop layer can place them in two
+   columns. display:contents means the wrapper adds nothing below 1024px: the
+   phone renders exactly the flat sequence it did before. */
+.sg-prof-layout { display:contents; }
+
 /* signature: favourite card + card back — same filled plate for both */
 .sg-sig {
   display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px; padding:0 18px;
@@ -3202,4 +3477,330 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 @media (prefers-reduced-motion:reduce) {
   .sg-gacha-stage.is-stack .sg-flip { transition:none; }
   .sg-flip-sparks i, .sg-flip.is-flaring .sg-flip-front::before { animation:none; display:none; }
+}
+
+/* ==========================================================================
+   DESKTOP LAYER (>=1024px)
+   Everything above is the phone design and it is the source of truth: this
+   block only re-proportions it for a mouse-sized window. Two problems it
+   solves, both visible the moment the app is opened at 1920px: content sized
+   for a 390px column was left-aligned against two thirds of empty page, and
+   the art - which is the product - was shown in phone-sized thumbnails.
+   The approach is deliberately CSS-only (no second markup path), so a screen
+   added to home-redesign.js inherits the desktop treatment for free.
+   ========================================================================== */
+@media (min-width:1024px) {
+  /* One centred measure for every screen. The rails inside keep their own
+     18px padding, so this is the page gutter, not the content padding. */
+  .sg-app { --sg-measure:1280px; --sg-gutter:max(32px, calc((100% - var(--sg-measure)) / 2)); }
+  .sg-scroll { padding-inline:var(--sg-gutter); }
+  .sg-top { padding-inline:calc(var(--sg-gutter) + 4px); }
+
+  /* The scroll column is the page now, so a scrollbar belongs to it: hiding it
+     on a phone is right, on a desktop it removes the only cue that the screen
+     continues below the fold. */
+  .sg-scroll { scrollbar-width:thin; scrollbar-color:rgba(200,165,79,.36) transparent; }
+  .sg-scroll::-webkit-scrollbar { display:block; width:10px; }
+  .sg-scroll::-webkit-scrollbar-thumb { background:rgba(200,165,79,.32); border-radius:99px;
+    border:3px solid transparent; background-clip:content-box; }
+
+  /* Full-bleed bands become inset plates once the column is centred, so they
+     need corners; a square edge mid-page reads as a broken image. */
+  .sg-hero, .sg-feature, .sg-crest, .sg-empty-plate, .sg-lb-empty, .sg-guest {
+    border-radius:28px; overflow:hidden;
+  }
+  /* Clear the floating chrome rather than sliding under it: on a phone the
+     hero art bleeding behind the status bar is the effect, on a desktop it
+     just hides the artwork behind the coin pill. */
+  /* Whatever a screen leads with, it clears the floating chrome: on a phone
+     the art bleeding behind the status bar is the effect, on a desktop it just
+     hides the first heading behind the coin pill. */
+  .sg-scroll > *:first-child { margin-top:calc(56px + var(--sg-sat)); }
+  .sg-gal-head, .sg-page-head { padding-top:8px; }
+  .sg-hero { height:min(560px, 58vh); }
+  .sg-hero-art { inset:0; }
+  .sg-hero-title { font-size:44px; }
+  .sg-hero-sub { font-size:14px; }
+  .sg-hero-copy { bottom:30px; }
+  .sg-play { font-size:14px; padding:16px 54px; }
+  .sg-dots { right:22px; bottom:auto; top:50%; transform:translateY(-50%); }
+
+  .sg-section-head { padding:0 18px 12px; }
+  .sg-section-head h3 { font-size:21px; }
+  .sg-section-head a, .sg-lb-cycle, .sg-section-note { font-size:11.5px; }
+
+  /* --- showcases: the rails become grids ---
+     A horizontal swipe rail on a desktop shows six 150px tiles and hides the
+     rest behind a gesture a mouse does not have. Same tiles, laid out as a
+     wrapping grid that uses the width, and each tile is half again as large. */
+  .sg-swipe {
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));
+    gap:20px; overflow:visible; padding:4px 18px 20px; scroll-snap-type:none;
+  }
+  .sg-feat { flex:none; width:auto; height:auto; aspect-ratio:150 / 196; }
+  .sg-feat-art { bottom:44px; }
+  .sg-feat-foot { padding:12px 14px 14px; }
+  .sg-feat-name { font-size:14px; }
+  .sg-feat-marks img, .sg-feat-marks .sg-rar { width:17px; height:17px; }
+  .sg-feat-marks .sg-rar { width:11px; height:11px; }
+
+  /* The gallery strip is wide art, so it wants fewer, larger cells. */
+  .sg-swipe-wide { grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:20px; }
+  .sg-plate { width:auto; flex:none; height:210px; }
+  .sg-plate-foot strong { font-size:17px; }
+  .sg-plate-foot span { font-size:12px; }
+
+  /* --- leaderboard --- */
+  .sg-lb-boards { padding:2px 18px 12px; overflow:visible; flex-wrap:wrap; }
+  .sg-lb-row { padding:12px 16px; font-size:14px; }
+  .sg-lb-value { font-size:13px; }
+  .sg-lb-empty { height:220px; }
+  .sg-lb-empty-body { padding:28px 32px; }
+  .sg-lb-empty-body strong { font-size:26px; }
+  .sg-lb-empty-body p { font-size:13.5px; max-width:52ch; }
+
+  /* --- play: the mode plates stand up ---
+     Letterbox bands crop a tall piece of key art to a 132px strip. Portrait
+     panels side by side show most of the same artwork and read as a choice
+     between two games rather than two rows of a list. */
+  /* Capped measure, not the full column: at 1480px a two-up grid gives 710px
+     panels, which are landscape again however tall they are. */
+  .sg-modes {
+    display:grid; grid-template-columns:repeat(2, minmax(0, 1fr));
+    gap:24px; padding:0 18px; max-width:1040px; margin-inline:auto;
+  }
+  /* Height, not aspect-ratio: the ratio made the panels taller than the window
+     and pushed everything below Play off the screen. */
+  .sg-mode, .sg-mode.is-primary { height:min(64vh, 660px); border-radius:26px; }
+  .sg-mode-bg { object-position:center 28%; }
+  /* Horizontal veil belongs to a horizontal band; upright, the copy sits over
+     the bottom of the art, so the fade has to run bottom-up. */
+  .sg-mode-veil {
+    background:
+      linear-gradient(180deg, rgba(5,8,15,.12) 0%, rgba(5,8,15,.22) 42%, rgba(5,8,15,.86) 76%, rgba(5,8,15,.96) 100%),
+      linear-gradient(180deg, color-mix(in srgb, var(--el,#f05b2f) 20%, transparent), transparent 46%);
+  }
+  .sg-mode-body {
+    inset:auto 0 0 0; justify-content:flex-end; max-width:100%;
+    padding:0 26px 86px; gap:9px;
+  }
+  .sg-mode-body h3, .sg-mode.is-primary .sg-mode-body h3 { font-size:38px; }
+  .sg-mode-body p { font-size:14px; max-width:36ch; }
+  .sg-mode-tag { font-size:10px; padding:5px 12px; }
+  .sg-mode-go, .sg-mode.is-primary .sg-mode-go {
+    left:26px; right:auto; bottom:26px; font-size:12px; padding:13px 30px;
+  }
+
+  .sg-exps { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:18px; margin:6px 18px 24px; }
+  .sg-lobbies { width:auto; margin:18px 18px 0; padding:18px 22px; font-size:15px; border-radius:20px; }
+
+  /* --- shop ---
+     104px pack backs on a 1920px page were postage stamps. The cells are
+     card-sized, the featured pack gets a real hero, and the metadata scales
+     with them so a pack reads as merchandise. */
+  .sg-feature { height:420px; }
+  .sg-feature-body { bottom:36px; padding:0 40px; gap:12px; }
+  .sg-feature-body h2 { font-size:42px; }
+  .sg-feature-body p { font-size:14px; max-width:52ch; line-height:1.6; }
+  .sg-cta { font-size:15px; padding:15px 32px; }
+  .sg-cta img { width:22px; height:22px; }
+  .sg-pack-grid {
+    grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));
+    gap:26px 22px; padding:6px 18px 8px;
+  }
+  .sg-pack-grid .sg-pack { gap:9px; }
+  .sg-pack strong { font-size:14.5px; }
+  .sg-pack span, .sg-pack-grid .sg-pack .sg-pack-note { font-size:11px; }
+  .sg-buy { font-size:13px; padding:9px 18px; }
+  .sg-buy img { width:17px; height:17px; }
+  .sg-bundle { padding:16px 20px; }
+  .sg-bundle .amt { font-size:18px; }
+
+  /* --- profile --- */
+  /* Profile used one centred column, so a 1920px page carried a 440px crest and
+     then a ribbon of content down the middle with both flanks empty. The blocks
+     are placed instead: the crest stays a full-width hero, the identity column
+     (stats, then signature) takes a fixed rail on the left, the showcase fills
+     the wide right side beside both of them, and the match list - rows that
+     want the width - closes full width underneath. */
+  .sg-prof-layout {
+    display:grid;
+    grid-template-columns:minmax(0, 420px) minmax(0, 1fr);
+    column-gap:26px; align-items:start;
+  }
+  .sg-prof-layout > [data-prof-block="crest"] { grid-column:1 / -1; grid-row:1; }
+  .sg-prof-layout > [data-prof-block="tiles"] { grid-column:1; grid-row:2; }
+  .sg-prof-layout > [data-prof-block="signature"] { grid-column:1; grid-row:3; }
+  /* Spans both left-hand rows so the tall card grid sets the height of the pair
+     rather than leaving a gap beside the short stat row. */
+  .sg-prof-layout > [data-prof-block="showcase"] { grid-column:2; grid-row:2 / span 2; }
+  .sg-prof-layout > [data-prof-block="recent"] { grid-column:1 / -1; grid-row:4; }
+  /* In a 360px rail these no longer need the centred measure they get on a
+     full-width screen, and the rail supplies its own outer gutter. */
+  .sg-prof-layout > [data-prof-block="tiles"] { max-width:none; margin-inline:0; }
+  /* In the rail the pair shares the column rather than sitting on the 260px
+     centred measure the full-width version uses, and the plates fill their
+     slot instead of holding the phone's 118px. */
+  .sg-prof-layout .sg-sig { grid-template-columns:repeat(2, minmax(0, 1fr)); justify-content:stretch; gap:14px; }
+  .sg-prof-layout .sg-sig-art, .sg-prof-layout .sg-sig-back { width:min(100%, 170px); }
+  /* The showcase is always exactly three cards (PROFILE_SHOWCASE_MAX), so an
+     auto-fill grid left a third of the wide column empty. Three equal columns
+     fill it, and the cards get to be the feature the section is for. */
+  .sg-prof-layout [data-prof-block="showcase"] .sg-swipe {
+    grid-template-columns:repeat(3, minmax(0, 1fr));
+  }
+
+  .sg-crest { height:440px; }
+  .sg-crest-body { bottom:32px; padding:0 40px; }
+  .sg-crest-ring { width:112px; height:112px; }
+  .sg-crest-body h2 { font-size:40px; }
+  .sg-crest-body p { font-size:12.5px; }
+  .sg-crest-bio { font-size:14px; max-width:62ch; margin-left:auto; margin-right:auto; }
+  .sg-xp { max-width:420px; height:7px; }
+  .sg-tiles { gap:18px; padding:22px 18px 6px; max-width:980px; margin-inline:auto; }
+  .sg-tiles div { padding:20px 14px; border-radius:18px; }
+  .sg-tiles span { font-size:10.5px; }
+  .sg-tiles b { font-size:32px; }
+  .sg-badges { grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:16px;
+    padding:0 18px; max-width:980px; margin-inline:auto; }
+  .sg-sig {
+    max-width:none; grid-template-columns:repeat(2, minmax(0, 260px));
+    justify-content:center; gap:28px;
+  }
+  .sg-sig-slot { padding:22px 18px; gap:12px; border-radius:22px; }
+  .sg-sig-art, .sg-sig-back { width:min(100%, 200px); border-radius:18px; }
+  .sg-sig-name { font-size:14px; }
+  .sg-recent { padding:14px 18px; font-size:14px; }
+  .sg-recent .what { font-size:14.5px; }
+
+  /* --- collection / gallery --- */
+  .sg-gal-grid { grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:40px 20px; }
+  /* The card art deliberately overflows the top of its plate; scale the two
+     together rather than re-boxing the art, or the overhang is lost. */
+  .sg-gal-plate { height:212px; }
+  .sg-gal-art { width:192px; height:250px; }
+  .sg-gal-cap .nm { font-size:13.5px; }
+  .sg-art-grid { grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:18px; padding:8px 18px 12px; }
+  .sg-gal-head h2, .sg-page-head h2 { font-size:38px; }
+  .sg-gal-head p, .sg-page-head p { font-size:13px; }
+
+  /* --- decks --- */
+  .sg-stack { display:grid; grid-template-columns:repeat(auto-fill, minmax(340px, 1fr)); gap:18px; }
+  .sg-stack-tight { grid-template-columns:1fr; gap:8px; }
+
+  /* --- bottom chrome ---
+     A tab bar stretched edge to edge across 1920px puts six labels an inch
+     apart with nothing between them. It becomes a centred pill instead; the
+     scrim behind it stays, since content still scrolls underneath. */
+  .sg-nav {
+    max-width:760px; margin:0 auto 16px; border-radius:999px;
+    border:1px solid rgba(112,142,180,.2); padding:8px 14px;
+    box-shadow:0 18px 44px rgba(0,0,0,.5);
+  }
+  .sg-nav button { font-size:10.5px; padding:4px 0 2px; }
+  .sg-nav button .ico { font-size:20px; }
+  .sg-more-sheet { max-width:760px; margin:0 auto 10px; }
+  .sg-more-grid { grid-template-columns:repeat(6, minmax(0, 1fr)); }
+  .sg-rail { max-width:760px; margin:0 auto 8px; }
+
+  /* Sheets and overlays are centred dialogs at this width, not bottom sheets. */
+  .sg-sheet-card, .sg-look-card { max-width:520px; margin:0 auto; border-radius:26px; }
+  .sg-decksheet { max-width:620px; margin:0 auto; }
+}
+
+/* A phone gets its feedback from :active; a pointer needs hover, and without it
+   every plate on the desktop page is inert. */
+@media (min-width:1024px) and (hover:hover) {
+  .sg-feat, .sg-plate, .sg-mode, .sg-pack, .sg-deckrow, .sg-exp, .sg-art, .sg-gal-card {
+    transition:transform .26s cubic-bezier(.2,.8,.25,1), box-shadow .26s ease;
+  }
+  .sg-feat:hover, .sg-plate:hover, .sg-pack:hover, .sg-art:hover, .sg-gal-card:hover {
+    transform:translateY(-6px);
+  }
+  .sg-mode:hover, .sg-deckrow:hover, .sg-exp:hover { transform:translateY(-4px); }
+  .sg-mode:hover .sg-mode-bg { transform:scale(1.03); }
+  .sg-mode-bg { transition:transform .5s cubic-bezier(.2,.8,.25,1); }
+  .sg-play:hover, .sg-cta:hover, .sg-buy:hover, .sg-mode-go:hover { filter:brightness(1.08); }
+}
+
+@media (min-width:1600px) {
+  .sg-app { --sg-measure:1480px; }
+  .sg-swipe { grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); }
+  .sg-pack-grid { grid-template-columns:repeat(auto-fill, minmax(215px, 1fr)); }
+}
+
+@media (min-width:1024px) and (prefers-reduced-motion:reduce) {
+  .sg-feat, .sg-plate, .sg-mode, .sg-pack, .sg-deckrow, .sg-exp, .sg-art,
+  .sg-gal-card, .sg-mode-bg { transition:none; }
+  .sg-feat:hover, .sg-plate:hover, .sg-pack:hover, .sg-art:hover,
+  .sg-gal-card:hover, .sg-mode:hover, .sg-deckrow:hover, .sg-exp:hover { transform:none; }
+  .sg-mode:hover .sg-mode-bg { transform:none; }
+}
+
+/* ==========================================================================
+   TOP CHROME EDGE CONTRACT  —  the single owner of how the coin chip, the
+   crest and the bell meet the artwork behind them.
+
+   These three controls float directly on full-bleed hero art, so nothing but
+   their own edge separates them from it. Three earlier passes chased scrims,
+   hero-tint ramps and chip transparency and found none of them still present:
+   the softness that remains is not a blur at all, it is an undefined edge.
+   The proof is inside the same screenshot that reports it — the knight-count
+   badge, which carries an OPAQUE gold hairline, reads perfectly crisp sitting
+   a few pixels from a coin chip that reads blurred, on the same device in the
+   same frame. What the blurred ones had that it did not was a border at 22-36%
+   alpha (invisible against bright sky) plus a 14px-radius drop shadow, which
+   over sunlit artwork paints exactly the soft dark halo that reads as blur.
+
+   So the contract is: every top control is defined by a LINE, never by a
+   gradient. An opaque hairline, a hard 1-2px shadow for separation, and no
+   soft spread. Keep these four rules together and this cannot regress
+   piecemeal; tests/hub-top-chrome-check.cjs fails the build if it does.
+   ========================================================================== */
+.sg-top .sg-chip,
+.sg-top .sg-bell,
+.sg-top .sg-signin {
+  /* Opaque, and bright enough to survive a white-hot sky behind it. The
+     translucent steel/violet hairlines these used simply vanish there. */
+  border: 1px solid #e6cd8c;
+  /* Hard contact edge only. No radius above 3px: a soft shadow over bright art
+     IS the halo players read as blur. */
+  box-shadow: 0 1px 2px rgba(3, 5, 14, .9), 0 0 0 1px rgba(3, 5, 14, .55);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* Never translucent — a fill that samples the art behind it can only ever be
+   as busy as the art. (The Sign In pill keeps its gold gradient.) */
+.sg-top .sg-chip,
+.sg-top .sg-bell {
+  background-color: #1e1652;
+}
+
+/* The crest is a conic-gradient ring, so it has no border of its own to
+   harden; it gets the same dark contact ring drawn outside the gradient. */
+.sg-top .sg-avatar {
+  box-shadow: 0 1px 2px rgba(3, 5, 14, .9), 0 0 0 1px rgba(3, 5, 14, .55);
+}
+
+/* The bell glyph was --muted steel, which is the same value range as a dusk
+   sky. It takes the gold the rest of the top chrome uses. */
+.sg-top .sg-bell { color: var(--gold-bright, #e6cd8c); }
+
+/* The binder's filter rows start collapsed, so the tools-row toggle is the
+   only thing on screen that can say the grid is already narrowed. It wears the
+   same count the scrolled-state FAB does. */
+.sg-filter-toggle { position:relative; overflow:visible; }
+.sg-filter-toggle.has-filters {
+  border-color:rgba(240,205,138,.62);
+  color:var(--gold-bright);
+}
+.sg-filter-toggle-badge[hidden] { display:none !important; }
+.sg-filter-toggle-badge {
+  position:absolute; top:-5px; right:-5px;
+  min-width:15px; height:15px; padding:0 4px;
+  border-radius:999px; display:grid; place-items:center;
+  font-size:9px; font-weight:700; letter-spacing:0;
+  color:#1a1408; background:#fff4d2;
+  border:1px solid rgba(26,20,8,.55);
 }

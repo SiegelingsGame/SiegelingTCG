@@ -15908,6 +15908,23 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     }
 }
 
+/* Portrait phones: both boards are fitted to the arena's measured height by
+   fitPortraitBoards() in game.js, which sets these two custom properties and
+   the .portrait-fitted class together. The class is the whole switch - a
+   browser that never runs the fit keeps the cqh/ratio expressions above, so
+   this can only ever replace a working layout with a measured one. The higher
+   specificity is deliberate: it has to beat the cell-aspect breakpoints above,
+   whose job the fitted aspect has taken over. */
+.battlefield.portrait-fitted .board-grid {
+    width: min(100%, var(--portrait-board-width));
+    max-width: none;
+    margin: 0 auto;
+}
+
+.battlefield.portrait-fitted .board-cell {
+    aspect-ratio: var(--portrait-cell-aspect);
+}
+
 .play-hub-menu-flyout {
     position: relative;
     display: none;
