@@ -6,6 +6,18 @@
 <title>Siegelings TCG</title>
 <link rel="icon" href="/favicon.ico">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<meta name="theme-color" content="#0a1530">
+<meta name="apple-mobile-web-app-title" content="Siegelings">
+<meta name="application-name" content="Siegelings">
+<!-- Without these the installed app treats a full load of this page (the gacha
+     return to /shop, a sign-in redirect) as an ordinary web page and wraps it
+     in Safari's chrome, while /play - which carries them - stays fullscreen.
+     black-translucent is safe here: --sg-sat feeds env(safe-area-inset-top)
+     into every fixed header in home-redesign.css. -->
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <!-- style.css carries the real card frames, notches and rarity treatments the
      binder renders. It must load BEFORE home-redesign.css so the art-first
      palette and layout win where the two overlap. -->
