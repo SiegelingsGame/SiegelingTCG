@@ -199,7 +199,7 @@ class SiegeEffectAdminEndpointTest {
     private SiegeEffectTuningService inMemoryTuning() {
         ObjectMapper objectMapper = new ObjectMapper();
         AtomicReference<SiegeEffectTuningService.TuningFile> holder =
-                new AtomicReference<>(new SiegeEffectTuningService.TuningFile(List.of(), null));
+                new AtomicReference<>(new SiegeEffectTuningService.TuningFile(List.of(), null, List.of()));
         return new SiegeEffectTuningService(objectMapper, null, "appConfig", "siegeEffectTuning") {
             @Override
             protected StoredData loadStored() {

@@ -12,6 +12,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -186,6 +187,86 @@ class SiegeEffectTuningServiceTest {
                 "an empty batch is a mistake, not a silent success");
     }
 
+    @Test
+    void moveOverridesPinOneMoveAndLeaveTheRestDerived() {
+        SiegeEffectTuningService service = inMemory();
+
+        assertNull(service.moveValue("fire-spark"), "nothing is pinned until someone edits a row");
+        assertNull(service.moveActionCost("fire-spark"));
+
+        service.applyMoveChanges(List.of(new SiegeEffectTuningService.MovePatch("fire-spark",
+                Map.of(SiegeEffectTuningService.FIELD_MOVE_VALUE, 12,
+                        SiegeEffectTuningService.FIELD_MOVE_ACTION_COST, 2), false)), "editor@example.com");
+
+        assertEquals(12, service.moveValue("fire-spark"));
+        assertEquals(2, service.moveActionCost("fire-spark"));
+        // Case is how the catalog prints it, but a lookup must not depend on that.
+        assertEquals(12, service.moveValue("FIRE-SPARK"));
+        assertNull(service.moveValue("fire-ember"), "one pin must not leak onto its neighbours");
+        // Pinning a move is not an edit to the shared effect knobs.
+        assertEquals(2, service.valueBonus(Effect.DAMAGE));
+    }
+
+    @Test
+    void oneNumberCanBePinnedWhileTheOtherKeepsDeriving() {
+        SiegeEffectTuningService service = inMemory();
+
+        service.applyMoveChanges(List.of(new SiegeEffectTuningService.MovePatch("fire-ember",
+                Map.of(SiegeEffectTuningService.FIELD_MOVE_ACTION_COST, 3), false)), "editor@example.com");
+        assertNull(service.moveValue("fire-ember"), "an unsent field is left alone, not zeroed");
+        assertEquals(3, service.moveActionCost("fire-ember"));
+
+        // A field sent as null clears just that number back to derived.
+        Map<String, Integer> clearCost = new HashMap<>();
+        clearCost.put(SiegeEffectTuningService.FIELD_MOVE_ACTION_COST, null);
+        service.applyMoveChanges(List.of(new SiegeEffectTuningService.MovePatch("fire-ember", clearCost, false)),
+                "editor@example.com");
+        assertNull(service.moveActionCost("fire-ember"));
+        assertTrue(service.moveOverrides().isEmpty(), "a row with nothing pinned is dropped, not stored empty");
+    }
+
+    @Test
+    void outOfRangeMoveNumbersAreRejectedBeforeAnythingIsWritten() {
+        SiegeEffectTuningService service = inMemory();
+        service.applyMoveChanges(List.of(new SiegeEffectTuningService.MovePatch("fire-spark",
+                Map.of(SiegeEffectTuningService.FIELD_MOVE_VALUE, 10), false)), "editor@example.com");
+
+        assertThrows(IllegalArgumentException.class, () -> service.applyMoveChanges(List.of(
+                new SiegeEffectTuningService.MovePatch("fire-ember",
+                        Map.of(SiegeEffectTuningService.FIELD_MOVE_VALUE, 7), false),
+                new SiegeEffectTuningService.MovePatch("fire-fire-burst",
+                        Map.of(SiegeEffectTuningService.FIELD_MOVE_ACTION_COST, 99), false)),
+                "editor@example.com"));
+
+        assertNull(service.moveValue("fire-ember"), "a half-applied batch would be worse than none");
+        assertEquals(10, service.moveValue("fire-spark"), "the earlier publish stands");
+
+        assertThrows(IllegalArgumentException.class, () -> service.applyMoveChanges(
+                List.of(new SiegeEffectTuningService.MovePatch(" ", Map.of(
+                        SiegeEffectTuningService.FIELD_MOVE_VALUE, 5), false)), "editor@example.com"),
+                "a row with no move id names nothing");
+    }
+
+    @Test
+    void resettingAMoveReturnsItToDerivedAndKeepsEffectTuning() {
+        SiegeEffectTuningService service = inMemory();
+        service.applyChanges(
+                List.of(new SiegeEffectTuningService.EffectPatch(Effect.DAMAGE,
+                        Map.of(SiegeEffectTuningService.FIELD_VALUE_BONUS, 5), false)),
+                Map.of(),
+                List.of(new SiegeEffectTuningService.MovePatch("fire-spark",
+                        Map.of(SiegeEffectTuningService.FIELD_MOVE_VALUE, 12), false)),
+                "editor@example.com");
+        assertEquals(5, service.valueBonus(Effect.DAMAGE));
+        assertEquals(12, service.moveValue("fire-spark"));
+
+        service.applyMoveChanges(List.of(
+                new SiegeEffectTuningService.MovePatch("fire-spark", Map.of(), true)), "editor@example.com");
+
+        assertNull(service.moveValue("fire-spark"));
+        assertEquals(5, service.valueBonus(Effect.DAMAGE), "clearing a move must not clear the effect knobs");
+    }
+
     private static SiegeEffectTuningService.EffectRow row(
             List<SiegeEffectTuningService.EffectRow> rows, Effect effect) {
         return rows.stream().filter(r -> r.effect() == effect).findFirst().orElseThrow();
@@ -200,7 +281,7 @@ class SiegeEffectTuningServiceTest {
         // The storage client is only reached through loadStored/saveStored, both
         // overridden below, so this fixture needs no Firestore plumbing at all.
         AtomicReference<SiegeEffectTuningService.TuningFile> holder =
-                new AtomicReference<>(new SiegeEffectTuningService.TuningFile(List.of(), null));
+                new AtomicReference<>(new SiegeEffectTuningService.TuningFile(List.of(), null, List.of()));
         return new SiegeEffectTuningService(objectMapper, null, "appConfig", "siegeEffectTuning") {
             @Override
             protected StoredData loadStored() {
