@@ -2,9 +2,9 @@
  *
  * The Ability Effects panel next door rebalances every card of an effect at
  * once; this one names a single move's numbers. A list rather than that panel's
- * tile grid, because there are ~180 playable moves and the job here is "find
- * Ember, change its damage" — so search and filters come first and the row is
- * narrow enough that the derived number sits right beside the box.
+ * tile grid, because the pool runs to ~360 playable moves and the job here is
+ * "find Ember, change its damage" — so search and filters come first and the
+ * row is narrow enough that the derived number sits right beside the box.
  *
  * Blank means derived: the input's placeholder is what Siege works out from the
  * board card, so an untouched screen publishes nothing and reads as the live
