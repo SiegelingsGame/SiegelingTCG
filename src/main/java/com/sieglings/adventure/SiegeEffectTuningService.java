@@ -64,8 +64,17 @@ public class SiegeEffectTuningService {
             Integer executeBossPercent
     ) {}
 
+    /**
+     * One move's Siege numbers, named by the designer instead of derived. A null
+     * field means "keep deriving that one" — the per-effect bonus applied to the
+     * printed board value — so a row may pin the damage and still let the AP
+     * cost follow the card.
+     */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record TuningFile(List<EffectOverride> effects, GlobalOverride globals) {}
+    public record MoveOverride(String moveId, Integer value, Integer actionCost) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record TuningFile(List<EffectOverride> effects, GlobalOverride globals, List<MoveOverride> moves) {}
 
     /**
      * The knobs an effect actually uses. A row only offers the fields its effect
@@ -116,12 +125,18 @@ public class SiegeEffectTuningService {
     public static final String FIELD_MIN_ACTION_COST = "minActionCost";
     public static final String FIELD_DURATION_ROUNDS = "durationRounds";
 
+    /** Per-move fields, distinct from the shared per-effect knobs above. */
+    public static final String FIELD_MOVE_VALUE = "value";
+    public static final String FIELD_MOVE_ACTION_COST = "actionCost";
+
     /** Guard rails: a dashboard typo must not be able to write an unplayable rule. */
     public static final int MIN_FIELD_VALUE = 0;
     public static final int MAX_VALUE_BONUS = 40;
     public static final int MAX_VALUE_CAP = 99;
     public static final int MAX_ACTION_COST = 5;
     public static final int MAX_DURATION_ROUNDS = 20;
+    /** A pinned move magnitude: high enough for a Siegelord-killer, not a typo'd 900. */
+    public static final int MAX_MOVE_VALUE = 99;
 
     private record Defaults(int valueBonus, int valueCap, int minActionCost, int durationRounds,
                             List<String> fields, String label) {}
@@ -239,6 +254,46 @@ public class SiegeEffectTuningService {
         return resolve(effect, FIELD_DURATION_ROUNDS);
     }
 
+    /**
+     * The damage/heal/shield magnitude a designer pinned on this move, or null
+     * when the move still derives its value from the board card.
+     */
+    public Integer moveValue(String moveId) {
+        MoveOverride o = findMove(load().file(), moveId);
+        return o == null ? null : o.value();
+    }
+
+    /** The AP cost a designer pinned on this move, or null when it derives. */
+    public Integer moveActionCost(String moveId) {
+        MoveOverride o = findMove(load().file(), moveId);
+        return o == null ? null : o.actionCost();
+    }
+
+    /** Every stored move override, keyed by move id — for the dashboard listing. */
+    public Map<String, MoveOverride> moveOverrides() {
+        Map<String, MoveOverride> out = new LinkedHashMap<>();
+        for (MoveOverride row : load().file().moves()) {
+            String id = normalizeMoveId(row == null ? null : row.moveId());
+            if (id != null) out.put(id, row);
+        }
+        return out;
+    }
+
+    private static String normalizeMoveId(String raw) {
+        if (raw == null) return null;
+        String trimmed = raw.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private static MoveOverride findMove(TuningFile file, String moveId) {
+        String id = normalizeMoveId(moveId);
+        if (id == null) return null;
+        for (MoveOverride row : file.moves()) {
+            if (row != null && id.equalsIgnoreCase(normalizeMoveId(row.moveId()))) return row;
+        }
+        return null;
+    }
+
     public int globalValue(String key) {
         GlobalDef def = GLOBAL_DEFS.get(key);
         if (def == null) return 0;
@@ -308,15 +363,37 @@ public class SiegeEffectTuningService {
     public record EffectPatch(Effect effect, Map<String, Integer> fields, boolean reset) {}
 
     /**
+     * One move's pending edit. Same shape as {@link EffectPatch}: a field mapped
+     * to null clears that number back to derived, {@code reset} drops the row.
+     */
+    public record MovePatch(String moveId, Map<String, Integer> fields, boolean reset) {}
+
+    /**
      * Applies any number of effect and global edits in a single write. The
      * dashboard edits a whole screen of settings at once, and saving each one
      * separately meant a storage round trip per number and a window where half
      * the change was live; everything is validated first, then written once.
      */
     public Snapshot applyChanges(List<EffectPatch> patches, Map<String, Integer> globals, String updatedByEmail) {
+        return applyChanges(patches, globals, List.of(), updatedByEmail);
+    }
+
+    /** Writes only per-move numbers, leaving the shared effect knobs alone. */
+    public Snapshot applyMoveChanges(List<MovePatch> movePatches, String updatedByEmail) {
+        return applyChanges(List.of(), Map.of(), movePatches, updatedByEmail);
+    }
+
+    /**
+     * Applies effect, global and per-move edits in one write, validating all of
+     * them first so a typo in the last row cannot leave the earlier ones already
+     * published.
+     */
+    public Snapshot applyChanges(List<EffectPatch> patches, Map<String, Integer> globals,
+                                 List<MovePatch> movePatches, String updatedByEmail) {
         List<EffectPatch> effectPatches = patches == null ? List.of() : patches;
         Map<String, Integer> globalPatches = globals == null ? Map.of() : globals;
-        if (effectPatches.isEmpty() && globalPatches.isEmpty()) {
+        List<MovePatch> movePatchList = movePatches == null ? List.of() : movePatches;
+        if (effectPatches.isEmpty() && globalPatches.isEmpty() && movePatchList.isEmpty()) {
             throw new IllegalArgumentException("No settings were sent.");
         }
 
@@ -364,7 +441,46 @@ public class SiegeEffectTuningService {
             globalsOut = withGlobal(globalsOut, entry.getKey(), entry.getValue());
         }
 
-        return save(new TuningFile(List.copyOf(merged.values()), globalsOut), updatedByEmail);
+        // Move ids are matched case-insensitively but stored as the dashboard
+        // sent them, so a row keeps the id the catalog prints.
+        Map<String, MoveOverride> mergedMoves = new LinkedHashMap<>();
+        for (MoveOverride row : current.moves()) {
+            String id = normalizeMoveId(row == null ? null : row.moveId());
+            if (id != null) mergedMoves.put(id.toLowerCase(Locale.ROOT), row);
+        }
+        for (MovePatch patch : movePatchList) {
+            String id = normalizeMoveId(patch == null ? null : patch.moveId());
+            if (id == null) throw new IllegalArgumentException("A move id is required.");
+            String key = id.toLowerCase(Locale.ROOT);
+            if (patch.reset()) {
+                mergedMoves.remove(key);
+                continue;
+            }
+            MoveOverride existing = mergedMoves.get(key);
+            Map<String, Integer> fields = patch.fields() == null ? Map.of() : patch.fields();
+            Integer value = mergeMoveField(existing == null ? null : existing.value(), fields,
+                    FIELD_MOVE_VALUE, MAX_MOVE_VALUE);
+            Integer cost = mergeMoveField(existing == null ? null : existing.actionCost(), fields,
+                    FIELD_MOVE_ACTION_COST, MAX_ACTION_COST);
+            if (value == null && cost == null) {
+                mergedMoves.remove(key); // both numbers are derived again
+            } else {
+                mergedMoves.put(key, new MoveOverride(id, value, cost));
+            }
+        }
+
+        return save(new TuningFile(List.copyOf(merged.values()), globalsOut,
+                List.copyOf(mergedMoves.values())), updatedByEmail);
+    }
+
+    private Integer mergeMoveField(Integer current, Map<String, Integer> fields, String field, int max) {
+        if (!fields.containsKey(field)) return current;
+        Integer value = fields.get(field);
+        if (value == null) return null; // explicit reset of this one number
+        if (value < MIN_FIELD_VALUE || value > max) {
+            throw new IllegalArgumentException(field + " must be between " + MIN_FIELD_VALUE + " and " + max + ".");
+        }
+        return value;
     }
 
     /** Writes one effect's knobs. Kept for callers editing a single row. */
@@ -509,7 +625,10 @@ public class SiegeEffectTuningService {
             TuningFile file = snapshot.exists()
                     ? parse(objectMapper.valueToTree(Map.of(
                             "effects", snapshot.get("effects") == null ? List.of() : snapshot.get("effects"),
-                            "globals", snapshot.get("globals") == null ? Map.of() : snapshot.get("globals"))))
+                            "globals", snapshot.get("globals") == null ? Map.of() : snapshot.get("globals"),
+                            // A document written before per-move tuning existed has
+                            // no `moves` field; that reads as "nothing pinned".
+                            "moves", snapshot.get("moves") == null ? List.of() : snapshot.get("moves"))))
                     : emptyFile();
             return new StoredData(file, CardOverrideStorageService.StorageBackend.FIRESTORE,
                     snapshot.getString("updatedBy"), resolveTimestamp(snapshot));
@@ -555,6 +674,7 @@ public class SiegeEffectTuningService {
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("effects", objectMapper.convertValue(file.effects(), Object.class));
             payload.put("globals", objectMapper.convertValue(file.globals(), Object.class));
+            payload.put("moves", objectMapper.convertValue(file.moves(), Object.class));
             String by = updatedByEmail == null || updatedByEmail.isBlank()
                     ? "unknown" : updatedByEmail.trim().toLowerCase(Locale.ROOT);
             payload.put("updatedBy", by);
@@ -585,7 +705,8 @@ public class SiegeEffectTuningService {
         try {
             TuningFile file = objectMapper.treeToValue(data, TuningFile.class);
             if (file == null) return emptyFile();
-            return new TuningFile(file.effects() == null ? List.of() : file.effects(), file.globals());
+            return new TuningFile(file.effects() == null ? List.of() : file.effects(), file.globals(),
+                    file.moves() == null ? List.of() : file.moves());
         } catch (Exception ex) {
             // Malformed stored data falls back to defaults instead of breaking
             // every Siege battle until someone fixes the document.
@@ -594,7 +715,7 @@ public class SiegeEffectTuningService {
     }
 
     private static TuningFile emptyFile() {
-        return new TuningFile(List.of(), null);
+        return new TuningFile(List.of(), null, List.of());
     }
 
     private DocumentReference docRef() {

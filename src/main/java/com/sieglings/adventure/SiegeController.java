@@ -29,6 +29,10 @@ public class SiegeController {
     @Autowired
     private SiegeEffectTuningService effectTuning;
 
+    /** Builds the derived Siege numbers the move-tuning screen shows beside the pins. */
+    @Autowired
+    private SiegeContentService content;
+
     @Autowired
     private com.sieglings.service.CardEditorAuthService editorAuth;
 
@@ -496,6 +500,111 @@ public class SiegeController {
         String key = str(body.get("key"));
         if (key == null || key.isBlank()) throw new IllegalArgumentException("A setting key is required.");
         return serializeTuning(effectTuning.setGlobal(key, nullableInt(body.get("value"), key), email));
+    }
+
+    /** The per-move numbers a tuning request may carry. */
+    private static final List<String> MOVE_FIELDS = List.of(
+            SiegeEffectTuningService.FIELD_MOVE_VALUE,
+            SiegeEffectTuningService.FIELD_MOVE_ACTION_COST);
+
+    /**
+     * Dashboard: every playable Siegeling move with what Siege derives for it and
+     * what a designer has pinned.
+     */
+    @GetMapping("/api/siege/moves")
+    public Map<String, Object> listMoveTuning() {
+        return serializeMoves();
+    }
+
+    /**
+     * Dashboard: pin one move's Siege numbers (editor-authenticated). A field sent
+     * as null returns that one number to derived; {@code reset} clears both.
+     */
+    @PostMapping("/api/siege/moves")
+    public Map<String, Object> setMoveTuning(
+            @RequestHeader(value = "X-Card-Editor-Token", required = false) String editorToken,
+            @RequestBody Map<String, Object> body) {
+        String email = editorAuth.requireEditor(editorToken).email();
+        effectTuning.applyMoveChanges(List.of(movePatch(body)), email);
+        return serializeMoves();
+    }
+
+    /** Dashboard: return one move to its derived numbers (editor-authenticated). */
+    @PostMapping("/api/siege/moves/reset")
+    public Map<String, Object> resetMoveTuning(
+            @RequestHeader(value = "X-Card-Editor-Token", required = false) String editorToken,
+            @RequestBody Map<String, Object> body) {
+        String email = editorAuth.requireEditor(editorToken).email();
+        effectTuning.applyMoveChanges(
+                List.of(new SiegeEffectTuningService.MovePatch(str(body.get("moveId")), Map.of(), true)), email);
+        return serializeMoves();
+    }
+
+    /**
+     * Dashboard: publish every edited move at once (editor-authenticated). Like
+     * the effects screen, the whole batch is validated before anything is written.
+     */
+    @PostMapping("/api/siege/moves/bulk")
+    public Map<String, Object> saveMoveTuning(
+            @RequestHeader(value = "X-Card-Editor-Token", required = false) String editorToken,
+            @RequestBody Map<String, Object> body) {
+        String email = editorAuth.requireEditor(editorToken).email();
+        List<SiegeEffectTuningService.MovePatch> patches = new java.util.ArrayList<>();
+        if (body.get("moves") instanceof List<?> list) {
+            for (Object raw : list) {
+                if (raw instanceof Map<?, ?> row) patches.add(movePatch(row));
+            }
+        }
+        if (patches.isEmpty()) throw new IllegalArgumentException("No moves were sent.");
+        effectTuning.applyMoveChanges(patches, email);
+        return serializeMoves();
+    }
+
+    private SiegeEffectTuningService.MovePatch movePatch(Map<?, ?> row) {
+        String moveId = str(row.get("moveId"));
+        boolean reset = Boolean.TRUE.equals(row.get("reset"));
+        java.util.Map<String, Integer> fields = new java.util.LinkedHashMap<>();
+        if (!reset) {
+            for (String field : MOVE_FIELDS) {
+                if (row.containsKey(field)) fields.put(field, nullableInt(row.get(field), field));
+            }
+            if (fields.isEmpty()) throw new IllegalArgumentException("No numbers were sent for " + moveId + ".");
+        }
+        return new SiegeEffectTuningService.MovePatch(moveId, fields, reset);
+    }
+
+    private Map<String, Object> serializeMoves() {
+        List<Map<String, Object>> moves = new java.util.ArrayList<>();
+        for (SiegeContentService.MoveTuningRow row : content.listMoveTuning()) {
+            Map<String, Object> m = new java.util.LinkedHashMap<>();
+            m.put("moveId", row.moveId());
+            m.put("name", row.name());
+            m.put("element", row.element());
+            m.put("category", row.category());
+            m.put("effect", row.effect());
+            m.put("effectType", row.effectType());
+            m.put("editsValue", row.editsValue());
+            m.put("boardValue", row.boardValue());
+            m.put("boardEnergyCost", row.boardEnergyCost());
+            m.put("derivedValue", row.derivedValue());
+            m.put("derivedActionCost", row.derivedActionCost());
+            m.put("overrideValue", row.overrideValue());
+            m.put("overrideActionCost", row.overrideActionCost());
+            m.put("value", row.value());
+            m.put("actionCost", row.actionCost());
+            m.put("isOverride", row.isOverride());
+            m.put("usedBy", row.usedBy());
+            moves.add(m);
+        }
+        SiegeEffectTuningService.Snapshot snapshot = effectTuning.buildSnapshot();
+        Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("moves", moves);
+        out.put("maxValue", SiegeEffectTuningService.MAX_MOVE_VALUE);
+        out.put("maxActionCost", SiegeEffectTuningService.MAX_ACTION_COST);
+        out.put("source", snapshot.backend() == null ? null : snapshot.backend().name());
+        out.put("updatedBy", snapshot.updatedBy());
+        out.put("updatedAt", snapshot.updatedAt());
+        return out;
     }
 
     private Map<String, Object> serializeTuning(SiegeEffectTuningService.Snapshot snapshot) {

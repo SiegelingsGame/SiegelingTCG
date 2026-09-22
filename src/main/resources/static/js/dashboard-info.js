@@ -276,6 +276,19 @@
             '<p>Saves apply to <em>battles started afterwards</em> — a run already mid-battle keeps the numbers it started with, because its cards were built when the battle opened.</p>'
     };
 
+    topics['siege-moves'] = {
+        title: 'Move Values (Siege)',
+        html: '<p>Sets what one <strong>Siegeling move</strong> costs and does <em>in Siege</em>, without touching its board card. The board keeps its printed energy cost and value; only the Siege card built from the move changes.</p>' +
+            '<p>Every box shows the <strong>derived</strong> number as its placeholder — what Siege works out on its own from the printed value plus the <strong>Shared Ability Effects</strong> bonus for that effect. Leave a box blank and the move keeps following the card, so a retune of the card or of the shared effect still reaches it. Type a number and Siege uses exactly that, ignoring both.</p>' +
+            table([
+                row(['<strong>Damage / value</strong>', 'The magnitude the move applies in Siege — damage, healing, shield, buff size. A move whose effect has no magnitude (stun, execute, swap, evolve) shows <em>no magnitude</em> instead: there is nothing to scale.']),
+                row(['<strong>AP cost</strong>', 'Action points the card costs to play in a Siege battle. This wins over the per-effect AP floor as well, so it is the one place a specific move can be made cheaper or dearer than its effect allows.'])
+            ], ['Box', 'What it sets']) +
+            '<p>The row shows what the board card prints (<code>board 4 / 1 energy</code>) and which Siegelings can play the move, so a rebalance shows its blast radius before you publish. Search matches the move name, its id, or a Siegeling that carries it.</p>' +
+            '<p>Only <strong>playable</strong> moves are listed — a passive never becomes a Siege card, so pricing one would be an edit that does nothing. Edit as many rows as you like and press <strong>Publish changes</strong> once; <strong>Discard</strong> throws away everything unsaved, and a row\'s <strong>reset</strong> returns both numbers to derived.</p>' +
+            '<p>Saves apply to <em>battles started afterwards</em> — a run already mid-battle keeps the numbers it started with, because its cards were built when the battle opened.</p>'
+    };
+
     topics['shop-prices'] = {
         title: 'Shop Prices',
         html: '<p>Each card\'s shop price is looked up by <strong>rarity + card type</strong>. Set an override for a cell to replace the default for every card of that combination; reset it to fall back to the default again.</p>' +

@@ -589,6 +589,89 @@ public class SiegeContentService {
         };
     }
 
+    // ---- Move tuning listing (dashboard) --------------------------------
+
+    /**
+     * One move as the Siege move-tuning screen shows it: what the board card
+     * prints, what Siege derives from it, and what a designer has pinned.
+     *
+     * @param derivedValue      magnitude the derivation produces, ignoring any pin
+     * @param derivedActionCost AP the derivation produces, ignoring any pin
+     * @param value             what Siege actually uses right now
+     * @param usedBy            Siegelings that can play this move, for context
+     */
+    public record MoveTuningRow(
+            String moveId,
+            String name,
+            String element,
+            String category,
+            String effect,
+            String effectType,
+            boolean editsValue,
+            int boardValue,
+            int boardEnergyCost,
+            int derivedValue,
+            int derivedActionCost,
+            Integer overrideValue,
+            Integer overrideActionCost,
+            int value,
+            int actionCost,
+            boolean isOverride,
+            List<String> usedBy
+    ) {}
+
+    /**
+     * Every move a Siegeling can actually play in Siege, with its derived and
+     * pinned numbers. Passive moves are left out: Siege never turns one into a
+     * card, so offering its cost and damage would be an edit that does nothing.
+     */
+    public List<MoveTuningRow> listMoveTuning() {
+        Map<String, List<String>> usage = moveUsage();
+        Map<String, SiegeEffectTuningService.MoveOverride> overrides =
+                effectTuning == null ? Map.of() : effectTuning.moveOverrides();
+        Map<String, SiegeEffectTuningService.MoveOverride> byLowerId = new LinkedHashMap<>();
+        overrides.forEach((id, row) -> byLowerId.put(id.toLowerCase(Locale.ROOT), row));
+
+        List<MoveTuningRow> rows = new ArrayList<>();
+        for (Move move : movesPool.allMovesSorted()) {
+            if (move.isPassive() || move.targetType() == TargetType.PASSIVE) continue;
+            Effect effect = effectFor(move.effectType());
+            int derivedValue = combatValue(move, effect);
+            int derivedCost = actionCostFor(move.energyCost(), effect);
+            SiegeEffectTuningService.MoveOverride o = byLowerId.get(move.id().toLowerCase(Locale.ROOT));
+            Integer oValue = o == null ? null : o.value();
+            Integer oCost = o == null ? null : o.actionCost();
+            boolean editsValue = usesValue(effect);
+            rows.add(new MoveTuningRow(
+                    move.id(), move.name(),
+                    move.element() == null ? null : move.element().name(),
+                    move.category() == null ? null : move.category().name(),
+                    effect.name(), move.effectType(), editsValue,
+                    move.effectValue(), move.energyCost(),
+                    derivedValue, derivedCost,
+                    editsValue ? oValue : null, oCost,
+                    (editsValue && oValue != null) ? oValue : derivedValue,
+                    oCost != null ? oCost : derivedCost,
+                    (editsValue && oValue != null) || oCost != null,
+                    usage.getOrDefault(move.id().toLowerCase(Locale.ROOT), List.of())));
+        }
+        return rows;
+    }
+
+    /** Which Siegelings can play each move, so a rebalance shows its blast radius. */
+    private Map<String, List<String>> moveUsage() {
+        Map<String, List<String>> out = new LinkedHashMap<>();
+        for (Card card : cardDefs.getDeckBuilderCatalog()) {
+            if (!(card instanceof SieglingCard s) || s.getMoveIds() == null) continue;
+            for (String moveId : s.getMoveIds()) {
+                if (moveId == null || moveId.isBlank()) continue;
+                out.computeIfAbsent(moveId.trim().toLowerCase(Locale.ROOT), k -> new ArrayList<>())
+                        .add(s.getName());
+            }
+        }
+        return out;
+    }
+
     // ---- Move -> combat spec -------------------------------------------
 
     private AbilitySpec toSpec(Move move) {
@@ -596,6 +679,13 @@ public class SiegeContentService {
         TargetKind target = targetFor(move.targetType(), effect, move.effectType());
         int value = combatValue(move, effect);
         int actionCost = actionCostFor(move.energyCost(), effect);
+        // A per-move override is the designer naming this move's Siege numbers
+        // outright, so it wins over both the printed board value and the shared
+        // per-effect tuning that would otherwise derive them.
+        Integer pinnedValue = effectTuning == null ? null : effectTuning.moveValue(move.id());
+        if (pinnedValue != null && usesValue(effect)) value = pinnedValue;
+        Integer pinnedCost = effectTuning == null ? null : effectTuning.moveActionCost(move.id());
+        if (pinnedCost != null) actionCost = pinnedCost;
         StatusKind status = effect == Effect.DAMAGE ? statusFor(move.element()) : null;
         return new AbilitySpec(move.id(), move.name(), move.element(), effect, value, target, actionCost,
                 move.description() == null ? "" : move.description(),
@@ -623,6 +713,18 @@ public class SiegeContentService {
             case DAMAGE -> Math.max(1, base + valueBonus(effect, 2));
             case HEAL, SHIELD, MAX_HP_BOOST -> Math.max(1, base + valueBonus(effect, 3));
             case BUFF_ATK, BUFF_SPD, SLOW -> Math.max(1, base + valueBonus(effect, 0));
+        };
+    }
+
+    /**
+     * Whether an effect has a magnitude at all. STUN, EXECUTE, SWAP and EVOLVE do
+     * what they do regardless of any number, so neither the derivation nor the
+     * dashboard offers them a value to pin.
+     */
+    static boolean usesValue(Effect effect) {
+        return switch (effect) {
+            case STUN, EXECUTE, SWAP, EVOLVE -> false;
+            default -> true;
         };
     }
 
