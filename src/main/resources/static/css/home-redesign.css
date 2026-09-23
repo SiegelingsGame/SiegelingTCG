@@ -3128,9 +3128,14 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-sig-art .sg-sig-face > img {
   width:100%; height:100%; object-fit:cover; object-position:center; display:block;
 }
-.sg-sig-back { background:rgba(6,10,18,.7); }
+/* The back art (520x760) is taller than the 2.5/3.5 plate, so cover cropped
+   its gold frame, and iOS Safari never resolved height:100% inside the
+   size-contained grid plate — the img fell back to natural height and hung off
+   the bottom. Pin it to the plate box and contain so the whole frame shows. */
+.sg-sig-back { background:rgba(6,10,18,.7); position:relative; }
 .sg-sig-back img {
-  width:100%; height:100%; object-fit:cover; object-position:center; border-radius:0; display:block;
+  position:absolute; inset:0; width:100%; height:100%;
+  object-fit:contain; object-position:center; border-radius:0; display:block;
 }
 .sg-sig-art.is-empty { border:1px dashed rgba(112,142,180,.3); background:rgba(6,10,18,.5); }
 .sg-sig-name { font-size:11.5px; font-weight:600; text-align:center; }
