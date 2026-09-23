@@ -4264,9 +4264,30 @@
     var card = sheet.querySelector('[data-prof-card]');
     var tab = 'showcase';
 
-    function paint() {
+    // A pick repaints the whole panel to refresh the selected/badge state, which
+    // threw the player back to the top of a long grid (and the card-back row back
+    // to its first back). Picks carry the scroll positions across the rebuild;
+    // only opening the sheet or changing tab starts at the top.
+    function paint(keepScroll) {
+      var kept = null;
+      if (keepScroll) {
+        var oldPanel = card.querySelector('[data-prof-panel]');
+        if (oldPanel) {
+          kept = { top: oldPanel.scrollTop, rows: [] };
+          oldPanel.querySelectorAll('.sg-back-row, .sg-el-row, .sg-chip-row').forEach(function (row) {
+            kept.rows.push(row.scrollLeft);
+          });
+        }
+      }
       card.innerHTML = profileEditorMarkup(opts, tab);
       card.scrollTop = 0;
+      if (!kept) return;
+      var panel = card.querySelector('[data-prof-panel]');
+      if (!panel) return;
+      panel.scrollTop = kept.top;
+      panel.querySelectorAll('.sg-back-row, .sg-el-row, .sg-chip-row').forEach(function (row, i) {
+        if (kept.rows[i]) row.scrollLeft = kept.rows[i];
+      });
     }
     function open(which) {
       tab = which || 'showcase';
@@ -4306,24 +4327,27 @@
       if (show) {
         var id = show.getAttribute('data-pick-showcase');
         var at = d.favoriteCardIds.indexOf(id);
+        var full = false;
         if (at >= 0) d.favoriteCardIds.splice(at, 1);
         else if (d.favoriteCardIds.length < PROFILE_SHOWCASE_MAX) d.favoriteCardIds.push(id);
-        else fail('Drop one of your three picks first.');
-        paint();
+        else full = true;
+        paint(true);
+        // After the repaint: the rebuild recreates the error box hidden.
+        if (full) fail('Drop one of your three picks first.');
         return;
       }
       var fav = e.target.closest('[data-pick-favorite]');
-      if (fav) { d.favoriteCardId = fav.getAttribute('data-pick-favorite'); paint(); return; }
+      if (fav) { d.favoriteCardId = fav.getAttribute('data-pick-favorite'); paint(true); return; }
       var back = e.target.closest('[data-pick-back]');
-      if (back) { d.preferredCardBack = back.getAttribute('data-pick-back'); paint(); return; }
+      if (back) { d.preferredCardBack = back.getAttribute('data-pick-back'); paint(true); return; }
       var art = e.target.closest('[data-pick-art]');
-      if (art) { d.profileArtId = art.getAttribute('data-pick-art'); paint(); return; }
+      if (art) { d.profileArtId = art.getAttribute('data-pick-art'); paint(true); return; }
       var avatar = e.target.closest('[data-pick-avatar]');
-      if (avatar) { d.avatarMode = avatar.getAttribute('data-pick-avatar'); paint(); return; }
+      if (avatar) { d.avatarMode = avatar.getAttribute('data-pick-avatar'); paint(true); return; }
       var element = e.target.closest('[data-pick-element]');
-      if (element) { d.favoriteElement = element.getAttribute('data-pick-element'); paint(); return; }
+      if (element) { d.favoriteElement = element.getAttribute('data-pick-element'); paint(true); return; }
       var titleBtn = e.target.closest('[data-pick-title]');
-      if (titleBtn) { d.playerTitleId = titleBtn.getAttribute('data-pick-title'); paint(); return; }
+      if (titleBtn) { d.playerTitleId = titleBtn.getAttribute('data-pick-title'); paint(true); return; }
       if (e.target.closest('[data-prof-save]')) save();
     });
 
