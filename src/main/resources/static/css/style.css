@@ -81,7 +81,11 @@ body {
        fallback line for one without dvh. A browser that understands dvh
        discards the first declaration. */
     height: var(--sg-vh, 100vh);
-    height: 100dvh;
+    /* max(): an installed web app can launch with a dvh shorter than the glass,
+       and the battle table then stops above a dead band. --sg-vh carries the
+       corrected height there (viewport-unit.js); elsewhere dvh wins as before.
+       Pages without viewport-unit.js resolve this to plain 100dvh. */
+    height: max(100dvh, var(--sg-vh, 0px));
     display: flex;
     flex-direction: column;
     overflow: hidden;
