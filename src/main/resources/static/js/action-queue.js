@@ -2081,16 +2081,20 @@
             const safeHealth = Math.max(0, Number.isFinite(Number(health)) ? Number(health) : 0);
             const maxHealth = Math.max(1, Number.isFinite(Number(entry.maxHealth)) ? Number(entry.maxHealth) : 50);
             const pct = Math.max(0, Math.min(100, Math.round((safeHealth / maxHealth) * 100)));
+            // Every HP readout game.js renders, not just the desktop ones: the
+            // phone HUD numbers were left out, so on mobile the bar dropped on
+            // impact but the number only caught up at the next full render,
+            // after the rest of the battle had played.
             const textIds = isPlayer
-                ? ['playerHealth', 'railPlayerHealth']
-                : ['enemyHealth', 'railEnemyHealth'];
+                ? ['playerHealth', 'railPlayerHealth', 'mobilePlayerHpValue', 'mobilePlayerStatHealth']
+                : ['enemyHealth', 'railEnemyHealth', 'mobileEnemyHpValue', 'mobileEnemyStatHealth'];
             for (const id of textIds) {
                 const el = document.getElementById(id);
                 if (el) el.textContent = String(safeHealth);
             }
             const fillIds = isPlayer
-                ? ['railPlayerHpBar', 'mobilePlayerHpBar', 'safeHpFillPlayer']
-                : ['railEnemyHpBar', 'mobileEnemyHpBar', 'safeHpFillEnemy'];
+                ? ['railPlayerHpBar', 'mobilePlayerHpBar', 'safeHpFillPlayer', 'tbPlayerHpFill']
+                : ['railEnemyHpBar', 'mobileEnemyHpBar', 'safeHpFillEnemy', 'tbEnemyHpFill'];
             for (const id of fillIds) {
                 const fill = document.getElementById(id);
                 if (fill) fill.style.width = `${pct}%`;
@@ -3194,6 +3198,47 @@
             const prevEnemyHp  = Number(prevState.enemy?.health  ?? prevState.enemyHealth);
             const nextEnemyHp  = Number(nextState.enemy?.health  ?? nextState.enemyHealth);
 
+            // Siege (bounty) damage is dealt the moment its Siegling dies, but
+            // the HP diff is only known for the whole step, so it used to play
+            // after every other hit in the battle - the kill landed, then the
+            // rest of the battle played, and only then did the owner's HP move.
+            // Slot the bounty hit straight after the action that kills its
+            // source (this batch's actions are all still queued: enqueueing is
+            // synchronous and draining starts on a microtask). No match falls
+            // back to the end, as before.
+            const killsBountySource = (queued, sourceNames, ownerIsPlayer) => {
+                if (!queued) return false;
+                const named = (name) => sourceNames.some((src) => namesMatch(src, name));
+                if (queued.kind === 'DESTROY') {
+                    return !!queued.target && !!queued.target.isPlayer === ownerIsPlayer
+                        && named(queued.ghostCell?.name || queued.actorName);
+                }
+                if (queued.kind !== 'ATTACK') return false;
+                if (queued.destroysTarget && queued.target && !!queued.target.isPlayer === ownerIsPlayer
+                    && named(queued.ghostCell?.name || queued.targetName)) {
+                    return true;
+                }
+                return (queued.targets || []).some((tt) => tt && tt.destroysTarget
+                    && !!tt.isPlayer === ownerIsPlayer && named(tt.ghostCell?.name || tt.name));
+            };
+            const enqueueDirectHealthHit = (action, siegeHit, ownerIsPlayer) => {
+                const sourceNames = siegeHit?.source
+                    ? String(siegeHit.source).split(',').map((name) => name.trim()).filter(Boolean)
+                    : [];
+                let killIndex = -1;
+                if (sourceNames.length) {
+                    this.queue.forEach((queued, idx) => {
+                        if (killsBountySource(queued, sourceNames, ownerIsPlayer)) killIndex = idx;
+                    });
+                }
+                if (killIndex < 0) {
+                    this.enqueueAction(action);
+                    return;
+                }
+                this.queue.splice(killIndex + 1, 0, action);
+                this._kick();
+            };
+
             if (Number.isFinite(prevEnemyHp) && Number.isFinite(nextEnemyHp) && nextEnemyHp < prevEnemyHp) {
                 const dmg = prevEnemyHp - nextEnemyHp;
                 const siegeHit = findSiegeBountyHit([
@@ -3216,7 +3261,7 @@
                     return findCellOnBoard(prevPlayer, () => true);
                 })();
                 const srcElement = normalizeElement(srcRef?.pending?.element || srcRef?.cell?.element) || playerKnight;
-                this.enqueueAction({
+                enqueueDirectHealthHit({
                     kind: 'ATTACK',
                     side: 'PLAYER',
                     actorName: siegeHit?.source ? `${siegeHit.source}'s bounty` : (srcRef?.cell?.name || srcRef?.pending?.name || playerName),
@@ -3230,7 +3275,7 @@
                     target: { healthBar: true, isPlayer: false, element: siegeHit ? enemyKnight : srcElement, pendingDirectHealthKey },
                     pendingDirectHealthKey,
                     gapAfterMs: BATTLE_GAP_MS
-                });
+                }, siegeHit, false);
             }
             if (Number.isFinite(prevPlayerHp) && Number.isFinite(nextPlayerHp) && nextPlayerHp < prevPlayerHp) {
                 const dmg = prevPlayerHp - nextPlayerHp;
@@ -3247,7 +3292,7 @@
                 });
                 const srcRef = findCellOnBoard(prevEnemy, () => true);
                 const srcElement = normalizeElement(srcRef?.cell?.element) || enemyKnight;
-                this.enqueueAction({
+                enqueueDirectHealthHit({
                     kind: 'ATTACK',
                     side: 'ENEMY',
                     actorName: siegeHit?.source ? `${siegeHit.source}'s bounty` : (srcRef?.cell?.name || enemyName),
@@ -3261,7 +3306,7 @@
                     target: { healthBar: true, isPlayer: true, element: siegeHit ? playerKnight : srcElement, pendingDirectHealthKey },
                     pendingDirectHealthKey,
                     gapAfterMs: BATTLE_GAP_MS
-                });
+                }, siegeHit, true);
             }
 
             if (soloAiEndFlow && !nextState.gameOver) {
