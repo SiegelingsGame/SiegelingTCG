@@ -24,6 +24,11 @@
         radial-gradient(circle at 86% 20%, rgba(123, 92, 255, 0.22), transparent 36%),
         radial-gradient(circle at 70% 88%, rgba(60, 142, 216, 0.14), transparent 34%),
         linear-gradient(180deg, #16104a 0%, #0d0a26 58%, #07051a 100%);
+    /* inset:0 resolves against the layout viewport, which an installed web app
+       can get short of the glass - the overlay then ended ~180px above the bottom
+       with the page showing beneath it. Sized off the corrected height instead. */
+    bottom: auto;
+    height: max(100dvh, var(--sg-vh, 0px));
 }
 
 .loadout-box {
@@ -450,5 +455,25 @@
 @media (max-width: 900px) and (orientation: portrait) and (max-height: 700px) {
     .loadout-overlay[data-loadout-step="deck"] .loadout-box:not(.loadout-mode-builder) .loadout-options .deck-card-tags {
         display: none;
+    }
+}
+
+/* Every step on a portrait phone: the nav is the bottom HUD, so it belongs on
+   the bottom edge. It is sticky inside the scrolling box, which only pins it
+   once the step is taller than the screen - on a short step (Setup) it rode up
+   under the content and left a dead band below it. A column whose middle grows
+   puts it on the bottom edge either way; long steps still scroll as before. */
+@media (max-width: 900px) and (orientation: portrait) {
+    .loadout-overlay .loadout-box {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .loadout-overlay .loadout-box > :is(.loadout-hero, .loadout-steps, .loadout-nav) {
+        flex: 0 0 auto;
+    }
+
+    .loadout-overlay .loadout-box > .loadout-core {
+        flex: 1 0 auto;
     }
 }
