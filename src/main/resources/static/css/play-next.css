@@ -241,3 +241,214 @@
         border-radius: 0 0 20px 20px;
     }
 }
+
+/* ---- deck + SiegeKnight steps on a phone: the art is the screen ----
+   These two steps are a pick, not a form, but on a portrait phone the art band,
+   copy, account note, source label, section heading and help paragraph used the
+   whole first screen and the cards started below the fold; picking meant
+   scrolling a two-column grid of shrunken tiles. Here the box stops scrolling:
+   hero and step chips collapse to thin rows, the text chrome goes, and the
+   options become one horizontal swipe strip whose cards are sized off the
+   height that is left, so a whole card is always on screen. The Deck Builder is
+   an editor, not a pick, and keeps the scrolling page (.loadout-mode-builder). */
+@media (max-width: 900px) and (orientation: portrait) {
+    .loadout-overlay[data-loadout-step="deck"] .loadout-box:not(.loadout-mode-builder),
+    .loadout-overlay[data-loadout-step="knight"] .loadout-box {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    :is(.loadout-overlay[data-loadout-step="deck"] .loadout-box:not(.loadout-mode-builder),
+        .loadout-overlay[data-loadout-step="knight"] .loadout-box) {
+        --pick-card-gap: 12px;
+    }
+
+    :is(.loadout-overlay[data-loadout-step="deck"] .loadout-box:not(.loadout-mode-builder),
+        .loadout-overlay[data-loadout-step="knight"] .loadout-box) .loadout-hero {
+        flex: 0 0 auto;
+        min-height: 0;
+        margin-bottom: 8px;
+        padding-top: 12px;
+        padding-bottom: 12px;
+        background-position: center, center 30%;
+    }
+
+    :is(.loadout-overlay[data-loadout-step="deck"] .loadout-box:not(.loadout-mode-builder),
+        .loadout-overlay[data-loadout-step="knight"] .loadout-box) .loadout-hero::after {
+        height: 28px;
+    }
+
+    :is(.loadout-overlay[data-loadout-step="deck"] .loadout-box:not(.loadout-mode-builder),
+        .loadout-overlay[data-loadout-step="knight"] .loadout-box) .loadout-hero .loadout-copy {
+        display: none;
+    }
+
+    :is(.loadout-overlay[data-loadout-step="deck"] .loadout-box:not(.loadout-mode-builder),
+        .loadout-overlay[data-loadout-step="knight"] .loadout-box) h2 {
+        font-size: 1.5rem;
+        margin-bottom: 0;
+    }
+
+    :is(.loadout-overlay[data-loadout-step="deck"] .loadout-box:not(.loadout-mode-builder),
+        .loadout-overlay[data-loadout-step="knight"] .loadout-box) .loadout-close-btn {
+        top: 10px;
+        width: 36px;
+        height: 36px;
+    }
+
+    /* Four chips on one row; the number carries the step, the label truncates. */
+    :is(.loadout-overlay[data-loadout-step="deck"] .loadout-box:not(.loadout-mode-builder),
+        .loadout-overlay[data-loadout-step="knight"] .loadout-box) .loadout-steps {
+        flex: 0 0 auto;
+        flex-wrap: nowrap;
+        gap: 6px;
+        margin-bottom: 8px;
+    }
+
+    :is(.loadout-overlay[data-loadout-step="deck"] .loadout-box:not(.loadout-mode-builder),
+        .loadout-overlay[data-loadout-step="knight"] .loadout-box) .loadout-step-chip {
+        min-width: 0;
+        gap: 5px;
+        padding: 7px 6px;
+        font-size: 0.6rem;
+        letter-spacing: 0.02em;
+    }
+
+    :is(.loadout-overlay[data-loadout-step="deck"] .loadout-box:not(.loadout-mode-builder),
+        .loadout-overlay[data-loadout-step="knight"] .loadout-box) .loadout-step-chip .loadout-step-num {
+        width: 18px;
+        height: 18px;
+    }
+
+    /* core -> active step -> section -> strip: each is the one flexing child of
+       its column, so the strip gets exactly the height left over. */
+    :is(.loadout-overlay[data-loadout-step="deck"] .loadout-box:not(.loadout-mode-builder),
+        .loadout-overlay[data-loadout-step="knight"] .loadout-box) :is(.loadout-core, .loadout-step.active, .loadout-section:not(.hidden)) {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+    }
+
+    :is(.loadout-overlay[data-loadout-step="deck"] .loadout-box:not(.loadout-mode-builder),
+        .loadout-overlay[data-loadout-step="knight"] .loadout-box) .loadout-section {
+        margin: 0;
+        padding: 0;
+        border: none;
+        background: none;
+        box-shadow: none;
+    }
+
+    :is(.loadout-overlay[data-loadout-step="deck"] .loadout-box:not(.loadout-mode-builder),
+        .loadout-overlay[data-loadout-step="knight"] .loadout-box) :is(.loadout-account-note, .loadout-toggle-label, .loadout-section-title-row, #presetLoadoutPanel .loadout-saved-note) {
+        display: none;
+    }
+
+    /* Saved decks keep their note only as a one-line status (it carries the
+       empty-state message when nothing is saved). */
+    .loadout-overlay[data-loadout-step="deck"] .loadout-box:not(.loadout-mode-builder) #savedLoadoutPanel .loadout-saved-note {
+        flex: 0 0 auto;
+        margin: 0 0 4px;
+        font-size: 0.72rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* Deck source as one compact segmented row. */
+    .loadout-overlay[data-loadout-step="deck"] .loadout-box:not(.loadout-mode-builder) .loadout-toggle-set {
+        flex: 0 0 auto;
+        margin: 0 0 4px;
+    }
+
+    .loadout-overlay[data-loadout-step="deck"] .loadout-box:not(.loadout-mode-builder) .loadout-tabs {
+        flex-wrap: nowrap;
+        gap: 6px;
+    }
+
+    .loadout-overlay[data-loadout-step="deck"] .loadout-box:not(.loadout-mode-builder) .loadout-tab {
+        flex: 1 1 0;
+        min-width: 0;
+        padding: 8px 4px;
+        font-size: 0.62rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* The strip. Full-bleed so the next card peeks in from the edge, which is
+       the cue that it swipes. */
+    :is(.loadout-overlay[data-loadout-step="deck"] .loadout-box:not(.loadout-mode-builder),
+        .loadout-overlay[data-loadout-step="knight"] .loadout-box) .loadout-options {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        align-items: center;
+        gap: var(--pick-card-gap);
+        overflow-x: auto;
+        overflow-y: hidden;
+        margin: 0 calc(var(--loadout-padding) * -1);
+        padding: 12px var(--loadout-padding) 14px;
+        scroll-snap-type: x mandatory;
+        scroll-padding-inline: var(--loadout-padding);
+        overscroll-behavior-x: contain;
+        touch-action: pan-x;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+
+    :is(.loadout-overlay[data-loadout-step="deck"] .loadout-box:not(.loadout-mode-builder),
+        .loadout-overlay[data-loadout-step="knight"] .loadout-box) .loadout-options::-webkit-scrollbar {
+        display: none;
+    }
+
+    /* Height-driven cards: as tall as the strip allows, capped so one card never
+       outgrows the screen width (78vw at 5:7 is the height that caps it). */
+    :is(.loadout-overlay[data-loadout-step="deck"] .loadout-box:not(.loadout-mode-builder),
+        .loadout-overlay[data-loadout-step="knight"] .loadout-box) .loadout-options > :is(.deck-card, .knight-card) {
+        flex: 0 0 auto;
+        height: min(100%, calc(78vw * 7 / 5));
+        width: auto !important;
+        max-width: none;
+        min-width: 0;
+        aspect-ratio: 5 / 7;
+        justify-self: auto;
+        scroll-snap-align: start;
+    }
+
+    /* The deck face is the art; its blurb repeats on the Loadout step, so the
+       strip shows name, elements and traits only. */
+    .loadout-overlay[data-loadout-step="deck"] .loadout-box:not(.loadout-mode-builder) .loadout-options .deck-card-desc {
+        display: none;
+    }
+
+    :is(.loadout-overlay[data-loadout-step="deck"] .loadout-box:not(.loadout-mode-builder),
+        .loadout-overlay[data-loadout-step="knight"] .loadout-box) .loadout-nav {
+        flex: 0 0 auto;
+        gap: 6px 10px;
+        padding-top: 8px;
+    }
+
+    :is(.loadout-overlay[data-loadout-step="deck"] .loadout-box:not(.loadout-mode-builder),
+        .loadout-overlay[data-loadout-step="knight"] .loadout-box) .loadout-nav .loadout-summary {
+        font-size: 0.72rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    :is(.loadout-overlay[data-loadout-step="deck"] .loadout-box:not(.loadout-mode-builder),
+        .loadout-overlay[data-loadout-step="knight"] .loadout-box) .loadout-nav :is(.loadout-back-btn, .loadout-start-btn) {
+        padding-top: 11px;
+        padding-bottom: 11px;
+    }
+}
+
+/* Short phones (SE-class): the strip's cards are ~190px tall, and three stacked
+   trait pills would cover the art entirely. */
+@media (max-width: 900px) and (orientation: portrait) and (max-height: 700px) {
+    .loadout-overlay[data-loadout-step="deck"] .loadout-box:not(.loadout-mode-builder) .loadout-options .deck-card-tags {
+        display: none;
+    }
+}
