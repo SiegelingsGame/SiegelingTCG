@@ -11166,11 +11166,35 @@ function loadoutStepBack() {
 // every step except the final review) repurposes the footer primary button as a
 // "next" control. On review, the button keeps the start/lock label that
 // applyLoadoutSummary assigned.
+// On a phone the deck/knight options are a sideways strip, so the current pick
+// can sit off-screen to the right. Entering the step brings it to the leading
+// edge; later re-renders (a pick) leave the strip where the player put it.
+function revealSelectedLoadoutOption(step) {
+    const stripId = step === 'deck'
+        ? (loadoutMode === 'saved' ? 'savedDeckOptions' : 'deckOptions')
+        : step === 'knight' ? 'trainerOptions' : '';
+    const strip = stripId ? document.getElementById(stripId) : null;
+    if (!strip) return;
+    requestAnimationFrame(() => {
+        if (strip.scrollWidth <= strip.clientWidth) return;
+        const selected = strip.querySelector('.selected');
+        if (!selected) return;
+        const pad = parseFloat(getComputedStyle(strip).paddingLeft) || 0;
+        const offset = selected.getBoundingClientRect().left - strip.getBoundingClientRect().left;
+        strip.scrollLeft += offset - pad;
+    });
+}
+
 function syncLoadoutStepChrome() {
     const overlay = document.getElementById('loadoutOverlay');
     if (!overlay) return;
     const reachable = maxReachableLoadoutStep();
     const currentIdx = loadoutStepIndex(loadoutStep);
+    // play-next.css keys the art-first picker layout (compact hero, one-row
+    // swipe strip) off this, so the deck and knight steps fit without scrolling.
+    const enteringStep = overlay.dataset.loadoutStep !== loadoutStep;
+    overlay.dataset.loadoutStep = loadoutStep;
+    if (enteringStep) revealSelectedLoadoutOption(loadoutStep);
 
     overlay.querySelectorAll('.loadout-step').forEach(section => {
         section.classList.toggle('active', section.dataset.step === loadoutStep);
