@@ -22,21 +22,28 @@
   var root = document.documentElement;
   var vv = window.visualViewport;
 
-  function isStandalone() {
-    return window.navigator.standalone === true
-      || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+  // iOS home-screen web apps only. `display-mode: standalone` is also true for
+  // an installed desktop or Android app, and there screen.height is the whole
+  // monitor while the window is shorter by a taskbar, title bar, or status bar
+  // (often well under 200px). Raising the shell to that screen height pushes
+  // the bottom HUD past the window, and the scroll pin below holds the document
+  // at 0, so the player cannot scroll the clipped bar back into reach.
+  // navigator.standalone is the iOS home-screen flag: that window IS the glass,
+  // and a short viewport there is the launch bug this correction exists for.
+  function iosHomeScreen() {
+    return window.navigator.standalone === true;
   }
 
-  // An installed web app with viewport-fit=cover owns the whole glass, but iOS
+  // An iOS home-screen app with viewport-fit=cover owns the whole glass, but iOS
   // can launch (or resume) it with every viewport measure - innerHeight,
   // visualViewport, dvh - short of the screen, and not correct itself. Every
-  // shell then stops above a dead band at the bottom. When the app is running
-  // standalone and full-width (so not an iPad window or split view), the screen
-  // itself is the true height. The correction is bounded so a keyboard, which
-  // legitimately takes ~300px, is never mistaken for the bug.
+  // shell then stops above a dead band at the bottom. When that app is
+  // full-width (so not an iPad window or split view), the screen itself is the
+  // true height. The correction is bounded so a keyboard, which legitimately
+  // takes ~300px, is never mistaken for the bug.
   var MAX_STANDALONE_SHORTFALL = 200;
   function fullScreenHeight() {
-    if (!isStandalone() || !window.screen) return 0;
+    if (!iosHomeScreen() || !window.screen) return 0;
     var sw = window.screen.width;
     var sh = window.screen.height;
     if (!sw || !sh) return 0;
