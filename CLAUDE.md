@@ -52,7 +52,7 @@ Firestore.
   `persistence/firestore/` holds the stores that map them to collections
   (`accountUsers`, `authSessions`, `savedDecks`, `matchHistory`,
   `playerProgression`, `userPresence`, `openLobbies`, `directMessages`,
-  `friendRequests`, `dailyMissionProgress`, …, overridable via `app.user-data.*`).
+  `friendRequests`, `dailyMissionProgress`, `matchReplays`, `siegeRunHistory`, …, overridable via `app.user-data.*`).
   Live card/deck/trainer overrides are a separate doc, `appConfig/cardOverrides`.
   Note the fallback asymmetry: the user-data stores **throw** when Firestore is
   unavailable, so accounts/decks/history need real credentials even locally;

@@ -1,4 +1,42 @@
 Original prompt: Merge and deploy
+- September 25, 2026 - **Profile match review: board replays for Battle Table matches, a log view for older ones, and a stop-by-stop Siege run review, from your own profile or a friend's.** Built from the `match-review-preview.html` design.
+  - **Battle replays (server).** `GameState.log` feeds a new `MatchReplayRecorder`:
+    - One frame per log line (turn, phase, line, both HPs). The board is attached only when it changed, and card identity (name, element, rarity, speed, notches, art) is stored once per id.
+    - Recording happens before the live log's 100-to-80 trim, so the replay covers the whole match.
+    - `MatchHistoryService` writes one replay per side to a new `matchReplays` collection, keyed by the history id and tagged with `viewerSide` so the enemy side of an online match reviews from its own seat. The history row then gets `hasReplay`.
+    - A failed replay write is logged and the row is saved without one, so match gold is never lost.
+    - Only board state and log lines are captured, both of which the live state already sends to both sides, so no hand or deck is revealed.
+  - **Siege history (server).** A new `SiegeRunJournal` rides on `SiegeRun` and in its checkpoint:
+    - A stop opens in `enterNode` and closes at the next one or at run end. Each stop snapshots the purse and warband HP on entry and exit, so gold and healing need no per-handler bookkeeping.
+    - The public stop handlers (camp, broker, cache, smith, caravan, event, rift) are now thin wrappers around their original bodies, renamed `…Impl`. The wrappers record the pick, the options passed on, and the handler's own `lastReward` outcome line. Events keep their untaken choices, which the handler clears.
+    - Puzzles log from `endMinigame`. Battles log enemy and ally HP and the round count before the battle is cleared. Rewards log what was offered and what was taken.
+    - On WON, LOST or extract, `recordRunHistory` writes the run once to a new `siegeRunHistory` collection with the map, stops, result and end rewards. Guests are skipped, and a `historyRecorded` flag, carried in the checkpoint, prevents a second write.
+    - Siege runs are deliberately not in `matchHistory`: win rates, leaderboards, missions and achievements all read that collection.
+  - **API.** `GET /api/match-history/{id}/review` (`MatchReviewController` / `MatchReviewService`) serves a battle (row + replay) or a `siege-…` run. It is open only to the owner or a mutual friend, the same rule `PublicProfileService` uses for listing matches, and anyone else gets the same not-found as a bad id. The owner's account email is stripped from the response. `/api/auth/me` gains `siegeHistory` and friend profiles gain `recentSiegeRuns`. Match rows now carry `hasReplay`, and `AuthController`/`PublicProfileService` share one serializer.
+  - **UI.** New `js/match-review.js` and `css/match-review.css`, loaded by `home-next.html`.
+    - Recent rows on your profile and on a friend's are buttons with a Replay / Log / Route hint. Battles and Siege runs are merged by date for display only.
+    - Tapping a row opens a full-screen overlay above everything, including the friend sheet.
+    - **Replay:** a chess-style stepper with an HP swing graph (tap to jump), both boards per frame in the live table's row order (flipped for the enemy seat), damage/heal chips and a placed-card glow diffed from the previous frame, an actor→target arrow, step, turn-jump, autoplay, a scrubber, arrow keys, and a turn-grouped move list with ★ lines.
+    - **Log fallback:** older matches get a stats grid and turn accordions parsed from the `[Turn N PHASE]` prefixes.
+    - **Siege:** run stats, the map cropped to the floors reached with the route lit and each stop captioned, and a ledger of every stop. Each ledger entry shows the enemy and your warbands with the fallen, spoils taken and passed, broker/caravan/smith/camp picks with cost and outcome, event choices, HP changes and a running gold balance. Tapping a caption scrolls to its entry.
+    - Phone-width column on desktop, and a short-screen rule for 568-680px heights.
+  - **Cache pins:** `home-redesign.js` -> `?v=50` (`home-next.html`, `home-redesign-preview.html`), `home-redesign-live.js` -> `?v=12`; new files at `?v=1`.
+- Verification:
+  - **Unit tests:** `./mvnw test`, 734 run with 0 failures (14 new).
+    - `MatchReplayRecorderTest`: board only on change, full match kept past the live trim.
+    - `MatchHistoryServiceTest`: a replay per side with the enemy seat; a failed replay write still records the match and pays gold.
+    - `MatchReviewServiceTest`: owner and friend allowed; stranger, signed-out and bad id all get the same not-found; legacy rows serve the log; Siege ids follow the same rule.
+    - `SiegeRunHistoryTest` (Spring): a rest-then-lost-battle run records both stops with HP before/after, the pick and offers, the foes and a closed final stop, exactly once; guests are skipped; events keep their untaken choices; the journal rides in the checkpoint.
+  - **Fixtures from real engine runs** (throwaway tests, not committed):
+    - A 9-turn solo match played through `GameService` against the real AI: 192 frames, 18 KB of replay.
+    - A 13-stop Siege run through `SiegeService` with battle outcomes forced: events, puzzles, broker, rest, a rift and a boss retitled from its foe; 21 KB.
+  - **Browser:** headless Chromium on the real `home-next.html` with `/api/**` stubbed to those fixtures, at 390x844, 375x667, 320x568 and 1920x1080.
+    - The Profile shows three rows (Replay / Route / Log).
+    - Stepping keeps the caption, highlighted move, scrubber and graph cursor in sync, and draws an arrow on hits. The page never scrolls, and the move list stays on screen at 320x568 after the short-screen rule (it ended at 606 of 568 before).
+    - Escape closes the overlay. The legacy row opens the log.
+    - The Siege view renders 13 captions with no overlaps or overflow (checked by rect intersection), stats of 4–1 and 129 earned / 15 spent, and a caption tap highlights its ledger entry.
+    - A friend's profile lists their battle and Siege rows, and the replay overlay hit-tests above the friend sheet.
+    - No page errors. Screenshot review led to cropping the map to reached floors, fixed-width mode pills, a phone-width column on desktop, and real titles for puzzle stops.
 - September 25, 2026 - **#972 merged and deployed; verified live.** The match review / replay / Siege route preview merged as `5792bb00`. Deploy run [36188305562](https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/36188305562) succeeded for both Cloud Run and Firebase. The live `/match-review-preview.html` is byte-identical to `main`. `/api/cards/editor` reports FIRESTORE / live editing / Firestore available. `js/config.js` keeps `apiBaseUrl: ''`. `/api/game/options` returns 200 in 1.5s.
 - September 25, 2026 - **Battle loadout: the Loadout (review) step drops its repeated text and fits one phone screen.**
   - **Repeated text removed.** In `renderSelectedLoadoutPreview` (`js/game.js`), the deck blurb rendered twice (as the description and again as "Strategy"), under a "Selected Loadout" kicker and above a separate Playstyle row. Once each now: the kicker is gone, Playstyle is a chip next to the element in the title row, and the Strategy label, its duplicate paragraph and the "Deck Strengths" label are gone (the trait chips stay). The fixed "Keep a 0-cost starter..." paragraph is gone; the Opening Keeps cards keep their "0-cost starter" tags. "Cards That Evolve" is now "Evolves".

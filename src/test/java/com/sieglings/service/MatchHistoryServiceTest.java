@@ -6,11 +6,13 @@ import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.MatchHistoryEntity;
 import com.sieglings.persistence.firestore.AccountUserStore;
 import com.sieglings.persistence.firestore.MatchHistoryStore;
+import com.sieglings.persistence.firestore.MatchReviewStore;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -72,6 +74,42 @@ class MatchHistoryServiceTest {
         assertTrue(matchHistoryStore.savedIds.contains(state.getMatchHistoryId() + "-player"));
     }
 
+    @Test
+    void recordedGameSavesAReplayPerSideAndFlagsTheRow() throws Exception {
+        BlockingMatchHistoryStore matchHistoryStore = new BlockingMatchHistoryStore();
+        RecordingReviewStore reviewStore = new RecordingReviewStore(false);
+        MatchHistoryService service = createService(matchHistoryStore, new RecordingProgressionService());
+        setField(service, "matchReviewStore", reviewStore);
+        GameState state = completedOnlineGame();
+        state.log("Game started!");
+        state.log("Player wins!");
+
+        service.recordCompletedGame(state);
+
+        assertEquals(2, reviewStore.saved.size());
+        Map<String, Object> enemyView = reviewStore.saved.get(state.getMatchHistoryId() + "-enemy");
+        assertEquals("e", enemyView.get("viewerSide"), "the enemy's copy is reviewed from the enemy's side");
+        assertEquals("Enemy", enemyView.get("viewerName"));
+        assertEquals(2, ((List<?>) enemyView.get("frames")).size());
+        assertTrue(matchHistoryStore.saved.stream().allMatch(MatchHistoryEntity::isHasReplay));
+    }
+
+    @Test
+    void aFailedReplayWriteStillRecordsTheMatch() throws Exception {
+        BlockingMatchHistoryStore matchHistoryStore = new BlockingMatchHistoryStore();
+        RecordingProgressionService progressionService = new RecordingProgressionService();
+        MatchHistoryService service = createService(matchHistoryStore, progressionService);
+        setField(service, "matchReviewStore", new RecordingReviewStore(true));
+        GameState state = completedOnlineGame();
+        state.log("Game started!");
+
+        service.recordCompletedGame(state);
+
+        assertEquals(2, matchHistoryStore.savedIds.size());
+        assertEquals(2, progressionService.rewardedIds.size(), "match gold is never lost to a replay failure");
+        assertTrue(matchHistoryStore.saved.stream().noneMatch(MatchHistoryEntity::isHasReplay));
+    }
+
     private MatchHistoryService createService(MatchHistoryStore matchHistoryStore, PlayerProgressionService progressionService) throws Exception {
         MatchHistoryService service = new MatchHistoryService();
         setField(service, "matchHistoryStore", matchHistoryStore);
@@ -114,10 +152,12 @@ class MatchHistoryServiceTest {
     private static class BlockingMatchHistoryStore extends MatchHistoryStore {
         private final CountDownLatch firstSaveStarted = new CountDownLatch(1);
         private final List<String> savedIds = new ArrayList<>();
+        private final List<MatchHistoryEntity> saved = new ArrayList<>();
 
         @Override
         public synchronized MatchHistoryEntity save(MatchHistoryEntity match) {
             savedIds.add(match.getId());
+            saved.add(match);
             if (savedIds.size() == 1) {
                 firstSaveStarted.countDown();
                 try {
@@ -127,6 +167,23 @@ class MatchHistoryServiceTest {
                 }
             }
             return match;
+        }
+    }
+
+    private static class RecordingReviewStore extends MatchReviewStore {
+        private final boolean fail;
+        private final Map<String, Map<String, Object>> saved = new java.util.LinkedHashMap<>();
+
+        RecordingReviewStore(boolean fail) {
+            this.fail = fail;
+        }
+
+        @Override
+        public synchronized void saveReplay(String historyId, Map<String, Object> payload) {
+            if (fail) {
+                throw new IllegalStateException("firestore blip");
+            }
+            saved.put(historyId, payload);
         }
     }
 

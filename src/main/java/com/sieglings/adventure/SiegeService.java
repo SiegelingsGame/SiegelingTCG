@@ -78,6 +78,11 @@ public class SiegeService {
     @Autowired(required = false)
     private CardEditorAuthService editorAuth;
 
+    @Autowired(required = false)
+    private com.sieglings.persistence.firestore.MatchReviewStore matchReviewStore;
+
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(SiegeService.class);
+
     private final Map<String, Session> runs = new ConcurrentHashMap<>();
     private final SecureRandom tokenRandom = new SecureRandom();
     private final Random rng = new Random();
@@ -1173,6 +1178,8 @@ public class SiegeService {
         s.put("mode", run.getMode().name());
         s.put("landId", run.getLand() == null ? null : run.getLand().id());
         s.put("landHistory", new ArrayList<>(run.getLandHistory()));
+        s.put("journal", new ArrayList<>(run.getJournal().stops()));
+        s.put("historyRecorded", run.isHistoryRecorded());
         s.put("landBoons", new ArrayList<>(run.getLandBoons()));
         s.put("landBoonOffer", new ArrayList<>(run.getLandBoonOffer()));
         if (run.isBattlegrounds()) {
@@ -1532,6 +1539,8 @@ public class SiegeService {
             if (s.get("landHistory") instanceof List<?> history) {
                 for (Object id : history) if (SiegeLand.byId(String.valueOf(id)) != null) run.getLandHistory().add(String.valueOf(id));
             }
+            run.getJournal().restore(s.get("journal"));
+            run.setHistoryRecorded(Boolean.TRUE.equals(s.get("historyRecorded")));
             if (s.get("landBoons") instanceof List<?> boons) {
                 for (Object id : boons) if (SiegeLandBoon.byId(String.valueOf(id)) != null && !run.getLandBoons().contains(String.valueOf(id))) run.getLandBoons().add(String.valueOf(id));
             }
@@ -1669,6 +1678,7 @@ public class SiegeService {
         }
         SiegeNode node = run.nodeById(nodeId);
         run.setCurrentNodeId(nodeId);
+        run.getJournal().open(run, node);
         run.setLastReward("");
         run.setBossReveal(null); // the boss reveal is a one-shot; travelling dismisses it
 
@@ -1775,7 +1785,7 @@ public class SiegeService {
      * party member (cheaper — the member is released and its cards leave the
      * deck); without it the recruit joins an open warband slot.
      */
-    Map<String, Object> brokerHire(String token, String optionId, String replaceId) {
+    private Map<String, Object> brokerHireImpl(String token, String optionId, String replaceId) {
         SiegeRun run = require(token);
         if (!run.isInBroker()) throw new IllegalArgumentException("There is no broker here.");
         CampOption pick = run.getBrokerOptions().stream()
@@ -1839,7 +1849,7 @@ public class SiegeService {
     }
 
     /** Leaves the broker stall; the node is spent. */
-    Map<String, Object> brokerLeave(String token) {
+    private Map<String, Object> brokerLeaveImpl(String token) {
         SiegeRun run = require(token);
         if (!run.isInBroker()) return serialize(run);
         run.setInBroker(false);
@@ -1901,7 +1911,7 @@ public class SiegeService {
     }
 
     /** Uses one camp interaction (each option once; goods cost gold). */
-    Map<String, Object> campChoose(String token, String optionId) {
+    private Map<String, Object> campChooseImpl(String token, String optionId) {
         SiegeRun run = require(token);
         if (!run.isInCamp()) throw new IllegalArgumentException("The party is not camped.");
         CampOption pick = run.getCampOptions().stream()
@@ -1989,7 +1999,7 @@ public class SiegeService {
     }
 
     /** Breaks camp: the stop is spent and the map opens up again. */
-    Map<String, Object> campLeave(String token) {
+    private Map<String, Object> campLeaveImpl(String token) {
         SiegeRun run = require(token);
         if (!run.isInCamp()) return serialize(run);
         run.setInCamp(false);
@@ -2035,7 +2045,7 @@ public class SiegeService {
     }
 
     /** Resolves a CHESTS / WHEEL cache pick; the cache closes afterwards. */
-    Map<String, Object> cacheChoose(String token, String optionId) {
+    private Map<String, Object> cacheChooseImpl(String token, String optionId) {
         SiegeRun run = require(token);
         if (!run.isInCache()) throw new IllegalArgumentException("No cache here.");
         CampOption pick = run.getCacheOptions().stream()
@@ -2105,7 +2115,7 @@ public class SiegeService {
     }
 
     /** Digs deeper: more loot, or the cache collapses and unbanked gold is lost. */
-    Map<String, Object> cacheDig(String token) {
+    private Map<String, Object> cacheDigImpl(String token) {
         SiegeRun run = require(token);
         if (!run.isInCache()) throw new IllegalArgumentException("No cache to dig.");
         int bust = cacheBustChance(run);
@@ -2143,13 +2153,13 @@ public class SiegeService {
         }
         // The floor gives way after enough digging: bank automatically.
         if (run.getCacheDigs() >= CACHE_MAX_DIGS) {
-            return cacheTake(token);
+            return cacheTakeImpl(token);
         }
         return serialize(run);
     }
 
     /** Banks the loot and seals the cache. */
-    Map<String, Object> cacheTake(String token) {
+    private Map<String, Object> cacheTakeImpl(String token) {
         SiegeRun run = require(token);
         if (!run.isInCache()) return serialize(run);
         int banked = earnGold(run, run.getCacheGold());
@@ -2178,6 +2188,7 @@ public class SiegeService {
         run.setInMinigame(true);
         run.setMinigameType(type);
         run.setMinigameTitle(title);
+        run.getJournal().retitle(title);
         run.setMinigameIcon(icon);
         run.setMinigamePrompt(prompt);
         run.setLastReward("");
@@ -2190,6 +2201,7 @@ public class SiegeService {
 
     /** Closes the puzzle and clears the node, mirroring how a cache seals itself. */
     private void endMinigame(SiegeRun run) {
+        journalOutcome(run, "puzzle");
         run.setInMinigame(false);
         run.setMinigameState(null);
         run.setMinigameType("");
@@ -2444,6 +2456,7 @@ public class SiegeService {
                     : wasElite ? SiegeTuning.XP_ELITE_WON : SiegeTuning.XP_BATTLE_WON;
             awardBattleXpWithRecap(run, battle, battleXp);
 
+            journalBattle(run, battle, "WIN");
             run.setBattle(null);
 
             // The rented mercenary's contract ends with the battle.
@@ -2486,6 +2499,7 @@ public class SiegeService {
                     grantEndRewards(run, authorizationHeader);
                     // Beating the final boss re-extracts the leveled team automatically.
                     extractTeam(run, authorizationHeader);
+                    recordRunHistory(run);
                 } else if (finalRow) {
                     // Endless: the road never ends — bolt on another region.
                     run.setLoop(run.getLoop() + 1);
@@ -2522,6 +2536,7 @@ public class SiegeService {
                 run.setLastReward(run.getLastReward() + " Entering " + run.getLand().name() + ".");
             }
         } else if (battle.getPhase() == BattlePhase.LOST) {
+            journalBattle(run, battle, "LOSS");
             run.setStatus(RunStatus.LOST);
             run.setBattle(null);
             run.setMercenary(null);
@@ -2532,6 +2547,7 @@ public class SiegeService {
                         ? "The squad is routed. Its veteran teams are fatigued for 24h — but survive to fight again."
                         : "The warband has fallen. The expedition ends here.");
             grantEndRewards(run, authorizationHeader);
+            recordRunHistory(run);
             // Battlegrounds fatigue: lock (don't consume) the squad's source teams for 24h.
             if (run.isBattlegrounds() && !run.getSourceTeamIds().isEmpty()) {
                 AccountUser bgUser = resolveUser(authorizationHeader);
@@ -2720,6 +2736,7 @@ public class SiegeService {
                     + (long) multiplier + ".");
             grantEndRewards(run, authorizationHeader, multiplier);
             extractTeam(run, authorizationHeader);
+            recordRunHistory(run);
             checkpoint(run); // status != ACTIVE, so this clears the saved checkpoint
             return serialize(run);
         }
@@ -3171,7 +3188,7 @@ public class SiegeService {
         run.setLastReward("");
     }
 
-    Map<String, Object> smithChoose(String token, String optionId, Integer scrapIndex) {
+    private Map<String, Object> smithChooseImpl(String token, String optionId, Integer scrapIndex) {
         SiegeRun run = require(token);
         if (!run.isInSmith()) throw new IllegalArgumentException("There is no smith here.");
         if (scrapIndex != null) {
@@ -3210,7 +3227,7 @@ public class SiegeService {
         return serialize(run);
     }
 
-    Map<String, Object> smithLeave(String token) {
+    private Map<String, Object> smithLeaveImpl(String token) {
         SiegeRun run = require(token);
         if (!run.isInSmith()) return serialize(run);
         run.setInSmith(false);
@@ -3242,7 +3259,7 @@ public class SiegeService {
         run.setLastReward("");
     }
 
-    Map<String, Object> caravanBuy(String token, String optionId) {
+    private Map<String, Object> caravanBuyImpl(String token, String optionId) {
         SiegeRun run = require(token);
         if (!run.isInCaravan()) throw new IllegalArgumentException("There is no caravan here.");
         CampOption pick = run.getCaravanOptions().stream().filter(o -> o.id.equals(optionId)).findFirst()
@@ -3271,7 +3288,7 @@ public class SiegeService {
         return serialize(run);
     }
 
-    Map<String, Object> caravanLeave(String token) {
+    private Map<String, Object> caravanLeaveImpl(String token) {
         SiegeRun run = require(token);
         if (!run.isInCaravan()) return serialize(run);
         run.setInCaravan(false);
@@ -3316,6 +3333,7 @@ public class SiegeService {
                 ? run.getLand().event() : content.randomEvent(rng);
         run.setInEvent(true);
         run.setEventTitle(def.title());
+        run.getJournal().retitle(def.title());
         run.setEventIcon(def.icon());
         run.setEventPrompt(def.prompt());
         run.getEventOptions().clear();
@@ -3325,7 +3343,7 @@ public class SiegeService {
         }
     }
 
-    Map<String, Object> eventChoose(String token, String optionId) {
+    private Map<String, Object> eventChooseImpl(String token, String optionId) {
         SiegeRun run = require(token);
         if (!run.isInEvent()) throw new IllegalArgumentException("There is no event here.");
         CampOption pick = run.getEventOptions().stream().filter(o -> o.id.equals(optionId)).findFirst()
@@ -3415,7 +3433,7 @@ public class SiegeService {
      * match — same seam as a boss transition, without a boss kill. Players who
      * want to keep the current Land use {@link #riftPass} instead.
      */
-    Map<String, Object> riftCross(String token) {
+    private Map<String, Object> riftCrossImpl(String token) {
         SiegeRun run = require(token);
         if (!run.isInRift()) throw new IllegalArgumentException("There is no Rift here.");
         run.setInRift(false);
@@ -3435,7 +3453,7 @@ public class SiegeService {
      * Travel past the Rift without crossing: clear the node, keep the current Land.
      * Same leave shape as broker/smith — the stop is spent either way.
      */
-    Map<String, Object> riftPass(String token) {
+    private Map<String, Object> riftPassImpl(String token) {
         SiegeRun run = require(token);
         if (!run.isInRift()) throw new IllegalArgumentException("There is no Rift here.");
         run.setInRift(false);
@@ -3445,6 +3463,209 @@ public class SiegeService {
         run.setLastReward("You travel past the Rift. " + landName + " still holds.");
         checkpoint(run);
         return serialize(run);
+    }
+
+    Map<String, Object> brokerHire(String token, String optionId, String replaceId) {
+        SiegeRun run = require(token);
+        return journaledChoice(run, "choice", run.getBrokerOptions(), optionId, () -> brokerHireImpl(token, optionId, replaceId));
+    }
+    Map<String, Object> campChoose(String token, String optionId) {
+        SiegeRun run = require(token);
+        return journaledChoice(run, "choice", run.getCampOptions(), optionId, () -> campChooseImpl(token, optionId));
+    }
+    Map<String, Object> cacheChoose(String token, String optionId) {
+        SiegeRun run = require(token);
+        return journaledChoice(run, "choice", run.getCacheOptions(), optionId, () -> cacheChooseImpl(token, optionId));
+    }
+    Map<String, Object> smithChoose(String token, String optionId, Integer scrapIndex) {
+        SiegeRun run = require(token);
+        return journaledChoice(run, "choice", run.getSmithOptions(), optionId, () -> smithChooseImpl(token, optionId, scrapIndex));
+    }
+    Map<String, Object> caravanBuy(String token, String optionId) {
+        SiegeRun run = require(token);
+        return journaledChoice(run, "choice", run.getCaravanOptions(), optionId, () -> caravanBuyImpl(token, optionId));
+    }
+    Map<String, Object> eventChoose(String token, String optionId) {
+        SiegeRun run = require(token);
+        return journaledChoice(run, "event", run.getEventOptions(), optionId, () -> eventChooseImpl(token, optionId));
+    }
+    Map<String, Object> brokerLeave(String token) {
+        SiegeRun run = require(token);
+        // Offers are cleared on leaving, so the full list (with what was taken)
+        // is recorded first.
+        run.getJournal().offers(run.getBrokerOptions());
+        return brokerLeaveImpl(token);
+    }
+    Map<String, Object> campLeave(String token) {
+        SiegeRun run = require(token);
+        // Offers are cleared on leaving, so the full list (with what was taken)
+        // is recorded first.
+        run.getJournal().offers(run.getCampOptions());
+        return campLeaveImpl(token);
+    }
+    Map<String, Object> smithLeave(String token) {
+        SiegeRun run = require(token);
+        // Offers are cleared on leaving, so the full list (with what was taken)
+        // is recorded first.
+        run.getJournal().offers(run.getSmithOptions());
+        return smithLeaveImpl(token);
+    }
+    Map<String, Object> caravanLeave(String token) {
+        SiegeRun run = require(token);
+        // Offers are cleared on leaving, so the full list (with what was taken)
+        // is recorded first.
+        run.getJournal().offers(run.getCaravanOptions());
+        return caravanLeaveImpl(token);
+    }
+    Map<String, Object> cacheDig(String token) {
+        SiegeRun run = require(token);
+        Map<String, Object> result = cacheDigImpl(token);
+        journalOutcome(run, "cache");
+        return result;
+    }
+    Map<String, Object> cacheTake(String token) {
+        SiegeRun run = require(token);
+        Map<String, Object> result = cacheTakeImpl(token);
+        journalOutcome(run, "cache");
+        return result;
+    }
+    Map<String, Object> riftCross(String token) {
+        SiegeRun run = require(token);
+        Map<String, Object> result = riftCrossImpl(token);
+        journalOutcome(run, "rift");
+        return result;
+    }
+    Map<String, Object> riftPass(String token) {
+        SiegeRun run = require(token);
+        Map<String, Object> result = riftPassImpl(token);
+        journalOutcome(run, "rift");
+        return result;
+    }
+
+    // ---- Siege history journal ---------------------------------------------
+    // Wrappers above record what each stop offered and what came of it; the
+    // purse and warband health are snapshotted by the journal itself when a stop
+    // opens and closes. See SiegeRunJournal.
+
+    private Map<String, Object> journaledChoice(SiegeRun run, String kind, List<CampOption> options, String optionId,
+                                                java.util.function.Supplier<Map<String, Object>> action) {
+        List<CampOption> offered = options == null ? List.of() : new ArrayList<>(options);
+        CampOption pick = offered.stream().filter(o -> o.id.equals(optionId)).findFirst().orElse(null);
+        Map<String, Object> result = action.get();
+        Map<String, Object> event = new LinkedHashMap<>();
+        event.put("k", kind);
+        if (pick != null) {
+            Map<String, Object> picked = SiegeRunJournal.option(pick);
+            picked.put("taken", true);
+            event.put("pick", picked);
+        }
+        if ("event".equals(kind)) {
+            // Events clear their choice list as they resolve, so the choices not
+            // taken exist only in this copy.
+            event.put("choices", offered.stream().map(o -> o.title).toList());
+        }
+        event.put("outcome", run.getLastReward());
+        run.getJournal().event(event);
+        return result;
+    }
+
+    private void journalOutcome(SiegeRun run, String kind) {
+        String outcome = run.getLastReward();
+        if (outcome == null || outcome.isBlank()) return;
+        Map<String, Object> event = new LinkedHashMap<>();
+        event.put("k", kind);
+        event.put("outcome", outcome);
+        run.getJournal().event(event);
+    }
+
+    private void journalReward(SiegeRun run, String optionId) {
+        Map<String, Object> event = new LinkedHashMap<>();
+        event.put("k", "reward");
+        List<Map<String, Object>> offered = new ArrayList<>();
+        for (RewardOption option : run.getPendingRewards()) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("kind", option.kind());
+            m.put("title", option.title());
+            m.put("desc", option.desc());
+            if (option.element() != null) m.put("element", option.element().name());
+            if (option.artUrl() != null && !option.artUrl().isBlank()) m.put("art", option.artUrl());
+            m.put("taken", option.id().equals(optionId));
+            offered.add(m);
+        }
+        event.put("offers", offered);
+        event.put("skipped", "skip".equalsIgnoreCase(String.valueOf(optionId)));
+        run.getJournal().event(event);
+    }
+
+    private void journalBattle(SiegeRun run, SiegeBattle battle, String result) {
+        Map<String, Object> event = new LinkedHashMap<>();
+        event.put("k", "battle");
+        event.put("result", result);
+        event.put("rounds", battle.getRoundNumber());
+        List<Map<String, Object>> foes = new ArrayList<>();
+        List<Map<String, Object>> allies = new ArrayList<>();
+        for (Combatant c : battle.getCombatants()) {
+            (c.getSide() == Side.ENEMY ? foes : allies).add(SiegeRunJournal.combatant(c));
+        }
+        event.put("foes", foes);
+        event.put("allies", allies);
+        run.getJournal().event(event);
+        if (!foes.isEmpty()) {
+            SiegeNode node = run.currentNode();
+            if (node != null && node.getType() == NodeType.BOSS) {
+                run.getJournal().retitle(String.valueOf(foes.get(0).get("name")));
+            }
+        }
+    }
+
+    /**
+     * Writes the finished run to Siege history once. Guests (no owner) and a
+     * missing store are skipped; a failed write is logged and retried on the
+     * next end-of-run call rather than failing the player's result screen.
+     */
+    private void recordRunHistory(SiegeRun run) {
+        if (run.isHistoryRecorded() || matchReviewStore == null) return;
+        if (run.getStatus() == RunStatus.ACTIVE) return;
+        String owner = run.getOwnerId();
+        if (owner == null || owner.isBlank()) return;
+        run.getJournal().close(run);
+        Map<String, Object> doc = new LinkedHashMap<>();
+        doc.put("userId", owner);
+        doc.put("finishedAt", Instant.now());
+        doc.put("result", run.getStatus() == RunStatus.WON ? "WIN" : "LOSS");
+        doc.put("mode", run.getMode().name());
+        doc.put("knightName", run.getKnightName());
+        doc.put("knightElement", run.getKnightElement() == null ? null : run.getKnightElement().name());
+        doc.put("knightArt", knightArtUrl(run.getKnightId()));
+        doc.put("outcome", run.getLastReward());
+        int floor = run.currentNode() == null ? 0 : run.currentNode().getRow() + 1;
+        int total = run.getMap().stream().mapToInt(SiegeNode::getRow).max().orElse(0) + 1;
+        doc.put("floorReached", floor);
+        doc.put("floorTotal", total);
+        doc.put("title", run.getStatus() == RunStatus.WON ? "Expedition won" : "Fell on floor " + floor);
+        doc.put("bossKills", run.getBossKills());
+        doc.put("enemiesDefeated", run.getEnemiesDefeated());
+        doc.put("goldEarned", run.getGoldEarnedTotal());
+        doc.put("score", run.getScore());
+        doc.put("endRewards", run.getEndRewards());
+        List<Map<String, Object>> map = new ArrayList<>();
+        for (SiegeNode node : run.getMap()) {
+            Map<String, Object> n = new LinkedHashMap<>();
+            n.put("id", node.getId());
+            n.put("row", node.getRow());
+            n.put("col", node.getCol());
+            n.put("type", node.getType().name());
+            n.put("next", new ArrayList<>(node.getNext()));
+            map.add(n);
+        }
+        doc.put("map", map);
+        doc.put("stops", run.getJournal().stops());
+        try {
+            matchReviewStore.saveSiegeRun("siege-" + java.util.UUID.randomUUID(), doc);
+            run.setHistoryRecorded(true);
+        } catch (RuntimeException ex) {
+            log.warn("Unable to record Siege run history for {}", owner, ex);
+        }
     }
 
     // ---- Items (equip / unequip) ------------------------------------------
@@ -3710,6 +3931,7 @@ public class SiegeService {
     Map<String, Object> chooseReward(String token, String optionId) {
         SiegeRun run = require(token);
         if (run.getPendingRewards().isEmpty()) return serialize(run);
+        journalReward(run, optionId);
         if (!"skip".equalsIgnoreCase(String.valueOf(optionId))) {
             RewardOption pick = run.getPendingRewards().stream()
                     .filter(o -> o.id().equals(optionId)).findFirst()

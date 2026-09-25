@@ -42,6 +42,10 @@ class SiegeRun {
     private final List<SiegeCard> deckTemplates = new ArrayList<>();
 
     private final List<SiegeNode> map = new ArrayList<>();
+    /** Stop-by-stop record for the profile's Siege review (checkpointed with the run). */
+    private final SiegeRunJournal journal = new SiegeRunJournal();
+    /** Set once the finished run has been written to Siege history. */
+    private boolean historyRecorded;
     /** Id of the node the party currently occupies; -1 before the first move. */
     private int currentNodeId = -1;
     private RunStatus status = RunStatus.ACTIVE;
@@ -172,6 +176,9 @@ class SiegeRun {
     }
 
     String getToken() { return token; }
+    SiegeRunJournal getJournal() { return journal; }
+    boolean isHistoryRecorded() { return historyRecorded; }
+    void setHistoryRecorded(boolean historyRecorded) { this.historyRecorded = historyRecorded; }
     String getOwnerId() { return ownerId; }
     void setOwnerId(String ownerId) { this.ownerId = ownerId == null ? "" : ownerId; }
 

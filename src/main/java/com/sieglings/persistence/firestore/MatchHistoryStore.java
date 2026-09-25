@@ -97,6 +97,18 @@ public class MatchHistoryStore {
         }
     }
 
+    public java.util.Optional<MatchHistoryEntity> findById(String id) {
+        if (id == null || id.isBlank()) {
+            return java.util.Optional.empty();
+        }
+        try {
+            DocumentSnapshot snapshot = matchDoc(id).get().get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            return snapshot.exists() ? java.util.Optional.of(toMatch(id, snapshot)) : java.util.Optional.empty();
+        } catch (Exception ex) {
+            throw new IllegalStateException("Unable to load match from Firestore.", ex);
+        }
+    }
+
     public MatchHistoryEntity save(MatchHistoryEntity match) {
         if (match.getId() == null || match.getId().isBlank()) {
             throw new IllegalArgumentException("Match history id is required.");
@@ -124,6 +136,7 @@ public class MatchHistoryStore {
             log = new ArrayList<>(log.subList(log.size() - 60, log.size()));
         }
         payload.put("gameLog", log == null ? List.of() : log);
+        payload.put("hasReplay", match.isHasReplay());
         try {
             matchDoc(match.getId()).set(payload).get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             return match;
@@ -175,6 +188,7 @@ public class MatchHistoryStore {
         match.setOpponentHealthRemaining(readInt(snapshot, "opponentHealthRemaining"));
         match.setPlayerEnergyRemaining(readInt(snapshot, "playerEnergyRemaining"));
         match.setGameLog(readStringList(snapshot, "gameLog"));
+        match.setHasReplay(Boolean.TRUE.equals(snapshot.getBoolean("hasReplay")));
         return match;
     }
 

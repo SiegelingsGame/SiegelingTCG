@@ -73,6 +73,8 @@ public class GameState {
     private String forfeitedBy;
 
     private List<String> gameLog = new ArrayList<>();
+    /** Full-length, per-line replay for match review; never sent with the live state. */
+    private final MatchReplayRecorder replay = new MatchReplayRecorder();
 
     // Track if first turn (player 1 restrictions)
     private boolean firstTurn = true;
@@ -81,6 +83,9 @@ public class GameState {
 
     public void log(String message) {
         gameLog.add("[Turn " + turnNumber + " " + currentPhase + "] " + message);
+        // Recorded before the trim below: the live log keeps its last 80 lines,
+        // but a review needs the whole match.
+        replay.record(this, message);
         // Keep log manageable
         if (gameLog.size() > 100) {
             gameLog = new ArrayList<>(gameLog.subList(gameLog.size() - 80, gameLog.size()));
@@ -348,6 +353,8 @@ public class GameState {
     public boolean isEnemyMulliganPending() { return enemyMulliganPending; }
     public boolean isPlayerMulliganUsed() { return playerMulliganUsed; }
     public boolean isEnemyMulliganUsed() { return enemyMulliganUsed; }
+    @JsonIgnore
+    public MatchReplayRecorder getReplay() { return replay; }
     @JsonIgnore
     public String getMatchHistoryId() {
         if (matchHistoryId == null || matchHistoryId.isBlank()) {

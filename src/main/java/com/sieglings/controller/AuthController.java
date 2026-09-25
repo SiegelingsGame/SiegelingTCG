@@ -52,6 +52,9 @@ public class AuthController {
     @Autowired
     private MatchHistoryService matchHistoryService;
 
+    @Autowired(required = false)
+    private com.sieglings.service.MatchReviewService matchReviewService;
+
     @Autowired
     private CardDefinitionService cardDefinitionService;
 
@@ -346,6 +349,10 @@ public class AuthController {
                 CompletableFuture.supplyAsync(() -> loadSavedDecks(user), authProfileExecutor);
         CompletableFuture<List<Map<String, Object>>> historyF =
                 CompletableFuture.supplyAsync(() -> loadMatchHistory(user), authProfileExecutor);
+        CompletableFuture<List<Map<String, Object>>> siegeHistoryF =
+                CompletableFuture.supplyAsync(() -> matchReviewService == null
+                        ? List.<Map<String, Object>>of()
+                        : matchReviewService.recentSiegeRuns(user, 12), authProfileExecutor);
         CompletableFuture<Object> progressionF =
                 CompletableFuture.supplyAsync(() -> loadProgression(user), authProfileExecutor);
         CompletableFuture<Object> settingsF =
@@ -366,6 +373,9 @@ public class AuthController {
         response.put("outgoingFriendRequests", outgoingF.join());
         response.put("savedDecks", decksF.join());
         response.put("matchHistory", historyF.join());
+        // Finished Siege runs, separate from matchHistory because the profile's
+        // match count and win rate are computed from that list.
+        response.put("siegeHistory", siegeHistoryF.join());
         Object progression = progressionF.join();
         if (progression != null) {
             response.put("progression", progression);
@@ -502,22 +512,6 @@ public class AuthController {
     }
 
     private Map<String, Object> serializeMatchHistory(MatchHistoryEntity history) {
-        Map<String, Object> response = new LinkedHashMap<>();
-        response.put("id", history.getId());
-        response.put("finishedAt", history.getFinishedAt() == null ? null : history.getFinishedAt().toString());
-        response.put("result", history.getResult());
-        response.put("matchType", history.getMatchType());
-        response.put("opponentName", history.getOpponentName());
-        response.put("loadoutLabel", history.getLoadoutLabel());
-        response.put("trainerName", history.getTrainerName());
-        response.put("turnNumber", history.getTurnNumber());
-        response.put("spellsCast", history.getSpellsCast());
-        response.put("trapsSprung", history.getTrapsSprung());
-        response.put("siegelingsDefeated", history.getSiegelingsDefeated());
-        response.put("playerHealthRemaining", history.getPlayerHealthRemaining());
-        response.put("opponentHealthRemaining", history.getOpponentHealthRemaining());
-        response.put("playerEnergyRemaining", history.getPlayerEnergyRemaining());
-        response.put("gameLog", history.getGameLog() == null ? java.util.List.of() : history.getGameLog());
-        return response;
+        return com.sieglings.service.MatchReviewService.serializeMatch(history);
     }
 }
