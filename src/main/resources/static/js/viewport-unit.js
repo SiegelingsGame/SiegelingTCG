@@ -83,6 +83,10 @@
     scroller.scrollTop = 0;
   }
 
+  // Lets CSS key standalone-only offsets off a class too, for engines that do
+  // not implement the display-mode media query.
+  if (isStandalone()) root.classList.add('sg-standalone');
+
   sync();
 
   if (vv) {

@@ -592,7 +592,9 @@ body.concept-board {
      the padding is only checking a copy of the rule. */
   /* Phone feedback still showed a tall empty band under the labels: keep the
      bar flush and drop the decorative clearance further so icons ride lower. */
-  padding:4px 6px max(2px, calc(var(--sg-sab) * 0.18));
+  /* Labels and carets must clear the home indicator: 0.4 of the inset (~14px
+     on a 34px inset) keeps them fully visible without reopening a dead band. */
+  padding:4px 6px max(8px, calc(var(--sg-sab) * 0.4));
   border-top:1px solid rgba(112,142,180,.14);
   background:linear-gradient(180deg, rgba(7,11,20,.72), rgba(5,8,15,.96));
   backdrop-filter:blur(22px) saturate(1.3); -webkit-backdrop-filter:blur(22px) saturate(1.3);
@@ -1316,7 +1318,24 @@ body.single-screen .sg-app { position:fixed; inset:0; }
    overrides these, which is exactly what the standalone-mode checks do. */
 :root {
   --sg-sat: env(safe-area-inset-top, 0px);
+  /* Was never declared, so every var(--sg-sab) expression was invalid and fell
+     back to its property's initial value - the tab bar's bottom padding was 0,
+     which pushed its labels and carets into the home-indicator strip. */
+  --sg-sab: env(safe-area-inset-bottom, 0px);
 }
+/* An installed web app on iOS 26 draws its own soft blur-and-darken over the
+   top of the glass - the status bar plus roughly 40pt below it - across
+   whatever the page puts there. No CSS reaches it: the chips, crest and bell
+   were sharp in every engine we can test, yet read as blurred on the phone,
+   because they sat inside that band. Every top offset in the hub is keyed off
+   --sg-sat, so the installed app's inset is pushed past the band and the chrome
+   sits on sharp art. A browser tab has its own toolbar there and keeps the
+   plain inset. .sg-standalone (viewport-unit.js) covers engines without the
+   display-mode query. */
+@media (display-mode: standalone) {
+  :root { --sg-sat: calc(env(safe-area-inset-top, 0px) + 40px); }
+}
+:root.sg-standalone { --sg-sat: calc(env(safe-area-inset-top, 0px) + 40px); }
 :root { --card-back-ratio: 520 / 760; }
 .sg-pack-face {
   width:132px; height:auto; aspect-ratio:var(--card-back-ratio);
