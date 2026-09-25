@@ -4454,6 +4454,7 @@ const PORTRAIT_CELL_ASPECT_MAX = 6.2 / 5;
 const PORTRAIT_BOARD_WIDTH_CAP = 420;
 let lastPortraitBoardFit = '';
 let portraitBoardFitObserver = null;
+let portraitBoardFitHold = null;
 
 function usesFittedPortraitBoards() {
     return window.matchMedia('(max-width: 979px) and (orientation: portrait)').matches;
@@ -4479,6 +4480,7 @@ function fitPortraitBoards() {
         arena.style.removeProperty('--portrait-board-width');
         arena.style.removeProperty('--portrait-cell-aspect');
         lastPortraitBoardFit = '';
+        portraitBoardFitHold = null;
         return;
     }
 
@@ -4519,8 +4521,25 @@ function fitPortraitBoards() {
         return;
     }
 
-    const aspect = clampNumber(cellBudget / cellSpan, PORTRAIT_CELL_ASPECT_MIN, PORTRAIT_CELL_ASPECT_MAX);
-    const width = Math.max(120, Math.min(widthCap, (cellBudget / aspect + insetWidth) / 2));
+    let aspect = clampNumber(cellBudget / cellSpan, PORTRAIT_CELL_ASPECT_MIN, PORTRAIT_CELL_ASPECT_MAX);
+    let width = Math.max(120, Math.min(widthCap, (cellBudget / aspect + insetWidth) / 2));
+
+    // The battle dock under the arena changes height with every speed step -
+    // a two-move list, then the shorter "Queue is resolving" copy while a
+    // projectile plays, then the next Siegeling's moves - and re-fitting to
+    // each one zooms the whole board in and out mid-attack. Within one battle
+    // phase the board may only shrink (so it always fits), never grow back; a
+    // smaller width and a squatter aspect than a fit that already fitted can
+    // only fit again. The hold waits for the dock's battle form so a setup
+    // hand tray still on screen under the phase banner cannot pin it small.
+    const battleDock = document.getElementById('handTray')?.classList.contains('battle-queue-mode');
+    const holdKey = gameState?.currentPhase === 'BATTLE' && battleDock ? `battle:${gameState.turnNumber}` : '';
+    if (holdKey && portraitBoardFitHold?.key === holdKey) {
+        width = Math.min(width, portraitBoardFitHold.width);
+        aspect = Math.min(aspect, portraitBoardFitHold.aspect);
+    }
+    portraitBoardFitHold = holdKey ? { key: holdKey, width, aspect } : null;
+
     const signature = `${width.toFixed(1)}:${aspect.toFixed(4)}`;
     if (signature === lastPortraitBoardFit) {
         return;
@@ -4819,6 +4838,9 @@ function updateResponsiveLayoutVars(force = false) {
     // inside it. Drop the memo first so a same-numbers fit still re-applies
     // after the class/vars were cleared on the way out of portrait.
     lastPortraitBoardFit = '';
+    // A new viewport (rotation, split view) is a genuinely different arena, so
+    // the battle-phase hold must not keep the board at the old size.
+    portraitBoardFitHold = null;
     fitPortraitBoards();
 }
 
