@@ -1,0 +1,841 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Match Review Preview</title>
+<!-- Design preview only: every match, board and route on this page is sample
+     data. It is self-contained (no API, no shared CSS) so it renders the same
+     from Hosting, from `python3 -m http.server`, or as a standalone file. -->
+<style>
+:root {
+  --bg-0:#0e0a2a; --bg-1:#1a1250; --panel:rgba(38,28,104,.62); --panel-2:rgba(24,18,70,.82);
+  --line:rgba(128,112,255,.34); --line-soft:rgba(128,112,255,.18);
+  --ink:#eef0ff; --muted:#a4a3d6; --dim:#6f6ca8;
+  --gold:#e8c35a; --gold-bright:#ffd97a; --win:#6ee07f; --loss:#ff7d6b; --teal:#63d6d0;
+  --fire:#ff501e; --earth:#b48c50; --wind:#96ffb4; --water:#3296ff; --ice:#76e6ff;
+  --shadow:#7832b4; --electric:#ffe63c; --metal:#a0aab4; --undead:#8c78a0; --psychic:#c896ff;
+  --poison:#9b59b6; --light:#fff5b4; --neutral:#b8b8c8;
+  --serif:ui-serif, "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --sans:"Segoe UI", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+* { box-sizing:border-box; }
+html, body { margin:0; touch-action:pan-x pan-y; }
+html { background:#0e0a2a; }
+body {
+  font-family:var(--sans); color:var(--ink); min-height:100vh;
+  background:radial-gradient(circle at 20% 0%, rgba(120,70,255,.28), transparent 40%),
+             radial-gradient(circle at 90% 30%, rgba(255,80,30,.12), transparent 35%),
+             linear-gradient(180deg, var(--bg-1), var(--bg-0) 70%);
+  background-attachment:fixed;
+}
+button { font:inherit; color:inherit; background:none; border:0; padding:0; cursor:pointer; }
+
+/* ---------- board chrome (desktop presentation) ---------- */
+.board { max-width:1720px; margin:0 auto; padding:28px 28px 60px; }
+.board h1 { font-family:var(--serif); font-size:32px; margin:0 0 6px; }
+.board h1 span { color:var(--gold-bright); }
+.board .sub { max-width:980px; color:var(--muted); line-height:1.55; font-size:14.5px; margin:0 0 22px; }
+.rail { display:flex; flex-wrap:wrap; gap:26px; align-items:flex-start; }
+.slot { width:390px; flex:0 0 auto; }
+.slot > h2 { font-family:var(--serif); font-size:19px; margin:0 0 4px; color:var(--gold-bright); font-weight:600; }
+.slot > p { margin:0 0 12px; color:var(--muted); font-size:13px; line-height:1.5; min-height:58px; }
+.phone {
+  width:390px; height:844px; border-radius:46px; padding:10px; background:#05040f;
+  box-shadow:0 0 0 2px #2a2658, 0 30px 80px rgba(0,0,0,.55); transition:box-shadow .3s;
+}
+.phone.flash { box-shadow:0 0 0 3px var(--gold-bright), 0 30px 80px rgba(0,0,0,.55); }
+.screen {
+  position:relative; width:100%; height:100%; border-radius:37px; overflow:hidden;
+  background:radial-gradient(circle at 30% 0%, rgba(120,70,255,.35), transparent 45%),
+             linear-gradient(180deg, #1c1456, #110c35 75%);
+  display:flex; flex-direction:column;
+}
+.notes { margin-top:40px; display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:18px; }
+.note { border:1px solid var(--line-soft); background:var(--panel-2); border-radius:18px; padding:16px 18px; }
+.note h3 { margin:0 0 8px; font-family:var(--serif); font-size:17px; color:var(--gold-bright); font-weight:600; }
+.note ul { margin:0; padding-left:18px; color:var(--muted); font-size:13px; line-height:1.55; }
+.note code { color:var(--ink); font-size:12px; }
+.tabs { display:none; }
+
+/* On a phone the board collapses to one full-bleed screen with a switcher,
+   so the preview can be judged at real size on the device it targets. */
+@media (max-width:700px) {
+  .board { padding:0; }
+  .board > h1, .board > .sub, .slot > h2, .slot > p { display:none; }
+  .tabs {
+    display:flex; gap:6px; position:sticky; top:0; z-index:20; padding:calc(env(safe-area-inset-top) + 8px) 10px 8px;
+    background:rgba(14,10,42,.92); backdrop-filter:blur(10px); overflow-x:auto;
+  }
+  .tabs button {
+    flex:0 0 auto; padding:7px 12px; border-radius:999px; font-size:12px; letter-spacing:.06em;
+    border:1px solid var(--line); color:var(--muted);
+  }
+  .tabs button.on { color:#1a1030; background:var(--gold-bright); border-color:var(--gold-bright); }
+  .rail { display:block; }
+  .slot { width:100%; display:none; }
+  .slot.on { display:block; }
+  .phone { width:100%; height:calc(100dvh - 52px - env(safe-area-inset-top)); border-radius:0; padding:0; box-shadow:none; background:none; }
+  .screen { border-radius:0; }
+  .notes { margin:20px 12px 40px; }
+}
+
+/* ---------- shared in-screen pieces ---------- */
+.topbar { display:flex; align-items:center; gap:10px; padding:16px 16px 8px; flex:0 0 auto; }
+.topbar .back { width:34px; height:34px; border-radius:50%; border:1px solid var(--line); display:grid; place-items:center; font-size:16px; }
+.topbar h3 { margin:0; flex:1; font-family:var(--serif); font-size:20px; }
+.topbar h3.win { color:var(--win); } .topbar h3.loss { color:var(--loss); }
+.topbar h3 small { display:block; font-family:var(--sans); font-size:11.5px; color:var(--muted); font-weight:400; margin-top:1px; }
+.topbar h3 small b { color:var(--ink); font-weight:600; }
+.topbar .mode, .topbar .pill { font-size:10px; letter-spacing:.16em; text-transform:uppercase; padding:4px 10px; border-radius:999px; border:1px solid var(--line); color:var(--muted); }
+.mode { font-size:10px; letter-spacing:.2em; text-transform:uppercase; padding:5px 0; width:84px; text-align:center; border-radius:999px; border:1.5px solid rgba(99,214,208,.55); color:var(--teal); flex:0 0 auto; }
+.mode.siege { border-color:rgba(232,195,90,.55); color:var(--gold); }
+.mode.online { border-color:rgba(200,150,255,.55); color:var(--psychic); }
+.scroll { flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+.scroll::-webkit-scrollbar { width:0; }
+.sec-head { display:flex; align-items:center; gap:10px; padding:18px 18px 10px; }
+.sec-head::before { content:""; width:4px; height:22px; border-radius:3px; background:var(--win); }
+.sec-head h4 { margin:0; font-family:var(--serif); font-size:24px; flex:1; }
+.sec-head a { font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:var(--ink); text-decoration:none; }
+
+/* ---------- 1 · Recent list ---------- */
+.recent { display:flex; flex-direction:column; gap:10px; padding:0 16px 20px; }
+.row {
+  display:flex; align-items:center; gap:14px; padding:14px 14px 14px 16px; border-radius:20px; text-align:left;
+  border:1.5px solid var(--line); background:var(--panel); width:100%; transition:transform .12s, border-color .2s;
+}
+.row:active { transform:scale(.985); }
+.row:hover { border-color:rgba(160,150,255,.6); }
+.row .what { flex:1; min-width:0; font-size:17px; }
+.row .what.win { color:var(--win); }
+.row .what em { display:block; font-style:normal; font-size:13.5px; color:var(--muted); margin-top:3px; }
+.row .what small { display:inline-flex; align-items:center; gap:4px; margin-top:6px; font-size:10.5px; letter-spacing:.08em; color:var(--gold); }
+.row .what small i { font-style:normal; width:6px; height:6px; border-radius:50%; background:var(--gold); }
+.row .what small.none { color:var(--dim); }
+.row .what small.none i { background:var(--dim); }
+.row .gain { font-weight:800; color:var(--gold-bright); font-size:16px; }
+.row .chev { color:var(--dim); font-size:18px; margin-left:-4px; }
+.mini-hp { display:flex; gap:2px; align-items:flex-end; height:18px; margin-left:auto; }
+.mini-hp span { width:3px; border-radius:2px; background:var(--win); opacity:.8; }
+.mini-hp span.o { background:var(--loss); }
+.filter { display:flex; gap:8px; padding:0 16px 12px; }
+.filter button { padding:6px 12px; border-radius:999px; font-size:12px; border:1px solid var(--line-soft); color:var(--muted); }
+.filter button.on { border-color:var(--gold); color:var(--gold-bright); }
+.tabbar { flex:0 0 auto; display:flex; justify-content:space-around; padding:10px 6px 22px; border-top:1px solid var(--line-soft); background:rgba(10,8,30,.8); }
+.tabbar span { font-size:10px; letter-spacing:.14em; color:var(--muted); text-align:center; }
+.tabbar span b { display:block; font-size:16px; margin-bottom:3px; }
+.tabbar span.on { color:var(--ink); }
+
+/* ---------- 2 · Replay ---------- */
+.res { display:flex; align-items:center; gap:12px; padding:2px 16px 8px; flex:0 0 auto; }
+.res .big { font-family:var(--serif); font-size:26px; color:var(--win); }
+.res .big.loss { color:var(--loss); }
+.res .meta { font-size:12px; color:var(--muted); line-height:1.4; flex:1; }
+.res .meta b { color:var(--ink); font-weight:600; }
+.graph { margin:0 16px; height:40px; flex:0 0 auto; position:relative; border-radius:12px; background:rgba(8,6,28,.55); border:1px solid var(--line-soft); cursor:pointer; }
+.graph svg { width:100%; height:100%; display:block; }
+.graph .lbl { position:absolute; top:4px; font-size:9px; letter-spacing:.14em; text-transform:uppercase; }
+.graph .lbl.l { left:8px; color:var(--win); }
+.graph .lbl.r { right:8px; color:var(--loss); }
+.arena { position:relative; flex:0 0 auto; padding:4px 16px 2px; }
+.side-head { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); margin:3px 2px; }
+.side-head b { color:var(--ink); font-weight:600; }
+.hp { margin-left:auto; display:flex; align-items:center; gap:6px; font-weight:800; font-size:13px; }
+.hp .bar { width:74px; height:7px; border-radius:6px; background:rgba(255,255,255,.1); overflow:hidden; }
+.hp .bar i { display:block; height:100%; background:var(--win); transition:width .35s; }
+.hp.o .bar i { background:var(--loss); }
+.hp .delta { font-size:11px; color:var(--loss); min-width:22px; }
+.grid { --cell:54px; display:grid; grid-template-columns:repeat(3, var(--cell)); grid-template-rows:repeat(3, var(--cell)); gap:6px; justify-content:center; }
+@media (max-height:760px) { .grid { --cell:46px; } }
+.cell { position:relative; border-radius:10px; border:1px dashed rgba(128,112,255,.25); background:rgba(8,6,28,.35); }
+.card {
+  position:absolute; inset:0; border-radius:10px; overflow:hidden; padding:5px 4px 4px;
+  background:linear-gradient(160deg, color-mix(in srgb, var(--el) 70%, #1a1030), color-mix(in srgb, var(--el) 25%, #0b0820));
+  border:1.5px solid color-mix(in srgb, var(--el) 70%, white 10%);
+  display:flex; flex-direction:column; justify-content:space-between; transition:opacity .3s;
+}
+.card .nm { font-size:8.5px; font-weight:800; line-height:1.05; text-shadow:0 1px 2px rgba(0,0,0,.7); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.card .glyph { position:absolute; right:3px; top:12px; font-size:16px; opacity:.4; }
+.card .st { display:flex; justify-content:space-between; font-size:8.5px; font-weight:800; }
+.card .st span { background:rgba(0,0,0,.45); border-radius:5px; padding:1px 3px; }
+.card .hpb { height:3px; border-radius:2px; background:rgba(0,0,0,.45); margin-top:2px; }
+.card .hpb i { display:block; height:100%; background:#8ff29c; border-radius:2px; }
+.card.low .hpb i { background:#ffb14a; }
+.card.dead { opacity:.3; filter:grayscale(1); }
+.card.dead::after { content:"✕"; position:absolute; inset:0; display:grid; place-items:center; font-size:30px; color:var(--loss); opacity:.9; }
+.card.leg { box-shadow:inset 0 0 0 1px #ffe066, 0 0 12px rgba(255,224,102,.35); }
+.notch { position:absolute; width:8px; height:8px; border-radius:50%; background:var(--nc); border:1.5px solid #150f38; z-index:2; }
+.notch.N { top:-5px; left:calc(50% - 4px); } .notch.S { bottom:-5px; left:calc(50% - 4px); }
+.notch.W { left:-5px; top:calc(50% - 4px); } .notch.E { right:-5px; top:calc(50% - 4px); }
+.link { position:absolute; z-index:3; background:var(--lc); box-shadow:0 0 8px var(--lc); border-radius:3px; pointer-events:none; }
+.cell.fx-place { animation:place .7s ease-out; }
+.cell.fx-hit .card { animation:hit .5s; }
+.cell.actor { outline:2px solid var(--gold-bright); outline-offset:2px; border-radius:10px; }
+.cell.target { outline:2px solid var(--loss); outline-offset:2px; border-radius:10px; }
+.dmg { position:absolute; z-index:5; top:-10px; right:-6px; font-weight:900; font-size:15px; color:#fff; background:var(--loss); border-radius:9px; padding:1px 6px; box-shadow:0 2px 8px rgba(0,0,0,.5); }
+.dmg.heal { background:#3fbf62; }
+.trap-pip { position:absolute; left:-4px; top:50%; transform:translate(-100%,-50%); width:18px; height:24px; border-radius:4px; background:linear-gradient(160deg,#5a3aa8,#2a1760); border:1px solid var(--psychic); font-size:10px; display:grid; place-items:center; }
+@keyframes place { 0% { box-shadow:0 0 0 0 rgba(255,217,122,.9); } 100% { box-shadow:0 0 0 14px rgba(255,217,122,0); } }
+@keyframes hit { 0%,100% { transform:none; } 25% { transform:translateX(-3px); } 75% { transform:translateX(3px); } }
+.divider { display:flex; align-items:center; gap:8px; margin:5px 0; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:var(--gold); }
+.divider::before, .divider::after { content:""; flex:1; height:1px; background:linear-gradient(90deg, transparent, var(--line), transparent); }
+.arrows { position:absolute; inset:0; pointer-events:none; z-index:6; overflow:visible; }
+.caption { margin:4px 16px 0; padding:8px 12px; border-radius:14px; background:var(--panel-2); border:1px solid var(--line-soft); display:flex; gap:10px; align-items:flex-start; min-height:50px; flex:0 0 auto; }
+.caption .ic { width:30px; height:30px; flex:0 0 auto; border-radius:9px; display:grid; place-items:center; font-size:15px; background:rgba(255,255,255,.07); }
+.caption .tx { font-size:13px; line-height:1.35; }
+.caption .tx small { display:block; color:var(--muted); font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; margin-bottom:2px; }
+.ctrl { display:flex; align-items:center; justify-content:center; gap:10px; padding:8px 16px 4px; flex:0 0 auto; }
+.ctrl button { width:46px; height:36px; border-radius:12px; border:1px solid var(--line); background:var(--panel); font-size:15px; }
+.ctrl button.play { width:58px; background:var(--gold-bright); color:#1a1030; border-color:var(--gold-bright); font-size:17px; }
+.ctrl button:disabled { opacity:.35; }
+.ctrl .count { font-size:12px; color:var(--muted); min-width:52px; text-align:center; font-variant-numeric:tabular-nums; }
+.scrub { margin:0 16px 6px; position:relative; height:16px; flex:0 0 auto; }
+.scrub input { width:100%; margin:0; accent-color:var(--gold-bright); }
+.moves { position:relative; border-top:1px solid var(--line-soft); padding:2px 12px 20px; }
+.turn { margin-top:8px; }
+.turn > b { display:block; font-size:10.5px; letter-spacing:.2em; color:var(--gold); text-transform:uppercase; margin:6px 4px 4px; }
+.mv { display:flex; gap:8px; align-items:baseline; width:100%; text-align:left; padding:6px 8px; border-radius:9px; font-size:12.5px; line-height:1.35; color:var(--muted); }
+.mv .ph { flex:0 0 42px; font-size:9px; letter-spacing:.14em; color:var(--dim); text-transform:uppercase; }
+.mv.you { color:#d9dcff; }
+.mv.key { color:var(--ink); }
+.mv.key::after { content:"★"; color:var(--gold-bright); margin-left:auto; padding-left:6px; font-size:11px; }
+.mv.on { background:rgba(255,217,122,.14); color:var(--ink); box-shadow:inset 3px 0 0 var(--gold-bright); }
+
+/* ---------- 3 · Log only ---------- */
+.banner { margin:6px 16px 10px; padding:10px 12px; border-radius:14px; font-size:12px; line-height:1.45; color:var(--muted); border:1px dashed var(--line); display:flex; gap:10px; }
+.banner b { color:var(--ink); }
+.stats { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; padding:0 16px; }
+.stats div { padding:10px 8px; border-radius:14px; background:var(--panel); border:1px solid var(--line-soft); text-align:center; }
+.stats span { display:block; font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); }
+.stats b { display:block; margin-top:4px; font-family:var(--serif); font-size:20px; color:var(--gold-bright); }
+.acc { margin:12px 16px 20px; display:flex; flex-direction:column; gap:8px; }
+.acc details { border-radius:14px; background:var(--panel); border:1px solid var(--line-soft); overflow:hidden; }
+.acc summary { list-style:none; display:flex; align-items:center; gap:10px; padding:12px 14px; cursor:pointer; font-size:14px; }
+.acc summary::-webkit-details-marker { display:none; }
+.acc summary b { font-family:var(--serif); font-size:16px; }
+.acc summary em { font-style:normal; font-size:11.5px; color:var(--muted); flex:1; }
+.acc summary i { font-style:normal; color:var(--dim); transition:transform .2s; }
+.acc details[open] summary i { transform:rotate(90deg); }
+.acc .lines { padding:0 14px 12px; }
+.acc .ln { display:flex; gap:8px; font-size:12px; line-height:1.4; padding:4px 0; border-top:1px solid rgba(255,255,255,.04); color:var(--muted); }
+.acc .ln .ph { flex:0 0 46px; font-size:9px; letter-spacing:.12em; padding-top:2px; color:var(--dim); }
+.acc .ln.k { color:var(--ink); }
+
+/* ---------- 4 · Siege ---------- */
+.run-head { display:flex; gap:12px; align-items:center; padding:2px 16px 10px; }
+.knight { width:52px; height:52px; border-radius:14px; flex:0 0 auto; background:linear-gradient(160deg, var(--fire), #3a1020); display:grid; place-items:center; font-family:var(--serif); font-size:22px; font-weight:700; border:1.5px solid var(--gold); }
+.run-head .t { flex:1; }
+.run-head .t b { font-family:var(--serif); font-size:20px; color:var(--loss); display:block; }
+.run-head .t span { font-size:12px; color:var(--muted); }
+.warband { display:flex; gap:6px; padding:0 16px 10px; flex-wrap:wrap; }
+.warband span { font-size:11px; padding:4px 9px; border-radius:999px; border:1px solid color-mix(in srgb, var(--el) 60%, transparent); color:color-mix(in srgb, var(--el) 60%, white); background:color-mix(in srgb, var(--el) 14%, transparent); }
+.map-wrap { position:relative; margin:0 16px; border-radius:18px; overflow:hidden; border:1px solid var(--line-soft);
+  background:radial-gradient(circle at 50% 110%, rgba(255,80,30,.18), transparent 50%), radial-gradient(circle at 50% -10%, rgba(118,230,255,.14), transparent 50%), repeating-linear-gradient(0deg, rgba(255,255,255,.015) 0 2px, transparent 2px 22px), #0d0a2a; }
+.map-wrap svg { display:block; width:100%; height:auto; }
+.node { cursor:pointer; }
+.node circle.base { transition:r .2s; }
+.node text { pointer-events:none; }
+.node.sel circle.ring { stroke:var(--gold-bright); stroke-width:2.5; }
+.legend { display:flex; flex-wrap:wrap; gap:6px 12px; padding:8px 16px 0; font-size:10.5px; color:var(--muted); }
+.legend span { display:inline-flex; align-items:center; gap:5px; }
+.legend i { font-style:normal; width:16px; height:16px; border-radius:50%; display:grid; place-items:center; font-size:9px; color:#120c30; }
+.node-card { margin:10px 16px 0; padding:12px 14px; border-radius:16px; background:var(--panel-2); border:1px solid var(--line); }
+.node-card small { font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--gold); }
+.node-card h5 { margin:3px 0 4px; font-family:var(--serif); font-size:18px; }
+.node-card p { margin:0; font-size:12.5px; color:var(--muted); line-height:1.45; }
+.node-card .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+.node-card .chips span { font-size:11px; padding:3px 8px; border-radius:999px; background:rgba(255,255,255,.06); border:1px solid var(--line-soft); }
+.node-card .chips span.g { color:var(--gold-bright); }
+.node-card .chips span.r { color:var(--loss); }
+.node-card .chips span.w { color:var(--win); }
+.route { display:flex; gap:6px; overflow-x:auto; padding:12px 16px 20px; }
+.route::-webkit-scrollbar { height:0; }
+.route button { flex:0 0 auto; display:flex; flex-direction:column; align-items:center; gap:3px; font-size:9.5px; color:var(--muted); width:44px; }
+.route button i { font-style:normal; width:30px; height:30px; border-radius:50%; display:grid; place-items:center; font-size:13px; color:#120c30; border:2px solid transparent; }
+.route button.on i { border-color:var(--gold-bright); }
+</style>
+</head>
+<body>
+<div class="board">
+  <h1>Profile — <span>match review &amp; replay</span></h1>
+  <p class="sub">
+    Every row under <b>Recent</b> becomes tappable. A Battle Table match opens a chess.com-style
+    <b>replay</b>: step through each placement, spell, trap and ability with the board redrawn at that
+    moment, an HP swing graph you can scrub, and a move list that jumps anywhere. Matches recorded before
+    board snapshots existed fall back to a <b>turn-grouped log</b> (what the server stores today). A
+    <b>Siege</b> run opens a route summary drawn as the expedition map, with the path taken lit and each
+    stop tappable. All frames are live with sample data — open this page on a phone for a full-bleed
+    version with a switcher, or add <code>?screen=recent|replay|log|siege</code>.
+  </p>
+  <nav class="tabs" id="tabs"></nav>
+  <div class="rail" id="rail">
+    <section class="slot" data-slot="recent">
+      <h2>1 · Profile › Recent</h2>
+      <p>Rows gain a chevron and a “Replay” / “Log” / “Route” hint so it is obvious what a tap opens. Siege runs join the list with their own badge. Tap a row.</p>
+      <div class="phone"><div class="screen" id="s-recent"></div></div>
+    </section>
+    <section class="slot" data-slot="replay">
+      <h2>2 · Battle replay</h2>
+      <p>◀ ▶ step one action, ⏮ ⏭ jump by turn, ▶ autoplays. Tap the HP graph or any move to jump. Arrows show who acted on whom; ★ marks turning points.</p>
+      <div class="phone"><div class="screen" id="s-replay"></div></div>
+    </section>
+    <section class="slot" data-slot="log">
+      <h2>3 · Log-only review</h2>
+      <p>For older matches (and online matches until snapshots ship): the stored <code>gameLog</code> grouped into collapsible turns with phase chips and key lines lifted.</p>
+      <div class="phone"><div class="screen" id="s-log"></div></div>
+    </section>
+    <section class="slot" data-slot="siege">
+      <h2>4 · Siege run summary</h2>
+      <p>The run’s branching map with the chosen route glowing and unvisited branches faded. Tap any stop (or the route strip) for what happened there.</p>
+      <div class="phone"><div class="screen" id="s-siege"></div></div>
+    </section>
+  </div>
+
+  <div class="notes">
+    <div class="note">
+      <h3>What exists today</h3>
+      <ul>
+        <li><code>MatchHistoryEntity</code> stores result, opponent, turns, HP left, spells/traps/defeats and <code>gameLog</code> — enough for frame 3.</li>
+        <li><code>GameState.gameLog</code> is trimmed to the last 80 lines once it passes 100, so long matches lose their opening turns.</li>
+        <li><code>openMatchReview</code> in <code>home.js</code> already renders a flat log; the redesigned hub’s Recent rows are not tappable.</li>
+        <li>Siege runs are not written to match history at all.</li>
+      </ul>
+    </div>
+    <div class="note">
+      <h3>What replay needs (backend)</h3>
+      <ul>
+        <li>A compact <code>replay</code> list on the history doc: one entry per action — turn, phase, actor/target cells, log line, and a board snapshot (cell → card id, HP, status) plus both HP totals.</li>
+        <li>~40–80 steps × ~18 cells stays well under Firestore’s 1&nbsp;MB doc limit; store only diffs if it grows.</li>
+        <li>Stop truncating the log for the recorded copy (keep the full list server-side even if the live state trims).</li>
+        <li>Online matches: record from each side’s view so hidden cards (face-down traps, hand) are never leaked.</li>
+      </ul>
+    </div>
+    <div class="note">
+      <h3>What Siege needs</h3>
+      <ul>
+        <li>On run end, write a <code>siegeRunHistory</code> doc: knight, warband, outcome, floor reached, gold/cards gained, the map layout (node ids, types, edges) and the ordered path with a one-line outcome per node.</li>
+        <li>Surface it in <code>matchHistory</code> responses with <code>matchType: "SIEGE"</code> so Recent needs no second fetch.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var EL = { FIRE:'var(--fire)', WATER:'var(--water)', ICE:'var(--ice)', EARTH:'var(--earth)', ELECTRIC:'var(--electric)' };
+  var GLYPH = { FIRE:'🔥', WATER:'💧', ICE:'❄', EARTH:'⛰', ELECTRIC:'⚡' };
+
+  // Sample roster. Notches are [side, element]; a link forms where two
+  // neighbours' notches face each other, matching the Battle Table rule.
+  var CARDS = {
+    bearby:   { name:'Bearby', el:'FIRE', hp:11, spd:3, notches:[['E','FIRE'],['N','FIRE']] },
+    pylord:   { name:'Pylord', el:'FIRE', hp:18, spd:2, notches:[['W','FIRE'],['N','FIRE']] },
+    conch:    { name:'Conchious', el:'WATER', hp:14, spd:4, notches:[['S','FIRE'],['E','WATER']] },
+    staticap: { name:'Staticap', el:'ELECTRIC', hp:9, spd:5, notches:[['E','FIRE'],['S','ELECTRIC']] },
+    frost:    { name:'Frostling', el:'ICE', hp:8, spd:4, notches:[['E','ICE']] },
+    sundile:  { name:'Sundile', el:'EARTH', hp:12, spd:3, notches:[['W','ICE'],['N','EARTH']] },
+    glacie:   { name:'Glaciemperor', el:'ICE', hp:22, spd:1, notches:[['S','EARTH'],['W','ICE']], leg:true }
+  };
+
+  /* ---------- replay timeline ----------
+     Built by applying actions to a running state and snapshotting after
+     each one, the same shape a recorded `replay` list would carry. */
+  function buildTimeline() {
+    var st = { p:{}, e:{}, php:50, ehp:50, trap:false };
+    var steps = [];
+    function key(r, c) { return r + ',' + c; }
+    function clone(o) { return JSON.parse(JSON.stringify(o)); }
+    function push(turn, phase, who, text, opts) {
+      opts = opts || {};
+      steps.push({ turn:turn, phase:phase, who:who, text:text, icon:opts.icon || '•', key:!!opts.key,
+        from:opts.from || null, to:opts.to || null, fx:opts.fx || null, amt:opts.amt,
+        state:clone(st) });
+    }
+    function place(side, r, c, id) { st[side][key(r, c)] = { id:id, hp:CARDS[id].hp }; }
+    function hit(side, r, c, n) {
+      var u = st[side][key(r, c)]; u.hp = Math.max(0, u.hp - n);
+      if (!u.hp) u.dead = true;
+    }
+    function heal(side, r, c, n) { var u = st[side][key(r, c)]; u.hp = Math.min(CARDS[u.id].hp, u.hp + n); }
+    function clearDead() {
+      ['p', 'e'].forEach(function (s) { Object.keys(st[s]).forEach(function (k) { if (st[s][k].dead) delete st[s][k]; }); });
+    }
+
+    push(1, 'DRAW', 'sys', 'Coin flip: You go first. Both players begin at 50 health.', { icon:'🪙' });
+    place('p', 1, 1, 'bearby');
+    push(1, 'SETUP', 'you', 'You place Bearby at middle, center.', { icon:'＋', to:['p',1,1], fx:'place' });
+    place('e', 2, 0, 'frost');
+    push(1, 'SETUP', 'ai', 'AI places Frostling at front, left.', { icon:'＋', to:['e',2,0], fx:'place' });
+    hit('p', 1, 1, 2);
+    push(1, 'BATTLE', 'ai', 'Frostling (SPD 4) uses Chill Bite on Bearby — 2 damage.', { icon:'⚔', from:['e',2,0], to:['p',1,1], fx:'hit', amt:2 });
+    hit('e', 2, 0, 4);
+    push(1, 'BATTLE', 'you', 'Bearby uses Ember Swipe on Frostling — 4 damage. Fire beats Ice!', { icon:'⚔', from:['p',1,1], to:['e',2,0], fx:'hit', amt:4 });
+
+    clearDead();
+    push(2, 'DRAW', 'you', 'You draw Pylord.', { icon:'🂠' });
+    place('p', 1, 2, 'pylord');
+    push(2, 'SETUP', 'you', 'You place Pylord at middle, right — Fire link with Bearby (+2 Fire energy).', { icon:'＋', to:['p',1,2], fx:'place', key:true });
+    place('e', 2, 2, 'sundile');
+    push(2, 'SETUP', 'ai', 'AI places Sundile at front, right.', { icon:'＋', to:['e',2,2], fx:'place' });
+    st.trap = true;
+    push(2, 'SETUP', 'ai', 'AI sets a Deception face-down.', { icon:'🂠' });
+    hit('p', 1, 2, 2);
+    push(2, 'BATTLE', 'ai', 'Frostling uses Chill Bite on Pylord — 2 damage.', { icon:'⚔', from:['e',2,0], to:['p',1,2], fx:'hit', amt:2 });
+    hit('e', 2, 0, 4);
+    st.ehp -= 3;
+    push(2, 'BATTLE', 'you', 'Bearby uses Ember Swipe on Frostling — defeated! AI takes 3 bounty damage.', { icon:'☠', from:['p',1,1], to:['e',2,0], fx:'hit', amt:4, key:true });
+    clearDead();
+    hit('p', 1, 1, 3);
+    push(2, 'BATTLE', 'ai', 'Sundile uses Mud Slam on Bearby — 3 damage.', { icon:'⚔', from:['e',2,2], to:['p',1,1], fx:'hit', amt:3 });
+    hit('e', 2, 2, 5);
+    push(2, 'BATTLE', 'you', 'Pylord uses Magma Fist on Sundile — 5 damage.', { icon:'⚔', from:['p',1,2], to:['e',2,2], fx:'hit', amt:5 });
+
+    place('p', 0, 1, 'conch');
+    push(3, 'SETUP', 'you', 'You place Conchious at front, center — Fire link with Bearby.', { icon:'＋', to:['p',0,1], fx:'place' });
+    place('e', 1, 1, 'glacie');
+    push(3, 'SETUP', 'ai', 'AI places Glaciemperor (Legendary) at middle, center.', { icon:'👑', to:['e',1,1], fx:'place', key:true });
+    st.trap = false;
+    push(3, 'SETUP', 'ai', 'AI springs trap Frost Snare! Conchious is frozen this round.', { icon:'🪤', to:['p',0,1], key:true });
+    push(3, 'BATTLE', 'you', 'Conchious is frozen and cannot act.', { icon:'❄', from:['p',0,1] });
+    hit('p', 1, 1, 3);
+    push(3, 'BATTLE', 'ai', 'Sundile uses Mud Slam on Bearby — 3 damage.', { icon:'⚔', from:['e',2,2], to:['p',1,1], fx:'hit', amt:3 });
+    hit('e', 2, 2, 4);
+    push(3, 'BATTLE', 'you', 'Bearby uses Ember Swipe on Sundile — 4 damage.', { icon:'⚔', from:['p',1,1], to:['e',2,2], fx:'hit', amt:4 });
+    hit('e', 1, 1, 8);
+    push(3, 'BATTLE', 'you', 'Pylord uses Magma Fist on Glaciemperor — 8 damage. Fire beats Ice!', { icon:'⚔', from:['p',1,2], to:['e',1,1], fx:'hit', amt:8 });
+    hit('p', 1, 1, 4); hit('p', 0, 1, 4);
+    st.php -= 2;
+    push(3, 'BATTLE', 'ai', 'Glaciemperor uses Blizzard Crown — Bearby defeated, Conchious takes 4. You take 2 bounty damage.', { icon:'☠', from:['e',1,1], to:['p',1,1], fx:'hit', amt:4, key:true });
+
+    clearDead();
+    place('p', 1, 0, 'staticap');
+    push(4, 'SETUP', 'you', 'You place Staticap at middle, left.', { icon:'＋', to:['p',1,0], fx:'place' });
+    push(4, 'SETUP', 'you', 'Lady Pyla uses Ignite Banner: Fire Siegelings deal +2 damage this round.', { icon:'⚑', key:true });
+    heal('e', 1, 1, 4);
+    push(4, 'SETUP', 'ai', 'AI casts Glacial Mend — Glaciemperor heals 4.', { icon:'✚', to:['e',1,1], fx:'heal', amt:4 });
+    hit('e', 2, 2, 3);
+    st.ehp -= 3;
+    push(4, 'BATTLE', 'you', 'Staticap (SPD 5) uses Arc Zap on Sundile — defeated! AI takes 3 bounty damage.', { icon:'☠', from:['p',1,0], to:['e',2,2], fx:'hit', amt:3 });
+    clearDead();
+    hit('e', 1, 1, 8);
+    push(4, 'BATTLE', 'you', 'Conchious uses Tidal Lance on Glaciemperor — 8 damage. Water beats Ice!', { icon:'⚔', from:['p',0,1], to:['e',1,1], fx:'hit', amt:8 });
+    hit('e', 1, 1, 10);
+    st.ehp -= 8;
+    push(4, 'BATTLE', 'you', 'Pylord uses Magma Fist (+2 Banner) on Glaciemperor — defeated! AI takes 8 bounty damage.', { icon:'☠', from:['p',1,2], to:['e',1,1], fx:'hit', amt:10, key:true });
+
+    clearDead();
+    st.ehp -= 12;
+    push(5, 'SETUP', 'you', 'Lady Pyla unleashes Sunfall — 12 damage to AI Opponent.', { icon:'☀', key:true });
+    st.ehp -= 12;
+    push(5, 'BATTLE', 'you', 'AI board is empty — Pylord strikes AI Opponent directly for 12.', { icon:'⚔', from:['p',1,2] });
+    st.ehp -= 8;
+    push(5, 'BATTLE', 'you', 'Conchious strikes AI Opponent directly for 8.', { icon:'⚔', from:['p',0,1] });
+    st.ehp = Math.max(0, st.ehp - 4);
+    push(5, 'BATTLE', 'you', 'Staticap strikes AI Opponent directly for 4. AI Opponent falls — You win!', { icon:'🏆', from:['p',1,0], key:true });
+    return steps;
+  }
+  var STEPS = buildTimeline();
+
+  /* ---------- helpers ---------- */
+  function h(tag, attrs, html) {
+    var el = document.createElement(tag);
+    if (attrs) Object.keys(attrs).forEach(function (k) { el.setAttribute(k, attrs[k]); });
+    if (html != null) el.innerHTML = html;
+    return el;
+  }
+  var OPP = { N:'S', S:'N', E:'W', W:'E' };
+
+  /* ---------- screen switching (phone) / flashing (desktop) ---------- */
+  var SLOTS = [['recent', 'Recent'], ['replay', 'Replay'], ['log', 'Log'], ['siege', 'Siege']];
+  var tabs = document.getElementById('tabs');
+  SLOTS.forEach(function (s) {
+    var b = h('button', { 'data-go':s[0] }, s[1]);
+    tabs.appendChild(b);
+  });
+  function show(name) {
+    document.querySelectorAll('.slot').forEach(function (s) { s.classList.toggle('on', s.getAttribute('data-slot') === name); });
+    tabs.querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-go') === name); });
+    if (window.matchMedia('(min-width:701px)').matches) {
+      var ph = document.querySelector('[data-slot="' + name + '"] .phone');
+      ph.scrollIntoView({ behavior:'smooth', block:'nearest', inline:'center' });
+      ph.classList.add('flash');
+      setTimeout(function () { ph.classList.remove('flash'); }, 900);
+    } else {
+      window.scrollTo(0, 0);
+    }
+    if (name === 'replay') Replay.redraw();
+  }
+  document.addEventListener('click', function (e) {
+    var go = e.target.closest('[data-go]');
+    if (go) show(go.getAttribute('data-go'));
+  });
+
+  /* ---------- 1 · Recent ---------- */
+  (function () {
+    var rows = [
+      { mode:'Solo', res:'Win', vs:'vs Training Dummy', t:'T7', hint:'Replay', go:'replay', spark:[50,50,48,48,46,46,44] },
+      { mode:'Solo', res:'Win', vs:'vs AI Opponent', t:'T5', hint:'Replay', go:'replay', spark:[50,50,48,48,48] },
+      { mode:'Siege', cls:'siege', res:'Defeat', vs:'Frost Throne · Lady Pyla', t:'F9', hint:'Route', go:'siege' },
+      { mode:'Online', cls:'online', res:'Win', vs:'vs Rowan_TCG', t:'T6', hint:'Replay', go:'replay' },
+      { mode:'Solo', res:'Loss', vs:'vs AI Opponent', t:'T3', hint:'Log only', none:true, go:'log' }
+    ];
+    var s = document.getElementById('s-recent');
+    s.innerHTML =
+      '<div class="scroll">' +
+        '<div style="height:44px"></div>' +
+        '<div class="sec-head"><h4>Recent</h4><a href="#">All</a></div>' +
+        '<div class="filter"><button class="on">All</button><button>Battles</button><button>Siege</button></div>' +
+        '<div class="recent">' + rows.map(function (r) {
+          var won = r.res === 'Win';
+          return '<button class="row" data-go="' + r.go + '">' +
+            '<span class="mode ' + (r.cls || '') + '">' + r.mode + '</span>' +
+            '<span class="what' + (won ? ' win' : '') + '">' + r.res + '<em>' + r.vs + '</em>' +
+              '<small class="' + (r.none ? 'none' : '') + '"><i></i>' + r.hint + '</small></span>' +
+            '<span class="gain">' + r.t + '</span><span class="chev">›</span>' +
+          '</button>';
+        }).join('') + '</div>' +
+      '</div>' +
+      '<div class="tabbar"><span><b>⌂</b>HOME</span><span><b>⚔</b>PLAY</span><span><b>◆</b>COLLECTION</span><span><b>⬢</b>SHOP</span><span class="on"><b>☺</b>SOCIAL</span><span><b>…</b>MORE</span></div>';
+  })();
+
+  /* ---------- 2 · Replay ---------- */
+  var Replay = (function () {
+    var s = document.getElementById('s-replay');
+    var i = STEPS.length - 1;
+    var timer = null;
+    s.innerHTML =
+      '<div class="topbar"><button class="back" data-go="recent">‹</button><h3 class="win">Win <small><b>Fire Vanguard</b> vs AI Opponent · Lady Pyla · T5 · Sep 24</small></h3><span class="pill">Solo</span></div>' +
+      '<div class="graph" id="rg"><span class="lbl l">You</span><span class="lbl r">AI</span><svg viewBox="0 0 358 40" preserveAspectRatio="none"></svg></div>' +
+      '<div class="arena" id="ra"></div>' +
+      '<div class="caption" id="rc"></div>' +
+      '<div class="ctrl">' +
+        '<button data-r="first" aria-label="Previous turn">⏮</button><button data-r="prev" aria-label="Previous step">◀</button>' +
+        '<button class="play" data-r="play" aria-label="Play">▶</button>' +
+        '<button data-r="next" aria-label="Next step">▶</button><button data-r="last" aria-label="Next turn">⏭</button>' +
+      '</div>' +
+      '<div class="scrub"><input type="range" min="0" max="' + (STEPS.length - 1) + '" id="rs"></div>' +
+      '<div class="scroll moves" id="rm"></div>';
+
+    var arena = s.querySelector('#ra'), cap = s.querySelector('#rc'), moves = s.querySelector('#rm');
+    var scrub = s.querySelector('#rs'), graph = s.querySelector('#rg svg');
+
+    // Move list grouped by turn, like a PGN pane.
+    var html = '', lastTurn = 0;
+    STEPS.forEach(function (st, n) {
+      if (st.turn !== lastTurn) {
+        if (lastTurn) html += '</div>';
+        html += '<div class="turn"><b>Turn ' + st.turn + '</b>';
+        lastTurn = st.turn;
+      }
+      html += '<button class="mv ' + (st.who === 'you' ? 'you' : '') + (st.key ? ' key' : '') + '" data-i="' + n + '">' +
+        '<span class="ph">' + st.phase + '</span><span>' + st.text + '</span></button>';
+    });
+    moves.innerHTML = html + '</div>';
+
+    // HP swing graph: both totals over every step, like an eval graph.
+    (function () {
+      var W = 358, H = 40, n = STEPS.length - 1;
+      function pts(k) {
+        return STEPS.map(function (st, j) { return (j / n * W).toFixed(1) + ',' + (H - 5 - st.state[k] / 50 * (H - 12)).toFixed(1); }).join(' ');
+      }
+      graph.innerHTML =
+        '<polyline points="' + pts('php') + '" fill="none" stroke="#6ee07f" stroke-width="2"/>' +
+        '<polyline points="' + pts('ehp') + '" fill="none" stroke="#ff7d6b" stroke-width="2"/>' +
+        STEPS.map(function (st, j) { return st.key ? '<circle cx="' + (j / n * W) + '" cy="37" r="2" fill="#ffd97a"/>' : ''; }).join('') +
+        '<line id="rcur" x1="0" x2="0" y1="0" y2="' + H + '" stroke="#ffd97a" stroke-width="1.5" stroke-dasharray="3 2"/>';
+    })();
+
+    function board(side, st, step) {
+      var cells = '';
+      for (var r = 0; r < 3; r++) for (var c = 0; c < 3; c++) {
+        var u = st[side][r + ',' + c];
+        var cls = 'cell';
+        if (step.from && step.from[0] === side && step.from[1] === r && step.from[2] === c) cls += ' actor';
+        if (step.to && step.to[0] === side && step.to[1] === r && step.to[2] === c) {
+          cls += step.fx === 'hit' ? ' target fx-hit' : step.fx === 'place' ? ' fx-place' : ' target';
+        }
+        var inner = '';
+        if (u) {
+          var d = CARDS[u.id];
+          var pct = Math.round(u.hp / d.hp * 100);
+          inner = '<div class="card' + (u.dead ? ' dead' : '') + (pct <= 40 ? ' low' : '') + (d.leg ? ' leg' : '') + '" style="--el:' + EL[d.el] + '">' +
+            '<span class="nm" title="' + d.name + '">' + d.name + '</span><span class="glyph">' + GLYPH[d.el] + '</span>' +
+            '<div><div class="st"><span>♥' + u.hp + '</span><span>⚡' + d.spd + '</span></div><div class="hpb"><i style="width:' + pct + '%"></i></div></div></div>' +
+            d.notches.map(function (nt) { return '<i class="notch ' + nt[0] + '" style="--nc:' + EL[nt[1]] + '"></i>'; }).join('');
+          if (step.to && step.to[0] === side && step.to[1] === r && step.to[2] === c && step.amt) {
+            inner += '<span class="dmg' + (step.fx === 'heal' ? ' heal' : '') + '">' + (step.fx === 'heal' ? '+' : '−') + step.amt + '</span>';
+          }
+        }
+        cells += '<div class="' + cls + '" data-cell="' + side + r + c + '">' + inner + '</div>';
+      }
+      return '<div class="grid" data-side="' + side + '">' + cells + '</div>';
+    }
+
+    function links(side, st) {
+      var out = [];
+      Object.keys(st[side]).forEach(function (k) {
+        var u = st[side][k]; if (u.dead) return;
+        var rc = k.split(',').map(Number);
+        CARDS[u.id].notches.forEach(function (nt) {
+          if (nt[0] !== 'E' && nt[0] !== 'S') return;
+          var nr = rc[0] + (nt[0] === 'S' ? 1 : 0), nc = rc[1] + (nt[0] === 'E' ? 1 : 0);
+          var v = st[side][nr + ',' + nc];
+          if (!v || v.dead) return;
+          var back = CARDS[v.id].notches.filter(function (m) { return m[0] === OPP[nt[0]] && m[1] === nt[1]; })[0];
+          if (back) out.push({ a:side + rc[0] + rc[1], b:side + nr + nc, el:nt[1], dir:nt[0] });
+        });
+      });
+      return out;
+    }
+
+    function hpBlock(label, name, v, prev, opp) {
+      var d = v - prev;
+      return '<div class="side-head">' + label + ' <b>' + name + '</b>' +
+        '<span class="hp' + (opp ? ' o' : '') + '"><span class="delta">' + (d < 0 ? d : '') + '</span>' +
+        '<span class="bar"><i style="width:' + (v / 50 * 100) + '%"></i></span>' + v + '</span></div>';
+    }
+
+    function render() {
+      var step = STEPS[i], st = step.state, prev = STEPS[Math.max(0, i - 1)].state;
+      arena.innerHTML =
+        hpBlock('', 'AI Opponent', st.ehp, prev.ehp, true) +
+        '<div style="position:relative">' + board('e', st, step) + (st.trap ? '<span class="trap-pip" style="left:calc(50% - 110px)">?</span>' : '') + '</div>' +
+        '<div class="divider">Turn ' + step.turn + ' · ' + step.phase + '</div>' +
+        board('p', st, step) +
+        hpBlock('', 'You · Lady Pyla', st.php, prev.php, false) +
+        '<svg class="arrows"></svg>';
+      cap.innerHTML = '<span class="ic">' + step.icon + '</span><span class="tx"><small>Step ' + (i + 1) + ' · ' +
+        (step.who === 'you' ? 'You' : step.who === 'ai' ? 'AI Opponent' : 'Match') + '</small>' + step.text + '</span>';
+      scrub.value = i;
+      var n = STEPS.length - 1, cur = graph.querySelector('#rcur');
+      cur.setAttribute('x1', i / n * 358); cur.setAttribute('x2', i / n * 358);
+      moves.querySelectorAll('.mv').forEach(function (m) { m.classList.toggle('on', +m.getAttribute('data-i') === i); });
+      var on = moves.querySelector('.mv.on');
+      if (on) moves.scrollTop = on.offsetTop - moves.clientHeight / 2;
+      s.querySelector('[data-r="prev"]').disabled = i === 0;
+      s.querySelector('[data-r="next"]').disabled = i === n;
+      drawOverlays(step);
+    }
+
+    // Links and the action arrow are positioned from the laid-out cells, so
+    // they stay right whatever width the phone frame ends up.
+    function drawOverlays(step) {
+      var box = arena.getBoundingClientRect();
+      if (!box.width) return;
+      function center(id) {
+        var el = arena.querySelector('[data-cell="' + id + '"]');
+        if (!el) return null;
+        var b = el.getBoundingClientRect();
+        return { x:b.left - box.left + b.width / 2, y:b.top - box.top + b.height / 2, w:b.width, h:b.height, l:b.left - box.left, t:b.top - box.top };
+      }
+      ['p', 'e'].forEach(function (side) {
+        links(side, step.state).forEach(function (lk) {
+          var a = center(lk.a), b = center(lk.b);
+          if (!a || !b) return;
+          var el = h('i', { 'class':'link' });
+          el.style.setProperty('--lc', EL[lk.el]);
+          if (lk.dir === 'E') { el.style.left = (a.l + a.w - 2) + 'px'; el.style.top = (a.y - 2) + 'px'; el.style.width = (b.l - a.l - a.w + 4) + 'px'; el.style.height = '4px'; }
+          else { el.style.top = (a.t + a.h - 2) + 'px'; el.style.left = (a.x - 2) + 'px'; el.style.height = (b.t - a.t - a.h + 4) + 'px'; el.style.width = '4px'; }
+          arena.appendChild(el);
+        });
+      });
+      var svg = arena.querySelector('.arrows');
+      if (step.from && step.to) {
+        var a = center(step.from.join('')), b = center(step.to.join(''));
+        if (a && b) {
+          var col = step.who === 'you' ? '#ffd97a' : '#ff7d6b';
+          svg.innerHTML = '<defs><marker id="ah" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="' + col + '"/></marker></defs>' +
+            '<line x1="' + a.x + '" y1="' + a.y + '" x2="' + b.x + '" y2="' + b.y + '" stroke="' + col + '" stroke-width="3" stroke-linecap="round" opacity=".85" marker-end="url(#ah)"/>';
+        }
+      }
+    }
+
+    function go(n) { i = Math.max(0, Math.min(STEPS.length - 1, n)); render(); }
+    function turnJump(dir) {
+      var t = STEPS[i].turn, j = i;
+      if (dir < 0) {
+        // First step of this turn, or of the previous turn when already there.
+        while (j > 0 && STEPS[j - 1].turn === t) j--;
+        if (j === i && j > 0) { t = STEPS[j - 1].turn; j--; while (j > 0 && STEPS[j - 1].turn === t) j--; }
+      } else {
+        while (j < STEPS.length - 1 && STEPS[j].turn === t) j++;
+      }
+      go(j);
+    }
+    function stop() { clearInterval(timer); timer = null; s.querySelector('[data-r="play"]').textContent = '▶'; }
+    s.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-r]');
+      if (b) {
+        var r = b.getAttribute('data-r');
+        if (r !== 'play') stop();
+        if (r === 'prev') go(i - 1);
+        if (r === 'next') go(i + 1);
+        if (r === 'first') turnJump(-1);
+        if (r === 'last') turnJump(1);
+        if (r === 'play') {
+          if (timer) { stop(); return; }
+          if (i === STEPS.length - 1) go(0);
+          b.textContent = '❚❚';
+          timer = setInterval(function () { if (i >= STEPS.length - 1) stop(); else go(i + 1); }, 1100);
+        }
+      }
+      var mv = e.target.closest('.mv');
+      if (mv) { stop(); go(+mv.getAttribute('data-i')); }
+    });
+    scrub.addEventListener('input', function () { stop(); go(+scrub.value); });
+    s.querySelector('#rg').addEventListener('click', function (e) {
+      var b = this.getBoundingClientRect();
+      stop(); go(Math.round((e.clientX - b.left) / b.width * (STEPS.length - 1)));
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowLeft') { stop(); go(i - 1); }
+      if (e.key === 'ArrowRight') { stop(); go(i + 1); }
+    });
+    go(0);
+    return { redraw:render, go:go };
+  })();
+
+  /* ---------- 3 · Log only ---------- */
+  (function () {
+    var s = document.getElementById('s-log');
+    var turns = [
+      { t:1, sum:'You placed Emberkit · AI placed Frostling', lines:[
+        ['DRAW', 'Game started!'], ['DRAW', 'Coin flip: AI Opponent goes first.'], ['SETUP', 'AI places Frostling at row front col 1'],
+        ['SETUP', 'You place Emberkit at row middle col 1'], ['BATTLE', '=== BATTLE PHASE ==='],
+        ['BATTLE', 'Frostling deals 3 damage to Emberkit'], ['BATTLE', 'Emberkit deals 3 damage to Frostling']] },
+      { t:2, sum:'AI trap sprung · Emberkit defeated', key:true, lines:[
+        ['DRAW', 'AI draws a card. (Hand: 5)'], ['SETUP', 'AI springs trap Frost Snare!', 1], ['SETUP', 'You cast Kindling Surge!'],
+        ['SETUP', 'You place Bearby at row middle col 2'], ['BATTLE', 'Frostling deals 4 damage to Emberkit'],
+        ['BATTLE', 'Emberkit is defeated! You take 2 bounty damage.', 1], ['BATTLE', 'Bearby deals 4 damage to Frostling']] },
+      { t:3, sum:'Glaciemperor lands · You fall', key:true, lines:[
+        ['SETUP', 'AI places Glaciemperor at row middle col 1', 1], ['SETUP', 'AI casts Whiteout!'],
+        ['BATTLE', 'Glaciemperor deals 9 damage to Bearby'], ['BATTLE', 'Bearby is defeated! You take 2 bounty damage.'],
+        ['BATTLE', 'AI strikes you directly for 30.', 1], ['BATTLE', 'You fell in battle!', 1]] }
+    ];
+    s.innerHTML =
+      '<div class="topbar"><button class="back" data-go="recent">‹</button><h3>Match Review</h3><span class="pill">Solo</span></div>' +
+      '<div class="scroll">' +
+        '<div class="res"><span class="big loss">Loss</span><span class="meta"><b>Frost Warden</b> vs AI Opponent<br>Cera · 3 turns · Sep 22, 6:05 PM</span></div>' +
+        '<div class="banner"><span>ⓘ</span><span><b>Board replay unavailable.</b> This match was recorded before replays were saved — here is the full battle log, grouped by turn.</span></div>' +
+        '<div class="stats">' +
+          '<div><span>Your HP</span><b>0</b></div><div><span>Foe HP</span><b>41</b></div><div><span>Turns</span><b>3</b></div>' +
+          '<div><span>Strategies</span><b>1</b></div><div><span>Deceptions</span><b>0</b></div><div><span>Defeated</span><b>0</b></div>' +
+        '</div>' +
+        '<div class="acc">' + turns.map(function (t, n) {
+          return '<details' + (n === turns.length - 1 ? ' open' : '') + '><summary><b>Turn ' + t.t + '</b><em>' + t.sum + '</em><i>›</i></summary>' +
+            '<div class="lines">' + t.lines.map(function (l) {
+              return '<div class="ln' + (l[2] ? ' k' : '') + '"><span class="ph">' + l[0] + '</span><span>' + l[1] + '</span></div>';
+            }).join('') + '</div></details>';
+        }).join('') + '</div>' +
+      '</div>';
+  })();
+
+  /* ---------- 4 · Siege ---------- */
+  (function () {
+    var TYPES = {
+      BATTLE:  { c:'#ff8a5c', g:'⚔', n:'Battle' },   ELITE:{ c:'#ff5d7a', g:'☠', n:'Elite' },
+      REST:    { c:'#6ee07f', g:'⛺', n:'Rest' },     TREASURE:{ c:'#ffd97a', g:'✦', n:'Cache' },
+      BROKER:  { c:'#63d6d0', g:'⚖', n:'Broker' },   SMITH:{ c:'#a0aab4', g:'⚒', n:'Smith' },
+      EVENT:   { c:'#c896ff', g:'?', n:'Event' },     BOSS:{ c:'#ff501e', g:'♛', n:'Boss' }
+    };
+    // Floors bottom → top; x in 0..4. Edges link to indexes on the next floor.
+    var FLOORS = [
+      [{ x:2, t:'BATTLE', e:[0,1,2] }],
+      [{ x:0.8, t:'BATTLE', e:[0] }, { x:2, t:'EVENT', e:[0,1] }, { x:3.2, t:'BATTLE', e:[1] }],
+      [{ x:1.2, t:'TREASURE', e:[0,1] }, { x:2.8, t:'BATTLE', e:[1,2] }],
+      [{ x:0.6, t:'ELITE', e:[0] }, { x:2, t:'BATTLE', e:[0,1] }, { x:3.4, t:'BROKER', e:[1] }],
+      [{ x:1.3, t:'REST', e:[0,1] }, { x:2.9, t:'EVENT', e:[1] }],
+      [{ x:1, t:'BATTLE', e:[0] }, { x:3, t:'SMITH', e:[0,1] }],
+      [{ x:1.4, t:'ELITE', e:[0] }, { x:3, t:'BATTLE', e:[0] }],
+      [{ x:2, t:'REST', e:[0] }],
+      [{ x:2, t:'BOSS', e:[] }]
+    ];
+    var PATH = [[0,0],[1,1],[2,1],[3,1],[4,0],[5,1],[6,1],[7,0],[8,0]];
+    var DETAIL = {
+      '0,0': ['Ash Road Skirmish', 'Won in 3 turns. Bearby took the opening hits.', ['w|Victory', 'g|+18 gold']],
+      '1,1': ['Lost Caravan', 'Freed a trapped peddler; took the reward over the relic.', ['g|+30 gold', 'r|−4 HP Pylord']],
+      '2,1': ['Gatehouse Watch', 'Won in 4 turns with one Siegeling downed.', ['w|Victory', 'g|+22 gold', '|Card: Staticap']],
+      '3,1': ['Moat Crossing', 'Won in 2 turns.', ['w|Victory', 'g|+20 gold']],
+      '4,0': ['Frost Shelter', 'Rested — the party recovered 40% HP.', ['w|+40% HP']],
+      '5,1': ['Smith of the Keep', 'Upgraded Pylord’s Magma Fist.', ['g|−45 gold', '|Magma Fist+']],
+      '6,1': ['Rampart Breach', 'Won in 5 turns; Conchious fell.', ['w|Victory', 'g|+26 gold', 'r|Conchious downed']],
+      '7,0': ['Throne Approach', 'Rested before the boss.', ['w|+40% HP']],
+      '8,0': ['The Frost Throne', 'Glaciemperor’s Blizzard Crown swept the warband on turn 6.', ['r|Defeat', '|Boss at 31% HP']]
+    };
+    var W = 358, H = 470, padY = 30, stepY = (H - padY * 2) / (FLOORS.length - 1);
+    function pos(f, n) { return { x:30 + FLOORS[f][n].x / 4 * (W - 60), y:H - padY - f * stepY }; }
+    function onPath(f, n) { return PATH.some(function (p) { return p[0] === f && p[1] === n; }); }
+    function pathEdge(f, n, m) {
+      for (var k = 0; k < PATH.length - 1; k++) if (PATH[k][0] === f && PATH[k][1] === n && PATH[k + 1][1] === m) return true;
+      return false;
+    }
+
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '">';
+    FLOORS.forEach(function (fl, f) {
+      fl.forEach(function (nd, n) {
+        nd.e.forEach(function (m) {
+          var a = pos(f, n), b = pos(f + 1, m), lit = pathEdge(f, n, m);
+          svg += '<line x1="' + a.x + '" y1="' + a.y + '" x2="' + b.x + '" y2="' + b.y + '" stroke="' + (lit ? '#ffd97a' : 'rgba(164,163,214,.22)') +
+            '" stroke-width="' + (lit ? 3.5 : 1.5) + '"' + (lit ? '' : ' stroke-dasharray="4 5"') + ' stroke-linecap="round"/>';
+        });
+      });
+    });
+    FLOORS.forEach(function (fl, f) {
+      fl.forEach(function (nd, n) {
+        var p = pos(f, n), ty = TYPES[nd.t], visited = onPath(f, n), r = nd.t === 'BOSS' ? 20 : 14;
+        svg += '<g class="node" data-node="' + f + ',' + n + '" opacity="' + (visited ? 1 : .35) + '">' +
+          '<circle class="ring" cx="' + p.x + '" cy="' + p.y + '" r="' + (r + 4) + '" fill="none" stroke="transparent"/>' +
+          '<circle class="base" cx="' + p.x + '" cy="' + p.y + '" r="' + r + '" fill="' + (visited ? ty.c : '#241c5c') + '" stroke="' + ty.c + '" stroke-width="2"/>' +
+          '<text x="' + p.x + '" y="' + (p.y + 5) + '" text-anchor="middle" font-size="' + (r - 1) + '" fill="' + (visited ? '#120c30' : ty.c) + '">' + ty.g + '</text>' +
+          (f === 8 ? '<text x="' + (p.x + 26) + '" y="' + (p.y + 5) + '" font-size="18" fill="#ff7d6b">✕</text>' : '') +
+        '</g>';
+      });
+      svg += '<text x="6" y="' + (pos(f, 0).y + 4) + '" font-size="9" fill="rgba(164,163,214,.5)">' + (f + 1) + '</text>';
+    });
+    svg += '</svg>';
+
+    var s = document.getElementById('s-siege');
+    s.innerHTML =
+      '<div class="topbar"><button class="back" data-go="recent">‹</button><h3>Siege Run</h3><span class="pill">Act 1</span></div>' +
+      '<div class="scroll">' +
+        '<div class="run-head"><span class="knight">P</span><span class="t"><b>Fell at the Frost Throne</b><span>Lady Pyla · Floor 9 of 9 · 4 battles won · +116 gold</span></span></div>' +
+        '<div class="warband"><span style="--el:var(--fire)">Bearby</span><span style="--el:var(--fire)">Pylord</span><span style="--el:var(--water)">Conchious</span><span style="--el:var(--electric)">Staticap</span></div>' +
+        '<div class="map-wrap">' + svg + '</div>' +
+        '<div class="legend">' + Object.keys(TYPES).map(function (k) {
+          return '<span><i style="background:' + TYPES[k].c + '">' + TYPES[k].g + '</i>' + TYPES[k].n + '</span>';
+        }).join('') + '</div>' +
+        '<div class="node-card" id="nc"></div>' +
+        '<div class="route" id="rt">' + PATH.map(function (p) {
+          var ty = TYPES[FLOORS[p[0]][p[1]].t];
+          return '<button data-node="' + p.join(',') + '"><i style="background:' + ty.c + '">' + ty.g + '</i>F' + (p[0] + 1) + '</button>';
+        }).join('') + '</div>' +
+      '</div>';
+
+    function select(id) {
+      var parts = id.split(','), nd = FLOORS[+parts[0]][+parts[1]], ty = TYPES[nd.t], d = DETAIL[id];
+      s.querySelectorAll('.node').forEach(function (g) { g.classList.toggle('sel', g.getAttribute('data-node') === id); });
+      s.querySelectorAll('#rt button').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-node') === id); });
+      s.querySelector('#nc').innerHTML = d
+        ? '<small>Floor ' + (+parts[0] + 1) + ' · ' + ty.n + '</small><h5>' + d[0] + '</h5><p>' + d[1] + '</p>' +
+          '<div class="chips">' + d[2].map(function (c) { var q = c.split('|'); return '<span class="' + q[0] + '">' + q[1] + '</span>'; }).join('') + '</div>'
+        : '<small>Floor ' + (+parts[0] + 1) + ' · ' + ty.n + '</small><h5>Not taken</h5><p>This branch was on the map but the warband chose another road.</p>';
+    }
+    s.addEventListener('click', function (e) {
+      var n = e.target.closest('[data-node]');
+      if (n) select(n.getAttribute('data-node'));
+    });
+    select('8,0');
+  })();
+
+  var want = (location.search.match(/screen=(\w+)/) || [])[1];
+  var first = SLOTS.some(function (s) { return s[0] === want; }) ? want : 'recent';
+  document.querySelectorAll('.slot').forEach(function (sl) { sl.classList.toggle('on', sl.getAttribute('data-slot') === first); });
+  tabs.querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-go') === first); });
+  window.addEventListener('resize', function () { Replay.redraw(); });
+  if (want && window.matchMedia('(min-width:701px)').matches) show(want);
+})();
+</script>
+</body>
+</html>
