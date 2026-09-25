@@ -1,4 +1,23 @@
 Original prompt: Merge and deploy
+- September 25, 2026 - **#972 merged and deployed; verified live.** The match review / replay / Siege route preview merged as `5792bb00`. Deploy run [36188305562](https://github.com/SiegelingsGame/SiegelingTCG/actions/runs/36188305562) succeeded for both Cloud Run and Firebase. The live `/match-review-preview.html` is byte-identical to `main`. `/api/cards/editor` reports FIRESTORE / live editing / Firestore available. `js/config.js` keeps `apiBaseUrl: ''`. `/api/game/options` returns 200 in 1.5s.
+- September 25, 2026 - **Battle loadout: the Loadout (review) step drops its repeated text and fits one phone screen.**
+  - **Repeated text removed.** In `renderSelectedLoadoutPreview` (`js/game.js`), the deck blurb rendered twice (as the description and again as "Strategy"), under a "Selected Loadout" kicker and above a separate Playstyle row. Once each now: the kicker is gone, Playstyle is a chip next to the element in the title row, and the Strategy label, its duplicate paragraph and the "Deck Strengths" label are gone (the trait chips stay). The fixed "Keep a 0-cost starter..." paragraph is gone; the Opening Keeps cards keep their "0-cost starter" tags. "Cards That Evolve" is now "Evolves".
+  - **Phone layout.** In `css/play-next.css`, portrait <=900px, the review step keys off `data-loadout-step="review"`, the same way the Deck and SiegeKnight steps already do:
+    - The box stops scrolling.
+    - The hero shrinks to a thin band, and the four step chips share one row.
+    - The swap dropdowns are compact. They use `minmax(0,1fr)` columns: a plain `1fr` let "Lady Pyla - Fire" push the second select off the screen.
+    - The panel is the one flexing region.
+    - The trait, opening-keep, evolution and recommended-knight rows are single swipeable lines, so a long deck costs width rather than height.
+    - The nav summary ("Deck: ... | SiegeKnight: ...") is hidden, because it repeats the dropdowns directly above it.
+  - **Short phones** (<=760px tall): the hero keeps only its kicker and close button, the commander art shrinks to 52px, and the Recommended SiegeKnights row is dropped. The panel keeps `overflow-y:auto` only as a fallback.
+  - **Desktop:** the same markup, with the evolution pairs as one wrapped row.
+  - Cache bumps: `game.js` -> `?v=303` in `play.html`, `home.html`, `home-next.html` and `card-dashboard.html`; `play-next.css` -> `?v=8`.
+- Verification: `node --check js/game.js`. Local Spring Boot (`mvn spring-boot:run`) with `/battle` driven in headless Chromium into the review step with Blazing Core and Lady Pyla. Blazing Core is the densest local preset: 4 opening keeps and 5 evolutions. Page errors: none.
+  - **Before (390x844):** `.loadout-box` scrolled 412px, and the commander sat at 959-1086.
+  - **After:** box scroll 0 and panel scroll 0 at 390x844, 430x932 and 375x667. The commander ends at 631 (390), 631 (430) and 489 (375), above a nav bottom of 844/932/667. The summary computes `display:none`. The select right edges are 191 and 376, inside 390.
+  - **320x568:** everything fits except a 66px inner panel scroll (the fallback). The page itself does not scroll.
+  - **1920x1080:** box scroll 0, the summary still shows, and the evolutions sit on one row.
+  - Screenshots were reviewed at 390, 375 and 1920. They caught the knight select overflowing and the commander art overlapping its text on short screens, and both were fixed.
 - September 25, 2026 - **Siege review preview: who was fought and what changed hands at each stop.** `match-review-preview.html` Siege frame now captions every stop on the map (e.g. "Bought Boots, Potion", "Iron Charm ⇄ Revive", "Magma Fist 5 → 7") and adds run totals (battles 3–1, gold earned/spent, cards). Tapping a stop opens a typed detail sheet that uses real Siege names (`SiegeLand` event titles, `SiegeItem` items):
   - **Battles and the boss:** the enemy warband with HP left or Defeated, your warband as it stood then with who fell, turns, MVP, items used, and the card reward picked and skipped.
   - **Broker:** a bought/sold ledger with prices, plus the items passed on.
