@@ -6,18 +6,22 @@ import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.MatchHistoryEntity;
 import com.sieglings.persistence.firestore.AccountUserStore;
 import com.sieglings.persistence.firestore.MatchHistoryStore;
+import com.sieglings.persistence.firestore.MatchReviewStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class MatchHistoryService {
 
     private static final Logger logger = LoggerFactory.getLogger(MatchHistoryService.class);
+    private static final int STARTING_HEALTH = 50;
 
     @Autowired
     private MatchHistoryStore matchHistoryStore;
@@ -27,6 +31,10 @@ public class MatchHistoryService {
 
     @Autowired
     private PlayerProgressionService playerProgressionService;
+
+    /** Optional so history still records if the review store is missing (unit tests). */
+    @Autowired(required = false)
+    private MatchReviewStore matchReviewStore;
 
     public List<MatchHistoryEntity> listRecent(AccountUser user) {
         return matchHistoryStore.findTop12ByUserOrderByFinishedAtDesc(user.getId());
@@ -83,10 +91,44 @@ public class MatchHistoryService {
         history.setOpponentHealthRemaining(opponent.getHealth());
         history.setPlayerEnergyRemaining(totalEnergy(player));
         history.setGameLog(state.getGameLog() == null ? List.of() : List.copyOf(state.getGameLog()));
+        history.setHasReplay(saveReplay(state, history, isPlayerSide, player, opponent));
         matchHistoryStore.save(history);
         playerProgressionService.awardMatchGold(history);
         logger.info("Recorded {} match history {} for user {}.", history.getMatchType(), history.getId(), user.getId());
         return true;
+    }
+
+    /**
+     * Writes the board replay before the history row, so a row only claims a
+     * replay that exists. A failure here is logged and the row is saved without
+     * one: a review is a convenience and must never cost a player their record
+     * or match gold.
+     */
+    private boolean saveReplay(GameState state, MatchHistoryEntity history, boolean isPlayerSide,
+                               Player player, Player opponent) {
+        if (matchReviewStore == null || state.getReplay() == null || state.getReplay().isEmpty()) {
+            return false;
+        }
+        try {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("userId", history.getUserId());
+            payload.put("finishedAt", history.getFinishedAt());
+            // Frames are always stored from the engine's player/enemy view; the
+            // viewer side tells the client which half of the board is "you".
+            payload.put("viewerSide", isPlayerSide ? "p" : "e");
+            payload.put("playerName", state.getPlayer().getName());
+            payload.put("enemyName", state.getEnemy().getName());
+            payload.put("viewerName", player.getName());
+            payload.put("opponentName", opponent.getName());
+            payload.put("startingHealth", STARTING_HEALTH);
+            payload.put("cards", state.getReplay().cards());
+            payload.put("frames", state.getReplay().frames());
+            matchReviewStore.saveReplay(history.getId(), payload);
+            return true;
+        } catch (RuntimeException ex) {
+            logger.warn("Unable to save replay for match history {}; recording without one.", history.getId(), ex);
+            return false;
+        }
     }
 
     private int totalEnergy(Player player) {

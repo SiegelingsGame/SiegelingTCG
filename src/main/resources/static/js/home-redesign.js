@@ -3874,11 +3874,20 @@
   // rather than decorated with fiction. Recent now reads the account's own
   // match history, which /api/player/progression really does return.
   function recentMarkup(opts) {
-    var hist = (opts.live && opts.live.matchHistory) || [];
-    if (!hist.length) {
+    var live = opts.live || {};
+    var review = window.SiegelingsMatchReview;
+    var hist = live.matchHistory || [];
+    var sieges = live.siegeHistory || [];
+    if (!hist.length && !sieges.length) {
       return '<div class="sg-empty-row">' +
         esc(opts.guest ? 'Sign in to keep a match record.' : 'No matches recorded yet.') +
       '</div>';
+    }
+    // Each row opens its review (js/match-review.js); without that script the
+    // list still renders as plain rows.
+    if (review) {
+      return '<div class="sg-stack sg-stack-tight">' +
+        review.mergeRecent(hist, sieges, 5).map(review.rowMarkup).join('') + '</div>';
     }
     return '<div class="sg-stack sg-stack-tight">' + hist.slice(0, 5).map(function (m) {
       var won = m.result === 'WIN' || m.result === 'win' || m.won === true;
@@ -5599,6 +5608,7 @@
     var rate = stats.matches ? (stats.winRate != null ? stats.winRate : 0) + '%' : '\u2014';
 
     var matches = Array.isArray(res.recentMatches) ? res.recentMatches : null;
+    var sieges = Array.isArray(res.recentSiegeRuns) ? res.recentSiegeRuns : [];
 
     return '<button class="sg-sheet-dismiss" type="button" aria-label="Close profile"></button>' +
       '<div class="sg-friend-view">' +
@@ -5635,6 +5645,9 @@
         '<section class="sg-section"><div class="sg-section-head"><h3>Recent</h3></div>' +
           (matches === null
             ? '<div class="sg-empty-row">Add ' + esc(name) + ' as a friend to see their match record.</div>'
+            : (matches.length || sieges.length) && window.SiegelingsMatchReview
+              ? '<div class="sg-stack sg-stack-tight">' + window.SiegelingsMatchReview.mergeRecent(matches, sieges, 5)
+                  .map(window.SiegelingsMatchReview.rowMarkup).join('') + '</div>'
             : matches.length
               ? '<div class="sg-stack sg-stack-tight">' + matches.slice(0, 5).map(function (m) {
                   var won = String(m.result || '').toUpperCase() === 'WIN';

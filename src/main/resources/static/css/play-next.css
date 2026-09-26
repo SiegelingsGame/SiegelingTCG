@@ -477,3 +477,261 @@
         flex: 1 0 auto;
     }
 }
+
+/* ---- Loadout (review) step on a phone: one screen, no scroll ----
+   The last step is a confirmation, but it ran ~400px past the fold: the full
+   hero, a second row for the fourth step chip, and a panel whose chip rows
+   wrapped. The box stops scrolling here and the panel becomes the one flexing
+   region. Chip rows (traits, opening keeps, evolutions, recommended knights)
+   are single swipeable lines, so a long deck costs width rather than height;
+   the panel keeps overflow-y:auto only as a fallback for SE-class screens.
+   The nav summary goes too: it repeats the two dropdowns directly above. */
+@media (max-width: 900px) and (orientation: portrait) {
+    .loadout-overlay[data-loadout-step="review"] .loadout-box {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .loadout-overlay[data-loadout-step="review"] .loadout-hero {
+        flex: 0 0 auto;
+        min-height: 0;
+        margin-bottom: 8px;
+        padding-top: 12px;
+        padding-bottom: 12px;
+        background-position: center, center 30%;
+    }
+
+    .loadout-overlay[data-loadout-step="review"] .loadout-hero::after {
+        height: 28px;
+    }
+
+    .loadout-overlay[data-loadout-step="review"] .loadout-hero .loadout-copy {
+        display: none;
+    }
+
+    .loadout-overlay[data-loadout-step="review"] h2 {
+        font-size: 1.5rem;
+        margin-bottom: 0;
+    }
+
+    .loadout-overlay[data-loadout-step="review"] .loadout-close-btn {
+        top: 10px;
+        width: 36px;
+        height: 36px;
+    }
+
+    .loadout-overlay[data-loadout-step="review"] .loadout-steps {
+        flex: 0 0 auto;
+        flex-wrap: nowrap;
+        gap: 6px;
+        margin-bottom: 8px;
+    }
+
+    .loadout-overlay[data-loadout-step="review"] .loadout-step-chip {
+        min-width: 0;
+        gap: 5px;
+        padding: 7px 6px;
+        font-size: 0.6rem;
+        letter-spacing: 0.02em;
+    }
+
+    .loadout-overlay[data-loadout-step="review"] .loadout-step-chip .loadout-step-num {
+        width: 18px;
+        height: 18px;
+    }
+
+    .loadout-overlay[data-loadout-step="review"] :is(.loadout-core, .loadout-step.active) {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .loadout-overlay[data-loadout-step="review"] .loadout-swap-bar {
+        flex: 0 0 auto;
+        /* 1fr alone lets a long knight name's intrinsic width push the second
+           select off the screen. */
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+
+    .loadout-overlay[data-loadout-step="review"] .loadout-swap-field {
+        gap: 4px;
+        font-size: 0.62rem;
+    }
+
+    .loadout-overlay[data-loadout-step="review"] .loadout-swap-field select {
+        width: 100%;
+        min-width: 0;
+        padding: 8px 10px;
+        font-size: 0.85rem;
+        text-overflow: ellipsis;
+    }
+
+    .loadout-overlay[data-loadout-step="review"] .selected-loadout-panel {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding: 14px 14px 12px;
+        border-radius: 20px;
+    }
+
+    .loadout-overlay[data-loadout-step="review"] #savedDecksSection {
+        display: none;
+    }
+
+    .loadout-overlay[data-loadout-step="review"] .selected-loadout-title-row {
+        margin-top: 0;
+        align-items: center;
+    }
+
+    .loadout-overlay[data-loadout-step="review"] .selected-loadout-title-row h3 {
+        font-size: 1.35rem;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .loadout-overlay[data-loadout-step="review"] .selected-loadout-description {
+        margin: 8px 0 0;
+        font-size: 0.82rem;
+        line-height: 1.4;
+    }
+
+    .loadout-overlay[data-loadout-step="review"] .selected-loadout-section {
+        margin-top: 10px;
+    }
+
+    .loadout-overlay[data-loadout-step="review"] :is(.selected-loadout-traits, .selected-loadout-recs, .selected-loadout-opening-cards, .selected-loadout-evolutions) {
+        flex-direction: row;
+        flex-wrap: nowrap;
+        gap: 6px;
+        margin-top: 6px;
+        overflow-x: auto;
+        touch-action: pan-x;
+        scrollbar-width: none;
+    }
+
+    .loadout-overlay[data-loadout-step="review"] :is(.selected-loadout-traits, .selected-loadout-recs, .selected-loadout-opening-cards, .selected-loadout-evolutions)::-webkit-scrollbar {
+        display: none;
+    }
+
+    .loadout-overlay[data-loadout-step="review"] :is(.selected-loadout-traits span, .selected-loadout-recs span, .loadout-opening-card, .loadout-evolution) {
+        flex: 0 0 auto;
+        white-space: nowrap;
+        padding: 5px 9px;
+        font-size: 0.72rem;
+    }
+
+    .loadout-overlay[data-loadout-step="review"] .loadout-evolution {
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.045);
+    }
+
+    .loadout-overlay[data-loadout-step="review"] .preview-knight-card {
+        margin-top: 6px;
+        padding: 8px;
+        gap: 10px;
+    }
+
+    .loadout-overlay[data-loadout-step="review"] .preview-knight-ability {
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .loadout-overlay[data-loadout-step="review"] .loadout-nav {
+        flex: 0 0 auto;
+        padding-top: 8px;
+    }
+
+    .loadout-overlay[data-loadout-step="review"] .loadout-nav .loadout-summary {
+        display: none;
+    }
+
+    .loadout-overlay[data-loadout-step="review"] .loadout-nav :is(.loadout-back-btn, .loadout-start-btn) {
+        padding-top: 12px;
+        padding-bottom: 12px;
+    }
+}
+
+/* Element and playstyle side by side under any width; the playstyle chip is
+   the old Playstyle row folded into the title. */
+.selected-loadout-tags {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 6px;
+}
+
+.selected-loadout-tags > span {
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--loadout-accent) 56%, rgba(255, 255, 255, 0.12));
+    background: var(--loadout-accent-soft);
+    color: #f9f7ef;
+    padding: 6px 9px;
+    font-size: 0.72em;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.selected-loadout-tags > span.is-playstyle {
+    border-color: rgba(255, 233, 145, 0.4);
+    background: rgba(255, 233, 145, 0.08);
+    color: #ffe991;
+}
+
+.selected-loadout-recs span.is-picked {
+    border-color: rgba(255, 233, 145, 0.6);
+    color: #ffe991;
+}
+
+/* Short phones (SE-class and below): the hero keeps only its kicker and close
+   button, the commander art shrinks, and the recommended-knight row (advice
+   the knight step already acted on) gives way so the commander stays in view. */
+@media (max-width: 900px) and (orientation: portrait) and (max-height: 760px) {
+    .loadout-overlay[data-loadout-step="review"] .loadout-hero {
+        padding-top: 10px;
+        padding-bottom: 10px;
+        margin-bottom: 6px;
+    }
+
+    .loadout-overlay[data-loadout-step="review"] .loadout-hero :is(h2, .loadout-local-dev) {
+        display: none;
+    }
+
+    .loadout-overlay[data-loadout-step="review"] .selected-loadout-section.is-recs {
+        display: none;
+    }
+
+    .loadout-overlay[data-loadout-step="review"] .selected-loadout-description {
+        font-size: 0.78rem;
+    }
+
+    .loadout-overlay[data-loadout-step="review"] .preview-knight-card {
+        grid-template-columns: 52px minmax(0, 1fr);
+        padding: 6px 8px;
+    }
+
+    .loadout-overlay[data-loadout-step="review"] .preview-knight-card .preview-knight-icon.has-knight-art {
+        width: 52px;
+    }
+}
+
+/* Wider screens: the rows under a label need a gap below it, and the evolution
+   pairs read as one wrapped row rather than a five-line column. */
+.selected-loadout-opening-cards,
+.selected-loadout-evolutions {
+    margin-top: 8px;
+}
+
+.selected-loadout-evolutions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+}

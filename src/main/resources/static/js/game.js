@@ -11753,7 +11753,7 @@ function renderSelectedLoadoutPreview() {
     if (!previewEl || !panel) return;
 
     if (!gameOptions) {
-        previewEl.innerHTML = `<div class="selected-loadout-kicker">Selected Loadout</div><div class="selected-loadout-empty">Loading deck and SiegeKnight choices...</div>`;
+        previewEl.innerHTML = `<div class="selected-loadout-empty">Loading deck and SiegeKnight choices...</div>`;
         return;
     }
 
@@ -11794,34 +11794,29 @@ function renderSelectedLoadoutPreview() {
 
     const evolutionLines = getDeckEvolutionLines();
     const openingHints = getDeckOpeningHandHints();
-    const strategyDescription = theme.description || deck?.description || 'Tune your list, choose a commander, and bring your preferred plan into battle.';
+    // The deck blurb is shown once. It used to render twice (as the description
+    // and again as "Strategy"), under a "Selected Loadout" kicker and above a
+    // Playstyle row, while the swap dropdowns above and the nav summary below
+    // both repeated the deck and SiegeKnight names; on a phone that pushed
+    // the commander below the fold. What remains is only what the dropdowns
+    // don't already say, sized to fit one screen.
+    const description = theme.description || deck?.description || 'Pick a deck to preview its battle plan.';
     const openingBlock = openingHints.length
-        ? `<div class="selected-loadout-opening-block">
-                <div class="selected-loadout-subtle-label">Opening Hand Keeps</div>
-                <p class="selected-loadout-opening-copy">Keep a 0-cost starter Siegling so you can place one on turn one, or mulligan toward one if your hand opens slow.</p>
+        ? `<div class="selected-loadout-section">
+                <div class="selected-loadout-label">Opening Keeps</div>
                 <div class="selected-loadout-opening-cards">
                     ${openingHints.map(card => `<span class="loadout-opening-card" style="--opening-el:${getElementHex(card.element)}"><strong>${escapeHtml(card.name)}</strong><em>${escapeHtml(card.reason)}</em></span>`).join('')}
                 </div>
             </div>`
         : '';
     const evolutionBlock = evolutionLines.length
-        ? `<div class="selected-loadout-evolution-block">
-                <div class="selected-loadout-subtle-label">Cards That Evolve</div>
+        ? `<div class="selected-loadout-section">
+                <div class="selected-loadout-label">Evolves</div>
                 <div class="selected-loadout-evolutions">
-                    ${evolutionLines.map(line => `<span class="loadout-evolution"><strong>${escapeHtml(line.name)}</strong> &#9666; from ${escapeHtml(line.from)}</span>`).join('')}
+                    ${evolutionLines.map(line => `<span class="loadout-evolution"><strong>${escapeHtml(line.name)}</strong> &#9666; ${escapeHtml(line.from)}</span>`).join('')}
                 </div>
             </div>`
         : '';
-    const strategySection = `<div class="selected-loadout-section selected-loadout-strategy">
-            <div class="selected-loadout-label">Strategy</div>
-            <p class="selected-loadout-strategy-copy">${escapeHtml(strategyDescription)}</p>
-            <div class="selected-loadout-subtle-label">Deck Strengths</div>
-            <div class="selected-loadout-traits">
-                ${traits.map(trait => `<span>${escapeHtml(trait)}</span>`).join('')}
-            </div>
-            ${openingBlock}
-            ${evolutionBlock}
-        </div>`;
 
     const trainerSummary = trainer
         ? `<div class="preview-knight-card">
@@ -11835,21 +11830,23 @@ function renderSelectedLoadoutPreview() {
         : `<div class="selected-loadout-empty">Choose a SiegeKnight to complete the loadout.</div>`;
 
     previewEl.innerHTML = `
-        <div class="selected-loadout-kicker">Selected Loadout</div>
         <div class="selected-loadout-title-row">
             <h3>${escapeHtml(deckName)}</h3>
-            <span>${escapeHtml(elementLabel || formatElementLabel(element))}</span>
+            <div class="selected-loadout-tags">
+                <span>${escapeHtml(elementLabel || formatElementLabel(element))}</span>
+                <span class="is-playstyle">${escapeHtml(theme.playstyle || 'Balanced')}</span>
+            </div>
         </div>
-        <p class="selected-loadout-description">${escapeHtml(theme.description || deck?.description || 'Pick a deck to preview its battle plan.')}</p>
-        <div class="selected-loadout-playstyle">
-            <span>Playstyle</span>
-            <strong>${escapeHtml(theme.playstyle || 'Balanced')}</strong>
+        <p class="selected-loadout-description">${escapeHtml(description)}</p>
+        <div class="selected-loadout-traits">
+            ${traits.map(trait => `<span>${escapeHtml(trait)}</span>`).join('')}
         </div>
-        ${strategySection}
-        <div class="selected-loadout-section">
+        ${openingBlock}
+        ${evolutionBlock}
+        <div class="selected-loadout-section is-recs">
             <div class="selected-loadout-label">Recommended SiegeKnights</div>
             <div class="selected-loadout-recs">
-                ${recommendedNames.length ? recommendedNames.map(name => `<span>${escapeHtml(name)}</span>`).join('') : '<span>Any commander that matches your custom plan</span>'}
+                ${recommendedNames.length ? recommendedNames.map(name => `<span${name === trainer?.name ? ' class="is-picked"' : ''}>${escapeHtml(name)}</span>`).join('') : '<span>Any commander that matches your custom plan</span>'}
             </div>
         </div>
         <div class="selected-loadout-section">

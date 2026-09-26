@@ -23,6 +23,16 @@ public class MatchHistoryEntity {
     private int opponentHealthRemaining;
     private int playerEnergyRemaining;
     private List<String> gameLog = new ArrayList<>();
+    /** True when a board replay was saved for this row (MatchReviewStore#findReplay). */
+    private boolean hasReplay;
+
+    public boolean isHasReplay() {
+        return hasReplay;
+    }
+
+    public void setHasReplay(boolean hasReplay) {
+        this.hasReplay = hasReplay;
+    }
 
     public String getId() {
         return id;

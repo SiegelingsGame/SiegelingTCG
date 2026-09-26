@@ -40,6 +40,9 @@ public class PublicProfileService {
     @Autowired
     private FriendRequestStore friendRequestStore;
 
+    @Autowired
+    private MatchReviewService matchReviewService;
+
     public Map<String, Object> buildPublicProfile(AccountUser viewer, String targetUserId) {
         String normalized = normalizeUserId(targetUserId);
         AccountUser target = accountService.findByEmail(normalized);
@@ -68,6 +71,9 @@ public class PublicProfileService {
         response.put("stats", buildStats(target));
         if (friend || self) {
             response.put("recentMatches", loadRecentMatches(target));
+            // Kept apart from recentMatches, which the profile's win rate and
+            // match count are read from: a Siege run is not a battle.
+            response.put("recentSiegeRuns", matchReviewService.recentSiegeRuns(target, 8));
         }
         return response;
     }
@@ -111,23 +117,7 @@ public class PublicProfileService {
     }
 
     private Map<String, Object> serializeMatch(MatchHistoryEntity history) {
-        Map<String, Object> row = new LinkedHashMap<>();
-        row.put("id", history.getId());
-        row.put("result", history.getResult());
-        row.put("matchType", history.getMatchType());
-        row.put("opponentName", history.getOpponentName());
-        row.put("finishedAt", history.getFinishedAt() == null ? null : history.getFinishedAt().toString());
-        row.put("loadoutLabel", history.getLoadoutLabel());
-        row.put("trainerName", history.getTrainerName());
-        row.put("turnNumber", history.getTurnNumber());
-        row.put("spellsCast", history.getSpellsCast());
-        row.put("trapsSprung", history.getTrapsSprung());
-        row.put("siegelingsDefeated", history.getSiegelingsDefeated());
-        row.put("playerHealthRemaining", history.getPlayerHealthRemaining());
-        row.put("opponentHealthRemaining", history.getOpponentHealthRemaining());
-        row.put("playerEnergyRemaining", history.getPlayerEnergyRemaining());
-        row.put("gameLog", history.getGameLog() == null ? List.of() : history.getGameLog());
-        return row;
+        return MatchReviewService.serializeMatch(history);
     }
 
     private String normalizeUserId(String userId) {

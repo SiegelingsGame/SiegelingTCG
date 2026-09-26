@@ -179,6 +179,9 @@
           ownedCards: (progression && progression.ownedCards) || null,
           // Match history lives on the profile, never on the progression record.
           matchHistory: (me && me.matchHistory) || null,
+          // Finished Siege runs, listed beside battles in Recent but kept out of
+          // matchHistory so the win rate stays a battle win rate.
+          siegeHistory: (me && me.siegeHistory) || [],
           missions: (missions && !missions.error && (missions.missions || missions.daily)) || null,
           packs: (shop && shop.packs ? shop.packs.filter(function (pk) { return pk && pk.active !== false; }) : null),
           friends: (presence && !presence.error && presence.friends) || (me && me.friends) || null,
