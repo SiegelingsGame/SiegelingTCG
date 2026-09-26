@@ -87,8 +87,7 @@
 
   // Cinematic gallery plates. Unlike the overlay cutouts these are whole scenes,
   // so they carry the hero on their own and only need a scrim for the copy.
-  // Ordered so the rotation alternates elements rather than running four fire
-  // scenes back to back. `portrait` plates also ship a 9:16 file, which a
+  // Every plate the hub owns. `portrait` plates also ship a 9:16 file, which a
   // portrait screen uses instead of cropping a 16:9 band out of a tall scene.
   // Surfaces that want one particular scene name it with scene(id), never by
   // position, so reordering or adding plates cannot swap their art.
@@ -100,8 +99,13 @@
     { img: 'hurricrane-skyruins', card: 'hurricrane', title: 'First Flight',       place: 'The Pillared Heights', portrait: true },
     { img: 'draco-brood',         card: 'draco',      title: 'The Cinder Brood',   place: 'Moltenmaw Basin' },
     { img: 'bearby-blastoff',     card: 'bearby',     title: 'Blast Off',          place: 'Emberwaste Gate' },
-    { img: 'bearnade-payload',    card: 'bearnade',   title: 'Payload Away',       place: 'The Sunken Span' }
+    { img: 'bearnade-payload',    card: 'bearnade',   title: 'Payload Away',       place: 'The Sunken Span' },
+    { img: 'cactyjackedty-ruins', card: 'cactyjacked-ty', title: 'Deeper Roots',     place: 'The Sunscar Ruins' }
   ];
+  // The home hero shows each of the four main elements exactly once, in the
+  // order of the weakness chart (Fire > Ice > Wind > Earth > Fire), so the
+  // front door never reads as a fire game. Draco is filed as Fire, not Earth.
+  var HERO_SCENES = ['bearby-longfuse', 'frostag-training', 'skydon-skyreach', 'cactyjackedty-ruins'];
   function scene(id) {
     for (var i = 0; i < GALLERY.length; i++) if (GALLERY[i].img === id) return GALLERY[i];
     return GALLERY[0];
@@ -231,8 +235,9 @@
     var creditEl = hero.querySelector('[data-hero-credit]');
     var motes = hero.querySelector('[data-motes]');
 
+    var heroScenes = HERO_SCENES.map(scene);
     function paint(i) {
-      var scene = GALLERY[i % GALLERY.length];
+      var scene = heroScenes[i % heroScenes.length];
       var card = byId(scene.card) || CARDS[0];
       var c = color(card.element);
       hero.style.setProperty('--el', c);
@@ -242,7 +247,7 @@
       creditEl.innerHTML = '<span>' + esc(scene.title) + '</span>' + esc(scene.place);
       paintMotes(motes, card.element);
       var d = '';
-      for (var k = 0; k < GALLERY.length; k++) d += '<i class="sg-dot' + (k === i % GALLERY.length ? ' on' : '') + '"></i>';
+      for (var k = 0; k < heroScenes.length; k++) d += '<i class="sg-dot' + (k === i % heroScenes.length ? ' on' : '') + '"></i>';
       dots.innerHTML = d;
     }
     paint(idx);

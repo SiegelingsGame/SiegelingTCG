@@ -1,4 +1,10 @@
 Original prompt: Merge and deploy
+- September 26, 2026 - **Home hero: one scene per main element.** Requested follow-up to the entry below.
+  - **Rotation.** The hero rotates 4 scenes instead of 8 (`HERO_SCENES` in `home-redesign.js`), in weakness-chart order Fire → Ice → Wind → Earth: Bearby's *The Long Fuse*, Frostag's *Morning Drills*, Skydon's *Above the Skyreach*, and a new Earth plate.
+  - **The Earth plate.** Earth had no gallery scene at all: Draco, whose Siege plate had been tagged EARTH, is filed as FIRE in the catalog. The new plate is `cactyjackedty-ruins` (CactyJacked'ty, Rare Earth): a 16:9 crop, 1536x864 plus a thumb, of the existing `img/art/loading/cactyjackedty-landscape.webp`.
+  - **Rest of `GALLERY`.** All plates remain in `GALLERY` for id lookups and the gallery rail.
+  - **Cache pin:** `home-redesign.js` -> `?v=52`.
+- Verification: headless Chromium at 390x844 on `home-next.html` with `/api/**` stubbed, sampled every 7s. The hero reads Bearby · Fire → Frostag · Ice (portrait file) → Skydon · Wind → CactyJacked'ty · Earth → back to Bearby, with 4 dots. No page errors or failed gallery requests.
 - September 26, 2026 - **Hub art mixed beyond Fire: three new Wind/Ice gallery plates, an element-alternating hero rotation, and Ice/Wind art on the mode buttons.**
   - **Why.** Every gallery plate the hub and its buttons drew from was Fire (Bearby ×2, Bearnade, Bearzooka), plus the fire-lit Draco scene.
   - **New plates** in `img/gallery/`, encoded to WebP with headless Chromium's canvas (the environment has no image tools):
