@@ -397,7 +397,7 @@ public class SiegeEffectTuningService {
             throw new IllegalArgumentException("No settings were sent.");
         }
 
-        TuningFile current = load().file();
+        TuningFile current = loadForPublish().file();
         Map<Effect, EffectOverride> merged = new LinkedHashMap<>();
         for (EffectOverride row : current.effects()) {
             Effect effect = effectOf(row);
@@ -606,6 +606,35 @@ public class SiegeEffectTuningService {
         StoredData stored = loadStored();
         cacheEntry = new CacheEntry(stored, System.currentTimeMillis());
         return stored;
+    }
+
+    /**
+     * The document a publish merges onto. Combat reads may fall back to the
+     * shipped defaults when Firestore blips, but a publish rewrites the whole
+     * tuning document, so that fallback must never be what gets saved — it is
+     * empty in production (there is no classpath copy of the live overrides)
+     * and would erase every effect, global and move pin.
+     */
+    private StoredData loadForPublish() {
+        CacheEntry cached = cacheEntry;
+        if (cached != null && publishesToFirestore()
+                && cached.stored().backend() != CardOverrideStorageService.StorageBackend.FIRESTORE) {
+            // A combat read already cached the fallback. Drop it and try the
+            // live document once more so a recovered Firestore still publishes.
+            cacheEntry = null;
+        }
+        StoredData loaded = load();
+        if (publishesToFirestore()
+                && loaded.backend() != CardOverrideStorageService.StorageBackend.FIRESTORE) {
+            throw new IllegalStateException(
+                    "Siege tuning could not be read from Firestore, so the change was not published.");
+        }
+        return loaded;
+    }
+
+    /** True when a publish replaces the Firestore document rather than a local file. */
+    protected boolean publishesToFirestore() {
+        return storage != null && storage.isFirestoreReady();
     }
 
     /** Overridable for tests: reads the stored overrides from Firestore or the local file. */
