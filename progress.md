@@ -1,4 +1,35 @@
 Original prompt: Merge and deploy
+- September 26, 2026 - **Home hero: one scene per main element.** Requested follow-up to the entry below.
+  - **Rotation.** The hero rotates 4 scenes instead of 8 (`HERO_SCENES` in `home-redesign.js`), in weakness-chart order Fire → Ice → Wind → Earth: Bearby's *The Long Fuse*, Frostag's *Morning Drills*, Skydon's *Above the Skyreach*, and a new Earth plate.
+  - **The Earth plate.** Earth had no gallery scene at all: Draco, whose Siege plate had been tagged EARTH, is filed as FIRE in the catalog. The new plate is `cactyjackedty-ruins` (CactyJacked'ty, Rare Earth): a 16:9 crop, 1536x864 plus a thumb, of the existing `img/art/loading/cactyjackedty-landscape.webp`.
+  - **Rest of `GALLERY`.** All plates remain in `GALLERY` for id lookups and the gallery rail.
+  - **Cache pin:** `home-redesign.js` -> `?v=52`.
+- Verification: headless Chromium at 390x844 on `home-next.html` with `/api/**` stubbed, sampled every 7s. The hero reads Bearby · Fire → Frostag · Ice (portrait file) → Skydon · Wind → CactyJacked'ty · Earth → back to Bearby, with 4 dots. No page errors or failed gallery requests.
+- September 26, 2026 - **Hub art mixed beyond Fire: three new Wind/Ice gallery plates, an element-alternating hero rotation, and Ice/Wind art on the mode buttons.**
+  - **Why.** Every gallery plate the hub and its buttons drew from was Fire (Bearby ×2, Bearnade, Bearzooka), plus the fire-lit Draco scene.
+  - **New plates** in `img/gallery/`, encoded to WebP with headless Chromium's canvas (the environment has no image tools):
+    - `skydon-skyreach` (Skydon, Rare Wind; 1600x900 and a 640x360 thumb).
+    - `hurricrane-skyruins` (the Breezee → Gagglestand → Hurricrane line) and `frostag-training` (Fawny → Chilldoe → Frostag), each with a 16:9 crop framed on the subjects, a thumb, and a 900x1600 `-portrait` file.
+    - Creatures were identified against the catalog's own card art, not guessed.
+  - **Hero rotation.** `GALLERY` in `home-redesign.js` now runs 8 plates in element order Fire → Wind → Ice → Fire → Wind → Earth → Fire → Fire. A portrait screen uses the `-portrait` file for the tall scenes (`heroPlate`) instead of cropping a 16:9 band out of them.
+  - **Stable lookups.** Surfaces that meant one particular scene used to index `GALLERY[n]`; they now name it with `scene(id)`, so reordering the rotation cannot swap their art. The profile crest default, the auth crest and the shop empty state keep their old scenes.
+  - **Re-arted:**
+    - Play → Battle mode plate: Frostag training, ICE.
+    - Play → Siege mode plate: Skydon, WIND.
+    - Shop feature: Skydon.
+    - Signed-out band and empty Hall of Siege: Hurricrane.
+    - Empty lobbies: Frostag. Settings crest: Skydon.
+    - Siege mode picker (`siege-next.css`): Siege card and resume save → Skydon; Battlegrounds card and save → Frostag.
+    - The Battle loadout band (`play-next.css`) keeps Bearzooka.
+  - **Loading screen and Gallery.** `loading-art.js` gets the same 8 scenes, with portrait files for the tall two, so the boot screens and the Gallery page show them too.
+  - **Credit legibility.** The hero's scene credit was gold text over the plate with only a blurred shadow; it disappeared on the bright sky and snow scenes. It now sits on a soft dark backing.
+  - **Cache pins:** `home-redesign.js` -> `?v=51`, `home-redesign.css` -> `?v=61` (`home-next.html`, `home-redesign-preview.html`); `loading-art.js` -> `?v=4` (`adventure.html`, `home-next.html`, `home.html`, `play.html`); `siege-next.css` -> `?v=7`.
+- Verification: `node --check` on `home-redesign.js` and `loading-art.js`. Headless Chromium on `home-next.html` and `adventure.html` at 390x844 and 1920x1080, with `/api/**` stubbed:
+  - **Hero:** paints Bearby (Fire), then Skydon (Wind · Rare), then Frostag (Ice · Rare) at 7s intervals, across 8 dots. On the phone Frostag loads `frostag-training-portrait.webp`; on desktop the 16:9 files are used.
+  - **Play:** the Battle and Siege plates load `frostag-training.webp` (941px) and `skydon-skyreach.webp` (1600px).
+  - **Gallery screen:** lists 8 pieces.
+  - **Siege mode picker:** computed backgrounds are Skydon / Frostag / Bearby.
+  - No page errors and no failed `/img/gallery/` requests. Screenshots reviewed; they led to the credit backing.
 - September 25, 2026 (deploy) PR #974 squash-merged to `main` as `c98b2770`; the Deploy workflow shipped it. Verified live at `https://siegelingstcgtesting.web.app`: `/play` and `/home` both serve `game.js?v=303`. The served `game.js?v=303` is byte-identical to `main` and contains `portraitBoardFitHold`. `/api/cards/editor` reports `source: FIRESTORE`, `liveEditingEnabled: true`, `firestoreAvailable: true` through Hosting and through Cloud Run direct. `js/config.js` keeps `apiBaseUrl: ''`. `/api/game/options` returns 200 in 0.88s.
 - September 25, 2026 - **The portrait board no longer zooms in while a battle move plays.** `fitPortraitBoards()` sizes both 3x3 boards to the arena's measured height, and the arena is whatever the battle dock underneath leaves over. That dock changes height at every speed step: an acting Siegeling's move list, then the shorter "Queue is resolving" copy while the projectile and damage play, then the next Siegeling's moves. Each change re-ran the fit through the arena's `ResizeObserver`, so on a phone the whole board widened mid-attack and snapped back afterwards; a fit read in a transient layout could also overshoot and clip the bottom row. Within one battle phase the fit now only ever shrinks: it keeps the smallest width and aspect it has produced for `battle:<turnNumber>`, which always fit, and a taller arena just leaves the board where it was. The hold starts only once the hand tray is in its `battle-queue-mode` form, so a setup tray still under the phase banner cannot pin the board small, and it is dropped on any viewport resize/rotation and whenever the layout leaves portrait.
 - Verification: `node --check` on `game.js`. Headless Chromium at 430x932 against the static bundle, feeding the captured BATTLE fixture (`tests/battle-timing/battle-state-fixture.json`) through the page's own `api()` and driving the real flow: tap a move -> targeting camera -> tap a target -> enqueue playback and land the state. With a two-move dock (the reported case) the board went **309 -> 315px during playback -> 309** before the fix and now stays **309 -> 307 -> 307**; with a one-move dock, where the resolving copy is taller, it shrinks once to 315 and no longer grows back to 331 after playback. The targeting camera still renders at its own 261-267px. Desktop 1920x1080 reports no fit vars and an unchanged 307px grid. Cache-bust: `game.js` 302 -> **303** on `play.html`, `home.html`, `home-next.html` and `card-dashboard.html`. No Java or CSS changed.

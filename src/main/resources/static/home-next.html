@@ -22,7 +22,7 @@
      binder renders. It must load BEFORE home-redesign.css so the art-first
      palette and layout win where the two overlap. -->
 <link rel="stylesheet" href="/css/style.css?v=269">
-<link rel="stylesheet" href="/css/home-redesign.css?v=60">
+<link rel="stylesheet" href="/css/home-redesign.css?v=61">
 <link rel="stylesheet" href="/css/match-review.css?v=1">
 <link rel="stylesheet" href="/css/install-guide.css?v=2">
 <style>
@@ -104,7 +104,7 @@
      compose a full card face. home.html loads the same pair for its binder. -->
 <!-- Paints the boot plate before anything else runs, from the compiled-in
      gallery scenes plus whatever /api/art/loading cached on a previous visit. -->
-<script src="/js/loading-art.js?v=3"></script>
+<script src="/js/loading-art.js?v=4"></script>
 <script>
   window.SiegelingsLoadingArt.paint(document.getElementById('boot'));
   window.sgStopBootHints = window.SiegelingsLoadingArt.mountHints(document.getElementById('bootHint'));
@@ -113,7 +113,7 @@
 <script src="/js/card-binder-visual.js?v=26"></script>
 <script src="/js/home-redesign-data.js?v=1"></script>
 <script src="/js/match-review.js?v=1"></script>
-<script src="/js/home-redesign.js?v=50"></script>
+<script src="/js/home-redesign.js?v=52"></script>
 <script src="/js/home-redesign-live.js?v=12"></script>
 <script src="/js/install-guide.js?v=2"></script>
 <script>

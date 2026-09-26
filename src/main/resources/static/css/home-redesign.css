@@ -3828,3 +3828,13 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   color:#1a1408; background:#fff4d2;
   border:1px solid rgba(26,20,8,.55);
 }
+
+/* The scene credit sat straight on the plate with only a blurred shadow, which
+   held on the dark fire scenes but vanished on the bright sky and snow plates
+   (Skydon, Hurricrane, Frostag). A soft dark backing keeps it legible on any. */
+.sg-hero-credit {
+  padding:5px 10px; border-radius:10px;
+  background:rgba(8,6,26,.46);
+  -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+  color:#d8d2f4;
+}

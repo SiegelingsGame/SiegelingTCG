@@ -19,17 +19,21 @@
 
   var CACHE_KEY = 'sgLoadingArtCache';
 
-  // Landscape-only on purpose: these are 16:9 scenes, and the plate is painted
-  // with `cover`, so a portrait viewport crops rather than letterboxes.
+  // 16:9 scenes, painted with `cover`. The two tall scenes also carry a 9:16
+  // file, which portrait screens (most phones) take instead of a cropped band.
   var GALLERY = [
-    { id: 'bearby-longfuse',   title: 'The Long Fuse',      place: 'Emberwaste Gate' },
-    { id: 'bearby-blastoff',   title: 'Blast Off',          place: 'Emberwaste Gate' },
-    { id: 'bearnade-payload',  title: 'Payload Away',       place: 'The Sunken Span' },
-    { id: 'bearzooka-rampage', title: 'Emberwaste Rampage', place: 'Cinderfall Reach' },
-    { id: 'draco-brood',       title: 'The Cinder Brood',   place: 'Moltenmaw Basin' }
+    { id: 'bearby-longfuse',     title: 'The Long Fuse',      place: 'Emberwaste Gate' },
+    { id: 'skydon-skyreach',     title: 'Above the Skyreach', place: 'The Drifting Isles' },
+    { id: 'frostag-training',    title: 'Morning Drills',     place: 'Rimewood Yard', portrait: true },
+    { id: 'bearzooka-rampage',   title: 'Emberwaste Rampage', place: 'Cinderfall Reach' },
+    { id: 'hurricrane-skyruins', title: 'First Flight',       place: 'The Pillared Heights', portrait: true },
+    { id: 'draco-brood',         title: 'The Cinder Brood',   place: 'Moltenmaw Basin' },
+    { id: 'bearby-blastoff',     title: 'Blast Off',          place: 'Emberwaste Gate' },
+    { id: 'bearnade-payload',    title: 'Payload Away',       place: 'The Sunken Span' }
   ].map(function (g) {
     return { id: g.id, title: g.title, place: g.place,
-             landscape: '/img/gallery/' + g.id + '.webp' };
+             landscape: '/img/gallery/' + g.id + '.webp',
+             portrait: g.portrait ? '/img/gallery/' + g.id + '-portrait.webp' : undefined };
   });
 
   /* Loading-screen filler copy. A loading screen that shows only a spinner

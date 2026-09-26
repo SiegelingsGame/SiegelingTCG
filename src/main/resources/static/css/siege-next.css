@@ -103,8 +103,8 @@ body {
     z-index: 1;
 }
 
-.mode-card-siege { background-image: url('/img/gallery/draco-brood.webp'); }
-.mode-card-bg { background-image: url('/img/gallery/bearzooka-rampage.webp'); }
+.mode-card-siege { background-image: url('/img/gallery/skydon-skyreach.webp'); }
+.mode-card-bg { background-image: url('/img/gallery/frostag-training.webp'); }
 .mode-card-tutorial { background-image: url('/img/gallery/bearby-longfuse.webp'); }
 
 .mode-card-title { font-size: clamp(24px, 7vw, 30px); }
@@ -136,12 +136,12 @@ body {
 .resume-save > * { position: relative; z-index: 1; }
 
 .resume-save.siege {
-    background-image: url('/img/gallery/draco-brood.webp');
+    background-image: url('/img/gallery/skydon-skyreach.webp');
     border-left-color: var(--accent);
 }
 
 .resume-save.bg {
-    background-image: url('/img/gallery/bearzooka-rampage.webp');
+    background-image: url('/img/gallery/frostag-training.webp');
     border-left-color: var(--accent-2);
 }
 

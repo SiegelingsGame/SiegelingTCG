@@ -87,15 +87,40 @@
 
   // Cinematic gallery plates. Unlike the overlay cutouts these are whole scenes,
   // so they carry the hero on their own and only need a scrim for the copy.
+  // Every plate the hub owns. `portrait` plates also ship a 9:16 file, which a
+  // portrait screen uses instead of cropping a 16:9 band out of a tall scene.
+  // Surfaces that want one particular scene name it with scene(id), never by
+  // position, so reordering or adding plates cannot swap their art.
   var GALLERY = [
-    { img: 'bearby-longfuse',   card: 'bearby',    title: 'The Long Fuse',      place: 'Emberwaste Gate' },
-    { img: 'bearby-blastoff',   card: 'bearby',    title: 'Blast Off',          place: 'Emberwaste Gate' },
-    { img: 'bearnade-payload',  card: 'bearnade',  title: 'Payload Away',       place: 'The Sunken Span' },
-    { img: 'bearzooka-rampage', card: 'bearzooka', title: 'Emberwaste Rampage', place: 'Cinderfall Reach' },
-    { img: 'draco-brood',       card: 'draco',     title: 'The Cinder Brood',   place: 'Moltenmaw Basin' }
+    { img: 'bearby-longfuse',     card: 'bearby',     title: 'The Long Fuse',      place: 'Emberwaste Gate' },
+    { img: 'skydon-skyreach',     card: 'skydon',     title: 'Above the Skyreach', place: 'The Drifting Isles' },
+    { img: 'frostag-training',    card: 'frostag',    title: 'Morning Drills',     place: 'Rimewood Yard', portrait: true },
+    { img: 'bearzooka-rampage',   card: 'bearzooka',  title: 'Emberwaste Rampage', place: 'Cinderfall Reach' },
+    { img: 'hurricrane-skyruins', card: 'hurricrane', title: 'First Flight',       place: 'The Pillared Heights', portrait: true },
+    { img: 'draco-brood',         card: 'draco',      title: 'The Cinder Brood',   place: 'Moltenmaw Basin' },
+    { img: 'bearby-blastoff',     card: 'bearby',     title: 'Blast Off',          place: 'Emberwaste Gate' },
+    { img: 'bearnade-payload',    card: 'bearnade',   title: 'Payload Away',       place: 'The Sunken Span' },
+    { img: 'cactyjackedty-ruins', card: 'cactyjacked-ty', title: 'Deeper Roots',     place: 'The Sunscar Ruins' }
   ];
+  // The home hero shows each of the four main elements exactly once, in the
+  // order of the weakness chart (Fire > Ice > Wind > Earth > Fire), so the
+  // front door never reads as a fire game. Draco is filed as Fire, not Earth.
+  var HERO_SCENES = ['bearby-longfuse', 'frostag-training', 'skydon-skyreach', 'cactyjackedty-ruins'];
+  function scene(id) {
+    for (var i = 0; i < GALLERY.length; i++) if (GALLERY[i].img === id) return GALLERY[i];
+    return GALLERY[0];
+  }
+  function isPortraitScreen() {
+    return Boolean(window.matchMedia && window.matchMedia('(orientation: portrait)').matches);
+  }
   function plate(entry, thumb) {
     return '/img/gallery/' + entry.img + (thumb ? '-thumb' : '') + '.webp';
+  }
+  // Full-screen surfaces (the home hero) take the tall file on a tall screen.
+  function heroPlate(entry) {
+    return entry.portrait && isPortraitScreen()
+      ? '/img/gallery/' + entry.img + '-portrait.webp'
+      : plate(entry);
   }
 
   // Hand-picked so the rotation walks through distinct elements and silhouettes.
@@ -210,18 +235,19 @@
     var creditEl = hero.querySelector('[data-hero-credit]');
     var motes = hero.querySelector('[data-motes]');
 
+    var heroScenes = HERO_SCENES.map(scene);
     function paint(i) {
-      var scene = GALLERY[i % GALLERY.length];
+      var scene = heroScenes[i % heroScenes.length];
       var card = byId(scene.card) || CARDS[0];
       var c = color(card.element);
       hero.style.setProperty('--el', c);
-      landEl.style.backgroundImage = "url('" + plate(scene) + "')";
+      landEl.style.backgroundImage = "url('" + heroPlate(scene) + "')";
       subEl.innerHTML = '<b>' + esc(card.name) + '</b> &middot; ' + esc(title(card.element)) +
         ' &middot; ' + esc(title(card.rarity));
       creditEl.innerHTML = '<span>' + esc(scene.title) + '</span>' + esc(scene.place);
       paintMotes(motes, card.element);
       var d = '';
-      for (var k = 0; k < GALLERY.length; k++) d += '<i class="sg-dot' + (k === i % GALLERY.length ? ' on' : '') + '"></i>';
+      for (var k = 0; k < heroScenes.length; k++) d += '<i class="sg-dot' + (k === i % heroScenes.length ? ' on' : '') + '"></i>';
       dots.innerHTML = d;
     }
     paint(idx);
@@ -1758,10 +1784,10 @@
   var MODES = [
     { id: 'battle', label: 'Battle', tag: 'Solo & Live PvP',
       line: 'Levels off — all deck and reads.',
-      art: '/img/gallery/bearzooka-rampage.webp', el: 'FIRE', primary: true, cta: 'Play' },
+      art: '/img/gallery/frostag-training.webp', el: 'ICE', primary: true, cta: 'Play' },
     { id: 'siege', label: 'Siege', tag: 'Expedition',
       line: 'Roguelike expedition — build a warband.',
-      art: '/img/gallery/draco-brood.webp', el: 'EARTH', cta: 'Enter' }
+      art: '/img/gallery/skydon-skyreach.webp', el: 'WIND', cta: 'Enter' }
   ];
 
   // The Siege panel's tag said "New" with a badge. Whether a run is waiting is
@@ -1811,7 +1837,7 @@
   // prompt, not a feature, so it gets one artwork band and two buttons.
   function guestBand() {
     return '<section class="sg-guest">' +
-      '<img class="sg-guest-bg" src="/img/gallery/bearby-longfuse.webp" alt="" loading="lazy">' +
+      '<img class="sg-guest-bg" src="/img/gallery/hurricrane-skyruins.webp" alt="" loading="lazy">' +
       '<div class="sg-guest-veil"></div>' +
       '<div class="sg-guest-body">' +
         '<strong>Pick up where you left off</strong>' +
@@ -2549,7 +2575,7 @@
   function shopScreen(opts) {
     opts = opts || {};
     var packs = (opts.live && opts.live.packs) || [];
-    var feature = GALLERY[3];
+    var feature = scene('skydon-skyreach');
     var hero = packs.length ? featuredPack(packs) : null;
     var heroEl = hero ? packElement(hero) : 'FIRE';
     return topMarkup(opts) +
@@ -2577,7 +2603,7 @@
             // horizontal rail hides all but three of them.
             ? '<div class="sg-pack-grid">' + packs.map(packCard).join('') + '</div>'
             : '<div class="sg-empty-plate">' +
-                '<img src="' + plate(GALLERY[1]) + '" alt="" loading="lazy">' +
+                '<img src="' + plate(scene('frostag-training')) + '" alt="" loading="lazy">' +
                 '<div class="sg-empty-veil"></div>' +
                 '<div class="sg-empty-body"><strong>The stall is closed</strong>' +
                 '<p>The pack catalog did not answer. Try again in a moment.</p></div>' +
@@ -3824,7 +3850,7 @@
   function crestBackground() {
     var piece = profileArtPiece(prefs().profileArtId);
     if (piece) return piece.full || piece.thumb;
-    return plate(GALLERY[2]);
+    return plate(scene('bearnade-payload'));
   }
 
   function crestElement() {
@@ -4426,11 +4452,11 @@
   function authScreen(opts) {
     opts = opts || {};
     var register = Boolean(opts.authMode === 'register');
-    var scene = GALLERY[4];
+    var authScene = scene('draco-brood');
     return topMarkup(opts) +
       '<div class="sg-scroll">' +
         '<section class="sg-crest sg-crest-short">' +
-          '<img class="sg-crest-bg" src="' + plate(scene) + '" alt="">' +
+          '<img class="sg-crest-bg" src="' + plate(authScene) + '" alt="">' +
           '<div class="sg-crest-veil"></div>' +
           '<div class="sg-crest-body">' +
             '<h2>' + (register ? 'Join the arena' : 'Welcome back') + '</h2>' +
@@ -4666,7 +4692,7 @@
   // not the exception - it gets artwork and a call to action rather than a dash.
   function lbEmpty(meta, period) {
     return '<div class="sg-lb-empty">' +
-      '<img src="/img/gallery/bearzooka-rampage.webp" alt="" loading="lazy">' +
+      '<img src="/img/gallery/hurricrane-skyruins.webp" alt="" loading="lazy">' +
       '<div class="sg-lb-empty-veil"></div>' +
       '<div class="sg-lb-empty-body">' +
         '<strong>The hall is empty</strong>' +
@@ -5228,7 +5254,7 @@
 
   function emptyLobbies() {
     return '<div class="sg-empty-plate">' +
-      '<img src="/img/gallery/bearby-longfuse.webp" alt="" loading="lazy">' +
+      '<img src="/img/gallery/frostag-training.webp" alt="" loading="lazy">' +
       '<div class="sg-empty-veil"></div>' +
       '<div class="sg-empty-body"><strong>Nobody is waiting</strong>' +
       '<p>Host a table and it shows up here for everyone.</p></div>' +
@@ -5573,7 +5599,7 @@
   // default plate rather than leaving the crest flat.
   function friendCrestBackground(settings) {
     var piece = profileArtPiece(settings.profileArtId);
-    return piece ? (piece.full || piece.thumb) : plate(GALLERY[2]);
+    return piece ? (piece.full || piece.thumb) : plate(scene('bearnade-payload'));
   }
 
   function friendSubtitle(stats, presence) {
@@ -5748,7 +5774,7 @@
     return topMarkup(opts) +
       '<div class="sg-scroll">' +
         '<section class="sg-crest sg-crest-short">' +
-          '<img class="sg-crest-bg" src="/img/gallery/bearby-blastoff.webp" alt="">' +
+          '<img class="sg-crest-bg" src="/img/gallery/skydon-skyreach.webp" alt="">' +
           '<div class="sg-crest-veil"></div>' +
           '<div class="sg-crest-body"><h2>Settings</h2><p>' +
             esc(opts.guest ? 'Signed out'
