@@ -1787,7 +1787,10 @@
       art: '/img/gallery/frostag-training.webp', el: 'ICE', primary: true, cta: 'Play' },
     { id: 'siege', label: 'Siege', tag: 'Expedition',
       line: 'Roguelike expedition — build a warband.',
-      art: '/img/gallery/skydon-skyreach.webp', el: 'WIND', cta: 'Enter' }
+      art: '/img/gallery/bearzooka-rampage.webp', el: 'FIRE', cta: 'Enter' },
+    { id: 'keep', label: 'Keep', tag: 'Sanctuary',
+      line: 'Restore your keep — residents, crafting, builds.',
+      art: '/img/gallery/cactyjackedty-ruins.webp', el: 'EARTH', cta: 'Visit' }
   ];
 
   // The Siege panel's tag said "New" with a badge. Whether a run is waiting is
