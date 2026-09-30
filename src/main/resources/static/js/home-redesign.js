@@ -5065,7 +5065,6 @@
     var tab = socialTab;
     return topMarkup(opts) +
       '<div class="sg-scroll" data-social-scroll>' +
-        '<div class="sg-social-head"></div>' +
         '<div data-social-body>' + socialTabBody(opts, tab) + '</div>' +
       '</div>' +
       socialFab(opts, tab) +
@@ -5104,8 +5103,11 @@
     '</div>';
   }
 
+  // Friends and Messages clear the fixed top bar with a spacer and a title.
+  // Profile does not: its artwork runs to the top edge behind the bar, the
+  // same as the standalone Profile screen.
   function socialTitle(text) {
-    return '<div class="sg-social-title"><h2>' + esc(text) + '</h2></div>';
+    return '<div class="sg-social-head"></div><div class="sg-social-title"><h2>' + esc(text) + '</h2></div>';
   }
 
   function socialTabBody(opts, tab) {

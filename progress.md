@@ -1,4 +1,11 @@
 Original prompt: Merge and deploy
+- September 30, 2026 - **Social profile artwork runs to the top edge.** Follow-up to the floating-button entry below.
+  - The top-bar spacer now renders only for Friends and Messages (inside `socialTitle`). On Profile, the crest image starts at y=0 behind the transparent logo/chip bar, with nothing painted above it, the same as the standalone `/profile` screen.
+  - The dropped `.sg-social-head + … .sg-crest` padding override is what had held the crest down.
+  - **Cache pins:** `home-redesign.js` -> `?v=54`, `home-redesign.css` -> `?v=63`.
+- Verification: headless Chromium at 390x844, `/api/**` stubbed. On `?screen=social` the crest and its image both start at 0 and are 330px tall, the avatar block sits at 164, and `.sg-top` has no background, identical to `?screen=profile`. Also at 320x568 and signed out.
+  - At 1920x1080 the crest sits at y=56 (not compared against the standalone Profile screen at that size).
+  - The floating-button flow is unchanged: it opens, switches to Friends and Messages (titles clear the bar) and closes. No page errors.
 - September 30, 2026 - **Social opens on a full profile; Friends and Messages move to a floating button.**
   - **Why.** The Social screen led with a row of three pills (Profile / Friends / Messages) between the top bar and the profile crest.
   - **Layout.** The row is gone. A `.sg-social-head` spacer keeps the crest starting just below the logo and chips, as in the owner's reference screenshot.
