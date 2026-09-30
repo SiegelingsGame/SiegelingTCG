@@ -1,4 +1,12 @@
 Original prompt: Merge and deploy
+- September 30, 2026 - **Social thread Send is no longer covered by the floating switcher.**
+  - **Why.** The Profile / Friends / Messages button sits `bottom: calc(96px + safe-area)` and is 56px tall, in the same corner as a thread's Send control. With no home-indicator inset (Android, and iOS Safari in a browser tab) the Send button on a 390x844 phone is at y=723 and the switcher covers y=692–748, so `elementFromPoint` on Send's center is the switcher. Tapping Send opens the menu and the message is not posted. The text field itself stays clear, and a 1920px window does not overlap.
+  - **Fix.** While `[data-thread-view]` is open the switcher is `display:none`. Back still returns to the message list, where the switcher is available again.
+  - **Cache pin:** `home-redesign.css` -> `?v=67` (`home-next.html`, `home-redesign-preview.html`).
+- Verification: headless Chromium on `home-next.html?screen=social` with `/api/**` stubbed, signed in with one unread thread.
+  - **Before the rule**, at 390x844, Send's center (356, 743) hit `.sg-fab` (the switcher covers y=692–748).
+  - **After**, that same point hits the Send button. Filling the field and tapping Send posts `{recipientId, text}` once. The switcher is `display:none` while the thread is open and `display:block` again after Back. A 34px `--sg-sab` and a 1920x1080 thread still hit Send. No page errors.
+  - Shop daily-offer double-tap still posts one `/api/shop/purchase-card`, and the Play plates at 1366x768 still hit their own links. Those paths were not changed.
 - September 30, 2026 - **Widescreen: hub chrome and art run edge to edge; Play and Siege mode plates grow to show their art.**
   - **Why.** At 1024px and up, every hub screen sat in a centred 1280-1480px column (`--sg-measure`). The tab bar was a 760px pill and the Play plates were capped at 1320px, so on 1920 and 2560 windows the art had dead bands on both sides.
   - **Hub (`home-redesign.css`).** A new last-in-file `>=1024px` block:
