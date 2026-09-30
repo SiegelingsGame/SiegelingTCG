@@ -2673,10 +2673,6 @@
     }
   }
 
-  function reducedMotion() {
-    return Boolean(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-  }
-
   /* ---------- daily offers ----------
      /api/shop/packs carries today's single-card offers and the day's shop
      titles alongside the packs. The redesign dropped both, which left the shop
