@@ -3887,3 +3887,103 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
   color:#d8d2f4;
 }
+
+/* ---------- shop: featured carousel ----------
+   The featured band cycles every pack. Swiping is native scroll-snap on the
+   track so it pans like any iOS rail; each slide carries its own element
+   backdrop and the pack's card back, so the art always matches the pack. */
+.sg-feature-carousel { height:336px; }
+.sg-feature-track {
+  position:absolute; inset:0; display:flex;
+  overflow-x:auto; overflow-y:hidden; scroll-snap-type:x mandatory;
+  overscroll-behavior-x:contain; scrollbar-width:none; touch-action:pan-x pan-y;
+}
+.sg-feature-track::-webkit-scrollbar { display:none; }
+.sg-feature-slide {
+  position:relative; flex:0 0 100%; height:100%; overflow:hidden;
+  scroll-snap-align:start; scroll-snap-stop:always;
+}
+/* The pack sits upper right, clear of the copy column, lit in its element. */
+.sg-feature-pack {
+  position:absolute; right:18px; top:calc(var(--sg-sat) + 66px);
+  width:86px; aspect-ratio:var(--card-back-ratio); border-radius:10px; overflow:hidden;
+  transform:rotate(6deg);
+  box-shadow:0 16px 30px rgba(0,0,0,.55), 0 0 26px color-mix(in srgb, var(--el,#f05b2f) 55%, transparent);
+}
+.sg-feature-pack img { width:100%; height:100%; object-fit:contain; display:block; }
+.sg-feature-carousel .sg-feature-body { bottom:28px; }
+.sg-feature-carousel .sg-feature-body p { max-width:min(290px, calc(100% - 20px)); }
+.sg-feature-carousel .sg-feature-body h2 { max-width:calc(100% - 104px); line-height:1.12; }
+.sg-feature-dots {
+  position:absolute; left:0; right:0; bottom:6px; z-index:2;
+  display:flex; justify-content:center; gap:2px;
+}
+/* 8px dot, 22px hit area. */
+.sg-feature-dot {
+  width:22px; height:18px; padding:0; border:0; background:none; cursor:pointer; position:relative;
+}
+.sg-feature-dot::after {
+  content:''; position:absolute; left:50%; top:50%; width:6px; height:6px; margin:-3px 0 0 -3px;
+  border-radius:99px; background:rgba(255,255,255,.38); transition:width .25s ease, margin .25s ease, background .25s ease;
+}
+.sg-feature-dot.on::after { width:16px; margin-left:-8px; background:var(--el,#f0cd8a); }
+.sg-feature-nav {
+  position:absolute; top:50%; z-index:2; width:34px; height:34px; margin-top:-17px;
+  border-radius:99px; border:1px solid rgba(255,255,255,.22); cursor:pointer;
+  background:rgba(8,6,26,.46); color:#fff; font-size:22px; line-height:1;
+  -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
+  display:none; align-items:center; justify-content:center;
+}
+.sg-feature-nav.prev { left:10px; }
+.sg-feature-nav.next { right:10px; }
+@media (hover:hover) and (pointer:fine) {
+  .sg-feature-nav { display:inline-flex; }
+}
+@media (min-width:1024px) {
+  .sg-feature-carousel { height:420px; }
+  .sg-feature-pack { width:150px; right:64px; top:auto; bottom:64px; }
+  .sg-feature-carousel .sg-feature-body { bottom:44px; padding:0 64px; }
+  .sg-feature-carousel .sg-feature-body h2 { max-width:none; }
+  .sg-feature-carousel .sg-feature-body p { max-width:52ch; }
+}
+
+/* ---------- shop: daily offerings + titles ---------- */
+.sg-shop-notice {
+  margin:10px 18px 4px; padding:10px 14px; border-radius:14px; font-size:12px;
+  background:rgba(100,201,135,.14); border:1px solid rgba(100,201,135,.36); color:#d9f5e3;
+}
+.sg-shop-notice.is-error { background:rgba(240,91,47,.14); border-color:rgba(240,91,47,.4); color:#ffd9cc; }
+.sg-offer-rail {
+  display:flex; gap:12px; padding:0 18px 6px; overflow-x:auto; overflow-y:hidden;
+  scroll-snap-type:x proximity; scroll-padding-inline:18px; scrollbar-width:none; touch-action:pan-x pan-y;
+}
+.sg-offer-rail::-webkit-scrollbar { display:none; }
+.sg-offer {
+  flex:0 0 118px; min-width:0; scroll-snap-align:start;
+  display:flex; flex-direction:column; align-items:stretch; gap:6px;
+}
+.sg-offer-meta { display:flex; flex-direction:column; align-items:center; gap:2px; text-align:center; min-width:0; }
+.sg-offer-meta b { font-size:11.5px; font-weight:600; line-height:1.25; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sg-offer-meta i { font-style:normal; font-size:9.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--el,var(--muted)); }
+.sg-offer .sg-buy, .sg-shop-title .sg-buy { align-self:center; white-space:nowrap; }
+.sg-buy:disabled { cursor:default; opacity:.6; color:var(--muted); }
+.sg-buy.is-armed {
+  color:#22160a; border-color:transparent;
+  background:linear-gradient(180deg,#ffd58a,var(--amber,#f2a03d));
+}
+.sg-shop-titles { display:flex; flex-direction:column; gap:9px; padding:0 18px 6px; }
+.sg-shop-title {
+  display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:16px;
+  background:rgba(11,17,32,.55); border:1px solid rgba(200,165,79,.22);
+}
+.sg-shop-title-ico {
+  flex:0 0 36px; height:36px; border-radius:12px; display:grid; place-items:center;
+  font-size:17px; color:var(--gold-bright,#f0cd8a); background:rgba(200,165,79,.14);
+}
+.sg-shop-title-copy { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:3px; }
+.sg-shop-title-copy b { font-size:13px; font-weight:600; }
+.sg-shop-title-copy i { font-style:normal; font-size:11px; color:var(--muted); line-height:1.4; }
+@media (min-width:1024px) {
+  .sg-offer { flex-basis:168px; }
+  .sg-shop-titles { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px; }
+}

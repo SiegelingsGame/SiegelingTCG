@@ -2552,20 +2552,203 @@
     '</button>';
   }
 
-  // The hero is a real pack, not a promotion: the cheapest starter pack when the
-  // catalog marks one, otherwise the first active pack.
-  function featuredPack(packs) {
-    var starters = packs.filter(function (pk) { return pk.starterEligible; });
-    var pool = starters.length ? starters : packs;
-    return pool.slice().sort(function (x, y) {
-      return (x.price == null ? 1e9 : x.price) - (y.price == null ? 1e9 : y.price);
-    })[0];
+  // The featured band cycles every pack rather than parking on one starter, so
+  // the whole catalog gets its turn up top. Starters lead (a new player's first
+  // choice), then the catalog order; cheapest first within each group.
+  function featuredPacks(packs) {
+    function price(pk) { return pk.price == null ? 1e9 : pk.price; }
+    return packs.slice().sort(function (x, y) {
+      return (y.starterEligible ? 1 : 0) - (x.starterEligible ? 1 : 0) || price(x) - price(y);
+    });
+  }
+
+  // Each slide's backdrop is the pack's own element: a cinematic gallery plate
+  // where that element has one, otherwise its production Land plate. The band
+  // used to be Skydon for every pack, so a Fire pack sat on a Wind sky.
+  var ELEMENT_SCENE = {
+    FIRE: 'bearby-longfuse', ICE: 'frostag-training',
+    WIND: 'skydon-skyreach', EARTH: 'cactyjackedty-ruins'
+  };
+  function packBackdrop(pk) {
+    var el = String(packElement(pk)).toUpperCase();
+    return ELEMENT_SCENE[el] ? plate(scene(ELEMENT_SCENE[el])) : land(el);
+  }
+
+  function featureSlide(pk, i) {
+    var el = packElement(pk);
+    return '<article class="sg-feature-slide" data-feature-slide="' + i + '" style="--el:' + color(el) + '"' +
+        ' role="group" aria-roledescription="slide" aria-label="' + esc(pk.name || pk.id) + '">' +
+      '<img class="sg-feature-bg" src="' + esc(packBackdrop(pk)) + '" alt=""' + (i ? ' loading="lazy"' : '') + '>' +
+      '<div class="sg-feature-veil"></div>' +
+      '<span class="sg-feature-pack"><img src="' + esc(packBack(pk)) + '" alt=""' + (i ? ' loading="lazy"' : '') + '></span>' +
+      '<div class="sg-feature-body">' +
+        '<span class="sg-tag">' + esc(title(el)) + ' &middot; ' + (pk.starterEligible ? 'Starter' : 'Pack') + '</span>' +
+        '<h2>' + esc(pk.name || pk.id) + '</h2>' +
+        '<p>' + esc(pk.description || '') + '</p>' +
+        '<button class="sg-cta" type="button" data-pack="' + esc(pk.id) + '">' +
+          '<img src="/img/ui/home-stats/siegecoin.png" alt="">' +
+          esc(pk.price != null ? pk.price : '—') + '</button>' +
+      '</div>' +
+    '</article>';
+  }
+
+  function featureCarousel(packs) {
+    var list = featuredPacks(packs);
+    var many = list.length > 1;
+    return '<section class="sg-feature sg-feature-carousel" data-feature aria-roledescription="carousel" aria-label="Featured packs">' +
+      '<div class="sg-feature-track" data-feature-track>' + list.map(featureSlide).join('') + '</div>' +
+      (many
+        ? '<button class="sg-feature-nav prev" type="button" data-feature-step="-1" aria-label="Previous pack">&#8249;</button>' +
+          '<button class="sg-feature-nav next" type="button" data-feature-step="1" aria-label="Next pack">&#8250;</button>' +
+          '<div class="sg-feature-dots" data-feature-dots>' + list.map(function (pk, i) {
+            return '<button type="button" class="sg-feature-dot' + (i ? '' : ' on') + '" data-feature-go="' + i + '" ' +
+              'style="--el:' + color(packElement(pk)) + '" aria-label="Show ' + esc(pk.name || pk.id) + '"></button>';
+          }).join('') + '</div>'
+        : '') +
+    '</section>';
+  }
+
+  // Swipe is native scroll-snap, so it pans like any iOS rail; the arrows,
+  // dots and the slow auto-advance just scroll that same track. Auto-advance
+  // stops for good once the player touches it - a band that keeps moving under
+  // a thumb reads as fighting them.
+  function mountFeatureCarousel(app, opts) {
+    var root = app.querySelector('[data-feature]');
+    var track = root && root.querySelector('[data-feature-track]');
+    if (!track) return;
+    var slides = track.querySelectorAll('[data-feature-slide]');
+    var dots = root.querySelectorAll('[data-feature-go]');
+    if (slides.length < 2) return;
+    var current = 0, timer = null, stopped = Boolean(opts && opts.freeze);
+
+    function go(i, instant) {
+      current = (i + slides.length) % slides.length;
+      if (opts) opts.featureIndex = current;
+      track.scrollTo({ left: current * track.clientWidth, behavior: instant || reducedMotion() ? 'auto' : 'smooth' });
+      sync();
+    }
+    function sync() {
+      dots.forEach(function (d, k) {
+        d.classList.toggle('on', k === current);
+        d.setAttribute('aria-current', k === current ? 'true' : 'false');
+      });
+    }
+    function stop() {
+      stopped = true;
+      if (timer) { clearInterval(timer); timer = null; }
+    }
+
+    root.addEventListener('click', function (e) {
+      var step = e.target.closest && e.target.closest('[data-feature-step]');
+      var dot = e.target.closest && e.target.closest('[data-feature-go]');
+      if (step) { stop(); go(current + Number(step.getAttribute('data-feature-step'))); }
+      else if (dot) { stop(); go(Number(dot.getAttribute('data-feature-go'))); }
+    });
+    ['pointerdown', 'touchstart', 'wheel'].forEach(function (type) {
+      track.addEventListener(type, stop, { passive: true });
+    });
+    var settle = null;
+    track.addEventListener('scroll', function () {
+      clearTimeout(settle);
+      settle = setTimeout(function () {
+        var w = track.clientWidth || 1;
+        var i = Math.round(track.scrollLeft / w);
+        if (i !== current) { current = i; if (opts) opts.featureIndex = i; sync(); }
+      }, 60);
+    }, { passive: true });
+    root.addEventListener('keydown', function (e) {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      stop();
+      go(current + (e.key === 'ArrowRight' ? 1 : -1));
+    });
+    // A purchase re-renders the screen; keep the pack the player was looking at.
+    if (opts && opts.featureIndex) go(opts.featureIndex, true);
+    if (!stopped && !reducedMotion()) {
+      timer = setInterval(function () {
+        // A slide leaving the page (screen change) must not keep a timer alive.
+        if (!root.isConnected) { stop(); return; }
+        if (document.hidden) return;
+        go(current + 1);
+      }, 6000);
+    }
+  }
+
+  /* ---------- daily offers ----------
+     /api/shop/packs carries today's single-card offers and the day's shop
+     titles alongside the packs. The redesign dropped both, which left the shop
+     selling packs only; they are back as their own rows. Buying is two taps -
+     the first arms the button with its price, the second spends - because a
+     single stray tap on a phone should never spend coins. */
+  function offerCard(offer) {
+    var catalog = byIdIn(ALL_CARDS, offer.cardId) || {};
+    var card = {};
+    for (var k in catalog) if (Object.prototype.hasOwnProperty.call(catalog, k)) card[k] = catalog[k];
+    card.id = offer.cardId;
+    card.name = offer.cardName || card.name;
+    card.type = offer.type || card.type;
+    card.element = offer.element || card.element;
+    card.rarity = offer.rarity || card.rarity;
+    if (offer.description && !card.description) card.description = offer.description;
+    if (offer.cardArtUrl) card.cardArtUrl = offer.cardArtUrl;
+    if (offer.cardArtMode) card.cardArtMode = offer.cardArtMode;
+    if (card.type === 'TRAINER') card.type = 'SIEGEKNIGHT';
+    return card;
+  }
+
+  function dailyOfferTile(offer, opts) {
+    var live = opts.live || {};
+    var bought = (live.purchasedDailyOfferIds || []).indexOf(offer.id) !== -1;
+    var card = offerCard(offer);
+    return '<div class="sg-offer" style="--el:' + color(card.element) + '">' +
+      galleryCard(card) +
+      '<span class="sg-offer-meta"><b>' + esc(card.name || offer.cardId) + '</b>' +
+        '<i>' + esc(title(card.rarity)) + ' &middot; ' + esc(title(card.element)) + '</i></span>' +
+      '<button class="sg-buy" type="button" data-buy-offer="' + esc(offer.id) + '"' +
+        ' data-price="' + esc(offer.price) + '"' + (bought ? ' disabled' : '') + '>' +
+        (bought ? 'Owned' : '<img src="/img/ui/home-stats/siegecoin.png" alt="">' + esc(offer.price)) +
+      '</button>' +
+    '</div>';
+  }
+
+  // A title already unlocked (bought, or earned elsewhere) is read off the
+  // account's own title list, since the shop payload is the same for everyone.
+  function titleOwned(t, live) {
+    if (t.unlocked) return true;
+    return (live.titles || []).some(function (own) { return own.id === t.id && own.unlocked; });
+  }
+
+  function shopTitleRow(t, opts) {
+    var owned = titleOwned(t, opts.live || {});
+    return '<article class="sg-shop-title">' +
+      '<span class="sg-shop-title-ico" aria-hidden="true">&#9873;</span>' +
+      '<span class="sg-shop-title-copy"><b>' + esc(t.label || 'Title') + '</b>' +
+        (t.description ? '<i>' + esc(t.description) + '</i>' : '') + '</span>' +
+      '<button class="sg-buy" type="button" data-buy-title="' + esc(t.id) + '"' +
+        ' data-price="' + esc(t.shopPrice) + '"' + (owned ? ' disabled' : '') + '>' +
+        (owned ? 'Owned' : '<img src="/img/ui/home-stats/siegecoin.png" alt="">' + esc(t.shopPrice || 0)) +
+      '</button>' +
+    '</article>';
+  }
+
+  function refreshShop(opts, notice, isError) {
+    var current = document.querySelector('.sg-app .sg-scroll');
+    var app = current && current.closest('.sg-app');
+    if (!app) return;
+    opts.shopNotice = notice || '';
+    opts.shopNoticeError = Boolean(isError);
+    // Re-rendering must not restart the featured band or jump the page.
+    var scrollTop = current.scrollTop;
+    var next = render(document.createElement('div'), 'shop', Object.assign({}, opts, { freeze: true }));
+    app.replaceWith(next);
+    next.querySelector('.sg-scroll').scrollTop = scrollTop;
   }
 
   // A guest has no account to grant the cards to, so the buy sends them to
   // sign in rather than to a server error.
   function mountShop(app, opts) {
     var packs = (opts.live && opts.live.packs) || [];
+    mountSheet(app, opts);
+    mountFeatureCarousel(app, opts);
     app.addEventListener('click', function (e) {
       var btn = e.target.closest ? e.target.closest('[data-pack]') : null;
       if (!btn) return;
@@ -2573,28 +2756,85 @@
       var pk = packs.filter(function (p) { return p.id === btn.getAttribute('data-pack'); })[0];
       if (pk) openPack(pk, opts);
     });
+
+    var pending = false;
+    app.addEventListener('click', function (e) {
+      var btn = e.target.closest ? e.target.closest('[data-buy-offer],[data-buy-title]') : null;
+      if (!btn || btn.disabled || pending) return;
+      if (opts.guest) { window.location.href = '/login'; return; }
+      if (!btn.classList.contains('is-armed')) {
+        app.querySelectorAll('.sg-buy.is-armed').forEach(function (other) {
+          other.classList.remove('is-armed');
+          if (other._label) other.innerHTML = other._label;
+        });
+        btn._label = btn.innerHTML;
+        btn.classList.add('is-armed');
+        btn.innerHTML = 'Buy &middot; ' + esc(btn.getAttribute('data-price'));
+        return;
+      }
+      var offerId = btn.getAttribute('data-buy-offer');
+      var titleId = btn.getAttribute('data-buy-title');
+      pending = true;
+      btn.disabled = true;
+      btn.textContent = 'Buying…';
+      fetch(offerId ? '/api/shop/purchase-card' : '/api/shop/purchase-title', {
+        method: 'POST', credentials: 'same-origin', headers: authHeaders(),
+        body: JSON.stringify(offerId ? { offerId: offerId } : { titleId: titleId })
+      }).then(function (response) {
+        return response.json().catch(function () { return null; }).then(function (data) {
+          if (!response.ok || !data || data.error || !data.progression) {
+            throw new Error((data && data.error) || 'That purchase did not go through. Refresh to check your purse before trying again.');
+          }
+          return data;
+        });
+      }).then(function (data) {
+        var live = opts.live;
+        var p = data.progression;
+        live.gold = p.gold;
+        live.ownedCards = p.ownedCards || live.ownedCards;
+        live.ownedTotal = p.ownedTotal != null ? p.ownedTotal : live.ownedTotal;
+        live.titles = p.playerTitles || live.titles;
+        live.purchasedDailyOfferIds = p.purchasedDailyOfferIds || live.purchasedDailyOfferIds;
+        if (data.dailyOffers) live.dailyOffers = data.dailyOffers;
+        if (data.dailyTitleOffers) live.dailyTitleOffers = data.dailyTitleOffers;
+        if (typeof loadCachedAuthProfile === 'function' && typeof saveCachedAuthProfile === 'function') {
+          var profile = loadCachedAuthProfile();
+          if (live.accountId && profile && profile.user && profile.user.id === live.accountId) {
+            profile.progression = Object.assign({}, profile.progression, p);
+            saveCachedAuthProfile(profile);
+          }
+        }
+        pending = false;
+        refreshShop(opts, offerId ? 'Added to your binder.' : 'Title unlocked. Equip it from your profile.');
+      }).catch(function (error) {
+        pending = false;
+        refreshShop(opts, error.name === 'TypeError' ? 'Unable to confirm the purchase. Refresh to check your purse, then try again.' : error.message, true);
+      });
+    });
   }
 
   function shopScreen(opts) {
     opts = opts || {};
-    var packs = (opts.live && opts.live.packs) || [];
-    var feature = scene('skydon-skyreach');
-    var hero = packs.length ? featuredPack(packs) : null;
-    var heroEl = hero ? packElement(hero) : 'FIRE';
+    var live = opts.live || {};
+    var packs = live.packs || [];
+    var offers = live.dailyOffers || [];
+    var titles = live.dailyTitleOffers || [];
     return topMarkup(opts) +
       '<div class="sg-scroll">' +
-        (hero
-          ? '<section class="sg-feature" style="--el:' + color(heroEl) + '">' +
-              '<img class="sg-feature-bg" src="' + plate(feature) + '" alt="">' +
-              '<div class="sg-feature-veil"></div>' +
-              '<div class="sg-feature-body">' +
-                '<span class="sg-tag">' + esc(title(heroEl)) + ' &middot; Starter</span>' +
-                '<h2>' + esc(hero.name || hero.id) + '</h2>' +
-                '<p>' + esc(hero.description || '') + '</p>' +
-                '<button class="sg-cta" type="button" data-pack="' + esc(hero.id) + '">' +
-                  '<img src="/img/ui/home-stats/siegecoin.png" alt="">' +
-                  esc(hero.price != null ? hero.price : '—') + '</button>' +
-              '</div>' +
+        (packs.length ? featureCarousel(packs) : '') +
+        (opts.shopNotice
+          ? '<p class="sg-shop-notice' + (opts.shopNoticeError ? ' is-error' : '') + '" role="status">' + esc(opts.shopNotice) + '</p>'
+          : '') +
+        (offers.length
+          ? '<section class="sg-section">' +
+              '<div class="sg-section-head"><h3>Daily Offerings</h3><span class="sg-section-note">Refreshes daily</span></div>' +
+              '<div class="sg-offer-rail">' + offers.map(function (o) { return dailyOfferTile(o, opts); }).join('') + '</div>' +
+            '</section>'
+          : '') +
+        (titles.length
+          ? '<section class="sg-section">' +
+              '<div class="sg-section-head"><h3>Player Titles</h3><span class="sg-section-note">Refreshes daily</span></div>' +
+              '<div class="sg-shop-titles">' + titles.map(function (t) { return shopTitleRow(t, opts); }).join('') + '</div>' +
             '</section>'
           : '') +
         '<section class="sg-section">' +
@@ -2614,6 +2854,7 @@
         '</section>' +
         '<div style="height:96px"></div>' +
       '</div>' +
+      sheetHost() +
       bottomMarkup('shop', opts);
   }
 

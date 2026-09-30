@@ -184,6 +184,11 @@
           siegeHistory: (me && me.siegeHistory) || [],
           missions: (missions && !missions.error && (missions.missions || missions.daily)) || null,
           packs: (shop && shop.packs ? shop.packs.filter(function (pk) { return pk && pk.active !== false; }) : null),
+          // Same payload: today's single-card offers and daily titles. Which of
+          // them this account already bought lives on the progression record.
+          dailyOffers: (shop && shop.dailyOffers) || [],
+          dailyTitleOffers: (shop && shop.dailyTitleOffers) || [],
+          purchasedDailyOfferIds: (progression && progression.purchasedDailyOfferIds) || [],
           friends: (presence && !presence.error && presence.friends) || (me && me.friends) || null,
           // Friend requests are part of the account, not of presence: /auth/me
           // carries both directions and the Friends tab acts on them.
