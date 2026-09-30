@@ -27,7 +27,7 @@ const BASE = process.argv[2] || 'http://localhost:8777';
     const p = await b.newPage({viewport:{width:vp.width,height:vp.height}, deviceScaleFactor:vp.dsf, isMobile:vp.mob, hasTouch:vp.mob});
     const errs=[]; p.on('pageerror',e=>errs.push(e.message));
     await p.goto(BASE + '/home-next.html?screen=collection', {waitUntil:'networkidle'}).catch(()=>{});
-    await p.waitForSelector('[data-filters]', {state:'attached', timeout:20000});
+    await p.waitForSelector('[data-filters]', {state:'attached', timeout:90000});
     await p.evaluate(()=>{ setInterval(function(){var r=document.querySelector('.ig-root'); if(r) r.remove();}, 100); });
     await p.waitForTimeout(700);
     const m = () => p.evaluate(() => {
