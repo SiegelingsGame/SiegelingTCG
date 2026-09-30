@@ -1,4 +1,17 @@
 Original prompt: Merge and deploy
+- September 30, 2026 - **Widescreen: hub chrome and art run edge to edge; Play and Siege mode plates grow to show their art.**
+  - **Why.** At 1024px and up, every hub screen sat in a centred 1280-1480px column (`--sg-measure`). The tab bar was a 760px pill and the Play plates were capped at 1320px, so on 1920 and 2560 windows the art had dead bands on both sides.
+  - **Hub (`home-redesign.css`).** A new last-in-file `>=1024px` block:
+    - **Chrome:** the page gutter is now `clamp(24px, 2.4vw, 64px)`, so the top bar, section heads and grids run to the edges. The tab bar, More sheet and rail span the window.
+    - **Art bands:** the Home hero, Shop carousel and Profile crest bleed full width with square edges and run up under the transparent top bar. They are taller: hero `min(76vh, 900px)` with its scene plate growing to match; shop `min(64vh, 720px)`; crest `min(56vh, 620px)`.
+    - **Play:** the three mode plates fill the full width at `clamp(460px, 100dvh - 230px, 980px)` tall, with their copy and buttons scaled up.
+  - **Siege mode picker (`siege-next.css`).** On the mode step only (via `:has()`), the 1120px app shell and adventure.css's 1280px screen cap are lifted. The three plates stand in three columns at up to 820px tall, with copy at the foot under a bottom-up scrim. The knight and warband steps and every run screen keep their column.
+  - **Cache pins:** `home-redesign.css` -> `?v=66`, `siege-next.css` -> `?v=8`.
+- Verification: headless Chromium with `/api/**` stubbed:
+  - **2560x1080 and 1920x1080:** the top bar logo sits at x=65 (was 544); hero, feature and modes span the full width (was 540-2020). The hero is 821px (was 472), the feature 691px (was 420), mode plates 850px (was 660). The Siege mode cards span 48-1952 (was 500-1500) with no title overflow.
+  - **1024x768:** mode plates 538px, hero 584px.
+  - **390x844:** unchanged (mode 236px, hero 472px); the shop purchase harness still passes.
+  - No horizontal overflow and no page errors on home, play, shop, profile or social.
 - September 30, 2026 - **Shop: element-matched featured carousel, Daily Offerings, and Player Titles back in the hub shop.**
   - **Featured carousel.** The shop's featured band (`shopScreen` in `home-redesign.js`) was one starter pack over the Skydon (Wind) plate, so the Fire Starter Pack sat on a Wind sky. It is now a slide per active pack: starters first, then cheapest first.
     - **Interaction.** Swiping uses native scroll-snap on the track. Dots and prev/next arrows (arrows only on hover-capable pointers) are keyboard-navigable, and the band auto-advances every 6s until the player first touches it. Reduced motion disables auto-advance.

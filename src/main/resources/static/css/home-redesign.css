@@ -3987,3 +3987,53 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-offer { flex-basis:168px; }
   .sg-shop-titles { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px; }
 }
+
+/* ==========================================================================
+   WIDESCREEN: EDGE TO EDGE (>=1024px)
+   The desktop layer above centred every screen in a 1280-1480px column and
+   shrank the tab bar to a 760px pill, so a 1920 or 2560 window framed the art
+   with dead bands on both sides. Art is the product: the chrome (top bar, tab
+   bar, section heads) now runs to a small edge gutter, the art bands bleed to
+   the window edge, and the Play plates grow to fill the width and most of the
+   height so their buttons carry more of the scene. Declared last so it wins
+   over the measure rules without editing them.
+   ========================================================================== */
+@media (min-width:1024px) {
+  .sg-app { --sg-gutter:clamp(24px, 2.4vw, 64px); }
+
+  /* Art bands: full bleed, square edges, and running up under the transparent
+     top bar exactly as they do on a phone. */
+  .sg-hero, .sg-feature, .sg-crest {
+    margin-inline:calc(-1 * var(--sg-gutter)); border-radius:0;
+  }
+  .sg-scroll > .sg-hero:first-child,
+  .sg-scroll > .sg-feature:first-child,
+  .sg-scroll > .sg-crest:first-child { margin-top:0; }
+  .sg-hero, .sg-hero.is-scene { height:min(76vh, 900px); }
+  /* The scene plate is a fixed 372px band above the copy on a phone; here it
+     grows with the hero, leaving the same room below for the title and Play. */
+  .sg-hero.is-scene .sg-hero-art { height:calc(100% - 110px); }
+  .sg-feature, .sg-feature-carousel { height:min(64vh, 720px); }
+  .sg-crest { height:min(56vh, 620px); }
+  .sg-hero-copy, .sg-feature-body, .sg-crest-body { padding-inline:var(--sg-gutter); }
+  .sg-feature-carousel .sg-feature-body { padding-inline:calc(var(--sg-gutter) + 48px); }
+  .sg-feature-carousel .sg-feature-pack { right:calc(var(--sg-gutter) + 64px); width:clamp(150px, 11vw, 240px); }
+  .sg-dots { right:var(--sg-gutter); }
+
+  /* Play: the three mode plates use the whole width and grow tall, so each
+     button shows most of its artwork rather than a letterboxed strip. */
+  .sg-modes { max-width:none; margin-inline:0; padding:0; gap:clamp(16px, 1.4vw, 28px); }
+  .sg-mode, .sg-mode.is-primary { height:clamp(460px, calc(100dvh - 230px), 980px); }
+  .sg-mode-bg { object-position:center 30%; }
+  .sg-mode-body { padding:0 clamp(26px, 2vw, 44px) clamp(86px, 9vh, 120px); }
+  .sg-mode-body h3, .sg-mode.is-primary .sg-mode-body h3 { font-size:clamp(38px, 2.6vw, 58px); }
+  .sg-mode-body p { font-size:clamp(14px, .85vw, 17px); }
+  .sg-mode-go, .sg-mode.is-primary .sg-mode-go {
+    left:clamp(26px, 2vw, 44px); bottom:clamp(26px, 3vh, 44px);
+    font-size:clamp(12px, .75vw, 15px); padding:clamp(13px, 1vh, 18px) clamp(30px, 2.2vw, 46px);
+  }
+
+  /* Bottom chrome spans the window like the top bar does. */
+  .sg-nav, .sg-more-sheet, .sg-rail { max-width:none; margin-inline:var(--sg-gutter); }
+  .sg-nav { padding-inline:clamp(14px, 2vw, 48px); }
+}

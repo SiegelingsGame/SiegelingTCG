@@ -285,3 +285,42 @@ body {
     flex: 0 0 auto;
     display: block;
 }
+
+/* Widescreen mode picker: the 1120px app column left the three mode plates as
+   short strips in the middle of a wide window. On the mode step only (knight
+   and warband steps and every run screen keep the column), the shell spans the
+   window and the plates grow tall enough to show their scenes. */
+@media (min-width: 1024px) {
+    .siege-app:has(#setupScreen:not(.hidden) #setupStepMode:not(.hidden)) {
+        max-width: none;
+        padding-left: max(clamp(24px, 2.4vw, 64px), env(safe-area-inset-left, 0px));
+        padding-right: max(clamp(24px, 2.4vw, 64px), env(safe-area-inset-right, 0px));
+    }
+    /* adventure.css caps page-scrolling screens at a 1280px reading column. */
+    #setupScreen:has(#setupStepMode:not(.hidden)) { max-width: none; }
+    #setupStepMode .mode-select-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: clamp(14px, 1.4vw, 28px);
+    }
+    #setupStepMode .mode-card {
+        min-height: clamp(360px, calc(100dvh - 330px), 820px);
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        background-position: center 30%;
+        padding: clamp(18px, 1.8vw, 36px);
+    }
+    /* Copy sits at the foot of the plate, under the scrim, not over the art. */
+    #setupStepMode .mode-card > :first-child { margin-top: auto; }
+    #setupStepMode .mode-card-meta { margin-top: 6px; }
+    #setupStepMode .mode-card-title { font-size: clamp(28px, 2.2vw, 48px); overflow-wrap: anywhere; }
+    #setupStepMode .mode-card-desc { font-size: clamp(13px, .8vw, 16px); max-width: 44ch; }
+    /* The side veil assumed copy on the left of a wide strip; standing up, the
+       copy sits at the bottom, so the scrim runs bottom-up and the scene above
+       it stays bright. */
+    #setupStepMode .mode-card::before {
+        background:
+            linear-gradient(180deg, rgba(13, 10, 38, .10) 0%, rgba(13, 10, 38, .18) 40%, rgba(13, 10, 38, .88) 74%, rgba(13, 10, 38, .97) 100%),
+            linear-gradient(180deg, color-mix(in srgb, var(--mode, var(--accent)) 22%, transparent), transparent 50%);
+    }
+}
