@@ -205,6 +205,176 @@
         return __gameOptions;
     }
 
+    const PLACEMENT_FALLBACKS = {
+        applehead: {
+            id: 'applehead', name: 'Applehead', element: 'EARTH', rarity: 'COMMON', health: 14, speed: 2,
+            cardArtUrl: '/img/art/loading/applehead-portrait.webp',
+            notches: [
+                { direction: 'TOP', element: 'EARTH' }, { direction: 'RIGHT', element: 'EARTH' },
+                { direction: 'BOTTOM', element: 'EARTH' }, { direction: 'LEFT', element: 'EARTH' }
+            ]
+        },
+        cacty: {
+            id: 'cacty', name: 'Cacty', element: 'EARTH', rarity: 'COMMON', health: 13, speed: 3,
+            cardArtUrl: '/img/art/loading/cacty-earth-landscape.webp',
+            notches: [
+                { direction: 'RIGHT', element: 'EARTH' }, { direction: 'LEFT', element: 'EARTH' },
+                { direction: 'TOP_LEFT', element: 'EARTH' }
+            ]
+        },
+        bonoblade: {
+            id: 'bonoblade', name: 'Bonoblade', element: 'EARTH', rarity: 'UNCOMMON', health: 16, speed: 7,
+            cardArtUrl: '/img/art/loading/bonoblade-ambush-landscape.webp',
+            notches: [
+                { direction: 'BOTTOM_RIGHT', element: 'EARTH' }, { direction: 'TOP', element: 'EARTH' },
+                { direction: 'BOTTOM', element: 'EARTH' }, { direction: 'LEFT', element: 'EARTH' },
+                { direction: 'TOP_LEFT', element: 'EARTH' }
+            ]
+        },
+        draco: {
+            id: 'draco', name: 'Draco', element: 'FIRE', rarity: 'COMMON', health: 9, speed: 5,
+            cardArtUrl: '/img/art/loading/dracos-portrait.webp',
+            notches: [
+                { direction: 'LEFT', element: 'FIRE' }, { direction: 'TOP', element: 'FIRE' },
+                { direction: 'RIGHT', element: 'FIRE' }
+            ]
+        }
+    };
+
+    function placementCardFace(card, compact) {
+        const element = String(card.element || 'EARTH').toUpperCase();
+        const rarity = String(card.rarity || 'COMMON').toLowerCase();
+        const frame = `/img/frames/frame-${element.toLowerCase()}-${rarity}.webp`;
+        const notches = compact ? [] : (Array.isArray(card.notches) ? card.notches : []);
+        const notchMarkup = notches.map((notch) => {
+            const direction = String(notch.direction || '').toLowerCase().replaceAll('_', '-');
+            const notchElement = String(notch.element || element).toLowerCase();
+            return `<img class="placement-card-notch placement-notch-${escapeAttr(direction)}" src="${notchTokenUrl(notchElement)}" alt="" aria-hidden="true">`;
+        }).join('');
+        return `
+            <div class="placement-card${compact ? ' is-compact' : ''}" style="--placement-element:var(--element-${element.toLowerCase()})">
+                <div class="placement-card-visual">
+                    <img class="placement-card-art" ${landingImgAttrs(card.cardArtUrl)} alt="${escapeAttr(card.name)}" loading="eager">
+                    <img class="placement-card-frame" src="${frame}" alt="" aria-hidden="true">
+                    ${notchMarkup}
+                </div>
+                <div class="placement-card-info">
+                    <strong>${escapeHtml(card.name)}</strong>
+                    <span>${escapeHtml(element)} · ${escapeHtml(String(card.rarity || 'COMMON'))}</span>
+                    <span class="placement-card-stats"><b>${Number(card.health) || '–'} HP</b><b>${Number(card.speed) || '–'} SPD</b></span>
+                </div>
+            </div>`;
+    }
+
+    async function bindPlacementDemo() {
+        const demo = document.getElementById('placementDemo');
+        const anchorHost = document.getElementById('placementAnchor');
+        const target = document.getElementById('placementTarget');
+        const hand = document.getElementById('placementHand');
+        const feedback = document.getElementById('placementFeedback');
+        const reset = document.getElementById('placementReset');
+        if (!demo || !anchorHost || !target || !hand || !feedback || !reset) return;
+
+        const cards = { ...PLACEMENT_FALLBACKS };
+        try {
+            const payload = await loadGameOptions();
+            const catalog = Array.isArray(payload?.cardCatalog) ? payload.cardCatalog : [];
+            Object.keys(cards).forEach((id) => {
+                const live = catalog.find((card) => String(card?.id || '').toLowerCase() === id);
+                if (live) cards[id] = { ...cards[id], ...live, id };
+            });
+        } catch (_ignored) {
+            // Shipped artwork and canonical card values keep static previews interactive.
+        }
+
+        const anchor = cards.applehead;
+        const choices = [cards.cacty, cards.bonoblade, cards.draco];
+        let placed = null;
+        let connected = false;
+        let linkType = null;
+        anchorHost.innerHTML = placementCardFace(anchor, false);
+        hand.innerHTML = choices.map((card) => {
+            const leftNotch = (Array.isArray(card.notches) ? card.notches : [])
+                .find((notch) => String(notch?.direction || '').toUpperCase() === 'LEFT');
+            const cardElement = String(leftNotch?.element || card.element || '').toUpperCase();
+            const sameElement = cardElement === String(anchor.element || 'EARTH').toUpperCase();
+            const linkLabel = sameElement ? `${cardElement} energy link` : `Earth + ${cardElement} combo link`;
+            const linkResult = sameElement ? `Generates 1 ${cardElement} energy.` : 'Creates 1 combo point.';
+            return `
+            <button class="placement-hand-card" type="button" data-placement-card="${escapeAttr(card.id)}"
+                    aria-label="Place ${escapeAttr(card.name)} beside Applehead" aria-pressed="false">
+                ${placementCardFace(card, false)}
+                <span class="placement-choice-copy">
+                    <strong>${escapeHtml(card.name)}</strong>
+                    <span>${escapeHtml(linkLabel)}</span>
+                    <small>${escapeHtml(linkResult)}</small>
+                </span>
+                <span class="placement-hand-action">Place card <b aria-hidden="true">→</b></span>
+            </button>`;
+        }).join('');
+
+        function resetDemo() {
+            placed = null;
+            connected = false;
+            linkType = null;
+            demo.dataset.state = 'ready';
+            demo.style.removeProperty('--placement-link-left');
+            demo.style.removeProperty('--placement-link-right');
+            target.className = 'placement-board-slot is-target';
+            target.setAttribute('aria-label', 'Open card slot');
+            target.innerHTML = '<span class="placement-slot-plus" aria-hidden="true">+</span><span class="placement-slot-label">Place here</span>';
+            feedback.innerHTML = 'Choose a card from your hand.';
+            demo.querySelector('.placement-energy').textContent = '+1';
+            reset.hidden = true;
+            hand.querySelectorAll('[data-placement-card]').forEach((button) => button.setAttribute('aria-pressed', 'false'));
+        }
+
+        function placeCard(card, button) {
+            const anchorNotch = (Array.isArray(anchor.notches) ? anchor.notches : [])
+                .find((notch) => String(notch?.direction || '').toUpperCase() === 'RIGHT');
+            const cardNotch = (Array.isArray(card.notches) ? card.notches : [])
+                .find((notch) => String(notch?.direction || '').toUpperCase() === 'LEFT');
+            const anchorElement = String(anchorNotch?.element || anchor.element || 'EARTH').toUpperCase();
+            const cardElement = String(cardNotch?.element || card.element || '').toUpperCase();
+            connected = Boolean(anchorNotch && cardNotch);
+            linkType = connected ? (anchorElement === cardElement ? 'energy' : 'combo') : null;
+            placed = card;
+            demo.dataset.state = connected ? (linkType === 'combo' ? 'combo' : 'connected') : 'blocked';
+            demo.style.setProperty('--placement-link-left', `var(--element-${anchorElement.toLowerCase()})`);
+            demo.style.setProperty('--placement-link-right', `var(--element-${cardElement.toLowerCase()})`);
+            demo.querySelector('.placement-energy').textContent = linkType === 'combo' ? '' : '+1';
+            target.className = `placement-board-slot is-target is-occupied is-placing${connected ? ' is-connected' : ''}`;
+            target.setAttribute('aria-label', `${card.name} placed beside Applehead${linkType === 'combo' ? `, ${anchorElement} and ${cardElement} combo formed` : connected ? `, ${anchorElement} energy link formed` : ', notches do not link'}`);
+            target.innerHTML = placementCardFace(card, false);
+            feedback.innerHTML = linkType === 'combo'
+                ? `<strong>${escapeHtml(anchorElement)} + ${escapeHtml(cardElement)} combo formed.</strong> Different elements generate 1 combo point.`
+                : connected
+                ? `<strong>${escapeHtml(anchorElement)} link formed.</strong> Applehead and ${escapeHtml(card.name)} generate 1 ${escapeHtml(anchorElement)} energy.`
+                : `<strong>No link.</strong> ${escapeHtml(card.name)} needs a left-facing notch here.`;
+            reset.hidden = false;
+            hand.querySelectorAll('[data-placement-card]').forEach((item) => item.setAttribute('aria-pressed', String(item === button)));
+        }
+
+        hand.addEventListener('click', (event) => {
+            const button = event.target.closest('[data-placement-card]');
+            if (!button) return;
+            const card = choices.find((entry) => entry.id === button.dataset.placementCard);
+            if (card) placeCard(card, button);
+        });
+        reset.addEventListener('click', resetDemo);
+
+        window.render_game_to_text = () => JSON.stringify({
+            surface: 'landing-card-placement',
+            coordinateSystem: 'two adjacent slots: Applehead on the left, chosen card on the right',
+            anchor: anchor.name,
+            placed: placed?.name || null,
+            connected,
+            linkType,
+            status: feedback.textContent.trim()
+        });
+        if (!window.advanceTime) window.advanceTime = () => Promise.resolve();
+    }
+
     // The full roster comes from the same live catalog used by the deck builder.
     // The legendary roster remains hand-curated below so it stays a distinct section.
     async function loadRosterEntries() {
@@ -1040,6 +1210,7 @@
         renderWorldMarquee();
         renderCreatureGrid();
         bindRosterRotator();
+        bindPlacementDemo();
         bindFeaturedRotator();
         bindLandingFab();
         bindParallax();

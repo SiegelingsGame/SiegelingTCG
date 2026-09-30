@@ -3284,3 +3284,39 @@ Original prompt: Selecting a Siegeling here should also show their description t
 
 - September 17, 2026 - The redesigned hub card sheet shows the selected card's escaped catalog description to the right of its notch outline, with abilities below. Cards without a description retain the centered notch diagram. Downward touch drags follow the finger and dismiss after a deliberate pull or flick; short/cancelled drags snap back, horizontal movement is ignored, and upward gestures or drags begun in scrolled content retain native scrolling. The grab handle is a labeled close button, Escape closes the sheet, and focus returns to the opener. Short landscape screens use a smaller card face to leave room for the description. Both including HTML pages now pin home-redesign.css v38 and home-redesign.js v28. The existing text-state hook reports the open card and selected tab.
 - Verification: node --check and git diff --check pass. Playwright with installed Edge/Chromium at 390x844, 320x568, 844x390, and 1920x1080 checked Ceeponee's actual live catalog description, four notches, right-side placement, no horizontal overflow, visible header/CTA, short/horizontal/cancelled gestures, downward dismissal, reopening, all three tabs, and handle-tap closure. Real CDP touch input confirmed long descriptions scroll upward and back without dismissal, while pulling down at scrollTop 0 dismisses. Empty descriptions, escaped markup, and Escape closure passed. No page errors. The required develop-web-game client passed with matching text state and no console-error artifact; screenshots were opened and inspected. Local evidence: output/web-game/siegling-sheet/. No outstanding implementation TODOs.
+
+Original prompt: I like some of the features incorporate the placing card feature into the current landing page
+
+## 2026-09-29 — Interactive card placement on the landing page
+
+Added an art-led, touch-friendly card placement section between the feature strip and elemental affinities. Applehead anchors the board while Cacty and Bonoblade are rendered from `/api/game/options`; placing either card validates reciprocal Earth notches, animates the card into the slot, lights the connection, and explains the generated Earth energy. Shipped card values and local art keep the section usable when the catalog is unavailable. The component includes reset/swap behavior, live status text, keyboard-accessible controls, reduced-motion support, and text-state hooks for deterministic QA. Added Card Links to the floating page navigation and bumped landing asset pins to CSS v35 / JS v31.
+
+Verified: `node --check src/main/resources/static/js/landing.js` and `git diff --check`; required develop-web-game Playwright client loaded the interaction and emitted text state; dedicated Playwright coverage at 1920x1080, 390x844, and 320x568 placed both Cacty and Bonoblade, confirmed both reciprocal links generated energy, found no horizontal overflow or broken placement images, and recorded no page or console errors. Screenshots were visually inspected at desktop and mobile widths.
+
+## 2026-09-29 — Draco combo-link follow-up
+
+Added Draco as the third placement-demo hand card. Reciprocal links now follow the game rule: matching notch elements generate elemental energy, while Applehead's Earth notch facing Draco's Fire notch generates a combo point. The connector splits into both element colors, the badge changes to COMBO, and the status explains the mixed-element result. On phones the three-card hand is an independently scrolling row so selecting Draco cannot widen or clip the landing section. Bumped landing asset pins to CSS v36 / JS v32.
+
+Verified with the required web-game client plus Playwright at 1920x1080, 390x844, and 320x568: Draco reports a connected `combo` state and one combo point; Cacty returns to the standard `energy` state; all three hand cards render; no broken images, browser errors, page overflow, or horizontal page scroll. Desktop and both phone screenshots were visually inspected.
+
+## 2026-09-29 — Combo label and notch orientation correction
+
+Removed the COMBO word badge from the mixed-element connector while preserving the split Earth/Fire link and explanatory status. Card-edge notch emblems now remain upright at every direction instead of rotating with the card edge. Bumped landing asset pins to CSS v37 / JS v33.
+
+Verified on the 390x844 Draco state: the combo badge is empty/hidden, all rendered notch transforms contain translation only with no rotation, the combo state remains active, and no page or console errors were recorded. The refreshed mobile screenshot was visually inspected.
+
+## 2026-09-29 — Full-card placement picker
+
+Replaced the compact hand chips with the GPT preview's fuller card-selection treatment. Each choice now shows the complete framed card and upright notches, followed by its name, link type, result text, and a clear Place card action. Desktop presents Cacty, Bonoblade, and Draco together; mobile uses a large swipeable card rail that keeps the selected card fully visible. Bumped landing asset pins to CSS v38 / JS v34.
+
+Verified with the required web-game client and Playwright at 1920x1080, 390x844, and 320x568: all three full card choices and their link text render, Draco still creates the Earth/Fire combo state, no page overflow occurs, and no page or console errors were recorded. Desktop and mobile screenshots were visually inspected.
+
+## 2026-09-29 — Standard notch proportions
+
+Reduced placement-demo notch tokens from 28% to 17% of card width and adjusted every edge/corner offset and glow to match the standard board-card socket proportion. The ratio now stays identical on board cards and full-card picker choices. Bumped the landing stylesheet pin to v39.
+
+Verified at 390x844 with live card art: every rendered notch measured 0.1698–0.1700 of its card width, no page or console errors were recorded, and the refreshed mobile screenshot was visually inspected.
+
+## 2026-09-29 — Correct painted socket alignment
+Replaced estimated external notch offsets with the exact framed arena/hand coordinates from style.css (10.4% diameter; inset centers). Corrects the earlier inaccurate claim that 17% was standard. Extended the connector to meet the inset socket centers. CSS pin v40. Browser geometry checks passed on every rendered notch at 390px and 1920px; mobile screenshot inspected. Local only.
+

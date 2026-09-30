@@ -17,7 +17,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="stylesheet" href="/css/landing.css?v=34">
+    <link rel="stylesheet" href="/css/landing.css?v=40">
 </head>
 <body class="landing-body">
 
@@ -91,6 +91,7 @@
         <span aria-hidden="true">✦</span>
     </button>
     <div class="landing-fab-menu" id="landingFabMenu" hidden>
+        <a href="#connections">Card Links</a>
         <a href="#elements">Elements</a>
         <a href="#modes">Game Modes</a>
         <a href="#roster">Siegelings</a>
@@ -126,6 +127,45 @@
             <h3 class="feature-title">Battle SiegeKnights</h3>
             <p class="feature-copy">Lead a SiegeKnight into the arena. Phase by phase, outmaneuver rival commanders for the crown.</p>
         </article>
+    </div>
+</section>
+
+<!-- ── Interactive card placement ─────────────────────────────────────── -->
+<section class="placement-section" id="connections" aria-labelledby="connectionsTitle">
+    <div class="placement-copy">
+        <span class="section-kicker">Play the Connection</span>
+        <h2 id="connectionsTitle">Place a card. Power the board.</h2>
+        <p>Facing notches always connect. Match their elements to generate energy, or mix Earth and Fire to create a combo point.</p>
+        <div class="placement-rule">
+            <span class="placement-rule-notch" aria-hidden="true"></span>
+            <span><strong>Reciprocal notches</strong> create energy links and elemental combos.</span>
+        </div>
+    </div>
+
+    <div class="placement-demo" id="placementDemo" data-state="ready">
+        <div class="placement-board" aria-label="Two-card placement board">
+            <div class="placement-board-slot is-occupied" id="placementAnchor" aria-label="Applehead is already on the board"></div>
+            <div class="placement-link" aria-hidden="true">
+                <span class="placement-link-line"></span>
+                <span class="placement-energy">+1</span>
+            </div>
+            <div class="placement-board-slot is-target" id="placementTarget" aria-label="Open card slot">
+                <span class="placement-slot-plus" aria-hidden="true">+</span>
+                <span class="placement-slot-label">Place here</span>
+            </div>
+        </div>
+
+        <div class="placement-feedback" id="placementFeedback" role="status" aria-live="polite">
+            Choose a card from your hand.
+        </div>
+
+        <div class="placement-hand-wrap">
+            <div class="placement-hand-heading">
+                <span>Your hand</span>
+                <button class="placement-reset" id="placementReset" type="button" hidden>Reset</button>
+            </div>
+            <div class="placement-hand" id="placementHand" aria-label="Cards in your hand"></div>
+        </div>
     </div>
 </section>
 
@@ -330,7 +370,7 @@
 }
 </script>
 <script src="/js/play-mode-picker.js?v=4"></script>
-<script src="/js/landing.js?v=30"></script>
+<script src="/js/landing.js?v=34"></script>
 <script type="module" src="/js/legendary-viewport.js?v=20"></script>
 <script src="/js/sw-register.js?v=1"></script>
 <script src="/js/install-guide.js?v=2"></script>
