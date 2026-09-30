@@ -1,4 +1,5 @@
 Original prompt: Merge and deploy
+- September 30, 2026 - **Merged #980 (Keep mode plate) into the Social floating-button branch; shipped as one.** Both PRs had pinned `home-redesign.js?v=53` / `home-redesign.css?v=62`, so browsers that fetched #980's build would have kept it. The combined build is pinned `?v=55` / `?v=64` in `home-next.html` and `home-redesign-preview.html`. Verified together in headless Chromium at 390x844: the Play screen shows Battle / Siege / Keep, and Social shows the full-bleed profile with the floating button.
 - September 30, 2026 - **Social profile artwork runs to the top edge.** Follow-up to the floating-button entry below.
   - The top-bar spacer now renders only for Friends and Messages (inside `socialTitle`). On Profile, the crest image starts at y=0 behind the transparent logo/chip bar, with nothing painted above it, the same as the standalone `/profile` screen.
   - The dropped `.sg-social-head + … .sg-crest` padding override is what had held the crest down.
@@ -19,6 +20,12 @@ Original prompt: Merge and deploy
   - The button sits above the tab bar (692-748 against a nav top of 793 at 390x844; 416-472 against 518 at 320x568). It hit-tests as itself and shows `1` (hidden for guests).
   - Opening shows Profile*, Friends and Messages at full opacity. Friends shows its title and the friend's buttons, and the menu closes. Messages shows its title. Tapping the scrim closes the menu.
   - Menu icons align (x=322 for all three) after moving the Messages badge onto its icon. No page errors.
+- September 30, 2026 - **Play hub: Keep mode card, Fire Siege art, Earth Keep art.**
+  - `MODES` in `home-redesign.js` gains a third plate, **Keep** (tag "Sanctuary", CTA "Visit", links to `/keep`), using CactyJacked'ty's `cactyjackedty-ruins` scene tagged EARTH.
+  - The Siege plate swaps Skydon (Wind) for Bearzooka's `bearzooka-rampage` scene tagged FIRE.
+  - Desktop (>=1024px) mode grid goes from 2 to 3 columns, max width 1320px, so all three modes stand side by side.
+  - **Cache pins:** `home-redesign.js` -> `?v=53`, `home-redesign.css` -> `?v=62` (both `home-next.html` and `home-redesign-preview.html`).
+- Verification: `node --check` on `home-redesign.js`; headless Chromium on `home-next.html` (statics only) switched to the Play tab at 390x844 and 1920x1080. Three `.sg-mode` links render as Battle `/battle` (frostag), Siege `/siege` (bearzooka-rampage), Keep `/keep` (cactyjackedty-ruins); stacked on phone, three equal 412px columns on desktop, no text clipping in screenshots.
 - September 26, 2026 - **Home hero: one scene per main element.** Requested follow-up to the entry below.
   - **Rotation.** The hero rotates 4 scenes instead of 8 (`HERO_SCENES` in `home-redesign.js`), in weakness-chart order Fire → Ice → Wind → Earth: Bearby's *The Long Fuse*, Frostag's *Morning Drills*, Skydon's *Above the Skyreach*, and a new Earth plate.
   - **The Earth plate.** Earth had no gallery scene at all: Draco, whose Siege plate had been tagged EARTH, is filed as FIRE in the catalog. The new plate is `cactyjackedty-ruins` (CactyJacked'ty, Rare Earth): a 16:9 crop, 1536x864 plus a thumb, of the existing `img/art/loading/cactyjackedty-landscape.webp`.

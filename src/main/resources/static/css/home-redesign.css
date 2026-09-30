@@ -3635,12 +3635,12 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   /* --- play: the mode plates stand up ---
      Letterbox bands crop a tall piece of key art to a 132px strip. Portrait
      panels side by side show most of the same artwork and read as a choice
-     between two games rather than two rows of a list. */
-  /* Capped measure, not the full column: at 1480px a two-up grid gives 710px
-     panels, which are landscape again however tall they are. */
+     between games rather than rows of a list. */
+  /* Capped measure, not the full column: a wide unbounded grid gives panels that
+     are landscape again however tall they are. Three modes, three columns. */
   .sg-modes {
-    display:grid; grid-template-columns:repeat(2, minmax(0, 1fr));
-    gap:24px; padding:0 18px; max-width:1040px; margin-inline:auto;
+    display:grid; grid-template-columns:repeat(3, minmax(0, 1fr));
+    gap:24px; padding:0 18px; max-width:1320px; margin-inline:auto;
   }
   /* Height, not aspect-ratio: the ratio made the panels taller than the window
      and pushed everything below Play off the screen. */
