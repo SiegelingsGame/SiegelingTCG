@@ -1,4 +1,25 @@
 Original prompt: Merge and deploy
+- September 30, 2026 - **Merged #980 (Keep mode plate) into the Social floating-button branch; shipped as one.** Both PRs had pinned `home-redesign.js?v=53` / `home-redesign.css?v=62`, so browsers that fetched #980's build would have kept it. The combined build is pinned `?v=55` / `?v=64` in `home-next.html` and `home-redesign-preview.html`. Verified together in headless Chromium at 390x844: the Play screen shows Battle / Siege / Keep, and Social shows the full-bleed profile with the floating button.
+- September 30, 2026 - **Social profile artwork runs to the top edge.** Follow-up to the floating-button entry below.
+  - The top-bar spacer now renders only for Friends and Messages (inside `socialTitle`). On Profile, the crest image starts at y=0 behind the transparent logo/chip bar, with nothing painted above it, the same as the standalone `/profile` screen.
+  - The dropped `.sg-social-head + … .sg-crest` padding override is what had held the crest down.
+  - **Cache pins:** `home-redesign.js` -> `?v=54`, `home-redesign.css` -> `?v=63`.
+- Verification: headless Chromium at 390x844, `/api/**` stubbed. On `?screen=social` the crest and its image both start at 0 and are 330px tall, the avatar block sits at 164, and `.sg-top` has no background, identical to `?screen=profile`. Also at 320x568 and signed out.
+  - At 1920x1080 the crest sits at y=56 (not compared against the standalone Profile screen at that size).
+  - The floating-button flow is unchanged: it opens, switches to Friends and Messages (titles clear the bar) and closes. No page errors.
+- September 30, 2026 - **Social opens on a full profile; Friends and Messages move to a floating button.**
+  - **Why.** The Social screen led with a row of three pills (Profile / Friends / Messages) between the top bar and the profile crest.
+  - **Layout.** The row is gone. A `.sg-social-head` spacer keeps the crest starting just below the logo and chips, as in the owner's reference screenshot.
+  - **Floating button.** A gold floating button sits bottom-right, above the tab bar and clear of the home indicator. It carries a red unread count for message threads. Tapping it dims the screen and fans out Profile, Friends and Messages as labelled round buttons, with the current view highlighted. The items reuse the existing `data-social-tab` switching, so friends, threads and the unread repaint (`paintSocialTabs`, which now also updates the button's count) are unchanged. Picking an item closes the menu and scrolls to the top; tapping the scrim closes it.
+  - **Titles.** Friends and Messages now open under a serif page title, since the pill row no longer says which view you are on.
+  - **Spacing.** The social body gets 64px of bottom room so the button never covers the last row.
+  - The bottom tab bar's Social tray rows still address Friends and Messages directly.
+  - **Cache pins:** `home-redesign.js` -> `?v=53`, `home-redesign.css` -> `?v=62` (`home-next.html`, `home-redesign-preview.html`).
+- Verification: `node --check`. Headless Chromium on `home-next.html?screen=social` with `/api/**` stubbed (signed in with one friend and one unread thread, and signed out) at 390x844, 320x568 and 1920x1080:
+  - No `.sg-social-tabs` element renders, and the crest starts at y=54 under a 48px top bar.
+  - The button sits above the tab bar (692-748 against a nav top of 793 at 390x844; 416-472 against 518 at 320x568). It hit-tests as itself and shows `1` (hidden for guests).
+  - Opening shows Profile*, Friends and Messages at full opacity. Friends shows its title and the friend's buttons, and the menu closes. Messages shows its title. Tapping the scrim closes the menu.
+  - Menu icons align (x=322 for all three) after moving the Messages badge onto its icon. No page errors.
 - September 30, 2026 - **Play hub: Keep mode card, Fire Siege art, Earth Keep art.**
   - `MODES` in `home-redesign.js` gains a third plate, **Keep** (tag "Sanctuary", CTA "Visit", links to `/keep`), using CactyJacked'ty's `cactyjackedty-ruins` scene tagged EARTH.
   - The Siege plate swaps Skydon (Wind) for Bearzooka's `bearzooka-rampage` scene tagged FIRE.

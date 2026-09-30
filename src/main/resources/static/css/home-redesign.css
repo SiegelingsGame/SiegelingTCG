@@ -3307,25 +3307,74 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-nav-badge { position:absolute; top:-2px; right:22%; }
 .sg-tab-badge { margin-left:6px; }
 
-.sg-social-tabs {
-  display:flex; gap:6px; padding:calc(54px + var(--sg-sat)) 18px 2px;
-}
-.sg-social-tab {
-  flex:1 1 0; min-width:0; height:34px; border-radius:999px; cursor:pointer;
-  display:inline-flex; align-items:center; justify-content:center; gap:2px;
-  font-size:12px; font-weight:700; letter-spacing:.06em;
-  color:var(--muted); border:1px solid var(--steel-soft);
-  background:rgba(11,17,32,.6);
-}
-.sg-social-tab.on {
-  color:var(--gold-bright); border-color:rgba(200,165,79,.42);
-  background:rgba(36,26,96,.9);
-}
+/* Clears the fixed top bar (logo + chips) for the Friends and Messages views.
+   Profile has no spacer: its crest runs to the top edge behind the bar. */
+.sg-social-head { height:calc(54px + var(--sg-sat)); }
 .sg-social-pad { padding-top:4px; }
+.sg-social-title { padding:6px 18px 2px; }
+.sg-social-title h2 { margin:0; font-family:var(--serif); font-size:26px; color:var(--ink); }
 
-/* The profile tab reuses the crest, which carries its own top padding for the
-   status bar; inside Social the tab strip is already doing that job. */
-.sg-social-tabs + [data-social-body] .sg-crest { padding-top:10px; }
+
+/* ---- Social floating button ----
+   Above the tab bar, bottom right, clear of the home indicator. Tapping it fans
+   out Profile / Friends / Messages as labelled pills over a dimmed scrim. */
+.sg-fab-wrap { position:absolute; inset:0; z-index:50; pointer-events:none; }
+.sg-fab-scrim {
+  position:absolute; inset:0; border:0; padding:0; margin:0;
+  background:rgba(5,4,18,.55); opacity:0; pointer-events:none; transition:opacity .2s ease;
+}
+.sg-fab-wrap.open .sg-fab-scrim { opacity:1; pointer-events:auto; }
+.sg-fab {
+  position:absolute; right:18px; bottom:calc(96px + var(--sg-sab, 0px));
+  width:56px; height:56px; border-radius:50%; border:0; cursor:pointer; pointer-events:auto;
+  display:grid; place-items:center; color:#22160a;
+  background:linear-gradient(180deg,#ffd58a,#f2a03d);
+  box-shadow:0 10px 26px rgba(242,160,61,.42), 0 2px 8px rgba(0,0,0,.5);
+  transition:transform .15s ease;
+}
+.sg-fab:active { transform:scale(.94); }
+.sg-fab .sg-fab-ico { width:26px; height:26px; }
+.sg-fab-wrap.open .sg-fab { background:linear-gradient(180deg,#f0e7ff,#bfb2f0); }
+.sg-fab-badge {
+  position:absolute; top:-2px; right:-2px; min-width:18px; height:18px; padding:0 5px; border-radius:999px;
+  display:grid; place-items:center; font-style:normal; font-size:10px; font-weight:800;
+  color:#fff; background:#e5484d; box-shadow:0 0 0 2px #1a1147;
+}
+.sg-fab-badge[hidden] { display:none; }
+.sg-fab-menu {
+  position:absolute; right:22px; bottom:calc(164px + var(--sg-sab, 0px));
+  display:flex; flex-direction:column; align-items:flex-end; gap:10px;
+  pointer-events:none;
+}
+.sg-fab-item {
+  display:flex; align-items:center; gap:10px; border:0; background:none; padding:0; cursor:pointer;
+  opacity:0; transform:translateY(10px) scale(.96); transition:opacity .18s ease, transform .18s ease;
+  color:var(--ink);
+}
+.sg-fab-wrap.open .sg-fab-menu { pointer-events:auto; }
+.sg-fab-wrap.open .sg-fab-item { opacity:1; transform:none; }
+.sg-fab-wrap.open .sg-fab-item:nth-child(2) { transition-delay:.03s; }
+.sg-fab-wrap.open .sg-fab-item:nth-child(3) { transition-delay:.06s; }
+.sg-fab-label {
+  padding:6px 12px; border-radius:999px; font-size:13px; font-weight:700; letter-spacing:.04em;
+  background:rgba(26,17,71,.94); border:1px solid rgba(180,140,255,.3);
+}
+.sg-fab-item .sg-fab-ico {
+  width:46px; height:46px; border-radius:50%; display:grid; place-items:center;
+  background:rgba(36,26,96,.96); border:1px solid rgba(180,140,255,.35);
+}
+.sg-fab-item .sg-fab-ico svg { width:22px; height:22px; }
+.sg-fab-item.on .sg-fab-label { color:var(--gold-bright); border-color:rgba(230,205,140,.5); }
+.sg-fab-item.on .sg-fab-ico { border-color:var(--gold-bright); color:var(--gold-bright); }
+.sg-fab-item { position:relative; }
+.sg-fab-item .sg-tab-badge { position:absolute; top:-3px; right:-3px; margin:0; }
+/* Room below the last row so the floating button never sits on top of it. */
+[data-social-scroll] [data-social-body] { padding-bottom:64px; }
+.sg-fab-ico svg { width:100%; height:100%; fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
+.sg-fab .sg-fab-ico svg { stroke-width:2.1; }
+@media (prefers-reduced-motion: reduce) {
+  .sg-fab-item, .sg-fab-scrim { transition:none; }
+}
 
 .sg-add-friend { display:flex; gap:8px; padding:0 18px; }
 .sg-add-friend input {
