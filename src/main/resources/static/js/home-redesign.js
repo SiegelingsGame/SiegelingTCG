@@ -5056,32 +5056,61 @@
     return n;
   }
 
+  /* The Profile / Friends / Messages switch used to be a row of three pills
+     across the top of the screen, which pushed the profile's artwork down and
+     read as part of the profile. It is a floating button now: the profile gets
+     the screen, and Friends and Messages are one tap away from anywhere on it. */
   function socialScreen(opts) {
     opts = opts || {};
-    var unread = unreadThreadCount(opts);
     var tab = socialTab;
     return topMarkup(opts) +
       '<div class="sg-scroll" data-social-scroll>' +
-        '<div class="sg-social-tabs" role="tablist">' +
-          SOCIAL_TABS.map(function (t) {
-            var count = t[0] === 'messages' && unread ? unread : 0;
-            return '<button class="sg-social-tab' + (t[0] === tab ? ' on' : '') + '" type="button" ' +
-              'role="tab" aria-selected="' + (t[0] === tab ? 'true' : 'false') + '" ' +
-              'data-social-tab="' + t[0] + '">' + esc(t[1]) +
-              (count ? '<i class="sg-tab-badge">' + esc(count > 9 ? '9+' : String(count)) + '</i>' : '') +
-            '</button>';
-          }).join('') +
-        '</div>' +
+        '<div class="sg-social-head"></div>' +
         '<div data-social-body>' + socialTabBody(opts, tab) + '</div>' +
       '</div>' +
+      socialFab(opts, tab) +
       sheetHost() +
       (opts.guest ? '' : profileEditorHost()) +
       bottomMarkup('social', opts);
   }
 
+  var FAB_ICONS = {
+    profile: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>',
+    friends: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><circle cx="17" cy="9.5" r="2.8"/><path d="M2.5 20c0-3.8 3-6 6.5-6s6.5 2.2 6.5 6"/><path d="M15.5 14.3c3 .1 6 1.9 6 5.7"/></svg>',
+    messages: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg>'
+  };
+
+  function socialFab(opts, tab) {
+    var unread = unreadThreadCount(opts);
+    var badge = function (n) {
+      return n ? '<i class="sg-tab-badge">' + esc(n > 9 ? '9+' : String(n)) + '</i>' : '';
+    };
+    return '<div class="sg-fab-wrap" data-fab>' +
+      '<button class="sg-fab-scrim" type="button" data-fab-close tabindex="-1" aria-hidden="true"></button>' +
+      '<div class="sg-fab-menu" role="menu" aria-label="Social">' +
+        SOCIAL_TABS.map(function (t) {
+          return '<button class="sg-fab-item' + (t[0] === tab ? ' on' : '') + '" type="button" role="menuitem" ' +
+            'data-social-tab="' + t[0] + '" aria-selected="' + (t[0] === tab ? 'true' : 'false') + '">' +
+            '<span class="sg-fab-label">' + esc(t[1]) + '</span>' +
+            '<span class="sg-fab-ico">' + FAB_ICONS[t[0]] + '</span>' +
+            (t[0] === 'messages' ? badge(unread) : '') +
+          '</button>';
+        }).join('') +
+      '</div>' +
+      '<button class="sg-fab" type="button" data-fab-toggle aria-expanded="false" aria-label="Friends and messages">' +
+        '<span class="sg-fab-ico">' + FAB_ICONS.friends + '</span>' +
+        '<i class="sg-fab-badge" data-fab-badge' + (unread ? '' : ' hidden') + '>' + esc(unread > 9 ? '9+' : String(unread)) + '</i>' +
+      '</button>' +
+    '</div>';
+  }
+
+  function socialTitle(text) {
+    return '<div class="sg-social-title"><h2>' + esc(text) + '</h2></div>';
+  }
+
   function socialTabBody(opts, tab) {
-    if (tab === 'friends') return friendsTab(opts);
-    if (tab === 'messages') return messagesTab(opts);
+    if (tab === 'friends') return socialTitle('Friends') + friendsTab(opts);
+    if (tab === 'messages') return socialTitle('Messages') + messagesTab(opts);
     return profileBody(opts);
   }
 
@@ -5310,6 +5339,11 @@
      told us about friends and requests so the list is never a tap behind. */
   function paintSocialTabs(app, opts) {
     var unread = unreadThreadCount(opts);
+    var fabBadge = app.querySelector('[data-fab-badge]');
+    if (fabBadge) {
+      fabBadge.hidden = !unread;
+      fabBadge.textContent = unread > 9 ? '9+' : String(unread);
+    }
     app.querySelectorAll('[data-social-tab]').forEach(function (b) {
       var id = b.getAttribute('data-social-tab');
       var on = id === socialTab;
@@ -5329,8 +5363,8 @@
     });
   }
 
-  /* An open thread should fill the space between the tab strip and the tab bar.
-     A fixed height cannot do that: the strip's own height moves with the
+  /* An open thread should fill the space between the page title and the tab bar.
+     A fixed height cannot do that: the head spacer moves with the
      status-bar inset. Measured from where the view actually starts. */
   function layoutThread(app) {
     var view = app.querySelector('[data-thread-view]');
@@ -5408,16 +5442,37 @@
     }, 5000);
   }
 
+  function isFabOpen(app) {
+    var wrap = app.querySelector('[data-fab]');
+    return Boolean(wrap && wrap.classList.contains('open'));
+  }
+  function setFabOpen(app, open) {
+    var wrap = app.querySelector('[data-fab]');
+    if (!wrap) return;
+    wrap.classList.toggle('open', open);
+    var btn = wrap.querySelector('[data-fab-toggle]');
+    if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+
   function mountSocial(app, opts) {
     var api = liveApi();
 
     app.addEventListener('click', function (e) {
+      var fabToggle = e.target.closest && e.target.closest('[data-fab-toggle], [data-fab-close]');
+      if (fabToggle) {
+        setFabOpen(app, fabToggle.hasAttribute('data-fab-toggle') && !isFabOpen(app));
+        return;
+      }
+
       var tabBtn = e.target.closest && e.target.closest('[data-social-tab]');
       if (tabBtn) {
+        setFabOpen(app, false);
         setSocialTab(tabBtn.getAttribute('data-social-tab'));
         openThread = null;
         stopThreadPoll();
         refreshSocial(app, opts);
+        var scroller = app.querySelector('[data-social-scroll]');
+        if (scroller) scroller.scrollTop = 0;
         return;
       }
 

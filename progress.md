@@ -1,4 +1,17 @@
 Original prompt: Merge and deploy
+- September 30, 2026 - **Social opens on a full profile; Friends and Messages move to a floating button.**
+  - **Why.** The Social screen led with a row of three pills (Profile / Friends / Messages) between the top bar and the profile crest.
+  - **Layout.** The row is gone. A `.sg-social-head` spacer keeps the crest starting just below the logo and chips, as in the owner's reference screenshot.
+  - **Floating button.** A gold floating button sits bottom-right, above the tab bar and clear of the home indicator. It carries a red unread count for message threads. Tapping it dims the screen and fans out Profile, Friends and Messages as labelled round buttons, with the current view highlighted. The items reuse the existing `data-social-tab` switching, so friends, threads and the unread repaint (`paintSocialTabs`, which now also updates the button's count) are unchanged. Picking an item closes the menu and scrolls to the top; tapping the scrim closes it.
+  - **Titles.** Friends and Messages now open under a serif page title, since the pill row no longer says which view you are on.
+  - **Spacing.** The social body gets 64px of bottom room so the button never covers the last row.
+  - The bottom tab bar's Social tray rows still address Friends and Messages directly.
+  - **Cache pins:** `home-redesign.js` -> `?v=53`, `home-redesign.css` -> `?v=62` (`home-next.html`, `home-redesign-preview.html`).
+- Verification: `node --check`. Headless Chromium on `home-next.html?screen=social` with `/api/**` stubbed (signed in with one friend and one unread thread, and signed out) at 390x844, 320x568 and 1920x1080:
+  - No `.sg-social-tabs` element renders, and the crest starts at y=54 under a 48px top bar.
+  - The button sits above the tab bar (692-748 against a nav top of 793 at 390x844; 416-472 against 518 at 320x568). It hit-tests as itself and shows `1` (hidden for guests).
+  - Opening shows Profile*, Friends and Messages at full opacity. Friends shows its title and the friend's buttons, and the menu closes. Messages shows its title. Tapping the scrim closes the menu.
+  - Menu icons align (x=322 for all three) after moving the Messages badge onto its icon. No page errors.
 - September 26, 2026 - **Home hero: one scene per main element.** Requested follow-up to the entry below.
   - **Rotation.** The hero rotates 4 scenes instead of 8 (`HERO_SCENES` in `home-redesign.js`), in weakness-chart order Fire → Ice → Wind → Earth: Bearby's *The Long Fuse*, Frostag's *Morning Drills*, Skydon's *Above the Skyreach*, and a new Earth plate.
   - **The Earth plate.** Earth had no gallery scene at all: Draco, whose Siege plate had been tagged EARTH, is filed as FIRE in the catalog. The new plate is `cactyjackedty-ruins` (CactyJacked'ty, Rare Earth): a 16:9 crop, 1536x864 plus a thumb, of the existing `img/art/loading/cactyjackedty-landscape.webp`.
