@@ -3372,6 +3372,12 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 [data-social-scroll] [data-social-body] { padding-bottom:64px; }
 .sg-fab-ico svg { width:100%; height:100%; fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
 .sg-fab .sg-fab-ico svg { stroke-width:2.1; }
+/* The thread composer is pinned to the same bottom-right corner as this
+   button. On a phone with no home-indicator inset the Send control's center
+   lands on the button, so a tap opens the menu and the message never goes.
+   The switcher has nothing to do inside a thread — Back returns to the list —
+   so it steps aside until the thread closes. */
+.sg-app:has([data-thread-view]) .sg-fab-wrap { display:none; }
 @media (prefers-reduced-motion: reduce) {
   .sg-fab-item, .sg-fab-scrim { transition:none; }
 }
