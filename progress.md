@@ -7,11 +7,38 @@ Original prompt: Merge and deploy
   - **Player Titles.** The day's `dailyTitleOffers` are back as rows with a buy button (`/api/shop/purchase-title`). A title the account already unlocked shows Owned.
   - **Buying.** Card and title buys take two taps: the first arms the button as `Buy · N`, the second spends. A purchase re-renders the shop in place, updating coins, keeping the scroll position and the current slide, and showing a status notice.
   - **Live data.** `home-redesign-live.js` now carries `dailyOffers`, `dailyTitleOffers` and `purchasedDailyOfferIds`.
-  - **Cache pins:** `home-redesign.js` -> `?v=53`, `home-redesign-live.js` -> `?v=13`, `home-redesign.css` -> `?v=62` (`home-next.html`, `home-redesign-preview.html`).
+  - **Cache pins:** `home-redesign.js` -> `?v=56`, `home-redesign-live.js` -> `?v=13`, `home-redesign.css` -> `?v=65` (above #980/#982's pins after merging main) (`home-next.html`, `home-redesign-preview.html`).
 - Verification: `node --check` on both JS files. Headless Chromium on `home-next.html?screen=shop` at 390x844 and 1920x1080, with `/api/**` stubbed (6 element packs, 3 daily offers, 2 titles, one already owned):
   - **Carousel:** 6 slides with backdrops bearby-longfuse / cactyjackedty-ruins / skydon-skyreach / frostag-training / lands/water / lands/electric, matching Fire/Earth/Wind/Ice/Water/Electric tags. Tapping dot 2 scrolls the track to slide 2; a scroll to slide 4 moves the active dot to 4. The pack art never intersects the copy.
   - **Buying:** the first tap on an offer reads `Buy · 250`, and the second marks it Owned, drops the coin chip 1000 -> 750, shows the notice and keeps slide 4. The title buy flips to Owned.
   - **Layout:** no horizontal page overflow; the offer rail starts at the 18px gutter; no page errors.
+- September 30, 2026 - **Merged #980 (Keep mode plate) into the Social floating-button branch; shipped as one.** Both PRs had pinned `home-redesign.js?v=53` / `home-redesign.css?v=62`, so browsers that fetched #980's build would have kept it. The combined build is pinned `?v=55` / `?v=64` in `home-next.html` and `home-redesign-preview.html`. Verified together in headless Chromium at 390x844: the Play screen shows Battle / Siege / Keep, and Social shows the full-bleed profile with the floating button.
+- September 30, 2026 - **Social profile artwork runs to the top edge.** Follow-up to the floating-button entry below.
+  - The top-bar spacer now renders only for Friends and Messages (inside `socialTitle`). On Profile, the crest image starts at y=0 behind the transparent logo/chip bar, with nothing painted above it, the same as the standalone `/profile` screen.
+  - The dropped `.sg-social-head + … .sg-crest` padding override is what had held the crest down.
+  - **Cache pins:** `home-redesign.js` -> `?v=54`, `home-redesign.css` -> `?v=63`.
+- Verification: headless Chromium at 390x844, `/api/**` stubbed. On `?screen=social` the crest and its image both start at 0 and are 330px tall, the avatar block sits at 164, and `.sg-top` has no background, identical to `?screen=profile`. Also at 320x568 and signed out.
+  - At 1920x1080 the crest sits at y=56 (not compared against the standalone Profile screen at that size).
+  - The floating-button flow is unchanged: it opens, switches to Friends and Messages (titles clear the bar) and closes. No page errors.
+- September 30, 2026 - **Social opens on a full profile; Friends and Messages move to a floating button.**
+  - **Why.** The Social screen led with a row of three pills (Profile / Friends / Messages) between the top bar and the profile crest.
+  - **Layout.** The row is gone. A `.sg-social-head` spacer keeps the crest starting just below the logo and chips, as in the owner's reference screenshot.
+  - **Floating button.** A gold floating button sits bottom-right, above the tab bar and clear of the home indicator. It carries a red unread count for message threads. Tapping it dims the screen and fans out Profile, Friends and Messages as labelled round buttons, with the current view highlighted. The items reuse the existing `data-social-tab` switching, so friends, threads and the unread repaint (`paintSocialTabs`, which now also updates the button's count) are unchanged. Picking an item closes the menu and scrolls to the top; tapping the scrim closes it.
+  - **Titles.** Friends and Messages now open under a serif page title, since the pill row no longer says which view you are on.
+  - **Spacing.** The social body gets 64px of bottom room so the button never covers the last row.
+  - The bottom tab bar's Social tray rows still address Friends and Messages directly.
+  - **Cache pins:** `home-redesign.js` -> `?v=53`, `home-redesign.css` -> `?v=62` (`home-next.html`, `home-redesign-preview.html`).
+- Verification: `node --check`. Headless Chromium on `home-next.html?screen=social` with `/api/**` stubbed (signed in with one friend and one unread thread, and signed out) at 390x844, 320x568 and 1920x1080:
+  - No `.sg-social-tabs` element renders, and the crest starts at y=54 under a 48px top bar.
+  - The button sits above the tab bar (692-748 against a nav top of 793 at 390x844; 416-472 against 518 at 320x568). It hit-tests as itself and shows `1` (hidden for guests).
+  - Opening shows Profile*, Friends and Messages at full opacity. Friends shows its title and the friend's buttons, and the menu closes. Messages shows its title. Tapping the scrim closes the menu.
+  - Menu icons align (x=322 for all three) after moving the Messages badge onto its icon. No page errors.
+- September 30, 2026 - **Play hub: Keep mode card, Fire Siege art, Earth Keep art.**
+  - `MODES` in `home-redesign.js` gains a third plate, **Keep** (tag "Sanctuary", CTA "Visit", links to `/keep`), using CactyJacked'ty's `cactyjackedty-ruins` scene tagged EARTH.
+  - The Siege plate swaps Skydon (Wind) for Bearzooka's `bearzooka-rampage` scene tagged FIRE.
+  - Desktop (>=1024px) mode grid goes from 2 to 3 columns, max width 1320px, so all three modes stand side by side.
+  - **Cache pins:** `home-redesign.js` -> `?v=53`, `home-redesign.css` -> `?v=62` (both `home-next.html` and `home-redesign-preview.html`).
+- Verification: `node --check` on `home-redesign.js`; headless Chromium on `home-next.html` (statics only) switched to the Play tab at 390x844 and 1920x1080. Three `.sg-mode` links render as Battle `/battle` (frostag), Siege `/siege` (bearzooka-rampage), Keep `/keep` (cactyjackedty-ruins); stacked on phone, three equal 412px columns on desktop, no text clipping in screenshots.
 - September 26, 2026 - **Home hero: one scene per main element.** Requested follow-up to the entry below.
   - **Rotation.** The hero rotates 4 scenes instead of 8 (`HERO_SCENES` in `home-redesign.js`), in weakness-chart order Fire → Ice → Wind → Earth: Bearby's *The Long Fuse*, Frostag's *Morning Drills*, Skydon's *Above the Skyreach*, and a new Earth plate.
   - **The Earth plate.** Earth had no gallery scene at all: Draco, whose Siege plate had been tagged EARTH, is filed as FIRE in the catalog. The new plate is `cactyjackedty-ruins` (CactyJacked'ty, Rare Earth): a 16:9 crop, 1536x864 plus a thumb, of the existing `img/art/loading/cactyjackedty-landscape.webp`.
