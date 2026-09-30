@@ -1,4 +1,17 @@
 Original prompt: Merge and deploy
+- September 30, 2026 - **Shop: element-matched featured carousel, Daily Offerings, and Player Titles back in the hub shop.**
+  - **Featured carousel.** The shop's featured band (`shopScreen` in `home-redesign.js`) was one starter pack over the Skydon (Wind) plate, so the Fire Starter Pack sat on a Wind sky. It is now a slide per active pack: starters first, then cheapest first.
+    - **Interaction.** Swiping uses native scroll-snap on the track. Dots and prev/next arrows (arrows only on hover-capable pointers) are keyboard-navigable, and the band auto-advances every 6s until the player first touches it. Reduced motion disables auto-advance.
+    - **Element art.** Each slide's backdrop matches the pack's element: the gallery plate for Fire/Ice/Wind/Earth (`ELEMENT_SCENE`), otherwise that element's Land plate (`img/lands/<el>.webp`). The pack's own card back floats upper-right, lit in the element colour.
+  - **Daily Offerings.** Today's single-card buys from `/api/shop/packs` `dailyOffers` render as a rail of real card faces, each with its name, rarity · element and price. Tapping a face opens the card sheet. Buying goes through `/api/shop/purchase-card`, and bought offers show Owned (`purchasedDailyOfferIds`).
+  - **Player Titles.** The day's `dailyTitleOffers` are back as rows with a buy button (`/api/shop/purchase-title`). A title the account already unlocked shows Owned.
+  - **Buying.** Card and title buys take two taps: the first arms the button as `Buy · N`, the second spends. A purchase re-renders the shop in place, updating coins, keeping the scroll position and the current slide, and showing a status notice.
+  - **Live data.** `home-redesign-live.js` now carries `dailyOffers`, `dailyTitleOffers` and `purchasedDailyOfferIds`.
+  - **Cache pins:** `home-redesign.js` -> `?v=53`, `home-redesign-live.js` -> `?v=13`, `home-redesign.css` -> `?v=62` (`home-next.html`, `home-redesign-preview.html`).
+- Verification: `node --check` on both JS files. Headless Chromium on `home-next.html?screen=shop` at 390x844 and 1920x1080, with `/api/**` stubbed (6 element packs, 3 daily offers, 2 titles, one already owned):
+  - **Carousel:** 6 slides with backdrops bearby-longfuse / cactyjackedty-ruins / skydon-skyreach / frostag-training / lands/water / lands/electric, matching Fire/Earth/Wind/Ice/Water/Electric tags. Tapping dot 2 scrolls the track to slide 2; a scroll to slide 4 moves the active dot to 4. The pack art never intersects the copy.
+  - **Buying:** the first tap on an offer reads `Buy · 250`, and the second marks it Owned, drops the coin chip 1000 -> 750, shows the notice and keeps slide 4. The title buy flips to Owned.
+  - **Layout:** no horizontal page overflow; the offer rail starts at the 18px gutter; no page errors.
 - September 26, 2026 - **Home hero: one scene per main element.** Requested follow-up to the entry below.
   - **Rotation.** The hero rotates 4 scenes instead of 8 (`HERO_SCENES` in `home-redesign.js`), in weakness-chart order Fire → Ice → Wind → Earth: Bearby's *The Long Fuse*, Frostag's *Morning Drills*, Skydon's *Above the Skyreach*, and a new Earth plate.
   - **The Earth plate.** Earth had no gallery scene at all: Draco, whose Siege plate had been tagged EARTH, is filed as FIRE in the catalog. The new plate is `cactyjackedty-ruins` (CactyJacked'ty, Rare Earth): a 16:9 crop, 1536x864 plus a thumb, of the existing `img/art/loading/cactyjackedty-landscape.webp`.
