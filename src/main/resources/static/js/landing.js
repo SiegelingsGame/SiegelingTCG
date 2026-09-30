@@ -298,8 +298,8 @@
                 .find((notch) => String(notch?.direction || '').toUpperCase() === 'LEFT');
             const cardElement = String(leftNotch?.element || card.element || '').toUpperCase();
             const sameElement = cardElement === String(anchor.element || 'EARTH').toUpperCase();
-            const linkLabel = sameElement ? `${cardElement} energy link` : `Earth + ${cardElement} combo link`;
-            const linkResult = sameElement ? `Generates 1 ${cardElement} energy.` : 'Creates 1 combo point.';
+            const linkLabel = !leftNotch ? 'No facing notch' : sameElement ? `${cardElement} energy link` : `Earth + ${cardElement} combo link`;
+            const linkResult = !leftNotch ? 'No left notch to connect here.' : sameElement ? `Generates 1 ${cardElement} energy.` : 'Creates 1 combo point.';
             return `
             <button class="placement-hand-card" type="button" data-placement-card="${escapeAttr(card.id)}"
                     aria-label="Place ${escapeAttr(card.name)} beside Applehead" aria-pressed="false">
