@@ -1,4 +1,10 @@
 Original prompt: Merge and deploy
+- September 30, 2026 - **Play hub: Keep mode card, Fire Siege art, Earth Keep art.**
+  - `MODES` in `home-redesign.js` gains a third plate, **Keep** (tag "Sanctuary", CTA "Visit", links to `/keep`), using CactyJacked'ty's `cactyjackedty-ruins` scene tagged EARTH.
+  - The Siege plate swaps Skydon (Wind) for Bearzooka's `bearzooka-rampage` scene tagged FIRE.
+  - Desktop (>=1024px) mode grid goes from 2 to 3 columns, max width 1320px, so all three modes stand side by side.
+  - **Cache pins:** `home-redesign.js` -> `?v=53`, `home-redesign.css` -> `?v=62` (both `home-next.html` and `home-redesign-preview.html`).
+- Verification: `node --check` on `home-redesign.js`; headless Chromium on `home-next.html` (statics only) switched to the Play tab at 390x844 and 1920x1080. Three `.sg-mode` links render as Battle `/battle` (frostag), Siege `/siege` (bearzooka-rampage), Keep `/keep` (cactyjackedty-ruins); stacked on phone, three equal 412px columns on desktop, no text clipping in screenshots.
 - September 26, 2026 - **Home hero: one scene per main element.** Requested follow-up to the entry below.
   - **Rotation.** The hero rotates 4 scenes instead of 8 (`HERO_SCENES` in `home-redesign.js`), in weakness-chart order Fire → Ice → Wind → Earth: Bearby's *The Long Fuse*, Frostag's *Morning Drills*, Skydon's *Above the Skyreach*, and a new Earth plate.
   - **The Earth plate.** Earth had no gallery scene at all: Draco, whose Siege plate had been tagged EARTH, is filed as FIRE in the catalog. The new plate is `cactyjackedty-ruins` (CactyJacked'ty, Rare Earth): a 16:9 crop, 1536x864 plus a thumb, of the existing `img/art/loading/cactyjackedty-landscape.webp`.
