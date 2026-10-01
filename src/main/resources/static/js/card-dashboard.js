@@ -1929,6 +1929,8 @@
                 : defaultLiveElements();
         }
         state.cards = cards;
+        // game.js resolves Evo corner-chip precursor art from this.
+        window.SieglingsCardCatalog = cards;
         state.decks = decks;
         state.packs = packs;
         state.trainers = trainers;
