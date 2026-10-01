@@ -23,7 +23,7 @@
     <!-- Pre-load loading-gate styles so the splash covers the loadout
          screen on the very first Start Battle press - the lazy-injected
          link tag inside loading-gate.js was paint-blocking the gate. -->
-    <link rel="stylesheet" href="/css/landing.css?v=40">
+    <link rel="stylesheet" href="/css/landing.css?v=46">
     <!-- Sets --sg-vh before first paint; every fixed shell measures off it. -->
     <script src="/js/viewport-unit.js?v=3"></script>
 </head>
@@ -40,7 +40,7 @@
 </div>
 <nav class="play-hub-nav" aria-label="Siegelings hub navigation">
     <a class="play-hub-brand" href="/home">
-        <img class="play-hub-mark" src="/img/siegelings-icon.png" alt="" aria-hidden="true">
+        <img class="play-hub-mark" src="/img/siegelings-icon-256.webp" alt="" aria-hidden="true">
         <span><strong>Siegelings TCG</strong><small>Battle Table</small></span>
     </a>
     <div class="play-hub-icons" aria-label="Alerts and help">
@@ -943,25 +943,24 @@
     } catch (error) { /* default backdrop */ }
 })();
 </script>
-<script src="https://cdn.jsdelivr.net/npm/howler@2.2.4/dist/howler.min.js"></script>
 <script src="/js/config.js"></script>
 <script type="module" src="/js/firebase-init.js?v=2"></script>
     <script src="/js/catalog-sync.js?v=1"></script>
     <script src="/js/coach.js?v=11"></script>
-    <script src="/js/arena-tutorial.js?v=50"></script>
+    <script src="/js/arena-tutorial.js?v=51"></script>
     <script src="/js/knight-tutorial.js?v=2"></script>
-    <script src="/js/game.js?v=306"></script>
+    <script src="/js/game.js?v=307"></script>
     <script src="/js/play-mode-picker.js?v=4"></script>
     <script src="/js/play-hud.js?v=4"></script>
     <!-- Defines window.SieglingsCardBinderVisual (buildArtTransformStyle). Without it,
          getDashboardCardArtMeta() can't build the cardArtScale/offset transform, so
          overlay art renders unscaled on the battle hand, board, and mulligan. -->
-    <script src="/js/card-binder-visual.js?v=26"></script>
-    <script src="/js/sounds.js?v=2"></script>
-    <script src="/js/fx.js?v=4"></script>
+    <script src="/js/card-binder-visual.js?v=27"></script>
+    <script src="/js/sounds.js?v=3"></script>
+    <script src="/js/fx.js?v=5"></script>
     <script src="/js/action-queue.js?v=47"></script>
     <script src="/js/loading-art.js?v=4"></script>
-    <script src="/js/loading-gate.js?v=5"></script>
+    <script src="/js/loading-gate.js?v=6"></script>
     <script src="/js/sw-register.js?v=1"></script>
 </body>
 </html>

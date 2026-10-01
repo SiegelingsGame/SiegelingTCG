@@ -1,0 +1,27 @@
+# `gcloud run deploy --source .` uploads this directory to Cloud Build, and the
+# Dockerfile only needs the Maven project (Dockerfile, pom.xml, mvnw, .mvn/,
+# src/). Without this file every deploy uploaded ~450 MB, most of it tracked
+# verification artifacts under output/.
+#
+# A .gcloudignore replaces gcloud's implicit use of .gitignore, so pull it back
+# in: it keeps target/, local properties and service-account keys out.
+#!include:.gitignore
+
+.git
+.github/
+.claude/
+.deploy-hosting/
+output/
+docs/
+tests/
+tools/
+scripts/
+mobile/
+functions/
+/*.md
+/*.png
+/*.jpg
+/*.html
+/*.txt
+/sieglings-dashboard-export.json
+.DS_Store

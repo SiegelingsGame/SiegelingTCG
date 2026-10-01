@@ -311,7 +311,8 @@
         const normalized = String(element || 'NEUTRAL').toUpperCase();
         const iconPath = elementIconPath(normalized);
         if (iconPath) {
-            return `<img class="element-icon-art" src="${escapeAttr(iconPath)}" alt="${escapeAttr(format(normalized))} icon" loading="lazy">`;
+            // The painted element PNGs are 2.5-3.1 MB; their WebP twins are ~6x smaller.
+            return `<img class="element-icon-art" src="${escapeAttr(preferWebp(iconPath))}" alt="${escapeAttr(format(normalized))} icon" loading="lazy" data-img-fallback="${escapeAttr(iconPath)}" onerror="sgWebpFallback(this)">`;
         }
         return `<span class="binder-card-fallback-element">${escapeHtml(format(normalized).slice(0, 1) || '?')}</span>`;
     }
@@ -560,18 +561,23 @@
     // preferWebp() swaps the extension when the browser supports WebP; the
     // <img onerror> handler falls back to the original file if a .webp is ever
     // missing, so this can never leave a broken image.
-    let __webpSupport = null;
-    function webpSupported() {
-        if (__webpSupport !== null) {
-            return __webpSupport;
-        }
+    // What matters is whether WebP *decodes*. The old probe asked a canvas to
+    // *encode* WebP, which Safari never supports (it decodes WebP since iOS 14),
+    // so every iPhone fell back to the multi-MB PNGs. Start from "supported" (the
+    // stylesheets already use .webp unconditionally) and let a real decode probe
+    // turn it off on a browser that cannot.
+    let __webpSupport = true;
+    (function probeWebpDecode() {
         try {
-            const c = document.createElement('canvas');
-            __webpSupport = !!(c.getContext && c.getContext('2d'))
-                && c.toDataURL('image/webp').indexOf('data:image/webp') === 0;
+            const img = new Image();
+            img.onload = () => { if (!img.width) __webpSupport = false; };
+            img.onerror = () => { __webpSupport = false; };
+            img.src = 'data:image/webp;base64,UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA';
         } catch (e) {
-            __webpSupport = false;
+            // No Image constructor (non-browser test harness): keep the default.
         }
+    })();
+    function webpSupported() {
         return __webpSupport;
     }
 

@@ -66,7 +66,6 @@
     // ── Math helpers ──────────────────────────────────────────────────────────
     function lerp(a, b, t) { return a + (b - a) * t; }
     function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
-    function easeIn(t) { return t * t * t; }
     function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
     function hexToRgb(hex) {
@@ -770,19 +769,7 @@
         return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
     }
 
-    function getHandOrigin() {
-        const hand = document.getElementById('playerHand');
-        if (!hand) return { x: canvas.width * 0.5, y: canvas.height * 0.88 };
-        const r = hand.getBoundingClientRect();
-        return { x: r.left + r.width / 2, y: r.top + r.height * 0.3 };
-    }
-
     // ── Board state diff — auto-detect attacks ────────────────────────────────
-    function boardCellKey(cell) {
-        if (!cell) return null;
-        return `${cell.instanceId || cell.id || cell.name}:${cell.hp ?? 0}`;
-    }
-
     function normalizeElement(element) {
         const value = String(element || '').trim().toUpperCase();
         return value || null;

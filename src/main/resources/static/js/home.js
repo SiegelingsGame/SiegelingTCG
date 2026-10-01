@@ -2939,13 +2939,6 @@
         return `${Math.floor(months / 12)}y ago`;
     }
 
-    function homeCountTile(icon, label, value, hint, iconIsMarkup = false) {
-        return `<article class="command-count-card">
-            <span class="count-icon">${iconIsMarkup ? icon : escapeHtml(icon)}</span>
-            <div><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong><em>${escapeHtml(hint)}</em></div>
-        </article>`;
-    }
-
     function homeHeroStatChip(iconSrc, label, value, hint) {
         return `<article class="command-hero-stat">
             <span class="command-hero-stat-icon"><img src="${escapeAttr(iconSrc)}" alt="" aria-hidden="true"></span>
@@ -4821,47 +4814,6 @@
         </div>`;
     }
 
-    function renderBuilderMobilePreviewPanel(card) {
-        if (!card) {
-            return '<div class="unlock-card builder-empty">Tap a binder card to inspect it and add copies to your deck.</div>';
-        }
-        const abilities = card.abilities || (card.ability ? [card.ability] : []);
-        const flavorText = creatureDescriptionFor(card);
-        const inDeck = state.builderCounts[card.id] || 0;
-        const maxCopies = builderCardLimit(card.id);
-        const canAdd = maxCopies > 0 && inDeck < maxCopies && builderTotal() < 30;
-        const addLabel = builderAddLabel(card.id);
-        const cost = cardEnergyCost(card);
-        const costElement = card.costElement || card.trapBucketElement || card.element || 'NEUTRAL';
-        return `<div class="deck-builder-preview-card deck-builder-preview-card-compact" style="--el:${elementColor(card.element)}">
-            <div class="deck-builder-compact-head">
-                <div class="builder-card-mark">${renderBuilderRowThumb(card)}</div>
-                <div>
-                    <strong>${escapeHtml(card.name)}</strong>
-                    <span>${escapeHtml(format(card.type))} / ${escapeHtml(format(card.element))} / ${escapeHtml(format(card.rarity))}</span>
-                </div>
-            </div>
-            <div class="detail-cost-block">
-                <span class="detail-cost-label">Energy cost</span>
-                ${renderBinderCardEnergyCost(cost, costElement)}
-            </div>
-            ${flavorText ? `<p class="deck-builder-preview-flavor">${escapeHtml(flavorText)}</p>` : ''}
-            <div class="detail-grid">
-                ${card.type === 'SIEGLING' ? `<div><span>Health</span><strong>${card.health ?? '-'}</strong></div>
-                <div><span>Speed</span><strong>${card.speed ?? '-'}</strong></div>
-                <div><span>Evolution</span><strong>${escapeHtml(card.evolvesFromName || card.evolvesFromId || 'Base')}</strong></div>` : ''}
-                ${card.type !== 'SIEGLING' ? `<div><span>Cost</span><strong>${card.costAmount ?? 0} ${format(card.costElement || card.element)}</strong></div>` : ''}
-            </div>
-            ${renderBuilderMoves(card)}
-            ${abilities.length ? `<div class="deck-builder-preview-abilities detail-abilities">${abilities.slice(0, 2).map(a => `<div class="detail-ability-row"><strong>${escapeHtml(a.name || 'Ability')}</strong><p>${escapeHtml(a.description || '')}</p></div>`).join('')}</div>` : ''}
-            <div class="builder-stepper deck-builder-preview-actions">
-                <button class="ghost-btn" type="button" data-remove-card="${escapeAttr(card.id)}"${inDeck <= 0 ? ' disabled' : ''}>-</button>
-                <strong>${inDeck} / ${maxCopies}</strong>
-                <button class="primary-btn" type="button" data-add-builder-card="${escapeAttr(card.id)}"${canAdd ? '' : ' disabled'}>${addLabel}</button>
-            </div>
-        </div>`;
-    }
-
     function renderBuilderRowThumb(card) {
         return (window.SieglingsCardBinderVisual?.renderCardRowThumb)
             ? window.SieglingsCardBinderVisual.renderCardRowThumb(card)
@@ -6202,17 +6154,6 @@
         </select></label>`;
     }
 
-    function legacyFavoriteSieglingSelect(selectedId) {
-        const cards = ownedFavoriteCards();
-        const current = selectedId || '';
-        if (!cards.length) {
-            return '<label><span>Favorite Siegeling</span><select class="search-input" disabled><option>Own a Siegeling first</option></select></label>';
-        }
-        return `<label><span>Favorite Siegeling</span><select class="search-input" data-profile-field="favoriteSieglingId">
-            ${cards.map(card => `<option value="${escapeAttr(card.id)}"${card.id === current ? ' selected' : ''}>${escapeHtml(card.name)} · ${format(card.rarity)}</option>`).join('')}
-        </select></label>`;
-    }
-
     // Profile favorite-card selector includes owned Siegelings, SiegeKnights,
     // and holographic variants available to the player.
     function favoriteSieglingSelect(selectedId, prefs = {}) {
@@ -6252,25 +6193,6 @@
     function starterElementFromPackId(packId) {
         const match = String(packId || '').trim().match(/^pack_([a-z0-9_]+)/i);
         return match ? match[1].split('_')[0] : '';
-    }
-
-    function starterFavoriteSiegling(element) {
-        const normalized = normalizeProfileElement(element);
-        const ownedCards = state.progression?.ownedCards || {};
-        const catalog = state.options?.cardCatalog || [];
-        const ownedMatch = catalog.find(card => card.type === 'SIEGLING'
-            && normalizeProfileElement(card.element) === normalized
-            && Number(ownedCards[card.id] || 0) > 0);
-        if (ownedMatch?.name) return ownedMatch.name;
-        const catalogMatch = catalog.find(card => card.type === 'SIEGLING'
-            && normalizeProfileElement(card.element) === normalized);
-        if (catalogMatch?.name) return catalogMatch.name;
-        return {
-            Fire: 'Sundile',
-            Earth: 'Applehead',
-            Wind: 'Cacty',
-            Ice: 'Pylme'
-        }[normalized] || `${normalized} Siegeling`;
     }
 
     function starterCardBackName(element) {
@@ -8124,31 +8046,6 @@
         </section>`;
     }
 
-    function buildPackTrainerBanner(trainer) {
-        if (!trainer) return '';
-        const name = escapeHtml(trainer.name || 'SiegeKnight');
-        const level = Math.max(1, Number(trainer.level) || 1);
-        let tag;
-        let detail;
-        if (trainer.newlyOwned) {
-            tag = 'New SiegeKnight!';
-            detail = `${name} joins your roster.`;
-        } else if (trainer.leveledUp) {
-            tag = `Combined to Lv ${level}!`;
-            detail = `${name} grows stronger (+${Math.max(0, level - 1)} to ability effects).`;
-        } else {
-            const remaining = Math.max(0, (Number(trainer.pointsForNext) || 0) - (Number(trainer.points) || 0));
-            tag = 'SiegeKnight Combine Point';
-            detail = level >= 5
-                ? `${name} is already at max level.`
-                : `${name} gains a combine point${remaining ? ` (${remaining} more to Lv ${level + 1}).` : '.'}`;
-        }
-        return `<div class="pack-trainer-banner">
-            <span class="pack-trainer-tag">${escapeHtml(tag)}</span>
-            <span class="pack-trainer-detail">${escapeHtml(detail)}</span>
-        </div>`;
-    }
-
     function patchPackOpening({ result, latest, cards, reveal }) {
         const opening = result.querySelector('.pack-opening');
         if (!opening) return;
@@ -8232,14 +8129,6 @@
             state.packReveal.dissolvedRemnants = new Set();
         }
         return state.packReveal;
-    }
-
-    function particleThemeForElement(element) {
-        const normalized = String(element || 'FIRE').toUpperCase();
-        if (normalized === 'EARTH') return 'earth';
-        if (normalized === 'ICE' || normalized === 'WATER') return 'ice';
-        if (normalized === 'WIND') return 'wind';
-        return 'fire';
     }
 
     function enrichPackCard(card, index) {
@@ -9770,10 +9659,6 @@
             .replace(/\s{2,}/g, ' ')
             .trim();
     }
-    function renderBinderCardDescription(card) {
-        const description = creatureDescriptionFor(card);
-        return `<div class="binder-card-description" title="${escapeAttr(description)}">${escapeHtml(description)}</div>`;
-    }
     function elementFilterValues() {
         const values = new Set(['ALL', ...(state.options?.liveElements || []), 'NEUTRAL']);
         (state.options?.cardCatalog || []).forEach(card => {
@@ -9835,15 +9720,6 @@
             .split('_')
             .map(part => part.charAt(0))
             .join('');
-    }
-    function renderActiveNotchBadges(notches = []) {
-        const active = activeNotches(notches);
-        if (!active.length) return '<div class="binder-active-notches empty">No active notches</div>';
-        return `<div class="binder-active-notches">${active.map(notch => {
-            const direction = String(notch.direction || '').toUpperCase();
-            const label = `${format(direction)} ${format(notch.element)}`;
-            return `<span class="notch-medallion" style="${notchIconStyle(notch.element)}" title="${escapeAttr(label)}" aria-label="${escapeAttr(label)}"></span>`;
-        }).join('')}</div>`;
     }
     function renderActiveNotchChips(notches = []) {
         const active = activeNotches(notches);
@@ -9955,9 +9831,6 @@
         }
     }
 
-    function routeFromPath(path) {
-        return parseHubRoute(path).route;
-    }
     function elementColor(element) { return ELEMENT_COLORS[element] || '#f05b2f'; }
     function rarityColor(rarity) { return RARITY_COLORS[rarity] || RARITY_COLORS.COMMON; }
     function normalizeCardArtKey(value) {
@@ -11229,10 +11102,6 @@
         state.battleHistoryOpen = false;
         renderBattleHistoryModalHost(null);
         bindPublicProfilePage(view);
-    }
-
-    function openPlayerProfile(userId) {
-        navigateToPlayerProfile(userId);
     }
 
     async function addFriendByEmail(email, messageElementId = 'viewProfileFriendMsg') {

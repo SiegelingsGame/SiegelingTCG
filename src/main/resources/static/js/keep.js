@@ -3053,20 +3053,6 @@
         }).join('')}`;
     }
 
-    function residentsMarkupLegacy() {
-        const residents = state.snapshot.residents || [];
-        if (!residents.length) return '<div class="empty-state">Owned Siegeling cards will introduce their evolution family to the sanctuary. Choose a starter pack to meet your first residents.</div>';
-        const current = state.snapshot.station?.residentId || '';
-        return `<p class="panel-intro">Invitations never lock a card. Affinity reflects what a resident enjoys doing—not its rarity or power.</p>${residents.map((resident) => {
-            const invited = current === resident.id;
-            return `<section class="resident-card ${invited ? 'is-invited' : ''}">
-                <span class="resident-avatar" style="--resident-color:${escapeAttr(elementColors[resident.element] || elementColors.NEUTRAL)}">${residentAvatarContent(resident)}</span>
-                <span class="resident-copy"><h3>${escapeHtml(resident.name)}</h3><small>${escapeHtml(resident.element)} · ${escapeHtml(resident.affinityLabel || '')}</small></span>
-                <button class="panel-button ${invited ? 'secondary' : ''}" type="button" data-invite-resident="${escapeAttr(resident.id)}">${invited ? 'Rest' : 'Invite'}</button>
-            </section>`;
-        }).join('')}`;
-    }
-
     function projectsMarkup() {
         const constructions = activeConstructionList();
         const slots = Math.max(1, number(state.snapshot.constructionSlots) || 1);
@@ -3141,20 +3127,6 @@
                 </button>
             </div>` : ''}
         </div>`;
-    }
-
-    function projectsMarkupLegacy() {
-        const construction = state.snapshot.activeConstruction;
-        if (construction) {
-            return `<section class="project-card"><span class="eyebrow">In progress</span><h3>${escapeHtml(projectName(construction.id))}</h3><p>The site changes through foundations, scaffolding, and completion. No progress is lost while you are away.</p><div class="meter"><i data-live-construction-meter style="width:${constructionPercent()}%"></i></div><div class="cost-row"><span data-live-construction-time>${escapeHtml(formatDuration(constructionRemaining()))}</span><strong>Workers active</strong></div></section>`;
-        }
-        const options = state.snapshot.buildOptions || [];
-        if (!options.length) return '<div class="empty-state">The first restoration chain is complete. Future milestones will open the Warehouse, gardens, walls, and elemental workshops.</div>';
-        return options.map((option) => `<section class="project-card">
-            <span class="eyebrow">Visible restoration</span><h3>${escapeHtml(option.name)}</h3><p>${escapeHtml(option.description || '')}</p>
-            <div class="cost-row"><span>${escapeHtml(formatDuration(option.durationSeconds))}</span><strong>▰ ${number(option.timberCost)} timber</strong></div>
-            <div class="button-row"><button class="panel-button" type="button" data-start-build="${escapeAttr(option.id)}" ${option.canStart ? '' : 'disabled'}>${option.canStart ? 'Begin project' : `Need ${number(option.timberCost)} timber`}</button></div>
-        </section>`).join('');
     }
 
     function chronicleMarkup() {
@@ -3305,14 +3277,6 @@
                 addNotice(item.title, 'Lore discovered', item.id);
             }
         }
-    }
-
-    function showNextDiscovery() {
-        renderNoticeCenter();
-    }
-
-    function dismissDiscovery() {
-        document.getElementById('discoveryToast')?.classList.add('hidden');
     }
 
     function openLatestDiscovery() {

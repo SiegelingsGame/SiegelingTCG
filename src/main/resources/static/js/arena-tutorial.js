@@ -249,11 +249,6 @@
     return total;
   }
 
-  /** Energy actually banked in the elemental pools — what a SAME-ELEMENT link
-   *  pays. A combo goes to comboPoints instead, so the two are distinguishable
-   *  and each lesson can wait for the thing it is actually teaching. */
-  function elementalEnergy() { return playerEnergyTotal(); }
-
   /** A hand card that actually asks for energy, or null. The tutorial's starter
    *  Sieglings are all free (cost 0) — it is the EVOLUTIONS that carry a cost
    *  (Raydile and Dracoil are FIRE 2), so the lesson has to read the hand
@@ -413,30 +408,6 @@
     try { data = b && b.setupActions ? b.setupActions() : null; } catch (e) { data = null; }
     if (!data || !Number.isFinite(Number(data.remaining))) return 1;
     return Math.max(0, Number(data.remaining));
-  }
-
-  /** Any Siegeling on either board wearing a status/affliction whose kind
-   *  matches. The advanced lessons wait on the EFFECT appearing, not on a
-   *  particular card being played, so any route to it counts. */
-  function anyStatus(re) {
-    var g = gs();
-    if (!g) return false;
-    var found = false;
-    [g.playerBoard, g.enemyBoard].forEach(function (board) {
-      (board || []).forEach(function (row) {
-        (row || []).forEach(function (c) {
-          if (!c || found) return;
-          (c.statuses || []).concat(c.afflictions || []).forEach(function (st) {
-            if (found || !st) return;
-            var kind = String(st.kind || st.type || st).toUpperCase();
-            if (re.test(kind)) found = true;
-          });
-          if (!found && re.test('SHIELD') && Number(c.shield) > 0) found = true;
-          if (!found && re.test('DAMAGE_BOOST') && Number(c.damageBoost) > 0) found = true;
-        });
-      });
-    });
-    return found;
   }
 
   // Scope every action-bar tip to the visible layout, never a hidden duplicate.
@@ -658,12 +629,6 @@
     try { return !!(b && b.battleRowPicked && b.battleRowPicked()); } catch (e) { return false; }
   }
 
-  /** The confirm button's own label, so the coach quotes what the player sees. */
-  function rowConfirmText() {
-    var b = bridge();
-    try { return String((b && b.battleRowConfirmText && b.battleRowConfirmText()) || ''); } catch (e) { return ''; }
-  }
-
   /** Both layouts render the confirm pair; the overlay copy is the one on
    *  screen on a phone, the panel copy on desktop. */
   var ROW_CONFIRM_BTNS = '.battle-row-confirm-btn';
@@ -797,25 +762,6 @@
     if (seen.ended) return true;
     if (!seen.sawBattle2) return false;
     return phase() !== 'BATTLE' || turn() >= 3;
-  }
-
-  /** A single-target move already seen, to contrast against — Sundile's Strike
-   *  in the pinned deck, but read from the board so the copy cannot go stale. */
-  function singleTargetExample() {
-    var g = gs();
-    var board = (g && g.playerBoard) || [];
-    var found = null;
-    board.forEach(function (row) {
-      (row || []).forEach(function (cell) {
-        if (found || !cell) return;
-        abilitiesOf(cell).forEach(function (a) {
-          if (found) return;
-          var t = String((a && a.targetType) || '').trim().toUpperCase();
-          if (t === 'SINGLE_ENEMY') found = { card: cell, ability: a };
-        });
-      });
-    });
-    return found;
   }
 
   /** The linking cell when there is one, else whatever legal cells are lit. */
@@ -2162,37 +2108,12 @@
     ];
   }
 
-  /** The name of a card of `type` that is ACTUALLY in hand, or null.
-   *  Every "cast X" line goes through this. The advanced tips used to name
-   *  Cinder Volley, Root Guard and Root Bind outright and the hand held none of
-   *  them, which is the same lie the mulligan told about Pylook: the deck can
-   *  be reshuffled or retuned, and a tutorial that names a card you cannot see
-   *  reads as broken. `match` narrows it further when a step wants a specific
-   *  kind of card (a shield, a boost). */
-  function handCardName(type, match) {
-    var cards = hand().filter(function (c) {
-      if (!c || c.type !== type) return false;
-      if (!match) return true;
-      var text = ((c.name || '') + ' ' + (c.description || '') + ' ' +
-        ((c.ability && c.ability.description) || '')).toLowerCase();
-      return match.test(text);
-    });
-    return (cards[0] && cards[0].name) || null;
-  }
-
   /** The player's SiegeKnight, by name, read from the match. The tips said
    *  "Squire Bob" outright — true for today's pinned tutorial loadout and a lie
    *  the moment it is retuned, which is the same trap the card names fell into. */
   function knightName() {
     var g = gs();
     return (g && g.player && g.player.trainer && g.player.trainer.name) || '';
-  }
-
-  /** "Cast <b>Name</b>" when we can see it, an honest generic line when we
-   *  cannot — never a card the player does not hold. */
-  function castLine(type, match, generic) {
-    var n = handCardName(type, match);
-    return n ? 'Cast <b>' + esc(n) + '</b>' : generic;
   }
 
   function buildAdvancedSteps() {

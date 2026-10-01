@@ -181,7 +181,7 @@
         root.innerHTML = '' +
             '<div class="ig-card" role="dialog" aria-modal="true" aria-labelledby="igTitle">' +
             '<div class="ig-head">' +
-            '<img class="ig-icon" src="/img/siegelings-icon.png" alt="" aria-hidden="true">' +
+            '<img class="ig-icon" src="/img/siegelings-icon-256.webp" alt="" aria-hidden="true">' +
             '<div><div class="ig-kicker">Install</div>' +
             '<h2 class="ig-title" id="igTitle">Siegelings TCG is best experienced as a web app</h2></div>' +
             '<button class="ig-close" type="button" data-ig-dismiss aria-label="Close">&times;</button>' +

@@ -34,18 +34,23 @@
     // card-binder-visual.js). The legendary art is the heaviest thing here —
     // ~2.5 MB as PNG against ~0.5 MB as WebP — so prefer the twin and revert to
     // the original on any load error.
-    let __landingWebp = null;
-    function landingWebpSupported() {
-        if (__landingWebp !== null) {
-            return __landingWebp;
-        }
+    // What matters is whether WebP *decodes*. The old probe asked a canvas to
+    // *encode* WebP, which Safari never supports (it decodes WebP since iOS 14),
+    // so every iPhone fell back to the multi-MB PNGs. Start from "supported" (the
+    // stylesheets already use .webp unconditionally) and let a real decode probe
+    // turn it off on a browser that cannot.
+    let __landingWebp = true;
+    (function probeWebpDecode() {
         try {
-            const c = document.createElement('canvas');
-            __landingWebp = !!(c.getContext && c.getContext('2d'))
-                && c.toDataURL('image/webp').indexOf('data:image/webp') === 0;
+            const img = new Image();
+            img.onload = () => { if (!img.width) __landingWebp = false; };
+            img.onerror = () => { __landingWebp = false; };
+            img.src = 'data:image/webp;base64,UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA';
         } catch (e) {
-            __landingWebp = false;
+            // No Image constructor (non-browser test harness): keep the default.
         }
+    })();
+    function landingWebpSupported() {
         return __landingWebp;
     }
     function landingImgAttrs(url) {
@@ -389,7 +394,7 @@
 
     function notchStyle(element) {
         const key = String(element || 'NEUTRAL').toUpperCase();
-        return `--notch:${ELEMENT_HEX[key] || ELEMENT_HEX.NEUTRAL};--notch-icon:url('/img/notches/notch-${key.toLowerCase()}.png?v=2');`;
+        return `--notch:${ELEMENT_HEX[key] || ELEMENT_HEX.NEUTRAL};--notch-icon:url('/img/notches/notch-${key.toLowerCase()}.webp?v=2');`;
     }
 
     // card-binder-visual.js buildArtTransformStyle: the dashboard's art crop.
@@ -841,14 +846,38 @@
                   <button class="element-tile" type="button" data-element="${escapeAttr(entry.key)}"
                           aria-label="${escapeAttr(entry.label)}: ${escapeAttr(entry.blurb)}"
                           style="--tile-color: var(--element-${key}, var(--element-neutral, #9fb3d9))">
-                    <span class="element-tile-art" aria-hidden="true" style="background-image:url('/img/lands/${entry.land}.webp')"></span>
+                    <span class="element-tile-art" aria-hidden="true" data-tile-art="/img/lands/thumbs/${entry.land}.webp"></span>
                     <span class="element-tile-sigil" aria-hidden="true">${getElementSvg(entry.key)}</span>
                     <span class="element-tile-name">${escapeHtml(entry.label)}</span>
                     <span class="element-tile-blurb">${escapeHtml(entry.blurb)}</span>
                   </button>
                 </li>`;
         }).join('');
+        lazyTileArt(rail);
         bindElementOverlay(rail);
+    }
+
+    // The rail sits well below the fold. Twelve full-size lands (1024x1536,
+    // ~2.4 MB) used to download with the page; tiles now take a 640px cut, and
+    // only once they come near the viewport.
+    function lazyTileArt(rail) {
+        const tiles = Array.from(rail.querySelectorAll('[data-tile-art]'));
+        const paint = (tile) => {
+            tile.style.backgroundImage = `url('${tile.getAttribute('data-tile-art')}')`;
+            tile.removeAttribute('data-tile-art');
+        };
+        if (!('IntersectionObserver' in window)) {
+            tiles.forEach(paint);
+            return;
+        }
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                if (!entry.isIntersecting) return;
+                observer.unobserve(entry.target);
+                paint(entry.target);
+            });
+        }, { rootMargin: '400px 0px' });
+        tiles.forEach((tile) => observer.observe(tile));
     }
 
     // ── Element overlay ───────────────────────────────────────────────────
@@ -857,7 +886,7 @@
     // the landing page teaches the symbol a player will actually look for on a
     // card perimeter rather than a second, invented icon.
     function notchTokenUrl(element) {
-        return `/img/notches/notch-${String(element || 'neutral').toLowerCase()}.png?v=2`;
+        return `/img/notches/notch-${String(element || 'neutral').toLowerCase()}.webp?v=2`;
     }
 
     // One Siegeling per element, chosen once and kept, so reopening a tile shows

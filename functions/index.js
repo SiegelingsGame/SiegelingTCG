@@ -5,6 +5,7 @@ const admin = require('firebase-admin');
 const { FieldValue, getFirestore } = require('firebase-admin/firestore');
 const bcrypt = require('bcryptjs');
 const express = require('express');
+const compression = require('compression');
 const Busboy = require('busboy');
 const { onRequest } = require('firebase-functions/v2/https');
 const { buildMetadata } = require('./editorMetadata');
@@ -39,6 +40,10 @@ const ELEMENTS = new Set(EDITOR_METADATA.elements);
 const RARITIES = new Set(EDITOR_METADATA.rarities);
 const ROWS = new Set(EDITOR_METADATA.rows);
 
+// Hosting relays function responses as-is: the editor catalog GET is ~200 KB
+// of JSON that compresses ~85%. The default filter leaves art-mirror images
+// alone because image types are not compressible.
+app.use(compression());
 app.use(express.json({ limit: '4mb' }));
 
 const DOCS = {

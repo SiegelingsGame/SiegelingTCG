@@ -1,9 +1,9 @@
 /**
- * Sieglings TCG — Audio module (Howler.js)
+ * Sieglings TCG — Audio module
  *
- * Synthesises short game sounds procedurally using the Web Audio API via
- * Howler sprites so we ship zero audio files. Each sound is a tiny inline
- * data URI generated once on first use.
+ * Synthesises short game sounds procedurally with the Web Audio API so we ship
+ * zero audio files. Each sound is a tiny inline data URI generated once on
+ * first use.
  *
  * Call window.SieglingsSounds.play('<name>') from anywhere in game.js.
  * Respects a mute toggle stored in localStorage.

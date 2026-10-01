@@ -59,7 +59,7 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addViewControllers(ViewControllerRegistry registry) {
         registry.addRedirectViewController("/", "/landing");
-        registry.addViewController("/landing").setViewName("forward:/landing.html");
+        registry.addViewController("/landing").setViewName("forward:/index.html");
 
         // ---- The art-first hub owns the primary routes. It reads the path to
         // pick its screen, so one page answers all of them.
